@@ -91,8 +91,11 @@ console.log('C) CAPTION — measurement-timing hardening (the "won\'t expand" bu
 console.log('============================================================');
 ok(/new ResizeObserver\(/.test(INDEX),
    'a ResizeObserver re-measures captions on reveal / resize / rotate');
-ok(/if \(ta\._capLastW === w\) continue;/.test(INDEX),
-   'the observer re-measures on WIDTH change only — height writes can\'t loop it');
+ok(/if \(!phone && ta\._capLastW === w\) continue;/.test(INDEX)
+   && /if \(ta\._capContentW === contentWidth\) continue;/.test(INDEX)
+   && /ta\._capContentW = contentWidth;/.test(INDEX)
+   && /ta\._capLastW = w;/.test(INDEX),
+   'desktop/client widths and phone content-box widths both stop height-only observer loops');
 ok(/document\.fonts\.ready/.test(INDEX),
    'a one-shot document.fonts.ready pass re-measures after the webfont swaps');
 ok(/_calCapHookFonts\(\);/.test(INDEX) && /ro\.observe\(t\)/.test(INDEX),

@@ -740,7 +740,7 @@ async function main(){
     const h=await open({...s.open,chartSource:s.name.startsWith('analytics-detail')?chartSource:null,width,height:heightFor(width,arg('height')),theme,dsf:1});
     try { await h.page.waitForTimeout(s.settle||3000);
       await h.page.evaluate(names=>{WL_CLIENT_NAMES.splice(0,WL_CLIENT_NAMES.length,...names);WL_CLIENT_CANONICAL.clear();names.forEach(n=>WL_CLIENT_CANONICAL.set(wlNormalizeClient(n),n));if(typeof wlState!=='undefined')wlState.clientOptions=names.slice();},require('./finch-phone/fixtures').CLIENTS);
-      if(s.name==='analytics-detail') { await h.page.locator(before?'.overview-table a.client-name-link':'.card-client-link',{hasText:'Client A'}).first().click();await h.page.waitForTimeout(2200); }
+      if(s.name==='analytics-detail') { await h.page.locator('.overview-table a.client-name-link,.card-client-link').filter({hasText:'Client A',visible:true}).first().click();await h.page.waitForTimeout(2200); }
       else if(s.steps) await s.steps(h.page);
       if((s.name==='menu-client'||s.name.endsWith('client-picker'))&&shots) {await settle(h.page);await capture(h.page,s.name,width,theme);}
       await verify(h.page,s.name,width,theme);

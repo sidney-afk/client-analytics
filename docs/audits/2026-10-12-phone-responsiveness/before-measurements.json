@@ -1,0 +1,2098 @@
+{
+  "profile": {
+    "downloadBytesPerSecond": 200000,
+    "uploadBytesPerSecond": 93750,
+    "rttMs": 150,
+    "cpuSlowdown": 4,
+    "backend": "fictional replies with 150ms RTT; CDP throttles gzip-compressed loopback assets",
+    "cache": "disabled"
+  },
+  "baseline": true,
+  "rows": [
+    {
+      "screen": "Calendar",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 5508,
+      "tapMs": 206,
+      "regularAction": {
+        "action": "Expand caption in a 20-card list",
+        "ms": 206
+      },
+      "cls": 0.14057850976692646,
+      "longTasks": 5
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Calendar",
+      "label": "Calendar-light-390",
+      "passed": false,
+      "bars": [
+        {
+          "radius": "14px",
+          "border": "0px",
+          "gap": "2px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Calendar",
+      "label": "Calendar-light-390",
+      "passed": false
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Calendar",
+      "label": "Calendar-light-390",
+      "passed": false
+    },
+    {
+      "rule": "manual refresh retains cards and draft",
+      "screen": "Calendar",
+      "label": "Calendar-light-390",
+      "passed": false
+    },
+    {
+      "rule": "field layout avoids whole card scans",
+      "screen": "Calendar",
+      "label": "Calendar-light-390",
+      "passed": false,
+      "scans": 5
+    },
+    {
+      "rule": "caption disclosure updates locally",
+      "label": "Show less",
+      "passed": false,
+      "scans": 3,
+      "expanded": "true"
+    },
+    {
+      "screen": "Calendar",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 5651,
+      "tapMs": 411,
+      "regularAction": {
+        "action": "Expand caption in a 20-card list",
+        "ms": 411
+      },
+      "cls": 0.14057850976692646,
+      "longTasks": 9
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Calendar",
+      "label": "Calendar-dark-390",
+      "passed": false,
+      "bars": [
+        {
+          "radius": "14px",
+          "border": "0px",
+          "gap": "2px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Calendar",
+      "label": "Calendar-dark-390",
+      "passed": false
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Calendar",
+      "label": "Calendar-dark-390",
+      "passed": false
+    },
+    {
+      "rule": "manual refresh retains cards and draft",
+      "screen": "Calendar",
+      "label": "Calendar-dark-390",
+      "passed": false
+    },
+    {
+      "rule": "field layout avoids whole card scans",
+      "screen": "Calendar",
+      "label": "Calendar-dark-390",
+      "passed": false,
+      "scans": 5
+    },
+    {
+      "rule": "caption disclosure updates locally",
+      "label": "Show less",
+      "passed": false,
+      "scans": 3,
+      "expanded": "true"
+    },
+    {
+      "screen": "Calendar",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 5542,
+      "tapMs": 195,
+      "regularAction": {
+        "action": "Expand caption in a 20-card list",
+        "ms": 195
+      },
+      "cls": 0.12736632479833382,
+      "longTasks": 6
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Calendar",
+      "label": "Calendar-light-430",
+      "passed": false,
+      "bars": [
+        {
+          "radius": "14px",
+          "border": "0px",
+          "gap": "2px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Calendar",
+      "label": "Calendar-light-430",
+      "passed": false
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Calendar",
+      "label": "Calendar-light-430",
+      "passed": false
+    },
+    {
+      "rule": "manual refresh retains cards and draft",
+      "screen": "Calendar",
+      "label": "Calendar-light-430",
+      "passed": false
+    },
+    {
+      "rule": "field layout avoids whole card scans",
+      "screen": "Calendar",
+      "label": "Calendar-light-430",
+      "passed": false,
+      "scans": 5
+    },
+    {
+      "rule": "caption disclosure updates locally",
+      "label": "Show less",
+      "passed": false,
+      "scans": 3,
+      "expanded": "true"
+    },
+    {
+      "screen": "Calendar",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 5643,
+      "tapMs": 405,
+      "regularAction": {
+        "action": "Expand caption in a 20-card list",
+        "ms": 405
+      },
+      "cls": 0.12736632479833382,
+      "longTasks": 10
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Calendar",
+      "label": "Calendar-dark-430",
+      "passed": false,
+      "bars": [
+        {
+          "radius": "14px",
+          "border": "0px",
+          "gap": "2px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Calendar",
+      "label": "Calendar-dark-430",
+      "passed": false
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Calendar",
+      "label": "Calendar-dark-430",
+      "passed": false
+    },
+    {
+      "rule": "manual refresh retains cards and draft",
+      "screen": "Calendar",
+      "label": "Calendar-dark-430",
+      "passed": false
+    },
+    {
+      "rule": "field layout avoids whole card scans",
+      "screen": "Calendar",
+      "label": "Calendar-dark-430",
+      "passed": false,
+      "scans": 5
+    },
+    {
+      "rule": "caption disclosure updates locally",
+      "label": "Show less",
+      "passed": false,
+      "scans": 3,
+      "expanded": "true"
+    },
+    {
+      "screen": "Samples",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 5083,
+      "tapMs": 51,
+      "regularAction": {
+        "action": "Open Set all",
+        "ms": 46
+      },
+      "cls": 0.13976007576948704,
+      "longTasks": 2
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Samples",
+      "label": "Samples-light-390",
+      "passed": false,
+      "bars": [
+        {
+          "radius": "14px",
+          "border": "0px",
+          "gap": "2px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Samples",
+      "label": "Samples-light-390",
+      "passed": false
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Samples",
+      "label": "Samples-light-390",
+      "passed": false
+    },
+    {
+      "rule": "manual refresh retains cards and draft",
+      "screen": "Samples",
+      "label": "Samples-light-390",
+      "passed": false
+    },
+    {
+      "rule": "field layout avoids whole card scans",
+      "screen": "Samples",
+      "label": "Samples-light-390",
+      "passed": false,
+      "scans": 5
+    },
+    {
+      "screen": "Samples",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 5177,
+      "tapMs": 71,
+      "regularAction": {
+        "action": "Open Set all",
+        "ms": 71
+      },
+      "cls": 0.13976007576948704,
+      "longTasks": 4
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Samples",
+      "label": "Samples-dark-390",
+      "passed": false,
+      "bars": [
+        {
+          "radius": "14px",
+          "border": "0px",
+          "gap": "2px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Samples",
+      "label": "Samples-dark-390",
+      "passed": false
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Samples",
+      "label": "Samples-dark-390",
+      "passed": false
+    },
+    {
+      "rule": "manual refresh retains cards and draft",
+      "screen": "Samples",
+      "label": "Samples-dark-390",
+      "passed": false
+    },
+    {
+      "rule": "field layout avoids whole card scans",
+      "screen": "Samples",
+      "label": "Samples-dark-390",
+      "passed": false,
+      "scans": 5
+    },
+    {
+      "screen": "Samples",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 5087,
+      "tapMs": 54,
+      "regularAction": {
+        "action": "Open Set all",
+        "ms": 48
+      },
+      "cls": 0.1148419183808275,
+      "longTasks": 3
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Samples",
+      "label": "Samples-light-430",
+      "passed": false,
+      "bars": [
+        {
+          "radius": "14px",
+          "border": "0px",
+          "gap": "2px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Samples",
+      "label": "Samples-light-430",
+      "passed": false
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Samples",
+      "label": "Samples-light-430",
+      "passed": false
+    },
+    {
+      "rule": "manual refresh retains cards and draft",
+      "screen": "Samples",
+      "label": "Samples-light-430",
+      "passed": false
+    },
+    {
+      "rule": "field layout avoids whole card scans",
+      "screen": "Samples",
+      "label": "Samples-light-430",
+      "passed": false,
+      "scans": 5
+    },
+    {
+      "screen": "Samples",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 5140,
+      "tapMs": 69,
+      "regularAction": {
+        "action": "Open Set all",
+        "ms": 69
+      },
+      "cls": 0.1148419183808275,
+      "longTasks": 3
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Samples",
+      "label": "Samples-dark-430",
+      "passed": false,
+      "bars": [
+        {
+          "radius": "14px",
+          "border": "0px",
+          "gap": "2px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Samples",
+      "label": "Samples-dark-430",
+      "passed": false
+    },
+    {
+      "rule": "status menu survives phone height resize",
+      "screen": "Samples",
+      "label": "Samples-dark-430",
+      "passed": false
+    },
+    {
+      "rule": "manual refresh retains cards and draft",
+      "screen": "Samples",
+      "label": "Samples-dark-430",
+      "passed": false
+    },
+    {
+      "rule": "field layout avoids whole card scans",
+      "screen": "Samples",
+      "label": "Samples-dark-430",
+      "passed": false,
+      "scans": 5
+    },
+    {
+      "screen": "Workload",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 7188,
+      "tapMs": 102,
+      "regularAction": null,
+      "cls": 0.11444045204251062,
+      "longTasks": 8
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Workload",
+      "label": "Workload-light-390",
+      "passed": false,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "1px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            }
+          ]
+        },
+        {
+          "radius": "15px",
+          "border": "1px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            }
+          ]
+        },
+        {
+          "radius": "15px",
+          "border": "1px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "overloaded editor count stays on one line",
+      "label": "Workload-light-390",
+      "passed": false,
+      "width": 44,
+      "height": 45,
+      "scrollWidth": 44,
+      "clientWidth": 44,
+      "text": "7/4 \u00b7 3 over",
+      "wrap": "normal"
+    },
+    {
+      "screen": "Workload",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 7260,
+      "tapMs": 195,
+      "regularAction": null,
+      "cls": 0.11444045204251062,
+      "longTasks": 14
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Workload",
+      "label": "Workload-dark-390",
+      "passed": false,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "1px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            }
+          ]
+        },
+        {
+          "radius": "15px",
+          "border": "1px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            }
+          ]
+        },
+        {
+          "radius": "15px",
+          "border": "1px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "overloaded editor count stays on one line",
+      "label": "Workload-dark-390",
+      "passed": false,
+      "width": 44,
+      "height": 45,
+      "scrollWidth": 44,
+      "clientWidth": 44,
+      "text": "7/4 \u00b7 3 over",
+      "wrap": "normal"
+    },
+    {
+      "screen": "Workload",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 7142,
+      "tapMs": 102,
+      "regularAction": null,
+      "cls": 0.13091726577871143,
+      "longTasks": 9
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Workload",
+      "label": "Workload-light-430",
+      "passed": false,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "1px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            }
+          ]
+        },
+        {
+          "radius": "15px",
+          "border": "1px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            }
+          ]
+        },
+        {
+          "radius": "15px",
+          "border": "1px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "overloaded editor count stays on one line",
+      "label": "Workload-light-430",
+      "passed": false,
+      "width": 44,
+      "height": 45,
+      "scrollWidth": 44,
+      "clientWidth": 44,
+      "text": "7/4 \u00b7 3 over",
+      "wrap": "normal"
+    },
+    {
+      "screen": "Workload",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 7229,
+      "tapMs": 174,
+      "regularAction": null,
+      "cls": 0.13091726577871143,
+      "longTasks": 14
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Workload",
+      "label": "Workload-dark-430",
+      "passed": false,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "1px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            }
+          ]
+        },
+        {
+          "radius": "15px",
+          "border": "1px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            }
+          ]
+        },
+        {
+          "radius": "15px",
+          "border": "1px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "14px",
+              "align": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "overloaded editor count stays on one line",
+      "label": "Workload-dark-430",
+      "passed": false,
+      "width": 44,
+      "height": 45,
+      "scrollWidth": 44,
+      "clientWidth": 44,
+      "text": "7/4 \u00b7 3 over",
+      "wrap": "normal"
+    },
+    {
+      "screen": "SyncLinear",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 6982,
+      "tapMs": 65,
+      "regularAction": {
+        "action": "Open native status",
+        "ms": 45
+      },
+      "cls": 0.0480817602227039,
+      "longTasks": 4
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "SyncLinear",
+      "label": "SyncLinear-light-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "SyncLinear",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 7005,
+      "tapMs": 101,
+      "regularAction": {
+        "action": "Open native status",
+        "ms": 78
+      },
+      "cls": 0.0480817602227039,
+      "longTasks": 9
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "SyncLinear",
+      "label": "SyncLinear-dark-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "SyncLinear",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 6959,
+      "tapMs": 60,
+      "regularAction": {
+        "action": "Open native status",
+        "ms": 46
+      },
+      "cls": 0.04410748366997555,
+      "longTasks": 5
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "SyncLinear",
+      "label": "SyncLinear-light-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "SyncLinear",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 7025,
+      "tapMs": 108,
+      "regularAction": {
+        "action": "Open native status",
+        "ms": 77
+      },
+      "cls": 0.04410748366997555,
+      "longTasks": 9
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "SyncLinear",
+      "label": "SyncLinear-dark-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Today",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 5081,
+      "tapMs": 48,
+      "regularAction": null,
+      "cls": 0.2597206313079395,
+      "longTasks": 4
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Today",
+      "label": "Today-light-390",
+      "passed": false,
+      "bars": [
+        {
+          "radius": "14px",
+          "border": "1px",
+          "gap": "2px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "10px",
+              "height": 44,
+              "font": "13px",
+              "align": "normal"
+            },
+            {
+              "radius": "10px",
+              "height": 44,
+              "font": "13px",
+              "align": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Today",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 5129,
+      "tapMs": 73,
+      "regularAction": null,
+      "cls": 0.2597206313079395,
+      "longTasks": 6
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Today",
+      "label": "Today-dark-390",
+      "passed": false,
+      "bars": [
+        {
+          "radius": "14px",
+          "border": "1px",
+          "gap": "2px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "10px",
+              "height": 44,
+              "font": "13px",
+              "align": "normal"
+            },
+            {
+              "radius": "10px",
+              "height": 44,
+              "font": "13px",
+              "align": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Today",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 5049,
+      "tapMs": 49,
+      "regularAction": null,
+      "cls": 0.2626909517370323,
+      "longTasks": 4
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Today",
+      "label": "Today-light-430",
+      "passed": false,
+      "bars": [
+        {
+          "radius": "14px",
+          "border": "1px",
+          "gap": "2px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "10px",
+              "height": 44,
+              "font": "13px",
+              "align": "normal"
+            },
+            {
+              "radius": "10px",
+              "height": 44,
+              "font": "13px",
+              "align": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Today",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 5153,
+      "tapMs": 73,
+      "regularAction": null,
+      "cls": 0.2626909517370323,
+      "longTasks": 7
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Today",
+      "label": "Today-dark-430",
+      "passed": false,
+      "bars": [
+        {
+          "radius": "14px",
+          "border": "1px",
+          "gap": "2px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "10px",
+              "height": 44,
+              "font": "13px",
+              "align": "normal"
+            },
+            {
+              "radius": "10px",
+              "height": 44,
+              "font": "13px",
+              "align": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Templates",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 5155,
+      "tapMs": 47,
+      "regularAction": null,
+      "cls": 0.023770883979268787,
+      "longTasks": 2
+    },
+    {
+      "screen": "Templates",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 5189,
+      "tapMs": 66,
+      "regularAction": null,
+      "cls": 0.023770883979268787,
+      "longTasks": 4
+    },
+    {
+      "screen": "Templates",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 5149,
+      "tapMs": 45,
+      "regularAction": null,
+      "cls": 0.01980596844536154,
+      "longTasks": 2
+    },
+    {
+      "screen": "Templates",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 5196,
+      "tapMs": 67,
+      "regularAction": null,
+      "cls": 0.01980596844536154,
+      "longTasks": 4
+    },
+    {
+      "screen": "Filming Plans",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 5330,
+      "tapMs": 49,
+      "regularAction": null,
+      "cls": 0.02149837529854825,
+      "longTasks": 2
+    },
+    {
+      "screen": "Filming Plans",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 5373,
+      "tapMs": 71,
+      "regularAction": null,
+      "cls": 0.02149837529854825,
+      "longTasks": 5
+    },
+    {
+      "screen": "Filming Plans",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 5345,
+      "tapMs": 47,
+      "regularAction": null,
+      "cls": 0.01792893395252882,
+      "longTasks": 2
+    },
+    {
+      "screen": "Filming Plans",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 5406,
+      "tapMs": 70,
+      "regularAction": null,
+      "cls": 0.01792893395252882,
+      "longTasks": 5
+    },
+    {
+      "screen": "Submit",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 4961,
+      "tapMs": 52,
+      "regularAction": null,
+      "cls": 0.053210390774967045,
+      "longTasks": 4
+    },
+    {
+      "screen": "Submit",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 5062,
+      "tapMs": 95,
+      "regularAction": null,
+      "cls": 0.053210390774967045,
+      "longTasks": 6
+    },
+    {
+      "screen": "Submit",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 5002,
+      "tapMs": 57,
+      "regularAction": null,
+      "cls": 0.049003358211672496,
+      "longTasks": 4
+    },
+    {
+      "screen": "Submit",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 5033,
+      "tapMs": 79,
+      "regularAction": null,
+      "cls": 0.049003358211672496,
+      "longTasks": 6
+    },
+    {
+      "screen": "Upload",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 6703,
+      "tapMs": 59,
+      "regularAction": null,
+      "cls": 0.009190963037322059,
+      "longTasks": 4
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Upload",
+      "label": "Upload-light-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Upload",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 6717,
+      "tapMs": 92,
+      "regularAction": null,
+      "cls": 0.009190963037322059,
+      "longTasks": 7
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Upload",
+      "label": "Upload-dark-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Upload",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 6710,
+      "tapMs": 59,
+      "regularAction": null,
+      "cls": 0.03582554466256602,
+      "longTasks": 4
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Upload",
+      "label": "Upload-light-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Upload",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 6718,
+      "tapMs": 97,
+      "regularAction": null,
+      "cls": 0.03582554466256602,
+      "longTasks": 5
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Upload",
+      "label": "Upload-dark-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Analytics",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 6729,
+      "tapMs": 64,
+      "regularAction": null,
+      "cls": 0.21094273692290993,
+      "longTasks": 5
+    },
+    {
+      "screen": "Analytics",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 6880,
+      "tapMs": 116,
+      "regularAction": null,
+      "cls": 0.2117204453969864,
+      "longTasks": 9
+    },
+    {
+      "screen": "Analytics",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 6707,
+      "tapMs": 65,
+      "regularAction": null,
+      "cls": 0.19326010361696894,
+      "longTasks": 5
+    },
+    {
+      "screen": "Analytics",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 6867,
+      "tapMs": 121,
+      "regularAction": null,
+      "cls": 0.19326010361696894,
+      "longTasks": 9
+    },
+    {
+      "rule": "legacy More has a labelled touch close",
+      "label": "Reviewer-light-390",
+      "passed": false
+    },
+    {
+      "rule": "legacy More enabled rows and labels are readable",
+      "label": "Reviewer-light-390",
+      "passed": false
+    },
+    {
+      "rule": "legacy More has a labelled touch close",
+      "label": "Reviewer-light-390",
+      "passed": false
+    },
+    {
+      "rule": "legacy More enabled rows and labels are readable",
+      "label": "Reviewer-light-390",
+      "passed": false
+    },
+    {
+      "screen": "Reviewer",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 5508,
+      "tapMs": 37,
+      "regularAction": null,
+      "cls": 0.1354696199258316,
+      "longTasks": 3
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Reviewer",
+      "label": "Reviewer-light-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "12px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "12px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "12px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "legacy More has a labelled touch close",
+      "label": "Reviewer-dark-390",
+      "passed": false
+    },
+    {
+      "rule": "legacy More enabled rows and labels are readable",
+      "label": "Reviewer-dark-390",
+      "passed": false
+    },
+    {
+      "rule": "legacy More has a labelled touch close",
+      "label": "Reviewer-dark-390",
+      "passed": false
+    },
+    {
+      "rule": "legacy More enabled rows and labels are readable",
+      "label": "Reviewer-dark-390",
+      "passed": false
+    },
+    {
+      "screen": "Reviewer",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 5570,
+      "tapMs": 49,
+      "regularAction": null,
+      "cls": 0.1354696199258316,
+      "longTasks": 3
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Reviewer",
+      "label": "Reviewer-dark-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "12px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "12px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "12px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "legacy More has a labelled touch close",
+      "label": "Reviewer-light-430",
+      "passed": false
+    },
+    {
+      "rule": "legacy More enabled rows and labels are readable",
+      "label": "Reviewer-light-430",
+      "passed": false
+    },
+    {
+      "rule": "legacy More has a labelled touch close",
+      "label": "Reviewer-light-430",
+      "passed": false
+    },
+    {
+      "rule": "legacy More enabled rows and labels are readable",
+      "label": "Reviewer-light-430",
+      "passed": false
+    },
+    {
+      "screen": "Reviewer",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 5482,
+      "tapMs": 35,
+      "regularAction": null,
+      "cls": 0.11133919587119237,
+      "longTasks": 3
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Reviewer",
+      "label": "Reviewer-light-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "12px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "12px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "12px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rule": "legacy More has a labelled touch close",
+      "label": "Reviewer-dark-430",
+      "passed": false
+    },
+    {
+      "rule": "legacy More enabled rows and labels are readable",
+      "label": "Reviewer-dark-430",
+      "passed": false
+    },
+    {
+      "rule": "legacy More has a labelled touch close",
+      "label": "Reviewer-dark-430",
+      "passed": false
+    },
+    {
+      "rule": "legacy More enabled rows and labels are readable",
+      "label": "Reviewer-dark-430",
+      "passed": false
+    },
+    {
+      "screen": "Reviewer",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 5580,
+      "tapMs": 51,
+      "regularAction": null,
+      "cls": 0.11133919587119237,
+      "longTasks": 3
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Reviewer",
+      "label": "Reviewer-dark-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "12px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "12px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "12px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Time Off",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 5326,
+      "tapMs": 70,
+      "regularAction": null,
+      "cls": 0.07286187042818744,
+      "longTasks": 6
+    },
+    {
+      "screen": "Time Off",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 5456,
+      "tapMs": 130,
+      "regularAction": null,
+      "cls": 0.07286187042818744,
+      "longTasks": 8
+    },
+    {
+      "screen": "Time Off",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 5354,
+      "tapMs": 73,
+      "regularAction": null,
+      "cls": 0.0599804363126369,
+      "longTasks": 6
+    },
+    {
+      "screen": "Time Off",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 5409,
+      "tapMs": 133,
+      "regularAction": null,
+      "cls": 0.0599804363126369,
+      "longTasks": 8
+    },
+    {
+      "screen": "Instagram Upload",
+      "width": 390,
+      "theme": "light",
+      "usefulMs": 6918,
+      "tapMs": 79,
+      "regularAction": null,
+      "cls": 0.009190963037322059,
+      "longTasks": 8
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Instagram Upload",
+      "label": "Instagram-Upload-light-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Instagram Upload",
+      "width": 390,
+      "theme": "dark",
+      "usefulMs": 6996,
+      "tapMs": 136,
+      "regularAction": null,
+      "cls": 0.009190963037322059,
+      "longTasks": 11
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Instagram Upload",
+      "label": "Instagram-Upload-dark-390",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Instagram Upload",
+      "width": 430,
+      "theme": "light",
+      "usefulMs": 6946,
+      "tapMs": 77,
+      "regularAction": null,
+      "cls": 0.03582554466256602,
+      "longTasks": 6
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Instagram Upload",
+      "label": "Instagram-Upload-light-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "screen": "Instagram Upload",
+      "width": 430,
+      "theme": "dark",
+      "usefulMs": 7120,
+      "tapMs": 173,
+      "regularAction": null,
+      "cls": 0.029085791181304877,
+      "longTasks": 12
+    },
+    {
+      "rule": "shared reviewer-style tab bars",
+      "screen": "Instagram Upload",
+      "label": "Instagram-Upload-dark-430",
+      "passed": true,
+      "bars": [
+        {
+          "radius": "15px",
+          "border": "0px",
+          "gap": "3px",
+          "padding": "4px",
+          "buttons": [
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            },
+            {
+              "radius": "11px",
+              "height": 44,
+              "font": "13px",
+              "align": "center"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "failures": []
+}

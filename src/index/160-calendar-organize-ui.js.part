@@ -947,7 +947,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     }
     function _calCloseTabSearch() {
         const panel = document.getElementById('calTabSearchPanel');
-        if (panel) panel.hidden = true;
+        if (panel && (!_calStaffPhoneActive() || !panel.hidden)) panel.hidden = true;
     }
     function _calWireOutsideTabSearchClose() {
         if (document._calOutsideWired) return;

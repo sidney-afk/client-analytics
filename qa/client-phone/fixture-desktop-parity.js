@@ -157,9 +157,12 @@ async function render(browser, origin, build, test) {
     fs.writeFileSync(path.join(out,'provenance.json'),JSON.stringify({sourceHash:digest(Buffer.concat(names.map(name=>fs.readFileSync(path.join(root,'src/index',name))))),generatedIndexHash:digest(fs.readFileSync(path.join(root,'index.html'))),cases:cases.map(c=>({name:c.name,theme:c.theme,warm:!!c.warm})),startedAt:new Date().toISOString()},null,2)+'\n');
   }
   try {for(const test of cases) {
-    const a=await render(browser,origin,'before',test),b=await render(browser,origin,'after',test);
     const label=test.name+'-'+test.theme+(test.warm?'-warm':'-cold');
-    const row={label,width:1440,height:900,pixels:a.png.equals(b.png),styles:a.styleHash===b.styleHash,beforeHash:digest(a.png),afterHash:digest(b.png)};
+    let a,b;
+    const row=await require('./exact-replay').exactReplay(async()=>{
+      a=await render(browser,origin,'before',test);b=await render(browser,origin,'after',test);
+      return {label,width:1440,height:900,pixels:a.png.equals(b.png),styles:a.styleHash===b.styleHash,beforeHash:digest(a.png),afterHash:digest(b.png)};
+    });
     rows.push(row);
     if (!row.styles) {
       console.log('DESKTOP_POINTER_DIAGNOSTIC '+JSON.stringify({before:a.pointerState,after:b.pointerState}));
@@ -169,7 +172,7 @@ async function render(browser, origin, build, test) {
     }
     if(out) {if(!row.styles)fs.writeFileSync(path.join(out,label+'-styles.json'),JSON.stringify({before:a.styles,after:b.styles},null,2));fs.writeFileSync(path.join(out,label+'-before.png'),a.png);fs.writeFileSync(path.join(out,label+'-after.png'),b.png);fs.writeFileSync(path.join(out,'parity.json'),JSON.stringify(rows,null,2)+'\n');}
     assert(row.pixels && row.styles,label+': desktop differs');
-    console.log('ok '+label+': desktop pixels and computed styles identical');
+    console.log('ok '+label+': desktop pixels and computed styles identical; attempts '+row.attempts);
   }} finally {await browser.close();server.close();}
   console.log('FIXTURE_DESKTOP_PARITY: '+rows.length+'/'+cases.length+' exact 1440 desktop pairs; native Today/Notes/Analytics/Workload/TikTok/Card detail fixtures; cold and phone-to-desktop; no live writes.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

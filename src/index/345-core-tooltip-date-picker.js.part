@@ -61,6 +61,11 @@ import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
 
         function isOptedOut(el) {
             if (!el || el.nodeType !== 1) return true;
+            // Ordinary hover tips are already hidden on staff phones. Do not
+            // build and position an invisible tip on a tap; explainable labels
+            // keep their required touch/keyboard help and desktop is unchanged.
+            if (document.documentElement.classList.contains('sv-staff-phone')
+                && isNoHoverDevice() && !el.hasAttribute('data-sv-explain')) return true;
             if (el.hasAttribute('data-no-tip')) return true;
             // .closest is the cheap way to check ancestors too. The wrap
             // around the Collab info icon (and any other custom tooltip

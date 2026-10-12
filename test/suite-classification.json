@@ -649,6 +649,7 @@
     "syncview-session.js",
     "system-map-sync.js",
     "templates-brain-page.js",
+    "templates-brief-copy.js",
     "templates-coverage.js",
     "templates-multilink.js",
     "templates-realtime-catchup.js",

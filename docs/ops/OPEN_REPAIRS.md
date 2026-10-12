@@ -32997,3 +32997,28 @@ workflow (`npm run test:unit`) runs it with `test/thumbnail-titles-source.js`.
 (https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml). No migration, no switch, no new secret.
 **Way back:** redeploy the previous commit of `thumbnail-titles`; or revert the pull request.
 
+
+## 412. Templates page: Audience section and a "Copy" button for the editor brief (session Quill, 2026-10-12)
+
+**Status: built, not live.** Merging changes the page only; the Audience section stays empty until the `brain` function is redeployed.
+
+**What changed.**
+1. `brain` Edge Function (`supabase/functions/brain/index.ts`, `parse.mjs`): a read now also fetches `clients/<folder>/audience.md`
+   and returns `audience`: the written sections only, each with heading, text, fact id, status, source and its "How sure we are" line
+   (lifted out of the text into `sure`). A client with no `audience.md` (404) loads as before with an empty list.
+2. Templates page client view (`src/index/060-templates-filming.js.part`, styles in `020-styles-surfaces.css.part`): an "Audience"
+   section after the brief, one card per section, each showing its "How sure we are" line, with "Where does this come from" (the
+   fact's sources) and "Send a change" (the same change box and brain write as every other fact, fact id included).
+3. A "Copy" button next to "Editor brief" copies the whole brief as plain text: every heading and bullet, then Audience with its
+   "How sure we are" lines. No fact ids, no `<!-- -->` comments, no HTML, no `**` markers, nothing cut. Shows "Copied"; when the
+   browser blocks the clipboard it says so in plain words.
+
+**Tests.** `test/brain-parse.js` (audience written, not written, missing file) and new `test/templates-brief-copy.js` (headings kept,
+ids and comments stripped, a 40-bullet brief copied whole), both under `unit` in `test/suite-classification.json`. Fictional data only.
+Note: `test/templates-brain-page.js` already fails on `origin/main` (it reads `index.html`, whose page code now lives in the `js/`
+bundles); not changed here.
+
+**Release.** Deploy the `brain` function from main with `deploy-single-function`
+(https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml). No migration, no switch, no new secret.
+Brain side: `POLICY/brain-keeper.md` still says "SyncView does not show it" about `audience.md`; that line is now out of date.
+**Way back:** redeploy the previous commit of `brain`; or revert the pull request.

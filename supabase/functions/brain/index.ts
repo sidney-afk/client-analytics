@@ -3,9 +3,9 @@
 // Reads one client's editor brief and facts from the private Synchro Brain repository for the
 // SyncView Templates page, and records a "Send a change" submission there.
 //
-// The public site never sees the brain token. Reads return only the four
-// client files (identity, voice, editing, relationship) of the one client
-// asked for, parsed into facts; nothing under inputs/, company/ or POLICY/ is
+// The public site never sees the brain token. Reads return only the
+// client files (identity, voice, editing, relationship, plus brief.md and
+// audience.md) of the one client asked for, parsed into facts; nothing under inputs/, company/ or POLICY/ is
 // ever read back. A change is written verbatim as a new file under
 // inputs/syncview-changes/ (brain rule 5); a brain-side workflow processes it
 // into facts. This function never edits a fact file.
@@ -30,7 +30,7 @@ import {
   browserWriteAuthResponse,
   normalizeBrowserWriteClient,
 } from "../_shared/browser-write-auth.ts";
-import { findClientFolder, parseBrainFacts, parseBrief } from "./parse.mjs";
+import { findClientFolder, parseAudience, parseBrainFacts, parseBrief } from "./parse.mjs";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -95,13 +95,16 @@ async function readClient(slug: string) {
     cache.set(slug, { at: Date.now(), body });
     return body;
   }
-  const [texts, briefText] = await Promise.all([
+  const [texts, briefText, audienceText] = await Promise.all([
     Promise.all(FILES.map((f) => readFile(folder, f))),
     readFile(folder, "brief"),
+    readFile(folder, "audience"),
   ]);
   const facts = FILES.flatMap((f, i) => texts[i] == null ? [] : parseBrainFacts(texts[i] as string, f));
   const brief = briefText == null ? [] : parseBrief(briefText);
-  const body = { ok: true, found: true, folder, facts, brief, read_at: new Date().toISOString() };
+  // A client with no audience.md (404) still loads; only written sections come back.
+  const audience = audienceText == null ? [] : parseAudience(audienceText);
+  const body = { ok: true, found: true, folder, facts, brief, audience, read_at: new Date().toISOString() };
   cache.set(slug, { at: Date.now(), body });
   return body;
 }

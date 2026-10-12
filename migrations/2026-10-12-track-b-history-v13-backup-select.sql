@@ -6,7 +6,8 @@
 -- that leaves such a table out, so every real backup since 2026-10-10 failed at
 -- its privilege preflight. history-v13 is history-v12 plus pto_member_events.
 --
--- NOT APPLIED. What this does, and ONLY this: GRANT SELECT on that table to the
+-- NOT APPLIED. What this does, and ONLY this: GRANT SELECT on that table, and on
+-- its own identity counter (the dump reads it), to the
 -- existing backup role. It revokes nothing, creates nothing, touches no other
 -- table and no other role. The role's BYPASSRLS is already how it reads past row
 -- level security; this file only checks it is still set, and refuses to run
@@ -22,6 +23,7 @@ do $grant$
 declare
   role_name constant text := 'REPLACE_WITH_BACKUP_ROLE';
   relation_name text;
+  sequence_name text;
 begin
   if role_name = 'REPLACE_WITH_BACKUP_ROLE' then
     raise exception 'Set role_name to the backup role first';
@@ -40,6 +42,13 @@ begin
       raise exception 'Backup role must not hold a write privilege';
     end if;
     execute format('grant select on table public.%I to %I', relation_name, role_name);
+    -- The dump also reads the table's identity counter, and a table grant does not
+    -- cover its sequence. SELECT on that one sequence only.
+    sequence_name := pg_get_serial_sequence('public.' || relation_name, 'id');
+    if sequence_name is null then
+      raise exception 'Expected identity sequence is missing';
+    end if;
+    execute format('grant select on sequence %s to %I', sequence_name, role_name);
   end loop;
 end $grant$;
 

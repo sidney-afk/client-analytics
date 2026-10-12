@@ -160,12 +160,12 @@ check('v13 grants artifact: exact56, SELECT-only backup, private trigger helper,
   assert.ok(grants.includes("'production_notification_reconciliations','pto_member_events'])"));
   assert.match(grants,/v13 PTO member setup audit schema is incomplete/);
 });
-check('v13 backup-role migration grants SELECT only on pto_member_events and names no role',()=>{
+check('v13 backup-role migration grants SELECT only on pto_member_events and its own counter, and names no role',()=>{
   const sql=fs.readFileSync(path.join(__dirname,'../migrations/2026-10-12-track-b-history-v13-backup-select.sql'),'utf8');
   const code=sql.replace(/--[^\n]*/g,'');
   assert.doesNotMatch(code.replace(/'[^']*'/g,"''"),/\b(revoke|insert|update|delete|truncate|create|alter|drop)\b/i);
-  assert.equal((code.match(/\bgrant\s/gi)||[]).length,1);assert.match(code,/format\('grant select on table public\.%I to %I'/);
-  assert.ok(code.includes("array['pto_member_events']"));assert.ok(code.includes("'REPLACE_WITH_BACKUP_ROLE'"));
+  assert.equal((code.match(/\bgrant\s/gi)||[]).length,2);assert.match(code,/format\('grant select on table public\.%I to %I'/);assert.match(code,/format\('grant select on sequence %s to %I'/);
+  assert.match(code,/pg_get_serial_sequence\('public\.' \|\| relation_name, 'id'\)/);assert.ok(code.includes("array['pto_member_events']"));assert.ok(code.includes("'REPLACE_WITH_BACKUP_ROLE'"));
   assert.match(code,/rolbypassrls/);
 });
 console.log(JSON.stringify({status:'PASS',passed:checks.length,checks,proof:'offline_only'}));

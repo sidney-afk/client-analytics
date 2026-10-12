@@ -32927,7 +32927,7 @@ a corpus that omits either end of a foreign key. Same situation OPEN_REPAIRS 387
 1. `history-v13` = `history-v12` plus `pto_member_events` (56 tables, identity id, child after parent), with
    the older-corpus refusal, rehearsal and large-dump scripts, both workflows' corpus choice, the runbook, the
    scratch grants script `scripts/track-b-history-v13-backup-prerequisites.sql` and the two Track-B tests.
-2. `migrations/2026-10-12-track-b-history-v13-backup-select.sql`: GRANT SELECT on that one table to the backup
+2. `migrations/2026-10-12-track-b-history-v13-backup-select.sql`: GRANT SELECT on that one table and its own identity counter to the backup
    role, role name left as a placeholder. Not applied.
 3. `test/track-b-corpus-migration-guard.js` (runs in the unit lane): fails when any migration creates a table
    with a foreign key to or from a table in the newest corpus and the table is not in it, naming the table

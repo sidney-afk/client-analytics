@@ -103,6 +103,7 @@
                     if (native.id === 'navKasper') {
                         // Keep any native notification badge alongside the role label.
                         for (const node of b.childNodes) if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) node.textContent = 'Reviewer';
+                        b.title = 'Reviewer'; b.setAttribute('aria-label', 'Reviewer');
                     }
                     if (native.disabled) b.setAttribute('aria-disabled', 'true');
                     if (native.classList.contains('active')) b.setAttribute('aria-current', 'page');

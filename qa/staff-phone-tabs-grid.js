@@ -13,6 +13,7 @@ const admin=['replies','filming','editors','sales-intake','hiring-process','onbo
 const rows=[],failures=[];
 const trigger='.pocket-staff-tabs-btn,#fphTabsBtn,[data-staff-menu=tabs],.pocket-admin-heading button[aria-haspopup=dialog]';
 async function main(){
+ if(out)fs.mkdirSync(out,{recursive:true});
  const server=await staff.serve(),browser=await chromium.launch({headless:true});
  try {for(const width of widths)for(const theme of ['light','dark']){
   staff.resetScenario();const context=await browser.newContext({viewport:{width,height:844},hasTouch:true,isMobile:true,colorScheme:theme});
@@ -48,7 +49,8 @@ async function main(){
      rows.push({route,width,theme,round,...state});
      await sheet.tap({position:{x:4,y:4}});assert(await sheet.isVisible(),route+' inside tap dismissed Tabs');
      if(out&&round===0){
-      await page.evaluate(()=>{const name=document.getElementById('navKasper')?.textContent.trim();if(!name)return;const walk=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);while(walk.nextNode()){const n=walk.currentNode;if(!n.parentElement.closest('script,style'))n.textContent=n.textContent.replaceAll(name,'Reviewer');}getSelection()?.removeAllRanges();});
+      await page.evaluate(()=>{const name=window.__staffPhoneReviewerName||(window.__staffPhoneReviewerName=document.getElementById('navKasper')?.textContent.trim());if(!name)return;const walk=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);while(walk.nextNode()){const n=walk.currentNode;if(!n.parentElement.closest('script,style')&&n.textContent.includes(name))n.textContent=n.textContent.replaceAll(name,'Reviewer');}getSelection()?.removeAllRanges();});
+      await page.waitForTimeout(100);
       fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,route.replace(':','-')+'-'+theme+'-'+width+'.png'),fullPage:false,animations:'disabled'});
      }
      const close=sheet.getByRole('button',{name:/^Close\b/}).first();await close.tap();await sheet.waitFor({state:'hidden'});

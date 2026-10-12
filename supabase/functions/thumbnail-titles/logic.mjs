@@ -700,7 +700,8 @@ export function borrowedPlanName(createdAt, via) {
 
 // Earlier posts of the same client that already have a caption, newest first, within the window.
 // rows: calendar_posts rows { id, name, caption, scheduled_date }. "Earlier" means scheduled before the
-// card's own date (or, when the card has none, before the day its thumbnail was queued). The card's own
+// card's own date (or, when the card has none, before the day its thumbnail was queued), the same day
+// included: another card on that day may already have used the video. The card's own
 // group (ids in excludeIds) and the calendar's settings row are never evidence.
 export function selectEarlierCaptioned(rows, opts) {
   const { cardDate = "", createdAt = "", excludeIds, days = BORROWED_WINDOW_DAYS, max = BORROWED_MAX_CAPTIONS } = opts || {};
@@ -713,10 +714,24 @@ export function selectEarlierCaptioned(rows, opts) {
   return (rows || [])
     .filter((r) => r && !skip.has(String(r.id)) && String(r.id) !== "p_cal_settings" && String(r.name || "") !== "__cal_settings__")
     .map((r) => ({ id: String(r.id), name: String(r.name || "").trim(), date: day(r.scheduled_date), caption: String(r.caption || "").trim() }))
-    .filter((r) => r.caption && r.date && r.date >= lower && r.date < upper)
+    .filter((r) => r.caption && r.date && r.date >= lower && r.date <= upper)
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
     .slice(0, max)
     .map((r) => ({ ...r, caption: r.caption.replace(/\s+/g, " ").slice(0, BORROWED_CAPTION_CHARS) }));
+}
+
+// The cutoff day of one post: its card's scheduled day, else the day its thumbnail was queued.
+export function cutoffDay(cardDate, createdAt) {
+  const day = (v) => { const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(v || "")); return m ? m[1] : ""; };
+  return day(cardDate) || day(createdAt);
+}
+
+// A group of borrowed posts shares one set of earlier captions, read up to the latest cutoff. Each post
+// may only count the captions up to its OWN cutoff: a caption dated after it had not used the video yet.
+// Returns the check with only those captions, and their number.
+export function checkForCutoff(check, earlier, cutoff) {
+  const keep = earlier.map((e) => !cutoff || (e.date && e.date <= cutoff));
+  return { check: { ...check, earlier: check.earlier.filter((_v, i) => keep[i]) }, count: keep.filter(Boolean).length };
 }
 
 export const CHECK_SYSTEM_PROMPT = [

@@ -35,7 +35,9 @@ import {
   borrowedPlanName,
   borrowedVerdict,
   CHECK_SYSTEM_PROMPT,
+  checkForCutoff,
   checkMessage,
+  cutoffDay,
   parseCheck,
   selectEarlierCaptioned,
   monthLabel,
@@ -238,20 +240,35 @@ async function runClient(db: SupabaseClient, slug: string, jobs: Job[], apiKey: 
     if (borrowed.length) {
       const first = borrowed[0];
       const cardIds = borrowed.map((p) => clean(byId.get(p.job.deliverable_id)?.card_id)).filter(Boolean);
-      const { data: cardRows } = await db.from("calendar_posts").select("scheduled_date").eq("client", slug).in("id", cardIds.length ? cardIds : ["-"]);
-      // The latest date among the borrowed cards: every caption scheduled before it is earlier evidence.
-      const cardDate = ((cardRows || []) as Json[]).map((r) => clean(r.scheduled_date).slice(0, 10)).filter(Boolean).sort().pop() || "";
-      const { data: history } = await db.from("calendar_posts").select("id,name,caption,scheduled_date").eq("client", slug).neq("caption", "").not("caption", "is", null).order("scheduled_date", { ascending: false }).limit(400);
-      const earlier = selectEarlierCaptioned(history || [], { cardDate, createdAt: first.createdAt, excludeIds: cardIds });
-      const { check, error } = await askCheck(apiKey, model, earlier, borrowed, tab.text);
-      if (!check) {
+      const [{ data: cardRows, error: cardError }, { data: history, error: historyError }] = await Promise.all([
+        db.from("calendar_posts").select("id,scheduled_date").eq("client", slug).in("id", cardIds.length ? cardIds : ["-"]),
+        db.from("calendar_posts").select("id,name,caption,scheduled_date").eq("client", slug).neq("caption", "").not("caption", "is", null).order("scheduled_date", { ascending: false }).limit(400),
+      ]);
+      // A failed read is a failed check, never an empty one: the posts go back in the queue.
+      const readFailed = !!(cardError || historyError);
+      if (readFailed) {
+        const code = shortError("calendar_read", (cardError || historyError)?.code);
+        console.warn(`thumbnail-titles: calendar read failed for ${borrowed.length} borrowed post(s) (${code})`);
+        for (const p of borrowed) await fail(db, p.job, code, counts);
+        toTitle = posts.filter((p) => !p.via);
+      }
+      // Each borrowed post has its own cutoff day; the captions are read up to the latest of them.
+      const dateOf = new Map(((cardRows || []) as Json[]).map((r) => [clean(r.id), clean(r.scheduled_date)]));
+      const cutoffs = new Map(borrowed.map((p) => [p.key, cutoffDay(dateOf.get(clean(byId.get(p.job.deliverable_id)?.card_id)), p.createdAt)]));
+      const cardDate = [...cutoffs.values()].filter(Boolean).sort().pop() || "";
+      const earlier = readFailed ? [] : selectEarlierCaptioned(history || [], { cardDate, createdAt: first.createdAt, excludeIds: cardIds });
+      const { check, error } = readFailed ? { check: null, error: "" } : await askCheck(apiKey, model, earlier, borrowed, tab.text);
+      if (readFailed) {
+        // The borrowed posts were already put back in the queue above.
+      } else if (!check) {
         console.warn(`thumbnail-titles: used-video check failed for ${borrowed.length} post(s) (${error})`);
         for (const p of borrowed) await fail(db, p.job, error || "check_failed", counts);
         toTitle = posts.filter((p) => !p.via);
       } else {
         const stop = new Set<string>();
         for (const p of borrowed) {
-          const verdict = borrowedVerdict(p, check, earlier.length);
+          const own = checkForCutoff(check, earlier, cutoffs.get(p.key) || "");
+          const verdict = borrowedVerdict(p, own.check, own.count);
           if (verdict.accept) continue;
           stop.add(p.key);
           const vars = { month: monthLabel(p.createdAt), plan: borrowedPlanName(p.createdAt, p.via), video: verdict.video };

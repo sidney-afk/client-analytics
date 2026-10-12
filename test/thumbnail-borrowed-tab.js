@@ -59,6 +59,8 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ];
   const opts = { cardDate: '2026-09-30', createdAt: '2026-09-28T22:00:00Z', excludeIds: ['self'] };
   eq(L.selectEarlierCaptioned(rows, opts).map((r) => r.id), ['a2', 'a1'], 'newest first; old, later, blank, undated, settings and the card itself are not evidence');
+  eq(L.selectEarlierCaptioned(rows, { ...opts, cardDate: '2026-08-10' }).map((r) => r.id), ['a2', 'a1'], 'a caption scheduled the SAME day as the card counts (it may have used the video)');
+  eq(L.selectEarlierCaptioned(rows, { ...opts, cardDate: '2026-08-09' }).map((r) => r.id), ['a1'], 'the next day does not');
   eq(L.selectEarlierCaptioned(rows, { ...opts, cardDate: '' }).map((r) => r.id), ['a2', 'a1'], 'no card date: the day the thumbnail was queued is the limit');
   eq(L.selectEarlierCaptioned(rows, { ...opts, cardDate: '2026-08-05' }).map((r) => r.id), ['a1'], 'only what is scheduled before the card');
   eq(L.selectEarlierCaptioned(rows, { createdAt: '2026-09-28T22:00:00Z', excludeIds: ['self'] }).length, 2, 'cardDate may be omitted');
@@ -115,10 +117,23 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   r = v({ postName: 'Something' }, check([1, 2], {}), 2);
   eq(r.accept, false, 'a name the model could not place is not guessed');
 
+  // --- One cutoff per post ---------------------------------------------------------------------------------
+  eq(L.cutoffDay('2026-09-02', '2026-09-28T10:00:00Z'), '2026-09-02', 'the card day is the cutoff');
+  eq(L.cutoffDay('', '2026-09-28T10:00:00Z'), '2026-09-28', 'no card day: the day it was queued');
+  const earlierSet = [{ date: '2026-09-25' }, { date: '2026-09-10' }, { date: '2026-08-20' }];
+  const shared = check([5, 1, 2]);
+  let cut = L.checkForCutoff(shared, earlierSet, '2026-09-02');
+  eq([cut.count, cut.check.earlier], [1, [2]], 'a post dated 2 September ignores captions dated after it');
+  cut = L.checkForCutoff(shared, earlierSet, '2026-09-30');
+  eq([cut.count, cut.check.earlier], [3, [5, 1, 2]], 'a later post counts all three');
+  eq(L.borrowedVerdict({ key: 'p1', videoNumber: 5 }, L.checkForCutoff(shared, earlierSet, '2026-09-02').check, 1).accept, true, 'at its own cutoff only video 2 was used, so video 5 is still unused for the earlier post (not wrongly refused)');
+  eq(L.borrowedVerdict({ key: 'p1', videoNumber: 5 }, L.checkForCutoff(check([5, 1, 2]), earlierSet, '2026-09-30').check, 3).outcome, 'borrowed_video_used', 'the later post, seeing the 25 September caption, finds video 5 used');
+  eq(L.checkForCutoff(check(['unsure', 1]), [{ date: '2026-09-25' }, { date: '2026-08-20' }], '2026-09-02').check.earlier, [1], 'an unclear caption dated after the cutoff does not block an older post');
+
   // --- The function is wired as the rules need --------------------------------------------------------------
   const fn = fs.readFileSync(path.join(ROOT, 'supabase/functions/thumbnail-titles/index.ts'), 'utf8');
   ok(/const borrowed = posts\.filter\(\(p\) => p\.via\)/.test(fn), 'only posts that borrowed a tab are checked');
-  ok(/borrowedVerdict\(p, check, earlier\.length\)/.test(fn) && /if \(verdict\.accept\) continue;/.test(fn), 'the verdict decides before any title is asked for');
+  ok(/borrowedVerdict\(p, own\.check, own\.count\)/.test(fn) && /checkForCutoff\(check, earlier, cutoffs\.get\(p\.key\)/.test(fn) && /if \(verdict\.accept\) continue;/.test(fn), 'the verdict decides before any title is asked for');
   ok(/"needs_info", verdict\.outcome, note\)/.test(fn), 'a refused post is written as needs_info with the new outcome and the borrowed-tab note');
   ok(/for \(const p of borrowed\) await fail\(db, p\.job, error/.test(fn), 'a failed check goes back in the queue and is never read as accepted');
   ok(/toTitle = posts\.filter\(\(p\) => !p\.via\)/.test(fn), 'when the check fails, own-month posts are still titled');

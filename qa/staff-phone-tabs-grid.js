@@ -62,6 +62,8 @@ async function main(){
      await page.waitForFunction(()=>document.getElementById('navCalendar').classList.contains('active'));
      assert.equal(await page.evaluate(()=>window.__phoneNavCalls),1,'Grid dispatched the native destination more than once');
      await page.evaluate(()=>navTo('today'));await page.waitForTimeout(300);
+    }
+    if(!baseline&&['today','calendar','sample-reviews','workload','kasper'].includes(route)){
      await page.evaluate(()=>{document.getElementById('navSxr').hidden=true;document.getElementById('navFilmingPlans').disabled=true;});
      await button.tap();const sheet=page.locator('dialog[open]').first();
      assert.equal(await sheet.locator('[data-nav=navSxr]').count(),0,'Hidden permission became visible');

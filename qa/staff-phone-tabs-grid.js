@@ -26,7 +26,7 @@ async function main(){
    await page.goto('http://127.0.0.1:'+server.address().port+'/#today');await page.waitForFunction(()=>typeof navTo==='function');
    for(const route of [...routes,...admin.map(tab=>'admin:'+tab)].filter(x=>selected.test(x))){
     await page.evaluate(route=>navTo(route.startsWith('admin:')?'kasper':route==='instagram'?'tiktok-upload':route),route);await page.waitForTimeout(500);
-    if(route.startsWith('admin:')){await page.evaluate(tab=>_kasperGotoTab(tab),route.slice(6));await page.waitForTimeout(300);}
+    if(route.startsWith('admin:')){await page.evaluate(tab=>_kasperGotoTab(tab),route.slice(6));await page.waitForTimeout(300);assert.equal(await page.evaluate(()=>_kasperState.tab),route.slice(6),'Requested admin surface was not reached');}
     if(route==='instagram')await page.locator('#tkPlatInstagram').tap();
     const button=page.locator(trigger).filter({visible:true}).first();await button.waitFor();
     for(let round=0;round<2;round++){

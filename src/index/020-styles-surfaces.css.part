@@ -1439,9 +1439,9 @@
         .cal-review-thread-toggle:hover { color: var(--sv-fg-3a3a37); background: var(--field-bg); }
         .cal-thumb-linear-warn { position: absolute; top: 0; left: 0; right: 0; z-index: 3;
             display: flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 10px;
-            border: 0; cursor: pointer; background: var(--sv-bg-ea580c); color: var(--sv-fg-fff); font-family: inherit;
+            border: 0; cursor: pointer; background: var(--warn-solid-deep-bg); color: var(--warn-solid-fg); font-family: inherit;
             font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em; text-decoration: none; }
-        .cal-thumb-linear-warn:hover { background: var(--sv-bg-c2410c); }
+        .cal-thumb-linear-warn:hover { background: var(--warn-solid-deep-bg-hover); }
         .cal-thumb-linear-warn svg { width: 12px; height: 12px; flex-shrink: 0; }
         /* Multi-select mode — pick several posts, then bulk-archive. */
         .cal-select-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
@@ -1479,7 +1479,7 @@
         .cal-select-count { color: var(--white); font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
         .cal-select-bar button { font-family: inherit; font-size: 0.78rem; font-weight: 700; border: 0;
             border-radius: 8px; cursor: pointer; padding: 8px 15px; }
-        .cal-select-archive { background: var(--sv-bg-dc2626); color: var(--sv-fg-fff); }
+        .cal-select-archive { background: var(--err-solid-bg); color: var(--err-solid-fg); }
         .cal-select-archive:disabled { opacity: 0.4; cursor: default; }
         .cal-select-cancel { background: var(--sv-bg-rgba-255-255-255-0_16); color: var(--sv-fg-fff); }
         .cal-select-cancel:hover { background: var(--sv-bg-rgba-255-255-255-0_26); }
@@ -2024,10 +2024,10 @@
         .cal-approve-bar { display: flex; align-items: center; justify-content: center; gap: 7px;
             width: 100%; box-sizing: border-box; margin-top: 10px; padding: 11px 14px;
             border: none; border-radius: 10px; cursor: pointer;
-            background: var(--sv-bg-166534); color: var(--sv-fg-fff); font-family: inherit; font-size: 0.84rem; font-weight: 700;
+            background: var(--ok-solid-deep-bg); color: var(--ok-solid-fg); font-family: inherit; font-size: 0.84rem; font-weight: 700;
             letter-spacing: 0.01em; box-shadow: 0 2px 8px var(--sv-shadow-rgba-22-101-52-0_28);
             transition: background 0.13s, transform 0.08s, box-shadow 0.13s; }
-        .cal-approve-bar:hover { background: var(--sv-bg-15803d); box-shadow: 0 4px 14px var(--sv-shadow-rgba-22-101-52-0_36); }
+        .cal-approve-bar:hover { background: var(--ok-solid-bg-hover); box-shadow: 0 4px 14px var(--sv-shadow-rgba-22-101-52-0_36); }
         .cal-approve-bar:active { transform: translateY(1px); box-shadow: 0 1px 5px var(--sv-shadow-rgba-22-101-52-0_3); }
         .cal-approve-bar svg { width: 14px; height: 14px; }
         .cal-link-field.cal-link-ro a.cal-link-pill-open { text-decoration: none; }
@@ -2154,7 +2154,7 @@
         .cal-review-panel-mini { display: flex; flex-direction: column; align-items: center; justify-content: center;
             gap: 10px; padding: 18px 14px; text-align: center; }
         .cal-review-mini-icon { display: inline-flex; width: 36px; height: 36px; border-radius: 50%;
-            background: var(--sv-bg-16a34a); color: var(--sv-fg-fff);
+            background: var(--ok-solid-bg); color: var(--ok-solid-fg);
             align-items: center; justify-content: center; flex-shrink: 0;
             box-shadow: 0 3px 10px var(--sv-shadow-rgba-22-101-52-0_22); }
         .cal-review-mini-icon svg { width: 18px; height: 18px; }
@@ -2254,11 +2254,11 @@
         /* Approve button — full width, dominant. */
         .cal-review-approve-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
             width: 100%; padding: 10px 14px;
-            background: var(--sv-bg-16a34a); color: var(--white); border: 0; border-radius: 8px;
+            background: var(--ok-solid-bg); color: var(--ok-solid-fg); border: 0; border-radius: 8px;
             font-family: inherit; font-size: 0.86rem; font-weight: 700; cursor: pointer;
             transition: background 0.12s, transform 0.08s, box-shadow 0.12s;
             box-shadow: 0 1px 2px var(--sv-shadow-rgba-22-101-52-0_16); }
-        .cal-review-approve-btn:hover:not(:disabled) { background: var(--sv-bg-15803d); box-shadow: 0 3px 8px var(--sv-shadow-rgba-22-101-52-0_22); }
+        .cal-review-approve-btn:hover:not(:disabled) { background: var(--ok-solid-bg-hover); box-shadow: 0 3px 8px var(--sv-shadow-rgba-22-101-52-0_22); }
         .cal-review-approve-btn:active:not(:disabled) { transform: translateY(1px); }
         .cal-review-approve-btn:disabled { opacity: 0.55; cursor: default; }
         .cal-review-approve-btn svg { width: 14px; height: 14px; }
@@ -2268,7 +2268,7 @@
         .cal-review-approve-split { display: flex; align-items: stretch; gap: 8px; width: 100%; }
         .cal-review-approve-split .cal-review-approve-main { width: auto; flex: 1 1 auto; gap: 8px; border-radius: 11px; padding: 11px 16px; letter-spacing: -0.005em; }
         .cal-ap-verb { font-weight: 700; }
-        .cal-ap-route { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; background: var(--sv-bg-rgba-255-255-255-0_24); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.01em; }
+        .cal-ap-route { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; background: var(--ok-solid-chip-bg); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.01em; }
         .cal-review-approve-alt { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; padding: 0 17px;
             background: var(--sv-bg-ffffff); color: var(--sv-fg-15803d); border: 1.5px solid var(--sv-border-c5efd5); border-radius: 11px;
             font-family: inherit; font-size: 0.82rem; font-weight: 700; line-height: 1; cursor: pointer; white-space: nowrap;
@@ -2323,7 +2323,7 @@
             border: 1px solid var(--sv-border-16a34a); color: var(--sv-fg-166534);
             border-radius: 7px; font-family: inherit; font-size: 0.8rem; font-weight: 600;
             cursor: pointer; transition: background 0.12s, color 0.12s; }
-        .cal-review-aat-btn:hover:not(:disabled) { background: var(--sv-bg-16a34a); color: var(--white); }
+        .cal-review-aat-btn:hover:not(:disabled) { background: var(--ok-solid-bg); color: var(--ok-solid-fg); }
         .cal-review-aat-btn:disabled { opacity: 0.45; cursor: default; }
         .cal-review-aat-btn svg { width: 12px; height: 12px; }
         .cal-review-panel-err { font-size: 0.76rem; color: var(--dn); background: var(--dn-bg); padding: 6px 10px; border-radius: 6px; }
@@ -3246,17 +3246,24 @@
         .kcard-compose textarea { width: 100%; border: none; outline: none; resize: none; background: transparent; font-family: inherit; font-size: 0.86rem; line-height: 1.45; color: var(--text-primary); min-height: 64px; padding: 4px; }
         .kcard-compose textarea::placeholder { color: var(--text-muted); }
         .kcard-decisions { display: flex; gap: 8px; padding-top: 4px; border-top: 1px dashed var(--border-light); }
-        .kcard-tweak-send { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 11px 14px; background: var(--sv-bg-f97316); color: var(--sv-fg-fff); border: none; border-radius: 9px; font-family: inherit; font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: all 0.15s; }
-        .kcard-tweak-send:hover:not(:disabled) { background: var(--sv-bg-ea580c); transform: translateY(-1px); }
+        .kcard-tweak-send { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 11px 14px; background: var(--warn-solid-bg); color: var(--warn-solid-fg); border: none; border-radius: 9px; font-family: inherit; font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+        .kcard-tweak-send:hover:not(:disabled) { background: var(--warn-solid-bg-hover); transform: translateY(-1px); }
         .kcard-tweak-send:disabled { opacity: 0.4; cursor: not-allowed; }
         .kcard-tweak-send svg { width: 13px; height: 13px; }
         .kcard-approve-bar { display: flex; flex-direction: column; gap: 10px; background: linear-gradient(135deg,var(--sv-bg-dcfce7),var(--sv-bg-bbf7d0)); border: 1.5px solid var(--sv-border-86efac); border-radius: 12px; padding: 14px; }
         .kcard-approve-title { font-size: 0.78rem; font-weight: 700; color: var(--sv-fg-14532d); display: flex; align-items: center; gap: 6px; }
         .kcard-approve-help { font-size: 0.74rem; color: var(--sv-fg-15803d); line-height: 1.4; }
-        .kcard-approve-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px; background: var(--sv-bg-16a34a); color: var(--sv-fg-fff); border: none; border-radius: 10px; font-family: inherit; font-size: 0.9rem; font-weight: 800; cursor: pointer; transition: all 0.15s; box-shadow: 0 1px 3px var(--sv-shadow-rgba-22-163-74-0_3); }
-        .kcard-approve-btn:hover:not(:disabled) { background: var(--sv-bg-15803d); transform: translateY(-1px); box-shadow: 0 3px 10px var(--sv-shadow-rgba-22-163-74-0_35); }
+        .kcard-approve-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px; background: var(--ok-solid-bg); color: var(--ok-solid-fg); border: none; border-radius: 10px; font-family: inherit; font-size: 0.9rem; font-weight: 800; cursor: pointer; transition: all 0.15s; box-shadow: 0 1px 3px var(--sv-shadow-rgba-22-163-74-0_3); }
+        .kcard-approve-btn:hover:not(:disabled) { background: var(--ok-solid-bg-hover); transform: translateY(-1px); box-shadow: 0 3px 10px var(--sv-shadow-rgba-22-163-74-0_35); }
         .kcard-approve-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .kcard-approve-btn svg { width: 14px; height: 14px; }
+        /* Dark mode: a disabled control keeps readable text (it is still read) and says
+           "off" through a quieter fill, not through fading its text to the page colour. */
+        html[data-theme="dark"] .cal-review-approve-btn:disabled, html[data-theme="dark"] .kcard-approve-btn:disabled { opacity: 1; background: var(--ok-solid-off-bg); color: var(--ok-solid-off-fg); }
+        html[data-theme="dark"] .cal-review-comment-btn:disabled, html[data-theme="dark"] .cal-review-tweak-btn:disabled, html[data-theme="dark"] .kcard-done-btn:disabled { opacity: 1; color: var(--disabled-fg); }
+        html[data-theme="dark"] .cal-review-aat-btn:disabled, html[data-theme="dark"] .cal-review-approve-alt:disabled { opacity: 1; color: var(--disabled-fg); border-color: var(--border); }
+        html[data-theme="dark"] .kcard-tweak-send:disabled { opacity: 1; background: var(--field-bg-hover); color: var(--disabled-fg); }
+        html[data-theme="dark"] .cal-fld-substatus-comp { opacity: 0.9; }
         /* Toast (Undo + confirmations) */
         .sv-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(10px); background: var(--toast-bg); color: var(--toast-color); border-radius: 12px; padding: 11px 16px; display: flex; align-items: center; gap: 14px; font-size: 0.84rem; font-weight: 600; box-shadow: 0 10px 32px var(--sv-shadow-rgba-0-0-0-0_28); z-index: 3000; opacity: 0; transition: opacity 0.18s ease, transform 0.18s ease; max-width: min(92vw, 480px); }
         .sv-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }

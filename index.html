@@ -657,6 +657,14 @@
             --wl-overdue-section-bg: var(--sv-bg-fef2f2); --wl-overdue-border: var(--sv-border-fca5a5); --wl-overdue-accent: var(--sv-bg-dc2626); --wl-overdue-accent-hover: var(--sv-bg-b91c1c); --wl-overdue-label: var(--sv-fg-991b1b); --wl-overdue-chip-bg: var(--sv-bg-fee2e2); --wl-overdue-chip-hover: var(--sv-bg-fecaca); --wl-overdue-chip-fg: var(--sv-fg-991b1b);
             --wl-tweaks-section-bg: var(--sv-bg-fff7ed); --wl-tweaks-border: var(--sv-border-fdba74); --wl-tweaks-accent: var(--sv-bg-ea580c); --wl-tweaks-accent-hover: var(--sv-bg-c2410c); --wl-tweaks-label: var(--sv-fg-9a3412); --wl-tweaks-chip-bg: var(--sv-bg-ffedd5); --wl-tweaks-chip-hover: var(--sv-bg-fed7aa); --wl-tweaks-chip-fg: var(--sv-fg-9a3412);
             --upload-progress-track: var(--bg); --upload-progress-fill: var(--sv-bg-111110); --upload-progress-glow: rgba(0,0,0,0);
+            /* Solid action colours (Approve, Request change, destructive). One token per
+               meaning: light mode keeps the exact colours these controls always had; dark mode
+               swaps a bright fill for dark text, so success, warning and error read the same
+               everywhere (docs/features/UI_DESIGN_STANDARDS.md, test/dark-contrast.js). */
+            --ok-solid-bg: var(--sv-bg-16a34a); --ok-solid-bg-hover: var(--sv-bg-15803d); --ok-solid-deep-bg: var(--sv-bg-166534); --ok-solid-fg: var(--sv-fg-fff); --ok-solid-chip-bg: var(--sv-bg-rgba-255-255-255-0_24); --ok-solid-off-bg: var(--sv-bg-16a34a); --ok-solid-off-fg: var(--sv-fg-fff);
+            --warn-solid-bg: var(--sv-bg-f97316); --warn-solid-bg-hover: var(--sv-bg-ea580c); --warn-solid-deep-bg: var(--sv-bg-ea580c); --warn-solid-deep-bg-hover: var(--sv-bg-c2410c); --warn-solid-fg: var(--sv-fg-fff);
+            --err-solid-bg: var(--sv-bg-dc2626); --err-solid-fg: var(--sv-fg-fff);
+            --disabled-fg: var(--text-secondary);
         }
         html[data-theme="dark"] {
             --tpl-prev-dark: #15161a; --tpl-prev-dark2: #3a3f4a; --tpl-prev-light: #d9dce2; --tpl-prev-light2: #f4f5f7; --tpl-prev-shadow: rgba(0,0,0,0.65); --brief-look: #a996ff; --brief-look-bg: #221d38; --brief-edit: #6aa8f5; --brief-edit-bg: #172536; --brief-music: #43d1bf; --brief-music-bg: #13302d; --brief-avoid: #ff7b8c; --brief-avoid-bg: #37191f; --brief-about: #f0b454; --brief-about-bg: #332713; --brief-asks: #f08cc4; --brief-asks-bg: #361b2c; --brief-know: #9fb0c8; --brief-know-bg: #1d2330;
@@ -684,6 +692,10 @@
             --wl-overdue-section-bg: #2a191d; --wl-overdue-border: #f87171; --wl-overdue-accent: #f87171; --wl-overdue-accent-hover: #ef4444; --wl-overdue-label: #f87171; --wl-overdue-chip-bg: #fca5a5; --wl-overdue-chip-hover: #f87171; --wl-overdue-chip-fg: #101114;
             --wl-tweaks-section-bg: #2a1f16; --wl-tweaks-border: #fb923c; --wl-tweaks-accent: #fb923c; --wl-tweaks-accent-hover: #f97316; --wl-tweaks-label: #fb923c; --wl-tweaks-chip-bg: #fdba74; --wl-tweaks-chip-hover: #fb923c; --wl-tweaks-chip-fg: #101114;
             --upload-progress-track: #26303a; --upload-progress-fill: #67e8f9; --upload-progress-glow: rgba(103,232,249,0.45);
+            --ok-solid-bg: #4ade80; --ok-solid-bg-hover: #86efac; --ok-solid-deep-bg: #4ade80; --ok-solid-fg: #0b1f12; --ok-solid-chip-bg: rgba(11,31,18,0.14); --ok-solid-off-bg: #1f3a2b; --ok-solid-off-fg: #a7e8c0;
+            --warn-solid-bg: #fb923c; --warn-solid-bg-hover: #fdba74; --warn-solid-deep-bg: #fb923c; --warn-solid-deep-bg-hover: #fdba74; --warn-solid-fg: #1f1004;
+            --err-solid-bg: #f87171; --err-solid-fg: #2a0c0c;
+            --disabled-fg: #9aa3b2;
         }
         html[data-status-palette="classic"] {
             --cal-status-in-progress-bg: var(--sv-bg-fef08a); --cal-status-in-progress-fg: var(--sv-fg-713f12); --cal-status-for-smm-approval-bg: var(--sv-bg-fce7f3); --cal-status-for-smm-approval-fg: var(--sv-fg-9d174d); --cal-status-kasper-approval-bg: var(--sv-bg-ffe4cc); --cal-status-kasper-approval-fg: var(--sv-fg-9a3412); --cal-status-client-approval-bg: var(--sv-bg-fee2e2); --cal-status-client-approval-fg: var(--sv-fg-991b1b); --cal-status-approved-bg: var(--sv-bg-dcfce7); --cal-status-approved-fg: var(--sv-fg-166534); --cal-status-tweaks-needed-bg: var(--sv-bg-fdba74); --cal-status-tweaks-needed-fg: var(--sv-fg-7c2d12); --cal-status-scheduled-bg: var(--sv-bg-ede9fe); --cal-status-scheduled-fg: var(--sv-fg-5b21b6); --cal-status-posted-bg: var(--sv-bg-064e3b); --cal-status-posted-fg: var(--sv-fg-ecfdf5); --cal-status-archived-bg: var(--sv-bg-f3f4f6); --cal-status-archived-fg: var(--sv-fg-6b7280); --cal-status-n-a-bg: var(--sv-bg-f3f4f6); --cal-status-n-a-fg: var(--sv-fg-6b7280);
@@ -1643,23 +1655,23 @@
             --sv-fg-000000: #a6a7a9;
             --sv-fg-0284c7: #a7d2e8;
             --sv-fg-0369a1: #a7c9dc;
-            --sv-fg-047857: #a7cec4;
-            --sv-fg-059669: #48b191;
-            --sv-fg-064e3b: #a8c0bc;
-            --sv-fg-065f46: #a8c6bf;
+            --sv-fg-047857: #4ade80;
+            --sv-fg-059669: #4ade80;
+            --sv-fg-064e3b: #4ade80;
+            --sv-fg-065f46: #4ade80;
             --sv-fg-0891b2: #4aadc6;
             --sv-fg-0a66c2: #a9c8e7;
-            --sv-fg-10b981: #50caa2;
+            --sv-fg-10b981: #4ade80;
             --sv-fg-111: #abadae;
             --sv-fg-111110: #abadae;
-            --sv-fg-14532d: #acc2b7;
-            --sv-fg-15803d: #add0bc;
-            --sv-fg-166534: #adc8b9;
-            --sv-fg-16a34a: #54ba7b;
+            --sv-fg-14532d: #4ade80;
+            --sv-fg-15803d: #4ade80;
+            --sv-fg-166534: #4ade80;
+            --sv-fg-16a34a: #4ade80;
             --sv-fg-1877f2: #aecdf6;
             --sv-fg-1d4ed8: #afc0ee;
             --sv-fg-1e40af: #b0bce1;
-            --sv-fg-22c55e: #5dd389;
+            --sv-fg-22c55e: #4ade80;
             --sv-fg-2563eb: #b2c7f4;
             --sv-fg-2a2a26: #b3b5b5;
             --sv-fg-2b2f38: #b4b6bb;
@@ -1670,13 +1682,13 @@
             --sv-fg-4a154b: #beaec1;
             --sv-fg-4a54b8: #bec2e4;
             --sv-fg-4a54c0: #bec2e6;
-            --sv-fg-4ade80: #7ae5a2;
+            --sv-fg-4ade80: #4ade80;
             --sv-fg-4b5563: #bec2c8;
             --sv-fg-4f46e5: #bfbef2;
             --sv-fg-555: #c1c2c4;
             --sv-fg-5b21b6: #c3b2e3;
             --sv-fg-5b6172: #c3c6cd;
-            --sv-fg-5c4426: #c3bdb5;
+            --sv-fg-5c4426: #fbbf24;
             --sv-fg-0d9488: #9edbd2;
             --sv-fg-0f766e: #b7e8e1;
             --sv-fg-5e6ad2: #c4c9ec;
@@ -1687,40 +1699,40 @@
             --sv-fg-6b7280: #c8ccd2;
             --sv-fg-6c5ce7: #c8c5f3;
             --sv-fg-6d28d9: #c9b4ee;
-            --sv-fg-713f12: #cabbae;
+            --sv-fg-713f12: #fbbf24;
             --sv-fg-777: #9a9b9b;
-            --sv-fg-7a4e10: #cdc0ae;
-            --sv-fg-7c2d12: #ceb6ae;
+            --sv-fg-7a4e10: #fbbf24;
+            --sv-fg-7c2d12: #fb923c;
             --sv-fg-7c3aed: #cebaf4;
             --sv-fg-7c79d8: #9e9ce1;
-            --sv-fg-854d0e: #d0c0ad;
+            --sv-fg-854d0e: #fbbf24;
             --sv-fg-888: #a6a7a7;
             --sv-fg-8a8780: #a8a6a2;
             --sv-fg-8a93a6: #a8afbd;
             --sv-fg-8b5cf6: #d2c5f7;
-            --sv-fg-92400e: #d5bcad;
-            --sv-fg-92681e: #d5c9b2;
-            --sv-fg-991b1b: #d7b0b1;
-            --sv-fg-9a3412: #d7b8ae;
-            --sv-fg-9a6700: #d7c8a9;
+            --sv-fg-92400e: #fbbf24;
+            --sv-fg-92681e: #fbbf24;
+            --sv-fg-991b1b: #f87171;
+            --sv-fg-9a3412: #fb923c;
+            --sv-fg-9a6700: #fbbf24;
             --sv-fg-9d174d: #d8afc1;
             --sv-fg-a81950: #dcafc2;
             --sv-fg-a8ffb0: #a8ffb0;
             --sv-fg-aaa: #bfbfc0;
             --sv-fg-aab0c0: #bfc4d0;
-            --sv-fg-b45309: #e0c2ac;
+            --sv-fg-b45309: #fbbf24;
             --sv-fg-b4b4ae: #c6c6c3;
             --sv-fg-b6b6b1: #c7c8c5;
-            --sv-fg-b91c1c: #e1b0b2;
+            --sv-fg-b91c1c: #f87171;
             --sv-fg-bdbdb8: #cccdca;
             --sv-fg-be2d72: #e3b6cd;
             --sv-fg-c026d3: #e3b3ec;
-            --sv-fg-c08a2e: #cfa867;
-            --sv-fg-c2410c: #e4bcac;
+            --sv-fg-c08a2e: #fbbf24;
+            --sv-fg-c2410c: #fb923c;
             --sv-fg-c2c2bd: #d0d1ce;
             --sv-fg-c5c5c2: #d2d3d1;
             --sv-fg-c8c8c3: #d4d5d2;
-            --sv-fg-ca8a04: #d6a848;
+            --sv-fg-ca8a04: #fbbf24;
             --sv-fg-cdcdc8: #d8d8d5;
             --sv-fg-cf6f9e: #d995b7;
             --sv-fg-d4b0bc: #ddc4cd;
@@ -1728,15 +1740,15 @@
             --sv-fg-d6d6d3: #d6d6d3;
             --sv-fg-d8d8d3: #d8d8d3;
             --sv-fg-d946ef: #ebbef5;
-            --sv-fg-d97706: #e19b4a;
-            --sv-fg-dc2626: #ecb3b5;
+            --sv-fg-d97706: #fbbf24;
+            --sv-fg-dc2626: #f87171;
             --sv-fg-e05: #f2a7c4;
             --sv-fg-e4405f: #efbcc7;
             --sv-fg-e60023: #f0a7b4;
-            --sv-fg-ea580c: #f1c3ac;
+            --sv-fg-ea580c: #fb923c;
             --sv-fg-ecfdf5: #ecfdf5;
-            --sv-fg-ef4444: #f2bdbe;
-            --sv-fg-f59e0b: #f5b74d;
+            --sv-fg-ef4444: #f87171;
+            --sv-fg-f59e0b: #fbbf24;
             --sv-fg-f5f5f3: #f5f5f3;
             --sv-fg-ff0000: #f8a7a9;
             --sv-fg-ffb0b0: #fcc4c4;
@@ -6007,9 +6019,9 @@
         .cal-review-thread-toggle:hover { color: var(--sv-fg-3a3a37); background: var(--field-bg); }
         .cal-thumb-linear-warn { position: absolute; top: 0; left: 0; right: 0; z-index: 3;
             display: flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 10px;
-            border: 0; cursor: pointer; background: var(--sv-bg-ea580c); color: var(--sv-fg-fff); font-family: inherit;
+            border: 0; cursor: pointer; background: var(--warn-solid-deep-bg); color: var(--warn-solid-fg); font-family: inherit;
             font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em; text-decoration: none; }
-        .cal-thumb-linear-warn:hover { background: var(--sv-bg-c2410c); }
+        .cal-thumb-linear-warn:hover { background: var(--warn-solid-deep-bg-hover); }
         .cal-thumb-linear-warn svg { width: 12px; height: 12px; flex-shrink: 0; }
         /* Multi-select mode — pick several posts, then bulk-archive. */
         .cal-select-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
@@ -6047,7 +6059,7 @@
         .cal-select-count { color: var(--white); font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
         .cal-select-bar button { font-family: inherit; font-size: 0.78rem; font-weight: 700; border: 0;
             border-radius: 8px; cursor: pointer; padding: 8px 15px; }
-        .cal-select-archive { background: var(--sv-bg-dc2626); color: var(--sv-fg-fff); }
+        .cal-select-archive { background: var(--err-solid-bg); color: var(--err-solid-fg); }
         .cal-select-archive:disabled { opacity: 0.4; cursor: default; }
         .cal-select-cancel { background: var(--sv-bg-rgba-255-255-255-0_16); color: var(--sv-fg-fff); }
         .cal-select-cancel:hover { background: var(--sv-bg-rgba-255-255-255-0_26); }
@@ -6592,10 +6604,10 @@
         .cal-approve-bar { display: flex; align-items: center; justify-content: center; gap: 7px;
             width: 100%; box-sizing: border-box; margin-top: 10px; padding: 11px 14px;
             border: none; border-radius: 10px; cursor: pointer;
-            background: var(--sv-bg-166534); color: var(--sv-fg-fff); font-family: inherit; font-size: 0.84rem; font-weight: 700;
+            background: var(--ok-solid-deep-bg); color: var(--ok-solid-fg); font-family: inherit; font-size: 0.84rem; font-weight: 700;
             letter-spacing: 0.01em; box-shadow: 0 2px 8px var(--sv-shadow-rgba-22-101-52-0_28);
             transition: background 0.13s, transform 0.08s, box-shadow 0.13s; }
-        .cal-approve-bar:hover { background: var(--sv-bg-15803d); box-shadow: 0 4px 14px var(--sv-shadow-rgba-22-101-52-0_36); }
+        .cal-approve-bar:hover { background: var(--ok-solid-bg-hover); box-shadow: 0 4px 14px var(--sv-shadow-rgba-22-101-52-0_36); }
         .cal-approve-bar:active { transform: translateY(1px); box-shadow: 0 1px 5px var(--sv-shadow-rgba-22-101-52-0_3); }
         .cal-approve-bar svg { width: 14px; height: 14px; }
         .cal-link-field.cal-link-ro a.cal-link-pill-open { text-decoration: none; }
@@ -6722,7 +6734,7 @@
         .cal-review-panel-mini { display: flex; flex-direction: column; align-items: center; justify-content: center;
             gap: 10px; padding: 18px 14px; text-align: center; }
         .cal-review-mini-icon { display: inline-flex; width: 36px; height: 36px; border-radius: 50%;
-            background: var(--sv-bg-16a34a); color: var(--sv-fg-fff);
+            background: var(--ok-solid-bg); color: var(--ok-solid-fg);
             align-items: center; justify-content: center; flex-shrink: 0;
             box-shadow: 0 3px 10px var(--sv-shadow-rgba-22-101-52-0_22); }
         .cal-review-mini-icon svg { width: 18px; height: 18px; }
@@ -6822,11 +6834,11 @@
         /* Approve button — full width, dominant. */
         .cal-review-approve-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
             width: 100%; padding: 10px 14px;
-            background: var(--sv-bg-16a34a); color: var(--white); border: 0; border-radius: 8px;
+            background: var(--ok-solid-bg); color: var(--ok-solid-fg); border: 0; border-radius: 8px;
             font-family: inherit; font-size: 0.86rem; font-weight: 700; cursor: pointer;
             transition: background 0.12s, transform 0.08s, box-shadow 0.12s;
             box-shadow: 0 1px 2px var(--sv-shadow-rgba-22-101-52-0_16); }
-        .cal-review-approve-btn:hover:not(:disabled) { background: var(--sv-bg-15803d); box-shadow: 0 3px 8px var(--sv-shadow-rgba-22-101-52-0_22); }
+        .cal-review-approve-btn:hover:not(:disabled) { background: var(--ok-solid-bg-hover); box-shadow: 0 3px 8px var(--sv-shadow-rgba-22-101-52-0_22); }
         .cal-review-approve-btn:active:not(:disabled) { transform: translateY(1px); }
         .cal-review-approve-btn:disabled { opacity: 0.55; cursor: default; }
         .cal-review-approve-btn svg { width: 14px; height: 14px; }
@@ -6836,7 +6848,7 @@
         .cal-review-approve-split { display: flex; align-items: stretch; gap: 8px; width: 100%; }
         .cal-review-approve-split .cal-review-approve-main { width: auto; flex: 1 1 auto; gap: 8px; border-radius: 11px; padding: 11px 16px; letter-spacing: -0.005em; }
         .cal-ap-verb { font-weight: 700; }
-        .cal-ap-route { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; background: var(--sv-bg-rgba-255-255-255-0_24); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.01em; }
+        .cal-ap-route { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; background: var(--ok-solid-chip-bg); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.01em; }
         .cal-review-approve-alt { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; padding: 0 17px;
             background: var(--sv-bg-ffffff); color: var(--sv-fg-15803d); border: 1.5px solid var(--sv-border-c5efd5); border-radius: 11px;
             font-family: inherit; font-size: 0.82rem; font-weight: 700; line-height: 1; cursor: pointer; white-space: nowrap;
@@ -6891,7 +6903,7 @@
             border: 1px solid var(--sv-border-16a34a); color: var(--sv-fg-166534);
             border-radius: 7px; font-family: inherit; font-size: 0.8rem; font-weight: 600;
             cursor: pointer; transition: background 0.12s, color 0.12s; }
-        .cal-review-aat-btn:hover:not(:disabled) { background: var(--sv-bg-16a34a); color: var(--white); }
+        .cal-review-aat-btn:hover:not(:disabled) { background: var(--ok-solid-bg); color: var(--ok-solid-fg); }
         .cal-review-aat-btn:disabled { opacity: 0.45; cursor: default; }
         .cal-review-aat-btn svg { width: 12px; height: 12px; }
         .cal-review-panel-err { font-size: 0.76rem; color: var(--dn); background: var(--dn-bg); padding: 6px 10px; border-radius: 6px; }
@@ -7814,17 +7826,24 @@
         .kcard-compose textarea { width: 100%; border: none; outline: none; resize: none; background: transparent; font-family: inherit; font-size: 0.86rem; line-height: 1.45; color: var(--text-primary); min-height: 64px; padding: 4px; }
         .kcard-compose textarea::placeholder { color: var(--text-muted); }
         .kcard-decisions { display: flex; gap: 8px; padding-top: 4px; border-top: 1px dashed var(--border-light); }
-        .kcard-tweak-send { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 11px 14px; background: var(--sv-bg-f97316); color: var(--sv-fg-fff); border: none; border-radius: 9px; font-family: inherit; font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: all 0.15s; }
-        .kcard-tweak-send:hover:not(:disabled) { background: var(--sv-bg-ea580c); transform: translateY(-1px); }
+        .kcard-tweak-send { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 11px 14px; background: var(--warn-solid-bg); color: var(--warn-solid-fg); border: none; border-radius: 9px; font-family: inherit; font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+        .kcard-tweak-send:hover:not(:disabled) { background: var(--warn-solid-bg-hover); transform: translateY(-1px); }
         .kcard-tweak-send:disabled { opacity: 0.4; cursor: not-allowed; }
         .kcard-tweak-send svg { width: 13px; height: 13px; }
         .kcard-approve-bar { display: flex; flex-direction: column; gap: 10px; background: linear-gradient(135deg,var(--sv-bg-dcfce7),var(--sv-bg-bbf7d0)); border: 1.5px solid var(--sv-border-86efac); border-radius: 12px; padding: 14px; }
         .kcard-approve-title { font-size: 0.78rem; font-weight: 700; color: var(--sv-fg-14532d); display: flex; align-items: center; gap: 6px; }
         .kcard-approve-help { font-size: 0.74rem; color: var(--sv-fg-15803d); line-height: 1.4; }
-        .kcard-approve-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px; background: var(--sv-bg-16a34a); color: var(--sv-fg-fff); border: none; border-radius: 10px; font-family: inherit; font-size: 0.9rem; font-weight: 800; cursor: pointer; transition: all 0.15s; box-shadow: 0 1px 3px var(--sv-shadow-rgba-22-163-74-0_3); }
-        .kcard-approve-btn:hover:not(:disabled) { background: var(--sv-bg-15803d); transform: translateY(-1px); box-shadow: 0 3px 10px var(--sv-shadow-rgba-22-163-74-0_35); }
+        .kcard-approve-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px; background: var(--ok-solid-bg); color: var(--ok-solid-fg); border: none; border-radius: 10px; font-family: inherit; font-size: 0.9rem; font-weight: 800; cursor: pointer; transition: all 0.15s; box-shadow: 0 1px 3px var(--sv-shadow-rgba-22-163-74-0_3); }
+        .kcard-approve-btn:hover:not(:disabled) { background: var(--ok-solid-bg-hover); transform: translateY(-1px); box-shadow: 0 3px 10px var(--sv-shadow-rgba-22-163-74-0_35); }
         .kcard-approve-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .kcard-approve-btn svg { width: 14px; height: 14px; }
+        /* Dark mode: a disabled control keeps readable text (it is still read) and says
+           "off" through a quieter fill, not through fading its text to the page colour. */
+        html[data-theme="dark"] .cal-review-approve-btn:disabled, html[data-theme="dark"] .kcard-approve-btn:disabled { opacity: 1; background: var(--ok-solid-off-bg); color: var(--ok-solid-off-fg); }
+        html[data-theme="dark"] .cal-review-comment-btn:disabled, html[data-theme="dark"] .cal-review-tweak-btn:disabled, html[data-theme="dark"] .kcard-done-btn:disabled { opacity: 1; color: var(--disabled-fg); }
+        html[data-theme="dark"] .cal-review-aat-btn:disabled, html[data-theme="dark"] .cal-review-approve-alt:disabled { opacity: 1; color: var(--disabled-fg); border-color: var(--border); }
+        html[data-theme="dark"] .kcard-tweak-send:disabled { opacity: 1; background: var(--field-bg-hover); color: var(--disabled-fg); }
+        html[data-theme="dark"] .cal-fld-substatus-comp { opacity: 0.9; }
         /* Toast (Undo + confirmations) */
         .sv-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(10px); background: var(--toast-bg); color: var(--toast-color); border-radius: 12px; padding: 11px 16px; display: flex; align-items: center; gap: 14px; font-size: 0.84rem; font-weight: 600; box-shadow: 0 10px 32px var(--sv-shadow-rgba-0-0-0-0_28); z-index: 3000; opacity: 0; transition: opacity 0.18s ease, transform 0.18s ease; max-width: min(92vw, 480px); }
         .sv-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }

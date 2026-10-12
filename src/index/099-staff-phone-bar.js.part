@@ -237,7 +237,7 @@
             || document.body.matches('.intake-mode, .onboarding-mode')) return;
         const html = document.documentElement;
         html.classList.add('sv-staff-phone');
-        const moves = new Map(), labels = new Map(), overlays = new Map(), actionListeners = [];
+        const moves = new Map(), labels = new Map(), overlays = new Map(), actionListeners = [], legacyHeads = new Set();
         let lastTrigger = null, locked = null, queued = false, touch = null, cardsDirty = true;
         // Discover both semantic dialogs and the app's older floating surfaces.
         // A tooltip is explanatory, and never locks its underlying screen.
@@ -300,17 +300,28 @@
                 });
                 more.hidden = !body.childElementCount;
             });
-            document.querySelectorAll('#calView .cal-cap-toggle, #sxrView .cal-cap-toggle').forEach(btn => {
-                const label = btn.querySelector('.cal-cap-toggle-txt');
-                if (!labels.has(btn)) labels.set(btn, { text: label?.textContent, tabindex: btn.getAttribute('tabindex'), aria: btn.getAttribute('aria-expanded') });
-                const open = btn.classList.contains('is-expanded');
-                const text = open ? 'Show less' : 'Show more';
-                if (label && label.textContent !== text) label.textContent = text;
-                if (btn.getAttribute('aria-expanded') !== String(open)) btn.setAttribute('aria-expanded', String(open));
-                if (btn.tabIndex !== 0) btn.tabIndex = 0;
-            });
+            document.querySelectorAll('#calView .cal-cap-toggle, #sxrView .cal-cap-toggle').forEach(caption);
             for (const el of moves.keys()) if (!el.isConnected) moves.delete(el);
             for (const el of labels.keys()) if (!el.isConnected) labels.delete(el);
+        }
+        function caption(btn) {
+            const label = btn.querySelector('.cal-cap-toggle-txt');
+            if (!labels.has(btn)) labels.set(btn, { text: label?.textContent, tabindex: btn.getAttribute('tabindex'), aria: btn.getAttribute('aria-expanded') });
+            const open = btn.classList.contains('is-expanded');
+            const text = open ? 'Show less' : 'Show more';
+            if (label && label.textContent !== text) label.textContent = text;
+            if (btn.getAttribute('aria-expanded') !== String(open)) btn.setAttribute('aria-expanded', String(open));
+            if (btn.tabIndex !== 0) btn.tabIndex = 0;
+        }
+        function legacyHead(menu) {
+            if (!menu.matches('.kasper-more-menu') || menu.querySelector('.sv-phone-legacy-head')) return;
+            const head = document.createElement('div'); head.className = 'sv-phone-legacy-head';
+            head.innerHTML = '<strong>More</strong><button type="button" aria-label="Close More">Close</button>';
+            head.querySelector('button').onclick = event => {
+                event.stopPropagation();
+                document.querySelector('[data-kasper-more-trigger]')?.click();
+            };
+            menu.prepend(head); legacyHeads.add(head);
         }
         function lock() {
             if (locked) return;
@@ -341,6 +352,7 @@
                 returnTo = trigger; overlays.delete(el);
             }
             active.forEach(el => {
+                legacyHead(el);
                 if (!overlays.has(el)) {
                     const trigger = liveTrigger(lastTrigger)
                         || document.querySelector('[data-staff-menu="more"], #fphMoreBtn, .pocket-staff-more-btn, [data-kasper-more-trigger]');
@@ -368,10 +380,14 @@
             // Field sizing and popup movement do not change card tools. Avoid
             // re-scanning every card on each typed character or layout update.
             if (records) cardsDirty ||= records.some(record => {
-                if (record.type === 'attributes') return record.target.matches('.cal-cap-toggle');
-                return record.type === 'childList' && (record.target.closest?.('#calView, #sxrView')
-                    || [...record.addedNodes].some(node => node.nodeType === 1
-                        && (node.matches('#calView, #sxrView') || node.querySelector('.cal-card'))));
+                if (record.type === 'attributes') {
+                    if (record.target.matches('.cal-cap-toggle')) caption(record.target);
+                    return false;
+                }
+                const elements = [...record.addedNodes, ...record.removedNodes].filter(node => node.nodeType === 1);
+                return record.type === 'childList' && elements.length > 0
+                    && (record.target.closest?.('#calView, #sxrView')
+                        || elements.some(node => node.matches('#calView, #sxrView') || node.querySelector('.cal-card')));
             });
             if (!queued) { queued = true; queueMicrotask(sync); }
         }
@@ -473,6 +489,7 @@
                 }
             });
             actionListeners.forEach(([el, listener]) => el.removeEventListener('click', listener, true));
+            legacyHeads.forEach(el => el.remove());
             document.querySelectorAll('.sv-phone-action-label').forEach(el => el.remove());
             document.querySelectorAll('.sv-phone-card-tools').forEach(el => el.remove());
             html.classList.remove('sv-staff-phone');

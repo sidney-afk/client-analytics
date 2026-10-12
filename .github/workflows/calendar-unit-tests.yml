@@ -61,6 +61,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node qa/staff-phone-rules-browser.js --widths=${{ matrix.width }}
+      - name: Phone responsiveness, refresh continuity and shared segments
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node qa/staff-phone-responsiveness.js --widths=${{ matrix.width }}
       - name: Native card design, safe actions and media refresh
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

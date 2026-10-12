@@ -2504,7 +2504,7 @@
         .cal-cm-avatar { width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.78rem; color: var(--sv-fg-fff); letter-spacing: 0.01em; font-family: inherit; }
         .cal-cm-row.is-reply .cal-cm-avatar { width: 26px; height: 26px; border-radius: 7px; font-size: 0.66rem; }
         .cal-cm-avatar.is-smm { background: linear-gradient(135deg, var(--sv-bg-4f46e5), var(--sv-bg-7c3aed)); }
-        .cal-cm-avatar.is-client { background: linear-gradient(135deg, var(--sv-bg-16a34a), var(--sv-bg-059669)); }
+        .cal-cm-avatar.is-client { background: linear-gradient(135deg, var(--ok-avatar-from), var(--ok-avatar-to)); color: var(--ok-solid-fg); }
         .cal-cm-body-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
         .cal-cm-head-line { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; line-height: 1.3; }
         .cal-cm-comp-badge { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 0.62rem;
@@ -3234,7 +3234,7 @@
         .kcard-cm { display: flex; gap: 8px; align-items: flex-start; }
         .kcard-cm-avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--text-primary); color: var(--white); font-size: 0.66rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .kcard-cm-avatar.is-kasper { background: var(--sv-bg-7c3aed); }
-        .kcard-cm-avatar.is-client { background: var(--sv-bg-16a34a); }
+        .kcard-cm-avatar.is-client { background: var(--ok-avatar-from); color: var(--ok-solid-fg); }
         .kcard-cm-body { flex: 1; min-width: 0; }
         .kcard-cm-line1 { display: flex; align-items: baseline; gap: 6px; }
         .kcard-cm-author { font-size: 0.74rem; font-weight: 700; color: var(--text-primary); }
@@ -3264,6 +3264,10 @@
         html[data-theme="dark"] .cal-review-aat-btn:disabled, html[data-theme="dark"] .cal-review-approve-alt:disabled { opacity: 1; color: var(--disabled-fg); border-color: var(--border); }
         html[data-theme="dark"] .kcard-tweak-send:disabled { opacity: 1; background: var(--field-bg-hover); color: var(--disabled-fg); }
         html[data-theme="dark"] .cal-fld-substatus-comp { opacity: 0.9; }
+        html[data-theme="dark"] .cal-cm-send:disabled { opacity: 1; background: var(--field-bg-hover); color: var(--disabled-fg); }
+        /* The phone admin pages paint their primary buttons light in dark mode, so a faded one
+           would turn its label to mush: show "off" as a quiet fill instead. */
+        html.pocket-admin-phone[data-theme="dark"] #kasperContent :is(.si-btn, .cc-btn, .pto-submit, .hp-btn.primary):disabled { opacity: 1; background: var(--field-bg-hover); border-color: var(--border); color: var(--disabled-fg); }
         /* Toast (Undo + confirmations) */
         .sv-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(10px); background: var(--toast-bg); color: var(--toast-color); border-radius: 12px; padding: 11px 16px; display: flex; align-items: center; gap: 14px; font-size: 0.84rem; font-weight: 600; box-shadow: 0 10px 32px var(--sv-shadow-rgba-0-0-0-0_28); z-index: 3000; opacity: 0; transition: opacity 0.18s ease, transform 0.18s ease; max-width: min(92vw, 480px); }
         .sv-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }

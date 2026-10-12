@@ -661,7 +661,7 @@
                meaning: light mode keeps the exact colours these controls always had; dark mode
                swaps a bright fill for dark text, so success, warning and error read the same
                everywhere (docs/features/UI_DESIGN_STANDARDS.md, test/dark-contrast.js). */
-            --ok-solid-bg: var(--sv-bg-16a34a); --ok-solid-bg-hover: var(--sv-bg-15803d); --ok-solid-deep-bg: var(--sv-bg-166534); --ok-solid-fg: var(--sv-fg-fff); --ok-solid-chip-bg: var(--sv-bg-rgba-255-255-255-0_24); --ok-solid-off-bg: var(--sv-bg-16a34a); --ok-solid-off-fg: var(--sv-fg-fff);
+            --ok-solid-bg: var(--sv-bg-16a34a); --ok-solid-bg-hover: var(--sv-bg-15803d); --ok-solid-deep-bg: var(--sv-bg-166534); --ok-solid-fg: var(--sv-fg-fff); --ok-solid-chip-bg: var(--sv-bg-rgba-255-255-255-0_24); --ok-solid-off-bg: var(--sv-bg-16a34a); --ok-solid-off-fg: var(--sv-fg-fff); --ok-avatar-from: var(--sv-bg-16a34a); --ok-avatar-to: var(--sv-bg-059669);
             --warn-solid-bg: var(--sv-bg-f97316); --warn-solid-bg-hover: var(--sv-bg-ea580c); --warn-solid-deep-bg: var(--sv-bg-ea580c); --warn-solid-deep-bg-hover: var(--sv-bg-c2410c); --warn-solid-fg: var(--sv-fg-fff);
             --err-solid-bg: var(--sv-bg-dc2626); --err-solid-fg: var(--sv-fg-fff);
             --disabled-fg: var(--text-secondary);
@@ -692,7 +692,7 @@
             --wl-overdue-section-bg: #2a191d; --wl-overdue-border: #f87171; --wl-overdue-accent: #f87171; --wl-overdue-accent-hover: #ef4444; --wl-overdue-label: #f87171; --wl-overdue-chip-bg: #fca5a5; --wl-overdue-chip-hover: #f87171; --wl-overdue-chip-fg: #101114;
             --wl-tweaks-section-bg: #2a1f16; --wl-tweaks-border: #fb923c; --wl-tweaks-accent: #fb923c; --wl-tweaks-accent-hover: #f97316; --wl-tweaks-label: #fb923c; --wl-tweaks-chip-bg: #fdba74; --wl-tweaks-chip-hover: #fb923c; --wl-tweaks-chip-fg: #101114;
             --upload-progress-track: #26303a; --upload-progress-fill: #67e8f9; --upload-progress-glow: rgba(103,232,249,0.45);
-            --ok-solid-bg: #4ade80; --ok-solid-bg-hover: #86efac; --ok-solid-deep-bg: #4ade80; --ok-solid-fg: #0b1f12; --ok-solid-chip-bg: rgba(11,31,18,0.14); --ok-solid-off-bg: #1f3a2b; --ok-solid-off-fg: #a7e8c0;
+            --ok-solid-bg: #4ade80; --ok-solid-bg-hover: #86efac; --ok-solid-deep-bg: #4ade80; --ok-solid-fg: #0b1f12; --ok-solid-chip-bg: rgba(11,31,18,0.14); --ok-solid-off-bg: #1f3a2b; --ok-solid-off-fg: #a7e8c0; --ok-avatar-from: #4ade80; --ok-avatar-to: #22c55e;
             --warn-solid-bg: #fb923c; --warn-solid-bg-hover: #fdba74; --warn-solid-deep-bg: #fb923c; --warn-solid-deep-bg-hover: #fdba74; --warn-solid-fg: #1f1004;
             --err-solid-bg: #f87171; --err-solid-fg: #2a0c0c;
             --disabled-fg: #9aa3b2;
@@ -7084,7 +7084,7 @@
         .cal-cm-avatar { width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.78rem; color: var(--sv-fg-fff); letter-spacing: 0.01em; font-family: inherit; }
         .cal-cm-row.is-reply .cal-cm-avatar { width: 26px; height: 26px; border-radius: 7px; font-size: 0.66rem; }
         .cal-cm-avatar.is-smm { background: linear-gradient(135deg, var(--sv-bg-4f46e5), var(--sv-bg-7c3aed)); }
-        .cal-cm-avatar.is-client { background: linear-gradient(135deg, var(--sv-bg-16a34a), var(--sv-bg-059669)); }
+        .cal-cm-avatar.is-client { background: linear-gradient(135deg, var(--ok-avatar-from), var(--ok-avatar-to)); color: var(--ok-solid-fg); }
         .cal-cm-body-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
         .cal-cm-head-line { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; line-height: 1.3; }
         .cal-cm-comp-badge { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 0.62rem;
@@ -7814,7 +7814,7 @@
         .kcard-cm { display: flex; gap: 8px; align-items: flex-start; }
         .kcard-cm-avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--text-primary); color: var(--white); font-size: 0.66rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .kcard-cm-avatar.is-kasper { background: var(--sv-bg-7c3aed); }
-        .kcard-cm-avatar.is-client { background: var(--sv-bg-16a34a); }
+        .kcard-cm-avatar.is-client { background: var(--ok-avatar-from); color: var(--ok-solid-fg); }
         .kcard-cm-body { flex: 1; min-width: 0; }
         .kcard-cm-line1 { display: flex; align-items: baseline; gap: 6px; }
         .kcard-cm-author { font-size: 0.74rem; font-weight: 700; color: var(--text-primary); }
@@ -7844,6 +7844,10 @@
         html[data-theme="dark"] .cal-review-aat-btn:disabled, html[data-theme="dark"] .cal-review-approve-alt:disabled { opacity: 1; color: var(--disabled-fg); border-color: var(--border); }
         html[data-theme="dark"] .kcard-tweak-send:disabled { opacity: 1; background: var(--field-bg-hover); color: var(--disabled-fg); }
         html[data-theme="dark"] .cal-fld-substatus-comp { opacity: 0.9; }
+        html[data-theme="dark"] .cal-cm-send:disabled { opacity: 1; background: var(--field-bg-hover); color: var(--disabled-fg); }
+        /* The phone admin pages paint their primary buttons light in dark mode, so a faded one
+           would turn its label to mush: show "off" as a quiet fill instead. */
+        html.pocket-admin-phone[data-theme="dark"] #kasperContent :is(.si-btn, .cc-btn, .pto-submit, .hp-btn.primary):disabled { opacity: 1; background: var(--field-bg-hover); border-color: var(--border); color: var(--disabled-fg); }
         /* Toast (Undo + confirmations) */
         .sv-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(10px); background: var(--toast-bg); color: var(--toast-color); border-radius: 12px; padding: 11px 16px; display: flex; align-items: center; gap: 14px; font-size: 0.84rem; font-weight: 600; box-shadow: 0 10px 32px var(--sv-shadow-rgba-0-0-0-0_28); z-index: 3000; opacity: 0; transition: opacity 0.18s ease, transform 0.18s ease; max-width: min(92vw, 480px); }
         .sv-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }

@@ -37,7 +37,7 @@
                meaning: light mode keeps the exact colours these controls always had; dark mode
                swaps a bright fill for dark text, so success, warning and error read the same
                everywhere (docs/features/UI_DESIGN_STANDARDS.md, test/dark-contrast.js). */
-            --ok-solid-bg: var(--sv-bg-16a34a); --ok-solid-bg-hover: var(--sv-bg-15803d); --ok-solid-deep-bg: var(--sv-bg-166534); --ok-solid-fg: var(--sv-fg-fff); --ok-solid-chip-bg: var(--sv-bg-rgba-255-255-255-0_24); --ok-solid-off-bg: var(--sv-bg-16a34a); --ok-solid-off-fg: var(--sv-fg-fff);
+            --ok-solid-bg: var(--sv-bg-16a34a); --ok-solid-bg-hover: var(--sv-bg-15803d); --ok-solid-deep-bg: var(--sv-bg-166534); --ok-solid-fg: var(--sv-fg-fff); --ok-solid-chip-bg: var(--sv-bg-rgba-255-255-255-0_24); --ok-solid-off-bg: var(--sv-bg-16a34a); --ok-solid-off-fg: var(--sv-fg-fff); --ok-avatar-from: var(--sv-bg-16a34a); --ok-avatar-to: var(--sv-bg-059669);
             --warn-solid-bg: var(--sv-bg-f97316); --warn-solid-bg-hover: var(--sv-bg-ea580c); --warn-solid-deep-bg: var(--sv-bg-ea580c); --warn-solid-deep-bg-hover: var(--sv-bg-c2410c); --warn-solid-fg: var(--sv-fg-fff);
             --err-solid-bg: var(--sv-bg-dc2626); --err-solid-fg: var(--sv-fg-fff);
             --disabled-fg: var(--text-secondary);
@@ -68,7 +68,7 @@
             --wl-overdue-section-bg: #2a191d; --wl-overdue-border: #f87171; --wl-overdue-accent: #f87171; --wl-overdue-accent-hover: #ef4444; --wl-overdue-label: #f87171; --wl-overdue-chip-bg: #fca5a5; --wl-overdue-chip-hover: #f87171; --wl-overdue-chip-fg: #101114;
             --wl-tweaks-section-bg: #2a1f16; --wl-tweaks-border: #fb923c; --wl-tweaks-accent: #fb923c; --wl-tweaks-accent-hover: #f97316; --wl-tweaks-label: #fb923c; --wl-tweaks-chip-bg: #fdba74; --wl-tweaks-chip-hover: #fb923c; --wl-tweaks-chip-fg: #101114;
             --upload-progress-track: #26303a; --upload-progress-fill: #67e8f9; --upload-progress-glow: rgba(103,232,249,0.45);
-            --ok-solid-bg: #4ade80; --ok-solid-bg-hover: #86efac; --ok-solid-deep-bg: #4ade80; --ok-solid-fg: #0b1f12; --ok-solid-chip-bg: rgba(11,31,18,0.14); --ok-solid-off-bg: #1f3a2b; --ok-solid-off-fg: #a7e8c0;
+            --ok-solid-bg: #4ade80; --ok-solid-bg-hover: #86efac; --ok-solid-deep-bg: #4ade80; --ok-solid-fg: #0b1f12; --ok-solid-chip-bg: rgba(11,31,18,0.14); --ok-solid-off-bg: #1f3a2b; --ok-solid-off-fg: #a7e8c0; --ok-avatar-from: #4ade80; --ok-avatar-to: #22c55e;
             --warn-solid-bg: #fb923c; --warn-solid-bg-hover: #fdba74; --warn-solid-deep-bg: #fb923c; --warn-solid-deep-bg-hover: #fdba74; --warn-solid-fg: #1f1004;
             --err-solid-bg: #f87171; --err-solid-fg: #2a0c0c;
             --disabled-fg: #9aa3b2;

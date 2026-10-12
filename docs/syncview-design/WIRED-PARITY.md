@@ -1387,3 +1387,7 @@ The "Sub-issue of" line, breadcrumb and Parent issue card show the parent's
 name. Never a `bat_`/`del_` key: while the name loads there is a grey skeleton,
 and if it cannot be found the line reads "Untitled post" or "Untitled issue".
 Read-only presentation; nothing about writes or authority changed.
+
+## 2026-10-12 staff phone polish, source only
+
+Shared phone segments and overlay behavior were checked with fictional transports. No writer authority or business decision changed. Exact desktop and populated phone-to-desktop comparisons, timing limits and blocked live-observation lanes are recorded in [the dated proof](../audits/2026-10-12-phone-responsiveness/README.md). Not merged or deployed.

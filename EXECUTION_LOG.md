@@ -6917,3 +6917,7 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
 - n8n: Content Ready Notify, Video Production Automation, Market Research, Manager Sync (then unpublished), Onboarding Append Client Row, Slack Creative Channel Finalizer; versions, tests and undo in `docs/ops/N8N_EDIT_LOG.md`; key-free stubs in `n8n-backups/*2026-10-02.roster.stub.json`.
 - Catch-up copy: 77 queued, 77 done, 0 failed, 0 pending; parity clean again. Test client proofs cleaned up afterwards.
 - Not proven: the Finalizer end to end (next real client), the Clients tab HTTP door (admin key). Way back: see the ROLLBACK.md Live State row.
+
+## 2026-10-12 — Prism staff phone responsiveness, source only
+
+One branch; no merge, deploy or database/workflow change. Calendar/Samples retain useful cards and drafts on refresh, keep sheets open during phone-height changes, expose accessible Retry, and avoid redundant field/popup/layout work. Staff segments share the reviewer shape; Workload overload counts fit; legacy More has a touch Close. Native intercepted proof, exact desktop comparisons and all remaining limits are recorded in [the dated report](docs/audits/2026-10-12-phone-responsiveness/README.md). The owner allows the roster-only identity diff check; the ban on tests reading other clients real data remains.

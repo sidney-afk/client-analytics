@@ -647,3 +647,7 @@ and team authority are unchanged. Recorded in EXECUTION_LOG.md and ROLLBACK.md.
 name triggers one read-only lookup (`batches` or the deliverable projection, one
 row) with a 6 s limit and a 15 s retry. No new privilege, table or write path.
 Recorded in EXECUTION_LOG.md and ROLLBACK.md.
+
+## 2026-10-12 bounded staff phone follow-up
+
+Phone-only shared segments and overlay/field work changed; native writes and permissions did not. The source proof and unresolved timing/live-observation limits are in [the dated report](2026-10-12-phone-responsiveness/README.md). This addendum does not revise the historical audit or certify deployment.

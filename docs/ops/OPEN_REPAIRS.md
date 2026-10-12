@@ -32941,3 +32941,14 @@ into or out of the corpus.
 **Owner steps, in order, after merge:** (1) run the v13 grant migration in the SQL editor with the backup role
 name filled in; (2) set the repo variable `TRACK_B_BACKUP_CORPUS` to `history-v13`; (3) dispatch Track-B private
 backup and confirm the preflight passes and a new snapshot is saved.
+
+
+## 410. [2026-10-12, BUILT, NOT MERGED, NOT DEPLOYED] Staff phone responsiveness and consistent controls (session Prism)
+
+Calendar/Samples status sheets closed on phone-height changes; refresh/Retry replaced useful cards and visible drafts; redundant card/popup/width work delayed taps. Workload overload counts wrapped inside a circle; staff segment styling and legacy More close/readability differed.
+
+Phone-only fixes preserve native handlers, permissions, pending decisions and saved-copy warnings. New native browser rules cover first taps/inside taps, retained refresh, 44 px Retry, local caption/title work, zero unrelated popup scans, observed caption widths, stable viewport updates, shared segments and the overloaded count/detail. Source fragments were built; desktop is guarded by exact pixels/styles, including populated phone-to-desktop cases.
+
+[Findings, comparison gallery, speed measurements, limits and real check receipts](../audits/2026-10-12-phone-responsiveness/README.md). All app transports are fictional/intercepted. Cold startup and some throttled dark 20-card caption trials remain above the desired speed bar. Existing unit failures reproduce on the unchanged baseline; live-observation Production lanes are blocked by the owner prohibition on aggregate reads. The owner explicitly permits the required identity checker to read roster names/slugs only before push; browser/save tests still cannot read other clients real data. No merge/deploy/live client mutation occurred.
+
+Rollback: revert the PR, rebuild from source and verify phone/desktop gates. No backend rollback.

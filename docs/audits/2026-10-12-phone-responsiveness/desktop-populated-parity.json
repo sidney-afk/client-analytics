@@ -1,0 +1,166 @@
+[
+  {
+    "label": "calendar-long-content-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "b68d5f43bc27f8a0df1e1ee2fab4660f7146a78370d0b565a39e5013fb096799",
+    "afterHash": "b68d5f43bc27f8a0df1e1ee2fab4660f7146a78370d0b565a39e5013fb096799",
+    "diff": "desktop-populated-diffs/calendar-long-content-light-cold.png"
+  },
+  {
+    "label": "calendar-long-content-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "b68d5f43bc27f8a0df1e1ee2fab4660f7146a78370d0b565a39e5013fb096799",
+    "afterHash": "b68d5f43bc27f8a0df1e1ee2fab4660f7146a78370d0b565a39e5013fb096799",
+    "diff": "desktop-populated-diffs/calendar-long-content-light-warm.png"
+  },
+  {
+    "label": "calendar-long-content-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "b5603f0927b7faa3293aa4ab372c5c076365a6c3a021ad67675813c164d327e1",
+    "afterHash": "b5603f0927b7faa3293aa4ab372c5c076365a6c3a021ad67675813c164d327e1",
+    "diff": "desktop-populated-diffs/calendar-long-content-dark-cold.png"
+  },
+  {
+    "label": "calendar-long-content-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "b5603f0927b7faa3293aa4ab372c5c076365a6c3a021ad67675813c164d327e1",
+    "afterHash": "b5603f0927b7faa3293aa4ab372c5c076365a6c3a021ad67675813c164d327e1",
+    "diff": "desktop-populated-diffs/calendar-long-content-dark-warm.png"
+  },
+  {
+    "label": "samples-long-content-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "442ff4dab794a44a9b93ef23f4b7b31bf629e75b844aa4545ae4d464326977c1",
+    "afterHash": "442ff4dab794a44a9b93ef23f4b7b31bf629e75b844aa4545ae4d464326977c1",
+    "diff": "desktop-populated-diffs/samples-long-content-light-cold.png"
+  },
+  {
+    "label": "samples-long-content-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "a0615aa3df1ceec489a8e47e14bcd7ea7f604c9102b1a6c56b3429bfa0db44da",
+    "afterHash": "a0615aa3df1ceec489a8e47e14bcd7ea7f604c9102b1a6c56b3429bfa0db44da",
+    "diff": "desktop-populated-diffs/samples-long-content-light-warm.png"
+  },
+  {
+    "label": "samples-long-content-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "cf86dc951fa07a270736ea2a664947a82e0b73d837ad91ebf9f0333a7c4aa61c",
+    "afterHash": "cf86dc951fa07a270736ea2a664947a82e0b73d837ad91ebf9f0333a7c4aa61c",
+    "diff": "desktop-populated-diffs/samples-long-content-dark-cold.png"
+  },
+  {
+    "label": "samples-long-content-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "4f5b1dd7bab0aac0a1ce1e8c252f1fd58491bdee21678f433d2f3af567661bf8",
+    "afterHash": "4f5b1dd7bab0aac0a1ce1e8c252f1fd58491bdee21678f433d2f3af567661bf8",
+    "diff": "desktop-populated-diffs/samples-long-content-dark-warm.png"
+  },
+  {
+    "label": "workload-plan-due-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "5f9ee53371ce874bb7d6bfe2e50c95fd6921339a1c7568e068d64f843fb3fb08",
+    "afterHash": "5f9ee53371ce874bb7d6bfe2e50c95fd6921339a1c7568e068d64f843fb3fb08",
+    "diff": "desktop-populated-diffs/workload-plan-due-light-cold.png"
+  },
+  {
+    "label": "workload-plan-due-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "2045943d17ec3c08b90312aca0ad72fe55866565f5bff7339feb2d045a2b411b",
+    "afterHash": "2045943d17ec3c08b90312aca0ad72fe55866565f5bff7339feb2d045a2b411b",
+    "diff": "desktop-populated-diffs/workload-plan-due-light-warm.png"
+  },
+  {
+    "label": "workload-plan-due-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "698d95be72a0ea90d5b3dd0d3fefa167a8fb880eed733b870721914552563f20",
+    "afterHash": "698d95be72a0ea90d5b3dd0d3fefa167a8fb880eed733b870721914552563f20",
+    "diff": "desktop-populated-diffs/workload-plan-due-dark-cold.png"
+  },
+  {
+    "label": "workload-plan-due-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "1d7d0f95ae7020932edff0c73e7cbff8236021ca234abb4adc1348365f93681a",
+    "afterHash": "1d7d0f95ae7020932edff0c73e7cbff8236021ca234abb4adc1348365f93681a",
+    "diff": "desktop-populated-diffs/workload-plan-due-dark-warm.png"
+  },
+  {
+    "label": "linear-detail-light-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "1ad851d879d11fb871f3b110ab1af6b11e18fcb9da111e3c56e91d530806ed16",
+    "afterHash": "1ad851d879d11fb871f3b110ab1af6b11e18fcb9da111e3c56e91d530806ed16",
+    "attempts": 1,
+    "diff": "desktop-populated-diffs/linear-detail-light-cold.png"
+  },
+  {
+    "label": "linear-detail-light-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "0df20021bf6afd0639093451d008697778730723662e2e74e6535973384fc1dd",
+    "afterHash": "0df20021bf6afd0639093451d008697778730723662e2e74e6535973384fc1dd",
+    "attempts": 1,
+    "diff": "desktop-populated-diffs/linear-detail-light-warm.png"
+  },
+  {
+    "label": "linear-detail-dark-cold",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "3e81c8d3e5cf2e1283285bf9bcf09e21b93c934197e9aeb41f0165b28fd66247",
+    "afterHash": "3e81c8d3e5cf2e1283285bf9bcf09e21b93c934197e9aeb41f0165b28fd66247",
+    "attempts": 1,
+    "diff": "desktop-populated-diffs/linear-detail-dark-cold.png"
+  },
+  {
+    "label": "linear-detail-dark-warm",
+    "width": 1440,
+    "height": 900,
+    "pixels": true,
+    "styles": true,
+    "beforeHash": "bed4225d4bcabd7ad91c3797e6e88ef53546628dd9b66ed5bd1c5bfadbf5e093",
+    "afterHash": "bed4225d4bcabd7ad91c3797e6e88ef53546628dd9b66ed5bd1c5bfadbf5e093",
+    "attempts": 1,
+    "diff": "desktop-populated-diffs/linear-detail-dark-warm.png"
+  }
+]

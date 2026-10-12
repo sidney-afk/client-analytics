@@ -16,6 +16,7 @@ on:
           - history-v10
           - history-v11
           - history-v12
+          - history-v13
 
 permissions:
   contents: read

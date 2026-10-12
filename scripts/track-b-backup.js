@@ -142,6 +142,13 @@ const NATIVE_CLIENT_TEST_HISTORY_TABLES = Object.freeze([...NATIVE_NOTIFICATION_
   { name: 'smm_also_sees', pk: 'id' },
   { name: 'production_native_client_test_provisions', pk: 'request_id' },
 ]);
+// v13 adds public.pto_member_events (OPEN_REPAIRS 409): the PTO Member setup
+// audit trail. Its member_id foreign key points at team_members, which is in
+// the corpus, so the boundary check refuses a corpus that leaves it out. Child
+// after parent. Its id is a generated identity, so restores carry the sequence.
+const PTO_MEMBER_EVENTS_HISTORY_TABLES = Object.freeze([...NATIVE_CLIENT_TEST_HISTORY_TABLES,
+  { name: 'pto_member_events', pk: 'id', identity: true },
+]);
 const CORPORA = Object.freeze({
   'legacy-v3': Object.freeze({ name: 'legacy-v3', version: 3, magic: PACKAGE_MAGIC, tables: TABLES }),
   'history-v4': Object.freeze({ name: 'history-v4', version: 4,
@@ -162,6 +169,8 @@ const CORPORA = Object.freeze({
     magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V11\n', 'utf8'), tables: NATIVE_NOTIFICATION_HISTORY_TABLES }),
   'history-v12': Object.freeze({ name: 'history-v12', version: 12,
     magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V12\n', 'utf8'), tables: NATIVE_CLIENT_TEST_HISTORY_TABLES }),
+  'history-v13': Object.freeze({ name: 'history-v13', version: 13,
+    magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V13\n', 'utf8'), tables: PTO_MEMBER_EVENTS_HISTORY_TABLES }),
 });
 
 function resolveCorpus(name = 'legacy-v3') {
@@ -183,7 +192,8 @@ function manifestCorpus(manifest) {
               : manifest && manifest.schema_version === 9 ? 'history-v9'
                 : manifest && manifest.schema_version === 10 ? 'history-v10'
                   : manifest && manifest.schema_version === 11 ? 'history-v11'
-                    : manifest && manifest.schema_version === 12 ? 'history-v12' : '';
+                    : manifest && manifest.schema_version === 12 ? 'history-v12'
+                      : manifest && manifest.schema_version === 13 ? 'history-v13' : '';
   const corpus = resolveCorpus(name);
   if ((corpus.version >= 4 || manifest.corpus != null) && manifest.corpus !== corpus.name) {
     throw new Error('Track-B snapshot corpus does not match its schema version');
@@ -379,6 +389,7 @@ ${corpus.version < 9 ? "if to_regclass('public.legacy_intake_native_triage') is 
 ${corpus.version < 10 ? "if to_regclass('public.production_native_client_provisions') is not null or to_regclass('public.syncview_retirement_admission') is not null or to_regclass('public.production_native_identifier_mint') is not null or to_regclass('public.production_native_identifier_grants') is not null or to_regclass('public.description_images') is not null then raise exception 'Track-B package omits native provision, retirement, identifier, or description ledger evidence'; end if;" : ''}
 ${corpus.version < 11 ? "if to_regclass('public.production_native_ordinary_receipt_admissions') is not null or to_regclass('public.production_notification_config') is not null or to_regclass('public.production_notification_intents') is not null or to_regclass('public.production_notification_delivery_receipts') is not null or to_regclass('public.production_notification_reconciliations') is not null then raise exception 'Track-B package omits ordinary native receipt or notification recovery evidence'; end if;" : ''}
 ${corpus.version < 12 ? "if to_regclass('public.social_media_managers') is not null or to_regclass('public.smm_also_sees') is not null or to_regclass('public.production_native_client_test_provisions') is not null then raise exception 'Track-B package omits roster, staff grant or native test provision evidence'; end if;" : ''}
+${corpus.version < 13 ? "if to_regclass('public.pto_member_events') is not null then raise exception 'Track-B package omits PTO member setup audit evidence'; end if;" : ''}
 if exists(select 1 from pg_catalog.pg_constraint where contype='f'
   and confrelid=any(covered) and not conrelid=any(covered)) then
   raise exception 'Track-B corpus has an omitted incoming foreign key';

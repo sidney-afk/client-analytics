@@ -1822,14 +1822,14 @@
             font-size: 1.1rem; line-height: 1; opacity: 0; transition: opacity 0.15s, background 0.12s, color 0.12s;
             display: inline-flex; align-items: center; justify-content: center; }
         .cal-card:hover .cal-card-del { opacity: 1; }
-        .cal-card-del:hover { background: var(--dn); color: var(--sv-fg-fff); }
+        .cal-card-del:hover { background: var(--dn); color: var(--err-solid-fg); }
 
         /* Add-card — small subtle square, vertically centred in the strip */
         .cal-card-add { flex: 0 0 auto; align-self: center; width: 54px; height: 54px; border-radius: 13px;
             display: inline-flex; align-items: center; justify-content: center;
             background: var(--white); border: 1.5px dashed var(--sv-border-c7c7c4); color: var(--text-muted);
             cursor: pointer; transition: background 0.14s, color 0.14s, border-color 0.14s; padding: 0; }
-        .cal-card-add:hover { background: var(--text-primary); border-color: var(--text-primary); border-style: solid; color: var(--sv-fg-fff); }
+        .cal-card-add:hover { background: var(--text-primary); border-color: var(--text-primary); border-style: solid; color: var(--white); }
         .cal-card-add svg { width: 20px; height: 20px; }
         /* First-post state — centred, larger, with a label */
         .cal-organizer-strip.is-empty { justify-content: center; align-items: center; }
@@ -5447,7 +5447,7 @@
         .tdy-who { flex: 1; min-width: 0; }
         .tdy-tt { font-size: 0.88rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .tdy-cn { font-size: 0.78rem; color: var(--text-secondary); font-weight: 500; }
-        .tdy-urg { font-size: 0.68rem; font-weight: 800; color: var(--text-inverse); background: var(--dn); border-radius: 6px; padding: 3px 7px; flex: none; }
+        .tdy-urg { font-size: 0.68rem; font-weight: 800; color: var(--err-solid-fg); background: var(--dn); border-radius: 6px; padding: 3px 7px; flex: none; }
         .tdy-b { display: inline-flex; align-items: center; gap: 6px; font: 700 0.75rem 'Plus Jakarta Sans', sans-serif; color: var(--text-primary); background: var(--surface-subtle); border: 1px solid var(--border-light); border-radius: 8px; padding: 7px 10px; white-space: nowrap; cursor: pointer; flex: none; }
         .tdy-b:hover { background: var(--surface-hover); }
         .tdy-b.p:hover { background: var(--text-primary); opacity: 0.88; }

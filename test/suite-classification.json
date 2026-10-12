@@ -454,6 +454,7 @@
     "nightly-dispatch-input.js",
     "robot-key-actor-pairing.js",
     "no-hardcoded-colors.js",
+    "dark-contrast.js",
     "notes-linear-routing.js",
     "notes-loading-skeleton.js",
     "notification-triggers-no-shared-channel.js",

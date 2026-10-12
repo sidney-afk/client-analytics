@@ -723,7 +723,7 @@
             --sv-bg-a78bfa: #5d5088;
             --sv-bg-b1b1aa: #616262;
             --sv-bg-b91c1c: #651b1e;
-            --sv-bg-bbf7d0: #3c4b46;
+            --sv-bg-bbf7d0: #1f3d2b;
             --sv-bg-c2410c: #6a2d16;
             --sv-bg-c46fc6: #6b436f;
             --sv-bg-c56fc0: #6b436c;
@@ -802,7 +802,7 @@
             --sv-bg-f1f1f1: #181a1f;
             --sv-bg-f1f1f2: #181a1f;
             --sv-bg-f1f5f9: #181a1f;
-            --sv-bg-f3e4cb: #484645;
+            --sv-bg-f3e4cb: #2e2619;
             --sv-bg-f3e8ff: #181a1f;
             --sv-bg-f3f0ff: #181a1f;
             --sv-bg-f3f3f1: #181a1f;
@@ -833,24 +833,24 @@
             --sv-bg-fce7f3: #181a1f;
             --sv-bg-fceef0: #181a1f;
             --sv-bg-fcfcfb: #181a1f;
-            --sv-bg-fdba74: #4a3d32;
-            --sv-bg-fde68a: #4a4737;
+            --sv-bg-fdba74: #43291a;
+            --sv-bg-fde68a: #3a2f12;
             --sv-bg-fde8d8: #181a1f;
             --sv-bg-fde8f3: #181a1f;
             --sv-bg-fdf0f5: #181a1f;
             --sv-bg-fdf6e3: #181a1f;
             --sv-bg-fdf6f9: #181a1f;
             --sv-bg-fe2c55: #862339;
-            --sv-bg-fecaca: #4b4145;
-            --sv-bg-fed7aa: #4b443e;
-            --sv-bg-fee2e2: #4b464a;
+            --sv-bg-fecaca: #46232a;
+            --sv-bg-fed7aa: #3a2616;
+            --sv-bg-fee2e2: #3a1d21;
             --sv-bg-fef08a: #181a1f;
             --sv-bg-fef2f2: #181a1f;
             --sv-bg-fef3c7: #181a1f;
             --sv-bg-fef9c3: #181a1f;
             --sv-bg-fefce8: #181a1f;
             --sv-bg-ff0000: #870e10;
-            --sv-bg-ffe4cc: #4b4645;
+            --sv-bg-ffe4cc: #3a2616;
             --sv-bg-ffedd5: #181a1f;
             --sv-bg-fff: #181a1f;
             --sv-bg-fff5e6: #181a1f;
@@ -1356,7 +1356,7 @@
         .pin-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 13px; border-radius: 99px; background: var(--white); border: 1.5px solid var(--border); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all 0.15s; box-shadow: 0 1px 4px var(--sv-shadow-rgba-0-0-0-0_07); user-select: none; }
         .pin-pill:hover { border-color: var(--sv-border-bbb); box-shadow: 0 2px 8px var(--sv-shadow-rgba-0-0-0-0_12); }
         .pin-pill .pin-remove { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: var(--border); color: var(--text-muted); font-size: 0.6rem; line-height: 1; transition: all 0.13s; flex-shrink: 0; }
-        .pin-pill .pin-remove:hover { background: var(--dn); color: var(--sv-fg-fff); }
+        .pin-pill .pin-remove:hover { background: var(--dn); color: var(--err-solid-fg); }
         .pin-add-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 99px; background: transparent; border: 1.5px dashed var(--border); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.72rem; font-weight: 600; color: var(--text-muted); cursor: pointer; transition: all 0.15s; }
         .pin-add-btn:hover { border-color: var(--sv-border-aaa); color: var(--text-secondary); background: var(--white); }
         .pin-edit-btn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; border: none; background: transparent; color: var(--text-muted); cursor: pointer; transition: all 0.15s; }

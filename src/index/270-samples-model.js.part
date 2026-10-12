@@ -809,7 +809,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             _sxrWireSearchInput();
         }
     }
-    function _sxrCloseTabSearch() { const panel = document.getElementById('sxrTabSearchPanel'); if (panel) panel.hidden = true; }
+    function _sxrCloseTabSearch() { const panel = document.getElementById('sxrTabSearchPanel'); if (panel && (!_sxrStaffPhoneActive() || !panel.hidden)) panel.hidden = true; }
     function _sxrWireOutsideTabSearchClose() {
         if (document._sxrOutsideWired) return;
         document._sxrOutsideWired = true;

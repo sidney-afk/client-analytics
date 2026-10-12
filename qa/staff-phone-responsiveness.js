@@ -214,6 +214,9 @@ async function regularAction(page,screen){
   await page.waitForTimeout(150);
   await page.evaluate(()=>{
    window.__titleHeightWrites=0;
+   window.__captionPopupScans=0;
+   window.__captionQueryAll=document.querySelectorAll;
+   document.querySelectorAll=function(q){if(q.includes('[role="alertdialog"]'))window.__captionPopupScans++;return window.__captionQueryAll.call(this,q);};
    window.__titleWatch=new MutationObserver(records=>{window.__titleHeightWrites+=records.length;});
    document.querySelectorAll('textarea[data-pocket-title]').forEach(n=>window.__titleWatch.observe(n,{attributes:true,attributeFilter:['style']}));
   });
@@ -229,6 +232,9 @@ async function regularAction(page,screen){
  if(profiler){const result=await profiler.send('Profiler.stop');fs.writeFileSync(path.join(process.env.PHONE_PROFILE,screen.name+'.json'),JSON.stringify(result));}
  const tap=await page.evaluate(()=>window.__phonePerf.taps.at(-1));assert(tap.opened,'Regular action ignored its first tap');
  if(screen.name==='Calendar'){
+  const scans=await page.evaluate(()=>{document.querySelectorAll=window.__captionQueryAll;return window.__captionPopupScans;});
+  rows.push({rule:'caption tap does not scan unrelated popups',passed:scans===0,scans});
+  if(!baseline)assert.equal(scans,0,'Caption tap scanned unrelated popups');
   const writes=await page.evaluate(()=>{window.__titleWatch.disconnect();return window.__titleHeightWrites;});
   rows.push({rule:'caption expansion does not re-size unchanged titles',passed:writes===0,writes});
   if(!baseline)assert.equal(writes,0,'Caption tap re-sized unchanged titles');

@@ -159,7 +159,7 @@ Cold shared bootstrap still takes several seconds under the constrained profile;
 
 ## Final static and identity checks
 
-Pending execution after the evidence commit. The next receipt records the exact final tails.
+Executed on the committed evidence branch. All checks below exit 0; the earlier unit and 4G limitations above remain.
 
 ## Final visual-pass correction
 
@@ -175,4 +175,86 @@ STAFF_PHONE_RESPONSIVENESS: 56 measurements; 0 failures; fictional transports on
 
 ```text
 STAFF_PHONE_RESPONSIVENESS: 8 measurements; 0 failures; fictional transports only
+```
+
+`npm run -s check:index`
+
+```text
+check-index: working-tree index.html — sha256=e08b0bb9e135cb586cb10465859a9a017b9e56b554b21ce6c399953f3582dfdf bytes=1359641
+check-index: committed index.html (HEAD) — sha256=e08b0bb9e135cb586cb10465859a9a017b9e56b554b21ce6c399953f3582dfdf bytes=1359641
+
+check-index: OK — assembled == working tree == committed (HEAD)
+```
+
+`node scripts/check-modules.js`
+
+```text
+minified parts: 19 files, 2724 KB, 5332 top-level names, 0 lost, 0 changed kind
+
+check-modules: all checks passed
+```
+
+`node scripts/repo-identity-exposure-check.js --diff="origin/main"`
+
+```text
+  files carrying at least one      0   (any is a failure)
+
+  WHERE (counts only — this tool never prints what it matched):
+
+This change adds no client slug and no colleague's name ✅
+```
+
+`node test/no-hardcoded-colors.js`
+
+```text
+No hardcoded color literals outside allowed variable/validation blocks.
+```
+
+`node test/*phone-css-scope.js (each of the seven matching files)`
+
+```text
+client-phone-css-scope: OK (6 block(s), 464 braces, all under @media (max-width: <=767px) and html.boot-client)
+finch-phone-css-scope: OK (1 block(s), 446 braces, all under @media (max-width: <=767px) and html.fph-on)
+kasper-phone-css-scope: OK (1 block(s), 24 braces, all under @media (max-width: <=767px) and the Kasper review scope)
+staff-calendar-phone-css-scope: OK (1 block(s), 410 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])
+staff-phone-css-scope: OK (1 block(s), 372 braces, all under @media (max-width: <=767px) and body:has(.pocket-staff-bar))
+staff-samples-phone-css-scope: OK (1 block(s), 352 braces, all under @media (max-width: <=767px) and #sxrView[data-pocket-staff-samples])
+staff-selection-phone-css-scope: OK (1 block(s), 30 braces, all under @media (max-width: <=767px) and #calView[data-pocket-staff-phone])
+```
+
+`node test/staff-phone-rules-source.js`
+
+```text
+staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 75 rules phone-capped and staff-scoped
+```
+
+`node --require ./test/helpers/single-file-index.js test/leave-evidence-fingerprint-coupling.js`
+
+```text
+leave-evidence fingerprint coupling checks passed
+```
+
+`node --require ./test/helpers/single-file-index.js test/port-fidelity-check.js`
+
+```text
+  exact/allowed: _prodDescLinkPopWire -> descLinkPopWire
+  exact object: PROD_ICON -> I
+```
+
+`node --require ./test/helpers/single-file-index.js test/repo-map-sync.js`
+
+```text
+repo-map-sync: 1153 passed, 0 failed
+```
+
+`node test/fixture-desktop-exact-replay.js`
+
+```text
+fixture-desktop-exact-replay: exact pairs stop immediately; raster noise retries; persistent pixel/style changes fail after four attempts
+```
+
+`node --require ./test/helpers/single-file-index.js test/calendar-client-reorder-caption.js`
+
+```text
+  PASS ✅  (28 passed, 0 failed)
 ```

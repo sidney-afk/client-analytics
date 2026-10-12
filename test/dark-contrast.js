@@ -30,7 +30,8 @@ const REPORT = process.argv.includes('--report');
 
 // ---------- CSS extraction ----------
 const styleBlocks = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map(m => m[1]);
-const css = styleBlocks.join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+const { stripBlockComments } = require('./helpers/strip-comments');
+const css = stripBlockComments(styleBlocks.join('\n'), '');
 
 function parseRules(text) {
   // Flat list of { selector, body, at } ; @media/@supports/@layer nest, others skipped.

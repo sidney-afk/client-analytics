@@ -128,6 +128,17 @@ async function menuJourney(page,label){
 }
 async function calendarRules(page,screen,label,width){
  const samples=screen.name==='Samples';await prepare(page,samples?'samples-sheet':'calendar-sheet');
+ const viewportWork=await page.evaluate(async()=>{
+  document.activeElement?.blur();
+  const original=document.querySelectorAll;let scans=0,writes=0;
+  const observer=new MutationObserver(records=>writes+=records.length);
+  observer.observe(document.documentElement,{attributes:true,attributeFilter:['style']});
+  document.querySelectorAll=function(q){if(q.includes('[role="alertdialog"]'))scans++;return original.call(this,q);};
+  for(let i=0;i<5;i++){visualViewport.dispatchEvent(new Event('scroll'));await new Promise(r=>setTimeout(r,0));}
+  observer.disconnect();document.querySelectorAll=original;return{scans,writes};
+ });
+ rows.push({rule:'unchanged visual viewport avoids style writes and popup scans',label,passed:viewportWork.scans===0&&viewportWork.writes===0,...viewportWork});
+ if(!baseline)assert(viewportWork.scans===0&&viewportWork.writes===0,label+' ordinary scroll rescans all popups');
  const setAll=page.locator('.cal-fld-setall').first();
  for(let i=0;i<2;i++){
   await setAll.tap();await page.locator('.cal-fld-status-menu.open').waitFor();await page.waitForTimeout(60);

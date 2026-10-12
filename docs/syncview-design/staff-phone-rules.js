@@ -242,8 +242,12 @@
         };
         function viewport() {
             const vv = window.visualViewport;
-            html.style.setProperty('--sv-phone-vh', (vv?.height || innerHeight) + 'px');
-            html.style.setProperty('--sv-phone-vtop', (vv?.offsetTop || 0) + 'px');
+            const height = (vv?.height || innerHeight) + 'px';
+            const top = (vv?.offsetTop || 0) + 'px';
+            // Ordinary scrolling does not change these dimensions. Rewriting
+            // identical values wakes every layout observer on each touch.
+            if (html.style.getPropertyValue('--sv-phone-vh') !== height) html.style.setProperty('--sv-phone-vh', height);
+            if (html.style.getPropertyValue('--sv-phone-vtop') !== top) html.style.setProperty('--sv-phone-vtop', top);
             const field = document.activeElement;
             if (!field?.matches('input, textarea, [contenteditable="true"]')) return;
             requestAnimationFrame(() => {

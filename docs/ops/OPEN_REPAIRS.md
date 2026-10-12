@@ -32997,3 +32997,8 @@ workflow (`npm run test:unit`) runs it with `test/thumbnail-titles-source.js`.
 (https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml). No migration, no switch, no new secret.
 **Way back:** redeploy the previous commit of `thumbnail-titles`; or revert the pull request.
 
+
+
+## 412. [2026-10-12, BUILT, NOT MERGED, NOT DEPLOYED] Shared staff phone Tabs icon grid
+
+The Calendar, Samples and other staff Tabs menus used plain rows while the reviewer used an icon grid. All staff phone menus now share the reviewer grid, native order/actions, current selection, consistent spacing and Close. Overview/client rows retain their existing reviewer context. Phone-only source fragments were built; fictional native checks and exact desktop comparisons are recorded in [the evidence packet](../audits/2026-10-12-staff-tabs-grid/README.md). The existing live Production fast CI lane is explicitly deferred on this branch to uphold the read boundary. No merge/deploy/backend mutation.

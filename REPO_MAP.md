@@ -766,3 +766,5 @@ External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HAND
 Staff phone responsiveness proof: `docs/audits/2026-10-12-phone-responsiveness/` holds the native paired screenshots, gallery, speed measurements, desktop differences and check receipts for the bounded staff phone polish.
 
 `qa/client-phone/exact-replay.js` bounds fresh capture retries while still requiring exact PNG bytes and computed styles. `test/fixture-desktop-exact-replay.js` checks immediate success, transient raster mismatch and persistent pixel/style refusal.
+
+Staff phone Tabs: `qa/staff-phone-tabs-grid.js` checks the shared native-icon grid on primary and admin screens. `test/phone-tabs-ci-read-boundary.js` keeps this branch from starting unscoped Production fast tests. `docs/audits/2026-10-12-staff-tabs-grid/` contains native phone comparisons and check receipts.

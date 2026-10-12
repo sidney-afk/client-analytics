@@ -37,6 +37,20 @@ function serve(sourceRoot = root, gzip = false) {
 
 /* opts: { width, height, theme: 'light'|'dark', hash, rest: {table: rows|fn},
  *         fn: {name: body|fn}, csv: {matcher: text}, init: string, role } */
+async function dateOnlyClock(context, iso) {
+  // Keep fixture dates stable WITHOUT replacing performance, timers or RAF.
+  await context.addInitScript(iso => {
+    const NativeDate = window.Date, instant = NativeDate.parse(iso);
+    function FixtureDate(...args) {
+      if (!new.target) return new NativeDate(instant).toString();
+      return Reflect.construct(NativeDate, args.length ? args : [instant], new.target);
+    }
+    FixtureDate.prototype = NativeDate.prototype;
+    Object.setPrototypeOf(FixtureDate, NativeDate);
+    FixtureDate.now = () => instant;
+    window.Date = FixtureDate;
+  }, iso);
+}
 async function open(opts) {
   const o = opts || {};
   const role = o.role || 'admin';
@@ -52,7 +66,8 @@ async function open(opts) {
   });
   await context.routeWebSocket('**/*', socket => socket.close());
   /* Pin the clock so dates in the screenshots are the same on every run. */
-  await context.clock.install({ time: new Date(o.now || '2026-10-05T15:00:00.000Z') });
+  if (o.realTiming) await dateOnlyClock(context, o.now || '2026-10-05T15:00:00.000Z');
+  else await context.clock.install({ time: new Date(o.now || '2026-10-05T15:00:00.000Z') });
   const page = await context.newPage();
   page.on('pageerror', e => state.errors.push(e.message));
   await context.addInitScript(({ theme }) => {
@@ -114,4 +129,4 @@ async function open(opts) {
   const close = async () => { await context.close().catch(() => {}); await browser.close().catch(() => {}); await new Promise(r => server.close(r)); };
   return { page, context, state, close, base };
 }
-module.exports = { open };
+module.exports = { open, dateOnlyClock };

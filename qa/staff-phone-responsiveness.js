@@ -6,7 +6,7 @@ const {chromium}=require('playwright');
 const staff=require('../docs/syncview-design/tests/staff-phone-browser');
 const {seedStaffGate}=require('./staff-gate-seed');
 const {SCENARIOS}=require('./finch-phone/scenarios');
-const {open}=require('./finch-phone/harness');
+const {open,dateOnlyClock}=require('./finch-phone/harness');
 const {prepare}=require('./staff-phone-final-pass');
 const arg=(k,d)=>process.argv.find(x=>x.startsWith('--'+k+'='))?.slice(k.length+3)||d;
 const baseline=process.argv.includes('--baseline'),speed=process.argv.includes('--speed');
@@ -39,6 +39,7 @@ async function instrument(page,context,screen){
   await context.route(/\.supabase\.co\/(rest|functions)\/v1\//,async route=>{await sleep(150);await route.fallback();});
  }
  await context.addInitScript(({ready})=>{
+  if(!performance.now.toString().includes('[native code]')||!requestAnimationFrame.toString().includes('[native code]'))throw new Error('Responsiveness measurements require native performance and animation-frame clocks');
   const perf=window.__phonePerf={useful:null,taps:[],shifts:[],longTasks:[]};
   new PerformanceObserver(list=>list.getEntries().forEach(e=>perf.shifts.push({at:e.startTime,value:e.value,recentInput:e.hadRecentInput}))).observe({type:'layout-shift',buffered:true});
   new PerformanceObserver(list=>list.getEntries().forEach(e=>perf.longTasks.push({at:e.startTime,duration:e.duration}))).observe({type:'longtask',buffered:true});
@@ -62,11 +63,11 @@ async function instrument(page,context,screen){
 async function boot(screen,width,theme){
  if(screen.fixture){
   const f=SCENARIOS.find(s=>s.id===screen.fixture);assert(f,'Fixture missing: '+screen.fixture);
-  return open({...f.open,gzip:speed,sourceRoot:arg('before-root',undefined),width,height:width===430?932:844,theme,dsf:1,beforeNavigate:(p,c)=>instrument(p,c,screen)});
+  return open({...f.open,realTiming:true,gzip:speed,sourceRoot:arg('before-root',undefined),width,height:width===430?932:844,theme,dsf:1,beforeNavigate:(p,c)=>instrument(p,c,screen)});
  }
  const server=await staff.serve({gzip:speed}),browser=await chromium.launch({headless:true});
  const context=await browser.newContext({viewport:{width,height:width===430?932:844},hasTouch:true,isMobile:true,colorScheme:theme});
- await context.clock.install({time:new Date('2026-10-12T15:00:00.000Z')});
+ await dateOnlyClock(context,'2026-10-12T15:00:00.000Z');
  await staff.installBackend(context);await seedStaffGate(context);
  if(screen.route==='time-off'){
   const service=await require('./pto-lifecycle/mock-backend').createMockBackend();

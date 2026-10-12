@@ -32913,3 +32913,31 @@ catches a lane that stops. Rollback: revert the pull request and redeploy `monit
 reverted main.
 
 
+
+## 409. [2026-10-12, BUILT, NOT MERGED, NOT APPLIED] Track-B private backup: corpus history-v13 adds pto_member_events; a test now stops this recurring (session Ballast)
+
+**What broke.** The private database backup (Track-B) saved no copy after 2026-10-10 12:45 UTC. Every real run
+since 2026-10-10 18:23 UTC failed in about a second at "Backup privilege preflight failed". Scheduled runs
+showed green only because the schedule guard skips their backup job when the db-timer copy owns the slot.
+Cause: `migrations/2026-10-10-pto-member-setup-audit.sql` (PR 2036) created `public.pto_member_events` with a
+foreign key to `team_members`, which is in the corpus; `pto_member_events` was not. The boundary check refuses
+a corpus that omits either end of a foreign key. Same situation OPEN_REPAIRS 387 solved with history-v12.
+
+**What changed (source only).**
+1. `history-v13` = `history-v12` plus `pto_member_events` (56 tables, identity id, child after parent), with
+   the older-corpus refusal, rehearsal and large-dump scripts, both workflows' corpus choice, the runbook, the
+   scratch grants script `scripts/track-b-history-v13-backup-prerequisites.sql` and the two Track-B tests.
+2. `migrations/2026-10-12-track-b-history-v13-backup-select.sql`: GRANT SELECT on that one table to the backup
+   role, role name left as a placeholder. Not applied.
+3. `test/track-b-corpus-migration-guard.js` (runs in the unit lane): fails when any migration creates a table
+   with a foreign key to or from a table in the newest corpus and the table is not in it, naming the table
+   and "add it to a new Track-B corpus". It fails on history-v12 for pto_member_events.
+4. A scheduled run whose backup job is skipped now writes "Backup skipped here; the db-timer copy owns it" in
+   its summary, so a green tick is not read as "backup saved".
+
+**Measured (read only, live).** With `pto_member_events` added, no table outside the 56 has a foreign key
+into or out of the corpus.
+
+**Owner steps, in order, after merge:** (1) run the v13 grant migration in the SQL editor with the backup role
+name filled in; (2) set the repo variable `TRACK_B_BACKUP_CORPUS` to `history-v13`; (3) dispatch Track-B private
+backup and confirm the preflight passes and a new snapshot is saved.

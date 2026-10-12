@@ -71,7 +71,7 @@ function verdict(fn, bytes, corpus) {
     return 'ok:' + JSON.stringify(Object.fromEntries(Object.entries(out.tables).map(([k, v]) => [k, [v.columns, v.rows.length, v.rows.join('\n')]])));
   } catch (e) { return 'err:' + e.message; }
 }
-const CORPUS = 'history-v12';
+const CORPUS = 'history-v13';
 const base = fixtureDump(CORPUS);
 const same = (bytes, label) => check(label, () => assert.equal(verdict(backup.parseStrictPgDump, bytes, CORPUS), verdict(referenceParse, bytes, CORPUS)));
 
@@ -121,6 +121,7 @@ check('an older-corpus header is recognised; the same or a newer one, or garbage
   assert.equal(backup.headerIsOlderCorpus(magic('legacy-v3'), CORPUS), true);
   assert.equal(backup.headerIsOlderCorpus(magic('history-v10'), CORPUS), true);
   assert.equal(backup.headerIsOlderCorpus(magic('history-v11'), CORPUS), true);
+  assert.equal(backup.headerIsOlderCorpus(magic('history-v12'), CORPUS), true);
   assert.equal(backup.headerIsOlderCorpus(magic(CORPUS), CORPUS), false);
   assert.equal(backup.headerIsOlderCorpus(Buffer.from('not a snapshot'), CORPUS), false);
   assert.equal(backup.headerIsOlderCorpus(null, CORPUS), false);

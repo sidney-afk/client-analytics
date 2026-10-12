@@ -17,6 +17,7 @@ on:
           - history-v10
           - history-v11
           - history-v12
+          - history-v13
         default: configured
       restore_rehearsal:
         description: 'Destructively restore the new backup into the configured scratch project'
@@ -41,6 +42,22 @@ jobs:
     permissions:
       actions: read
       contents: read
+
+  # A green scheduled run can mean "the backup job was skipped", not "a backup
+  # was saved". Say so in the run summary so the tick is not misread.
+  skipped-note:
+    needs: schedule-guard
+    if: needs.schedule-guard.outputs.run == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Say the backup was skipped here
+        run: |
+          {
+            echo '## Backup skipped here; the db-timer copy owns it'
+            echo
+            echo 'This green tick does NOT mean a backup was saved. The database timer already started this slot, so its run did the backup. Check that run (source: db-timer) for the real result.'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   backup:
     needs: schedule-guard

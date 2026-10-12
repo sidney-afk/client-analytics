@@ -702,13 +702,14 @@ export function borrowedPlanName(createdAt, via) {
 // rows: calendar_posts rows { id, name, caption, scheduled_date }. "Earlier" means scheduled before the
 // card's own date (or, when the card has none, before the day its thumbnail was queued). The card's own
 // group (ids in excludeIds) and the calendar's settings row are never evidence.
-export function selectEarlierCaptioned(rows, { cardDate = "", createdAt = "", excludeIds = [], days = BORROWED_WINDOW_DAYS, max = BORROWED_MAX_CAPTIONS } = {}) {
+export function selectEarlierCaptioned(rows, opts) {
+  const { cardDate = "", createdAt = "", excludeIds, days = BORROWED_WINDOW_DAYS, max = BORROWED_MAX_CAPTIONS } = opts || {};
   const day = (v) => { const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(v || "")); return m ? m[1] : ""; };
   const upper = day(cardDate) || day(createdAt);
   const created = new Date(createdAt);
   if (!upper || Number.isNaN(created.getTime())) return [];
   const lower = new Date(created.getTime() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);
-  const skip = new Set(excludeIds.map(String));
+  const skip = new Set((excludeIds || []).map(String));
   return (rows || [])
     .filter((r) => r && !skip.has(String(r.id)) && String(r.id) !== "p_cal_settings" && String(r.name || "") !== "__cal_settings__")
     .map((r) => ({ id: String(r.id), name: String(r.name || "").trim(), date: day(r.scheduled_date), caption: String(r.caption || "").trim() }))

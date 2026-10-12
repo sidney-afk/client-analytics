@@ -150,7 +150,7 @@ async function calendarRules(page,screen,label,width){
  const hit=await retry.boundingBox();
  rows.push({rule:'refresh recovery has a 44px labelled touch target',label,passed:hit.width>=44&&hit.height>=44&&await retry.getAttribute('role')==='button',width:hit.width,height:hit.height});
  if(!baseline)assert(hit.width>=44&&hit.height>=44&&await retry.getAttribute('role')==='button',label+' retry is a tiny unlabelled control');
- await capture(page,label+'-refresh-error');
+ await retry.scrollIntoViewIfNeeded();await capture(page,label+'-refresh-error');
  await page.route('**/rest/v1/'+table+'?**',async route=>{await sleep(450);await route.fulfill({status:200,headers:{'access-control-allow-origin':'*'},json:await page.evaluate(samples=>(samples?sxrState:calState).posts,samples)});});
  await retry.tap();
  const retryKept=await page.locator(samples?'#sxrBody .cal-card':'#calBody .cal-card').count();

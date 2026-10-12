@@ -93,7 +93,7 @@ async function menuJourney(page,label){
   const selector=kind==='more'?'.pocket-staff-more-btn,#fphMoreBtn,[data-staff-menu=more],[data-kasper-more-trigger]':'.pocket-staff-tabs-btn,#fphTabsBtn,[data-staff-menu=tabs],.pocket-admin-heading button[aria-haspopup=dialog]';
   const trigger=page.locator(selector).filter({visible:true}).first();
   await page.evaluate(()=>window.__measureNextTap=true);await trigger.tap();
-  const sheet=page.locator('dialog[open],.kasper-more.open').filter({visible:true}).first();await sheet.waitFor();
+  const sheet=page.locator('dialog[open],.kasper-more.open .kasper-more-menu').filter({visible:true}).first();await sheet.waitFor();
   await page.waitForTimeout(60);
   const box=await sheet.boundingBox();assert(box&&box.x>=-1&&box.x+box.width<=await page.evaluate(()=>innerWidth)+1,label+' sheet clipped');
   await sheet.tap({position:{x:8,y:8}});assert(await sheet.isVisible(),label+' inside tap closed sheet');
@@ -132,6 +132,35 @@ async function calendarRules(page,screen,label,width){
  rows.push({rule:'field layout avoids whole card scans',screen:screen.name,label,passed:scans===0,scans});
  if(!baseline)assert.equal(scans,0,label+' field changes scan every card');
 }
+async function workloadRules(page,label){
+ // Put seven fictional video tasks on one day through the native state model.
+ // The regular fixture has no overloaded day and missed the cramped badge.
+ await page.evaluate(()=>{
+  const original=wlState.planned.find(s=>wlTeamBucket(s.teamKey,s.teamName)==='video');
+  if(!original)throw new Error('No native video fixture');
+  const tasks=Array.from({length:7},(_,i)=>({...original,id:'overload-fixture-'+i,title:'Fictional planned task '+(i+1)}));
+  const day=wlState.calendarByDate.keys().next().value;
+  wlState.calendarByDate.set(day,tasks);renderWorkloadAll();
+ });
+ const badge=page.locator('.workload-day-card-total.over-capacity').first();await badge.waitFor();
+ const geometry=await badge.evaluate(n=>{const r=n.getBoundingClientRect();return {width:r.width,height:r.height,scrollWidth:n.scrollWidth,clientWidth:n.clientWidth,text:n.textContent.trim(),wrap:getComputedStyle(n).whiteSpace};});
+ rows.push({rule:'overloaded editor count stays on one line',label,passed:geometry.wrap==='nowrap'&&geometry.height<=45&&geometry.scrollWidth<=geometry.clientWidth,...geometry});
+ if(!baseline)assert(geometry.wrap==='nowrap'&&geometry.height<=45&&geometry.scrollWidth<=geometry.clientWidth,label+' overload badge cramped');
+ await capture(page,label+'-overload');
+ await badge.tap();const popup=page.locator('.wl-popover,.workload-popover').filter({visible:true}).first();await popup.waitFor();
+ await page.keyboard.press('Escape');
+}
+async function tabRules(page,screen,label){
+ const selectors={Calendar:'.cal-view-toggle',Samples:'.cal-view-toggle',Workload:'.workload-pills',SyncLinear:'.prod-tabs',Today:'.tdy-vw',Upload:'.tk-platform-switch',Reviewer:'.kasper-wrap[data-pocket-reviewer] > .kasper-subtabs'};
+ if(!selectors[screen.name])return;
+ const bars=await page.locator(selectors[screen.name]).filter({visible:true}).evaluateAll(nodes=>nodes.map(node=>{
+  const s=getComputedStyle(node),buttons=[...node.children].filter(n=>n.matches('button')&&!n.hidden);
+  return {radius:s.borderRadius,border:s.borderTopWidth,gap:s.gap,padding:s.paddingTop,buttons:buttons.map(n=>{const t=getComputedStyle(n),r=n.getBoundingClientRect();return {radius:t.borderRadius,height:r.height,font:t.fontSize,align:t.justifyContent};})};
+ }));
+ const consistent=bars.length>0&&bars.every(b=>b.radius==='15px'&&b.border==='0px'&&b.gap==='3px'&&b.padding==='4px'&&b.buttons.every(n=>n.radius==='11px'&&n.height>=44&&n.align==='center'));
+ rows.push({rule:'shared reviewer-style tab bars',screen:screen.name,label,passed:consistent,bars});
+ if(!baseline)assert(consistent,label+' inconsistent tab bar');
+}
 async function main(){
  for(const screen of screens.filter(s=>only.test(s.name)))for(const width of widths)for(const theme of ['light','dark']){
   const label=screen.name.replaceAll(' ','-')+'-'+theme+'-'+width;let h;
@@ -143,7 +172,9 @@ async function main(){
    const perf=await page.evaluate(()=>window.__phonePerf);
    assert(perf.taps.length===4&&perf.taps.every(t=>t.opened),label+' a menu ignored its first tap');
    rows.push({screen:screen.name,width,theme,usefulMs:Math.round(perf.useful),tapMs:Math.round(Math.max(...perf.taps.map(t=>t.ms))),cls:perf.shifts.filter(s=>!s.recentInput).reduce((n,s)=>n+s.value,0),longTasks:perf.longTasks.length});
+   await tabRules(page,screen,label);
    if(['Calendar','Samples'].includes(screen.name))await calendarRules(page,screen,label,width);
+   if(screen.name==='Workload')await workloadRules(page,label);
    await capture(page,label+'-screen');
    console.log('ok '+label+' useful='+Math.round(perf.useful)+'ms tap='+Math.round(Math.max(...perf.taps.map(t=>t.ms)))+'ms');
   }catch(e){failures.push(label+': '+e.message);console.error('FAIL '+failures.at(-1));}

@@ -1,5 +1,7 @@
 /* STAFF-PHONE-RULES:BEGIN */
 @media (max-width: 767px) {
+    html.sv-staff-phone body { --sv-phone-active-surface:var(--surface-raised); }
+    html.sv-staff-phone body:where([data-theme="dark"] body) { --sv-phone-active-surface:var(--border); }
     html.sv-staff-phone.sv-phone-locked { overflow: hidden; overscroll-behavior: none; }
     html.sv-staff-phone [hidden] { display: none !important; }
     html.sv-staff-phone body { padding-bottom: env(safe-area-inset-bottom); }
@@ -63,5 +65,54 @@
     html.sv-staff-phone .cc-password-wrap { display: flex; align-items: center; gap: 8px; }
     html.sv-staff-phone .cc-password-wrap input { flex: 1; min-width: 0; width: 0; padding-right: 12px; }
     html.sv-staff-phone .cc-password-wrap .cc-pass-toggle { position: static; transform: none; flex-shrink: 0; }
+    /* One reviewer-style segmented control across staff phone screens. */
+    html.sv-staff-phone #mainWrap .tdy-vw,
+    html.sv-staff-phone #mainWrap .cal-view-toggle,
+    html.sv-staff-phone #mainWrap .workload-pills,
+    html.sv-staff-phone #mainWrap .prod-tabs,
+    html.sv-staff-phone #mainWrap .tk-platform-switch,
+    html.sv-staff-phone #mainWrap .tk-q-tabs,
+    html.sv-staff-phone #mainWrap .view-tab-toggle,
+    html.sv-staff-phone #mainWrap .kasper-wrap[data-pocket-reviewer] > .kasper-subtabs,
+    html.sv-staff-phone #mainWrap .tpl-brain-tabs { display:flex; flex-wrap:nowrap; align-items:center; width:100%; box-sizing:border-box; gap:3px !important; padding:4px; border:0 !important; border-radius:15px !important; background:var(--surface-subtle) !important; }
+    html.sv-staff-phone #mainWrap .tdy-vw > button,
+    html.sv-staff-phone #mainWrap .cal-view-toggle > button,
+    html.sv-staff-phone #mainWrap .workload-pills > button,
+    html.sv-staff-phone #mainWrap .prod-tabs > button,
+    html.sv-staff-phone #mainWrap .tk-platform-switch > button,
+    html.sv-staff-phone #mainWrap .tk-q-tabs > button,
+    html.sv-staff-phone #mainWrap .view-tab-toggle > button,
+    html.sv-staff-phone #mainWrap .kasper-wrap[data-pocket-reviewer] > .kasper-subtabs > button,
+    html.sv-staff-phone #mainWrap .tpl-brain-tabs > button { display:inline-flex; align-items:center; justify-content:center; flex:1 1 0; min-width:44px; min-height:44px; padding:0 6px; border:0; border-radius:11px !important; font-size:13px !important; font-weight:600 !important; white-space:nowrap; color:var(--text-secondary); background:transparent; box-shadow:none; }
+    html.sv-staff-phone #mainWrap .tdy-vw > button.active,
+    html.sv-staff-phone #mainWrap .cal-view-toggle > button.active,
+    html.sv-staff-phone #mainWrap .workload-pills > button.active,
+    html.sv-staff-phone #mainWrap .prod-tabs > button.active,
+    html.sv-staff-phone #mainWrap .tk-platform-switch > button.active,
+    html.sv-staff-phone #mainWrap .tk-q-tabs > button.active,
+    html.sv-staff-phone #mainWrap .view-tab-toggle > button.active,
+    html.sv-staff-phone #mainWrap .kasper-wrap[data-pocket-reviewer] > .kasper-subtabs > button.active,
+    html.sv-staff-phone #mainWrap .tpl-brain-tabs > button.active,
+    html.sv-staff-phone #mainWrap .tdy-vw > button.on,
+    html.sv-staff-phone #mainWrap .cal-view-toggle > button.on,
+    html.sv-staff-phone #mainWrap .workload-pills > button.on,
+    html.sv-staff-phone #mainWrap .prod-tabs > button.on,
+    html.sv-staff-phone #mainWrap .tk-platform-switch > button.on,
+    html.sv-staff-phone #mainWrap .tk-q-tabs > button.on,
+    html.sv-staff-phone #mainWrap .view-tab-toggle > button.on,
+    html.sv-staff-phone #mainWrap .kasper-wrap[data-pocket-reviewer] > .kasper-subtabs > button.on,
+    html.sv-staff-phone #mainWrap .tpl-brain-tabs > button.on,
+    html.sv-staff-phone #mainWrap .tdy-vw > button[aria-pressed="true"],
+    html.sv-staff-phone #mainWrap .cal-view-toggle > button[aria-pressed="true"],
+    html.sv-staff-phone #mainWrap .workload-pills > button[aria-pressed="true"],
+    html.sv-staff-phone #mainWrap .prod-tabs > button[aria-pressed="true"],
+    html.sv-staff-phone #mainWrap .tk-platform-switch > button[aria-pressed="true"],
+    html.sv-staff-phone #mainWrap .tk-q-tabs > button[aria-pressed="true"],
+    html.sv-staff-phone #mainWrap .view-tab-toggle > button[aria-pressed="true"],
+    html.sv-staff-phone #mainWrap .kasper-wrap[data-pocket-reviewer] > .kasper-subtabs > button[aria-pressed="true"],
+    html.sv-staff-phone #mainWrap .tpl-brain-tabs > button[aria-pressed="true"] { color:var(--text-primary) !important; background:var(--sv-phone-active-surface) !important; box-shadow:var(--shadow-sm); }
+    html.sv-staff-phone .workload-day-card-total.over-capacity,
+    html.sv-staff-phone .workload-timeline-day-total.over-capacity { width:auto !important; max-width:100%; min-width:44px; height:44px; padding:0 10px; white-space:nowrap; flex-shrink:0; font-size:13px; line-height:1.2; font-variant-numeric:tabular-nums; }
+
 }
 /* STAFF-PHONE-RULES:END */

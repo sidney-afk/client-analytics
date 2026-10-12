@@ -1512,6 +1512,15 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     }
     // Audience: who watches and what moves them (audience.md). A direction for
     // ideas, not rules, so every section shows its "How sure we are" line.
+    // Audience prose: like other facts, but "- " lines become a real list.
+    function _tplAudienceProse(text) {
+        return String(text || '').split(/\n{2,}/).map(block => {
+            const lines = block.split('\n');
+            return lines.every(l => /^\s*-\s+/.test(l))
+                ? '<ul class="tpl-aud-list">' + lines.map(l => '<li>' + _tplBrainInline(l.replace(/^\s*-\s+/, '')) + '</li>').join('') + '</ul>'
+                : _tplBrainProse(block);
+        }).join('');
+    }
     function _tplAudienceView(name, b) {
         const aud = Array.isArray(b.audience) ? b.audience : [];
         if (!aud.length) return '';
@@ -1523,7 +1532,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             const sources = String(f.source || '').split(';').map(x => x.trim()).filter(Boolean);
             return `<div class="tpl-aud-card">
                 <h4 class="tpl-aud-h">${_tplEsc(f.heading)}</h4>
-                ${f.body ? `<div class="tpl-brain-body">${_tplBrainProse(f.body)}</div>` : ''}
+                ${f.body ? `<div class="tpl-brain-body">${_tplAudienceProse(f.body)}</div>` : ''}
                 ${f.sure ? `<div class="tpl-aud-sure"><span class="tpl-aud-sure-k">How sure we are:</span> ${_tplBrainInline(f.sure)}</div>` : ''}
                 <div class="tpl-brief-acts">
                     ${sources.length ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(rowKey)}" onclick="tplBriefToggleSource(this.dataset.k)" aria-expanded="${open}">${open ? 'Hide where this comes from' : 'Where does this come from'}</button>` : ''}

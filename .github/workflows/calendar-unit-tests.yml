@@ -61,6 +61,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node qa/staff-phone-rules-browser.js --widths=${{ matrix.width }}
+      - name: The same native-icon Tabs grid on every staff phone screen
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node qa/staff-phone-tabs-grid.js --widths=${{ matrix.width }}
       - name: Phone responsiveness, refresh continuity and shared segments
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

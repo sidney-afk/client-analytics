@@ -3,6 +3,7 @@
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
     "fixture-desktop-exact-replay.js",
+    "phone-tabs-ci-read-boundary.js",
     "browser-guards-wired.js",
     "prod-comment-restored-request-id.js",
     "samples-notes-lifecycle-busy.js",

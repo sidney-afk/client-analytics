@@ -78,16 +78,42 @@
                 return labels[el.id] || tabLabel(el);
             },
             tabs(body, dialog, cls) {
-                dialog.classList.add('sv-phone-sheet');
+                if (!window.svIsStaffPhone()) return;
+                dialog.classList.add('sv-phone-sheet', 'sv-phone-tabs');
+                const head = dialog.querySelector(':scope > [class$="-head"]');
+                head.classList.add('sv-phone-tabs-head');
+                const closeButton = head.querySelector('button');
+                closeButton.textContent = 'Close';
+                closeButton.setAttribute('aria-label', 'Close Tabs');
+                body.classList.add('sv-phone-tabs-body');
                 body.replaceChildren();
-                document.querySelectorAll('#headerNav > .header-nav-btn').forEach(native => {
+                const grid = document.createElement('nav');
+                grid.className = 'sv-phone-tabs-grid'; grid.setAttribute('aria-label', 'Staff tabs');
+                document.querySelectorAll('#headerNav > .header-nav-btn, #headerNav > .header-nav-sep').forEach(native => {
+                    if (native.classList.contains('header-nav-sep')) {
+                        const divider = document.createElement('span');
+                        divider.className = 'sv-phone-tabs-divider'; divider.setAttribute('aria-hidden', 'true');
+                        grid.append(divider); return;
+                    }
                     if (native.hidden || native.style.display === 'none') return;
-                    const b = document.createElement('button'); b.type = 'button'; b.className = cls || '';
-                    b.innerHTML = '<span>' + esc(this.label(native)) + '</span>' + (native.classList.contains('active') ? tick : next);
-                    b.disabled = native.disabled; b.dataset.nav = native.id;
+                    // Reuse the native artwork and destination; never copy its inline handler.
+                    const b = native.cloneNode(true);
+                    b.removeAttribute('id'); b.removeAttribute('onclick'); b.removeAttribute('style'); b.removeAttribute('aria-current');
+                    b.classList.add('sv-phone-tabs-link'); b.dataset.nav = native.id;
+                    if (native.id === 'navKasper') {
+                        // Keep any native notification badge alongside the role label.
+                        for (const node of b.childNodes) if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) node.textContent = 'Reviewer';
+                    }
+                    if (native.disabled) b.setAttribute('aria-disabled', 'true');
                     if (native.classList.contains('active')) b.setAttribute('aria-current', 'page');
-                    b.addEventListener('click', event => { event.stopPropagation(); dialog.close(); native.click(); }); body.append(b);
+                    b.addEventListener('click', event => {
+                        if (!native.disabled && (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)) return;
+                        event.preventDefault(); event.stopPropagation();
+                        if (native.disabled) return;
+                        dialog.close(); native.click();
+                    }); grid.append(b);
                 });
+                body.append(grid);
             },
             more(body, dialog, cls) {
                 dialog.classList.add('sv-phone-sheet');

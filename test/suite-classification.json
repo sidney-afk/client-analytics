@@ -650,6 +650,8 @@
     "system-map-sync.js",
     "templates-brain-page.js",
     "templates-brief-copy.js",
+    "cal-note-done-delete-reach-canonical.js",
+    "canonical-note-lifecycle-repair.js",
     "templates-coverage.js",
     "templates-multilink.js",
     "templates-realtime-catchup.js",

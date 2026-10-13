@@ -33028,3 +33028,38 @@ Brain side: `POLICY/brain-keeper.md` still says "SyncView does not show it" abou
 
 The Calendar, Samples and other staff Tabs menus used plain rows while the reviewer used an icon grid. All staff phone menus now share the reviewer grid, native order/actions, current selection, consistent spacing and Close. Overview/client rows retain their existing reviewer context. Phone-only source fragments were built; fictional native checks and exact desktop comparisons are recorded in [the evidence packet](../audits/2026-10-12-staff-tabs-grid/README.md). The existing live Production fast CI lane is explicitly deferred on this branch to uphold the read boundary. No merge/deploy/backend mutation.
 
+
+
+## 414. [2026-10-13, BUILT, NOT MERGED, NOT DEPLOYED] Calendar notes marked done or deleted came back open in the Notes panel (session Mender)
+
+**What was wrong.** The Notes panel reads the canonical thread (`production_comments`), but some ways of marking a note done or
+deleting it only changed the old copy on the card (`calendar_posts.video_tweaks` / `graphic_tweaks`). The note then showed open
+again, and clicking done again was refused (`canonical_comment_read_required`). Measured read-only on 2026-10-13: about 217 root
+notes done in the old copy but open in canonical, and 14 deleted in the old copy but live, every week since mid-August.
+
+**Root cause.** (1) The Review tab's "Approve & send" chooser resolved the open change requests with `_calResolveTweaksDone`, a
+legacy-only write, without checking whether the card is canonical. That is the everyday path. (2) Mark done and delete in the
+Notes panel fell back to the same legacy-only write when clicked while the card's canonical link was still being looked up, so
+the canonical row never heard about it once the lookup finished.
+
+**Fix.** `src/index/190-calendar-approval-comments.js.part`: the Review chooser resolves each ticked note through the canonical
+lifecycle (`_calReviewResolveCanonical`, the same call `_calResolveLastTweak` uses) and stops if one is refused; done/delete/the
+last-request chooser refuse with "Notes are still loading. Try again in a moment." instead of a legacy-only write while the link is
+in flight (`_calCanonicalCrosswalkPending`, staff only). Unlinked cards keep the legacy path. Client permissions are unchanged.
+
+**Not fixed here.** A client deleting their own note on the Calendar still changes only the old copy: a Calendar client can never
+read the canonical thread (server policy, see `_prodCanonicalCommentGate`), so it has no version to delete with. About 5 of the 14
+live-but-deleted rows are client deletes. Fixing that needs a server change (mirror a client's legacy delete onto its own
+client-audience canonical row in `calendar-upsert`); the repair below covers the backlog.
+
+**Repair.** `scripts/canonical-note-lifecycle-repair.js` prints SQL; the default is a dry run with counts only. It matches by
+`native_comment_id` = legacy id first, else by an exact, unique `created_at` on the card's deliverable, root notes only, and only
+ever sets `resolved_at` / `deleted_at` where they are empty (never reopens). Dry run 2026-10-13, all clients: 541 legacy
+done/deleted roots, 431 matched (229 by native id, 202 by time), 217 would be marked done, 14 deleted, 150 deliverables, 14
+clients (this includes the test client). Applied ONLY to the test client: 10 marked done, 3 deleted. Lighthouse applies the rest
+after review: `node scripts/canonical-note-lifecycle-repair.js --apply --all`, run the printed SQL with the service role.
+
+**Tests.** `test/cal-note-done-delete-reach-canonical.js` (mark done, reload, still done; delete, reload, still deleted; fails on
+the old code) and `test/canonical-note-lifecycle-repair.js`.
+
+**Release.** Front end only: ships with the next Pages deploy of main. **Way back:** revert the pull request.

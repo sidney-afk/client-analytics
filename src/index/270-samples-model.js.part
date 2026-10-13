@@ -59,6 +59,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         const state = _sxrStaffPhoneState;
         if (!state) return;
         for (const item of state.moved) {
+            window.svStaffPhoneMenus.restoreNative(item.node);
             if (item.next?.parentNode === item.parent) item.parent.insertBefore(item.node, item.next);
             else item.parent.append(item.node);
         }
@@ -93,8 +94,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             trigger.addEventListener('click', () => {
                 if (kind === 'tabs') window.svStaffPhoneMenus.tabs(dialog.querySelector('.pocket-staff-samples-menu-body'), dialog);
                 if (kind === 'more') {
-                    const body = dialog.querySelector('[class$=menu-body]');
-                    body.querySelector('.sv-phone-proxies')?.remove();
+                    const body = dialog.querySelector('.pocket-staff-samples-menu-body');
                     window.svStaffPhoneMenus.more(body, dialog);
                     if (state.kebab) state.kebab.node.hidden = false;
                 }
@@ -117,12 +117,13 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             queueMicrotask(() => { if (menus.more.open && state.kebab) state.kebab.node.hidden = false; });
         }, true);
         const arrange = () => {
+            const target = moreBody.querySelector('.sv-phone-more-native') || moreBody;
             for (const node of root.querySelectorAll('.cal-toolbar .cal-organize, .cal-toolbar .cal-zoom, .cal-toolbar .cal-kebab-wrap')) {
                 state.moved.push({ node, parent: node.parentNode, next: node.nextSibling });
                 const next = node.classList.contains('cal-organize')
-                    ? moreBody.querySelector('.cal-zoom, .cal-kebab-wrap')
-                    : node.classList.contains('cal-zoom') ? moreBody.querySelector('.cal-kebab-wrap') : null;
-                moreBody.insertBefore(node, next);
+                    ? target.querySelector('.cal-zoom, .cal-kebab-wrap')
+                    : node.classList.contains('cal-zoom') ? target.querySelector('.cal-kebab-wrap') : null;
+                target.insertBefore(node, next);
                 const kebab = node.querySelector('#sxrKebabMenu');
                 if (kebab && !state.kebab) {
                     state.kebab = { node: kebab, hidden: kebab.hidden };

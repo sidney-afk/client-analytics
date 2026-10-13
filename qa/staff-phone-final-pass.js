@@ -106,7 +106,7 @@ core.push({...SCENARIOS.find(s=>s.id==='linear-list'),name:'linear-project',step
 for (const [name, base] of [['analytics-client-picker','analytics-overview'],['workload-client-picker','workload-week'],['linear-client-picker','linear-list']]) {
   core.push({...SCENARIOS.find(s=>s.id===base),name,steps:async p=>{
     if(before) await p.evaluate(()=>document.getElementById('svClientBadge').click());
-    else {await p.locator('#fphMoreBtn').click();await p.getByRole('button',{name:'Change client',exact:true}).click();}
+    else {await p.locator('#fphTabsBtn').click();await p.getByRole('button',{name:'Change client',exact:true}).click();}
     await settle(p);
   }});
 }
@@ -123,7 +123,7 @@ if (allStates) {
   const picker = states.find(s=>s.name==='client-picker');
   if (picker && !before) picker.setup=async p=>{
     await p.evaluate(()=>navTo('templates'));await settle(p);
-    await p.locator('.pocket-staff-more-btn, #fphMoreBtn, [data-staff-menu=more]').filter({visible:true}).first().tap();
+    await p.locator('.pocket-staff-tabs-btn, #fphTabsBtn, [data-staff-menu=tabs]').filter({visible:true}).first().tap();
     await p.getByRole('button',{name:'Change client',exact:true}).tap();await settle(p);
   };
   // These journeys predate the phone's native card preference. Reach the

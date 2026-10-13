@@ -1,0 +1,11 @@
+'use strict';
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
+const yaml=fs.readFileSync(path.resolve(__dirname,'../.github/workflows/production-polish-gate.yml'),'utf8');
+const expression=yaml.split('  production-polish:')[1].split('    runs-on:')[0].match(/^    if: (.+)$/m)[1].replace('needs.schedule-guard',"needs['schedule-guard']");
+const allows=(event,head,run='true')=>vm.runInNewContext(expression,{github:{event_name:event,head_ref:head},needs:{'schedule-guard':{outputs:{run}}}});
+assert.equal(allows('pull_request','prism/phone-round-2'),false,'This PR must not start aggregate live browser reads');
+assert.equal(allows('pull_request','another-branch'),true);
+assert.equal(allows('push',''),true);
+assert.equal(allows('schedule',''),true);
+assert.equal(allows('pull_request','another-branch','false'),false);
+console.log('phone-round-two-ci-safety: this PR cannot start the live Production lane; existing other event policies preserved');

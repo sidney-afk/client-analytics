@@ -229,10 +229,11 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
        by each card's OVERALL status (the roll-up the status chip shows; see
        _calNormCardStatusFilter). Show only keeps the picked statuses, Hide drops
        them. Staff only: the client link never renders or applies it.
-       When it is on it says so twice: the pill turns solid with a summary, and a
-       slim strip above the cards (_calCardStatusStripHtml) names the filter with
-       a one-tap Clear. The strip is what a phone shows, since the pill lives in
-       the More sheet there. */
+       When it is on, the pill turns solid with a summary ("Hide Posted") and
+       carries its own clear (x) control, so nothing is added above the cards
+       and they do not move when the filter flips. On a staff phone the pill
+       lives in the More sheet, so there a slim strip above the cards
+       (_calCardStatusStripHtml) names the filter with a one-tap Clear. */
     function _calCardStatusAvailable() {
         // Not in the Calendar embedded inside Analytics: that surface has its own phone layout and keeps the toolbar it had.
         return !!calState.client && !_isClientLink && !calState.embedded && calState.view !== 'review' && calState.view !== 'smmreview';
@@ -259,7 +260,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         return (f.mode === 'hide' ? 'Hiding ' : 'Showing only ') + names;
     }
     function _calCardStatusStripHtml() {
-        if (!_calCardStatusAvailable() || !_calCardStatusLive()) return '';
+        if (!_calCardStatusAvailable() || !_calCardStatusLive() || !_calStaffPhoneActive()) return '';
         return `<div class="cal-sf-strip" id="calCardStatusStrip" role="status"><span class="cal-sf-strip-txt">${_calEsc(_calCardStatusSentence())}</span><button type="button" class="cal-sf-clear" onclick="onCalCardStatusClear()">Clear</button></div>`;
     }
     function _calCardStatusHtml() {
@@ -273,7 +274,10 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             const checked = f.picks.includes(st);
             return `<button type="button" class="dropdown-item cal-sf-row${checked ? ' active' : ''}" role="menuitemcheckbox" aria-checked="${checked ? 'true' : 'false'}" data-status="${_calEscAttr(st)}" onclick="onCalCardStatusToggle(this.dataset.status)"><span class="cal-sf-box" aria-hidden="true"></span><span class="cal-status cal-status-${_calStatusSlug(st)}">${_calEsc(_calStatusLabel(st))}</span></button>`;
         }).join('');
-        return `<div class="cal-month-filter cal-status-filter" id="calCardStatusWrap">
+        const x = on && !_calStaffPhoneActive()
+            ? `<button type="button" class="cal-sf-x" id="calCardStatusClearX" onclick="onCalCardStatusClear()" aria-label="Clear status filter" data-tip="Clear status filter"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l5 5M7.5 2.5l-5 5"/></svg></button>`
+            : '';
+        return `<div class="cal-month-filter cal-status-filter${x ? ' has-x' : ''}" id="calCardStatusWrap">
             <button type="button" class="dropdown-trigger${on ? ' is-filtered' : ''}" id="calCardStatusBtn" onclick="_calToggleCardStatusMenu(event)" title="Show or hide cards by their overall status" aria-haspopup="menu" aria-expanded="false">
                 ${ico}<span class="cal-org-trigger-txt">${_calEsc(_calCardStatusSummary())}</span>${chev}
             </button>
@@ -282,7 +286,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
                 <div class="cal-org-sec">Overall status</div>
                 <div role="group" aria-label="Statuses">${rows}</div>
                 ${on ? '<div class="cal-org-sep" role="separator"></div><button type="button" class="dropdown-item cal-sf-menu-clear" role="menuitem" onclick="onCalCardStatusClear()">Clear status filter</button>' : ''}
-            </div>
+            </div>${x}
         </div>`;
     }
     function _calSetCardStatusOpen(open, opts) {
@@ -376,9 +380,12 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     /* Clears the picks and keeps the chosen mode, so "Hide" stays "Hide" for the
        next set of picks. */
     function onCalCardStatusClear() {
+        const fromX = !!(document.activeElement && document.activeElement.id === 'calCardStatusClearX');
         const f = _calNormCardStatusFilter(calState.cardStatusFilter);
         calState.cardStatusFilter = { mode: f.mode, picks: [] };
         _calCardStatusAfterChange();
+        // The x goes away with the filter; keep keyboard focus on the pill.
+        if (fromX) { const btn = document.getElementById('calCardStatusBtn'); if (btn) btn.focus(); }
     }
 
     /* Lighter path for the Order switch: update the chrome in place so the

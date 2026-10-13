@@ -543,6 +543,13 @@
         .cal-sf-row.active .cal-sf-box::after { content: ''; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--white); border-width: 0 2px 2px 0; transform: rotate(45deg); }
         .cal-sf-row .cal-status { align-self: center; }
         .cal-sf-menu-clear { color: var(--text-secondary); font-weight: 700; }
+        /* Clear (x) sits inside the solid pill's right edge, so turning the filter
+           on or off never adds height above the cards. */
+        .cal-status-filter.has-x .dropdown-trigger { padding-right: 36px; }
+        .cal-sf-x { position: absolute; right: 7px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--white); cursor: pointer; opacity: 0.8; }
+        .cal-sf-x svg { width: 10px; height: 10px; display: block; }
+        .cal-sf-x:hover { opacity: 1; background: color-mix(in srgb, var(--white) 18%, transparent); }
+        .cal-sf-x:focus-visible { outline: 0; opacity: 1; box-shadow: 0 0 0 2px var(--focus-ring); }
         .cal-sf-strip { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; padding: 6px 8px 6px 14px; border: 1px solid var(--border); border-radius: 99px; background: var(--bg); font-size: 0.76rem; font-weight: 600; color: var(--text-primary); }
         .cal-sf-strip-txt { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cal-sf-clear { flex: 0 0 auto; padding: 5px 12px; border: 0; border-radius: 99px; background: var(--text-primary); color: var(--white); font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }

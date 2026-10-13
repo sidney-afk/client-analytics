@@ -2,10 +2,13 @@
 // filming plan (the Google Doc SyncView links in filming_plans, read as text
 // the same way production-write does), and the client's written voice and
 // title guidance from the Synchro Brain (same repository and token the
-// brain Edge Function uses). Read-only; nothing here writes anywhere.
+// brain Edge Function uses). The one write is brainChange, which files a
+// change exactly like SyncView's "Send a change" button (shared code in
+// ../brain/change.mjs); it never edits a fact file.
 
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
-import { findClientFolder, parseBrainFacts } from "../brain/parse.mjs";
+import { findClientFolder, parseAudience, parseBrainFacts, parseBrief } from "../brain/parse.mjs";
+import { recordChange } from "../brain/change.mjs";
 
 type Plan = { client_slug: string; client_name: string; doc_id: string; plan_months: string };
 
@@ -108,10 +111,12 @@ export async function filmingPlan(db: SupabaseClient, client: string, month: str
   return `${p.client_name} filming plan, tab ${pick.n} (${pick.month})${labelled.length > 1 ? `. Other tabs:\n${list}\n` : ""}\n\n${pick.text.slice(0, PLAN_MAX_CHARS)}${cut ? "\n\n[cut here]" : ""}`;
 }
 
-function gh(path: string, raw = false): Promise<Response> {
+function gh(path: string, raw = false, init: RequestInit = {}): Promise<Response> {
   const repo = Deno.env.get("BRAIN_REPO") || "sidney-afk/synchro-brain";
   return fetch(`https://api.github.com/repos/${repo}/${path}`, {
+    ...init,
     headers: {
+      ...(init.headers as Record<string, string> || {}),
       Authorization: `Bearer ${Deno.env.get("BRAIN_GITHUB_TOKEN") || ""}`,
       Accept: raw ? "application/vnd.github.raw+json" : "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28",
@@ -155,4 +160,80 @@ export async function clientStyle(db: SupabaseClient, client: string): Promise<s
   if (style.reason === "no_brain_folder") return `${found.plan.client_name} has no folder in the Synchro Brain yet.`;
   if (!style.text) return `${found.plan.client_name}: the Synchro Brain has no written voice or title facts yet. Match the wording style of the client's recent Canva thumbnail titles.`;
   return `${found.plan.client_name}, voice and title guidance from the Synchro Brain (written facts only; fonts and colours come from the latest Canva thumbnail, not from here):\n\n${style.text}`;
+}
+
+// The client files client_brain reads, in this order after brief.md. money.md
+// and everything under inputs/ are never read here.
+const BRAIN_FILES = ["identity", "voice", "editing", "relationship"];
+const BRAIN_MAX_CHARS = 60_000;
+
+async function brainFolder(slug: string, name: string): Promise<{ folder?: string; folders: string[]; error?: string }> {
+  const ref = encodeURIComponent(Deno.env.get("BRAIN_BRANCH") || "main");
+  const list = await gh(`contents/clients?ref=${ref}`);
+  if (!list.ok) return { folders: [], error: `Could not read the Synchro Brain (${list.status}).` };
+  const folders = ((await list.json()) as Array<{ name: string; type: string }>).filter((i) => i.type === "dir").map((i) => i.name);
+  return { folders, folder: findClientFolder(folders, slug) || findClientFolder(folders, name) || undefined };
+}
+
+// Everything written about one client: brief.md, then the written facts of
+// identity, voice, editing, relationship and audience, each with its fact id.
+export async function clientBrain(db: SupabaseClient, client: string): Promise<string> {
+  if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return "The Synchro Brain is not connected on the server (BRAIN_GITHUB_TOKEN missing).";
+  const found = await findClient(db, client);
+  if (!found.plan) return `Which client? ${found.choices?.length ? "Options: " + found.choices.join(", ") : "No match."}`;
+  const p = found.plan;
+  const where = await brainFolder(p.client_slug, p.client_name);
+  if (where.error) return where.error;
+  if (!where.folder) return `${p.client_name} has no folder in the Synchro Brain yet.`;
+  const ref = encodeURIComponent(Deno.env.get("BRAIN_BRANCH") || "main");
+  // Only a missing file (404) reads as empty; any other failure is reported, never a silent gap.
+  const read = async (file: string) => {
+    const r = await gh(`contents/clients/${where.folder}/${file}.md?ref=${ref}`, true);
+    if (r.status === 404) return "";
+    if (!r.ok) throw new Error(String(r.status));
+    return await r.text();
+  };
+  let brief: string, audience: string, texts: string[];
+  try {
+    [brief, audience, ...texts] = await Promise.all([read("brief"), read("audience"), ...BRAIN_FILES.map(read)]);
+  } catch (e) {
+    return `Could not read the Synchro Brain (${(e as Error).message}). Try again in a minute; do not answer as if ${p.client_name} had no brain facts.`;
+  }
+  const facts = [
+    ...BRAIN_FILES.flatMap((f, i) => parseBrainFacts(texts[i], f)),
+    ...parseAudience(audience),
+  ].filter((f: { status: string; body: string }) => f.status === "written" && f.body);
+  const briefText = parseBrief(brief).map((s: { heading: string; bullets: Array<{ text: string }> }) =>
+    `## ${s.heading}\n${s.bullets.map((b) => `- ${b.text}`).join("\n")}`).join("\n\n");
+  if (!briefText && !facts.length) return `${p.client_name}: the Synchro Brain has no written brief or facts yet.`;
+  const factText = facts.map((f: { file: string; heading: string; id: string; body: string; sure?: string }) =>
+    `### ${f.heading} (${f.file}; fact id: ${f.id || "none"})\n${f.body}${f.sure ? `\nHow sure we are: ${f.sure}` : ""}`).join("\n\n");
+  const text = `${p.client_name}, from the Synchro Brain.\n\n# Brief\n\n${briefText || "(no brief written yet)"}\n\n# Facts\n\n${factText || "(no written facts yet)"}`;
+  return text.length > BRAIN_MAX_CHARS ? text.slice(0, BRAIN_MAX_CHARS) + "\n\n[cut here]" : text;
+}
+
+// Files a change exactly like SyncView's "Send a change" button. The
+// brain-side workflow and POLICY/syncview-changes.md decide where it goes.
+export async function brainChange(db: SupabaseClient, client: string, whatChanged: string, factId: string, member: string): Promise<string> {
+  if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return "The Synchro Brain is not connected on the server (BRAIN_GITHUB_TOKEN missing).";
+  const found = await findClient(db, client);
+  if (!found.plan) return `Which client? ${found.choices?.length ? "Options: " + found.choices.join(", ") : "No match."}`;
+  const p = found.plan;
+  const where = await brainFolder(p.client_slug, p.client_name);
+  if (where.error) return where.error;
+  // Same slug and folder match as SyncView's button, so the file is identical.
+  const result = await recordChange({
+    slug: p.client_slug,
+    text: whatChanged,
+    factId,
+    heading: "",
+    from: `${member} via Claude connector`,
+    role: "Claude connector",
+    folders: where.folders,
+    gh: (path: string, init: RequestInit) => gh(path, false, init),
+    branch: Deno.env.get("BRAIN_BRANCH") || "main",
+  });
+  if (!result.ok) return result.error === "text_too_long" ? "That is too long to send in one change; split it up." : "Say what changed first.";
+  if (!findClientFolder(where.folders, p.client_slug)) return `Sent, but ${p.client_name} has no Synchro Brain folder yet, so a person has to place it by hand. It will not show in client_brain until then; say that instead of "Saved".`;
+  return `Sent. It will be filed in ${p.client_name}'s brain within a few minutes.`;
 }

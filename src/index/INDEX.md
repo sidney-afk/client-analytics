@@ -45,11 +45,11 @@
 | 37 | `140-calendar-legacy-outbox.js.part` | 3505 | Shed the retired legacy rows from storage, under the surface mutation |
 | 38 | `150-calendar-hydration-import.js.part` | 2293 | For a card linked to a real sub-issue (not a parent), return which of |
 | 39 | `160-calendar-organize-ui.js.part` | 3450 | Card status filter (STATE_OF_THINGS D3) |
-| 40 | `170-calendar-links-status.js.part` | 3466 | Move a Linear sub-issue link from the old card onto the new one. The |
-| 41 | `180-calendar-native-post-media.js.part` | 3273 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
+| 40 | `170-calendar-links-status.js.part` | 3483 | Move a Linear sub-issue link from the old card onto the new one. The |
+| 41 | `180-calendar-native-post-media.js.part` | 3296 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 42 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
 | 43 | `186-archived-restore.js.part` | 468 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
-| 44 | `190-calendar-approval-comments.js.part` | 3248 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 44 | `190-calendar-approval-comments.js.part` | 3293 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 45 | `200-intake-data-startup.js.part` | 1883 | Video-only and Thumbnail-only were already built, but sat |
 | 46 | `210-production-state-writes.js.part` | 3313 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 47 | `220-production-attribution-views.js.part` | 2909 | An ABSENT persisted slug is missing evidence, not |

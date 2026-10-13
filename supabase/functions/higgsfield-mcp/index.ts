@@ -18,7 +18,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
 import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
-import { clientStyle, filmingPlan, listClients } from "./clientinfo.ts";
+import { brainChange, clientBrain, clientStyle, filmingPlan, listClients } from "./clientinfo.ts";
 import { DIRECT_MODELS, directEstimate, isDirect, runDirect, type Fetched } from "./direct.ts";
 
 const HF_API = "https://api.higgsfield.ai";
@@ -129,6 +129,7 @@ const INSTRUCTIONS = [
   "For repeat team workflows (thumbnail expression fixes, batches of screenshots, photo-then-video b-roll) use recipes: recipe_plan shows the card and total price, run_recipe after go, then wait_for_job with all the job_ids.",
   "B-roll is always made in two steps with the broll-photo-then-video recipe: first a still image they approve (redo it until they like it), then that exact image is animated. Never make b-roll straight from text to video unless they ask for that.",
   "When someone wants thumbnails from screenshots, call thumbnail_workflow first and follow it.",
+  "Whenever a client is named, call client_brain before answering, without being asked. When someone states something new and lasting about a client, save it with brain_change and confirm in one line; never for notes about one video.",
   "For thumbnail titles, read the client's voice with client_style and the videos with client_filming_plan instead of asking the person to paste them.",
   "Input media must be public links. If they have a file in Google Drive or Dropbox, pass its share link to import_file and use the link it returns.",
   "After create, call wait_for_job and keep calling it in the same reply until the job is done, giving a one-line progress update between calls; never ask the person to check back or to say \"check again\". Wait up to 30 minutes (GPT Image and Nano Banana take under a minute; Higgsfield images wait in Higgsfield's queue and can take several minutes when it is busy; videos 1 to 5 minutes, sometimes 15 or more when Higgsfield is busy), then give them the download link. Finished images come back as pictures too, so look at them and tell the person honestly whether they match the request before offering the next step.",
@@ -246,6 +247,25 @@ const TOOLS = [
     name: "client_style",
     description: "A client's written voice and title style from the Synchro Brain, for writing thumbnail titles. Not for fonts, colours or layout: those come from the client's latest Canva thumbnail.",
     inputSchema: { type: "object", required: ["client"], additionalProperties: false, properties: { client: { type: "string" } } },
+  },
+  {
+    name: "client_brain",
+    description: "Everything the Synchro Brain has written about a client: the editor brief, then the written facts (who they are, voice, editing, relationship, audience), each with its heading and fact id. Call this automatically, without being asked, whenever a client is named in the conversation, before answering anything about them (for example \"what does X want\"). Read only.",
+    inputSchema: { type: "object", required: ["client"], additionalProperties: false, properties: { client: { type: "string", description: "The client's name as SyncView shows it." } } },
+  },
+  {
+    name: "brain_change",
+    description: "Save something new and lasting about a client to their Synchro Brain, the same way SyncView's \"Send a change\" button does. Call this on your own, without being asked, whenever the person states something new and lasting about a client (a preference, a decision, a date, a change of direction), or when they say \"add this to X's brain\"; then confirm in one line: \"Saved to <client>'s brain: <what>\". Never use it for notes about one video. If the person says a saved item is wrong, call brain_change again with a correction that names the earlier change (what it said) and what is right instead.",
+    inputSchema: {
+      type: "object",
+      required: ["client", "what_changed"],
+      additionalProperties: false,
+      properties: {
+        client: { type: "string", description: "The client's name as SyncView shows it." },
+        what_changed: { type: "string", description: "The new or corrected information, in plain words, as complete as the person said it." },
+        fact_id: { type: "string", description: "Optional: the fact id from client_brain that this changes." },
+      },
+    },
   },
   {
     name: "import_file",
@@ -934,7 +954,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
 
   if (name === "start_here") {
     const list = GO_TO.map((g) => `- ${g.task}: ${g.picks.map((id) => `${BY_ID.get(id)?.name} [${id}]`).join(" or ")}`).join("\n");
-    return `This connector can make videos and images with ${ALL_MODELS.length} models (Higgsfield, plus GPT Image and Nano Banana), plus saved team recipes (use recipes). Go-to picks:\n${list}\n\nThere are more options per task: use find_models.\nPrices vary by model, length and resolution; price_check gives the exact figure.\nInput photos, videos and audio must be public links; import_file converts Drive and Dropbox links.\n\n${await budget()}`;
+    return `This connector can make videos and images with ${ALL_MODELS.length} models (Higgsfield, plus GPT Image and Nano Banana), plus saved team recipes (use recipes). Go-to picks:\n${list}\n\nThere are more options per task: use find_models.\nPrices vary by model, length and resolution; price_check gives the exact figure.\nInput photos, videos and audio must be public links; import_file converts Drive and Dropbox links.\n\nClient knowledge (the Synchro Brain): whenever a client is named, or someone asks \"what does X want\", call client_brain first, without being asked. When someone says something new and lasting about a client (a preference, a decision, a date, a change of direction) or says \"add this to X's brain\", call brain_change and confirm in one line. Not for notes about one video.\n\n${await budget()}`;
   }
 
   if (name === "find_models") {
@@ -1063,6 +1083,8 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   if (name === "clients") return await listClients(db());
   if (name === "client_filming_plan") return await filmingPlan(db(), String(args.client || ""), String(args.month || ""));
   if (name === "client_style") return await clientStyle(db(), String(args.client || ""));
+  if (name === "client_brain") return await clientBrain(db(), String(args.client || ""));
+  if (name === "brain_change") return await brainChange(db(), String(args.client || ""), String(args.what_changed || ""), String(args.fact_id || ""), member);
 
   if (name === "import_file") return await importFile(String(args.link || "").trim());
 

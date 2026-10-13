@@ -119,6 +119,7 @@
     "booking-recovery-replay.js",
     "boot-entry-tax.js",
     "boot-gate-parity.js",
+    "brain-change-shared.js",
     "brain-parse.js",
     "browser-writer-auth.js",
     "bulk-refusals-honest.js",
@@ -651,6 +652,8 @@
     "system-map-sync.js",
     "templates-brain-page.js",
     "templates-brief-copy.js",
+    "cal-note-done-delete-reach-canonical.js",
+    "canonical-note-lifecycle-repair.js",
     "templates-coverage.js",
     "templates-multilink.js",
     "templates-realtime-catchup.js",
@@ -1661,6 +1664,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the staff Calendar write guard: fresh flag read per write, hold and pause, zero n8n requests, exact REST query parameters.",
       "reproduce": "node test/calendar-write-guard-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "calendar-sheet-caption-wheel-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, fictional test client and caption, no hosted credentials. Checks the staff Calendar Sheet on desktop: the wheel over a long open caption scrolls it, stops at its end without sliding the strip, and still slides the strip between cards.",
+      "reproduce": "node test/calendar-sheet-caption-wheel-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

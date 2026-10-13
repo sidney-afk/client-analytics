@@ -386,6 +386,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/caption-prompts-guard-browser.js
+      - name: Sheet strip wheel reads a long open caption (scrolls it, stops at its end, slides between cards)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/calendar-sheet-caption-wheel-browser.js
       - name: Generate caption off n8n (switch off unchanged, function path, transcript box, desktop and phone)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

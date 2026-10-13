@@ -781,6 +781,16 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                   + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
         return Math.round(lh * (ta.rows || 3) + pad);
     }
+    function _calCapOpenMaxH(ta) {
+        if (!ta || !ta.closest('.cal-organizer-strip')) return 0;
+        const de = document.documentElement;
+        if (de.classList.contains('boot-client') || de.classList.contains('sv-staff-phone')) return 0;
+        if (typeof _calStaffPhoneActive === 'function' && _calStaffPhoneActive()) return 0;
+        // Whatever is left below the caption's top, never under 200px, never
+        // more than 70% of the screen.
+        const top = ta.getBoundingClientRect().top;
+        return Math.round(Math.max(200, Math.min(window.innerHeight * 0.7, window.innerHeight - top - 24)));
+    }
     function _calRefreshCaption(ta, focused, measured) {
         if (!ta) return;
         // Not rendered (e.g. the inactive caption tab's textarea) — heights
@@ -798,9 +808,16 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         const overflowing = full > collapsedH + 1;
         // Collapsed always sits at exactly the default (rows) height, so an
         // empty field and a collapsed-with-content field look identical.
-        const target = (focused || expanded) ? Math.max(full, collapsedH) : collapsedH;
+        let target = (focused || expanded) ? Math.max(full, collapsedH) : collapsedH;
+        // Desktop Sheet strip only: an open caption longer than the screen
+        // used to grow past the bottom with no way to read the rest (the
+        // wheel slides the strip). Cap it to a screen-fitting height and let
+        // it scroll; _calWireShiftScroll hands the wheel to it.
+        const capH = _calCapOpenMaxH(ta);
+        const scrolls = (focused || expanded) && capH > 0 && target > capH;
+        if (scrolls) target = Math.max(capH, collapsedH);
         ta.style.height = target + 'px';
-        ta.style.overflowY = 'hidden';   // collapsed clips; expanded grows to fit — never a scrollbar
+        ta.style.overflowY = scrolls ? 'auto' : 'hidden';   // collapsed clips; expanded grows to fit, scrolling only past the screen cap
         if (wrap) {
             const open = expanded || focused;
             // Drives the bottom fade gradient + "tap to read more" cursor: the

@@ -6,7 +6,7 @@
 const fs = require('fs'), http = require('http'), path = require('path');
 let chromium; try { ({ chromium } = require('playwright')); } catch (e) { ({ chromium } = require('/opt/node22/lib/node_modules/playwright')); }
 const { seedStaffGate } = require('../../../../../qa/staff-gate-seed.js');
-const root = path.resolve(__dirname, '../../../../..');
+const root = process.env.MOCK_APP_ROOT ? path.resolve(process.env.MOCK_APP_ROOT) : path.resolve(__dirname, '../../../../..');
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' };
 function serve() {
   const s = http.createServer((req, res) => {

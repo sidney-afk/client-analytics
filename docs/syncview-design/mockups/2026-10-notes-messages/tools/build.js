@@ -31,8 +31,22 @@ async function staffCalendar(b, origin, { width, theme, notes, state }) {
   });
   if (state !== 'sheet') {
     await page.evaluate(() => openCalComments('p1')); await page.waitForSelector('#calCommentsModal .cal-cm-composer-wrap');
-    await page.addScriptTag({ path: path.join(__dirname, 'decorate.js') });
-    await page.evaluate(([state, LOCK]) => decorateNotes(state, LOCK), [state, LOCK]);
+    if (/^v2-/.test(state)) {
+      // Round 2: the composer and threads are the BUILT code (MOCK_APP_ROOT
+      // points at the Step 1 branch); only the state is set here.
+      await page.evaluate(async state => {
+        const ta = document.getElementById('calCommentComposer');
+        const type = t => { ta.value = t; _calOnComposerInput(ta); };
+        if (state === 'v2-client') { _calSetComposeAudience('client'); type('Updated the caption with your opening hours.'); }
+        if (state === 'v2-tweak') { type('Cut the first 2 seconds, the hook starts late.'); document.querySelector('.cal-cm-send-more').click(); }
+        if (state === 'v2-team') type('');
+        if (state === 'v2-collapsed') _calToggleThreadCollapse('c1');
+        document.querySelectorAll('.cal-cm-row[data-cm-row="v3"], .cal-cm-row[data-cm-row="g1"]').forEach(r => r.classList.add('is-unread'));
+      }, state);
+    } else {
+      await page.addScriptTag({ path: path.join(__dirname, 'decorate.js') });
+      await page.evaluate(([state, LOCK]) => decorateNotes(state, LOCK), [state, LOCK]);
+    }
   }
   await settle(page);
   return { page, errors };
@@ -70,6 +84,12 @@ async function clientLink(b, origin, { width, theme, state }) {
 }
 
 const SCREENS = [
+  ['notes2-team', staffCalendar, { notes: F.notes(false), state: 'v2-team' }, 'Notes round 2: comment to Kasper / team, no clicks (lock)'],
+  ['notes2-client', staffCalendar, { notes: F.notes(false), state: 'v2-client' }, 'Notes round 2: eye = the client can see it, box turns blue'],
+  ['notes2-request', staffCalendar, { notes: F.notes(false), state: 'v2-tweak' }, 'Notes round 2: Send arrow opens Request change (team only)'],
+  ['notes2-collapsed', staffCalendar, { notes: F.notes(false), state: 'v2-collapsed' }, 'Notes round 2: a thread folded to "1 reply"'],
+  ['notes2-long', staffCalendar, { notes: F.notes(true), state: 'v2-team' }, 'Notes round 2: long thread with rails'],
+
   ['notes-comment-team', staffCalendar, { notes: F.notes(false), state: 'team' }, 'Notes, staff: Comment to Kasper / team (default)'],
   ['notes-comment-client', staffCalendar, { notes: F.notes(false), state: 'client' }, 'Notes, staff: Comment to the client'],
   ['notes-request-change', staffCalendar, { notes: F.notes(false), state: 'tweak' }, 'Notes, staff: Request change (always team only)'],
@@ -85,7 +105,7 @@ const SCREENS = [
   ['client-notes', clientLink, { state: 'notes' }, 'Client link: Notes shows only client messages, signed Synchro team'],
   ['client-none', clientLink, { state: 'none' }, 'Client link: nothing new (no strip)'],
 ];
-const FROZEN = { 'notes-comment-team': 'notes-panel', 'inbox-unread': 'messages-inbox', 'client-sheet-dot': 'client-view' };
+const FROZEN = { 'notes2-team': 'notes-panel-v2', 'notes-comment-team': 'notes-panel', 'inbox-unread': 'messages-inbox', 'client-sheet-dot': 'client-view' };
 
 (async () => {
   const srv = await serve(); const origin = 'http://127.0.0.1:' + srv.address().port;

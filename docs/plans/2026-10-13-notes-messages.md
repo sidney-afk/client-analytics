@@ -54,6 +54,14 @@ Consequences:
 - The one-time migration (section 5) moves existing internal notes out of the card columns into `production_comments` and then removes them from the columns.
 - A check in CI fails if any code path writes a note with `audience` other than `client` into a `*_tweaks` column.
 
+## 3b. Round 2 owner feedback (2026-10-13), built in Step 1
+
+- **Quiet composer.** Part chips above the box as before. Inside the box, a lock icon (Kasper / team, the default) that switches to an eye (the client can see it; the box turns blue). Send is a split button: Send, plus a small arrow whose one item is "Request change" (team only, so it is off while the eye is on). One quiet line under the box: "Team only · Video" or "The client will see this · Video". The default, a comment to the team about the selected part, needs no clicks.
+- **Reddit-style threads.** Replies sit under the message they answer, with a thin rail on the left. Clicking the rail folds the thread to "n replies". Tags stay small: "Team only", or "To client" on staff messages.
+- "To client" is offered only where the client will actually read the note.
+- Step 1 was split in two. **Step 1a** (interface plus the old-notes dry run) is the build PR. **Step 1b** is the privacy move (rule 12): the comment store and its writer accept only notes tied to a Production work item, for video or thumbnail, and that writer is in the fingerprinted Section 4 deploy lane. Step 1b therefore needs a migration, a `production-write` change and a deploy of its own. Step 1a adds no new place where team notes are stored.
+- **Old notes, dry run 2026-10-13** (`scripts/notes-label-dryrun.sql`, read-only): 12,971 notes in total. 11,817 are already labelled (6,219 client, 5,598 team). 921 are replies and inherit their thread, so they are not labelled. 231 thread starts get a label from who wrote them (119 client, 112 team). 2 are unclear and stay team only. `scripts/notes-label-apply.sql` is for Lighthouse to apply.
+
 ## 4. Combinations (after the decisions)
 
 | Who writes | Kind | Part | To | Status change | Who sees it | Where it shows |

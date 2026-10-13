@@ -1,0 +1,116 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Notes and Messages</title>
+<style>:root{--bg:#f3f3f1;--card:#fff;--line:#e4e4e0;--text:#111;--muted:#666}@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#111214;--card:#1a1b1e;--line:#2a2b2f;--text:#eee;--muted:#9a9a9a}}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 "Plus Jakarta Sans",system-ui,sans-serif}main{max-width:1200px;margin:0 auto;padding:24px 16px}h1{font-size:22px;margin:0 0 6px}h2{font-size:17px;margin:32px 0 10px}p{color:var(--muted);margin:0 0 8px}a{color:inherit}
+.row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}.row b{display:block;margin-bottom:8px}.shots{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.shots a{display:block;text-decoration:none;font-size:12px;color:var(--muted)}.shots img{display:block;height:180px;width:auto;max-width:100%;border:1px solid var(--line);border-radius:8px}</style></head><body><main>
+<h1>Notes and Messages: mockups</h1><p>Every screen is the real SyncView page (its own markup and styles) loaded with made-up data. Only the new parts are added. Spec: <code>docs/plans/2026-10-13-notes-messages.md</code>.</p>
+<p>Clickable static copies of the real page: <a href="notes-panel-v2.html">Notes round 2 (light)</a> · <a href="notes-panel.html">Notes (light)</a> · <a href="notes-panel-dark.html">Notes (dark)</a> · <a href="messages-inbox.html">Messages (light)</a> · <a href="messages-inbox-dark.html">Messages (dark)</a> · <a href="client-view.html">Client link</a>. The client link has no dark mode in the live app, so it is shown light only.</p>
+<h2>Notes, round 2 (owner feedback 2026-10-13): built from the Step 1 code</h2>
+<p>These are screenshots of the actual Step 1 build, not drawings. They replace section 1 below.</p>
+<div class="row"><b>Default: a comment to Kasper / team about the selected part, no clicks (lock inside the box)</b><div class="shots">
+<a href="screens/notes2-team-light-desktop.png"><img loading="lazy" src="screens/notes2-team-light-desktop.png" alt="Default: a comment to Kasper / team about the selected part, no clicks (lock inside the box), light, desktop">light · desktop</a>
+<a href="screens/notes2-team-light-phone.png"><img loading="lazy" src="screens/notes2-team-light-phone.png" alt="Default: a comment to Kasper / team about the selected part, no clicks (lock inside the box), light, phone">light · phone</a>
+<a href="screens/notes2-team-dark-desktop.png"><img loading="lazy" src="screens/notes2-team-dark-desktop.png" alt="Default: a comment to Kasper / team about the selected part, no clicks (lock inside the box), dark, desktop">dark · desktop</a>
+<a href="screens/notes2-team-dark-phone.png"><img loading="lazy" src="screens/notes2-team-dark-phone.png" alt="Default: a comment to Kasper / team about the selected part, no clicks (lock inside the box), dark, phone">dark · phone</a>
+</div></div>
+<div class="row"><b>Eye: the client can see it; the box turns blue and Request change switches off</b><div class="shots">
+<a href="screens/notes2-client-light-desktop.png"><img loading="lazy" src="screens/notes2-client-light-desktop.png" alt="Eye: the client can see it; the box turns blue and Request change switches off, light, desktop">light · desktop</a>
+<a href="screens/notes2-client-light-phone.png"><img loading="lazy" src="screens/notes2-client-light-phone.png" alt="Eye: the client can see it; the box turns blue and Request change switches off, light, phone">light · phone</a>
+<a href="screens/notes2-client-dark-desktop.png"><img loading="lazy" src="screens/notes2-client-dark-desktop.png" alt="Eye: the client can see it; the box turns blue and Request change switches off, dark, desktop">dark · desktop</a>
+<a href="screens/notes2-client-dark-phone.png"><img loading="lazy" src="screens/notes2-client-dark-phone.png" alt="Eye: the client can see it; the box turns blue and Request change switches off, dark, phone">dark · phone</a>
+</div></div>
+<div class="row"><b>The small arrow on Send opens Request change (team only)</b><div class="shots">
+<a href="screens/notes2-request-light-desktop.png"><img loading="lazy" src="screens/notes2-request-light-desktop.png" alt="The small arrow on Send opens Request change (team only), light, desktop">light · desktop</a>
+<a href="screens/notes2-request-light-phone.png"><img loading="lazy" src="screens/notes2-request-light-phone.png" alt="The small arrow on Send opens Request change (team only), light, phone">light · phone</a>
+<a href="screens/notes2-request-dark-desktop.png"><img loading="lazy" src="screens/notes2-request-dark-desktop.png" alt="The small arrow on Send opens Request change (team only), dark, desktop">dark · desktop</a>
+<a href="screens/notes2-request-dark-phone.png"><img loading="lazy" src="screens/notes2-request-dark-phone.png" alt="The small arrow on Send opens Request change (team only), dark, phone">dark · phone</a>
+</div></div>
+<div class="row"><b>Threads fold with the thin rail to “1 reply”</b><div class="shots">
+<a href="screens/notes2-collapsed-light-desktop.png"><img loading="lazy" src="screens/notes2-collapsed-light-desktop.png" alt="Threads fold with the thin rail to “1 reply”, light, desktop">light · desktop</a>
+<a href="screens/notes2-collapsed-light-phone.png"><img loading="lazy" src="screens/notes2-collapsed-light-phone.png" alt="Threads fold with the thin rail to “1 reply”, light, phone">light · phone</a>
+<a href="screens/notes2-collapsed-dark-desktop.png"><img loading="lazy" src="screens/notes2-collapsed-dark-desktop.png" alt="Threads fold with the thin rail to “1 reply”, dark, desktop">dark · desktop</a>
+<a href="screens/notes2-collapsed-dark-phone.png"><img loading="lazy" src="screens/notes2-collapsed-dark-phone.png" alt="Threads fold with the thin rail to “1 reply”, dark, phone">dark · phone</a>
+</div></div>
+<div class="row"><b>Long thread with rails</b><div class="shots">
+<a href="screens/notes2-long-light-desktop.png"><img loading="lazy" src="screens/notes2-long-light-desktop.png" alt="Long thread with rails, light, desktop">light · desktop</a>
+<a href="screens/notes2-long-light-phone.png"><img loading="lazy" src="screens/notes2-long-light-phone.png" alt="Long thread with rails, light, phone">light · phone</a>
+<a href="screens/notes2-long-dark-desktop.png"><img loading="lazy" src="screens/notes2-long-dark-desktop.png" alt="Long thread with rails, dark, desktop">dark · desktop</a>
+<a href="screens/notes2-long-dark-phone.png"><img loading="lazy" src="screens/notes2-long-dark-phone.png" alt="Long thread with rails, dark, phone">dark · phone</a>
+</div></div>
+<h2>1. Notes on a card (round 1, superseded)</h2>
+<div class="row"><b>Comment to Kasper / team (default)</b><div class="shots">
+<a href="screens/notes-comment-team-light-desktop.png"><img loading="lazy" src="screens/notes-comment-team-light-desktop.png" alt="Comment to Kasper / team (default), light, desktop">light · desktop</a>
+<a href="screens/notes-comment-team-light-phone.png"><img loading="lazy" src="screens/notes-comment-team-light-phone.png" alt="Comment to Kasper / team (default), light, phone">light · phone</a>
+<a href="screens/notes-comment-team-dark-desktop.png"><img loading="lazy" src="screens/notes-comment-team-dark-desktop.png" alt="Comment to Kasper / team (default), dark, desktop">dark · desktop</a>
+<a href="screens/notes-comment-team-dark-phone.png"><img loading="lazy" src="screens/notes-comment-team-dark-phone.png" alt="Comment to Kasper / team (default), dark, phone">dark · phone</a>
+</div></div>
+<div class="row"><b>Comment to the client: blue box and a warning line</b><div class="shots">
+<a href="screens/notes-comment-client-light-desktop.png"><img loading="lazy" src="screens/notes-comment-client-light-desktop.png" alt="Comment to the client: blue box and a warning line, light, desktop">light · desktop</a>
+<a href="screens/notes-comment-client-light-phone.png"><img loading="lazy" src="screens/notes-comment-client-light-phone.png" alt="Comment to the client: blue box and a warning line, light, phone">light · phone</a>
+<a href="screens/notes-comment-client-dark-desktop.png"><img loading="lazy" src="screens/notes-comment-client-dark-desktop.png" alt="Comment to the client: blue box and a warning line, dark, desktop">dark · desktop</a>
+<a href="screens/notes-comment-client-dark-phone.png"><img loading="lazy" src="screens/notes-comment-client-dark-phone.png" alt="Comment to the client: blue box and a warning line, dark, phone">dark · phone</a>
+</div></div>
+<div class="row"><b>Request change: 'To' is locked to the team</b><div class="shots">
+<a href="screens/notes-request-change-light-desktop.png"><img loading="lazy" src="screens/notes-request-change-light-desktop.png" alt="Request change: 'To' is locked to the team, light, desktop">light · desktop</a>
+<a href="screens/notes-request-change-light-phone.png"><img loading="lazy" src="screens/notes-request-change-light-phone.png" alt="Request change: 'To' is locked to the team, light, phone">light · phone</a>
+<a href="screens/notes-request-change-dark-desktop.png"><img loading="lazy" src="screens/notes-request-change-dark-desktop.png" alt="Request change: 'To' is locked to the team, dark, desktop">dark · desktop</a>
+<a href="screens/notes-request-change-dark-phone.png"><img loading="lazy" src="screens/notes-request-change-dark-phone.png" alt="Request change: 'To' is locked to the team, dark, phone">dark · phone</a>
+</div></div>
+<div class="row"><b>Long thread</b><div class="shots">
+<a href="screens/notes-long-light-desktop.png"><img loading="lazy" src="screens/notes-long-light-desktop.png" alt="Long thread, light, desktop">light · desktop</a>
+<a href="screens/notes-long-light-phone.png"><img loading="lazy" src="screens/notes-long-light-phone.png" alt="Long thread, light, phone">light · phone</a>
+<a href="screens/notes-long-dark-desktop.png"><img loading="lazy" src="screens/notes-long-dark-desktop.png" alt="Long thread, dark, desktop">dark · desktop</a>
+<a href="screens/notes-long-dark-phone.png"><img loading="lazy" src="screens/notes-long-dark-phone.png" alt="Long thread, dark, phone">dark · phone</a>
+</div></div>
+<div class="row"><b>No notes yet</b><div class="shots">
+<a href="screens/notes-empty-light-desktop.png"><img loading="lazy" src="screens/notes-empty-light-desktop.png" alt="No notes yet, light, desktop">light · desktop</a>
+<a href="screens/notes-empty-light-phone.png"><img loading="lazy" src="screens/notes-empty-light-phone.png" alt="No notes yet, light, phone">light · phone</a>
+<a href="screens/notes-empty-dark-desktop.png"><img loading="lazy" src="screens/notes-empty-dark-desktop.png" alt="No notes yet, dark, desktop">dark · desktop</a>
+<a href="screens/notes-empty-dark-phone.png"><img loading="lazy" src="screens/notes-empty-dark-phone.png" alt="No notes yet, dark, phone">dark · phone</a>
+</div></div>
+<div class="row"><b>Sheet view: unread dot on Notes, Messages button by the account</b><div class="shots">
+<a href="screens/sheet-staff-light-desktop.png"><img loading="lazy" src="screens/sheet-staff-light-desktop.png" alt="Sheet view: unread dot on Notes, Messages button by the account, light, desktop">light · desktop</a>
+<a href="screens/sheet-staff-light-phone.png"><img loading="lazy" src="screens/sheet-staff-light-phone.png" alt="Sheet view: unread dot on Notes, Messages button by the account, light, phone">light · phone</a>
+<a href="screens/sheet-staff-dark-desktop.png"><img loading="lazy" src="screens/sheet-staff-dark-desktop.png" alt="Sheet view: unread dot on Notes, Messages button by the account, dark, desktop">dark · desktop</a>
+<a href="screens/sheet-staff-dark-phone.png"><img loading="lazy" src="screens/sheet-staff-dark-phone.png" alt="Sheet view: unread dot on Notes, Messages button by the account, dark, phone">dark · phone</a>
+</div></div>
+<h2>2. Messages inbox (step 2)</h2>
+<div class="row"><b>Kasper's Messages tab: list left, chat right, unread count on the tab</b><div class="shots">
+<a href="screens/inbox-unread-light-desktop.png"><img loading="lazy" src="screens/inbox-unread-light-desktop.png" alt="Kasper's Messages tab: list left, chat right, unread count on the tab, light, desktop">light · desktop</a>
+<a href="screens/inbox-unread-light-phone.png"><img loading="lazy" src="screens/inbox-unread-light-phone.png" alt="Kasper's Messages tab: list left, chat right, unread count on the tab, light, phone">light · phone</a>
+<a href="screens/inbox-unread-dark-desktop.png"><img loading="lazy" src="screens/inbox-unread-dark-desktop.png" alt="Kasper's Messages tab: list left, chat right, unread count on the tab, dark, desktop">dark · desktop</a>
+<a href="screens/inbox-unread-dark-phone.png"><img loading="lazy" src="screens/inbox-unread-dark-phone.png" alt="Kasper's Messages tab: list left, chat right, unread count on the tab, dark, phone">dark · phone</a>
+</div></div>
+<div class="row"><b>Long conversation</b><div class="shots">
+<a href="screens/inbox-long-light-desktop.png"><img loading="lazy" src="screens/inbox-long-light-desktop.png" alt="Long conversation, light, desktop">light · desktop</a>
+<a href="screens/inbox-long-light-phone.png"><img loading="lazy" src="screens/inbox-long-light-phone.png" alt="Long conversation, light, phone">light · phone</a>
+<a href="screens/inbox-long-dark-desktop.png"><img loading="lazy" src="screens/inbox-long-dark-desktop.png" alt="Long conversation, dark, desktop">dark · desktop</a>
+<a href="screens/inbox-long-dark-phone.png"><img loading="lazy" src="screens/inbox-long-dark-phone.png" alt="Long conversation, dark, phone">dark · phone</a>
+</div></div>
+<div class="row"><b>Nothing to read</b><div class="shots">
+<a href="screens/inbox-empty-light-desktop.png"><img loading="lazy" src="screens/inbox-empty-light-desktop.png" alt="Nothing to read, light, desktop">light · desktop</a>
+<a href="screens/inbox-empty-light-phone.png"><img loading="lazy" src="screens/inbox-empty-light-phone.png" alt="Nothing to read, light, phone">light · phone</a>
+<a href="screens/inbox-empty-dark-desktop.png"><img loading="lazy" src="screens/inbox-empty-dark-desktop.png" alt="Nothing to read, dark, desktop">dark · desktop</a>
+<a href="screens/inbox-empty-dark-phone.png"><img loading="lazy" src="screens/inbox-empty-dark-phone.png" alt="Nothing to read, dark, phone">dark · phone</a>
+</div></div>
+<div class="row"><b>Phone: conversation open (tap ‹ to go back)</b><div class="shots">
+<a href="screens/inbox-phone-chat-light-phone.png"><img loading="lazy" src="screens/inbox-phone-chat-light-phone.png" alt="Phone: conversation open (tap ‹ to go back), light, phone">light · phone</a>
+<a href="screens/inbox-phone-chat-dark-phone.png"><img loading="lazy" src="screens/inbox-phone-chat-dark-phone.png" alt="Phone: conversation open (tap ‹ to go back), dark, phone">dark · phone</a>
+</div></div>
+<h2>3. What the client sees (step 3)</h2>
+<div class="row"><b>'New messages' strip on Review</b><div class="shots">
+<a href="screens/client-review-strip-light-desktop.png"><img loading="lazy" src="screens/client-review-strip-light-desktop.png" alt="'New messages' strip on Review, light, desktop">light · desktop</a>
+<a href="screens/client-review-strip-light-phone.png"><img loading="lazy" src="screens/client-review-strip-light-phone.png" alt="'New messages' strip on Review, light, phone">light · phone</a>
+</div></div>
+<div class="row"><b>Strip plus dot on the card's Notes button</b><div class="shots">
+<a href="screens/client-sheet-dot-light-desktop.png"><img loading="lazy" src="screens/client-sheet-dot-light-desktop.png" alt="Strip plus dot on the card's Notes button, light, desktop">light · desktop</a>
+<a href="screens/client-sheet-dot-light-phone.png"><img loading="lazy" src="screens/client-sheet-dot-light-phone.png" alt="Strip plus dot on the card's Notes button, light, phone">light · phone</a>
+</div></div>
+<div class="row"><b>Notes: only client messages, staff shown as 'Synchro team'</b><div class="shots">
+<a href="screens/client-notes-light-desktop.png"><img loading="lazy" src="screens/client-notes-light-desktop.png" alt="Notes: only client messages, staff shown as 'Synchro team', light, desktop">light · desktop</a>
+<a href="screens/client-notes-light-phone.png"><img loading="lazy" src="screens/client-notes-light-phone.png" alt="Notes: only client messages, staff shown as 'Synchro team', light, phone">light · phone</a>
+</div></div>
+<div class="row"><b>Nothing new: no strip</b><div class="shots">
+<a href="screens/client-none-light-desktop.png"><img loading="lazy" src="screens/client-none-light-desktop.png" alt="Nothing new: no strip, light, desktop">light · desktop</a>
+<a href="screens/client-none-light-phone.png"><img loading="lazy" src="screens/client-none-light-phone.png" alt="Nothing new: no strip, light, phone">light · phone</a>
+</div></div>
+</main></body></html>

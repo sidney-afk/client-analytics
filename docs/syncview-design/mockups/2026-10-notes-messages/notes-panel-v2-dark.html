@@ -1,0 +1,991 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-staff-role="admin"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
+    <title>SyncView</title>
+    <link rel="icon" type="image/png" href="../../../../nav-icons/calendar-favicon.png">
+    <!-- Pre-paint boot gate. The static <body> markup is the staff analytics
+         dashboard, but the code that reroutes special entries (onboarding
+         forms, ?intake=1, ?c= client links, the password gate, hash-tab
+         refreshes) sits at the END of the ~30k-line app script — so without
+         this, every one of those entries flashes the SyncView header +
+         "Client Analytics" chrome before the right view mounts. This script
+         re-derives the same boot mode from the URL + storage and tags <html>
+         (which exists from the first byte — tagging <body> is too late: a
+         paint can slip in between <body> being created and a body-start
+         script running) so the CSS gate rules (see "Pre-paint boot gate" in
+         the style block) suppress the wrong chrome from the very first
+         paint. The app script lifts each tag at the exact point its own
+         show/hide logic takes over: data-boot-nav in navTo()/render() and
+         init()'s catch and boot-gate in _syncviewLiftStaffGate(); boot-client,
+         boot-onboarding, and boot-intake are permanent document-owner locks,
+         like the body.onboarding-mode/.intake-mode classes they anticipate. Must
+         never throw and never log — headless probes boot this file
+         unauthenticated + offline and fail on any console error. -->
+        
+
+    <link rel="preconnect" href="https://uzltbbrjidmjwwfakwve.supabase.co">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link rel="preconnect" href="https://docs.google.com">
+    <link rel="preconnect" href="https://synchrosocial.app.n8n.cloud">
+    <!-- NOT render-blocking, and the reason is measured rather than assumed.
+         A stylesheet in the head blocks every script that follows it, and a
+         `defer` script blocks DOMContentLoaded by spec — so the font link and
+         the Chart.js tag below were, between them, holding first paint hostage
+         to TWO third-party CDNs. With both reachable that costs a few hundred
+         ms; with either slow or blocked (a corporate proxy, an ISP hiccup, a
+         CDN outage, ordinary bad wifi) the app cannot reach DOM-ready at all.
+         Measured 2026-08-26 with both CDNs unreachable: 12,906ms -> 349ms.
+         Neither change helps alone; both are required, which is why they are
+         one commit. `display=swap` is already set, so text paints in the
+         fallback face and swaps when the webfont lands. -->
+    <link rel="stylesheet" media="all" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"></noscript>
+    <!-- async, NOT defer. The intent below was always "must not block first
+         paint", but `defer` does not achieve it: a deferred script runs before
+         DOMContentLoaded and therefore gates it. `async` takes it off that path
+         entirely. Safe because the retry the old comment already describes is
+         real — `_chartReady` polls for up to 6s and every call site guards on
+         `typeof Chart === 'undefined'`, so a chart that renders before the CDN
+         answers simply waits instead of throwing. -->
+    
+    <link rel="stylesheet" href="app.css">
+<style type="text/css">/* NEW PARTS ONLY (2026-10 Notes + Messages proposal). Everything else on these
+   screens is the live app's own CSS. Uses the app's tokens, so dark mode
+   follows the app's own html[data-theme="dark"] values. */
+.cal-cm-to-tag { display:inline-flex; align-items:center; gap:3px; flex-shrink:0; font-size:0.62rem; font-weight:700; padding:1px 6px; border-radius:99px; }
+.cal-cm-to-tag svg { width:10px; height:10px; }
+.cal-cm-to-tag.is-team { background:var(--sv-bg-rgba-139-92-246-0_12, rgba(139,92,246,.12)); color:var(--sv-fg-8b5cf6, #8b5cf6); }
+.cal-cm-to-tag.is-client { background:rgba(37,99,235,.12); color:#2563eb; }
+html[data-theme="dark"] .cal-cm-to-tag.is-client { color:#7aa7ff; background:rgba(122,167,255,.14); }
+.cal-cm-aud-btn[disabled] { opacity:.4; cursor:not-allowed; }
+.cal-cm-client-warn { font-size:0.72rem; color:#2563eb; padding:0 4px 8px; font-weight:600; }
+html[data-theme="dark"] .cal-cm-client-warn { color:#7aa7ff; }
+.cal-cm-composer.is-to-client { border-color:#2563eb; }
+.cal-cm-composer.is-tweak { border-color:var(--cal-notes-accent); }
+.cal-cm-row.is-unread .cal-cm-time::after { content:''; display:inline-block; width:7px; height:7px; margin-left:6px; border-radius:50%; background:var(--cal-notes-dot-bg); vertical-align:middle; }
+.cal-cm-older { text-align:center; font-size:0.72rem; font-weight:600; color:var(--text-muted); padding:4px 0 10px; }
+/* Messages inbox */
+.msg-inbox { display:grid; grid-template-columns:340px 1fr; height:calc(100vh - 250px); min-height:520px; border:1px solid var(--border); border-radius:14px; overflow:hidden; background:var(--white); }
+.msg-list { border-right:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
+.msg-filters { display:flex; gap:6px; padding:10px 12px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+.msg-filters button { font:inherit; font-size:0.74rem; font-weight:600; padding:4px 10px; border-radius:99px; border:1px solid var(--border); background:transparent; color:var(--text-secondary); }
+.msg-filters button.is-active { background:var(--text-primary); color:var(--white); border-color:var(--text-primary); }
+.msg-convs { overflow:auto; flex:1; }
+.msg-conv { display:flex; gap:10px; align-items:center; width:100%; text-align:left; font:inherit; color:inherit; background:none; border:0; border-bottom:1px solid var(--border-light, var(--border)); padding:10px 12px; cursor:pointer; }
+.msg-conv.is-active { background:var(--cal-notes-open-bg); }
+.msg-conv img { width:40px; height:50px; border-radius:7px; object-fit:cover; flex-shrink:0; }
+.msg-conv-main { flex:1; min-width:0; display:block; }
+.msg-conv-main > span { display:block; }
+.msg-conv-main > .msg-conv-top { display:flex; justify-content:space-between; gap:8px; font-size:0.8rem; font-weight:700; color:var(--text-primary); }
+.msg-conv-top span { font-weight:500; color:var(--text-muted); font-size:0.72rem; white-space:nowrap; }
+.msg-conv-sub { font-size:0.72rem; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.msg-conv-last { font-size:0.78rem; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+.msg-conv.is-unread .msg-conv-last { color:var(--text-primary); font-weight:600; }
+.msg-unread { min-width:18px; height:18px; padding:0 5px; border-radius:99px; background:var(--cal-notes-dot-bg); color:#fff; font-size:0.66rem; font-weight:700; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+.msg-chat { display:flex; flex-direction:column; min-height:0; }
+.msg-chat-head { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); }
+.msg-chat-head img { width:32px; height:40px; border-radius:6px; object-fit:cover; }
+.msg-chat-title { font-weight:700; font-size:0.9rem; color:var(--text-primary); }
+.msg-chat-sub { font-size:0.72rem; color:var(--text-muted); }
+.msg-chat-actions { margin-left:auto; display:flex; gap:6px; }
+.msg-chat-actions button { font:inherit; font-size:0.74rem; font-weight:600; padding:6px 10px; border-radius:8px; border:1px solid var(--border); background:var(--white); color:var(--text-primary); }
+.msg-back { display:none; font:inherit; font-size:1.3rem; line-height:1; border:0; background:none; color:var(--cal-notes-accent); padding:0 4px; }
+.msg-bubbles { flex:1; overflow:auto; padding:14px 16px; display:flex; flex-direction:column; gap:10px; background:var(--bg); }
+.msg-day { align-self:center; font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; }
+.msg-new { display:flex; align-items:center; gap:8px; color:var(--cal-notes-accent); font-size:0.7rem; font-weight:700; }
+.msg-new::before, .msg-new::after { content:''; flex:1; height:1px; background:var(--cal-notes-accent); }
+.msg-b { max-width:70%; display:flex; flex-direction:column; gap:3px; align-self:flex-start; }
+.msg-b-meta { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:0.7rem; color:var(--text-muted); }
+.msg-b-meta b { color:var(--text-primary); font-size:0.74rem; }
+.msg-b-meta .cal-cm-comp-label { margin-left:0; }
+.msg-b-text { background:var(--white); border:1px solid var(--border); padding:8px 12px; border-radius:14px 14px 14px 4px; font-size:0.86rem; color:var(--text-primary); line-height:1.4; }
+.msg-b.is-me { align-self:flex-end; align-items:flex-end; }
+.msg-b.is-me .msg-b-text { background:var(--text-primary); color:var(--white); border-color:var(--text-primary); border-radius:14px 14px 4px 14px; }
+.msg-b-quote { font-size:0.72rem; opacity:.7; border-left:2px solid currentColor; padding-left:6px; margin-bottom:3px; }
+.msg-reply { padding:10px 14px 14px; border-top:1px solid var(--border); background:var(--white); }
+.msg-reply-cap { font-size:0.72rem; color:var(--text-muted); padding:0 4px 8px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.kasper-tab-count.is-unread { background:var(--cal-notes-dot-bg); color:#fff; }
+@media (max-width:767px) {
+  .msg-inbox { grid-template-columns:1fr; height:calc(100vh - 210px); }
+  .msg-inbox .msg-chat { display:none; }
+  .msg-inbox.is-chat-open .msg-list { display:none; }
+  .msg-inbox.is-chat-open .msg-chat { display:flex; }
+  .msg-back { display:inline-block; }
+  .msg-b { max-width:86%; }
+  .msg-chat-actions button span { display:none; }
+  .msg-chat-sub, .msg-reply-why { display:none; }
+  .msg-chat-title { font-size:0.84rem; }
+}
+/* Client: new messages strip */
+.cal-new-msgs-strip { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 14px; padding:10px 14px; border-radius:12px; background:var(--cal-notes-open-bg); border:1px solid var(--cal-notes-accent); color:var(--cal-notes-accent-fg); font-weight:700; font-size:0.86rem; }
+.cal-new-msgs-strip .cal-comments-dot { position:static; }
+.cal-new-msgs-strip button { margin-left:auto; font:inherit; font-size:0.8rem; font-weight:700; padding:6px 12px; border-radius:8px; border:0; background:var(--cal-notes-accent); color:#fff; }
+</style><style type="text/css">*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}</style></head>
+<body class="sv-shared-client cal-page cal-modal-open">
+<!-- Confirmation modal -->
+<div class="confirm-overlay" id="confirmOverlay" data-backdrop-dismiss="">
+    <div class="confirm-box">
+        <div class="confirm-box-title" id="confirmTitle">Are you sure?</div>
+        <div class="confirm-box-msg" id="confirmMsg">This will replace the current content.</div>
+        <label class="confirm-box-check" id="confirmCheckWrap" hidden="">
+            <input type="checkbox" id="confirmCheck" style=""><span id="confirmCheckLabel"></span>
+        </label>
+        <div class="confirm-box-actions">
+            <button class="brief-action-btn">Cancel</button>
+            <button class="brief-action-btn primary" id="confirmYes">Regenerate</button>
+        </div>
+    </div>
+</div>
+
+<!-- Resolve-and-route chooser. Opened when the SMM routes a component onward —
+     either by marking the last open change-request done (Notes modal) or by
+     approving it in the Review tab. It resolves the open change-requests she
+     ticks and routes the component to Kasper, the client, or straight to
+     Approved. The ✕ (and a backdrop click) just close it — closing is
+     non-destructive, since nothing is applied until a route is picked. -->
+<div class="confirm-overlay" id="resolveDestOverlay" data-backdrop-dismiss="">
+    <div class="confirm-box resolve-dest-box">
+        <button type="button" class="resolve-dest-close" id="resolveDestClose" aria-label="Close" title="Close">
+            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9"></path></svg>
+        </button>
+        <div id="resolveDestMain">
+            <div class="confirm-box-title">Tweaks resolved — where to next?</div>
+            <div class="confirm-box-msg" id="resolveDestMsg">Send this for approval.</div>
+            <div class="resolve-dest-checklist" id="resolveDestChecklist" hidden=""></div>
+            <div class="confirm-box-actions resolve-dest-actions">
+                <button class="brief-action-btn" type="button" id="resolveDestKasper">Kasper approval</button>
+                <button class="brief-action-btn" type="button" id="resolveDestClient">Client approval</button>
+                <button class="brief-action-btn" type="button" id="resolveDestApprove">Approve</button>
+            </div>
+            <button type="button" class="resolve-dest-stay" id="resolveDestStay" title="Mark these tweaks as done. The card stays in its stage.">Mark done — don’t change the status</button>
+        </div>
+    </div>
+</div>
+
+<!-- Staff sign-in gate. Opaque cover shown until a staff identity is admitted.
+     The sign-in card itself is rendered on top of this by
+     _syncviewOpenStaffIdentity({ entry: true }) once the roster loads. -->
+<div id="staffGateOverlay" style="display: none;">
+    <div class="staff-gate-inner">
+        <img src="../../../../syncview-favicon.png" alt="SyncView">
+        <div>
+            <div class="staff-gate-title">Welcome to SyncView</div>
+            <div class="staff-gate-note" id="staffGateNote">Preparing secure sign-in…</div>
+        </div>
+        <button class="cal-import-btn-primary staff-gate-retry" type="button" id="staffGateRetry" hidden="">Try again</button>
+    </div>
+</div>
+
+<!-- Quick jump (096-quick-jump): "/" then "client tab", Enter. -->
+<div class="sv-jump" id="svJump" hidden="" data-wired="1">
+    <div class="sv-jump-box" role="dialog" aria-label="Quick jump">
+        <input type="text" class="sv-jump-input" id="svJumpInput" placeholder="Client and tab, like “calendar” or a client name…" autocomplete="off" role="combobox" aria-expanded="true" aria-controls="svJumpList" aria-label="Quick jump" style="">
+        <div class="sv-jump-list" id="svJumpList" role="listbox"></div>
+        <div class="sv-jump-foot"><span><kbd>↑</kbd><kbd>↓</kbd> choose</span><span><kbd>Enter</kbd> go</span><span><kbd>Esc</kbd> close</span></div>
+    </div>
+</div>
+
+<header class="header" style="display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;gap:12px;">
+    <a class="logo" href="/" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
+        <img src="../../../../syncview-favicon.png" alt="SyncView">
+        <span class="logo-text">SyncView</span>
+    </a>
+    <!-- Shared client picker (095-shared-client), owner-approved 2026-09-27:
+         one small first-name dropdown after the logo, on every staff tab so
+         the tabs never move; never on client links. -->
+    <div class="sv-client-pick" id="svClientBar" data-wired="1">
+        <div class="sv-client-badge-wrap" id="svClientBadgeWrap">
+            <button type="button" class="sv-client-badge has-client" id="svClientBadge" aria-haspopup="listbox" aria-expanded="false" aria-label="Client: Sample Bakery. Change client" data-sv-current="Sample Bakery" title="Sample Bakery" style="--sv-client-h: 198;">
+                <span class="sv-client-dot" id="svClientBadgeDot" style="--sv-client-h:198" aria-hidden="true">SB</span>
+                <span id="svClientBadgeLabel">Sample</span>
+                <svg class="sv-client-chev" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"></path></svg>
+            </button>
+            <div class="sv-client-pop" id="svClientPop" hidden="">
+                <div class="sv-client-searchrow">
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"></circle><path d="m10.5 10.5 3 3"></path></svg>
+                    <input type="text" class="sv-client-search" id="svClientSearch" placeholder="Search clients" autocomplete="off" aria-label="Search clients" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="svClientResults" style="">
+                </div>
+                <div class="sv-client-results" id="svClientResults"></div>
+            </div>
+        </div>
+        <button type="button" class="sv-jump-touch" aria-label="Quick jump to a client and tab"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"></circle><path d="m10.5 10.5 3 3"></path></svg></button>
+    </div>
+    <div class="header-nav pill-ready" id="headerNav">
+        <span class="header-nav-pill" aria-hidden="true" style="width: 96px; height: 32px; transform: translate(82px, 0px);"></span>
+        <a class="header-nav-btn" id="navToday" href="/today" title="Today" aria-label="Today">
+            <span class="header-nav-ico ico-today" aria-hidden="true"></span>
+            Today
+        </a>
+        <a class="header-nav-btn active" id="navCalendar" href="/calendar" title="Calendar" aria-label="Calendar">
+            <span class="header-nav-ico ico-calendar" aria-hidden="true"></span>
+            Calendar
+        </a>
+        <!-- >>> SXR_BEGIN (nav) -->
+        <a class="header-nav-btn" id="navSxr" href="/sample-reviews" style="" title="Samples" aria-label="Samples">
+            <span class="header-nav-ico ico-samples" aria-hidden="true"></span>
+            Samples
+        </a>
+        <!-- <<< SXR_END -->
+        <a class="header-nav-btn" id="navTemplates" href="/templates" title="Templates" aria-label="Templates">
+            <span class="header-nav-ico ico-templates" aria-hidden="true"></span>
+            Templates
+        </a>
+        <a class="header-nav-btn" id="navFilmingPlans" title="Filming Plans" aria-label="Filming Plans" href="/filming-plans">
+            <span class="header-nav-ico ico-filmingplans" aria-hidden="true"></span>
+            Filming
+        </a>
+        <a class="header-nav-btn" id="navTiktokUpload" title="TikTok Upload" aria-label="TikTok Upload" href="/tiktok-upload">
+            <span class="header-nav-ico ico-tiktok" aria-hidden="true"></span>
+            TikTok
+        </a>
+        <a class="header-nav-btn" id="navHome" href="/" title="Analytics" aria-label="Analytics">
+            <span class="header-nav-ico ico-analytics" aria-hidden="true"></span>
+            Analytics
+        </a>
+        <!-- Tab row labels (owner, 2026-09-28): Filming, TikTok and Linear are short so the
+             admin row keeps full labels at 1366/1440px; title and aria-label keep the full names. -->
+        <!-- The six tabs above follow the shared top-bar client; the team tabs below ignore it. -->
+        <span class="header-nav-sep" aria-hidden="true"></span>
+        <a class="header-nav-btn" id="navWorkload" href="/workload" title="Workload" aria-label="Workload">
+            <span class="header-nav-ico ico-workload" aria-hidden="true"></span>
+            Workload
+        </a>
+        <a class="header-nav-btn" id="navProd" title="SyncLinear" aria-label="SyncLinear" href="/synclinear">
+            <span class="header-nav-ico ico-synclinear" aria-hidden="true"></span>
+            Linear
+        </a>
+        <a class="header-nav-btn" id="navLinear" href="/submit" title="Submit" aria-label="Submit">
+            <span class="header-nav-ico ico-submit" aria-hidden="true"></span>
+            Submit
+        </a>
+        <a class="header-nav-btn" id="navKasper" href="/kasper" style="" title="Kasper" aria-label="Kasper">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.5"></circle></svg>
+            Kasper
+        </a>
+    </div>
+    <div class="header-actions"><button type="button" class="header-nav-btn" id="navMessages" title="Messages (2 unread)" aria-label="Messages, 2 unread"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"></path></svg><span class="msg-unread">2</span></button>
+        <div class="staff-identity-wrap" id="staffIdentityWrap">
+            <button class="theme-toggle staff-identity-btn is-valid" id="headerMenuButton" type="button" title="Staff menu: QA Staff, Admin" aria-label="Staff menu: QA Staff, Admin" aria-haspopup="menu" aria-expanded="false">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="5.3" r="2.5" stroke="currentColor" stroke-width="1.45"></circle><path d="M3.2 13.2c.35-2.35 2.1-3.7 4.8-3.7s4.45 1.35 4.8 3.7" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"></path></svg>
+            </button>
+            <div class="staff-account-popover" id="staffAccountPopover" role="menu" aria-labelledby="headerMenuButton" hidden="">
+                <div class="staff-account-summary" id="staffAccountSummary" role="presentation" aria-hidden="true"></div>
+                <div class="staff-account-sep" role="separator"></div>
+                <button class="staff-account-action" id="staffIdentitySignOut" type="button" role="menuitem">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="5.3" r="2.5"></circle><path d="M3.2 13.2c.35-2.35 2.1-3.7 4.8-3.7s4.45 1.35 4.8 3.7"></path></svg>
+                    <span id="staffIdentityMenuLabel">Staff sign in</span>
+                </button>
+                <button class="staff-account-action" id="headerTimeOffMenuItem" type="button" role="menuitem" hidden="">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.25" y="3.25" width="11.5" height="10.5" rx="1.6"></rect><path d="M2.5 6.5h11M5 1.8v3M11 1.8v3"></path><path d="m5.2 9 1.4 1.4 3.4-3.2"></path></svg>
+                    <span>Time Off</span>
+                </button>
+                <button class="staff-account-action" id="headerOnboardingMenuItem" type="button" role="menuitem" data-staff-capability="onboarding">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2.5h6l2.5 2.5v8.3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"></path><path d="M9.5 2.5V5h2.5"></path><path d="M6 8.2h4M6 10.6h4"></path></svg>
+                    <span>Onboarding</span>
+                </button>
+                <button class="staff-account-action" id="headerCredentialsMenuItem" type="button" role="menuitem" data-staff-capability="credentials">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="7" width="11" height="7" rx="1.4"></rect><path d="M5 7V5.2a3 3 0 0 1 6 0V7"></path><path d="M8 10v1.5"></path></svg>
+                    <span>Client Credentials</span>
+                </button>
+                <button class="staff-account-action" id="themeToggle" type="button" role="menuitemcheckbox" title="Switch to light mode" aria-label="Switch to light mode" aria-pressed="true" aria-checked="true">
+                    <svg class="theme-icon-moon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.2 10.4A5.8 5.8 0 0 1 5.6 2.8 5.8 5.8 0 1 0 13.2 10.4Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></svg>
+                    <svg class="theme-icon-sun" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="3.1" stroke="currentColor" stroke-width="1.6"></circle><path d="M8 1.8V3M8 13v1.2M13 8h1.2M1.8 8H3M11.7 4.3l.8-.8M3.5 12.5l.8-.8M11.7 11.7l.8.8M3.5 3.5l.8.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+                    <span class="staff-account-action-copy"><span id="themeToggleLabel">Dark mode</span><span class="staff-account-action-note">Adjust SyncView's appearance</span></span>
+                    <span class="staff-account-action-state" id="themeToggleState">On</span>
+                </button>
+                <button class="staff-account-action palette-toggle" id="statusPaletteToggle" type="button" role="menuitemcheckbox" title="Use the old status colors" aria-label="Use the old status colors" aria-pressed="false" aria-checked="false">
+                    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1.1" stroke="currentColor" stroke-width="1.35"></rect><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1.1" fill="currentColor"></rect><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1.1" fill="currentColor"></rect><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1.1" stroke="currentColor" stroke-width="1.35"></rect></svg>
+                    <span class="staff-account-action-copy"><span>Original status colors</span><span class="staff-account-action-note">Use the classic workflow palette</span></span>
+                    <span class="staff-account-action-state" id="statusPaletteToggleState">Off</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</header>
+<main class="main" id="mainWrap">
+    <div class="page-top overview-mode" id="pageTop" style="display: none;">
+        <div>
+            <div class="page-title-row" id="titleRow">
+                <div class="page-title" id="pageTitle">Client Analytics</div>
+            </div>
+            <div class="page-sub" id="pageSub">Instagram · TikTok · YouTube</div>
+        </div>
+        <div class="selector-wrap" id="selectorWrap">
+            <div class="search-bar-wrap" id="searchWrap">
+                <div class="search-bar-pill">
+                    <input class="search-bar-input" id="searchInput" type="text" placeholder="Search clients…" autocomplete="off" style="">
+                    <div class="search-ghost-overlay" id="searchGhost"></div>
+                    <button class="search-bar-icon" title="Search">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"></circle><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+                    </button>
+                </div>
+                <div class="search-dropdown" id="searchBox">
+                    <div id="searchResults"></div>
+                </div>
+            </div>
+        </div>
+        <div class="pins-area" id="pinsArea"><div class="pins-row" id="pinsRow"></div><div class="pins-add-row" id="pinsAddRow"><button class="pin-add-btn" title="Pin a client"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M5 1h6v1l-1 4 2 2v1H9v5l-1 1-1-1V9H3V8l2-2L4 2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"></path><line x1="8" y1="9" x2="8" y2="15" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></line></svg> Pin client <span style="opacity:0.6;font-size:0.68rem;">0/3</span></button><div class="pin-selector-dropdown" id="pinSelectorDropdown"><div class="pin-selector-header"><span class="pin-selector-title">Pin a client</span><div style="display:flex;align-items:center;gap:8px;"><span class="pin-selector-count">0 / 3</span><button style="background:none;border:none;cursor:pointer;color:var(--text-muted);display:inline-flex;align-items:center;padding:0;transition:color 0.13s;" id="pinDropCloseBtn" title="Close"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></line><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></line></svg></button></div></div><div class="pin-selector-list" id="pinSelectorList"></div></div></div></div>
+    </div>
+    <div id="content"><div class="cal-view" id="calView" data-zoom="m">
+            <div class="cal-toolbar is-picker-shell">
+                <div class="cal-toolbar-left"><div class="cal-tabs" id="calTabs"><button type="button" class="cal-tab-scroll-btn left" tabindex="-1" aria-label="Scroll clients left"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 2.5 4 6l3.5 3.5"></path></svg></button><div class="cal-tabs-scroll" id="calTabsScroll"><button type="button" class="cal-tab active" style="--tab-h:198" data-cal-tab="Sample Bakery">
+                <span class="cal-tab-name">Sample Bakery</span>
+                <span class="cal-tab-x" title="Close this client’s tab"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"></path></svg></span>
+            </button></div><button type="button" class="cal-tab-scroll-btn right" tabindex="-1" aria-label="Scroll clients right"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 2.5 8 6l-3.5 3.5"></path></svg></button><div class="cal-tab-add-wrap" id="calTabAddWrap">
+                <button type="button" class="cal-tab-add no-label" title="Add client"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><line x1="8" y1="2.5" x2="8" y2="13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></line><line x1="2.5" y1="8" x2="13.5" y2="8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></line></svg></button>
+                <div class="cal-tab-search" id="calTabSearchPanel" hidden="">
+                    <div class="wl-client-search">
+                        <input type="text" class="wl-client-search-input" id="calClientSearchInput" placeholder="Search clients…" autocomplete="off" style="">
+                        <div class="wl-client-search-results" id="calClientSearchResults" hidden="" role="listbox"></div>
+                    </div>
+                </div>
+            </div></div></div>
+                <div class="cal-toolbar-mid">
+                    <div class="cal-view-toggle">
+                        <button type="button" class="cal-view-btn" data-cal-view="smmreview">Review<span class="cal-view-badge">1</span></button><button type="button" class="cal-view-btn active" data-cal-view="organizer">Sheet</button><button type="button" class="cal-view-btn" data-cal-view="month">Month</button><button type="button" class="cal-view-btn" data-cal-view="week">Week</button>
+                    </div>
+                    <div class="cal-month-filter cal-organize" id="calOrganizeWrap">
+            
+            <button type="button" class="dropdown-trigger" id="calOrganizeBtn" title="Choose the order and which cards show" aria-haspopup="menu" aria-expanded="false">
+                <svg class="cal-org-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M2 4.5h4.2M11.3 4.5H14M2 11.5h2.7M9.8 11.5H14"></path><circle cx="8.7" cy="4.5" r="2.1"></circle><circle cx="7.3" cy="11.5" r="2.1"></circle></svg><span class="cal-org-trigger-txt">Organize</span><svg class="dd-arrow" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"></path></svg>
+            </button>
+            <div class="dropdown-menu cal-org-menu" id="calOrganizeMenu" role="menu" aria-label="Organize the Sheet">
+                <div class="cal-org-sec" id="calOrgSecOrder">Order</div>
+                <div role="group" aria-labelledby="calOrgSecOrder"><button type="button" class="dropdown-item cal-org-toggle" role="menuitemcheckbox" aria-checked="false" data-sv-explain="" data-tip="Sorts by scheduled date, oldest first, with unscheduled cards last. Your drag order is kept. Turn this off to get it back.">
+            <span class="cal-org-toggle-txt">
+                <span class="cal-org-toggle-name">Auto-organize by date</span>
+                <span class="cal-org-toggle-sub">Off — your drag order</span>
+            </span>
+            <span class="cal-kebab-switch" id="calOrgSortSwitch" aria-hidden="true"></span>
+        </button></div>
+                <div class="cal-org-sep" role="separator"></div>
+                <div class="cal-org-sec" id="calOrgSecMonth">Month</div>
+                <div role="group" aria-labelledby="calOrgSecMonth"><button type="button" class="dropdown-item active" role="menuitemradio" aria-checked="true"><span>All months</span></button><button type="button" class="dropdown-item" role="menuitemradio" aria-checked="false"><span>September 2026</span><span class="cal-month-filter-tag">Previous</span></button><button type="button" class="dropdown-item" role="menuitemradio" aria-checked="false"><span>October 2026</span><span class="cal-month-filter-tag">This month</span></button><button type="button" class="dropdown-item" role="menuitemradio" aria-checked="false"><span>November 2026</span><span class="cal-month-filter-tag">Next</span></button><div class="dropdown-item cal-month-filter-custom">
+            <span>Custom…</span>
+            <input type="month" class="cal-month-filter-custom-input" value="" aria-label="Pick a month" style="">
+        </div></div>
+                <div class="cal-org-sep" role="separator"></div>
+                <div class="cal-org-sec" id="calOrgSecContent">Content</div>
+                <div role="group" aria-labelledby="calOrgSecContent"><button type="button" class="dropdown-item active" role="menuitemradio" aria-checked="true"><span>All content</span></button><button type="button" class="dropdown-item" role="menuitemradio" aria-checked="false"><span>Scheduled</span></button><button type="button" class="dropdown-item" role="menuitemradio" aria-checked="false"><span>Unscheduled</span></button></div>
+            </div>
+        </div>
+                    <div class="cal-month-filter cal-status-filter" id="calCardStatusWrap">
+            <button type="button" class="dropdown-trigger" id="calCardStatusBtn" title="Show or hide cards by their overall status" aria-haspopup="menu" aria-expanded="false">
+                <svg class="cal-org-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3.5h12L9.5 9v3.5L6.5 14V9z"></path></svg><span class="cal-org-trigger-txt">Status</span><svg class="dd-arrow" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"></path></svg>
+            </button>
+            <div class="dropdown-menu cal-sf-menu" id="calCardStatusMenu" role="menu" aria-label="Filter cards by status">
+                <div class="cal-sf-modes" role="radiogroup" aria-label="Filter mode"><button type="button" class="cal-sf-mode active" role="radio" aria-checked="true">Show only</button><button type="button" class="cal-sf-mode" role="radio" aria-checked="false">Hide</button></div>
+                <div class="cal-org-sec">Overall status</div>
+                <div role="group" aria-label="Statuses"><button type="button" class="dropdown-item cal-sf-row" role="menuitemcheckbox" aria-checked="false" data-status="N/A"><span class="cal-sf-box" aria-hidden="true"></span><span class="cal-status cal-status-n-a">N/A</span></button><button type="button" class="dropdown-item cal-sf-row" role="menuitemcheckbox" aria-checked="false" data-status="In Progress"><span class="cal-sf-box" aria-hidden="true"></span><span class="cal-status cal-status-in-progress">In Progress</span></button><button type="button" class="dropdown-item cal-sf-row" role="menuitemcheckbox" aria-checked="false" data-status="For SMM Approval"><span class="cal-sf-box" aria-hidden="true"></span><span class="cal-status cal-status-for-smm-approval">For SMM Approval</span></button><button type="button" class="dropdown-item cal-sf-row" role="menuitemcheckbox" aria-checked="false" data-status="Kasper Approval"><span class="cal-sf-box" aria-hidden="true"></span><span class="cal-status cal-status-kasper-approval">Kasper Approval</span></button><button type="button" class="dropdown-item cal-sf-row" role="menuitemcheckbox" aria-checked="false" data-status="Client Approval"><span class="cal-sf-box" aria-hidden="true"></span><span class="cal-status cal-status-client-approval">Sample Approval</span></button><button type="button" class="dropdown-item cal-sf-row" role="menuitemcheckbox" aria-checked="false" data-status="Tweaks Needed"><span class="cal-sf-box" aria-hidden="true"></span><span class="cal-status cal-status-tweaks-needed">Tweaks Needed</span></button><button type="button" class="dropdown-item cal-sf-row" role="menuitemcheckbox" aria-checked="false" data-status="Approved"><span class="cal-sf-box" aria-hidden="true"></span><span class="cal-status cal-status-approved">Approved</span></button><button type="button" class="dropdown-item cal-sf-row" role="menuitemcheckbox" aria-checked="false" data-status="Scheduled"><span class="cal-sf-box" aria-hidden="true"></span><span class="cal-status cal-status-scheduled">Scheduled</span></button><button type="button" class="dropdown-item cal-sf-row" role="menuitemcheckbox" aria-checked="false" data-status="Posted"><span class="cal-sf-box" aria-hidden="true"></span><span class="cal-status cal-status-posted">Posted</span></button></div>
+                
+            </div>
+        </div>
+                    
+                    
+                    <div class="cal-zoom" id="calZoomCtl" title="Card size" style="visibility: visible;">
+                        <svg class="cal-zoom-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5L14 14"></path></svg>
+                        <button type="button" id="calZoomOut" aria-label="Zoom out"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="7" x2="11" y2="7"></line></svg></button>
+                        <button type="button" id="calZoomIn" aria-label="Zoom in"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="7" y1="3" x2="7" y2="11"></line><line x1="3" y1="7" x2="11" y2="7"></line></svg></button>
+                    </div>
+                </div>
+                <div class="cal-toolbar-right">
+                    <span class="cal-refreshing" id="calRefreshing" hidden=""><span class="cal-refresh-spin"></span>Refreshing…</span>
+                    <span class="cal-stale-notice" id="calStaleNotice" hidden="" title="Click to retry">Couldn't refresh — retry</span>
+                    <button class="cal-select-btn" type="button" data-select-action="archive" title="Pick several cards to color or archive"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="3.2"></rect><path d="M4.8 8.1l2 2 4.4-4.8"></path></svg></button>
+                    <button class="cal-select-btn" type="button" data-select-action="caption" title="Write captions for several cards"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"></path></svg></button>
+                    <div class="cal-kebab-wrap">
+                    <button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"></circle><circle cx="8" cy="8" r="1.5"></circle><circle cx="8" cy="13" r="1.5"></circle></svg></button>
+                    <div class="cal-kebab-menu" id="calKebabMenu" hidden="">
+                        <button class="cal-kebab-item" type="button" title="Copy the client link for this calendar"><svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13"></path></svg>Share with client</button>
+                        <div class="cal-kebab-sep" role="separator"></div>
+                        <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"></path></svg>Caption prompt</button>
+                        <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"></rect><path d="M4.5 10.5h7M4.5 8h4"></path></svg>Thumbnail title prompt</button>
+                        <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"></rect><rect x="9" y="2" width="5" height="5" rx="1"></rect><rect x="2" y="9" width="5" height="5" rx="1"></rect><rect x="9" y="9" width="5" height="5" rx="1"></rect></svg>Platform</button>
+                        <button class="cal-kebab-item" data-staff-capability="credentials" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="11" height="7" rx="1.4"></rect><path d="M5 7V5.2a3 3 0 0 1 6 0V7"></path><path d="M8 10v1.5"></path></svg>Client credentials</button>
+                        <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="6" r="2.2"></circle><circle cx="11" cy="7" r="1.8"></circle><path d="M1.8 13.2c.5-2 2-3 3.7-3s3.2 1 3.7 3"></path><path d="M9.5 12.5c.4-1.5 1.5-2.3 2.8-2.3s2.4.8 2.8 2.3"></path></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-info-wrap" data-no-tip=""><span class="cal-kebab-info-i" aria-label="What does Collaborative mode do?">i</span><span class="cal-kebab-info-tip">Lets your client see what you're working on and suggest new posts of their own. With this off, they only see what's finished.</span></span><span class="cal-kebab-switch" id="calCollabSwitch"></span></button>
+                        <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3.5" width="13" height="9" rx="2.5"></rect><path d="M6.6 6.2l3.1 1.8-3.1 1.8z" fill="currentColor" stroke="none"></path></svg><span class="cal-kebab-label">YouTube title review</span><span class="cal-kebab-info-wrap" data-no-tip=""><span class="cal-kebab-info-i" aria-label="What does YouTube title review do?">i</span><span class="cal-kebab-info-tip">Adds a title sign-off step on YouTube cards — the SMM sends the title to Kasper, then the client, with its own status and notes. It never affects the card's overall status.</span></span><span class="cal-kebab-switch" id="calTitleReviewSwitch"></span></button>
+                        <div class="cal-kebab-sep" role="separator"></div>
+                        <button class="cal-kebab-item cal-kebab-import-toggle" id="calImportToggle" type="button" aria-expanded="false" aria-controls="calImportPanel"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v8M4.5 6L8 9.5 11.5 6M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"></path></svg><span class="cal-kebab-label">Import</span><svg class="cal-kebab-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"></path></svg></button>
+                        <div class="cal-kebab-import-panel" id="calImportPanel">
+                            <button class="cal-kebab-item cal-kebab-subitem" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v8M4.5 6L8 9.5 11.5 6M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"></path></svg>Import from Excel</button>
+                        </div>
+                        <div data-staff-capability="restore-archived">
+                            <div class="cal-kebab-sep" role="separator"></div>
+                            <button class="cal-kebab-item" type="button" title="Archived cards. Restore one."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"></rect><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"></path></svg>Archived cards</button>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            </div>
+            <div class="cal-body" id="calBody"><div class="cal-organizer-wrap">
+            <div class="cal-organizer-strip" id="calStrip" data-shift-scroll-wired="1" data-drag-scroll-wired="1" data-scroll-wired="1" data-drop-wired="1">
+                <div class="cal-card cal-card-edit cal-card-current" data-pid="p1" draggable="true" data-drag-wired="1">
+            
+            <span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"></circle><circle cx="10" cy="4" r="1.4"></circle><circle cx="6" cy="8" r="1.4"></circle><circle cx="10" cy="8" r="1.4"></circle><circle cx="6" cy="12" r="1.4"></circle><circle cx="10" cy="12" r="1.4"></circle></svg></span>
+            <button class="cal-card-link" type="button" data-card-link="p1" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"></path><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"></path></svg></button>
+            <button class="cal-card-del" type="button" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"></path></svg></button>
+            <div class="cal-card-thumb"><img loading="lazy" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2E1YjRmYyIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzYzNjZmMSIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSI3NDAiIGN5PSI0MjAiIHI9IjIwMCIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iLjI1Ii8+PC9zdmc+" alt=""><button type="button" class="cal-card-color-tag" title="Tag this card with a color"><span class="cal-card-color-tag-dot"></span></button></div>
+            <div class="cal-card-body">
+                
+                <div class="cal-title-row" data-title-row="p1"><div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="p1" data-fld="name" value="Morning routine, 3 swaps" placeholder="Untitled post" style=""><span class="cal-title-fade" aria-hidden="true"></span></div><span class="cal-name-sync" data-name-sync="p1" hidden=""></span><span class="sv-save-ind" data-sv-save-ind="p1" role="status" aria-live="polite" hidden=""><svg class="sv-save-ind-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true"><circle class="sv-save-ind-track" cx="12" cy="12" r="9" stroke-width="2.4"></circle><circle class="sv-save-ind-arc" cx="12" cy="12" r="9" stroke-width="2.4" stroke-linecap="round"></circle><path class="sv-save-ind-check" d="M7.6 12.4l2.7 2.7 6-6.4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path><path class="sv-save-ind-bang" d="M12 7.4v4.7" stroke-width="2.2" stroke-linecap="round"></path><path class="sv-save-ind-bang" d="M12 15.7v.06" stroke-width="2.4" stroke-linecap="round"></path></svg></span></div>
+                <div class="cal-meta-row"><div class="cal-fld-date-wrap">
+                        <div class="cal-date-chip" data-date-display="p1">
+                            <svg class="cal-cal-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"></rect><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"></path></svg>
+                            <span class="cal-date-txt">Sun 10/18/26</span>
+                            <svg class="cal-chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"></path></svg>
+                        </div>
+                        <input class="cal-fld-date-input" type="date" data-pid="p1" data-fld="scheduled_date" value="2026-10-18" style="">
+                    </div></div>
+                <div class="cal-link-field has-link cal-link-thumb" data-pid-wrap="p1" data-fld-wrap="thumbnail_url">
+                <button type="button" class="cal-link-pill-open" title="Open link"><svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"></path><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"></path></svg><span class="cal-link-label">Thumbnail</span></button>
+                
+                
+                <button type="button" class="cal-link-edit" tabindex="-1" title="Edit link"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"></path></svg></button>
+                <input class="cal-link-input" type="url" data-pid="p1" data-fld="thumbnail_url" value="https://img.example.invalid/1.png" placeholder="Thumbnail URL (Google Drive image)" style="">
+            </div>
+                <div class="cal-link-field has-link cal-link-post" data-pid-wrap="p1" data-fld-wrap="asset_url">
+                <button type="button" class="cal-link-pill-open" title="Open link"><svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"></path><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"></path></svg><span class="cal-link-label">Video</span></button>
+                
+                
+                <button type="button" class="cal-link-edit" tabindex="-1" title="Edit link"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"></path></svg></button>
+                <input class="cal-link-input" type="url" data-pid="p1" data-fld="asset_url" value="https://f.io/sample1" placeholder="Video URL (Frame.io / Drive)" style="">
+            </div>
+                <div class="cal-capblock" data-capblock="p1"><div class="cal-cap-tabs">
+                <button type="button" class="cal-altcap-add" title="Add a caption for another platform. It’s approved together with the main one."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"></path></svg>Alt caption</button>
+            </div>
+            <div class="cal-cap-wrap" data-capwrap="main">
+                <textarea class="cal-fld-cap" rows="5" data-pid="p1" data-fld="caption" placeholder="Caption" style="height: 107px; overflow-y: hidden;" data-cap-ro="1"></textarea>
+                <div class="cal-cap-fade" aria-hidden="true"></div>
+                <button type="button" class="cal-cap-toggle" tabindex="-1" hidden="" title="Expand / collapse"><span class="cal-cap-toggle-txt">Show more</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"></path></svg></button>
+                <button type="button" class="cal-cap-gen"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"></path></svg><span>Generate</span></button><button type="button" class="cal-cap-tx" title="Optional: paste a transcript or notes to use with the video"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h5.5L12 5v8.5H4z"></path><path d="M6 8h4M6 10.5h4"></path></svg><span>Transcript</span></button>
+            </div>
+            </div>
+                
+                <input class="cal-fld-cta" type="text" data-pid="p1" data-fld="cta" value="" placeholder="Call to action" style="">
+                
+                
+                <div class="cal-card-foot">
+                    <span class="cal-foot-tweaks" data-comments-wrap="p1"><button type="button" class="cal-comments-btn has-open has-unread" data-comments-btn="p1" title="New replies. Open Notes."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"></path></svg><span class="cal-comments-label">Notes</span><span class="cal-comments-dot" aria-label="New replies"></span><span class="cal-comments-count">1 open</span></button></span>
+                    <span class="cal-card-saving" data-saving="p1" hidden=""></span>
+                </div>
+                <div class="cal-card-status-row"><div class="cal-card-substatus-row"><button type="button" class="cal-fld-setall" title="Set all three to the same status">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"></path><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"></path></svg>
+            <span class="cal-fld-setall-label">Set all to…</span>
+            <svg class="cal-fld-setall-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"></path></svg>
+        </button><div class="cal-fld-substatus-wrap cal-comp-video is-locked" data-val="Tweaks Needed" data-substatus-pid="p1" data-substatus-comp="video">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-n-a" disabled="" title="No sub-issue is linked to this part, so you can’t change its status here. This screen can’t create one.">
+                    <span class="cal-fld-substatus-dot" style="background:var(--cal-comp-video-dot)"></span>
+                    <span class="cal-fld-substatus-comp">Video</span>
+                    <span class="cal-fld-substatus-label">N/A</span>
+                </button>
+            </div><div class="cal-fld-substatus-wrap cal-comp-graphic is-locked" data-val="Client Approval" data-substatus-pid="p1" data-substatus-comp="graphic">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-n-a" disabled="" title="No sub-issue is linked to this part, so you can’t change its status here. This screen can’t create one.">
+                    <span class="cal-fld-substatus-dot" style="background:var(--cal-comp-graphic-dot)"></span>
+                    <span class="cal-fld-substatus-comp">Thumbnail</span>
+                    <span class="cal-fld-substatus-label">N/A</span>
+                </button>
+            </div><div class="cal-fld-substatus-wrap cal-comp-caption" data-val="Client Approval" data-substatus-pid="p1" data-substatus-comp="caption">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-client-approval">
+                    <span class="cal-fld-substatus-dot" style="background:var(--cal-comp-caption-dot)"></span>
+                    <span class="cal-fld-substatus-comp">Caption</span>
+                    <span class="cal-fld-substatus-label">Sample Approval</span>
+                </button>
+            </div></div></div>
+            </div>
+        </div><div class="cal-card cal-card-edit" data-pid="p2" draggable="true" data-drag-wired="1">
+            
+            <span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"></circle><circle cx="10" cy="4" r="1.4"></circle><circle cx="6" cy="8" r="1.4"></circle><circle cx="10" cy="8" r="1.4"></circle><circle cx="6" cy="12" r="1.4"></circle><circle cx="10" cy="12" r="1.4"></circle></svg></span>
+            <button class="cal-card-link" type="button" data-card-link="p2" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"></path><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"></path></svg></button>
+            <button class="cal-card-del" type="button" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"></path></svg></button>
+            <div class="cal-card-thumb"><img loading="lazy" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzg2ZWZhYyIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzBkOTQ4OCIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSI3NDAiIGN5PSI0MjAiIHI9IjIwMCIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iLjI1Ii8+PC9zdmc+" alt=""><button type="button" class="cal-card-color-tag" title="Tag this card with a color"><span class="cal-card-color-tag-dot"></span></button></div>
+            <div class="cal-card-body">
+                
+                <div class="cal-title-row" data-title-row="p2"><div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="p2" data-fld="name" value="Behind the counter" placeholder="Untitled post" style=""><span class="cal-title-fade" aria-hidden="true"></span></div><span class="cal-name-sync" data-name-sync="p2" hidden=""></span><span class="sv-save-ind" data-sv-save-ind="p2" role="status" aria-live="polite" hidden=""><svg class="sv-save-ind-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true"><circle class="sv-save-ind-track" cx="12" cy="12" r="9" stroke-width="2.4"></circle><circle class="sv-save-ind-arc" cx="12" cy="12" r="9" stroke-width="2.4" stroke-linecap="round"></circle><path class="sv-save-ind-check" d="M7.6 12.4l2.7 2.7 6-6.4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path><path class="sv-save-ind-bang" d="M12 7.4v4.7" stroke-width="2.2" stroke-linecap="round"></path><path class="sv-save-ind-bang" d="M12 15.7v.06" stroke-width="2.4" stroke-linecap="round"></path></svg></span></div>
+                <div class="cal-meta-row"><div class="cal-fld-date-wrap">
+                        <div class="cal-date-chip" data-date-display="p2">
+                            <svg class="cal-cal-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"></rect><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"></path></svg>
+                            <span class="cal-date-txt">Mon 10/19/26</span>
+                            <svg class="cal-chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"></path></svg>
+                        </div>
+                        <input class="cal-fld-date-input" type="date" data-pid="p2" data-fld="scheduled_date" value="2026-10-19" style="">
+                    </div></div>
+                <div class="cal-link-field has-link cal-link-thumb" data-pid-wrap="p2" data-fld-wrap="thumbnail_url">
+                <button type="button" class="cal-link-pill-open" title="Open link"><svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"></path><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"></path></svg><span class="cal-link-label">Thumbnail</span></button>
+                
+                
+                <button type="button" class="cal-link-edit" tabindex="-1" title="Edit link"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"></path></svg></button>
+                <input class="cal-link-input" type="url" data-pid="p2" data-fld="thumbnail_url" value="https://img.example.invalid/2.png" placeholder="Thumbnail URL (Google Drive image)" style="">
+            </div>
+                <div class="cal-link-field has-link cal-link-post" data-pid-wrap="p2" data-fld-wrap="asset_url">
+                <button type="button" class="cal-link-pill-open" title="Open link"><svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"></path><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"></path></svg><span class="cal-link-label">Video</span></button>
+                
+                
+                <button type="button" class="cal-link-edit" tabindex="-1" title="Edit link"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"></path></svg></button>
+                <input class="cal-link-input" type="url" data-pid="p2" data-fld="asset_url" value="https://f.io/sample2" placeholder="Video URL (Frame.io / Drive)" style="">
+            </div>
+                <div class="cal-capblock" data-capblock="p2"><div class="cal-cap-tabs">
+                <button type="button" class="cal-altcap-add" title="Add a caption for another platform. It’s approved together with the main one."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"></path></svg>Alt caption</button>
+            </div>
+            <div class="cal-cap-wrap" data-capwrap="main">
+                <textarea class="cal-fld-cap" rows="5" data-pid="p2" data-fld="caption" placeholder="Caption" style="height: 107px; overflow-y: hidden;" data-cap-ro="1"></textarea>
+                <div class="cal-cap-fade" aria-hidden="true"></div>
+                <button type="button" class="cal-cap-toggle" tabindex="-1" hidden="" title="Expand / collapse"><span class="cal-cap-toggle-txt">Show more</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"></path></svg></button>
+                <button type="button" class="cal-cap-gen"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"></path></svg><span>Generate</span></button><button type="button" class="cal-cap-tx" title="Optional: paste a transcript or notes to use with the video"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h5.5L12 5v8.5H4z"></path><path d="M6 8h4M6 10.5h4"></path></svg><span>Transcript</span></button>
+            </div>
+            </div>
+                
+                <input class="cal-fld-cta" type="text" data-pid="p2" data-fld="cta" value="" placeholder="Call to action" style="">
+                
+                
+                <div class="cal-card-foot">
+                    <span class="cal-foot-tweaks" data-comments-wrap="p2"><button type="button" class="cal-comments-btn" data-comments-btn="p2" title="Notes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"></path></svg><span class="cal-comments-label">Notes</span><span class="cal-comments-count">0 open</span></button></span>
+                    <span class="cal-card-saving" data-saving="p2" hidden=""></span>
+                </div>
+                <div class="cal-card-status-row"><div class="cal-card-substatus-row"><button type="button" class="cal-fld-setall" title="Set all three to the same status">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"></path><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"></path></svg>
+            <span class="cal-fld-setall-label">Set all to…</span>
+            <svg class="cal-fld-setall-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"></path></svg>
+        </button><div class="cal-fld-substatus-wrap cal-comp-video is-locked" data-val="Client Approval" data-substatus-pid="p2" data-substatus-comp="video">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-n-a" disabled="" title="No sub-issue is linked to this part, so you can’t change its status here. This screen can’t create one.">
+                    <span class="cal-fld-substatus-dot" style="background:var(--cal-comp-video-dot)"></span>
+                    <span class="cal-fld-substatus-comp">Video</span>
+                    <span class="cal-fld-substatus-label">N/A</span>
+                </button>
+            </div><div class="cal-fld-substatus-wrap cal-comp-graphic is-locked" data-val="Kasper Approval" data-substatus-pid="p2" data-substatus-comp="graphic">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-n-a" disabled="" title="No sub-issue is linked to this part, so you can’t change its status here. This screen can’t create one.">
+                    <span class="cal-fld-substatus-dot" style="background:var(--cal-comp-graphic-dot)"></span>
+                    <span class="cal-fld-substatus-comp">Thumbnail</span>
+                    <span class="cal-fld-substatus-label">N/A</span>
+                </button>
+            </div><div class="cal-fld-substatus-wrap cal-comp-caption" data-val="Client Approval" data-substatus-pid="p2" data-substatus-comp="caption">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-client-approval">
+                    <span class="cal-fld-substatus-dot" style="background:var(--cal-comp-caption-dot)"></span>
+                    <span class="cal-fld-substatus-comp">Caption</span>
+                    <span class="cal-fld-substatus-label">Sample Approval</span>
+                </button>
+            </div></div></div>
+            </div>
+        </div><div class="cal-card cal-card-edit" data-pid="p3" draggable="true" data-drag-wired="1">
+            
+            <span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"></circle><circle cx="10" cy="4" r="1.4"></circle><circle cx="6" cy="8" r="1.4"></circle><circle cx="10" cy="8" r="1.4"></circle><circle cx="6" cy="12" r="1.4"></circle><circle cx="10" cy="12" r="1.4"></circle></svg></span>
+            <button class="cal-card-link" type="button" data-card-link="p3" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"></path><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"></path></svg></button>
+            <button class="cal-card-del" type="button" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"></path></svg></button>
+            <div class="cal-card-thumb"><img loading="lazy" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2Y5YThkNCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2JlMTg1ZCIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSI3NDAiIGN5PSI0MjAiIHI9IjIwMCIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iLjI1Ii8+PC9zdmc+" alt=""><button type="button" class="cal-card-color-tag" title="Tag this card with a color"><span class="cal-card-color-tag-dot"></span></button></div>
+            <div class="cal-card-body">
+                
+                <div class="cal-title-row" data-title-row="p3"><div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="p3" data-fld="name" value="Weekend specials" placeholder="Untitled post" style=""><span class="cal-title-fade" aria-hidden="true"></span></div><span class="cal-name-sync" data-name-sync="p3" hidden=""></span><span class="sv-save-ind" data-sv-save-ind="p3" role="status" aria-live="polite" hidden=""><svg class="sv-save-ind-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true"><circle class="sv-save-ind-track" cx="12" cy="12" r="9" stroke-width="2.4"></circle><circle class="sv-save-ind-arc" cx="12" cy="12" r="9" stroke-width="2.4" stroke-linecap="round"></circle><path class="sv-save-ind-check" d="M7.6 12.4l2.7 2.7 6-6.4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path><path class="sv-save-ind-bang" d="M12 7.4v4.7" stroke-width="2.2" stroke-linecap="round"></path><path class="sv-save-ind-bang" d="M12 15.7v.06" stroke-width="2.4" stroke-linecap="round"></path></svg></span></div>
+                <div class="cal-meta-row"><div class="cal-fld-date-wrap">
+                        <div class="cal-date-chip" data-date-display="p3">
+                            <svg class="cal-cal-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"></rect><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"></path></svg>
+                            <span class="cal-date-txt">Tue 10/20/26</span>
+                            <svg class="cal-chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"></path></svg>
+                        </div>
+                        <input class="cal-fld-date-input" type="date" data-pid="p3" data-fld="scheduled_date" value="2026-10-20" style="">
+                    </div></div>
+                <div class="cal-link-field has-link cal-link-thumb" data-pid-wrap="p3" data-fld-wrap="thumbnail_url">
+                <button type="button" class="cal-link-pill-open" title="Open link"><svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"></path><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"></path></svg><span class="cal-link-label">Thumbnail</span></button>
+                
+                
+                <button type="button" class="cal-link-edit" tabindex="-1" title="Edit link"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"></path></svg></button>
+                <input class="cal-link-input" type="url" data-pid="p3" data-fld="thumbnail_url" value="https://img.example.invalid/3.png" placeholder="Thumbnail URL (Google Drive image)" style="">
+            </div>
+                <div class="cal-link-field has-link cal-link-post" data-pid-wrap="p3" data-fld-wrap="asset_url">
+                <button type="button" class="cal-link-pill-open" title="Open link"><svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"></path><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"></path></svg><span class="cal-link-label">Video</span></button>
+                
+                
+                <button type="button" class="cal-link-edit" tabindex="-1" title="Edit link"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"></path></svg></button>
+                <input class="cal-link-input" type="url" data-pid="p3" data-fld="asset_url" value="https://f.io/sample3" placeholder="Video URL (Frame.io / Drive)" style="">
+            </div>
+                <div class="cal-capblock" data-capblock="p3"><div class="cal-cap-tabs">
+                <button type="button" class="cal-altcap-add" title="Add a caption for another platform. It’s approved together with the main one."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"></path></svg>Alt caption</button>
+            </div>
+            <div class="cal-cap-wrap" data-capwrap="main">
+                <textarea class="cal-fld-cap" rows="5" data-pid="p3" data-fld="caption" placeholder="Caption" style="height: 107px; overflow-y: hidden;" data-cap-ro="1"></textarea>
+                <div class="cal-cap-fade" aria-hidden="true"></div>
+                <button type="button" class="cal-cap-toggle" tabindex="-1" hidden="" title="Expand / collapse"><span class="cal-cap-toggle-txt">Show more</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"></path></svg></button>
+                <button type="button" class="cal-cap-gen"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"></path></svg><span>Generate</span></button><button type="button" class="cal-cap-tx" title="Optional: paste a transcript or notes to use with the video"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h5.5L12 5v8.5H4z"></path><path d="M6 8h4M6 10.5h4"></path></svg><span>Transcript</span></button>
+            </div>
+            </div>
+                
+                <input class="cal-fld-cta" type="text" data-pid="p3" data-fld="cta" value="" placeholder="Call to action" style="">
+                
+                
+                <div class="cal-card-foot">
+                    <span class="cal-foot-tweaks" data-comments-wrap="p3"><button type="button" class="cal-comments-btn" data-comments-btn="p3" title="Notes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"></path></svg><span class="cal-comments-label">Notes</span><span class="cal-comments-count">0 open</span></button></span>
+                    <span class="cal-card-saving" data-saving="p3" hidden=""></span>
+                </div>
+                <div class="cal-card-status-row"><div class="cal-card-substatus-row"><button type="button" class="cal-fld-setall" title="Set all three to the same status">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"></path><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"></path></svg>
+            <span class="cal-fld-setall-label">Set all to…</span>
+            <svg class="cal-fld-setall-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"></path></svg>
+        </button><div class="cal-fld-substatus-wrap cal-comp-video is-locked" data-val="Approved" data-substatus-pid="p3" data-substatus-comp="video">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-approved" disabled="" title="No sub-issue is linked to this part, so you can’t change its status here. This screen can’t create one.">
+                    <span class="cal-fld-substatus-dot" style="background:var(--cal-comp-video-dot)"></span>
+                    <span class="cal-fld-substatus-comp">Video</span>
+                    <span class="cal-fld-substatus-label">Approved</span>
+                </button>
+            </div><div class="cal-fld-substatus-wrap cal-comp-graphic is-locked" data-val="Approved" data-substatus-pid="p3" data-substatus-comp="graphic">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-approved" disabled="" title="No sub-issue is linked to this part, so you can’t change its status here. This screen can’t create one.">
+                    <span class="cal-fld-substatus-dot" style="background:var(--cal-comp-graphic-dot)"></span>
+                    <span class="cal-fld-substatus-comp">Thumbnail</span>
+                    <span class="cal-fld-substatus-label">Approved</span>
+                </button>
+            </div><div class="cal-fld-substatus-wrap cal-comp-caption" data-val="Approved" data-substatus-pid="p3" data-substatus-comp="caption">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-approved">
+                    <span class="cal-fld-substatus-dot" style="background:var(--cal-comp-caption-dot)"></span>
+                    <span class="cal-fld-substatus-comp">Caption</span>
+                    <span class="cal-fld-substatus-label">Approved</span>
+                </button>
+            </div></div></div>
+            </div>
+        </div><div class="cal-card cal-card-edit" data-pid="p4" draggable="true" data-drag-wired="1">
+            
+            <span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"></circle><circle cx="10" cy="4" r="1.4"></circle><circle cx="6" cy="8" r="1.4"></circle><circle cx="10" cy="8" r="1.4"></circle><circle cx="6" cy="12" r="1.4"></circle><circle cx="10" cy="12" r="1.4"></circle></svg></span>
+            <button class="cal-card-link" type="button" data-card-link="p4" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"></path><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"></path></svg></button>
+            <button class="cal-card-del" type="button" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"></path></svg></button>
+            <div class="cal-card-thumb"><img loading="lazy" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2ZkZTY4YSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2Q5NzcwNiIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSI3NDAiIGN5PSI0MjAiIHI9IjIwMCIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iLjI1Ii8+PC9zdmc+" alt=""><button type="button" class="cal-card-color-tag" title="Tag this card with a color"><span class="cal-card-color-tag-dot"></span></button></div>
+            <div class="cal-card-body">
+                
+                <div class="cal-title-row" data-title-row="p4"><div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="p4" data-fld="name" value="Meet the bakers" placeholder="Untitled post" style=""><span class="cal-title-fade" aria-hidden="true"></span></div><span class="cal-name-sync" data-name-sync="p4" hidden=""></span><span class="sv-save-ind" data-sv-save-ind="p4" role="status" aria-live="polite" hidden=""><svg class="sv-save-ind-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true"><circle class="sv-save-ind-track" cx="12" cy="12" r="9" stroke-width="2.4"></circle><circle class="sv-save-ind-arc" cx="12" cy="12" r="9" stroke-width="2.4" stroke-linecap="round"></circle><path class="sv-save-ind-check" d="M7.6 12.4l2.7 2.7 6-6.4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path><path class="sv-save-ind-bang" d="M12 7.4v4.7" stroke-width="2.2" stroke-linecap="round"></path><path class="sv-save-ind-bang" d="M12 15.7v.06" stroke-width="2.4" stroke-linecap="round"></path></svg></span></div>
+                <div class="cal-meta-row"><div class="cal-fld-date-wrap">
+                        <div class="cal-date-chip" data-date-display="p4">
+                            <svg class="cal-cal-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"></rect><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"></path></svg>
+                            <span class="cal-date-txt">Wed 10/21/26</span>
+                            <svg class="cal-chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"></path></svg>
+                        </div>
+                        <input class="cal-fld-date-input" type="date" data-pid="p4" data-fld="scheduled_date" value="2026-10-21" style="">
+                    </div></div>
+                <div class="cal-link-field has-link cal-link-thumb" data-pid-wrap="p4" data-fld-wrap="thumbnail_url">
+                <button type="button" class="cal-link-pill-open" title="Open link"><svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"></path><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"></path></svg><span class="cal-link-label">Thumbnail</span></button>
+                
+                
+                <button type="button" class="cal-link-edit" tabindex="-1" title="Edit link"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"></path></svg></button>
+                <input class="cal-link-input" type="url" data-pid="p4" data-fld="thumbnail_url" value="https://img.example.invalid/4.png" placeholder="Thumbnail URL (Google Drive image)" style="">
+            </div>
+                <div class="cal-link-field has-link cal-link-post" data-pid-wrap="p4" data-fld-wrap="asset_url">
+                <button type="button" class="cal-link-pill-open" title="Open link"><svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"></path><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"></path></svg><span class="cal-link-label">Video</span></button>
+                
+                
+                <button type="button" class="cal-link-edit" tabindex="-1" title="Edit link"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"></path></svg></button>
+                <input class="cal-link-input" type="url" data-pid="p4" data-fld="asset_url" value="https://f.io/sample4" placeholder="Video URL (Frame.io / Drive)" style="">
+            </div>
+                <div class="cal-capblock" data-capblock="p4"><div class="cal-cap-tabs">
+                <button type="button" class="cal-altcap-add" title="Add a caption for another platform. It’s approved together with the main one."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"></path></svg>Alt caption</button>
+            </div>
+            <div class="cal-cap-wrap" data-capwrap="main">
+                <textarea class="cal-fld-cap" rows="5" data-pid="p4" data-fld="caption" placeholder="Caption" style="height: 107px; overflow-y: hidden;" data-cap-ro="1"></textarea>
+                <div class="cal-cap-fade" aria-hidden="true"></div>
+                <button type="button" class="cal-cap-toggle" tabindex="-1" hidden="" title="Expand / collapse"><span class="cal-cap-toggle-txt">Show more</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"></path></svg></button>
+                <button type="button" class="cal-cap-gen"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"></path></svg><span>Generate</span></button><button type="button" class="cal-cap-tx" title="Optional: paste a transcript or notes to use with the video"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h5.5L12 5v8.5H4z"></path><path d="M6 8h4M6 10.5h4"></path></svg><span>Transcript</span></button>
+            </div>
+            </div>
+                
+                <input class="cal-fld-cta" type="text" data-pid="p4" data-fld="cta" value="" placeholder="Call to action" style="">
+                
+                
+                <div class="cal-card-foot">
+                    <span class="cal-foot-tweaks" data-comments-wrap="p4"><button type="button" class="cal-comments-btn" data-comments-btn="p4" title="Notes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"></path></svg><span class="cal-comments-label">Notes</span><span class="cal-comments-count">0 open</span></button></span>
+                    <span class="cal-card-saving" data-saving="p4" hidden=""></span>
+                </div>
+                <div class="cal-card-status-row"><div class="cal-card-substatus-row"><button type="button" class="cal-fld-setall" title="Set all three to the same status">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"></path><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"></path></svg>
+            <span class="cal-fld-setall-label">Set all to…</span>
+            <svg class="cal-fld-setall-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"></path></svg>
+        </button><div class="cal-fld-substatus-wrap cal-comp-video is-locked" data-val="Client Approval" data-substatus-pid="p4" data-substatus-comp="video">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-n-a" disabled="" title="No sub-issue is linked to this part, so you can’t change its status here. This screen can’t create one.">
+                    <span class="cal-fld-substatus-dot" style="background:var(--cal-comp-video-dot)"></span>
+                    <span class="cal-fld-substatus-comp">Video</span>
+                    <span class="cal-fld-substatus-label">N/A</span>
+                </button>
+            </div><div class="cal-fld-substatus-wrap cal-comp-graphic is-locked" data-val="Client Approval" data-substatus-pid="p4" data-substatus-comp="graphic">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-n-a" disabled="" title="No sub-issue is linked to this part, so you can’t change its status here. This screen can’t create one.">
+                    <span class="cal-fld-substatus-dot" style="background:var(--cal-comp-graphic-dot)"></span>
+                    <span class="cal-fld-substatus-comp">Thumbnail</span>
+                    <span class="cal-fld-substatus-label">N/A</span>
+                </button>
+            </div><div class="cal-fld-substatus-wrap cal-comp-caption" data-val="Client Approval" data-substatus-pid="p4" data-substatus-comp="caption">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-client-approval">
+                    <span class="cal-fld-substatus-dot" style="background:var(--cal-comp-caption-dot)"></span>
+                    <span class="cal-fld-substatus-comp">Caption</span>
+                    <span class="cal-fld-substatus-label">Sample Approval</span>
+                </button>
+            </div></div></div>
+            </div>
+        </div><div class="cal-card cal-card-edit" data-pid="p5" draggable="true" data-drag-wired="1">
+            
+            <span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"></circle><circle cx="10" cy="4" r="1.4"></circle><circle cx="6" cy="8" r="1.4"></circle><circle cx="10" cy="8" r="1.4"></circle><circle cx="6" cy="12" r="1.4"></circle><circle cx="10" cy="12" r="1.4"></circle></svg></span>
+            <button class="cal-card-link" type="button" data-card-link="p5" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"></path><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"></path></svg></button>
+            <button class="cal-card-del" type="button" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"></path></svg></button>
+            <div class="cal-card-thumb"><img loading="lazy" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2ZjZDM0ZCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2Y5NzMxNiIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSI3NDAiIGN5PSI0MjAiIHI9IjIwMCIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iLjI1Ii8+PC9zdmc+" alt=""><button type="button" class="cal-card-color-tag" title="Tag this card with a color"><span class="cal-card-color-tag-dot"></span></button></div>
+            <div class="cal-card-body">
+                
+                <div class="cal-title-row" data-title-row="p5"><div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="p5" data-fld="name" value="Sourdough in 60 seconds" placeholder="Untitled post" style=""><span class="cal-title-fade" aria-hidden="true"></span></div><span class="cal-name-sync" data-name-sync="p5" hidden=""></span><span class="sv-save-ind" data-sv-save-ind="p5" role="status" aria-live="polite" hidden=""><svg class="sv-save-ind-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true"><circle class="sv-save-ind-track" cx="12" cy="12" r="9" stroke-width="2.4"></circle><circle class="sv-save-ind-arc" cx="12" cy="12" r="9" stroke-width="2.4" stroke-linecap="round"></circle><path class="sv-save-ind-check" d="M7.6 12.4l2.7 2.7 6-6.4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path><path class="sv-save-ind-bang" d="M12 7.4v4.7" stroke-width="2.2" stroke-linecap="round"></path><path class="sv-save-ind-bang" d="M12 15.7v.06" stroke-width="2.4" stroke-linecap="round"></path></svg></span></div>
+                <div class="cal-meta-row"><div class="cal-fld-date-wrap">
+                        <div class="cal-date-chip" data-date-display="p5">
+                            <svg class="cal-cal-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"></rect><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"></path></svg>
+                            <span class="cal-date-txt">Thu 10/22/26</span>
+                            <svg class="cal-chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"></path></svg>
+                        </div>
+                        <input class="cal-fld-date-input" type="date" data-pid="p5" data-fld="scheduled_date" value="2026-10-22" style="">
+                    </div></div>
+                <div class="cal-link-field has-link cal-link-thumb" data-pid-wrap="p5" data-fld-wrap="thumbnail_url">
+                <button type="button" class="cal-link-pill-open" title="Open link"><svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"></path><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"></path></svg><span class="cal-link-label">Thumbnail</span></button>
+                
+                
+                <button type="button" class="cal-link-edit" tabindex="-1" title="Edit link"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"></path></svg></button>
+                <input class="cal-link-input" type="url" data-pid="p5" data-fld="thumbnail_url" value="https://img.example.invalid/5.png" placeholder="Thumbnail URL (Google Drive image)" style="">
+            </div>
+                <div class="cal-link-field has-link cal-link-post" data-pid-wrap="p5" data-fld-wrap="asset_url">
+                <button type="button" class="cal-link-pill-open" title="Open link"><svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"></path><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"></path></svg><span class="cal-link-label">Video</span></button>
+                
+                
+                <button type="button" class="cal-link-edit" tabindex="-1" title="Edit link"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"></path></svg></button>
+                <input class="cal-link-input" type="url" data-pid="p5" data-fld="asset_url" value="https://f.io/sample5" placeholder="Video URL (Frame.io / Drive)" style="">
+            </div>
+                <div class="cal-capblock" data-capblock="p5"><div class="cal-cap-tabs">
+                <button type="button" class="cal-altcap-add" title="Add a caption for another platform. It’s approved together with the main one."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"></path></svg>Alt caption</button>
+            </div>
+            <div class="cal-cap-wrap" data-capwrap="main">
+                <textarea class="cal-fld-cap" rows="5" data-pid="p5" data-fld="caption" placeholder="Caption" style="height: 107px; overflow-y: hidden;" data-cap-ro="1"></textarea>
+                <div class="cal-cap-fade" aria-hidden="true"></div>
+                <button type="button" class="cal-cap-toggle" tabindex="-1" hidden="" title="Expand / collapse"><span class="cal-cap-toggle-txt">Show more</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"></path></svg></button>
+                <button type="button" class="cal-cap-gen"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"></path></svg><span>Generate</span></button><button type="button" class="cal-cap-tx" title="Optional: paste a transcript or notes to use with the video"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h5.5L12 5v8.5H4z"></path><path d="M6 8h4M6 10.5h4"></path></svg><span>Transcript</span></button>
+            </div>
+            </div>
+                
+                <input class="cal-fld-cta" type="text" data-pid="p5" data-fld="cta" value="" placeholder="Call to action" style="">
+                
+                
+                <div class="cal-card-foot">
+                    <span class="cal-foot-tweaks" data-comments-wrap="p5"><button type="button" class="cal-comments-btn" data-comments-btn="p5" title="Notes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"></path></svg><span class="cal-comments-label">Notes</span><span class="cal-comments-count">0 open</span></button></span>
+                    <span class="cal-card-saving" data-saving="p5" hidden=""></span>
+                </div>
+                <div class="cal-card-status-row"><div class="cal-card-substatus-row"><button type="button" class="cal-fld-setall" title="Set all three to the same status">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"></path><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"></path></svg>
+            <span class="cal-fld-setall-label">Set all to…</span>
+            <svg class="cal-fld-setall-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"></path></svg>
+        </button><div class="cal-fld-substatus-wrap cal-comp-video is-locked" data-val="Client Approval" data-substatus-pid="p5" data-substatus-comp="video">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-n-a" disabled="" title="No sub-issue is linked to this part, so you can’t change its status here. This screen can’t create one.">
+                    <span class="cal-fld-substatus-dot" style="background:var(--cal-comp-video-dot)"></span>
+                    <span class="cal-fld-substatus-comp">Video</span>
+                    <span class="cal-fld-substatus-label">N/A</span>
+                </button>
+            </div><div class="cal-fld-substatus-wrap cal-comp-graphic is-locked" data-val="Client Approval" data-substatus-pid="p5" data-substatus-comp="graphic">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-n-a" disabled="" title="No sub-issue is linked to this part, so you can’t change its status here. This screen can’t create one.">
+                    <span class="cal-fld-substatus-dot" style="background:var(--cal-comp-graphic-dot)"></span>
+                    <span class="cal-fld-substatus-comp">Thumbnail</span>
+                    <span class="cal-fld-substatus-label">N/A</span>
+                </button>
+            </div><div class="cal-fld-substatus-wrap cal-comp-caption" data-val="For SMM Approval" data-substatus-pid="p5" data-substatus-comp="caption">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-for-smm-approval">
+                    <span class="cal-fld-substatus-dot" style="background:var(--cal-comp-caption-dot)"></span>
+                    <span class="cal-fld-substatus-comp">Caption</span>
+                    <span class="cal-fld-substatus-label">For SMM Approval</span>
+                </button>
+            </div></div></div>
+            </div>
+        </div>
+                <button class="cal-card-add" type="button" title="Create a new card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+            </div>
+            
+        </div></div>
+            <div class="cal-preview-overlay" id="calPreviewOverlay" data-backdrop-dismiss="">
+                <div class="cal-preview" id="calPreview"></div>
+            </div>
+            <div class="cal-import-overlay" id="calImportOverlay" data-backdrop-dismiss="">
+                <div class="cal-import-modal" id="calImportModal"></div>
+            </div>
+            <div class="cal-lightbox" id="calLightbox">
+                <img alt="">
+                <button class="cal-lightbox-close" type="button" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"></path></svg></button>
+            </div>
+            <div class="cal-comments-overlay open" id="calCommentsOverlay" data-backdrop-dismiss="">
+                <div class="cal-comments-modal" id="calCommentsModal" role="dialog" aria-modal="true" aria-labelledby="calCommentsTitle">
+            <div class="cal-comments-head">
+                <div class="cal-comments-head-text">
+                    <h3 id="calCommentsTitle">Notes</h3>
+                    <p>Morning routine, 3 swaps</p>
+                </div>
+                
+                <button class="cal-comments-close" type="button" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"></path></svg></button>
+            </div>
+            
+            <div class="cal-comments-feed" id="calCommentsFeed">
+                <div class="cal-comments-feed-inner"><div class="cal-cm-thread" data-thread="c1">
+                <div class="cal-cm-row" data-cm-row="c1">
+                <div class="cal-cm-avatar is-client">C</div>
+                <div class="cal-cm-body-col">
+                    <div class="cal-cm-head-line">
+                        <span class="cal-cm-author">Client</span>
+                        
+                        
+                        <span class="cal-cm-time">3d ago</span>
+                        
+                        <span class="cal-cm-comp-label cal-cm-comp-caption">Caption</span>
+                    </div>
+                    <div class="cal-cm-row-body">Can we mention the weekend opening hours?</div>
+                </div>
+                <div class="cal-cm-actions"><button class="cal-cm-action" type="button" title="Reply"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"></path></svg><span>Reply</span></button><button class="cal-cm-action is-danger" type="button" title="Delete"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8.5h6L10.5 4M6 6.5v4M8 6.5v4"></path></svg><span>Delete</span></button></div>
+            </div>
+                <div class="cal-cm-replies">
+                    <button type="button" class="cal-cm-rail" aria-expanded="true" title="Hide 1 reply"><span class="cal-cm-sr">Hide 1 reply</span></button>
+                    <div class="cal-cm-row is-reply" data-cm-row="c2">
+                <div class="cal-cm-avatar is-smm">A</div>
+                <div class="cal-cm-body-col">
+                    <div class="cal-cm-head-line">
+                        <span class="cal-cm-author">Alex</span>
+                        
+                        
+                        <span class="cal-cm-time">3d ago</span>
+                        
+                        
+                    </div>
+                    <div class="cal-cm-row-body">Added. Have a look at the new line.</div>
+                </div>
+                <div class="cal-cm-actions"><button class="cal-cm-action" type="button" title="Reply"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"></path></svg><span>Reply</span></button><button class="cal-cm-action is-danger" type="button" title="Delete"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8.5h6L10.5 4M6 6.5v4M8 6.5v4"></path></svg><span>Delete</span></button></div>
+            </div>
+                </div>
+            </div><div class="cal-cm-thread" data-thread="v1">
+                <div class="cal-cm-row" data-cm-row="v1">
+                <div class="cal-cm-avatar is-smm">A</div>
+                <div class="cal-cm-body-col">
+                    <div class="cal-cm-head-line">
+                        <span class="cal-cm-author">Alex</span>
+                        <span class="cal-cm-type-tag is-tweak" title="Tweaks. Moves the card to Tweaks Needed.">Tweak #2</span>
+                        <span class="cal-cm-to-tag is-team" title="Team only. The client can’t see this."><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"></rect><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"></path></svg>Team only</span>
+                        <span class="cal-cm-time">2d ago</span>
+                        
+                        <span class="cal-cm-comp-label cal-cm-comp-video">Video</span>
+                    </div>
+                    <div class="cal-cm-row-body">Cut the first 2 seconds, the hook starts late.</div>
+                </div>
+                <div class="cal-cm-actions"><button class="cal-cm-action" type="button" title="Reply"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"></path></svg><span>Reply</span></button><button class="cal-cm-action" type="button" title="Mark thread done"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"></path></svg><span>Mark done</span></button><button class="cal-cm-action is-danger" type="button" title="Delete"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8.5h6L10.5 4M6 6.5v4M8 6.5v4"></path></svg><span>Delete</span></button></div>
+            </div>
+                <div class="cal-cm-replies">
+                    <button type="button" class="cal-cm-rail" aria-expanded="true" title="Hide 1 reply"><span class="cal-cm-sr">Hide 1 reply</span></button>
+                    <div class="cal-cm-row is-reply" data-cm-row="v2">
+                <div class="cal-cm-avatar is-smm">K</div>
+                <div class="cal-cm-body-col">
+                    <div class="cal-cm-head-line">
+                        <span class="cal-cm-author">Kasper</span>
+                        
+                        
+                        <span class="cal-cm-time">2d ago</span>
+                        
+                        
+                    </div>
+                    <div class="cal-cm-row-body">Agree. Also lift the music under the voice.</div>
+                </div>
+                <div class="cal-cm-actions"><button class="cal-cm-action" type="button" title="Reply"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"></path></svg><span>Reply</span></button><button class="cal-cm-action is-danger" type="button" title="Delete"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8.5h6L10.5 4M6 6.5v4M8 6.5v4"></path></svg><span>Delete</span></button></div>
+            </div>
+                </div>
+            </div><div class="cal-cm-thread" data-thread="g1">
+                <div class="cal-cm-row is-unread" data-cm-row="g1">
+                <div class="cal-cm-avatar is-client">C</div>
+                <div class="cal-cm-body-col">
+                    <div class="cal-cm-head-line">
+                        <span class="cal-cm-author">Client</span>
+                        
+                        
+                        <span class="cal-cm-time">3h ago</span>
+                        
+                        <span class="cal-cm-comp-label cal-cm-comp-graphic">Thumbnail</span>
+                    </div>
+                    <div class="cal-cm-row-body">Love this one! Could the text be a bit bigger?</div>
+                </div>
+                <div class="cal-cm-actions"><button class="cal-cm-action" type="button" title="Reply"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"></path></svg><span>Reply</span></button><button class="cal-cm-action is-danger" type="button" title="Delete"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8.5h6L10.5 4M6 6.5v4M8 6.5v4"></path></svg><span>Delete</span></button></div>
+            </div>
+                
+            </div><div class="cal-cm-thread" data-thread="v3">
+                <div class="cal-cm-row is-unread" data-cm-row="v3">
+                <div class="cal-cm-avatar is-smm">M</div>
+                <div class="cal-cm-body-col">
+                    <div class="cal-cm-head-line">
+                        <span class="cal-cm-author">Mia</span>
+                        
+                        <span class="cal-cm-to-tag is-team" title="Team only. The client can’t see this."><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"></rect><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"></path></svg>Team only</span>
+                        <span class="cal-cm-time">2h ago</span>
+                        
+                        <span class="cal-cm-comp-label cal-cm-comp-video">Video</span>
+                    </div>
+                    <div class="cal-cm-row-body">Can this one go out Friday instead of Thursday?</div>
+                </div>
+                <div class="cal-cm-actions"><button class="cal-cm-action" type="button" title="Reply"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"></path></svg><span>Reply</span></button><button class="cal-cm-action is-danger" type="button" title="Delete"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8.5h6L10.5 4M6 6.5v4M8 6.5v4"></path></svg><span>Delete</span></button></div>
+            </div>
+                
+            </div></div>
+            </div>
+            <div class="cal-cm-composer-wrap">
+            
+            
+            <div class="cal-cm-audience" data-cm-toggle="comp" role="group" aria-label="Which deliverable is this note about">
+                <span class="cal-cm-audience-cap">About the…</span>
+                <div class="cal-cm-aud-seg"><button type="button" class="cal-cm-aud-btn is-active" data-comp="video" title="About the video">Video</button><button type="button" class="cal-cm-aud-btn" data-comp="graphic" title="About the thumbnail">Thumbnail</button><button type="button" class="cal-cm-aud-btn" data-comp="caption" title="About the caption">Caption</button></div>
+            </div>
+            
+            <div class="cal-cm-composer" data-cm-staff-root="1">
+                <button type="button" class="cal-cm-aud-icon" aria-pressed="false" title="Team only. Click to write to the client." aria-label="Team only. Click to write to the client."><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"></rect><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"></path></svg></button>
+                <textarea id="calCommentComposer" rows="1" placeholder="Message to Kasper / the team…" style="height: 28px;"></textarea>
+                <div class="cal-cm-composer-actions is-split">
+                    <button class="cal-cm-send" type="button" title="Send (Enter)" disabled=""><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"></path></svg></button>
+                    <button class="cal-cm-send-more" type="button" aria-haspopup="menu" aria-expanded="false" title="More send options" disabled=""><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5L6 7.5L9 4.5"></path></svg></button>
+                    <div class="cal-cm-send-menu" role="menu" hidden=""><button type="button" role="menuitem"><strong>Request change</strong><span>Moves this part to Tweaks Needed. Team only.</span></button></div>
+                </div>
+            </div>
+            <div class="cal-cm-quiet" data-cm-quiet="">Team only · Video</div>
+            
+        </div></div>
+            </div>
+            <div class="cal-prompt-overlay" id="calPromptOverlay" data-backdrop-dismiss="">
+                <div class="cal-prompt-modal" id="calPromptModal" role="dialog" aria-modal="true"></div>
+            </div>
+        </div></div>
+</main>
+
+
+<!-- Transcript preview modal -->
+<div id="transcriptOverlay" class="transcript-overlay" data-backdrop-dismiss="">
+    <div class="transcript-modal">
+        <div class="transcript-modal-header">
+            <div>
+                <div class="transcript-modal-title" id="transcriptModalTitle">Transcript</div>
+                <div class="transcript-modal-meta" id="transcriptModalMeta"></div>
+            </div>
+            <button class="transcript-modal-close">
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>
+            </button>
+        </div>
+        <div class="transcript-modal-body" id="transcriptModalBody"></div>
+    </div>
+</div>
+
+<!-- ── App auto-update nudge ──────────────────────────────────────────────
+     SyncView is a single index.html on GitHub Pages with no build step, so a
+     browser tab left open keeps running whatever version it loaded — a new
+     deploy is NOT picked up until the page is reloaded. SMMs (and clients) keep
+     the tab open for days, so they can silently run stale code: e.g. a thumbnail
+     rendering change that shipped after they last loaded looks "broken" to them
+     while everyone on a fresh load sees it work. This polls the deployed file's
+     version token (the GitHub Pages ETag / Last-Modified, which changes on every
+     deploy) and, when it changes, acts on the reader's behalf.
+
+     WHAT IT DOES DEPENDS ON WHERE THE READER IS (owner ruling, 2026-08-24):
+     *"a tab should reload itself when a new version is shipped, if it's in the
+     background. But if someone is in the tab, then they should just propose to
+     reload it."* A backgrounded tab is the one nobody is looking at and the one
+     that goes stale for days, so it reloads itself; a tab someone is actually
+     in only ever gets the bar.
+
+     The self-reload is conditional, and deliberately so. A reader who tabs away
+     mid-compose has left work in the page that a reload would silently destroy,
+     and they would come back to an empty form with no explanation — a worse
+     failure than the staleness this exists to fix. So a hidden tab reloads only
+     when nothing typed is uncommitted and nothing is open on top of the page;
+     otherwise it falls back to the bar, which is waiting when they return. -->
+
+
+
+<div style="position:fixed;right:12px;bottom:12px;z-index:2147483647;max-width:420px;font:12px/1.4 system-ui,sans-serif;background:#111;color:#fff;padding:8px 10px;border-radius:8px;opacity:.9">Notes round 2: comment to Kasper / team, no clicks (lock) · dark · static copy of the real page, new parts added</div></body></html>

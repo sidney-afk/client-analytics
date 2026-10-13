@@ -651,3 +651,5 @@ Recorded in EXECUTION_LOG.md and ROLLBACK.md.
 ## 2026-10-12 bounded staff phone follow-up
 
 Phone-only shared segments and overlay/field work changed; native writes and permissions did not. The source proof and unresolved timing/live-observation limits are in [the dated report](2026-10-12-phone-responsiveness/README.md). This addendum does not revise the historical audit or certify deployment.
+
+2026-10-12 source-only phone navigation follow-up: shared staff Tabs grid and explicit branch-level deferral of the still-live Production fast lane. No producer, database, workflow automation or deployed-state claim changed. Evidence: `docs/audits/2026-10-12-staff-tabs-grid/README.md`.

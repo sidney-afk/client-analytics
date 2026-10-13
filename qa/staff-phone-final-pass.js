@@ -144,7 +144,7 @@ const cases = ['calendar-sheet','calendar-empty','calendar-more','calendar-tabs'
 async function phoneMeasure(page) {
   return page.evaluate(() => {
     const visible = el => el.checkVisibility({ checkVisibilityCSS: true }) && !el.closest('dialog:not([open]), .header');
-    const controls = [...document.querySelectorAll('button, input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]), textarea, select, [role=button], [contenteditable=true], .prod-asset-value a[href]')].filter(visible);
+    const controls = [...document.querySelectorAll('button, input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]), textarea, select, [role=button], [contenteditable=true], .prod-asset-value a[href], .sv-phone-tabs-grid [data-nav]')].filter(visible);
     return { width: innerWidth, height: innerHeight, pageWidth: document.documentElement.scrollWidth,
       small: controls.map(el => { const r = el.getBoundingClientRect(); return { selector: el.id || el.className, w: r.width, h: r.height }; }).filter(r => r.w < 43.5 || r.h < 43.5),
       smallText: controls.filter(el => (/INPUT|TEXTAREA|SELECT/.test(el.tagName)||el.matches('[contenteditable=true]')) && el.type !== 'color' && parseFloat(getComputedStyle(el).fontSize) < 16).map(el => el.id || el.className) };
@@ -321,8 +321,9 @@ async function verify(page, name, width, theme) {
       }
     }
     if (/^(calendar|samples)-tabs$/.test(name)) {
-      const reviewerLabel = await page.locator('#headerNav > .header-nav-btn').last().textContent();
-      const b = await page.locator('dialog[open] button', {hasText:reviewerLabel.trim()}).boundingBox();
+      const reviewer = page.locator('dialog[open] [data-nav="navKasper"]');
+      assert.equal(await reviewer.getAttribute('aria-label'),'Reviewer','Tabs must expose the reviewer role label');
+      const b = await reviewer.boundingBox();
       if (b && b.y + b.height > heightFor(width,arg('height'))-1) faults.push('reviewer tab below fold');
     }
   }

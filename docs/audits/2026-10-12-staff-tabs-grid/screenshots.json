@@ -1,0 +1,74 @@
+[
+  {
+    "screen": "Calendar",
+    "theme": "light",
+    "width": 390,
+    "before": "before/calendar-light-390.png",
+    "beforeSha256": "4396d6bed1fa8f31142e292e808b8f05fccb8d812840af831ff75a09e795bd69",
+    "after": "after/calendar-light-390.png",
+    "afterSha256": "d8daf30eb5833bd4d7232991aa04d8015a91e9efdfd47fe915e0720e25d4ba6c"
+  },
+  {
+    "screen": "Calendar",
+    "theme": "dark",
+    "width": 390,
+    "before": "before/calendar-dark-390.png",
+    "beforeSha256": "d9d5d53aeec8edbe53f52cad566338363dc37dc63efb84c5591d078631cd15ed",
+    "after": "after/calendar-dark-390.png",
+    "afterSha256": "0d64b3c763843eabfc5cf1657f53679815d09d8eeb85798b7fd79ca742fd3f1e"
+  },
+  {
+    "screen": "Samples",
+    "theme": "light",
+    "width": 390,
+    "before": "before/sample-reviews-light-390.png",
+    "beforeSha256": "706eac30ea6a1880bb950694b08912958443af6b761b24c68d538951e50b10a5",
+    "after": "after/sample-reviews-light-390.png",
+    "afterSha256": "a910f645e6115a6a19761b044fec2d5ce32e217a565187ed6a723625df4e44b5"
+  },
+  {
+    "screen": "Samples",
+    "theme": "dark",
+    "width": 390,
+    "before": "before/sample-reviews-dark-390.png",
+    "beforeSha256": "d4b9c0cf4b2311c7551355e7eae2c0f812620cb36d7179203725768b1f0518c3",
+    "after": "after/sample-reviews-dark-390.png",
+    "afterSha256": "09ce321bf3d9a74de6457eafc148abfba44340547147d75a8819fdb59617bd2e"
+  },
+  {
+    "screen": "Workload",
+    "theme": "light",
+    "width": 390,
+    "before": "before/workload-light-390.png",
+    "beforeSha256": "4a6c06a389420981d5a03a6939bf65884f3fc69b609254122bf472f7a089aa1a",
+    "after": "after/workload-light-390.png",
+    "afterSha256": "483dadf0dc297f61d2016629dae66883dfe70045d873caf5bae1a4fb25db78fc"
+  },
+  {
+    "screen": "Workload",
+    "theme": "dark",
+    "width": 390,
+    "before": "before/workload-dark-390.png",
+    "beforeSha256": "6e550002fa914c144a7dddbe2b3d1208a5cba708eeaf3a44074820f37deee504",
+    "after": "after/workload-dark-390.png",
+    "afterSha256": "d279bf0537786423838f8e6ee708b89ad17c1db44e8f78fcd9440087b903ffe3"
+  },
+  {
+    "screen": "Today",
+    "theme": "light",
+    "width": 390,
+    "before": "before/today-light-390.png",
+    "beforeSha256": "ce991b5bda3eb7a8a3f2bc515ce700e99e5cbb1d74a507f857ae3a5afb1fb01b",
+    "after": "after/today-light-390.png",
+    "afterSha256": "34e1ab169407ec816390a257ce822cf4404ac4017ee49fdb000ea090f79ca227"
+  },
+  {
+    "screen": "Today",
+    "theme": "dark",
+    "width": 390,
+    "before": "before/today-dark-390.png",
+    "beforeSha256": "9d0bf24a860f026e10d262714d10d289457fdd1d84a687c3167bfdf13f4c5dd8",
+    "after": "after/today-dark-390.png",
+    "afterSha256": "d6c003f1ca9401486381528caadd931d881dba6fc0feee89ecb66e129888a1dc"
+  }
+]

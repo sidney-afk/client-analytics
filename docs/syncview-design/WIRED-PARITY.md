@@ -1391,3 +1391,5 @@ Read-only presentation; nothing about writes or authority changed.
 ## 2026-10-12 staff phone polish, source only
 
 Shared phone segments and overlay behavior were checked with fictional transports. No writer authority or business decision changed. Exact desktop and populated phone-to-desktop comparisons, timing limits and blocked live-observation lanes are recorded in [the dated proof](../audits/2026-10-12-phone-responsiveness/README.md). Not merged or deployed.
+
+Staff phone Tabs grid follow-up: native actions and permissions preserved; phone-only styling and exact desktop comparison. See `docs/audits/2026-10-12-staff-tabs-grid/README.md`; Production live fast lane is explicitly deferred for the branch.

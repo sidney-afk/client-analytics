@@ -1487,3 +1487,7 @@ Reverting restores known read/completeness defects, so weigh that against the re
 ## Staff phone responsiveness polish — 2026-10-12, not deployed
 
 Revert this bounded PR and run `npm run build:index` from its reverted source fragments; verify `npm run -s check:index` and the phone/desktop gates before the normal release process. No database, credential or workflow rollback is involved. Preserve native write authority and the frozen tokenless client writers. [Evidence and limits](docs/audits/2026-10-12-phone-responsiveness/README.md).
+
+### 2026-10-12 — staff phone Tabs grid
+
+Revert this PR and rebuild from source to restore the previous phone menus. No backend rollback. The branch-specific Production live-read deferral must not be removed before its safe fixture/read boundary exists.

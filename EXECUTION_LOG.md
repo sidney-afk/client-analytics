@@ -6921,3 +6921,7 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
 ## 2026-10-12 — Prism staff phone responsiveness, source only
 
 One branch; no merge, deploy or database/workflow change. Calendar/Samples retain useful cards and drafts on refresh, keep sheets open during phone-height changes, expose accessible Retry, and avoid redundant field/popup/layout work. Staff segments share the reviewer shape; Workload overload counts fit; legacy More has a touch Close. Native intercepted proof, exact desktop comparisons and all remaining limits are recorded in [the dated report](docs/audits/2026-10-12-phone-responsiveness/README.md). The owner allows the roster-only identity diff check; the ban on tests reading other clients real data remains.
+
+### 2026-10-12 — staff phone Tabs grid (built, not merged/deployed)
+
+The reviewer icon grid is shared by every staff phone Tabs sheet, with native order/actions/current state and common Close. The Production fast job is explicitly deferred for this branch because it remains live-reading. Native fictional proof and exact check tails: `docs/audits/2026-10-12-staff-tabs-grid/README.md`.

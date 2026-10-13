@@ -125,5 +125,20 @@
     html.sv-staff-phone body:has(#calView) .main,
     html.sv-staff-phone body:has(#sxrView) .main { padding-bottom:calc(76px + env(safe-area-inset-bottom)); }
 
+
+    /* One native-icon Tabs grid and labelled Close on every staff phone. */
+    html.sv-staff-phone dialog.sv-phone-tabs { position:fixed !important; inset:auto 12px max(12px,env(safe-area-inset-bottom)) !important; width:calc(100% - 24px) !important; max-width:none !important; max-height:calc(var(--sv-phone-vh,100dvh) - 80px) !important; margin:0 !important; padding:18px !important; border:1px solid var(--border); border-radius:24px !important; box-sizing:border-box; background:var(--white); color:var(--text-primary); font-family:inherit; }
+    html.sv-staff-phone dialog.sv-phone-tabs::before { content:none !important; display:none !important; }
+    html.sv-staff-phone dialog.sv-phone-tabs::backdrop { background:var(--sv-bg-rgba-0-0-0-0_35) !important; }
+    html.sv-staff-phone dialog.sv-phone-tabs .sv-phone-tabs-head { display:flex !important; align-items:center; justify-content:space-between; gap:12px; margin:0 0 12px !important; padding:0 !important; border:0 !important; background:transparent; }
+    html.sv-staff-phone dialog.sv-phone-tabs .sv-phone-tabs-head h2,
+    html.sv-staff-phone dialog.sv-phone-tabs .sv-phone-tabs-head strong { margin:0; font-size:21px !important; font-weight:700; line-height:1.3; }
+    html.sv-staff-phone dialog.sv-phone-tabs .sv-phone-tabs-head button { width:auto !important; height:44px; min-width:44px; min-height:44px; margin:0; padding:0 12px !important; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid var(--border); border-radius:12px !important; color:var(--text-primary) !important; background:var(--field-bg) !important; box-shadow:none; font-family:inherit !important; font-size:13px !important; font-weight:500; }
+    html.sv-staff-phone dialog.sv-phone-tabs .sv-phone-tabs-body { display:block !important; width:100%; min-height:0; margin:0 !important; padding:0 !important; overflow-y:auto; }
+    html.sv-staff-phone .sv-phone-tabs-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); width:100%; gap:8px; padding:0; }
+    html.sv-staff-phone .sv-phone-tabs-grid .sv-phone-tabs-link { display:flex; align-items:center; justify-content:flex-start; gap:6px; min-width:44px; min-height:44px; padding:12px; box-sizing:border-box; white-space:normal; border:1px solid transparent; border-radius:12px; background:transparent; box-shadow:none; color:var(--text-secondary); font-family:inherit; font-size:13px; font-weight:600; text-decoration:none; }
+    html.sv-staff-phone .sv-phone-tabs-grid .sv-phone-tabs-link[aria-current="page"] { background:var(--text-primary); color:var(--bg); border-color:var(--text-primary); }
+    html.sv-staff-phone .sv-phone-tabs-divider { grid-column:1 / -1; width:100%; height:1px; margin:4px 0; background:var(--border); }
+
 }
 /* STAFF-PHONE-RULES:END */

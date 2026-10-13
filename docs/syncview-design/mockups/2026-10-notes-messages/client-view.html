@@ -1,0 +1,42 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Client review link</title><link rel="stylesheet" href="mock.css">
+<style>
+.top{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}.top b{font-size:16px}
+.strip{margin:14px 18px 0;padding:10px 14px;border-radius:12px;background:var(--client-soft);color:var(--client);display:flex;align-items:center;gap:10px;font-weight:600;flex-wrap:wrap}
+.strip .btn{margin-left:auto;padding:6px 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;padding:18px}
+.card{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card)}.card .m{height:200px}
+.card .i{padding:10px;display:flex;flex-direction:column;gap:8px}.card .row{display:flex;gap:6px;align-items:center;justify-content:space-between}
+.notesbtn{position:relative;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;background:var(--card);color:var(--text)}
+.notesbtn.has{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}.notesbtn .dot{position:absolute;top:-4px;right:-4px}
+.pop{margin:0 18px 18px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.pop .h{padding:10px 14px;border-bottom:1px solid var(--line);font-weight:700}
+.pop .t{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.msg{display:flex;gap:8px}.msg .meta{font-size:12px;color:var(--muted)}.msg .meta b{color:var(--text)}
+.newline{display:flex;align-items:center;gap:8px;color:var(--unread);font-size:12px;font-weight:700}.newline:before,.newline:after{content:"";flex:1;height:1px;background:var(--unread)}
+.hiddennote{font-size:12px;color:var(--muted);border:1px dashed var(--line);border-radius:8px;padding:8px}
+body.phone .grid{grid-template-columns:1fr}
+</style></head><body>
+<div class="bar"><h1>Client link</h1><div class="seg"><button data-theme="light" onclick="mockTheme('light')">Light</button><button data-theme="dark" onclick="mockTheme('dark')">Dark</button></div>
+<div class="seg"><button data-device="desktop" onclick="mockDevice('desktop')">Desktop</button><button data-device="phone" onclick="mockDevice('phone')">Phone</button></div>
+<div class="seg"><button data-state="unread" onclick="mockState('unread')">New messages</button><button data-state="empty" onclick="mockState('empty')">Nothing new</button></div>
+<a href="index.html">All mockups</a></div>
+<div class="stage"><div class="frame">
+<div class="top"><b>Sample Bakery · October content</b><span class="chip" style="margin-left:auto">3 to review</span></div>
+<div class="strip" data-show="unread"><span class="dot" style="background:var(--client)"></span>2 new messages from the Synchro team<button class="btn client" onclick="document.getElementById('pop').scrollIntoView({behavior:'smooth'})">Show me</button></div>
+<div class="grid">
+ <div class="card"><div class="m thumb" style="width:auto;height:200px;border-radius:0"></div><div class="i"><b>Morning routine, 3 swaps</b><div class="row"><span class="chip">Waiting for you</span><span class="notesbtn has" data-show="unread">Notes 4<span class="dot"></span></span><span class="notesbtn" data-show="empty">Notes 4</span></div></div></div>
+ <div class="card"><div class="m thumb b" style="width:auto;height:200px;border-radius:0"></div><div class="i"><b>Behind the counter</b><div class="row"><span class="chip">Waiting for you</span><span class="notesbtn has" data-show="unread">Notes 1<span class="dot"></span></span><span class="notesbtn" data-show="empty">Notes 1</span></div></div></div>
+ <div class="card"><div class="m thumb c" style="width:auto;height:200px;border-radius:0"></div><div class="i"><b>Weekend specials</b><div class="row"><span class="chip">Approved</span><span class="notesbtn">Notes</span></div></div></div>
+</div>
+<div class="pop" id="pop"><div class="h">Notes · Morning routine, 3 swaps</div><div class="t">
+ <div class="msg"><div class="avatar c">JR</div><div><div class="meta"><b>You</b> · Caption · Mon</div>Can we mention the weekend opening hours?</div></div>
+ <div class="msg"><div class="avatar">S</div><div><div class="meta"><b>Synchro team</b> · Caption · Tue</div>Updated the caption with your opening hours.</div></div>
+ <div class="newline" data-show="unread">New</div>
+ <div class="msg"><div class="avatar">S</div><div><div class="meta"><b>Synchro team</b> · Thumbnail · Today</div>Bigger text is in. Does this read well on your phone?</div></div>
+ <div class="hiddennote">Design note (not shown to the client): the two team-only messages on this post, and Kasper's name, never reach this page. The server leaves them out before sending.</div>
+</div>
+<div class="composer"><div class="row"><div class="seg"><button class="on">Comment</button><button>Request a change</button></div><span class="cap">About</span><div class="seg"><button>Whole post</button><button class="on">Thumbnail</button><button>Caption</button></div></div><textarea placeholder="Write to the Synchro team…"></textarea><div class="row" style="justify-content:flex-end"><button class="btn primary">Send</button></div></div>
+</div></div></div>
+<p class="note">A comment changes no status, so the client is told three ways: a "new messages" strip at the top of the link with a Show me button, an orange dot on each card's Notes button, and a "New" line inside Notes. Optional email digest is an open decision. Sample names and text only.</p>
+<script src="mock.js"></script></body></html>

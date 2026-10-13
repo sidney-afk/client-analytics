@@ -1,0 +1,64 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Card Notes panel</title><link rel="stylesheet" href="mock.css">
+<style>
+.panel{display:grid;grid-template-columns:300px 1fr;min-height:640px}body.phone .panel{grid-template-columns:1fr}
+.side{border-right:1px solid var(--line);padding:16px;background:var(--soft)}body.phone .side{display:none}
+.side .media{height:340px;border-radius:12px;background:linear-gradient(160deg,#fcd34d,#f97316)}
+.side .parts{margin-top:12px;display:flex;flex-direction:column;gap:6px;font-size:13px}
+.side .parts div{display:flex;justify-content:space-between;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.main{display:flex;flex-direction:column}.head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.head b{font-size:15px}.head .x{margin-left:auto;color:var(--muted)}
+.thread{flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:14px;overflow:auto;max-height:560px}
+.msg{display:flex;gap:10px}.msg .body{flex:1}.msg .meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+.msg .meta b{color:var(--text);font-size:13px}.msg .text{margin-top:3px}
+.msg.reply{margin-left:40px}.msg .acts{font-size:12px;color:var(--muted);margin-top:4px;display:flex;gap:12px}
+.newline{display:flex;align-items:center;gap:8px;color:var(--unread);font-size:12px;font-weight:700}.newline:before,.newline:after{content:"";flex:1;height:1px;background:var(--unread)}
+.scrollhint{text-align:center;font-size:12px;color:var(--muted)}
+</style></head><body>
+<div class="bar"><h1>Card Notes</h1><div class="seg"><button data-theme="light" onclick="mockTheme('light')">Light</button><button data-theme="dark" onclick="mockTheme('dark')">Dark</button></div>
+<div class="seg"><button data-device="desktop" onclick="mockDevice('desktop')">Desktop</button><button data-device="phone" onclick="mockDevice('phone')">Phone</button></div>
+<div class="seg"><button data-state="unread" onclick="mockState('unread')">Unread</button><button data-state="empty" onclick="mockState('empty')">Empty</button><button data-state="long" onclick="mockState('long')">Long thread</button></div>
+<a href="index.html">All mockups</a></div>
+<div class="stage"><div class="frame"><div class="panel">
+<aside class="side"><div class="media"></div><div class="parts">
+<div>Video <span class="chip tweak">Tweaks needed</span></div><div>Thumbnail <span class="chip">Client approval</span></div><div>Caption <span class="chip">Approved</span></div></div></aside>
+<section class="main">
+<div class="head"><span class="thumb" style="width:32px;height:40px"></span><div><b>Morning routine, 3 swaps</b><div style="font-size:12px;color:var(--muted)">Sample Bakery · Fri 17 Oct</div></div><span class="x">✕</span></div>
+
+<div class="thread" data-show="unread long">
+ <div class="scrollhint" data-show="long">↑ 14 earlier messages · <u>Show all</u></div>
+ <div class="msg" data-show="long"><div class="avatar c">JR</div><div class="body"><div class="meta"><b>Jo (client)</b><span class="chip">Caption</span><span class="chip client">Client can see</span>· Mon</div><div class="text">Can we mention the weekend opening hours?</div></div></div>
+ <div class="msg reply" data-show="long"><div class="avatar smm">AL</div><div class="body"><div class="meta"><b>Alex</b><span class="chip">Caption</span>· Mon</div><div class="text">Added. Have a look at the new line.</div></div></div>
+ <div class="msg"><div class="avatar smm">AL</div><div class="body"><div class="meta"><b>Alex</b><span class="chip">Video</span><span class="chip tweak">Change request · round 2</span><span class="chip team"><svg class="lock" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg> Team only</span>· Tue 10:12</div><div class="text">Cut the first 2 seconds, the hook starts late.</div><div class="acts"><span>Reply</span><span>Mark done</span></div></div></div>
+ <div class="msg reply"><div class="avatar k">KA</div><div class="body"><div class="meta"><b>Kasper</b><span class="chip team"><svg class="lock" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg> Team only</span>· Tue 11:40</div><div class="text">Agree. Also lift the music under the voice.</div></div></div>
+ <div class="newline">New</div>
+ <div class="msg"><div class="avatar c">JR</div><div class="body"><div class="meta"><b>Jo (client)</b><span class="chip">Thumbnail</span><span class="chip client">Client can see</span>· Today 09:03 <span class="dot"></span></div><div class="text">Love this one! Could the text be a bit bigger?</div><div class="acts"><span>Reply</span><span>Turn into change request</span></div></div></div>
+ <div class="msg"><div class="avatar smm">MI</div><div class="body"><div class="meta"><b>Mia</b><span class="chip">Whole post</span><span class="chip team"><svg class="lock" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg> To Kasper</span>· Today 09:20 <span class="dot"></span></div><div class="text">Kasper, can this go out Friday instead of Thursday?</div><div class="acts"><span>Reply</span></div></div></div>
+</div>
+<div class="thread" data-show="empty"><div class="empty"><b>No notes yet</b>Ask a question, talk to Kasper, or request a change. Notes to the client are marked so you always know who sees what.</div></div>
+
+<div class="composer" id="comp">
+ <div class="row"><div class="seg" id="kind"><button class="on" onclick="kind('comment')">Comment</button><button onclick="kind('tweak')">Request change</button></div>
+ <span class="cap">To</span><div class="seg" id="aud"><button class="on" onclick="aud('team')"><svg class="lock" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg> Kasper / team</button><button onclick="aud('client')">Client</button></div></div>
+ <div class="row"><span class="cap">About</span><div class="seg" id="part"><button onclick="part(this)">Whole post</button><button class="on" onclick="part(this)">Video</button><button onclick="part(this)">Thumbnail</button><button onclick="part(this)">Caption</button></div></div>
+ <textarea id="ta" placeholder="Write to Kasper and the team. The client won't see this."></textarea>
+ <div class="warnline">The client will see this message on their review link.</div>
+ <div class="row" style="justify-content:space-between"><span class="cap" id="hint">No status change.</span><button class="btn primary" id="send">Send to team</button></div>
+</div>
+</section></div></div></div>
+<p class="note">Request change locks the audience to the team and needs a part (Whole post is hidden). Picking Client turns the box blue and the button says "Send to client". Replies inherit audience and part, so the reply box shows no toggles. Sample names and text only.</p>
+<script src="mock.js"></script>
+<script>
+let K='comment',A='team';
+function seg(id,i){document.querySelectorAll('#'+id+' button').forEach((b,j)=>b.classList.toggle('on',j===i))}
+function paint(){const c=document.getElementById('comp'),send=document.getElementById('send'),ta=document.getElementById('ta'),hint=document.getElementById('hint');
+ const whole=document.querySelector('#part button');whole.hidden=K==='tweak';if(K==='tweak'&&whole.classList.contains('on'))seg('part',1);
+ document.querySelectorAll('#aud button')[1].disabled=K==='tweak';if(K==='tweak')A='team';seg('aud',A==='team'?0:1);
+ c.classList.toggle('to-client',A==='client');
+ send.className='btn '+(K==='tweak'?'warn':A==='client'?'client':'primary');
+ send.textContent=K==='tweak'?'Request change':A==='client'?'Send to client':'Send to team';
+ ta.placeholder=K==='tweak'?'Describe the change you need…':A==='client'?'Write to the client…':"Write to Kasper and the team. The client won't see this.";
+ hint.textContent=K==='tweak'?'Moves this part to Tweaks needed and tells the editor.':'No status change.'}
+function kind(v){K=v;seg('kind',v==='comment'?0:1);paint()}function aud(v){A=v;paint()}
+function part(b){b.parentNode.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b))}
+</script></body></html>

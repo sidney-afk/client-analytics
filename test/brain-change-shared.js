@@ -53,6 +53,9 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   assert.ok(!/money/.test(brainPart.replace(/\/\/.*$/gm, '')), 'money.md is never read');
   assert.ok(!/contents\/inputs/.test(info), 'nothing under inputs/ is read by the connector');
 
+  assert.ok(/if \(r\.status === 404\) return "";\s*if \(!r\.ok\) throw/.test(brainPart), 'a failed read is reported, only a 404 reads as empty');
+  assert.ok(/has no Synchro Brain folder yet, so a person has to place it/.test(brainPart), 'an unmatched change is not reported as filed');
+
   const idx = read('supabase/functions/higgsfield-mcp/index.ts');
   assert.ok(/name: "client_brain"[\s\S]*?automatically, without being asked, whenever a client is named/.test(idx));
   assert.ok(/name: "brain_change"[\s\S]*?Never use it for notes about one video/.test(idx));

@@ -186,11 +186,19 @@ export async function clientBrain(db: SupabaseClient, client: string): Promise<s
   if (where.error) return where.error;
   if (!where.folder) return `${p.client_name} has no folder in the Synchro Brain yet.`;
   const ref = encodeURIComponent(Deno.env.get("BRAIN_BRANCH") || "main");
+  // Only a missing file (404) reads as empty; any other failure is reported, never a silent gap.
   const read = async (file: string) => {
     const r = await gh(`contents/clients/${where.folder}/${file}.md?ref=${ref}`, true);
-    return r.ok ? await r.text() : "";
+    if (r.status === 404) return "";
+    if (!r.ok) throw new Error(String(r.status));
+    return await r.text();
   };
-  const [brief, audience, ...texts] = await Promise.all([read("brief"), read("audience"), ...BRAIN_FILES.map(read)]);
+  let brief: string, audience: string, texts: string[];
+  try {
+    [brief, audience, ...texts] = await Promise.all([read("brief"), read("audience"), ...BRAIN_FILES.map(read)]);
+  } catch (e) {
+    return `Could not read the Synchro Brain (${(e as Error).message}). Try again in a minute; do not answer as if ${p.client_name} had no brain facts.`;
+  }
   const facts = [
     ...BRAIN_FILES.flatMap((f, i) => parseBrainFacts(texts[i], f)),
     ...parseAudience(audience),
@@ -226,5 +234,6 @@ export async function brainChange(db: SupabaseClient, client: string, whatChange
     branch: Deno.env.get("BRAIN_BRANCH") || "main",
   });
   if (!result.ok) return result.error === "text_too_long" ? "That is too long to send in one change; split it up." : "Say what changed first.";
+  if (!findClientFolder(where.folders, p.client_slug)) return `Sent, but ${p.client_name} has no Synchro Brain folder yet, so a person has to place it by hand. It will not show in client_brain until then; say that instead of "Saved".`;
   return `Sent. It will be filed in ${p.client_name}'s brain within a few minutes.`;
 }

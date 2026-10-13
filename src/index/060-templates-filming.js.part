@@ -1082,7 +1082,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     function _tplBrainEnsure(name, force) {
         if (!_tplBrain[name]) {
             const c = _tplCacheGet('brain', name);
-            if (c) _tplBrain[name] = { state: 'ready', at: 0, facts: c.facts || [], brief: c.brief || [], found: !!c.found, folder: c.folder || '' };
+            if (c) _tplBrain[name] = { state: 'ready', at: 0, facts: c.facts || [], brief: c.brief || [], audience: c.audience || [], found: !!c.found, folder: c.folder || '' };
         }
         const cur = _tplBrain[name];
         // Errors retry only from the button; a ready copy refreshes once stale.
@@ -1092,8 +1092,8 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         _tplBrainPost({ action: 'read', clientName: name }).then(j => {
             // Fresh facts replace any "Saved, updating" note for this client.
             Object.keys(_tplSpecSent).forEach(k => { if (k.indexOf(name + '::') === 0 && _tplSpecSent[k] === 'sent') delete _tplSpecSent[k]; });
-            _tplBrain[name] = { state: 'ready', at: Date.now(), facts: Array.isArray(j.facts) ? j.facts : [], brief: Array.isArray(j.brief) ? j.brief : [], found: !!j.found, folder: j.folder || '' };
-            _tplCachePut('brain', name, { facts: _tplBrain[name].facts, brief: _tplBrain[name].brief, found: _tplBrain[name].found, folder: _tplBrain[name].folder });
+            _tplBrain[name] = { state: 'ready', at: Date.now(), facts: Array.isArray(j.facts) ? j.facts : [], brief: Array.isArray(j.brief) ? j.brief : [], audience: Array.isArray(j.audience) ? j.audience : [], found: !!j.found, folder: j.folder || '' };
+            _tplCachePut('brain', name, { facts: _tplBrain[name].facts, brief: _tplBrain[name].brief, audience: _tplBrain[name].audience, found: _tplBrain[name].found, folder: _tplBrain[name].folder });
         }).catch(e => {
             _tplBrain[name] = { state: 'error', facts: [], error: e && e.message || String(e) };
         }).then(() => { if (_templatesSelected === name) _maybeRerenderTemplates(); });
@@ -1375,7 +1375,8 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         if (!text) { form.querySelector('.tpl-brain-text').focus(); return; }
         try { if (from) localStorage.setItem(TPL_BRAIN_NAME_KEY, from); } catch (e) {}
         const factId = key.slice(name.length + 2);
-        const fact = ((_tplBrain[name] || {}).facts || []).find(f => f.id === factId);
+        const b0 = _tplBrain[name] || {};
+        const fact = (b0.facts || []).concat(b0.audience || []).find(f => f.id === factId);
         const btn = form.querySelector('.tpl-brain-send');
         if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
         _tplBrainSent[key] = 'sending';
@@ -1509,6 +1510,83 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         const rest = b.brief.map((sec, si) => si === lookIdx ? '' : section(sec, si)).join('');
         return `<div class="tpl-brief">${look}<div class="tpl-brief-cols">${rest}</div></div>`;
     }
+    // Audience: who watches and what moves them (audience.md). A direction for
+    // ideas, not rules, so every section shows its "How sure we are" line.
+    // Audience prose: like other facts, but "- " lines become a real list.
+    function _tplAudienceProse(text) {
+        return String(text || '').split(/\n{2,}/).map(block => {
+            const lines = block.split('\n');
+            return lines.every(l => /^\s*-\s+/.test(l))
+                ? '<ul class="tpl-aud-list">' + lines.map(l => '<li>' + _tplBrainInline(l.replace(/^\s*-\s+/, '')) + '</li>').join('') + '</ul>'
+                : _tplBrainProse(block);
+        }).join('');
+    }
+    function _tplAudienceView(name, b) {
+        const aud = Array.isArray(b.audience) ? b.audience : [];
+        if (!aud.length) return '';
+        const card = (f, i) => {
+            const rowKey = name + '::a' + i;
+            const changeKey = _tplBrainKey(name, f.id);
+            const open = _tplBriefSourceOpen === rowKey;
+            const formOpen = _tplBriefFormRow === rowKey && (_tplBrainOpenForm === changeKey || _tplBrainSent[changeKey]);
+            const sources = String(f.source || '').split(';').map(x => x.trim()).filter(Boolean);
+            return `<div class="tpl-aud-card">
+                <h4 class="tpl-aud-h">${_tplEsc(f.heading)}</h4>
+                ${f.body ? `<div class="tpl-brain-body">${_tplAudienceProse(f.body)}</div>` : ''}
+                ${f.sure ? `<div class="tpl-aud-sure"><span class="tpl-aud-sure-k">How sure we are:</span> ${_tplBrainInline(f.sure)}</div>` : ''}
+                <div class="tpl-brief-acts">
+                    ${sources.length ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(rowKey)}" onclick="tplBriefToggleSource(this.dataset.k)" aria-expanded="${open}">${open ? 'Hide where this comes from' : 'Where does this come from'}</button>` : ''}
+                    ${f.id ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(changeKey)}" data-row="${_tplEscAttr(rowKey)}" onclick="tplBriefChange(this.dataset.k, this.dataset.row)">Send a change</button>` : ''}
+                </div>
+                ${open ? `<div class="tpl-brief-sources"><ul class="tpl-aud-src">${sources.map(s => `<li>${_tplEsc(s)}</li>`).join('')}</ul>${f.updated ? `<div class="tpl-brain-meta">Updated ${_tplEsc(f.updated)}</div>` : ''}</div>` : ''}
+                ${formOpen ? _tplBrainChangeBox(name, f, true) : ''}
+            </div>`;
+        };
+        return `<section class="tpl-aud"><h3 class="tpl-aud-title">Audience</h3>
+            <p class="tpl-aud-intro">Our best reading of who watches. A direction for ideas, not rules.</p>
+            <div class="tpl-aud-grid">${aud.map(card).join('')}</div></section>`;
+    }
+    // TPL_BRIEF_PLAIN_TEXT_START
+    // The whole editor brief as plain text for pasting into Claude: headings,
+    // every bullet, then the Audience section. No fact ids, comments or HTML.
+    function _tplBriefPlainText(name, brief, audience) {
+        const clean = t => String(t == null ? '' : t)
+            .replace(/<!--[\s\S]*?-->/g, '')
+            .replace(/<[^>]+>/g, '')
+            .replace(/\*\*([^*]+)\*\*/g, '$1')
+            .replace(/[ \t]{2,}/g, ' ')
+            .replace(/[ \t]+\n/g, '\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+        const out = ['Editor brief: ' + clean(name)];
+        (brief || []).forEach(sec => {
+            out.push('', '## ' + clean(sec.heading));
+            (sec.bullets || []).forEach(bl => { const t = clean(bl.text); if (t) out.push('- ' + t); });
+        });
+        if ((audience || []).length) {
+            out.push('', '# Audience', 'Our best reading of who watches. A direction for ideas, not rules.');
+            audience.forEach(f => {
+                out.push('', '## ' + clean(f.heading));
+                const body = clean(f.body);
+                if (body) out.push(body);
+                if (f.sure) out.push('How sure we are: ' + clean(f.sure));
+            });
+        }
+        return out.join('\n') + '\n';
+    }
+    // TPL_BRIEF_PLAIN_TEXT_END
+    function tplBriefCopyAll(btn) {
+        const name = _templatesSelected;
+        const b = _tplBrain[name] || {};
+        const text = _tplBriefPlainText(name, b.brief, b.audience);
+        const note = btn && btn.parentElement && btn.parentElement.querySelector('.tpl-copy-note');
+        const say = (msg, bad) => { if (!note) return; note.textContent = msg; note.classList.toggle('bad', !!bad); if (!bad) setTimeout(() => { if (note.textContent === msg) note.textContent = ''; }, 2500); };
+        const blocked = () => say('Your browser blocked copying. Allow clipboard access for this site, then try again.', true);
+        try {
+            if (!navigator.clipboard || !navigator.clipboard.writeText) { blocked(); return; }
+            navigator.clipboard.writeText(text).then(() => say('Copied'), blocked);
+        } catch (e) { blocked(); }
+    }
     function _tplBrainSection(name) {
         const b = _tplBrain[name];
         const head = `<div class="tpl-section-title">From the Synchro Brain</div>`;
@@ -1527,13 +1605,15 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
             ${written.map(f => _tplBrainCard(name, f)).join('') || '<div class="tpl-brain-empty-note">Nothing written here yet.</div>'}
             ${empty.length ? `<details class="tpl-brain-missing"><summary>${empty.length} not written yet</summary>${empty.map(f => _tplBrainCard(name, f)).join('')}</details>` : ''}`;
         if (hasBrief) return `<div class="tpl-section tpl-brain">
-            <div class="tpl-section-title">Editor brief</div>
+            <div class="tpl-brief-titlerow"><div class="tpl-section-title">Editor brief</div><span class="tpl-copy-wrap"><button type="button" class="tpl-copy-btn" onclick="tplBriefCopyAll(this)" title="Copy the whole brief as plain text, to paste into Claude">Copy</button><span class="tpl-copy-note" role="status" aria-live="polite"></span></span></div>
             ${_tplBriefView(name, b)}
+            ${_tplAudienceView(name, b)}
             <div class="tpl-brain-add">${_tplBrainChangeBox(name, null)}</div>
-            <details class="tpl-brain-allfacts"${_tplBrainOpenForm && !b.brief.some(sec => sec.bullets.some(bl => _tplBrainKey(name, bl.facts[0] || '') === _tplBrainOpenForm)) && _tplBrainOpenForm.indexOf(name + '::_new') !== 0 ? ' open' : ''}><summary>All facts, with sources</summary>${factsView}</details>
+            <details class="tpl-brain-allfacts"${_tplBrainOpenForm && !b.brief.some(sec => sec.bullets.some(bl => _tplBrainKey(name, bl.facts[0] || '') === _tplBrainOpenForm)) && !(b.audience || []).some(f => _tplBrainKey(name, f.id) === _tplBrainOpenForm) && _tplBrainOpenForm.indexOf(name + '::_new') !== 0 ? ' open' : ''}><summary>All facts, with sources</summary>${factsView}</details>
         </div>`;
         return `<div class="tpl-section tpl-brain">
             ${head}
+            ${_tplAudienceView(name, b)}
             ${factsView}
             <div class="tpl-brain-add">${_tplBrainChangeBox(name, null)}</div>
         </div>`;
@@ -2359,6 +2439,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         _obvFilter, _obvOpen, _obvOpenPreview, _obvOpenStandalone, _obvRefresh, _tplAddLink, _tplBrainDraft,
         _tplGoTo, _tplOnSearchFocus, _tplOnSearchIconClick, _tplOnSearchInput, _tplOnSearchKey,
         _tplRemoveLink, backToTemplatesIndex, setTemplatesEditMode, tplBrainAnother, tplBrainCopy,
-        tplBrainOpen, tplBrainRetry, tplBrainSend, tplBrainSetTab, tplBriefChange, tplBriefMenu,
-        tplBriefToggleSource, tplFoldersRetry, tplLinkRowToggle, tplSpecHexSync, tplSpecOpen, tplSpecSave
+        tplBrainOpen, tplBrainRetry, tplBrainSend, tplBrainSetTab, tplBriefChange, tplBriefCopyAll,
+        tplBriefMenu, tplBriefToggleSource, tplFoldersRetry, tplLinkRowToggle, tplSpecHexSync, tplSpecOpen,
+        tplSpecSave
     });

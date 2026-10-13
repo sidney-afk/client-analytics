@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 
 (async () => {
-  const { findClientFolder, parseBrainFacts, parseSpec, parseBrief } = await import(path.join(__dirname, '../supabase/functions/brain/parse.mjs'));
+  const { findClientFolder, parseBrainFacts, parseSpec, parseBrief, parseAudience } = await import(path.join(__dirname, '../supabase/functions/brain/parse.mjs'));
 
   assert.strictEqual(findClientFolder(['alpha-beta', 'gamma'], 'alphabeta'), 'alpha-beta');
   assert.strictEqual(findClientFolder(['alpha-beta'], 'Alpha Beta'), 'alpha-beta');
@@ -44,7 +44,30 @@ const fs = require('fs');
     { heading: 'Avoid', bullets: [{ text: 'No stock music.', facts: ['a.b.e'] }] },
   ], 'brief parses into sections, drops empty ones, keeps fact ids');
 
+  // audience.md (fictional fixture): written sections come back with their "How sure we are" line
+  // pulled out; not-written sections are skipped; a missing file means no sections.
+  const aud = [
+    '# Fixture: audience', '', 'Intro prose before any section.', '',
+    '## Who is watching', '<!-- brain', 'id:      client.fixture.audience.who', 'owner:   sidney', 'status:  written',
+    'source:  inputs/calls/fixture-call.md; clients/fixture/identity.md', 'updated: 2026-10-12', '-->',
+    'Busy parents who cook at night.', '', '- **Short on time.** Most say so.', '',
+    '**How sure we are:** medium. Their own words on two calls.', '',
+    '## What they do not care about', '<!-- brain', 'id:      client.fixture.audience.skip', 'status:  not-written', '-->', '',
+  ].join('\n');
+  const audFacts = parseAudience(aud);
+  assert.strictEqual(audFacts.length, 1, 'only the written audience section comes back');
+  assert.deepStrictEqual(
+    { f: audFacts[0].file, h: audFacts[0].heading, id: audFacts[0].id, st: audFacts[0].status, sure: audFacts[0].sure },
+    { f: 'audience', h: 'Who is watching', id: 'client.fixture.audience.who', st: 'written', sure: 'medium. Their own words on two calls.' });
+  assert.ok(audFacts[0].body.includes('Busy parents') && audFacts[0].body.includes('**Short on time.**'), 'body prose kept');
+  assert.ok(!/How sure we are/.test(audFacts[0].body), 'the sure line is lifted out of the body');
+  assert.ok(audFacts[0].source.includes('fixture-call.md'), 'source kept for "Where does this come from"');
+  assert.deepStrictEqual(parseAudience(''), [], 'empty file: no sections');
+  assert.deepStrictEqual(parseAudience(aud.replace(/status:  written/, 'status:  not-written')), [], 'nothing written: no sections');
+  assert.strictEqual(parseAudience(aud.replace('**How sure we are:** medium. Their own words on two calls.', ''))[0].sure, '', 'a section with no sure line still loads');
+
   const src = fs.readFileSync(path.join(__dirname, '../supabase/functions/brain/index.ts'), 'utf8');
+  assert.ok(src.includes('readFile(folder, "audience")') && src.includes('audienceText == null ? [] : parseAudience(audienceText)'), 'audience.md is read and a missing one (404) still loads');
   assert.ok(/contents\/clients\/\$\{folder\}\/\$\{file\}\.md/.test(src), 'reads only clients/<folder>/<file>.md');
   assert.ok(!/contents\/inputs\/[^s]/.test(src) && !/contents\/(company|POLICY)/.test(src), 'never reads inputs, company or POLICY');
   assert.ok(src.includes('inputs/syncview-changes/'), 'changes land under inputs/syncview-changes/');

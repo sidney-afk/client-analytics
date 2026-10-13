@@ -38,9 +38,7 @@ jobs:
 
   production-polish:
     needs: schedule-guard
-    # This phone PR permits fictional transports only; the live fast lane
-    # still has no test-client-only boundary. Offline gates remain required.
-    if: needs.schedule-guard.outputs.run == 'true' && !(github.event_name == 'pull_request' && github.head_ref == 'prism/phone-round-2')
+    if: needs.schedule-guard.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

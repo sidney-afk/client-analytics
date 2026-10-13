@@ -772,4 +772,4 @@ Staff phone responsiveness proof: `docs/audits/2026-10-12-phone-responsiveness/`
 Staff phone Tabs: `qa/staff-phone-tabs-grid.js` checks the shared native-icon grid on primary and admin screens. `docs/audits/2026-10-12-staff-tabs-grid/` contains native phone comparisons and check receipts.
 ## Phone round 2 evidence
 
-`qa/staff-phone-round-two.js` exercises client selection, grouped More, both native status palettes, shared sheet dismissal and natural thumbnail proportions using fictional transports. `test/phone-round-two-ci-safety.js` guards this branch's hosted live-read deferral. Evidence and before/after images: `docs/audits/2026-10-13-phone-round-2/`; the existing PTO packet and `qa/pto-lifecycle/visual-review.json` are refreshed under the single-file CI preload.
+`qa/staff-phone-round-two.js` exercises client selection, grouped More, both native status palettes, shared sheet dismissal and natural thumbnail proportions using fictional transports. Evidence and before/after images: `docs/audits/2026-10-13-phone-round-2/`; the existing PTO packet and `qa/pto-lifecycle/visual-review.json` are refreshed under the single-file CI preload.

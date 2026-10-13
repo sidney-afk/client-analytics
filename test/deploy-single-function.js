@@ -54,6 +54,8 @@ assert(wf.indexOf('Refuse client-onboarding until') < wf.indexOf('name: Deploy t
 // client-hubspot-sync must not deploy before its database functions exist.
 assert(wf.includes("inputs.function == 'client-hubspot-sync'") && wf.includes('client_sales_state_apply(text,text,text,text,text,text,text,text,text)'), 'client-hubspot-sync has a schema preflight');
 assert(wf.indexOf('Refuse client-hubspot-sync until') < wf.indexOf('name: Deploy the one selected function'), 'hubspot schema preflight runs before the deploy');
+assert(wf.includes("inputs.function == 'frameio-token'") && wf.includes("to_regclass('public.frameio_token_keeper')"), 'frameio-token has a table preflight');
+assert(wf.indexOf('Refuse frameio-token until') < wf.indexOf('name: Deploy the one selected function'), 'frameio-token table preflight runs before the deploy');
 
 // Preview lane: dispatch-only, existing secrets, slug typed at dispatch, counts only.
 assert(/^on:\n  workflow_dispatch:\n/m.test(preview) && !/^  (push|schedule):/m.test(preview), 'preview is dispatch only');

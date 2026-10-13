@@ -100,7 +100,7 @@ export async function refreshAccessToken({ store, fetchFn, clientId, clientSecre
   }
   const nextRefresh = clean(r.data.refresh_token);
   if (nextRefresh) {
-    const saved = await saveWithRetry(() => store.save(leaseId, nextRefresh, 'ok', iso(now())));
+    const saved = await saveWithRetry(() => store.save(leaseId, nextRefresh, 'ok', iso(now()), claim.refresh_token));
     // The access token is still good for today, so it is returned, but the caller is told the login is at risk.
     if (!saved) return { status: 200, body: { ...body, warning: 'login_not_saved' } };
   } else {
@@ -156,12 +156,14 @@ export function supabaseStore(db) {
       const row = must(await t().select('id').eq('id', 1).not('refresh_token', 'is', null));
       return { state: row.length ? 'busy' : 'missing' };
     },
-    async save(leaseId, refreshToken, result, nowIso) {
+    async save(leaseId, refreshToken, result, nowIso, spentToken) {
       const vals = { refresh_token: refreshToken, saved_at: nowIso, last_result: result, last_result_at: nowIso };
       const mine = must(await t().update({ ...vals, lease_id: null, lease_until: null }).eq('id', 1).eq('lease_id', leaseId).select('id'));
       if (mine.length === 1) return true;
-      // Our lease ran out and someone else holds it: our token is still the newest valid one, so keep it.
-      return must(await t().update(vals).eq('id', 1).select('id')).length === 1;
+      // We lost the lease. Save only while the row still holds the token we spent: then ours is the newest
+      // valid one. If it holds anything else, a login saved a newer token since, and that one wins.
+      must(await t().update(vals).eq('id', 1).eq('refresh_token', spentToken).select('id'));
+      return true;
     },
     async release(leaseId, result) {
       try {

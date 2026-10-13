@@ -16,10 +16,10 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
 
 // A fake Adobe IMS that behaves like the real one measured on 2026-10-13: each refresh spends the refresh
 // token it was given (refused afterwards with 400 access_denied) and hands back a new one.
-function fakeAdobe({ mode = 'normal', email = 'owner@example.test', delayMs = 0 } = {}) {
+function fakeAdobe({ mode = 'normal', email = 'owner@example.test', delayMs = 0, prefix = 'rt-' } = {}) {
   const live = new Set();
   let n = 0;
-  const issue = () => { const t = 'rt-' + (++n); live.add(t); return t; };
+  const issue = () => { const t = prefix + (++n); live.add(t); return t; };
   const codes = new Set();
   const calls = [];
   const reply = (status, data) => ({ ok: status >= 200 && status < 300, status, json: async () => data });
@@ -57,10 +57,13 @@ function fakeStore() {
       row.lease_id = leaseId; row.lease_until = untilIso;
       return { state: 'claimed', refresh_token: row.refresh_token };
     },
-    async save(leaseId, token, result, nowIso) {
+    async save(leaseId, token, result, nowIso, spent) {
       if (s.failSave) throw new Error('db down');
-      Object.assign(row, { refresh_token: token, saved_at: nowIso, last_result: result });
-      if (row.lease_id === leaseId) { row.lease_id = null; row.lease_until = null; }
+      if (row.lease_id === leaseId) {
+        Object.assign(row, { refresh_token: token, saved_at: nowIso, last_result: result, lease_id: null, lease_until: null });
+      } else if (row.refresh_token === spent) {
+        Object.assign(row, { refresh_token: token, saved_at: nowIso, last_result: result });
+      }
       return true;
     },
     async release(leaseId, result) {
@@ -148,6 +151,21 @@ function fakeStore() {
     const [a, b] = await Promise.all([refresh(st, slow), refresh(st, slow)]);
     eq([a.status, b.status], [200, 200], 'two simultaneous callers both get an access token');
     ok(slow.live.has(st.row.refresh_token) && slow.live.size === 1, 'the login survives two simultaneous callers');
+  }
+
+  // A login that lands while a refresh is still finishing wins: the refresh does not overwrite it.
+  {
+    const slow = fakeAdobe({ delayMs: 30 });
+    const st = fakeStore();
+    await login(st, slow);
+    const pending = refresh(st, slow);
+    await new Promise((r) => setTimeout(r, 5));
+    await login(st, fakeAdobe({ prefix: 'rt-other-' })); // a quick login, done while the slow refresh is still at Adobe
+    const fresh = st.row.refresh_token;
+    eq(st.row.lease_id, null, 'the login took the row while the refresh was out');
+    const out = await pending;
+    eq(out.status, 200, 'the overlapping refresh still returns its access token');
+    eq(st.row.refresh_token, fresh, 'a login saved during a refresh is not overwritten');
   }
 
   // A lease held too long: the waiting caller gives up with busy, without spending the token.
@@ -239,6 +257,8 @@ function fakeStore() {
   ok(src.split('\n').filter((l) => /console\./.test(l)).every((l) => !/refresh_token|refreshToken|token\b/i.test(l.replace(/frameio-token/g, ''))), 'no log line mentions a token');
   ok(!/refresh_token/.test(src), 'the handler never touches the refresh token itself');
   ok(/\.or\('lease_until\.is\.null,lease_until\.lt\."/.test(logic) && /\.not\('refresh_token', 'is', null\)/.test(logic), 'the claim is one conditional UPDATE on a free lease');
+  ok(/store\.save\(leaseId, nextRefresh, 'ok', iso\(now\(\)\), claim\.refresh_token\)/.test(logic)
+    && /\.update\(vals\)\.eq\('id', 1\)\.eq\('refresh_token', spentToken\)/.test(logic), 'after a lost lease the save only replaces the token it spent');
   ok(/enable row level security/.test(sql), 'RLS on');
   ok(/revoke all on table public\.frameio_token_keeper from public, anon, authenticated, service_role;/.test(sql), 'revoked from all four roles');
   ok(/grant select, insert, update on table public\.frameio_token_keeper to service_role;/.test(sql), 'service_role gets select, insert, update only');

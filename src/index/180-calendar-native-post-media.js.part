@@ -2536,6 +2536,14 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         });
         document.addEventListener('dragend', stop);
     }
+    function _calVerticalScroller(node, strip) {
+        for (let n = node; n && n !== strip && n.nodeType === 1; n = n.parentElement) {
+            if (n.scrollHeight <= n.clientHeight + 1) continue;
+            const oy = getComputedStyle(n).overflowY;
+            if (oy === 'auto' || oy === 'scroll') return n;
+        }
+        return null;
+    }
     function _calWireShiftScroll(el) {
         if (!el || el.dataset.shiftScrollWired === '1') return;
         el.dataset.shiftScrollWired = '1';
@@ -2546,6 +2554,21 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
             let delta = e.deltaY;
             if (!delta) return;
+            // Pointer over something inside the strip that scrolls up and down
+            // (a long open caption, an overflowing card body): the wheel reads
+            // it. At its top or bottom the wheel just stops; it never turns into
+            // a sideways slide mid-gesture, nor bleeds into the page.
+            const now = Date.now();
+            const sc = _calVerticalScroller(e.target, el);
+            if (sc) {
+                el._vScrollAt = now;
+                const atEnd = delta < 0 ? sc.scrollTop <= 0
+                    : sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 1;
+                if (atEnd) e.preventDefault();
+                return;
+            }
+            // Same gesture drifting off the caption's edge: keep holding still.
+            if (el._vScrollAt && now - el._vScrollAt < 350) { el._vScrollAt = now; e.preventDefault(); return; }
             if (e.deltaMode === 1) delta *= 16;                  // lines → px
             else if (e.deltaMode === 2) delta *= el.clientWidth; // pages → px
             const max = el.scrollWidth - el.clientWidth;

@@ -2,5 +2,6 @@
   "beforeCommit": "126b1ac5182f2b83494862d6f2faee11c3f61eab",
   "sourceCommit": "64f6dbba1f20c641f04607e33fd2dfd5a6bd3e45",
   "indexSha256": "bb71e2577c6905cff383bec6032c073e0e672bff93867cdca4904803efe34f5b",
-  "nativePhonePairs": 18
+  "nativePhonePairs": 18,
+  "rebaseEquivalence": "desktop/latest-main-equivalence.json"
 }

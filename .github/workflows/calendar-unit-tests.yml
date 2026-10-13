@@ -65,11 +65,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node qa/staff-phone-tabs-grid.js --widths=${{ matrix.width }}
-      - name: Phone responsiveness, refresh continuity and shared segments
+      - name: Phone client selection, status colours and sheet dismissal
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node qa/staff-phone-round-two.js --matrix --widths=${{ matrix.width }}
-      - name: Existing phone responsiveness, refresh continuity and shared segments
+      - name: Phone responsiveness, refresh continuity and shared segments
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node qa/staff-phone-responsiveness.js --widths=${{ matrix.width }}

@@ -77,6 +77,16 @@ async function main(){
       const image=page.locator('.cal-card-thumb > img').first();await image.scrollIntoViewIfNeeded();await image.evaluate(n=>n.decode());
       const box=await image.evaluate(n=>{const r=n.getBoundingClientRect();return {ratio:r.width/r.height,natural:n.naturalWidth/n.naturalHeight,fit:getComputedStyle(n).objectFit};});assert.equal(box.fit,'contain');assert(Math.abs(box.ratio-box.natural)<.01,surface+' '+shape+' thumbnail stretched');
      }
+     // The expanded review uses a separate image tile; exercise it too.
+     await prepare(page,surface+'-sheet');
+     await page.evaluate(surface=>{(surface==='samples'?sxrState:calState).posts[0].thumbnail_url='https://images.example.invalid/portrait.png';surface==='samples'?_sxrRenderBody():_calRenderBody();},surface);
+     await page.locator('[data-cal-view="smmreview"]').tap();
+     await page.locator('.kcard-expand-btn').first().tap();
+     const reviewImage=page.locator('.cal-review-video-bg').first();
+     await reviewImage.scrollIntoViewIfNeeded();await reviewImage.evaluate(n=>n.decode());
+     const reviewBox=await reviewImage.evaluate(n=>{const r=n.getBoundingClientRect(),style=getComputedStyle(n);return {ratio:r.width/r.height,natural:n.naturalWidth/n.naturalHeight,fit:style.objectFit,filter:style.filter};});
+     assert.equal(reviewBox.fit,'contain');assert.doesNotMatch(reviewBox.filter,/blur/);assert(Math.abs(reviewBox.ratio-reviewBox.natural)<.01,surface+' expanded review image stretched');
+     await capture(page,'review-'+surface,theme,width);
     }
    }
    receipt.push({width,theme});console.log('ok round-two '+width+' '+theme);

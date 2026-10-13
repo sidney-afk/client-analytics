@@ -341,7 +341,7 @@ add('save-problems-filter-actions','save-problems',tests.find(t=>t.label==='save
 });
 add('more', 'review', null, p => p.locator('[data-kasper-more-trigger]').click());
 add('tabs', 'review', null, async p => { if (!before && !desktop) await p.getByRole('button', { name: 'Tabs', exact: true }).click(); });
-add('tabs-client-picker','review',null,async p=>{ if(!before&&!desktop) await p.getByRole('button',{name:'Tabs',exact:true}).click();await p.locator('#svClientBadge').click();await p.locator('#svClientSearch').fill('Example'); });
+add('tabs-client-picker','review',null,async p=>{ if(!before&&!desktop){ await p.getByRole('button',{name:'Tabs',exact:true}).click();await p.locator('.sv-phone-change-client').click(); } else await p.locator('#svClientBadge').click();await p.locator('#svClientSearch').fill('Example'); });
 add('account', 'review', null, async p => { if (!before && !desktop) { await p.locator('[data-kasper-more-trigger]').click(); await p.locator('#kasperMoreMenu .pocket-admin-account').click(); } else await p.evaluate(() => _syncviewOpenStaffAccount()); });
 
 

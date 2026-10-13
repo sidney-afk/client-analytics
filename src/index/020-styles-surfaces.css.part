@@ -6465,7 +6465,7 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
             #calView[data-pocket-staff-phone] .cal-import-footer { flex-wrap: wrap; }
         }
         @media (max-width: 767px) {
-            #calView[data-pocket-staff-phone] .cal-fld-substatus-trigger { background: var(--field-bg); color: var(--text-primary); border: 1px solid var(--border-light); border-radius: 12px; padding: 12px; }
+            #calView[data-pocket-staff-phone] .cal-fld-substatus-trigger { border: 1px solid var(--border-light); border-radius: 12px; padding: 12px; }
             #calView[data-pocket-staff-phone] .cal-fld-substatus-comp { font-size: 12px; text-transform: none; }
             #calView[data-pocket-staff-phone] .cal-fld-substatus-label { font-size: 12px; text-transform: none; white-space: normal; text-align: right; }
             #calView[data-pocket-staff-phone] .cal-prompt-textarea { min-height: 240px; }
@@ -6540,7 +6540,7 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
             #calView[data-pocket-staff-phone] .cal-fld-substatus-comp,
             #calView[data-pocket-staff-phone] .cal-fld-substatus-label { font-size: 13px; }
             #calView[data-pocket-staff-phone] .cal-client-status .cal-review-sub-pill,
-            #calView[data-pocket-staff-phone] .cal-client-status .cal-client-comp-pill { font-size: 13px; color: var(--text-primary) !important; }
+            #calView[data-pocket-staff-phone] .cal-client-status .cal-client-comp-pill { font-size: 13px; }
             #calView[data-pocket-staff-phone] .pocket-run-rest { display: none !important; }
             #calView[data-pocket-staff-phone] .cal-month-cell.pocket-run-head,
             #calView[data-pocket-staff-phone] .cal-week-col.pocket-run-head { display: flex !important; flex-direction: row !important; align-items: center; justify-content: flex-start; min-height: 44px !important; padding: 0 14px !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; }
@@ -6595,7 +6595,7 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
             body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-menu::before { content: ''; display: block; width: 35px; height: 4px; margin: 0 auto 14px; border-radius: 4px; background: var(--border); }
             body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-title { margin: 0 0 6px; font-size: 18px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.3; color: var(--text-primary); }
             body:has(#calView[data-pocket-staff-phone]) .cal-fld-setall-menu-head { padding: 0 0 8px; margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); text-transform: none; letter-spacing: 0; }
-            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 12px 2px; margin: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent !important; color: var(--text-primary) !important; font-size: 15px; font-weight: 500; letter-spacing: 0; text-transform: none; text-align: left; }
+            body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 12px 2px; margin: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; font-size: 15px; font-weight: 500; letter-spacing: 0; text-transform: none; text-align: left; }
             body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--text-secondary); }
             body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item.active { font-weight: 700; box-shadow: none; }
             body:has(#calView[data-pocket-staff-phone]) .cal-fld-status-item:hover { filter: none; }
@@ -6901,7 +6901,7 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
             #sxrView[data-pocket-staff-samples] .cal-import-footer { flex-wrap: wrap; }
         }
         @media (max-width: 767px) {
-            #sxrView[data-pocket-staff-samples] .cal-fld-substatus-trigger { background: var(--field-bg); color: var(--text-primary); border: 1px solid var(--border-light); border-radius: 12px; padding: 12px; }
+            #sxrView[data-pocket-staff-samples] .cal-fld-substatus-trigger { border: 1px solid var(--border-light); border-radius: 12px; padding: 12px; }
             #sxrView[data-pocket-staff-samples] .cal-fld-substatus-comp { font-size: 12px; text-transform: none; }
             #sxrView[data-pocket-staff-samples] .cal-fld-substatus-label { font-size: 12px; text-transform: none; white-space: normal; text-align: right; }
             #sxrView[data-pocket-staff-samples] .cal-prompt-textarea { min-height: 240px; }
@@ -6988,7 +6988,7 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
             #sxrView[data-pocket-staff-samples] .cal-fld-substatus-comp,
             #sxrView[data-pocket-staff-samples] .cal-fld-substatus-label { font-size: 13px; }
             #sxrView[data-pocket-staff-samples] .cal-client-status .cal-review-sub-pill,
-            #sxrView[data-pocket-staff-samples] .cal-client-status .cal-client-comp-pill { font-size: 13px; color: var(--text-primary) !important; }
+            #sxrView[data-pocket-staff-samples] .cal-client-status .cal-client-comp-pill { font-size: 13px; }
             #sxrView[data-pocket-staff-samples] .pocket-run-rest { display: none !important; }
             #sxrView[data-pocket-staff-samples] .cal-month-cell.pocket-run-head,
             #sxrView[data-pocket-staff-samples] .cal-week-col.pocket-run-head { display: flex !important; flex-direction: row !important; align-items: center; justify-content: flex-start; min-height: 44px !important; padding: 0 14px !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; }
@@ -7038,7 +7038,7 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
             body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-menu::before { content: ''; display: block; width: 35px; height: 4px; margin: 0 auto 14px; border-radius: 4px; background: var(--border); }
             body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-title { margin: 0 0 6px; font-size: 18px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.3; color: var(--text-primary); }
             body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-setall-menu-head { padding: 0 0 8px; margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); text-transform: none; letter-spacing: 0; }
-            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 12px 2px; margin: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent !important; color: var(--text-primary) !important; font-size: 15px; font-weight: 500; letter-spacing: 0; text-transform: none; text-align: left; }
+            body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 12px 2px; margin: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; font-size: 15px; font-weight: 500; letter-spacing: 0; text-transform: none; text-align: left; }
             body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--text-secondary); }
             body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item.active { font-weight: 700; box-shadow: none; }
             body:has(#sxrView[data-pocket-staff-samples]) .cal-fld-status-item:hover { filter: none; }
@@ -7482,6 +7482,7 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
     html.sv-staff-phone .main { padding-top: max(16px, env(safe-area-inset-top)); }
     html.sv-staff-phone button, html.sv-staff-phone [role=button] { min-width: 44px; min-height: 44px; }
     html.sv-staff-phone .prod-cmd-item { min-height: 44px; box-sizing: border-box; }
+    html.sv-staff-phone .sv-client-row { min-height: 44px; box-sizing: border-box; }
     html.sv-staff-phone input:not([type=hidden]):not([type=checkbox]):not([type=radio]), html.sv-staff-phone textarea, html.sv-staff-phone select { font-size: 16px; scroll-margin-block: 24px; }
     html.sv-staff-phone textarea:focus { max-height: calc(var(--sv-phone-vh, 100dvh) - 64px); overflow-y: auto !important; }
     html.sv-staff-phone dialog { max-height: calc(var(--sv-phone-vh, 100dvh) - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; }
@@ -7494,7 +7495,7 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
     html.sv-staff-phone .global-tip:not([data-label-explainer="true"]) { display: none; }
     html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) { display: flex; flex-direction: column; height: auto !important; aspect-ratio: auto; padding: 0 !important; overflow: visible; }
     html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > * { flex-shrink: 0; }
-    html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > img { position: static; width: 100%; height: 160px !important; object-fit: cover; }
+    html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > img { position:static; width:auto !important; height:auto !important; max-width:100% !important; max-height:min(62dvh,560px) !important; object-fit:contain; aspect-ratio:auto; }
     html.sv-staff-phone .cal-card-thumb:has(.sv-phone-card-tools) > .cal-card-thumb-fallback { min-height: 104px; display: grid; place-items: center; }
     html.sv-staff-phone .sv-phone-card-tools { width: 100%; box-sizing: border-box; padding: 6px 10px; background: var(--white); }
     html.sv-staff-phone .sv-phone-card-primary, html.sv-staff-phone .sv-phone-card-secondary { display: flex; align-items: center; gap: 4px; min-width: 0; justify-content: flex-end; }
@@ -7614,6 +7615,57 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
     html.sv-staff-phone .sv-phone-tabs-grid .sv-phone-tabs-link[aria-current="page"] { background:var(--text-primary); color:var(--bg); border-color:var(--text-primary); }
     html.sv-staff-phone .sv-phone-tabs-divider { grid-column:1 / -1; width:100%; height:1px; margin:4px 0; background:var(--border); }
 
+    html.sv-staff-phone .cal-review-preview-thumb-btn img,
+    html.sv-staff-phone .cal-review-preview-thumb img,
+    html.sv-staff-phone .kasper-hero-poster img { width:auto !important; height:auto !important; max-width:100% !important; max-height:min(62dvh,560px) !important; object-fit:contain; aspect-ratio:auto; }
+    html.sv-staff-phone .sv-phone-change-client { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-height:64px; margin:0 0 12px; padding:10px 12px; border:1px solid var(--border); border-radius:14px; color:var(--text-primary); background:var(--field-bg); text-align:left; font-family:inherit; }
+    html.sv-staff-phone .sv-phone-change-client span { display:grid; gap:4px; min-width:0; }
+    html.sv-staff-phone .sv-phone-change-client strong { font-size:13px; font-weight:600; }
+    html.sv-staff-phone .sv-phone-change-client small { font-size:13px; color:var(--text-secondary); overflow-wrap:anywhere; }
+    html.sv-staff-phone .sv-phone-change-client svg { width:18px; height:18px; flex-shrink:0; }
+    html.sv-staff-phone dialog.sv-phone-more { position:fixed !important; inset:auto 12px max(12px,env(safe-area-inset-bottom)) !important; width:calc(100% - 24px) !important; max-width:none !important; max-height:calc(var(--sv-phone-vh,100dvh) - 80px) !important; margin:0 !important; padding:18px !important; border:1px solid var(--border); border-radius:24px !important; box-sizing:border-box; background:var(--white); color:var(--text-primary); font-family:inherit; }
+    html.sv-staff-phone dialog.sv-phone-more::before { content:none !important; display:none !important; }
+    html.sv-staff-phone dialog.sv-phone-more::backdrop { background:var(--sv-bg-rgba-0-0-0-0_35) !important; }
+    html.sv-staff-phone .sv-phone-more .sv-phone-menu-head { display:flex !important; align-items:center; justify-content:space-between; gap:12px; margin:0 0 12px !important; padding:0 !important; border:0 !important; background:transparent; }
+    html.sv-staff-phone .sv-phone-more .sv-phone-menu-head h2 { margin:0; font-size:21px !important; font-weight:700; line-height:1.3; }
+    html.sv-staff-phone .sv-phone-more .sv-phone-menu-head button { width:auto !important; height:44px; min-width:44px; min-height:44px; padding:0 12px !important; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid var(--border); border-radius:12px !important; color:var(--text-primary) !important; background:var(--field-bg) !important; font-family:inherit !important; font-size:13px !important; font-weight:500; }
+    html.sv-staff-phone .sv-phone-more-body { display:block !important; scrollbar-width:none; }
+    html.sv-staff-phone .sv-phone-more-body::-webkit-scrollbar { display:none; }
+    html.sv-staff-phone .sv-phone-more-group { padding:12px 0; border-top:1px solid var(--border); }
+    html.sv-staff-phone .sv-phone-more-group:first-child { padding-top:0; border-top:0; }
+    html.sv-staff-phone .sv-phone-more-group h3 { margin:0 0 8px; font-size:12px; font-weight:600; color:var(--text-secondary); }
+    html.sv-staff-phone .sv-phone-more-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    html.sv-staff-phone .sv-phone-more-grid > button { display:flex; align-items:center; gap:8px; min-height:44px; padding:10px 12px; border:0; border-radius:12px; background:transparent; color:var(--text-primary); font-family:inherit; font-size:13px !important; line-height:1.4; text-align:left; }
+    html.sv-staff-phone .sv-phone-more-grid button svg { width:18px; height:18px; flex-shrink:0; }
+    html.sv-staff-phone .sv-phone-more-native { grid-column:1 / -1; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    html.sv-staff-phone .sv-phone-more-native > .cal-organize,
+    html.sv-staff-phone .sv-phone-more-native > .cal-status-filter,
+    html.sv-staff-phone .sv-phone-more-native > .cal-zoom,
+    html.sv-staff-phone .sv-phone-more-native > .cal-kebab-wrap { grid-column:1 / -1; }
+    html.sv-staff-phone .sv-phone-more-native .cal-kebab-menu { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    html.sv-staff-phone .sv-phone-more-native .cal-kebab-item,
+    html.sv-staff-phone .sv-phone-more-native > button { display:flex; align-items:center; min-width:0; min-height:44px !important; border:0 !important; border-radius:12px !important; padding:10px 12px !important; background:transparent !important; color:var(--text-primary); font-family:inherit; font-size:13px !important; line-height:1.4; text-align:left; }
+    html.sv-staff-phone .sv-phone-more-native .cal-kebab-divider,
+    html.sv-staff-phone .sv-phone-more-native .cal-kebab-toggle,
+    html.sv-staff-phone .sv-phone-more-native .cal-kebab-import-toggle { grid-column:1 / -1; }
+    html.sv-staff-phone .sv-phone-more-native .cal-kebab-sep { display:none; }
+    html.sv-staff-phone .sv-phone-more-native .cal-kebab-import-panel { grid-column:1 / -1; }
+    html.sv-staff-phone .sv-phone-more-native button:not(.cal-zoom-btn) { min-height:44px; font-size:13px !important; gap:8px; }
+    html.sv-staff-phone .sv-phone-more-group:last-child .sv-phone-more-grid { grid-template-columns:1fr; }
+    html.sv-staff-phone .sv-phone-dismissable::before { content:none !important; display:none !important; }
+    html.sv-staff-phone .sv-phone-sheet-handle { position:sticky; top:0; z-index:2; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; width:100%; min-height:44px; margin:0 0 8px; padding:0 4px; border:0; border-radius:10px; background:var(--surface-raised); color:var(--text-primary); font-family:inherit; font-size:13px; touch-action:none; }
+    html.sv-staff-phone .sv-phone-sheet-grip { grid-column:2; width:35px; height:4px; border-radius:4px; background:var(--text-muted); }
+    html.sv-staff-phone .sv-phone-sheet-exit { grid-column:3; justify-self:end; }
+    html.sv-staff-phone .cal-fld-status-menu .cal-fld-status-item::before { display:none; }
+    html.sv-staff-phone .cal-fld-status-menu .cal-fld-status-item { border:0 !important; border-radius:10px !important; margin:4px 0 !important; padding:10px 12px !important; }
+    html.sv-staff-phone .cal-fld-status-menu .cal-fld-status-item.active::after { border-right-color:currentColor !important; border-bottom-color:currentColor !important; }
+    html.sv-staff-phone .cal-fld-setall { color:var(--text-primary); }
+    html.sv-staff-phone .cal-fld-setall-label { text-transform:none; font-size:13px; letter-spacing:0; }
+    html.sv-staff-phone .kasper-hero-poster,
+    html.sv-staff-phone .cal-review-panel-preview { height:auto !important; max-height:none !important; }
+    html.sv-staff-phone .kasper-hero-poster img { position:static !important; display:block; margin:auto; }
+    html.sv-staff-phone .cal-review-video-tile:has(.cal-review-video-bg) { display:flex; align-items:center; justify-content:center; width:auto !important; max-width:100% !important; height:auto !important; max-height:none !important; aspect-ratio:auto; }
+    html.sv-staff-phone .cal-review-video-bg { position:static !important; width:auto !important; height:auto !important; max-width:100% !important; max-height:min(62dvh,560px) !important; object-fit:contain; transform:none; }
 }
 /* STAFF-PHONE-RULES:END */
 

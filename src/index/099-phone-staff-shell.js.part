@@ -66,7 +66,7 @@ import { wlState } from './066-core-workload-state.js';
         const proxy = (label, el) => {
             if (!el || el.hidden || el.disabled) return;
             const b = document.createElement('button'); b.type = 'button'; b.className = 'fph-row';
-            b.innerHTML = '<span>' + _fphEsc(label) + '</span>' + FPH_ICON.go;
+            b.innerHTML = (el.querySelector('svg')?.outerHTML || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>') + '<span>' + _fphEsc(label) + '</span>';
             b.addEventListener('click', () => { dialog.close(); setTimeout(() => el.click(), 0); }); body.append(b);
         };
         if (id === 'fphTabs') window.svStaffPhoneMenus.tabs(body, dialog, 'fph-row');

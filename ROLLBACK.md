@@ -1491,3 +1491,6 @@ Revert this bounded PR and run `npm run build:index` from its reverted source fr
 ### 2026-10-12 — staff phone Tabs grid
 
 Revert this PR and rebuild from source to restore the previous phone menus. No backend rollback. The branch-specific Production live-read deferral must not be removed before its safe fixture/read boundary exists.
+### 2026-10-13 — owner phone round 2
+
+Revert this bounded UI/evidence PR and rebuild from reverted `src/index/` fragments. No database, Edge Function or n8n rollback is involved. Keep the hosted live-read deferral until a safe test-client/fictional boundary exists. Existing phone/desktop gates and frozen client writers remain authoritative.

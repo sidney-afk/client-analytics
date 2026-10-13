@@ -1,0 +1,15 @@
+{
+  "before": true,
+  "receipt": [
+    {
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "theme": "dark"
+    }
+  ],
+  "sheetChecks": [],
+  "failures": []
+}

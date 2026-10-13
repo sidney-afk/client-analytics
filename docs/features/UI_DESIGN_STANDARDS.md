@@ -59,6 +59,23 @@ finished merely because its data and happy-path click work.
 - Use existing theme tokens only. Every state must remain legible in light and
   dark themes.
 
+## Dark mode colour
+
+- One meaning, one colour. Success is `--up` green (`#4ade80`), warning is amber
+  (`#fbbf24`) or orange (`#fb923c`), error is `--dn` red (`#f87171`); the same
+  hue is used for the solid button, the pill, the ink and the icon.
+- A solid action button (Approve, Request change, delete) takes its fill and its
+  label from the `--ok-solid-*`, `--warn-solid-*` and `--err-solid-*` tokens. In
+  dark mode they are a bright fill with a dark label; never put `--white` or a
+  fixed white on a fill, because `--white` is the dark surface in dark mode.
+- A disabled control keeps a readable label (`--disabled-fg`) and says "off"
+  through a quieter fill, not by fading its text with `opacity`.
+- `node test/dark-contrast.js` enforces WCAG AA in dark mode (4.5 to 1 text, 3 to 1
+  icons and focus rings) for the named colour pairs and for every rule that sets
+  a colour and a background from tokens. Add a pair there when you add a new
+  family of colours. A colour on one rule and its background on another is not
+  visible to it, so those still need a screenshot check.
+
 ## Interaction and responsive acceptance
 
 Every new control or layout is reviewed at approximately 360 px, 768 px, and a

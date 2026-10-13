@@ -109,6 +109,9 @@ async function screen(browser, origin, [label, viewport, mobile]) {
 const NOW = new Date();
 const Y = NOW.getFullYear(), M = NOW.getMonth() + 1;
 function day(d) { return Y + '-' + String(M).padStart(2, '0') + '-' + String(d).padStart(2, '0'); }
+// The phone Month case folds an empty day into the run before it. Today never
+// folds, so keep that pair of days clear of today (it failed on every 13th).
+const FOLD = Math.abs(NOW.getDate() - 14) <= 2 ? 21 : 14;
 // Teammate's change: a later updated_at, so the refresh takes the new values.
 const LATER = '2026-10-10T12:00:00.000Z';
 function post(id, date, extra) {
@@ -301,23 +304,23 @@ const MOVED_CASES = [
   ['phone Month, first day in view folds away', { viewport: PHONE, mobile: true }, phase => {
     const out = []; let k = 0;
     for (let d = 1; d <= 28; d++) {
-      if (d === 13 || (d === 14 && phase)) continue;
+      if (d === FOLD - 1 || (d === FOLD && phase)) continue;
       out.push(post('p_moved_d' + d, day(d), { order_index: ++k }));
     }
     return out;
   }, async (page, state, label) => {
     await showView(page, 'month');
-    const fold = day(14);
+    const fold = day(FOLD);
     await page.evaluate(fold => {
       const t = document.querySelector('#calBody [data-iso="' + fold + '"]');
       window.scrollTo(0, window.scrollY + t.getBoundingClientRect().top + 30);   // its top 30px above the screen
     }, fold);
     await page.waitForTimeout(250);
     const before = await inView(page, false);
-    assert.equal(before.items[0] && before.items[0].key, 'data-iso=' + fold, label + ': fixture did not put the 14th first in view');
+    assert.equal(before.items[0] && before.items[0].key, 'data-iso=' + fold, label + ': fixture did not put day ' + FOLD + ' first in view');
     await refresh(page, state);
     const after = await inView(page, false);
-    assert(await page.evaluate(fold => !document.querySelector('#calBody [data-iso="' + fold + '"]').getClientRects().length, fold), label + ': the 14th never folded away');
+    assert(await page.evaluate(fold => !document.querySelector('#calBody [data-iso="' + fold + '"]').getClientRects().length, fold), label + ': day ' + FOLD + ' never folded away');
     return 'scrollY ' + Math.round(before.scrollY) + ' -> ' + Math.round(after.scrollY) + ', ' + await assertOthersStill(page, label, before, 'data-iso=' + fold, 3);
   }],
 ];

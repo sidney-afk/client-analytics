@@ -20,7 +20,7 @@ const { serveStatic } = require('../docs/syncview-design/tests/prod-test-utils.j
 const { seedStaffGate } = require('../qa/staff-gate-seed.js');
 
 const SLUG = 'sidneylaruel';
-const NAME = 'Sidney Laruel';
+const NAME = 'Test Client';
 const SHOTS = process.env.CAPTION_WHEEL_SHOT_DIR || '';
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS' };
 const LONG = Array.from({ length: 70 }, (_, i) => `Line ${i + 1} of a fictional test caption about a lighthouse keeper who collects lost umbrellas.`).join('\n');

@@ -3317,7 +3317,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     /* Work item hover card on the SyncLinear sub-issue link (2026-10). Shows
        the deliverable's identifier, title, status and how long it has been in
        it, assignee, due date (red when late) and last update. Data: one small
-       read of production_deliverables_browser_v1 for every deliverable id on
+       read of the deliverables browser view for every deliverable id on
        the open calendar, cached for two minutes; names from the staff roster
        the app already caches. Hovering never makes a request per card. */
     const _CAL_WORK_TTL = 120000;

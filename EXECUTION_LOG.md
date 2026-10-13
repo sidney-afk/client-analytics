@@ -6925,3 +6925,6 @@ One branch; no merge, deploy or database/workflow change. Calendar/Samples retai
 ### 2026-10-12 — staff phone Tabs grid (built, not merged/deployed)
 
 The reviewer icon grid is shared by every staff phone Tabs sheet, with native order/actions/current state and common Close. The Production fast job is explicitly deferred for this branch because it remains live-reading. Native fictional proof and exact check tails: `docs/audits/2026-10-12-staff-tabs-grid/README.md`.
+### 2026-10-13 — owner phone round 2 (built, not merged/deployed)
+
+Staff client selection is first in Tabs; More is grouped with native tools/sign out retained. Phone-only palette overrides and cropped thumbnails are corrected; every shared status-sheet variant has tap/drag/keyboard dismissal. Fictional proof and limits: `docs/audits/2026-10-13-phone-round-2/README.md`. PTO's complete mocked packet is regenerated and visually reviewed under CI's preload. Hosted unscoped Production reads are deferred for this branch. No backend mutation, merge or deployment.

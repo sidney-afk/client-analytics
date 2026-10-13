@@ -5,6 +5,9 @@ const {chromium}=require('playwright');
 const staff=require('../docs/syncview-design/tests/staff-phone-browser');
 const {seedStaffGate}=require('./staff-gate-seed');
 const {prepare}=require('./staff-phone-final-pass');
+const sourceRoot=path.resolve(__dirname,'..');
+const constructors=['130-calendar-model-cache.js.part','170-calendar-links-status.js.part','270-samples-model.js.part'].map(file=>(fs.readFileSync(path.join(sourceRoot,'src/index',file),'utf8').match(/className\s*=\s*['"]cal-fld-status-menu['"]/g)||[]).length);
+assert.deepEqual(constructors,[1,2,2],'A new shared-sheet constructor needs dismissal coverage');
 const arg=(k,d)=>process.argv.find(s=>s.startsWith('--'+k+'='))?.slice(k.length+3)||d;
 const before=process.argv.includes('--baseline'),out=arg('out',''),widths=arg('widths','390').split(',').map(Number);
 const receipt=[],sheetChecks=[],failures=[],matrix=process.argv.includes('--matrix');
@@ -19,7 +22,7 @@ async function main(){
  try{for(const width of widths)for(const theme of ['light','dark']){
   staff.resetScenario();const context=await browser.newContext({viewport:{width,height:844},isMobile:true,hasTouch:true});
   await staff.installBackend(context);await seedStaffGate(context);
-  await context.route('https://images.example.invalid/**',r=>r.fulfill({status:200,contentType:'image/svg+xml',body:media}));
+  await context.route('https://images.example.invalid/**',r=>r.fulfill({status:200,contentType:'image/svg+xml',body:r.request().url().includes('landscape')?media.replace('width="1080" height="1920"','width="1920" height="1080"'):r.request().url().includes('square')?media.replace('width="1080" height="1920"','width="1080" height="1080"'):media}));
   await context.addInitScript(t=>localStorage.setItem('syncview_theme',t),theme);
   const page=await context.newPage();
   try{
@@ -69,6 +72,11 @@ async function main(){
      await page.setViewportSize({width:1024,height:844});await page.waitForTimeout(400);
      assert.equal(await page.locator('.sv-phone-more-icon,[data-sv-phone-original-label],.sv-phone-sheet-handle').count(),0,'Phone adornments leaked after resize');
      await page.setViewportSize({width,height:844});await page.waitForTimeout(400);
+     for(const shape of ['portrait','landscape','square']){
+      await prepare(page,surface+'-sheet');await page.evaluate(({surface,shape})=>{(surface==='samples'?sxrState:calState).posts[0].thumbnail_url='https://images.example.invalid/'+shape+'.png';surface==='samples'?_sxrRenderBody():_calRenderBody();},{surface,shape});
+      const image=page.locator('.cal-card-thumb > img').first();await image.scrollIntoViewIfNeeded();await image.evaluate(n=>n.decode());
+      const box=await image.evaluate(n=>{const r=n.getBoundingClientRect();return {ratio:r.width/r.height,natural:n.naturalWidth/n.naturalHeight,fit:getComputedStyle(n).objectFit};});assert.equal(box.fit,'contain');assert(Math.abs(box.ratio-box.natural)<.01,surface+' '+shape+' thumbnail stretched');
+     }
     }
    }
    receipt.push({width,theme});console.log('ok round-two '+width+' '+theme);

@@ -33028,3 +33028,7 @@ Brain side: `POLICY/brain-keeper.md` still says "SyncView does not show it" abou
 
 The Calendar, Samples and other staff Tabs menus used plain rows while the reviewer used an icon grid. All staff phone menus now share the reviewer grid, native order/actions, current selection, consistent spacing and Close. Overview/client rows retain their existing reviewer context. Phone-only source fragments were built; fictional native checks and exact desktop comparisons are recorded in [the evidence packet](../audits/2026-10-12-staff-tabs-grid/README.md). The existing live Production fast CI lane is explicitly deferred on this branch to uphold the read boundary. No merge/deploy/backend mutation.
 
+## 414. [2026-10-13, BUILT, NOT MERGED, NOT DEPLOYED] Owner phone round 2
+
+Client selection is first in staff Tabs; More groups appearance, tools and sign out. Phone-only neutral status overrides and cropped thumbnail styling are corrected. The shared status sheet's decorative handle now closes by tap/drag with native cleanup. [Native fictional-data proof and limits](../audits/2026-10-13-phone-round-2/README.md). PTO evidence is regenerated and reviewed under CI's single-file preload. The unscoped live Production PR lane is explicitly deferred; no merge, deployment or backend change.
+

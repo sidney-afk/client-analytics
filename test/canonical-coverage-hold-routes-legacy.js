@@ -264,6 +264,10 @@ function makeApp(opts, source) {
     extractFunction('_calAutoResolveDestStatus', source),
     extractFunction('_calResolveLastTweak', source),
     extractFunction('_calToggleCommentDone', source),
+    // Present since OPEN_REPAIRS 414; absent in the older sources this suite replays.
+    source.includes('function _calCanonicalCrosswalkPending(')
+      ? extractFunction('_calCanonicalCrosswalkPending', source)
+      : 'function _calCanonicalCrosswalkPending() { return false; }',
   ].join('\n'), env);
   return env;
 }

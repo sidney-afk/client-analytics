@@ -31,6 +31,7 @@ import {
   normalizeBrowserWriteClient,
 } from "../_shared/browser-write-auth.ts";
 import { findClientFolder, parseAudience, parseBrainFacts, parseBrief } from "./parse.mjs";
+import { recordChange as recordBrainChange } from "./change.mjs";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -42,7 +43,6 @@ const CORS: Record<string, string> = {
 };
 const FILES = ["identity", "voice", "editing", "relationship"];
 const CACHE_MS = 3 * 60 * 1000;
-const MAX_CHANGE_CHARS = 8000;
 const cache = new Map<string, { at: number; body: unknown }>();
 let folderCache: { at: number; names: string[] } | null = null;
 
@@ -109,57 +109,19 @@ async function readClient(slug: string) {
   return body;
 }
 
-function b64(s: string): string {
-  const bytes = new TextEncoder().encode(s);
-  let bin = "";
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin);
-}
-
-function oneLine(v: unknown, max = 200): string {
-  return String(v == null ? "" : v).replace(/[\r\n]+/g, " ").trim().slice(0, max);
-}
-
 async function recordChange(slug: string, body: Record<string, unknown>, principal: { actor: string; role: string }) {
-  const text = String(body.text == null ? "" : body.text).replace(/\r\n/g, "\n").trim();
-  if (!text) return json({ ok: false, error: "text_required" }, 400);
-  if (text.length > MAX_CHANGE_CHARS) return json({ ok: false, error: "text_too_long" }, 400);
-  const folder = findClientFolder(await clientFolders(), slug);
-  const now = new Date();
-  const stamp = now.toISOString().replace(/[:.]/g, "-");
-  const id = crypto.randomUUID().slice(0, 8);
-  const target = folder || `unmatched-${slug}`;
-  const path = `inputs/syncview-changes/${stamp.slice(0, 10)}-${target}-${id}.md`;
-  const factId = oneLine(body.factId, 160);
-  const heading = oneLine(body.heading, 160);
-  const sender = oneLine(body.from, 80);
-  const md = [
-    `# SyncView change for ${target}`,
-    "",
-    `- received: ${now.toISOString()}`,
-    `- client slug: ${slug}`,
-    `- brain folder: ${folder || "none found, a person must place this"}`,
-    `- fact id: ${factId || "none (new fact or general note)"}`,
-    `- fact heading: ${heading || "none"}`,
-    `- sent by (as typed): ${sender || "not given"}`,
-    `- SyncView role: ${principal.role}`,
-    "",
-    "## What they sent, word for word",
-    "",
-    text,
-    "",
-  ].join("\n");
-  const r = await gh(`contents/${path}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      message: `SyncView change for ${target}${factId ? ` (${factId})` : ""}`,
-      content: b64(md),
-      branch: Deno.env.get("BRAIN_BRANCH") || "main",
-    }),
+  const result = await recordBrainChange({
+    slug,
+    text: body.text,
+    factId: body.factId,
+    heading: body.heading,
+    from: body.from,
+    role: principal.role,
+    folders: await clientFolders(),
+    gh,
+    branch: Deno.env.get("BRAIN_BRANCH") || "main",
   });
-  if (!r.ok) throw new Error(`brain_write_${r.status}`);
-  return json({ ok: true, received: now.toISOString(), path });
+  return json(result, result.ok ? 200 : 400);
 }
 
 async function recentFolders(db: SupabaseClient, slug: string) {

@@ -11,8 +11,8 @@ assert.doesNotMatch(dry, /\bbody\b|author_name/, 'the dry run never selects note
 assert.match(dry, /count\(\*\)/);
 assert.throws(() => r.build(['--apply']), /needs --client/, 'apply needs an explicit scope');
 assert.throws(() => r.build(['--client=x\'; drop']), /bad --client/);
-const apply = r.build(['--apply', '--client=sidneylaruel']);
-assert.match(apply, /p\.client = 'sidneylaruel'/);
+const apply = r.build(['--apply', '--client=fixture-client']);
+assert.match(apply, /p\.client = 'fixture-client'/);
 assert.doesNotMatch(apply, /(resolved_at|deleted_at)\s*=\s*null/i, 'apply never clears resolved_at or deleted_at');
 assert.match(apply, /p\.want_resolve and c\.resolved_at is null and c\.deleted_at is null/);
 assert.match(apply, /p\.want_delete and c\.deleted_at is null/);

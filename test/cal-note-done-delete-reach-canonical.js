@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
+require('./helpers/single-file-index.js');
 const INDEX = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const { extractFunction } = require('./helpers/extract-function.js');
 

@@ -746,7 +746,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                            first, exactly as _calResolveLastTweak does, and stop if
                            any resolve is refused. */
                         if (_prodCanonicalCommentGate(post, comp).linked) {
-                            _calReviewResolveCanonical(post, comp, ids).then(ok => {
+                            _calReviewResolveCanonical(post, comp, ids, pickDest).then(ok => {
                                 if (!ok) return;
                                 if (pickDest === 'stay') {
                                     _calRefreshCommentsBtn(pid);
@@ -775,11 +775,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }
         _calReviewApplyApprove(pid, comp, dest);
     }
-    async function _calReviewResolveCanonical(post, comp, ids) {
+    async function _calReviewResolveCanonical(post, comp, ids, dest) {
         for (const id of (Array.isArray(ids) ? ids : [])) {
             const comment = _calCommentsFor(post, comp).find(row => row && row.id === id && !row.parent_id);
             if (!comment || comment.done || comment.deleted) continue;
-            const receipt = await _writeUiCommitCardCommentLifecycle('calendar', post, comp, comment, 'resolve');
+            const receipt = await _writeUiCommitCardCommentLifecycle(
+                'calendar', post, comp, comment, 'resolve', undefined, { resolveDestination: dest }
+            );
             if (!receipt) return false;
         }
         await _writeUiPersistCanonicalCommentProjection('calendar', post, comp);

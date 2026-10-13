@@ -1,69 +1,455 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Messages inbox</title><link rel="stylesheet" href="mock.css">
-<style>
-.tabs{display:flex;gap:4px;padding:10px 14px;border-bottom:1px solid var(--line);overflow-x:auto}
-.tab{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:9px;font-weight:600;color:var(--muted);white-space:nowrap}
-.tab.on{background:var(--soft);color:var(--text)}.tab .n{font-size:11px;background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:0 6px;color:var(--muted)}
-.tab .count{height:18px;min-width:18px}
-.inbox{display:grid;grid-template-columns:340px 1fr;height:640px}
-.list{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
-.list .tools{padding:10px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--line)}
-.search{border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:7px 10px;color:var(--muted)}
-.filters{display:flex;gap:6px;flex-wrap:wrap}.filters span{font-size:12px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}.filters span.on{background:var(--text);color:var(--card);border-color:var(--text)}
-.convs{overflow:auto}.conv{display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer}
-.conv:focus-visible,.back:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}.conv.active{background:var(--accent-soft)}.ci{flex:1;min-width:0}.t1{display:flex;justify-content:space-between;font-size:13px}.t1 span{color:var(--muted);font-size:12px}
-.t2{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.t3{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.t3.u{color:var(--text);font-weight:600}
-.chat{display:flex;flex-direction:column;min-height:0}
-.chead{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}.chead .back{display:none;font-size:20px;color:var(--accent)}
-.chead .sub{font-size:12px;color:var(--muted)}.chead .open{margin-left:auto;font-size:12px}
-.bubbles{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--bg)}
-.day{align-self:center;font-size:11px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:2px 10px}
-.b{max-width:72%;display:flex;flex-direction:column;gap:3px}.b .who{font-size:11px;color:var(--muted);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.b .txt{padding:9px 12px;border-radius:16px 16px 16px 4px;background:var(--card);border:1px solid var(--line)}
-.b.me{align-self:flex-end;align-items:flex-end}.b.me .txt{background:var(--me);color:var(--me-fg);border-color:var(--me);border-radius:16px 16px 4px 16px}
-.b.toclient .txt{border:1.5px dashed var(--client)}
-.quote{font-size:12px;border-left:3px solid var(--line);padding-left:8px;color:var(--muted);margin-bottom:4px}
-.b.me .quote{border-color:rgba(255,255,255,.4);color:inherit;opacity:.75}
-.newline{display:flex;align-items:center;gap:8px;color:var(--unread);font-size:12px;font-weight:700}.newline:before,.newline:after{content:"";flex:1;height:1px;background:var(--unread)}
-body.phone .inbox{grid-template-columns:1fr;height:700px}body.phone .chat{display:none}body.phone.chatopen .list{display:none}body.phone.chatopen .chat{display:flex}body.phone .chead .back{display:block}
-body.phone .tabs .lbl-long{display:none}
-</style></head><body>
-<div class="bar"><h1>Kasper · Messages</h1><div class="seg"><button data-theme="light" onclick="mockTheme('light')">Light</button><button data-theme="dark" onclick="mockTheme('dark')">Dark</button></div>
-<div class="seg"><button data-device="desktop" onclick="mockDevice('desktop')">Desktop</button><button data-device="phone" onclick="mockDevice('phone')">Phone</button></div>
-<div class="seg"><button data-state="unread" onclick="mockState('unread')">Unread</button><button data-state="empty" onclick="mockState('empty')">Empty</button><button data-state="long" onclick="mockState('long')">Long thread</button></div>
-<a href="index.html">All mockups</a></div>
-<div class="stage"><div class="frame">
-<div class="tabs"><span class="tab">Review <span class="n">6</span></span><span class="tab on">Messages <span class="count" data-show="unread long">3</span><span class="n" data-show="empty">0</span></span><span class="tab">Filming <span class="n">2</span></span><span class="tab">Time off <span class="n">1</span></span></div>
-<div class="inbox">
-<div class="list"><div class="tools"><div class="search">Search conversations</div>
-<div class="filters"><span class="on">All</span><span>Unread · 3</span><span>To me</span><span>Change requests</span></div></div>
-<div class="convs" data-show="unread long"><div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openChat()}" class="conv active" onclick="openChat()"><span class="thumb "></span><div class="ci"><div class="t1"><b>Sample Bakery</b><span>09:20</span></div><div class="t2">Morning routine, 3 swaps</div><div class="t3 u">Mia: Kasper, can this go out Friday…</div></div><span class="count">2</span></div>
-<div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openChat()}" class="conv" onclick="openChat()"><span class="thumb b"></span><div class="ci"><div class="t1"><b>Northside Gym</b><span>08:47</span></div><div class="t2">Leg day myths</div><div class="t3 u"><span class="chip tweak">Change</span> Client: The intro feels too long</div></div><span class="count">1</span></div>
-<div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openChat()}" class="conv" onclick="openChat()"><span class="thumb c"></span><div class="ci"><div class="t1"><b>Green Leaf Cafe</b><span>Yesterday</span></div><div class="t2">Thumbnail test B</div><div class="t3 u">Alex: Which of the two covers?</div></div><span class="dot"></span></div>
-<div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openChat()}" class="conv" onclick="openChat()"><span class="thumb d"></span><div class="ci"><div class="t1"><b>Sample Bakery</b><span>Mon</span></div><div class="t2">Behind the counter</div><div class="t3">You: Looks good, ship it</div></div></div>
-<div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openChat()}" class="conv" onclick="openChat()"><span class="thumb b"></span><div class="ci"><div class="t1"><b>Northside Gym</b><span>Sun</span></div><div class="t2">Coach Q&amp;A part 2</div><div class="t3">Client: Thanks team!</div></div></div></div>
-<div class="convs" data-show="empty"><div class="empty"><b>You're all caught up</b>New notes to you, client comments and change requests show up here.</div></div>
+<!doctype html>
+<html lang="en" data-staff-role="admin"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
+    <title>SyncView</title>
+    <link rel="icon" type="image/png" href="../../../../syncview-favicon.png">
+    <!-- Pre-paint boot gate. The static <body> markup is the staff analytics
+         dashboard, but the code that reroutes special entries (onboarding
+         forms, ?intake=1, ?c= client links, the password gate, hash-tab
+         refreshes) sits at the END of the ~30k-line app script — so without
+         this, every one of those entries flashes the SyncView header +
+         "Client Analytics" chrome before the right view mounts. This script
+         re-derives the same boot mode from the URL + storage and tags <html>
+         (which exists from the first byte — tagging <body> is too late: a
+         paint can slip in between <body> being created and a body-start
+         script running) so the CSS gate rules (see "Pre-paint boot gate" in
+         the style block) suppress the wrong chrome from the very first
+         paint. The app script lifts each tag at the exact point its own
+         show/hide logic takes over: data-boot-nav in navTo()/render() and
+         init()'s catch and boot-gate in _syncviewLiftStaffGate(); boot-client,
+         boot-onboarding, and boot-intake are permanent document-owner locks,
+         like the body.onboarding-mode/.intake-mode classes they anticipate. Must
+         never throw and never log — headless probes boot this file
+         unauthenticated + offline and fail on any console error. -->
+        
+
+    <link rel="preconnect" href="https://uzltbbrjidmjwwfakwve.supabase.co">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link rel="preconnect" href="https://docs.google.com">
+    <link rel="preconnect" href="https://synchrosocial.app.n8n.cloud">
+    <!-- NOT render-blocking, and the reason is measured rather than assumed.
+         A stylesheet in the head blocks every script that follows it, and a
+         `defer` script blocks DOMContentLoaded by spec — so the font link and
+         the Chart.js tag below were, between them, holding first paint hostage
+         to TWO third-party CDNs. With both reachable that costs a few hundred
+         ms; with either slow or blocked (a corporate proxy, an ISP hiccup, a
+         CDN outage, ordinary bad wifi) the app cannot reach DOM-ready at all.
+         Measured 2026-08-26 with both CDNs unreachable: 12,906ms -> 349ms.
+         Neither change helps alone; both are required, which is why they are
+         one commit. `display=swap` is already set, so text paints in the
+         fallback face and swaps when the webfont lands. -->
+    <link rel="stylesheet" media="all" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"></noscript>
+    <!-- async, NOT defer. The intent below was always "must not block first
+         paint", but `defer` does not achieve it: a deferred script runs before
+         DOMContentLoaded and therefore gates it. `async` takes it off that path
+         entirely. Safe because the retry the old comment already describes is
+         real — `_chartReady` polls for up to 6s and every call site guards on
+         `typeof Chart === 'undefined'`, so a chart that renders before the CDN
+         answers simply waits instead of throwing. -->
+    
+    <link rel="stylesheet" href="app.css">
+<style type="text/css">/* NEW PARTS ONLY (2026-10 Notes + Messages proposal). Everything else on these
+   screens is the live app's own CSS. Uses the app's tokens, so dark mode
+   follows the app's own html[data-theme="dark"] values. */
+.cal-cm-to-tag { display:inline-flex; align-items:center; gap:3px; flex-shrink:0; font-size:0.62rem; font-weight:700; padding:1px 6px; border-radius:99px; }
+.cal-cm-to-tag svg { width:10px; height:10px; }
+.cal-cm-to-tag.is-team { background:var(--sv-bg-rgba-139-92-246-0_12, rgba(139,92,246,.12)); color:var(--sv-fg-8b5cf6, #8b5cf6); }
+.cal-cm-to-tag.is-client { background:rgba(37,99,235,.12); color:#2563eb; }
+html[data-theme="dark"] .cal-cm-to-tag.is-client { color:#7aa7ff; background:rgba(122,167,255,.14); }
+.cal-cm-aud-btn[disabled] { opacity:.4; cursor:not-allowed; }
+.cal-cm-client-warn { font-size:0.72rem; color:#2563eb; padding:0 4px 8px; font-weight:600; }
+html[data-theme="dark"] .cal-cm-client-warn { color:#7aa7ff; }
+.cal-cm-composer.is-to-client { border-color:#2563eb; }
+.cal-cm-composer.is-tweak { border-color:var(--cal-notes-accent); }
+.cal-cm-row.is-unread .cal-cm-time::after { content:''; display:inline-block; width:7px; height:7px; margin-left:6px; border-radius:50%; background:var(--cal-notes-dot-bg); vertical-align:middle; }
+.cal-cm-older { text-align:center; font-size:0.72rem; font-weight:600; color:var(--text-muted); padding:4px 0 10px; }
+/* Messages inbox */
+.msg-inbox { display:grid; grid-template-columns:340px 1fr; height:calc(100vh - 250px); min-height:520px; border:1px solid var(--border); border-radius:14px; overflow:hidden; background:var(--white); }
+.msg-list { border-right:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
+.msg-filters { display:flex; gap:6px; padding:10px 12px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+.msg-filters button { font:inherit; font-size:0.74rem; font-weight:600; padding:4px 10px; border-radius:99px; border:1px solid var(--border); background:transparent; color:var(--text-secondary); }
+.msg-filters button.is-active { background:var(--text-primary); color:var(--white); border-color:var(--text-primary); }
+.msg-convs { overflow:auto; flex:1; }
+.msg-conv { display:flex; gap:10px; align-items:center; width:100%; text-align:left; font:inherit; color:inherit; background:none; border:0; border-bottom:1px solid var(--border-light, var(--border)); padding:10px 12px; cursor:pointer; }
+.msg-conv.is-active { background:var(--cal-notes-open-bg); }
+.msg-conv img { width:40px; height:50px; border-radius:7px; object-fit:cover; flex-shrink:0; }
+.msg-conv-main { flex:1; min-width:0; display:block; }
+.msg-conv-main > span { display:block; }
+.msg-conv-main > .msg-conv-top { display:flex; justify-content:space-between; gap:8px; font-size:0.8rem; font-weight:700; color:var(--text-primary); }
+.msg-conv-top span { font-weight:500; color:var(--text-muted); font-size:0.72rem; white-space:nowrap; }
+.msg-conv-sub { font-size:0.72rem; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.msg-conv-last { font-size:0.78rem; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+.msg-conv.is-unread .msg-conv-last { color:var(--text-primary); font-weight:600; }
+.msg-unread { min-width:18px; height:18px; padding:0 5px; border-radius:99px; background:var(--cal-notes-dot-bg); color:#fff; font-size:0.66rem; font-weight:700; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+.msg-chat { display:flex; flex-direction:column; min-height:0; }
+.msg-chat-head { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); }
+.msg-chat-head img { width:32px; height:40px; border-radius:6px; object-fit:cover; }
+.msg-chat-title { font-weight:700; font-size:0.9rem; color:var(--text-primary); }
+.msg-chat-sub { font-size:0.72rem; color:var(--text-muted); }
+.msg-chat-actions { margin-left:auto; display:flex; gap:6px; }
+.msg-chat-actions button { font:inherit; font-size:0.74rem; font-weight:600; padding:6px 10px; border-radius:8px; border:1px solid var(--border); background:var(--white); color:var(--text-primary); }
+.msg-back { display:none; font:inherit; font-size:1.3rem; line-height:1; border:0; background:none; color:var(--cal-notes-accent); padding:0 4px; }
+.msg-bubbles { flex:1; overflow:auto; padding:14px 16px; display:flex; flex-direction:column; gap:10px; background:var(--bg); }
+.msg-day { align-self:center; font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; }
+.msg-new { display:flex; align-items:center; gap:8px; color:var(--cal-notes-accent); font-size:0.7rem; font-weight:700; }
+.msg-new::before, .msg-new::after { content:''; flex:1; height:1px; background:var(--cal-notes-accent); }
+.msg-b { max-width:70%; display:flex; flex-direction:column; gap:3px; align-self:flex-start; }
+.msg-b-meta { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:0.7rem; color:var(--text-muted); }
+.msg-b-meta b { color:var(--text-primary); font-size:0.74rem; }
+.msg-b-meta .cal-cm-comp-label { margin-left:0; }
+.msg-b-text { background:var(--white); border:1px solid var(--border); padding:8px 12px; border-radius:14px 14px 14px 4px; font-size:0.86rem; color:var(--text-primary); line-height:1.4; }
+.msg-b.is-me { align-self:flex-end; align-items:flex-end; }
+.msg-b.is-me .msg-b-text { background:var(--text-primary); color:var(--white); border-color:var(--text-primary); border-radius:14px 14px 4px 14px; }
+.msg-b-quote { font-size:0.72rem; opacity:.7; border-left:2px solid currentColor; padding-left:6px; margin-bottom:3px; }
+.msg-reply { padding:10px 14px 14px; border-top:1px solid var(--border); background:var(--white); }
+.msg-reply-cap { font-size:0.72rem; color:var(--text-muted); padding:0 4px 8px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.kasper-tab-count.is-unread { background:var(--cal-notes-dot-bg); color:#fff; }
+@media (max-width:767px) {
+  .msg-inbox { grid-template-columns:1fr; height:calc(100vh - 210px); }
+  .msg-inbox .msg-chat { display:none; }
+  .msg-inbox.is-chat-open .msg-list { display:none; }
+  .msg-inbox.is-chat-open .msg-chat { display:flex; }
+  .msg-back { display:inline-block; }
+  .msg-b { max-width:86%; }
+  .msg-chat-actions button span { display:none; }
+  .msg-chat-sub, .msg-reply-why { display:none; }
+  .msg-chat-title { font-size:0.84rem; }
+}
+/* Client: new messages strip */
+.cal-new-msgs-strip { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 14px; padding:10px 14px; border-radius:12px; background:var(--cal-notes-open-bg); border:1px solid var(--cal-notes-accent); color:var(--cal-notes-accent-fg); font-weight:700; font-size:0.86rem; }
+.cal-new-msgs-strip .cal-comments-dot { position:static; }
+.cal-new-msgs-strip button { margin-left:auto; font:inherit; font-size:0.8rem; font-weight:700; padding:6px 12px; border-radius:8px; border:0; background:var(--cal-notes-accent); color:#fff; }
+</style><style type="text/css">*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}</style></head>
+<body class="sv-shared-client">
+<!-- Confirmation modal -->
+<div class="confirm-overlay" id="confirmOverlay" data-backdrop-dismiss="">
+    <div class="confirm-box">
+        <div class="confirm-box-title" id="confirmTitle">Are you sure?</div>
+        <div class="confirm-box-msg" id="confirmMsg">This will replace the current content.</div>
+        <label class="confirm-box-check" id="confirmCheckWrap" hidden="">
+            <input type="checkbox" id="confirmCheck" style=""><span id="confirmCheckLabel"></span>
+        </label>
+        <div class="confirm-box-actions">
+            <button class="brief-action-btn">Cancel</button>
+            <button class="brief-action-btn primary" id="confirmYes">Regenerate</button>
+        </div>
+    </div>
 </div>
-<div class="chat">
-<div class="chead"><button type="button" aria-label="Back to conversations" class="back" style="border:0;background:none;cursor:pointer" onclick="document.body.classList.remove('chatopen')">‹</button><span class="thumb" style="width:34px;height:42px"></span><div><b>Morning routine, 3 swaps</b><div class="sub">Sample Bakery · Video tweaks needed · Thumbnail with client</div></div><a class="open" href="notes-panel.html">Open card</a></div>
-<div class="bubbles" data-show="unread long">
- <div class="day" data-show="long">↑ Load 14 earlier messages</div>
- <div class="day">Tuesday</div>
- <div class="b"><div class="who"><span class="avatar smm" style="width:20px;height:20px;font-size:9px;border-radius:6px">AL</span>Alex · SMM <span class="chip">Video</span><span class="chip tweak">Change request · round 2</span></div><div class="txt">Cut the first 2 seconds, the hook starts late.</div></div>
- <div class="b me"><div class="who"><span class="chip team"><svg class="lock" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg> Team only</span>You · 11:40</div><div class="txt"><div class="quote">Cut the first 2 seconds…</div>Agree. Also lift the music under the voice.</div></div>
- <div class="b me toclient"><div class="who"><span class="chip">Caption</span><span class="chip client">Client can see</span>You (shown as Synchro team) · 12:05</div><div class="txt">Updated the caption with your opening hours.</div></div>
- <div class="day">Today</div>
- <div class="newline">2 new</div>
- <div class="b toclient"><div class="who"><span class="avatar c" style="width:20px;height:20px;font-size:9px;border-radius:6px">JR</span>Jo · Client <span class="chip">Thumbnail</span><span class="chip client">Client can see</span> 09:03</div><div class="txt">Love this one! Could the text be a bit bigger?</div></div>
- <div class="b"><div class="who"><span class="avatar smm" style="width:20px;height:20px;font-size:9px;border-radius:6px">MI</span>Mia · SMM <span class="chip">Whole post</span><span class="chip team"><svg class="lock" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg> To you</span> 09:20</div><div class="txt">Kasper, can this go out Friday instead of Thursday?</div></div>
+
+<!-- Resolve-and-route chooser. Opened when the SMM routes a component onward —
+     either by marking the last open change-request done (Notes modal) or by
+     approving it in the Review tab. It resolves the open change-requests she
+     ticks and routes the component to Kasper, the client, or straight to
+     Approved. The ✕ (and a backdrop click) just close it — closing is
+     non-destructive, since nothing is applied until a route is picked. -->
+<div class="confirm-overlay" id="resolveDestOverlay" data-backdrop-dismiss="">
+    <div class="confirm-box resolve-dest-box">
+        <button type="button" class="resolve-dest-close" id="resolveDestClose" aria-label="Close" title="Close">
+            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9"></path></svg>
+        </button>
+        <div id="resolveDestMain">
+            <div class="confirm-box-title">Tweaks resolved — where to next?</div>
+            <div class="confirm-box-msg" id="resolveDestMsg">Send this for approval.</div>
+            <div class="resolve-dest-checklist" id="resolveDestChecklist" hidden=""></div>
+            <div class="confirm-box-actions resolve-dest-actions">
+                <button class="brief-action-btn" type="button" id="resolveDestKasper">Kasper approval</button>
+                <button class="brief-action-btn" type="button" id="resolveDestClient">Client approval</button>
+                <button class="brief-action-btn" type="button" id="resolveDestApprove">Approve</button>
+            </div>
+            <button type="button" class="resolve-dest-stay" id="resolveDestStay" title="Mark these tweaks as done. The card stays in its stage.">Mark done — don’t change the status</button>
+        </div>
+    </div>
 </div>
-<div class="bubbles" data-show="empty"><div class="empty"><b>No conversation open</b>Pick a conversation on the left.</div></div>
-<div class="composer" data-show="unread long">
- <div class="row"><span class="cap">Replying to <b>Mia</b> · Whole post · <span class="chip team"><svg class="lock" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg> Team only</span></span><span class="cap" style="margin-left:auto">Audience and part follow the thread</span></div>
- <div class="row" style="flex-wrap:nowrap"><textarea style="min-height:44px" placeholder="Reply…"></textarea><button class="btn primary">Send</button></div>
- <div class="row"><span class="cap">Or start a new note on this post:</span><span class="chip">Comment</span><span class="chip">Request change</span></div>
+
+<!-- Staff sign-in gate. Opaque cover shown until a staff identity is admitted.
+     The sign-in card itself is rendered on top of this by
+     _syncviewOpenStaffIdentity({ entry: true }) once the roster loads. -->
+<div id="staffGateOverlay" style="display: none;">
+    <div class="staff-gate-inner">
+        <img src="../../../../syncview-favicon.png" alt="SyncView">
+        <div>
+            <div class="staff-gate-title">Welcome to SyncView</div>
+            <div class="staff-gate-note" id="staffGateNote">Preparing secure sign-in…</div>
+        </div>
+        <button class="cal-import-btn-primary staff-gate-retry" type="button" id="staffGateRetry" hidden="">Try again</button>
+    </div>
 </div>
-</div></div></div></div>
-<p class="note">One conversation per post. The same messages appear in the card's Notes panel. Opening a conversation marks it read for Kasper on every device. Phone: tap a conversation to open it, ‹ to go back. Tab pill counts conversations with unread messages. Sample names and text only.</p>
-<script>function openChat(){document.body.classList.add('chatopen')}</script>
-<script src="mock.js"></script></body></html>
+
+<!-- Quick jump (096-quick-jump): "/" then "client tab", Enter. -->
+<div class="sv-jump" id="svJump" hidden="" data-wired="1">
+    <div class="sv-jump-box" role="dialog" aria-label="Quick jump">
+        <input type="text" class="sv-jump-input" id="svJumpInput" placeholder="Client and tab, like “calendar” or a client name…" autocomplete="off" role="combobox" aria-expanded="true" aria-controls="svJumpList" aria-label="Quick jump" style="">
+        <div class="sv-jump-list" id="svJumpList" role="listbox"></div>
+        <div class="sv-jump-foot"><span><kbd>↑</kbd><kbd>↓</kbd> choose</span><span><kbd>Enter</kbd> go</span><span><kbd>Esc</kbd> close</span></div>
+    </div>
+</div>
+
+<header class="header" style="display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;gap:12px;">
+    <a class="logo" href="/" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
+        <img src="../../../../syncview-favicon.png" alt="SyncView">
+        <span class="logo-text">SyncView</span>
+    </a>
+    <!-- Shared client picker (095-shared-client), owner-approved 2026-09-27:
+         one small first-name dropdown after the logo, on every staff tab so
+         the tabs never move; never on client links. -->
+    <div class="sv-client-pick" id="svClientBar" data-wired="1">
+        <div class="sv-client-badge-wrap" id="svClientBadgeWrap">
+            <button type="button" class="sv-client-badge" id="svClientBadge" aria-haspopup="listbox" aria-expanded="false" aria-label="Pick a client" data-sv-current="" title="Pick a client">
+                <span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>
+                <span id="svClientBadgeLabel">Client</span>
+                <svg class="sv-client-chev" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"></path></svg>
+            </button>
+            <div class="sv-client-pop" id="svClientPop" hidden="">
+                <div class="sv-client-searchrow">
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"></circle><path d="m10.5 10.5 3 3"></path></svg>
+                    <input type="text" class="sv-client-search" id="svClientSearch" placeholder="Search clients" autocomplete="off" aria-label="Search clients" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="svClientResults" style="">
+                </div>
+                <div class="sv-client-results" id="svClientResults"></div>
+            </div>
+        </div>
+        <button type="button" class="sv-jump-touch" aria-label="Quick jump to a client and tab"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"></circle><path d="m10.5 10.5 3 3"></path></svg></button>
+    </div>
+    <div class="header-nav pill-ready" id="headerNav">
+        <span class="header-nav-pill" aria-hidden="true" style="width: 82px; height: 31px; transform: translate(946px, 1px);"></span>
+        <a class="header-nav-btn" id="navToday" href="/today" title="Today" aria-label="Today">
+            <span class="header-nav-ico ico-today" aria-hidden="true"></span>
+            Today
+        </a>
+        <a class="header-nav-btn" id="navCalendar" href="/calendar" title="Calendar" aria-label="Calendar">
+            <span class="header-nav-ico ico-calendar" aria-hidden="true"></span>
+            Calendar
+        </a>
+        <!-- >>> SXR_BEGIN (nav) -->
+        <a class="header-nav-btn" id="navSxr" href="/sample-reviews" style="" title="Samples" aria-label="Samples">
+            <span class="header-nav-ico ico-samples" aria-hidden="true"></span>
+            Samples
+        </a>
+        <!-- <<< SXR_END -->
+        <a class="header-nav-btn" id="navTemplates" href="/templates" title="Templates" aria-label="Templates">
+            <span class="header-nav-ico ico-templates" aria-hidden="true"></span>
+            Templates
+        </a>
+        <a class="header-nav-btn" id="navFilmingPlans" title="Filming Plans" aria-label="Filming Plans" href="/filming-plans">
+            <span class="header-nav-ico ico-filmingplans" aria-hidden="true"></span>
+            Filming
+        </a>
+        <a class="header-nav-btn" id="navTiktokUpload" title="TikTok Upload" aria-label="TikTok Upload" href="/tiktok-upload">
+            <span class="header-nav-ico ico-tiktok" aria-hidden="true"></span>
+            TikTok
+        </a>
+        <a class="header-nav-btn" id="navHome" href="/" title="Analytics" aria-label="Analytics">
+            <span class="header-nav-ico ico-analytics" aria-hidden="true"></span>
+            Analytics
+        </a>
+        <!-- Tab row labels (owner, 2026-09-28): Filming, TikTok and Linear are short so the
+             admin row keeps full labels at 1366/1440px; title and aria-label keep the full names. -->
+        <!-- The six tabs above follow the shared top-bar client; the team tabs below ignore it. -->
+        <span class="header-nav-sep" aria-hidden="true"></span>
+        <a class="header-nav-btn" id="navWorkload" href="/workload" title="Workload" aria-label="Workload">
+            <span class="header-nav-ico ico-workload" aria-hidden="true"></span>
+            Workload
+        </a>
+        <a class="header-nav-btn" id="navProd" title="SyncLinear" aria-label="SyncLinear" href="/synclinear">
+            <span class="header-nav-ico ico-synclinear" aria-hidden="true"></span>
+            Linear
+        </a>
+        <a class="header-nav-btn" id="navLinear" href="/submit" title="Submit" aria-label="Submit">
+            <span class="header-nav-ico ico-submit" aria-hidden="true"></span>
+            Submit
+        </a>
+        <a class="header-nav-btn active" id="navKasper" href="/kasper" style="" title="Kasper" aria-label="Kasper">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.5"></circle></svg>
+            Kasper
+        </a>
+    </div>
+    <div class="header-actions">
+        <div class="staff-identity-wrap" id="staffIdentityWrap">
+            <button class="theme-toggle staff-identity-btn is-valid" id="headerMenuButton" type="button" title="Staff menu: QA Staff, Admin" aria-label="Staff menu: QA Staff, Admin" aria-haspopup="menu" aria-expanded="false">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="5.3" r="2.5" stroke="currentColor" stroke-width="1.45"></circle><path d="M3.2 13.2c.35-2.35 2.1-3.7 4.8-3.7s4.45 1.35 4.8 3.7" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"></path></svg>
+            </button>
+            <div class="staff-account-popover" id="staffAccountPopover" role="menu" aria-labelledby="headerMenuButton" hidden="">
+                <div class="staff-account-summary" id="staffAccountSummary" role="presentation" aria-hidden="true"></div>
+                <div class="staff-account-sep" role="separator"></div>
+                <button class="staff-account-action" id="staffIdentitySignOut" type="button" role="menuitem">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="5.3" r="2.5"></circle><path d="M3.2 13.2c.35-2.35 2.1-3.7 4.8-3.7s4.45 1.35 4.8 3.7"></path></svg>
+                    <span id="staffIdentityMenuLabel">Staff sign in</span>
+                </button>
+                <button class="staff-account-action" id="headerTimeOffMenuItem" type="button" role="menuitem" hidden="">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.25" y="3.25" width="11.5" height="10.5" rx="1.6"></rect><path d="M2.5 6.5h11M5 1.8v3M11 1.8v3"></path><path d="m5.2 9 1.4 1.4 3.4-3.2"></path></svg>
+                    <span>Time Off</span>
+                </button>
+                <button class="staff-account-action" id="headerOnboardingMenuItem" type="button" role="menuitem" data-staff-capability="onboarding">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2.5h6l2.5 2.5v8.3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"></path><path d="M9.5 2.5V5h2.5"></path><path d="M6 8.2h4M6 10.6h4"></path></svg>
+                    <span>Onboarding</span>
+                </button>
+                <button class="staff-account-action" id="headerCredentialsMenuItem" type="button" role="menuitem" data-staff-capability="credentials">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="7" width="11" height="7" rx="1.4"></rect><path d="M5 7V5.2a3 3 0 0 1 6 0V7"></path><path d="M8 10v1.5"></path></svg>
+                    <span>Client Credentials</span>
+                </button>
+                <button class="staff-account-action" id="themeToggle" type="button" role="menuitemcheckbox" title="Switch to dark mode" aria-label="Switch to dark mode" aria-pressed="false" aria-checked="false">
+                    <svg class="theme-icon-moon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.2 10.4A5.8 5.8 0 0 1 5.6 2.8 5.8 5.8 0 1 0 13.2 10.4Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></svg>
+                    <svg class="theme-icon-sun" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="3.1" stroke="currentColor" stroke-width="1.6"></circle><path d="M8 1.8V3M8 13v1.2M13 8h1.2M1.8 8H3M11.7 4.3l.8-.8M3.5 12.5l.8-.8M11.7 11.7l.8.8M3.5 3.5l.8.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+                    <span class="staff-account-action-copy"><span id="themeToggleLabel">Dark mode</span><span class="staff-account-action-note">Adjust SyncView's appearance</span></span>
+                    <span class="staff-account-action-state" id="themeToggleState">Off</span>
+                </button>
+                <button class="staff-account-action palette-toggle" id="statusPaletteToggle" type="button" role="menuitemcheckbox" title="Use the old status colors" aria-label="Use the old status colors" aria-pressed="false" aria-checked="false">
+                    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1.1" stroke="currentColor" stroke-width="1.35"></rect><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1.1" fill="currentColor"></rect><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1.1" fill="currentColor"></rect><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1.1" stroke="currentColor" stroke-width="1.35"></rect></svg>
+                    <span class="staff-account-action-copy"><span>Original status colors</span><span class="staff-account-action-note">Use the classic workflow palette</span></span>
+                    <span class="staff-account-action-state" id="statusPaletteToggleState">Off</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</header>
+<main class="main" id="mainWrap">
+    <div class="page-top overview-mode" id="pageTop" style="display: none;">
+        <div>
+            <div class="page-title-row" id="titleRow">
+                <div class="page-title" id="pageTitle">Client Analytics</div>
+            </div>
+            <div class="page-sub" id="pageSub">Instagram · TikTok · YouTube</div>
+        </div>
+        <div class="selector-wrap" id="selectorWrap">
+            <div class="search-bar-wrap" id="searchWrap">
+                <div class="search-bar-pill">
+                    <input class="search-bar-input" id="searchInput" type="text" placeholder="Search clients…" autocomplete="off" style="">
+                    <div class="search-ghost-overlay" id="searchGhost"></div>
+                    <button class="search-bar-icon" title="Search">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"></circle><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+                    </button>
+                </div>
+                <div class="search-dropdown" id="searchBox">
+                    <div id="searchResults"></div>
+                </div>
+            </div>
+        </div>
+        <div class="pins-area" id="pinsArea"><div class="pins-row" id="pinsRow"></div><div class="pins-add-row" id="pinsAddRow"><button class="pin-add-btn" title="Pin a client"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M5 1h6v1l-1 4 2 2v1H9v5l-1 1-1-1V9H3V8l2-2L4 2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"></path><line x1="8" y1="9" x2="8" y2="15" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></line></svg> Pin client <span style="opacity:0.6;font-size:0.68rem;">0/3</span></button><div class="pin-selector-dropdown" id="pinSelectorDropdown"><div class="pin-selector-header"><span class="pin-selector-title">Pin a client</span><div style="display:flex;align-items:center;gap:8px;"><span class="pin-selector-count">0 / 3</span><button style="background:none;border:none;cursor:pointer;color:var(--text-muted);display:inline-flex;align-items:center;padding:0;transition:color 0.13s;" id="pinDropCloseBtn" title="Close"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></line><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></line></svg></button></div></div><div class="pin-selector-list" id="pinSelectorList"></div></div></div></div>
+    </div>
+    <div id="content"><div class="kasper-wrap">
+            <div class="kasper-head">
+                <div class="kasper-title">Kasper</div>
+                <div class="kasper-sub">Things waiting for your call.</div>
+            </div>
+            <nav class="kasper-subtabs" aria-label="Kasper sections">
+                
+            <button type="button" class="kasper-subtab kasper-primary-tab" data-kasper-tab="review" title="Review Session">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8s2.2-4.5 6-4.5S14 8 14 8s-2.2 4.5-6 4.5S2 8 2 8z"></path><circle cx="8" cy="8" r="2"></circle></svg><span class="kasper-tab-label-full">Review Session</span><span class="kasper-tab-label-short">Review</span><span class="kasper-tab-count" data-kasper-count="review">0</span>
+            </button>
+            <button type="button" class="kasper-subtab kasper-primary-tab active" data-kasper-tab="replies" title="Messages" aria-current="page">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"></path></svg><span class="kasper-tab-label-full">Messages</span><span class="kasper-tab-label-short">Messages</span><span class="kasper-tab-count is-unread" data-kasper-count="replies">3</span>
+            </button>
+            <button type="button" class="kasper-subtab kasper-primary-tab" data-kasper-tab="filming" title="Filming Plans">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="8.5" height="7" rx="1.2"></rect><path d="M11 7l2.5-1.6v5.2L11 9z"></path></svg><span class="kasper-tab-label-full">Filming Plans</span><span class="kasper-tab-label-short">Filming</span><span class="kasper-tab-count" data-kasper-count="filming">·</span>
+            </button>
+                <div class="kasper-more">
+                    <button type="button" class="kasper-subtab kasper-more-trigger" data-kasper-more-trigger="" aria-haspopup="menu" aria-expanded="false" aria-controls="kasperMoreMenu" title="More sections" aria-label="More">
+                        <span class="kasper-more-icon" data-kasper-more-icon="" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="3" cy="8" r=".8" fill="currentColor" stroke="none"></circle><circle cx="8" cy="8" r=".8" fill="currentColor" stroke="none"></circle><circle cx="13" cy="8" r=".8" fill="currentColor" stroke="none"></circle><circle cx="8" cy="8" r="6.5"></circle></svg></span>
+                        <span data-kasper-more-label="">More</span>
+                        <span class="kasper-tab-count kasper-more-count" data-kasper-more-count="" hidden="" aria-label="notifications">0</span>
+                        <svg class="kasper-more-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"></path></svg>
+                    </button>
+                    <div class="kasper-more-menu" id="kasperMoreMenu" role="menu" aria-label="More Kasper sections" hidden="">
+                        <div class="kasper-more-group" role="presentation">
+                <div class="kasper-more-heading">Team</div>
+                
+            <button type="button" class="kasper-subtab kasper-more-item" data-kasper-tab="editors" role="menuitem" tabindex="-1" title="Editors">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3.5" width="12" height="9" rx="1.4"></rect><path d="M2 6h12M2 10h12M4.5 3.5v9M11.5 3.5v9"></path></svg><span class="kasper-tab-label-full">Editors</span><span class="kasper-tab-label-short">Editors</span>
+            </button>
+            </div><div class="kasper-more-group" role="presentation">
+                <div class="kasper-more-heading">Pipeline &amp; Admin</div>
+                
+            <button type="button" class="kasper-subtab kasper-more-item" data-kasper-tab="sales-intake" role="menuitem" tabindex="-1" title="Sales Intake">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h7l3 3V13.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"></path><path d="M8 6v5M6.3 10.1c.4.5 1 .8 1.7.8 1 0 1.7-.5 1.7-1.3 0-1.6-3.3-.9-3.3-2.5 0-.8.7-1.3 1.6-1.3.7 0 1.3.3 1.6.7"></path></svg><span class="kasper-tab-label-full">Sales Intake</span><span class="kasper-tab-label-short">Sales Intake</span>
+            </button>
+            <button type="button" class="kasper-subtab kasper-more-item" data-kasper-tab="hiring-process" data-staff-capability="hiring" role="menuitem" tabindex="-1" title="Hiring Process">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13.5V3.8A1.3 1.3 0 0 1 4.3 2.5h7.4A1.3 1.3 0 0 1 13 3.8v9.7"></path><path d="M5.2 6.2h5.6M5.2 8.7h5.6M5.2 11.2h3"></path><circle cx="12.5" cy="12.5" r="2.1"></circle><path d="m11.6 12.5.6.6 1.3-1.4"></path></svg><span class="kasper-tab-label-full">Hiring Process</span><span class="kasper-tab-label-short">Hiring Process</span>
+            </button>
+            <button type="button" class="kasper-subtab kasper-more-item" data-kasper-tab="onboarding" data-staff-capability="onboarding" role="menuitem" tabindex="-1" title="Onboarding">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h6l2.5 2.5v8.3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"></path><path d="M9.5 2.5V5h2.5"></path><path d="M6 8.2h4M6 10.6h4"></path></svg><span class="kasper-tab-label-full">Onboarding</span><span class="kasper-tab-label-short">Onboarding</span><span class="kasper-tab-count" data-kasper-count="onboarding" data-kasper-hide-zero="" hidden="">0</span>
+            </button>
+            <button type="button" class="kasper-subtab kasper-more-item" data-kasper-tab="quiz-leads" data-staff-capability="quiz-leads" role="menuitem" tabindex="-1" title="Quiz Leads">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8s2.2-4.5 6-4.5S14 8 14 8s-2.2 4.5-6 4.5S2 8 2 8z"></path><path d="M6.3 6.6a1.7 1.7 0 1 1 2.2 1.6c-.5.2-.8.6-.8 1.1"></path><circle cx="8" cy="10.6" r=".2" fill="currentColor"></circle></svg><span class="kasper-tab-label-full">Quiz Leads</span><span class="kasper-tab-label-short">Quiz Leads</span>
+            </button>
+            <button type="button" class="kasper-subtab kasper-more-item" data-kasper-tab="client-credentials" data-staff-capability="credentials" role="menuitem" tabindex="-1" title="Client Credentials">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="11" height="7" rx="1.4"></rect><path d="M5 7V5.2a3 3 0 0 1 6 0V7"></path><path d="M8 10v1.5"></path></svg><span class="kasper-tab-label-full">Client Credentials</span><span class="kasper-tab-label-short">Client Credentials</span>
+            </button>
+            <button type="button" class="kasper-subtab kasper-more-item" data-kasper-tab="clients" data-staff-capability="clients-admin" role="menuitem" tabindex="-1" title="Clients">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5.5" r="2.5"></circle><path d="M1.5 13.5c.6-2.4 2.4-3.8 4.5-3.8s3.9 1.4 4.5 3.8"></path><path d="M10.5 3.2a2.4 2.4 0 0 1 0 4.6M12.2 9.9c1.2.5 2 1.7 2.3 3.6"></path></svg><span class="kasper-tab-label-full">Clients</span><span class="kasper-tab-label-short">Clients</span>
+            </button>
+            <button type="button" class="kasper-subtab kasper-more-item" data-kasper-tab="save-problems" data-staff-capability="clients-admin" role="menuitem" tabindex="-1" title="Save problems">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.2 14 13H2z"></path><path d="M8 6.5v3"></path><circle cx="8" cy="11.3" r=".2" fill="currentColor"></circle></svg><span class="kasper-tab-label-full">Save problems</span><span class="kasper-tab-label-short">Save problems</span>
+            </button>
+            </div><div class="kasper-more-group" role="presentation">
+                <div class="kasper-more-heading">Analytics</div>
+                
+            <button type="button" class="kasper-subtab kasper-more-item" data-kasper-tab="ad-performance" role="menuitem" tabindex="-1" title="Ad Performance">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13.5h12"></path><rect x="3.3" y="8.5" width="2.3" height="5"></rect><rect x="6.85" y="5.5" width="2.3" height="8"></rect><rect x="10.4" y="3" width="2.3" height="10.5"></rect></svg><span class="kasper-tab-label-full">Ad Performance</span><span class="kasper-tab-label-short">Ad Performance</span>
+            </button>
+            </div>
+                    </div>
+                </div>
+            </nav>
+            <div id="kasperContent"><div class="msg-inbox">
+      <div class="msg-list"><div class="msg-filters"><button type="button" class="is-active">All</button><button type="button">Unread · 3</button><button type="button">Change requests</button></div><div class="msg-convs"><button type="button" class="msg-conv is-active is-unread"><img alt="" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2ZjZDM0ZCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2Y5NzMxNiIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSI3NDAiIGN5PSI0MjAiIHI9IjIwMCIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iLjI1Ii8+PC9zdmc+"><span class="msg-conv-main"><span class="msg-conv-top">Sample Bakery<span>11:00</span></span><span class="msg-conv-sub">Morning routine, 3 swaps</span><span class="msg-conv-last">Mia: Can this one go out Friday instead of Thursday?</span></span><span class="msg-unread">2</span></button><button type="button" class="msg-conv is-unread"><img alt="" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2E1YjRmYyIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzYzNjZmMSIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSI3NDAiIGN5PSI0MjAiIHI9IjIwMCIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iLjI1Ii8+PC9zdmc+"><span class="msg-conv-main"><span class="msg-conv-top">Northside Gym<span>10:47</span></span><span class="msg-conv-sub">Leg day myths</span><span class="msg-conv-last">Client: The intro feels too long</span></span><span class="msg-unread">1</span></button><button type="button" class="msg-conv is-unread"><img alt="" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzg2ZWZhYyIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzBkOTQ4OCIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSI3NDAiIGN5PSI0MjAiIHI9IjIwMCIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iLjI1Ii8+PC9zdmc+"><span class="msg-conv-main"><span class="msg-conv-top">Green Leaf Cafe<span>Yesterday</span></span><span class="msg-conv-sub">Thumbnail test B</span><span class="msg-conv-last">Alex: Which of the two covers?</span></span><span class="msg-unread">1</span></button><button type="button" class="msg-conv"><img alt="" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2Y5YThkNCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2JlMTg1ZCIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSI3NDAiIGN5PSI0MjAiIHI9IjIwMCIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iLjI1Ii8+PC9zdmc+"><span class="msg-conv-main"><span class="msg-conv-top">Sample Bakery<span>Mon</span></span><span class="msg-conv-sub">Behind the counter</span><span class="msg-conv-last">You: Looks good, ship it</span></span></button><button type="button" class="msg-conv"><img alt="" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2ZkZTY4YSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2Q5NzcwNiIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSI3NDAiIGN5PSI0MjAiIHI9IjIwMCIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iLjI1Ii8+PC9zdmc+"><span class="msg-conv-main"><span class="msg-conv-top">Northside Gym<span>Sun</span></span><span class="msg-conv-sub">Coach Q&amp;A part 2</span><span class="msg-conv-last">Client: Thanks team!</span></span></button></div></div>
+      <div class="msg-chat">
+        <div class="msg-chat-head"><button type="button" class="msg-back" aria-label="Back to conversations">‹</button><img alt="" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2ZjZDM0ZCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2Y5NzMxNiIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSI3NDAiIGN5PSI0MjAiIHI9IjIwMCIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iLjI1Ii8+PC9zdmc+"><div><div class="msg-chat-title">Morning routine, 3 swaps</div><div class="msg-chat-sub">Sample Bakery · Video: Tweaks needed</div></div>
+          <div class="msg-chat-actions"><button type="button" title="Mark as unread">●<span> Mark as unread</span></button><button type="button">Open card</button></div></div>
+        <div class="msg-bubbles"><div class="msg-day">Wednesday</div><div class="msg-b"><div class="msg-b-meta"><b>Alex</b><span>SMM</span><span class="cal-cm-comp-label cal-cm-comp-video">Video</span><span class="cal-cm-type-tag is-tweak">Change request #2</span><span class="cal-cm-to-tag is-team"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"></rect><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"></path></svg>To Kasper / team</span><span>10:00</span></div><div class="msg-b-text">Cut the first 2 seconds, the hook starts late.</div></div><div class="msg-b is-me"><div class="msg-b-meta"><b>You</b><span>12:00</span></div><div class="msg-b-text"><div class="msg-b-quote">Cut the first 2 seconds…</div>Agree. Also lift the music under the voice.</div></div><div class="msg-day">Today</div><div class="msg-new">2 new</div><div class="msg-b"><div class="msg-b-meta"><b>Client</b><span class="cal-cm-comp-label cal-cm-comp-graphic">Thumbnail</span><span class="cal-cm-to-tag is-client">To client</span><span>08:00</span></div><div class="msg-b-text">Love this one! Could the text be a bit bigger?</div></div><div class="msg-b"><div class="msg-b-meta"><b>Mia</b><span>SMM</span><span class="cal-cm-comp-label cal-cm-comp-video">Video</span><span class="cal-cm-to-tag is-team"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"></rect><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"></path></svg>To Kasper / team</span><span>11:00</span></div><div class="msg-b-text">Can this one go out Friday instead of Thursday?</div></div></div>
+        <div class="msg-reply"><div class="msg-reply-cap">Replying to <b>Mia</b> <span class="cal-cm-comp-label cal-cm-comp-video">Video</span> <span class="cal-cm-to-tag is-team"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"></rect><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"></path></svg>To Kasper / team</span> <span class="msg-reply-why">· a reply keeps the thread's part and audience</span></div>
+          <div class="cal-cm-composer"><textarea class="cal-cm-textarea" rows="1" placeholder="Reply…" style="flex: 1 1 0%; border: 0px; background: transparent; resize: none; font: inherit; color: inherit; outline: 0px; min-height: 22px;"></textarea><button type="button" class="cal-cm-send" aria-label="Send"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"></path></svg></button></div></div>
+      </div></div></div>
+            <div class="kasper-lightbox" id="kasperLightbox">
+                <img alt="">
+                <button class="kasper-lightbox-close" type="button" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"></path></svg></button>
+            </div>
+        </div></div>
+</main>
+
+
+<!-- Transcript preview modal -->
+<div id="transcriptOverlay" class="transcript-overlay" data-backdrop-dismiss="">
+    <div class="transcript-modal">
+        <div class="transcript-modal-header">
+            <div>
+                <div class="transcript-modal-title" id="transcriptModalTitle">Transcript</div>
+                <div class="transcript-modal-meta" id="transcriptModalMeta"></div>
+            </div>
+            <button class="transcript-modal-close">
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>
+            </button>
+        </div>
+        <div class="transcript-modal-body" id="transcriptModalBody"></div>
+    </div>
+</div>
+
+<!-- ── App auto-update nudge ──────────────────────────────────────────────
+     SyncView is a single index.html on GitHub Pages with no build step, so a
+     browser tab left open keeps running whatever version it loaded — a new
+     deploy is NOT picked up until the page is reloaded. SMMs (and clients) keep
+     the tab open for days, so they can silently run stale code: e.g. a thumbnail
+     rendering change that shipped after they last loaded looks "broken" to them
+     while everyone on a fresh load sees it work. This polls the deployed file's
+     version token (the GitHub Pages ETag / Last-Modified, which changes on every
+     deploy) and, when it changes, acts on the reader's behalf.
+
+     WHAT IT DOES DEPENDS ON WHERE THE READER IS (owner ruling, 2026-08-24):
+     *"a tab should reload itself when a new version is shipped, if it's in the
+     background. But if someone is in the tab, then they should just propose to
+     reload it."* A backgrounded tab is the one nobody is looking at and the one
+     that goes stale for days, so it reloads itself; a tab someone is actually
+     in only ever gets the bar.
+
+     The self-reload is conditional, and deliberately so. A reader who tabs away
+     mid-compose has left work in the page that a reload would silently destroy,
+     and they would come back to an empty form with no explanation — a worse
+     failure than the staleness this exists to fix. So a hidden tab reloads only
+     when nothing typed is uncommitted and nothing is open on top of the page;
+     otherwise it falls back to the bar, which is waiting when they return. -->
+
+
+
+<div style="position:fixed;right:12px;bottom:12px;z-index:2147483647;max-width:420px;font:12px/1.4 system-ui,sans-serif;background:#111;color:#fff;padding:8px 10px;border-radius:8px;opacity:.9">Kasper, Messages tab: unread conversations · light · static copy of the real page, new parts added</div></body></html>

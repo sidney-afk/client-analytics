@@ -1,0 +1,71 @@
+/* NEW PARTS ONLY (2026-10 Notes + Messages proposal). Everything else on these
+   screens is the live app's own CSS. Uses the app's tokens, so dark mode
+   follows the app's own html[data-theme="dark"] values. */
+.cal-cm-to-tag { display:inline-flex; align-items:center; gap:3px; flex-shrink:0; font-size:0.62rem; font-weight:700; padding:1px 6px; border-radius:99px; }
+.cal-cm-to-tag svg { width:10px; height:10px; }
+.cal-cm-to-tag.is-team { background:var(--sv-bg-rgba-139-92-246-0_12, rgba(139,92,246,.12)); color:var(--sv-fg-8b5cf6, #8b5cf6); }
+.cal-cm-to-tag.is-client { background:rgba(37,99,235,.12); color:#2563eb; }
+html[data-theme="dark"] .cal-cm-to-tag.is-client { color:#7aa7ff; background:rgba(122,167,255,.14); }
+.cal-cm-aud-btn[disabled] { opacity:.4; cursor:not-allowed; }
+.cal-cm-client-warn { font-size:0.72rem; color:#2563eb; padding:0 4px 8px; font-weight:600; }
+html[data-theme="dark"] .cal-cm-client-warn { color:#7aa7ff; }
+.cal-cm-composer.is-to-client { border-color:#2563eb; }
+.cal-cm-composer.is-tweak { border-color:var(--cal-notes-accent); }
+.cal-cm-row.is-unread .cal-cm-time::after { content:''; display:inline-block; width:7px; height:7px; margin-left:6px; border-radius:50%; background:var(--cal-notes-dot-bg); vertical-align:middle; }
+.cal-cm-older { text-align:center; font-size:0.72rem; font-weight:600; color:var(--text-muted); padding:4px 0 10px; }
+/* Messages inbox */
+.msg-inbox { display:grid; grid-template-columns:340px 1fr; height:calc(100vh - 250px); min-height:520px; border:1px solid var(--border); border-radius:14px; overflow:hidden; background:var(--white); }
+.msg-list { border-right:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
+.msg-filters { display:flex; gap:6px; padding:10px 12px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+.msg-filters button { font:inherit; font-size:0.74rem; font-weight:600; padding:4px 10px; border-radius:99px; border:1px solid var(--border); background:transparent; color:var(--text-secondary); }
+.msg-filters button.is-active { background:var(--text-primary); color:var(--white); border-color:var(--text-primary); }
+.msg-convs { overflow:auto; flex:1; }
+.msg-conv { display:flex; gap:10px; align-items:center; width:100%; text-align:left; font:inherit; color:inherit; background:none; border:0; border-bottom:1px solid var(--border-light, var(--border)); padding:10px 12px; cursor:pointer; }
+.msg-conv.is-active { background:var(--cal-notes-open-bg); }
+.msg-conv img { width:40px; height:50px; border-radius:7px; object-fit:cover; flex-shrink:0; }
+.msg-conv-main { flex:1; min-width:0; display:block; }
+.msg-conv-main > span { display:block; }
+.msg-conv-main > .msg-conv-top { display:flex; justify-content:space-between; gap:8px; font-size:0.8rem; font-weight:700; color:var(--text-primary); }
+.msg-conv-top span { font-weight:500; color:var(--text-muted); font-size:0.72rem; white-space:nowrap; }
+.msg-conv-sub { font-size:0.72rem; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.msg-conv-last { font-size:0.78rem; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+.msg-conv.is-unread .msg-conv-last { color:var(--text-primary); font-weight:600; }
+.msg-unread { min-width:18px; height:18px; padding:0 5px; border-radius:99px; background:var(--cal-notes-dot-bg); color:#fff; font-size:0.66rem; font-weight:700; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+.msg-chat { display:flex; flex-direction:column; min-height:0; }
+.msg-chat-head { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); }
+.msg-chat-head img { width:32px; height:40px; border-radius:6px; object-fit:cover; }
+.msg-chat-title { font-weight:700; font-size:0.9rem; color:var(--text-primary); }
+.msg-chat-sub { font-size:0.72rem; color:var(--text-muted); }
+.msg-chat-actions { margin-left:auto; display:flex; gap:6px; }
+.msg-chat-actions button { font:inherit; font-size:0.74rem; font-weight:600; padding:6px 10px; border-radius:8px; border:1px solid var(--border); background:var(--white); color:var(--text-primary); }
+.msg-back { display:none; font:inherit; font-size:1.3rem; line-height:1; border:0; background:none; color:var(--cal-notes-accent); padding:0 4px; }
+.msg-bubbles { flex:1; overflow:auto; padding:14px 16px; display:flex; flex-direction:column; gap:10px; background:var(--bg); }
+.msg-day { align-self:center; font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; }
+.msg-new { display:flex; align-items:center; gap:8px; color:var(--cal-notes-accent); font-size:0.7rem; font-weight:700; }
+.msg-new::before, .msg-new::after { content:''; flex:1; height:1px; background:var(--cal-notes-accent); }
+.msg-b { max-width:70%; display:flex; flex-direction:column; gap:3px; align-self:flex-start; }
+.msg-b-meta { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:0.7rem; color:var(--text-muted); }
+.msg-b-meta b { color:var(--text-primary); font-size:0.74rem; }
+.msg-b-meta .cal-cm-comp-label { margin-left:0; }
+.msg-b-text { background:var(--white); border:1px solid var(--border); padding:8px 12px; border-radius:14px 14px 14px 4px; font-size:0.86rem; color:var(--text-primary); line-height:1.4; }
+.msg-b.is-me { align-self:flex-end; align-items:flex-end; }
+.msg-b.is-me .msg-b-text { background:var(--text-primary); color:var(--white); border-color:var(--text-primary); border-radius:14px 14px 4px 14px; }
+.msg-b-quote { font-size:0.72rem; opacity:.7; border-left:2px solid currentColor; padding-left:6px; margin-bottom:3px; }
+.msg-reply { padding:10px 14px 14px; border-top:1px solid var(--border); background:var(--white); }
+.msg-reply-cap { font-size:0.72rem; color:var(--text-muted); padding:0 4px 8px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.kasper-tab-count.is-unread { background:var(--cal-notes-dot-bg); color:#fff; }
+@media (max-width:767px) {
+  .msg-inbox { grid-template-columns:1fr; height:calc(100vh - 210px); }
+  .msg-inbox .msg-chat { display:none; }
+  .msg-inbox.is-chat-open .msg-list { display:none; }
+  .msg-inbox.is-chat-open .msg-chat { display:flex; }
+  .msg-back { display:inline-block; }
+  .msg-b { max-width:86%; }
+  .msg-chat-actions button span { display:none; }
+  .msg-chat-sub, .msg-reply-why { display:none; }
+  .msg-chat-title { font-size:0.84rem; }
+}
+/* Client: new messages strip */
+.cal-new-msgs-strip { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 14px; padding:10px 14px; border-radius:12px; background:var(--cal-notes-open-bg); border:1px solid var(--cal-notes-accent); color:var(--cal-notes-accent-fg); font-weight:700; font-size:0.86rem; }
+.cal-new-msgs-strip .cal-comments-dot { position:static; }
+.cal-new-msgs-strip button { margin-left:auto; font:inherit; font-size:0.8rem; font-weight:700; padding:6px 12px; border-radius:8px; border:0; background:var(--cal-notes-accent); color:#fff; }

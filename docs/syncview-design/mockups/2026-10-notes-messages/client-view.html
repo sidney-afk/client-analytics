@@ -1,42 +1,494 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Client review link</title><link rel="stylesheet" href="mock.css">
-<style>
-.top{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}.top b{font-size:16px}
-.strip{margin:14px 18px 0;padding:10px 14px;border-radius:12px;background:var(--client-soft);color:var(--client);display:flex;align-items:center;gap:10px;font-weight:600;flex-wrap:wrap}
-.strip .btn{margin-left:auto;padding:6px 10px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;padding:18px}
-.card{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card)}.card .m{height:200px}
-.card .i{padding:10px;display:flex;flex-direction:column;gap:8px}.card .row{display:flex;gap:6px;align-items:center;justify-content:space-between}
-.notesbtn{position:relative;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;background:var(--card);color:var(--text)}
-.notesbtn.has{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}.notesbtn .dot{position:absolute;top:-4px;right:-4px}
-.pop{margin:0 18px 18px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.pop .h{padding:10px 14px;border-bottom:1px solid var(--line);font-weight:700}
-.pop .t{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
-.msg{display:flex;gap:8px}.msg .meta{font-size:12px;color:var(--muted)}.msg .meta b{color:var(--text)}
-.newline{display:flex;align-items:center;gap:8px;color:var(--unread);font-size:12px;font-weight:700}.newline:before,.newline:after{content:"";flex:1;height:1px;background:var(--unread)}
-.hiddennote{font-size:12px;color:var(--muted);border:1px dashed var(--line);border-radius:8px;padding:8px}
-body.phone .grid{grid-template-columns:1fr}
-</style></head><body>
-<div class="bar"><h1>Client link</h1><div class="seg"><button data-theme="light" onclick="mockTheme('light')">Light</button><button data-theme="dark" onclick="mockTheme('dark')">Dark</button></div>
-<div class="seg"><button data-device="desktop" onclick="mockDevice('desktop')">Desktop</button><button data-device="phone" onclick="mockDevice('phone')">Phone</button></div>
-<div class="seg"><button data-state="unread" onclick="mockState('unread')">New messages</button><button data-state="empty" onclick="mockState('empty')">Nothing new</button></div>
-<a href="index.html">All mockups</a></div>
-<div class="stage"><div class="frame">
-<div class="top"><b>Sample Bakery · October content</b><span class="chip" style="margin-left:auto">3 to review</span></div>
-<div class="strip" data-show="unread"><span class="dot" style="background:var(--client)"></span>2 new messages from the Synchro team<button class="btn client" onclick="document.getElementById('pop').scrollIntoView({behavior:'smooth'})">Show me</button></div>
-<div class="grid">
- <div class="card"><div class="m thumb" style="width:auto;height:200px;border-radius:0"></div><div class="i"><b>Morning routine, 3 swaps</b><div class="row"><span class="chip">Waiting for you</span><span class="notesbtn has" data-show="unread">Notes 4<span class="dot"></span></span><span class="notesbtn" data-show="empty">Notes 4</span></div></div></div>
- <div class="card"><div class="m thumb b" style="width:auto;height:200px;border-radius:0"></div><div class="i"><b>Behind the counter</b><div class="row"><span class="chip">Waiting for you</span><span class="notesbtn has" data-show="unread">Notes 1<span class="dot"></span></span><span class="notesbtn" data-show="empty">Notes 1</span></div></div></div>
- <div class="card"><div class="m thumb c" style="width:auto;height:200px;border-radius:0"></div><div class="i"><b>Weekend specials</b><div class="row"><span class="chip">Approved</span><span class="notesbtn">Notes</span></div></div></div>
+<!doctype html>
+<html lang="en" class="boot-client"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
+    <title>SyncView</title>
+    <link rel="icon" type="image/png" href="../../../../syncview-favicon.png">
+    <!-- Pre-paint boot gate. The static <body> markup is the staff analytics
+         dashboard, but the code that reroutes special entries (onboarding
+         forms, ?intake=1, ?c= client links, the password gate, hash-tab
+         refreshes) sits at the END of the ~30k-line app script — so without
+         this, every one of those entries flashes the SyncView header +
+         "Client Analytics" chrome before the right view mounts. This script
+         re-derives the same boot mode from the URL + storage and tags <html>
+         (which exists from the first byte — tagging <body> is too late: a
+         paint can slip in between <body> being created and a body-start
+         script running) so the CSS gate rules (see "Pre-paint boot gate" in
+         the style block) suppress the wrong chrome from the very first
+         paint. The app script lifts each tag at the exact point its own
+         show/hide logic takes over: data-boot-nav in navTo()/render() and
+         init()'s catch and boot-gate in _syncviewLiftStaffGate(); boot-client,
+         boot-onboarding, and boot-intake are permanent document-owner locks,
+         like the body.onboarding-mode/.intake-mode classes they anticipate. Must
+         never throw and never log — headless probes boot this file
+         unauthenticated + offline and fail on any console error. -->
+        
+
+    <link rel="preconnect" href="https://uzltbbrjidmjwwfakwve.supabase.co">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link rel="preconnect" href="https://docs.google.com">
+    <link rel="preconnect" href="https://synchrosocial.app.n8n.cloud">
+    <!-- NOT render-blocking, and the reason is measured rather than assumed.
+         A stylesheet in the head blocks every script that follows it, and a
+         `defer` script blocks DOMContentLoaded by spec — so the font link and
+         the Chart.js tag below were, between them, holding first paint hostage
+         to TWO third-party CDNs. With both reachable that costs a few hundred
+         ms; with either slow or blocked (a corporate proxy, an ISP hiccup, a
+         CDN outage, ordinary bad wifi) the app cannot reach DOM-ready at all.
+         Measured 2026-08-26 with both CDNs unreachable: 12,906ms -> 349ms.
+         Neither change helps alone; both are required, which is why they are
+         one commit. `display=swap` is already set, so text paints in the
+         fallback face and swaps when the webfont lands. -->
+    <link rel="stylesheet" media="all" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"></noscript>
+    <!-- async, NOT defer. The intent below was always "must not block first
+         paint", but `defer` does not achieve it: a deferred script runs before
+         DOMContentLoaded and therefore gates it. `async` takes it off that path
+         entirely. Safe because the retry the old comment already describes is
+         real — `_chartReady` polls for up to 6s and every call site guards on
+         `typeof Chart === 'undefined'`, so a chart that renders before the CDN
+         answers simply waits instead of throwing. -->
+    
+    <link rel="stylesheet" href="app.css">
+<style type="text/css">/* NEW PARTS ONLY (2026-10 Notes + Messages proposal). Everything else on these
+   screens is the live app's own CSS. Uses the app's tokens, so dark mode
+   follows the app's own html[data-theme="dark"] values. */
+.cal-cm-to-tag { display:inline-flex; align-items:center; gap:3px; flex-shrink:0; font-size:0.62rem; font-weight:700; padding:1px 6px; border-radius:99px; }
+.cal-cm-to-tag svg { width:10px; height:10px; }
+.cal-cm-to-tag.is-team { background:var(--sv-bg-rgba-139-92-246-0_12, rgba(139,92,246,.12)); color:var(--sv-fg-8b5cf6, #8b5cf6); }
+.cal-cm-to-tag.is-client { background:rgba(37,99,235,.12); color:#2563eb; }
+html[data-theme="dark"] .cal-cm-to-tag.is-client { color:#7aa7ff; background:rgba(122,167,255,.14); }
+.cal-cm-aud-btn[disabled] { opacity:.4; cursor:not-allowed; }
+.cal-cm-client-warn { font-size:0.72rem; color:#2563eb; padding:0 4px 8px; font-weight:600; }
+html[data-theme="dark"] .cal-cm-client-warn { color:#7aa7ff; }
+.cal-cm-composer.is-to-client { border-color:#2563eb; }
+.cal-cm-composer.is-tweak { border-color:var(--cal-notes-accent); }
+.cal-cm-row.is-unread .cal-cm-time::after { content:''; display:inline-block; width:7px; height:7px; margin-left:6px; border-radius:50%; background:var(--cal-notes-dot-bg); vertical-align:middle; }
+.cal-cm-older { text-align:center; font-size:0.72rem; font-weight:600; color:var(--text-muted); padding:4px 0 10px; }
+/* Messages inbox */
+.msg-inbox { display:grid; grid-template-columns:340px 1fr; height:calc(100vh - 250px); min-height:520px; border:1px solid var(--border); border-radius:14px; overflow:hidden; background:var(--white); }
+.msg-list { border-right:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
+.msg-filters { display:flex; gap:6px; padding:10px 12px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+.msg-filters button { font:inherit; font-size:0.74rem; font-weight:600; padding:4px 10px; border-radius:99px; border:1px solid var(--border); background:transparent; color:var(--text-secondary); }
+.msg-filters button.is-active { background:var(--text-primary); color:var(--white); border-color:var(--text-primary); }
+.msg-convs { overflow:auto; flex:1; }
+.msg-conv { display:flex; gap:10px; align-items:center; width:100%; text-align:left; font:inherit; color:inherit; background:none; border:0; border-bottom:1px solid var(--border-light, var(--border)); padding:10px 12px; cursor:pointer; }
+.msg-conv.is-active { background:var(--cal-notes-open-bg); }
+.msg-conv img { width:40px; height:50px; border-radius:7px; object-fit:cover; flex-shrink:0; }
+.msg-conv-main { flex:1; min-width:0; display:block; }
+.msg-conv-main > span { display:block; }
+.msg-conv-main > .msg-conv-top { display:flex; justify-content:space-between; gap:8px; font-size:0.8rem; font-weight:700; color:var(--text-primary); }
+.msg-conv-top span { font-weight:500; color:var(--text-muted); font-size:0.72rem; white-space:nowrap; }
+.msg-conv-sub { font-size:0.72rem; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.msg-conv-last { font-size:0.78rem; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+.msg-conv.is-unread .msg-conv-last { color:var(--text-primary); font-weight:600; }
+.msg-unread { min-width:18px; height:18px; padding:0 5px; border-radius:99px; background:var(--cal-notes-dot-bg); color:#fff; font-size:0.66rem; font-weight:700; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+.msg-chat { display:flex; flex-direction:column; min-height:0; }
+.msg-chat-head { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); }
+.msg-chat-head img { width:32px; height:40px; border-radius:6px; object-fit:cover; }
+.msg-chat-title { font-weight:700; font-size:0.9rem; color:var(--text-primary); }
+.msg-chat-sub { font-size:0.72rem; color:var(--text-muted); }
+.msg-chat-actions { margin-left:auto; display:flex; gap:6px; }
+.msg-chat-actions button { font:inherit; font-size:0.74rem; font-weight:600; padding:6px 10px; border-radius:8px; border:1px solid var(--border); background:var(--white); color:var(--text-primary); }
+.msg-back { display:none; font:inherit; font-size:1.3rem; line-height:1; border:0; background:none; color:var(--cal-notes-accent); padding:0 4px; }
+.msg-bubbles { flex:1; overflow:auto; padding:14px 16px; display:flex; flex-direction:column; gap:10px; background:var(--bg); }
+.msg-day { align-self:center; font-size:0.66rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; }
+.msg-new { display:flex; align-items:center; gap:8px; color:var(--cal-notes-accent); font-size:0.7rem; font-weight:700; }
+.msg-new::before, .msg-new::after { content:''; flex:1; height:1px; background:var(--cal-notes-accent); }
+.msg-b { max-width:70%; display:flex; flex-direction:column; gap:3px; align-self:flex-start; }
+.msg-b-meta { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:0.7rem; color:var(--text-muted); }
+.msg-b-meta b { color:var(--text-primary); font-size:0.74rem; }
+.msg-b-meta .cal-cm-comp-label { margin-left:0; }
+.msg-b-text { background:var(--white); border:1px solid var(--border); padding:8px 12px; border-radius:14px 14px 14px 4px; font-size:0.86rem; color:var(--text-primary); line-height:1.4; }
+.msg-b.is-me { align-self:flex-end; align-items:flex-end; }
+.msg-b.is-me .msg-b-text { background:var(--text-primary); color:var(--white); border-color:var(--text-primary); border-radius:14px 14px 4px 14px; }
+.msg-b-quote { font-size:0.72rem; opacity:.7; border-left:2px solid currentColor; padding-left:6px; margin-bottom:3px; }
+.msg-reply { padding:10px 14px 14px; border-top:1px solid var(--border); background:var(--white); }
+.msg-reply-cap { font-size:0.72rem; color:var(--text-muted); padding:0 4px 8px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.kasper-tab-count.is-unread { background:var(--cal-notes-dot-bg); color:#fff; }
+@media (max-width:767px) {
+  .msg-inbox { grid-template-columns:1fr; height:calc(100vh - 210px); }
+  .msg-inbox .msg-chat { display:none; }
+  .msg-inbox.is-chat-open .msg-list { display:none; }
+  .msg-inbox.is-chat-open .msg-chat { display:flex; }
+  .msg-back { display:inline-block; }
+  .msg-b { max-width:86%; }
+  .msg-chat-actions button span { display:none; }
+  .msg-chat-sub, .msg-reply-why { display:none; }
+  .msg-chat-title { font-size:0.84rem; }
+}
+/* Client: new messages strip */
+.cal-new-msgs-strip { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 14px; padding:10px 14px; border-radius:12px; background:var(--cal-notes-open-bg); border:1px solid var(--cal-notes-accent); color:var(--cal-notes-accent-fg); font-weight:700; font-size:0.86rem; }
+.cal-new-msgs-strip .cal-comments-dot { position:static; }
+.cal-new-msgs-strip button { margin-left:auto; font:inherit; font-size:0.8rem; font-weight:700; padding:6px 12px; border-radius:8px; border:0; background:var(--cal-notes-accent); color:#fff; }
+</style><style type="text/css">*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}</style></head>
+<body>
+<!-- Confirmation modal -->
+<div class="confirm-overlay" id="confirmOverlay" data-backdrop-dismiss="">
+    <div class="confirm-box">
+        <div class="confirm-box-title" id="confirmTitle">Are you sure?</div>
+        <div class="confirm-box-msg" id="confirmMsg">This will replace the current content.</div>
+        <label class="confirm-box-check" id="confirmCheckWrap" hidden="">
+            <input type="checkbox" id="confirmCheck" style=""><span id="confirmCheckLabel"></span>
+        </label>
+        <div class="confirm-box-actions">
+            <button class="brief-action-btn">Cancel</button>
+            <button class="brief-action-btn primary" id="confirmYes">Regenerate</button>
+        </div>
+    </div>
 </div>
-<div class="pop" id="pop"><div class="h">Notes · Morning routine, 3 swaps</div><div class="t">
- <div class="msg"><div class="avatar c">JR</div><div><div class="meta"><b>You</b> · Caption · Mon</div>Can we mention the weekend opening hours?</div></div>
- <div class="msg"><div class="avatar">S</div><div><div class="meta"><b>Synchro team</b> · Caption · Tue</div>Updated the caption with your opening hours.</div></div>
- <div class="newline" data-show="unread">New</div>
- <div class="msg"><div class="avatar">S</div><div><div class="meta"><b>Synchro team</b> · Thumbnail · Today</div>Bigger text is in. Does this read well on your phone?</div></div>
- <div class="hiddennote">Design note (not shown to the client): the two team-only messages on this post, and Kasper's name, never reach this page. The server leaves them out before sending.</div>
+
+<!-- Resolve-and-route chooser. Opened when the SMM routes a component onward —
+     either by marking the last open change-request done (Notes modal) or by
+     approving it in the Review tab. It resolves the open change-requests she
+     ticks and routes the component to Kasper, the client, or straight to
+     Approved. The ✕ (and a backdrop click) just close it — closing is
+     non-destructive, since nothing is applied until a route is picked. -->
+<div class="confirm-overlay" id="resolveDestOverlay" data-backdrop-dismiss="">
+    <div class="confirm-box resolve-dest-box">
+        <button type="button" class="resolve-dest-close" id="resolveDestClose" aria-label="Close" title="Close">
+            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9"></path></svg>
+        </button>
+        <div id="resolveDestMain">
+            <div class="confirm-box-title">Tweaks resolved — where to next?</div>
+            <div class="confirm-box-msg" id="resolveDestMsg">Send this for approval.</div>
+            <div class="resolve-dest-checklist" id="resolveDestChecklist" hidden=""></div>
+            <div class="confirm-box-actions resolve-dest-actions">
+                <button class="brief-action-btn" type="button" id="resolveDestKasper">Kasper approval</button>
+                <button class="brief-action-btn" type="button" id="resolveDestClient">Client approval</button>
+                <button class="brief-action-btn" type="button" id="resolveDestApprove">Approve</button>
+            </div>
+            <button type="button" class="resolve-dest-stay" id="resolveDestStay" title="Mark these tweaks as done. The card stays in its stage.">Mark done — don’t change the status</button>
+        </div>
+    </div>
 </div>
-<div class="composer"><div class="row"><div class="seg"><button class="on">Comment</button><button>Request a change</button></div><span class="cap">About</span><div class="seg"><button>Whole post</button><button class="on">Thumbnail</button><button>Caption</button></div></div><textarea placeholder="Write to the Synchro team…"></textarea><div class="row" style="justify-content:flex-end"><button class="btn primary">Send</button></div></div>
-</div></div></div>
-<p class="note">A comment changes no status, so the client is told three ways: a "new messages" strip at the top of the link with a Show me button, an orange dot on each card's Notes button, and a "New" line inside Notes. Optional email digest is an open decision. Sample names and text only.</p>
-<script src="mock.js"></script></body></html>
+
+<!-- Staff sign-in gate. Opaque cover shown until a staff identity is admitted.
+     The sign-in card itself is rendered on top of this by
+     _syncviewOpenStaffIdentity({ entry: true }) once the roster loads. -->
+<div id="staffGateOverlay">
+    <div class="staff-gate-inner">
+        <img src="../../../../syncview-favicon.png" alt="SyncView">
+        <div>
+            <div class="staff-gate-title">Welcome to SyncView</div>
+            <div class="staff-gate-note" id="staffGateNote">Preparing secure sign-in…</div>
+        </div>
+        <button class="cal-import-btn-primary staff-gate-retry" type="button" id="staffGateRetry" hidden="">Try again</button>
+    </div>
+</div>
+
+<!-- Quick jump (096-quick-jump): "/" then "client tab", Enter. -->
+<div class="sv-jump" id="svJump" hidden="" data-wired="1">
+    <div class="sv-jump-box" role="dialog" aria-label="Quick jump">
+        <input type="text" class="sv-jump-input" id="svJumpInput" placeholder="Client and tab, like “calendar” or a client name…" autocomplete="off" role="combobox" aria-expanded="true" aria-controls="svJumpList" aria-label="Quick jump" style="">
+        <div class="sv-jump-list" id="svJumpList" role="listbox"></div>
+        <div class="sv-jump-foot"><span><kbd>↑</kbd><kbd>↓</kbd> choose</span><span><kbd>Enter</kbd> go</span><span><kbd>Esc</kbd> close</span></div>
+    </div>
+</div>
+
+<header class="header" style="display: none; grid-template-columns: auto auto minmax(0px, 1fr) auto; align-items: center; gap: 12px;">
+    <a class="logo" href="/" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
+        <img src="../../../../syncview-favicon.png" alt="SyncView">
+        <span class="logo-text">SyncView</span>
+    </a>
+    <!-- Shared client picker (095-shared-client), owner-approved 2026-09-27:
+         one small first-name dropdown after the logo, on every staff tab so
+         the tabs never move; never on client links. -->
+    <div class="sv-client-pick" id="svClientBar" hidden="" data-wired="1">
+        <div class="sv-client-badge-wrap" id="svClientBadgeWrap">
+            <button type="button" class="sv-client-badge" id="svClientBadge" aria-haspopup="listbox" aria-expanded="false" aria-label="Change client" data-sv-current="">
+                <span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>
+                <span id="svClientBadgeLabel">Client</span>
+                <svg class="sv-client-chev" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"></path></svg>
+            </button>
+            <div class="sv-client-pop" id="svClientPop" hidden="">
+                <div class="sv-client-searchrow">
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"></circle><path d="m10.5 10.5 3 3"></path></svg>
+                    <input type="text" class="sv-client-search" id="svClientSearch" placeholder="Search clients" autocomplete="off" aria-label="Search clients" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="svClientResults" style="">
+                </div>
+                <div class="sv-client-results" id="svClientResults"></div>
+            </div>
+        </div>
+        <button type="button" class="sv-jump-touch" aria-label="Quick jump to a client and tab"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"></circle><path d="m10.5 10.5 3 3"></path></svg></button>
+    </div>
+    <div class="header-nav" id="headerNav">
+        <span class="header-nav-pill" aria-hidden="true"></span>
+        <a class="header-nav-btn" id="navToday" href="/today" title="Today" aria-label="Today">
+            <span class="header-nav-ico ico-today" aria-hidden="true"></span>
+            Today
+        </a>
+        <a class="header-nav-btn" id="navCalendar" href="/calendar" title="Calendar" aria-label="Calendar">
+            <span class="header-nav-ico ico-calendar" aria-hidden="true"></span>
+            Calendar
+        </a>
+        <!-- >>> SXR_BEGIN (nav) -->
+        <a class="header-nav-btn" id="navSxr" href="/sample-reviews" style="display:none;" title="Samples" aria-label="Samples">
+            <span class="header-nav-ico ico-samples" aria-hidden="true"></span>
+            Samples
+        </a>
+        <!-- <<< SXR_END -->
+        <a class="header-nav-btn" id="navTemplates" href="/templates" title="Templates" aria-label="Templates">
+            <span class="header-nav-ico ico-templates" aria-hidden="true"></span>
+            Templates
+        </a>
+        <a class="header-nav-btn" id="navFilmingPlans" title="Filming Plans" aria-label="Filming Plans" href="/filming-plans">
+            <span class="header-nav-ico ico-filmingplans" aria-hidden="true"></span>
+            Filming
+        </a>
+        <a class="header-nav-btn" id="navTiktokUpload" title="TikTok Upload" aria-label="TikTok Upload" href="/tiktok-upload">
+            <span class="header-nav-ico ico-tiktok" aria-hidden="true"></span>
+            TikTok
+        </a>
+        <a class="header-nav-btn active" id="navHome" href="/" title="Analytics" aria-label="Analytics">
+            <span class="header-nav-ico ico-analytics" aria-hidden="true"></span>
+            Analytics
+        </a>
+        <!-- Tab row labels (owner, 2026-09-28): Filming, TikTok and Linear are short so the
+             admin row keeps full labels at 1366/1440px; title and aria-label keep the full names. -->
+        <!-- The six tabs above follow the shared top-bar client; the team tabs below ignore it. -->
+        <span class="header-nav-sep" aria-hidden="true"></span>
+        <a class="header-nav-btn" id="navWorkload" href="/workload" title="Workload" aria-label="Workload">
+            <span class="header-nav-ico ico-workload" aria-hidden="true"></span>
+            Workload
+        </a>
+        <a class="header-nav-btn" id="navProd" title="SyncLinear" aria-label="SyncLinear" href="/synclinear">
+            <span class="header-nav-ico ico-synclinear" aria-hidden="true"></span>
+            Linear
+        </a>
+        <a class="header-nav-btn" id="navLinear" href="/submit" title="Submit" aria-label="Submit">
+            <span class="header-nav-ico ico-submit" aria-hidden="true"></span>
+            Submit
+        </a>
+        <a class="header-nav-btn" id="navKasper" href="/kasper" style="display:none;" title="Kasper" aria-label="Kasper">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.5"></circle></svg>
+            Kasper
+        </a>
+    </div>
+    <div class="header-actions">
+        <div class="staff-identity-wrap" id="staffIdentityWrap">
+            <button class="theme-toggle staff-identity-btn" id="headerMenuButton" type="button" title="Open staff menu" aria-label="Open staff menu" aria-haspopup="menu" aria-expanded="false">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="5.3" r="2.5" stroke="currentColor" stroke-width="1.45"></circle><path d="M3.2 13.2c.35-2.35 2.1-3.7 4.8-3.7s4.45 1.35 4.8 3.7" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"></path></svg>
+            </button>
+            <div class="staff-account-popover" id="staffAccountPopover" role="menu" aria-labelledby="headerMenuButton" hidden="">
+                <div class="staff-account-summary" id="staffAccountSummary" role="presentation" aria-hidden="true"></div>
+                <div class="staff-account-sep" role="separator"></div>
+                <button class="staff-account-action" id="staffIdentitySignOut" type="button" role="menuitem">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="5.3" r="2.5"></circle><path d="M3.2 13.2c.35-2.35 2.1-3.7 4.8-3.7s4.45 1.35 4.8 3.7"></path></svg>
+                    <span id="staffIdentityMenuLabel">Staff sign in</span>
+                </button>
+                <button class="staff-account-action" id="headerTimeOffMenuItem" type="button" role="menuitem" hidden="">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.25" y="3.25" width="11.5" height="10.5" rx="1.6"></rect><path d="M2.5 6.5h11M5 1.8v3M11 1.8v3"></path><path d="m5.2 9 1.4 1.4 3.4-3.2"></path></svg>
+                    <span>Time Off</span>
+                </button>
+                <button class="staff-account-action" id="headerOnboardingMenuItem" type="button" role="menuitem" data-staff-capability="onboarding" hidden="">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2.5h6l2.5 2.5v8.3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"></path><path d="M9.5 2.5V5h2.5"></path><path d="M6 8.2h4M6 10.6h4"></path></svg>
+                    <span>Onboarding</span>
+                </button>
+                <button class="staff-account-action" id="headerCredentialsMenuItem" type="button" role="menuitem" data-staff-capability="credentials" hidden="">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="7" width="11" height="7" rx="1.4"></rect><path d="M5 7V5.2a3 3 0 0 1 6 0V7"></path><path d="M8 10v1.5"></path></svg>
+                    <span>Client Credentials</span>
+                </button>
+                <button class="staff-account-action" id="themeToggle" type="button" role="menuitemcheckbox" title="Switch to dark mode" aria-label="Switch to dark mode" aria-pressed="false" hidden="" aria-checked="false">
+                    <svg class="theme-icon-moon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.2 10.4A5.8 5.8 0 0 1 5.6 2.8 5.8 5.8 0 1 0 13.2 10.4Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></svg>
+                    <svg class="theme-icon-sun" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="3.1" stroke="currentColor" stroke-width="1.6"></circle><path d="M8 1.8V3M8 13v1.2M13 8h1.2M1.8 8H3M11.7 4.3l.8-.8M3.5 12.5l.8-.8M11.7 11.7l.8.8M3.5 3.5l.8.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+                    <span class="staff-account-action-copy"><span id="themeToggleLabel">Dark mode</span><span class="staff-account-action-note">Adjust SyncView's appearance</span></span>
+                    <span class="staff-account-action-state" id="themeToggleState">Off</span>
+                </button>
+                <button class="staff-account-action palette-toggle" id="statusPaletteToggle" type="button" role="menuitemcheckbox" title="Use the old status colors" aria-label="Use the old status colors" aria-pressed="false" hidden="" aria-checked="false">
+                    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1.1" stroke="currentColor" stroke-width="1.35"></rect><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1.1" fill="currentColor"></rect><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1.1" fill="currentColor"></rect><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1.1" stroke="currentColor" stroke-width="1.35"></rect></svg>
+                    <span class="staff-account-action-copy"><span>Original status colors</span><span class="staff-account-action-note">Use the classic workflow palette</span></span>
+                    <span class="staff-account-action-state" id="statusPaletteToggleState">Off</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</header>
+<main class="main" id="mainWrap">
+    <div class="page-top overview-mode" id="pageTop" style="display: none;">
+        <div>
+            <div class="page-title-row" id="titleRow">
+                <div class="page-title" id="pageTitle">Your Analytics</div>
+            </div>
+            <div class="page-sub" id="pageSub" style="display: none;">Instagram · TikTok · YouTube</div>
+        </div>
+        <div class="selector-wrap" id="selectorWrap" style="display: none;">
+            <div class="search-bar-wrap" id="searchWrap">
+                <div class="search-bar-pill">
+                    <input class="search-bar-input" id="searchInput" type="text" placeholder="Search clients…" autocomplete="off" style="">
+                    <div class="search-ghost-overlay" id="searchGhost"></div>
+                    <button class="search-bar-icon" title="Search">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"></circle><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+                    </button>
+                </div>
+                <div class="search-dropdown" id="searchBox">
+                    <div id="searchResults"></div>
+                </div>
+            </div>
+        </div>
+        <div class="pins-area" id="pinsArea" style=""><div class="pins-row" id="pinsRow"></div><div class="pins-add-row" id="pinsAddRow"><button class="pin-add-btn" title="Pin a client"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M5 1h6v1l-1 4 2 2v1H9v5l-1 1-1-1V9H3V8l2-2L4 2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"></path><line x1="8" y1="9" x2="8" y2="15" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></line></svg> Pin client <span style="opacity:0.6;font-size:0.68rem;">0/3</span></button><div class="pin-selector-dropdown" id="pinSelectorDropdown"><div class="pin-selector-header"><span class="pin-selector-title">Pin a client</span><div style="display:flex;align-items:center;gap:8px;"><span class="pin-selector-count">0 / 3</span><button style="background:none;border:none;cursor:pointer;color:var(--text-muted);display:inline-flex;align-items:center;padding:0;transition:color 0.13s;" id="pinDropCloseBtn" title="Close"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></line><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></line></svg></button></div></div><div class="pin-selector-list" id="pinSelectorList"></div></div></div></div>
+    </div>
+    <div id="content"><div class="client-view cal-tab-view">
+                <div class="view-tab-toggle">
+                    <button class="view-tab-btn">Analytics</button>
+                    <button class="view-tab-btn active">Content Calendar</button>
+                    
+                </div>
+                <div class="cal-view cal-embedded" id="calView" data-zoom="m">
+            <div class="cal-new-msgs-strip" role="status"><span class="cal-comments-dot"></span>2 new messages from the Synchro team<button type="button">Show me</button></div><div class="cal-toolbar">
+                <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Sample Bakery</strong><span>Content calendar</span></div></div>
+                <div class="cal-toolbar-mid">
+                    
+                    
+                    
+                    
+                    <div class="cal-month-filter cal-organize" id="calOrganizeWrap">
+            
+            <button type="button" class="dropdown-trigger" id="calOrganizeBtn" title="Choose the order and which cards show" aria-haspopup="menu" aria-expanded="false">
+                <svg class="cal-org-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M2 4.5h4.2M11.3 4.5H14M2 11.5h2.7M9.8 11.5H14"></path><circle cx="8.7" cy="4.5" r="2.1"></circle><circle cx="7.3" cy="11.5" r="2.1"></circle></svg><span class="cal-org-trigger-txt">Organize</span><svg class="dd-arrow" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"></path></svg>
+            </button>
+            <div class="dropdown-menu cal-org-menu" id="calOrganizeMenu" role="menu" aria-label="Organize the Sheet">
+                <div class="cal-org-sec" id="calOrgSecOrder">Order</div>
+                <div role="group" aria-labelledby="calOrgSecOrder"><button type="button" class="dropdown-item cal-org-toggle" role="menuitemcheckbox" aria-checked="false" data-sv-explain="" data-tip="Sorts by scheduled date, oldest first, with unscheduled cards last. Your drag order is kept. Turn this off to get it back.">
+            <span class="cal-org-toggle-txt">
+                <span class="cal-org-toggle-name">Auto-organize by date</span>
+                <span class="cal-org-toggle-sub">Off — your drag order</span>
+            </span>
+            <span class="cal-kebab-switch" id="calOrgSortSwitch" aria-hidden="true"></span>
+        </button></div>
+                <div class="cal-org-sep" role="separator"></div>
+                <div class="cal-org-sec" id="calOrgSecMonth">Month</div>
+                <div role="group" aria-labelledby="calOrgSecMonth"><button type="button" class="dropdown-item active" role="menuitemradio" aria-checked="true"><span>All months</span></button><button type="button" class="dropdown-item" role="menuitemradio" aria-checked="false"><span>September 2026</span><span class="cal-month-filter-tag">Previous</span></button><button type="button" class="dropdown-item" role="menuitemradio" aria-checked="false"><span>October 2026</span><span class="cal-month-filter-tag">This month</span></button><button type="button" class="dropdown-item" role="menuitemradio" aria-checked="false"><span>November 2026</span><span class="cal-month-filter-tag">Next</span></button><div class="dropdown-item cal-month-filter-custom">
+            <span>Custom…</span>
+            <input type="month" class="cal-month-filter-custom-input" value="" aria-label="Pick a month" style="">
+        </div></div>
+                <div class="cal-org-sep" role="separator"></div>
+                <div class="cal-org-sec" id="calOrgSecContent">Content</div>
+                <div role="group" aria-labelledby="calOrgSecContent"><button type="button" class="dropdown-item active" role="menuitemradio" aria-checked="true"><span>All content</span></button><button type="button" class="dropdown-item" role="menuitemradio" aria-checked="false"><span>Scheduled</span></button><button type="button" class="dropdown-item" role="menuitemradio" aria-checked="false"><span>Unscheduled</span></button></div>
+            </div>
+        </div><div class="cal-view-toggle">
+                        <button type="button" class="cal-view-btn" data-cal-view="review">Review<span class="cal-view-badge">4</span></button><button type="button" class="cal-view-btn active" data-cal-view="organizer">Sheet</button><button type="button" class="cal-view-btn" data-cal-view="month">Month</button><button type="button" class="cal-view-btn" data-cal-view="week">Week</button>
+                    </div>
+                    <div class="cal-zoom" id="calZoomCtl" title="Card size" style="visibility: visible;">
+                        <svg class="cal-zoom-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5L14 14"></path></svg>
+                        <button type="button" id="calZoomOut" aria-label="Zoom out"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="7" x2="11" y2="7"></line></svg></button>
+                        <button type="button" id="calZoomIn" aria-label="Zoom in"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="7" y1="3" x2="7" y2="11"></line><line x1="3" y1="7" x2="11" y2="7"></line></svg></button>
+                    </div>
+                </div>
+                <div class="cal-toolbar-right">
+                    <span class="cal-refreshing" id="calRefreshing" hidden=""><span class="cal-refresh-spin"></span>Refreshing…</span>
+                    <span class="cal-stale-notice" id="calStaleNotice" hidden="" title="Click to retry">Couldn't refresh — retry</span>
+                    
+                    
+                    
+                </div>
+            </div>
+            <div class="cal-body" id="calBody"><div class="cal-organizer-wrap">
+            <div class="cal-organizer-strip" id="calStrip" data-shift-scroll-wired="1" data-drag-scroll-wired="1" data-scroll-wired="1" data-drop-wired="1">
+                <div class="cal-card cal-card-edit cal-card-current cal-card-ro" data-pid="p3" draggable="true" data-drag-wired="1">
+            
+            <span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"></circle><circle cx="10" cy="4" r="1.4"></circle><circle cx="6" cy="8" r="1.4"></circle><circle cx="10" cy="8" r="1.4"></circle><circle cx="6" cy="12" r="1.4"></circle><circle cx="10" cy="12" r="1.4"></circle></svg></span>
+            
+            
+            <div class="cal-card-thumb"><img loading="lazy" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2Y5YThkNCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2JlMTg1ZCIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjEzNTAiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSI3NDAiIGN5PSI0MjAiIHI9IjIwMCIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iLjI1Ii8+PC9zdmc+" alt=""></div>
+            <div class="cal-card-body">
+                
+                <div class="cal-title-row" data-title-row="p3"><div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="p3" data-fld="name" value="Weekend specials" placeholder="Untitled post" readonly="" style=""><span class="cal-title-fade" aria-hidden="true"></span></div><span class="sv-save-ind" data-sv-save-ind="p3" role="status" aria-live="polite" hidden=""><svg class="sv-save-ind-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true"><circle class="sv-save-ind-track" cx="12" cy="12" r="9" stroke-width="2.4"></circle><circle class="sv-save-ind-arc" cx="12" cy="12" r="9" stroke-width="2.4" stroke-linecap="round"></circle><path class="sv-save-ind-check" d="M7.6 12.4l2.7 2.7 6-6.4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path><path class="sv-save-ind-bang" d="M12 7.4v4.7" stroke-width="2.2" stroke-linecap="round"></path><path class="sv-save-ind-bang" d="M12 15.7v.06" stroke-width="2.4" stroke-linecap="round"></path></svg></span></div>
+                <div class="cal-meta-row"><div class="cal-fld-date-wrap is-readonly">
+                        <div class="cal-date-chip">
+                            <svg class="cal-cal-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"></rect><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"></path></svg>
+                            <span class="cal-date-txt">Tue 10/20/26</span>
+                        </div>
+                    </div></div>
+                
+                <div class="cal-link-field has-link cal-link-ro cal-link-post">
+                <a class="cal-link-pill-open" href="https://f.io/sample3" target="_blank" rel="noopener noreferrer"><svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"></path><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"></path></svg><span class="cal-link-label">Video</span></a>
+            </div>
+                <div class="cal-capblock" data-capblock="p3">
+            <div class="cal-cap-wrap" data-capwrap="main">
+                <textarea class="cal-fld-cap" rows="5" data-pid="p3" data-fld="caption" placeholder="Caption" readonly="" style="height: 107px; overflow-y: hidden;" data-cap-ro="1"></textarea>
+                <div class="cal-cap-fade" aria-hidden="true"></div>
+                <button type="button" class="cal-cap-toggle" tabindex="-1" hidden="" title="Expand / collapse"><span class="cal-cap-toggle-txt">Show more</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"></path></svg></button>
+                
+            </div>
+            </div>
+                
+                <input class="cal-fld-cta" type="text" data-pid="p3" data-fld="cta" value="" placeholder="Call to action" readonly="" style="">
+                
+                
+                <div class="cal-card-foot">
+                    <span class="cal-foot-tweaks" data-comments-wrap="p3"><button type="button" class="cal-comments-btn has-unread" data-comments-btn="p3" title="New replies. Open Notes."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"></path></svg><span class="cal-comments-label">Notes</span><span class="cal-comments-dot" aria-label="New replies"></span><span class="cal-comments-count">0 open</span></button></span>
+                    <span class="cal-card-saving" data-saving="p3" hidden=""></span>
+                </div>
+                <div class="cal-card-status-row"><div class="cal-client-status"><span class="cal-review-sub-pill cal-fld-status-approved" data-comp-pill="video" title="Video: Approved">Video: Approved</span><span class="cal-review-sub-pill cal-fld-status-approved" data-comp-pill="graphic" title="Thumbnail: Approved">Thumbnail: Approved</span><span class="cal-review-sub-pill cal-fld-status-approved" data-comp-pill="caption" title="Caption: Approved">Caption: Approved</span></div></div>
+            </div>
+        </div>
+                
+            </div>
+            
+        </div></div>
+            <div class="cal-preview-overlay" id="calPreviewOverlay" data-backdrop-dismiss="">
+                <div class="cal-preview" id="calPreview"></div>
+            </div>
+            <div class="cal-import-overlay" id="calImportOverlay" data-backdrop-dismiss="">
+                <div class="cal-import-modal" id="calImportModal"></div>
+            </div>
+            <div class="cal-lightbox" id="calLightbox">
+                <img alt="">
+                <button class="cal-lightbox-close" type="button" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"></path></svg></button>
+            </div>
+            <div class="cal-comments-overlay" id="calCommentsOverlay" data-backdrop-dismiss="">
+                <div class="cal-comments-modal" id="calCommentsModal" role="dialog" aria-modal="true" aria-labelledby="calCommentsTitle"></div>
+            </div>
+            <div class="cal-prompt-overlay" id="calPromptOverlay" data-backdrop-dismiss="">
+                <div class="cal-prompt-modal" id="calPromptModal" role="dialog" aria-modal="true"></div>
+            </div>
+        </div>
+            </div></div>
+</main>
+
+
+<!-- Transcript preview modal -->
+<div id="transcriptOverlay" class="transcript-overlay" data-backdrop-dismiss="">
+    <div class="transcript-modal">
+        <div class="transcript-modal-header">
+            <div>
+                <div class="transcript-modal-title" id="transcriptModalTitle">Transcript</div>
+                <div class="transcript-modal-meta" id="transcriptModalMeta"></div>
+            </div>
+            <button class="transcript-modal-close">
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>
+            </button>
+        </div>
+        <div class="transcript-modal-body" id="transcriptModalBody"></div>
+    </div>
+</div>
+
+<!-- ── App auto-update nudge ──────────────────────────────────────────────
+     SyncView is a single index.html on GitHub Pages with no build step, so a
+     browser tab left open keeps running whatever version it loaded — a new
+     deploy is NOT picked up until the page is reloaded. SMMs (and clients) keep
+     the tab open for days, so they can silently run stale code: e.g. a thumbnail
+     rendering change that shipped after they last loaded looks "broken" to them
+     while everyone on a fresh load sees it work. This polls the deployed file's
+     version token (the GitHub Pages ETag / Last-Modified, which changes on every
+     deploy) and, when it changes, acts on the reader's behalf.
+
+     WHAT IT DOES DEPENDS ON WHERE THE READER IS (owner ruling, 2026-08-24):
+     *"a tab should reload itself when a new version is shipped, if it's in the
+     background. But if someone is in the tab, then they should just propose to
+     reload it."* A backgrounded tab is the one nobody is looking at and the one
+     that goes stale for days, so it reloads itself; a tab someone is actually
+     in only ever gets the bar.
+
+     The self-reload is conditional, and deliberately so. A reader who tabs away
+     mid-compose has left work in the page that a reload would silently destroy,
+     and they would come back to an empty form with no explanation — a worse
+     failure than the staleness this exists to fix. So a hidden tab reloads only
+     when nothing typed is uncommitted and nothing is open on top of the page;
+     otherwise it falls back to the bar, which is waiting when they return. -->
+
+
+
+<div style="position:fixed;right:12px;bottom:12px;z-index:2147483647;max-width:420px;font:12px/1.4 system-ui,sans-serif;background:#111;color:#fff;padding:8px 10px;border-radius:8px;opacity:.9">Client link: strip + dot on the card Notes button · light · static copy of the real page, new parts added</div></body></html>

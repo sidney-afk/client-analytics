@@ -64,6 +64,8 @@ async function measure(page, s) {
         comp: w.dataset.substatusComp, h: Math.round(w.getBoundingClientRect().height), urgent: !!w.querySelector('.cal-urgent-btn'),
         oneLine: label.getBoundingClientRect().height <= lh * 1.5, text: label.textContent.trim(), title: label.title || '',
         cut: label.scrollWidth > label.clientWidth + 1,
+        tapW: w.querySelector('.cal-urgent-btn') ? Math.round(w.querySelector('.cal-urgent-btn').getBoundingClientRect().width) : 0,
+        tapH: w.querySelector('.cal-urgent-btn') ? Math.round(w.querySelector('.cal-urgent-btn').getBoundingClientRect().height) : 0,
       };
     };
     return { urgent: rows(urgent).map(read), calm: rows(calm).map(read) };
@@ -110,6 +112,7 @@ async function run(browser, origin, surface, [screen, viewport, mobile, zooms], 
       assert(!wrapped, label + ': the ' + (wrapped && wrapped.comp) + ' status wraps onto a second line');
       const untitled = all.find(r => r.title !== r.text);
       assert(!untitled, label + ': the ' + (untitled && untitled.comp) + ' status has no full-name tooltip');
+      if (mobile) { const small = m.urgent.find(r => r.tapW < 44 || r.tapH < 44); assert(!small, label + ': the urgent mark is a ' + (small && small.tapW) + 'x' + (small && small.tapH) + 'px tap target, under 44px'); }
       const cut = m.urgent.filter(r => r.cut).map(r => r.comp);
       lines.push(label + ': ' + all.length + ' rows all ' + heights[0] + 'px, one line' + (cut.length ? ' (shortened with tooltip: ' + cut.join(', ') + ')' : ', full names shown'));
       if (SHOTS) {

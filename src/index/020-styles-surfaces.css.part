@@ -177,6 +177,24 @@
         .tpl-brief-sources { margin: 8px 0 4px; padding: 8px 12px; border-left: 3px solid var(--border); }
         .tpl-brief-source-h { font-weight: 700; font-size: 0.8rem; margin-bottom: 4px; }
         .tpl-brain-allfacts { margin-top: 16px; }
+        .tpl-brief-titlerow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        .tpl-copy-wrap { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .tpl-copy-btn { font: inherit; font-size: 0.8rem; font-weight: 600; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); border-radius: 8px; padding: 5px 14px; cursor: pointer; }
+        .tpl-copy-btn:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+        .tpl-copy-note { font-size: 0.78rem; font-weight: 600; color: var(--brief-music-ink); }
+        .tpl-copy-note.bad { color: var(--brief-avoid-ink); font-weight: 500; }
+        .tpl-aud { --k: var(--brief-know); margin-top: 18px; }
+        .tpl-aud-title { margin: 0 0 2px; font-size: 0.98rem; font-weight: 700; color: var(--text-primary); }
+        .tpl-aud-intro { margin: 0 0 10px; font-size: 0.8rem; color: var(--text-muted); }
+        .tpl-aud-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+        .tpl-aud-card { min-width: 0; background: var(--surface-raised); border: 1px solid var(--border-light); border-radius: 16px; padding: 14px 18px; }
+        .tpl-aud-h { margin: 0 0 6px; font-size: 0.92rem; font-weight: 700; color: var(--text-primary); }
+        .tpl-aud-sure { margin: 8px 0 4px; padding: 6px 10px; border-radius: 10px; background: var(--brief-know-bg); color: var(--text-secondary); font-size: 0.8rem; line-height: 1.5; }
+        .tpl-aud-sure-k { font-weight: 700; color: var(--brief-know-ink); }
+        .tpl-aud-list { margin: 0 0 8px; padding-left: 18px; }
+        .tpl-aud-list li { margin: 2px 0; }
+        .tpl-aud-src { margin: 0; padding-left: 16px; font-size: 0.76rem; color: var(--text-secondary); word-break: break-word; }
+        @media (max-width: 560px) { .tpl-aud-grid { grid-template-columns: 1fr; } }
         .tpl-brain-allfacts > summary { cursor: pointer; font-size: 0.8rem; color: var(--text-muted); }
         .tpl-section-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 14px; }
 
@@ -5242,7 +5260,7 @@
             body:has(.pocket-staff-bar) .tpl-brief-cols { columns: 1; }
             body:has(.pocket-staff-bar) .tpl-brief-sec { padding: 18px 16px; border-radius: 20px; margin-bottom: 14px; }
             body:has(.pocket-staff-bar) .tpl-brief-h { font-size: 16px; margin-bottom: 14px; }
-            body:has(.pocket-staff-bar) .tpl-brief-more, body:has(.pocket-staff-bar) .tpl-brief-act { min-width: 44px; min-height: 44px; }
+            body:has(.pocket-staff-bar) .tpl-brief-more, body:has(.pocket-staff-bar) .tpl-brief-act, body:has(.pocket-staff-bar) .tpl-copy-btn { min-width: 44px; min-height: 44px; }
             body:has(.pocket-staff-bar) .tpl-brief-hex { min-height: 32px; }
             body:has(.pocket-staff-bar) .tpl-spec-form, body:has(.pocket-staff-bar) .tpl-brain-form { min-width: 0; }
             body:has(.pocket-staff-bar) .tpl-fields, body:has(.pocket-staff-bar) .tpl-fields.two, body:has(.pocket-staff-bar) .tpl-view-grid { display: flex; flex-direction: column; gap: 14px; }

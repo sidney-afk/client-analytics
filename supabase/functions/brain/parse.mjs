@@ -67,3 +67,18 @@ export function parseBrief(text) {
   }
   return sections.filter((x) => x.bullets.length);
 }
+
+// audience.md -> written sections only, each as a fact plus its "How sure we are" line pulled out
+// of the prose: [{ file: "audience", heading, id, status, owner, source, updated, body, sure }].
+export function parseAudience(text) {
+  return parseBrainFacts(text, "audience").filter((f) => f.status === "written").map((f) => {
+    let sure = "";
+    const body = f.body.split("\n").filter((line) => {
+      const m = /^\s*\**\s*How sure we are:?\s*\**:?\s*(.*)$/i.exec(line);
+      if (!m) return true;
+      sure = m[1].replace(/^\**\s*/, "").trim();
+      return false;
+    }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    return { ...f, body, sure };
+  });
+}

@@ -269,6 +269,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/templates-social-links-browser.js
+      - name: Templates client page shows Audience and copies the brief
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/templates-audience-copy-browser.js
       - name: Saves outside the gateway report their refusals to the failed-saves log
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

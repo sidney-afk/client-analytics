@@ -269,6 +269,7 @@
     "filming-plans-source.js",
     "first-paint-not-cdn-hostage.js",
     "foreign-write-strand-check.js",
+    "frameio-token-source.js",
     "gated-suites-have-their-harness.js",
     "gateway-no-undeclared-identifiers.js",
     "graphics-artifact-card-fallback.js",

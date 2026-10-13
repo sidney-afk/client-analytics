@@ -739,6 +739,26 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                         // mark-done — flush + repaint, no approve. Otherwise run the
                         // real approve, so the tweaks JSON and the status flip ride
                         // the same flush.
+                        /* OPEN_REPAIRS: Mender. On a card whose notes are read from
+                           the canonical thread, marking done here used to flip only
+                           the legacy copy, so the Notes panel showed the requests
+                           open again on the next read. Resolve them canonically
+                           first, exactly as _calResolveLastTweak does, and stop if
+                           any resolve is refused. */
+                        if (_prodCanonicalCommentGate(post, comp).linked) {
+                            _calReviewResolveCanonical(post, comp, ids, pickDest).then(ok => {
+                                if (!ok) return;
+                                if (pickDest === 'stay') {
+                                    _calRefreshCommentsBtn(pid);
+                                    _calUpdateCardStatusDisplay(pid);
+                                    _calReviewRepaintCard(pid);
+                                } else {
+                                    _calReviewApplyApprove(pid, comp, pickDest, resolvedBefore);
+                                }
+                            });
+                            return;
+                        }
+                        if (_calCanonicalCrosswalkPending(post, comp)) return;
                         _calResolveTweaksDone(post, comp, ids);
                         if (pickDest === 'stay') {
                             _calWatchNoteSave(pid);
@@ -754,6 +774,28 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             }
         }
         _calReviewApplyApprove(pid, comp, dest);
+    }
+    async function _calReviewResolveCanonical(post, comp, ids, dest) {
+        for (const id of (Array.isArray(ids) ? ids : [])) {
+            const comment = _calCommentsFor(post, comp).find(row => row && row.id === id && !row.parent_id);
+            if (!comment || comment.done || comment.deleted) continue;
+            const receipt = await _writeUiCommitCardCommentLifecycle(
+                'calendar', post, comp, comment, 'resolve', undefined, { resolveDestination: dest }
+            );
+            if (!receipt) return false;
+        }
+        await _writeUiPersistCanonicalCommentProjection('calendar', post, comp);
+        return true;
+    }
+    /* True (and tells the user) while the card's canonical link is still being
+       looked up. A done/delete in that window used to fall through to a
+       legacy-only write that the canonical thread never saw. Staff only:
+       a client is never canonical on the Calendar. */
+    function _calCanonicalCrosswalkPending(post, comp) {
+        if (_isClientLink || !post || !post._canonicalCrosswalkInFlight) return false;
+        if (!_writeUiNativeId(post, comp)) return false;
+        showNotify('Notes are still loading', 'Nothing was changed. Try again in a moment.');
+        return true;
     }
     function _calReviewApplyApprove(pid, comp, dest, resolvedBefore) {
         const post = calState.posts.find(p => p.id === pid);
@@ -2760,6 +2802,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             return;
         }
 
+        if (_calCanonicalCrosswalkPending(post, comp)) return;
         // Flip the comment's done state (data only).
         const mutate = () => {
             if (wasDone) { root.done = false; root.done_at = ''; root.done_by = ''; }
@@ -2829,6 +2872,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 if (receipt) await _writeUiPersistCanonicalCommentProjection('calendar', post, comp);
                 return;
             }
+            if (_calCanonicalCrosswalkPending(post, comp)) return;
             // Soft-delete (tombstone) instead of dropping the comment. A bare
             // removal can be resurrected by any later merge that still carries
             // the live copy (a laggy background poll, the save echo, or the
@@ -3039,6 +3083,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                         if (!receipt) return;
                     }
                 } else {
+                    if (_calCanonicalCrosswalkPending(post, comp)) return;
                     _calResolveTweaksDone(post, comp, chosen);
                 }
                 if (destPick !== 'stay') _calApplyAutoStatus(pid, 'smm_resolved_last', comp, destPick);

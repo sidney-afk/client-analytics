@@ -119,6 +119,7 @@
     "booking-recovery-replay.js",
     "boot-entry-tax.js",
     "boot-gate-parity.js",
+    "brain-change-shared.js",
     "brain-parse.js",
     "browser-writer-auth.js",
     "bulk-refusals-honest.js",

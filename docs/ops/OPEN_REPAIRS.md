@@ -33068,3 +33068,31 @@ the old code) and `test/canonical-note-lifecycle-repair.js`.
 
 Client selection is first in staff Tabs; More groups appearance, tools and sign out. Phone-only neutral status overrides and cropped thumbnail styling are corrected. The shared status sheet's decorative handle now closes by tap/drag with native cleanup. [Native fictional-data proof and limits](../audits/2026-10-13-phone-round-2/README.md). PTO evidence is regenerated and reviewed under CI's single-file preload. The unscoped live Production PR lane is explicitly deferred; no merge, deployment or backend change.
 
+
+## 416. [2026-10-13, BUILT, NOT MERGED, NOT DEPLOYED] Calendar refresh kept closing the open caption; Urgent made status rows taller (session Steady)
+
+**Owner rule.** A background refresh must never unfocus or reset anything the person is using.
+
+**What broke.** Every background refresh repaints the Calendar Sheet through `_calRenderBody({ preserveScroll: true })`: the
+fallback poll (every 30 s while realtime is not connected), a realtime change, a tab return (visibility, focus, pageshow), the
+echo of the person's own save, and the deferred repaint that waits for the person to stop typing. The repaint rebuilt every card,
+so a caption opened with Show more came back closed (its inner scroll lost with it) and focus fell to the page. Samples
+(`_sxrRenderBody`) kept only the page scroll, so its strip jumped back to the first card.
+
+**Fix.** `_calCaptureLiveUi` / `_calRestoreLiveUi` (160) note the open captions and the focused field (caret, selection and the
+person's own text) before the repaint and put them back on the matching new nodes, before the existing scroll restore so the
+reopened caption takes back its inner scroll. Samples now uses the same pair plus `_calCaptureScroll` / `_calRestoreScroll`.
+`_calRefreshCaption` keeps the caption's inner scroll when it re-measures. Typing still defers the repaint exactly as before
+(`_calIsCalBusy`), and the person's text always wins on screen; it saves through the normal field save and its conflict rules.
+
+**Status rows.** The URGENT button beside a status squeezed it, so on a narrow card "KASPER APPROVAL" wrapped and the Thumbnail
+and Caption rows grew from 21 to 32 px. On a status row the urgent mark is now a compact "!" segment (a tick once sent; the word
+stays in the button for screen readers and its title says what it does), a status name never wraps, and its title always carries
+the full name (kept in sync by the in-place updaters on both surfaces).
+
+**Tests.** `docs/syncview-design/tests/calendar-refresh-scroll-browser.js` part 3 drives each real refresh path and asserts the
+caption, inner scroll, focus, caret, typed text, open status menu, strip and hover are unchanged, plus the Samples strip and
+focused field; `test/calendar-status-row-urgent-height-browser.js` measures every status row with Urgent on (Calendar and
+Samples, desktop at three card sizes and phone, both themes, both palettes). Both fail on the old code.
+
+**Release.** Front end only: ships with the next Pages deploy of main. **Way back:** revert the pull request.

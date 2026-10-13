@@ -219,7 +219,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_calStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ` disabled title="${_calEscAttr(WRITE_UI_NO_WORK_ITEM_TEXT)}"` : ''}>
                     <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
                     <span class="cal-fld-substatus-comp">${_calEsc(COMP_LABELS[c])}</span>
-                    <span class="cal-fld-substatus-label">${_calEsc(_calCompStatusLabel(p, c, shownStatus))}</span>
+                    <span class="cal-fld-substatus-label" title="${_calEscAttr(_calCompStatusLabel(p, c, shownStatus))}">${_calEsc(_calCompStatusLabel(p, c, shownStatus))}</span>
                 </button>${urgentBtn}
             </div>`;
         }).join('');
@@ -798,6 +798,9 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         if (!measured && !ta.getClientRects().length) return;
         const wrap = ta.closest('.cal-cap-wrap');
         const expanded = !!(wrap && wrap.classList.contains('expanded'));
+        // Setting the height to auto below resets the inner scroll; a re-measure
+        // (resize, fonts, a background repaint) must not move the person's place.
+        const keepTop = ta.scrollTop;
         if (!measured) ta.style.height = 'auto';
         const full = measured ? measured.full : ta.scrollHeight + 2;
         const collapsedH = measured ? measured.collapsedH : _calCapCollapsedH(ta);
@@ -818,6 +821,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         if (scrolls) target = Math.max(capH, collapsedH);
         ta.style.height = target + 'px';
         ta.style.overflowY = scrolls ? 'auto' : 'hidden';   // collapsed clips; expanded grows to fit, scrolling only past the screen cap
+        if (scrolls && keepTop && ta.scrollTop !== keepTop) ta.scrollTop = keepTop;
         if (wrap) {
             const open = expanded || focused;
             // Drives the bottom fade gradient + "tap to read more" cursor: the

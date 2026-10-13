@@ -1983,8 +1983,12 @@
            (tweaks, approved, etc.) reads with proper contrast against the
            tinted background. The slight alpha differentiates label vs. comp
            without falling back to muted gray. */
-        .cal-fld-substatus-comp { color: inherit; opacity: 0.78; font-weight: 700; }
-        .cal-fld-substatus-label { flex: 1; text-align: right; font-weight: 800; color: inherit; }
+        .cal-fld-substatus-comp { color: inherit; opacity: 0.78; font-weight: 700; flex: 0 0 auto; white-space: nowrap; }
+        /* Every status row stays one line, the same height as the rest, with
+           or without the URGENT mark beside it: a status name that no longer
+           fits ends in an ellipsis and its title shows it in full. */
+        .cal-fld-substatus-label { flex: 1 1 auto; min-width: 0; text-align: right; font-weight: 800; color: inherit;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .cal-fld-substatus-trigger.cal-fld-status-n-a              { background: var(--cal-status-n-a-bg); color: var(--cal-status-n-a-fg); }
         .cal-fld-substatus-trigger.cal-fld-status-in-progress       { background: var(--cal-status-in-progress-bg); color: var(--cal-status-in-progress-fg); }
         .cal-fld-substatus-trigger.cal-fld-status-for-smm-approval  { background: var(--cal-status-for-smm-approval-bg); color: var(--cal-status-for-smm-approval-fg); }
@@ -2000,7 +2004,14 @@
            URGENT action docks on the right, the two reading as one segmented
            pill. Clicking posts to #video-editing via the SyncView Bot. */
         .cal-fld-substatus-wrap.has-urgent { display: flex; align-items: stretch; }
-        .cal-fld-substatus-wrap.has-urgent .cal-fld-substatus-trigger { flex: 1 1 auto; width: auto; border-radius: 7px 0 0 7px; }
+        .cal-fld-substatus-wrap.has-urgent .cal-fld-substatus-trigger { flex: 1 1 auto; min-width: 0; width: auto; border-radius: 7px 0 0 7px; }
+        /* On a status row the mark is compact: a bold "!" segment (a tick once
+           sent) so the status name keeps its room. The word URGENT / Sent stays
+           in the button for screen readers, and its title says what it does. */
+        .cal-fld-substatus-wrap.has-urgent > .cal-urgent-btn { width: 22px; padding: 0; justify-content: center;
+            font-size: 0; letter-spacing: 0; white-space: nowrap; }
+        .cal-fld-substatus-wrap.has-urgent > .cal-urgent-btn::before { content: "!"; font-size: 0.78rem; font-weight: 900; line-height: 1; }
+        .cal-fld-substatus-wrap.has-urgent > .cal-urgent-btn[data-urgent-sent="1"]::before { content: "\2713"; font-size: 0.7rem; }
         .cal-urgent-btn { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px;
             padding: 5px 9px; border: 0; border-radius: 0 7px 7px 0; cursor: pointer;
             background: var(--cal-urgent-bg); color: var(--cal-urgent-fg); font-family: inherit; font-size: 0.58rem; font-weight: 800;
@@ -6434,7 +6445,7 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
         @media (max-width: 767px) {
             #calView[data-pocket-staff-phone] .cal-fld-substatus-trigger { border: 1px solid var(--border-light); border-radius: 12px; padding: 12px; }
             #calView[data-pocket-staff-phone] .cal-fld-substatus-comp { font-size: 12px; text-transform: none; }
-            #calView[data-pocket-staff-phone] .cal-fld-substatus-label { font-size: 12px; text-transform: none; white-space: normal; text-align: right; }
+            #calView[data-pocket-staff-phone] .cal-fld-substatus-label { font-size: 12px; text-transform: none; white-space: nowrap; text-align: right; }
             #calView[data-pocket-staff-phone] .cal-prompt-textarea { min-height: 240px; }
             #calView[data-pocket-staff-phone] .cal-prompt-head p, #calView[data-pocket-staff-phone] .cal-prompt-hint { color: var(--text-secondary); }
         }
@@ -6870,7 +6881,7 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
         @media (max-width: 767px) {
             #sxrView[data-pocket-staff-samples] .cal-fld-substatus-trigger { border: 1px solid var(--border-light); border-radius: 12px; padding: 12px; }
             #sxrView[data-pocket-staff-samples] .cal-fld-substatus-comp { font-size: 12px; text-transform: none; }
-            #sxrView[data-pocket-staff-samples] .cal-fld-substatus-label { font-size: 12px; text-transform: none; white-space: normal; text-align: right; }
+            #sxrView[data-pocket-staff-samples] .cal-fld-substatus-label { font-size: 12px; text-transform: none; white-space: nowrap; text-align: right; }
             #sxrView[data-pocket-staff-samples] .cal-prompt-textarea { min-height: 240px; }
             #sxrView[data-pocket-staff-samples] .cal-prompt-head p, #sxrView[data-pocket-staff-samples] .cal-prompt-hint { color: var(--text-secondary); }
         }

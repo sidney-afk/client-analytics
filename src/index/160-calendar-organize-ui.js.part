@@ -34,7 +34,7 @@ import {
 } from './150-calendar-hydration-import.js';
 import {
   _calFlushCardSave, _calForceThumbRefresh, _calLivePreviewThumb, _calOnFieldBlur,
-  _calOnFieldInput, _calRefreshCardThumb, _calRefreshMediaWarning, _calRenderInlineCard,
+  _calOnFieldInput, _calRefreshCaption, _calRefreshCardThumb, _calRefreshMediaWarning, _calRenderInlineCard,
   _calStatusSlug, _calThumbSrcBase, _svSaveIndHtml
 } from './170-calendar-links-status.js';
 import {
@@ -1326,6 +1326,56 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         });
         return { boxes, page: { x: window.scrollX, y: window.scrollY, anchors: _calScrollAnchors(body, null) } };
     }
+    /* A background repaint (realtime, fallback poll, tab return, save echo)
+       rebuilds every card, so anything the person had open lived only on the
+       old nodes. Owner rule: a background refresh never unfocuses or resets
+       what the person is using. Before the repaint, note the open (Show more)
+       captions and the focused field with its caret and its own text; after
+       it, put them back on the matching new nodes. Runs before
+       _calRestoreScroll so a reopened caption is tall enough to take back its
+       inner scroll. The person's text wins over the refreshed value: what
+       they type is saved through the normal field save and its conflict
+       rules, never overwritten by a repaint. */
+    function _calCaptureLiveUi(body) {
+        const open = [];
+        body.querySelectorAll('.cal-cap-wrap.expanded').forEach(wrap => {
+            const ta = wrap.querySelector('textarea');
+            const path = ta && _calScrollerPath(ta, body);
+            if (path) open.push(path);
+        });
+        const a = document.activeElement;
+        let focus = null;
+        if (a && a !== body && body.contains(a)) {
+            const path = _calScrollerPath(a, body);
+            if (path) {
+                focus = { path, tag: a.tagName };
+                if (a.tagName === 'TEXTAREA' || a.tagName === 'INPUT') {
+                    focus.value = a.value;
+                    try { focus.start = a.selectionStart; focus.end = a.selectionEnd; focus.dir = a.selectionDirection || 'none'; } catch (e) {}
+                }
+            }
+        }
+        return (open.length || focus) ? { open, focus } : null;
+    }
+    function _calRestoreLiveUi(body, snap) {
+        if (!snap) return;
+        snap.open.forEach(path => {
+            const ta = _calFindScroller(path, body);
+            const wrap = ta && ta.closest('.cal-cap-wrap');
+            if (!wrap || wrap.classList.contains('expanded')) return;
+            wrap.classList.add('expanded');
+            if (typeof _calRefreshCaption === 'function') _calRefreshCaption(ta, false);
+        });
+        const f = snap.focus;
+        if (!f) return;
+        const el = _calFindScroller(f.path, body);
+        if (!el || el.tagName !== f.tag) return;
+        if (f.value != null && el.value !== f.value && !el.readOnly) el.value = f.value;
+        try {
+            if (document.activeElement !== el) el.focus({ preventScroll: true });
+            if (f.start != null && typeof el.setSelectionRange === 'function') el.setSelectionRange(f.start, f.end, f.dir);
+        } catch (e) {}
+    }
     function _calRestoreScroll(body, snap) {
         if (!snap) return;
         const settle = (el, rec, again) => {
@@ -1370,6 +1420,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const preserveScroll = !!(opts && opts.preserveScroll);
         const stripBefore = preserveScroll ? document.getElementById('calStrip') : null;
         const scrollSnap = preserveScroll ? _calCaptureScroll(body) : null;
+        const liveSnap = preserveScroll ? _calCaptureLiveUi(body) : null;
         const harvestedThumbs = (preserveScroll && stripBefore) ? _calHarvestThumbs() : null;
         if (!calState.client) {
             body.innerHTML = document.body.classList.contains('sv-shared-client')
@@ -1429,7 +1480,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             _calWireWeekWheel(body);
             _calWireDayDrag(body);
         }
-        if (preserveScroll) _calRestoreScroll(body, scrollSnap);
+        if (preserveScroll) { _calRestoreLiveUi(body, liveSnap); _calRestoreScroll(body, scrollSnap); }
         _calUpdateReviewBadge();
         _calSyncMonthWarnIcon();
         _calSyncClientLinks();
@@ -3431,6 +3482,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     });
 export {
   _calStaffPhoneActive, _calPhoneClient, _calPhoneSectionHtml,
+  _calCaptureLiveUi, _calCaptureScroll, _calRestoreLiveUi, _calRestoreScroll,
   _CAL_CLIENT_READY_STATES, _CAL_WEEK_BUFFER, _calAdoptThumbnailFolderMeta, _calBlankPost,
   _calChevron, _calClearThumbnailFolderMeta, _calClientCompPillsHtml, _calClientHue,
   _calCompStatusLabel, _calDeriveThumb, _calDeriveThumbInfo, _calDriveWarnHtml,

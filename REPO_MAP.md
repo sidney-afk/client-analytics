@@ -771,3 +771,6 @@ Staff phone responsiveness proof: `docs/audits/2026-10-12-phone-responsiveness/`
 `qa/client-phone/exact-replay.js` bounds fresh capture retries while still requiring exact PNG bytes and computed styles. `test/fixture-desktop-exact-replay.js` checks immediate success, transient raster mismatch and persistent pixel/style refusal.
 
 Staff phone Tabs: `qa/staff-phone-tabs-grid.js` checks the shared native-icon grid on primary and admin screens. `docs/audits/2026-10-12-staff-tabs-grid/` contains native phone comparisons and check receipts.
+## Phone round 2 evidence
+
+`qa/staff-phone-round-two.js` exercises client selection, grouped More, both native status palettes, shared sheet dismissal and natural thumbnail proportions using fictional transports. Evidence and before/after images: `docs/audits/2026-10-13-phone-round-2/`; the existing PTO packet and `qa/pto-lifecycle/visual-review.json` are refreshed under the single-file CI preload.

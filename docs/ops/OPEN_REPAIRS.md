@@ -33063,3 +33063,8 @@ after review: `node scripts/canonical-note-lifecycle-repair.js --apply --all`, r
 the old code) and `test/canonical-note-lifecycle-repair.js`.
 
 **Release.** Front end only: ships with the next Pages deploy of main. **Way back:** revert the pull request.
+
+## 415. [2026-10-13, BUILT, NOT MERGED, NOT DEPLOYED] Owner phone round 2
+
+Client selection is first in staff Tabs; More groups appearance, tools and sign out. Phone-only neutral status overrides and cropped thumbnail styling are corrected. The shared status sheet's decorative handle now closes by tap/drag with native cleanup. [Native fictional-data proof and limits](../audits/2026-10-13-phone-round-2/README.md). PTO evidence is regenerated and reviewed under CI's single-file preload. The unscoped live Production PR lane is explicitly deferred; no merge, deployment or backend change.
+

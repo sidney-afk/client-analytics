@@ -1,7 +1,7 @@
 {
   "generated_for": "PTO lifecycle simulation",
-  "source_commit": "51714f8fafa82584d6281190acfa4e311c7256e8",
-  "source_tree_sha256": "bc953fec654bed41bfb00c756fc1b5d12779307da33162566ec2d21564759fab",
+  "source_commit": "64f6dbba1f20c641f04607e33fd2dfd5a6bd3e45",
+  "source_tree_sha256": "2dea5d2c8906d2d4b2bea2ed5cdc4e4a4881027eb8e49943c60f6c7275301372",
   "backend": "stateful synthetic mock using the production PTO policy module",
   "privacy": "synthetic TEST data only; no live identities, dates, balances, notes, keys, or responses",
   "screenshot_count": 101,
@@ -63,7 +63,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-01-open-staff-time-off.jpg",
-          "sha256": "e9bd42ac715d1f0cf0e38e7e41710575dab905686e6017e088d3aadde2154e20",
+          "sha256": "66cb8e74c7aa7a5828108aeac13d8e455b57daaeb3d1f88ff334eaa6caea8f1a",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -79,7 +79,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-02-open-branded-request-type-menu.jpg",
-          "sha256": "1adc944bc479d118cd9f80d4ac9ac67b3c41b0f8fb3a8e4615cb24f71c89ea80",
+          "sha256": "8da1c71d8bbc5821597bae86a01bc67e4cd3f504b0528322cd078e99efb675eb",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -95,7 +95,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-03-choose-unpaid-request-type.jpg",
-          "sha256": "02030d67408c0642c3686d65b9f17ad18a904cbddae5528443599077973ad4eb",
+          "sha256": "57094999c95f77ba462ddfcfb526e42a364c198e6ae09a84f5403e001577e546",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -111,7 +111,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-04-open-branded-start-date-calendar.jpg",
-          "sha256": "012dade5a69641270d75aa5e9d522bf672722001a45d42fb6dbdd42b0959c3bc",
+          "sha256": "36cc5db93b0a0fb42f9d9cbf961255c595ca9cd8c9b5e9931f799ee0a98ea3fc",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -127,7 +127,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-05-choose-near-start-date.jpg",
-          "sha256": "902a3134e46ae2d9bdf1f382c6653db2713d03d3765bd7c0a5e7df3d18303222",
+          "sha256": "81a5a4bb566af1cdb17c52764456781a18e0a3bdb70a1537e0712c9ee8f76185",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -143,7 +143,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-06-open-branded-end-date-calendar.jpg",
-          "sha256": "0c8d6c07220efbf8732b39aa49897bbe3cc018c8caa4739a730e4ee90cb3fd0a",
+          "sha256": "fd806ef68121c0d002c571ac396e41ba22fd24fb6a7d5cef39b69911de6e57e9",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -159,7 +159,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-07-quote-a-near-range.jpg",
-          "sha256": "5e55568016a85eff26dd0370a0687bc51c9b09a6d9a0cc98cd73aa185557ad5f",
+          "sha256": "f74b41c6b1edb27bc8852f775b72ca9d72aed65587a958ffa613a2d13ae4d3d6",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -175,7 +175,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-08-decrease-the-quoted-day-count.jpg",
-          "sha256": "9861b9ac82e756cd09b875ee9e732a013a475bcdf3028d1fd8994ee46697144e",
+          "sha256": "ae81935d5f406d9d3c3ac816604d716124448146468c638278f2c973772b170e",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -191,7 +191,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-09-restore-the-full-quoted-day-count.jpg",
-          "sha256": "3fd86eccab3069fd76eb44d3dbfcb517fc2ebc664157ef05288fd825ad2de9f0",
+          "sha256": "3596960ec0fcd0695491525a00398f85d69042c8a4a961eb2a755ade7201861e",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -207,7 +207,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-10-enter-a-request-note.jpg",
-          "sha256": "e25a87f57c46d163bc76d34b7af946f46d27556ad8382f96b636e1422a70d19e",
+          "sha256": "fe3fc3fd8fcc66145a7634e401836383ca85dea59e694cc30d86a9f322df829a",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -223,7 +223,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-11-clear-the-request-note-draft.jpg",
-          "sha256": "2771082c5eb8cbc23ab22fadd4fac927366827071cc154edfbbd6358f54ca3eb",
+          "sha256": "b6d117d750f786b4be1c0147f3f6499a1d4827c6f50c1e5b639514b0d3d5041e",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -239,7 +239,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-12-quote-a-far-range.jpg",
-          "sha256": "91fb9bfcf91b69623584d48da5982360e656f6aefefc83a44cb248423590625b",
+          "sha256": "873e6c69a2d94005d2af61ba337a13124118aa02a912bf3d757e1bcb1900b4cc",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -255,7 +255,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-13-submit-wellness-request.jpg",
-          "sha256": "0c7d99b9057a9dbc825f05ca29bc976c2c727af1b442333cbce783115bf96204",
+          "sha256": "86352de33a5454ae1ad873f48f775f418aba3f455f58aeb9a8efd391c3996251",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -271,7 +271,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-14-kasper-opens-pending-queue.jpg",
-          "sha256": "23f524b51dc02b4fa659e979e2e5ffa82732f01fd1999d5b62b9a2face763386",
+          "sha256": "90d7aeda6cebf0208034b9cffb43bfab9f02e76faf2328b39c431487a2726d7d",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -287,7 +287,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-15-enter-wellness-approval-note.jpg",
-          "sha256": "2d8316b0f82812a98d2835644ea4b3c061cb2260be52a8f3d26dc166cdab5db3",
+          "sha256": "023e8eebdafd882fd2c8416328d1d428b670b0f6044ed2b253449c3bf13eb2ee",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -303,7 +303,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-16-approve-wellness-request.jpg",
-          "sha256": "98a9f100a5d26192b055cd2b95cc4061aa86d7940a4fc2818d8c41ff4cd5d0c4",
+          "sha256": "9feed4ab3a48ebcbbc6f77920f5e1983c5920a640030d4a62abcbdf18ecaf0d7",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -319,7 +319,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-17-staff-refreshes-after-approval.jpg",
-          "sha256": "ac85069dde914e99b1edd9ede800aa86a5f7df1e2e79589c9be46a75e90761e0",
+          "sha256": "93381f6b7add3d721d6dbb7490da098c584d3973852fbc900e84a538e277445f",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -335,7 +335,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-18-inspect-approved-team-calendar.jpg",
-          "sha256": "4798769d100f136b98cdef5d30723ce0e5b3a544bc9033221ecf6cedb0e13bf0",
+          "sha256": "e3738fd98ec24d98649506005260ea77b1ca7db9dd050674e2fded1df1008c23",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -351,7 +351,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-19-open-approved-leave-cancellation-confirmation.jpg",
-          "sha256": "0c31bca69f70751e2c7a3e51128a492b31b09fb794518171f1b21d69d92ec778",
+          "sha256": "f33ea972b1c905f2e566e3cf53bb423bc7b332f96f68667afb58159614e158c9",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -367,7 +367,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-20-confirm-admin-cancellation.jpg",
-          "sha256": "ebaa95d6d283509c14f83a8538f360247469a9cc5ed4ab49fffe4d3821e95332",
+          "sha256": "dd721c67d5d3adeae09cfd48a46ad5cd52e065ffd3c2b289a436b8429f600e25",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -383,7 +383,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-21-staff-refreshes-after-admin-cancellation.jpg",
-          "sha256": "33082a5fad87440799415253f80e64d1eaef02068e18ec41a7407c79a1f0a095",
+          "sha256": "5c8f78ae05d11abdd5e19f431249adf2ce711fe20ef75d54a2ed53a1e68ceeb8",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -399,7 +399,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-22-submit-backdated-sick-request.jpg",
-          "sha256": "a8ad72d14cf73ba4fbd53afc15b6d0266163ce05275fcad7da60cf9d76f55698",
+          "sha256": "a511a776f75b8c411f920b6f8d4a1136e69493a8d68659227efaac581172b799",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -415,7 +415,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-23-approve-backdated-sick-request.jpg",
-          "sha256": "7898740e90cb7838e7949fa506ec1a1f694a753b78b61014e5434187592fb5ba",
+          "sha256": "015d4c643c32e764f8daf89eb73ddd1d9976b7ec107096d88e2b602998074baf",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -431,7 +431,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-24-staff-sees-sick-decision.jpg",
-          "sha256": "2650c7d9012d4776a4f063330423c32c3461365b49991cd0857b92cb9d13f1d0",
+          "sha256": "6a9ddb540c2f7743c73c70b4a7dc73e68b1217f8239207579ed6b499ac1aac52",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -447,7 +447,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-25-submit-unpaid-request.jpg",
-          "sha256": "ef6330f632f9be7b0cdbea5c9ac3c0fd0d1846d62ab7e1ba00c2e727f7d75128",
+          "sha256": "1929317bbe3f718e2c027084aa84282d3ef028344fae8ac4f5e528decdf1ec33",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -463,7 +463,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-26-enter-unpaid-denial-note.jpg",
-          "sha256": "a076016b56eb69d27b8e1cf4341bd4867271666707f620355b5187e6861bea83",
+          "sha256": "9305a3ccd60d3c61d464b4da37e0023747e244bedaaca66a5e52b6c2725cd036",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -479,7 +479,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-27-deny-unpaid-request.jpg",
-          "sha256": "379267ba6992b78d984d8172af611d779425408ca5816c92880485b6f6396ade",
+          "sha256": "f7b9e21540efd739144ca32e5499657a1bbc3399f24b0a6bb9944109c8b1e4a8",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -495,7 +495,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-28-submit-floating-holiday.jpg",
-          "sha256": "6d6c8c03bbbda2fe0a78559eb424c49c19c5a53138686b10a8421f43843ee03e",
+          "sha256": "0d5ecd62eefcf2bcebcf6fda7176ebeda33dd209d6d39bbde3f7ab033e87c8d3",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -511,7 +511,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-29-stale-tab-tries-a-second-floating-holiday.jpg",
-          "sha256": "13a42da83ebd13273b125295655c9c41405f4123f1d7d093a3fdfe4b13680be8",
+          "sha256": "60213dc8f1f826657d02f423a4aa6d12364ab27c79d176acdd4e13157426080f",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -527,7 +527,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-30-approve-floating-holiday.jpg",
-          "sha256": "554788e04d5077f60260f3585351d1c907ea7fe57087019449d8591c4b9cca36",
+          "sha256": "6d9def65f4eb27787896dfe9cfe41dba24dff39002ae75fb503e559627251c06",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -543,7 +543,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-31-staff-sees-floating-holiday-used.jpg",
-          "sha256": "a0399354a48a36e4b2dd1202a601d619dd7cd88772a99fee6ff613567438549e",
+          "sha256": "08fce525bbf534a9c7ced091dc4a068f0029dfa659cc1bfe096a9b110f3887d2",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -559,7 +559,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-32-submit-half-day-pending-request.jpg",
-          "sha256": "b8d573fc18ee9fcea2446bb8cf9f51021b573ae3eeb34d8b9ed29acc6b6215f9",
+          "sha256": "67bfb00914345a9299cda9cd1e262461cb5f87131c41563bbc05089ec4adf789",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -575,7 +575,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-33-open-pending-request-cancellation-confirmation.jpg",
-          "sha256": "ee8327a4a1bcd0ced6e212e3c90bcff61826d3c86befff749d156d0450fcc63a",
+          "sha256": "ad758ed82300a459deb46f846b8bbc1092c02044466aa07f1dac76e90f896dcc",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -591,7 +591,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-34-confirm-own-pending-cancellation.jpg",
-          "sha256": "f47a7c65242d2db9ad8b53c1fce6b8ff50c498f0261843a3feb4ca836b3bd09f",
+          "sha256": "cc27c1904ea115935d2ea491faa7d666f2889f9a22d4e526b5260f45b2b64394",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -607,7 +607,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-35-try-request-above-available-balance.jpg",
-          "sha256": "16b6b665a77dea2dc28d1c63fd96fb26cb10d266f007c135cbf2f9f7a3d0f9b1",
+          "sha256": "ad574827e01f738da487c2e5973a5c5a6f1cc6bf2e1b80fe6d306334b9ab1eee",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -623,7 +623,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-36-second-same-role-staff-submits-unpaid.jpg",
-          "sha256": "a6c4111b6645911333fdbbff8dde30cb2ca69ed82d52acb2d3f3b3edf11b37d6",
+          "sha256": "1c99ec535fea5fda56f1570eb5eaf230c4fff063fe7715b32abd799fe653b387",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -639,7 +639,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-37-inactive-member-approval-is-blocked.jpg",
-          "sha256": "3144750d56f24565ced6a8021348c22ad5a78cbb77718eda7bf603428a771b21",
+          "sha256": "499215c914820fa8f2a0ada224c36aef5a2f500511a9c0500319682b67c636e7",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -655,7 +655,7 @@
             "height": 920
           },
           "file": "screenshots/desktop-full-lifecycle-38-deny-inactive-request-for-cleanup.jpg",
-          "sha256": "0f2d22738b4aecf9117bf6c6f79326220dc0c3a4f4561062f3189e9f1fe1b2e6",
+          "sha256": "ddf42cd571607369b35f6a9e68b248e44705246ab2b7ce4160c1b8b606b4f3d8",
           "visual_verdict": "ok",
           "visual_note": ""
         }
@@ -676,7 +676,7 @@
             "height": 920
           },
           "file": "screenshots/resilience-session-and-tabs-01-server-500-shows-retryable-error.jpg",
-          "sha256": "1b0036fa8e52f50acbb9aebe24443b080323d810a001b8ba6beaaa89e2ee85a8",
+          "sha256": "5e366b3711824b39f376811306696956a284993ec5abc28e4f066bf822015267",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -692,7 +692,7 @@
             "height": 920
           },
           "file": "screenshots/resilience-session-and-tabs-02-retry-succeeds-after-500.jpg",
-          "sha256": "a89877f8ff0de5e5bd0aa8cc95007f0ef352d1ae34c9eae21db5256781dc0041",
+          "sha256": "1f3ae271ed2f83107f42dff0eddc5e8c4e8dfb51b03945ad8e78552c672c54e7",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -708,7 +708,7 @@
             "height": 920
           },
           "file": "screenshots/resilience-session-and-tabs-03-connection-drop-locks-unknown-write-outcome.jpg",
-          "sha256": "b843b67a5561ce4bbb043c41900fc4b5d723992f0abf5cc67fd8fd8100642f2b",
+          "sha256": "c79023f1e78bec0d29d5e341960a055190558ef53780db966c1c79848df9d090",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -724,7 +724,7 @@
             "height": 920
           },
           "file": "screenshots/resilience-session-and-tabs-04-refresh-reconciles-connection-drop.jpg",
-          "sha256": "38b7be65c25d2e5867449008fe25618400529f77f3179f0c42e7966a7eda27e2",
+          "sha256": "819afbec2b0a10d3fa5124d6ac1be2548a818c44d5ee1a3ba7c44276953f3c8c",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -740,7 +740,7 @@
             "height": 920
           },
           "file": "screenshots/resilience-session-and-tabs-05-saved-request-loses-its-response.jpg",
-          "sha256": "24d1d7c794899a54f829ce16bfce0eacee8c49ff94a6843ad079a33f31456a82",
+          "sha256": "b8b872d4896900b3f008023d706b46a479061e1c247203dd11e1dd0fd7808496",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -756,7 +756,7 @@
             "height": 920
           },
           "file": "screenshots/resilience-session-and-tabs-06-refresh-finds-the-saved-request-once.jpg",
-          "sha256": "40fde449995ce12e2b547e6de6a2281908f72cf25b97e744c63ac825ca2724c4",
+          "sha256": "699e36bcc6c9abf65fd7a36e18e98c1365f639d062ec12c9407c8e419032925c",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -772,7 +772,7 @@
             "height": 920
           },
           "file": "screenshots/resilience-session-and-tabs-07-slow-request-stays-visibly-in-flight.jpg",
-          "sha256": "ecc9c00c7c7b577d11b215e13ba65ac6c09c0458e61d2a873e7959b91380d029",
+          "sha256": "3f5e50024aa5b4468534ebc3af38d351e24c4281005cff11177c0333bb99a85f",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -788,7 +788,7 @@
             "height": 920
           },
           "file": "screenshots/resilience-session-and-tabs-08-slow-request-completes-once.jpg",
-          "sha256": "6b2add27424cc48af81d43f54fcc439ed4f01dfa57a3cb07240e4e729f5aba13",
+          "sha256": "811ef7db927085db879493d2db3203d2fad847094368ae0829734b734e316506",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -804,7 +804,7 @@
             "height": 920
           },
           "file": "screenshots/resilience-session-and-tabs-09-hung-request-times-out-into-safe-lock.jpg",
-          "sha256": "f4cc0276e096d24718f8ec84e22459bca976d92223c0ab58f375676b43a9f072",
+          "sha256": "9ddc31f1fbc9ff1c73620194db965960ca57b4a64380a39868f79eb60e5a2359",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -820,7 +820,7 @@
             "height": 920
           },
           "file": "screenshots/resilience-session-and-tabs-10-refresh-clears-hung-request-lock.jpg",
-          "sha256": "bb9626d9709524fd5e41cc86d7ad8b1597cb3561b830f093e5f964d9637b8ef5",
+          "sha256": "7121b0015fdee139abc271d3f00cac2627d34642d3297d3bb3c10c88aad7d35e",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -836,7 +836,7 @@
             "height": 920
           },
           "file": "screenshots/resilience-session-and-tabs-11-double-click-send-request.jpg",
-          "sha256": "726e1e4a1ab9cf93dc2c5e18e8750390ac668b337d0d91e1bc89f1a7f28183c8",
+          "sha256": "94dc37e5cb48627507395781f5ad30d7946953ca6c797fefc3e7164d6c2eb0f8",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -852,7 +852,7 @@
             "height": 920
           },
           "file": "screenshots/resilience-session-and-tabs-12-submit-request-in-first-tab.jpg",
-          "sha256": "5994e4e332d28b7d61637ff246692852dc32595f604ae099509b3a3482824b9a",
+          "sha256": "ec7c5f0eb0105d26973611f8a5c85763ddbf831fdd9f161137f70770f0ac7d5b",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -868,7 +868,7 @@
             "height": 920
           },
           "file": "screenshots/resilience-session-and-tabs-13-second-tab-refreshes.jpg",
-          "sha256": "bac1efce683a3fea5c7690b1aa6562f9ea54d7182f97b49b1c3a7d0ff05ec4d6",
+          "sha256": "ada030c9f43b2ca514da4ab464541d2983c219d6b233ac01848a12be8e542bb2",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -884,7 +884,7 @@
             "height": 920
           },
           "file": "screenshots/resilience-session-and-tabs-14-second-tab-cancels-pending-request.jpg",
-          "sha256": "b29c0710cbcdb9215022d6166d2992fa9b2e7d4aaf3101be21d59d4fda39621b",
+          "sha256": "75a19d726102e965903c77c5563e9c631d96d716e163c50ef2883c96c8b65924",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -900,7 +900,7 @@
             "height": 920
           },
           "file": "screenshots/resilience-session-and-tabs-15-first-tab-refreshes-after-cancellation.jpg",
-          "sha256": "97f0d435c49adae9af1fc46aafef34bc2d7ab21e0b748798b00587004674595c",
+          "sha256": "4c3025b0f3643e9e75e0a2c08a08c094c872b1f1849e6f210b049697ef16b14c",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -916,7 +916,7 @@
             "height": 920
           },
           "file": "screenshots/resilience-session-and-tabs-16-sign-out-with-a-draft-in-progress.jpg",
-          "sha256": "b40d0802f4c4036dc7c5b0d950c71e287ca7913775231cabe0872e5ee1dea077",
+          "sha256": "bbb6225ef870d5882f5cd88f2a19d869aa84c294efe55d5ffeafee3fdca1afc1",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -932,7 +932,7 @@
             "height": 920
           },
           "file": "screenshots/resilience-session-and-tabs-17-sign-in-as-second-same-role-persona.jpg",
-          "sha256": "c06bada2cca3e16958d7aff773e9e016689c93d775fb158dee8b1eebed9f39af",
+          "sha256": "f76a709a9a2b7dc5a1d4f96c1b44e5a72b1f9d6ae2b911a946101483a05b6230",
           "visual_verdict": "ok",
           "visual_note": ""
         }
@@ -953,7 +953,7 @@
             "height": 920
           },
           "file": "screenshots/policy-time-travel-01-before-month-rollover.jpg",
-          "sha256": "bbb75b111051b52ad394c35132e9b5c05c2e49f9e14d34f3032977ee120f76e2",
+          "sha256": "37cec7e860050d7ff93a0fbc0fe7becc06ec06323aead3c6f88c463f67f254c4",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -969,7 +969,7 @@
             "height": 920
           },
           "file": "screenshots/policy-time-travel-02-month-rollover-half-day-grant.jpg",
-          "sha256": "54a0881ebc383de5a98b520698ac0d43a2631449a6dd9ef617c39ab38abfb4e5",
+          "sha256": "5890e48e5f26ca1c33cfc0d5367cb7b0f9f40904d07caf2adfbb26afc9616fb0",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -985,7 +985,7 @@
             "height": 920
           },
           "file": "screenshots/policy-time-travel-03-last-day-of-lower-rate-month.jpg",
-          "sha256": "8c348107b755ce8cc8a4adf5669bd390db052a929aecf608540221fc79df2f60",
+          "sha256": "1e58160e84e7a9468b196466eda49997258f7168b77f6edde8cdea6a8f1a7443",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1001,7 +1001,7 @@
             "height": 920
           },
           "file": "screenshots/policy-time-travel-04-first-upper-rate-monthly-grant.jpg",
-          "sha256": "6987041fb3adb94d242ced946ce9487a669224a86670d208f3f9677f06cd26a9",
+          "sha256": "4c4e847ed9b33173e74acbe6c3b24c1659573408707bcd873034922c9bc38a27",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1017,7 +1017,7 @@
             "height": 920
           },
           "file": "screenshots/policy-time-travel-05-last-day-before-anniversary.jpg",
-          "sha256": "8d94e8d824c33755d519c56f891842f9a4a24a036441e5d7aba120b2581c11bf",
+          "sha256": "8b72a62c73918a770c520394742134e01901fdb0262f423975ac0b1e5b7d40e0",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1033,7 +1033,7 @@
             "height": 920
           },
           "file": "screenshots/policy-time-travel-06-anniversary-reset.jpg",
-          "sha256": "74579e9c93d50cc0a89908abb5b700544330c5153cb7f2ef129ade069bca9c4d",
+          "sha256": "8e895808681100ba89a595c365008fd7061b493dd3ad183d9fa6144478890f3a",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1049,7 +1049,7 @@
             "height": 920
           },
           "file": "screenshots/policy-time-travel-07-first-post-reset-monthly-grant.jpg",
-          "sha256": "9ebc95ef1c90a52fedb2d2a2ace0ba2a60a4d1203545b25d7cb91375f8108045",
+          "sha256": "1b3883e79e57f2795660fac3a5e493a49baf16f0f8fcbf07cf74f88bb6ad788d",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1065,7 +1065,7 @@
             "height": 920
           },
           "file": "screenshots/policy-time-travel-08-guatemala-18-00-stays-on-the-local-policy-date.jpg",
-          "sha256": "f04e18e2f0daf5ccd951318a8da391dbf2990aaf9b92343a587163889576d889",
+          "sha256": "9919bff60bf1f40569403835bda67841e82a228d1a08a1337c6345e1f2e07e46",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1081,7 +1081,7 @@
             "height": 920
           },
           "file": "screenshots/policy-time-travel-09-guatemala-23-59-stays-on-the-local-policy-date.jpg",
-          "sha256": "9cede5f993d63ef7f37d384440084a6f469e58beeaecaec597f39c6b68a2b6cf",
+          "sha256": "e5af6125727fa1ef096dbdf46306d153405e1df046170cd109d530c711295b68",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1097,7 +1097,7 @@
             "height": 920
           },
           "file": "screenshots/policy-time-travel-10-guatemala-midnight-advances-the-policy-date.jpg",
-          "sha256": "6cfa506011e61a87c4e29f9c3a96dff2451ecfba72c6f88a01b411083cf08b7e",
+          "sha256": "1c92fa17e974d0ff184f011113ce6939127ff13646983786c67e4430f4d9a8c4",
           "visual_verdict": "ok",
           "visual_note": ""
         }
@@ -1118,9 +1118,9 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-01-tap-open-the-mobile-staff-menu.jpg",
-          "sha256": "ba7c0ee1d010fc8d8d136f568e94f4a2799c3c0f6387c02077683cc5b99cf990",
+          "sha256": "bb19896fd5e3084fb5f9739c527aef01d92ebf00a66b398694fca7898feb1a90",
           "visual_verdict": "warning",
-          "visual_note": "Background Today uses an unavailable client-list fixture; the shared More sheet, Tools label and Time Off action remain visible and usable."
+          "visual_note": "The PTO-only fixture does not supply Today content, so its background shows a load error. More and Time Off are usable; the lifecycle that follows passes. This is fixture coverage, not a demonstrated live Today defect."
         },
         {
           "scenario": "mobile-390-happy-path",
@@ -1134,7 +1134,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-02-tap-time-off-in-the-mobile-staff-menu.jpg",
-          "sha256": "bb45058bf663da1172a1f245408132ab2ef07066d800f2e1e572a9ea555a72fb",
+          "sha256": "f45e871508e30db4d137499b049aec75751a23f1352c482be14d79d7dce7942e",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1150,7 +1150,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-03-tap-open-the-mobile-request-type-menu.jpg",
-          "sha256": "5a30aca25adc775f87f851e6649470d6ccffb4d81df1b247119ea269dfa2d48b",
+          "sha256": "d85c046e49c2be84cff90f88e6f14ad9e2e1387cd1173e39334ae6ecaac0c1df",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1166,7 +1166,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-04-tap-the-mobile-unpaid-option.jpg",
-          "sha256": "4549852392d207a931924a55a5c99689ddfc053e573b6d37871f8114893a50bf",
+          "sha256": "97a2f4a243058c9d51f3c4174cab4eee11c5b7b186a680bbae1ccbc875b6f8f3",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1182,7 +1182,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-05-tap-open-the-mobile-date-calendar.jpg",
-          "sha256": "2cfa0d926802c95750e7521bc63c9b58bba76686c6c92e269bc98269169927e4",
+          "sha256": "25d1c299ec6765b6873a4a744ab061a9e75e9e86b760dc41143a36399c279ce0",
           "visual_verdict": "warning",
           "visual_note": "The synthetic banner partly covers the calendar heading; date choices and controls are visible."
         },
@@ -1198,7 +1198,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-06-tap-the-mobile-calendar-next-month-arrow.jpg",
-          "sha256": "6dac8d3b79dfe416b9d710ed6154120beceae9501438cdad7221a9e3cd9538c7",
+          "sha256": "7db585495bd17402f7bd0cf5d04b6bcc018215a2082463d48718a7e32abb81f8",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1214,7 +1214,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-07-tap-the-mobile-request-date.jpg",
-          "sha256": "b23c1062725f9ebf0b79f3a83a418679a538923f3d7c6ef3a95bb9424766dbcf",
+          "sha256": "46ac055b4f26f9f64a6bc2553fafde8c5c4ec674857ae988694fd0287045f610",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1230,7 +1230,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-08-tap-open-the-mobile-end-date-calendar.jpg",
-          "sha256": "5c4dbc822c328abf38552cdc9a48c531a91e69c651febd2ece82da87a72d55a5",
+          "sha256": "a22f93de2653973f3fd05cb49d114d141fd0b3e37f74511a9ba70cfc986b96bf",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1246,7 +1246,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-09-tap-the-matching-mobile-end-date.jpg",
-          "sha256": "3ca395fb662b8ec7683794cea52043215d89ac60d90de1f8208b53f0f165e47b",
+          "sha256": "f6b0d23a1862df48a28c80e443eec1479268c997b48b4f4cc42c1013524d44cd",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1262,7 +1262,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-10-tap-the-mobile-half-day-arrow.jpg",
-          "sha256": "c17c2e5ea37b5e1e04db31838ec1f2ea12e1de670546326535a187b5742520fb",
+          "sha256": "39c74902a7ce3255c53e32c9411758930a6508425b6bdc10fe15388a23d202ca",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1278,7 +1278,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-11-tap-the-mobile-full-day-arrow.jpg",
-          "sha256": "fce2d69955525deefb9a7f40074c9fc044c38b4f4c20017fe28abc9891ccd993",
+          "sha256": "a9713cf69cca01c04065e63270e6d2ca32a88b5ae74c888c1c64f252a996b0f1",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1294,7 +1294,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-12-enter-the-mobile-request-note.jpg",
-          "sha256": "80b3f49afd74f6570e63560581c98ed7c9ac992f1377c8e5b9dede8e476c1eda",
+          "sha256": "4d263ad25a6c6555c621bde7cceed515b4df7746adc4b961e019552e9634acf3",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1310,7 +1310,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-13-submit-mobile-unpaid-request.jpg",
-          "sha256": "f83ae61d77585b3a4c3190f50856ec8780f0a4f35042e832be871a9a5ec66856",
+          "sha256": "d8e50fef5a4dbf57df7dfbc0a8d17cb667438de2c714e105812a8231266ce07f",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1326,7 +1326,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-14-kasper-approves-on-mobile.jpg",
-          "sha256": "3559970acde5c7d2f26a53b7674331963baacc1365e8883aee0db8e9a182e188",
+          "sha256": "9f4aa6012ca52026ec07584e57a1cf205d8e9facd58297f464affd21eb1e7c27",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1342,7 +1342,7 @@
             "height": 844
           },
           "file": "screenshots/mobile-390-happy-path-15-mobile-staff-sees-approved-result.jpg",
-          "sha256": "a7fda4a65109aad1f8fbcf9c9183d034eb99d7dd692a8186535b3d858a7b6332",
+          "sha256": "65e77ee12f673b28aa874088484edb53152dc8bfdbc14e459eab349abe176837",
           "visual_verdict": "ok",
           "visual_note": ""
         }
@@ -1363,7 +1363,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-01-keyboard-enters-time-off-and-reaches-request-type.jpg",
-          "sha256": "5ca7a61f88b58ac2a5224b854664122e0fb2dd0514e633c8f4557fc3aff0df7a",
+          "sha256": "d244c910577f0e9a89968ceb5a14f3217679297a0d6accfb641f43ea4b288242",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1379,7 +1379,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-02-keyboard-opens-request-type-menu.jpg",
-          "sha256": "e03002485f02df332b930a57c422dfdfb73c43389e8d0e3045a0d41672ff3fca",
+          "sha256": "4703fcdecb9761a29c426ff94edaf2a0731c2636dacdb6c22c97750da58f4cbb",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1395,7 +1395,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-03-keyboard-focuses-unpaid-option.jpg",
-          "sha256": "3737f136a7fa07f67d2fc22b8dd0454f39d1ae9d230c575e41837d46ddb94fd5",
+          "sha256": "8ec8e34c26cd1e85188426f9fc79d48431a44796e2b8bfb14cccc69f819ac66d",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1411,7 +1411,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-04-keyboard-selects-unpaid-type.jpg",
-          "sha256": "ac01bfa53987b4cecff504515a7d30d18a3ab9de692a76ab9e3f5cd851a13e05",
+          "sha256": "77490d4b3c6fcea8236b579a96fe4c83b8bd7d04f8b2b1c8db9b149c3540d71f",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1427,7 +1427,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-05-keyboard-reaches-start-date-control.jpg",
-          "sha256": "c0202ce9a240522982e31d66f428e0ef31e34cc47055982aea3b8ba9e249375c",
+          "sha256": "2752da306da4564b61a7a07d219bc232d5dc75381ee7adfad7db8d495d8c7689",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1443,7 +1443,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-06-keyboard-opens-start-date-calendar.jpg",
-          "sha256": "10a1238a0c1d9d21cf71efa320bc8092009a0bd54bd3e5515e044de4222b0156",
+          "sha256": "769f86287ccc552287d66bff6dc3878223668cee997ee03187ebd0cd5378a75d",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1459,7 +1459,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-07-keyboard-chooses-start-date.jpg",
-          "sha256": "1c835ff54abd5fc4309fed0c650dbf5cb1995174762c38cd98412a4cde04097e",
+          "sha256": "03cea825a125aec8ade71d622e8f317080f9583bb97bb323347cc62ee50134bf",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1475,7 +1475,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-08-keyboard-reaches-end-date-control.jpg",
-          "sha256": "7076201ee4706708d103f5d1fb1800a3aef3e5dcd633e3219caca81f11d19579",
+          "sha256": "9a91b7c375560be0ee7490c59c6630425f80a78dff1ec6263c290d5b96bd4cd8",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1491,7 +1491,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-09-keyboard-opens-end-date-calendar.jpg",
-          "sha256": "4bbeb1f9cdce982699513c9b1cac73efa027b32b763b3c3f70c671da6aa9c4de",
+          "sha256": "1f2abba38af5377d712b8e666a231daacfd053cec25368d9de77cf23b9a2dd69",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1507,7 +1507,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-10-keyboard-chooses-end-date.jpg",
-          "sha256": "2ccbcd2a36ee7c08be8e132a00703498193157e6de894c96dcf4eb770a4d0016",
+          "sha256": "7d8a798818cb633fa9c816b1a1c420f5ce52c6a459b0c50e1cf4f48675a5d3f7",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1523,7 +1523,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-11-keyboard-reaches-request-note.jpg",
-          "sha256": "5e00efc9222765552d9e29621e6ff05cfd09592c145dfe438d5e38b22117982a",
+          "sha256": "ceafec926697a47fd2b2fb38f62cbc28c80562b04f09e9191bed493f05af68a4",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1539,7 +1539,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-12-keyboard-types-request-note.jpg",
-          "sha256": "fc4ca19d426d1947667f662080769a4117069a15e121864fd1e9673dc7b6e411",
+          "sha256": "ee615168a618b4e8688970da4ac7fe0bc9c613cb18376998c8c981ec17a3cf5e",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1555,7 +1555,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-13-keyboard-reaches-send-button.jpg",
-          "sha256": "892f63de7105acb792b51b83120729d57e5597c992cefd641c8764431949d289",
+          "sha256": "62684531a899a72608017d9b3cd0e2dbe29b7477bfb70c170a5d6006a3ba0043",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1571,7 +1571,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-14-keyboard-submits-request.jpg",
-          "sha256": "b530fa5f425b5ac30cf6e3515e5b6e777addf8efca215c1e343228547571fba2",
+          "sha256": "386ea6f6158a04b90fc1fb8f7c6d09d7adce680b7b70aacfc4ec7707b2a3bd64",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1587,7 +1587,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-15-keyboard-enters-kasper-decision-note.jpg",
-          "sha256": "f45fcedb16476ee41fdaa6dff37dd9767c56a93f4871c1a95c2a6c481b44ce00",
+          "sha256": "d58a0c90938195efeeade2bb609b43918d11793708016446565a75938b37b3ac",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1603,7 +1603,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-16-keyboard-types-decision-note.jpg",
-          "sha256": "08111e0589f147cfb483d26fcc615bbe34d8825fa9aaa40afa892fc009b22dc6",
+          "sha256": "b61780361df8b32c0cd07e36e9e54c3c1441abf7002eb284896fb3b15ebeda38",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1619,7 +1619,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-17-keyboard-reaches-approve.jpg",
-          "sha256": "9449ca8c442345f9eb73379c83fa2f215174beb222d8e31bb7f2fd4af4cc9cf8",
+          "sha256": "986174b99a795be2c052755fe8d636e17817444b451c502db666cf55c297d4f8",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1635,7 +1635,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-18-keyboard-reaches-deny.jpg",
-          "sha256": "9f3ba886b29fc5fe42618d5ec36f1915d3f90aafd50c69b380c293ef3e07670c",
+          "sha256": "b0b2f4b0edc8e1a51df2f3a32e413383f9c9c9f3c1bc5f5218abb4663054d9d0",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1651,7 +1651,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-19-keyboard-denies-request.jpg",
-          "sha256": "45ec3c51a1080329b56fb7fc0f47fadf4ee31de145fa02776be68b6827ff4aa3",
+          "sha256": "547f028a15b86078fe3f8a48cb0319e82ccdab37f8b77b70f5372f13d031ec38",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1667,7 +1667,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-20-keyboard-opens-recent-decision.jpg",
-          "sha256": "87b7268a3f07b2f73bdc33e5d6bd7d53303e3a539c221f62e6675b54208b31ee",
+          "sha256": "5af3a6b0b4ba303fe38131d74ace3d15d5888dd72fd179847e2ec6a2bb720e0a",
           "visual_verdict": "ok",
           "visual_note": ""
         },
@@ -1683,7 +1683,7 @@
             "height": 920
           },
           "file": "screenshots/keyboard-only-journey-21-keyboard-staff-sees-denial.jpg",
-          "sha256": "bd507d9c26b0eb7128d6fe8d27aa4772e639ca4a3dbc937c2ea91262e792a0db",
+          "sha256": "3551fbd37fd8bb99ce933b440c481ccb04e5dda605734b692893ebb0ee6d791c",
           "visual_verdict": "ok",
           "visual_note": ""
         }

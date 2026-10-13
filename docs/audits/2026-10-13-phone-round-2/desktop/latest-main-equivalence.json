@@ -1,0 +1,18 @@
+{
+  "captureBaseline": "126b1ac5182f2b83494862d6f2faee11c3f61eab",
+  "latestMain": "75fcedab3576fd5c36767457b2cc1ea5e95709b3",
+  "appPathsCompared": [
+    "src/index",
+    "index.html",
+    "js",
+    "assets",
+    "nav-icons.svg"
+  ],
+  "changedAppPaths": [],
+  "mainIndexHashes": {
+    "126b1ac5182f2b83494862d6f2faee11c3f61eab": "ef1e71d8d88044a2d343f12831e2f20710634452d4856e7b30eb15a73e7218e9",
+    "75fcedab3576fd5c36767457b2cc1ea5e95709b3": "ef1e71d8d88044a2d343f12831e2f20710634452d4856e7b30eb15a73e7218e9"
+  },
+  "rebasedSourceCommit": "97e329aac24364d1c6317f9f2ee06982dfd64cab",
+  "rebasedIndexHash": "bb71e2577c6905cff383bec6032c073e0e672bff93867cdca4904803efe34f5b"
+}

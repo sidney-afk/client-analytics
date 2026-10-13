@@ -325,7 +325,7 @@ state('sheet-tabs', async p => { await go(p, 'today'); await settle(p, 1200); aw
 state('sheet-more', async p => { await go(p, 'today'); await settle(p, 1200); await openSheet(p, 'more'); });
 state('sheet-more-templates', async p => { await go(p, 'templates'); await settle(p, 600); await openSheet(p, 'more'); });
 state('client-picker', async p => {
-  await go(p, 'templates'); await settle(p, 600); await openSheet(p, 'more');
+  await go(p, 'templates'); await settle(p, 600); await openSheet(p, 'tabs');
   await p.locator('.pocket-staff-sheet button', { hasText: 'Change client' }).click(); await settle(p, 500);
 });
 

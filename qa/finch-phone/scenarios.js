@@ -126,6 +126,6 @@ const SCENARIOS = [
   { id: 'linear-error', open: prodOpts({ fail: true }), settle: 4000, viewportOnly: true },
   { id: 'menu-tabs', open: base('#tiktok-upload'), settle: 2500, steps: async p => { await p.click('#fphTabsBtn'); await wait(p); }, viewportOnly: true },
   { id: 'menu-more', open: base('#tiktok-upload'), settle: 2500, steps: async p => { await p.click('#fphMoreBtn'); await wait(p); }, viewportOnly: true },
-  { id: 'menu-client', open: base('#tiktok-upload'), settle: 2500, steps: async p => { await p.click('#fphMoreBtn'); await wait(p); await p.click('text=Change client'); await wait(p, 600); }, viewportOnly: true },
+  { id: 'menu-client', open: base('#tiktok-upload'), settle: 2500, steps: async p => { await p.click('#fphTabsBtn'); await wait(p); await p.getByRole('button',{name:'Change client',exact:true}).tap(); await wait(p, 600); }, viewportOnly: true },
 ];
 module.exports = { SCENARIOS, F };

@@ -101,3 +101,6 @@ router is the same thing for system-level questions.
 Staff phone tap/refresh responsiveness and shared controls: [dated findings and limits](audits/2026-10-12-phone-responsiveness/README.md), [native comparison gallery](audits/2026-10-12-phone-responsiveness/gallery.html), and [check receipts](audits/2026-10-12-phone-responsiveness/CHECKS.md).
 
 Shared staff phone Tabs grid: [native comparisons and verification](audits/2026-10-12-staff-tabs-grid/README.md).
+## Phone round 2
+
+The owner's client-picker, More, status-colour, shared-handle and thumbnail feedback is recorded in [the phone round 2 report](audits/2026-10-13-phone-round-2/README.md), with a native before/after gallery and check receipts.

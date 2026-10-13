@@ -73,6 +73,13 @@
         // The same rows, labels and native destinations on every staff phone.
         // Helpers create no DOM at desktop widths or on client links.
         window.svStaffPhoneMenus = {
+            restoreNative(root) {
+                root.querySelectorAll('.sv-phone-more-icon').forEach(icon => icon.remove());
+                root.querySelectorAll('[data-sv-phone-original-label]').forEach(label => {
+                    label.textContent = label.dataset.svPhoneOriginalLabel;
+                    label.removeAttribute('data-sv-phone-original-label');
+                });
+            },
             label(el) {
                 const labels = { navFilmingPlans: 'Filming Plans', navTiktokUpload: 'Upload', navProd: 'Linear' };
                 return labels[el.id] || tabLabel(el);
@@ -114,10 +121,28 @@
                         dialog.close(); native.click();
                     }); grid.append(b);
                 });
+                const badge = document.getElementById('svClientBadge');
+                if (badge && !badge.hidden && badge.style.display !== 'none') {
+                    const change = document.createElement('button');
+                    change.type = 'button'; change.className = 'sv-phone-change-client'; change.disabled = !!badge.disabled;
+                    change.setAttribute('aria-label', 'Change client'); change.dataset.proxy = 'svClientBadge';
+                    change.innerHTML = '<span><strong>Change client</strong><small>' + esc(svSharedClientGet() || 'No client selected') + '</small></span>' + next;
+                    change.addEventListener('click', event => { event.stopPropagation(); dialog.close(); setTimeout(() => window.svPhoneOpenClientPicker(), 0); });
+                    body.append(change);
+                }
                 body.append(grid);
             },
             more(body, dialog, cls) {
-                dialog.classList.add('sv-phone-sheet');
+                if (!window.svIsStaffPhone()) return;
+                dialog.classList.add('sv-phone-sheet', 'sv-phone-more');
+                const head = dialog.querySelector(':scope > [class$="-head"]');
+                head.classList.add('sv-phone-menu-head'); head.querySelector('button').textContent = 'Close';
+                body.classList.add('sv-phone-more-body');
+                // Restore native tools before replacing proxies on a second opening.
+                // Their original listeners and eventual desktop return positions survive.
+                const priorNative = body.querySelector('.sv-phone-more-native');
+                if (priorNative) body.append(...priorNative.childNodes);
+                body.querySelector('.sv-phone-proxies')?.remove();
                 // The native opener prepares identity handlers and permission state.
                 // Keep its header popover closed; its actions are proxied below.
                 const account = control('headerMenuButton'), popover = document.getElementById('staffAccountPopover');
@@ -129,27 +154,49 @@
                     if (root.dataset.theme !== theme) _syncviewApplyTheme(theme === 'dark' ? 'dark' : 'light', false);
                     if (root.dataset.statusPalette !== palette) _syncviewApplyStatusPalette(palette === 'classic' ? 'classic' : 'vibrant');
                 }
+                const nativeTools = [...body.children];
                 const group = document.createElement('div'); group.className = 'sv-phone-proxies';
-                const title = document.createElement('p'); title.className = 'sv-phone-tools'; title.textContent = 'Tools'; group.append(title);
+                const section = label => {
+                    const s = document.createElement('section'); s.className = 'sv-phone-more-group';
+                    const title = document.createElement('h3'); title.textContent = label;
+                    const rows = document.createElement('div'); rows.className = 'sv-phone-more-grid';
+                    s.append(title, rows); group.append(s); return rows;
+                };
+                const appearance = section('Appearance'), tools = section('Tools'), accountRows = section('Account');
+                const artwork = kind => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + ({ appearance:'M20 14A8 8 0 0 1 10 4a8 8 0 1 0 10 10', palette:'M12 3a9 9 0 1 0 0 18h2a2 2 0 0 0 0-4h-1a2 2 0 0 1 0-4h3a5 5 0 0 0 5-5M8 8h.01M6 12h.01M10 6h.01', jump:'m13 3-9 11h7l-1 7 10-12h-7z', time:'M4 5h16v16H4zM8 3v4M16 3v4M4 10h16M8 14h3M8 17h6', credentials:'M14 10a5 5 0 1 0-4 4l7 7h4v-4h-3v-3h-3z', signout:'M10 4H4v16h6M9 12h12m-4-4 4 4-4 4', tool:'M4 6h16M4 12h16M4 18h16M8 4v4M16 10v4M10 16v4' }[kind] || 'M4 6h16M4 12h16M4 18h16') + '"/></svg>';
                 // A sheet whose own tools already open this client's credentials (Calendar) lists them once.
                 const ownCredentials = body.querySelector('[data-staff-capability="credentials"]:not([hidden])');
-                const proxy = (label, el, picker) => {
+                const proxy = (label, el, rows, icon) => {
                     if (!el || el.hidden || el.style.display === 'none') return;
                     if (ownCredentials && el.id === 'headerCredentialsMenuItem') return;
                     const b = document.createElement('button'); b.type = 'button'; b.className = cls || '';
                     b.disabled = !!el.disabled;
                     // Names the native control this row stands in for (the sheet's own click handler skips proxy rows).
                     if (el.id) b.dataset.proxy = el.id;
-                    b.innerHTML = '<span>' + esc(label) + '</span>' + next;
-                    b.addEventListener('click', () => { dialog.close(); setTimeout(() => picker ? window.svPhoneOpenClientPicker() : el.click(), 0); }); group.append(b);
+                    b.innerHTML = artwork(icon) + '<span>' + esc(label) + '</span>';
+                    b.addEventListener('click', () => { dialog.close(); setTimeout(() => el.click(), 0); }); rows.append(b);
                 };
-                proxy('Change client', document.getElementById('svClientBadge'), true);
-                proxy('Quick jump', document.querySelector('.sv-jump-touch'));
-                proxy(document.documentElement.dataset.theme === 'dark' ? 'Light appearance' : 'Dark appearance', control('themeToggle'));
-                proxy(document.documentElement.dataset.statusPalette === 'classic' ? 'Current status colors' : 'Original status colors', control('statusPaletteToggle'));
-                [['headerTimeOffMenuItem', 'Time Off'], ['headerOnboardingMenuItem', 'Onboarding'], ['headerCredentialsMenuItem', 'Client Credentials']].forEach(p => proxy(p[1], control(p[0])));
-                proxy((document.getElementById('staffIdentityMenuLabel')?.textContent || '').trim() || 'Staff menu', control('staffIdentitySignOut'));
-                body.prepend(group);
+                proxy(document.documentElement.dataset.theme === 'dark' ? 'Light mode' : 'Dark mode', control('themeToggle'), appearance, 'appearance');
+                proxy(document.documentElement.dataset.statusPalette === 'classic' ? 'Vibrant colours' : 'Original colours', control('statusPaletteToggle'), appearance, 'palette');
+                proxy('Quick jump', document.querySelector('.sv-jump-touch'), tools, 'jump');
+                [['headerTimeOffMenuItem', 'Time Off', 'time'], ['headerOnboardingMenuItem', 'Onboarding', 'tool'], ['headerCredentialsMenuItem', 'Client Credentials', 'credentials']].forEach(p => proxy(p[1], control(p[0]), tools, p[2]));
+                if (nativeTools.length) {
+                    const native = document.createElement('div'); native.className = 'sv-phone-more-native';
+                    native.append(...nativeTools); tools.append(native);
+                    native.querySelectorAll('button').forEach(button => {
+                        if (!button.querySelector('svg') && !button.closest('.cal-zoom')) {
+                            button.insertAdjacentHTML('afterbegin', artwork('tool'));
+                            button.firstElementChild.classList.add('sv-phone-more-icon');
+                        }
+                        const label = button.querySelector('.cal-kebab-label');
+                        if (label?.textContent === 'Collaborative mode') {
+                            label.dataset.svPhoneOriginalLabel = label.textContent;
+                            label.textContent = 'Client collaboration';
+                        }
+                    });
+                }
+                proxy('Sign out', control('staffIdentitySignOut'), accountRows, 'signout');
+                body.append(group);
             }
         };
         window.svPhoneOpenClientPicker = function () {
@@ -264,7 +311,7 @@
             || document.body.matches('.intake-mode, .onboarding-mode')) return;
         const html = document.documentElement;
         html.classList.add('sv-staff-phone');
-        const moves = new Map(), labels = new Map(), overlays = new Map(), actionListeners = [], legacyHeads = new Set(), retries = new Map();
+        const moves = new Map(), labels = new Map(), overlays = new Map(), actionListeners = [], legacyHeads = new Set(), retries = new Map(), sheets = new Map();
         let lastTrigger = null, locked = null, queued = false, touch = null, cardsDirty = true;
         // Discover both semantic dialogs and the app's older floating surfaces.
         // A tooltip is explanatory, and never locks its underlying screen.
@@ -369,6 +416,7 @@
             });
         }
         function lock() {
+            for (const surface of sheets.keys()) if (!surface.isConnected) sheets.delete(surface);
             if (locked) return;
             locked = { x: scrollX, y: scrollY, styles: ['position', 'top', 'left', 'width'].map(key => [key, document.body.style.getPropertyValue(key), document.body.style.getPropertyPriority(key)]) };
             document.body.style.position = 'fixed';
@@ -376,6 +424,45 @@
             document.body.style.left = -locked.x + 'px';
             document.body.style.width = '100%';
             html.classList.add('sv-phone-locked');
+        }
+        function dismissSheet(surface) {
+            if (!shown(surface)) return;
+            if (surface.matches('dialog[open]')) { surface.close(); return; }
+            if (surface.matches('.cal-fld-status-menu')) {
+                if (window._calOpenStatusMenu?.el === surface) { window._calCloseStatusMenu(); return; }
+                if (window._sxrOpenStatusMenu?.el === surface) { window._sxrCloseStatusMenu(); return; }
+            }
+            // Legacy sheets retain their native outside-click state cleanup.
+            document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: -1, clientY: -1 }));
+            document.body.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: -1, clientY: -1 }));
+        }
+        function sheetControl(surface) {
+            if (sheets.has(surface)) return;
+            const grip = getComputedStyle(surface, '::before');
+            // Existing staff grab handles share this visual shape. A sheet
+            // with a labelled header and no handle needs no extra chrome.
+            if (grip.content === 'none' || parseFloat(grip.height) !== 4 || parseFloat(grip.width) < 30 || parseFloat(grip.width) > 40) return;
+            const button = document.createElement('button');
+            button.type = 'button'; button.className = 'sv-phone-sheet-handle';
+            button.setAttribute('aria-label', 'Close sheet');
+            button.innerHTML = '<span class="sv-phone-sheet-grip" aria-hidden="true"></span><span class="sv-phone-sheet-exit">Close</span>';
+            let startY = null, suppressClick = false;
+            button.addEventListener('pointerdown', event => {
+                event.stopPropagation(); startY = event.clientY; suppressClick = false;
+                if (event.isTrusted) button.setPointerCapture(event.pointerId);
+            });
+            button.addEventListener('pointerup', event => {
+                event.stopPropagation();
+                if (startY !== null) {
+                    const distance = event.clientY - startY;
+                    suppressClick = Math.abs(distance) > 8;
+                    if (distance >= 64) { event.preventDefault(); dismissSheet(surface); }
+                }
+                startY = null;
+            });
+            button.addEventListener('pointercancel', () => { startY = null; });
+            button.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); if (!suppressClick) dismissSheet(surface); suppressClick = false; });
+            surface.classList.add('sv-phone-dismissable'); surface.prepend(button); sheets.set(surface, button);
         }
         function unlock() {
             if (!locked) return;
@@ -399,6 +486,7 @@
             }
             active.forEach(el => {
                 legacyHead(el);
+                sheetControl(el);
                 if (!overlays.has(el)) {
                     const trigger = liveTrigger(lastTrigger)
                         || document.querySelector('[data-staff-menu="more"], #fphMoreBtn, .pocket-staff-more-btn, [data-kasper-more-trigger]');
@@ -545,6 +633,7 @@
                 }
             });
             actionListeners.forEach(([el, listener]) => el.removeEventListener('click', listener, true));
+            sheets.forEach((button, surface) => { button.remove(); surface.classList.remove('sv-phone-dismissable'); });
             legacyHeads.forEach(el => el.remove());
             retries.forEach(({ attrs, key }, el) => {
                 el.removeEventListener('keydown', key);

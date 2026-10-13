@@ -2631,6 +2631,17 @@
         .cal-cm-thread.is-collapsed .cal-cm-rail { bottom: auto; height: 22px; }
         .cal-cm-more-replies { display: block; margin: 0 0 6px 64px; padding: 2px 0; border: 0; background: transparent; cursor: pointer; font-family: inherit; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); }
         .cal-cm-more-replies:hover { color: var(--text-primary); text-decoration: underline; }
+        /* Phone: 44px hit areas for the audience icon and the Send arrow
+           (UI_DESIGN_STANDARDS), the icons themselves stay compact. */
+        @media (max-width: 767px) {
+            .cal-cm-aud-icon { width: 44px; height: 44px; }
+            .cal-cm-composer-actions.is-split .cal-cm-send, .cal-cm-send-more { height: 44px; }
+            .cal-cm-composer-actions.is-split .cal-cm-send { width: 44px; }
+            .cal-cm-send-more { width: 44px; }
+            .cal-cm-rail { width: 24px; left: 27px; }
+            .cal-cm-rail::before { left: 11px; }
+            .cal-cm-more-replies { min-height: 44px; }
+        }
         .cal-cm-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
         html[data-theme="dark"] .cal-cm-send-more:disabled { opacity: 1; background: var(--field-bg-hover); color: var(--disabled-fg); }
         .cal-cm-pending-hint { font-size: 0.72rem; color: var(--text-secondary); padding: 4px 2px 0 40px; }

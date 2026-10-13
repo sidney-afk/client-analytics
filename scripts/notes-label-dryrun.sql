@@ -15,7 +15,7 @@ with cols as (
     ('caption', p.caption_tweaks), ('title', p.title_tweaks)) as c(component, raw)
   cross join lateral jsonb_array_elements(
     case when c.raw is null or btrim(c.raw::text) in ('', '""', 'null') then '[]'::jsonb
-         when jsonb_typeof(c.raw::jsonb) = 'array' then c.raw::jsonb
+         when c.raw::text ~ '^\s*\[' then c.raw::jsonb  -- JSON lists only; legacy plain text is left alone
          else '[]'::jsonb end) as n(note)
 ), labelled as (
   select component,

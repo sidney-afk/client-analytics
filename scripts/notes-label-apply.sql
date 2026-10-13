@@ -10,7 +10,7 @@ create temporary table _notes_label_before on commit drop as
 create or replace function pg_temp.label_notes(raw text) returns text language sql immutable as $$
   select case
     when raw is null or btrim(raw) in ('', '""', 'null') then raw
-    when jsonb_typeof(raw::jsonb) <> 'array' then raw
+    when raw !~ '^\s*\[' then raw   -- legacy plain text: left exactly as it is
     else (select coalesce(jsonb_agg(
             case when coalesce(n->>'parent_id','') = '' and not (n->>'audience' in ('internal','client'))
                  then n || jsonb_build_object('audience', case when n->>'role' = 'client' then 'client' else 'internal' end)

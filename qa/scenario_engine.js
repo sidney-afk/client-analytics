@@ -415,8 +415,8 @@ async function smmNote(page, id, comp, text, audience) {
     const [comp, text, audience] = args;
     const compLabel = comp === 'graphic' ? 'Thumbnail' : 'Video';
     const cb = [...document.querySelectorAll('[data-cm-toggle="comp"] .cal-cm-aud-btn')].find(b => new RegExp(compLabel, 'i').test(b.textContent)); if (cb) cb.click();
-    // The audience is one icon inside the composer since 2026-10 (lock = team, eye = client).
-    _calSetComposeAudience(audience === 'client' ? 'client' : 'internal');
+    const audRe = audience === 'client' ? /Client/i : /Kasper|team|internal/i;
+    const ab = [...document.querySelectorAll('[data-cm-toggle="audience"] .cal-cm-aud-btn')].find(b => audRe.test(b.textContent)); if (ab) ab.click();
     const ta = document.getElementById('sxrCommentComposer'); if (!ta) return 'no-ta';
     const set = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set; set.call(ta, text); ta.dispatchEvent(new Event('input', { bubbles: true }));
     const send = document.querySelector('#sxrCommentsOverlay .cal-cm-send') || document.querySelector('.cal-cm-send');

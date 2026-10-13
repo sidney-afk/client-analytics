@@ -19,6 +19,9 @@
  * Step K (2026-10-01): the golden was re-recorded on purpose. A client link now always sends to the
  * function with its token; the two route lines and the four transport hashes are the only changes.
  *
+ * OPEN_REPAIRS 414 (2026-10-13): only the _calReviewApprove hash was re-pinned. The change is in its
+ * staff-only (smm) branch; the client requests above are unchanged.
+ *
  * No request leaves the machine; every backend answer is local.
  */
 require('./helpers/single-file-index.js'); // split switch on: reads of index.html get the single-file page

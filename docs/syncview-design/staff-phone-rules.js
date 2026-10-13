@@ -11,7 +11,7 @@
             || document.body.matches('.intake-mode, .onboarding-mode')) return;
         const html = document.documentElement;
         html.classList.add('sv-staff-phone');
-        const moves = new Map(), labels = new Map(), overlays = new Map(), actionListeners = [], legacyHeads = new Set(), retries = new Map();
+        const moves = new Map(), labels = new Map(), overlays = new Map(), actionListeners = [], legacyHeads = new Set(), retries = new Map(), sheets = new Map();
         let lastTrigger = null, locked = null, queued = false, touch = null, cardsDirty = true;
         // Discover both semantic dialogs and the app's older floating surfaces.
         // A tooltip is explanatory, and never locks its underlying screen.
@@ -116,6 +116,7 @@
             });
         }
         function lock() {
+            for (const surface of sheets.keys()) if (!surface.isConnected) sheets.delete(surface);
             if (locked) return;
             locked = { x: scrollX, y: scrollY, styles: ['position', 'top', 'left', 'width'].map(key => [key, document.body.style.getPropertyValue(key), document.body.style.getPropertyPriority(key)]) };
             document.body.style.position = 'fixed';
@@ -123,6 +124,45 @@
             document.body.style.left = -locked.x + 'px';
             document.body.style.width = '100%';
             html.classList.add('sv-phone-locked');
+        }
+        function dismissSheet(surface) {
+            if (!shown(surface)) return;
+            if (surface.matches('dialog[open]')) { surface.close(); return; }
+            if (surface.matches('.cal-fld-status-menu')) {
+                if (window._calOpenStatusMenu?.el === surface) { window._calCloseStatusMenu(); return; }
+                if (window._sxrOpenStatusMenu?.el === surface) { window._sxrCloseStatusMenu(); return; }
+            }
+            // Legacy sheets retain their native outside-click state cleanup.
+            document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: -1, clientY: -1 }));
+            document.body.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: -1, clientY: -1 }));
+        }
+        function sheetControl(surface) {
+            if (sheets.has(surface)) return;
+            const grip = getComputedStyle(surface, '::before');
+            // Existing staff grab handles share this visual shape. A sheet
+            // with a labelled header and no handle needs no extra chrome.
+            if (grip.content === 'none' || parseFloat(grip.height) !== 4 || parseFloat(grip.width) < 30 || parseFloat(grip.width) > 40) return;
+            const button = document.createElement('button');
+            button.type = 'button'; button.className = 'sv-phone-sheet-handle';
+            button.setAttribute('aria-label', 'Close sheet');
+            button.innerHTML = '<span class="sv-phone-sheet-grip" aria-hidden="true"></span><span class="sv-phone-sheet-exit">Close</span>';
+            let startY = null, suppressClick = false;
+            button.addEventListener('pointerdown', event => {
+                event.stopPropagation(); startY = event.clientY; suppressClick = false;
+                if (event.isTrusted) button.setPointerCapture(event.pointerId);
+            });
+            button.addEventListener('pointerup', event => {
+                event.stopPropagation();
+                if (startY !== null) {
+                    const distance = event.clientY - startY;
+                    suppressClick = Math.abs(distance) > 8;
+                    if (distance >= 64) { event.preventDefault(); dismissSheet(surface); }
+                }
+                startY = null;
+            });
+            button.addEventListener('pointercancel', () => { startY = null; });
+            button.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); if (!suppressClick) dismissSheet(surface); suppressClick = false; });
+            surface.classList.add('sv-phone-dismissable'); surface.prepend(button); sheets.set(surface, button);
         }
         function unlock() {
             if (!locked) return;
@@ -146,6 +186,7 @@
             }
             active.forEach(el => {
                 legacyHead(el);
+                sheetControl(el);
                 if (!overlays.has(el)) {
                     const trigger = liveTrigger(lastTrigger)
                         || document.querySelector('[data-staff-menu="more"], #fphMoreBtn, .pocket-staff-more-btn, [data-kasper-more-trigger]');
@@ -292,6 +333,7 @@
                 }
             });
             actionListeners.forEach(([el, listener]) => el.removeEventListener('click', listener, true));
+            sheets.forEach((button, surface) => { button.remove(); surface.classList.remove('sv-phone-dismissable'); });
             legacyHeads.forEach(el => el.remove());
             retries.forEach(({ attrs, key }, el) => {
                 el.removeEventListener('keydown', key);

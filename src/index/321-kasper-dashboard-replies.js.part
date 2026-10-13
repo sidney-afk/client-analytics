@@ -2834,15 +2834,11 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
             const overview = document.createElement('button'); overview.type = 'button';
             overview.className = 'pocket-admin-overview'; overview.textContent = 'Overview';
             overview.addEventListener('click', () => { document.querySelector('header .logo')?.click(); closeTabs(); });
-            tabs.append(head, overview);
-            const clientBar = document.getElementById('svClientBar');
-            if (clientBar && !clientBar.hidden) {
-                clientHome = document.createComment('phone client picker return position');
-                clientBar.before(clientHome); tabs.append(clientBar);
-            }
+            tabs.append(head);
             const body = document.createElement('div'); body.className = 'pocket-admin-tabs-body';
             tabs.append(body);
             window.svStaffPhoneMenus.tabs(body, tabs);
+            body.insertBefore(overview, body.querySelector('.sv-phone-tabs-grid'));
             document.body.append(tabs);
             tabs.addEventListener('cancel', event => { event.preventDefault(); closeTabs(); });
             tabs.addEventListener('close', closeTabs);

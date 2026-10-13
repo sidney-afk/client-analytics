@@ -1,0 +1,520 @@
+{
+  "before": false,
+  "receipt": [
+    {
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "theme": "dark"
+    }
+  ],
+  "sheetChecks": [
+    {
+      "surface": "calendar",
+      "component": "video",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "video",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "video",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "video",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "graphic",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "graphic",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "graphic",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "graphic",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "caption",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "caption",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "caption",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "caption",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "title",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "title",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "title",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "title",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "all",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "all",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "all",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "all",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "alternate-caption",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "alternate-caption",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "alternate-caption",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "alternate-caption",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "samples",
+      "component": "video",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "samples",
+      "component": "video",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "samples",
+      "component": "video",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "samples",
+      "component": "video",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "samples",
+      "component": "graphic",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "samples",
+      "component": "graphic",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "samples",
+      "component": "graphic",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "samples",
+      "component": "graphic",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "samples",
+      "component": "all",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "samples",
+      "component": "all",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "samples",
+      "component": "all",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "samples",
+      "component": "all",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "surface": "calendar",
+      "component": "video",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "video",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "video",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "video",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "graphic",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "graphic",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "graphic",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "graphic",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "caption",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "caption",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "caption",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "caption",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "title",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "title",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "title",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "title",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "all",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "all",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "all",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "all",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "alternate-caption",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "alternate-caption",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "alternate-caption",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "calendar",
+      "component": "alternate-caption",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "samples",
+      "component": "video",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "samples",
+      "component": "video",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "samples",
+      "component": "video",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "samples",
+      "component": "video",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "samples",
+      "component": "graphic",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "samples",
+      "component": "graphic",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "samples",
+      "component": "graphic",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "samples",
+      "component": "graphic",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "samples",
+      "component": "all",
+      "dismiss": "tap",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "samples",
+      "component": "all",
+      "dismiss": "drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "samples",
+      "component": "all",
+      "dismiss": "touch-drag",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "surface": "samples",
+      "component": "all",
+      "dismiss": "escape",
+      "width": 390,
+      "theme": "dark"
+    }
+  ],
+  "failures": []
+}

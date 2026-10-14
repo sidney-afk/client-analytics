@@ -2568,7 +2568,8 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         if (!_calCapAiEligible(p) || _calCapJobActive(_calCaptionJobs.get(p.id))) return '';
         const e = _calCapAiEntry(p.id), open = _calCapAiIsOpen(p.id);
         const label = (e && e.titles && e.titles.length) ? 'Titles, redo' : 'Redo with a note';
-        return '<button type="button" class="cal-cap-ai-tog' + (open ? ' is-open' : '') + '" aria-expanded="' + (open ? 'true' : 'false') + '" onclick="_calCapAiToggleOpen(\'' + _calEscAttr(p.id) + '\')">' + label + '</button>';
+        const ea = _calEscAttr(p.id);
+        return '<button type="button" class="cal-cap-ai-tog' + (open ? ' is-open' : '') + '" aria-expanded="' + (open ? 'true' : 'false') + '" onclick="_calCapAiToggleOpen(\'' + ea + '\')">' + label + '</button>';
     }
     function _calCapAiPanelHtml(p) {
         if (!_calCapAiEligible(p) || !_calCapAiIsOpen(p.id)) return '';

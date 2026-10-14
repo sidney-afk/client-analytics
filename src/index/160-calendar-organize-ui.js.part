@@ -848,9 +848,10 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         dlg = document.createElement('dialog');
         dlg.id = 'notifyClientDialog';
         dlg.className = 'notify-client-dialog';
+        dlg.setAttribute('data-backdrop-dismiss', '');
         dlg.setAttribute('aria-labelledby', 'notifyClientTitle');
         dlg.addEventListener('click', ev => {
-            if (ev.target === dlg && !_notifyClient.busy) { dlg.close(); return; }
+            if (ev.target === dlg && dlg._backdropPressBegan && !_notifyClient.busy) { dlg.close(); return; }
             const act = ev.target.closest && ev.target.closest('[data-nc-act]');
             if (!act || act.disabled) return;
             const what = act.getAttribute('data-nc-act');

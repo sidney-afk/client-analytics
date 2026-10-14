@@ -84,6 +84,7 @@ AI generation (briefs, captions, summaries):
   `webhook/generate-tab-summary`
 - `webhook/caption-prompts-get`
 - `functions/v1/caption-generate` (the Generate caption AI job off n8n, staff key; used only for clients listed in the runtime flag `caption_generate_ef_clients`, otherwise the page still calls the n8n `generate-caption` webhook; OPEN_REPAIRS 388)
+- `functions/v1/frameio-view` (Watch here: a card's Frame.io link in, a fresh playable video address and the comments out, staff key only, read only; OPEN_REPAIRS 418)
 - Not called by the page: the timer-only Edge Function `calendar-auto-posted` (a database timer every 15 minutes turns Scheduled posts Posted once their day has ended in US Eastern time, through `production-write` and `calendar-upsert` like a click; switch `calendar_auto_posted`, default off; OPEN_REPAIRS 402)
 - `functions/v1/thumbnail-title-prompts` (read and save one client's thumbnail title prompt from the Calendar "..." menu; staff key only, client tokens refused; the save waits on `settings_ef_clients` like the caption prompt save. The titles are written by `thumbnail-titles`, called only by a database timer, never by the page; OPEN_REPAIRS 391)
 - `functions/v1/caption-jobs` (caption job progress and cancel, staff key; it replaced the two n8n caption job status and update webhooks, which the page no longer calls)

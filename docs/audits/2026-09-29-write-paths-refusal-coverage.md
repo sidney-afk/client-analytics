@@ -128,6 +128,7 @@ and SMM weekly reports.
 | `180-calendar-native-post-media.js` | `persistCalReorder` | `url` POST | reports | `persistCalReorder` | Calendar drag order (calendar-reorder). Recorded as calendar_reorder. |
 | `186-archived-restore.js` | `_arxGatewayMove` | `url` POST | reports-in-callers | `via _arxFail` | Restore moves a work item back through the guarded production-write route. Its caller _arxRestore records a failed move through _arxFail, which reports to the log (surface calendar or sxr, operation status). |
 | `186-archived-restore.js` | `_arxRestore` | `CALENDAR_REORDER_EF_URL` POST | reports-in-callers | `via _arxFail` | Restore position write. A failure is caught in _arxRestore and recorded through _arxFail (step order). |
+| `187-frame-viewer.js` | `ctrl` | `FRAMEIO_VIEW_EF_URL` POST | read |  | Watch here: asks the frameio-view function for a video address and comments. A POST only to carry the link; it reads from Frame.io and saves nothing. |
 | `200-intake-data-startup.js` | `_linearIntakeLogSubmissionRequest` | `LOG_SUBMISSION_WEBHOOK` POST | telemetry |  | Same submission log. |
 | `200-intake-data-startup.js` | `_linearIntakeSendTelemetry` | `LOG_SUBMISSION_WEBHOOK` POST | telemetry |  | Fire-and-forget submission log to a sheet; not a save the person waits on. |
 | `200-intake-data-startup.js` | `_runNativeIntakeJob` | `PROD_WRITE_EF_URL` POST | reports-in-callers | `via _linearSavedSend`, `_submitLinearFormRoutedOnce` | Intake create through the gateway. Already recorded (intake_create and the queue kinds) by its callers. |

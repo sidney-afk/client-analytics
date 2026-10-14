@@ -24,7 +24,7 @@ import {
   _urgentKind
 } from './140-calendar-legacy-outbox.js';
 import {
-  _calFetchDeliverableLinkRows, _calIdentFromUrl, _calSupabaseFetchAllRows, _calV2LoadLib,
+  _calFetchDeliverableLinkRows, _calIdentFromUrl, _calLinkAdoptTriedSet, _calSupabaseFetchAllRows, _calV2LoadLib,
   _calV2Log
 } from './150-calendar-hydration-import.js';
 import {
@@ -2050,6 +2050,10 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         if (!wanted.size) return 0;
         const rows = await _calFetchDeliverableLinkRows([...wanted.keys()]);
         if (seq !== _sxrLoadSeq || !rows.size) return 0;
+        // One try per card, slot and link a day, and never a link another
+        // sample already holds: as on the Calendar, a refused link otherwise
+        // cost a save, an echo and a reload on every load.
+        const tried = _sxrAdoptDeliverableLinks.tried || (_sxrAdoptDeliverableLinks.tried = _calLinkAdoptTriedSet('samples'));
         let adopted = 0;
         for (const [deliverableId, slot] of wanted) {
             const row = rows.get(deliverableId);
@@ -2060,6 +2064,11 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             const post = (sxrState.posts || []).find(p => p && p.id === slot.pid);
             if (!post || String(post[slot.field] || '').trim()) continue;
             if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
+            const triedKey = slug + '|' + slot.pid + '|' + slot.field + '|' + url;
+            if (tried.has(triedKey)) continue;
+            if ((sxrState.posts || []).some(p => p && p.id !== slot.pid && String(p.status || '').toLowerCase() !== 'archived'
+                && (String(p.linear_issue_id || '').trim() === url || String(p.graphic_linear_issue_id || '').trim() === url))) continue;
+            tried.add(triedKey);
             try {
                 const resp = await _writeUiTrackSave('sxr', 'sample_link_adopt', () => ({ client_slug: slug, id: String(post.id || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: post.id, [slot.field]: url, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'link-adopt'), { requireOk: true });
                 const json = await resp.json().catch(() => ({}));
@@ -2067,6 +2076,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
                 post[slot.field] = url;
                 adopted += 1;
             } catch (error) {
+                tried.delete(triedKey);   // never answered: a later load may try again
                 console.warn('[Samples] could not adopt the deliverable link for ' + slot.component, error);
             }
         }

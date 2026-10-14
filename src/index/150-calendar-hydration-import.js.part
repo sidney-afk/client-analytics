@@ -191,6 +191,29 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
      * binding is re-read after the lookup await, because the card can be
      * linked, re-pointed, or archived while it is in flight.
      */
+    /* The tries are remembered in this browser for a day, so a link the
+       server keeps refusing costs one save a day, not one per page open. A
+       slot the server did fill is never looked at again (the card has it). */
+    const CAL_LINK_ADOPT_TRIED_LS = 'syncview_link_adopt_tried_v1';
+    const CAL_LINK_ADOPT_TRIED_MS = 24 * 3600 * 1000;
+    function _calLinkAdoptTriedSet(surface) {
+        const read = () => {
+            try {
+                const all = JSON.parse(localStorage.getItem(CAL_LINK_ADOPT_TRIED_LS) || '{}');
+                return (all && typeof all === 'object') ? all : {};
+            } catch (e) { return {}; }
+        };
+        const write = (all) => { try { localStorage.setItem(CAL_LINK_ADOPT_TRIED_LS, JSON.stringify(all)); } catch (e) {} };
+        const now = Date.now();
+        const all = read();
+        const set = new Set();
+        Object.keys(all).forEach(k => { if (now - Number(all[k] || 0) < CAL_LINK_ADOPT_TRIED_MS && k.startsWith(surface + '|')) set.add(k.slice(surface.length + 1)); });
+        return {
+            has: k => set.has(k),
+            add: k => { set.add(k); const a = read(); Object.keys(a).forEach(x => { if (Date.now() - Number(a[x] || 0) >= CAL_LINK_ADOPT_TRIED_MS) delete a[x]; }); a[surface + '|' + k] = Date.now(); write(a); },
+            delete: k => { set.delete(k); const a = read(); delete a[surface + '|' + k]; write(a); }
+        };
+    }
     async function _calAdoptDeliverableLinks(loadRun, slug) {
         if (!_calLoadRunCurrent(loadRun)) return 0;
         const wanted = new Map();
@@ -207,6 +230,15 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
         if (!wanted.size) return 0;
         const rows = await _calFetchDeliverableLinkRows([...wanted.keys()]);
         if (!_calLoadRunCurrent(loadRun) || !rows.size) return 0;
+        /* One try per card, slot and link (a day, see above). The save answers
+           ok and echoes the link even when the server keeps the slot empty (its
+           duplicate-link guard: another live card already holds that link), so
+           every load used to try again, and the realtime echo of each try
+           started the next load. Measured 2026-10-14 on the test client: going
+           back to the Calendar ran four loads and rebuilt the board four times,
+           the link flashing on and off. A link another card on the board
+           already holds is never sent at all. */
+        const tried = _calAdoptDeliverableLinks.tried || (_calAdoptDeliverableLinks.tried = _calLinkAdoptTriedSet('calendar'));
         let adopted = 0;
         for (const [deliverableId, slot] of wanted) {
             const row = rows.get(deliverableId);
@@ -217,6 +249,11 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
             const post = (calState.posts || []).find(p => p && p.id === slot.pid);
             if (!post || String(post[slot.field] || '').trim()) continue;
             if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
+            const triedKey = slug + '|' + slot.pid + '|' + slot.field + '|' + url;
+            if (tried.has(triedKey)) continue;
+            if ((calState.posts || []).some(p => p && p.id !== slot.pid && String(p.status || '').toLowerCase() !== 'archived'
+                && (String(p.linear_issue_id || '').trim() === url || String(p.graphic_linear_issue_id || '').trim() === url))) continue;
+            tried.add(triedKey);
             try {
                 const resp = await _writeUiTrackSave('calendar', 'calendar_link_adopt', () => ({ client_slug: slug, id: String(post.id || '') }), () => _calUpsertFetch(slug, { client: slug, post: { id: post.id, [slot.field]: url } }), { requireOk: true });
                 const json = await resp.json().catch(() => ({}));
@@ -224,6 +261,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
                 post[slot.field] = url;
                 adopted += 1;
             } catch (error) {
+                tried.delete(triedKey);   // never answered: a later load may try again
                 console.warn('[Calendar] could not adopt the deliverable link for ' + slot.component, error);
             }
         }
@@ -1096,6 +1134,17 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
     let _calLastLocalWriteAt = 0;      // when we last saved locally — used to ignore the realtime ECHO of our own write
     function _calSetLastLocalWriteAt(value) { _calLastLocalWriteAt = value; }
     let _calV2RtLastReloadAt = 0;      // when realtime last triggered a reload — the floor a foreign burst re-arms against
+    /* The changes waiting for a read, as { arrivedAt, id, stamp }. A change
+       needs no read of its own when a full read already holds it: one that
+       STARTED after the change arrived, or one that returned that card at the
+       change's own version or later (stamp: the row's updated_at in the
+       change). So a tab return, a teammate's change, its echo, the fallback
+       poll and a catch-up landing together collapse into the one read already
+       running or just done. A catch-up or a fallback pull names no card, so
+       only a read that started after it covers it. */
+    let _calV2RtWaiting = [];
+    // Each card's updated_at as the last full read returned it.
+    let _calV2RtReadStamps = new Map();
     const CAL_RT_SELF_ECHO_MS = 4000;  // a realtime event within this window of a local save is treated as our own echo and deferred
     let _calV2RtRecent = [];           // recent FOREIGN events as { at, key } — decides normal floor vs storm floor
     /* Which floor applies right now: the short one for a person's edits, the
@@ -1276,19 +1325,38 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
         }
     }
     try { window.addEventListener('online', _calV2OnBrowserOnline); } catch (e) {}
-    function _calV2OnRealtimeChange(slug, lease, payload) {
+    /* rearmOnly: re-check what is already waiting (a change that arrived
+       while a load was running, serviced once the load is done) without
+       recording a new change, so its card and version stay intact. */
+    function _calV2OnRealtimeChange(slug, lease, payload, rearmOnly) {
         if (!_calV2LeaseCurrent(lease)) return;
         _calV2Log('realtime event received for slug:', slug, '| currently viewing:', calClientSlug(calState.client));
         if (calClientSlug(calState.client) !== slug) return;
-        // Only foreign events count towards a storm; the echo of our own
-        // save is coalesced by the self-echo window below.
-        const arrivedAt = Date.now();
-        if (arrivedAt - _calLastLocalWriteAt >= CAL_RT_SELF_ECHO_MS) _calV2RtRecent.push({ at: arrivedAt, key: _calV2RtEventKey(payload) });
+        if (!rearmOnly) {
+            const arrivedAt = Date.now();
+            const row = payload && payload.new && payload.new.id ? payload.new : null;
+            const stamp = row ? Date.parse(row.updated_at || '') : NaN;
+            _calV2RtWaiting.push({ arrivedAt, id: row ? String(row.id) : '', stamp: isFinite(stamp) ? stamp : 0 });
+            // Only foreign events count towards a storm; the echo of our own
+            // save is coalesced by the self-echo window below.
+            if (arrivedAt - _calLastLocalWriteAt >= CAL_RT_SELF_ECHO_MS) _calV2RtRecent.push({ at: arrivedAt, key: _calV2RtEventKey(payload) });
+        }
         if (_calV2RtTimer) clearTimeout(_calV2RtTimer);
         _calV2RtTimer = setTimeout(function tick() {
             _calV2RtTimer = null;
             if (!_calV2LeaseCurrent(lease)) return;
             if (calClientSlug(calState.client) !== slug) return;
+            // Every waiting change is already in a full read (a tab return,
+            // a load another change started, the read that brought it in).
+            _calV2RtWaiting = _calV2RtWaiting.filter(w => {
+                if (_calV2RtLastReloadAt > w.arrivedAt) return false;
+                const seen = w.id && w.stamp ? _calV2RtReadStamps.get(w.id) : null;
+                return !(seen != null && seen >= w.stamp);
+            });
+            if (!_calV2RtWaiting.length) {
+                _calV2Log('realtime: already covered by a read; no reload');
+                return;
+            }
             // Coalesce the echo of our OWN just-made write. A field patch /
             // comment / delete round-trips back as a realtime event a second or
             // two later; reloading then only flickers the strip (and can race a
@@ -1316,11 +1384,14 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
             if (_calBgLoadInFlight || calState.loading) { _calV2Log('realtime: deferred (load already in flight)'); _calV2RtPending = true; return; }
             _calV2Log('realtime: triggering background reload from Supabase');
             _calV2RtLastReloadAt = Date.now();
-            loadCalendarPosts({ background: true });
+            _calV2RtWaiting = [];
+            loadCalendarPosts({ background: true, quiet: true });
         }, CAL_V2_RT_DEBOUNCE_MS);
     }
     function _calV2DropChannel() {
         if (_calV2RtTimer) { clearTimeout(_calV2RtTimer); _calV2RtTimer = null; }
+        _calV2RtWaiting = [];
+        _calV2RtReadStamps = new Map();
         if (_calV2RetryTimer) { clearTimeout(_calV2RetryTimer); _calV2RetryTimer = null; }
         _calV2RetryAttempt = 0;
         const dropping = _calV2Channel;
@@ -1394,13 +1465,15 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
         if (run.clientEntryRun && !_syncviewClientEntryRunCurrent(run.clientEntryRun)) return false;
         return !_isClientLink || !!run.clientEntryRun;
     }
+    // Both only write when the state changes: a refresh touches nothing it
+    // does not change.
     function _calSetRefreshing(on) {
         const el = document.getElementById('calRefreshing');
-        if (el) el.hidden = !on;
+        if (el && el.hidden !== !on) el.hidden = !on;
     }
     function _calSetStaleNotice(on) {
         const el = document.getElementById('calStaleNotice');
-        if (el) el.hidden = !on;
+        if (el && el.hidden !== !on) el.hidden = !on;
     }
     const CAL_LOAD_TIMEOUT_MS = 20000;
     const CAL_AUTHORITY_PAINT_WAIT_MS = 400;
@@ -1485,7 +1558,9 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
             || (_calStaffPhoneActive() && calState.posts.length > 0);
         if (background) {
             _calBgLoadInFlight = true;
-            _calSetRefreshing(true);
+            // A quiet refresh (realtime, the fallback poll, a tab return) shows
+            // nothing while it reads: a background refresh is invisible.
+            _calSetRefreshing(!opts.quiet);
         } else {
             _calBgLoadInFlight = false;
             _calSetRefreshing(false);
@@ -1761,6 +1836,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
                 const stillRecent = recentSave && (nowMs - recentSave) <= CAL_CONFLICT_WINDOW_MS;
                 if (_calSaveInFlight[lp.id] || _calPendingEdits[lp.id] || stillRecent || _calFailedNewCards.has(lp.id)) newPosts.push(lp);
             });
+            _calV2RtReadStamps = new Map(fetchedPosts.map(fp => [String(fp.id), Date.parse(fp.updated_at || '') || 0]));
             dataChanged = !_calPostsEqualForRender(prevPosts, newPosts);
             calState.posts = newPosts;
             _thumbRefreshChangedCards('calendar', prevPosts, newPosts);
@@ -1881,8 +1957,13 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
                         // queued edit in _calPendingEdits keeps _calIsCalBusy()
                         // true. A full page refresh "fixed" it only because it
                         // resets that in-memory map.
-                        _calSetPendingBackgroundRender(true);
-                        _calSchedulePendingRender();
+                        // Changes away from what the person is using are
+                        // drawn now, card by card; only when one touches it
+                        // does the repaint wait for them.
+                        if (!_calRenderBody({ preserveScroll: true, patchOnly: true })) {
+                            _calSetPendingBackgroundRender(true);
+                            _calSchedulePendingRender();
+                        }
                         // A teammate's (Kasper's / the client's) new note must
                         // surface LIVE — but the full repaint above is deferred
                         // whenever the cal is "busy" (any pending edit), which
@@ -1949,7 +2030,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
                         // flight was deferred, not dropped — service it now.
                         if (_calV2RtPending) {
                             _calV2RtPending = false;
-                            _calV2OnRealtimeChange(slug, _calV2Lease);
+                            _calV2OnRealtimeChange(slug, _calV2Lease, null, true);
                         }
                     })());
                 }
@@ -2284,7 +2365,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
     });
 export {
   CAL_CACHE_KEY_PREFIX, CAL_LOAD_TIMEOUT_MS, _calBgLoadInFlight, _calCacheRead, _calCacheWrite,
-  _calFetchDeliverableLinkRows, _calHydrateLinearMeta, _calIdentFromUrl, _calLocalStatusAt,
+  _calFetchDeliverableLinkRows, _calHydrateLinearMeta, _calIdentFromUrl, _calLinkAdoptTriedSet, _calLocalStatusAt,
   _calMarkLocalStatus, _calNextLoadSeq, _calOrganizeHtml, _calOrganizeIsActive,
   _calOrganizeTriggerLabel, _calPruneLinearMetaForAuthority, _calRenderImportPick,
   _calSetBgLoadInFlight, _calSetLastLocalWriteAt, _calSetOrganizeOpen, _calSetRefreshing,

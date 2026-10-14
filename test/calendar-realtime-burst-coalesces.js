@@ -51,7 +51,7 @@ function harness(opts) {
     const state = { t: 0, timers: [], nextId: 1, reloads: [], seq: 0 };
     const ctx = {
         console: { log() {}, warn() {} },
-        Date: { now: () => state.t },
+        Date: { now: () => state.t, parse: s => Date.parse(s) },
         setTimeout(fn, ms) {
             const id = state.nextId++;
             state.timers.push({ id, at: state.t + Number(ms || 0), fn, seq: state.seq++ });
@@ -77,7 +77,8 @@ function harness(opts) {
     vm.createContext(ctx);
     vm.runInContext('let _calV2RtTimer = null; let _calV2RtPending = false;'
         + ' let _calLastLocalWriteAt = ' + (opts && opts.lastLocalWriteAt != null ? opts.lastLocalWriteAt : -1e9) + ';'
-        + ' let _calV2RtLastReloadAt = 0; let _calV2RtRecent = []; let _calV2RtAnonSerial = 0;', ctx);
+        + ' let _calV2RtLastReloadAt = 0; let _calV2RtRecent = []; let _calV2RtAnonSerial = 0;'
+        + ' let _calV2RtWaiting = []; let _calV2RtReadStamps = new Map();', ctx);
     let src = extractFunction(INDEX, '_calV2OnRealtimeChange');
     let floorSrc = extractFunction(INDEX, '_calV2RtFloorMs');
     if (opts && opts.mutate) {
@@ -278,6 +279,36 @@ ok(STORM_FLOOR >= 8000 && STORM_FLOOR > FLOOR,
     for (let i = 0; i < STORM_EVENTS + 2; i++) { own.fire(); own.advance(100); }
     ok(vm.runInContext('_calV2RtRecent.length', own.ctx) === 0,
         'events inside the self-echo window are not counted as foreign');
+}
+
+{
+    /* Overlapping triggers collapse (owner rule, 2026-10-14): a change a full
+       read already holds starts no read of its own. Measured before: a tab
+       return's read plus a teammate's change landing a moment later cost two
+       reads and two "Refreshing" flashes. */
+    const STAMP = '2026-10-10T12:00:01.000Z';
+    const seen = harness();
+    seen.advance(60000);
+    vm.runInContext('_calV2RtReadStamps = new Map([["p_seen", Date.parse("' + STAMP + '")]]);', seen.ctx);
+    seen.fire({ eventType: 'UPDATE', new: { id: 'p_seen', updated_at: STAMP } });
+    seen.advance(STORM_FLOOR + DEBOUNCE + 10);
+    ok(seen.state.reloads.length === 0,
+        'a change whose version the last read already returned reloads nothing');
+    const newer = harness();
+    newer.advance(60000);
+    vm.runInContext('_calV2RtReadStamps = new Map([["p_seen", Date.parse("' + STAMP + '")]]);', newer.ctx);
+    newer.fire({ eventType: 'UPDATE', new: { id: 'p_seen', updated_at: '2026-10-10T12:00:02.000Z' } });
+    newer.advance(STORM_FLOOR + DEBOUNCE + 10);
+    ok(newer.state.reloads.length === 1,
+        '...but a newer version of that card still reloads, exactly once');
+    const started = harness();
+    started.advance(60000);
+    started.fire();
+    started.advance(100);
+    vm.runInContext('_calV2RtLastReloadAt = ' + started.state.t + ' + 1;', started.ctx);   // a tab return's read starts after it arrived
+    started.advance(STORM_FLOOR + DEBOUNCE + 10);
+    ok(started.state.reloads.length === 0,
+        'a change that arrived before a read started is covered by that read');
 }
 
 {

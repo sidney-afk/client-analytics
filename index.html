@@ -180,7 +180,32 @@
                 return c;
             },
             hash: function () { return current().hash; },
-            search: function () { return current().search; }
+            search: function () { return current().search; },
+            /* "Back to card". A link that opens SyncLinear for a card appends
+               cardOrigin() to its address (from=calendar|samples, card=<id>,
+               cslug=<client slug>), so the new tab knows which card sent it and
+               keeps knowing after a reload. fromCard() reads it back and gives
+               the address of that exact card, or null when SyncLinear was
+               opened any other way. The first answer is kept for the life of the
+               page, so an in-app address rewrite cannot lose it. */
+            cardOrigin: function (from, slug, card) {
+                if ((from !== 'calendar' && from !== 'samples') || !slug || !card) return '';
+                return '&from=' + from + '&card=' + enc(String(card)) + '&cslug=' + enc(String(slug));
+            },
+            fromCard: function () {
+                if (window.__svFromCard !== undefined) return window.__svFromCard;
+                var r = null;
+                try {
+                    var q = new URLSearchParams(current().search);
+                    var from = q.get('from'), card = q.get('card'), slug = q.get('cslug');
+                    if ((from === 'calendar' || from === 'samples') && card && slug) {
+                        var head = from === 'samples' ? 'sample-reviews' : 'calendar';
+                        r = { from: from, card: card, slug: slug, href: window.svRoute.fast('/#' + head + '/' + enc(slug) + '/' + enc(card)) };
+                    }
+                } catch (e) {}
+                if (r) window.__svFromCard = r;
+                return r;
+            }
         };
         try {
             // A stub or 404.html hop arrives as /?sv_path=<clean path>&<query>#<hash>.
@@ -3633,6 +3658,13 @@
         .prod-label-lock { padding: 7px 10px; border-top: 1px solid var(--prod-divider); color: var(--prod-faint); font-size: 10.5px; line-height: 15px; }
         .prod-create-trigger { min-height: 28px; border: 0; border-radius: 7px; padding: 0 11px; background: var(--prod-accent); color: #fff; display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
         .prod-create-trigger:hover { filter: brightness(.97); }
+        .prod-back-card { flex: 1; min-width: 0; min-height: 36px; border: 0; border-radius: 8px; padding: 0 14px 0 10px; background: var(--prod-accent); color: #fff; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; box-shadow: 0 1px 2px rgba(0,0,0,.18); }
+        .prod-back-card:hover { filter: brightness(1.08); }
+        .prod-back-card:focus-visible { outline: 2px solid var(--prod-text); outline-offset: 2px; }
+        .prod-back-card svg { flex: none; }
+        .prod-back-strip { display: none; flex: none; padding: 8px 12px; background: var(--prod-bg); border-bottom: 1px solid var(--prod-divider); }
+        .prod-back-strip .prod-back-card { width: 100%; min-height: 44px; font-size: 14px; }
+        @media (max-width: 900px) { .prod-back-strip { display: flex; } }
         .prod-create-trigger[disabled] { background: var(--prod-hover); color: var(--prod-faint); cursor: not-allowed; filter: none; }
         .prod-create-bd { position: fixed; inset: 0; padding: 32px 18px; box-sizing: border-box; display: flex; justify-content: center; align-items: flex-start; overflow: auto; background: rgba(18,18,20,.34); pointer-events: auto; }
         .prod-create-modal { width: min(720px, calc(100vw - 36px)); max-height: calc(100vh - 64px); display: flex; flex-direction: column; border: 1px solid var(--prod-border); border-radius: 14px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: 0 24px 70px rgba(0,0,0,.24); overflow: hidden; }
@@ -13101,8 +13133,8 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-0f22740fa8e5.js";
-        var PARTS = ["js/sv-01-core-45f64abf445b.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-08a0fd22348e.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-c009866909f3.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-aa36da491ef7.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-b75909823db2.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-99f332b91e8b.js","js/sv-20-core-f43f39965587.js"];
+        var FULL = "js/sv-full-ff9bd7689b09.js";
+        var PARTS = ["js/sv-01-core-45f64abf445b.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-08a0fd22348e.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-574e67067ea6.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-3a9447c1f3d4.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-bc3ffce88f5b.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-99f332b91e8b.js","js/sv-20-core-f43f39965587.js"];
         var LAZY = {"templates":"js/sv-02-templates-ed22b16a2bda.js","workload":"js/sv-04-workload-1b2df89fe1d1.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-2aeb2be49fa0.js"};
         var FORCE = null;
         var CLIENTS = true;

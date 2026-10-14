@@ -561,7 +561,10 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
             short,
           };
         });
-        const compactCase = width === 1366 && client === LONG;
+        // This staff identity is an admin, so the header carries the Messages
+        // inbox icon (owner decision 2026-10-14: admins get it too). That ~44px
+        // makes 1366 compact for any client and 1440 compact with a long name.
+        const compactCase = width === 1366 || (width === 1440 && client === LONG);
         const tag = `${compactCase ? 'compact labels' : 'full labels'} @${width} with ${client === LONG ? 'a long' : 'a typical'} client`;
         expect(m.label === client.split(' ')[0], `${tag}: the client was not selected (${m.label})`);
         if (process.env.SV_DEBUG) console.log(tag, JSON.stringify({ labelW: m.labelW, truncated: m.truncated, navW: m.navW, navClient: m.navClient, over: m.over }));

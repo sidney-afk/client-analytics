@@ -1,0 +1,401 @@
+import { CAL_SUPABASE_URL, _syncviewCloseStaffAccount, _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue } from './100-onboarding-staff-controls.js';
+import { showToast } from './040-shared-briefs.js';
+import { navTo } from './092-core-submit-form-navigation.js';
+import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
+import { calState } from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
+import { _calDeriveThumb, onCalClientChange } from './160-calendar-organize-ui.js';
+import { COMP_LABELS } from './180-calendar-native-post-media.js';
+import {
+  _CAL_LOCK_ICO, _calAppendComment, _calCommentSendPending, _calFindCompForCommentId, _calFmtCommentTime,
+  openCalComments
+} from './190-calendar-approval-comments.js';
+import { _prodCanonicalCommentGate, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
+    /* ── Messages inbox (Notes Step 2) ─────────────────────────────────────
+       Plan: docs/plans/2026-10-13-notes-messages.md, section 6 "Step 2".
+
+       One inbox for all staff: Kasper's Messages tab draws it into the Kasper
+       page; everyone else opens it from the Messages button by their account
+       (the Tabs menu on a phone), which shows it as a full-screen panel.
+
+       Who sees what is decided on the SERVER (production-comments, action
+       "inbox"): an admin who is not on the SMM roster sees every client,
+       anyone on the roster sees their own clients ("My clients"), editors and
+       designers see nothing, and a posted post drops out. Nothing here reads
+       a table with the browser key.
+
+       A reply is written by the Notes save path itself (_calAppendComment, the
+       one Step 1 uses): the conversation's client is loaded into the Calendar
+       first, exactly as opening that card would, and the reply goes under the
+       thread it answers, so it keeps that thread's part and audience. */
+    const MSG_URL = CAL_SUPABASE_URL + '/functions/v1/production-comments';
+    const MSG_REFRESH_MS = 120000;
+    const _msgState = {
+        loading: false, loaded: false, error: '', conversations: [], scope: '',
+        openId: '', replyTo: '', draft: '', sending: false, filter: 'all', lastAt: 0,
+    };
+    let _msgTimer = null;
+
+    function _msgCanUse() {
+        const identity = _syncviewStaffIdentityForHeaders();
+        const role = _syncviewStaffRoleValue(identity);
+        return role === 'admin' || role === 'smm';
+    }
+    function _msgMe() {
+        const identity = _syncviewStaffIdentityForHeaders();
+        return String(identity && identity.member && identity.member.name || '');
+    }
+    const _msgSameName = (a, b) => String(a || '').trim().toLowerCase().replace(/\s+/g, ' ') === String(b || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+    async function _msgCall(body) {
+        const response = await fetch(MSG_URL, {
+            method: 'POST', cache: 'no-store',
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, MSG_URL),
+            body: JSON.stringify(body)
+        });
+        let value = null;
+        try { value = await response.json(); } catch (e) { value = null; }
+        if (!response.ok || !value || value.ok !== true) throw new Error((value && value.error) || ('HTTP ' + response.status));
+        return value;
+    }
+
+    /* Fetch the conversations, repaint whatever inbox is on screen, and the
+       unread counts on the Kasper tab and the Messages button. */
+    async function _msgLoad(force) {
+        if (!_msgCanUse()) { _msgPaintCounts(); return; }
+        if (_msgState.loading) return;
+        if (!force && _msgState.loaded && Date.now() - _msgState.lastAt < 15000) { _msgPaint(); return; }
+        _msgState.loading = true;
+        _msgPaint();
+        try {
+            const value = await _msgCall({ action: 'inbox' });
+            _msgState.conversations = Array.isArray(value.conversations) ? value.conversations : [];
+            _msgState.scope = String(value.scope || '');
+            _msgState.error = '';
+            _msgState.loaded = true;
+            _msgState.lastAt = Date.now();
+            if (_msgState.openId && !_msgState.conversations.some(c => c.post_id === _msgState.openId)) _msgState.openId = '';
+        } catch (e) {
+            _msgState.error = 'Messages could not load. Try again in a moment.';
+        } finally {
+            _msgState.loading = false;
+        }
+        _msgPaintCounts();
+        _msgPaint();
+    }
+    function _msgUnreadConversations() {
+        return _msgState.conversations.filter(c => Number(c.unread) > 0).length;
+    }
+    function _msgPaintCounts() {
+        const n = _msgCanUse() ? _msgUnreadConversations() : 0;
+        document.querySelectorAll('[data-kasper-count="replies"]').forEach(el => {
+            el.textContent = String(n);
+            el.classList.toggle('is-unread', n > 0);
+        });
+        document.querySelectorAll('[data-msg-count]').forEach(el => {
+            el.textContent = String(n);
+            el.hidden = n === 0;
+        });
+    }
+    /* Called whenever the staff sign-in changes (100): start or stop the
+       quiet background refresh that keeps the counts current. */
+    function _msgOnIdentity() {
+        if (_msgTimer) { clearInterval(_msgTimer); _msgTimer = null; }
+        if (!_msgCanUse()) {
+            _msgState.conversations = []; _msgState.loaded = false; _msgState.openId = '';
+            _msgPaintCounts(); _msgClosePanel();
+            return;
+        }
+        _msgLoad(true);
+        _msgTimer = setInterval(() => { if (!document.hidden) _msgLoad(true); }, MSG_REFRESH_MS);
+    }
+
+    /* ── Drawing ── */
+    function _msgThumb(c) {
+        const src = _calDeriveThumb({ thumbnail_url: c.thumbnail_url, asset_url: c.asset_url });
+        return src
+            ? `<img class="msg-thumb" alt="" src="${_calEscAttr(src)}" loading="lazy">`
+            : '<span class="msg-thumb is-empty" aria-hidden="true"></span>';
+    }
+    function _msgClientName(c) {
+        return String(c.client_name || c.client_slug || '');
+    }
+    function _msgToTag(m) {
+        return m.audience === 'client'
+            ? '<span class="cal-cm-to-tag is-client">To client</span>'
+            : `<span class="cal-cm-to-tag is-team">${_CAL_LOCK_ICO}Team only</span>`;
+    }
+    function _msgPartTag(m) {
+        const comp = String(m.component || 'video');
+        return `<span class="cal-cm-comp-label cal-cm-comp-${_calEscAttr(comp)}">${_calEsc(COMP_LABELS[comp] || comp)}</span>`;
+    }
+    function _msgRoleLabel(m) {
+        const role = String(m.role || '');
+        return role === 'client' ? 'Client' : role === 'smm' ? 'SMM' : role === 'kasper' ? 'Reviewer' : '';
+    }
+    function _msgListHtml() {
+        const list = _msgState.conversations.filter(c => _msgState.filter !== 'unread' || Number(c.unread) > 0);
+        if (!list.length) {
+            return `<div class="msg-list-empty">${_msgState.filter === 'unread' ? 'Nothing unread.' : 'No conversations yet.'}</div>`;
+        }
+        const me = _msgMe();
+        return list.map(c => {
+            const who = _msgSameName(c.last_author, me) ? 'You' : (c.last_author || '');
+            const unread = Number(c.unread) || 0;
+            return `<button type="button" class="msg-conv${c.post_id === _msgState.openId ? ' is-active' : ''}${unread ? ' is-unread' : ''}" data-msg-conv="${_calEscAttr(c.post_id)}" onclick="_msgOpen(${_jsAttrArg(c.post_id)})">
+                ${_msgThumb(c)}
+                <span class="msg-conv-main">
+                    <span class="msg-conv-top"><span class="msg-conv-client">${_calEsc(_msgClientName(c))}</span><span class="msg-conv-time">${_calEsc(_calFmtCommentTime(c.last_at))}</span></span>
+                    <span class="msg-conv-sub">${_calEsc(c.title || 'Untitled post')}</span>
+                    <span class="msg-conv-last">${_calEsc(who ? who + ': ' : '')}${_calEsc(c.last_body || '')}</span>
+                </span>
+                ${unread ? `<span class="msg-unread" aria-label="${unread} unread">${unread}</span>` : ''}
+            </button>`;
+        }).join('');
+    }
+    function _msgReplyTarget(c) {
+        if (!c) return null;
+        const roots = c.messages.filter(m => !m.parent_id || m.root_id === m.id);
+        const byId = new Map(roots.map(m => [m.id, m]));
+        if (_msgState.replyTo && byId.has(_msgState.replyTo)) return byId.get(_msgState.replyTo);
+        const last = c.messages[c.messages.length - 1];
+        return last ? (byId.get(last.root_id) || roots[roots.length - 1] || null) : null;
+    }
+    function _msgChatHtml() {
+        const c = _msgState.conversations.find(x => x.post_id === _msgState.openId);
+        if (!c) {
+            return `<div class="msg-chat-empty"><b>Pick a conversation</b><span>Notes on your posts show up here, newest first.</span></div>`;
+        }
+        const me = _msgMe();
+        const target = _msgReplyTarget(c);
+        let day = '';
+        const bubbles = c.messages.map(m => {
+            const d = String(m.created_at || '').slice(0, 10);
+            const dayRow = d && d !== day ? `<div class="msg-day">${_calEsc(d)}</div>` : '';
+            day = d || day;
+            const mine = _msgSameName(m.author, me);
+            const isRoot = m.root_id === m.id;
+            const tweak = isRoot && m.is_tweak ? '<span class="cal-cm-type-tag is-tweak">Change request</span>' : '';
+            const role = _msgRoleLabel(m);
+            return `${dayRow}<div class="msg-b${mine ? ' is-me' : ''}${isRoot ? '' : ' is-reply'}" data-msg-id="${_calEscAttr(m.id)}">
+                <div class="msg-b-meta"><b>${_calEsc(mine ? 'You' : (m.author || ''))}</b>${role && !mine ? `<span>${_calEsc(role)}</span>` : ''}${isRoot ? _msgPartTag(m) + tweak + _msgToTag(m) : ''}<span>${_calEsc(_calFmtCommentTime(m.created_at))}</span></div>
+                <div class="msg-b-text">${_calEsc(m.body || '')}</div>
+                <button type="button" class="msg-b-reply" onclick="_msgSetReplyTo(${_jsAttrArg(m.root_id)})">Reply</button>
+            </div>`;
+        }).join('');
+        const sendIco = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>';
+        const replyCap = target
+            ? `Replying to <b>${_calEsc(_msgSameName(target.author, me) ? 'you' : (target.author || ''))}</b> ${_msgPartTag(target)} ${_msgToTag(target)}`
+            : '';
+        return `<div class="msg-chat-head">
+                <button type="button" class="msg-back" onclick="_msgBack()" aria-label="Back to conversations">‹</button>
+                ${_msgThumb(c)}
+                <div class="msg-chat-titles"><div class="msg-chat-title">${_calEsc(c.title || 'Untitled post')}</div><div class="msg-chat-sub">${_calEsc(_msgClientName(c))}</div></div>
+                <div class="msg-chat-actions">
+                    <button type="button" class="msg-act" onclick="_msgMarkUnread()" title="Mark as unread">Mark as unread</button>
+                    <button type="button" class="msg-act" onclick="_msgOpenCard()" title="Open this card's Notes in the Calendar">Open card</button>
+                </div>
+            </div>
+            <div class="msg-bubbles" id="msgBubbles">${bubbles}</div>
+            <div class="msg-reply">
+                <div class="msg-reply-cap">${replyCap}</div>
+                <div class="cal-cm-composer">
+                    <textarea id="msgReplyBox" rows="1" placeholder="Reply…" oninput="_msgOnDraft(this)" onkeydown="_msgOnKey(event)">${_calEsc(_msgState.draft)}</textarea>
+                    <div class="cal-cm-composer-actions"><button class="cal-cm-send" type="button" onclick="_msgReply()" aria-label="Send reply" ${_msgState.draft.trim() && !_msgState.sending && target ? '' : 'disabled'}>${sendIco}</button></div>
+                </div>
+            </div>`;
+    }
+    function _msgInboxHtml() {
+        if (!_msgCanUse()) return '<div class="msg-chat-empty"><b>Messages are for the team</b><span>Sign in as staff to see your conversations.</span></div>';
+        if (!_msgState.loaded && _msgState.loading) return _svLoadingSkeletonHtml('kasper', { label: 'Loading messages' });
+        if (!_msgState.loaded && _msgState.error) {
+            return `<div class="msg-chat-empty"><b>${_calEsc(_msgState.error)}</b><button type="button" class="msg-act" onclick="_msgLoad(true)">Try again</button></div>`;
+        }
+        if (!_msgState.conversations.length) {
+            return `<div class="kasper-empty"><div class="kasper-empty-icon"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg></div><div class="kasper-empty-title">You're all caught up</div><div class="kasper-empty-sub">Notes on your clients' posts show up here. A conversation leaves this list once its post is posted.</div></div>`;
+        }
+        const unread = _msgUnreadConversations();
+        return `<div class="msg-inbox${_msgState.openId ? ' is-chat-open' : ''}">
+            <div class="msg-list">
+                <div class="msg-filters" role="group" aria-label="Show">
+                    <button type="button" class="${_msgState.filter === 'all' ? 'is-active' : ''}" onclick="_msgSetFilter('all')">All</button>
+                    <button type="button" class="${_msgState.filter === 'unread' ? 'is-active' : ''}" onclick="_msgSetFilter('unread')">Unread · ${unread}</button>
+                </div>
+                <div class="msg-convs">${_msgListHtml()}</div>
+            </div>
+            <div class="msg-chat">${_msgChatHtml()}</div>
+        </div>`;
+    }
+    /* Repaint every mounted inbox (Kasper tab and/or the staff panel),
+       keeping a reply being typed: never rebuild under the caret. */
+    function _msgPaint() {
+        const roots = document.querySelectorAll('[data-msg-root]');
+        if (!roots.length) return;
+        const box = document.getElementById('msgReplyBox');
+        const typing = box && document.activeElement === box;
+        roots.forEach(root => {
+            if (typing && root.contains(box)) {
+                const list = root.querySelector('.msg-convs');
+                if (list) list.innerHTML = _msgListHtml();
+                return;
+            }
+            root.innerHTML = _msgInboxHtml();
+        });
+        const bubbles = document.getElementById('msgBubbles');
+        if (bubbles && !typing) bubbles.scrollTop = bubbles.scrollHeight;
+    }
+    function _msgRenderInto(root) {
+        if (!root) return;
+        root.setAttribute('data-msg-root', '1');
+        root.innerHTML = _msgInboxHtml();
+        _msgLoad(false);
+    }
+
+    /* ── Actions ── */
+    function _msgSetFilter(f) { _msgState.filter = f === 'unread' ? 'unread' : 'all'; _msgPaint(); }
+    function _msgSetReplyTo(rootId) {
+        _msgState.replyTo = String(rootId || '');
+        _msgPaint();
+        const box = document.getElementById('msgReplyBox');
+        if (box) box.focus();
+    }
+    function _msgOnDraft(ta) {
+        _msgState.draft = ta.value;
+        const send = ta.closest('.cal-cm-composer') && ta.closest('.cal-cm-composer').querySelector('.cal-cm-send');
+        if (send) send.disabled = !ta.value.trim() || _msgState.sending;
+    }
+    function _msgOnKey(e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _msgReply(); }
+    }
+    async function _msgMark(postId, state) {
+        try {
+            const value = await _msgCall({ action: 'inbox_mark', post_id: postId, state });
+            return value;
+        } catch (e) { return null; }
+    }
+    async function _msgOpen(postId) {
+        _msgState.openId = String(postId || '');
+        _msgState.replyTo = '';
+        _msgState.draft = '';
+        const c = _msgState.conversations.find(x => x.post_id === _msgState.openId);
+        if (c && Number(c.unread) > 0) {
+            c.unread = 0;          // opening = read; the server stamps it below
+            _msgPaintCounts();
+            _msgMark(c.post_id, 'read');
+        }
+        _msgPaint();
+    }
+    function _msgBack() { _msgState.openId = ''; _msgPaint(); }
+    async function _msgMarkUnread() {
+        const c = _msgState.conversations.find(x => x.post_id === _msgState.openId);
+        if (!c) return;
+        const answer = await _msgMark(c.post_id, 'unread');
+        if (!answer) { showToast('Could not mark it unread. Try again.'); return; }
+        _msgState.openId = '';
+        await _msgLoad(true);
+    }
+    /* Load the conversation's client into the Calendar, as opening the card
+       would, and wait for its cards. Needed by both Reply (the Notes save path
+       works on the Calendar's cards) and Open card. */
+    async function _msgEnsureCard(c) {
+        const name = _msgClientName(c);
+        if (!name) return null;
+        if (calState.client !== name || !calState.posts.some(p => p.id === c.post_id)) {
+            if (calState.client !== name) onCalClientChange(name);
+            const started = Date.now();
+            while (Date.now() - started < 20000 && !calState.posts.some(p => p.id === c.post_id)) {
+                await new Promise(resolve => setTimeout(resolve, 150));
+            }
+        }
+        const post = calState.posts.find(p => p.id === c.post_id);
+        if (!post) return null;
+        // The same canonical-thread load the Notes dialog starts on open.
+        _prodProjectCanonicalCardComments('calendar', c.post_id);
+        return post;
+    }
+    async function _msgReply() {
+        const c = _msgState.conversations.find(x => x.post_id === _msgState.openId);
+        const target = _msgReplyTarget(c);
+        const body = String(_msgState.draft || '').trim();
+        if (!c || !target || !body || _msgState.sending) return;
+        _msgState.sending = true;
+        _msgPaint();
+        let saved = false;
+        try {
+            const post = await _msgEnsureCard(c);
+            if (!post) throw new Error('card not found');
+            const comp = _calFindCompForCommentId(post, target.id) || target.component;
+            const started = Date.now();
+            while (Date.now() - started < 15000) {
+                const gate = _prodCanonicalCommentGate(post, comp);
+                if (!(gate.linked && !gate.ready) && !_calCommentSendPending(post, gate)) break;
+                await new Promise(resolve => setTimeout(resolve, 150));
+            }
+            saved = await _calAppendComment(c.post_id, target.id, body);
+        } catch (e) {
+            saved = false;
+        } finally {
+            _msgState.sending = false;
+        }
+        if (!saved) {
+            showToast('Your reply was not sent. It is still in the box; try again.');
+            _msgPaint();
+            return;
+        }
+        _msgState.draft = '';
+        // Sent: let the chat redraw with the reply in it (the paint keeps
+        // its hands off a box that still has the caret).
+        const box = document.getElementById('msgReplyBox');
+        if (box) { box.value = ''; box.blur(); }
+        await _msgMark(c.post_id, 'read');
+        await _msgLoad(true);
+    }
+    async function _msgOpenCard() {
+        const c = _msgState.conversations.find(x => x.post_id === _msgState.openId);
+        if (!c) return;
+        _msgClosePanel();
+        navTo('calendar');
+        const post = await _msgEnsureCard(c);
+        if (post) openCalComments(c.post_id);
+        else showToast('That card could not be found in the Calendar.');
+    }
+
+    /* ── The staff panel (everyone but the Kasper tab) ── */
+    function _msgOpenPanel() {
+        if (!_msgCanUse()) return;
+        try { _syncviewCloseStaffAccount(); } catch (e) {}
+        let panel = document.getElementById('msgPanel');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'msgPanel';
+            panel.className = 'msg-panel';
+            panel.setAttribute('role', 'dialog');
+            panel.setAttribute('aria-modal', 'true');
+            panel.setAttribute('aria-label', 'Messages');
+            panel.innerHTML = `<div class="msg-panel-head"><h2>Messages</h2><button type="button" class="msg-act" onclick="_msgClosePanel()" aria-label="Close Messages">Close</button></div><div class="msg-panel-body"></div>`;
+            document.body.appendChild(panel);
+        }
+        panel.hidden = false;
+        document.body.classList.add('msg-panel-open');
+        _msgRenderInto(panel.querySelector('.msg-panel-body'));
+    }
+    function _msgClosePanel() {
+        const panel = document.getElementById('msgPanel');
+        if (!panel || panel.hidden) return;
+        panel.hidden = true;
+        panel.querySelector('.msg-panel-body').removeAttribute('data-msg-root');
+        document.body.classList.remove('msg-panel-open');
+    }
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape') return;
+        const panel = document.getElementById('msgPanel');
+        if (panel && !panel.hidden && !document.querySelector('#calCommentsOverlay.open')) _msgClosePanel();
+    });
+
+    // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
+    Object.assign(window, {
+        _msgBack, _msgClosePanel, _msgLoad, _msgMarkUnread, _msgOnDraft, _msgOnKey, _msgOpen, _msgOpenCard,
+        _msgOpenPanel, _msgReply, _msgSetFilter, _msgSetReplyTo
+    });
+export { _msgOnIdentity, _msgPaintCounts, _msgRenderInto };

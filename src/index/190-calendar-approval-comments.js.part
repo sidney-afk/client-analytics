@@ -3418,6 +3418,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         closeCalComments, closeCalPreview, editInOrganizerFromPreview, openCalComments, openCalPreview
     });
 export {
+  openCalComments,
+  _CAL_LOCK_ICO, _calAppendComment, _calCommentSendPending, _calFindCompForCommentId,
   CAL_REPLY_DRAFT_MAX, REVIEW_APPROVE_DRAFT_TITLE, _calApplyAutoStatus, _calApprovalBadgeCount,
   _calCommentRole, _calCommentsBtnHtml, _calCompHasUnresolvedKasperTweak, _calCompKasperVisible,
   _calCurrentAuthor, _calDeleteComment, _calFmtCommentTime, _calLatestMsgAt, _calSmmMediaGap,

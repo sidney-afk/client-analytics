@@ -3430,6 +3430,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         onCalViewChange
     });
 export {
+  onCalClientChange,
   _calStaffPhoneActive, _calPhoneClient, _calPhoneSectionHtml,
   _CAL_CLIENT_READY_STATES, _CAL_WEEK_BUFFER, _calAdoptThumbnailFolderMeta, _calBlankPost,
   _calChevron, _calClearThumbnailFolderMeta, _calClientCompPillsHtml, _calClientHue,

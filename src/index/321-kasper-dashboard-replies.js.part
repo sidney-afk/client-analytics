@@ -1,3 +1,4 @@
+import { _msgPaintCounts } from './326-core-messages-inbox.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import {
   FILMING_PLAN_TABS_URL, _analyticsReleaseExtras, parseCSV, showConfirm, showToast, svArea,
@@ -2693,11 +2694,8 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
        or client replied on one of Kasper's internal threads since he last
        caught up. Self-contained: shows the conversation and lets him reply or
        mark it read, without touching the approval-queue machinery. */
-    function _kasperUpdateReplyCount() {
-        const n = (_kasperState.replies || []).length;
-        const el = document.querySelector('[data-kasper-count="replies"]');
-        if (el) el.textContent = String(n);
-    }
+    // The Messages tab's count is the shared inbox's unread conversations.
+    function _kasperUpdateReplyCount() { _msgPaintCounts(); }
     /* Subtab count pills. Each tab's own render path only refreshes its OWN pill
        while that tab is mounted (e.g. _kasperPaintReview bails when the review
        body isn't on screen), so every OTHER tab sat on the placeholder dot until

@@ -1,3 +1,4 @@
+import { _msgRenderInto } from './326-core-messages-inbox.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showToast, svArea, svAreaApi } from './040-shared-briefs.js';
 import {
@@ -8,16 +9,15 @@ import { _ptoEnabled, _ptoLoadAdmin } from './110-time-off.js';
 import { _calComponentsFor } from './120-calendar-flags-write-repair.js';
 import { _calCommentsFor, _calMsgAudience, _calMsgIsTweak, _calSetCommentsFor } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
-import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
 import { _calDeriveThumb } from './160-calendar-organize-ui.js';
 import {
   _kasperGetSeenAt, _kasperLatestInternalComp, _kasperMarkSeenAt, _kasperOwnedThreadRoots,
   _kasperRepliesSeenBasis
 } from './180-calendar-native-post-media.js';
-import { _calFmtCommentTime, _calLatestMsgAt, _calLatestMsgCreatedAt, _calMintCommentId } from './190-calendar-approval-comments.js';
+import { _calFmtCommentTime, _calLatestMsgAt, _calMintCommentId } from './190-calendar-approval-comments.js';
 import { _sxrKasperLoadQueue, _sxrKasperState } from './290-samples-writes-review.js';
 import { CA_RECENT_KEY, _kasperPersistPost, _kasperSamplesEnabled, _kasperState } from './305-core-kasper-shared.js';
-import { _ccEnsureIdentity, _kasperLoadFilming, _kasperUpdateReplyCount } from './321-kasper-dashboard-replies.js';
+import { _ccEnsureIdentity, _kasperLoadFilming } from './321-kasper-dashboard-replies.js';
 import { _cbPurge, _cbSync, _cnRender } from './324-client-onboarding-panel.js';
 import { _svClientHue } from './095-shared-client.js';
 import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-history.js';
@@ -56,41 +56,11 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         }
     }
     let _kasperRepliesPaintRetry = null;
+    /* Messages tab = the shared Messages inbox (326-core-messages-inbox). */
     function _kasperRenderReplies() {
         const root = document.getElementById('kasperContent');
         if (!root) return;
-        // Don't rebuild the inbox out from under a reply being typed — the draft
-        // survives in item._replyDraft, but an innerHTML rebuild drops focus/caret
-        // mid-keystroke. Defer until the compose box blurs (mirrors _kasperPaintReview).
-        const _ae = document.activeElement;
-        if (_ae && _ae.tagName === 'TEXTAREA' && _ae.closest && _ae.closest('#kasperContent')) {
-            if (_kasperRepliesPaintRetry) clearTimeout(_kasperRepliesPaintRetry);
-            _kasperRepliesPaintRetry = setTimeout(_kasperRenderReplies, 1200);
-            return;
-        }
-        if (_kasperRepliesPaintRetry) { clearTimeout(_kasperRepliesPaintRetry); _kasperRepliesPaintRetry = null; }
-        _kasperUpdateReplyCount();
-        // Landing straight on Replies (persisted tab) with nothing loaded yet —
-        // kick a fetch; it re-renders this tab when done.
-        if (!_kasperState.lastLoaded && !_kasperState.loading) _kasperLoadReview(true);
-        // Newest conversation first: an inbox reads top-down, most-recent at the
-        // top. Rank by the newest message's created_at (not updated_at) so that
-        // resolving/editing an old thread doesn't bump a stale card to the top.
-        // Sort a copy — _kasperState.replies order is preserved for everything else.
-        const list = (_kasperState.replies || []).slice().sort((a, b) =>
-            String(_calLatestMsgCreatedAt(b.post) || '').localeCompare(String(_calLatestMsgCreatedAt(a.post) || '')));
-        if (!list.length) {
-            const loadingNote = _kasperState.loading && !_kasperState.lastLoaded
-                ? _svLoadingSkeletonHtml('kasper', { label: 'Checking for messages' })
-                : `<div class="kasper-empty">
-                    <div class="kasper-empty-icon"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg></div>
-                    <div class="kasper-empty-title">No new messages</div>
-                    <div class="kasper-empty-sub">When the SMM or client replies to one of your notes or tweaks, it shows up here.</div>
-                </div>`;
-            root.innerHTML = loadingNote;
-            return;
-        }
-        root.innerHTML = `<div class="kasper-replies-list">${list.map(_kasperRepliesCardHtml).join('')}</div>`;
+        _msgRenderInto(root);
     }
     function _kasperRepliesCardHtml(item) {
         const p = item.post;

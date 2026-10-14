@@ -46,7 +46,6 @@ export function parseRequest(body) {
   const platform = PLATFORMS.includes(platformRaw) ? platformRaw : 'instagram';
   const note = String(b.note == null ? '' : b.note).replace(/\r\n/g, '\n').trim();
   if (note.length > NOTE_MAX) return { ok: false, error: 'The note is too long (over ' + NOTE_MAX + ' characters).' };
-  const common = { client, postId, captionPrompt, jobId, cta, platform, note };
   // A redo: the caption as it is now plus a note, like asking the chat for a tweak. It needs no video and no transcript.
   if (b.redo && typeof b.redo === 'object') {
     const caption = String(b.redo.caption == null ? '' : b.redo.caption).replace(/\r\n/g, '\n').trim();
@@ -55,13 +54,13 @@ export function parseRequest(body) {
     const quick = QUICK_REDOS.includes(clean(b.redo.quick)) ? clean(b.redo.quick) : '';
     if (!quick && !note) return { ok: false, error: 'Add a note or pick a quick change' };
     const titles = Array.isArray(b.redo.titles) ? b.redo.titles.map((t) => singleLine(t).slice(0, TITLE_MAX)).filter(Boolean).slice(0, 5) : [];
-    return Object.assign({ ok: true, assetUrl: '', transcript: '', mode: 'redo', redo: { caption, quick, titles } }, common);
+    return { ok: true, client, postId, captionPrompt, jobId, cta, platform, note, assetUrl: '', transcript: '', mode: 'redo', redo: { caption, quick, titles } };
   }
   const video = isFrameUrl(assetUrl);
   if (!video && !transcript) {
     return { ok: false, error: assetUrl ? 'Frame.io URLs only, or paste the transcript' : 'Add a video Frame link or paste the transcript' };
   }
-  return Object.assign({ ok: true, assetUrl: video ? assetUrl : '', transcript, mode: video ? 'video' : 'transcript', redo: null }, common);
+  return { ok: true, client, postId, captionPrompt, jobId, cta, platform, note, assetUrl: video ? assetUrl : '', transcript, mode: video ? 'video' : 'transcript', redo: null };
 }
 
 // A client's call-to-action list: short keywords, no repeats, at most CTA_LIST_MAX. Accepts an array or text with one

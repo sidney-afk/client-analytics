@@ -131,7 +131,7 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(/if \(job\.redo\) \{[^}]*patchJob\(job, \{ status: "done", stage: "done", caption: job\.caption, extras: job\.extras \}\);\s*return;/.test(runBody), 'a redo ends with the new caption and its extras on the job row');
   ok(/failureUpdate\(job\.jobId, msg, job\.redo \? "" : job\.caption, job\.extras \|\| undefined\)/.test(runBody), 'a failed redo hands back no caption (the page would otherwise save it)');
   ok(/job\.redo && job\.redo\.quick === "titles"\) out\.caption = job\.redo\.caption/.test(HANDLER), '"New titles" keeps the caption exactly as it was');
-  ok(/if \(error && "extras" in built\.patch\)/.test(HANDLER), 'a row write without the extras column (migration not run yet) retries without it');
+  ok(/if \(error && "extras" in patch\)/.test(HANDLER), 'a row write without the extras column (migration not run yet) retries without it');
   const logs = (HANDLER.match(/console\.(log|warn|error)\([^\n]*/g) || []).map((l) => l.replace('[caption-generate]', ''));
   ok(logs.every((l) => !/note|transcript|caption|titles|hashtag/i.test(l.replace(/"[^"]*"/g, ''))), 'no note, transcript, caption or title is logged');
   ok(/action === "cta_get" \|\| action === "cta_save"/.test(HANDLER) && /from\("caption_cta_options"\)\.select\("options"\)\.eq\("client_slug", client\)/.test(HANDLER) && /from\("caption_cta_options"\)\.upsert\(/.test(HANDLER), 'the function reads and saves the list (the editor and the box use it)');

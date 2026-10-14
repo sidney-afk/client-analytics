@@ -102,10 +102,11 @@ const active = new Map<string, Job>();
 async function patchJob(job: Job, fields: Record<string, unknown>) {
   const built = buildPatch({ jobId: job.jobId, ...fields }, new Date().toISOString());
   if (!built.ok) return;
-  let { error } = await job.db.from("caption_jobs").upsert(built.patch, { onConflict: "job_id" });
-  if (error && "extras" in built.patch) {
+  const patch = (built.patch || {}) as Record<string, unknown>;
+  let { error } = await job.db.from("caption_jobs").upsert(patch, { onConflict: "job_id" });
+  if (error && "extras" in patch) {
     // The extras column is not there yet (the migration has not run): the caption still matters more than its titles.
-    const { extras: _skip, ...rest } = built.patch as Record<string, unknown>;
+    const { extras: _skip, ...rest } = patch;
     ({ error } = await job.db.from("caption_jobs").upsert(rest, { onConflict: "job_id" }));
   }
   if (error) console.warn("[caption-generate] job row write failed", error.code || "");

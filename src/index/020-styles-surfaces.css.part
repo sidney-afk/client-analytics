@@ -2865,7 +2865,7 @@
         .cal-cap-ai-sum::before { content: '\25B8'; display: inline-block; margin-right: 6px; transition: transform .15s; }
         .cal-cap-ai[open] > .cal-cap-ai-sum::before { transform: rotate(90deg); }
         .cal-cap-ai-body { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 6px; }
-        .cal-cap-ai-label { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin-top: 4px; }
+        .cal-cap-ai-label { line-height: 1.3; font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin-top: 4px; }
         .cal-cap-ai-titles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
         .cal-cap-ai-t { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); }
         .cal-cap-ai-t.is-best { border-color: var(--text-primary); }

@@ -67,6 +67,7 @@ async function open(browser, origin, opts) {
     if (p === '/functions/v1/key-verify') return json({ ok: true, role: 'admin', member: { id: 'm1', name: 'Browser Staff', role: 'admin', team: null } });
     if (p === '/functions/v1/caption-generate' && r.method() === 'POST') {
       const body = JSON.parse(r.postData() || '{}');
+      if (body.action === 'cta_get') return json({ ok: true, client: body.client, options: [] });   // the box's choices read, not a caption job
       state.ef.push({ body, key: r.headers()['x-syncview-key'] || '' });
       const now = () => new Date().toISOString();
       state.jobs.set(body.jobId, { jobId: body.jobId, client: body.client, postId: body.postId, status: 'running', stage: body.assetUrl ? 'scraping' : 'writing', caption: '', error: '', cancel_requested: false, updated_at: now() });

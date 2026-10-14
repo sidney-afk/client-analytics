@@ -1073,7 +1073,6 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
                     id: commentId,
                     parent_id: null,
                     author,
-                    ...(!retryGate && _calCurrentAuthorId() ? { author_member_id: _calCurrentAuthorId() } : {}),
                     role,
                     is_tweak: true,
                     audience,

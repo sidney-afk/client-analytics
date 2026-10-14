@@ -114,7 +114,7 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
   ok(asStaff.author_name === 'Second Manager' && asStaff.author_member_id === 'u2', 'staff see the name and the id');
 
   const cal = fs.readFileSync(path.join(root, 'src/index/190-calendar-approval-comments.js.part'), 'utf8');
-  ok((cal.match(/author_member_id: _calCurrentAuthorId\(\)/g) || []).length === 3, 'every new staff note on the Notes save path stores the member id');
+  ok((cal.match(/author_member_id: _calCurrentAuthorId\(\)/g) || []).length === 2, 'new staff notes and replies on the Notes save path, and review comments, store the member id (the request-change path stays byte-identical to main)');
   ok(/if \(_isClientLink\) return '';\s*try \{\s*const identity = _syncviewStaffIdentityForHeaders\(\);\s*return String\(identity && identity\.member && identity\.member\.id/.test(cal), 'the stored value is the member id only, and never on the client link');
   ok(/if \(_isClientLink\) return role === 'client' \? String\(c\.author \|\| fallback \|\| 'Client'\) : 'Synchro team';/.test(cal), 'the client link shows every staff note as "Synchro team"');
 

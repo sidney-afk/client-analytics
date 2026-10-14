@@ -47592,7 +47592,6 @@
                     id: commentId,
                     parent_id: null,
                     author,
-                    ...(!retryGate && _calCurrentAuthorId() ? { author_member_id: _calCurrentAuthorId() } : {}),
                     role,
                     is_tweak: true,
                     audience,
@@ -91332,4 +91331,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-7f3100f9e04e.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-d41fa418745d.js");

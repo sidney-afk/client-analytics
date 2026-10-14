@@ -158,9 +158,42 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
 
     // F: the Messages button opens the same inbox as a panel
     await page.evaluate(() => navTo('calendar'));
-    check(!(await page.isVisible('#navMessages')), 'F: an admin has no header Messages button (the Kasper tab is their inbox)');
-    // Show it as it shows for an SMM (role rule: test/messages-inbox-scope.js).
-    await page.evaluate(() => { document.getElementById('navMessages').hidden = false; });
+    // Who gets the header button: admins and SMMs, never editors or designers.
+    const asRole = (role) => page.evaluate(role => {
+      const id = _syncviewStaffIdentityLoad();
+      _syncviewStaffIdentitySave(Object.assign({}, id, { role, member: Object.assign({}, id.member, { role }) }));
+      _syncviewStaffIdentityVerified = true;
+      _syncviewStaffRefreshChrome();
+    }, role);
+    const buttonState = () => page.evaluate(() => {
+      const b = document.getElementById('navMessages');
+      const r = b.getBoundingClientRect();
+      return { hidden: b.hidden, shown: !b.hidden && getComputedStyle(b).display !== 'none' && r.width > 0 && r.height > 0 };
+    });
+    // On a phone the header button moves into the Tabs menu.
+    const inPhoneTabs = async () => {
+      await page.evaluate(() => { const t = [...document.querySelectorAll('.pocket-staff-tabs-btn,#fphTabsBtn,[data-staff-menu=tabs],.pocket-admin-heading button[aria-haspopup=dialog]')].find(el => el.getBoundingClientRect().width > 0); if (t) t.click(); });
+      await page.waitForTimeout(400);
+      const found = await page.evaluate(() => !!document.querySelector('.sv-phone-tabs-grid [data-nav="navMessages"]'));
+      await page.evaluate(() => { const c = document.querySelector('[aria-label="Close Tabs"]'); if (c) c.click(); });
+      await page.waitForTimeout(200);
+      return found;
+    };
+    for (const width of [1366, 390]) {
+      await page.setViewportSize({ width, height: width < 768 ? 844 : 900 });
+      await asRole('admin');
+      const adm = await buttonState();
+      check(!adm.hidden && (width < 768 ? (adm.shown || await inPhoneTabs()) : adm.shown), 'F: ' + width + 'px: an admin has the Messages button ' + JSON.stringify(adm));
+      await asRole('editor');
+      const ed = await buttonState();
+      check(ed.hidden && !ed.shown && (width >= 768 || !(await inPhoneTabs())), 'F: ' + width + 'px: an editor has no Messages button ' + JSON.stringify(ed));
+    }
+    await asRole('admin');
+    await page.setViewportSize({ width: 1366, height: 900 });
+    // The editor sign-in cleared the inbox; the first background load after
+    // signing back in waits a minute, so load it now.
+    await page.evaluate(() => _msgLoad(true));
+    await until(() => page.evaluate(() => document.querySelector('#navMessages [data-msg-count]').textContent === '2'));
     check(await page.isVisible('#navMessages'), 'F: the Messages button shows by the account icon');
     check(await page.evaluate(() => document.querySelector('#navMessages [data-msg-count]').textContent) === '2', 'F: the button shows the unread count (the posted one is gone)');
     await page.click('#navMessages');

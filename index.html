@@ -6028,8 +6028,13 @@
         /* Frame.io folder button, top of the pile: neutral raised chip like the Production ones, no component colour because it belongs to the client. */
         .cal-linear-btn.cal-frame-btn { background: var(--surface-raised); color: var(--sv-fg-6b6b66); }
         .cal-linear-btn.cal-frame-btn:hover { background: var(--field-bg-hover); color: var(--sv-fg-3a3a37); }
-        .cal-linear-btn.cal-files-btn { padding: 0; border: 0; font: inherit; cursor: pointer; }
-        .cal-linear-btn.cal-files-btn[aria-expanded="true"] { background: var(--field-bg-hover); color: var(--sv-fg-3a3a37); }
+        /* Files menu button: the same raised chip and 1.5px outline as the
+           SyncLinear button below it, in a neutral colour because the files
+           belong to the client, not to one component. */
+        .cal-linear-btn.cal-files-btn { box-sizing: border-box; padding: 0; border: 1.5px solid var(--border); background: var(--surface-raised); color: var(--text-secondary); font: inherit; cursor: pointer; }
+        /* The button's hover tip would sit on top of the open menu. */
+        body:has(#calFilesMenu) #globalTooltip { display: none; }
+        .cal-linear-btn.cal-files-btn:hover, .cal-linear-btn.cal-files-btn[aria-expanded="true"] { background: var(--field-bg-hover); border-color: var(--text-muted); color: var(--text-primary); }
         .cal-linear-btn.cal-files-btn:focus-visible, .cal-linear-btn.cal-prod-btn:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--focus-ring); }
         /* Per-card files menu: the toolbar menus' chrome (.dropdown-menu), placed
            beside the pile button. */
@@ -13087,8 +13092,8 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-d41fa418745d.js";
-        var PARTS = ["js/sv-01-core-f113b7cff656.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-b2c6095ba0b5.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-a9da173d8974.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-fc8b863a2e43.js","js/sv-12-synclinear-3e86ebae2689.js","js/sv-13-core-b3614ee9e614.js","js/sv-15-core-45cf1d45f190.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-835cfd27889a.js","js/sv-20-core-2e66cf1b5d39.js"];
+        var FULL = "js/sv-full-cfdec8c3e60d.js";
+        var PARTS = ["js/sv-01-core-f113b7cff656.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-b2c6095ba0b5.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-a9da173d8974.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-c7c26bdce9ce.js","js/sv-12-synclinear-3e86ebae2689.js","js/sv-13-core-b3614ee9e614.js","js/sv-15-core-45cf1d45f190.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-835cfd27889a.js","js/sv-20-core-2e66cf1b5d39.js"];
         var LAZY = {"templates":"js/sv-02-templates-0bfb7b2adbf4.js","workload":"js/sv-04-workload-cac24a0637b7.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-98ee170ce168.js"};
         var FORCE = null;
         var CLIENTS = true;

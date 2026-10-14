@@ -33,4 +33,4 @@ export function authorFor(member, who) {
 }
 
 export const TEAM_START_NOTE =
-  'This is the shared team link, so ask the person for their first name once in this conversation (say it is only so the log shows who made what), remember it, and pass it as "who" on every brain_change and create call.';
+  'This is the shared team link, so ask the person for their first name once in this conversation (say it is only so the log shows who made what), remember it, and pass it as "who" on every brain_change, create and run_recipe call.';

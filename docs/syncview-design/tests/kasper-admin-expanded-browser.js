@@ -775,6 +775,12 @@ async function runMain() {
               await page.locator('#cnManagerBtn').tap();await page.locator('#cnTitle').tap();
               expect(await page.locator('#cnManagerBtn').getAttribute('aria-expanded')==='false','Clients: tapping another field dismisses the manager picker');
               await page.keyboard.press('Escape');
+              // The form holds typed details (a manager is picked), so Escape asks before discarding them (owner rule 2026-10-14).
+              expect(await page.locator('#confirmOverlay.active').count()===1 && await page.locator('.cn-dialog').isVisible(),'Clients: Escape on a filled-in form asks before discarding it');
+              await page.keyboard.press('Escape');
+              expect(await page.locator('#confirmOverlay.active').count()===0 && await page.locator('.cn-dialog').isVisible(),'Clients: Escape on the question keeps the form and its details');
+              await page.keyboard.press('Escape');
+              await page.locator('#confirmYes').click();
               expect(!(await page.locator('.cn-dialog').isVisible()),'Clients: the next Escape dismisses the form');
             }
             if(!before && !desktop && t.label==='clients-create-menu') {

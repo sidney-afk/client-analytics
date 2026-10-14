@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { _writeUiRecordSaveFailure } from './120-calendar-flags-write-repair.js';
 import {
   SHEET_ID, _analyticsRosterFromDatabase, parseCSV, showToast, svArea, svAreaApi
@@ -690,6 +691,7 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
         const btn = document.getElementById(id + 'Btn');
         if (wrap) wrap.classList.remove('open');
         if (btn) btn.setAttribute('aria-expanded', 'false');
+        svLayerRelease('cc-select:' + id, { focus: true });
         if (_ccOpenSelectId === id) {
             document.removeEventListener('mousedown', _ccSelectOutside);
             document.removeEventListener('keydown', _ccSelectKeydown);
@@ -715,6 +717,14 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
         btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
         if (opening) {
             _ccOpenSelectId = id;
+            svLayerOpen({
+                key: 'cc-select:' + id,
+                region: () => document.getElementById(id + 'Wrap'),
+                opener: btn,
+                isOpen: () => { const w = document.getElementById(id + 'Wrap'); return !!w && w.classList.contains('open'); },
+                holdRefresh: false,
+                close: () => _ccCloseSelect(id),
+            });
             setTimeout(() => document.addEventListener('mousedown', _ccSelectOutside), 0);
             document.addEventListener('keydown', _ccSelectKeydown);
         } else _ccCloseSelect(id);

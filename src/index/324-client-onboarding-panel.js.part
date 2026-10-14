@@ -1,6 +1,7 @@
 import { CAL_SUPABASE_URL, _svSelectHtml, _svSelectClose, _syncviewStaffCan, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature } from './100-onboarding-staff-controls.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
-import { showToast } from './040-shared-briefs.js';
+import { showConfirm, showToast } from './040-shared-briefs.js';
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
     // ── Onboarding on the Clients profile (step 2.4 of docs/plans/2026-10-01-onboarding-checklist-and-profile.md) ──
@@ -555,6 +556,14 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         if (!_syncviewStaffCan('clients-admin')) return;
         Object.assign(_cnState, _cnFresh(), { open: true, requestId: _cnNewRequestId() });
         _cnRender();
+        svLayerOpen({
+            key: 'cn-dialog',
+            region: '#caCreate .cn-dialog',
+            opener: () => document.getElementById('caNewBtn'),
+            isOpen: () => !!_cnState.open,
+            holdRefresh: false,
+            close: () => _cnClose(),
+        });
         document.getElementById('cnName')?.focus({ preventScroll: true });
         const seq = ++_cnState.seq;
         let out;
@@ -565,7 +574,22 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
         _cnPaintManagers();
         _cnPaintPreview();
     }
+    /* Name, manager or email typed in: closing by Cancel, the X, the dim area
+       or Escape asks first instead of wiping them. A successful create closes
+       with keepFocus === true and never asks. */
+    function _cnDirty() {
+        return !!(String(_cnState.name || '').trim() || String(_cnState.email || '').trim() || _cnState.manager);
+    }
     function _cnClose(keepFocus) {
+        if (_cnState.busy) return;
+        if (keepFocus !== true && _cnState.open && _cnDirty()) {
+            showConfirm('Discard this new client?', 'What you typed is not saved. Close the box and lose it?', () => _cnCloseNow(false), 'Discard');
+            return;
+        }
+        _cnCloseNow(keepFocus);
+    }
+    function _cnCloseNow(keepFocus) {
+        svLayerRelease('cn-dialog');
         if (_cnState.busy) return;
         if (_cnTimer) { clearTimeout(_cnTimer); _cnTimer = 0; }
         Object.assign(_cnState, _cnFresh());

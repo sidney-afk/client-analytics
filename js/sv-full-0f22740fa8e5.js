@@ -2144,14 +2144,30 @@
     let _svLayerLastTrigger = null;
     let _svLayerLastTriggerAt = 0;
     function _svLayerTriggerFrom(target) {
-        let n = target && target.nodeType === 1 ? target : (target && target.parentElement);
-        for (let i = 0; n && n !== document.body && i < 8; i++, n = n.parentElement) {
+        const start = target && target.nodeType === 1 ? target : (target && target.parentElement);
+        /* The nearest thing that is plainly a control. */
+        for (let n = start, i = 0; n && n !== document.body && i < 8; i++, n = n.parentElement) {
             if (n.matches && n.matches('button, a[href], input, select, textarea, summary, [tabindex], [role=button], [role=menuitem], [onclick]')) return n;
+        }
+        /* Otherwise the root of the region that shows a pointer cursor (the
+           cursor is inherited, so the first match would be the innermost icon). */
+        let top = null;
+        for (let n = start, i = 0; n && n !== document.body && i < 8; i++, n = n.parentElement) {
             let cur = '';
             try { cur = getComputedStyle(n).cursor; } catch {}
-            if (cur === 'pointer') return n;
+            if (cur === 'pointer') top = n; else if (top) break;
         }
-        return target && target.nodeType === 1 ? target : null;
+        return top || start || null;
+    }
+    /* No opener given: a focused control (button, link, field) is the opener.
+       When focus sits on a plain container (a list that keeps focus for its own
+       keyboard moves), whatever the person just pressed is. */
+    function _svLayerGuessOpener() {
+        const a = document.activeElement;
+        if (a && a.matches && a.matches('button, a[href], input, select, textarea, summary, [role=button], [role=menuitem], [role=combobox]')) return a;
+        const recent = _svLayerLastTrigger && _svLayerLastTrigger.isConnected && Date.now() - _svLayerLastTriggerAt < 1500;
+        if (recent) return _svLayerLastTrigger;
+        return a && a !== document.body && a !== document.documentElement ? a : null;
     }
     function _svLayerRemember(e) {
         _svLayerLastTrigger = _svLayerTriggerFrom(e.target);
@@ -2268,9 +2284,10 @@
         _svLayersWire();
         let opener = spec.opener;
         if (opener === undefined) {
-            const a = document.activeElement;
-            opener = a && a !== document.body && a !== document.documentElement ? a : null;
-            if (!opener && _svLayerLastTrigger && _svLayerLastTrigger.isConnected && Date.now() - _svLayerLastTriggerAt < 2500) opener = _svLayerLastTrigger;
+            /* What the person just pressed or activated beats whatever holds focus
+               (a list that keeps focus for its own keyboard moves, say). Failing
+               that, the focused control. */
+            opener = _svLayerGuessOpener();
         }
         const next = {
             key: spec.key || ('layer' + (_svLayers.length + 1) + '-' + Date.now()),
@@ -2280,7 +2297,7 @@
             openerSelector: spec.openerSelector || (typeof opener === 'function' ? '' : _svLayerSelectorFor(opener)),
             isOpen: spec.isOpen || null,
             escape: spec.escape !== false,   // false, or a function (e) that returns true when it used the key itself and the layer stays open
-            focusAtOpen: (document.activeElement && document.activeElement !== document.body ? document.activeElement : null) || (_svLayerLastTrigger && _svLayerLastTrigger.isConnected && Date.now() - _svLayerLastTriggerAt < 2500 ? _svLayerLastTrigger : null),
+            focusAtOpen: _svLayerGuessOpener(),
             outside: spec.outside !== false,
             alsoInside: spec.alsoInside || null,
             focusOnClose: spec.focusOnClose !== false,
@@ -2446,7 +2463,14 @@
         if (_svLayersWired) return;
         _svLayersWired = true;
         window.addEventListener('keydown', _svLayerOnKey, true);
-        window.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') _svLayerRemember(e); }, true);
+        /* A pop-up opened from the keyboard (Enter on a button, a shortcut key)
+           returns to whatever had focus when the key went down. */
+        window.addEventListener('keydown', e => {
+            if (e.key === 'Escape' || e.key === 'Tab' || e.isComposing) return;
+            const a = document.activeElement;
+            _svLayerLastTrigger = a && a !== document.body && a !== document.documentElement ? a : null;
+            _svLayerLastTriggerAt = Date.now();
+        }, true);
         /* Mouse and pen close on press (so a drag that starts inside and ends
            outside never closes it). A finger could be starting a scroll, so a
            touch closes on the tap itself. */
@@ -2462,6 +2486,10 @@
             _svLayerOutside(e);
         }, true);
     }
+
+    /* Listen from the start, so the first press that opens a pop-up is already
+       remembered as its opener. */
+    _svLayersWire();
 
     window.svLayerOpen = svLayerOpen;
     window.svFocusKeep = svFocusKeep;
@@ -4952,7 +4980,7 @@
                     <input class="search-bar-input" id="tplSearchInput" type="text"
                         placeholder="Search clients…"
                         oninput="_tplOnSearchInput()" onkeydown="_tplOnSearchKey(event)"
-                        onfocus="_tplOnSearchFocus()" autocomplete="off">
+                        onfocus="_tplOnSearchFocus()" onclick="_tplOnSearchFocus()" autocomplete="off">
                     <div class="search-ghost-overlay" id="tplSearchGhost"></div>
                     <button class="search-bar-icon" onclick="_tplOnSearchIconClick()" title="Search">
                         <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -4988,12 +5016,20 @@
         _tplRenderPins();
     }
     function _tplTogglePinsEdit() { _tplSetPinsEditMode(!_tplPinsEditMode); _tplSetPinSelectorOpen(false); _tplRenderPins(); }
-    function _tplClosePinSelector() { _tplSetPinSelectorOpen(false); const dd = document.getElementById('tplPinSelectorDropdown'); if (dd) dd.classList.remove('open'); }
+    function _tplClosePinSelector() { svLayerRelease('tpl-pins'); _tplSetPinSelectorOpen(false); const dd = document.getElementById('tplPinSelectorDropdown'); if (dd) dd.classList.remove('open'); }
     function _tplTogglePinSelector() {
         if (_tplPinSelectorOpen) { _tplClosePinSelector(); return; }
         _tplSetPinSelectorOpen(true);
         const dd = document.getElementById('tplPinSelectorDropdown');
         if (dd) { dd.classList.add('open'); _tplRenderPinSelectorList(); }
+        svLayerOpen({
+            key: 'tpl-pins',
+            region: '#tplPinsAddRow',
+            opener: () => document.querySelector('#tplPinsAddRow .pin-add-btn'),
+            isOpen: () => !!_tplPinSelectorOpen,
+            holdRefresh: false,
+            close: () => _tplClosePinSelector(),
+        });
         const close = (e) => {
             const addRow = document.getElementById('tplPinsAddRow');
             if (addRow && !addRow.contains(e.target)) {
@@ -5119,6 +5155,15 @@
         const box = document.getElementById('tplSearchBox');
         if (!box || box.classList.contains('open')) return;
         box.classList.add('open');
+        svLayerOpen({
+            key: 'tpl-search',
+            focusOnClose: false,   // the search box opens on focus: giving it focus back would only reopen it
+            region: '#tplSearchWrap',
+            opener: () => document.getElementById('tplSearchInput'),
+            isOpen: () => { const b = document.getElementById('tplSearchBox'); return !!b && b.classList.contains('open'); },
+            holdRefresh: false,
+            close: () => { document.getElementById('tplSearchBox')?.classList.remove('open'); const g = document.getElementById('tplSearchGhost'); if (g) g.innerHTML = ''; },
+        });
         const close = (e) => {
             const wrap = document.getElementById('tplSearchWrap');
             if (wrap && !wrap.contains(e.target)) {
@@ -12286,6 +12331,14 @@
                 ddTrigger.classList.toggle('open', willOpen);
                 ddTrigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
                 menu?.classList.toggle('open', willOpen);
+                if (willOpen) svLayerOpen({
+                    key: 'wl-dropdown',
+                    region: () => document.querySelector('.wl-dropdown .dropdown-trigger.open')?.closest('.wl-dropdown'),
+                    opener: ddTrigger,
+                    isOpen: () => !!document.querySelector('.wl-dropdown .dropdown-trigger.open'),
+                    holdRefresh: false,
+                    close: () => wlCloseDropdowns(null),
+                });
                 return;
             }
             if (ddItem) {
@@ -12630,6 +12683,7 @@
     }
 
     function wlCloseDropdowns(except) {
+        if (except == null) svLayerRelease('wl-dropdown', { focus: true });
         document.querySelectorAll('.wl-dropdown').forEach(d => {
             if (d === except) return;
             d.querySelector('.dropdown-trigger')?.classList.remove('open');
@@ -15114,6 +15168,17 @@
         const rect = rollupEl.getBoundingClientRect();
         pop.classList.add('open');
         pop.setAttribute('aria-hidden', 'false');
+        /* A layer: Escape and a click elsewhere close it, focus goes back to the
+           badge it opened from. A date picker opened inside it sits above it, so
+           the first Escape closes just that. Its own opener toggles it shut. */
+        if (typeof svLayerOpen === 'function') svLayerOpen({
+            key: 'wl-popover',
+            region: '#wlPopover',
+            opener: rollupEl,
+            isOpen: () => { const p = document.getElementById('wlPopover'); return !!p && p.classList.contains('open'); },
+            holdRefresh: false,
+            close: () => wlClosePopover(false),
+        });
         const popW = Math.min(pop.offsetWidth || 320, 380);
         let left = window.scrollX + rect.left;
         const maxLeft = window.scrollX + window.innerWidth - popW - 10;
@@ -15199,6 +15264,7 @@
     }
 
     function wlClosePopover(returnFocus) {
+        if (typeof svLayerRelease === 'function') svLayerRelease('wl-popover');
         const pop = document.getElementById('wlPopover');
         if (!pop) return;
         const anchor = wlState.popoverAnchor;
@@ -22834,6 +22900,7 @@
         const btn = document.getElementById(id + 'Btn');
         if (wrap) wrap.classList.remove('open');
         if (btn) btn.setAttribute('aria-expanded', 'false');
+        svLayerRelease('srp-select:' + id, { focus: true });
         if (_srpOpenSelectId === id) {
             document.removeEventListener('mousedown', _srpSelectOutside);
             document.removeEventListener('keydown', _srpSelectKeydown);
@@ -22853,6 +22920,14 @@
         btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
         if (opening) {
             _srpOpenSelectId = id;
+            svLayerOpen({
+                key: 'srp-select:' + id,
+                region: () => document.getElementById(id + 'Wrap'),
+                opener: btn,
+                isOpen: () => { const w = document.getElementById(id + 'Wrap'); return !!w && w.classList.contains('open'); },
+                holdRefresh: false,
+                close: () => _srpCloseSelect(id),
+            });
             setTimeout(() => {
                 document.addEventListener('mousedown', _srpSelectOutside);
                 document.addEventListener('keydown', _srpSelectKeydown);
@@ -55476,6 +55551,13 @@
             _prodState.archiveRepair = _prodArchiveDefaultState();
             _prodEnsureOverlays();
             _prodRenderArchiveRepair();
+            svLayerOpen({
+                key: 'prod-archive',
+                region: '#prodLayer .prod-archive-modal',
+                holdRefresh: false,
+                isOpen: () => !!document.querySelector('#prodLayer .prod-archive-modal'),
+                close: () => _prodCloseArchiveRepair(),
+            });
             _prodArchiveLoadList(false);
             return false;
         }
@@ -57841,6 +57923,7 @@
             let results = [];
             let sel = 0;
             const close = () => {
+                svLayerRelease('prod-palette', { focus: true });
                 bd.remove();
                 _prodState.paletteOpen = false;
             };
@@ -57885,6 +57968,13 @@
             });
             _prodState.paletteOpen = true;
             search();
+            svLayerOpen({
+                key: 'prod-palette',
+                region: () => bd.querySelector('.prod-cmd'),
+                holdRefresh: false,
+                isOpen: () => bd.isConnected,
+                close: () => close(),
+            });
             try { inp.focus(); } catch (e) {}
             return false;
         }
@@ -58088,6 +58178,11 @@
             }
         }
         function _prodClearLayer() {
+            svLayerRelease('prod-sub');
+            svLayerRelease('prod-pop', { focus: true });
+            svLayerRelease('prod-palette');
+            svLayerRelease('prod-create', { focus: true });
+            svLayerRelease('prod-archive', { focus: true });
             const layer = document.getElementById('prodLayer');
             if (layer) {
                 layer.innerHTML = '';
@@ -58809,6 +58904,16 @@
             _prodPersistCreateDraft();
             _prodEnsureOverlays();
             _prodRenderCreateModal();
+            /* A layer: Escape (when no date list or select is open above it) and
+               a click on the dim area close it. The draft is already kept in
+               session storage on every edit, so nothing typed is lost. */
+            svLayerOpen({
+                key: 'prod-create',
+                region: '#prodLayer .prod-create-bd > *',
+                holdRefresh: false,
+                isOpen: () => !!document.querySelector('#prodLayer .prod-create-bd'),
+                close: () => _prodCloseCreate(),
+            });
             _prodLoadCreateOptions(false);
             setTimeout(() => document.getElementById('prodCreateTitle')?.focus(), 0);
             return false;
@@ -61668,6 +61773,7 @@
             state.caretBlock = state.draft.split('\n').length - 1;
             state.caretOffset = 1e9;
             state.restoredDraft = true;
+            if (typeof _prodDescLayer === 'function') _prodDescLayer(id);
             if (kept.meta.base != null && _svDraftNorm(kept.meta.base) !== _svDraftNorm(serverValue)) {
                 state.remoteChanged = true;
                 state.error = 'Description changed elsewhere. Your draft is preserved; review it against the refreshed version and save again.';
@@ -62410,6 +62516,14 @@
                 _prodEnsureDescription(id, true);
                 return false;
             }
+            state.baseline = state.value;
+            _prodDescDraftRestore(id, state, state.value);   // a draft kept by Escape or a click elsewhere comes back
+            if (state.editing) {
+                _prodDescLayer(id);
+                _prodRender();
+                _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state), options);
+                return false;
+            }
             state.editing = true;
             state.preview = false;
             state.saving = false;
@@ -62430,6 +62544,7 @@
             state.caretBlock = state.draft.split('\n').length - 1;
             state.caretOffset = 1e9;
             _prodRender();
+            _prodDescLayer(id);
             _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state), options);
             return false;
         }
@@ -62480,6 +62595,43 @@
             _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state));
             return false;
         }
+        /* Escape and a click elsewhere close the editor but never throw the text
+           away: the draft stays in the shared draft store and the editor reopens
+           on it (with the "Restored" line) the next time Edit is pressed. The
+           explicit Cancel button still discards, as before. */
+        function _prodCloseDescriptionEditKeepDraft(id) {
+            const state = _prodDescriptionState(id);
+            if (!state || !state.editing) return false;
+            if (state.saving) return false;
+            if (_svDraftNorm(state.draft) === _svDraftNorm(state.baseline)) return _prodCancelDescriptionEdit(id);
+            _prodDescDraftKeep(id, state);
+            state.editing = false;
+            state.preview = false;
+            state.source = false;
+            state.sourceReason = '';
+            state.draft = state.value;
+            state.error = '';
+            state.remoteChanged = false;
+            state.requestId = '';
+            state.restoredDraft = false;
+            svLayerRelease('prod-desc:' + id);
+            _prodDescLinkPopHide(true);
+            _prodRender();
+            _prodToast('Your edit is kept as a draft. Press Edit to carry on.');
+            return false;
+        }
+        function _prodDescLayer(id) {
+            const sel = '[data-prod-description="' + (window.CSS && CSS.escape ? CSS.escape(String(id)) : String(id)) + '"]';
+            svLayerOpen({
+                key: 'prod-desc:' + id,
+                region: () => document.querySelector(sel + '[data-prod-description-mode]'),
+                alsoInside: t => !!(t.closest && t.closest('.prod-linkpop')),
+                opener: () => document.querySelector(sel + ' [data-prod-description-control="edit"]'),
+                isOpen: () => { const st = _prodDescriptionState(id); return !!(st && st.editing); },
+                holdRefresh: false,
+                close: () => _prodCloseDescriptionEditKeepDraft(id),
+            });
+        }
         function _prodCancelDescriptionEdit(id) {
             const state = _prodDescriptionState(id);
             if (!state || state.saving) return false;
@@ -62492,6 +62644,7 @@
             state.remoteChanged = false;
             state.requestId = '';
             state.restoredDraft = false;
+            svLayerRelease('prod-desc:' + id);
             _svDraftClear('prod', _prodDescDraftClient(id), String(id), 'description');
             _prodDescLinkPopHide(true);
             _prodRender();
@@ -62544,7 +62697,7 @@
             if (event.key === 'Escape') {
                 event.preventDefault();
                 event.stopPropagation();
-                _prodCancelDescriptionEdit(id);
+                _prodCloseDescriptionEditKeepDraft(id);
                 return false;
             }
             if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
@@ -64321,14 +64474,38 @@
             layer.appendChild(pop);
             _prodPlacePop(pop, x, y);
             pop.style.visibility = 'visible';
+            /* A layer: Escape closes only the top pop (a sub-menu first, then
+               this one) and focus goes back to what opened it. The dim backdrop
+               above keeps its own outside-click handling (it passes the click
+               on to a trigger underneath), so the shared handler leaves the
+               outside click to it. */
+            svLayerOpen({
+                key: 'prod-pop',
+                region: '#prodLayer .prod-pop',
+                outside: false,
+                holdRefresh: false,
+                isOpen: () => !!document.querySelector('#prodLayer .prod-pop'),
+                close: () => _prodClearLayer(),
+            });
             return pop;
         }
         let _prodSubPop = null;
-        function _prodSetSubPop(value) { _prodSubPop = value; }
+        function _prodSetSubPop(value) {
+            _prodSubPop = value;
+            if (!value) { svLayerRelease('prod-sub'); return; }
+            svLayerOpen({
+                key: 'prod-sub',
+                region: () => _prodSubPop,
+                outside: false,
+                holdRefresh: false,
+                isOpen: () => !!_prodSubPop && _prodSubPop.isConnected,
+                close: () => _prodCloseSub(),
+            });
+        }
         function _prodCloseSub() {
             if (_prodSubPop) {
                 _prodSubPop.remove();
-                _prodSubPop = null;
+                _prodSetSubPop(null);
             }
         }
         function _prodWirePlainMenu(pop) {
@@ -64686,7 +64863,7 @@
             const r = parentEl.getBoundingClientRect();
             if (kind === 'due') {
                 _prodBuildDue(p, _prodIssue(ids[0]), ids, { x: r.right - 4, y: r.top - 6, flipX: r.left });
-                _prodSubPop = p;
+                _prodSetSubPop(p);
                 return;
             }
             p.innerHTML = _prodPickerHTML(kind, ids.length === 1 ? _prodCurVal(kind, ids[0]) : null, ids);
@@ -64706,7 +64883,7 @@
             }
             p.style.visibility = 'visible';
             _prodWirePicker(p, kind, ids);
-            _prodSubPop = p;
+            _prodSetSubPop(p);
         }
         function _prodOpenPicker(kind, ev, id) {
             if (ev) {
@@ -81900,6 +82077,7 @@
         const btn = document.getElementById(id + 'Btn');
         if (wrap) wrap.classList.remove('open');
         if (btn) btn.setAttribute('aria-expanded', 'false');
+        svLayerRelease('cc-select:' + id, { focus: true });
         if (_ccOpenSelectId === id) {
             document.removeEventListener('mousedown', _ccSelectOutside);
             document.removeEventListener('keydown', _ccSelectKeydown);
@@ -81925,6 +82103,14 @@
         btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
         if (opening) {
             _ccOpenSelectId = id;
+            svLayerOpen({
+                key: 'cc-select:' + id,
+                region: () => document.getElementById(id + 'Wrap'),
+                opener: btn,
+                isOpen: () => { const w = document.getElementById(id + 'Wrap'); return !!w && w.classList.contains('open'); },
+                holdRefresh: false,
+                close: () => _ccCloseSelect(id),
+            });
             setTimeout(() => document.addEventListener('mousedown', _ccSelectOutside), 0);
             document.addEventListener('keydown', _ccSelectKeydown);
         } else _ccCloseSelect(id);
@@ -83336,10 +83522,19 @@
         menu.hidden = !shouldOpen;
         const items = _kasperVisibleMoreItems();
         if (!shouldOpen) {
+            if (typeof svLayerRelease === 'function') svLayerRelease('kasper-more');
             items.forEach(item => { item.tabIndex = -1; });
             if (restoreTrigger) trigger.focus();
             return;
         }
+        if (typeof svLayerOpen === 'function') svLayerOpen({
+            key: 'kasper-more',
+            region: '.kasper-more',
+            opener: () => document.querySelector('[data-kasper-more-trigger]'),
+            isOpen: () => { const m = document.getElementById('kasperMoreMenu'); return !!m && !m.hidden; },
+            holdRefresh: false,
+            close: () => _kasperSetMoreOpen(false, false, false),
+        });
         if (focusMenu && items.length) {
             const target = items.find(item => item.getAttribute('aria-current') === 'page') || items[0];
             items.forEach(item => { item.tabIndex = item === target ? 0 : -1; });
@@ -83455,8 +83650,10 @@
         const img = ovl.querySelector('img');
         img.src = info.url;
         ovl.classList.add('open');
+        svLayerOverlay('kasper-lightbox', '#kasperLightbox', '#kasperLightbox img', () => _kasperCloseLightbox());
     }
     function _kasperCloseLightbox() {
+        svLayerRelease('kasper-lightbox', { focus: true });
         const ovl = document.getElementById('kasperLightbox');
         if (ovl) ovl.classList.remove('open');
     }
@@ -86695,7 +86892,24 @@
         }
         return { rows: _caFiltered(q).slice(0, CA_SEARCH_SHOWN), recent: false };
     }
-    function _caPaintSearch() {
+    /* The Clients tab's three pop-ups (search results, the All clients list and
+       the manager picker) are layers: Escape closes only the top one, a click
+       outside closes it, and focus goes back to what opened it. They are redrawn
+       from state, so this runs after every paint and opens or releases each
+       layer to match. */
+    function _caLayerSync() {
+        const defs = [
+            ['ca-search', () => !!(_caState.searchOpen && document.getElementById('caSearchPop') && !document.getElementById('caSearchPop').hidden), '#caSearchWrap', '#caSearch', reason => { if (reason === 'outside') { _caSearchQuietUntil = Date.now() + 500; document.getElementById('caSearch')?.blur(); } _caState.searchOpen = false; _caPaintSearch(); }],
+            ['ca-list', () => !!_caState.listOpen, '#caDrop', '#caAllBtn', () => _caCloseList()],
+            ['ca-mgr', () => !!_caState.picker, '#caMgrPop', '#caMgrBtn', () => _caMgrClose()],
+        ];
+        for (const [key, isOpen, region, openerSel, close] of defs) {
+            if (isOpen()) svLayerOpen({ key, region, opener: () => document.querySelector(openerSel), isOpen, holdRefresh: false, focusOnClose: key !== 'ca-search', close });   // the search box opens on focus: giving it focus back would only reopen it
+            else svLayerRelease(key);
+        }
+    }
+    function _caPaintSearch() { _caPaintSearchRaw(); _caLayerSync(); }
+    function _caPaintSearchRaw() {
         const pop = document.getElementById('caSearchPop');
         const input = document.getElementById('caSearch');
         if (!pop || !input) return;
@@ -86723,7 +86937,11 @@
         if (_caState.listOpen) _caCloseList();
         _caPaintSearch();
     }
-    function _caSearchFocus() { _caState.searchOpen = true; _caPaintSearch(); }
+    /* Clicking away from the search closes it. The phone bar hands focus back to
+       the box after any redraw, which would open it again at once, so a focus
+       that arrives right after an outside click does not reopen it. */
+    let _caSearchQuietUntil = 0;
+    function _caSearchFocus() { if (Date.now() < _caSearchQuietUntil) return; _caState.searchOpen = true; _caPaintSearch(); }
     function _caSearchKey(e) {
         const pop = document.getElementById('caSearchPop');
         const rows = (pop && pop._caRows) || [];
@@ -86753,7 +86971,8 @@
     }
     function _caCloseList() { _caState.listOpen = false; _caPaintList(); }
     function _caToggleArchived() { _caState.showArchived = !_caState.showArchived; _caPaintList(); }
-    function _caPaintList() {
+    function _caPaintList() { _caPaintListRaw(); _caLayerSync(); }
+    function _caPaintListRaw() {
         const drop = document.getElementById('caDrop');
         const btn = document.getElementById('caAllBtn');
         if (btn) btn.setAttribute('aria-expanded', String(_caState.listOpen));
@@ -87121,7 +87340,8 @@
             </div>`;
     }
 
-    function _caPaint() {
+    function _caPaint() { _caPaintRaw(); _caLayerSync(); }
+    function _caPaintRaw() {
         _caBindOutside();
         const body = document.getElementById('caBody');
         if (!body) return;
@@ -87698,6 +87918,14 @@
         if (!_syncviewStaffCan('clients-admin')) return;
         Object.assign(_cnState, _cnFresh(), { open: true, requestId: _cnNewRequestId() });
         _cnRender();
+        svLayerOpen({
+            key: 'cn-dialog',
+            region: '#caCreate .cn-dialog',
+            opener: () => document.getElementById('caNewBtn'),
+            isOpen: () => !!_cnState.open,
+            holdRefresh: false,
+            close: () => _cnClose(),
+        });
         document.getElementById('cnName')?.focus({ preventScroll: true });
         const seq = ++_cnState.seq;
         let out;
@@ -87708,7 +87936,22 @@
         _cnPaintManagers();
         _cnPaintPreview();
     }
+    /* Name, manager or email typed in: closing by Cancel, the X, the dim area
+       or Escape asks first instead of wiping them. A successful create closes
+       with keepFocus === true and never asks. */
+    function _cnDirty() {
+        return !!(String(_cnState.name || '').trim() || String(_cnState.email || '').trim() || _cnState.manager);
+    }
     function _cnClose(keepFocus) {
+        if (_cnState.busy) return;
+        if (keepFocus !== true && _cnState.open && _cnDirty()) {
+            showConfirm('Discard this new client?', 'What you typed is not saved. Close the box and lose it?', () => _cnCloseNow(false), 'Discard');
+            return;
+        }
+        _cnCloseNow(keepFocus);
+    }
+    function _cnCloseNow(keepFocus) {
+        svLayerRelease('cn-dialog');
         if (_cnState.busy) return;
         if (_cnTimer) { clearTimeout(_cnTimer); _cnTimer = 0; }
         Object.assign(_cnState, _cnFresh());
@@ -92370,4 +92613,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-190dcb53bc72.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-0f22740fa8e5.js");

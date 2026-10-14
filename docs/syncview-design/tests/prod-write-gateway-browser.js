@@ -1612,12 +1612,22 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     });
     expect(afterRender.focused && afterRender.pane === afterRender.before && afterRender.draft === linkedDraft,
       'a re-render while editing lost focus, moved the pane, or changed the draft: ' + JSON.stringify(afterRender));
-    // Escape discards; the saved text is what the read view showed.
+    // Escape closes the editor but never throws the typed text away (owner rule,
+    // 2026-10-14): the saved text is untouched, the draft comes back on Edit, and
+    // the Cancel button is the explicit discard.
     phase('inplace_save');
     await page.locator('[data-prod-description-control="rich"]').press('Escape');
     await page.waitForFunction(() => _prodDescriptionState('gra-description-child')?.editing === false);
     expect(await page.evaluate(() => _prodDescriptionState('gra-description-child').value) === childBefore,
-      'Escape did not discard the visual draft');
+      'Escape changed the saved description');
+    await page.locator('[data-prod-description-edit]').click();
+    await page.waitForFunction(() => document.activeElement?.matches('[data-prod-description-control="rich"]'));
+    expect(await page.evaluate(() => _prodDescriptionState('gra-description-child').draft) === linkedDraft,
+      'Escape threw the typed description away instead of keeping it as a draft');
+    await page.locator('[data-prod-description-control="cancel"]').click();
+    await page.waitForFunction(() => _prodDescriptionState('gra-description-child')?.editing === false);
+    expect(await page.evaluate(() => _prodDescriptionState('gra-description-child').value) === childBefore,
+      'Cancel did not discard the visual draft');
     // Save from the visual editor writes the serialized Markdown exactly.
     await page.locator('[data-prod-description-edit]').click();
     await page.waitForFunction(() => document.activeElement?.matches('[data-prod-description-control="rich"]'));

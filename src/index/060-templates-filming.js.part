@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { FILMING_PLANS_EF_URL, showToast, svAreaApi, svAreaRegister } from './040-shared-briefs.js';
 import {
@@ -757,7 +758,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
                     <input class="search-bar-input" id="tplSearchInput" type="text"
                         placeholder="Search clients…"
                         oninput="_tplOnSearchInput()" onkeydown="_tplOnSearchKey(event)"
-                        onfocus="_tplOnSearchFocus()" autocomplete="off">
+                        onfocus="_tplOnSearchFocus()" onclick="_tplOnSearchFocus()" autocomplete="off">
                     <div class="search-ghost-overlay" id="tplSearchGhost"></div>
                     <button class="search-bar-icon" onclick="_tplOnSearchIconClick()" title="Search">
                         <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -793,12 +794,20 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         _tplRenderPins();
     }
     function _tplTogglePinsEdit() { _tplSetPinsEditMode(!_tplPinsEditMode); _tplSetPinSelectorOpen(false); _tplRenderPins(); }
-    function _tplClosePinSelector() { _tplSetPinSelectorOpen(false); const dd = document.getElementById('tplPinSelectorDropdown'); if (dd) dd.classList.remove('open'); }
+    function _tplClosePinSelector() { svLayerRelease('tpl-pins'); _tplSetPinSelectorOpen(false); const dd = document.getElementById('tplPinSelectorDropdown'); if (dd) dd.classList.remove('open'); }
     function _tplTogglePinSelector() {
         if (_tplPinSelectorOpen) { _tplClosePinSelector(); return; }
         _tplSetPinSelectorOpen(true);
         const dd = document.getElementById('tplPinSelectorDropdown');
         if (dd) { dd.classList.add('open'); _tplRenderPinSelectorList(); }
+        svLayerOpen({
+            key: 'tpl-pins',
+            region: '#tplPinsAddRow',
+            opener: () => document.querySelector('#tplPinsAddRow .pin-add-btn'),
+            isOpen: () => !!_tplPinSelectorOpen,
+            holdRefresh: false,
+            close: () => _tplClosePinSelector(),
+        });
         const close = (e) => {
             const addRow = document.getElementById('tplPinsAddRow');
             if (addRow && !addRow.contains(e.target)) {
@@ -924,6 +933,15 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         const box = document.getElementById('tplSearchBox');
         if (!box || box.classList.contains('open')) return;
         box.classList.add('open');
+        svLayerOpen({
+            key: 'tpl-search',
+            focusOnClose: false,   // the search box opens on focus: giving it focus back would only reopen it
+            region: '#tplSearchWrap',
+            opener: () => document.getElementById('tplSearchInput'),
+            isOpen: () => { const b = document.getElementById('tplSearchBox'); return !!b && b.classList.contains('open'); },
+            holdRefresh: false,
+            close: () => { document.getElementById('tplSearchBox')?.classList.remove('open'); const g = document.getElementById('tplSearchGhost'); if (g) g.innerHTML = ''; },
+        });
         const close = (e) => {
             const wrap = document.getElementById('tplSearchWrap');
             if (wrap && !wrap.contains(e.target)) {

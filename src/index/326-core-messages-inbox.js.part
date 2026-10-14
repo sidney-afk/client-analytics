@@ -12,6 +12,7 @@ import {
   _calNoteAuthorName, openCalComments
 } from './190-calendar-approval-comments.js';
 import { _prodCanonicalCommentGate, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
+import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
     /* ── Messages inbox (Notes Step 2) ─────────────────────────────────────
        Plan: docs/plans/2026-10-13-notes-messages.md, section 6 "Step 2".
 
@@ -71,11 +72,13 @@ import { _prodCanonicalCommentGate, _prodProjectCanonicalCardComments } from './
         const identity = _syncviewStaffIdentityForHeaders();
         return String(identity && identity.member && identity.member.id || '');
     }
-    // Yours when it carries your member id; the name match covers older notes.
+    // Yours when it carries your member id; the name match covers older staff
+    // notes only. A client-written note is never yours, whatever its name.
     function _msgIsMine(m) {
         if (!m) return false;
         const id = String(m.author_member_id || '');
         if (id) return id === _msgMyId();
+        if (String(m.role || '').toLowerCase() === 'client') return false;
         return _msgSameName(m.author, _msgMe());
     }
     function _msgLastAsNote(c) {
@@ -346,8 +349,15 @@ import { _prodCanonicalCommentGate, _prodProjectCanonicalCardComments } from './
         if (!name) return null;
         if (calState.client !== name || !calState.posts.some(p => p.id === c.post_id)) {
             if (calState.client !== name) onCalClientChange(name);
+            // The Calendar screen's own load only lands while that screen is
+            // on the page; from a cold start on another tab, read the cards
+            // directly instead of waiting for a load that never fills them.
+            const view = document.getElementById('calView');
+            if (!(view && view.isConnected)) {
+                try { await _calLoadPostsWithoutScreen(name); } catch (e) {}
+            }
             const started = Date.now();
-            while (Date.now() - started < 20000 && !calState.posts.some(p => p.id === c.post_id)) {
+            while (Date.now() - started < 20000 && calState.client === name && !calState.posts.some(p => p.id === c.post_id)) {
                 await new Promise(resolve => setTimeout(resolve, 150));
             }
         }

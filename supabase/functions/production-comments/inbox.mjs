@@ -134,11 +134,13 @@ export function collectMessages(post, canonicalRows) {
   return out;
 }
 
-// Yours when it carries your member id. Notes written before the id was
-// stored fall back to the name match.
+// Yours when it carries your member id. Staff notes written before the id
+// was stored fall back to the name match; a client-written note is never
+// yours, even when the client's name equals yours.
 export function isMine(message, member) {
   const id = clean(message && message.author_member_id);
   if (id) return id === clean(member && member.id);
+  if (clean(message && message.role).toLowerCase() === "client") return false;
   return sameName(message && message.author, member && member.name);
 }
 

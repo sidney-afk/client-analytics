@@ -14,6 +14,11 @@
  *   E  a posted post drops out of the list
  *   F  the Messages button by the account (SMMs) opens the same inbox as a panel
  *   G  phone: the list first, then the chat, and back
+ *   J  cold start on the Kasper tab (the Calendar never opened): a reply
+ *      still loads the card and saves
+ *   K  phone list: the time and unread badge stay inside the row, light and
+ *      dark
+ *   L  a client whose name equals yours: their messages are never "yours"
  *   I  who wrote it: a staff note shows the writer's name from the roster
  *      (looked up by member id), your own note is never unread and shows as
  *      "You", a colleague's note is unread; a reply stores your member id
@@ -57,6 +62,10 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     let postedGone = false;
     let oldBackend = false;
     let withWriters = false;
+    let withTwin = false;
+    // A client note whose author name equals the signed-in staff member's.
+    const twin = { post_id: 'p_twin', client_slug: 'fixtureclient', client_name: 'fixtureclient', title: 'Same name fixture post', thumbnail_url: '', asset_url: '', status: 'In Progress', messages: [
+      { id: 'z1', parent_id: null, root_id: 'z1', author: 'Browser Staff', role: 'client', audience: 'client', is_tweak: false, component: 'caption', body: 'A client who shares your name, writing a long message that runs well past the width of a phone screen so the row has to cut it short.', created_at: T(13) }] };
     const writers = { post_id: 'p_writers', client_slug: 'fixtureclient', client_name: 'fixtureclient', title: 'Writers fixture post', thumbnail_url: '', asset_url: '', status: 'In Progress', messages: [
       { id: 'w1', parent_id: null, root_id: 'w1', author: 'Synchro Social', author_member_id: 'm1', role: 'smm', audience: 'internal', is_tweak: false, component: 'video', body: 'My own note.', created_at: T(11) },
       { id: 'w2', parent_id: 'w1', root_id: 'w1', author: 'Synchro Social', author_member_id: 'm7', role: 'smm', audience: 'internal', is_tweak: false, component: 'video', body: 'A colleague answers.', created_at: T(12) }] };
@@ -70,7 +79,8 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
       }));
       const list = [{ post_id: 'p_t1', client_slug: 'fixtureclient', client_name: 'fixtureclient', title: card.name, thumbnail_url: '', asset_url: '', status: card.status, messages: msgs }]
         .concat(others.filter(c => !(postedGone && c.post_id === 'p_posted')))
-        .concat(withWriters ? [writers, mine] : []);
+        .concat(withWriters ? [writers, mine] : [])
+        .concat(withTwin ? [twin] : []);
       return list.map(c => {
         const last = c.messages[c.messages.length - 1];
         const mark = reads.get(c.post_id) || '';
@@ -224,6 +234,78 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     await shot('note-writer-panel-light');
     await page.keyboard.press('Escape');
     check(!page.errors.length, 'I: no page errors ' + JSON.stringify(page.errors));
+
+    // J: cold start straight on the Kasper tab; the Calendar never opened
+    {
+      const cold = await S.newPage();
+      await cold.setViewportSize({ width: 1366, height: 900 });
+      await cold.goto(S.origin + '/index.html?v=kasper', { waitUntil: 'domcontentloaded' });
+      await cold.waitForFunction(() => typeof _syncviewStaffCan === 'function' && typeof navTo === 'function', null, { timeout: 30000 });
+      // This browser kept the earlier page's saved Calendar choice and cache;
+      // a first visit has neither, so start from no client and no cards.
+      await cold.evaluate(() => {
+        _syncviewStaffIdentityVerified = true;
+        calState.client = null; calState.posts = [];
+        for (const k of Object.keys(localStorage)) if (k.startsWith('syncview_calCache_v2:')) localStorage.removeItem(k);
+        navTo('kasper');
+      });
+      await cold.waitForFunction(() => typeof svAreaApi === 'function' && !!svAreaApi('kasper'), null, { timeout: 20000 });
+      await cold.evaluate(() => _kasperGotoTab('replies'));
+      const jState = await cold.evaluate(() => ({ view: !!(document.getElementById('calView') && document.getElementById('calView').isConnected), posts: calState.posts.length, nav: currentNav }));
+      check(!jState.view && jState.posts === 0, 'J: cold start: no Calendar screen and no cards loaded (' + JSON.stringify(jState) + ')');
+      check(await until(() => cold.evaluate(() => !!document.querySelector('#kasperContent [data-msg-conv="p_t1"]'))), 'J: the inbox lists the conversation');
+      await cold.click('#kasperContent [data-msg-conv="p_t1"]');
+      await until(() => cold.evaluate(() => !!document.getElementById('msgReplyBox')));
+      const started = Date.now();
+      await cold.fill('#msgReplyBox', 'Cold start reply');
+      await cold.press('#msgReplyBox', 'Enter');
+      check(await until(() => parse(S.card('p_t1').caption_tweaks).some(m => m.body === 'Cold start reply'), 15000), 'J: the reply saves from a cold start (' + (Date.now() - started) + ' ms)');
+      check(await cold.evaluate(() => !document.querySelector('.sv-toast-msg') || !/was not sent/.test(document.querySelector('.sv-toast-msg').textContent)), 'J: no "not sent" message');
+      check(await cold.evaluate(() => calState.posts.some(p => p.id === 'p_t1')), 'J: the card list now holds the card');
+      check(!cold.errors.length, 'J: no page errors ' + JSON.stringify(cold.errors));
+      await cold.close();
+    }
+
+    // L: a client sharing your name is not you
+    withTwin = true;
+    await page.evaluate(() => { navTo('kasper'); });
+    await page.evaluate(() => _kasperGotoTab('replies'));
+    await page.evaluate(() => _msgLoad(true));
+    check(await until(() => page.evaluate(() => !!document.querySelector('#kasperContent [data-msg-conv="p_twin"]'))), 'L: the same-name conversation is listed');
+    const lRow = await page.evaluate(() => { const r = document.querySelector('#kasperContent [data-msg-conv="p_twin"]'); return { text: r.innerText, badge: (r.querySelector('.msg-unread') || {}).textContent || '0' }; });
+    check(lRow.badge === '1', "L: the client's message counts as unread (" + lRow.badge + ')');
+    check(!/You:/.test(lRow.text), 'L: the list does not call it "You"');
+    await page.click('#kasperContent [data-msg-conv="p_twin"]');
+    await until(() => page.evaluate(() => document.querySelectorAll('#kasperContent .msg-b').length === 1));
+    check(await page.evaluate(() => { const b = document.querySelector('#kasperContent .msg-b'); return !b.classList.contains('is-me') && b.querySelector('.msg-b-meta b').textContent === 'Browser Staff'; }), 'L: the chat shows it as the client\'s, not yours');
+    // Leave one conversation unread for the phone check below.
+    await page.click('#kasperContent .msg-act[title="Mark as unread"]');
+    await until(() => marks.includes('p_twin:unread'));
+
+    // K: phone list keeps the time and badge inside the row
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => { _msgState.openId = ''; _msgLoad(true); });
+    await until(() => page.evaluate(() => document.querySelectorAll('#kasperContent .msg-conv').length > 0 && document.querySelector('#kasperContent .msg-list').offsetParent !== null));
+    for (const t of ['light', 'dark']) {
+      await theme(t);
+      const k = await page.evaluate(() => {
+        const vw = document.documentElement.clientWidth;
+        return [...document.querySelectorAll('#kasperContent .msg-conv')].map(row => {
+          const r = row.getBoundingClientRect();
+          const time = row.querySelector('.msg-conv-time').getBoundingClientRect();
+          const badge = row.querySelector('.msg-unread');
+          const b = badge ? badge.getBoundingClientRect() : null;
+          return { id: row.dataset.msgConv, vw, rowRight: r.right, timeRight: time.right, badgeRight: b ? b.right : null };
+        });
+      });
+      const bad = k.filter(r => r.rowRight > r.vw + 0.5 || r.timeRight > r.vw + 0.5 || (r.badgeRight !== null && r.badgeRight > r.vw + 0.5));
+      check(k.length >= 3 && !bad.length, 'K: ' + t + ': every row, time and badge is inside 390px (' + JSON.stringify(bad.slice(0, 2)) + ')');
+      check(k.some(r => r.badgeRight !== null), 'K: ' + t + ': an unread badge is on screen');
+      await shot('inbox-phone-list-' + t);
+    }
+    await theme('light');
+    await page.setViewportSize({ width: 1366, height: 900 });
+    check(!page.errors.length, 'J-L: no page errors ' + JSON.stringify(page.errors));
 
     // H: the page ships before the backend
     oldBackend = true;

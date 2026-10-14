@@ -1045,6 +1045,27 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
         const rows = await _svReadWithRetry(() => _calSupabaseFetchAllRows(baseUrl, signal), { signal });
         return { ok: true, posts: rows };
     }
+    /* Cards for a reply sent from the Messages inbox (326) when the Calendar
+       screen was never opened. loadCalendarPosts belongs to that screen: it
+       drops its own result when #calView is not on the page, so on a cold
+       start on another tab the card list stayed empty and the reply could
+       not save. This reads the same rows the loader reads, shapes them the
+       same way, and fills calState.posts only while calState.client is still
+       this client and no screen load has filled it. Returns the cards. */
+    async function _calLoadPostsWithoutScreen(name) {
+        if (!name || calState.client !== name) return calState.posts;
+        if (calState.posts.length) return calState.posts;
+        const slug = calClientSlug(name);
+        const json = await _calV2FetchPosts(slug, null);
+        if (calState.client !== name || calState.posts.length) return calState.posts;
+        const split = _calSplitSettings((json && json.posts) || []);
+        const archivedRefs = _calArchivedRefs(slug);
+        calState.posts = _calDedupeByLinearIssue(split.posts
+            .filter(p => (p.status || '').toLowerCase() !== 'archived')
+            .filter(p => !_calIsArchivedRef(p, archivedRefs)))
+            .map(p => { p.scheduled_date = _calCoerceDate(p.scheduled_date); p.status = _calNormStatus(p.status); _calMigratePostShape(p); p._baseAt = p.updated_at || ''; return p; });
+        return calState.posts;
+    }
     /* Realtime subscription lifecycle. One channel per client; switching
        clients (or leaving the calendar) tears the old one down. A change
        coalesces into one debounced background reload — the reload reads
@@ -2283,7 +2304,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
         _calToggleImportRow, _calToggleOrganizeMenu, loadCalendarPosts
     });
 export {
-  CAL_CACHE_KEY_PREFIX, CAL_LOAD_TIMEOUT_MS, _calBgLoadInFlight, _calCacheRead, _calCacheWrite,
+  CAL_CACHE_KEY_PREFIX, CAL_LOAD_TIMEOUT_MS, _calBgLoadInFlight, _calLoadPostsWithoutScreen, _calCacheRead, _calCacheWrite,
   _calFetchDeliverableLinkRows, _calHydrateLinearMeta, _calIdentFromUrl, _calLocalStatusAt,
   _calMarkLocalStatus, _calNextLoadSeq, _calOrganizeHtml, _calOrganizeIsActive,
   _calOrganizeTriggerLabel, _calPruneLinearMetaForAuthority, _calRenderImportPick,

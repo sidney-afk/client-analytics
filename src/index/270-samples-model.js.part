@@ -1224,7 +1224,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
                 });
                 trigger.classList.add('cal-fld-status-' + _sxrStatusSlug(shown));
                 const labelEl = trigger.querySelector('.cal-fld-substatus-label');
-                if (labelEl) labelEl.textContent = _sxrStatusLabel(shown);
+                if (labelEl) labelEl.textContent = labelEl.title = _sxrStatusLabel(shown);
             }
             // Reconcile the URGENT badge in place, same predicates as the full
             // render, so it can't linger after the component leaves the status
@@ -2819,6 +2819,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             // sub-issue we can tag the editor from.
             const showUrgent = _sxrShowUrgent(p, c);
             const showKasperUrgent = !showUrgent && _sxrShowKasperUrgent(p, c);
+            const shownLabel = _sxrStatusLabel(shownStatus);
             const urgentBtn = showUrgent
                 ? _calUrgentButtonHtml(pid, '_sxrSendUrgentSlack', p)
                 : showKasperUrgent
@@ -2828,7 +2829,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
                 <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_sxrStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ` disabled title="${_calEscAttr(WRITE_UI_NO_WORK_ITEM_TEXT)}"` : ''}>
                     <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
                     <span class="cal-fld-substatus-comp">${_sxrEsc(COMP_LABELS[c])}</span>
-                    <span class="cal-fld-substatus-label">${_sxrEsc(_sxrStatusLabel(shownStatus))}</span>
+                    <span class="cal-fld-substatus-label" title="${_sxrEscAttr(shownLabel)}">${_sxrEsc(shownLabel)}</span>
                 </button>${urgentBtn}
             </div>`;
         }).join('');

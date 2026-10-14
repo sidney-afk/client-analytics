@@ -31,6 +31,7 @@ import {
 } from './140-calendar-legacy-outbox.js';
 import { _calV2Teardown } from './150-calendar-hydration-import.js';
 import {
+  _calCaptureLiveUi, _calCaptureScroll, _calRestoreLiveUi, _calRestoreScroll,
   _calClearThumbnailFolderMeta, _calDeriveThumb, _calIsFolderLink, _calIsFrameLink,
   _calMiniLinkBadgeHtml, _calResolveThumbnailFolder, _calReviewFrameHtml,
   _calStripThumbnailFolderFields, _calThumbIconSvg, _calThumbImgTag, _kcardReuseThumbInto,
@@ -62,7 +63,11 @@ import {
         const body = document.getElementById('sxrBody');
         if (!body) return;
         const preserveScroll = !!(opts && opts.preserveScroll);
-        const scrollY0 = preserveScroll ? window.scrollY : null;
+        // Same owner rule as the Calendar: a background repaint keeps the
+        // strip's sideways scroll, any scrolled box, and the focused field
+        // with its caret and text (_calRenderBody's twin).
+        const scrollSnap = preserveScroll ? _calCaptureScroll(body) : null;
+        const liveSnap = preserveScroll ? _calCaptureLiveUi(body) : null;
         if (!sxrState.client) { body.innerHTML = document.body.classList.contains('sv-shared-client') ? window.svIsStaffPhone?.() ? `<div class="cal-empty">Choose a client to start.<button type="button" class="sv-phone-choose-client" onclick="svPhoneOpenClientPicker()">Choose client</button></div>` : `<div class="cal-empty">Pick a client in the top bar to start.</div>` : `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start.</div>`; return; }
         if (sxrState.loading) { body.innerHTML = _sxrLoaderHtml(); return; }
         if (sxrState.error) { body.innerHTML = `<div class="cal-empty cal-error">Couldn't load sample reviews — <button class="cal-link" onclick="loadSxrCards({skipCache:true})">try again</button>.</div>`; return; }
@@ -71,7 +76,7 @@ import {
         } else {
             body.innerHTML = renderSxrOrganizer();
             if (typeof _sxrWireStrip === 'function') _sxrWireStrip();   // drag-reorder wiring
-            if (preserveScroll && scrollY0 != null) window.scrollTo({ top: scrollY0 });
+            if (preserveScroll) { _calRestoreLiveUi(body, liveSnap); _calRestoreScroll(body, scrollSnap); }
         }
         if (typeof _sxrUpdateReviewBadge === 'function') _sxrUpdateReviewBadge();
         _thumbCompareScheduleAvailability('samples');

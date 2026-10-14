@@ -398,6 +398,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/calendar-sheet-caption-wheel-browser.js
+      - name: Status rows stay one line and the same height with Urgent on (Calendar and Samples, desktop and phone, both themes and palettes)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/calendar-status-row-urgent-height-browser.js
       - name: Generate caption off n8n (switch off unchanged, function path, transcript box, desktop and phone)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

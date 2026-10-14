@@ -5,6 +5,7 @@
 export const JOB_ID_MAX = 120;
 export const CAPTION_MAX = 5000;
 export const ERROR_MAX = 600;
+export const EXTRAS_MAX = 8000;                    // bytes of JSON: title ideas, hashtags, the call to action used
 export const STATUS_WINDOW_MS = 24 * 3600 * 1000;   // no jobId given: rows touched in the last 24 hours
 export const PRUNE_AFTER_MS = 14 * 24 * 3600 * 1000;
 export const STATUS_LIMIT = 200;
@@ -25,6 +26,11 @@ export function buildPatch(body, nowIso) {
   if (has(b, 'stage')) patch.stage = clean(b.stage);
   if (has(b, 'caption')) patch.caption = String(b.caption == null ? '' : b.caption).slice(0, CAPTION_MAX);
   if (has(b, 'error')) patch.error = String(b.error == null ? '' : b.error).slice(0, ERROR_MAX);
+  if (has(b, 'extras')) {
+    const x = b.extras && typeof b.extras === 'object' && !Array.isArray(b.extras) ? b.extras : null;
+    if (!x || JSON.stringify(x).length > EXTRAS_MAX) return { ok: false, error: 'extras must be a small object' };
+    patch.extras = x;
+  }
   if (has(b, 'cancel_requested')) patch.cancel_requested = b.cancel_requested === true || b.cancel_requested === 'true';
   if (has(b, 'started_at')) patch.started_at = b.started_at ? clean(b.started_at) : null;
   return { ok: true, patch };
@@ -42,6 +48,7 @@ export function shapeRow(r) {
     stage: r.stage || '',
     caption: r.caption || '',
     error: r.error || '',
+    extras: r.extras && typeof r.extras === 'object' && !Array.isArray(r.extras) ? r.extras : {},
     cancel_requested: r.cancel_requested === true,
     started_at: r.started_at || '',
     updated_at: r.updated_at || '',

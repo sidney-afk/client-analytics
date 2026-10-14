@@ -33,7 +33,7 @@ import {
   _calThumbIconHtml, _calThumbImgTag, _calTitleRowHtml, onCalMonthFilterChange
 } from './160-calendar-organize-ui.js';
 import {
-  COMP_LABELS, COMP_PILL_COLORS, _calRenderNativePostChoice, _calWireDragOnCard,
+  COMP_LABELS, COMP_PILL_COLORS, _calCapAiRefresh, _calRenderNativePostChoice, _calWireDragOnCard,
   _nativePostViewSlug, archiveCalPost
 } from './180-calendar-native-post-media.js';
 import { _calCrqBegin, _calCrqDone, _calCrqFailed } from './185-client-review-queue.js';
@@ -857,7 +857,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
     }
     function _calOnCaptionInput(ta) { _calRefreshCaption(ta, document.activeElement === ta); _calOnFieldInput(ta); }
     function _calOnCaptionFocus(ta) { _calCaptionDragLock(ta, true); _calRefreshCaption(ta, true); }
-    function _calOnCaptionBlur(ta)  { _calCaptionDragLock(ta, false); _calRefreshCaption(ta, false); _calOnFieldBlur(ta); }
+    function _calOnCaptionBlur(ta)  { _calCaptionDragLock(ta, false); _calRefreshCaption(ta, false); _calOnFieldBlur(ta); if (ta.dataset.fld === 'caption') _calCapAiRefresh(ta.dataset.pid); }
     /* While a caption textarea has focus, switch the card's native HTML5 drag
        OFF so click-dragging to SELECT text inside the caption can't grab and
        reorder the whole card ("I'm in the caption and it drags the card").

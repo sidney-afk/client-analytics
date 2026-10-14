@@ -7,11 +7,23 @@
 //   - the client's caption prompt is read from caption_prompts by this function (the page's copy is the fallback);
 //   - the client's Brain voice (voice.md, its "Caption style" section when written) and one fixed set of writing
 //     rules (writing-rules.mjs) go to the model with every caption;
+//   - every answer also carries five title ideas (one marked best), 3 to 5 hashtags and the call to action used;
+//     they ride on the job row (caption_jobs.extras), never inside the caption;
 //   - a transcript a person pastes in: the only source when the card has no Frame.io link, an extra otherwise.
 //
-//   POST { client, postId, assetUrl?, transcript?, captionPrompt?, jobId }
+//   POST { client, postId, assetUrl?, transcript?, captionPrompt?, jobId, cta?, platform?, note?, redo? }
+//     cta       one keyword from the client's list (caption_cta_options); empty = the model chooses
+//     platform  instagram (default) | tiktok | youtube
+//     note      a short note from the team, sent to the model apart from the transcript
+//     redo      { caption, quick?: shorter | hook | titles, titles? }: re-run from the current caption plus the note.
+//               A redo needs no video, never saves to the card (the page applies it if the box is unchanged) and
+//               ends with the new caption on its row.
 //     -> { ok: true, accepted: true, jobId }   the work continues in the background; the page polls caption-jobs
 //     -> { ok: false, error }                  refused before anything ran (nothing written)
+//
+//   POST { action: "cta_get",  client }            -> { ok, client, options }   the client's call-to-action keywords
+//   POST { action: "cta_save", client, options }   -> { ok, client, options }   saves them (the caption prompt editor)
+//     The list lives in caption_cta_options, closed to every browser role: only this function reads and writes it.
 //
 // The page only calls this when the runtime switch caption_generate_ef_clients lists the client (default: n8n).
 //
@@ -34,9 +46,9 @@ import { normalizeBrowserWriteClient } from "../_shared/browser-write-auth.ts";
 import { buildPatch, selectJobs } from "../caption-jobs/jobs.mjs";
 import { findClientFolder, parseBrainFacts } from "../brain/parse.mjs";
 import {
-  buildMessages, captionFromResponse, duplicateRun, failureUpdate, findTells, FRAME_QUERY, MAX_TOKENS, MODEL,
-  parseRequest, pickFrameMedia, revisionRequest, shareIds, transcriptFromPrediction, voiceGuide, WHISPER_INPUT,
-  WHISPER_VERSION,
+  buildMessages, duplicateRun, extrasFrom, failureUpdate, findTells, FRAME_QUERY, MAX_TOKENS, MODEL,
+  normalizeCtaOptions, parseModelOutput, parseRequest, pickFrameMedia, revisionRequest, shareIds, textFromResponse,
+  transcriptFromPrediction, voiceGuide, WHISPER_INPUT, WHISPER_VERSION,
 } from "./logic.mjs";
 import { WRITING_RULES } from "./writing-rules.mjs";
 import { apifyActorInput, mediaUrlFromApify } from "./apify.mjs";
@@ -74,7 +86,12 @@ type Job = {
   assetUrl: string;
   transcript: string;
   captionPrompt: string;
-  mode: "video" | "transcript";
+  mode: "video" | "transcript" | "redo";
+  cta: string;
+  platform: string;
+  note: string;
+  redo: { caption: string; quick: string; titles: string[] } | null;
+  extras: Record<string, unknown> | null;
   forward: Record<string, string>;
   startedAt: number;
   caption: string;
@@ -85,7 +102,12 @@ const active = new Map<string, Job>();
 async function patchJob(job: Job, fields: Record<string, unknown>) {
   const built = buildPatch({ jobId: job.jobId, ...fields }, new Date().toISOString());
   if (!built.ok) return;
-  const { error } = await job.db.from("caption_jobs").upsert(built.patch, { onConflict: "job_id" });
+  let { error } = await job.db.from("caption_jobs").upsert(built.patch, { onConflict: "job_id" });
+  if (error && "extras" in built.patch) {
+    // The extras column is not there yet (the migration has not run): the caption still matters more than its titles.
+    const { extras: _skip, ...rest } = built.patch as Record<string, unknown>;
+    ({ error } = await job.db.from("caption_jobs").upsert(rest, { onConflict: "job_id" }));
+  }
   if (error) console.warn("[caption-generate] job row write failed", error.code || "");
 }
 
@@ -214,6 +236,17 @@ async function readVoice(job: Job): Promise<{ source: string; text: string }> {
   }
 }
 
+// The client's own call-to-action keywords (caption_cta_options), staff-edited with the caption prompt. A client with
+// no row, or a failed read, simply has none: the note box still works.
+async function readCtaOptions(job: Job): Promise<string[]> {
+  const { data, error } = await job.db.from("caption_cta_options").select("options").eq("client_slug", job.client).maybeSingle();
+  if (error) {
+    console.warn("[caption-generate] cta options read failed; writing without a list", error.code || "");
+    return [];
+  }
+  return normalizeCtaOptions(data ? (data as { options?: unknown }).options : []);
+}
+
 async function claude(system: string, messages: Array<{ role: string; content: string }>): Promise<string> {
   const r = await fetchT("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -221,26 +254,34 @@ async function claude(system: string, messages: Array<{ role: string; content: s
     body: JSON.stringify({ model: env("CAPTION_MODEL") || MODEL, max_tokens: MAX_TOKENS, system, messages }),
   }, 120000);
   if (!r.ok) { await r.body?.cancel(); throw new Error(`The caption writer did not answer (${r.status}). Try again.`); }
-  return captionFromResponse(await r.json());
+  return textFromResponse(await r.json());
 }
 
-async function writeCaption(job: Job, videoTranscript: string): Promise<string> {
-  const [captionPrompt, voice] = await Promise.all([readCaptionPrompt(job), readVoice(job)]);
-  const m = buildMessages({ captionPrompt, voice, videoTranscript, pastedTranscript: job.transcript, rules: WRITING_RULES });
-  const first = await claude(m.system, [{ role: "user", content: m.user }]);
-  if (!first) throw new Error("Claude returned an empty caption");
-  const tells = findTells(first);
-  if (!tells.length) return first;
-  // One revision for the mechanical tells; if it fails or comes back empty, the first draft stands.
-  try {
-    checkBudget(job);
-    const revised = await claude(m.system, [
-      { role: "user", content: m.user }, { role: "assistant", content: first }, { role: "user", content: revisionRequest(tells) },
-    ]);
-    return revised || first;
-  } catch (_e) {
-    return first;
+type Written = ReturnType<typeof parseModelOutput>;
+
+async function writeCaption(job: Job, videoTranscript: string): Promise<Written> {
+  const [captionPrompt, voice, ctaOptions] = await Promise.all([readCaptionPrompt(job), readVoice(job), readCtaOptions(job)]);
+  const m = buildMessages({
+    captionPrompt, voice, videoTranscript, pastedTranscript: job.transcript, rules: WRITING_RULES,
+    note: job.note, cta: job.cta, ctaOptions, platform: job.platform, redo: job.redo,
+  });
+  const firstText = await claude(m.system, [{ role: "user", content: m.user }]);
+  let out = parseModelOutput(firstText);
+  if (!out.caption) throw new Error("Claude returned an empty caption");
+  const tells = findTells([out.caption, ...out.titles].join("\n"));
+  if (tells.length) {
+    // One revision for the mechanical tells; if it fails or comes back empty, the first draft stands.
+    try {
+      checkBudget(job);
+      const revised = parseModelOutput(await claude(m.system, [
+        { role: "user", content: m.user }, { role: "assistant", content: firstText }, { role: "user", content: revisionRequest(tells) },
+      ]));
+      if (revised.caption) out = revised;
+    } catch (_e) { /* the first draft stands */ }
   }
+  // "New titles" changes nothing but the titles: the caption is the one the person had, whatever the model returned.
+  if (job.redo && job.redo.quick === "titles") out.caption = job.redo.caption;
+  return out;
 }
 
 // The card's caption as saved right now, read just before the save: someone may have typed and saved one while
@@ -288,18 +329,27 @@ async function run(job: Job) {
     }
     checkBudget(job);
     if (job.mode === "video") await patchJob(job, { stage: "writing" });   // a transcript-only row starts at writing
-    job.caption = await writeCaption(job, videoTranscript);
+    const written = await writeCaption(job, videoTranscript);
+    job.caption = written.caption;
+    job.extras = extrasFrom(written, job.platform, !!job.redo);
     await checkCancel(job);                       // n8n "Cancel check 2": a cancelled caption is never saved
+    if (job.redo) {
+      // A redo never touches the card. The page applies the new caption only if the box still holds the caption the
+      // redo started from, so a caption typed or edited meanwhile is never overwritten.
+      await patchJob(job, { status: "done", stage: "done", caption: job.caption, extras: job.extras });
+      return;
+    }
     // A caption already on the card wins (typed while this job waited or ran). Neither end hands the generated
     // caption back on the row, so no page saves it over theirs either.
     const onCard = await savedCaption(job);
     if (onCard === null) { job.caption = ""; throw new Error(CARD_UNREADABLE); }
     if (onCard && onCard !== clean(job.caption)) { job.caption = ""; throw new Error(KEPT_THEIRS); }
     if (!onCard && !(await saveCaption(job))) throw new Error(SAVE_FAILED);
-    await patchJob(job, { status: "done", stage: "done", caption: job.caption });
+    await patchJob(job, { status: "done", stage: "done", caption: job.caption, extras: job.extras || {} });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    const { cancelled, update } = failureUpdate(job.jobId, msg, job.caption);
+    // A redo's failure never hands a caption back: the page would take an error row with a caption as a caption to save.
+    const { cancelled, update } = failureUpdate(job.jobId, msg, job.redo ? "" : job.caption, job.extras || undefined);
     console.warn("[caption-generate] job ended", cancelled ? "cancelled" : "error");
     await patchJob(job, update);
   } finally {
@@ -314,6 +364,35 @@ addEventListener("beforeunload", () => {
   }
 });
 
+// The client's call-to-action keywords for the caption prompt editor and the Generate caption box.
+async function ctaAction(supabaseUrl: string, serviceKey: string, req: Request, body: Record<string, unknown>, action: string): Promise<Response> {
+  const client = normalizeBrowserWriteClient(body.client);
+  if (!client) return json({ ok: false, error: "client required" }, 400);
+  const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+  try {
+    if (action === "cta_get") {
+      const { data, error } = await db.from("caption_cta_options").select("options").eq("client_slug", client).maybeSingle();
+      if (error) throw error;
+      return json({ ok: true, client, options: normalizeCtaOptions(data ? (data as { options?: unknown }).options : []) });
+    }
+    const options = normalizeCtaOptions(body.options);
+    const actor = clean(req.headers.get("x-syncview-actor")).slice(0, 120) || "syncview";
+    const { error } = await db.from("caption_cta_options").upsert(
+      { client_slug: client, options, updated_at: new Date().toISOString(), updated_by: actor }, { onConflict: "client_slug" });
+    if (error) throw error;
+    // The same trail the caption prompt save leaves; a failure here never undoes the save.
+    const { error: eventError } = await db.from("settings_events").insert({
+      surface: "caption_prompts", client_slug: client, actor, role: clean(req.headers.get("x-syncview-role")).slice(0, 40) || null,
+      action: "cta_save", source: "caption-generate", payload: { cta_count: options.length },
+    });
+    if (eventError) console.warn("[caption-generate] settings event write failed", eventError.code || "");
+    return json({ ok: true, client, options });
+  } catch (e) {
+    console.warn("[caption-generate] cta list failed", (e as { code?: string } | null)?.code || "");
+    return json({ ok: false, error: "Could not read or save the call to action choices. Try again." }, 500);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
@@ -325,7 +404,11 @@ Deno.serve(async (req) => {
   const auth = authorizeStaffKey(key, ["admin", "smm", "creative"]);
   if (!auth.ok) return json({ ok: false, error: "unauthorized" }, staffAuthFailureStatus(auth));
 
-  const parsed = parseRequest(await req.json().catch(() => ({})));
+  const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+  const action = clean(body && body.action);
+  if (action === "cta_get" || action === "cta_save") return await ctaAction(supabaseUrl, serviceKey, req, body, action);
+
+  const parsed = parseRequest(body);
   if (!parsed.ok) return json({ ok: false, error: parsed.error }, 400);
   const client = normalizeBrowserWriteClient(parsed.client);
   if (!client) return json({ ok: false, error: "client required" }, 400);
@@ -352,7 +435,9 @@ Deno.serve(async (req) => {
   const job: Job = {
     db, jobId: String(parsed.jobId), client, postId: String(parsed.postId), assetUrl: String(parsed.assetUrl || ""),
     transcript: String(parsed.transcript || ""), captionPrompt: String(parsed.captionPrompt || ""),
-    mode: parsed.mode === "video" ? "video" : "transcript", forward, startedAt: Date.now(), caption: "",
+    mode: parsed.mode === "video" ? "video" : parsed.mode === "redo" ? "redo" : "transcript", forward, startedAt: Date.now(), caption: "",
+    cta: String(parsed.cta || ""), platform: String(parsed.platform || "instagram"), note: String(parsed.note || ""),
+    redo: parsed.redo || null, extras: null,
   };
   // n8n "Progress scraping": the row the page's poller confirms the job by. A card with no video starts at writing.
   // An INSERT, not an upsert: a job id that already exists is refused, so a re-post can never clear a cancel or

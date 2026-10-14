@@ -44,7 +44,7 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   eq(J.selectJobs(rows, { postId: 'p1' }, NOWMS).map((x) => x.jobId), ['new1'], 'postId filters');
   eq(J.selectJobs(rows, { jobId: 'old' }, NOWMS).map((x) => x.jobId), ['old'], 'a jobId lookup ignores the 24 hour window');
   eq(Object.keys(J.selectJobs([row('k', 'p', 1)], {}, NOWMS)[0]).sort(),
-    ['caption', 'cancel_requested', 'client', 'error', 'jobId', 'postId', 'stage', 'started_at', 'status', 'updated_at'].sort(),
+    ['caption', 'cancel_requested', 'client', 'error', 'extras', 'jobId', 'postId', 'stage', 'started_at', 'status', 'updated_at'].sort(),
     'the row has exactly the keys the page reads');
   eq(J.selectJobs([row('k', 'p', 1, { cancel_requested: true })], {}, NOWMS)[0].cancel_requested, true, 'the cancel flag is a boolean');
   eq(J.selectJobs(Array.from({ length: 250 }, (_, i) => row('j' + i, 'p', i * 1000)), {}, NOWMS).length, 200, 'at most 200 rows');

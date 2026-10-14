@@ -1661,15 +1661,110 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        ignore this — they inherit their parent thread's component. Resets to
        'video' each time the modal opens. */
     let _calComposeComp = 'video';
+    const _CAL_LOCK_ICO = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg>';
+    const _CAL_EYE_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8s-2.4 4.5-6.5 4.5S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>';
+    /* Threads folded with the rail on the left. Kept while the page is open. */
+    const _calCollapsedThreads = new Set();
+    function _calToggleThreadCollapse(rootId) {
+        const id = String(rootId || '');
+        if (!id) return;
+        if (_calCollapsedThreads.has(id)) _calCollapsedThreads.delete(id);
+        else _calCollapsedThreads.add(id);
+        _calCaptureModalDrafts();
+        _calRenderCommentsModal();
+    }
+    /* The audience icon inside the staff composer: lock = Kasper / team (the
+       default), eye = the client can see it. Client turns the box blue and
+       switches off "Request change", which is always team only. */
     function _calSetComposeAudience(val) {
         _calComposeAudience = (val === 'client') ? 'client' : 'internal';
-        const seg = document.querySelector('[data-cm-toggle="audience"]');
-        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b =>
-            b.classList.toggle('is-active', b.dataset.aud === _calComposeAudience));
-        // Keep the composer prompt in sync so it's obvious who the message
-        // goes to as the toggle flips.
+        _calPaintComposeAudience();
+    }
+    function _calToggleComposeAudience() {
+        _calSetComposeAudience(_calComposeAudience === 'client' ? 'internal' : 'client');
+    }
+    function _calPaintComposeAudience() {
+        const toClient = _calComposeAudience === 'client';
+        const box = document.querySelector('#calCommentsModal .cal-cm-composer[data-cm-staff-root]');
+        if (!box) return;
+        box.classList.toggle('is-to-client', toClient);
+        const btn = box.querySelector('.cal-cm-aud-icon');
+        if (btn) {
+            btn.innerHTML = toClient ? _CAL_EYE_ICO : _CAL_LOCK_ICO;
+            btn.setAttribute('aria-pressed', toClient ? 'true' : 'false');
+            btn.title = toClient ? 'The client can see this. Click for team only.' : 'Team only. Click to write to the client.';
+            btn.setAttribute('aria-label', btn.title);
+        }
+        const more = box.querySelector('.cal-cm-send-more');
+        if (more) {
+            more.disabled = toClient;
+            more.title = toClient ? 'Change requests are team only' : 'More send options';
+        }
+        _calCloseSendMenu();
+        const hint = document.querySelector('#calCommentsModal [data-cm-quiet]');
+        if (hint) hint.textContent = _calComposeQuietLine();
         const ta = document.getElementById('calCommentComposer');
-        if (ta && !_calReplyTarget) ta.placeholder = _calComposePlaceholder('smm');
+        if (ta && !_calReplyTarget && !_calEditTarget) ta.placeholder = _calComposePlaceholder('smm');
+    }
+    function _calComposeQuietLine() {
+        const comp = COMP_LABELS[_calComposeComp] || 'Video';
+        return _calComposeAudience === 'client'
+            ? 'The client will see this · ' + comp
+            : 'Team only · ' + comp;
+    }
+    function _calCloseSendMenu() {
+        const menu = document.querySelector('#calCommentsModal .cal-cm-send-menu');
+        if (menu) menu.hidden = true;
+        const more = document.querySelector('#calCommentsModal .cal-cm-send-more');
+        if (more) more.setAttribute('aria-expanded', 'false');
+    }
+    function _calToggleSendMenu(ev) {
+        if (ev) ev.stopPropagation();
+        const menu = document.querySelector('#calCommentsModal .cal-cm-send-menu');
+        const more = document.querySelector('#calCommentsModal .cal-cm-send-more');
+        if (!menu || !more || more.disabled) return;
+        menu.hidden = !menu.hidden;
+        more.setAttribute('aria-expanded', menu.hidden ? 'false' : 'true');
+        if (!menu.hidden) {
+            const item = menu.querySelector('button');
+            if (item) item.focus();
+        }
+    }
+    /* "Request change" from the split Send button. Reuses the review panel's
+       request lane as is (status to Tweaks Needed, editor told, round number,
+       conflict and retry handling), so Notes and the review panel can never
+       disagree about what a change request does. Always team only. */
+    async function _calSubmitComposerAsTweak() {
+        _calCloseSendMenu();
+        const pid = _calOpenCommentsPid;
+        if (!pid || _calReplyTarget || _calEditTarget || _calComposeAudience === 'client') return;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        _calCaptureModalDrafts();
+        const body = String(_calRootDraft || '').trim();
+        if (!body) return;
+        const comp = _calComponentsFor(post).indexOf(_calComposeComp) >= 0 ? _calComposeComp : 'video';
+        const key = pid + '|' + comp;
+        if (_calReviewState.saving[key]) return;
+        _calReviewState.drafts[key] = body;
+        _calRootDraft = '';
+        _calRootDraftRestored = '';
+        _calNoteDraftSet(pid, '');
+        _calReviewRequestTweak(pid, comp);
+        if (_calOpenCommentsPid === pid) _calRenderCommentsModal();
+        // The lane reports on the review card; mirror its answer here.
+        for (let i = 0; i < 600 && _calReviewState.saving[key]; i++) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        const error = _calReviewState.errors[key];
+        if (error) {
+            if (_calOpenCommentsPid === pid && !_calRootDraft) {
+                _calRootDraft = String(_calReviewState.drafts[key] || body);
+                _calNoteDraftSet(pid, _calRootDraft);
+            }
+            showNotify('Change request not sent', error);
+        }
+        if (_calOpenCommentsPid === pid) _calRenderCommentsModal();
     }
     function _calSetComposeIsTweak(val) {
         _calComposeIsTweak = !!val;
@@ -1690,6 +1785,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const seg = document.querySelector('[data-cm-toggle="comp"]');
         if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b =>
             b.classList.toggle('is-active', b.dataset.comp === _calComposeComp));
+        const hint = document.querySelector('#calCommentsModal [data-cm-quiet]');
+        if (hint) hint.textContent = _calComposeQuietLine();
     }
     /* Resolved (done) change-requests are history — hidden from the live feed
        until the user opens the history toggle (top-right of the modal). */
@@ -2217,9 +2314,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const compLabel = (!isReply && comp) ? `<span class="cal-cm-comp-label cal-cm-comp-${comp}">${_calEsc(COMP_LABELS[comp])}</span>` : '';
             // Internal threads get a bare lock icon — no word. No lock = the
             // client can see it.
-            const lock = (!isReply && !_isClientLink && _calMsgAudience(c) === 'internal')
-                ? `<span class="cal-cm-lock" title="Team only. The client can’t see this."><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg></span>`
-                : '';
+            // Who the thread is for, as a small tag on the first message (staff
+            // view only; the client only ever sees their own threads).
+            const lock = (isReply || _isClientLink) ? ''
+                : _calMsgAudience(c) === 'internal'
+                ? `<span class="cal-cm-to-tag is-team" title="Team only. The client can’t see this.">${_CAL_LOCK_ICO}Team only</span>`
+                : c.role === 'client' ? ''
+                : `<span class="cal-cm-to-tag is-client" title="The client can see this thread.">To client</span>`;
             // Only change-requests get a tag — sits right after the name.
             const typeTag = (!isReply && _calMsgIsTweak(c))
                 ? `<span class="cal-cm-type-tag is-tweak" title="Tweaks. Moves the card to Tweaks Needed.">Tweak${c.round ? ' #' + c.round : ''}</span>`
@@ -2247,11 +2348,22 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             </div>`;
         };
 
+        // Reddit-style: replies sit under the message they answer, with a thin
+        // rail on the left that folds the thread to a "n replies" link.
         const renderThread = (entry) => {
             const replies = _calCommentReplies(entry.list, entry.root.id);
-            return `<div class="cal-cm-thread${entry.root.done ? ' is-done' : ''}" data-thread="${entry.root.id}">
+            const rootArg = _jsAttrArg(entry.root.id);
+            const collapsed = replies.length > 0 && _calCollapsedThreads.has(entry.root.id);
+            const count = `${replies.length} ${replies.length === 1 ? 'reply' : 'replies'}`;
+            const branch = !replies.length ? '' : `<div class="cal-cm-replies">
+                    <button type="button" class="cal-cm-rail" onclick="_calToggleThreadCollapse(${rootArg})" aria-expanded="${collapsed ? 'false' : 'true'}" title="${collapsed ? 'Show' : 'Hide'} ${count}"><span class="cal-cm-sr">${collapsed ? 'Show' : 'Hide'} ${count}</span></button>
+                    ${collapsed
+                        ? `<button type="button" class="cal-cm-more-replies" onclick="_calToggleThreadCollapse(${rootArg})">${count}</button>`
+                        : replies.map(r => renderRow(r, true, entry.comp)).join('')}
+                </div>`;
+            return `<div class="cal-cm-thread${entry.root.done ? ' is-done' : ''}${collapsed ? ' is-collapsed' : ''}" data-thread="${entry.root.id}">
                 ${renderRow(entry.root, false, entry.comp)}
-                ${replies.map(r => renderRow(r, true, entry.comp)).join('')}
+                ${branch}
             </div>`;
         };
         const roots = visibleThreads;
@@ -2395,14 +2507,22 @@ import { _isClientLink } from './260-production-refresh-boot.js';
            and only sending waits: the send button stays disabled, a quiet line
            says why, and _calAppendComment refuses on the same gate. */
         const sendPending = _calCommentSendPending(post, canonicalGate);
-        const audienceToggle = (!isReply && !isEdit && role !== 'client' && canonicalGate.client)
-            ? `<div class="cal-cm-audience" data-cm-toggle="audience" role="group" aria-label="Who can see this note">
-                <span class="cal-cm-audience-cap">Who sees this?</span>
-                <div class="cal-cm-aud-seg">
-                    <button type="button" class="cal-cm-aud-btn${_calComposeAudience === 'internal' ? ' is-active' : ''}" data-aud="internal" onclick="_calSetComposeAudience('internal')" title="Team only. The client never sees it.">${lockIco}Kasper / team</button>
-                    <button type="button" class="cal-cm-aud-btn${_calComposeAudience === 'client' ? ' is-active' : ''}" data-aud="client" onclick="_calSetComposeAudience('client')" title="Shared. The client can see this too.">Client</button>
-                </div>
-            </div>`
+        // Staff starting a new thread: the audience lives INSIDE the box as one
+        // icon (lock = team, eye = client) and "Request change" sits behind the
+        // small arrow of the Send button, so the default (a comment to Kasper /
+        // the team about the selected part) needs no clicks. A reply inherits
+        // its root's audience and part, so it gets neither. The client has no
+        // audience choice (everything they post is shared with them by nature).
+        const staffRoot = !isReply && !isEdit && role !== 'client';
+        // "To client" only where the client will actually read it: the card's
+        // own notes (no canonical thread for this part) or a canonical thread
+        // the client is authorized to read. A calendar client can never read a
+        // canonical thread, so there it stays team only rather than vanish.
+        const canPickClient = staffRoot && (!canonicalGate.linked || canonicalGate.client);
+        if (!canPickClient && _calComposeAudience === 'client') _calComposeAudience = 'internal';
+        const toClient = staffRoot && _calComposeAudience === 'client';
+        const audienceIcon = canPickClient
+            ? `<button type="button" class="cal-cm-aud-icon" onclick="_calToggleComposeAudience()" aria-pressed="${toClient ? 'true' : 'false'}" title="${toClient ? 'The client can see this. Click for team only.' : 'Team only. Click to write to the client.'}" aria-label="${toClient ? 'The client can see this. Click for team only.' : 'Team only. Click to write to the client.'}">${toClient ? _CAL_EYE_ICO : _CAL_LOCK_ICO}</button>`
             : '';
         // Client picks comment vs change request. Default comment, so a reply or
         // a question never flips the post to Tweaks Needed.
@@ -2436,15 +2556,17 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             ${replyingTo}
             ${draftNote}
             ${compPicker}
-            ${audienceToggle}
             ${changeToggle}
-            <div class="cal-cm-composer">
-                <div class="cal-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_calEsc(initial)}</div>
+            <div class="cal-cm-composer${toClient ? ' is-to-client' : ''}"${staffRoot ? ' data-cm-staff-root="1"' : ''}>
+                ${audienceIcon || `<div class="cal-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_calEsc(initial)}</div>`}
                 <textarea id="calCommentComposer" rows="1" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnComposerInput(this)" onkeydown="_calOnComposerKey(event)">${_calEsc(draft)}</textarea>
-                <div class="cal-cm-composer-actions">
+                <div class="cal-cm-composer-actions${staffRoot ? ' is-split' : ''}">
                     <button class="cal-cm-send" type="button" onclick="_calSubmitComposer()" title="${sendPending ? 'You can send once the notes finish loading' : (isEdit ? 'Save edit' : 'Send') + ' (Enter)'}" ${sendPending ? 'data-send-pending="1" ' : ''}${draft.trim() && !sendPending ? '' : 'disabled'}>${sendIco}</button>
+                    ${staffRoot ? `<button class="cal-cm-send-more" type="button" onclick="_calToggleSendMenu(event)" aria-haspopup="menu" aria-expanded="false" title="${toClient ? 'Change requests are team only' : 'More send options'}"${toClient || sendPending || !draft.trim() ? ' disabled' : ''}><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5L6 7.5L9 4.5"/></svg></button>
+                    <div class="cal-cm-send-menu" role="menu" hidden><button type="button" role="menuitem" onclick="_calSubmitComposerAsTweak()"><strong>Request change</strong><span>Moves this part to Tweaks Needed. Team only.</span></button></div>` : ''}
                 </div>
             </div>
+            ${staffRoot ? `<div class="cal-cm-quiet" data-cm-quiet>${_calEsc(_calComposeQuietLine())}</div>` : ''}
             ${sendPending ? '<div class="cal-cm-pending-hint" data-cm-send-pending="1">Syncing this thread. Sending unlocks in a moment.</div>' : ''}
         </div>`;
     }
@@ -2468,7 +2590,24 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!wrap) return;
         const sendBtn = wrap.querySelector('.cal-cm-send');
         if (sendBtn) sendBtn.disabled = !ta.value.trim() || sendBtn.hasAttribute('data-send-pending');
+        const moreBtn = wrap.querySelector('.cal-cm-send-more');
+        if (moreBtn) moreBtn.disabled = !ta.value.trim() || _calComposeAudience === 'client'
+            || (sendBtn && sendBtn.hasAttribute('data-send-pending'));
     }
+    // The split Send menu closes on Escape or a click anywhere else.
+    document.addEventListener('click', e => {
+        if (e.target && e.target.closest && e.target.closest('.cal-cm-send-menu, .cal-cm-send-more')) return;
+        _calCloseSendMenu();
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape') return;
+        const menu = document.querySelector('#calCommentsModal .cal-cm-send-menu');
+        if (!menu || menu.hidden) return;
+        e.stopPropagation();
+        _calCloseSendMenu();
+        const more = document.querySelector('#calCommentsModal .cal-cm-send-more');
+        if (more) more.focus();
+    }, true);
     function _calOnComposerKey(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -3273,10 +3412,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     Object.assign(window, {
         _calBeginCommentEdit, _calBeginReply, _calDeleteComment, _calDismissResolveDest, _calNoteDraftDiscard,
         _calOnComposerInput, _calOnComposerKey, _calReviewApprove, _calReviewComment, _calReviewOnDraftInput,
-        _calReviewOpenInSheet, _calReviewRequestTweak, _calReviewToggleCard, _calSetComposeAudience,
-        _calSetComposeComp, _calSetComposeIsTweak, _calSubmitComposer, _calToggleCommentDone,
-        _calToggleShowResolved, closeCalComments, closeCalPreview, editInOrganizerFromPreview,
-        openCalComments, openCalPreview
+        _calReviewOpenInSheet, _calReviewRequestTweak, _calReviewToggleCard, _calSetComposeComp,
+        _calSetComposeIsTweak, _calSubmitComposer, _calSubmitComposerAsTweak, _calToggleCommentDone,
+        _calToggleComposeAudience, _calToggleSendMenu, _calToggleShowResolved, _calToggleThreadCollapse,
+        closeCalComments, closeCalPreview, editInOrganizerFromPreview, openCalComments, openCalPreview
     });
 export {
   CAL_REPLY_DRAFT_MAX, REVIEW_APPROVE_DRAFT_TITLE, _calApplyAutoStatus, _calApprovalBadgeCount,

@@ -2859,12 +2859,11 @@
         .cal-prompt-textarea.cal-tx-textarea.is-compact { min-height: 110px; }
 
         /* ── Title ideas, hashtags and redo, under the caption ── */
+        .cal-cap-ai-tog { position: absolute; right: 8px; top: 8px; display: inline-flex; align-items: center; padding: 5px 9px; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
+        .cal-cap-ai-tog:hover, .cal-cap-ai-tog.is-open { color: var(--text-primary); border-color: var(--text-primary); }
+        .cal-cap-wrap textarea.cal-fld-cap:focus ~ .cal-cap-ai-tog { opacity: 0; pointer-events: none; }
         .cal-cap-ai { margin-top: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); font-size: 0.74rem; color: var(--text-secondary); }
-        .cal-cap-ai-sum { cursor: pointer; padding: 7px 10px; font-weight: 800; color: var(--text-primary); list-style: none; }
-        .cal-cap-ai-sum::-webkit-details-marker { display: none; }
-        .cal-cap-ai-sum::before { content: '\25B8'; display: inline-block; margin-right: 6px; transition: transform .15s; }
-        .cal-cap-ai[open] > .cal-cap-ai-sum::before { transform: rotate(90deg); }
-        .cal-cap-ai-body { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+        .cal-cap-ai-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
         .cal-cap-ai-label { line-height: 1.3; font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin-top: 4px; }
         .cal-cap-ai-titles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
         .cal-cap-ai-t { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); }
@@ -2886,6 +2885,7 @@
         .cal-cap-ai-note { flex: 1; min-width: 0; min-height: 32px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; font-family: inherit; font-size: 0.78rem; color: var(--text-primary); background: var(--white); }
         .cal-cap-ai-note:focus { border-color: var(--text-primary); outline: none; }
         .cal-cap-ai-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+        html.sv-staff-phone .cal-cap-wrap .cal-cap-ai-tog { position: static !important; inset: auto; order: 1; min-height: 44px; padding: 0 12px; }
         html.sv-staff-phone .cal-cap-ai-btn, html.sv-staff-phone .cal-cap-ai-chip, html.sv-staff-phone .cal-cap-ai-note { min-height: 44px; }
 
         .cal-bulk-cap-bar { position: fixed; bottom: 24px; right: 24px; z-index: 320; background: var(--text-primary); color: var(--white); padding: 10px 14px; border-radius: 12px; box-shadow: 0 8px 26px var(--sv-shadow-rgba-0-0-0-0_22); font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 10px; visibility: hidden; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0.2s; }

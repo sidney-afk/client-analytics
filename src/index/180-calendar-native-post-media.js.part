@@ -2552,18 +2552,32 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const pe = _calPendingEdits[pid];
         return String((ta ? ta.value : (pe && pe.caption != null ? pe.caption : (post ? post.caption : ''))) || '').trim();
     }
+    /* The panel is closed unless the person opened it or a fresh result just arrived, and then it is not drawn at all:
+       a small pill in the caption box's top right corner opens it, so a card only grows when the panel is opened. */
+    function _calCapAiEligible(p) {
+        if (_isClientLink || !p || _calIsBlankId(p.id)) return false;
+        if (_calCaptionRouteShown(calState.client) !== 'ef') return false;
+        return !!String(p.caption || '').trim();
+    }
+    function _calCapAiIsOpen(pid) {
+        if (_calCapAiOpen.has(pid)) return _calCapAiOpen.get(pid);
+        const e = _calCapAiEntry(pid);
+        return !!(e && ((e.titles && e.titles.length) || e.pending));
+    }
+    function _calCapAiToggleHtml(p) {
+        if (!_calCapAiEligible(p) || _calCapJobActive(_calCaptionJobs.get(p.id))) return '';
+        const e = _calCapAiEntry(p.id), open = _calCapAiIsOpen(p.id);
+        const label = (e && e.titles && e.titles.length) ? 'Titles, redo' : 'Redo with a note';
+        return '<button type="button" class="cal-cap-ai-tog' + (open ? ' is-open' : '') + '" aria-expanded="' + (open ? 'true' : 'false') + '" onclick="_calCapAiToggleOpen(\'' + _calEscAttr(p.id) + '\')">' + label + '</button>';
+    }
     function _calCapAiPanelHtml(p) {
-        if (_isClientLink || !p || _calIsBlankId(p.id)) return '';
-        if (_calCaptionRouteShown(calState.client) !== 'ef') return '';
+        if (!_calCapAiEligible(p) || !_calCapAiIsOpen(p.id)) return '';
         const pid = p.id, ea = _calEscAttr(pid);
         const e = _calCapAiEntry(pid);
-        const hasCaption = !!String(p.caption || '').trim();
-        if (!hasCaption && !e) return '';
+        const hasCaption = true;
         const busy = _calCapJobActive(_calCaptionJobs.get(pid));
         const hasTitles = !!(e && e.titles && e.titles.length);
-        const open = _calCapAiOpen.has(pid) ? _calCapAiOpen.get(pid) : hasTitles;
-        let h = '<details class="cal-cap-ai" data-capai="' + ea + '"' + (open ? ' open' : '') + ' ontoggle="_calCapAiToggle(this)">' +
-            '<summary class="cal-cap-ai-sum">' + (hasTitles ? 'Title ideas, hashtags, redo' : 'Redo with a note') + '</summary><div class="cal-cap-ai-body">';
+        let h = '<div class="cal-cap-ai" data-capai="' + ea + '"><div class="cal-cap-ai-body">';
         if (hasTitles) {
             h += '<div class="cal-cap-ai-label">Title ideas</div><ul class="cal-cap-ai-titles">';
             e.titles.forEach((t, i) => {
@@ -2593,9 +2607,9 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             '<button type="button" class="cal-cap-ai-chip" onclick="_calCapAiRedo(\'' + ea + '\',\'shorter\')"' + dis + '>Shorter</button>' +
             '<button type="button" class="cal-cap-ai-chip" onclick="_calCapAiRedo(\'' + ea + '\',\'hook\')"' + dis + '>New hook</button>' +
             '<button type="button" class="cal-cap-ai-chip" onclick="_calCapAiRedo(\'' + ea + '\',\'titles\')"' + dis + '>New titles</button></div>';
-        return h + '</div></details>';
+        return h + '</div></div>';
     }
-    /* Repaint one card's panel in place, keeping what is typed in its box. */
+    /* Repaint one card's pill and panel in place, keeping what is typed in the redo box. */
     function _calCapAiRefresh(pid) {
         const card = _calCapAiCardEl(pid);
         const block = card ? card.querySelector('[data-capblock]') : null;
@@ -2604,11 +2618,19 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const old = block.querySelector('.cal-cap-ai');
         const live = old && old.querySelector('.cal-cap-ai-note');
         if (live && document.activeElement === live) return;   // never repaint under a person who is typing
-        const html = _calCapAiPanelHtml(Object.assign({}, post, { caption: _calCapLiveCaptionOf(pid) }));
+        const p = Object.assign({}, post, { caption: _calCapLiveCaptionOf(pid) });
+        const wrap = block.querySelector('.cal-cap-wrap[data-capwrap="main"]');
+        const oldTog = wrap ? wrap.querySelector('.cal-cap-ai-tog') : null;
+        if (oldTog) oldTog.remove();
+        if (wrap) wrap.insertAdjacentHTML('beforeend', _calCapAiToggleHtml(p));
         if (old) old.remove();
+        const html = _calCapAiPanelHtml(p);
         if (html) block.insertAdjacentHTML('beforeend', html);
     }
-    function _calCapAiToggle(el) { if (el && el.dataset.capai != null) _calCapAiOpen.set(el.dataset.capai, !!el.open); }
+    function _calCapAiToggleOpen(pid) {
+        _calCapAiOpen.set(pid, !_calCapAiIsOpen(pid));
+        _calCapAiRefresh(pid);
+    }
     function _calCapAiDraftInput(el) { _calCapAiDraft.set(el.dataset.pid, el.value); }
     function _calCapAiNoteKey(ev, pid) { if (ev.key === 'Enter') { ev.preventDefault(); _calCapAiRedo(pid, ''); } }
     async function _calCapAiCopy(pid, kind, i, btn) {
@@ -3672,7 +3694,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
     Object.assign(window, {
         _calArchiveSelected, _calBulkGenerateCaptions, _calCancelBulkCaption, _calCancelCaptionJob,
         _calCapAiCopy, _calCapAiDismissPending, _calCapAiDraftInput, _calCapAiNoteKey, _calCapAiRedo,
-        _calCapAiToggle, _calCapAiUsePending, _calCapAiUseTitle, _calCaptionGenerateClick,
+        _calCapAiToggleOpen, _calCapAiUsePending, _calCapAiUseTitle, _calCaptionGenerateClick,
         _calCaptionTranscriptInput, _calCardSelectClick, _calCloseCaptionPromptModal,
         _calOpenCaptionPromptModal, _calOpenCaptionTranscript, _calOpenThumbTitlePromptModal,
         _calResetCaptionPromptToDefault, _calResetThumbTitlePromptToDefault, _calSaveCaptionPrompt,
@@ -3681,7 +3703,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
     });
 export {
   CAL_BULK_ARCHIVE_CONCURRENCY, CAL_REORDER_GUARD_MS, COMP_LABELS, COMP_PILL_COLORS,
-  _CAL_REVIEW_CFG, _calCapAiPanelHtml, _calCapAiRefresh, _calCapGenBtnHtml, _calCapGenBtnRefresh, _calCapJobsRestore,
+  _CAL_REVIEW_CFG, _calCapAiPanelHtml, _calCapAiRefresh, _calCapAiToggleHtml, _calCapGenBtnHtml, _calCapGenBtnRefresh, _calCapJobsRestore,
   _calClearApprovedAfterTweaks, _calHasBeenToKasper, _calHasUnreadNotes, _calLoadCaptionPrompts,
   _calMarkKasperSeen, _calOpenNativePost, _calRecordApprovedAfterTweaks,
   _calRecordKasperSeenOnPost, _calRenderNativePostChoice, _calReorderOptimistic,

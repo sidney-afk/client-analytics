@@ -164,7 +164,7 @@ async function run(browser, origin, label, device, theme) {
   const info = await page.evaluate(sel => {
     const el = document.querySelector(sel);
     return { titles: Array.from(el.querySelectorAll('.cal-cap-ai-ttxt')).map(e => e.textContent), best: Array.from(el.querySelectorAll('.cal-cap-ai-t')).findIndex(e => e.classList.contains('is-best')),
-      tags: (el.querySelector('.cal-cap-ai-tagtxt') || {}).textContent, open: el.open };
+      tags: (el.querySelector('.cal-cap-ai-tagtxt') || {}).textContent, open: true };
   }, panel('v1'));
   expect(info.titles.length === 5 && info.best === 1 && info.open, `${tag}: five title ideas, the best one marked, open after a new caption`);
   expect(info.tags === '#rest #habits #calm #slowliving', `${tag}: the hashtags are listed apart from the caption`);
@@ -217,10 +217,17 @@ async function run(browser, origin, label, device, theme) {
   if (!usedOk) console.log('DEBUG', JSON.stringify(await page.evaluate(() => ({ box: (document.querySelector('.cal-card[data-pid="v1"] textarea[data-fld="caption"]') || {}).value, post: calState.posts.find(p => p.id === 'v1').caption, pe: _calPendingEdits.v1, entry: _calCapAiEntry('v1') }))));
   expect(usedOk, `${tag}: clicking "Use this version" puts it in the box`);
 
-  // A hand-written caption gets the redo box but no titles
+  // A hand-written caption: a small pill, no panel (the card does not grow) until it is opened; then Redo and no titles
+  const wTog = `.cal-card[data-pid="w1"] .cal-cap-ai-tog`;
+  expect(await page.locator(wTog).count() === 1 && await page.locator(panel('w1')).count() === 0, `${tag}: a caption somebody wrote has a "Redo with a note" pill and no panel yet`);
+  const h0 = await page.evaluate(() => document.querySelector('.cal-card[data-pid="w1"]').getBoundingClientRect().height);
+  await page.locator(wTog).click();
   await page.waitForSelector(panel('w1'), { timeout: 5000 });
-  expect(await page.locator(`${panel('w1')} .cal-cap-ai-t`).count() === 0 && await page.locator(`${panel('w1')} .cal-cap-ai-note`).count() === 1, `${tag}: a caption somebody wrote offers Redo with a note and no titles`);
-  expect(await page.locator(`.cal-card[data-pid="v2"] ${panel('v2').replace(`.cal-card[data-pid="v2"] `, '')}`).count() === 0, `${tag}: a card with no caption has no panel`);
+  expect(await page.locator(`${panel('w1')} .cal-cap-ai-t`).count() === 0 && await page.locator(`${panel('w1')} .cal-cap-ai-note`).count() === 1, `${tag}: opened, it offers Redo with a note and no titles`);
+  expect(await page.evaluate(() => document.querySelector('.cal-card[data-pid="w1"]').getBoundingClientRect().height) > h0, `${tag}: the card only grows once the panel is opened`);
+  await page.locator(wTog).click();
+  expect(await page.locator(panel('w1')).count() === 0, `${tag}: the pill closes it again`);
+  expect(await page.locator('.cal-card[data-pid="v2"] .cal-cap-ai-tog').count() === 0 && await page.locator(panel('v2')).count() === 0, `${tag}: a card with no caption has no pill and no panel`);
   expect(t.pageErrors.length === 0, `${tag}: no page errors (${t.pageErrors.join(' | ')})`);
   await t.ctx.close();
 }

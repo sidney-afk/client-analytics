@@ -5648,6 +5648,11 @@
         .tdy-who { flex: 1; min-width: 0; }
         .tdy-tt { font-size: 0.88rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .tdy-cn { font-size: 0.78rem; color: var(--text-secondary); font-weight: 500; }
+        .tdy-dp { display: inline-block; vertical-align: baseline; margin-left: 4px; padding: 1px 8px; border-radius: 99px; font-size: 0.68rem; font-weight: 700; line-height: 1.5; white-space: nowrap; background: var(--surface-subtle); color: var(--text-secondary); border: 1px solid var(--border-light); }
+        .tdy-dp.red { background: var(--wl-overdue-chip-bg); color: var(--wl-overdue-chip-fg); border-color: var(--wl-overdue-border); }
+        .tdy-dp.amber { background: var(--wl-progress-chip-bg); color: var(--wl-progress-chip-fg); border-color: var(--wl-progress-border); }
+        .tdy-dp.soon { background: var(--border); color: var(--text-primary); border-color: var(--border); }
+        .tdy-dp.none { background: transparent; color: var(--text-secondary); border-style: dashed; }
         .tdy-urg { font-size: 0.68rem; font-weight: 800; color: var(--err-solid-fg); background: var(--dn); border-radius: 6px; padding: 3px 7px; flex: none; }
         .tdy-b { display: inline-flex; align-items: center; gap: 6px; font: 700 0.75rem 'Plus Jakarta Sans', sans-serif; color: var(--text-primary); background: var(--surface-subtle); border: 1px solid var(--border-light); border-radius: 8px; padding: 7px 10px; white-space: nowrap; cursor: pointer; flex: none; }
         .tdy-b:hover { background: var(--surface-hover); }

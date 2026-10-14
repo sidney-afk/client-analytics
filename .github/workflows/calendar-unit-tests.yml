@@ -301,6 +301,14 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/notes-composer-threads-browser.js
+      - name: Messages inbox (list, read and unread, reply through Notes, posted drops out, phone) (mocked)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/messages-inbox-browser.js
+      - name: The client link shows staff notes as the team and never receives a staff name (mocked)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/note-author-client-browser.js
       - name: Urgent ping uses the stamp the database holds, and a refused ping can be refreshed
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

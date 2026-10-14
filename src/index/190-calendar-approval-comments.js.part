@@ -44,6 +44,7 @@ import {
 import { _calCrqBegin, _calCrqDone, _calCrqFailed, _calCrqResolve } from './185-client-review-queue.js';
 import { _prodCanonicalCommentGate, _prodCardCommentsPending, _prodComments, _prodCommentsSkeletonHtml, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
+import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-onboarding-staff-controls.js';
     function _calHasMedia(p) {
         return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim());
     }
@@ -457,7 +458,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
         const threadHtml = comments && comments.length
             ? comments.map(c => {
-                const author = c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM');
+                const author = _calNoteAuthorName(c, c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM');
                 const isResolved = !!c.done;
                 const resolvedBadge = isResolved
                     ? `<span class="cal-review-resolved-pill" title="Done${c.done_by ? ' by ' + _calEsc(c.done_by) : ''}${c.done_at ? ' · ' + _calEsc(_calFmtCommentTime(c.done_at)) : ''}">${resolvedIco}Resolved</span>`
@@ -924,6 +925,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             id: _calMintCommentId(),
             parent_id: null,
             author: _calCurrentAuthor(),
+            ...(_calCurrentAuthorId() ? { author_member_id: _calCurrentAuthorId() } : {}),
             role: role,
             is_tweak: false,
             audience: (role === 'client') ? 'client' : 'internal',
@@ -1882,6 +1884,46 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (_isClientLink) return calState.client ? String(calState.client) : 'Client';
         return 'Synchro Social';
     }
+    /* Who wrote a staff note. The note keeps the shared 'Synchro Social'
+       author and gains author_member_id: only the id, never a name or email,
+       because the client link downloads these card columns. Staff screens look
+       the name up in the staff roster; the client link always says
+       'Synchro team'. */
+    function _calCurrentAuthorId() {
+        if (_isClientLink) return '';
+        try {
+            const identity = _syncviewStaffIdentityForHeaders();
+            return String(identity && identity.member && identity.member.id || '');
+        } catch (e) { return ''; }
+    }
+    let _calStaffNames = null;
+    let _calStaffNamesLoading = false;
+    function _calStaffNameById(id) {
+        id = String(id || '');
+        if (!id || _isClientLink) return '';
+        if (_calStaffNames) return _calStaffNames.get(id) || '';
+        if (!_calStaffNamesLoading) {
+            _calStaffNamesLoading = true;
+            Promise.resolve().then(() => _syncviewStaffRoster()).then(rows => {
+                _calStaffNames = new Map((rows || []).map(r => [String(r.id), String(r.name || '')]));
+                try { window.dispatchEvent(new Event('sv-staff-names')); } catch (e) {}
+            }).catch(() => { _calStaffNamesLoading = false; });
+        }
+        return '';
+    }
+    function _calNoteAuthorName(c, fallback) {
+        c = c || {};
+        const role = String(c.role || '').toLowerCase();
+        if (_isClientLink) return role === 'client' ? String(c.author || fallback || 'Client') : 'Synchro team';
+        if (role !== 'client') {
+            const named = _calStaffNameById(c.author_member_id);
+            if (named) return named;
+        }
+        return String(c.author || fallback || '');
+    }
+    window.addEventListener('sv-staff-names', () => {
+        try { if (_calOpenCommentsPid) _calRenderCommentsModal(); } catch (e) {}
+    });
     function _calMintCommentId() { return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
     function _calCommentRoots(arr) {
         return arr.filter(c => !c.parent_id && (!c.deleted || c.canonical) && !c.hidden)
@@ -2306,7 +2348,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 
         const renderRow = (c, isReply, comp) => {
             const roleCls = c.role === 'client' ? 'is-client' : 'is-smm';
-            const author  = c.author || (c.role === 'client' ? 'Client' : 'SMM');
+            const author  = _calNoteAuthorName(c, c.role === 'client' ? 'Client' : 'SMM');
             const initial = _calAvatarInitial(author, c.role);
             const doneTag = (!isReply && c.done) ? `<span class="cal-cm-done-tag">Resolved</span>` : '';
             // Which deliverable — named, pushed to the top-right of the row to
@@ -2485,10 +2527,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const placeholder = isEdit
             ? 'Edit this note...'
             : isReply
-            ? `Reply to ${target ? (target.author || 'thread') : 'thread'}…`
+            ? `Reply to ${target ? (_calNoteAuthorName(target, 'thread')) : 'thread'}…`
             : _calComposePlaceholder(role);
         const replyingTo = target
-            ? `<div class="cal-cm-replying-to">${isEdit ? 'Editing' : 'Replying to'} <strong>${_calEsc(target.author || 'thread')}</strong> <button class="cal-cm-cancel-reply" type="button" onclick="${isEdit ? '_calBeginCommentEdit(null)' : '_calBeginReply(null)'}" title="Cancel"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button></div>`
+            ? `<div class="cal-cm-replying-to">${isEdit ? 'Editing' : 'Replying to'} <strong>${_calEsc(_calNoteAuthorName(target, 'thread'))}</strong> <button class="cal-cm-cancel-reply" type="button" onclick="${isEdit ? '_calBeginCommentEdit(null)' : '_calBeginReply(null)'}" title="Cancel"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button></div>`
             : '';
         const lockIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg>`;
         // SMM starting a NEW thread picks who can see it. A reply inherits its
@@ -2737,6 +2779,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             id: _calMintCommentId(),
             parent_id: parentId || null,
             author: _calCurrentAuthor(),
+            ...(_calCurrentAuthorId() ? { author_member_id: _calCurrentAuthorId() } : {}),
             role: role,
             body: body,
             created_at: _now,
@@ -3120,7 +3163,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 checklist.innerHTML = openTweaks.map(t => {
                     const body = String(t.body || '').replace(/\s+/g, ' ').trim();
                     const short = body.length > 90 ? body.slice(0, 88) + '…' : (body || '(no message)');
-                    const who = t.role === 'kasper' ? 'Kasper' : (t.role === 'client' ? 'Client' : (t.author || 'Note'));
+                    const who = t.role === 'kasper' ? 'Kasper' : (t.role === 'client' ? 'Client' : (_calNoteAuthorName(t, 'Note')));
                     const rd = t.round ? ('Tweak #' + t.round) : 'Tweak';
                     return '<label class="resolve-dest-check"><input type="checkbox" data-rd-id="' + _calEscAttr(t.id) + '" checked>'
                         + '<span><span class="rd-round">' + _calEsc(rd) + '</span> · ' + _calEsc(who) + ' — ' + _calEsc(short) + '</span></label>';
@@ -3418,9 +3461,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         closeCalComments, closeCalPreview, editInOrganizerFromPreview, openCalComments, openCalPreview
     });
 export {
+  openCalComments,
+  _CAL_LOCK_ICO, _calAppendComment, _calCommentSendPending, _calFindCompForCommentId,
   CAL_REPLY_DRAFT_MAX, REVIEW_APPROVE_DRAFT_TITLE, _calApplyAutoStatus, _calApprovalBadgeCount,
   _calCommentRole, _calCommentsBtnHtml, _calCompHasUnresolvedKasperTweak, _calCompKasperVisible,
-  _calCurrentAuthor, _calDeleteComment, _calFmtCommentTime, _calLatestMsgAt, _calSmmMediaGap,
+  _calCurrentAuthor, _calNoteAuthorName, _calDeleteComment, _calFmtCommentTime, _calLatestMsgAt, _calSmmMediaGap,
   _calLatestMsgCreatedAt, _calLoadComments, _calMergeCommentLists, _calMergePostComments,
   _calMintCommentId, _calOpenCommentsPid, _calPostHasUnresolvedKasperTweak, _calPostKasperVisible,
   _calRefreshCommentsBtn, _calRenderCommentsModal, _calRetryCommentEdit,

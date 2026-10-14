@@ -1,0 +1,177 @@
+// Messages inbox (Notes Step 2, docs/plans/2026-10-13-notes-messages.md).
+//
+// Pure helpers for production-comments' staff-only `inbox`, `inbox_mark`
+// actions. This is the ONE place the inbox reads notes from: the card's
+// *_tweaks lists plus the canonical production_comments rows Step 1 already
+// writes. When team-only notes move out of the card (privacy rule 12), only
+// collectMessages() changes its source.
+//
+// Who sees what (owner, 2026-10-13):
+//   - admin not on the SMM roster (Kasper): every client
+//   - anyone on the roster, admins included: their own clients, plus the
+//     smm_also_sees grants (the same rule as "My clients", 098-smm-clients)
+//   - editors and designers: nothing (they are not part of Messages)
+//   - a post that is posted or archived leaves the inbox (it stays on the card)
+
+export const COMPONENTS = ["video", "graphic", "caption", "title"];
+export const UNREAD_WINDOW_DAYS = 14; // with no read mark, older messages count as read
+const TITLES = /^(?:dr|doctor|mr|mrs|ms|miss|prof|professor)\.?\s+/;
+
+export function clean(value) {
+  return String(value == null ? "" : value).trim();
+}
+
+// Same key as svClientKey (src/index/098-smm-clients.js.part).
+export function clientKey(name) {
+  let t = clean(name).toLowerCase();
+  try { t = t.normalize("NFD").replace(/[̀-ͯ]/g, ""); } catch (_e) { /* ascii fallback */ }
+  t = t.replace(TITLES, "").replace(/&/g, " and ");
+  return t.replace(/[^a-z0-9]+/g, "");
+}
+
+// Same match as svRosterEntryFor: email, then full name, then a unique first name.
+export function rosterEntryFor(managers, member) {
+  const norm = (v) => clean(v).toLowerCase().replace(/\s+/g, " ");
+  const list = (Array.isArray(managers) ? managers : []).filter((m) => m && m.active !== false && clean(m.name));
+  const email = norm(member && member.email);
+  const name = norm(member && member.name);
+  const first = name.split(" ")[0];
+  const byFirst = first ? list.filter((m) => norm(m.name).split(" ")[0] === first) : [];
+  return (email && list.find((m) => norm(m.email) === email))
+    || (name && list.find((m) => norm(m.name) === name))
+    || (byFirst.length === 1 ? byFirst[0] : null);
+}
+
+// Which client slugs a staff member's inbox covers. Returns "all", or a Set.
+export function inboxScope(member, managers, alsoSees, clients) {
+  const role = clean(member && member.role).toLowerCase();
+  if (role !== "admin" && role !== "smm") return new Set();
+  const entry = rosterEntryFor(managers, member);
+  if (role === "admin" && !entry) return "all";
+  const owned = new Set((entry && Array.isArray(entry.source_clients) ? entry.source_clients : []).map(clientKey));
+  const bySlug = new Map((Array.isArray(managers) ? managers : []).filter((m) => m && m.active !== false).map((m) => [clean(m.slug), m]));
+  for (const g of Array.isArray(alsoSees) ? alsoSees : []) {
+    if (!g || clean(g.viewer_member_id) !== clean(member && member.id)) continue;
+    if (g.client_name) owned.add(clientKey(g.client_name));
+    const m = g.manager_slug ? bySlug.get(clean(g.manager_slug)) : null;
+    if (m && Array.isArray(m.source_clients)) for (const c of m.source_clients) owned.add(clientKey(c));
+  }
+  owned.delete("");
+  const out = new Set();
+  for (const c of Array.isArray(clients) ? clients : []) {
+    if (!c || c.active === false) continue;
+    if (owned.has(clientKey(c.display_name)) || owned.has(clientKey(c.slug))) out.add(clean(c.slug));
+  }
+  return out;
+}
+
+export function isClosedPost(post) {
+  const s = clean(post && post.status).toLowerCase();
+  return s === "posted" || s === "archived" || !!clean(post && post.posted_at);
+}
+
+function parseList(raw) {
+  const text = clean(raw);
+  if (!text || !/^\[/.test(text)) return [];
+  try { const v = JSON.parse(text); return Array.isArray(v) ? v : []; } catch (_e) { return []; }
+}
+
+const sameName = (a, b) => clean(a).toLowerCase().replace(/\s+/g, " ") === clean(b).toLowerCase().replace(/\s+/g, " ");
+
+// Every live message on one post, oldest first: card notes plus canonical rows.
+export function collectMessages(post, canonicalRows) {
+  const seen = new Set();
+  const out = [];
+  const push = (m) => {
+    const key = clean(m.id);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(m);
+  };
+  for (const row of Array.isArray(canonicalRows) ? canonicalRows : []) {
+    if (!row || row.deleted_at) continue;
+    const id = clean(row.native_comment_id) || clean(row.id);
+    push({
+      id,
+      parent_id: clean(row.thread_root_id) && clean(row.thread_root_id) !== id ? clean(row.thread_root_id) : (clean(row.parent_id) || null),
+      author: clean(row.author_name),
+      author_member_id: clean(row.author_member_id),
+      role: clean(row.role),
+      body: clean(row.body),
+      audience: clean(row.audience),
+      is_tweak: row.is_tweak === true,
+      component: clean(row.component) || (clean(row.team) === "graphics" ? "graphic" : "video"),
+      created_at: clean(row.source_created_at) || clean(row.created_at),
+    });
+  }
+  for (const comp of COMPONENTS) {
+    const list = parseList(post && post[comp + "_tweaks"]);
+    for (const m of list) {
+      if (!m || m.deleted || m.hidden || !clean(m.id)) continue;
+      push({
+        id: clean(m.id),
+        parent_id: clean(m.parent_id) || null,
+        author: clean(m.author),
+        author_member_id: clean(m.author_member_id),
+        role: clean(m.role),
+        body: clean(m.body),
+        audience: clean(m.audience),
+        is_tweak: m.is_tweak === true,
+        component: comp,
+        created_at: clean(m.created_at),
+      });
+    }
+  }
+  // A reply carries its first message's part and audience.
+  const byId = new Map(out.map((m) => [m.id, m]));
+  for (const m of out) {
+    const root = m.parent_id && byId.has(m.parent_id) ? byId.get(m.parent_id) : m;
+    m.root_id = root.id;
+    m.component = root.component;
+    m.audience = root.audience === "client" ? "client" : "internal";
+  }
+  out.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return out;
+}
+
+// Yours when it carries your member id. Notes written before the id was
+// stored fall back to the name match.
+export function isMine(message, member) {
+  const id = clean(message && message.author_member_id);
+  if (id) return id === clean(member && member.id);
+  return sameName(message && message.author, member && member.name);
+}
+
+export function unreadCount(messages, member, lastReadAt, nowMs) {
+  const floor = clean(lastReadAt)
+    || new Date((nowMs || Date.now()) - UNREAD_WINDOW_DAYS * 86400000).toISOString();
+  return messages.filter((m) => m.created_at > floor && !isMine(m, member)).length;
+}
+
+// The read mark that makes a conversation unread again: just before the
+// newest message someone else wrote. Null when there is nothing to mark.
+export function unreadMark(messages, member) {
+  const others = messages.filter((m) => !isMine(m, member));
+  if (!others.length) return null;
+  const newest = Date.parse(others[others.length - 1].created_at);
+  return Number.isFinite(newest) ? new Date(newest - 1).toISOString() : null;
+}
+
+export function buildConversation(post, messages, member, lastReadAt, nowMs) {
+  const last = messages[messages.length - 1];
+  return {
+    post_id: clean(post.id),
+    client_slug: clean(post.client),
+    title: clean(post.name),
+    thumbnail_url: clean(post.thumbnail_url),
+    asset_url: clean(post.asset_url),
+    status: clean(post.status),
+    last_at: last ? last.created_at : "",
+    last_author: last ? last.author : "",
+    last_author_member_id: last ? last.author_member_id : "",
+    last_role: last ? last.role : "",
+    last_body: last ? last.body.slice(0, 160) : "",
+    unread: unreadCount(messages, member, lastReadAt, nowMs),
+    messages,
+  };
+}

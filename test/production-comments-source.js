@@ -89,6 +89,13 @@ ok(edge.indexOf('takeReadBudget(supabase, principal.actorKey)')
 ok(edge.indexOf('authorizeAllowedRead(supabase, principal, deliverableId)')
     < edge.indexOf('.from("production_comments")'),
 'durable allow audit succeeds before any comment body query');
+{
+  const inboxAt = edge.indexOf('async function handleInbox(');
+  const inbox = inboxAt >= 0 ? edge.slice(inboxAt) : '';
+  ok(inbox && inbox.indexOf('await auditRead(supabase, principal') >= 0
+      && inbox.indexOf('await auditRead(supabase, principal') < inbox.indexOf('inboxPosts(supabase'),
+    'the Messages inbox writes its durable allow audit before reading any note');
+}
 ok((edge.match(/\.eq\("audience", "client"\)/g) || []).length >= 2,
 'client total and page queries both enforce client audience');
 ok(/\.select\("id,client_slug,team,origin,card_id"\)/.test(edge)

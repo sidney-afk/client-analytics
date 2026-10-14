@@ -6928,3 +6928,10 @@ The reviewer icon grid is shared by every staff phone Tabs sheet, with native or
 ### 2026-10-13 — owner phone round 2 (built, not merged/deployed)
 
 Staff client selection is first in Tabs; More is grouped with native tools/sign out retained. Phone-only palette overrides and cropped thumbnails are corrected; every shared status-sheet variant has tap/drag/keyboard dismissal. Fictional proof and limits: `docs/audits/2026-10-13-phone-round-2/README.md`. PTO's complete mocked packet is regenerated and visually reviewed under CI's preload. Hosted unscoped Production reads are deferred for this branch. No backend mutation, merge or deployment.
+
+## 2026-10-13 - Old notes labelled team or client (session Lighthouse, Notes step 1)
+
+- Owner's go (2026-10-13). Ran a corrected `scripts/notes-label-apply.sql` live in one transaction that raised and rolled back unless 83 cards changed and 0 first messages were left unlabelled. Result: 83 cards, 233 first messages (119 client, 114 internal), 0 unlabelled; re-checked after commit, still 0.
+- The draft on main labelled nothing (`not (audience in (...))` is NULL when audience is missing) and would have re-written every card with notes; both fixed before it ran.
+- Rollback: `card_change_journal` holds each card's row before the update.
+- Known gap: a tab that loaded a card before the backfill and saves that note unchanged sends the old copy with the same stamp, and the comment merge lets it win the tie, so the label can drop again. Bumping each note's `updated_at` would block that but would mark all 83 cards unread, so it was not done. The script is idempotent; re-running it re-labels anything dropped. Only first messages with a role other than client, kasper or smm read differently without a label.

@@ -3239,10 +3239,11 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     };
     function _calFrameFolderSlotHtml(pid) {
         if (_isClientLink || !calState.client) return '';
-        const entry = _calFrameFolderEnsure(calState.client);
-        const isFrame = !!(entry && entry.url && _calIsFrameLink(entry.url));
+        _calFrameFolderEnsure(calState.client);
+        // Always the folder glyph: the button opens a list of files and
+        // folders, so it must not read as "open this image".
         const tip = 'Files: filming plan, raw footage, Frame folder, thumbnail';
-        return `<button type="button" class="cal-linear-btn cal-frame-btn cal-files-btn" data-files-pid="${_calEscAttr(pid)}" onclick="_calToggleFilesMenu(this, event)" aria-haspopup="menu" aria-expanded="false" title="${_calEscAttr(tip)}" aria-label="${_calEscAttr(tip)}">${isFrame ? _calFrameMarkSvg() : _calFolderMarkSvg()}</button>`;
+        return `<button type="button" class="cal-linear-btn cal-frame-btn cal-files-btn" data-files-pid="${_calEscAttr(pid)}" onclick="_calToggleFilesMenu(this, event)" aria-haspopup="menu" aria-expanded="false" title="${_calEscAttr(tip)}" aria-label="${_calEscAttr(tip)}">${_calFolderMarkSvg()}</button>`;
     }
     /* The filming plans list lives in the on-demand Templates area. Load it
        once per session, quietly (staff sign-in already present, never a

@@ -1,12 +1,12 @@
 import { currentNav } from './065-core-nav-intake-state.js';
-import { navTo, wlOpenInContentCalendar } from './092-core-submit-form-navigation.js';
+import { navTo } from './092-core-submit-form-navigation.js';
 import { svSharedClientNote } from './095-shared-client.js';
 import {
   svAlsoSeesNames, svClientKey, svCurrentClients, svRosterEntryFor, svScopeMode, svSmmCurrentClients
 } from './098-smm-clients.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, SMM_WEEKLY_REPORTS_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _srpState } from './112-smm-weekly-reports.js';
-import { _calSetFocusRequest, calClientSlug } from './130-calendar-model-cache.js';
+import { calClientSlug } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _svSkel } from './133-core-loading-skeletons.js';
 import { _calV2Client } from './150-calendar-hydration-import.js';
@@ -370,8 +370,9 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         return `<span class="tdy-pipe" aria-hidden="true">${[0, 1, 2, 3].map(k => `<i class="${k < s ? 'd' : k === s ? (status === 'tweak' ? 'w' : 'n') : ''}"></i>`).join('')}</span>`;
     }
     function _tdyIco(name) { return `<span class="tdy-ic" style="--ic:url('/nav-icons/${name}.png')" aria-hidden="true"></span>`; }
-    function _tdyBtnSync(id) {
-        return id ? `<button type="button" class="tdy-b" aria-label="Open in SyncLinear" onclick="_tdyOpenSync(${_calEscAttr(JSON.stringify(String(id)))})">${_tdyIco('synclinear')}SyncLinear</button>` : '';
+    function _tdyBtnSync(id, cardId, clientSlug) {
+        const from = cardId && clientSlug ? `,${_calEscAttr(JSON.stringify(String(cardId)))},${_calEscAttr(JSON.stringify(String(clientSlug)))}` : '';
+        return id ? `<button type="button" class="tdy-b" aria-label="Open in SyncLinear" onclick="_tdyOpenSync(${_calEscAttr(JSON.stringify(String(id)))}${from})">${_tdyIco('synclinear')}SyncLinear</button>` : '';
     }
     function _tdyBtnCard(kind, id) {
         return `<button type="button" class="tdy-b" aria-label="Open card in Calendar" onclick="_tdyOpenCard(${_calEscAttr(JSON.stringify(kind))},${_calEscAttr(JSON.stringify(String(id)))})">${_tdyIco('calendar')}Open card</button>`;
@@ -418,7 +419,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     }
     function _tdyEditorRow(r, d) {
         const name = d.names[r.client_slug] || r.client_slug || '';
-        return `<div class="tdy-rw" data-k="e:${_calEscAttr(r.id)}">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}${r.status === 'tweak' ? ' · changes asked' : ''}</div></div>${d.urgent.includes(r.id) ? '<span class="tdy-urg">Urgent</span>' : ''}${_tdyBtnSync(r.id)}</div>`;
+        return `<div class="tdy-rw" data-k="e:${_calEscAttr(r.id)}">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}${r.status === 'tweak' ? ' · changes asked' : ''}</div></div>${d.urgent.includes(r.id) ? '<span class="tdy-urg">Urgent</span>' : ''}${_tdyBtnSync(r.id, r.origin === 'calendar' ? r.card_id : '', r.client_slug)}</div>`;
     }
     function _tdyEditorHtml(me, d, view) {
         const q = _tdyEditorQueue(d);
@@ -432,7 +433,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
                 ${q.length > 2 ? '<div class="tdy-cd c3"></div>' : ''}${q.length > 1 ? '<div class="tdy-cd c2"></div>' : ''}
                 <div class="tdy-cd c1">${_tdyAvatar(r.client_slug, name)}<h2>${_calEsc(r.title || 'Untitled')}</h2><div class="tdy-cn">${_calEsc(name)}${r.status === 'tweak' ? ' · changes asked' : ''}</div>
                 ${d.urgent.includes(r.id) ? '<div><span class="tdy-urg">Urgent</span></div>' : ''}${_tdyPipe(r.status)}
-                <div class="tdy-acts"><button type="button" class="tdy-b p" onclick="_tdyOpenSync(${_calEscAttr(JSON.stringify(r.id))})">${_tdyIco('synclinear')}Open in SyncLinear</button>${q.length > 1 ? `<button type="button" class="tdy-b" onclick="_tdySkip(${_calEscAttr(JSON.stringify(r.id))})">Skip for now</button>` : ''}</div></div></div>`
+                <div class="tdy-acts"><button type="button" class="tdy-b p" onclick="_tdyOpenSync(${_calEscAttr(JSON.stringify(r.id))}${r.origin === 'calendar' && r.card_id ? ',' + _calEscAttr(JSON.stringify(String(r.card_id))) + ',' + _calEscAttr(JSON.stringify(String(r.client_slug))) : ''})">${_tdyIco('synclinear')}Open in SyncLinear</button>${q.length > 1 ? `<button type="button" class="tdy-b" onclick="_tdySkip(${_calEscAttr(JSON.stringify(r.id))})">Skip for now</button>` : ''}</div></div></div>`
                 + (q.length > 1 ? `<div class="tdy-st">Next in the deck</div><div class="tdy-ls">${q.slice(1, 4).map(x => _tdyEditorRow(x, d)).join('')}</div>` : '')
                 + _tdyTrail(today, d.names);
         }
@@ -481,10 +482,10 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         if (x.kind === 'del') {
             const r = x.r, name = d.names[r.client_slug] || r.client_slug || '';
             const card = r.origin === 'calendar' ? _tdyBtnCard('del', r.id) : '';
-            return `<div class="tdy-rw" data-k="d:${_calEscAttr(r.id)}">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)} ${_tdyPill(x.at, x.due)}</div></div>${card}${_tdyBtnSync(r.id)}</div>`;
+            return `<div class="tdy-rw" data-k="d:${_calEscAttr(r.id)}">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)} ${_tdyPill(x.at, x.due)}</div></div>${card}${_tdyBtnSync(r.id, r.origin === 'calendar' ? r.card_id : '', r.client_slug)}</div>`;
         }
         const p = x.p, name = d.names[p.client] || p.client || '';
-        return `<div class="tdy-rw" data-k="p:${_calEscAttr(p.id)}">${_tdyAvatar(p.client, name)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(p.name || 'Untitled post')}</div><div class="tdy-cn">${_calEsc(name)} ${_tdyPill(x.at)}</div></div>${_tdyBtnCard('post', p.id)}${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id)}</div>`;
+        return `<div class="tdy-rw" data-k="p:${_calEscAttr(p.id)}">${_tdyAvatar(p.client, name)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(p.name || 'Untitled post')}</div><div class="tdy-cn">${_calEsc(name)} ${_tdyPill(x.at)}</div></div>${_tdyBtnCard('post', p.id)}${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id, p.id, p.client)}</div>`;
     }
     function _tdyShortDate(iso) {
         const d = new Date(String(iso || '') + 'T12:00:00');
@@ -539,7 +540,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             const step = (ok, text, bad) => `<div class="${ok ? 'ok' : bad ? 'bad' : ''}"><span class="tdy-ck"></span>${_calEsc(text)}</div>`;
             return head + scope + _tdyClientsHtml(d) + `<div class="tdy-focus"><div class="tdy-n">Post ${i + 1} of ${list.length} · ${_calEsc(_tdyShortDate(p.scheduled_date))}</div>${_tdyAvatar(p.client, name)}<h2>${_calEsc(p.name || 'Untitled post')}</h2><div class="tdy-cn">${_calEsc(name)}</div>
                 <div class="tdy-steps">${step(!gap.video, gap.video ? 'Video link missing' : 'Video link in place', gap.video)}${step(!gap.thumb, gap.thumb ? 'Thumbnail link missing' : 'Thumbnail link in place', gap.thumb)}${step(!!String(p.caption || '').trim(), String(p.caption || '').trim() ? 'Caption written' : 'Caption to write', !String(p.caption || '').trim())}${step(!approving && !gap.video && !gap.thumb, approving ? 'Approve and send to Kasper' : 'Nothing waiting on your approval', false)}</div>
-                <div class="tdy-acts"><button type="button" class="tdy-b p" onclick="_tdyOpenCard('post',${_calEscAttr(JSON.stringify(p.id))})">${_tdyIco('calendar')}Open card</button>${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id)}${list.length > 1 ? '<button type="button" class="tdy-b" onclick="_tdyWalkNext()">Skip</button>' : ''}</div></div>` + _tdyTrail(today, d.names);
+                <div class="tdy-acts"><button type="button" class="tdy-b p" onclick="_tdyOpenCard('post',${_calEscAttr(JSON.stringify(p.id))})">${_tdyIco('calendar')}Open card</button>${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id, p.id, p.client)}${list.length > 1 ? '<button type="button" class="tdy-b" onclick="_tdyWalkNext()">Skip</button>' : ''}</div></div>` + _tdyTrail(today, d.names);
         }
         const on = jobs.find(j => j.key === tdyState.job && j.rows.length) || jobs.find(j => j.rows.length) || jobs[0];
         const rings = jobs.map(j => {
@@ -859,19 +860,36 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     function _tdySetJob(k) { tdyState.job = k; _tdyPaint(); }
     function _tdyWalkNext() { tdyState.walk++; tdyState.walkId = ''; _tdyPaint(); }
     function _tdySkip(id) { tdyState.skipped = tdyState.skipped.filter(x => x !== id).concat(id); _tdyPaint(); }
-    function _tdyOpenSync(id) {
-        try { window.open(svRoute.fast('/synclinear/' + encodeURIComponent(id)), '_blank', 'noopener'); } catch (e) {}
+    /* Always a new tab. A row that stands for a Calendar card passes the card
+       and its client along, so the SyncLinear tab can offer "Back to card". */
+    function _tdyOpenSync(id, cardId, clientSlug) {
+        try {
+            const from = cardId && clientSlug ? svRoute.cardOrigin('calendar', calClientSlug(clientSlug), cardId) : '';
+            window.open(svRoute.fast('/synclinear/' + encodeURIComponent(id) + (from ? '?' + from.slice(1) : '')), '_blank', 'noopener');
+        } catch (e) {}
+    }
+    /* "Open card" always opens its own tab, on that exact Calendar card, using
+       the same address _tdyCardInAddress writes (#calendar/<slug>/<card>). */
+    function _tdyCardTab(clientSlug, cardId) {
+        try {
+            const slug = calClientSlug(clientSlug);
+            if (!slug) return;
+            window.open(svRoute.fast('/' + _tdyCardHash(slug, cardId)), '_blank', 'noopener');
+        } catch (e) {}
     }
     /* Vigil's hand test, 2026-09-28: the address held only the client, so a
        reload lost the card. Write the calendar's own card deep link
        (#calendar/<slug>/<card>); the calendar keeps it and reopens it. */
+    function _tdyCardHash(slug, cardId) {
+        return '#calendar/' + slug + (cardId ? '/' + encodeURIComponent(cardId) : '');
+    }
     function _tdyCardInAddress(clientSlug, cardId) {
         try {
             const slug = calClientSlug(clientSlug);
             if (!slug || !cardId || currentNav !== 'calendar') return;
             const base = '/' + svRoute.search().replace(/#.*$/, '');
             history.replaceState({ nav: 'calendar', client: null }, '',
-                base + '#calendar/' + slug + '/' + encodeURIComponent(cardId));
+                base + _tdyCardHash(slug, cardId));
         } catch (e) {}
     }
     function _tdyOpenClient(slug) {
@@ -887,18 +905,12 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         if (kind === 'post') {
             const p = d.posts.find(x => x.id === id);
             if (!p) return;
-            const name = d.names[p.client] || p.client;
-            try { svSharedClientNote(name); } catch (e) {}
-            _calSetFocusRequest({ client: name, cardId: p.id });
-            navTo('calendar');
-            _tdyCardInAddress(p.client, p.id);
+            _tdyCardTab(p.client, p.id);
             return;
         }
         const r = d.open.find(x => x.id === id);
         if (!r) return;
-        const name = d.names[r.client_slug] || r.client_slug;
-        try { svSharedClientNote(name); } catch (e) {}
-        /* A work item that knows its card opens it the way a post row does.
+        /* Always a new tab, so Today stays where it is. A work item that knows its card opens it the way a post row does.
            The other road names only the work item, and the Calendar lets a
            card past its saved month and status filter only when it is asked
            for by card id, so "Open card" from "To approve" or "Dates to move"
@@ -906,13 +918,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
            card, and the address never carried the card either. Measured
            2026-10-08: all 261 open calendar-origin items carry a card id that
            is a card of their own client. */
-        if (r.card_id) {
-            _calSetFocusRequest({ client: name, cardId: String(r.card_id) });
-            navTo('calendar');
-            _tdyCardInAddress(r.client_slug, String(r.card_id));
-            return;
-        }
-        wlOpenInContentCalendar(name, '', r.id);
+        _tdyCardTab(r.client_slug, r.card_id ? String(r.card_id) : '');
     }
     function _tdyTeardown() { tdyState.gen++; _tdyStopLive(); }
 

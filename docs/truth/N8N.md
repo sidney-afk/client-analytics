@@ -240,6 +240,22 @@ This is the complete current live workflow ID set. The [Atlas](../ATLAS.md#n8n) 
   invitation dispatcher `su5afuhg17V2xhgh` and the practical-test dispatcher `eiisSbHsD1OnnNdQ` are
   active (5-minute polls, see the 2026-09-20 hiring pollers bullet below). The kill switch in
   `ROLLBACK.md` still works: set `hiring_invites_enabled` back to `{"enabled": false}`.
+- **Hiring audit 2026-10-14, all three findings fixed the same day on the owner's explicit go.**
+  (1) The alert links in `oi4BPg79dykdet6H` pointed at `synchrosocial.com` (the marketing site) after
+  SyncView moved to `syncview.synchrosocial.com` on 2026-10-09; both the Slack and Telegram alerts now
+  link `https://syncview.synchrosocial.com/?Kasper=1#kasper/hiring-process`, so the "working staff deep
+  link" wording above is history. (2) The capture gate used to drop an application whose video answer
+  (question 11) lacked the secure-link prefix; it now adds the prefix to a bare link (and upgrades a plain
+  http link) instead. One real editor application dropped this way on 2026-10-04 was recovered into
+  SyncView from the Hiring Raw Log through `hiring_capture_application_v1`. `oi4BPg79dykdet6H` went from
+  `762ad78b-2d7e-494b-99f8-1ae50eb62616` to `8ccdaeaf-00c3-4b82-be65-c6e8df4732a0` (published; the draft
+  was saved first and the active version only moved on publish). (3) The 2026-10-06 edits to
+  `xoPqojySDriQ8Mzh` had been made from a copy older than 2026-09-15 and removed the editor-interview
+  admit; the `hiring_role` map and the `role` field sent to `record_booking` are restored (nothing else in
+  that workflow changed), `2f2414c5-f2fc-4317-9434-fc92ac47bd5e` to
+  `afaa0f36-f917-47ce-89f3-a63bf6d55f72`. No editor interview booking arrived between 2026-10-06 and the
+  fix, so none needed recovery. A real test application through the live form proved the capture, the
+  bare-link fix and both alerts; its SyncView rows were removed afterwards (the Hiring Raw Log row and the iClosed contact stay).
 - The existing active `Sales — Call Booked (iClosed)` receiver `xoPqojySDriQ8Mzh` is at version
   `a82e2ce1-d062-4997-a812-7621b5c1b635`. A first strict gate accepts only
   `client-success-content-manager-interview` with a nonblank iClosed contact ID and booking ID,

@@ -895,5 +895,5 @@ export {
   _linearInvalidatePlanMap, _linearResolveClientRow, _linearResolvedPlanUrl,
   _linearSetResolvedPlanUrl, _navFitSchedule, _navPillSync, _syncviewApplyTabFavicon,
   buildLinearTitle, loadLinearForm, navTo, renderLinearSearchResults, saveLinearForm,
-  updateLinearFilmingPlan, updateLinearSearchGhost, updateLinearTitle, wlOpenInContentCalendar
+  updateLinearFilmingPlan, updateLinearSearchGhost, updateLinearTitle
 };

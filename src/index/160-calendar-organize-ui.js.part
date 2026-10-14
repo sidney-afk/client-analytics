@@ -1,10 +1,10 @@
-import { clientMap, showConfirm, showNotify } from './040-shared-briefs.js';
+import { clientMap, showConfirm, showNotify, svArea } from './040-shared-briefs.js';
 import { _mrExternalLink, igUrl, ttUrl, ytUrl } from './050-market-briefs.js';
 import { WL_CLIENT_NAMES } from './070-core-client-names.js';
 import {
   CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, THUMBNAIL_FOLDER_RESOLVE_EF_URL,
   THUMBNAIL_REVISION_READ_EF_URL, _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity,
-  _syncviewStaffCan, _syncviewStaffIdentityForHeaders
+  _syncviewStaffCan, _syncviewStaffIdentityForHeaders, _syncviewStaffRoster
 } from './100-onboarding-staff-controls.js';
 import {
   CAL_COMPONENTS, CAL_STATUSES, _calComponentsFor, _calIsTitleReviewOn, _calNormStatus, _calTitlePillShown,
@@ -34,7 +34,7 @@ import {
 } from './150-calendar-hydration-import.js';
 import {
   _calFlushCardSave, _calForceThumbRefresh, _calLivePreviewThumb, _calOnFieldBlur,
-  _calOnFieldInput, _calRefreshCardThumb, _calRefreshMediaWarning, _calRenderInlineCard,
+  _calOnFieldInput, _calRefreshCaption, _calRefreshCardThumb, _calRefreshMediaWarning, _calRenderInlineCard,
   _calStatusSlug, _calThumbSrcBase, _svSaveIndHtml
 } from './170-calendar-links-status.js';
 import {
@@ -230,10 +230,11 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
        by each card's OVERALL status (the roll-up the status chip shows; see
        _calNormCardStatusFilter). Show only keeps the picked statuses, Hide drops
        them. Staff only: the client link never renders or applies it.
-       When it is on it says so twice: the pill turns solid with a summary, and a
-       slim strip above the cards (_calCardStatusStripHtml) names the filter with
-       a one-tap Clear. The strip is what a phone shows, since the pill lives in
-       the More sheet there. */
+       When it is on, the pill turns solid with a summary ("Hide Posted") and
+       carries its own clear (x) control, so nothing is added above the cards
+       and they do not move when the filter flips. On a staff phone the pill
+       lives in the More sheet, so there a slim strip above the cards
+       (_calCardStatusStripHtml) names the filter with a one-tap Clear. */
     function _calCardStatusAvailable() {
         // Not in the Calendar embedded inside Analytics: that surface has its own phone layout and keeps the toolbar it had.
         return !!calState.client && !_isClientLink && !calState.embedded && calState.view !== 'review' && calState.view !== 'smmreview';
@@ -260,7 +261,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         return (f.mode === 'hide' ? 'Hiding ' : 'Showing only ') + names;
     }
     function _calCardStatusStripHtml() {
-        if (!_calCardStatusAvailable() || !_calCardStatusLive()) return '';
+        if (!_calCardStatusAvailable() || !_calCardStatusLive() || !_calStaffPhoneActive()) return '';
         return `<div class="cal-sf-strip" id="calCardStatusStrip" role="status"><span class="cal-sf-strip-txt">${_calEsc(_calCardStatusSentence())}</span><button type="button" class="cal-sf-clear" onclick="onCalCardStatusClear()">Clear</button></div>`;
     }
     function _calCardStatusHtml() {
@@ -274,7 +275,10 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             const checked = f.picks.includes(st);
             return `<button type="button" class="dropdown-item cal-sf-row${checked ? ' active' : ''}" role="menuitemcheckbox" aria-checked="${checked ? 'true' : 'false'}" data-status="${_calEscAttr(st)}" onclick="onCalCardStatusToggle(this.dataset.status)"><span class="cal-sf-box" aria-hidden="true"></span><span class="cal-status cal-status-${_calStatusSlug(st)}">${_calEsc(_calStatusLabel(st))}</span></button>`;
         }).join('');
-        return `<div class="cal-month-filter cal-status-filter" id="calCardStatusWrap">
+        const x = on && !_calStaffPhoneActive()
+            ? `<button type="button" class="cal-sf-x" id="calCardStatusClearX" onclick="onCalCardStatusClear()" aria-label="Clear status filter" data-tip="Clear status filter"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l5 5M7.5 2.5l-5 5"/></svg></button>`
+            : '';
+        return `<div class="cal-month-filter cal-status-filter${x ? ' has-x' : ''}" id="calCardStatusWrap">
             <button type="button" class="dropdown-trigger${on ? ' is-filtered' : ''}" id="calCardStatusBtn" onclick="_calToggleCardStatusMenu(event)" title="Show or hide cards by their overall status" aria-haspopup="menu" aria-expanded="false">
                 ${ico}<span class="cal-org-trigger-txt">${_calEsc(_calCardStatusSummary())}</span>${chev}
             </button>
@@ -283,7 +287,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
                 <div class="cal-org-sec">Overall status</div>
                 <div role="group" aria-label="Statuses">${rows}</div>
                 ${on ? '<div class="cal-org-sep" role="separator"></div><button type="button" class="dropdown-item cal-sf-menu-clear" role="menuitem" onclick="onCalCardStatusClear()">Clear status filter</button>' : ''}
-            </div>
+            </div>${x}
         </div>`;
     }
     function _calSetCardStatusOpen(open, opts) {
@@ -377,9 +381,12 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     /* Clears the picks and keeps the chosen mode, so "Hide" stays "Hide" for the
        next set of picks. */
     function onCalCardStatusClear() {
+        const fromX = !!(document.activeElement && document.activeElement.id === 'calCardStatusClearX');
         const f = _calNormCardStatusFilter(calState.cardStatusFilter);
         calState.cardStatusFilter = { mode: f.mode, picks: [] };
         _calCardStatusAfterChange();
+        // The x goes away with the filter; keep keyboard focus on the pill.
+        if (fromX) { const btn = document.getElementById('calCardStatusBtn'); if (btn) btn.focus(); }
     }
 
     /* Lighter path for the Order switch: update the chrome in place so the
@@ -1326,6 +1333,56 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         });
         return { boxes, page: { x: window.scrollX, y: window.scrollY, anchors: _calScrollAnchors(body, null) } };
     }
+    /* A background repaint (realtime, fallback poll, tab return, save echo)
+       rebuilds every card, so anything the person had open lived only on the
+       old nodes. Owner rule: a background refresh never unfocuses or resets
+       what the person is using. Before the repaint, note the open (Show more)
+       captions and the focused field with its caret and its own text; after
+       it, put them back on the matching new nodes. Runs before
+       _calRestoreScroll so a reopened caption is tall enough to take back its
+       inner scroll. The person's text wins over the refreshed value: what
+       they type is saved through the normal field save and its conflict
+       rules, never overwritten by a repaint. */
+    function _calCaptureLiveUi(body) {
+        const open = [];
+        body.querySelectorAll('.cal-cap-wrap.expanded').forEach(wrap => {
+            const ta = wrap.querySelector('textarea');
+            const path = ta && _calScrollerPath(ta, body);
+            if (path) open.push(path);
+        });
+        const a = document.activeElement;
+        let focus = null;
+        if (a && a !== body && body.contains(a)) {
+            const path = _calScrollerPath(a, body);
+            if (path) {
+                focus = { path, tag: a.tagName };
+                if (a.tagName === 'TEXTAREA' || a.tagName === 'INPUT') {
+                    focus.value = a.value;
+                    try { focus.start = a.selectionStart; focus.end = a.selectionEnd; focus.dir = a.selectionDirection || 'none'; } catch (e) {}
+                }
+            }
+        }
+        return (open.length || focus) ? { open, focus } : null;
+    }
+    function _calRestoreLiveUi(body, snap) {
+        if (!snap) return;
+        snap.open.forEach(path => {
+            const ta = _calFindScroller(path, body);
+            const wrap = ta && ta.closest('.cal-cap-wrap');
+            if (!wrap || wrap.classList.contains('expanded')) return;
+            wrap.classList.add('expanded');
+            if (typeof _calRefreshCaption === 'function') _calRefreshCaption(ta, false);
+        });
+        const f = snap.focus;
+        if (!f) return;
+        const el = _calFindScroller(f.path, body);
+        if (!el || el.tagName !== f.tag) return;
+        if (f.value != null && el.value !== f.value && !el.readOnly) el.value = f.value;
+        try {
+            if (document.activeElement !== el) el.focus({ preventScroll: true });
+            if (f.start != null && typeof el.setSelectionRange === 'function') el.setSelectionRange(f.start, f.end, f.dir);
+        } catch (e) {}
+    }
     function _calRestoreScroll(body, snap) {
         if (!snap) return;
         const settle = (el, rec, again) => {
@@ -1370,6 +1427,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const preserveScroll = !!(opts && opts.preserveScroll);
         const stripBefore = preserveScroll ? document.getElementById('calStrip') : null;
         const scrollSnap = preserveScroll ? _calCaptureScroll(body) : null;
+        const liveSnap = preserveScroll ? _calCaptureLiveUi(body) : null;
         const harvestedThumbs = (preserveScroll && stripBefore) ? _calHarvestThumbs() : null;
         if (!calState.client) {
             body.innerHTML = document.body.classList.contains('sv-shared-client')
@@ -1429,7 +1487,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             _calWireWeekWheel(body);
             _calWireDayDrag(body);
         }
-        if (preserveScroll) _calRestoreScroll(body, scrollSnap);
+        if (preserveScroll) { _calRestoreLiveUi(body, liveSnap); _calRestoreScroll(body, scrollSnap); }
         _calUpdateReviewBadge();
         _calSyncMonthWarnIcon();
         _calSyncClientLinks();
@@ -1955,7 +2013,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
        positioned SIBLINGS of the <img>, not part of it. */
     // PORT-DELTA: preserve the phone artifact's native-controls container when
     // media is replaced. It exists only while the staff phone controller runs.
-    const CAL_THUMB_OVERLAY_SEL = '.cal-card-platforms, .cal-card-color-tag, .cal-card-color-picker, .cal-thumb-linear-warn, .cal-smm-warn, .sv-phone-card-tools';
+    const CAL_THUMB_OVERLAY_SEL = '.cal-card-platforms, .cal-card-color-tag, .cal-card-color-picker, .cal-thumb-linear-warn, .cal-smm-warn, .sv-phone-card-tools, .cal-linear-pile';
     /* Swap ONLY the thumbnail media (img / fallback / load-error notice),
        leaving the overlays above untouched. The thumb's src carries a
        cache-bust token derived from updated_at (see _calCacheBustThumb), and
@@ -2900,7 +2958,8 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
         const href = svRoute.fast('/?prod=1&d=' + encodeURIComponent(id));
         const mark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6 10.2 10.2 6M7.2 6h3v3"/></svg>`;
-        return `<a class="cal-linear-btn cal-prod-btn cal-linear-btn-${which}" href="${_calEscAttr(href)}" target="_blank" rel="noopener" title="Open the ${label} in SyncLinear">${mark}</a>`;
+        _calWireWorkCard();
+        return `<a class="cal-linear-btn cal-prod-btn cal-linear-btn-${which}" href="${_calEscAttr(href)}" target="_blank" rel="noopener" data-deliverable-id="${_calEscAttr(id)}" aria-label="Open the ${label} in SyncLinear">${mark}</a>`;
     }
     /* ── Fill a missing component, from the card that is missing it ──────
      *
@@ -3140,9 +3199,9 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         if (cur && (cur.busy || Date.now() - cur.at < (cur.ok ? _CAL_FRAME_FOLDER_TTL : _CAL_FRAME_FOLDER_RETRY))) return cur;
         // Keep showing the last answer while a fresh one is fetched; a failed
         // fetch keeps it too.
-        const entry = _calFrameFolders[name] = { busy: true, url: cur ? cur.url : '', at: Date.now(), ok: cur ? cur.ok : false };
+        const entry = _calFrameFolders[name] = { busy: true, url: cur ? cur.url : '', raw: cur ? cur.raw : '', at: Date.now(), ok: cur ? cur.ok : false };
         const url = CAL_SUPABASE_URL + '/functions/v1/brain';
-        let before = entry.url;
+        let before = entry.url + '|' + entry.raw;
         fetch(url, {
             method: 'POST',
             headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': 'brain' }, url),
@@ -3151,24 +3210,287 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             const j = await r.json().catch(() => ({}));
             if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
             entry.url = _calFramePick(j.frame);
+            entry.raw = _calFramePick(j.raw);
             entry.ok = true;
         }).catch(() => { entry.ok = false; })
           .then(() => {
               entry.busy = false; entry.at = Date.now();
-              if (entry.url !== before && calState.client === name) _calRenderBody({ preserveScroll: true, skipIfUnchanged: true });
+              if (entry.url + '|' + entry.raw !== before && calState.client === name) {
+                  _calRenderBody({ preserveScroll: true, skipIfUnchanged: true });
+                  _calFilesMenuRefresh();
+              }
           });
         return entry;
     }
-    function _calFrameFolderSlotHtml() {
+    /* Files menu, the top of the pile (replaced the single Frame folder icon,
+       2026-10). One small menu per card, built on open, listing the four links
+       an editor reaches for. Where each one lives:
+         Filming plan       filming_plans.doc_url, per client (_fpLinkForClient)
+         Raw footage folder brain `folders` -> raw[], per client (above)
+         Frame folder       brain `folders` -> frame[], per client (above)
+         Thumbnail file     the card's own thumbnail_url
+       Each opens in a new tab; a missing one reads "not linked yet". Staff only. */
+    const _CAL_FILES_ICONS = {
+        plan: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M4 1.8h5.5L12.5 5v9.2H4z"/><path d="M6 8h4.5M6 10.6h4.5"/></svg>',
+        raw: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 4h4l1.5 1.6h6.9v7.6H1.8z"/></svg>',
+        frame: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6.5 6.3v3.4l3-1.7z"/></svg>',
+        thumb: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><circle cx="6" cy="6.5" r="1.3"/><path d="M2.5 12l3.8-3.5 2.6 2.3 2-1.6 2.6 2.3"/></svg>',
+        ext: '<svg class="cal-files-ext" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 2H2v8h8V7M7 2h3v3M10 2L5.5 6.5"/></svg>',
+    };
+    function _calFrameFolderSlotHtml(pid) {
         if (_isClientLink || !calState.client) return '';
         const entry = _calFrameFolderEnsure(calState.client);
-        if (!entry || !entry.url) return '';
-        // Only a Frame.io link gets the Frame icon and name; a Drive or Dropbox
-        // delivery link says what it is instead of posing as Frame.io.
-        const isFrame = _calIsFrameLink(entry.url);
-        const what = isFrame ? 'Frame.io' : _calLinkLabel(entry.url);
-        const tip = 'Open this client\'s ' + what + ' folder';
-        return `<a class="cal-linear-btn cal-frame-btn" href="${_calEscAttr(entry.url)}" target="_blank" rel="noopener" title="${_calEscAttr(tip)}" aria-label="${_calEscAttr(tip)}">${isFrame ? _calFrameMarkSvg() : _calFolderMarkSvg()}</a>`;
+        const isFrame = !!(entry && entry.url && _calIsFrameLink(entry.url));
+        const tip = 'Files: filming plan, raw footage, Frame folder, thumbnail';
+        return `<button type="button" class="cal-linear-btn cal-frame-btn cal-files-btn" data-files-pid="${_calEscAttr(pid)}" onclick="_calToggleFilesMenu(this, event)" aria-haspopup="menu" aria-expanded="false" title="${_calEscAttr(tip)}" aria-label="${_calEscAttr(tip)}">${isFrame ? _calFrameMarkSvg() : _calFolderMarkSvg()}</button>`;
+    }
+    /* The filming plans list lives in the on-demand Templates area. Load it
+       once per session, quietly (staff sign-in already present, never a
+       prompt from here), the first time a files menu opens. */
+    let _calFilesPlans = null;   // Map slug -> doc url, once loaded
+    let _calFilesPlanAsked = false;
+    function _calFilesPlanUrl() {
+        if (!_calFilesPlans || !calState.client) return '';
+        return _calFilesPlans.get(calClientSlug(calState.client)) || '';
+    }
+    function _calFilesEnsurePlans() {
+        if (_calFilesPlanAsked || typeof svArea !== 'function') return;
+        if (typeof _syncviewStaffIdentityForHeaders !== 'function' || !_syncviewStaffIdentityForHeaders()) return;
+        _calFilesPlanAsked = true;
+        svArea('templates').then(t => t.fpEnsureLoaded(true)).then(data => {
+            const m = new Map();
+            for (const r of (data && data.rows) || []) if (r && r.clientSlug && r.docUrl) m.set(r.clientSlug, r.docUrl);
+            _calFilesPlans = m;
+            _calFilesMenuRefresh();
+        }).catch(() => { _calFilesPlanAsked = false; });
+    }
+    function _calFilesMenuHtml(pid) {
+        const p = (calState.posts || []).find(x => String(x.id) === String(pid)) || {};
+        const entry = _calFrameFolders[calState.client] || {};
+        const thumb = String(p.thumbnail_url || '').trim().split(/\s+/)[0] || '';
+        const rows = [
+            ['plan', 'Filming plan', _calFilesPlanUrl()],
+            ['raw', 'Raw footage folder', entry.raw || ''],
+            ['frame', 'Frame folder', entry.url || ''],
+            ['thumb', 'Thumbnail file', /^https?:\/\//i.test(thumb) ? thumb : ''],
+        ];
+        const I = _CAL_FILES_ICONS;
+        const items = rows.map(([k, label, url]) => url
+            ? `<a class="dropdown-item cal-files-item" role="menuitem" data-files-kind="${k}" href="${_calEscAttr(url)}" target="_blank" rel="noopener" onclick="_calCloseFilesMenu()">${I[k]}<span>${label}</span>${I.ext}</a>`
+            : `<span class="dropdown-item cal-files-item is-missing" role="menuitem" aria-disabled="true" tabindex="-1" data-files-kind="${k}">${I[k]}<span>${label}</span><span class="cal-files-miss">not linked yet</span></span>`).join('');
+        return `<div class="cal-org-sec">Files</div>${items}`;
+    }
+    let _calFilesOpen = null;   // { pid, btn }
+    function _calCloseFilesMenu(opts) {
+        const menu = document.getElementById('calFilesMenu');
+        if (menu) menu.remove();
+        const was = _calFilesOpen;
+        _calFilesOpen = null;
+        if (was && was.btn && was.btn.isConnected) {
+            was.btn.setAttribute('aria-expanded', 'false');
+            if (opts && opts.focus) was.btn.focus();
+        }
+    }
+    function _calPlaceFilesMenu(menu, btn) {
+        const b = btn.getBoundingClientRect();
+        const w = menu.offsetWidth, h = menu.offsetHeight;
+        let left = b.right + 8, top = b.top - 6;
+        if (left + w > innerWidth - 8) left = Math.max(8, b.left - w - 8);
+        if (top + h > innerHeight - 8) top = Math.max(8, innerHeight - h - 8);
+        menu.style.left = (left + scrollX) + 'px';
+        menu.style.top = (top + scrollY) + 'px';
+    }
+    function _calToggleFilesMenu(btn, e) {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        const pid = btn.getAttribute('data-files-pid');
+        const same = _calFilesOpen && _calFilesOpen.pid === pid;
+        _calCloseFilesMenu();
+        if (same) return;
+        _calFilesEnsurePlans();
+        const menu = document.createElement('div');
+        menu.id = 'calFilesMenu';
+        menu.className = 'dropdown-menu open cal-files-menu';
+        menu.setAttribute('role', 'menu');
+        menu.setAttribute('aria-label', 'Files for this card');
+        menu.innerHTML = _calFilesMenuHtml(pid);
+        document.body.appendChild(menu);
+        _calPlaceFilesMenu(menu, btn);
+        _calFilesOpen = { pid, btn };
+        btn.setAttribute('aria-expanded', 'true');
+        _calWireFilesDismiss();
+        const first = menu.querySelector('a.cal-files-item');
+        if (first && e && e.detail === 0) first.focus();   // opened from the keyboard
+    }
+    function _calFilesMenuRefresh() {
+        const menu = document.getElementById('calFilesMenu');
+        if (!menu || !_calFilesOpen) return;
+        menu.innerHTML = _calFilesMenuHtml(_calFilesOpen.pid);
+    }
+    let _calFilesDismissWired = false;
+    function _calWireFilesDismiss() {
+        if (_calFilesDismissWired) return;
+        _calFilesDismissWired = true;
+        document.addEventListener('click', (ev) => {
+            if (!_calFilesOpen) return;
+            const menu = document.getElementById('calFilesMenu');
+            const t = ev.target;
+            if (menu && menu.contains(t)) return;
+            if (t && t.closest && t.closest('.cal-files-btn')) return;
+            _calCloseFilesMenu();
+        }, true);
+        document.addEventListener('keydown', (ev) => {
+            if (!_calFilesOpen) return;
+            const menu = document.getElementById('calFilesMenu');
+            if (!menu) return;
+            if (ev.key === 'Escape') { ev.preventDefault(); _calCloseFilesMenu({ focus: true }); return; }
+            if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+                const items = [...menu.querySelectorAll('a.cal-files-item')];
+                if (!items.length) return;
+                ev.preventDefault();
+                const i = items.indexOf(document.activeElement);
+                const next = ev.key === 'ArrowDown' ? (i + 1) % items.length : (i <= 0 ? items.length - 1 : i - 1);
+                items[next].focus();
+            } else if (ev.key === 'Tab' && menu.contains(document.activeElement)) {
+                _calCloseFilesMenu({ focus: true });
+            }
+        });
+        // Follow the button when the page or the card strip scrolls.
+        const follow = () => {
+            if (!_calFilesOpen) return;
+            const menu = document.getElementById('calFilesMenu');
+            if (!menu || !_calFilesOpen.btn.isConnected) { _calCloseFilesMenu(); return; }
+            _calPlaceFilesMenu(menu, _calFilesOpen.btn);
+        };
+        window.addEventListener('scroll', follow, true);
+        window.addEventListener('resize', follow);
+    }
+
+    /* Work item hover card on the SyncLinear sub-issue link (2026-10). Shows
+       the deliverable's identifier, title, status and how long it has been in
+       it, assignee, due date (red when late) and last update. Data: one small
+       read of the deliverables browser view for every deliverable id on
+       the open calendar, cached for two minutes; names from the staff roster
+       the app already caches. Hovering never makes a request per card. */
+    const _CAL_WORK_TTL = 120000;
+    const _calWork = { rows: new Map(), at: 0, key: '', busy: null };
+    function _calWorkIds() {
+        const ids = new Set();
+        for (const p of (calState.posts || [])) {
+            for (const v of [p.video_deliverable_id, p.graphic_deliverable_id]) { const id = String(v || '').trim(); if (id) ids.add(id); }
+        }
+        return [...ids].sort();
+    }
+    function _calWorkEnsure(id) {
+        const ids = _calWorkIds();
+        if (id && !ids.includes(id)) ids.push(id);
+        const key = ids.join(',');
+        const fresh = Date.now() - _calWork.at < _CAL_WORK_TTL;
+        if (_calWork.busy) return _calWork.busy;
+        if (fresh && (_calWork.rows.has(id) || _calWork.key === key)) return Promise.resolve(_calWork.rows.get(id) || null);
+        if (!ids.length) return Promise.resolve(null);
+        const url = CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select=id,identifier,title,status,status_at,assignee_id,due_date,updated_at&id=in.(' + ids.map(encodeURIComponent).join(',') + ')';
+        const roster = (typeof _syncviewStaffRoster === 'function') ? _syncviewStaffRoster().catch(() => []) : Promise.resolve([]);
+        _calWork.busy = Promise.all([
+            fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } })
+                .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))),
+            roster
+        ]).then(([rows, staff]) => {
+            const names = new Map((staff || []).map(m => [String(m.id), m.name]));
+            _calWork.rows = new Map();
+            for (const r of (Array.isArray(rows) ? rows : [])) _calWork.rows.set(String(r.id), Object.assign({}, r, { assignee_name: names.get(String(r.assignee_id || '')) || '' }));
+            _calWork.at = Date.now(); _calWork.key = key;
+            return _calWork.rows.get(id) || null;
+        }).catch(() => null).finally(() => { _calWork.busy = null; });
+        return _calWork.busy;
+    }
+    function _calAgo(iso, now) {
+        const t = Date.parse(iso || '');
+        if (!isFinite(t)) return '';
+        const m = Math.max(0, Math.round(((now || Date.now()) - t) / 60000));
+        if (m < 1) return 'just now';
+        if (m < 60) return m + (m === 1 ? ' minute' : ' minutes');
+        const h = Math.round(m / 60);
+        if (h < 24) return h + (h === 1 ? ' hour' : ' hours');
+        const d = Math.round(h / 24);
+        return d + (d === 1 ? ' day' : ' days');
+    }
+    function _calWorkCardHtml(row, which) {
+        if (!row) return `<div class="cal-wc-empty">Details are not available right now.</div>`;
+        const now = Date.now();
+        const status = String(row.status || '').trim() || 'No status';
+        const inFor = _calAgo(row.status_at, now);
+        const done = /done|approved|posted|cancel|complete/i.test(status);
+        let due = '—', late = false;
+        if (row.due_date) {
+            const d = new Date(String(row.due_date).slice(0, 10) + 'T00:00:00');
+            if (!isNaN(d)) {
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                const days = Math.round((today - d) / 86400000);
+                due = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                if (days > 0 && !done) { late = true; due += ' · ' + days + (days === 1 ? ' day late' : ' days late'); }
+            }
+        }
+        const updated = _calAgo(row.updated_at, now);
+        const who = row.assignee_name || (row.assignee_id ? 'Someone not on the roster' : 'Unassigned');
+        const initials = row.assignee_name ? row.assignee_name.split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase() : '';
+        return `<div class="cal-wc-id">${_calEsc(row.identifier || (which === 'graphic' ? 'Thumbnail' : 'Video'))}</div>
+            <div class="cal-wc-title">${_calEsc(row.title || 'Untitled')}</div>
+            <div class="cal-wc-grid">
+                <span class="cal-wc-k">Status</span><span class="cal-wc-v"><span class="cal-wc-status">${_calEsc(status)}</span>${inFor ? `<span class="cal-wc-sub">for ${_calEsc(inFor)}</span>` : ''}</span>
+                <span class="cal-wc-k">Assignee</span><span class="cal-wc-v">${initials ? `<span class="cal-wc-av" aria-hidden="true">${_calEsc(initials)}</span>` : ''}${_calEsc(who)}</span>
+                <span class="cal-wc-k">Due</span><span class="cal-wc-v${late ? ' is-late' : ''}">${_calEsc(due)}</span>
+                <span class="cal-wc-k">Updated</span><span class="cal-wc-v">${updated ? _calEsc(updated === 'just now' ? updated : updated + ' ago') : '—'}</span>
+            </div>`;
+    }
+    let _calWcTimer = 0, _calWcFor = null;
+    function _calHideWorkCard() {
+        clearTimeout(_calWcTimer);
+        const el = document.getElementById('calWorkCard');
+        if (el) el.remove();
+        if (_calWcFor && _calWcFor.isConnected) _calWcFor.removeAttribute('aria-describedby');
+        _calWcFor = null;
+    }
+    function _calShowWorkCard(a) {
+        const id = a.getAttribute('data-deliverable-id');
+        if (!id) return;
+        const which = a.classList.contains('cal-linear-btn-graphic') ? 'graphic' : 'video';
+        _calWcFor = a;
+        _calWorkEnsure(id).then(row => {
+            if (_calWcFor !== a || !a.isConnected) return;
+            let el = document.getElementById('calWorkCard');
+            if (!el) { el = document.createElement('div'); el.id = 'calWorkCard'; el.className = 'cal-wc'; el.setAttribute('role', 'tooltip'); document.body.appendChild(el); }
+            el.innerHTML = _calWorkCardHtml(row, which);
+            a.setAttribute('aria-describedby', 'calWorkCard');
+            const b = a.getBoundingClientRect();
+            let left = b.right + 10, top = b.top - 8;
+            if (left + el.offsetWidth > innerWidth - 8) left = Math.max(8, b.left - el.offsetWidth - 10);
+            if (top + el.offsetHeight > innerHeight - 8) top = Math.max(8, innerHeight - el.offsetHeight - 8);
+            el.style.left = (left + scrollX) + 'px';
+            el.style.top = (top + scrollY) + 'px';
+        });
+    }
+    let _calWcWired = false;
+    function _calWireWorkCard() {
+        if (_calWcWired || _isClientLink) return;
+        _calWcWired = true;
+        const enter = (ev) => {
+            const a = ev.target && ev.target.closest && ev.target.closest('a.cal-prod-btn[data-deliverable-id]');
+            if (!a || a === _calWcFor) return;
+            _calHideWorkCard();
+            _calWcFor = a;
+            _calWcTimer = setTimeout(() => _calShowWorkCard(a), ev.type === 'focusin' ? 0 : 250);
+        };
+        const leave = (ev) => {
+            const a = ev.target && ev.target.closest && ev.target.closest('a.cal-prod-btn[data-deliverable-id]');
+            if (!a || (ev.relatedTarget && a.contains(ev.relatedTarget))) return;
+            if (a === _calWcFor) _calHideWorkCard();
+        };
+        document.addEventListener('mouseover', enter);
+        document.addEventListener('focusin', enter);
+        document.addEventListener('mouseout', leave);
+        document.addEventListener('focusout', leave);
+        document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && _calWcFor) _calHideWorkCard(); });
+        window.addEventListener('scroll', () => { if (_calWcFor) _calHideWorkCard(); }, true);
     }
     function _calLinearPileHtml(pid, p) {
         const v = _calLinearSlotHtml(pid, p.linear_issue_id, false, 'video');
@@ -3180,7 +3502,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         // close rather than as a card that is simply missing something.
         const fv = _calFillComponentSlotHtml(p, 'video');
         const fg = _calFillComponentSlotHtml(p, 'graphic');
-        const fr = _calFrameFolderSlotHtml();
+        const fr = _calFrameFolderSlotHtml(pid);
         if (!fr && !v && !g && !pv && !pg && !fv && !fg) return '';
         return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${fr}${v}${pv}${fv}${g}${pg}${fg}</div>`;
     }
@@ -3418,20 +3740,21 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        _calCloseClientLinks, _calCloseKebab, _calEditLink, _calFillComponent, _calLinearClear,
-        _calLinearCommit, _calLinearEdit, _calLinearKey, _calLinkConflictCancel, _calOnLinkBlur,
-        _calOnLinkInput, _calOnLinkKey, _calOnMiniThumbError, _calOnReviewThumbError, _calOnThumbImgError,
-        _calOpenLink, _calOpenThumbnailFolder, _calPhoneCloseMenu, _calPhoneOpenMenu, _calTabScrollBy,
-        _calToggleCardStatusMenu, _calToggleClientLinks, _calToggleImportActions, _calToggleKebab,
-        _calToggleMonthWarnPop, _calUpdateTabScroll, _thumbCompareClose, _thumbCompareImgError,
-        _thumbCompareLoad, _thumbCompareOpen, _thumbCompareSignIn, calZoom, onCalCardStatusClear,
-        onCalCardStatusMode, onCalCardStatusToggle, onCalClearFilters, onCalMonthFilterChange,
-        onCalSortModeToggle, onCalStatusFilterChange, onCalTabAddClick, onCalTabClick, onCalTabRemove,
-        onCalViewChange
+        _calCloseClientLinks, _calCloseFilesMenu, _calCloseKebab, _calEditLink, _calFillComponent,
+        _calLinearClear, _calLinearCommit, _calLinearEdit, _calLinearKey, _calLinkConflictCancel,
+        _calOnLinkBlur, _calOnLinkInput, _calOnLinkKey, _calOnMiniThumbError, _calOnReviewThumbError,
+        _calOnThumbImgError, _calOpenLink, _calOpenThumbnailFolder, _calPhoneCloseMenu, _calPhoneOpenMenu,
+        _calTabScrollBy, _calToggleCardStatusMenu, _calToggleClientLinks, _calToggleFilesMenu,
+        _calToggleImportActions, _calToggleKebab, _calToggleMonthWarnPop, _calUpdateTabScroll,
+        _thumbCompareClose, _thumbCompareImgError, _thumbCompareLoad, _thumbCompareOpen, _thumbCompareSignIn,
+        calZoom, onCalCardStatusClear, onCalCardStatusMode, onCalCardStatusToggle, onCalClearFilters,
+        onCalMonthFilterChange, onCalSortModeToggle, onCalStatusFilterChange, onCalTabAddClick, onCalTabClick,
+        onCalTabRemove, onCalViewChange
     });
 export {
   onCalClientChange,
   _calStaffPhoneActive, _calPhoneClient, _calPhoneSectionHtml,
+  _calCaptureLiveUi, _calCaptureScroll, _calRestoreLiveUi, _calRestoreScroll,
   _CAL_CLIENT_READY_STATES, _CAL_WEEK_BUFFER, _calAdoptThumbnailFolderMeta, _calBlankPost,
   _calChevron, _calClearThumbnailFolderMeta, _calClientCompPillsHtml, _calClientHue,
   _calCompStatusLabel, _calDeriveThumb, _calDeriveThumbInfo, _calDriveWarnHtml,

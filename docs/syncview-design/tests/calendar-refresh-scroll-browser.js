@@ -16,6 +16,20 @@
 // this jumped by many cards (Month 0 -> 852px, Sheet about 18 cards, Review
 // and the client link by a screen or more) and a folded phone day pushed the
 // page by twice its offset.
+//
+// Part 3, what the person is using (owner rule, 2026-10-13): a background
+// refresh must never unfocus or reset anything. A long caption is opened with
+// Show more and scrolled inside, the strip is scrolled sideways and the
+// pointer rests on a card; then each real refresh path runs, one at a time:
+// the fallback poll (realtime never connects, the 30 s timer pulls), a
+// realtime change from a teammate, a tab return (visibility and focus events)
+// and the echo of the person's own save while they type in that caption. After
+// each, the caption is still open at the same inner scroll, focus and caret
+// are where they were, the person's typed text is kept, an open status menu is
+// still open, the strip has not moved and the hovered card is still hovered.
+// The Samples Sheet shares the repaint and must keep its strip and focus too.
+// Before the fix the first repaint closed the caption and dropped focus to
+// the page, and a Samples repaint put its strip back at the start.
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 const { serve, installFixture, BASE_ROW } = require('./client-phone-review-browser');
@@ -336,6 +350,210 @@ async function movedCase(browser, origin, [label, opts, rowsFn, drive]) {
   }
 }
 
+// ---- Part 3: what the person is using survives every refresh path ---------
+
+const LONG_CAPTION = Array.from({ length: 60 }, (_, i) => 'Line ' + (i + 1) + ' of a fictional caption about a lighthouse that keeps lost umbrellas.').join('\n');
+// A stand-in for the realtime library: channels never confirm (so the
+// fallback poll stays armed) and a test can deliver a change to the
+// Calendar's own handler.
+const FAKE_SUPABASE_LIB = `window.supabase = { createClient: function () { return {
+  channel: function (topic) { var ch = { topic: topic, handlers: [],
+    on: function (ev, filter, cb) { ch.handlers.push(cb); return ch; },
+    subscribe: function () { (window.__fixtureChannels = window.__fixtureChannels || []).push(ch); return ch; },
+    unsubscribe: function () {} }; return ch; },
+  removeChannel: function () {} }; } };`;
+
+async function liveUiCase(browser, origin) {
+  const ctx = await browser.newContext({ viewport: DESKTOP, reducedMotion: 'reduce' });
+  await installFixture(ctx, origin, { ...BASE_ROW, id: 'p_live_fixture_unused' }, [], 'calendar');
+  await seedStaffGate(ctx);
+  await ctx.route('https://cdn.jsdelivr.net/npm/@supabase/**', route => route.fulfill({ status: 200, contentType: 'application/javascript', body: FAKE_SUPABASE_LIB }));
+  // Saving is switched on for the fixture client, so the person's caption
+  // really goes out and its echo comes back.
+  await ctx.route('**/rest/v1/syncview_runtime_flags*', route => {
+    const key = (new URL(route.request().url()).searchParams.get('key') || '').replace(/^eq\./, '');
+    if (!/_clients$/.test(key)) return route.fallback();
+    return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify([{ key, value: { clients: ['phonefixtureclient'] } }]) });
+  });
+  const net = { gets: 0, saves: 0 };
+  await ctx.route('**/rest/v1/calendar_posts*', route => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    // Only this board's reads count; other surfaces read the same table.
+    const n = /[?&]client=eq\./.test(route.request().url()) ? ++net.gets : net.gets;
+    const rows = [];
+    // Every read brings a teammate's change on card 7, so every refresh repaints.
+    for (let k = 0; k < 10; k++) rows.push(post('p_live_' + k, null, { order_index: k + 1, caption: k === 1 ? LONG_CAPTION : 'Short fixture caption.',
+      linear_issue_id: 'FIXTURE-' + k, video_deliverable_id: 'fixture-deliverable-' + k, status: 'In Progress', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress',
+      ...(k === 7 ? { name: 'Teammate edit ' + n, updated_at: new Date(Date.UTC(2026, 9, 10, 12, 0, n)).toISOString() } : {}) }));
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows), headers: CORS });
+  });
+  const page = await ctx.newPage();
+  // The person's own caption save, wherever the page sends it.
+  page.on('request', r => { if ((r.method() === 'POST' || r.method() === 'PATCH') && /typed by the person/.test(r.postData() || '')) { if (process.env.LIVE_DEBUG) console.log('WRITE', r.url().slice(0, 120)); net.saves++; } });
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto(origin + '/index.html#calendar', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => typeof navTo === 'function');
+  await page.evaluate(() => navTo('calendar'));
+  await page.locator('#calView').waitFor();
+  await showView(page, 'organizer');
+  await page.waitForFunction(() => (window.__fixtureChannels || []).some(c => /^cal-/.test(c.topic)), null, { timeout: 15000 });
+  const CAP = '#calStrip .cal-card[data-pid="p_live_1"] textarea[data-fld="caption"]';
+  const lines = [];
+
+  // Open the long caption with Show more, scroll inside it, slide the strip,
+  // rest the pointer on card 3.
+  async function arrange() {
+    await page.evaluate(() => { const s = document.getElementById('calStrip'); s.scrollLeft = 0; });
+    if (!await page.evaluate(sel => document.querySelector(sel).closest('.cal-cap-wrap').classList.contains('expanded'), CAP)) {
+      await page.click('#calStrip .cal-card[data-pid="p_live_1"] .cal-cap-toggle');
+    }
+    await page.evaluate(sel => { document.querySelector(sel).scrollTop = 420; document.getElementById('calStrip').scrollLeft = 150; }, CAP);
+    const box = await page.locator('#calStrip .cal-card[data-pid="p_live_3"] .cal-card-title, #calStrip .cal-card[data-pid="p_live_3"]').first().boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + 30);
+    await page.waitForTimeout(300);
+  }
+  function snap() {
+    return page.evaluate(sel => {
+      const t = document.querySelector(sel), a = document.activeElement;
+      const card = a && a.closest && a.closest('.cal-card');
+      const menu = document.querySelector('body > .cal-fld-status-menu');
+      return {
+        open: t.closest('.cal-cap-wrap').classList.contains('expanded'), capTop: Math.round(t.scrollTop), capH: Math.round(t.clientHeight),
+        strip: Math.round(document.getElementById('calStrip').scrollLeft),
+        focus: a ? a.tagName + '.' + String(a.className).split(' ')[0] + '@' + (card ? card.getAttribute('data-pid') : '-') : '-',
+        caret: a && a.tagName === 'TEXTAREA' ? a.selectionStart + ':' + a.selectionEnd : '', text: t.value.length,
+        hovered: !!document.querySelector('#calStrip .cal-card[data-pid="p_live_3"]:hover'),
+        menu: !!(menu && menu.isConnected), title7: (document.querySelector('#calStrip .cal-card[data-pid="p_live_7"] [data-fld="name"]') || {}).value || '',
+      };
+    }, CAP);
+  }
+  async function check(label, trigger, opts) {
+    const before = await snap();
+    const gets0 = net.gets;
+    await trigger();
+    const deadline = Date.now() + (opts && opts.waitMs || 15000);
+    while (net.gets === gets0 && Date.now() < deadline) await page.waitForTimeout(250);
+    assert(net.gets > gets0, label + ': the refresh never read the board');
+    await page.waitForTimeout(1500);
+    const after = await snap();
+    if (!(opts && opts.deferred)) assert.notEqual(after.title7, before.title7, label + ': the refresh never repainted the board (teammate edit not shown)');
+    for (const k of ['open', 'capTop', 'capH', 'strip', 'focus', 'caret', 'text', 'hovered', 'menu']) {
+      assert.deepEqual(after[k], before[k], label + ': ' + k + ' changed from ' + JSON.stringify(before[k]) + ' to ' + JSON.stringify(after[k]) + (process.env.LIVE_DEBUG ? JSON.stringify([before, after]) : ''));
+    }
+    lines.push('Sheet keeps caption, focus, strip, hover across ' + label + ' (caption scroll ' + after.capTop + ', strip ' + after.strip + ', focus ' + after.focus + ')');
+  }
+
+  try {
+    await arrange();
+    const opened = await snap();
+    assert(opened.open && opened.capTop > 0 && opened.strip > 0 && opened.hovered, 'fixture did not open, scroll and hover: ' + JSON.stringify(opened));
+
+    // 1. The fallback poll: realtime never confirmed, so the 30 s timer pulls.
+    await check('the fallback poll', async () => {}, { waitMs: 36000 });
+
+    // 2. A realtime change from a teammate, through the Calendar's own handler.
+    await page.waitForTimeout(2500);   // past the realtime reload floor
+    await check('a realtime change', () => page.evaluate(() => {
+      const ch = window.__fixtureChannels.filter(c => /^cal-/.test(c.topic)).pop();
+      ch.handlers.forEach(cb => cb({ eventType: 'UPDATE', new: { id: 'p_live_7' }, old: { id: 'p_live_7' } }));
+    }));
+
+    // 3. A tab return: hidden, then visible and focused again.
+    await page.waitForTimeout(4500);   // past the return de-dupe floor
+    await check('a tab return', () => page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      document.dispatchEvent(new Event('visibilitychange'));
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('focus'));
+    }));
+
+    // 4. An open status menu survives a refresh (realtime again).
+    // Opened in place (a pointer click would first scroll the page to it).
+    await page.evaluate(() => document.querySelector('#calStrip .cal-card[data-pid="p_live_3"] .cal-fld-substatus-trigger').click());
+    await page.waitForSelector('body > .cal-fld-status-menu');
+    await page.waitForTimeout(2500);
+    await check('a realtime change with a status menu open', () => page.evaluate(() => {
+      const ch = window.__fixtureChannels.filter(c => /^cal-/.test(c.topic)).pop();
+      ch.handlers.forEach(cb => cb({ eventType: 'UPDATE', new: { id: 'p_live_7' } }));
+    }), { deferred: true });
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(400);
+    await page.waitForSelector('body > .cal-fld-status-menu', { state: 'detached', timeout: 3000 }).catch(() => {});
+
+    // 5. The echo of the person's own save while they type in the caption.
+    await page.click(CAP);
+    await page.evaluate(sel => { const t = document.querySelector(sel); t.setSelectionRange(30, 30); t.scrollTop = 300; }, CAP);
+    await page.keyboard.type(' typed by the person');
+    const saves0 = net.saves;
+    const saveBy = Date.now() + 8000;
+    while (net.saves === saves0 && Date.now() < saveBy) await page.waitForTimeout(200);
+    assert(net.saves > saves0, 'the typed caption was never saved');
+    await page.waitForTimeout(500);
+    await check('the echo of the person\'s own save while typing', () => page.evaluate(() => {
+      const ch = window.__fixtureChannels.filter(c => /^cal-/.test(c.topic)).pop();
+      ch.handlers.forEach(cb => cb({ eventType: 'UPDATE', new: { id: 'p_live_1' } }));
+    }), { deferred: true, waitMs: 12000 });
+    const typed = await page.evaluate(sel => document.querySelector(sel).value.includes(' typed by the person'), CAP);
+    assert(typed, 'the person\'s typed caption text was lost');
+    assert.deepEqual(errors, [], 'live-ui: page errors ' + errors.join(' | '));
+    return lines;
+  } finally {
+    await ctx.close();
+  }
+}
+
+// The Samples Sheet shares the repaint: a background reload keeps its strip
+// and the focused field with its caret.
+async function samplesLiveUiCase(browser, origin) {
+  const ctx = await browser.newContext({ viewport: DESKTOP, reducedMotion: 'reduce' });
+  await installFixture(ctx, origin, { ...BASE_ROW, id: 'sr_live_unused' }, [], 'samples');
+  await seedStaffGate(ctx);
+  let gets = 0;
+  await ctx.route('**/rest/v1/sample_reviews*', route => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const n = ++gets;
+    const rows = [];
+    for (let k = 0; k < 10; k++) rows.push({ ...BASE_ROW, id: 'sr_live_' + k, name: k === 7 ? 'Teammate edit ' + n : 'Sample fixture ' + k, order_index: k + 1,
+      video_status: 'In Progress', graphic_status: 'In Progress', status: 'In Progress', creative_direction: 'Fictional direction ' + k,
+      updated_at: k === 7 ? new Date(Date.UTC(2026, 9, 10, 12, 0, n)).toISOString() : BASE_ROW.updated_at });
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows), headers: CORS });
+  });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  try {
+    await page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => typeof navTo === 'function' && typeof _sxrSavePins === 'function');
+    await page.evaluate(c => { _sxrSavePins([c]); sxrState.client = c; navTo('sample-reviews'); }, CLIENT);
+    await page.waitForSelector('#sxrStrip .cal-card[data-pid="sr_live_2"]', { timeout: 20000 });
+    await page.waitForTimeout(800);
+    const field = '#sxrStrip .cal-card[data-pid="sr_live_2"] [data-fld="creative_direction"]';
+    await page.evaluate(() => { document.getElementById('sxrStrip').scrollLeft = 150; });
+    await page.click(field);
+    await page.evaluate(sel => document.querySelector(sel).setSelectionRange(4, 7), field);
+    const read = () => page.evaluate(sel => {
+      const a = document.activeElement;
+      return { strip: Math.round(document.getElementById('sxrStrip').scrollLeft), focus: a && a.matches(sel) ? 'field' : (a ? a.tagName : '-'),
+        caret: a && a.selectionStart != null ? a.selectionStart + ':' + a.selectionEnd : '',
+        name7: (document.querySelector('#sxrStrip .cal-card[data-pid="sr_live_7"] [data-fld="name"]') || {}).value || '' };
+    }, field);
+    const before = await read();
+    assert(before.strip > 0 && before.focus === 'field', 'samples fixture did not scroll and focus: ' + JSON.stringify(before));
+    // The repaint a realtime change or a tab return runs once the reload lands.
+    await page.evaluate(async () => { await loadSxrCards({ background: true }); _sxrRenderBody({ preserveScroll: true }); });
+    await page.waitForTimeout(800);
+    const after = await read();
+    assert.notEqual(after.name7, before.name7, 'samples: the refresh never repainted the board');
+    for (const k of ['strip', 'focus', 'caret']) assert.deepEqual(after[k], before[k], 'samples: ' + k + ' changed from ' + JSON.stringify(before[k]) + ' to ' + JSON.stringify(after[k]));
+    assert.deepEqual(errors, [], 'samples: page errors ' + errors.join(' | '));
+    return 'Samples Sheet keeps its strip (' + after.strip + ') and the focused field with its caret (' + after.caret + ') across a background repaint';
+  } finally {
+    await ctx.close();
+  }
+}
+
 (async () => {
   const server = await serve();
   const origin = 'http://127.0.0.1:' + server.address().port;
@@ -353,10 +571,16 @@ async function movedCase(browser, origin, [label, opts, rowsFn, drive]) {
       try { console.log('  ok  ' + await movedCase(browser, origin, c)); }
       catch (e) { failures.push(e.message); console.log('  FAIL ' + e.message); }
     }
+    checks += 1;
+    try { (await liveUiCase(browser, origin)).forEach(line => console.log('  ok  ' + line)); }
+    catch (e) { failures.push(e.message); console.log('  FAIL ' + e.message); }
+    checks += 1;
+    try { console.log('  ok  ' + await samplesLiveUiCase(browser, origin)); }
+    catch (e) { failures.push(e.message); console.log('  FAIL ' + e.message); }
   } finally {
     await browser.close();
     server.close();
   }
   if (failures.length) throw new Error(failures.length + ' failing: ' + failures.join(' || '));
-  console.log('calendar-refresh-scroll-browser: PASS (' + checks + ' checks: ' + VIEWS.length * SCREENS.length + ' insertion views, ' + MOVED_CASES.length + ' moved-card cases)');
+  console.log('calendar-refresh-scroll-browser: PASS (' + checks + ' checks: ' + VIEWS.length * SCREENS.length + ' insertion views, ' + MOVED_CASES.length + ' moved-card cases, 2 live-UI cases)');
 })().catch(e => { console.error('calendar-refresh-scroll-browser: FAIL ' + (e && e.message)); process.exit(1); });

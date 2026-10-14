@@ -109,12 +109,27 @@ async function openStaff(page, origin) {
   await page.waitForTimeout(800);
 }
 
+/* The pile's first button now opens the per-card files menu; read the Frame
+   folder row out of it for every card. null = the row says "not linked yet". */
+async function frameLinks(page) {
+  const out = [];
+  const n = await page.locator('.cal-files-btn').count();
+  for (let i = 0; i < n; i++) {
+    await page.locator('.cal-files-btn').nth(i).click();
+    await page.locator('#calFilesMenu').waitFor({ timeout: 5000 });
+    out.push(await page.$eval('#calFilesMenu [data-files-kind="frame"]', e => e.tagName === 'A'
+      ? { href: e.getAttribute('href'), target: e.getAttribute('target'), rel: e.getAttribute('rel') } : null));
+    await page.keyboard.press('Escape');
+  }
+  return out;
+}
+
 async function main() {
   const server = await serve();
   const origin = 'http://127.0.0.1:' + server.address().port;
   const browser = await chromium.launch();
   try {
-    // 1. folder saved: button on every card, first in the pile, opens the folder
+    // 1. folder saved: files button on every card, first in the pile, its menu opens the folder
     console.log('--- Staff, folder saved ---');
     let state = { brain: [] };
     let t = await newPage(browser, origin, 'folder', state);
@@ -125,17 +140,17 @@ async function main() {
       const fr = pile.querySelector('.cal-frame-btn');
       return {
         first: !!first && first.classList.contains('cal-frame-btn'),
-        href: fr ? fr.getAttribute('href') : '', target: fr ? fr.getAttribute('target') : '',
-        rel: fr ? fr.getAttribute('rel') : '', title: fr ? fr.getAttribute('title') : '', hasSvg: !!(fr && fr.querySelector('svg')),
+        title: fr ? fr.getAttribute('title') : '', hasSvg: !!(fr && fr.querySelector('svg')),
         above: fr && prod ? fr.getBoundingClientRect().top < prod.getBoundingClientRect().top : null,
         hasProd: !!prod
       };
     }));
     expect(btns.length === 2, 'both cards have a button pile (got ' + btns.length + ')');
     expect(btns.every(b => b.first), 'the Frame button is the first item in every pile');
-    expect(btns.every(b => b.href === FRAME_URL), 'it links to the saved Frame folder');
-    expect(btns.every(b => b.target === '_blank' && /noopener/.test(b.rel)), 'it opens in a new tab with noopener');
-    expect(btns.every(b => /Frame\.io folder/.test(b.title) && b.hasSvg), 'it carries the Frame icon and a tooltip');
+    const links1 = await frameLinks(t.page);
+    expect(links1.length === 2 && links1.every(l => l && l.href === FRAME_URL), 'its Frame folder row links to the saved Frame folder');
+    expect(links1.every(l => l && l.target === '_blank' && /noopener/.test(l.rel)), 'it opens in a new tab with noopener');
+    expect(btns.every(b => /Files/.test(b.title) && b.hasSvg), 'the button carries an icon and a tooltip');
     expect(btns.some(b => b.hasProd && b.above === true), 'on a card with a production button the Frame button sits above it');
     expect(state.brain.length === 1 && state.brain[0].action === 'folders', 'the folder is read once for the whole calendar (' + state.brain.length + ' request)');
     expect(t.pageErrors.length === 0, 'no browser errors ' + JSON.stringify(t.pageErrors));
@@ -146,7 +161,7 @@ async function main() {
     state = { brain: [] };
     t = await newPage(browser, origin, 'both', state);
     await openStaff(t.page, origin);
-    const hrefs = await t.page.$$eval('.cal-frame-btn', els => els.map(e => e.getAttribute('href')));
+    const hrefs = (await frameLinks(t.page)).map(l => l && l.href);
     expect(hrefs.length === 2 && hrefs.every(h => h === FRAME_URL), 'a frame.io folder is chosen over a newer Drive one');
     await t.ctx.close();
 
@@ -155,9 +170,8 @@ async function main() {
     state = { brain: [] };
     t = await newPage(browser, origin, 'drive', state);
     await openStaff(t.page, origin);
-    const drive = await t.page.$$eval('.cal-frame-btn', els => els.map(e => ({ href: e.getAttribute('href'), title: e.getAttribute('title') })));
-    expect(drive.length === 2 && drive.every(d => d.href === DRIVE_URL), 'a Drive-only client still gets a working folder button');
-    expect(drive.every(d => /Google Drive folder/.test(d.title) && !/Frame/.test(d.title)), 'its label names Google Drive, not Frame.io');
+    const drive = await frameLinks(t.page);
+    expect(drive.length === 2 && drive.every(d => d && d.href === DRIVE_URL), 'a Drive-only client still gets a working folder link');
     await t.ctx.close();
 
     // 2c. a saved folder that changes while the calendar stays open is picked up
@@ -166,30 +180,30 @@ async function main() {
     t = await newPage(browser, origin, 'change', state);
     await t.page.clock.install();
     await openStaff(t.page, origin);
-    expect(await t.page.$eval('.cal-frame-btn', e => e.getAttribute('href')) === FRAME_URL, 'first read shows the saved folder');
+    expect((await frameLinks(t.page))[0].href === FRAME_URL, 'first read shows the saved folder');
     await t.page.clock.fastForward(6 * 60 * 1000);
     await t.page.evaluate(() => _calRenderBody({ preserveScroll: true }));
-    await t.page.waitForFunction(u => { const e = document.querySelector('.cal-frame-btn'); return e && e.getAttribute('href') === u; }, CHANGED_URL, { timeout: 10000 }).catch(() => {});
-    expect(await t.page.$eval('.cal-frame-btn', e => e.getAttribute('href')) === CHANGED_URL, 'after five minutes the folder is read again and the new link shows');
+    await t.page.waitForFunction(() => { const e = Object.values(_calFrameFolders)[0]; return e && !e.busy; }, null, { timeout: 10000 }).catch(() => {});
+    expect((await frameLinks(t.page))[0].href === CHANGED_URL, 'after five minutes the folder is read again and the new link shows');
     expect(state.brain.length === 2, 'exactly one extra read (' + state.brain.length + ' total)');
     await t.ctx.close();
 
-    // 3. no folder saved: hidden
+    // 3. no folder saved: the menu still opens, its Frame row says "not linked yet"
     console.log('--- Staff, no folder saved ---');
     state = { brain: [] };
     t = await newPage(browser, origin, 'none', state);
     await openStaff(t.page, origin);
     expect(state.brain.length === 1, 'the folder was asked for');
-    expect(await t.page.$$eval('.cal-frame-btn', els => els.length) === 0, 'no Frame button when the client has no saved folder');
+    expect((await frameLinks(t.page)).every(l => l === null), 'the Frame row reads "not linked yet" when the client has no saved folder');
     expect(t.pageErrors.length === 0, 'no browser errors ' + JSON.stringify(t.pageErrors));
     await t.ctx.close();
 
-    // 4. lookup fails: hidden, page keeps working
+    // 4. lookup fails: Frame row not linked, page keeps working
     console.log('--- Staff, lookup fails ---');
     state = { brain: [] };
     t = await newPage(browser, origin, 'error', state);
     await openStaff(t.page, origin);
-    expect(await t.page.$$eval('.cal-frame-btn', els => els.length) === 0, 'no Frame button when the lookup fails');
+    expect((await frameLinks(t.page)).every(l => l === null), 'the Frame row reads "not linked yet" when the lookup fails');
     expect(await t.page.$$eval('.cal-card-thumb', els => els.length) === 2, 'the calendar still renders both cards');
     expect(t.pageErrors.length === 0, 'no browser errors ' + JSON.stringify(t.pageErrors));
     await t.ctx.close();

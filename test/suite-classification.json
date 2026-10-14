@@ -1676,6 +1676,14 @@
       "ci": "representative"
     },
     {
+      "file": "calendar-status-row-urgent-height-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, fictional test client and cards, no hosted credentials. Checks the staff Calendar and Samples Sheet: with a part Urgent every status row stays one line and the same height, and each status name carries its full-name tooltip, on desktop (three card sizes) and phone, light and dark, both status palettes.",
+      "reproduce": "node test/calendar-status-row-urgent-height-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "caption-generate-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

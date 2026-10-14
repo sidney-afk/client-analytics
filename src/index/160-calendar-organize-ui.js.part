@@ -33,12 +33,12 @@ import {
   _calOrganizeTriggerLabel, _calSetOrganizeOpen, _calV2Teardown, loadCalendarPosts
 } from './150-calendar-hydration-import.js';
 import {
-  _calFlushCardSave, _calForceThumbRefresh, _calLivePreviewThumb, _calOnFieldBlur,
+  _calAutosizeTextareas, _calFlushCardSave, _calForceThumbRefresh, _calLivePreviewThumb, _calOnFieldBlur, _calOpenStatusMenu,
   _calOnFieldInput, _calRefreshCaption, _calRefreshCardThumb, _calRefreshMediaWarning, _calRenderInlineCard,
   _calStatusSlug, _calThumbSrcBase, _svSaveIndHtml
 } from './170-calendar-links-status.js';
 import {
-  COMP_LABELS, _calCapGenBtnRefresh, calMonthShift, calWeekShiftDays, renderCalMonth,
+  COMP_LABELS, _calCapGenBtnRefresh, _calWireDragOnCard, calMonthShift, calWeekShiftDays, renderCalMonth,
   renderCalWeek, wireCalOrganizerDrag
 } from './180-calendar-native-post-media.js';
 import { _calApprovalBadgeCount, _calUpdateReviewBadge, _calWireReviewExpand, renderCalReview } from './190-calendar-approval-comments.js';
@@ -1377,6 +1377,9 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         if (!f) return;
         const el = _calFindScroller(f.path, body);
         if (!el || el.tagName !== f.tag) return;
+        // Not redrawn (an unchanged card): its focus, caret and text are the
+        // person's own, so nothing is set again.
+        if (document.activeElement === el && (f.start == null || (el.selectionStart === f.start && el.selectionEnd === f.end))) return;
         if (f.value != null && el.value !== f.value && !el.readOnly) el.value = f.value;
         try {
             if (document.activeElement !== el) el.focus({ preventScroll: true });
@@ -1419,16 +1422,103 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     }
 
     let _calLastBodyPaint = { el: null, view: null, html: null };
+    // The items a background repaint can swap one by one: cards, review
+    // cards, days, pills and the status line. Only the outermost of nested ones.
+    const CAL_PATCH_ITEMS = '[data-pid],[data-cal-review-pid],[data-iso],[data-cal-move],#calCardStatusStrip';
+    function _calPatchKey(el) {
+        if (el.id === 'calCardStatusStrip') return '#strip';
+        for (const a of ['data-pid', 'data-cal-review-pid', 'data-iso', 'data-cal-move']) if (el.hasAttribute(a)) return a + '=' + el.getAttribute(a);
+        return '';
+    }
+    function _calPatchItems(root) {
+        const out = [];
+        root.querySelectorAll(CAL_PATCH_ITEMS).forEach(el => {
+            const outer = el.parentElement && el.parentElement.closest(CAL_PATCH_ITEMS);
+            if (!outer || !root.contains(outer)) out.push(el);
+        });
+        return out;
+    }
+    // The markup with every item replaced by an empty slot: equal when nothing
+    // around the items changed.
+    function _calPatchFrame(html) {
+        const t = document.createElement('template');
+        t.innerHTML = html;
+        _calPatchItems(t.content).forEach(el => el.replaceWith(document.createElement('sv-slot')));
+        return t.innerHTML;
+    }
+    /* Swap only the items whose markup changed between the last paint and
+       this one. Returns false (and touches nothing) when the shape of the
+       board changed, or the live board no longer matches the last paint;
+       otherwise { held, html }: how many changed items were left alone
+       because the person is using them (leaveInUse), and the markup the
+       board now shows. */
+    // An item the person is using right now: it holds the focus, the open
+    // status menu's button, or a card with edits not yet saved.
+    function _calPatchItemInUse(el) {
+        const a = document.activeElement;
+        if (a && a !== document.body && el.contains(a)) return true;
+        const menu = _calOpenStatusMenu;
+        if (menu && menu.triggerEl && el.contains(menu.triggerEl)) return true;
+        const pids = [el, ...el.querySelectorAll('[data-pid],[data-cal-move],[data-cal-review-pid]')]
+            .map(n => n.getAttribute('data-pid') || n.getAttribute('data-cal-move') || n.getAttribute('data-cal-review-pid')).filter(Boolean);
+        return pids.some(pid => _calPendingEdits[pid]);
+    }
+    function _calPatchBody(body, html, lastHtml, leaveInUse) {
+        const oldT = document.createElement('template'), newT = document.createElement('template');
+        oldT.innerHTML = lastHtml;
+        newT.innerHTML = html;
+        const was = _calPatchItems(oldT.content), now = _calPatchItems(newT.content), live = _calPatchItems(body);
+        if (!was.length || was.length !== now.length || live.length !== was.length) return false;
+        const changed = [];
+        for (let i = 0; i < was.length; i++) {
+            const key = _calPatchKey(was[i]);
+            if (key !== _calPatchKey(now[i]) || key !== _calPatchKey(live[i])) return false;
+            if (was[i].outerHTML !== now[i].outerHTML) changed.push(i);
+        }
+        if (_calPatchFrame(lastHtml) !== _calPatchFrame(html)) return false;
+        // leaveInUse: the person is mid-edit, so a change to what they are
+        // using waits (the caller repaints it once they are done); changes
+        // anywhere else are drawn now.
+        const held = new Set(leaveInUse ? changed.filter(i => _calPatchItemInUse(live[i])) : []);
+        held.forEach(i => now[i].replaceWith(was[i]));
+        const shown = held.size ? newT.innerHTML : html;
+        const view = calState.view;
+        changed.filter(i => !held.has(i)).forEach(i => {
+            const old = live[i], fresh = now[i];
+            // Already-decoded pictures move into the new item, so it paints at
+            // once with no blank and no height change.
+            const pics = new Map();
+            old.querySelectorAll('img').forEach(img => {
+                if (img.complete && img.naturalWidth) pics.set((img.getAttribute('class') || '') + '|' + _calThumbSrcBase(img.getAttribute('src') || ''), img);
+            });
+            old.replaceWith(fresh);
+            fresh.querySelectorAll('img').forEach(img => {
+                const keep = pics.get((img.getAttribute('class') || '') + '|' + _calThumbSrcBase(img.getAttribute('src') || ''));
+                if (keep) img.replaceWith(keep);
+            });
+            if (view === 'organizer') {
+                if (fresh.matches('.cal-card[draggable="true"]')) _calWireDragOnCard(fresh);
+                _calAutosizeTextareas(fresh);
+            } else if (view === 'month' || view === 'week') {
+                _calWireDayDrag(fresh, true);
+            }
+        });
+        return { held: held.size, html: shown };
+    }
     function _calRenderBody(opts) {
         const body = document.getElementById('calBody');
         if (!body) return;
         const lastPaint = _calLastBodyPaint;
         _calLastBodyPaint = { el: null, view: null, html: null };   // early returns below repaint without it
         const preserveScroll = !!(opts && opts.preserveScroll);
+        // patchOnly: draw only what changed, and only where nothing in use is
+        // touched; otherwise change nothing and answer false (the caller defers).
+        const patchOnly = !!(preserveScroll && opts.patchOnly);
         const stripBefore = preserveScroll ? document.getElementById('calStrip') : null;
         const scrollSnap = preserveScroll ? _calCaptureScroll(body) : null;
         const liveSnap = preserveScroll ? _calCaptureLiveUi(body) : null;
         const harvestedThumbs = (preserveScroll && stripBefore) ? _calHarvestThumbs() : null;
+        if (patchOnly && (!calState.client || calState.loading || calState.error)) { _calLastBodyPaint = lastPaint; return false; }
         if (!calState.client) {
             body.innerHTML = document.body.classList.contains('sv-shared-client')
                 ? _calStaffPhoneActive() ? `<div class="cal-empty">Choose a client to start.<button type="button" class="sv-phone-choose-client" onclick="svPhoneOpenClientPicker()">Choose client</button></div>` : `<div class="cal-empty">Pick a client in the top bar to start.</div>`
@@ -1462,6 +1552,34 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             _calSyncClientLinks();
             return;
         }
+        /* A background repaint (realtime, the fallback poll, a tab return, a
+           save echo, a deferred repaint) redraws only what changed. Identical
+           markup touches nothing at all; otherwise only the cards (days,
+           pills, the status line) whose markup changed are swapped, in place,
+           and every other node, with its focus, caret, inner scroll, hover,
+           open caption and loaded pictures, is left exactly as it was. When
+           the board's shape changed around the cards (a card added, removed,
+           moved or reordered) it falls through to the full repaint below,
+           which keeps what the person is using by capture and restore. */
+        if (preserveScroll && viewHtml != null && lastPaint.el === body && body.isConnected
+            && lastPaint.view === calState.view && lastPaint.html != null) {
+            if (lastPaint.html === viewHtml) { _calLastBodyPaint = lastPaint; return true; }
+            const patched = _calPatchBody(body, viewHtml, lastPaint.html, patchOnly);
+            if (patched) {
+                _calLastBodyPaint = { el: body, view: calState.view, html: patched.html };
+                if (calState.view === 'organizer') _calSelectionFollowsTheSheet();
+                _calRestoreLiveUi(body, liveSnap);
+                _calRestoreScroll(body, scrollSnap);
+                _calUpdateReviewBadge();
+                _calSyncMonthWarnIcon();
+                _calSyncClientLinks();
+                _thumbCompareScheduleAvailability('calendar');
+                _calNameSyncScheduleRefresh();
+                // Something left for later: the caller defers the rest.
+                return !patched.held;
+            }
+        }
+        if (patchOnly) { _calLastBodyPaint = lastPaint; return false; }
         _calLastBodyPaint = { el: body, view: calState.view, html: viewHtml };
         if (calState.view === 'review' || calState.view === 'smmreview') {
             const reviewThumbs = _kcardHarvestThumbs(body, 'data-cal-review-pid');
@@ -1524,9 +1642,12 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         _calDragScrollRAF = null;
     }
     function _calOnDocDragOver(e) { if (_calDayDragId != null) _calDragScrollFromY(e.clientY); }
-    function _calWireDayDrag(root) {
+    function _calWireDayDrag(root, withRoot) {
         if (!_calCanDragCards()) return;   // client-link view reschedules only in Collaborative mode
-        root.querySelectorAll('[data-cal-move]').forEach(el => {
+        // withRoot: root is itself a redrawn pill or day (a background refresh
+        // redraws only the items that changed), so it is wired too.
+        const all = sel => (withRoot && root.matches(sel) ? [root] : []).concat(Array.from(root.querySelectorAll(sel)));
+        all('[data-cal-move]').forEach(el => {
             el.addEventListener('dragstart', (e) => {
                 _calDayDragId = el.getAttribute('data-cal-move');
                 el.classList.add('cal-card-dragging');
@@ -1565,7 +1686,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
                 _calDayDragId = null;
             });
         });
-        root.querySelectorAll('[data-iso]').forEach(cell => {
+        all('[data-iso]').forEach(cell => {
             cell.addEventListener('dragover', (e) => {
                 if (!_calDayDragId) return;
                 e.preventDefault();

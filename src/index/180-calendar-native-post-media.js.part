@@ -1396,6 +1396,25 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
     const CAL_CAPTION_EF_FLAG_FRESH_MS = 30000;
     const CAL_CAPTION_TRANSCRIPT_MAX = 20000;
     let _calCaptionEfFlag = { all: false, clients: new Set(), at: 0 };
+    /* What the Generate and Transcript pills are painted from: the last switch
+       value a read actually returned, kept across page opens. Painting from
+       the live value made every card's caption corner change look whenever a
+       read was slow or failed (it means n8n for that moment), and the first
+       paint after opening the Calendar always drew the n8n look and then
+       snapped to the function look a moment later. Only what the pills show;
+       which route a click takes is still decided by a fresh read. */
+    const CAL_CAPTION_EF_SHOWN_LS = 'syncview_caption_ef_shown_v1';
+    let _calCaptionEfShown = (() => {
+        try {
+            const v = JSON.parse(localStorage.getItem(CAL_CAPTION_EF_SHOWN_LS) || 'null');
+            if (v && typeof v === 'object') return { all: v.all === true, clients: new Set(Array.isArray(v.clients) ? v.clients.map(String) : []) };
+        } catch (e) {}
+        return { all: false, clients: new Set() };
+    })();
+    function _calCaptionRouteShown(clientOrSlug) {
+        const slug = calClientSlug(clientOrSlug || calState.client || '');
+        return (_calCaptionEfShown.all || (slug && _calCaptionEfShown.clients.has(slug))) ? 'ef' : 'n8n';
+    }
     function _calCaptionEfFlagParse(rows) {
         const row = Array.isArray(rows) ? rows[0] : null;
         const value = row && row.value;
@@ -1414,6 +1433,8 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             const resp = await fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined, headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             parsed = _calCaptionEfFlagParse(await resp.json());
+            _calCaptionEfShown = { all: parsed.all, clients: parsed.clients };
+            try { localStorage.setItem(CAL_CAPTION_EF_SHOWN_LS, JSON.stringify({ all: parsed.all, clients: [...parsed.clients] })); } catch (e) {}
         } catch (e) {
             console.warn('[Calendar] caption switch unreadable; captions use n8n', e && e.message);
         } finally { if (timer) clearTimeout(timer); }
@@ -1431,6 +1452,9 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
     /* Called when the Calendar mounts: learn the switch, then repaint the
        Generate buttons so a card with no video offers the transcript box. */
     async function _calCaptionRouteRefresh() {
+        // Every Calendar load calls this; a switch read within the freshness
+        // window is still the answer, so a background refresh reads nothing.
+        if (_calCaptionEfFlag.at && Date.now() - _calCaptionEfFlag.at < CAL_CAPTION_EF_FLAG_FRESH_MS) return;
         await _calCaptionEfFlagRead();
         document.querySelectorAll('.cal-card[data-pid]').forEach(card => _calCapGenBtnRefresh(card.getAttribute('data-pid')));
     }
@@ -1492,7 +1516,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const blank = _calIsBlankId(pid);
         // Function path only: no video means Generate opens the transcript box,
         // and with a video a second pill adds an optional transcript.
-        const ef = !blank && _calCaptionRouteCached(calState.client) === 'ef';
+        const ef = !blank && _calCaptionRouteShown(calState.client) === 'ef';
         const can = !blank && (hasVideo || ef);
         const title = !can ? ' disabled title="Add a video Frame link first"'
             : (!hasVideo ? ' title="No video linked: paste the transcript and the caption is written from it"' : '');
@@ -1511,13 +1535,17 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         if (!wrap) return;
         const post = (calState.posts || []).find(p => p.id === pid);
         if (!post) return;
-        const oldX = wrap.querySelector('.cal-cap-gen-x');
-        if (oldX) oldX.remove();
-        const oldTx = wrap.querySelector('.cal-cap-tx');
-        if (oldTx) oldTx.remove();
         const btn = wrap.querySelector('.cal-cap-gen');
         if (!btn) return;
-        btn.outerHTML = _calCapGenBtnHtml(post);
+        const html = _calCapGenBtnHtml(post);
+        const oldX = wrap.querySelector('.cal-cap-gen-x');
+        const oldTx = wrap.querySelector('.cal-cap-tx');
+        // Nothing to change: leave the pills alone (a hovered or focused pill
+        // keeps its state, and a refresh touches nothing it does not change).
+        if ([btn, oldX, oldTx].filter(Boolean).map(el => el.outerHTML).join('') === html) return;
+        if (oldX) oldX.remove();
+        if (oldTx) oldTx.remove();
+        btn.outerHTML = html;
     }
     /* Kept as the one place that paints per-card error chips; the busy state
        itself now always derives from the jobs map. */

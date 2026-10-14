@@ -33096,3 +33096,36 @@ focused field; `test/calendar-status-row-urgent-height-browser.js` measures ever
 Samples, desktop at three card sizes and phone, both themes, both palettes). Both fail on the old code.
 
 **Release.** Front end only: ships with the next Pages deploy of main. **Way back:** revert the pull request.
+
+## 417. [2026-10-14, BUILT, NOT MERGED, NOT DEPLOYED] Calendar background refresh still visible: repeat refreshes, lost focus, caption corner flicker (session Steady)
+**Owner rule.** A background refresh is invisible: never noticed, never unfocuses anything.
+
+**Measured first** (real browser, live backend, test client only; `qa/probes/cal_refresh_count_live.js`). A browser tab switch
+was already one read and no repaint. Going back to the Calendar from another SyncView tab ran **4 loads and rebuilt the board 4
+times**. Cause: `_calAdoptDeliverableLinks` re-sent a card's Linear link on every load. The save answers ok while the server keeps
+the slot empty (its duplicate-link guard, or a link a QA probe keeps clearing on the test client), so the next load saw it empty
+again; each save's realtime echo started the next load, and the link flashed on and off. Every background refresh also flashed
+the toolbar "Refreshing…" chip, re-wrote unchanged nodes (comment buttons, Generate pills, hidden flags), and on a card that did
+change rebuilt the whole board. The caption corner changed look because the Generate and Transcript pills were painted from the
+live caption-switch value: before the first read (and whenever a read failed) they drew the n8n look, then snapped back.
+
+**Fix.** (1) Link adoption tries each card, slot and link once a day per browser and never sends a link another card on the board
+holds (Calendar and Samples). (2) A realtime change, fallback pull or catch-up is dropped when a full read already holds it: one
+that started after it arrived, or one that returned that card at the change's own version or later. (3) Quiet refreshes (realtime,
+fallback, tab return) show no chip. (4) A background repaint with identical markup touches nothing; otherwise only the cards
+(days, pills, the status line) whose markup changed are swapped in place, keeping every other node; while the person types,
+changes elsewhere are drawn at once and the card in use waits for them. (5) Comment buttons, Generate pills, the review badge and
+the hidden flags are only written when they change; the pills are painted from the last switch value a read returned (kept across
+page opens), and a background load re-reads the switch only when the 30 s answer is stale. Which route a Generate click takes
+is unchanged (fresh read, n8n when unreadable).
+
+**Counts, before → after.** Live: SyncView tab and back to the Calendar 4 loads / 4 rebuilds → 1 load / the one first paint.
+In a browser that has never opened the Calendar that day, each card whose link is missing is filled once (one save, its echo
+read, and the link appearing on that card); on the test client three links keep reappearing as missing between runs (a QA probe
+clears links there, `qa/probes/p68_linear_link_clear.js`), so a fresh browser measured 3 loads the first time and 1 after.
+Browser tab switch 1 read / 0 repaints and idle 0, unchanged.
+Fixture (`calendar-refresh-scroll-browser.js` part 4): tab switch with a teammate change landing on return 2 reads, 2 loads,
+chip shown twice → 1, 1, 0; a refresh that finds nothing new 24 screen changes → 0; screenshot mid-refresh differs (chip) →
+matches; a teammate's change while typing waited for blur → drawn at once, the caption keeps its node, caret, text and look.
+
+**Release.** Front end only: ships with the next Pages deploy of main. **Way back:** revert the pull request.

@@ -84,6 +84,8 @@ function build(opts) {
     _sxrIsBusy: () => Boolean(opts.busy),
     _sxrPendingBackgroundRender: false,
     _sxrSchedulePendingRender: () => { calls.scheduled++; },
+    // The browser-wide memory of tried links (localStorage in the page), one per build.
+    _calLinkAdoptTriedSet: () => new Set(),
   };
   /* A vm context rather than new Function(...names): the adopter ASSIGNS
      _sxrPendingBackgroundRender, and an assignment to a function parameter is
@@ -123,6 +125,21 @@ const LIVE_SHAPE = () => [{
   'the view re-renders and the cache is refreshed exactly once');
   ok(!a.calls.upserts.some(u => 'linear_issue_id' in u.body.sample),
   'the already-linked video field is never re-written');
+
+  // --- a refused link is not sent again ----------------------------------------
+  // The save answers ok while the server keeps the slot empty (another card
+  // already holds that link), so the next load still sees the slot empty. It
+  // must not send it again: each send's echo started another load.
+  a.state.posts[0].graphic_linear_issue_id = '';
+  ok(await a.fn(7, 'sidneylaruel') === 0 && a.calls.upserts.length === 1,
+  'a link already tried is not sent again on the next load');
+  const twin = build({
+    posts: [...LIVE_SHAPE(), { id: 'p_native_y_2', name: 'Video 2', linear_issue_id: '', graphic_linear_issue_id: 'https://linear.app/x/issue/GRA-7131' }],
+    loadSeq: 7,
+    rows: { del_gra: { id: 'del_gra', card_id: 'p_native_x_1', linear_issue_url: 'https://linear.app/x/issue/GRA-7131' } },
+  });
+  ok(await twin.fn(7, 's') === 0 && twin.calls.upserts.length === 0,
+  'a link another sample already holds is never sent (the server would keep the slot empty)');
 
   // --- guards ----------------------------------------------------------------
   const stale = build({ posts: LIVE_SHAPE(), loadSeq: 8, rows: { del_gra: { id: 'del_gra', card_id: 'p_native_x_1', linear_issue_url: 'https://x' } } });

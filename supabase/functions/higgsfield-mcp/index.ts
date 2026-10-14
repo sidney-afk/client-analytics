@@ -27,7 +27,7 @@ const CAP_RAW = (Deno.env.get("HF_MONTHLY_CAP_USD") || "200").trim();
 // A malformed cap must not silently disable the limit: CAP_USD stays null and
 // every new video is refused until the setting is fixed.
 const CAP_USD: number | null = /^\d+(\.\d+)?$/.test(CAP_RAW) ? Number(CAP_RAW) : null;
-const PROTOCOLS = ["2025-06-18", "2025-03-26", "2024-11-05"];
+const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -231,6 +231,7 @@ const TOOLS = [
         model: { type: "string" },
         notes: { type: "string" },
         aspect_ratio: { type: "string" },
+        who: WHO_ARG,
       },
     },
   },
@@ -1078,7 +1079,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
         if (!imported.startsWith("Imported") || !m) { lines.push(`${i + 1}. Skipped: ${imported}`); continue; }
         url = m[0];
       }
-      const result = await submitJob(member, model, recipe.build(model, url, notes, aspect), est.usd, cap);
+      const result = await submitJob(author, model, recipe.build(model, url, notes, aspect), est.usd, cap);
       lines.push(`${i + 1}. ${result.jobId ? `job_id: ${result.jobId}` : result.text}`);
       if (result.overCap) { lines.push("Stopped: the monthly budget is reached."); break; }
     }

@@ -30,6 +30,9 @@
 // The Samples Sheet shares the repaint and must keep its strip and focus too.
 // Before the fix the first repaint closed the caption and dropped focus to
 // the page, and a Samples repaint put its strip back at the start.
+//
+// Part 4, a background refresh is invisible (owner rule, 2026-10-14): see the
+// banner above invisibleRefreshCase.
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 const { serve, installFixture, BASE_ROW } = require('./client-phone-review-browser');
@@ -554,6 +557,241 @@ async function samplesLiveUiCase(browser, origin) {
   }
 }
 
+
+// ---- Part 4: a background refresh is invisible (owner rule, 2026-10-14) ----
+//
+// A tab switch fires several triggers at once (the page becoming visible, the
+// window taking focus, pageshow) and a teammate's change can land at the same
+// moment. Measured on the test client before the fix: going back to the
+// Calendar ran four loads and rebuilt the board four times, and every
+// background refresh flashed the toolbar's "Refreshing…" chip. Here:
+//   (a) a tab switch with a teammate's change landing on return costs at most
+//       one read and one load, and when the read finds nothing new nothing on
+//       screen changes at all (no node, attribute or text in the Calendar);
+//   (b) while the person types in a caption, a teammate's change to another
+//       card is drawn at once and only that card is redrawn: the caption keeps
+//       its very node, its focus, the caret where it was, the typed text and
+//       its look;
+//   (c) screenshots before, during (the read held in flight) and after a
+//       refresh match, and the caption being typed in matches before and after
+//       a refresh that redraws another card (match: see looksSame).
+// Set REFRESH_SHOTS_DIR to keep the screenshots.
+const fs = require('node:fs');
+const path = require('node:path');
+// Realtime stand-in whose channels can be told they connected.
+const FAKE_SUPABASE_LIB_CONNECTS = `window.supabase = { createClient: function () { return {
+  channel: function (topic) { var ch = { topic: topic, handlers: [],
+    on: function (ev, filter, cb) { ch.handlers.push(cb); return ch; },
+    subscribe: function (cb) { ch.status = cb; (window.__fixtureChannels = window.__fixtureChannels || []).push(ch); return ch; },
+    unsubscribe: function () {} }; return ch; },
+  removeChannel: function () {} }; } };`;
+
+async function invisibleRefreshCase(browser, origin) {
+  const ctx = await browser.newContext({ viewport: DESKTOP, reducedMotion: 'reduce' });
+  await installFixture(ctx, origin, { ...BASE_ROW, id: 'p_tab_fixture_unused' }, [], 'calendar');
+  await seedStaffGate(ctx);
+  await ctx.route('https://cdn.jsdelivr.net/npm/@supabase/**', route => route.fulfill({ status: 200, contentType: 'application/javascript', body: FAKE_SUPABASE_LIB_CONNECTS }));
+  await ctx.route('**/rest/v1/syncview_runtime_flags*', route => {
+    const key = (new URL(route.request().url()).searchParams.get('key') || '').replace(/^eq\./, '');
+    if (!/_clients$/.test(key)) return route.fallback();
+    return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify([{ key, value: { clients: ['phonefixtureclient'] } }]) });
+  });
+  // The board as the server holds it. teammate: how many times a teammate has
+  // renamed card 7; hold: a promise the next read waits on (a read in flight).
+  const server = { teammate: 0, hold: null, gets: 0 };
+  const stampOf = n => new Date(Date.UTC(2026, 9, 10, 12, 0, n)).toISOString();
+  await ctx.route('**/rest/v1/calendar_posts*', async route => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    if (!/[?&]client=eq\./.test(route.request().url())) return route.fallback();
+    server.gets++;
+    if (server.hold) await server.hold;
+    const rows = [];
+    for (let k = 0; k < 10; k++) rows.push(post('p_tab_' + k, null, { order_index: k + 1, caption: k === 1 ? LONG_CAPTION : 'Short fixture caption ' + k + '.',
+      linear_issue_id: 'FIXTURE-T' + k, video_deliverable_id: 'fixture-tab-deliverable-' + k, status: 'In Progress', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress',
+      ...(k === 7 ? { name: 'Teammate edit ' + server.teammate, updated_at: stampOf(server.teammate) } : {}) }));
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows), headers: CORS });
+  });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  const shotsDir = process.env.REFRESH_SHOTS_DIR || '';
+  if (shotsDir) fs.mkdirSync(shotsDir, { recursive: true });
+  const shoot = async (name, clip) => {
+    const buf = await page.screenshot({ animations: 'disabled', caret: 'hide', ...(clip ? { clip } : {}) });
+    if (shotsDir) fs.writeFileSync(path.join(shotsDir, name + '.png'), buf);
+    return buf;
+  };
+  // Two screenshots look the same when no pixel differs by more than 16 of
+  // 255 on any channel. Chromium's software rasterizer can repaint a few
+  // anti-aliased edge pixels a shade or two apart (measured: at most 5) with
+  // nothing on the page changed; anything a person could notice (the
+  // "Refreshing" chip, a faded Generate pill, a collapsed caption, a moved
+  // card) differs by far more. Compared in a blank page of its own.
+  const judge = await ctx.newPage();
+  await judge.setContent('<canvas id="a"></canvas><canvas id="b"></canvas>');
+  const looksSame = async (x, y) => {
+    const r = await judge.evaluate(async ([x, y]) => {
+      const load = src => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = 'data:image/png;base64,' + src; });
+      const [ia, ib] = await Promise.all([load(x), load(y)]);
+      if (ia.width !== ib.width || ia.height !== ib.height) return { over: -1, max: 255 };
+      const px = img => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d'); g.drawImage(img, 0, 0); return g.getImageData(0, 0, c.width, c.height).data; };
+      const a = px(ia), b = px(ib);
+      let over = 0, max = 0;
+      for (let i = 0; i < a.length; i++) { const d = Math.abs(a[i] - b[i]); if (d > max) max = d; if (d > 16) over++; }
+      return { over, max };
+    }, [x.toString('base64'), y.toString('base64')]);
+    return r.over === 0;
+  };
+  const lines = [];
+  try {
+    await page.bringToFront();
+    await page.goto(origin + '/index.html#calendar', { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => typeof navTo === 'function');
+    await page.evaluate(() => navTo('calendar'));
+    await page.locator('#calView').waitFor();
+    await showView(page, 'organizer');
+    await page.waitForFunction(() => (window.__fixtureChannels || []).some(c => /^cal-/.test(c.topic) && c.status), null, { timeout: 15000 });
+    // Realtime connects, as on the live site (so the fallback poll is idle).
+    await page.evaluate(() => window.__fixtureChannels.filter(c => /^cal-/.test(c.topic)).forEach(c => c.status('SUBSCRIBED')));
+    // Count every Calendar load and every change on the Calendar's screen.
+    await page.evaluate(() => {
+      const rc = window.__rc = { loads: 0, mutations: 0, chip: 0 };
+      const load = window.loadCalendarPosts;
+      window.loadCalendarPosts = function () { rc.loads++; return load.apply(this, arguments); };
+      new MutationObserver(list => { rc.mutations += list.length; }).observe(document.getElementById('calView'), { subtree: true, childList: true, attributes: true, characterData: true });
+      const chip = document.getElementById('calRefreshing');
+      if (chip) new MutationObserver(() => { if (!chip.hidden) rc.chip++; }).observe(chip, { attributes: true });
+    });
+    const CAP = '#calStrip .cal-card[data-pid="p_tab_1"] textarea[data-fld="caption"]';
+    // Open the long caption and scroll inside it; slide the strip a little.
+    await page.evaluate(() => { document.getElementById('calStrip').scrollLeft = 0; });
+    await page.click('#calStrip .cal-card[data-pid="p_tab_1"] .cal-cap-toggle');
+    await page.evaluate(sel => { document.querySelector(sel).scrollTop = 300; document.getElementById('calStrip').scrollLeft = 120; }, CAP);
+    await page.mouse.move(5, 790);
+    await page.waitForTimeout(4500);   // past the return floor
+    const counters = () => page.evaluate(() => Object.assign({}, window.__rc));
+    const deliver = (id, stamp) => page.evaluate(({ id, stamp }) => {
+      const ch = window.__fixtureChannels.filter(c => /^cal-/.test(c.topic)).pop();
+      ch.handlers.forEach(cb => cb({ eventType: 'UPDATE', new: { id, updated_at: stamp }, old: { id } }));
+    }, { id, stamp });
+    const hide = () => page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('blur'));
+    });
+    // Everything a real return fires, in one go.
+    const show = () => page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('focus'));
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: false }));
+    });
+
+    // (a) Tab switch; a teammate renamed card 7 while the person was away and
+    // the change's realtime message lands on return, right after the return
+    // read went out. The read already holds it: one read, one load.
+    const a0 = await counters(), g0 = server.gets;
+    const before = await shoot('tab-switch-before');
+    await hide();
+    server.teammate = 1;
+    await page.waitForTimeout(1500);
+    await show();
+    await deliver('p_tab_7', stampOf(1));
+    await page.waitForTimeout(6000);
+    const a1 = await counters();
+    const tabReads = server.gets - g0, tabLoads = a1.loads - a0.loads;
+    const title7 = await page.evaluate(() => document.querySelector('#calStrip .cal-card[data-pid="p_tab_7"] [data-fld="name"]').value);
+    assert.equal(title7, 'Teammate edit 1', 'tab switch: the teammate\'s change never reached the board');
+    assert(tabReads <= 1 && tabLoads <= 1, 'tab switch: ' + tabReads + ' reads and ' + tabLoads + ' loads (at most one each)');
+    assert.equal(a1.chip - a0.chip, 0, 'tab switch: the "Refreshing" chip showed during a background refresh');
+    lines.push('tab switch with a teammate change landing on return: ' + tabReads + ' read, ' + tabLoads + ' load, chip shown ' + (a1.chip - a0.chip) + ' times');
+
+    // ... and a tab switch that finds nothing new changes nothing on screen.
+    await page.waitForTimeout(4500);
+    // Shot first: the screenshot hides the caret by touching every field's
+    // style, which the counters below must not include.
+    const quiet0 = await shoot('quiet-before');
+    const b0 = await counters(), gb = server.gets;
+    await hide();
+    await page.waitForTimeout(800);
+    await show();
+    await page.waitForTimeout(4000);
+    const b1 = await counters();
+    assert.equal(server.gets - gb, 1, 'quiet tab switch: expected exactly one read, saw ' + (server.gets - gb));
+    assert.equal(b1.mutations - b0.mutations, 0, 'quiet tab switch: a refresh that found nothing new changed the screen (' + (b1.mutations - b0.mutations) + ' DOM changes)');
+    const quiet1 = await shoot('quiet-after');
+    assert(await looksSame(quiet0, quiet1), 'quiet tab switch: the screen before and after the refresh differ');
+    lines.push('tab switch that finds nothing new: 1 read, 0 changes on screen, before and after screenshots match');
+
+    // (c) Screenshots during a refresh: the read is held in flight, the screen
+    // is shot while it waits, again once it lands, and a moment later.
+    await page.waitForTimeout(4500);
+    let release; server.hold = new Promise(r => { release = r; });
+    const held0 = await shoot('held-before');
+    await hide();
+    await page.waitForTimeout(300);
+    const gh = server.gets;
+    await show();
+    for (let i = 0; i < 100 && server.gets === gh; i++) await page.waitForTimeout(50);
+    assert(server.gets > gh, 'held refresh: the tab return never read the board');
+    await page.waitForTimeout(600);
+    const during = await shoot('held-during');
+    release(); server.hold = null;
+    await page.waitForTimeout(300);
+    const right = await shoot('held-right-after');
+    await page.waitForTimeout(1500);
+    const later = await shoot('held-later');
+    assert(await looksSame(held0, during), 'held refresh: the screen changed while the read was in flight');
+    assert(await looksSame(held0, right) && await looksSame(held0, later), 'held refresh: the screen changed when the read landed');
+    lines.push('refresh held in flight: screenshots before, during, right after and 1.5 s after match');
+
+    // (b) The person types in the open caption; a teammate renames card 7 and
+    // its realtime change arrives mid-typing.
+    await page.click(CAP);
+    await page.evaluate(sel => { const t = document.querySelector(sel); t.__personsField = true; t.setSelectionRange(24, 24); }, CAP);
+    await page.keyboard.type(' typed while a teammate edits');
+    const typedBefore = await page.evaluate(() => { const a = document.activeElement; return { value: a.value, caret: a.selectionStart + ':' + a.selectionEnd, top: Math.round(a.scrollTop) }; });
+    // Let the person's own autosave settle (its "Saved" tick is theirs, not
+    // the refresh's), then frame the caption area itself.
+    await page.waitForTimeout(3000);
+    const capClip = await page.evaluate(() => { const r = document.querySelector('#calStrip .cal-card[data-pid="p_tab_1"] .cal-cap-wrap').getBoundingClientRect(); return { x: Math.max(0, r.left), y: Math.max(0, r.top), width: Math.min(r.width, innerWidth - Math.max(0, r.left)), height: Math.min(r.height, innerHeight - Math.max(0, r.top)) }; });
+    const capBefore = await shoot('caption-area-before', capClip);
+    await page.evaluate(() => { document.querySelector('#calStrip .cal-card[data-pid="p_tab_7"]').__old = true; });
+    const gt = server.gets;
+    server.teammate = 2;
+    await deliver('p_tab_7', stampOf(2));
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
+      const t = await page.evaluate(() => document.querySelector('#calStrip .cal-card[data-pid="p_tab_7"] [data-fld="name"]').value);
+      if (t === 'Teammate edit 2') break;
+      await page.waitForTimeout(250);
+    }
+    await page.waitForTimeout(500);
+    const typedAfter = await page.evaluate(() => {
+      const a = document.activeElement;
+      const c7 = document.querySelector('#calStrip .cal-card[data-pid="p_tab_7"]');
+      return { same: !!a.__personsField, value: a.value, caret: a.selectionStart + ':' + a.selectionEnd, top: Math.round(a.scrollTop),
+        title7: c7.querySelector('[data-fld="name"]').value, card7Redrawn: !c7.__old };
+    });
+    assert(server.gets > gt, 'typing: the teammate\'s change never started a read');
+    assert.equal(typedAfter.title7, 'Teammate edit 2', 'typing: the teammate\'s change to another card waited for the person to stop typing');
+    assert(typedAfter.card7Redrawn, 'typing: the changed card was not redrawn');
+    assert(typedAfter.same, 'typing: the caption being typed in was replaced by a new node');
+    assert.equal(typedAfter.value, typedBefore.value, 'typing: the typed text changed');
+    assert.equal(typedAfter.caret, typedBefore.caret, 'typing: the caret moved');
+    assert.equal(typedAfter.top, typedBefore.top, 'typing: the caption scrolled inside');
+    const capAfter = await shoot('caption-area-after', capClip);
+    assert(await looksSame(capBefore, capAfter), 'typing: the caption area looks different after the refresh');
+    lines.push('typing in a caption while a teammate edits another card: that card redrawn at once; the caption keeps its node, focus, caret ' + typedAfter.caret + ', text and look');
+    assert.deepEqual(errors, [], 'invisible refresh: page errors ' + errors.join(' | '));
+    return lines;
+  } finally {
+    await ctx.close();
+  }
+}
+
 (async () => {
   const server = await serve();
   const origin = 'http://127.0.0.1:' + server.address().port;
@@ -577,10 +815,13 @@ async function samplesLiveUiCase(browser, origin) {
     checks += 1;
     try { console.log('  ok  ' + await samplesLiveUiCase(browser, origin)); }
     catch (e) { failures.push(e.message); console.log('  FAIL ' + e.message); }
+    checks += 1;
+    try { (await invisibleRefreshCase(browser, origin)).forEach(line => console.log('  ok  ' + line)); }
+    catch (e) { failures.push(e.message); console.log('  FAIL ' + e.message); }
   } finally {
     await browser.close();
     server.close();
   }
   if (failures.length) throw new Error(failures.length + ' failing: ' + failures.join(' || '));
-  console.log('calendar-refresh-scroll-browser: PASS (' + checks + ' checks: ' + VIEWS.length * SCREENS.length + ' insertion views, ' + MOVED_CASES.length + ' moved-card cases, 2 live-UI cases)');
+  console.log('calendar-refresh-scroll-browser: PASS (' + checks + ' checks: ' + VIEWS.length * SCREENS.length + ' insertion views, ' + MOVED_CASES.length + ' moved-card cases, 2 live-UI cases, 1 invisible-refresh case)');
 })().catch(e => { console.error('calendar-refresh-scroll-browser: FAIL ' + (e && e.message)); process.exit(1); });

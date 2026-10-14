@@ -188,7 +188,7 @@ assert(
 
 assert(
   calReturnSource.includes('if (_calStaffPagehideSuspended) return;')
-    && calReturnSource.includes('loadCalendarPosts({ background: true, forceMeta: true });')
+    && calReturnSource.includes('loadCalendarPosts({ background: true, forceMeta: true, quiet: true });')
     && !calReturnSource.includes('_calRefreshParentLinkFlags('),
   'Calendar return metadata must run only inside the exact owned load tail',
 );

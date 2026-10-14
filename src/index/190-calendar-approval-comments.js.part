@@ -148,7 +148,7 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
             let badge = btn.querySelector('.cal-view-badge');
             if (count > 0) {
                 if (!badge) { badge = document.createElement('span'); badge.className = 'cal-view-badge'; btn.appendChild(badge); }
-                badge.textContent = String(count);
+                if (badge.textContent !== String(count)) badge.textContent = String(count);
             } else if (badge) {
                 badge.remove();
             }
@@ -2253,7 +2253,11 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
         _calV2Log('BADGE refresh →', pid, '| unread:', _calHasUnreadNotes(post), '| open:', _calOpenCommentCount(post));
         const tmp = document.createElement('div');
         tmp.innerHTML = _calCommentsBtnHtml(post, pid);
-        wrap.replaceWith(tmp.firstElementChild);
+        const next = tmp.firstElementChild;
+        // Every background refresh runs this for every card: one that changes
+        // nothing must not swap the node (it would drop focus and hover).
+        if (next && next.isEqualNode(wrap)) return;
+        wrap.replaceWith(next);
     }
 
     function openCalComments(pid) {

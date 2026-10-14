@@ -17,6 +17,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
+import { SERVER_INFO, TEAM_START_NOTE, authorFor, isTeamLink } from "./who.mjs";
 import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
 import { brainChange, clientBrain, clientStyle, filmingPlan, listClients } from "./clientinfo.ts";
 import { DIRECT_MODELS, directEstimate, isDirect, runDirect, type Fetched } from "./direct.ts";
@@ -143,6 +144,7 @@ const EMPTY = { type: "object", properties: {}, additionalProperties: false };
 const MAX_QUOTED_USD = 40;
 const QUOTED_ARG = { type: "number", description: `Only when price_check said Higgsfield's price description cannot be read: your own price in dollars worked out from that description, rounded up (at most ${MAX_QUOTED_USD}). Pass the same number to price_check and create.` };
 const MODEL_ARG = { type: "string", description: "Model id, e.g. bytedance/seedance-2.5/text-to-video" };
+const WHO_ARG = { type: "string", description: "Optional. The person's first name, only when start_here asked you to pass it; otherwise leave it out." };
 const INPUTS_ARG = { type: "object", description: "The model's settings, as listed by model_details (prompt, duration, aspect_ratio, image_url, ...)." };
 
 // Job-check tools point at the in-chat viewer (MCP Apps); hosts without MCP
@@ -181,7 +183,7 @@ const TOOLS = [
     name: "create",
     _meta: VIEWER_META,
     description: "Make a video or image. Only call after the person agreed to the model, settings and price. Returns a job_id for wait_for_job.",
-    inputSchema: { type: "object", required: ["model", "inputs"], additionalProperties: false, properties: { model: MODEL_ARG, inputs: INPUTS_ARG, quoted_usd: QUOTED_ARG } },
+    inputSchema: { type: "object", required: ["model", "inputs"], additionalProperties: false, properties: { model: MODEL_ARG, inputs: INPUTS_ARG, quoted_usd: QUOTED_ARG, who: WHO_ARG } },
   },
   {
     name: "check_job",
@@ -264,6 +266,7 @@ const TOOLS = [
         client: { type: "string", description: "The client's name as SyncView shows it." },
         what_changed: { type: "string", description: "The new or corrected information, in plain words, as complete as the person said it." },
         fact_id: { type: "string", description: "Optional: the fact id from client_brain that this changes." },
+        who: WHO_ARG,
       },
     },
   },
@@ -950,11 +953,14 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
     const id = String(args.model || "").trim();
     return BY_ID.has(id) ? id : null;
   };
+  // Who is recorded as the maker: the person's own name on a personal link; on
+  // the shared team link, "<first name> (team)" when "who" is given.
+  const author = authorFor(member, args.who);
   const inputsOf = (): JsonMap => (args.inputs && typeof args.inputs === "object" && !Array.isArray(args.inputs) ? args.inputs as JsonMap : {});
 
   if (name === "start_here") {
     const list = GO_TO.map((g) => `- ${g.task}: ${g.picks.map((id) => `${BY_ID.get(id)?.name} [${id}]`).join(" or ")}`).join("\n");
-    return `This connector can make videos and images with ${ALL_MODELS.length} models (Higgsfield, plus GPT Image and Nano Banana), plus saved team recipes (use recipes). Go-to picks:\n${list}\n\nThere are more options per task: use find_models.\nPrices vary by model, length and resolution; price_check gives the exact figure.\nInput photos, videos and audio must be public links; import_file converts Drive and Dropbox links.\n\nClient knowledge (the Synchro Brain): whenever a client is named, or someone asks \"what does X want\", call client_brain first, without being asked. When someone says something new and lasting about a client (a preference, a decision, a date, a change of direction) or says \"add this to X's brain\", call brain_change and confirm in one line. Not for notes about one video.\n\n${await budget()}`;
+    return `This connector can make videos and images with ${ALL_MODELS.length} models (Higgsfield, plus GPT Image and Nano Banana), plus saved team recipes (use recipes). Go-to picks:\n${list}\n\nThere are more options per task: use find_models.\nPrices vary by model, length and resolution; price_check gives the exact figure.\nInput photos, videos and audio must be public links; import_file converts Drive and Dropbox links.\n\nClient knowledge (the Synchro Brain): whenever a client is named, or someone asks \"what does X want\", call client_brain first, without being asked. When someone says something new and lasting about a client (a preference, a decision, a date, a change of direction) or says \"add this to X's brain\", call brain_change and confirm in one line. Not for notes about one video.${isTeamLink(member) ? `\n\n${TEAM_START_NOTE}` : ""}\n\n${await budget()}`;
   }
 
   if (name === "find_models") {
@@ -990,7 +996,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
     if (name === "price_check") return planCard(id, inputs, est.usd) + note + "\n" + await budget() + "\n\nSay go, or tell me what to change.";
     if (CAP_USD === null) return BAD_CAP;
 
-    return (await submitJob(member, id, inputs, est.usd, cap)).text;
+    return (await submitJob(author, id, inputs, est.usd, cap)).text;
   }
 
   if (name === "check_job" || name === "check_video") return await checkJob(String(args.job_id || "").trim());
@@ -1084,7 +1090,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   if (name === "client_filming_plan") return await filmingPlan(db(), String(args.client || ""), String(args.month || ""));
   if (name === "client_style") return await clientStyle(db(), String(args.client || ""));
   if (name === "client_brain") return await clientBrain(db(), String(args.client || ""));
-  if (name === "brain_change") return await brainChange(db(), String(args.client || ""), String(args.what_changed || ""), String(args.fact_id || ""), member);
+  if (name === "brain_change") return await brainChange(db(), String(args.client || ""), String(args.what_changed || ""), String(args.fact_id || ""), author);
 
   if (name === "import_file") return await importFile(String(args.link || "").trim());
 
@@ -1152,7 +1158,7 @@ Deno.serve(async (req) => {
       result: {
         protocolVersion: PROTOCOLS.includes(asked) ? asked : PROTOCOLS[0],
         capabilities: { tools: {}, resources: {} },
-        serverInfo: { name: "synchro-higgsfield", version: "2.0.0" },
+        serverInfo: SERVER_INFO,
         instructions: INSTRUCTIONS,
       },
     });

@@ -59,7 +59,7 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   const idx = read('supabase/functions/higgsfield-mcp/index.ts');
   assert.ok(/name: "client_brain"[\s\S]*?automatically, without being asked, whenever a client is named/.test(idx));
   assert.ok(/name: "brain_change"[\s\S]*?Never use it for notes about one video/.test(idx));
-  assert.ok(/name === "brain_change"\) return await brainChange\(.*, member\);/.test(idx), 'the connector member is passed as sender');
+  assert.ok(/name === "brain_change"\) return await brainChange\(.*, author\);/.test(idx), 'the connector member (or team "who") is passed as sender');
   assert.ok(/call client_brain first/.test(idx), 'start_here tells Claude when to use the brain tools');
 
   console.log('brain-change-shared: the connector and SyncView file brain changes through one shared module, same format ✅');

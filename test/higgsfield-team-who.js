@@ -42,6 +42,11 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
 
   // The name and the icon in the initialize reply.
   assert.strictEqual(who.SERVER_INFO.name, 'synchro');
+  // Icons belong to protocol 2025-11-25, so the server must be able to speak it.
+  const protocols = JSON.parse(read('index.ts').match(/const PROTOCOLS = (\[[^\]]*\])/)[1]);
+  assert.ok(protocols.includes('2025-11-25'), 'the server lists protocol 2025-11-25');
+  assert.strictEqual(protocols[0], '2025-11-25', 'the newest version is the fallback for unknown asks');
+  assert.ok(protocols.includes('2025-06-18') && protocols.includes('2024-11-05'), 'older clients still work');
   assert.ok(Array.isArray(who.SERVER_INFO.icons) && who.SERVER_INFO.icons.length === 1);
   const icon = who.SERVER_INFO.icons[0];
   assert.ok(/^https:\/\/synchrosocial\.com\/[\w./-]+\.(png|svg)$/.test(icon.src), 'a public https PNG or SVG on the agency site');
@@ -57,21 +62,23 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
   // "who" is an optional input of exactly brain_change and create.
   const tools = idx.slice(idx.indexOf('const TOOLS = ['), idx.indexOf('// ---- Input validation'));
   const block = (name) => tools.slice(tools.indexOf(`name: "${name}"`), tools.indexOf('\n  },', tools.indexOf(`name: "${name}"`)));
-  for (const t of ['create', 'brain_change']) {
+  for (const t of ['create', 'brain_change', 'run_recipe']) {
     assert.ok(/who: WHO_ARG/.test(block(t)), t + ' accepts "who"');
     assert.ok(!/required: \[[^\]]*"who"/.test(block(t)), '"who" is optional on ' + t);
   }
-  assert.strictEqual((tools.match(/who: WHO_ARG/g) || []).length, 2, 'no other tool takes "who"');
+  assert.strictEqual((tools.match(/who: WHO_ARG/g) || []).length, 3, 'no other tool takes "who"');
 
   // The recorded author is the one authorFor gives, for both tools.
   assert.ok(/const author = authorFor\(member, args\.who\);/.test(idx));
   assert.ok(/submitJob\(author, id, inputs, est\.usd, cap\)/.test(idx), 'create records the author');
+  assert.ok(/submitJob\(author, model, recipe\.build\(/.test(idx), 'run_recipe records the author');
+  assert.ok(!/submitJob\(member,/.test(idx), 'no job is recorded under the bare link name');
   assert.ok(/name === "brain_change"\) return await brainChange\(.*, author\);/.test(idx), 'brain_change records the author');
 
   // start_here: the ask-for-a-name note appears on the team link only.
   const start = idx.slice(idx.indexOf('if (name === "start_here")'), idx.indexOf('if (name === "find_models")'));
   assert.ok(/isTeamLink\(member\) \? `\\n\\n\$\{TEAM_START_NOTE\}` : ""/.test(start), 'only the team link gets the note');
-  assert.ok(/first name once/.test(who.TEAM_START_NOTE) && /"who"/.test(who.TEAM_START_NOTE) && /brain_change and create/.test(who.TEAM_START_NOTE));
+  assert.ok(/first name once/.test(who.TEAM_START_NOTE) && /"who"/.test(who.TEAM_START_NOTE) && /brain_change, create and run_recipe/.test(who.TEAM_START_NOTE));
   assert.ok(!/first name|"who"|team link/.test(start.replace(/isTeamLink\(member\)[^\n]*TEAM_START_NOTE[^\n]*/, '')), 'nothing about it elsewhere in start_here');
   // The tool texts every link sees say nothing about the team link.
   assert.ok(!/team link/i.test(tools), 'tool descriptions do not mention the team link');

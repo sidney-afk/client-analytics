@@ -14,6 +14,9 @@
  *   E  a posted post drops out of the list
  *   F  the Messages button by the account (SMMs) opens the same inbox as a panel
  *   G  phone: the list first, then the chat, and back
+ *   I  who wrote it: a staff note shows the writer's name from the roster
+ *      (looked up by member id), your own note is never unread and shows as
+ *      "You", a colleague's note is unread; a reply stores your member id
  *   H  before the inbox backend is deployed (the old function answers
  *      invalid_deliverable_id), the old Messages tab stays and the button hides
  * With SCREENSHOTS=<dir>, light and dark captures are written there.
@@ -31,6 +34,12 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
 
 (async () => {
   const S = await createEnv();
+  // The real unread rules (production-comments/inbox.mjs) decide the counts.
+  const inbox = await import(path.join(__dirname, '../../../supabase/functions/production-comments/inbox.mjs'));
+  const ME = { id: 'm1', name: 'Browser Staff', role: 'admin' };
+  const NOW = Date.parse('2026-10-15T00:00:00.000Z');
+  // Made-up colleague on the fictional roster.
+  const COLLEAGUE = { id: 'm7', name: 'Robin Testwell', role: 'smm', team: null, active: true };
   const marks = [];
   const reads = new Map();
   try {
@@ -47,21 +56,30 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     ];
     let postedGone = false;
     let oldBackend = false;
+    let withWriters = false;
+    const writers = { post_id: 'p_writers', client_slug: 'fixtureclient', client_name: 'fixtureclient', title: 'Writers fixture post', thumbnail_url: '', asset_url: '', status: 'In Progress', messages: [
+      { id: 'w1', parent_id: null, root_id: 'w1', author: 'Synchro Social', author_member_id: 'm1', role: 'smm', audience: 'internal', is_tweak: false, component: 'video', body: 'My own note.', created_at: T(11) },
+      { id: 'w2', parent_id: 'w1', root_id: 'w1', author: 'Synchro Social', author_member_id: 'm7', role: 'smm', audience: 'internal', is_tweak: false, component: 'video', body: 'A colleague answers.', created_at: T(12) }] };
+    const mine = { post_id: 'p_mine', client_slug: 'fixtureclient', client_name: 'fixtureclient', title: 'Only mine fixture post', thumbnail_url: '', asset_url: '', status: 'In Progress', messages: [
+      { id: 'y1', parent_id: null, root_id: 'y1', author: 'Synchro Social', author_member_id: 'm1', role: 'smm', audience: 'internal', is_tweak: false, component: 'caption', body: 'Only I wrote here.', created_at: T(11) }] };
     const conversations = () => {
       const card = S.card('p_t1');
       const msgs = parse(card.caption_tweaks).filter(m => m && !m.deleted).map(m => ({
-        id: m.id, parent_id: m.parent_id || null, root_id: m.parent_id || m.id, author: m.author, role: m.role,
+        id: m.id, parent_id: m.parent_id || null, root_id: m.parent_id || m.id, author: m.author, author_member_id: m.author_member_id || '', role: m.role,
         audience: 'client', is_tweak: !!m.is_tweak && !m.parent_id, component: 'caption', body: m.body, created_at: m.created_at,
       }));
       const list = [{ post_id: 'p_t1', client_slug: 'fixtureclient', client_name: 'fixtureclient', title: card.name, thumbnail_url: '', asset_url: '', status: card.status, messages: msgs }]
-        .concat(others.filter(c => !(postedGone && c.post_id === 'p_posted')));
+        .concat(others.filter(c => !(postedGone && c.post_id === 'p_posted')))
+        .concat(withWriters ? [writers, mine] : []);
       return list.map(c => {
         const last = c.messages[c.messages.length - 1];
         const mark = reads.get(c.post_id) || '';
-        const unread = c.messages.filter(m => m.created_at > mark && m.author !== 'Browser Staff').length;
-        return { ...c, last_at: last.created_at, last_author: last.author, last_body: last.body, unread };
+        const unread = inbox.unreadCount(c.messages, ME, mark, NOW);
+        return { ...c, last_at: last.created_at, last_author: last.author, last_author_member_id: last.author_member_id || '', last_role: last.role, last_body: last.body, unread };
       }).sort((a, b) => b.last_at.localeCompare(a.last_at));
     };
+    await S.ctx.route('**/rest/v1/team_members**', route => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+      body: JSON.stringify([{ id: 'm1', name: 'Browser Staff', role: 'admin', team: null, active: true }, COLLEAGUE]) }));
     await S.ctx.route('**/functions/v1/production-comments', async route => {
       let body = {}; try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
       if (route.request().method() === 'OPTIONS' || (body.action !== 'inbox' && body.action !== 'inbox_mark')) return route.fallback();
@@ -71,7 +89,7 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
       marks.push(body.post_id + ':' + body.state);
       const conv = conversations().find(c => c.post_id === body.post_id);
       if (!conv) return reply({ ok: false, error: 'forbidden' });
-      const mark = body.state === 'read' ? '2026-10-20T00:00:00.000Z' : new Date(Date.parse(conv.last_at) - 1).toISOString();
+      const mark = body.state === 'read' ? '2026-10-20T00:00:00.000Z' : inbox.unreadMark(conv.messages, ME);
       reads.set(body.post_id, mark);
       return reply({ ok: true, post_id: body.post_id, last_read_at: mark });
     });
@@ -114,6 +132,8 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     check(r.parent_id === 'c_root', 'D: the reply sits under the thread it answers');
     check(!('audience' in r) || r.audience === undefined, 'D: a reply carries no audience of its own (it inherits the client thread)');
     check(r.is_tweak !== true, 'D: a reply is never a change request');
+    check(r.author_member_id === 'm1', 'D: the reply stores the writer\'s member id (' + r.author_member_id + ')');
+    check(r.author === 'Synchro Social' && !JSON.stringify(r).includes('Browser Staff'), 'D: the saved note holds the id only, never the staff name');
     check(await until(() => page.evaluate(() => [...document.querySelectorAll('#kasperContent .msg-b-text')].some(b => b.textContent === 'Fixture reply from the inbox'))), 'D: the reply shows in the chat');
 
     // C: mark as unread
@@ -161,6 +181,49 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     const wide = await page.evaluate(() => document.documentElement.scrollWidth);
     check(wide <= 391, 'G: no sideways scroll on a phone (' + wide + ')');
     check(!page.errors.length, 'no page errors ' + JSON.stringify(page.errors));
+
+    // I: who wrote it
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.evaluate(() => _msgClosePanel());
+    withWriters = true;
+    await page.evaluate(() => { navTo('kasper'); });
+    await page.evaluate(() => _kasperGotoTab('replies'));
+    await page.evaluate(() => _msgLoad(true));
+    check(await until(() => page.evaluate(() => !!document.querySelector('#kasperContent [data-msg-conv="p_writers"]'))), 'I: the writers conversation is listed');
+    await until(() => page.evaluate(() => /Robin Testwell/.test(document.querySelector('#kasperContent [data-msg-conv="p_writers"]').innerText)));
+    const iList = await page.evaluate(() => {
+      const row = id => document.querySelector('#kasperContent [data-msg-conv="' + id + '"]');
+      const badge = id => (row(id).querySelector('.msg-unread') || {}).textContent || '0';
+      return { writersText: row('p_writers').innerText, writersUnread: badge('p_writers'), mineUnread: badge('p_mine'), mineText: row('p_mine').innerText };
+    });
+    check(iList.writersUnread === '1', "I: a colleague's note is unread, your own is not (" + iList.writersUnread + ')');
+    check(iList.mineUnread === '0', 'I: a conversation with only your own note has nothing unread (' + iList.mineUnread + ')');
+    check(/Robin Testwell/.test(iList.writersText), "I: the list names the colleague who wrote last");
+    check(/You/.test(iList.mineText) && !/Synchro Social/.test(iList.mineText), 'I: your own last note reads "You"');
+    await page.click('#kasperContent [data-msg-conv="p_writers"]');
+    check(await until(() => page.evaluate(() => document.querySelectorAll('#kasperContent .msg-b').length === 2)), 'I: the chat shows both notes');
+    const iChat = await page.evaluate(() => [...document.querySelectorAll('#kasperContent .msg-b .msg-b-meta b')].map(b => b.textContent));
+    check(iChat.join('|') === 'You|Robin Testwell', 'I: the chat names each writer (' + iChat.join('|') + ')');
+    await shot('note-writer-inbox-light');
+    // The card's Notes panel names the writer too; an old note without an id
+    // keeps the shared author.
+    {
+      const extra = [
+        { id: 'c_colleague', parent_id: null, author: 'Synchro Social', author_member_id: 'm7', role: 'smm', audience: 'internal', is_tweak: false, body: 'Colleague note on the card.', created_at: '2026-10-13T10:00:00.000Z', updated_at: '2026-10-13T10:00:00.000Z', done: false },
+        { id: 'c_old', parent_id: null, author: 'Synchro Social', role: 'smm', audience: 'internal', is_tweak: false, body: 'Old note with no id.', created_at: '2026-10-13T11:00:00.000Z', updated_at: '2026-10-13T11:00:00.000Z', done: false }];
+      S.card('p_t1').caption_tweaks = JSON.stringify(parse(S.card('p_t1').caption_tweaks).concat(extra));
+      S.card('p_t1').caption_comments = parse(S.card('p_t1').caption_tweaks);
+    }
+    await page.evaluate(() => { navTo('calendar'); });
+    await page.waitForTimeout(800);
+    await page.evaluate(() => openCalComments('p_t1'));
+    check(await until(() => page.evaluate(() => [...document.querySelectorAll('.cal-cm-author')].some(a => a.textContent === 'Robin Testwell'))), 'I: the Notes panel shows the colleague\'s name');
+    const iPanel = await page.evaluate(() => [...document.querySelectorAll('.cal-cm-author')].map(a => a.textContent));
+    check(iPanel.includes('Browser Staff'), 'I: your reply shows your name in the Notes panel (' + iPanel.join('|') + ')');
+    check(iPanel.includes('Synchro Social'), 'I: an old note with no id keeps "Synchro Social"');
+    await shot('note-writer-panel-light');
+    await page.keyboard.press('Escape');
+    check(!page.errors.length, 'I: no page errors ' + JSON.stringify(page.errors));
 
     // H: the page ships before the backend
     oldBackend = true;

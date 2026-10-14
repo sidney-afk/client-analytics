@@ -523,7 +523,7 @@ async function inboxCanonical(supabase: SupabaseClient, posts: JsonMap[]): Promi
   const out = new Map<string, JsonMap[]>();
   for (let i = 0; i < ids.length; i += 200) {
     const { data, error } = await supabase.from("production_comments")
-      .select("id,native_comment_id,deliverable_id,team,parent_id,thread_root_id,author_name,role,body,audience,component,is_tweak,source_created_at,created_at,deleted_at")
+      .select("id,native_comment_id,deliverable_id,team,parent_id,thread_root_id,author_name,author_member_id,role,body,audience,component,is_tweak,source_created_at,created_at,deleted_at")
       .in("deliverable_id", ids.slice(i, i + 200))
       .is("deleted_at", null);
     if (error) throw new Error("inbox_comments_failed");

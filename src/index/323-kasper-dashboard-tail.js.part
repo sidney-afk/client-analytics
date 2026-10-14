@@ -15,7 +15,7 @@ import {
   _kasperGetSeenAt, _kasperLatestInternalComp, _kasperMarkSeenAt, _kasperOwnedThreadRoots,
   _kasperRepliesSeenBasis
 } from './180-calendar-native-post-media.js';
-import { _calFmtCommentTime, _calLatestMsgAt, _calLatestMsgCreatedAt, _calMintCommentId } from './190-calendar-approval-comments.js';
+import { _calFmtCommentTime, _calLatestMsgAt, _calLatestMsgCreatedAt, _calMintCommentId, _calNoteAuthorName } from './190-calendar-approval-comments.js';
 import { _sxrKasperLoadQueue, _sxrKasperState } from './290-samples-writes-review.js';
 import { CA_RECENT_KEY, _kasperPersistPost, _kasperSamplesEnabled, _kasperState } from './305-core-kasper-shared.js';
 import { _ccEnsureIdentity, _kasperLoadFilming, _kasperUpdateReplyCount } from './321-kasper-dashboard-replies.js';
@@ -145,7 +145,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         const shown = showAll ? threads : unreadThreads;
         const hiddenCount = threads.length - unreadThreads.length;
         const renderMsg = (m, isReply) => {
-            const author = m.author || (m.role === 'client' ? 'Client' : m.role === 'kasper' ? 'Kasper' : 'SMM');
+            const author = _calNoteAuthorName(m, m.role === 'client' ? 'Client' : m.role === 'kasper' ? 'Kasper' : 'SMM');
             const isNew = m.role !== 'kasper' && String(m.updated_at || m.created_at || '') > seen;
             const typeTag = (!isReply && _calMsgIsTweak(m))
                 ? `<span class="cal-cm-type-tag is-tweak">Tweak${m.round ? ' #' + m.round : ''}</span>`

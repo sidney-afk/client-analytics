@@ -79,6 +79,45 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
   const conv = inbox.buildConversation(post, msgs, smmOne, '', now);
   ok(conv.post_id === 'p1' && conv.last_body === 'Trim it' && conv.unread === 2, 'a conversation carries its last message and unread count');
 
+  // Who wrote it: a staff note carries the writer's member id.
+  const shared = 'Synchro Social';
+  const idPost = { id: 'p2', client: 'alphafixture', name: 'Fixture post two',
+    caption_tweaks: JSON.stringify([
+      { id: 'a1', role: 'smm', author: shared, author_member_id: 'u1', audience: 'internal', body: 'My own note', created_at: '2026-10-11T10:00:00Z' },
+      { id: 'a2', role: 'smm', author: shared, author_member_id: 'u2', audience: 'internal', body: 'A colleague note', created_at: '2026-10-11T11:00:00Z' },
+      { id: 'a3', role: 'smm', author: shared, audience: 'internal', body: 'An old note with no id', created_at: '2026-10-11T12:00:00Z' },
+    ]) };
+  const idMsgs = inbox.collectMessages(idPost, []);
+  ok(idMsgs.find(m => m.id === 'a1').author_member_id === 'u1', 'the member id travels with the message');
+  ok(inbox.isMine(idMsgs.find(m => m.id === 'a1'), smmOne), 'your own note (your member id) is yours');
+  ok(!inbox.isMine(idMsgs.find(m => m.id === 'a2'), smmOne), "a colleague's note (their member id) is not yours, though both say " + shared);
+  ok(!inbox.isMine(idMsgs.find(m => m.id === 'a3'), smmOne), 'an old note with no id falls back to the name match');
+  ok(inbox.isMine({ author: 'First Manager' }, smmOne), 'the name match still works when there is no id');
+  ok(inbox.unreadCount(idMsgs, smmOne, '', Date.parse('2026-10-12T00:00:00Z')) === 2, 'your own note is never unread; the colleague note and the old note are');
+  ok(inbox.unreadCount([idMsgs[0]], smmOne, '', Date.parse('2026-10-12T00:00:00Z')) === 0, 'a conversation with only your note has nothing unread');
+  ok(inbox.unreadMark(idMsgs.slice(0, 2), smmOne) === '2026-10-11T10:59:59.999Z', '"unread" marks before the colleague note, never yours');
+  const idConv = inbox.buildConversation(idPost, idMsgs.slice(0, 2), smmOne, '', Date.parse('2026-10-12T00:00:00Z'));
+  ok(idConv.last_author_member_id === 'u2' && idConv.last_role === 'smm', 'a conversation names its last writer by id');
+  const canonId = inbox.collectMessages({ id: 'p3' }, [{ id: 'k2', team: 'video', role: 'smm', author_name: 'Second Manager', author_member_id: 'u2', body: 'x', created_at: '2026-10-11T09:00:00Z' }]);
+  ok(canonId[0].author_member_id === 'u2', 'canonical notes carry their member id too');
+
+  // The client never receives a staff name.
+  const policy = await import(path.join(root, 'supabase/functions/production-comments/policy.mjs'));
+  const staffRow = { id: 'c1', author_name: 'Second Manager', author_member_id: 'u2', role: 'smm', audience: 'client', body: 'Hello' };
+  const clientRow = { id: 'c2', author_name: 'Fixture Client', role: 'client', audience: 'client', body: 'Hi' };
+  const asClient = policy.publicComment(staffRow, 'client');
+  ok(asClient && asClient.author_name === 'Synchro team', 'a client reading a staff note sees "Synchro team"');
+  ok(asClient && !('author_member_id' in asClient), 'a client never receives the member id');
+  ok(!JSON.stringify(asClient).includes('Second Manager'), 'no staff name in what the client receives');
+  ok(policy.publicComment(clientRow, 'client').author_name === 'Fixture Client', "a client's own note keeps its name");
+  const asStaff = policy.publicComment(staffRow, 'staff');
+  ok(asStaff.author_name === 'Second Manager' && asStaff.author_member_id === 'u2', 'staff see the name and the id');
+
+  const cal = fs.readFileSync(path.join(root, 'src/index/190-calendar-approval-comments.js.part'), 'utf8');
+  ok((cal.match(/author_member_id: _calCurrentAuthorId\(\)/g) || []).length === 3, 'every new staff note on the Notes save path stores the member id');
+  ok(/if \(_isClientLink\) return '';\s*try \{\s*const identity = _syncviewStaffIdentityForHeaders\(\);\s*return String\(identity && identity\.member && identity\.member\.id/.test(cal), 'the stored value is the member id only, and never on the client link');
+  ok(/if \(_isClientLink\) return role === 'client' \? String\(c\.author \|\| fallback \|\| 'Client'\) : 'Synchro team';/.test(cal), 'the client link shows every staff note as "Synchro team"');
+
   const edge = fs.readFileSync(path.join(root, 'supabase/functions/production-comments/index.ts'), 'utf8');
   ok(/inboxAction === "inbox" \|\| inboxAction === "inbox_mark"/.test(edge), 'the function routes the two inbox actions');
   ok(/resolved\.kind !== "staff" \|\| !resolved\.member\) return json\(\{ ok: false, error: "forbidden" \}, 403\)/.test(edge), 'a client token cannot open the inbox');

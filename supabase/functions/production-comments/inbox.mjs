@@ -95,6 +95,7 @@ export function collectMessages(post, canonicalRows) {
       id,
       parent_id: clean(row.thread_root_id) && clean(row.thread_root_id) !== id ? clean(row.thread_root_id) : (clean(row.parent_id) || null),
       author: clean(row.author_name),
+      author_member_id: clean(row.author_member_id),
       role: clean(row.role),
       body: clean(row.body),
       audience: clean(row.audience),
@@ -111,6 +112,7 @@ export function collectMessages(post, canonicalRows) {
         id: clean(m.id),
         parent_id: clean(m.parent_id) || null,
         author: clean(m.author),
+        author_member_id: clean(m.author_member_id),
         role: clean(m.role),
         body: clean(m.body),
         audience: clean(m.audience),
@@ -132,16 +134,24 @@ export function collectMessages(post, canonicalRows) {
   return out;
 }
 
+// Yours when it carries your member id. Notes written before the id was
+// stored fall back to the name match.
+export function isMine(message, member) {
+  const id = clean(message && message.author_member_id);
+  if (id) return id === clean(member && member.id);
+  return sameName(message && message.author, member && member.name);
+}
+
 export function unreadCount(messages, member, lastReadAt, nowMs) {
   const floor = clean(lastReadAt)
     || new Date((nowMs || Date.now()) - UNREAD_WINDOW_DAYS * 86400000).toISOString();
-  return messages.filter((m) => m.created_at > floor && !sameName(m.author, member && member.name)).length;
+  return messages.filter((m) => m.created_at > floor && !isMine(m, member)).length;
 }
 
 // The read mark that makes a conversation unread again: just before the
 // newest message someone else wrote. Null when there is nothing to mark.
 export function unreadMark(messages, member) {
-  const others = messages.filter((m) => !sameName(m.author, member && member.name));
+  const others = messages.filter((m) => !isMine(m, member));
   if (!others.length) return null;
   const newest = Date.parse(others[others.length - 1].created_at);
   return Number.isFinite(newest) ? new Date(newest - 1).toISOString() : null;
@@ -158,6 +168,8 @@ export function buildConversation(post, messages, member, lastReadAt, nowMs) {
     status: clean(post.status),
     last_at: last ? last.created_at : "",
     last_author: last ? last.author : "",
+    last_author_member_id: last ? last.author_member_id : "",
+    last_role: last ? last.role : "",
     last_body: last ? last.body.slice(0, 160) : "",
     unread: unreadCount(messages, member, lastReadAt, nowMs),
     messages,

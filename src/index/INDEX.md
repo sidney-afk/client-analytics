@@ -49,7 +49,7 @@
 | 41 | `180-calendar-native-post-media.js.part` | 3296 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 42 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
 | 43 | `186-archived-restore.js.part` | 468 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
-| 44 | `190-calendar-approval-comments.js.part` | 3434 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 44 | `190-calendar-approval-comments.js.part` | 3478 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 45 | `200-intake-data-startup.js.part` | 1883 | Video-only and Thumbnail-only were already built, but sat |
 | 46 | `210-production-state-writes.js.part` | 3313 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 47 | `220-production-attribution-views.js.part` | 2909 | An ABSENT persisted slug is missing evidence, not |
@@ -69,7 +69,7 @@
 | 61 | `322-core-kasper-tab-counts.js.part` | 34 | — |
 | 62 | `323-kasper-dashboard-tail.js.part` | 949 | Messages tab = the shared Messages inbox (326-core-messages-inbox), or |
 | 63 | `324-client-onboarding-panel.js.part` | 776 | talking to the functions (admin only; the server checks the key and the member again) |
-| 64 | `326-core-messages-inbox.js.part` | 450 | Messages inbox (Notes Step 2) |
+| 64 | `326-core-messages-inbox.js.part` | 463 | Messages inbox (Notes Step 2) |
 | 65 | `330-kasper-review-history.js.part` | 2665 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 66 | `340-kasper-editors-board.js.part` | 734 | Editor work model |
 | 67 | `345-core-tooltip-date-picker.js.part` | 630 | Global styled tooltip — replaces every browser-native title popup |

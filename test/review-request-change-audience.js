@@ -51,6 +51,7 @@ const _calPendingEdits = Object.create(null);
 let _mintN = 0;
 function _calMintCommentId(){ return 'c_' + (++_mintN); }
 function _calCurrentAuthor(){ return _isClientLink ? 'Sidney Laruel' : 'SMM'; }
+function _calCurrentAuthorId(){ return _isClientLink ? '' : 'm_fixture'; }
 function computeOverallStatus(){ return 'Tweaks Needed'; }
 function _calMarkLocalStatus(){}
 function _calReviewMode(){ return (!_isClientLink && calState.view === 'smmreview') ? 'smm' : 'client'; }

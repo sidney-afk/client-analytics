@@ -31,12 +31,14 @@ import { _prodCanonicalCommentGate, _prodProjectCanonicalCardComments } from './
        thread it answers, so it keeps that thread's part and audience. */
     const MSG_URL = CAL_SUPABASE_URL + '/functions/v1/production-comments';
     const MSG_REFRESH_MS = 120000;
+    const MSG_FIRST_LOAD_MS = 60000;
     const _msgState = {
         loading: false, loaded: false, error: '', conversations: [], scope: '',
         openId: '', replyTo: '', draft: '', sending: false, filter: 'all', lastAt: 0,
         unavailable: false,
     };
     let _msgTimer = null;
+    let _msgFirstTimer = null;
     const _msgFallbackHooks = [];
 
     /* The page can go live before the production-comments deploy that adds
@@ -122,13 +124,21 @@ import { _prodCanonicalCommentGate, _prodProjectCanonicalCardComments } from './
        quiet background refresh that keeps the counts current. */
     function _msgOnIdentity() {
         if (_msgTimer) { clearInterval(_msgTimer); _msgTimer = null; }
+        if (_msgFirstTimer) { clearTimeout(_msgFirstTimer); _msgFirstTimer = null; }
         if (!_msgCanUse()) {
             _msgState.conversations = []; _msgState.loaded = false; _msgState.openId = '';
             _msgPaintCounts(); _msgClosePanel();
             return;
         }
-        _msgLoad(true);
-        _msgTimer = setInterval(() => { if (!document.hidden) _msgLoad(true); }, MSG_REFRESH_MS);
+        // Nothing loads during boot: the first quiet refresh waits a minute
+        // (opening the inbox loads at once), then repeats every two minutes.
+        if (_msgFirstTimer) clearTimeout(_msgFirstTimer);
+        _msgFirstTimer = setTimeout(() => {
+            _msgFirstTimer = null;
+            if (!_msgCanUse() || _msgState.unavailable) return;
+            if (!document.hidden) _msgLoad(true);
+            _msgTimer = setInterval(() => { if (!document.hidden) _msgLoad(true); }, MSG_REFRESH_MS);
+        }, MSG_FIRST_LOAD_MS);
     }
 
     /* ── Drawing ── */

@@ -69,7 +69,7 @@
 | 61 | `322-core-kasper-tab-counts.js.part` | 34 | — |
 | 62 | `323-kasper-dashboard-tail.js.part` | 949 | Messages tab = the shared Messages inbox (326-core-messages-inbox), or |
 | 63 | `324-client-onboarding-panel.js.part` | 776 | talking to the functions (admin only; the server checks the key and the member again) |
-| 64 | `326-core-messages-inbox.js.part` | 440 | Messages inbox (Notes Step 2) |
+| 64 | `326-core-messages-inbox.js.part` | 450 | Messages inbox (Notes Step 2) |
 | 65 | `330-kasper-review-history.js.part` | 2665 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 66 | `340-kasper-editors-board.js.part` | 734 | Editor work model |
 | 67 | `345-core-tooltip-date-picker.js.part` | 630 | Global styled tooltip — replaces every browser-native title popup |

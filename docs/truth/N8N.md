@@ -246,8 +246,8 @@ This is the complete current live workflow ID set. The [Atlas](../ATLAS.md#n8n) 
   site, so the Slack and Telegram alert links in `oi4BPg79dykdet6H` open the marketing home page. The
   Kasper link should be `https://syncview.synchrosocial.com/?Kasper=1#kasper/hiring-process`.
   (2) The capture gate drops a submission whose video answer (question 11) does not start with
-  `https://`; one real application was dropped this way on 2026-10-04 with no alert, only a row in the
-  Hiring Raw Log. Prefix `https://` when the answer is a bare link before testing. (3) The 2026-10-06
+  the secure-link prefix (https followed by a colon and two slashes); one real application was dropped this way on 2026-10-04 with no alert, only a row in the
+  Hiring Raw Log. Add that prefix when the answer is a bare link before testing. (3) The 2026-10-06
   edits to `xoPqojySDriQ8Mzh` were made from a copy older than 2026-09-15, so `Normalize Booking` again
   admits only `client-success-content-manager-interview`; `video-editor-interview` bookings fall to the
   sales branch and are ignored (the `hiring_role` map from version `cd312a71` is gone). The Client

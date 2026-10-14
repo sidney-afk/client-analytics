@@ -10,7 +10,7 @@ import {
   CAL_COMPONENTS, CAL_STATUSES, _calComponentsFor, _calIsTitleReviewOn, _calNormStatus, _calTitlePillShown,
   _calUpsertFetch, _prodCrosswalkVerdict, _syncviewClientWriteToken, _syncviewEfHeaders,
   _writeUiLinkSlotSealed, _writeUiLinkSlotSealedLive, _writeUiLinkSlotSealedNotice,
-  _writeUiNativeId, _writeUiReportFailure
+  _writeUiNativeId, _writeUiReportFailure, _writeUiTrackSave
 } from './120-calendar-flags-write-repair.js';
 import { _calNameSyncScheduleRefresh, _calNameSyncSlotHtml } from './125-title-name-rule.js';
 import {
@@ -822,11 +822,11 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     async function _notifyClientCall(body) {
         let resp;
         try {
-            resp = await fetch(CLIENT_REVIEW_ALERT_URL, {
+            resp = await _writeUiTrackSave('notify', 'client_alert', () => ({ client_slug: calClientSlug(body.client) }), () => fetch(CLIENT_REVIEW_ALERT_URL, {
                 method: 'POST',
                 headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CLIENT_REVIEW_ALERT_URL),
                 body: JSON.stringify(body)
-            });
+            }));
         } catch (e) { return { ok: false, code: 'network', status: 0, json: {} }; }
         let json = null; try { json = await resp.json(); } catch (e) {}
         return { ok: !!(resp.ok && json && json.ok), code: json && json.error, status: resp.status, json: json || {} };

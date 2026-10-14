@@ -115,6 +115,7 @@ and SMM weekly reports.
 | `160-calendar-organize-ui.js` | `_calFillComponentSubmit` | `PROD_WRITE_EF_URL` POST | reports | `_calFillComponentSubmit` | Calendar component fill. Already recorded (component_fill). |
 | `160-calendar-organize-ui.js` | `_calFrameFolderEnsure` | `url` POST | read |  | Calendar Frame folder button: reads the client's saved Frame folder (brain, action folders). Nothing is saved. |
 | `160-calendar-organize-ui.js` | `_calResolveThumbnailFolder` | `THUMBNAIL_FOLDER_RESOLVE_EF_URL` POST | read |  | Looks up a thumbnail folder. |
+| `160-calendar-organize-ui.js` | `_notifyClientCall` | `CLIENT_REVIEW_ALERT_URL` POST | reports | `_notifyClientCall` | The Notify client button: status, send and preview calls to client-review-alert (staff only). Recorded as client_alert. |
 | `160-calendar-organize-ui.js` | `_thumbCompareDiscoverAvailability` | `THUMBNAIL_REVISION_READ_EF_URL` POST | read |  | Reads thumbnail revisions. |
 | `160-calendar-organize-ui.js` | `_thumbCompareLoad` | `THUMBNAIL_REVISION_READ_EF_URL` POST | read |  | Reads thumbnail revisions. |
 | `170-calendar-links-status.js` | `current` | `url` POST | read |  | Reads the editor options for the intake picker. |

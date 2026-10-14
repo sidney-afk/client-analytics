@@ -46,7 +46,7 @@ export const SURFACES = Object.freeze({
 });
 
 const clean = (value) => String(value == null ? '' : value).trim();
-const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
+const respond = (cors, body, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
 // The same address the page's "Copy client link" builds (see
 // _syncviewIssueClientShareUrl): samples carry sxr=1, then c, v and t.
@@ -101,6 +101,9 @@ export function lastCounted(rows, now) {
 }
 
 export function buildHandler(deps) {
+  // index.ts passes its own CORS table (the deploy checks read the literal there); CORS above is the same table.
+  const cors = deps.cors || CORS;
+  const json = (body, status = 200) => respond(cors, body, status);
   const now = () => (typeof deps.now === 'function' ? deps.now() : Date.now());
 
   async function context(db, slug, surface) {
@@ -128,7 +131,7 @@ export function buildHandler(deps) {
   }
 
   return async function handle(req) {
-    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     if (req.method !== 'POST') return json({ ok: false, error: 'method_not_allowed' }, 405);
 
     // Staff keys only, checked before the body is read or a database client is
@@ -157,7 +160,7 @@ export function buildHandler(deps) {
 
       if (action === 'audit') {
         if (!slackToken) return json({ ok: false, error: 'slack_not_configured' }, 503);
-        return await audit(db, slack, slackToken, body);
+        return await audit(db, slack, slackToken, body, json);
       }
 
       const slug = normalizeWriteClient(body.client);
@@ -249,7 +252,7 @@ async function record(db, deps, r) {
 
 // Counts only by default. The names of the clients behind each count are
 // returned for the admin who asked, in `detail`, and are never stored.
-async function audit(db, slack, token, body) {
+async function audit(db, slack, token, body, json) {
   const clients = await db.from('clients').select('slug,kind,active').eq('active', true);
   const profiles = await db.from('client_profiles').select('slug,slack_channel_id,archived_at');
   if (clients.error || profiles.error) return json({ ok: false, error: 'lookup_unavailable' }, 503);

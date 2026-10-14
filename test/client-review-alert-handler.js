@@ -249,6 +249,13 @@ async function call(mod, deps, body, headers = { 'x-syncview-key': 'smm-key', 'x
     const before = calls.length; ok((await dm('D0DIRECT001', PRIVATE)).code === 'preview_target' && calls.length === before, 'adapter: a channel id is never accepted as the preview target, and nothing is sent');
   }
 
+  // ── Browser preflight: the staff identity triple the page attaches is allowed.
+  {
+    const res = await mod.buildHandler(setup().deps)(new Request('https://x.test/f', { method: 'OPTIONS' }));
+    const allowed = (res.headers.get('access-control-allow-headers') || '').split(',').map((h) => h.trim());
+    ok(res.status === 204 && ['x-syncview-key', 'x-syncview-actor', 'x-syncview-role', 'content-type'].every((h) => allowed.includes(h)), 'the preflight allows the staff key, actor and role headers');
+  }
+
   // ── Source and migration facts.
   const index = fs.readFileSync(path.join(ROOT, 'supabase/functions/client-review-alert/index.ts'), 'utf8');
   const handler = fs.readFileSync(path.join(ROOT, 'supabase/functions/_shared/client-review-alert.mjs'), 'utf8');

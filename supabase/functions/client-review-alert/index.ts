@@ -17,7 +17,15 @@ import { authorizeStaffKey } from "../_shared/staff-role-auth.ts";
 import { buildHandler } from "../_shared/client-review-alert.mjs";
 import { makeSlack } from "../_shared/client-review-alert-slack.mjs";
 
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-key, x-syncview-actor, x-syncview-role",
+  "Cache-Control": "no-store",
+};
+
 Deno.serve(buildHandler({
+  cors: CORS,
   authorize: (key: string, roles: string[]) => authorizeStaffKey(key, roles as ("admin" | "smm" | "creative")[]),
   makeClient: () => {
     const url = Deno.env.get("SUPABASE_URL");

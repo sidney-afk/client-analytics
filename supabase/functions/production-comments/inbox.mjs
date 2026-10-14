@@ -12,6 +12,17 @@
 //     smm_also_sees grants (the same rule as "My clients", 098-smm-clients)
 //   - editors and designers: nothing (they are not part of Messages)
 //   - a post that is posted or archived leaves the inbox (it stays on the card)
+//
+// Which messages each view shows (owner, 2026-10-14), decided here, never in
+// the browser:
+//   - SMM view (anyone on the roster, admins included): team-only notes, and
+//     client notes that are plain comments. A client change request (the
+//     "Request changes" button, saved with is_tweak true) is hidden, with its
+//     replies.
+//   - reviewer view (an admin not on the roster): only team-only notes
+//     written by an SMM. No client messages.
+// A conversation left with no visible message is dropped, and hidden
+// messages never count as unread.
 
 export const COMPONENTS = ["video", "graphic", "caption", "title"];
 export const UNREAD_WINDOW_DAYS = 14; // with no read mark, older messages count as read
@@ -132,6 +143,28 @@ export function collectMessages(post, canonicalRows) {
   }
   out.sort((a, b) => a.created_at.localeCompare(b.created_at));
   return out;
+}
+
+export function inboxView(scope) {
+  return scope === "all" ? "reviewer" : "smm";
+}
+
+// Written by an SMM: the writer's member id is in smmIds. A staff note saved
+// before the id was stored falls back to the role the note carries.
+export function isSmmAuthor(message, smmIds) {
+  const id = clean(message && message.author_member_id);
+  if (id) return !!(smmIds && smmIds.has(id));
+  return clean(message && message.role).toLowerCase() === "smm";
+}
+
+const isClientChangeRequest = (m) => clean(m && m.role).toLowerCase() === "client" && m.is_tweak === true;
+
+// The messages one view may see, from collectMessages() output.
+export function visibleMessages(messages, view, smmIds) {
+  const list = Array.isArray(messages) ? messages : [];
+  if (view === "reviewer") return list.filter((m) => m.audience === "internal" && isSmmAuthor(m, smmIds));
+  const hiddenRoots = new Set(list.filter(isClientChangeRequest).map((m) => m.id));
+  return list.filter((m) => !isClientChangeRequest(m) && !hiddenRoots.has(m.root_id));
 }
 
 // Yours when it carries your member id. Staff notes written before the id

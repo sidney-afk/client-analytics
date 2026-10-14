@@ -154,7 +154,32 @@
                 return c;
             },
             hash: function () { return current().hash; },
-            search: function () { return current().search; }
+            search: function () { return current().search; },
+            /* "Back to card". A link that opens SyncLinear for a card appends
+               cardOrigin() to its address (from=calendar|samples, card=<id>,
+               cslug=<client slug>), so the new tab knows which card sent it and
+               keeps knowing after a reload. fromCard() reads it back and gives
+               the address of that exact card, or null when SyncLinear was
+               opened any other way. The first answer is kept for the life of the
+               page, so an in-app address rewrite cannot lose it. */
+            cardOrigin: function (from, slug, card) {
+                if ((from !== 'calendar' && from !== 'samples') || !slug || !card) return '';
+                return '&from=' + from + '&card=' + enc(String(card)) + '&cslug=' + enc(String(slug));
+            },
+            fromCard: function () {
+                if (window.__svFromCard !== undefined) return window.__svFromCard;
+                var r = null;
+                try {
+                    var q = new URLSearchParams(current().search);
+                    var from = q.get('from'), card = q.get('card'), slug = q.get('cslug');
+                    if ((from === 'calendar' || from === 'samples') && card && slug) {
+                        var head = from === 'samples' ? 'sample-reviews' : 'calendar';
+                        r = { from: from, card: card, slug: slug, href: window.svRoute.fast('/#' + head + '/' + enc(slug) + '/' + enc(card)) };
+                    }
+                } catch (e) {}
+                if (r) window.__svFromCard = r;
+                return r;
+            }
         };
         try {
             // A stub or 404.html hop arrives as /?sv_path=<clean path>&<query>#<hash>.

@@ -1348,9 +1348,11 @@ import {
         const role = _syncviewStaffRoleValue(identity);
         if (capability === 'credentials') return role === 'admin' || role === 'smm';
         if (capability === 'messages') return role === 'admin' || role === 'smm';
-        // The header Messages button is for SMMs; admins read the same inbox in
-        // the Messages tab of the Kasper dashboard, and the header has no room.
-        if (capability === 'messages-button') return role === 'smm';
+        // The header Messages button opens the inbox for admins and SMMs. An
+        // admin on the SMM roster sees their own clients there; one not on it
+        // gets the reviewer view (every client). The Messages tab on the Kasper
+        // dashboard is the same inbox. Editors and designers have no inbox.
+        if (capability === 'messages-button') return role === 'admin' || role === 'smm';
         if (capability === 'review-link') return role === 'admin' || role === 'smm';
         if (capability === 'restore-archived') return role === 'admin' || role === 'smm';
         if (capability === 'intake') return role === 'admin' || role === 'smm';

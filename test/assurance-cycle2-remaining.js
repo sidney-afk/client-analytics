@@ -51,28 +51,29 @@ process.on('exit', c => { if (!finished && c === 0) { console.log('FAIL  the sui
     }
   } catch (e) { ok(false, 'this block could not run: ' + String(e && e.message || e).slice(0, 120)); }
 
-  // --- 2. Today: "Open card" on a work-item row asks for the card by id ----------------
+  // --- 2. Today: "Open card" always opens a new tab on the card, by card id -----------
   try {
     const run = row => {
-      const env = { focus: [], nav: [], address: [], viaWorkItem: [] };
+      const env = { opened: [], sameTab: [] };
       new Function('env', 'row', `
         const tdyState = { data: { posts: [], open: [row], names: { fixtureclient: 'Fixture Client' } } };
-        const svSharedClientNote = () => {};
-        const _calSetFocusRequest = req => env.focus.push(req);
-        const navTo = where => env.nav.push(where);
-        const _tdyCardInAddress = (slug, id) => env.address.push(slug + '/' + id);
-        const wlOpenInContentCalendar = (name, x, id) => env.viaWorkItem.push(id);
+        const calClientSlug = name => String(name || '');
+        const svRoute = { fast: url => url };
+        const window = { open: (url, target) => env.opened.push({ url, target }) };
+        const navTo = where => env.sameTab.push(where);
+        ${lift('_tdyCardHash')}
+        ${lift('_tdyCardTab')}
         ${lift('_tdyOpenCard')}
         _tdyOpenCard('del', row.id);
       `)(env, row);
       return env;
     };
     const withCard = run({ id: 'd1', client_slug: 'fixtureclient', card_id: 'p_card_1' });
-    ok(withCard.focus.length === 1 && withCard.focus[0].cardId === 'p_card_1' && withCard.focus[0].client === 'Fixture Client',
-      'Today: a work item that knows its card opens it by card id (which gets it past a saved filter)');
-    ok(withCard.address.join() === 'fixtureclient/p_card_1' && withCard.viaWorkItem.length === 0, 'Today: and the address carries the card');
+    ok(withCard.opened.length === 1 && withCard.opened[0].target === '_blank' && withCard.sameTab.length === 0,
+      'Today: Open card on a work item opens a new tab and leaves Today where it is');
+    ok(withCard.opened[0].url === '/#calendar/fixtureclient/p_card_1', 'Today: and the new tab\'s address carries the client and the card id');
     const without = run({ id: 'd2', client_slug: 'fixtureclient', card_id: null });
-    ok(without.viaWorkItem.join() === 'd2' && without.focus.length === 0, 'Today: a work item with no card still opens the old way');
+    ok(without.opened.length === 1 && without.opened[0].url === '/#calendar/fixtureclient', 'Today: a work item with no card opens that client\'s Calendar in a new tab');
   } catch (e) { ok(false, 'this block could not run: ' + String(e && e.message || e).slice(0, 120)); }
 
   // --- 3. Today Walk-through keeps its place by post (read from the code) -------------

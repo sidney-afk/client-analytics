@@ -3009,6 +3009,13 @@
         .prod-label-lock { padding: 7px 10px; border-top: 1px solid var(--prod-divider); color: var(--prod-faint); font-size: 10.5px; line-height: 15px; }
         .prod-create-trigger { min-height: 28px; border: 0; border-radius: 7px; padding: 0 11px; background: var(--prod-accent); color: #fff; display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
         .prod-create-trigger:hover { filter: brightness(.97); }
+        .prod-back-card { flex: 1; min-width: 0; min-height: 36px; border: 0; border-radius: 8px; padding: 0 14px 0 10px; background: var(--prod-accent); color: #fff; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; box-shadow: 0 1px 2px rgba(0,0,0,.18); }
+        .prod-back-card:hover { filter: brightness(1.08); }
+        .prod-back-card:focus-visible { outline: 2px solid var(--prod-text); outline-offset: 2px; }
+        .prod-back-card svg { flex: none; }
+        .prod-back-strip { display: none; flex: none; padding: 8px 12px; background: var(--prod-bg); border-bottom: 1px solid var(--prod-divider); }
+        .prod-back-strip .prod-back-card { width: 100%; min-height: 44px; font-size: 14px; }
+        @media (max-width: 900px) { .prod-back-strip { display: flex; } }
         .prod-create-trigger[disabled] { background: var(--prod-hover); color: var(--prod-faint); cursor: not-allowed; filter: none; }
         .prod-create-bd { position: fixed; inset: 0; padding: 32px 18px; box-sizing: border-box; display: flex; justify-content: center; align-items: flex-start; overflow: auto; background: rgba(18,18,20,.34); pointer-events: auto; }
         .prod-create-modal { width: min(720px, calc(100vw - 36px)); max-height: calc(100vh - 64px); display: flex; flex-direction: column; border: 1px solid var(--prod-border); border-radius: 14px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: 0 24px 70px rgba(0,0,0,.24); overflow: hidden; }

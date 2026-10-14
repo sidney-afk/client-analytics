@@ -61,3 +61,8 @@ The bot's membership could not be checked from the build session (it has no Slac
 deploying, an admin can get the count (and the names, for them only) with the `audit` action of the same
 function. A client in the first row can still be opened in the box; it says there is no private channel
 and cannot send.
+
+## Pictures
+
+Made by `NOTIFY_CLIENT_SHOTS=<dir> node docs/syncview-design/tests/notify-client-browser.js` on fictional data
+(desktop 1280px and phone 390px): [`docs/ops/notify-client-screens/`](notify-client-screens/).

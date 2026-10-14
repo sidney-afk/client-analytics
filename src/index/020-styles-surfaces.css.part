@@ -7973,6 +7973,10 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
 .fv-review-video { display: flex; flex-direction: column; align-items: stretch; width: 100%; max-width: 260px; margin: 0 auto; }
 .fv-hero-video { max-width: 380px; }
 .fv-review-video .fv-watch-btn { width: 100%; }
+/* With the viewer switched off for this client the button is hidden and the page must look as it did before:
+   the button takes no room, and the wrapper around a review tile drops out of the layout. */
+.fv-gated[hidden] { display: none !important; }
+.fv-review-video:has(> .fv-gated[hidden]) { display: contents; }
 .kcard-watch-btn.kcard-watch-here { background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); }
 .kcard-watch-btn.kcard-watch-here:hover { background: var(--surface-hover); transform: none; box-shadow: none; }
 .kcard-watch-here svg { width: 11px; height: 11px; flex-shrink: 0; }

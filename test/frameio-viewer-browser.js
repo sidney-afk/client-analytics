@@ -12,6 +12,7 @@
  *   SMM REVIEW        the same viewer opens from the review panel's video.
  *   KASPER REVIEW     and from Kasper's board, on the card row and inside the opened card.
  *   CLIENT LINK       a tokened client link shows no button anywhere and cannot open the viewer.
+ *   THE SWITCH        the viewer shows only when the runtime flag row frame_viewer_clients lists the client (or says all: true); a missing row, wrong shape or failed read hides it, and realtime changes show and hide it live. Off, the page looks as it did before.
  *   LOOK              desktop 1440x900 and phone 390x844, light and dark. Set FRAMEIO_VIEWER_SHOT_DIR to save screenshots.
  */
 const fs = require('node:fs');
@@ -58,6 +59,8 @@ function makeState(extra) {
   return Object.assign({
     cards: [card('v1', 'Video card', FRAME, 1), card('d1', 'Drive link card', 'https://drive.google.com/file/d/fixture/view', 2), card('n1', 'No video card', '', 3)],
     calls: [], view: () => ({ status: 200, body: GOOD() }), delay: 0, mediaHits: 0, mediaFail: 0,
+    // The switch row the page reads. null = no row, flagFail = the read itself fails.
+    frameFlag: { all: false, clients: [SLUG] }, flagFail: false, flagReads: 0,
   }, extra || {});
 }
 async function installRoutes(ctx, origin, state) {
@@ -96,6 +99,11 @@ async function installRoutes(ctx, origin, state) {
     if (p === '/rest/v1/syncview_runtime_flags') {
       const raw = sp.get('key') || '';
       const keys = /^in\.\(/.test(raw) ? raw.replace(/^in\.\(/, '').replace(/\)$/, '').split(',') : [raw.replace(/^eq\./, '')];
+      if (keys.includes('frame_viewer_clients')) {
+        state.flagReads++;
+        if (state.flagFail) return json({ message: 'fixture failure' }, 500);
+        return json(state.frameFlag ? [{ key: 'frame_viewer_clients', value: state.frameFlag }] : []);
+      }
       return json(keys.map(k => ({ key: k, value: k === 'prod_authority' ? { video: 'syncview', graphics: 'syncview' } : (/_clients$/.test(k) ? { clients: [SLUG] } : { enabled: false }) })));
     }
     if (p === '/rest/v1/calendar_posts') {
@@ -149,7 +157,8 @@ async function calendarRun(browser, origin, label, device) {
   console.log(`--- ${label}: Calendar card ---`);
   const state = makeState();
   const { page, ctx, pageErrors } = await openCalendar(browser, origin, state, device);
-  expect(await page.locator('.cal-card[data-pid="v1"] .cal-link-watch').count() === 1, `${label}: a card with a Frame.io link has "Watch here"`);
+  await page.locator('.cal-card[data-pid="v1"] .cal-link-watch:visible').waitFor({ timeout: 8000 });
+  expect(await page.locator('.cal-card[data-pid="v1"] .cal-link-watch:visible').count() === 1, `${label}: a card with a Frame.io link has "Watch here"`);
   expect(await page.locator('.cal-card[data-pid="d1"] .cal-link-watch').count() === 0, `${label}: a Drive link has none`);
   expect(await page.locator('.cal-card[data-pid="n1"] .cal-link-watch').count() === 0, `${label}: a card with no video has none`);
   await page.evaluate(() => document.querySelector('.cal-card[data-pid="v1"]').scrollIntoView({ block: 'center' }));
@@ -282,7 +291,8 @@ async function smmReviewRun(browser, origin) {
   await page.locator('.kcard[data-cal-review-pid="v1"] .kcard-expand-btn').click();
   await page.waitForSelector('.kcard[data-cal-review-pid="v1"] .cal-review-body', { timeout: 10000 });
   const btn = page.locator('.cal-review-panel[data-comp="video"] .fv-watch-review');
-  expect(await btn.count() === 1, 'SMM review: the video panel has "Watch here"');
+  await btn.and(page.locator(':visible')).waitFor({ timeout: 8000 });
+  expect(await btn.and(page.locator(':visible')).count() === 1, 'SMM review: the video panel has "Watch here"');
   await shot(page, 'smm-review-1-light');
   await btn.click();
   await waitReady(page);
@@ -315,11 +325,12 @@ async function kasperRun(browser, origin, label, device) {
   await page.evaluate(name => { wlMergeClientsFromSheet([name]); window.__rts['kasper-cal']({}); }, NAME);
   await page.waitForSelector('#kasperReviewBody .kcard[data-kasper-pid="k1"]', { timeout: 25000 });
   const row = page.locator('.kcard[data-kasper-pid="k1"] .kcard-watch-here');
-  expect(await row.count() === 1, `${label}: Kasper's card row has "Watch here" next to the Frame.io link`);
+  await row.and(page.locator(':visible')).waitFor({ timeout: 8000 });
+  expect(await row.and(page.locator(':visible')).count() === 1, `${label}: Kasper's card row has "Watch here" next to the Frame.io link`);
   expect(await page.locator('.kcard[data-kasper-pid="k1"] a.kcard-watch-btn').count() === 1, `${label}: the normal "Watch video" link is still there`);
   await page.locator('.kcard[data-kasper-pid="k1"] .kcard-expand-btn').click();
   await page.waitForSelector('.kcard[data-kasper-pid="k1"] .cal-review-body', { timeout: 10000 });
-  const inside = page.locator('.kcard[data-kasper-pid="k1"] .cal-review-body .fv-watch-btn');
+  const inside = page.locator('.kcard[data-kasper-pid="k1"] .cal-review-body .fv-watch-btn:visible');
   expect(await inside.count() >= 1, `${label}: the opened card has "Watch here" on the video`);
   await shot(page, `kasper-${label}-1-light`);
   await inside.first().click();
@@ -350,12 +361,105 @@ async function clientLinkRun(browser, origin) {
   await page.locator('.kcard[data-cal-review-pid="c1"] .pocket-cal-fold > summary').first().click().catch(() => {});
   expect(await page.locator('.cal-review-panel[data-comp="video"]').count() >= 1, 'client link: the review card is on screen');
   expect(await page.locator('.fv-watch-btn, .cal-link-watch, .kcard-watch-here').count() === 0, 'client link: no "Watch here" button anywhere');
+  expect(state.flagReads === 0, 'client link: the page never reads the switch row');
   await page.evaluate(() => { const b = document.createElement('button'); b.setAttribute('data-fv-link', 'https://f.io/fixture-video'); b.id = 'fakeBtn'; document.body.appendChild(b); return typeof svFrameViewerOpen === 'function' ? svFrameViewerOpen(b) : null; });
   await sleep(500);
   expect(!(await page.evaluate(() => !!document.getElementById('fvOverlay'))) && state.calls.length === 0, 'client link: calling the viewer anyway opens nothing and asks nothing');
   await shot(page, 'client-link-phone');
   expect(pageErrors.length === 0, `client link: no page errors (${pageErrors.join(' | ')})`);
   await ctx.close();
+}
+
+
+// WHO SEES IT: the one switch row. Hidden unless it lists the client (or says all), and hidden on any doubt.
+const BUTTONS = '.cal-link-watch, .fv-watch-btn, .kcard-watch-here';
+const visibleButtons = page => page.evaluate(sel => Array.from(document.querySelectorAll(sel)).filter(b => !b.hidden && getComputedStyle(b).display !== 'none').length, BUTTONS);
+const canOpen = async page => {
+  await page.evaluate(() => { const b = document.querySelector('.cal-link-watch, .fv-watch-btn, .kcard-watch-here'); if (b) svFrameViewerOpen(b); });
+  await sleep(700);
+  return page.evaluate(() => !!(document.getElementById('fvOverlay') && document.getElementById('fvOverlay').classList.contains('open')));
+};
+async function flagRun(browser, origin) {
+  console.log('--- desktop: the switch row ---');
+  const desktop = { viewport: { width: 1440, height: 900 } };
+  const cases = [
+    ['no row at all', { frameFlag: null }, false],
+    ['a row that lists a different client', { frameFlag: { all: false, clients: ['someotherclient'] } }, false],
+    ['a row with an empty list', { frameFlag: { all: false, clients: [] } }, false],
+    ['a row of the wrong shape (a list of names, no "all")', { frameFlag: 'fixtureclient' }, false],
+    ['all as the text "true" (not the value true)', { frameFlag: { all: 'true', clients: [] } }, false],
+    ['a read that fails', { flagFail: true }, false],
+    ['a row that lists the client', { frameFlag: { all: false, clients: [SLUG] } }, true],
+    ['a row that lists the client by its display name', { frameFlag: { all: false, clients: [NAME] } }, true],
+    ['all: true, whoever the client is', { frameFlag: { all: true, clients: ['someotherclient'] } }, true],
+  ];
+  for (const [label, over, want] of cases) {
+    const state = makeState(over);
+    const { page, ctx, pageErrors } = await openCalendar(browser, origin, state, desktop);
+    await sleep(1200);   // the switch read lands
+    const shownNow = await visibleButtons(page);
+    expect(state.flagReads >= 1, `switch: ${label}: the page read the switch row`);
+    expect(want ? shownNow >= 1 : shownNow === 0, `switch: ${label}: the viewer is ${want ? 'shown' : 'hidden'} on the Calendar card (${shownNow} visible)`);
+    expect(await canOpen(page) === want, `switch: ${label}: the viewer ${want ? 'opens' : 'cannot be opened even by calling it'}`);
+    expect(want || state.calls.length === 0, `switch: ${label}: ${want ? 'ok' : 'nothing was asked of the function'}`);
+    if (!want) {
+      // Off: nothing takes room. The link row is the same width and height as with the button not there at all.
+      const row = await page.evaluate(() => { const f = document.querySelector('.cal-card[data-pid="v1"] .cal-link-post'); const r = f.getBoundingClientRect(); const kids = Array.from(f.children).filter(c => getComputedStyle(c).display !== 'none').map(c => c.className.split(' ')[0]); return { h: Math.round(r.height), kids }; });
+      expect(!row.kids.includes('cal-link-watch'), `switch: ${label}: no extra control in the link row (${row.kids.join(', ')})`);
+    }
+    expect(pageErrors.length === 0, `switch: ${label}: no page errors (${pageErrors.join(' | ')})`);
+    await ctx.close();
+  }
+
+  // Off for the page you are on, and the other places say the same.
+  {
+    const state = makeState({ frameFlag: null, cards: [card('v1', 'Video card', FRAME, 1, { video_status: 'For SMM Approval', status: 'For SMM Approval' })] });
+    const { page, ctx } = await openCalendar(browser, origin, state, desktop, { view: 'smmreview' });
+    await page.locator('.kcard[data-cal-review-pid="v1"] .kcard-expand-btn').click();
+    await page.waitForSelector('.cal-review-panel[data-comp="video"]', { timeout: 10000 });
+    await sleep(1200);
+    expect(await visibleButtons(page) === 0, 'switch: no row: nothing shown in the SMM review panel');
+    const tile = await page.evaluate(() => { const t = document.querySelector('.cal-review-panel[data-comp="video"] .cal-review-video-tile'); const w = t.parentElement; return { wrapper: w.className, display: getComputedStyle(w).display }; });
+    expect(!/fv-review-video/.test(tile.wrapper) || tile.display === 'contents', `switch: no row: the review tile sits where it always did (${tile.wrapper || 'no wrapper'} / ${tile.display})`);
+    await shot(page, 'switch-off-smm-review');
+    await ctx.close();
+  }
+  {
+    const state = makeState({ fakeSupabase: true, frameFlag: null });
+    state.cards = [card('k1', 'Kasper fixture card', FRAME, 1, { status: 'Kasper Approval', video_status: 'Kasper Approval', graphic_status: 'Client Approval', caption_status: 'Kasper Approval',
+      thumbnail_url: 'https://example.invalid/t.jpg', video_deliverable_id: 'del_v_k1', graphic_deliverable_id: 'del_g_k1', video_status_at: '2026-09-30 19:38:51.555501+00', caption_status_at: '2026-09-30 19:38:52+00' })];
+    const ctx = await browser.newContext(Object.assign({ serviceWorkers: 'block' }, desktop));
+    await installRoutes(ctx, origin, state);
+    await seedStaffIdentity(ctx, ADMIN);
+    const page = await ctx.newPage();
+    const pageErrors = []; page.on('pageerror', e => pageErrors.push(String(e.message || e).slice(0, 200)));
+    await page.goto(`${origin}/?Kasper=1#kasper`, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => typeof (window.__rts && window.__rts['kasper-cal']) === 'function' && typeof wlMergeClientsFromSheet === 'function', null, { timeout: 25000 });
+    await page.evaluate(name => { wlMergeClientsFromSheet([name]); window.__rts['kasper-cal']({}); }, NAME);
+    await page.waitForSelector('#kasperReviewBody .kcard[data-kasper-pid="k1"]', { timeout: 25000 });
+    await page.locator('.kcard[data-kasper-pid="k1"] .kcard-expand-btn').click();
+    await page.waitForSelector('.kcard[data-kasper-pid="k1"] .cal-review-body', { timeout: 10000 });
+    await sleep(1200);
+    expect(await visibleButtons(page) === 0, 'switch: no row: nothing shown in Kasper\'s review (row and opened card)');
+    await shot(page, 'switch-off-kasper');
+    // Live change: the row appears, the buttons appear; the row is deleted, they go.
+    await page.waitForFunction(() => typeof (window.__rts && window.__rts['syncview-frame-viewer-flag']) === 'function', null, { timeout: 10000 });
+    await page.evaluate(slug => window.__rts['syncview-frame-viewer-flag']({ new: { value: { all: false, clients: [slug] } } }), SLUG);
+    await sleep(300);
+    expect(await visibleButtons(page) >= 2, `switch: realtime: the row is added and the buttons appear without a reload (${await visibleButtons(page)})`);
+    await shot(page, 'switch-on-kasper-live');
+    await page.evaluate(slug => window.__rts['syncview-frame-viewer-flag']({ new: { value: { all: false, clients: ['someotherclient'] } } }), SLUG);
+    await sleep(300);
+    expect(await visibleButtons(page) === 0, 'switch: realtime: the list changes to someone else and they go');
+    await page.evaluate(() => window.__rts['syncview-frame-viewer-flag']({ new: { value: { all: true, clients: [] } } }));
+    await sleep(300);
+    expect(await visibleButtons(page) >= 2, 'switch: realtime: all: true shows them');
+    await page.evaluate(() => window.__rts['syncview-frame-viewer-flag']({ old: { key: 'frame_viewer_clients' } }));
+    await sleep(300);
+    expect(await visibleButtons(page) === 0, 'switch: realtime: the row is deleted (no new row) and they go');
+    expect(pageErrors.length === 0, `switch: Kasper: no page errors (${pageErrors.join(' | ')})`);
+    await ctx.close();
+  }
 }
 
 (async () => {
@@ -369,6 +473,7 @@ async function clientLinkRun(browser, origin) {
     await kasperRun(browser, origin, 'desktop', { viewport: { width: 1440, height: 900 } });
     await kasperRun(browser, origin, 'phone', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     await clientLinkRun(browser, origin);
+    await flagRun(browser, origin);
   } finally { await browser.close(); server.close(); }
   if (failures.length) { console.error(`\n${failures.length} check(s) failed`); process.exit(1); }
   console.log('\nframeio-viewer-browser: all checks passed');

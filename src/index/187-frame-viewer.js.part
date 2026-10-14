@@ -1,5 +1,6 @@
-import { CAL_SUPABASE_URL, _syncviewRequireStaffIdentity } from './100-onboarding-staff-controls.js';
-import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewRequireStaffIdentity } from './100-onboarding-staff-controls.js';
+import { _calRuntimeFlagClient, _calRuntimeFlagRawMembers, _calRuntimeFlagSlug, _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
+import { calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     /* WATCH HERE: a card's Frame.io video and its Frame.io comments, inside SyncView (staff only).
@@ -24,13 +25,105 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     const FV_PLAY_ICO = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4.5 2.7v10.6a.5.5 0 0 0 .76.43l8.6-5.3a.5.5 0 0 0 0-.86l-8.6-5.3a.5.5 0 0 0-.76.43z"/></svg>';
 
+    /* WHO SEES IT: one runtime flag row, read the way the per-client flags are read (a bounded read with the
+       public key, then a realtime channel). Key frame_viewer_clients, value { "all": false, "clients": [...] }.
+       It fails closed: a missing row, a value of the wrong shape, a failed read or a deleted row all mean hidden.
+       The list lives only in the database, never in this repo. A client link never reads it at all.
+
+       The buttons are always drawn (so a later flip needs no repaint of the cards) but carry the hidden
+       attribute unless the flag allows their card's client; hidden is display none, so with the flag off the
+       page looks exactly as it did before the viewer existed. */
+    const FRAME_VIEWER_FLAG_KEY = 'frame_viewer_clients';
+    const FV_FLAG_TIMEOUT_MS = 4000;
+    const FV_FLAG_RETRY_MS = 30000;
+    let _fvFlag = { all: false, clients: new Set() };
+    let _fvFlagPromise = null;
+    let _fvFlagChannel = null;
+    let _fvFlagTriedAt = 0;
+
+    // The flag row's value to the answer. Only exact shapes open anything: all must be literally true, and the
+    // clients must be a list of strings.
+    function _fvFlagParse(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return { all: false, clients: new Set() };
+        const members = _calRuntimeFlagRawMembers(value) || [];
+        return { all: value.all === true, clients: new Set(members.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)) };
+    }
+    function _fvFlagSlugOf(clientOrSlug) {
+        let slug = '';
+        try { slug = calClientSlug(String(clientOrSlug == null ? '' : clientOrSlug)); } catch (e) { slug = ''; }
+        return slug || '';
+    }
+    function _fvEnabledFor(clientOrSlug) {
+        if (_isClientLink) return false;
+        if (_fvFlag.all === true) return true;
+        const slug = _fvFlagSlugOf(clientOrSlug);
+        return !!slug && _fvFlag.clients.has(slug);
+    }
+    function _fvSyncButtons() {
+        document.querySelectorAll('.fv-gated').forEach((b) => {
+            if (_fvEnabledFor(b.getAttribute('data-fv-client'))) b.removeAttribute('hidden');
+            else b.setAttribute('hidden', '');
+        });
+    }
+    function _fvFlagSet(value) {
+        _fvFlag = _fvFlagParse(value);
+        _fvSyncButtons();
+    }
+    async function _fvFlagFetch() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _fvFlagSet(null); return; }
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, FV_FLAG_TIMEOUT_MS) : null;
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(FRAME_VIEWER_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined, headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            if (!Array.isArray(rows)) throw new Error('shape');
+            _fvFlagSet(rows[0] && rows[0].value ? rows[0].value : null);
+        } catch (e) {
+            _fvFlagSet(null);
+            _fvFlagPromise = null;   // a later render may try again (not sooner than FV_FLAG_RETRY_MS)
+            console.warn('[Frame viewer] switch unreadable; the viewer stays hidden', e && e.message);
+        } finally { if (timer) clearTimeout(timer); }
+    }
+    async function _fvFlagSubscribe() {
+        if (_fvFlagChannel) return;
+        const client = await _calRuntimeFlagClient();
+        if (!client || _fvFlagChannel) return;
+        try {
+            _fvFlagChannel = client
+                .channel('syncview-frame-viewer-flag')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + FRAME_VIEWER_FLAG_KEY }, (payload) => {
+                    // A delete arrives with no new row: that is off.
+                    const row = payload && payload.new ? payload.new : null;
+                    _fvFlagSet(row && row.value ? row.value : null);
+                })
+                .subscribe();
+        } catch (e) {
+            console.warn('[Frame viewer] realtime subscribe failed', e);
+            _fvFlagChannel = null;
+        }
+    }
+    // Staff pages only, once per page (again after a failed read, at most every 30 seconds).
+    function _fvPrimeFlag() {
+        if (_isClientLink) return;
+        if (_fvFlagPromise) return;
+        if (Date.now() - _fvFlagTriedAt < FV_FLAG_RETRY_MS && _fvFlagTriedAt) return;
+        _fvFlagTriedAt = Date.now();
+        _fvFlagPromise = _fvFlagFetch();
+        _fvFlagPromise.then(() => _fvFlagSubscribe()).catch(() => null);
+    }
+
     /* The button every surface drops in. Empty for a client link page, and for a card whose video link is
        not a Frame.io link, so nothing about those pages changes. */
-    function svFrameWatchBtnHtml(rawLink, title, cls) {
+    function svFrameWatchBtnHtml(rawLink, title, cls, client) {
         if (_isClientLink) return '';
         const link = _fvLinkOf(rawLink);
         if (!link) return '';
-        return `<button type="button" class="${_calEscAttr(cls || 'fv-watch-btn')}" data-fv-link="${_calEscAttr(link)}" data-fv-title="${_calEscAttr(title || '')}" onclick="event.stopPropagation();svFrameViewerOpen(this)" title="Watch the video and read its Frame.io comments here">${FV_PLAY_ICO}<span>Watch here</span></button>`;
+        _fvPrimeFlag();
+        const who = _fvFlagSlugOf(client || (calState && calState.client) || '');
+        const hidden = _fvEnabledFor(who) ? '' : ' hidden';
+        return `<button type="button" class="${_calEscAttr(cls || 'fv-watch-btn')} fv-gated" data-fv-client="${_calEscAttr(who)}" data-fv-link="${_calEscAttr(link)}" data-fv-title="${_calEscAttr(title || '')}"${hidden} onclick="event.stopPropagation();svFrameViewerOpen(this)" title="Watch the video and read its Frame.io comments here">${FV_PLAY_ICO}<span>Watch here</span></button>`;
     }
 
     // Escape closes it wherever the focus is (it can be on nothing after a button inside the viewer is replaced).
@@ -244,6 +337,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (_isClientLink) return;
         const link = _fvLinkOf(btn && btn.getAttribute && btn.getAttribute('data-fv-link'));
         if (!link) return;
+        // A click can land before the switch has been read: wait for that one read (bounded), then decide.
+        _fvPrimeFlag();
+        if (_fvFlagPromise) { try { await _fvFlagPromise; } catch (e) {} }
+        if (!_fvEnabledFor(btn.getAttribute('data-fv-client'))) return;
         try { await _syncviewRequireStaffIdentity('frame-view'); } catch (e) { return; }
         FV_STATE.opener = btn || null;
         FV_STATE.link = link;

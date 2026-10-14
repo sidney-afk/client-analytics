@@ -1353,7 +1353,7 @@ import { svFrameWatchBtnHtml } from './187-frame-viewer.js';
                     ${urgentBtn}
                     ${doneBtn}
                     ${watchBtn}
-                    ${svFrameWatchBtnHtml(videoUrl, p.name, 'kcard-watch-btn kcard-watch-here')}
+                    ${svFrameWatchBtnHtml(videoUrl, p.name, 'kcard-watch-btn kcard-watch-here', p.client)}
                     <button class="kcard-expand-btn" type="button" onclick="_kasperToggleCard('${_calEscAttr(pid)}')" aria-label="${item._expanded ? 'Collapse' : 'Expand'} card"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
                 </div>
             </div>
@@ -1434,7 +1434,7 @@ import { svFrameWatchBtnHtml } from './187-frame-viewer.js';
             const url = String(p.asset_url || '').trim();
             const thumbUrl = _calDeriveThumb(p);
             if (!url) return `<div class="kasper-hero-poster kasper-hero-poster-empty"><span class="kasper-hero-play-label">No video yet</span></div>`;
-            const watch = svFrameWatchBtnHtml(url, p.name, 'fv-watch-btn fv-watch-hero');
+            const watch = svFrameWatchBtnHtml(url, p.name, 'fv-watch-btn fv-watch-hero', p.client);
             const withWatch = (tile) => (watch ? `<div class="fv-review-video fv-hero-video">${tile}${watch}</div>` : tile);
             if (thumbUrl) {
                 return withWatch(`<a class="kasper-hero-poster" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><img class="kasper-hero-poster-bg" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'"><span class="kasper-hero-poster-overlay"><span class="kasper-hero-play">${playIco}</span><span class="kasper-hero-play-label">Open video</span></span></a>`);

@@ -542,7 +542,7 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
             const url = String(p.asset_url || '').trim();
             if (!url) return `<div class="cal-review-preview-empty">No video yet.</div>`;
             // Staff review only: a client link page gets no button (svFrameWatchBtnHtml answers '' there).
-            const watch = svFrameWatchBtnHtml(url, p.name, 'fv-watch-btn fv-watch-review');
+            const watch = svFrameWatchBtnHtml(url, p.name, 'fv-watch-btn fv-watch-review', p.client);
             const withWatch = (tile) => (watch ? `<div class="fv-review-video">${tile}${watch}</div>` : tile);
             // Use the same thumbnail image as the graphic panel, blurred,
             // with "Open video" overlaid — keeps the video column the same

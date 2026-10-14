@@ -12581,6 +12581,10 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
 .fv-review-video { display: flex; flex-direction: column; align-items: stretch; width: 100%; max-width: 260px; margin: 0 auto; }
 .fv-hero-video { max-width: 380px; }
 .fv-review-video .fv-watch-btn { width: 100%; }
+/* With the viewer switched off for this client the button is hidden and the page must look as it did before:
+   the button takes no room, and the wrapper around a review tile drops out of the layout. */
+.fv-gated[hidden] { display: none !important; }
+.fv-review-video:has(> .fv-gated[hidden]) { display: contents; }
 .kcard-watch-btn.kcard-watch-here { background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); }
 .kcard-watch-btn.kcard-watch-here:hover { background: var(--surface-hover); transform: none; box-shadow: none; }
 .kcard-watch-here svg { width: 11px; height: 11px; flex-shrink: 0; }
@@ -13246,9 +13250,9 @@ html .fv-overlay .fv-markers .fv-mark:hover { transform: scale(1.25); }
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-25d276eab879.js";
-        var PARTS = ["js/sv-01-core-f113b7cff656.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-b2c6095ba0b5.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-9fc07a27db02.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-590d7f0725a6.js","js/sv-12-synclinear-3e86ebae2689.js","js/sv-13-core-e3b4abef8056.js","js/sv-15-core-45cf1d45f190.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-ce2728998f6f.js","js/sv-20-core-2e66cf1b5d39.js"];
-        var LAZY = {"templates":"js/sv-02-templates-0bfb7b2adbf4.js","workload":"js/sv-04-workload-cac24a0637b7.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-73586fc19f09.js"};
+        var FULL = "js/sv-full-99c9299f434a.js";
+        var PARTS = ["js/sv-01-core-f113b7cff656.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-b2c6095ba0b5.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-9fc07a27db02.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-b3eba31c5817.js","js/sv-12-synclinear-3e86ebae2689.js","js/sv-13-core-e3b4abef8056.js","js/sv-15-core-45cf1d45f190.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-ce2728998f6f.js","js/sv-20-core-2e66cf1b5d39.js"];
+        var LAZY = {"templates":"js/sv-02-templates-0bfb7b2adbf4.js","workload":"js/sv-04-workload-cac24a0637b7.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-a418448caed6.js"};
         var FORCE = null;
         var CLIENTS = true;
         var isClient = false;

@@ -2688,8 +2688,8 @@
         }
         /* Messages inbox (Notes Step 2): list left, chat right; on a phone the
            list first, then the chat. Same shapes as the approved mockup. */
-        .msg-inbox { display: grid; grid-template-columns: 340px 1fr; height: calc(100vh - 250px); min-height: 520px; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--white); }
-        .msg-list { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+        .msg-inbox { display: grid; grid-template-columns: 340px minmax(0, 1fr); height: calc(100vh - 250px); min-height: 520px; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--white); }
+        .msg-list { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; min-width: 0; }
         .msg-filters { display: flex; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
         .msg-filters button { font: inherit; font-size: 0.74rem; font-weight: 600; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer; }
         .msg-filters button.is-active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
@@ -2752,7 +2752,10 @@
         .msg-panel .msg-inbox { height: 100%; }
         body.msg-panel-open { overflow: hidden; }
         @media (max-width: 767px) {
-            .msg-inbox { grid-template-columns: 1fr; height: calc(100vh - 210px); }
+            /* minmax(0, 1fr): a plain 1fr track grows to the longest unwrapped
+               title or last message and pushed the time and unread badge off
+               the right edge of a phone. */
+            .msg-inbox { grid-template-columns: minmax(0, 1fr); height: calc(100vh - 210px); }
             .msg-inbox .msg-chat { display: none; }
             .msg-inbox.is-chat-open .msg-list { display: none; }
             .msg-inbox.is-chat-open .msg-chat { display: flex; }

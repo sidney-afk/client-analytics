@@ -93,6 +93,8 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
   ok(!inbox.isMine(idMsgs.find(m => m.id === 'a2'), smmOne), "a colleague's note (their member id) is not yours, though both say " + shared);
   ok(!inbox.isMine(idMsgs.find(m => m.id === 'a3'), smmOne), 'an old note with no id falls back to the name match');
   ok(inbox.isMine({ author: 'First Manager' }, smmOne), 'the name match still works when there is no id');
+  ok(!inbox.isMine({ author: 'First Manager', role: 'client' }, smmOne), "a client whose name equals yours is never you");
+  ok(inbox.unreadCount([{ id: 'cc1', author: 'First Manager', role: 'client', created_at: '2026-10-11T10:00:00Z' }], smmOne, '', Date.parse('2026-10-12T00:00:00Z')) === 1, "that client's message counts as unread");
   ok(inbox.unreadCount(idMsgs, smmOne, '', Date.parse('2026-10-12T00:00:00Z')) === 2, 'your own note is never unread; the colleague note and the old note are');
   ok(inbox.unreadCount([idMsgs[0]], smmOne, '', Date.parse('2026-10-12T00:00:00Z')) === 0, 'a conversation with only your note has nothing unread');
   ok(inbox.unreadMark(idMsgs.slice(0, 2), smmOne) === '2026-10-11T10:59:59.999Z', '"unread" marks before the colleague note, never yours');

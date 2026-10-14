@@ -85,6 +85,11 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
   ok(/if \(posts\.length !== 1\) return json\(\{ ok: false, error: "forbidden" \}, 403\)/.test(edge), 'a read mark on a post outside your scope is refused');
   ok(/\.eq\("reader_id", member\.id\)/.test(edge), 'read marks are read for the signed-in member only');
   ok(!/from\("message_reads"\)\.delete/.test(edge), 'the function never deletes read marks');
+  ok(/from\("deliverables"\)[\s\S]{0,200}\.select\("id,client_slug,team,card_id"\)/.test(edge)
+    && /clientKey\(d\.client_slug\) !== clientKey\(post\.client\)/.test(edge)
+    && /normalizeTeam\(d\.team\) !== wantTeam/.test(edge)
+    && /clean\(d\.card_id\) && clean\(d\.card_id\) !== clean\(post\.id\)/.test(edge),
+    "a card's deliverable link only brings in notes when that deliverable is the card's own client, team and card");
 
   const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261014090000_message_reads.sql'), 'utf8');
   ok(/revoke all on table public\.message_reads from public, anon, authenticated, service_role;/.test(migration), 'the migration revokes from all four roles by name');

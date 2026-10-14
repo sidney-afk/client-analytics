@@ -14,6 +14,8 @@
  *   E  a posted post drops out of the list
  *   F  the Messages button by the account opens the same inbox as a panel
  *   G  phone: the list first, then the chat, and back
+ *   H  before the inbox backend is deployed (the old function answers
+ *      invalid_deliverable_id), the old Messages tab stays and the button hides
  * With SCREENSHOTS=<dir>, light and dark captures are written there.
  * Nothing reaches a live backend.
  */
@@ -44,6 +46,7 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
         { id: 'x1', parent_id: null, root_id: 'x1', author: 'Fixture SMM', role: 'smm', audience: 'internal', is_tweak: false, component: 'caption', body: 'Ready to go.', created_at: T(8) }] },
     ];
     let postedGone = false;
+    let oldBackend = false;
     const conversations = () => {
       const card = S.card('p_t1');
       const msgs = parse(card.caption_tweaks).filter(m => m && !m.deleted).map(m => ({
@@ -62,6 +65,7 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     await S.ctx.route('**/functions/v1/production-comments', async route => {
       let body = {}; try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
       if (route.request().method() === 'OPTIONS' || (body.action !== 'inbox' && body.action !== 'inbox_mark')) return route.fallback();
+      if (oldBackend) return route.fulfill({ status: 400, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ ok: false, error: 'invalid_deliverable_id' }) });
       const reply = obj => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(obj) });
       if (body.action === 'inbox') return reply({ ok: true, scope: 'all', conversations: conversations() });
       marks.push(body.post_id + ':' + body.state);
@@ -129,9 +133,13 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     check(await page.evaluate(() => document.querySelector('#navMessages [data-msg-count]').textContent) === '2', 'F: the button shows the unread count (the posted one is gone)');
     await page.click('#navMessages');
     check(await until(() => page.evaluate(() => document.querySelectorAll('#msgPanel .msg-conv').length === 2)), 'F: the panel shows the same conversations');
+    check(await page.evaluate(() => document.getElementById('msgPanel').contains(document.activeElement)), 'F: focus moves into the panel');
+    for (let i = 0; i < 12; i++) await page.keyboard.press('Tab');
+    check(await page.evaluate(() => document.getElementById('msgPanel').contains(document.activeElement)), 'F: Tab stays inside the panel');
     await shot('inbox-light-desktop-panel');
     await page.keyboard.press('Escape');
     check(await page.evaluate(() => document.getElementById('msgPanel').hidden), 'F: Escape closes the panel');
+    check(await page.evaluate(() => document.activeElement && document.activeElement.id === 'navMessages'), 'F: focus returns to the Messages button');
 
     // G: phone
     await page.setViewportSize({ width: 390, height: 844 });
@@ -151,6 +159,18 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     const wide = await page.evaluate(() => document.documentElement.scrollWidth);
     check(wide <= 391, 'G: no sideways scroll on a phone (' + wide + ')');
     check(!page.errors.length, 'no page errors ' + JSON.stringify(page.errors));
+
+    // H: the page ships before the backend
+    oldBackend = true;
+    const old = await S.newPage();
+    await S.openCalendar(old);
+    await old.evaluate(() => { navTo('kasper'); });
+    await old.waitForFunction(() => typeof svAreaApi === 'function' && !!svAreaApi('kasper'), null, { timeout: 20000 });
+    await old.evaluate(() => _kasperGotoTab('replies'));
+    check(await until(() => old.evaluate(() => !!document.querySelector('#kasperContent .kasper-empty, #kasperContent .kasper-replies-list'))), 'H: the old Messages view shows instead of an error');
+    check(await old.evaluate(() => !document.querySelector('#kasperContent .msg-conv')), 'H: no inbox and no error message');
+    check(await old.evaluate(() => getComputedStyle(document.getElementById('navMessages')).display === 'none'), 'H: the Messages button stays hidden');
+    check(!old.errors.length, 'H: no page errors ' + JSON.stringify(old.errors));
   } catch (e) {
     failures.push(String(e && e.stack || e));
     console.error(e);

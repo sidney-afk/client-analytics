@@ -13,7 +13,7 @@ import {
 } from "../_shared/staff-role-auth.ts";
 import { timingSafeEqual } from "../_shared/staff-role-auth.ts";
 import { readLegacyFeedback } from "./feedback.mjs";
-import { buildConversation, collectMessages, inboxScope, isClosedPost, unreadMark } from "./inbox.mjs";
+import { buildConversation, clientKey, collectMessages, inboxScope, isClosedPost, unreadMark } from "./inbox.mjs";
 import {
   audienceAllowed,
   clean,
@@ -486,7 +486,7 @@ async function inboxPosts(supabase: SupabaseClient, scope: "all" | Set<string>, 
   if (postId) q = q.eq("id", postId);
   const { data, error } = await q.limit(5000);
   if (error) throw new Error("inbox_posts_failed");
-  return ((data || []) as JsonMap[]).filter((p) => !isClosedPost(p));
+  return ((data || []) as unknown as JsonMap[]).filter((p) => !isClosedPost(p));
 }
 
 async function inboxCanonical(supabase: SupabaseClient, posts: JsonMap[]): Promise<Map<string, JsonMap[]>> {
@@ -497,15 +497,37 @@ async function inboxCanonical(supabase: SupabaseClient, posts: JsonMap[]): Promi
       if (id) owner.set(id, clean(p.id));
     }
   }
+  // A card's deliverable link can be stale or wrong, so a deliverable only
+  // counts when it is that card's: same client, the matching team, and (when
+  // set) the same card. Otherwise another client's notes could reach a member
+  // scoped only to this card's client.
+  const postById = new Map(posts.map((p) => [clean(p.id), p]));
+  const all = [...owner.keys()];
+  const ids: string[] = [];
+  for (let i = 0; i < all.length; i += 200) {
+    const { data, error } = await supabase.from("deliverables")
+      .select("id,client_slug,team,card_id")
+      .in("id", all.slice(i, i + 200));
+    if (error) throw new Error("inbox_deliverables_failed");
+    for (const d of (data || []) as unknown as JsonMap[]) {
+      const id = clean(d.id);
+      const post = postById.get(owner.get(id) || "");
+      if (!post) continue;
+      const wantTeam = clean(post.video_deliverable_id) === id ? "video" : "graphics";
+      if (clientKey(d.client_slug) !== clientKey(post.client)) continue;
+      if (normalizeTeam(d.team) !== wantTeam) continue;
+      if (clean(d.card_id) && clean(d.card_id) !== clean(post.id)) continue;
+      ids.push(id);
+    }
+  }
   const out = new Map<string, JsonMap[]>();
-  const ids = [...owner.keys()];
   for (let i = 0; i < ids.length; i += 200) {
     const { data, error } = await supabase.from("production_comments")
       .select("id,native_comment_id,deliverable_id,team,parent_id,thread_root_id,author_name,role,body,audience,component,is_tweak,source_created_at,created_at,deleted_at")
       .in("deliverable_id", ids.slice(i, i + 200))
       .is("deleted_at", null);
     if (error) throw new Error("inbox_comments_failed");
-    for (const row of (data || []) as JsonMap[]) {
+    for (const row of (data || []) as unknown as JsonMap[]) {
       const pid = owner.get(clean(row.deliverable_id));
       if (!pid) continue;
       if (!out.has(pid)) out.set(pid, []);
@@ -528,7 +550,7 @@ async function inboxScopeFor(
   ]);
   if (managers.error || clients.error) throw new Error("inbox_scope_failed");
   const names = new Map<string, string>();
-  for (const c of (clients.data || []) as JsonMap[]) names.set(clean(c.slug), clean(c.display_name));
+  for (const c of (clients.data || []) as unknown as JsonMap[]) names.set(clean(c.slug), clean(c.display_name));
   // smm_also_sees is optional: a missing grant list narrows, never widens.
   return { scope: inboxScope(member, managers.data || [], also.error ? [] : (also.data || []), clients.data || []), names };
 }
@@ -568,7 +590,7 @@ async function handleInbox(supabase: SupabaseClient, principal: Principal, body:
     const { data, error } = await supabase.from("message_reads")
       .select("post_id,last_read_at").eq("reader_id", member.id).in("post_id", ids.slice(i, i + 500));
     if (error) return json({ ok: false, error: "inbox_reads_unavailable" }, 503);
-    for (const r of (data || []) as JsonMap[]) reads.set(clean(r.post_id), clean(r.last_read_at));
+    for (const r of (data || []) as unknown as JsonMap[]) reads.set(clean(r.post_id), clean(r.last_read_at));
   }
   const now = Date.now();
   const conversations = posts

@@ -34,8 +34,26 @@ import { _prodCanonicalCommentGate, _prodProjectCanonicalCardComments } from './
     const _msgState = {
         loading: false, loaded: false, error: '', conversations: [], scope: '',
         openId: '', replyTo: '', draft: '', sending: false, filter: 'all', lastAt: 0,
+        unavailable: false,
     };
     let _msgTimer = null;
+    const _msgFallbackHooks = [];
+
+    /* The page can go live before the production-comments deploy that adds
+       the inbox. The old function answers `inbox` with invalid_deliverable_id;
+       then the Messages tab keeps its old view, the Messages button stays
+       hidden, and nothing polls until the next page load. */
+    function _msgInboxLive() { return !_msgState.unavailable; }
+    function _msgOnFallback(fn) { if (typeof fn === 'function') _msgFallbackHooks.push(fn); }
+    function _msgFallBack() {
+        if (_msgState.unavailable) return;
+        _msgState.unavailable = true;
+        if (_msgTimer) { clearInterval(_msgTimer); _msgTimer = null; }
+        _msgClosePanel();
+        const btn = document.getElementById('navMessages');
+        if (btn) btn.style.display = 'none';
+        _msgFallbackHooks.forEach(fn => { try { fn(); } catch (e) {} });
+    }
 
     function _msgCanUse() {
         const identity = _syncviewStaffIdentityForHeaders();
@@ -64,7 +82,7 @@ import { _prodCanonicalCommentGate, _prodProjectCanonicalCardComments } from './
        unread counts on the Kasper tab and the Messages button. */
     async function _msgLoad(force) {
         if (!_msgCanUse()) { _msgPaintCounts(); return; }
-        if (_msgState.loading) return;
+        if (_msgState.unavailable || _msgState.loading) return;
         if (!force && _msgState.loaded && Date.now() - _msgState.lastAt < 15000) { _msgPaint(); return; }
         _msgState.loading = true;
         _msgPaint();
@@ -77,6 +95,7 @@ import { _prodCanonicalCommentGate, _prodProjectCanonicalCardComments } from './
             _msgState.lastAt = Date.now();
             if (_msgState.openId && !_msgState.conversations.some(c => c.post_id === _msgState.openId)) _msgState.openId = '';
         } catch (e) {
+            if (e && e.message === 'invalid_deliverable_id') { _msgState.loading = false; _msgFallBack(); return; }
             _msgState.error = 'Messages could not load. Try again in a moment.';
         } finally {
             _msgState.loading = false;
@@ -88,6 +107,7 @@ import { _prodCanonicalCommentGate, _prodProjectCanonicalCardComments } from './
         return _msgState.conversations.filter(c => Number(c.unread) > 0).length;
     }
     function _msgPaintCounts() {
+        if (_msgState.unavailable) return;
         const n = _msgCanUse() ? _msgUnreadConversations() : 0;
         document.querySelectorAll('[data-kasper-count="replies"]').forEach(el => {
             el.textContent = String(n);
@@ -362,8 +382,12 @@ import { _prodCanonicalCommentGate, _prodProjectCanonicalCardComments } from './
     }
 
     /* ── The staff panel (everyone but the Kasper tab) ── */
+    let _msgPanelOpener = null;
+    const MSG_FOCUSABLE = 'button:not([disabled]), [href], textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
     function _msgOpenPanel() {
         if (!_msgCanUse()) return;
+        const active = document.activeElement;
+        _msgPanelOpener = active && active !== document.body ? active : document.getElementById('navMessages');
         try { _syncviewCloseStaffAccount(); } catch (e) {}
         let panel = document.getElementById('msgPanel');
         if (!panel) {
@@ -379,6 +403,8 @@ import { _prodCanonicalCommentGate, _prodProjectCanonicalCardComments } from './
         panel.hidden = false;
         document.body.classList.add('msg-panel-open');
         _msgRenderInto(panel.querySelector('.msg-panel-body'));
+        const first = panel.querySelector(MSG_FOCUSABLE);
+        if (first) first.focus();
     }
     function _msgClosePanel() {
         const panel = document.getElementById('msgPanel');
@@ -386,10 +412,23 @@ import { _prodCanonicalCommentGate, _prodProjectCanonicalCardComments } from './
         panel.hidden = true;
         panel.querySelector('.msg-panel-body').removeAttribute('data-msg-root');
         document.body.classList.remove('msg-panel-open');
+        const opener = _msgPanelOpener;
+        _msgPanelOpener = null;
+        if (opener && opener.isConnected && typeof opener.focus === 'function') opener.focus();
     }
     document.addEventListener('keydown', e => {
-        if (e.key !== 'Escape') return;
         const panel = document.getElementById('msgPanel');
+        // Keep Tab inside the open dialog.
+        if (e.key === 'Tab' && panel && !panel.hidden && !document.querySelector('#calCommentsOverlay.open')) {
+            const items = [...panel.querySelectorAll(MSG_FOCUSABLE)].filter(el => el.offsetParent !== null);
+            if (!items.length) return;
+            const first = items[0], last = items[items.length - 1];
+            if (!panel.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+            else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+            return;
+        }
+        if (e.key !== 'Escape') return;
         if (panel && !panel.hidden && !document.querySelector('#calCommentsOverlay.open')) _msgClosePanel();
     });
 
@@ -398,4 +437,4 @@ import { _prodCanonicalCommentGate, _prodProjectCanonicalCardComments } from './
         _msgBack, _msgClosePanel, _msgLoad, _msgMarkUnread, _msgOnDraft, _msgOnKey, _msgOpen, _msgOpenCard,
         _msgOpenPanel, _msgReply, _msgSetFilter, _msgSetReplyTo
     });
-export { _msgOnIdentity, _msgPaintCounts, _msgRenderInto };
+export { _msgInboxLive, _msgOnFallback, _msgOnIdentity, _msgPaintCounts, _msgRenderInto };

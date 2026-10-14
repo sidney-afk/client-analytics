@@ -2148,7 +2148,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             '</div>' +
             '<div class="cal-prompt-body">' +
                 bannerHtml +
-                '<textarea class="cal-prompt-textarea" id="calPromptTA" placeholder="The transcript is appended automatically — write only the instructions.">' + _calEsc(initial) + '</textarea>' +
+                '<textarea class="cal-prompt-textarea" id="calPromptTA" oninput="this.dataset.edited=\'1\'" placeholder="The transcript is appended automatically — write only the instructions.">' + _calEsc(initial) + '</textarea>' +
                 '<div class="cal-prompt-hint">' +
                     'Tip: the transcript is appended automatically after your prompt, prefixed with <code>Transcript:</code>. ' +
                     'Don\'t include the transcript yourself. Clear the field and save to fall back to the default.' +
@@ -2180,10 +2180,11 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             showConfirm('Discard the pasted transcript?', 'What you pasted is not saved anywhere. Close the box and lose it?', () => _calCloseCaptionPromptModal(true), 'Discard');
             return;
         }
-        /* Edited prompt text is not kept anywhere either, so closing the box
-           (X, Cancel, backdrop, Escape) asks first instead of dropping it. */
+        /* Typed or changed prompt text is not kept anywhere either, so closing the box
+           (X, Cancel, backdrop, Escape) asks first instead of dropping it. Emptying
+           the box leaves nothing to lose, so that closes at once. */
         const pta = document.getElementById('calPromptTA');
-        if (force !== true && overlay && overlay.classList.contains('open') && pta && pta.value !== pta.defaultValue) {
+        if (force !== true && overlay && overlay.classList.contains('open') && pta && pta.dataset.edited === '1' && pta.value.trim() && pta.value !== pta.defaultValue) {
             showConfirm('Discard your changes?', 'Your edits to this prompt are not saved. Close the box and lose them?', () => _calCloseCaptionPromptModal(true), 'Discard');
             return;
         }
@@ -2194,6 +2195,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const ta = document.getElementById('calPromptTA');
         if (!ta) return;
         ta.value = DEFAULT_CAPTION_PROMPT;
+        ta.dataset.edited = '1';
         ta.focus();
     }
     async function _calSaveCaptionPrompt() {
@@ -2305,7 +2307,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                 ' (' + initial.length + ' characters). Edit and Save to make your own version.</span></div>';
         modal.innerHTML = _calThumbTitlePromptHtml(client,
             bannerHtml +
-            '<textarea class="cal-prompt-textarea" id="calPromptTA" placeholder="Write only the instructions; the videos and the filming plan are added automatically.">' + _calEsc(initial) + '</textarea>' +
+            '<textarea class="cal-prompt-textarea" id="calPromptTA" oninput="this.dataset.edited=\'1\'" placeholder="Write only the instructions; the videos and the filming plan are added automatically.">' + _calEsc(initial) + '</textarea>' +
             '<div class="cal-prompt-hint">' +
                 'Tip: the list of videos and the filming plan are added automatically after your prompt. ' +
                 'Titles are written only into an empty description, never over text someone wrote. Clear the field and save to fall back to the default.' +

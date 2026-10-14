@@ -91,6 +91,10 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
     && /clean\(d\.card_id\) && clean\(d\.card_id\) !== clean\(post\.id\)/.test(edge),
     "a card's deliverable link only brings in notes when that deliverable is the card's own client, team and card");
 
+  const staff = fs.readFileSync(path.join(root, 'src/index/100-onboarding-staff-controls.js.part'), 'utf8');
+  const shell = fs.readFileSync(path.join(root, 'src/index/030-body-shell.html.part'), 'utf8');
+  ok(/capability === 'messages-button'\) return role === 'smm';/.test(staff) && /id="navMessages"[^>]*data-staff-capability="messages-button"/.test(shell), 'the header Messages button shows for SMMs only');
+
   const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261014090000_message_reads.sql'), 'utf8');
   ok(/revoke all on table public\.message_reads from public, anon, authenticated, service_role;/.test(migration), 'the migration revokes from all four roles by name');
   ok(/grant select, insert, update on table public\.message_reads to service_role;/.test(migration), 'only the service role gets back select, insert, update');

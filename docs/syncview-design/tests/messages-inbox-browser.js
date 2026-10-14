@@ -12,7 +12,7 @@
  *   D  a reply goes through the Notes save path into the SAME card thread,
  *      under the thread it answers, keeping its part and audience
  *   E  a posted post drops out of the list
- *   F  the Messages button by the account opens the same inbox as a panel
+ *   F  the Messages button by the account (SMMs) opens the same inbox as a panel
  *   G  phone: the list first, then the chat, and back
  *   H  before the inbox backend is deployed (the old function answers
  *      invalid_deliverable_id), the old Messages tab stays and the button hides
@@ -128,8 +128,10 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
 
     // F: the Messages button opens the same inbox as a panel
     await page.evaluate(() => navTo('calendar'));
-    const btnVisible = await page.isVisible('#navMessages');
-    check(btnVisible, 'F: the Messages button shows by the account icon');
+    check(!(await page.isVisible('#navMessages')), 'F: an admin has no header Messages button (the Kasper tab is their inbox)');
+    // Show it as it shows for an SMM (role rule: test/messages-inbox-scope.js).
+    await page.evaluate(() => { document.getElementById('navMessages').hidden = false; });
+    check(await page.isVisible('#navMessages'), 'F: the Messages button shows by the account icon');
     check(await page.evaluate(() => document.querySelector('#navMessages [data-msg-count]').textContent) === '2', 'F: the button shows the unread count (the posted one is gone)');
     await page.click('#navMessages');
     check(await until(() => page.evaluate(() => document.querySelectorAll('#msgPanel .msg-conv').length === 2)), 'F: the panel shows the same conversations');

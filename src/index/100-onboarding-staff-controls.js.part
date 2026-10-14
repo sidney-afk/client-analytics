@@ -1347,6 +1347,9 @@ import {
         const role = _syncviewStaffRoleValue(identity);
         if (capability === 'credentials') return role === 'admin' || role === 'smm';
         if (capability === 'messages') return role === 'admin' || role === 'smm';
+        // The header Messages button is for SMMs; admins read the same inbox in
+        // the Messages tab of the Kasper dashboard, and the header has no room.
+        if (capability === 'messages-button') return role === 'smm';
         if (capability === 'review-link') return role === 'admin' || role === 'smm';
         if (capability === 'restore-archived') return role === 'admin' || role === 'smm';
         if (capability === 'intake') return role === 'admin' || role === 'smm';

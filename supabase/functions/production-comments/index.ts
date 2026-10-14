@@ -13,6 +13,7 @@ import {
 } from "../_shared/staff-role-auth.ts";
 import { timingSafeEqual } from "../_shared/staff-role-auth.ts";
 import { readLegacyFeedback } from "./feedback.mjs";
+import { buildConversation, clientKey, collectMessages, inboxScope, isClosedPost, unreadMark } from "./inbox.mjs";
 import {
   audienceAllowed,
   clean,
@@ -29,6 +30,7 @@ type JsonMap = Record<string, unknown>;
 type Member = {
   id: string;
   name: string;
+  email?: string | null;
   role: "admin" | "smm" | "editor" | "designer";
   team: "video" | "graphics" | null;
   active: boolean;
@@ -117,7 +119,7 @@ async function resolveActiveMember(
 
   const { data, error } = await supabase
     .from("team_members")
-    .select("id,name,role,team,active")
+    .select("id,name,email,role,team,active")
     .eq("active", true);
   if (error) throw new Error("member_lookup_failed");
 
@@ -271,6 +273,7 @@ function parseCursor(value: unknown): { created_at: string; id: string } | null 
   return { created_at: createdAt, id };
 }
 
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
@@ -284,6 +287,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
     body = await req.json() as JsonMap;
   } catch (_error) {
     return json({ ok: false, error: "invalid_json" }, 400);
+  }
+
+  const inboxAction = clean(body.action).toLowerCase();
+  if (inboxAction === "inbox" || inboxAction === "inbox_mark") {
+    const inboxDb = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    try {
+      const resolved = await resolvePrincipal(inboxDb, req);
+      if ("status" in resolved) return json({ ok: false, error: resolved.error }, resolved.status);
+      if (resolved.kind !== "staff" || !resolved.member) return json({ ok: false, error: "forbidden" }, 403);
+      const budget = await takeReadBudget(inboxDb, resolved.actorKey);
+      if (budget === "unavailable") return json({ ok: false, error: "read_authorization_unavailable" }, 503);
+      if (budget === "rate_limited") return json({ ok: false, error: "rate_limited", retry_after_seconds: 300 }, 429);
+      return await handleInbox(inboxDb, resolved, body);
+    } catch (_error) {
+      return json({ ok: false, error: "inbox_unavailable" }, 503);
+    }
   }
 
   const deliverableId = clean(body.deliverable_id);
@@ -448,3 +467,141 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error: "read_failed" }, 500);
   }
 });
+
+// ── Messages inbox (Notes Step 2) ────────────────────────────────────────
+// Staff only. `inbox` lists the conversations this member may see (inbox.mjs
+// decides who sees what); `inbox_mark` sets their read mark on one post
+// ("read" = now, "unread" = just before the newest message someone else wrote).
+const INBOX_POST_SELECT = [
+  "id", "client", "name", "status", "posted_at", "thumbnail_url", "asset_url",
+  "video_tweaks", "graphic_tweaks", "caption_tweaks", "title_tweaks",
+  "video_deliverable_id", "graphic_deliverable_id", "updated_at",
+].join(",");
+
+async function inboxPosts(supabase: SupabaseClient, scope: "all" | Set<string>, postId = ""): Promise<JsonMap[]> {
+  if (scope !== "all" && scope.size === 0) return [];
+  let q = supabase.from("calendar_posts").select(INBOX_POST_SELECT)
+    .or("status.is.null,and(status.neq.Posted,status.neq.Archived)");
+  if (scope !== "all") q = q.in("client", [...scope]);
+  if (postId) q = q.eq("id", postId);
+  const { data, error } = await q.limit(5000);
+  if (error) throw new Error("inbox_posts_failed");
+  return ((data || []) as unknown as JsonMap[]).filter((p) => !isClosedPost(p));
+}
+
+async function inboxCanonical(supabase: SupabaseClient, posts: JsonMap[]): Promise<Map<string, JsonMap[]>> {
+  const owner = new Map<string, string>();
+  for (const p of posts) {
+    for (const k of ["video_deliverable_id", "graphic_deliverable_id"]) {
+      const id = clean(p[k]);
+      if (id) owner.set(id, clean(p.id));
+    }
+  }
+  // A card's deliverable link can be stale or wrong, so a deliverable only
+  // counts when it is that card's: same client, the matching team, and (when
+  // set) the same card. Otherwise another client's notes could reach a member
+  // scoped only to this card's client.
+  const postById = new Map(posts.map((p) => [clean(p.id), p]));
+  const all = [...owner.keys()];
+  const ids: string[] = [];
+  for (let i = 0; i < all.length; i += 200) {
+    const { data, error } = await supabase.from("deliverables")
+      .select("id,client_slug,team,card_id")
+      .in("id", all.slice(i, i + 200));
+    if (error) throw new Error("inbox_deliverables_failed");
+    for (const d of (data || []) as unknown as JsonMap[]) {
+      const id = clean(d.id);
+      const post = postById.get(owner.get(id) || "");
+      if (!post) continue;
+      const wantTeam = clean(post.video_deliverable_id) === id ? "video" : "graphics";
+      if (clientKey(d.client_slug) !== clientKey(post.client)) continue;
+      if (normalizeTeam(d.team) !== wantTeam) continue;
+      if (clean(d.card_id) && clean(d.card_id) !== clean(post.id)) continue;
+      ids.push(id);
+    }
+  }
+  const out = new Map<string, JsonMap[]>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await supabase.from("production_comments")
+      .select("id,native_comment_id,deliverable_id,team,parent_id,thread_root_id,author_name,author_member_id,role,body,audience,component,is_tweak,source_created_at,created_at,deleted_at")
+      .in("deliverable_id", ids.slice(i, i + 200))
+      .is("deleted_at", null);
+    if (error) throw new Error("inbox_comments_failed");
+    for (const row of (data || []) as unknown as JsonMap[]) {
+      const pid = owner.get(clean(row.deliverable_id));
+      if (!pid) continue;
+      if (!out.has(pid)) out.set(pid, []);
+      out.get(pid)!.push(row);
+    }
+  }
+  return out;
+}
+
+async function inboxScopeFor(
+  supabase: SupabaseClient,
+  member: Member,
+): Promise<{ scope: "all" | Set<string>; names: Map<string, string> }> {
+  const role = clean(member.role).toLowerCase();
+  if (role !== "admin" && role !== "smm") return { scope: new Set(), names: new Map() };
+  const [managers, also, clients] = await Promise.all([
+    supabase.from("social_media_managers").select("slug,name,email,active,source_clients").eq("active", true),
+    supabase.from("smm_also_sees").select("viewer_member_id,manager_slug,client_name").eq("viewer_member_id", member.id),
+    supabase.from("clients").select("slug,display_name,active"),
+  ]);
+  if (managers.error || clients.error) throw new Error("inbox_scope_failed");
+  const names = new Map<string, string>();
+  for (const c of (clients.data || []) as unknown as JsonMap[]) names.set(clean(c.slug), clean(c.display_name));
+  // smm_also_sees is optional: a missing grant list narrows, never widens.
+  return { scope: inboxScope(member, managers.data || [], also.error ? [] : (also.data || []), clients.data || []), names };
+}
+
+async function handleInbox(supabase: SupabaseClient, principal: Principal, body: JsonMap): Promise<Response> {
+  const member = principal.member as Member;
+  const action = clean(body.action).toLowerCase();
+  // Durable allow audit before any note body is read, as the thread reader does.
+  if (!(await auditRead(supabase, principal, "", "allow", action === "inbox" ? "inbox" : "inbox_mark"))) {
+    return json({ ok: false, error: "read_authorization_unavailable" }, 503);
+  }
+  const { scope, names } = await inboxScopeFor(supabase, member);
+  if (action === "inbox_mark") {
+    const postId = clean(body.post_id);
+    const state = clean(body.state).toLowerCase();
+    if (!SAFE_ID.test(postId) || (state !== "read" && state !== "unread")) {
+      return json({ ok: false, error: "invalid_inbox_mark" }, 400);
+    }
+    const posts = await inboxPosts(supabase, scope, postId);
+    if (posts.length !== 1) return json({ ok: false, error: "forbidden" }, 403);
+    const canonical = await inboxCanonical(supabase, posts);
+    const messages = collectMessages(posts[0], canonical.get(postId) || []);
+    const mark = state === "read" ? new Date().toISOString() : unreadMark(messages, member);
+    if (!mark) return json({ ok: true, post_id: postId, last_read_at: null });
+    const { error } = await supabase.from("message_reads").upsert(
+      { reader_id: member.id, post_id: postId, last_read_at: mark, updated_at: new Date().toISOString() },
+      { onConflict: "reader_id,post_id" },
+    );
+    if (error) return json({ ok: false, error: "inbox_mark_failed" }, 503);
+    return json({ ok: true, post_id: postId, last_read_at: mark });
+  }
+  const posts = await inboxPosts(supabase, scope);
+  const canonical = await inboxCanonical(supabase, posts);
+  const reads = new Map<string, string>();
+  const ids = posts.map((p) => clean(p.id));
+  for (let i = 0; i < ids.length; i += 500) {
+    const { data, error } = await supabase.from("message_reads")
+      .select("post_id,last_read_at").eq("reader_id", member.id).in("post_id", ids.slice(i, i + 500));
+    if (error) return json({ ok: false, error: "inbox_reads_unavailable" }, 503);
+    for (const r of (data || []) as unknown as JsonMap[]) reads.set(clean(r.post_id), clean(r.last_read_at));
+  }
+  const now = Date.now();
+  const conversations = posts
+    .map((p) => {
+      const messages = collectMessages(p, canonical.get(clean(p.id)) || []);
+      if (!messages.length) return null;
+      const conversation = buildConversation(p, messages, member, reads.get(clean(p.id)) || "", now);
+      return { ...conversation, client_name: names.get(clean(p.client)) || "" };
+    })
+    .filter(Boolean)
+    .sort((a, b) => String((b as JsonMap).last_at).localeCompare(String((a as JsonMap).last_at)));
+  return json({ ok: true, scope: scope === "all" ? "all" : "own", conversations });
+}
+

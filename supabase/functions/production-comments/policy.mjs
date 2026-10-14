@@ -138,7 +138,11 @@ export function publicComment(row, principal) {
     // stable identity, but no provider or private author identity.
     native_comment_id: clean(source.native_comment_id).slice(0, 160) || null,
     parent_id: clean(source.parent_id) || null,
-    author_name: clean(source.author_name) || "Unknown author",
+    // A client never receives a staff member's name: staff notes read as the
+    // team. Staff see the writer's name.
+    author_name: kind === "client" && lower(source.role) !== "client"
+      ? "Synchro team"
+      : clean(source.author_name) || "Unknown author",
     role: clean(source.role) || null,
     body: deleted ? "Comment deleted." : source.body == null ? "" : String(source.body),
     body_format: clean(source.body_format) || "markdown",
@@ -153,6 +157,7 @@ export function publicComment(row, principal) {
     deleted_at: clean(source.deleted_at) || null,
     resolved_at: clean(source.resolved_at) || null,
     ...(kind === 'staff' ? {
+      author_member_id: clean(source.author_member_id) || null,
       resolved_by_name: clean(source.resolved_by_name) || null,
       feedback_origin: ['native', 'linear', 'legacy', 'bridge'].includes(lower(source.origin)) ? lower(source.origin) : null,
     } : {}),

@@ -96,7 +96,8 @@
                 body.replaceChildren();
                 const grid = document.createElement('nav');
                 grid.className = 'sv-phone-tabs-grid'; grid.setAttribute('aria-label', 'Staff tabs');
-                document.querySelectorAll('#headerNav > .header-nav-btn, #headerNav > .header-nav-sep').forEach(native => {
+                // Messages lives by the account icon on desktop; on a phone it is a tab.
+                document.querySelectorAll('#headerNav > .header-nav-btn, #headerNav > .header-nav-sep, #navMessages').forEach(native => {
                     if (native.classList.contains('header-nav-sep')) {
                         const divider = document.createElement('span');
                         divider.className = 'sv-phone-tabs-divider'; divider.setAttribute('aria-hidden', 'true');

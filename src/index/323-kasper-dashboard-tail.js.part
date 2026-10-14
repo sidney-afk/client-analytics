@@ -1,3 +1,4 @@
+import { _msgInboxLive, _msgOnFallback, _msgRenderInto } from './326-core-messages-inbox.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showToast, svArea, svAreaApi } from './040-shared-briefs.js';
 import {
@@ -14,7 +15,7 @@ import {
   _kasperGetSeenAt, _kasperLatestInternalComp, _kasperMarkSeenAt, _kasperOwnedThreadRoots,
   _kasperRepliesSeenBasis
 } from './180-calendar-native-post-media.js';
-import { _calFmtCommentTime, _calLatestMsgAt, _calLatestMsgCreatedAt, _calMintCommentId } from './190-calendar-approval-comments.js';
+import { _calFmtCommentTime, _calLatestMsgAt, _calLatestMsgCreatedAt, _calMintCommentId, _calNoteAuthorName } from './190-calendar-approval-comments.js';
 import { _sxrKasperLoadQueue, _sxrKasperState } from './290-samples-writes-review.js';
 import { CA_RECENT_KEY, _kasperPersistPost, _kasperSamplesEnabled, _kasperState } from './305-core-kasper-shared.js';
 import { _ccEnsureIdentity, _kasperLoadFilming, _kasperUpdateReplyCount } from './321-kasper-dashboard-replies.js';
@@ -56,7 +57,23 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         }
     }
     let _kasperRepliesPaintRetry = null;
+    /* Messages tab = the shared Messages inbox (326-core-messages-inbox), or
+       the old replies view while the inbox backend is not deployed yet. */
+    let _kasperRepliesFallbackHooked = false;
     function _kasperRenderReplies() {
+        if (!_kasperRepliesFallbackHooked) {
+            _kasperRepliesFallbackHooked = true;
+            _msgOnFallback(() => {
+                _kasperUpdateReplyCount();
+                if (_kasperState.tab === 'replies') _kasperRenderReplies();
+            });
+        }
+        if (!_msgInboxLive()) { _kasperRenderRepliesLegacy(); return; }
+        const root = document.getElementById('kasperContent');
+        if (!root) return;
+        _msgRenderInto(root);
+    }
+    function _kasperRenderRepliesLegacy() {
         const root = document.getElementById('kasperContent');
         if (!root) return;
         // Don't rebuild the inbox out from under a reply being typed — the draft
@@ -65,7 +82,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         const _ae = document.activeElement;
         if (_ae && _ae.tagName === 'TEXTAREA' && _ae.closest && _ae.closest('#kasperContent')) {
             if (_kasperRepliesPaintRetry) clearTimeout(_kasperRepliesPaintRetry);
-            _kasperRepliesPaintRetry = setTimeout(_kasperRenderReplies, 1200);
+            _kasperRepliesPaintRetry = setTimeout(_kasperRenderRepliesLegacy, 1200);
             return;
         }
         if (_kasperRepliesPaintRetry) { clearTimeout(_kasperRepliesPaintRetry); _kasperRepliesPaintRetry = null; }
@@ -128,7 +145,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         const shown = showAll ? threads : unreadThreads;
         const hiddenCount = threads.length - unreadThreads.length;
         const renderMsg = (m, isReply) => {
-            const author = m.author || (m.role === 'client' ? 'Client' : m.role === 'kasper' ? 'Kasper' : 'SMM');
+            const author = _calNoteAuthorName(m, m.role === 'client' ? 'Client' : m.role === 'kasper' ? 'Kasper' : 'SMM');
             const isNew = m.role !== 'kasper' && String(m.updated_at || m.created_at || '') > seen;
             const typeTag = (!isReply && _calMsgIsTweak(m))
                 ? `<span class="cal-cm-type-tag is-tweak">Tweak${m.round ? ' #' + m.round : ''}</span>`

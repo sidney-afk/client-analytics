@@ -1,3 +1,4 @@
+import { _msgOnIdentity } from './326-core-messages-inbox.js';
 import {
   _syncviewApplyStatusPalette, _syncviewApplyTheme, _syncviewStoredStatusPalette,
   _syncviewStoredTheme, _toastEl, showNotify, showToast, svAreaApi
@@ -1345,6 +1346,10 @@ import {
         const identity = _syncviewStaffIdentityForHeaders();
         const role = _syncviewStaffRoleValue(identity);
         if (capability === 'credentials') return role === 'admin' || role === 'smm';
+        if (capability === 'messages') return role === 'admin' || role === 'smm';
+        // The header Messages button is for SMMs; admins read the same inbox in
+        // the Messages tab of the Kasper dashboard, and the header has no room.
+        if (capability === 'messages-button') return role === 'smm';
         if (capability === 'review-link') return role === 'admin' || role === 'smm';
         if (capability === 'restore-archived') return role === 'admin' || role === 'smm';
         if (capability === 'intake') return role === 'admin' || role === 'smm';
@@ -1442,6 +1447,8 @@ import {
         document.querySelectorAll('[data-staff-capability]').forEach(element => {
             element.hidden = !_syncviewStaffCan(element.getAttribute('data-staff-capability'));
         });
+        // Messages (Notes Step 2): start or stop the inbox counts for this sign-in.
+        try { _msgOnIdentity(); } catch (e) {}
         // Kasper is admin-only; the standalone staff pages re-check their own
         // capability once the sign-in check answers.
         try { if (typeof _kasperApplyAccess === 'function') _kasperApplyAccess(); } catch (e) {}

@@ -1,3 +1,4 @@
+import { _msgInboxLive, _msgPaintCounts } from './326-core-messages-inbox.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import {
   FILMING_PLAN_TABS_URL, _analyticsReleaseExtras, parseCSV, showConfirm, showToast, svArea,
@@ -2693,7 +2694,10 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
        or client replied on one of Kasper's internal threads since he last
        caught up. Self-contained: shows the conversation and lets him reply or
        mark it read, without touching the approval-queue machinery. */
+    // The Messages tab's count is the shared inbox's unread conversations,
+    // or the old reply count while the inbox backend is not deployed yet.
     function _kasperUpdateReplyCount() {
+        if (_msgInboxLive()) { _msgPaintCounts(); return; }
         const n = (_kasperState.replies || []).length;
         const el = document.querySelector('[data-kasper-count="replies"]');
         if (el) el.textContent = String(n);

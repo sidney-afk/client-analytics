@@ -3753,6 +3753,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         onCalTabRemove, onCalViewChange
     });
 export {
+  onCalClientChange,
   _calStaffPhoneActive, _calPhoneClient, _calPhoneSectionHtml,
   _calCaptureLiveUi, _calCaptureScroll, _calRestoreLiveUi, _calRestoreScroll,
   _CAL_CLIENT_READY_STATES, _CAL_WEEK_BUFFER, _calAdoptThumbnailFolderMeta, _calBlankPost,

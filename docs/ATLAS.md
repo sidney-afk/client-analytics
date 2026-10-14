@@ -882,6 +882,7 @@ Each linked file contains table-creating DDL, including retained backup and temp
 | <!-- atlas:migration supabase/migrations/20260913035202_installation_maintenance_gate_preparation.sql -->[`supabase/migrations/20260913035202_installation_maintenance_gate_preparation.sql`](../supabase/migrations/20260913035202_installation_maintenance_gate_preparation.sql) | `linear_exit_maintenance.gate_v1` |
 | <!-- atlas:migration supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql -->[`supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql`](../supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql) | `write_refusal_diagnostics.receipts_v1` |
 | <!-- atlas:migration supabase/migrations/20261007150000_smm_also_sees.sql -->[`supabase/migrations/20261007150000_smm_also_sees.sql`](../supabase/migrations/20261007150000_smm_also_sees.sql) | `public.smm_also_sees` |
+| <!-- atlas:migration supabase/migrations/20261014090000_message_reads.sql -->[`supabase/migrations/20261014090000_message_reads.sql`](../supabase/migrations/20261014090000_message_reads.sql) | `public.message_reads` |
 
 
 ## Verification limits and keeping this map true

@@ -103,6 +103,35 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
   const canonId = inbox.collectMessages({ id: 'p3' }, [{ id: 'k2', team: 'video', role: 'smm', author_name: 'Second Manager', author_member_id: 'u2', body: 'x', created_at: '2026-10-11T09:00:00Z' }]);
   ok(canonId[0].author_member_id === 'u2', 'canonical notes carry their member id too');
 
+  // Which messages each view shows (owner, 2026-10-14), decided on the server.
+  const viewPost = { id: 'p4', client: 'alphafixture', name: 'Fixture view post',
+    caption_tweaks: JSON.stringify([
+      { id: 'v1', role: 'client', author: 'Fixture Client', audience: 'client', is_tweak: false, body: 'Love it, one question', created_at: '2026-10-12T09:00:00Z' },
+      { id: 'v2', role: 'client', author: 'Fixture Client', audience: 'client', is_tweak: true, body: 'Please change the hook', created_at: '2026-10-12T10:00:00Z' },
+      { id: 'v3', parent_id: 'v2', role: 'smm', author: shared, author_member_id: 'u1', body: 'On it', created_at: '2026-10-12T10:30:00Z' },
+      { id: 'v4', role: 'smm', author: shared, author_member_id: 'u1', audience: 'internal', body: 'Team note from the SMM', created_at: '2026-10-12T11:00:00Z' },
+      { id: 'v5', role: 'smm', author: shared, author_member_id: 'u7', audience: 'internal', body: 'Team note from an editor', created_at: '2026-10-12T12:00:00Z' },
+      { id: 'v6', role: 'kasper', author: 'Kasper', audience: 'internal', body: 'Team note from the reviewer', created_at: '2026-10-12T13:00:00Z' },
+    ]) };
+  const viewAll = inbox.collectMessages(viewPost, []);
+  const smmIds = new Set(['u1', 'u2']);
+  const ids = list => list.map(m => m.id).join(',');
+  ok(inbox.inboxView(inbox.inboxScope(smmOne, managers, [], clients)) === 'smm' && inbox.inboxView(inbox.inboxScope(adminOnRoster, managers, [], clients)) === 'smm', 'an SMM, and an admin on the roster, get the SMM view');
+  ok(inbox.inboxView(inbox.inboxScope(reviewer, managers, [], clients)) === 'reviewer', 'an admin not on the roster gets the reviewer view');
+  const smmView = inbox.visibleMessages(viewAll, 'smm', smmIds);
+  ok(smmView.some(m => m.id === 'v1'), 'SMM view: a client plain comment is shown');
+  ok(!smmView.some(m => m.id === 'v2'), 'SMM view: a client change request is hidden');
+  ok(!smmView.some(m => m.id === 'v3'), 'SMM view: a reply under a client change request is hidden with it');
+  ok(ids(smmView) === 'v1,v4,v5,v6', 'SMM view: team-only notes between staff are shown');
+  const revView = inbox.visibleMessages(viewAll, 'reviewer', smmIds);
+  ok(ids(revView) === 'v4', 'reviewer view: only team-only notes written by an SMM');
+  ok(!revView.some(m => m.role === 'client' || m.audience === 'client'), 'reviewer view: no client messages');
+  ok(inbox.visibleMessages([{ id: 'o1', role: 'smm', author: 'Old', audience: 'internal', created_at: '2026-10-12T09:00:00Z', root_id: 'o1' }], 'reviewer', smmIds).length === 1, 'reviewer view: an old SMM note with no member id still counts as an SMM note');
+  const onlyRequest = inbox.collectMessages({ id: 'p5', caption_tweaks: JSON.stringify([viewAll[1]].map(m => ({ ...m }))) }, []);
+  ok(inbox.visibleMessages(onlyRequest, 'smm', smmIds).length === 0, 'SMM view: a conversation with only a change request has nothing to show (the server drops it)');
+  ok(inbox.unreadCount(smmView, smmOne, '', Date.parse('2026-10-13T00:00:00Z')) === 3, 'SMM view: hidden messages never count as unread');
+  ok(inbox.unreadCount(revView, reviewer, '', Date.parse('2026-10-13T00:00:00Z')) === 1, 'reviewer view: only the SMM team note counts as unread');
+
   // The client never receives a staff name.
   const policy = await import(path.join(root, 'supabase/functions/production-comments/policy.mjs'));
   const staffRow = { id: 'c1', author_name: 'Second Manager', author_member_id: 'u2', role: 'smm', audience: 'client', body: 'Hello' };
@@ -125,6 +154,8 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
   ok(/resolved\.kind !== "staff" \|\| !resolved\.member\) return json\(\{ ok: false, error: "forbidden" \}, 403\)/.test(edge), 'a client token cannot open the inbox');
   ok(/if \(posts\.length !== 1\) return json\(\{ ok: false, error: "forbidden" \}, 403\)/.test(edge), 'a read mark on a post outside your scope is refused');
   ok(/\.eq\("reader_id", member\.id\)/.test(edge), 'read marks are read for the signed-in member only');
+  ok((edge.match(/visibleMessages\(collectMessages\(/g) || []).length === 2 && /const view = inboxView\(scope\);/.test(edge), 'the server filters both the list and the read mark by view');
+  ok(/if \(!messages\.length\) return null;/.test(edge), 'a conversation with no visible message is dropped on the server');
   ok(!/from\("message_reads"\)\.delete/.test(edge), 'the function never deletes read marks');
   ok(/from\("deliverables"\)[\s\S]{0,200}\.select\("id,client_slug,team,card_id"\)/.test(edge)
     && /clientKey\(d\.client_slug\) !== clientKey\(post\.client\)/.test(edge)

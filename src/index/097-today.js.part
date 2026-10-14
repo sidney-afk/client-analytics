@@ -258,6 +258,33 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         if (!me) return { id: '', names: [] };
         return { id: me.id, names: await _tdySmmClients(me) };
     }
+    /* UPLOAD DATE of a work item = the scheduled date of the Calendar post
+       that points at it (calendar_posts.video_deliverable_id or
+       graphic_deliverable_id). One request for the cards on screen in To
+       approve, outside the 14-day post read above, so an approval whose post
+       is further out (or already past) still gets its date. Archived posts
+       do not count; with two posts the earlier date wins. Any failure leaves
+       the map empty: the rows then go last, Today never breaks over it.
+       More than 150 ids is split, to keep each address short. */
+    async function _tdyUploadDates(ids) {
+        const out = {};
+        ids = [...new Set(ids.filter(Boolean).map(String))];
+        const chunks = [];
+        for (let i = 0; i < ids.length; i += 150) chunks.push(ids.slice(i, i + 150));
+        try {
+            const reads = await Promise.all(chunks.map(c => _tdyRest('calendar_posts', 'select=id,scheduled_date,video_deliverable_id,graphic_deliverable_id'
+                + '&or=(video_deliverable_id.' + _tdyIn(c) + ',graphic_deliverable_id.' + _tdyIn(c) + ')&status=neq.Archived&order=id.asc')));
+            const want = new Set(ids);
+            reads.flat().forEach(p => {
+                if (!p.scheduled_date) return;
+                [p.video_deliverable_id, p.graphic_deliverable_id].forEach(k => {
+                    k = k == null ? '' : String(k);
+                    if (want.has(k) && (!out[k] || p.scheduled_date < out[k])) out[k] = p.scheduled_date;
+                });
+            });
+        } catch (e) { /* rows without a date go last */ }
+        return out;
+    }
     async function _tdyLoad(me) {
         /* `order=id.asc`: these reads are fetched 1,000 rows at a time, and
            without a stable order the database may hand a row out on two pages
@@ -293,6 +320,8 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
                 && (visible.keys.has(svClientKey(c.display_name)) || visible.keys.has(svClientKey(c.slug)))).map(c => c.slug));
             const inScope = r => scope.has(r.client_slug || r.client);
             const [open, done, posts] = await reads;
+            const openIn = open.filter(r => child(r) && inScope(r) && _tdyFresh(r));
+            const upload = await _tdyUploadDates(openIn.filter(r => r.status === 'smm_approval').map(r => r.id));
             // Clients Info names to { slug, name } for the chips (slug: the
             // avatar colour and the Calendar to open).
             const bySlug = name => {
@@ -302,7 +331,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             };
             const chips = list => list.map(bySlug).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
             const mineClients = { mode: visible.mode, own: chips(visible.own), also: chips(visible.also) };
-            return { names, mine: mineClients, notListed: visible.notListed, provisional: visible.provisional, clientRows: visible.provisional ? clients : null, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
+            return { names, mine: mineClients, notListed: visible.notListed, provisional: visible.provisional, clientRows: visible.provisional ? clients : null, open: openIn, upload, done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
         }
         // Editors: their own queue, read alongside the clients and parents.
         const mine = 'assignee_id=eq.' + encodeURIComponent(me.id);
@@ -411,28 +440,51 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     }
 
     /* ---------- SMM and admin ---------- */
+    /* Every list is sorted by upload date, soonest first; no date goes last,
+       ties keep the order they came in. To approve reads the linked post's
+       date. Dates to move keeps the DUE date (all of them are past it, so
+       oldest-overdue first is the useful order and the pill says how late). */
+    function _tdySortByDate(rows) {
+        return rows.map((x, i) => ({ x, i })).sort((a, b) => (!a.x.at - !b.x.at) || String(a.x.at).localeCompare(String(b.x.at)) || a.i - b.i).map(o => o.x);
+    }
     function _tdyJobs(d) {
         const today = _tdyIso(_tdyDays(0));
         const liveCal = p => !['Archived', 'Posted', 'Scheduled'].includes(p.status);
+        const post = p => ({ kind: 'post', p, at: p.scheduled_date || '' });
+        const up = (d.upload) || {};
         return [
-            { key: 'approve', label: 'To approve', rows: d.open.filter(r => r.status === 'smm_approval').map(r => ({ kind: 'del', r })) },
-            { key: 'links', label: 'Missing links', rows: d.posts.filter(p => liveCal(p) && _calSmmMediaGap(p)).map(p => ({ kind: 'post', p })) },
-            { key: 'captions', label: 'Captions to write', rows: d.posts.filter(p => liveCal(p) && !String(p.caption || '').trim()).map(p => ({ kind: 'post', p })) },
-            { key: 'schedule', label: 'To schedule', rows: d.posts.filter(p => p.status === 'Approved').map(p => ({ kind: 'post', p })) },
+            { key: 'approve', label: 'To approve', rows: _tdySortByDate(d.open.filter(r => r.status === 'smm_approval').map(r => ({ kind: 'del', r, at: up[String(r.id)] || '' }))) },
+            { key: 'links', label: 'Missing links', rows: _tdySortByDate(d.posts.filter(p => liveCal(p) && _calSmmMediaGap(p)).map(post)) },
+            { key: 'captions', label: 'Captions to write', rows: _tdySortByDate(d.posts.filter(p => liveCal(p) && !String(p.caption || '').trim()).map(post)) },
+            { key: 'schedule', label: 'To schedule', rows: _tdySortByDate(d.posts.filter(p => p.status === 'Approved').map(post)) },
             /* Only work items still in To Do: those are the ones Workload places
                by due date, so a past date strands them there. A tweak or an
                approval already sits in its own queue (owner, 2026-10-01). */
-            { key: 'dates', label: 'Dates to move', rows: d.open.filter(r => r.status === 'todo' && r.due_date && r.due_date < today).map(r => ({ kind: 'del', r })) }
+            { key: 'dates', label: 'Dates to move', rows: _tdySortByDate(d.open.filter(r => r.status === 'todo' && r.due_date && r.due_date < today).map(r => ({ kind: 'del', r, at: r.due_date, due: true }))) }
         ];
+    }
+    /* The date pill. Colour follows the days left: today or past red, 1 to 2
+       days amber, 3 to 7 neutral highlight, later quiet grey, none "No date". */
+    function _tdyBand(iso) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso || ''))) return { cls: 'none', text: 'No date' };
+        const a = new Date(iso + 'T12:00:00'), b = _tdyDays(0);
+        b.setHours(12, 0, 0, 0);
+        const n = Math.round((a - b) / 86400000);
+        const text = n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : (_tdyShortDate(iso) || iso);
+        return { cls: n <= 0 ? 'red' : n <= 2 ? 'amber' : n <= 7 ? 'soon' : 'later', text };
+    }
+    function _tdyPill(iso, due) {
+        const b = _tdyBand(iso);
+        return `<span class="tdy-dp ${b.cls}" aria-label="${due ? 'Due' : 'Upload'} date: ${_calEscAttr(b.text)}">${_calEsc(b.text)}</span>`;
     }
     function _tdySmmRow(x, d) {
         if (x.kind === 'del') {
             const r = x.r, name = d.names[r.client_slug] || r.client_slug || '';
             const card = r.origin === 'calendar' ? _tdyBtnCard('del', r.id) : '';
-            return `<div class="tdy-rw" data-k="d:${_calEscAttr(r.id)}">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}</div></div>${card}${_tdyBtnSync(r.id)}</div>`;
+            return `<div class="tdy-rw" data-k="d:${_calEscAttr(r.id)}">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)} ${_tdyPill(x.at, x.due)}</div></div>${card}${_tdyBtnSync(r.id)}</div>`;
         }
         const p = x.p, name = d.names[p.client] || p.client || '';
-        return `<div class="tdy-rw" data-k="p:${_calEscAttr(p.id)}">${_tdyAvatar(p.client, name)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(p.name || 'Untitled post')}</div><div class="tdy-cn">${_calEsc(name)} · ${_calEsc(_tdyShortDate(p.scheduled_date))}</div></div>${_tdyBtnCard('post', p.id)}${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id)}</div>`;
+        return `<div class="tdy-rw" data-k="p:${_calEscAttr(p.id)}">${_tdyAvatar(p.client, name)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(p.name || 'Untitled post')}</div><div class="tdy-cn">${_calEsc(name)} ${_tdyPill(x.at)}</div></div>${_tdyBtnCard('post', p.id)}${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id)}</div>`;
     }
     function _tdyShortDate(iso) {
         const d = new Date(String(iso || '') + 'T12:00:00');
@@ -631,6 +683,9 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         if (tdyState.error && !tdyState.data) { _tdyPatch(root, `<div class="tdy-win" role="alert"><h2>Today could not load.</h2><p>${_calEsc(tdyState.error)}</p><button type="button" class="tdy-b p" onclick="mountTodayView()">Try again</button></div>`); return; }
         if (!tdyState.data) { _tdyPatch(root, _tdySkeletonHtml(me.editor)); return; }
         const focused = document.activeElement && root.contains(document.activeElement) ? document.activeElement.getAttribute('data-tdy-key') : '';
+        // A row that moves up or down the list is re-inserted, which drops focus from its buttons: remember which one.
+        const ae = document.activeElement, rowEl = ae && root.contains(ae) && ae.closest ? ae.closest('.tdy-rw[data-k]') : null;
+        const rowFocus = rowEl && ae.matches('button') ? { k: rowEl.getAttribute('data-k'), label: ae.getAttribute('aria-label') || '' } : null;
         const views = me.editor ? ['List', 'Deck'] : ['Rings', 'Walk-through'];
         const view = views.includes(tdyState.view) ? tdyState.view : views[0];
         const html = me.editor ? _tdyEditorHtml(me, tdyState.data, view) : _tdySmmHtml(me, tdyState.data, view);
@@ -638,6 +693,11 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         if (tdyState.who === _tdyWho(me)) _tdyPaintWrite(tdyState.who, html);
         // Controls are patched in place, so focus normally stays put; if the
         // one just used was replaced, put keyboard focus back on its twin.
+        if (rowFocus && document.activeElement !== ae) {
+            const row = [...root.querySelectorAll('.tdy-rw[data-k]')].find(n => n.getAttribute('data-k') === rowFocus.k);
+            const btn = row && [...row.querySelectorAll('button')].find(n => (n.getAttribute('aria-label') || '') === rowFocus.label);
+            if (btn) btn.focus();
+        }
         if (focused && !root.contains(document.activeElement)) { const back = root.querySelector('[data-tdy-key="' + focused + '"]'); if (back) back.focus(); }
     }
     /* Coming back to the browser tab reads again, quietly, keeping what is

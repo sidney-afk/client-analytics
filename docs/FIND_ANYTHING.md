@@ -1,5 +1,8 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+Thumb's Calendar, Samples, Workload and Messages phone proposal:
+[one interactive mockup and approval boundary](mockups/thumb-phone/README.md).
+
 Prism's full phone review: [coverage and batch evidence](audits/2026-10-07-prism-phone/README.md),
 [screen/state matrix](audits/2026-10-07-prism-phone/COVERAGE.md).
 

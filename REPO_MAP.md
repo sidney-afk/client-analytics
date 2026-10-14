@@ -1,5 +1,10 @@
 # Repo map
 
+`docs/mockups/thumb-phone/` contains Thumb's single interactive before/after
+phone proposal for Calendar, Samples, Workload and Messages, its documentation
+renderer, screenshot evidence and check receipts. Product implementation awaits
+one owner approval; this draft changes no product fragments.
+
 `qa/staff-phone-responsiveness.js` measures native staff cold useful paint and
 touch-to-sheet paint with fictional 4G transports. It guards repeated taps,
 inside taps, phone-height resize, retained refresh content/drafts and card-scan

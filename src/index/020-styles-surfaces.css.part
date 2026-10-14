@@ -6116,7 +6116,6 @@
             html.fph-on[data-fph="production"] .prod-freshness { flex: none; gap: 0; }
             html.fph-on[data-fph="production"] .prod-freshness-age { display: none; }
             html.fph-on[data-fph="production"] .prod-icon-btn { width: 44px; height: 44px; min-width: 44px; }
-            html.fph-on[data-fph="production"] .prod-back-card { min-height: 44px; padding: 0 10px 0 6px; font-size: 13px; }
             html.fph-on[data-fph="production"] .prod-subbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px 4px; height: auto; padding: 8px 8px 8px 12px; }
             html.fph-on[data-fph="production"] .prod-tabs { grid-column: 1 / -1; display: flex; gap: 3px; padding: 4px; border-radius: 15px; background: var(--border-light); }
             html.fph-on[data-fph="production"] .prod-tab { flex: 1; justify-content: center; min-height: 44px; padding: 0 6px; border-radius: 11px; font-size: 13px; font-weight: 600; white-space: nowrap; color: var(--text-secondary); }

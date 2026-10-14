@@ -9,8 +9,8 @@
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `003-sv-route.html.part` | 222 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
-| 4 | `010-styles-foundation.css.part` | 3959 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 7952 | Templates view |
+| 4 | `010-styles-foundation.css.part` | 3963 | Video and Thumbnail share the same vibrant pink/blue pair the |
+| 5 | `020-styles-surfaces.css.part` | 7951 | Templates view |
 | 6 | `030-body-shell.html.part` | 566 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2147 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1803 | Market Research Brief Tab Renderers |
@@ -56,7 +56,7 @@
 | 48 | `230-production-create-comments.js.part` | 2792 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 49 | `240-production-description.js.part` | 2717 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
 | 50 | `250-production-controls-data.js.part` | 3100 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 51 | `260-production-refresh-boot.js.part` | 2849 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 51 | `260-production-refresh-boot.js.part` | 2855 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 52 | `270-samples-model.js.part` | 3130 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 53 | `280-samples-cards-notes.js.part` | 3052 | SURFACE 3: the save engine |
 | 54 | `290-samples-writes-review.js.part` | 1981 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |

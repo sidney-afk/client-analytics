@@ -91,18 +91,50 @@ function expect(condition, message) {
     await plain.close();
 
     const from = await open(calOrigin);
-    const btn = from.locator('.prod-back-card');
+    const btn = from.locator('.prod-back-card:visible');
     expect(await btn.count() === 1 && /Back to card/.test(await btn.innerText()), 'Back to card shows when opened from a Calendar card');
     expect(/^\/synclinear\/deliv-1/.test(await from.evaluate(() => location.pathname)), 'the tab sits at the clean SyncLinear address');
     // The local file server has no clean paths (the host's 404 page bounces them
     // to the app document), so a reload here is the same address in its app form.
     await from.goto(base + await from.evaluate(() => svRoute.fast(location.pathname + location.search)));
     await from.waitForSelector('.prod-topbar', { timeout: 15000 });
-    expect(await from.locator('.prod-back-card').count() === 1, 'the button survives a reload');
+    expect(await from.locator('.prod-back-card:visible').count() === 1, 'the button survives a reload');
     expect(/from=calendar/.test(await from.evaluate(() => location.search)), 'the origin is in the address after the reload');
 
+    /* where it sits: top of the left sidebar, above My issues, beside Search; not in the top bar */
+    const spot = await from.evaluate(() => {
+      const b = document.querySelector('.prod-side .prod-back-card');
+      const r = el => { const q = el && el.getBoundingClientRect(); return q ? { x: q.x, y: q.y, w: q.width, h: q.height } : null; };
+      const nav = Array.from(document.querySelectorAll('.prod-side .prod-nav-btn')).find(x => /My issues/.test(x.textContent));
+      return {
+        inSide: !!b, inTopbar: !!document.querySelector('.prod-topbar .prod-back-card'),
+        btn: r(b), search: r(document.querySelector('.prod-side .prod-search-btn')), mine: r(nav),
+        bg: b ? getComputedStyle(b).backgroundColor : '', fg: b ? getComputedStyle(b).color : '',
+      };
+    });
+    expect(spot.inSide && !spot.inTopbar, 'the button is in the left sidebar and not in the top bar');
+    expect(spot.btn && spot.search && spot.mine && spot.btn.y < spot.mine.y && spot.btn.x < spot.search.x && Math.abs(spot.btn.y - spot.search.y) < 20,
+      'it sits above My issues and beside the search icon');
+    expect(spot.btn.h >= 34 && spot.btn.w >= 120, 'it is a real button, not a small chip (' + Math.round(spot.btn.w) + 'x' + Math.round(spot.btn.h) + ')');
+    expect(spot.bg !== 'rgba(0, 0, 0, 0)' && spot.bg !== 'rgb(255, 255, 255)' && spot.fg === 'rgb(255, 255, 255)', 'it is filled with the accent colour with white text (' + spot.bg + ')');
+
+    /* a phone: the sidebar is hidden, so the button leads the page, full width, clipping nothing */
+    const phone = await open(calOrigin, 'light', 390);
+    const ph = await phone.evaluate(() => {
+      const b = document.querySelector('.prod-back-strip .prod-back-card');
+      const q = b && b.getBoundingClientRect();
+      const top = document.querySelector('.prod-topbar');
+      return { shown: !!b && b.getClientRects().length > 0, x: q && q.x, w: q && q.width, h: q && q.height, y: q && q.y,
+        topY: top && top.getBoundingClientRect().y, vw: window.innerWidth, scroll: document.documentElement.scrollWidth,
+        visibleCount: Array.from(document.querySelectorAll('.prod-back-card')).filter(x => x.getClientRects().length).length };
+    });
+    expect(ph.shown && ph.visibleCount === 1, 'on a phone exactly one Back to card shows, in the strip');
+    expect(ph.x >= 0 && ph.x + ph.w <= ph.vw && ph.scroll <= ph.vw + 1, 'and it fits inside the screen');
+    expect(ph.h >= 44 && ph.y < ph.topY, 'it is at least 44px tall and sits above the header');
+    await phone.close();
+
     /* the button lands on the right card */
-    await Promise.all([from.waitForURL(/\/calendar\//, { timeout: 15000 }), from.locator('.prod-back-card').click()]);
+    await Promise.all([from.waitForURL(/\/calendar\//, { timeout: 15000 }), from.locator('.prod-back-card:visible').click()]);
     await from.waitForTimeout(1500);
     const landed = await from.evaluate(() => ({ path: location.pathname, nav: currentNav, slug: calClientSlug(calState.client || '') }));
     expect(landed.path === '/calendar/' + slug + '/card-77', 'Back to card lands on that card: ' + landed.path);
@@ -111,7 +143,7 @@ function expect(condition, message) {
     await from.close();
 
     const samples = await open('&from=samples&card=card-5&cslug=' + slug);
-    expect(await samples.locator('.prod-back-card[data-prod-back-from="samples"]').count() === 1, 'a Samples origin also shows the button');
+    expect(await samples.locator('.prod-back-card:visible[data-prod-back-from="samples"]').count() === 1, 'a Samples origin also shows the button');
     expect(await samples.evaluate(() => svRoute.fromCard().href) === '/#sample-reviews/' + slug + '/card-5', 'and goes to the sample card');
     await samples.close();
 

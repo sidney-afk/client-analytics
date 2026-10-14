@@ -255,7 +255,7 @@ This is the complete current live workflow ID set. The [Atlas](../ATLAS.md#n8n) 
   that workflow changed), `2f2414c5-f2fc-4317-9434-fc92ac47bd5e` to
   `afaa0f36-f917-47ce-89f3-a63bf6d55f72`. No editor interview booking arrived between 2026-10-06 and the
   fix, so none needed recovery. A real test application through the live form proved the capture, the
-  bare-link fix and both alerts; its rows were removed afterwards.
+  bare-link fix and both alerts; its SyncView rows were removed afterwards (the Hiring Raw Log row and the iClosed contact stay).
 - The existing active `Sales — Call Booked (iClosed)` receiver `xoPqojySDriQ8Mzh` is at version
   `a82e2ce1-d062-4997-a812-7621b5c1b635`. A first strict gate accepts only
   `client-success-content-manager-interview` with a nonblank iClosed contact ID and booking ID,

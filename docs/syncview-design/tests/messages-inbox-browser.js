@@ -4,15 +4,17 @@
  *
  * Drives the real page, fully mocked (lost-work-lib.js plus a local answer for
  * production-comments' `inbox` / `inbox_mark` actions), and proves:
- *   A  Kasper's Messages tab is the inbox: conversations on the left with
- *      client, title, last message and unread count; the tab shows the count
+ *   A  Kasper's Messages tab opens the Messages page: conversations on the
+ *      left with client, title, last message and unread count; the header
+ *      button shows the count
  *   B  opening a conversation shows the chat and marks it read (count drops,
  *      the server is told "read")
  *   C  Mark as unread tells the server "unread" and the count comes back
  *   D  a reply goes through the Notes save path into the SAME card thread,
  *      under the thread it answers, keeping its part and audience
  *   E  a posted post drops out of the list
- *   F  the Messages button by the account (SMMs) opens the same inbox as a panel
+ *   F  the header Messages button opens the same page: header still there,
+ *      no Close button, full width, any other tab leaves it
  *   G  phone: the list first, then the chat, and back
  *   J  cold start on the Kasper tab (the Calendar never opened): a reply
  *      still loads the card and saves
@@ -113,22 +115,23 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     await page.evaluate(() => { navTo('kasper'); });
     await page.waitForFunction(() => typeof svAreaApi === 'function' && !!svAreaApi('kasper'), null, { timeout: 20000 });
     await page.evaluate(() => _kasperGotoTab('replies'));
-    check(await until(() => page.evaluate(() => document.querySelectorAll('#kasperContent .msg-conv').length === 3)), 'A: the Messages tab lists three conversations');
+    check(await until(() => page.evaluate(() => currentNav === 'messages' && document.querySelectorAll('#msgPage .msg-conv').length === 3)), 'A: the Kasper Messages tab opens the Messages page with three conversations');
+    check(await page.evaluate(() => _kasperState.tab === 'review'), 'A: the Kasper page itself goes back to Review for the next visit');
     const a = await page.evaluate(() => ({
-      first: (document.querySelector('#kasperContent .msg-conv .msg-conv-sub') || {}).textContent,
-      count: (document.querySelector('[data-kasper-count="replies"]') || {}).textContent,
-      badges: [...document.querySelectorAll('#kasperContent .msg-unread')].map(b => b.textContent),
+      first: (document.querySelector('#msgPage .msg-conv .msg-conv-sub') || {}).textContent,
+      count: (document.querySelector('#navMessages [data-msg-count]') || {}).textContent,
+      badges: [...document.querySelectorAll('#msgPage .msg-unread')].map(b => b.textContent),
     }));
     check(a.first === 'Second fixture post', 'A: newest conversation first');
-    check(a.count === '3', 'A: the tab shows 3 unread conversations (' + a.count + ')');
+    check(a.count === '3', 'A: the header button shows 3 unread conversations (' + a.count + ')');
     check(a.badges.join(',') === '1,1,1', 'A: each conversation shows its unread count');
     await shot('inbox-light-desktop-list');
 
     // B: open = read
-    await page.click('#kasperContent [data-msg-conv="p_t1"]');
-    check(await until(() => page.evaluate(() => !!document.querySelector('#kasperContent .msg-b'))), 'B: the chat opens');
+    await page.click('#msgPage [data-msg-conv="p_t1"]');
+    check(await until(() => page.evaluate(() => !!document.querySelector('#msgPage .msg-b'))), 'B: the chat opens');
     check(await until(() => marks.includes('p_t1:read')), 'B: opening tells the server "read"');
-    check(await page.evaluate(() => document.querySelector('[data-kasper-count="replies"]').textContent) === '2', 'B: the tab count drops to 2');
+    check(await page.evaluate(() => document.querySelector('#navMessages [data-msg-count]').textContent) === '2', 'B: the count drops to 2');
     await shot('inbox-light-desktop-chat');
     await theme('dark');
     await shot('inbox-dark-desktop-chat');
@@ -144,19 +147,19 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     check(r.is_tweak !== true, 'D: a reply is never a change request');
     check(r.author_member_id === 'm1', 'D: the reply stores the writer\'s member id (' + r.author_member_id + ')');
     check(r.author === 'Synchro Social' && !JSON.stringify(r).includes('Browser Staff'), 'D: the saved note holds the id only, never the staff name');
-    check(await until(() => page.evaluate(() => [...document.querySelectorAll('#kasperContent .msg-b-text')].some(b => b.textContent === 'Fixture reply from the inbox'))), 'D: the reply shows in the chat');
+    check(await until(() => page.evaluate(() => [...document.querySelectorAll('#msgPage .msg-b-text')].some(b => b.textContent === 'Fixture reply from the inbox'))), 'D: the reply shows in the chat');
 
     // C: mark as unread
-    await page.click('#kasperContent .msg-act[title="Mark as unread"]');
+    await page.click('#msgPage .msg-act[title="Mark as unread"]');
     check(await until(() => marks.includes('p_t1:unread')), 'C: Mark as unread tells the server "unread"');
-    check(await until(() => page.evaluate(() => document.querySelector('[data-kasper-count="replies"]').textContent === '3')), 'C: the count comes back to 3');
+    check(await until(() => page.evaluate(() => document.querySelector('#navMessages [data-msg-count]').textContent === '3')), 'C: the count comes back to 3');
 
     // E: posted post drops out
     postedGone = true;
     await page.evaluate(() => _msgLoad(true));
-    check(await until(() => page.evaluate(() => !document.querySelector('#kasperContent [data-msg-conv="p_posted"]'))), 'E: a posted post drops out of the list');
+    check(await until(() => page.evaluate(() => !document.querySelector('#msgPage [data-msg-conv="p_posted"]'))), 'E: a posted post drops out of the list');
 
-    // F: the Messages button opens the same inbox as a panel
+    // F: the header Messages button opens the Messages page
     await page.evaluate(() => navTo('calendar'));
     // Who gets the header button: admins and SMMs, never editors or designers.
     const asRole = (role) => page.evaluate(role => {
@@ -197,45 +200,58 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     check(await page.isVisible('#navMessages'), 'F: the Messages button shows by the account icon');
     check(await page.evaluate(() => document.querySelector('#navMessages [data-msg-count]').textContent) === '2', 'F: the button shows the unread count (the posted one is gone)');
     await page.click('#navMessages');
-    check(await until(() => page.evaluate(() => document.querySelectorAll('#msgPanel .msg-conv').length === 2)), 'F: the panel shows the same conversations');
-    check(await page.evaluate(() => document.getElementById('msgPanel').contains(document.activeElement)), 'F: focus moves into the panel');
-    for (let i = 0; i < 12; i++) await page.keyboard.press('Tab');
-    check(await page.evaluate(() => document.getElementById('msgPanel').contains(document.activeElement)), 'F: Tab stays inside the panel');
-    await shot('inbox-light-desktop-panel');
-    await page.keyboard.press('Escape');
-    check(await page.evaluate(() => document.getElementById('msgPanel').hidden), 'F: Escape closes the panel');
-    check(await page.evaluate(() => document.activeElement && document.activeElement.id === 'navMessages'), 'F: focus returns to the Messages button');
+    check(await until(() => page.evaluate(() => currentNav === 'messages' && document.querySelectorAll('#msgPage .msg-conv').length === 2)), 'F: the button opens the Messages page with the same conversations');
+    const f = await page.evaluate(() => {
+      const h = document.querySelector('header.header').getBoundingClientRect();
+      const p = document.getElementById('msgPage').getBoundingClientRect();
+      const inbox = document.querySelector('#msgPage .msg-inbox').getBoundingClientRect();
+      const list = document.querySelector('#msgPage .msg-list').getBoundingClientRect();
+      const chat = document.querySelector('#msgPage .msg-chat').getBoundingClientRect();
+      return { headerShown: h.height > 0 && getComputedStyle(document.querySelector('header.header')).display !== 'none', below: p.top >= h.bottom - 1,
+        close: [...document.querySelectorAll('#msgPage button')].some(b => /close/i.test(b.textContent + ' ' + (b.getAttribute('aria-label') || ''))),
+        dialog: !!document.querySelector('#msgPage[role="dialog"], #msgPage [role="dialog"]'), active: document.getElementById('navMessages').classList.contains('active'),
+        inboxW: Math.round(inbox.width), vw: innerWidth, listLeft: list.left <= inbox.left + 1, chatW: Math.round(chat.width) };
+    });
+    check(f.headerShown && f.below, 'F: the page sits under the main header, which stays visible');
+    check(!f.close && !f.dialog, 'F: a page, not a dialog: no Close button');
+    check(f.active, 'F: the header button shows as the active tab');
+    check(f.listLeft && f.inboxW >= f.vw - 80 && f.chatW >= f.inboxW - 360, 'F: full width, list on the left, conversation takes the rest ' + JSON.stringify(f));
+    await shot('messages-page-desktop');
+    await page.click('#navCalendar');
+    check(await until(() => page.evaluate(() => currentNav === 'calendar' && !document.getElementById('msgPage'))), 'F: clicking another tab leaves the Messages page');
 
     // G: phone
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.evaluate(() => _msgOpenPanel());
-    await until(() => page.evaluate(() => !!document.querySelector('#msgPanel .msg-conv')));
-    const g1 = await page.evaluate(() => ({ list: getComputedStyle(document.querySelector('#msgPanel .msg-list')).display, chat: getComputedStyle(document.querySelector('#msgPanel .msg-chat')).display }));
+    await page.evaluate(() => _msgOpenPage());
+    await until(() => page.evaluate(() => !!document.querySelector('#msgPage .msg-conv')));
+    check(await page.evaluate(() => currentNav === 'messages'), 'G: phone opens the Messages page');
+    const g1 = await page.evaluate(() => ({ list: getComputedStyle(document.querySelector('#msgPage .msg-list')).display, chat: getComputedStyle(document.querySelector('#msgPage .msg-chat')).display }));
     check(g1.list !== 'none' && g1.chat === 'none', 'G: phone shows the list first');
-    await shot('inbox-light-phone-list');
-    await page.click('#msgPanel [data-msg-conv="p_other"]');
-    const g2 = await page.evaluate(() => ({ list: getComputedStyle(document.querySelector('#msgPanel .msg-list')).display, chat: getComputedStyle(document.querySelector('#msgPanel .msg-chat')).display }));
+    await shot('messages-page-phone-list');
+    await page.click('#msgPage [data-msg-conv="p_other"]');
+    const g2 = await page.evaluate(() => ({ list: getComputedStyle(document.querySelector('#msgPage .msg-list')).display, chat: getComputedStyle(document.querySelector('#msgPage .msg-chat')).display }));
     check(g2.list === 'none' && g2.chat !== 'none', 'G: tapping a conversation opens the chat');
+    await shot('messages-page-phone-chat');
     await theme('dark');
     await shot('inbox-dark-phone-chat');
     await theme('light');
-    await page.click('#msgPanel .msg-back');
-    check(await page.evaluate(() => getComputedStyle(document.querySelector('#msgPanel .msg-list')).display !== 'none'), 'G: back returns to the list');
+    check(await page.evaluate(() => { const b = document.querySelector('#msgPage .msg-back'); return !!b && b.getBoundingClientRect().width > 0; }), 'G: an open conversation has a back arrow on a phone');
+    await page.click('#msgPage .msg-back');
+    check(await page.evaluate(() => getComputedStyle(document.querySelector('#msgPage .msg-list')).display !== 'none'), 'G: back returns to the list');
     const wide = await page.evaluate(() => document.documentElement.scrollWidth);
     check(wide <= 391, 'G: no sideways scroll on a phone (' + wide + ')');
     check(!page.errors.length, 'no page errors ' + JSON.stringify(page.errors));
 
     // I: who wrote it
     await page.setViewportSize({ width: 1366, height: 900 });
-    await page.evaluate(() => _msgClosePanel());
     withWriters = true;
     await page.evaluate(() => { navTo('kasper'); });
     await page.evaluate(() => _kasperGotoTab('replies'));
     await page.evaluate(() => _msgLoad(true));
-    check(await until(() => page.evaluate(() => !!document.querySelector('#kasperContent [data-msg-conv="p_writers"]'))), 'I: the writers conversation is listed');
-    await until(() => page.evaluate(() => /Robin Testwell/.test(document.querySelector('#kasperContent [data-msg-conv="p_writers"]').innerText)));
+    check(await until(() => page.evaluate(() => !!document.querySelector('#msgPage [data-msg-conv="p_writers"]'))), 'I: the writers conversation is listed');
+    await until(() => page.evaluate(() => /Robin Testwell/.test(document.querySelector('#msgPage [data-msg-conv="p_writers"]').innerText)));
     const iList = await page.evaluate(() => {
-      const row = id => document.querySelector('#kasperContent [data-msg-conv="' + id + '"]');
+      const row = id => document.querySelector('#msgPage [data-msg-conv="' + id + '"]');
       const badge = id => (row(id).querySelector('.msg-unread') || {}).textContent || '0';
       return { writersText: row('p_writers').innerText, writersUnread: badge('p_writers'), mineUnread: badge('p_mine'), mineText: row('p_mine').innerText };
     });
@@ -243,9 +259,9 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     check(iList.mineUnread === '0', 'I: a conversation with only your own note has nothing unread (' + iList.mineUnread + ')');
     check(/Robin Testwell/.test(iList.writersText), "I: the list names the colleague who wrote last");
     check(/You/.test(iList.mineText) && !/Synchro Social/.test(iList.mineText), 'I: your own last note reads "You"');
-    await page.click('#kasperContent [data-msg-conv="p_writers"]');
-    check(await until(() => page.evaluate(() => document.querySelectorAll('#kasperContent .msg-b').length === 2)), 'I: the chat shows both notes');
-    const iChat = await page.evaluate(() => [...document.querySelectorAll('#kasperContent .msg-b .msg-b-meta b')].map(b => b.textContent));
+    await page.click('#msgPage [data-msg-conv="p_writers"]');
+    check(await until(() => page.evaluate(() => document.querySelectorAll('#msgPage .msg-b').length === 2)), 'I: the chat shows both notes');
+    const iChat = await page.evaluate(() => [...document.querySelectorAll('#msgPage .msg-b .msg-b-meta b')].map(b => b.textContent));
     check(iChat.join('|') === 'You|Robin Testwell', 'I: the chat names each writer (' + iChat.join('|') + ')');
     await shot('note-writer-inbox-light');
     // The card's Notes panel names the writer too; an old note without an id
@@ -286,8 +302,8 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
       await cold.evaluate(() => _kasperGotoTab('replies'));
       const jState = await cold.evaluate(() => ({ view: !!(document.getElementById('calView') && document.getElementById('calView').isConnected), posts: calState.posts.length, nav: currentNav }));
       check(!jState.view && jState.posts === 0, 'J: cold start: no Calendar screen and no cards loaded (' + JSON.stringify(jState) + ')');
-      check(await until(() => cold.evaluate(() => !!document.querySelector('#kasperContent [data-msg-conv="p_t1"]'))), 'J: the inbox lists the conversation');
-      await cold.click('#kasperContent [data-msg-conv="p_t1"]');
+      check(await until(() => cold.evaluate(() => !!document.querySelector('#msgPage [data-msg-conv="p_t1"]'))), 'J: the inbox lists the conversation');
+      await cold.click('#msgPage [data-msg-conv="p_t1"]');
       await until(() => cold.evaluate(() => !!document.getElementById('msgReplyBox')));
       const started = Date.now();
       await cold.fill('#msgReplyBox', 'Cold start reply');
@@ -304,26 +320,26 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     await page.evaluate(() => { navTo('kasper'); });
     await page.evaluate(() => _kasperGotoTab('replies'));
     await page.evaluate(() => _msgLoad(true));
-    check(await until(() => page.evaluate(() => !!document.querySelector('#kasperContent [data-msg-conv="p_twin"]'))), 'L: the same-name conversation is listed');
-    const lRow = await page.evaluate(() => { const r = document.querySelector('#kasperContent [data-msg-conv="p_twin"]'); return { text: r.innerText, badge: (r.querySelector('.msg-unread') || {}).textContent || '0' }; });
+    check(await until(() => page.evaluate(() => !!document.querySelector('#msgPage [data-msg-conv="p_twin"]'))), 'L: the same-name conversation is listed');
+    const lRow = await page.evaluate(() => { const r = document.querySelector('#msgPage [data-msg-conv="p_twin"]'); return { text: r.innerText, badge: (r.querySelector('.msg-unread') || {}).textContent || '0' }; });
     check(lRow.badge === '1', "L: the client's message counts as unread (" + lRow.badge + ')');
     check(!/You:/.test(lRow.text), 'L: the list does not call it "You"');
-    await page.click('#kasperContent [data-msg-conv="p_twin"]');
-    await until(() => page.evaluate(() => document.querySelectorAll('#kasperContent .msg-b').length === 1));
-    check(await page.evaluate(() => { const b = document.querySelector('#kasperContent .msg-b'); return !b.classList.contains('is-me') && b.querySelector('.msg-b-meta b').textContent === 'Browser Staff'; }), 'L: the chat shows it as the client\'s, not yours');
+    await page.click('#msgPage [data-msg-conv="p_twin"]');
+    await until(() => page.evaluate(() => document.querySelectorAll('#msgPage .msg-b').length === 1));
+    check(await page.evaluate(() => { const b = document.querySelector('#msgPage .msg-b'); return !b.classList.contains('is-me') && b.querySelector('.msg-b-meta b').textContent === 'Browser Staff'; }), 'L: the chat shows it as the client\'s, not yours');
     // Leave one conversation unread for the phone check below.
-    await page.click('#kasperContent .msg-act[title="Mark as unread"]');
+    await page.click('#msgPage .msg-act[title="Mark as unread"]');
     await until(() => marks.includes('p_twin:unread'));
 
     // K: phone list keeps the time and badge inside the row
     await page.setViewportSize({ width: 390, height: 844 });
     await page.evaluate(() => { _msgState.openId = ''; _msgLoad(true); });
-    await until(() => page.evaluate(() => document.querySelectorAll('#kasperContent .msg-conv').length > 0 && document.querySelector('#kasperContent .msg-list').offsetParent !== null));
+    await until(() => page.evaluate(() => document.querySelectorAll('#msgPage .msg-conv').length > 0 && document.querySelector('#msgPage .msg-list').offsetParent !== null));
     for (const t of ['light', 'dark']) {
       await theme(t);
       const k = await page.evaluate(() => {
         const vw = document.documentElement.clientWidth;
-        return [...document.querySelectorAll('#kasperContent .msg-conv')].map(row => {
+        return [...document.querySelectorAll('#msgPage .msg-conv')].map(row => {
           const r = row.getBoundingClientRect();
           const time = row.querySelector('.msg-conv-time').getBoundingClientRect();
           const badge = row.querySelector('.msg-unread');

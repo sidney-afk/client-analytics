@@ -1731,7 +1731,13 @@ import {
             key: 'staff-account',
             region: '#staffIdentityWrap',
             holdRefresh: false,
-            opener: () => document.getElementById('headerMenuButton'),
+            /* The header button, or on the Kasper phone layout (where it is
+               tucked away) the More button the account sheet came from. */
+            opener: () => {
+                const btn = document.getElementById('headerMenuButton');
+                if (btn && btn.getClientRects().length) return btn;
+                return document.querySelector('[data-kasper-more-trigger]') || btn;
+            },
             isOpen: () => { const p = document.getElementById('staffAccountPopover'); return !!p && !p.hidden; },
             close: () => _syncviewCloseStaffAccount({ restoreFocus: false }),
         });

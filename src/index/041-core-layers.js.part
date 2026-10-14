@@ -250,7 +250,7 @@
         const i = _svLayers.findIndex(l => l.key === key);
         if (i < 0) return false;
         const doomed = _svLayers.splice(i);
-        for (let j = doomed.length - 1; j >= 0; j--) _svLayerCloseOne(doomed[j], reason || 'api');
+        for (let j = doomed.length - 1; j >= 0; j--) _svLayerCloseOne(doomed[j], reason || 'api', i + j);
         return true;
     }
     function svLayerCloseTop(reason) {
@@ -269,7 +269,7 @@
         if (o.tabIndex < 0 && !o.hasAttribute('tabindex')) o.setAttribute('tabindex', '-1');
         try { o.focus({ preventScroll: true }); } catch { try { o.focus(); } catch {} }
     }
-    function _svLayerCloseOne(layer, reason) {
+    function _svLayerCloseOne(layer, reason, at) {
         const active = document.activeElement;
         const regions = _svLayerRegions(layer);
         const hadFocus = !!active && regions.some(r => r.contains(active));
@@ -280,7 +280,9 @@
         /* The surface may refuse (busy saving, or it asked "discard?" first).
            It is still open then: keep it on the stack and leave focus alone. */
         if (layer.isOpen && layer.isOpen()) {
-            if (!_svLayers.some(l => l.key === layer.key)) _svLayers.push(layer);
+            /* Back where it was: below anything its refusal opened (the "discard?"
+               question), so the next Escape answers the question first. */
+            if (!_svLayers.some(l => l.key === layer.key)) _svLayers.splice(Math.min(at == null ? _svLayers.length : at, _svLayers.length), 0, layer);
             return;
         }
         if (!layer.focusOnClose) return;

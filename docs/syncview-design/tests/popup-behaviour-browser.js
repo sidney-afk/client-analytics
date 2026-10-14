@@ -403,6 +403,24 @@ async function stackChecks(page, label) {
   await page.keyboard.press('Escape');
   await page.waitForTimeout(250);
   expect(!(await page.evaluate(() => !!document.querySelector('.cal-fld-status-menu.open'))), tag + 'next Escape closes the menu');
+  // A box that asks "discard your edits?" before it closes: the first Escape asks,
+  // the next Escape answers (keeps the box and the text), the one after asks again.
+  await page.evaluate(() => _calOpenCaptionPromptModal());
+  await page.waitForSelector('#calPromptOverlay.open');
+  await page.locator('#calPromptTA').click();
+  await page.keyboard.type(' MADEUP');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(250);
+  const q1 = await page.evaluate(() => ({ ask: !!document.querySelector('#confirmOverlay.active'), box: !!document.querySelector('#calPromptOverlay.open') }));
+  expect(q1.ask && q1.box, tag + 'Escape on an edited box asks before discarding');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(250);
+  const q2 = await page.evaluate(() => ({ ask: !!document.querySelector('#confirmOverlay.active'), box: !!document.querySelector('#calPromptOverlay.open'), text: /MADEUP/.test((document.getElementById('calPromptTA') || {}).value || '') }));
+  expect(!q2.ask && q2.box && q2.text, tag + 'Escape on the question closes only the question, the box keeps its text');
+  await page.evaluate(() => { document.getElementById('calPromptTA').value = document.getElementById('calPromptTA').defaultValue; });
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(250);
+  expect(!(await page.evaluate(() => !!document.querySelector('#calPromptOverlay.open'))), tag + 'with nothing edited the box closes at once');
   // Escape with nothing open must not do anything to the layer list.
   await page.keyboard.press('Escape');
   expect((await page.evaluate(() => svLayerKeys().length)) === 0, tag + 'nothing left on the stack');

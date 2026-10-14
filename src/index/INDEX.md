@@ -13,7 +13,7 @@
 | 5 | `020-styles-surfaces.css.part` | 7952 | Templates view |
 | 6 | `030-body-shell.html.part` | 566 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2158 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
-| 8 | `041-core-layers.js.part` | 367 | LAYERS: ONE RULE FOR EVERY POP-UP (owner request, ). |
+| 8 | `041-core-layers.js.part` | 369 | LAYERS: ONE RULE FOR EVERY POP-UP (owner request, ). |
 | 9 | `050-market-briefs.js.part` | 1803 | Market Research Brief Tab Renderers |
 | 10 | `060-templates-filming.js.part` | 2445 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 11 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
@@ -32,7 +32,7 @@
 | 24 | `098-smm-clients.js.part` | 115 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
 | 25 | `099-phone-staff-shell.js.part` | 392 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
 | 26 | `099-staff-phone-bar.js.part` | 652 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
-| 27 | `100-onboarding-staff-controls.js.part` | 2440 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
+| 27 | `100-onboarding-staff-controls.js.part` | 2446 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 28 | `110-time-off.js.part` | 1393 | Kasper Time Off calendar |
 | 29 | `112-smm-weekly-reports.js.part` | 712 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
 | 30 | `115-core-calendar-flags.js.part` | 153 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |

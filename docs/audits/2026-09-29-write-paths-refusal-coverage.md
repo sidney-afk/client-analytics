@@ -168,6 +168,7 @@ and SMM weekly reports.
 | `323-kasper-dashboard-tail.js` | `send` | `CA_WRITE_URL` POST | reports | `_caEditPost` | Client profile edit, manager change (assign_manager), status and refresh, recorded as client_profile_<action>. list_managers and history are reads sent as POST and are not recorded. |
 | `323-kasper-dashboard-tail.js` | `stale` | `CA_READ_URL` POST | read |  | Client profile read. |
 | `324-client-onboarding-panel.js` | `send` | `url` POST | reports | `_cbPost` | Onboarding checklist and HubSpot refresh. A checklist step change is recorded as client_onboarding_set_step; the checklist read and the HubSpot refresh are reads sent as POST and are not recorded. |
+| `326-core-messages-inbox.js` | `_msgCall` | `MSG_URL` POST | background |  | Messages inbox: 'inbox' lists conversations (a read) and 'inbox_mark' stores only this person's read mark, never card data; a failed mark leaves the conversation unread. A reply is saved by _calAppendComment, which reports. |
 <!-- inventory:end -->
 
 ## 5. Proof

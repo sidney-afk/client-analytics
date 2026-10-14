@@ -2664,9 +2664,9 @@
         .msg-conv-sub { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .msg-conv-last { font-size: 0.78rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
         .msg-conv.is-unread .msg-conv-last { color: var(--text-primary); font-weight: 600; }
-        .msg-unread { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--cal-notes-dot-bg); color: var(--sv-fg-fff); font-size: 0.66rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .msg-unread { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--cal-notes-dot-bg); color: var(--cal-notes-count-fg); font-size: 0.66rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .msg-unread[hidden] { display: none; }
-        .kasper-tab-count.is-unread { background: var(--cal-notes-dot-bg); color: var(--sv-fg-fff); }
+        .kasper-tab-count.is-unread { background: var(--cal-notes-dot-bg); color: var(--cal-notes-count-fg); }
         .msg-chat { display: flex; flex-direction: column; min-height: 0; }
         .msg-chat-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
         .msg-chat-titles { min-width: 0; flex: 1; }

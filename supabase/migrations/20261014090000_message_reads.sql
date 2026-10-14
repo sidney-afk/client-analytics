@@ -15,7 +15,7 @@
 begin;
 
 create table if not exists public.message_reads (
-  reader_id uuid not null references public.team_members(id) on delete cascade,
+  reader_id uuid not null,  -- team_members.id; no foreign key: read marks are disposable and stay out of the Track-B backup corpus
   post_id text not null check (length(post_id) between 1 and 160),
   last_read_at timestamptz not null,
   updated_at timestamptz not null default now(),

@@ -117,7 +117,14 @@
             : anchorTag.toLowerCase() + dataAttrs(anchor).map(a => '[' + a.name + '="' + String(a.value).replace(/["\\]/g, '\\$&') + '"]').join('');
         return () => {
             let node;
-            try { node = document.querySelector(anchorSel); } catch { return null; }
+            /* Only when exactly one element answers to the anchor: a repeated
+               control (several date pickers sharing the same attributes) must
+               never be mistaken for the one that went away. */
+            try {
+                const found = document.querySelectorAll(anchorSel);
+                if (found.length !== 1) return null;
+                node = found[0];
+            } catch { return null; }
             for (let i = 0; node && i < steps.length; i++) node = node.children[steps[i]] || null;
             return node && node.tagName === tag && node.className === cls ? node : null;
         };

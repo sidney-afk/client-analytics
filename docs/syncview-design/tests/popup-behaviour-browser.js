@@ -132,9 +132,11 @@ async function blankPoint(page, insideSel) {
   return page.evaluate(sel => {
     const box = sel ? document.querySelector(sel) : null;
     const W = innerWidth, H = innerHeight;
+    // A native dialog sheet: its dim backdrop is the strip above it.
+    if (document.querySelector('dialog[open]')) return { x: Math.floor(W / 2), y: 8 };
     const pts = [];
-    for (const fy of [0.55, 0.3, 0.7, 0.15, 0.85, 0.45]) for (const fx of [0.985, 0.5, 0.02, 0.75, 0.25]) pts.push([Math.floor(W * fx), Math.floor(H * fy)]);
-    const live = '.sv-select-menu, .cal-fld-status-menu, .dropdown-menu, dialog[open], .dp-popup, [role=dialog], [role=menu]';
+    for (const fy of [0.55, 0.9, 0.7, 0.3, 0.97, 0.15, 0.45]) for (const fx of [0.9, 0.5, 0.02, 0.75, 0.25]) pts.push([Math.floor(W * fx), Math.floor(H * fy)]);
+    const live = '.sv-select-menu, .cal-fld-status-menu, .dropdown-menu, dialog[open], .dp-popup, [role=dialog], [role=menu], [role=listbox], [role=option], [aria-live]';
     for (const [x, y] of pts) {
       const t = document.elementFromPoint(x, y);
       if (!t) continue;
@@ -143,7 +145,7 @@ async function blankPoint(page, insideSel) {
       if (t.closest(live)) continue;
       return { x, y };
     }
-    return { x: W - 3, y: Math.floor(H * 0.55) };
+    return { x: Math.floor(W * 0.9), y: Math.floor(H * 0.55) };
   }, insideSel || null);
 }
 async function runSurface(page, s, label) {
@@ -185,12 +187,14 @@ async function runSurface(page, s, label) {
     }
     // 3. Click outside closes
     if (!(await s.isOpen(page))) { await s.open(page); await page.waitForTimeout(250); }
+    await page.waitForTimeout(300);
     const pt = await blankPoint(page, s.inside);
     const covered = s.inside ? await page.evaluate(([x, y, sel]) => { const t = document.elementFromPoint(x, y); const box = document.querySelector(sel); return !!(t && box && box.contains(t)); }, [pt.x, pt.y, s.inside]) : false;
     if (covered) { row.outside = 'fills screen'; console.log('  --  ' + tag + 'fills the screen, no outside area to click'); }
     else { await page.mouse.click(pt.x, pt.y); }
     await page.waitForTimeout(350);
     const closedByOutside = covered ? true : !(await s.isOpen(page));
+    if (!closedByOutside) console.log('  ..  ' + tag + 'outside click at ' + pt.x + ',' + pt.y + ' landed on ' + await page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e ? (e.tagName + '.' + String(e.className).slice(0, 40) + '#' + e.id) : 'nothing'; }, [pt.x, pt.y]) + '; layers: ' + JSON.stringify(await page.evaluate(() => svLayerKeys())));
     expect(closedByOutside, tag + 'a click outside closes it');
     if (!covered) row.outside = closedByOutside ? 'yes' : 'NO';
     else await page.keyboard.press('Escape');

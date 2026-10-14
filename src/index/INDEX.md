@@ -13,7 +13,7 @@
 | 5 | `020-styles-surfaces.css.part` | 7952 | Templates view |
 | 6 | `030-body-shell.html.part` | 566 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2158 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
-| 8 | `041-core-layers.js.part` | 360 | LAYERS: ONE RULE FOR EVERY POP-UP (owner request, ). |
+| 8 | `041-core-layers.js.part` | 367 | LAYERS: ONE RULE FOR EVERY POP-UP (owner request, ). |
 | 9 | `050-market-briefs.js.part` | 1803 | Market Research Brief Tab Renderers |
 | 10 | `060-templates-filming.js.part` | 2445 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 11 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |

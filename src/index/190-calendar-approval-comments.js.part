@@ -3337,7 +3337,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 });
                 trigger.classList.add('cal-fld-status-' + _calStatusSlug(shown));
                 const labelEl = trigger.querySelector('.cal-fld-substatus-label');
-                if (labelEl) labelEl.textContent = _calCompStatusLabel(post, c, shown);
+                if (labelEl) labelEl.textContent = labelEl.title = _calCompStatusLabel(post, c, shown);
             }
             // Reconcile the URGENT badge in place, same predicates as the full
             // render — otherwise it lingered next to "For Client Approval" after

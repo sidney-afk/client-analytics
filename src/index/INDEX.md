@@ -31,7 +31,7 @@
 | 23 | `098-smm-clients.js.part` | 115 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
 | 24 | `099-phone-staff-shell.js.part` | 392 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
 | 25 | `099-staff-phone-bar.js.part` | 652 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
-| 26 | `100-onboarding-staff-controls.js.part` | 2419 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
+| 26 | `100-onboarding-staff-controls.js.part` | 2421 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 27 | `110-time-off.js.part` | 1393 | Kasper Time Off calendar |
 | 28 | `112-smm-weekly-reports.js.part` | 712 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
 | 29 | `115-core-calendar-flags.js.part` | 153 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |

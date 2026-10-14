@@ -1448,8 +1448,13 @@
         /* Frame.io folder button, top of the pile: neutral raised chip like the Production ones, no component colour because it belongs to the client. */
         .cal-linear-btn.cal-frame-btn { background: var(--surface-raised); color: var(--sv-fg-6b6b66); }
         .cal-linear-btn.cal-frame-btn:hover { background: var(--field-bg-hover); color: var(--sv-fg-3a3a37); }
-        .cal-linear-btn.cal-files-btn { padding: 0; border: 0; font: inherit; cursor: pointer; }
-        .cal-linear-btn.cal-files-btn[aria-expanded="true"] { background: var(--field-bg-hover); color: var(--sv-fg-3a3a37); }
+        /* Files menu button: the same raised chip and 1.5px outline as the
+           SyncLinear button below it, in a neutral colour because the files
+           belong to the client, not to one component. */
+        .cal-linear-btn.cal-files-btn { box-sizing: border-box; padding: 0; border: 1.5px solid var(--border); background: var(--surface-raised); color: var(--text-secondary); font: inherit; cursor: pointer; }
+        /* The button's hover tip would sit on top of the open menu. */
+        body:has(#calFilesMenu) #globalTooltip { display: none; }
+        .cal-linear-btn.cal-files-btn:hover, .cal-linear-btn.cal-files-btn[aria-expanded="true"] { background: var(--field-bg-hover); border-color: var(--text-muted); color: var(--text-primary); }
         .cal-linear-btn.cal-files-btn:focus-visible, .cal-linear-btn.cal-prod-btn:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--focus-ring); }
         /* Per-card files menu: the toolbar menus' chrome (.dropdown-menu), placed
            beside the pile button. */

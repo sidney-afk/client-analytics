@@ -19,3 +19,10 @@ Fictional data only. Regenerate with `node make-mockups.js` (item 2 and 3) and
 Built screenshots come from `HOVER_FILES_SHOTS=<dir> node docs/syncview-design/tests/calendar-hover-files-browser.js`.
 
 Only the dashed outline marks the control being hovered or clicked; it is not part of the design.
+
+## Follow-up (2026-10-14): files button matches its neighbours
+The button showed a picture glyph and had no outline. It now always shows the
+folder glyph and wears the same 1.5px outlined raised chip as the SyncLinear
+button below it, in a neutral colour. The hover tip no longer sits on top of
+the open menu. Before / after: `files-button-before-{light,dark}.png`,
+`files-button-after-{light,dark}.png`.

@@ -1137,6 +1137,16 @@ async function createMockBackend(options = {}) {
         return fulfill(route, result);
       }
 
+      // The Messages inbox (production-comments action 'inbox', #2063) is a
+      // read the page starts a minute after a staff sign-in, so any session
+      // open that long sends it. Answer it as an empty inbox, as
+      // kasper-admin-expanded-browser does. Its write (inbox_mark) and every
+      // other POST still count as unexpected.
+      if (method === 'POST' && url.pathname.endsWith('/functions/v1/production-comments')) {
+        let inboxBody = null;
+        try { inboxBody = request.postDataJSON(); } catch (error) { inboxBody = null; }
+        if (inboxBody && inboxBody.action === 'inbox') return fulfill(route, response(200, { ok: true, scope: 'all', conversations: [] }));
+      }
       if (!['GET', 'HEAD'].includes(method)) {
         recordUnexpected(
           url.pathname.includes('/functions/v1/') ? 'other_edge_function' : 'external',

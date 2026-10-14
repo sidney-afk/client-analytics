@@ -167,6 +167,20 @@ async function staff(browser, origin, theme) {
 
   // ── Files menu
   const filesBtn = (pid) => page.locator(`.cal-files-btn[data-files-pid="${pid}"]`);
+  // The button reads as files, not an image, and wears the same chip as its
+  // neighbour in the pile (size, corner, 1.5px outline).
+  const look = await page.evaluate(() => {
+    const b = document.querySelector('.cal-files-btn[data-files-pid="hv1"]');
+    const n = b.closest('.cal-linear-pile').querySelector('.cal-prod-btn');
+    const cs = getComputedStyle(b), ns = getComputedStyle(n);
+    const r = b.getBoundingClientRect(), nr = n.getBoundingClientRect();
+    return { img: !!b.querySelector('svg rect, svg circle'), folder: /M3 7\.5/.test(b.innerHTML),
+      w: r.width, h: r.height, nw: nr.width, nh: nr.height, radius: cs.borderTopLeftRadius, nradius: ns.borderTopLeftRadius,
+      bw: cs.borderTopWidth, nbw: ns.borderTopWidth, bs: cs.borderTopStyle, left: Math.round(r.left), nleft: Math.round(nr.left) };
+  });
+  expect(look.folder && !look.img, theme + ': the files button shows a folder, not a picture');
+  expect(look.w === look.nw && look.h === look.nh && look.radius === look.nradius && look.left === look.nleft, theme + ': same size, corner and column as the SyncLinear button ' + JSON.stringify(look));
+  expect(look.bw === look.nbw && look.bs === 'solid', theme + ': same 1.5px solid outline as its neighbour');
   await filesBtn('hv1').click();
   await page.locator('#calFilesMenu').waitFor({ timeout: 5000 });
   await page.waitForFunction(() => !!document.querySelector('#calFilesMenu a[data-files-kind="plan"]'), null, { timeout: 5000 }).catch(() => {});
@@ -176,6 +190,9 @@ async function staff(browser, origin, theme) {
   expect(by.plan.href === PLAN_URL && by.raw.href === RAW_URL && by.frame.href === FRAME_URL && by.thumb.href === THUMB_URL, theme + ': each row links to its source');
   expect(rows.every(r => r.target === '_blank'), theme + ': every link opens in a new tab');
   expect(await filesBtn('hv1').getAttribute('aria-expanded') === 'true', theme + ': button says the menu is open');
+  await filesBtn('hv1').hover();
+  await page.waitForTimeout(700);
+  expect(await page.evaluate(() => { const t = document.getElementById('globalTooltip'); return !t || !t.checkVisibility(); }), theme + ': no hover tip covers the open menu');
   await page.keyboard.press('Escape');
   expect(await page.locator('#calFilesMenu').count() === 0, theme + ': Escape closes it');
 
@@ -186,6 +203,10 @@ async function staff(browser, origin, theme) {
   await page.evaluate(() => { _calFrameFolders[calState.client].raw = ''; _calFilesMenuRefresh(); });
   expect(/not linked yet/.test(await page.locator('#calFilesMenu [data-files-kind="raw"]').innerText()), theme + ': a client with no raw folder shows it greyed');
   await shot(page, 'item3-built-' + theme);
+  if (shots) {
+    const b = await filesBtn('hv3').boundingBox();
+    await page.screenshot({ path: path.join(shots, 'files-button-' + theme + '.png'), clip: { x: b.x - 70, y: b.y - 50, width: 380, height: 220 } });
+  }
   await page.mouse.click(5, 500);
   expect(await page.locator('#calFilesMenu').count() === 0, theme + ': a click outside closes it');
 

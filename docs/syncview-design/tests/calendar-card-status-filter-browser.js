@@ -10,7 +10,8 @@
  *     from Review;
  *   - it is remembered per client with the other filters, and a second client
  *     is untouched;
- *   - when it is on, a strip says so and one tap clears it;
+ *   - when it is on, the pill says so with its own x on desktop (no strip, the
+ *     cards do not move); a phone keeps a strip with one-tap Clear;
  *   - on a phone nothing scrolls sideways and every control is 44px or more.
  *
  * Run:  node docs/syncview-design/tests/calendar-card-status-filter-browser.js
@@ -125,6 +126,9 @@ async function run(browser, origin, label, viewport, phone) {
     eq(await shown('organizer'), 6, label + ': all cards show with no filter');
     await shot(page, label + '-1-off');
 
+    const firstCardTop = () => page.evaluate(() => { const c = document.getElementById('calStrip'); return c ? Math.round(c.getBoundingClientRect().top) : null; });
+    const topOff = await firstCardTop();
+
     // ── Hide: everything Posted.
     await openPill();
     await shot(page, label + '-2-menu');
@@ -133,18 +137,25 @@ async function run(browser, origin, label, viewport, phone) {
     eq(await shown('organizer'), 5, label + ': Hide Posted removes only the Posted card');
     ok(await page.locator('#calCardStatusMenu.open').count() === 1, label + ': menu stays open while picking');
     await closeMore();
+    if (!phone) eq(await firstCardTop(), topOff, label + ': cards do not move when the filter turns on');
     ok(await page.locator('#calCardStatusBtn.is-filtered').count() === 1 || phone, label + ': pill must read as on');
-    ok(await page.locator('#calCardStatusStrip').count() === 1, label + ': strip must show while on');
-    ok(/Hiding Posted/.test(await page.locator('#calCardStatusStrip').innerText()), label + ': strip must say what is hidden');
+    if (phone) {
+      ok(await page.locator('#calCardStatusStrip').count() === 1, label + ': strip must show while on');
+      ok(/Hiding Posted/.test(await page.locator('#calCardStatusStrip').innerText()), label + ': strip must say what is hidden');
+    } else {
+      ok(await page.locator('#calCardStatusStrip').count() === 0, label + ': desktop has no strip; the pill says it');
+      ok(/Hide Posted/.test(await page.locator('#calCardStatusBtn').innerText()), label + ': pill must say what is hidden');
+      ok(await page.locator('#calCardStatusClearX').count() === 1, label + ': pill carries its clear (x)');
+    }
     await shot(page, label + '-3-hide-posted');
 
     // ── Month and Week follow the same filter.
     await page.evaluate(() => onCalViewChange('month'));
-    ok(await page.locator('#calCardStatusStrip').count() === 1, label + ': strip must show in Month');
+    ok(await page.locator(phone ? '#calCardStatusStrip' : '#calCardStatusClearX').count() === 1, label + ': filter shows in Month');
     eq(await shown('month'), 4 + 1, label + ': Month hides the Posted card and keeps the other dated cards plus the tray');
     await shot(page, label + '-4-month');
     await page.evaluate(() => onCalViewChange('week'));
-    ok(await page.locator('#calCardStatusStrip').count() === 1, label + ': strip must show in Week');
+    ok(await page.locator(phone ? '#calCardStatusStrip' : '#calCardStatusClearX').count() === 1, label + ': filter shows in Week');
     eq(await shown('week'), 4 + 1, label + ': Week hides the Posted card');
     await page.evaluate(() => onCalViewChange('smmreview'));
     ok(await page.locator('#calCardStatusBtn').count() === 0, label + ': Review has no status pill');
@@ -161,7 +172,8 @@ async function run(browser, origin, label, viewport, phone) {
     await pick('Tweaks Needed');
     eq(await shown('organizer'), 3, label + ': Show only Approved + Tweaks Needed');
     await closeMore();
-    ok(/Showing only Tweaks Needed, Approved/.test(await page.locator('#calCardStatusStrip').innerText()), label + ': strip names the picks');
+    if (phone) ok(/Showing only Tweaks Needed, Approved/.test(await page.locator('#calCardStatusStrip').innerText()), label + ': strip names the picks');
+    else ok(/Only 2 statuses/.test(await page.locator('#calCardStatusBtn').innerText()), label + ': pill names the picks');
     await shot(page, label + '-5-show-only');
 
     // ── Remembered per client, and the other client is untouched.
@@ -198,12 +210,20 @@ async function run(browser, origin, label, viewport, phone) {
     await pick('N/A'); await pick('Approved');
     await closeMore();
 
-    // ── One-tap clear from the strip.
-    const clear = page.locator('#calCardStatusStrip .cal-sf-clear');
+    // ── One-tap clear: the strip on a phone, the pill's x on desktop.
+    const clear = page.locator(phone ? '#calCardStatusStrip .cal-sf-clear' : '#calCardStatusClearX');
     if (phone) { const box = await clear.boundingBox(); ok(box.width >= 43.5 && box.height >= 43.5, label + ': Clear needs a 44px target ' + JSON.stringify(box)); }
-    await clear.click();
+    if (phone) await clear.click();
+    else {
+      ok(/Clear status filter/.test(await clear.getAttribute('data-tip') || ''), label + ': x has a tooltip');
+      await clear.focus();
+      await page.keyboard.press('Enter');
+      ok(await page.evaluate(() => document.activeElement && document.activeElement.id === 'calCardStatusBtn'), label + ': focus returns to the pill after the x');
+    }
     ok(await page.locator('#calCardStatusStrip').count() === 0, label + ': Clear removes the strip');
+    ok(await page.locator('#calCardStatusClearX').count() === 0, label + ': Clear removes the x');
     eq(await shown('organizer'), 6, label + ': Clear brings every card back');
+    if (!phone) eq(await firstCardTop(), topOff, label + ': cards do not move when the filter turns off');
     eq(await page.evaluate(() => JSON.parse(localStorage.getItem(CAL_FILTERS_KEY))[calClientSlug('Fixture Client')].cs.picks), [], label + ': Clear is saved');
     await shot(page, label + '-6-cleared');
 

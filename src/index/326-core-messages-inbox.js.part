@@ -1,3 +1,4 @@
+import { svFocusKeep, svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { CAL_SUPABASE_URL, _syncviewCloseStaffAccount, _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue } from './100-onboarding-staff-controls.js';
 import { showToast } from './040-shared-briefs.js';
 import { navTo } from './092-core-submit-form-navigation.js';
@@ -286,7 +287,9 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
                 if (list) list.innerHTML = _msgListHtml();
                 return;
             }
+            const restore = svFocusKeep(root);
             root.innerHTML = _msgInboxHtml();
+            restore();
         });
         const bubbles = document.getElementById('msgBubbles');
         if (bubbles && !typing) bubbles.scrollTop = bubbles.scrollHeight;
@@ -421,7 +424,7 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         if (!_msgCanUse()) return;
         const active = document.activeElement;
         _msgPanelOpener = active && active !== document.body ? active : document.getElementById('navMessages');
-        try { _syncviewCloseStaffAccount(); } catch (e) {}
+        try { _syncviewCloseStaffAccount({ restoreFocus: false }); } catch (e) {}
         let panel = document.getElementById('msgPanel');
         if (!panel) {
             panel = document.createElement('div');
@@ -438,8 +441,19 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         _msgRenderInto(panel.querySelector('.msg-panel-body'));
         const first = panel.querySelector(MSG_FOCUSABLE);
         if (first) first.focus();
+        /* A layer: Escape closes it, and focus goes back to the button that
+           opened it (the opener was saved above). */
+        svLayerOpen({
+            key: 'messages',
+            region: '#msgPanel',
+            holdRefresh: false,
+            opener: () => (_msgPanelOpener && _msgPanelOpener.isConnected ? _msgPanelOpener : document.getElementById('navMessages')),
+            isOpen: () => { const p = document.getElementById('msgPanel'); return !!p && !p.hidden; },
+            close: () => _msgClosePanel(),
+        });
     }
     function _msgClosePanel() {
+        svLayerRelease('messages');
         const panel = document.getElementById('msgPanel');
         if (!panel || panel.hidden) return;
         panel.hidden = true;

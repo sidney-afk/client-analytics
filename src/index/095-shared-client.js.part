@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { setClientViewTab, svArea, svAreaApi } from './040-shared-briefs.js';
 import { _templatesSetSelected, selectClient } from './050-market-briefs.js';
 import { currentNav } from './065-core-nav-intake-state.js';
@@ -329,8 +330,19 @@ import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-s
         const input = document.getElementById('svClientSearch');
         _svClientActive = 0;
         if (input) { input.value = ''; _svClientRenderResults(); setTimeout(() => input.focus(), 0); }
+        /* A layer: Escape closes it (even before the search box has focus),
+           a click outside closes it, and focus goes back to the client badge. */
+        svLayerOpen({
+            key: 'client-pop',
+            region: () => [document.getElementById('svClientPop'), document.getElementById('svClientBadgeWrap')],
+            holdRefresh: false,
+            opener: () => document.getElementById('svClientBadge'),
+            isOpen: () => { const p = document.getElementById('svClientPop'); return !!p && !p.hidden; },
+            close: () => _svClientPopClose(),
+        });
     }
     function _svClientPopClose() {
+        svLayerRelease('client-pop');
         const pop = document.getElementById('svClientPop');
         if (!pop || pop.hidden) return;
         pop.hidden = true;

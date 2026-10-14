@@ -1625,6 +1625,7 @@
         .cal-fld-date-wrap:hover .cal-date-chip { background: var(--field-bg-hover); }
         .cal-cal-ico { width: 13px; height: 13px; flex-shrink: 0; color: var(--text-muted); }
         .cal-date-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cal-date-chip[role="button"]:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
         .cal-date-chip.is-empty .cal-date-txt { color: var(--text-muted); font-weight: 500; }
         .cal-chev { width: 9px; height: 9px; flex-shrink: 0; color: var(--text-muted); }
         /* The native <input type="date"> is kept ONLY as the storage / change

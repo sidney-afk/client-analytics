@@ -1,3 +1,4 @@
+import { svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { calClientSlug } from './130-calendar-model-cache.js';
 import {
@@ -231,8 +232,17 @@ import {
         }
         _confirmCb = onYes;
         yesBtn.onclick = () => { const cb = _confirmCb; const checked = check.checked; dismissConfirm(); if (cb) cb(checked); };
+        if (typeof _confirmLayer === 'function') _confirmLayer();
+    }
+    /* The confirm / notice box is a layer on the staff side: Escape and a click
+       on the dim area dismiss it (same as Cancel / OK), and focus goes back to
+       the button that opened it. The client link keeps its own behaviour. */
+    function _confirmLayer() {
+        if (typeof svLayerOverlay !== 'function' || _isClientLink) return;
+        svLayerOverlay('confirm', '#confirmOverlay', '#confirmOverlay .confirm-box', () => dismissConfirm(), { openClass: 'active' });
     }
     function dismissConfirm() {
+        if (typeof svLayerRelease === 'function') svLayerRelease('confirm', { focus: true });
         document.getElementById('confirmOverlay').classList.remove('active');
         _confirmCb = null;
         // restore cancel button if it was hidden (or turned into an action) for notify mode
@@ -266,6 +276,7 @@ import {
         yesBtn.textContent = 'OK';
         yesBtn.onclick = dismissConfirm;
         document.getElementById('confirmOverlay').classList.add('active');
+        if (typeof _confirmLayer === 'function') _confirmLayer();
     }
 
     /* Bottom-center toast with optional action (used for Undo + confirmations).

@@ -9,6 +9,7 @@
 #
 # fragment                                 area
 040-shared-briefs.js.part                  core
+041-core-layers.js.part                    core
 050-market-briefs.js.part                  core
 060-templates-filming.js.part              templates
 065-core-nav-intake-state.js.part          core

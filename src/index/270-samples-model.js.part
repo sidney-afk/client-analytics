@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import {
   _svPreserveFocus, fetchEssentials, showConfirm, showNotify, showToast
@@ -715,9 +716,19 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         const menu = document.getElementById('sxrKebabMenu');
         if (!menu) return;
         menu.hidden = !menu.hidden;
-        if (!menu.hidden) setTimeout(() => document.addEventListener('mousedown', _sxrKebabOutside), 0);
+        if (!menu.hidden) {
+            setTimeout(() => document.addEventListener('mousedown', _sxrKebabOutside), 0);
+            svLayerOpen({
+                key: 'sxr-kebab',
+                region: '.cal-kebab-wrap',
+                opener: () => document.querySelector('.cal-kebab-wrap > button'),
+                isOpen: () => { const m = document.getElementById('sxrKebabMenu'); return !!m && !m.hidden; },
+                close: () => _sxrCloseKebab(),
+            });
+        } else svLayerRelease('sxr-kebab');
     }
     function _sxrCloseKebab() {
+        svLayerRelease('sxr-kebab', { focus: true });
         const menu = document.getElementById('sxrKebabMenu');
         if (menu) menu.hidden = true;
         document.removeEventListener('mousedown', _sxrKebabOutside);
@@ -809,9 +820,16 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             const input = document.getElementById('sxrClientSearchInput');
             if (input) { input.value = ''; setTimeout(() => input.focus(), 10); }
             _sxrWireSearchInput();
-        }
+            svLayerOpen({
+                key: 'sxr-tabsearch',
+                region: '#sxrTabAddWrap',
+                opener: () => document.querySelector('#sxrTabAddWrap > button'),
+                isOpen: () => { const p = document.getElementById('sxrTabSearchPanel'); return !!p && !p.hidden; },
+                close: () => _sxrCloseTabSearch(),
+            });
+        } else svLayerRelease('sxr-tabsearch', { focus: true });
     }
-    function _sxrCloseTabSearch() { const panel = document.getElementById('sxrTabSearchPanel'); if (panel && (!_sxrStaffPhoneActive() || !panel.hidden)) panel.hidden = true; }
+    function _sxrCloseTabSearch() { svLayerRelease('sxr-tabsearch'); const panel = document.getElementById('sxrTabSearchPanel'); if (panel && (!_sxrStaffPhoneActive() || !panel.hidden)) panel.hidden = true; }
     function _sxrWireOutsideTabSearchClose() {
         if (document._sxrOutsideWired) return;
         document._sxrOutsideWired = true;
@@ -884,7 +902,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         _sxrRenderBody({ preserveScroll: true });
     }
     function _sxrResetSelection() { sxrState.selectMode = false; sxrState.selected = new Set(); sxrState.lastSel = null; }
-    function closeSxrLightbox() { const lb = document.getElementById('sxrLightbox'); if (lb) lb.classList.remove('open'); document.body.classList.remove('cal-modal-open'); }
+    function closeSxrLightbox() { svLayerRelease('sxr-lightbox', { focus: true }); const lb = document.getElementById('sxrLightbox'); if (lb) lb.classList.remove('open'); document.body.classList.remove('cal-modal-open'); }
     // closeSxrComments / openSxrComments — real versions in Surface 5 (Notes), hoisted.
 
     /* --- Data load (trimmed clone of loadCalendarPosts: keeps cache-prime,
@@ -1320,6 +1338,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         if (img) img.src = info.url;
         ovl.classList.add('open');
         document.body.classList.add('cal-modal-open');
+        if (!_isClientLink) svLayerOverlay('sxr-lightbox', '#sxrLightbox', '#sxrLightbox img', () => closeSxrLightbox());
     }
 
     /* ── Media link pills (Video / Thumbnail only — no caption link) ── */
@@ -2379,11 +2398,26 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
     function _sxrStatusMenuTitleHtml(text) {
         return _sxrStaffPhoneActive() ? `<div class="cal-fld-status-title">${_sxrEsc(text)}</div>` : '';
     }
+    /* The one status-menu slot (status pill and Set all) is a layer: Escape
+       and an outside click close it, and focus returns to the button it
+       opened from, on a pick as well. */
+    function _sxrSetOpenStatusMenu(value) {
+        _sxrOpenStatusMenu = value;
+        if (!value) return;
+        svLayerOpen({
+            key: 'sxr-status',
+            region: () => (_sxrOpenStatusMenu ? _sxrOpenStatusMenu.el : null),
+            opener: value.triggerEl,
+            isOpen: () => !!_sxrOpenStatusMenu,
+            close: () => _sxrCloseStatusMenu(),
+        });
+    }
     function _sxrCloseStatusMenu() {
         if (!_sxrOpenStatusMenu) return;
         const m = _sxrOpenStatusMenu.el;
         if (m && m.parentNode) m.parentNode.removeChild(m);
         _sxrOpenStatusMenu = null;
+        svLayerRelease('sxr-status', { focus: true });
     }
     function _sxrStatusToggleMenu(event, pid, triggerEl, comp) {
         event.stopPropagation(); event.preventDefault();
@@ -2426,7 +2460,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         menu.style.top = top + 'px';
         menu.style.minWidth = Math.max(rect.width, 200) + 'px';
         requestAnimationFrame(() => menu.classList.add('open'));
-        _sxrOpenStatusMenu = { pid, key: menuKey, comp: which, el: menu, triggerEl };
+        _sxrSetOpenStatusMenu({ pid, key: menuKey, comp: which, el: menu, triggerEl });
     }
     /* ── The samples twin of the calendar's review-content gate ──────────
        Mirrored per docs/features/SAMPLES_PARITY_LOG.md: a component cannot be
@@ -2525,7 +2559,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         if (top + menuH > window.innerHeight - 10) top = Math.max(10, rect.top - menuH - 6);
         menu.style.left = left + 'px'; menu.style.top = top + 'px';
         requestAnimationFrame(() => menu.classList.add('open'));
-        _sxrOpenStatusMenu = { el: menu, key: menuKey, triggerEl };
+        _sxrSetOpenStatusMenu({ el: menu, key: menuKey, triggerEl });
     }
     /* This returned `true` unconditionally AND was dead -- neither the menu nor
        the apply loop called it -- so Set all iterated SXR_COMPONENTS regardless
@@ -2626,13 +2660,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
         _sxrStatusMenuWidth = width;
     });
     window.addEventListener('scroll', () => { if (!_sxrStaffPhoneActive()) _sxrCloseStatusMenu(); }, true);
-    document.addEventListener('keydown', event => {
-        if (event.key !== 'Escape' || !_sxrStaffPhoneActive() || !_sxrOpenStatusMenu) return;
-        const trigger = _sxrOpenStatusMenu.triggerEl;
-        _sxrCloseStatusMenu();
-        if (trigger && trigger.isConnected) trigger.focus();
-        event.preventDefault();
-    });
+    // Escape is handled by the shared layer (see _sxrSetOpenStatusMenu).
 
     /* _sxrCommentsBtnHtml — real version in Surface 4 (open-tweak count), hoisted.
        openSxrComments — real version in Surface 5 (Notes modal), hoisted. */

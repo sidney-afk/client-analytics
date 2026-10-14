@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showNotify, showToast } from './040-shared-briefs.js';
 import { wlNormalizeClient } from './070-core-client-names.js';
@@ -2334,8 +2335,22 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
         menu.classList.toggle('open', !!open);
         btn.classList.toggle('open', !!open);
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-        if (open) _calWireOrganizeDismiss();
-        else if (opts && opts.focusTrigger) btn.focus();
+        if (open) {
+            _calWireOrganizeDismiss();
+            /* A layer on the staff side: Escape closes only the top pop-up and
+               a click outside closes it. The client link keeps the dismissal
+               code above untouched. */
+            if (!_isClientLink) svLayerOpen({
+                key: 'cal-organize',
+                region: '#calOrganizeWrap',
+                opener: () => document.getElementById('calOrganizeBtn'),
+                isOpen: () => { const m = document.getElementById('calOrganizeMenu'); return !!m && m.classList.contains('open'); },
+                close: () => _calSetOrganizeOpen(false),
+            });
+        } else {
+            svLayerRelease('cal-organize');
+            if (opts && opts.focusTrigger) btn.focus();
+        }
     }
     function _calToggleOrganizeMenu(e) {
         if (e) e.stopPropagation();

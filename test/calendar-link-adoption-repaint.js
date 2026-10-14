@@ -94,6 +94,8 @@ function build(opts) {
     _calIsCalBusy: () => Boolean(opts.busy),
     _calPendingBackgroundRender: false,
     _calSchedulePendingRender: () => { calls.scheduled++; },
+    // The browser-wide memory of tried links (localStorage in the page), one per build.
+    _calLinkAdoptTriedSet: () => new Set(),
     console: { warn: () => {} },
   };
   Object.assign(scope, require('./helpers/write-log-stand-ins')); vm.createContext(scope);
@@ -117,6 +119,20 @@ const ADOPTABLE = { rows: { del_gra: { id: 'del_gra', card_id: 'p_native_cal_1',
   ok(idle.calls.scheduled === 0 && idle.scope._calPendingBackgroundRender === false,
   'an immediate repaint arms no interval and leaves no pending flag behind');
   ok(idle.calls.cacheWrites === 1, 'the adopted link is cached exactly once');
+
+  // The save answers ok while the server keeps the slot empty (another card
+  // already holds the link), so the next load sees the slot empty again. Each
+  // re-send's realtime echo started another load: measured 2026-10-14, four
+  // loads and four board rebuilds on going back to the Calendar.
+  idle.state.posts[0].graphic_linear_issue_id = '';
+  await idle.fn({}, 'someclient');
+  ok(idle.calls.upserts === 1 && idle.calls.renders === 1,
+  'a link already tried is not sent again, and nothing is repainted, on the next load');
+  const twin = build({ ...ADOPTABLE, busy: false });
+  twin.state.posts.push({ id: 'p_native_cal_2', linear_issue_id: '', graphic_linear_issue_id: 'https://linear.app/x/issue/GRA-9' });
+  await twin.fn({}, 'someclient');
+  ok(twin.calls.upserts === 0 && twin.calls.renders === 0,
+  'a link another card on the board already holds is never sent (the server would keep the slot empty)');
 
   const busy = build({ ...ADOPTABLE, busy: true });
   await busy.fn({}, 'someclient');

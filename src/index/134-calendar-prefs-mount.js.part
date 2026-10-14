@@ -610,7 +610,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // Its tail re-checks the load/surface lease around every await and
         // mutation, so a return immediately followed by a client switch cannot
         // let old metadata repaint or persist into the replacement client.
-        loadCalendarPosts({ background: true, forceMeta: true });
+        loadCalendarPosts({ background: true, forceMeta: true, quiet: true });
     }
     /* When a background refresh resolves while the user is mid-edit, the
        render is deferred onto this flag and applied once nothing in the

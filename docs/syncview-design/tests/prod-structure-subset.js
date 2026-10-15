@@ -13,7 +13,7 @@ const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
-const { installReadConsoleAudit, legacyPageUrl, pagesFallback } = require('./prod-test-utils');
+const { installReadConsoleAudit, legacyPageUrl, pagesFallback, holdBackgroundRefresh } = require('./prod-test-utils');
 
 const root = path.resolve(__dirname, '..', '..', '..');
 const mime = {
@@ -1106,6 +1106,9 @@ async function assertNoWriteRequests(requests) {
     const darkSmoke = await page.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark' && !!document.querySelector('.prod-view'));
     if (!darkSmoke) throw new Error('Production preview did not follow syncview_theme=dark');
 
+    // Last, so a tick of the reloaded page cannot open one more read right after the
+    // audit's wait for the app's own reads has ended.
+    await holdBackgroundRefresh(page);
     const readConsole = await readConsoleAudit.settle();
     await assertNoWriteRequests(requests);
     if (!readConsole.ok) throw new Error('Browser errors: ' + readConsole.error);

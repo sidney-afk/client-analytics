@@ -46,7 +46,7 @@ import { normalizeBrowserWriteClient } from "../_shared/browser-write-auth.ts";
 import { buildPatch, selectJobs } from "../caption-jobs/jobs.mjs";
 import { findClientFolder, parseBrainFacts } from "../brain/parse.mjs";
 import {
-  acceptReply, buildMessages, duplicateRun, failureUpdate, findTells, FRAME_QUERY, MAX_TOKENS, MODEL,
+  acceptReply, assetKey, buildMessages, duplicateRun, failureUpdate, findTells, FRAME_QUERY, MAX_TOKENS, MODEL,
   normalizeCtaOptions, parseRequest, pickFrameMedia, rawTextFromResponse, revisionRequest, shareIds, TRANSCRIPT_KEEP_MAX,
   transcriptFromPrediction, voiceGuide, WHISPER_INPUT, WHISPER_VERSION,
 } from "./logic.mjs";
@@ -263,7 +263,7 @@ async function writeCaption(job: Job, videoTranscript: string): Promise<string> 
   // is never a caption. Nothing is saved; the job ends in an error the box shows and the caption stays as it was.
   const accepted = acceptReply(first, !!job.redo);
   if (!accepted.ok) throw new Error(accepted.error);
-  let out = accepted.caption;
+  let out: string = accepted.caption || "";
   const tells = findTells(out);
   if (tells.length) {
     // One revision for the mechanical tells; if it fails or comes back empty, the first draft stands.
@@ -273,7 +273,7 @@ async function writeCaption(job: Job, videoTranscript: string): Promise<string> 
         { role: "user", content: m.user }, { role: "assistant", content: first }, { role: "user", content: revisionRequest(tells) },
       ]);
       const again = acceptReply(revised, !!job.redo);
-      if (again.ok) out = again.caption;
+      if (again.ok && again.caption) out = again.caption;
     } catch (_e) { /* the first draft stands */ }
   }
   return out;
@@ -315,14 +315,15 @@ async function saveCaption(job: Job): Promise<boolean> {
 async function keepTranscript(job: Job, text: string) {
   const kept = clean(text).slice(0, TRANSCRIPT_KEEP_MAX);
   if (!kept) return;
-  const { error } = await job.db.from("caption_jobs").update({ transcript: kept }).eq("job_id", job.jobId);
+  const { error } = await job.db.from("caption_jobs").update({ transcript: kept, transcript_asset: assetKey(job.assetUrl) }).eq("job_id", job.jobId);
   if (error) console.warn("[caption-generate] transcript not kept", error.code || "");
 }
 
-// The newest transcript an earlier run kept for this post ("" when there is none or it cannot be read).
+// The newest transcript an earlier run kept for this post AND this video ("" when there is none, it belongs to a
+// different video link (the card's video was replaced), or it cannot be read).
 async function latestTranscript(job: Job): Promise<string> {
   const { data, error } = await job.db.from("caption_jobs").select("transcript")
-    .eq("client", job.client).eq("post_id", job.postId).neq("job_id", job.jobId)
+    .eq("client", job.client).eq("post_id", job.postId).eq("transcript_asset", assetKey(job.assetUrl)).neq("job_id", job.jobId)
     .not("transcript", "is", null).neq("transcript", "").order("updated_at", { ascending: false }).limit(1);
   if (error) {
     console.warn("[caption-generate] kept transcript read failed", error.code || "");

@@ -23,6 +23,10 @@ export const DEFAULT_PROMPT = "Caption Writer\nGenerate an Instagram Reels capti
 
 const clean = (v) => String(v == null ? '' : v).trim();
 const singleLine = (v) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
+// Which video a kept transcript belongs to: the card's link as written (no fragment, no trailing slash), or '' for words
+// that were only pasted. A redo reuses kept words only when this matches the card's link now, so a replaced video never
+// gets the old video's words.
+export const assetKey = (url) => String(url == null ? '' : url).trim().replace(/#.*$/, '').replace(/\/+$/, '').slice(0, 500);
 export const isFrameUrl = (url) => /f\.io|frame\.io/i.test(String(url || ''));
 
 // The request the page sends. Same keys as the n8n webhook ({ client, postId, assetUrl, captionPrompt, jobId }) plus
@@ -250,9 +254,11 @@ export function cleanCaptionText(raw) {
 // A model reply that reads like talk to a person and not like a caption. It is never saved: the job ends in an error
 // and the box keeps what it had. Checked on the raw reply, before the harmless "Caption:" wrapper is stripped.
 // Returns a short fixed reason, or '' when the reply is a caption. Nothing of the reply is ever put in the reason.
-const PREAMBLE_START = /^\s*(?:(?:sure|certainly|of course|absolutely|got it|understood|happy to help)\s*[!,.:—-]|let me (?:know|see|look|check|try|write|revise|rewrite|find|pull|take)\b|looking up\b|here(?:'s| is| are)\b[^\n]{0,40}\b(?:caption|version|rewrite|revis|draft|option|take)|i apologi[sz]e|as an ai\b|i(?:'d| would) need\b|i need (?:the|a|your|more)\b)/i;
-const ADDRESSED_TO_PERSON = /\b(?:could|can|would|will|may) you (?:please )?(?:paste|share|provide|send|upload|attach|give|tell|clarify|confirm)\b|\bplease (?:paste|share|provide|send|upload|attach|clarify)\b|\b(?:do|would) you (?:want|like) me to\b|\blet me know\b|\bwant me to\b/i;
-const ABOUT_THE_MATERIAL = /\btranscripts?\b|\battached (?:transcript|file|video|document|text|caption)\b|\b(?:no|any|an|the) attachments?\b|\bi (?:don't|do not|can't|cannot|couldn't|could not|can not) (?:have|see|find|access|read|view|open|watch)\b[^.\n]{0,60}\b(?:transcript|video|file|attach|access|link|caption|text)/i;
+const PREAMBLE_START = /^\s*(?:(?:sure|certainly|of course|absolutely|got it|understood|happy to help)\s*[!,.:—-]|let me (?:see|look|check|try|write|revise|rewrite|find|pull|take)\b|looking up\b|here(?:'s| is| are)\b[^\n]{0,40}\b(?:caption|version|rewrite|revis|draft|option|take)|i apologi[sz]e|as an ai\b|i(?:'d| would) need\b|i need (?:the|a|your|more)\b)/i;
+// Only requests for the material itself ("could you paste the transcript"), or an assistant's offer to rework the caption.
+// A caption's own call to action ("can you tell me what helped?", "let me know below", "want me to send the guide?") passes.
+const ADDRESSED_TO_PERSON = /\b(?:could|can|would|will|may) you (?:please )?(?:paste|share|provide|send|upload|attach|give)\b (?:me |us )?(?:the|a|your|that|an|this) (?:transcript|video|file|text|link|attachment|caption)\b|\bplease (?:paste|share|provide|send|upload|attach)\b (?:me |us )?(?:the|a|your|that|an|this) (?:transcript|video|file|text|link|attachment|caption)\b|\bwould you like me to (?:make|shorten|rewrite|revise|change|add|adjust|write)\b|\bdo you want me to (?:make|shorten|rewrite|revise|change|add|adjust|write)\b/i;
+const ABOUT_THE_MATERIAL = /\bthere (?:is|isn't|is not|was|wasn't|was not|are|aren't) (?:no|not|any|a|an) (?:transcript|attachment)|\bno (?:transcript|attachment)s?\b|\b(?:transcript|attachment)s? (?:isn't|is not|wasn't|was not|is missing|is attached|was attached|is provided|was provided|came through|did not come|didn't come)\b|\b(?:paste|share|send|upload|attach|provide) (?:the|a|your|that|me the) (?:transcript|video|file|attachment)\b|\battached (?:transcript|file|video|document|text)\b|\bthe transcript (?:above|you (?:sent|gave|shared|pasted))\b|\bi (?:don't|do not|can't|cannot|couldn't|could not|can not) (?:have|see|find|access|read|view|open|watch)\b[^.\n]{0,60}\b(?:transcript|video|file|attachment|access|link)\b/i;
 export function chatReply(text) {
   const t = String(text == null ? '' : text);
   if (!t.trim()) return 'empty';

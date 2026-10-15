@@ -33143,7 +33143,7 @@ database work itself is small (read-only EXPLAIN ANALYZE: open posts 7.6 ms for 
 no migration. The cost is requests waiting for each other: for an admin (634 open posts, 948 linked deliverables) `inbox` made
 17 sequential round trips (member, budget, audit, roster, posts, 5 deliverable chunks, 5 note chunks, 2 read-mark chunks).
 
-**Fix.** Page: the call starts 250 ms after identity is known (idle time) and when the pointer or finger reaches the Messages
+**Fix.** Page: the call starts 250 ms after identity is known (idle time; not while the Production tab is open, whose read-only gate allows no POST, found by `prod-structure-subset.js`) and when the pointer or finger reaches the Messages
 button; the last list is kept 10 minutes in this tab's own storage (sessionStorage), tagged with the member id, list lines only
 (no conversation text beyond the one preview line), shown at once and replaced by the fresh answer; it is discarded on sign-out,
 on a different member, when expired, on any mismatch. A conversation opened from the cached list shows a chat placeholder and is

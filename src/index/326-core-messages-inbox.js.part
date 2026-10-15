@@ -2,6 +2,7 @@ import { svFocusKeep } from './041-core-layers.js';
 import { CAL_SUPABASE_URL, _syncviewCloseStaffAccount, _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue } from './100-onboarding-staff-controls.js';
 import { showToast } from './040-shared-briefs.js';
 import { navTo } from './092-core-submit-form-navigation.js';
+import { currentNav } from './065-core-nav-intake-state.js';
 import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
 import { calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
@@ -134,7 +135,10 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
     let _msgPrefetchTimer = null;
     function _msgPrefetchSoon() {
         if (_msgPrefetchTimer || _msgState.loaded || _msgState.loading) return;
-        const go = () => { _msgPrefetchTimer = null; if (_msgCanUse() && !_msgState.unavailable) _msgLoad(false); };
+        // Not on the Production tab: its read-only gate allows no POST at all, and
+        // the inbox question is a POST. There the first call keeps waiting for the
+        // pointer reaching the button or the two-minute refresh.
+        const go = () => { _msgPrefetchTimer = null; if (_msgCanUse() && !_msgState.unavailable && currentNav !== 'production') _msgLoad(false); };
         _msgPrefetchTimer = setTimeout(() => {
             if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(go, { timeout: 1000 }); else go();
         }, 250);

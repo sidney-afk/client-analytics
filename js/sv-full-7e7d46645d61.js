@@ -13216,7 +13216,7 @@
                 const mode = e.target.closest('[data-thumb-wl-mode]');
                 if (mode) {
                     if (wlState.popoverAnchor) wlClosePopover(false);
-                    wlPhone.person = null; wlPhone.mode = mode.dataset.thumbWlMode;
+                    wlPhone.person = null; wlPhone.mode = mode.dataset.thumbWlMode; content.scrollTop = 0;
                     if (wlPhone.mode !== 'agenda') {
                         if (wlPhone.mode === 'month' && wlState.showDeadlines) {
                             // The native Month guard still owns this boundary.
@@ -13243,7 +13243,8 @@
             });
         }
         root.dataset.thumbWorkload = wlPhone.mode;
-        root.style.setProperty('--thumb-wl-top',Math.max(0,root.getBoundingClientRect().top)+'px');
+        root.style.setProperty('--thumb-wl-top',Math.max(0,root.getBoundingClientRect().top+window.scrollY)+'px');
+        if (window.scrollY) window.scrollTo(0,0);
         root.querySelector('.thumb-wl-scope').textContent = [wlState.client === 'all' ? 'All clients' : wlState.client, wlState.team === 'all' ? 'All teams' : wlState.team].join(' · ');
         root.querySelectorAll('[data-thumb-wl-mode]').forEach(button => {
             button.setAttribute('aria-current',button.dataset.thumbWlMode === wlPhone.mode ? 'page' : 'false');
@@ -93330,4 +93331,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-a9fa8c5059c5.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-7e7d46645d61.js");

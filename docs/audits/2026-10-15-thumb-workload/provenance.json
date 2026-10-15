@@ -1,6 +1,6 @@
 {
   "baseline": "b98f90f9e903d873358388a446430d4bbc082a07",
-  "sourceHash": "0ff650245ce8415b9edcca224368f22c716177774fbe2a8d837b4d72bf0d6bb9",
+  "sourceHash": "4cd0240919a65d433965f176ac03e2155053219c1d8bee6c3b6435639bbf3035",
   "screenshots": {
     "workload-agenda-dark-390.png": "8b780de5e7e496c55435047772338e7b3a0a648135abf9e2e09f377b399256f7",
     "workload-agenda-light-390.png": "22e1a7554895f1924d6c3866b5ea131b5862285e35e28a3deafa89337d4fdcbe",
@@ -8,7 +8,7 @@
     "workload-empty-light-390.png": "f276af742c8c358509ff850ad73144b26777b16ddfd9d226d105ddb374cc35b8",
     "workload-error-dark-390.png": "cada5c7241b1d7c51f3c407bfc523dfa58ec40f76b7b861bff87cd0a1774b2c3",
     "workload-error-light-390.png": "c5277f1e1db30876e113be8d79cd1a5c49dde369fba99702b89edd183d8d3246",
-    "workload-filter-client-dark-390.png": "3d758a8a47a0db33766e50fdd72b5ab96a6ef782606b34a9dcba93efb16c85fa",
+    "workload-filter-client-dark-390.png": "369040650f5af65fd5397183cb9dd4a0a8878209cc56020a81f644d78ba78e86",
     "workload-filter-client-light-390.png": "a15f9a2e11ed27f67be1965e65fab9fa1e282d92bec08497039d413c2ef50866",
     "workload-filter-editors-dark-390.png": "e6d5a89a364f78dd41263b00f8503e7b0d94dc34226b169b8dbad7d99931736c",
     "workload-filter-editors-light-390.png": "08b39d3139ca380df28278f56f315b9d91223d4b211da48c5479f618dd3e259a",

@@ -10,6 +10,7 @@ async function shot(page,name,width,theme){
  await captures.anonymizePlaceholders(page);await page.evaluate(()=>document.fonts.ready);await page.waitForTimeout(120);
  if(out){fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,name+'-'+theme+'-'+width+'.png'),animations:'disabled'});}
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),name+': sideways overflow');
+ assert.equal(await page.evaluate(()=>scrollY),0,name+': page must keep its header in the viewport');
  const g=await rules.inspect(page,await rules.activeSurface(page));assert.deepEqual(g.overlaps,[],name+': control overlap');
  receipts.push({name,width,theme});
 }

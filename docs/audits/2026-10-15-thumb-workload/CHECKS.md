@@ -115,3 +115,12 @@ repo-map-sync: 1189 passed, 0 failed
 
 truth-sync: 522 passed, 0 failed
 ```
+
+## Header viewport correction
+
+Switching planning views could let a native focus scroll move the document header offscreen. Phone height now uses the document position, and page scrolling is normalized while the inner work region owns scrolling. The complete 48-state run passes with a new explicit zero-document-scroll assertion.
+
+```text
+ok Workload 430 dark: agenda, queue, exact native item, filters, planning, empty/loading/error
+STAFF_PHONE_WORKLOAD: 48 screen/theme/width captures; all assertions passed; fictional transports; no live writes
+```

@@ -23,7 +23,7 @@
 | 15 | `069-workload-planning-helpers.js.part` | 384 | MEMOISED PURE HELPERS. |
 | 16 | `070-core-client-names.js.part` | 104 | — |
 | 17 | `071-workload-planner.js.part` | 651 | CARRIED OVER (owner request ). A saved plan day is never edited |
-| 18 | `080-workload-render.js.part` | 3616 | Smart default: a creative lands on their own work (see |
+| 18 | `080-workload-render.js.part` | 3617 | Smart default: a creative lands on their own work (see |
 | 19 | `090-workload-popovers.js.part` | 1038 | Sub-issue popover |
 | 20 | `092-core-submit-form-navigation.js.part` | 907 | True for ctrl/cmd/shift/alt-clicks (and non-primary buttons): the user |
 | 21 | `095-shared-client.js.part` | 598 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |

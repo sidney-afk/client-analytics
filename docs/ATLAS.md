@@ -887,6 +887,8 @@ Each linked file contains table-creating DDL, including retained backup and temp
 | <!-- atlas:migration supabase/migrations/20261007150000_smm_also_sees.sql -->[`supabase/migrations/20261007150000_smm_also_sees.sql`](../supabase/migrations/20261007150000_smm_also_sees.sql) | `public.smm_also_sees` |
 | <!-- atlas:migration supabase/migrations/20261014090000_message_reads.sql -->[`supabase/migrations/20261014090000_message_reads.sql`](../supabase/migrations/20261014090000_message_reads.sql) | `public.message_reads` |
 | <!-- atlas:migration supabase/migrations/20261014120000_client_review_alerts.sql -->[`supabase/migrations/20261014120000_client_review_alerts.sql`](../supabase/migrations/20261014120000_client_review_alerts.sql) | `public.client_review_alerts` |
+| <!-- atlas:migration supabase/migrations/20261015180000_hf_activity.sql -->[`supabase/migrations/20261015180000_hf_activity.sql`](../supabase/migrations/20261015180000_hf_activity.sql) | `public.hf_activity` |
+| <!-- atlas:migration supabase/migrations/20261015200000_hf_guides.sql -->[`supabase/migrations/20261015200000_hf_guides.sql`](../supabase/migrations/20261015200000_hf_guides.sql) | `public.hf_guides` |
 
 
 ## Verification limits and keeping this map true

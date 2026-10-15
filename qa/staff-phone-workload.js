@@ -38,6 +38,7 @@ async function shot(page,name,width,theme){
    assert(await p.locator('.thumb-wl-person').first().isVisible(),'Browser Back restores agenda without changing route');
    const filter=p.locator('[data-thumb-wl-filter]');await filter.tap();
    await shot(p,'workload-filters',width,theme);
+   assert.notEqual(await p.locator('.thumb-wl-filters').evaluate(n=>getComputedStyle(n,'::backdrop').backgroundColor),'rgba(0, 0, 0, 0)','Filters dim the background');
    assert(await p.evaluate(()=>document.documentElement.classList.contains('sv-phone-locked') || getComputedStyle(document.documentElement).overflow==='hidden'),'Filter sheet locks the page');
    await p.getByRole('button',{name:'All editors',exact:true}).tap();await shot(p,'workload-filter-editors',width,theme);
    await p.keyboard.press('Escape');assert(await p.locator('.thumb-wl-filters').evaluate(n=>n.open),'Escape closes only the nested filter');

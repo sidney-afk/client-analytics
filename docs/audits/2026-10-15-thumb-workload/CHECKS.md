@@ -124,3 +124,10 @@ Switching planning views could let a native focus scroll move the document heade
 ok Workload 430 dark: agenda, queue, exact native item, filters, planning, empty/loading/error
 STAFF_PHONE_WORKLOAD: 48 screen/theme/width captures; all assertions passed; fictional transports; no live writes
 ```
+
+The Filters backdrop now uses the same existing overlay token as the other native phone sheets. Its final 390px light/dark replay also asserts that the backdrop is painted.
+
+```text
+ok Workload 390 dark: agenda, queue, exact native item, filters, planning, empty/loading/error
+STAFF_PHONE_WORKLOAD: 24 screen/theme/width captures; all assertions passed; fictional transports; no live writes
+```

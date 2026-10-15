@@ -110,6 +110,10 @@
                     const b = native.cloneNode(true);
                     b.removeAttribute('id'); b.removeAttribute('onclick'); b.removeAttribute('style'); b.removeAttribute('aria-current');
                     b.classList.add('sv-phone-tabs-link'); b.dataset.nav = native.id;
+                    if (native.id === 'navMessages') {
+                        b.classList.remove('theme-toggle', 'msg-nav-btn');
+                        b.querySelector('.msg-nav-label')?.classList.replace('msg-nav-label', 'sv-phone-tab-label');
+                    }
                     if (native.id === 'navKasper') {
                         // Keep any native notification badge alongside the role label.
                         for (const node of b.childNodes) if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) node.textContent = 'Reviewer';

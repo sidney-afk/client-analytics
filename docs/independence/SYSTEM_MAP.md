@@ -75,7 +75,7 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   and grants were read back and the exact-source function is deployed; the release drill ended with
   zero sidecar-row residue. F147 tracks the exact revoke-correction artifact provenance.
 - **Edge Functions.** Atlas verified 46 source entrypoints here and 47 live functions on 2026-09-30; see the [current function map](../ATLAS.md#edge-functions) for source-only and externally owned entries. The following app-call counts and release receipts are historical; **the app called 29** at the older checkpoint
-  (**"39 literal + 4 composed" Edge Functions**, see §7; `description-image-upload` is the
+  (**"40 literal + 4 composed" Edge Functions**, see §7; `description-image-upload` is the
   2026-09-05 addition and is source-only until its first path-triggered deploy). Seven are backend-only: the Linear
   webhook target (`linear-inbound`), B4 outbox drainer (`linear-outbound`), service-only write
   wrappers (`deliverable-write`, `batch-write`), the scheduled thumbnail Drive scanner

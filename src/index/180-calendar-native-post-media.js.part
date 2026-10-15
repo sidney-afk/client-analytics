@@ -2631,10 +2631,13 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const route = await _calCaptionRoute(clientName);
         if (route !== 'ef') { _calSetCaptionBusy(pid, null, 'Redo is switched off for this client.'); return { ok: false, error: 'Redo is off' }; }
         if (_calCapJobActive(_calCaptionJobs.get(pid))) return { ok: false, error: 'Already generating' };
+        // The card's video link goes with a redo, so the server can transcribe it when no earlier run kept the words.
+        const redoAsset = _calCapLiveAssetUrl(pid, post);
+        const redoVideo = redoAsset && /f\.io|frame\.io/i.test(redoAsset) ? redoAsset : '';
         const job = {
             jobId: 'job_' + pid + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
             pid: pid, client: calClientSlug(clientName), clientName: clientName,
-            route: 'ef', transcript: '', assetUrl: '', captionPrompt: _calCaptionPromptFor(clientName),
+            route: 'ef', transcript: '', assetUrl: redoVideo, captionPrompt: _calCaptionPromptFor(clientName),
             cta: '', platform: _calCapPlatform.get(pid) || 'instagram', note: note,
             redo: { quick: '' }, base: live,
             status: 'queued', stage: 'queued', error: '', caption: '',

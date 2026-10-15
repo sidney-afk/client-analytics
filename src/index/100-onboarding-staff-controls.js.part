@@ -1353,6 +1353,7 @@ import {
         // dashboard is the same inbox. Editors and designers have no inbox.
         if (capability === 'messages-button') return role === 'admin' || role === 'smm';
         if (capability === 'review-link') return role === 'admin' || role === 'smm';
+        if (capability === 'notify-client') return role === 'admin' || role === 'smm';
         if (capability === 'restore-archived') return role === 'admin' || role === 'smm';
         if (capability === 'intake') return role === 'admin' || role === 'smm';
         if (capability === 'onboarding') return role === 'admin' || role === 'smm' || role === 'creative';

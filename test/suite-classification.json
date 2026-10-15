@@ -24,6 +24,7 @@
     "onboarding-checklist-tables-migration.js",
     "native-client-test-provision-migration.js",
     "client-onboarding-handler.js",
+    "client-review-alert-handler.js",
     "client-create-migration.js",
     "client-resource-match.js",
     "client-hubspot-sync-handler.js",

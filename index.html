@@ -666,6 +666,7 @@
             --field-bg: var(--sv-bg-f3f3f1); --field-bg-hover: var(--sv-bg-ebebe8); --field-bg-focus: var(--sv-bg-fff); --field-border-focus: var(--text-primary); --field-placeholder: var(--sv-fg-b6b6b1); --field-fade-from: var(--sv-bg-rgba-243-243-241-0); --field-fade-mid: var(--sv-bg-rgba-243-243-241-0_7);
             --media-tub-bg: linear-gradient(155deg, var(--sv-bg-f7f7f5) 0%, var(--sv-bg-e7e7e3) 100%); --media-tub-empty-bg: var(--sv-bg-f4f4f2);
             --cal-status-in-progress-bg: #fde047; --cal-status-in-progress-fg: #101114; --cal-status-for-smm-approval-bg: #e879f9; --cal-status-for-smm-approval-fg: #101114; --cal-status-kasper-approval-bg: #93c5fd; --cal-status-kasper-approval-fg: #101114; --cal-status-client-approval-bg: #ff6b6b; --cal-status-client-approval-fg: #101114; --cal-status-approved-bg: #4ade80; --cal-status-approved-fg: #101114; --cal-status-tweaks-needed-bg: #fb923c; --cal-status-tweaks-needed-fg: #101114; --cal-status-scheduled-bg: #60a5fa; --cal-status-scheduled-fg: #101114; --cal-status-posted-bg: #047857; --cal-status-posted-fg: #ffffff; --cal-status-archived-bg: #9ca3af; --cal-status-archived-fg: #101114; --cal-status-n-a-bg: #9ca3af; --cal-status-n-a-fg: #101114;
+            --notify-bg: #6c5ce7; --notify-bg-hover: #5b4bd6; --notify-fg: #ffffff;
             --cal-urgent-bg: #ff5a36; --cal-urgent-hover-bg: #f0442d; --cal-urgent-fg: #101114; --cal-urgent-disabled-bg: #9ca3af; --cal-urgent-sent-bg: #4ade80;
             /* Video and Thumbnail share the same vibrant pink/blue pair the
                link fields use (--sv-slot-video-fg / --sv-slot-thumb-fg,
@@ -699,6 +700,7 @@
             --surface-raised: #20232a; --surface-hover: #242730; --surface-subtle: #15171c;
             --text-primary: #f4f6f8; --text-secondary: #c2c7cf; --text-muted: #aeb6c2; --text-inverse: #ffffff; --toast-bg: #20232a; --toast-color: #f4f6f8;
             --focus-ring: #8b7cf6; --overlay: rgba(0,0,0,0.62);
+            --notify-bg: #8b7cf6; --notify-bg-hover: #a094f8; --notify-fg: #101114;
             --shadow-sm: 0 1px 3px rgba(0,0,0,0.35); --shadow-md: 0 10px 34px rgba(0,0,0,0.42); --shadow-lg: 0 18px 54px rgba(0,0,0,0.5);
             --ig: #ff5d9d; --ig-light: #351926; --ig-mid: #794058; --ig-dark: #ff9dc4;
             --tt: #f4f6f8; --tt-light: #1f2228; --tt-mid: #50545e; --tt-dark: #d9dee6;
@@ -6118,6 +6120,48 @@
         .cal-select-btn:hover { background: var(--bg); color: var(--text-primary); }
         .cal-select-btn.active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
         .cal-select-btn svg { width: 15px; height: 15px; }
+        /* Notify client — one accent button beside Organize, and its confirm box. */
+        .notify-client-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 32px;
+            padding: 0 13px; border: 0; border-radius: 8px; background: var(--notify-bg); color: var(--notify-fg);
+            font-family: inherit; font-size: 0.78rem; font-weight: 700; white-space: nowrap; cursor: pointer;
+            transition: background 0.12s; }
+        .notify-client-btn:hover { background: var(--notify-bg-hover); }
+        .notify-client-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        .notify-client-btn[hidden] { display: none; }
+        .notify-client-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+        .notify-client-dialog { margin: auto; width: min(460px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; padding: 22px 22px 18px;
+            border: 1px solid var(--border); border-radius: 14px; background: var(--surface-raised); color: var(--text-primary);
+            box-shadow: var(--shadow-lg); }
+        .notify-client-dialog::backdrop { background: var(--overlay); }
+        .notify-client-dialog h2 { margin: 0 0 2px; font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; }
+        .notify-client-dialog p { margin: 0; }
+        .notify-client-dialog .nc-sub { font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 14px; }
+        .notify-client-dialog .nc-where { font-size: 0.84rem; color: var(--text-secondary); margin-bottom: 10px; }
+        .notify-client-dialog .nc-where strong { color: var(--text-primary); }
+        .notify-client-dialog .nc-msg { padding: 14px 16px; border: 1px solid var(--border); border-left: 3px solid var(--notify-bg); border-radius: 8px; background: var(--surface-subtle); }
+        .notify-client-dialog .nc-msg-line { font-size: 0.9rem; font-weight: 800; line-height: 1.35; }
+        .notify-client-dialog .nc-msg-btn { display: inline-block; margin-top: 10px; padding: 5px 14px; border: 1px solid var(--border); border-radius: 6px;
+            background: var(--white); font-size: 0.8rem; font-weight: 700; color: var(--text-primary); }
+        .notify-client-dialog .nc-note, .notify-client-dialog .nc-last { margin-top: 10px; font-size: 0.78rem; color: var(--text-secondary); line-height: 1.45; }
+        .notify-client-dialog .nc-warn, .notify-client-dialog .nc-alert, .notify-client-dialog .nc-done { margin-top: 12px; padding: 9px 12px; border-radius: 8px;
+            font-size: 0.78rem; font-weight: 600; line-height: 1.45; }
+        .notify-client-dialog .nc-warn { background: var(--warn-solid-bg); color: var(--warn-solid-fg); }
+        .notify-client-dialog .nc-alert { background: var(--err-solid-bg); color: var(--err-solid-fg); }
+        .notify-client-dialog .nc-done { background: var(--ok-solid-bg); color: var(--ok-solid-fg); }
+        .notify-client-dialog .nc-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+        .notify-client-dialog .nc-actions button { min-height: 36px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--border);
+            background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+        .notify-client-dialog .nc-actions button:hover:not(:disabled) { background: var(--bg); }
+        .notify-client-dialog .nc-actions .nc-send { background: var(--notify-bg); color: var(--notify-fg); border-color: var(--notify-bg); }
+        .notify-client-dialog .nc-actions .nc-send:hover:not(:disabled) { background: var(--notify-bg-hover); }
+        .notify-client-dialog .nc-actions button:disabled { opacity: 0.55; cursor: default; }
+        .notify-client-dialog .nc-actions button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        @media (max-width: 767px) {
+            .notify-client-btn { min-height: 44px; padding: 0 16px; font-size: 0.86rem; }
+            .notify-client-dialog { padding: 20px 18px 16px; }
+            .notify-client-dialog .nc-actions { flex-direction: column-reverse; }
+            .notify-client-dialog .nc-actions button { min-height: 44px; width: 100%; }
+        }
         .cal-card-select-overlay { position: absolute; inset: 0; z-index: 7; cursor: pointer; background: transparent;
             transition: background 0.12s; }
         .cal-card-select-overlay:hover { background: var(--sv-bg-rgba-37-99-235-0_07); }
@@ -13134,8 +13178,8 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-6befe2a4333b.js";
-        var PARTS = ["js/sv-01-core-2fd233471816.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-1752e4799b37.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-5e99921ef975.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-fca22948fd9d.js","js/sv-12-synclinear-3e86ebae2689.js","js/sv-13-core-5ed54bae7343.js","js/sv-15-core-45cf1d45f190.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-59e1f7ee2216.js","js/sv-20-core-2e66cf1b5d39.js"];
+        var FULL = "js/sv-full-98a5d8b49305.js";
+        var PARTS = ["js/sv-01-core-2fd233471816.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-1752e4799b37.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-c1c854405487.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-dcaa49fe9913.js","js/sv-12-synclinear-3e86ebae2689.js","js/sv-13-core-529dc7630394.js","js/sv-15-core-45cf1d45f190.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-59e1f7ee2216.js","js/sv-20-core-2e66cf1b5d39.js"];
         var LAZY = {"templates":"js/sv-02-templates-0bfb7b2adbf4.js","workload":"js/sv-04-workload-cac24a0637b7.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-97b711919ab4.js"};
         var FORCE = null;
         var CLIENTS = true;

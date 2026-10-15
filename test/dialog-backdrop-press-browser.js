@@ -51,6 +51,7 @@ const CASES = [
   // workflow until 2026-10-10 (OPEN_REPAIRS 408).
   { name: 'Archived cards list', overlay: '#arxOverlay', open: new Function(`${mountViews}; calState.client = ${CLIENT}; _arxOpen('cal');`) },
   { name: 'Archived restore confirm', overlay: '#arxDialog', open: () => { _arxDialog({ title: 'Restore this card?', msg: 'Fixture', yes: 'Restore' }); } },
+  { name: 'Notify client confirm', overlay: '#notifyClientDialog', open: () => { Object.assign(_notifyClient, { surface: 'calendar', client: 'Fixture client', status: null, busy: false, loading: false, error: '', done: '', note: '' }); const d = _notifyClientDialog(); _notifyClientRender(); d.showModal(); } },
 ];
 
 // Inventory, read from the source and independent of the cases above, so a

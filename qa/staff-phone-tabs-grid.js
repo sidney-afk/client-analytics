@@ -8,8 +8,8 @@ const arg=(name,fallback)=>process.argv.find(x=>x.startsWith('--'+name+'='))?.sl
 const baseline=process.argv.includes('--baseline'),out=arg('out','');
 const widths=arg('widths','390,430').split(',').map(Number);
 const selected=new RegExp(arg('only','.*'));
-const routes=['today','calendar','sample-reviews','templates','filming-plans','tiktok-upload','instagram','home','workload','production','linear','kasper','time-off'];
-const admin=['replies','filming','editors','sales-intake','hiring-process','onboarding','client-credentials','clients','save-problems','ad-performance','quiz-leads','time-off'];
+const routes=['today','calendar','sample-reviews','templates','filming-plans','tiktok-upload','instagram','home','workload','production','linear','kasper','time-off','messages'];
+const admin=['filming','editors','sales-intake','hiring-process','onboarding','client-credentials','clients','save-problems','ad-performance','quiz-leads','time-off'];
 const rows=[],failures=[];
 const trigger='.pocket-staff-tabs-btn,#fphTabsBtn,[data-staff-menu=tabs],.pocket-admin-heading button[aria-haspopup=dialog]';
 async function main(){

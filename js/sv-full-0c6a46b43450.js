@@ -89601,9 +89601,18 @@
             <button type="button" class="msg-skel sv-skeleton" disabled tabindex="-1">Unread · 0</button>
         </div>`;
     }
+    /* The phone list's search field. The loading placeholder carries a disabled
+       copy so the filters and rows below it sit where the loaded page puts them. */
+    function _msgPhoneSearchHtml(placeholder) {
+        const input = placeholder
+            ? '<input type="search" placeholder="Search conversations" aria-hidden="true" tabindex="-1" disabled>'
+            : `<input type="search" placeholder="Search conversations" aria-label="Search conversations" value="${_calEscAttr(_msgPhone.query)}" oninput="_msgPhoneSearch(this.value)">`;
+        return `<label class="thumb-msg-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/></svg>${input}</label>`;
+    }
     function _msgSkeletonHtml() {
         return `<div class="msg-inbox is-skeleton" role="status" aria-label="Loading messages">
             <div class="msg-list">
+                ${_msgIsPhone() ? _msgPhoneSearchHtml(true) : ''}
                 ${_msgSkelFiltersHtml()}
                 <div class="msg-convs">${_msgSkelRowsHtml()}</div>
             </div>
@@ -89643,7 +89652,7 @@
             </div>
             <div class="msg-chat">${_msgChatHtml()}</div>
         </div>`;
-        return _msgIsPhone() ? html.replace('<div class="msg-list">','<div class="msg-list">'+`<label class="thumb-msg-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/></svg><input type="search" placeholder="Search conversations" aria-label="Search conversations" value="${_calEscAttr(_msgPhone.query)}" oninput="_msgPhoneSearch(this.value)"></label>`) : html;
+        return _msgIsPhone() ? html.replace('<div class="msg-list">','<div class="msg-list">'+_msgPhoneSearchHtml(false)) : html;
     }
     /* Repaint every mounted inbox (Kasper tab and/or the staff panel),
        keeping a reply being typed: never rebuild under the caret. */
@@ -93859,4 +93868,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-5b2fd14e48c3.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-0c6a46b43450.js");

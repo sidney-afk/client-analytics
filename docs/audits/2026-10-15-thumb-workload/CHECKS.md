@@ -1,5 +1,24 @@
 # Workload check receipts
 
+## Browser guards and Production layout follow-up
+
+The complete dialog suite reproduced the hosted failure locally: a previous Calendar fixture remained mounted, and resizing for the new Workload case started an unrelated folder request. The new case now clears the previous fictional Calendar/Samples clients before resizing. Every dialog, inside-to-outside drag, outside dismissal and the strict zero-request assertion remains enabled and unchanged. The complete fixed replay ends:
+
+```text
+  Phone Workload filters
+  Staff sign-in
+  Staff sign-in (start-up gate)
+dialog-backdrop-press-browser ok
+```
+
+The separately reported `plp_console_errors` failure has not reproduced in three consecutive local runs of the unchanged Production layout suite. Each exits zero with this actual final line; no Production code, console assertion, allowlist or CI condition was changed:
+
+```text
+prod-layout-polish: desktop, compact desktop, and mobile list/filter/project/card/menu clipping checks plus 0 recovered read retries and 0 navigation-aborted reads passed
+```
+
+The full fast lane is being replayed separately. These local passes do not establish the cause of the earlier hosted console error or make that failed run green.
+
 Actual final lines; intercepted fictional fixtures. No live write.
 
 ## workload-reviewed-screens.log

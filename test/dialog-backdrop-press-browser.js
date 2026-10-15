@@ -60,7 +60,13 @@ const CASES = [
 //      case here (the sign-in backdrop is one site exercised in two modes);
 //   2. no event-target comparison may go without reading the press mark,
 //      unless it is listed below as not being a backdrop click.
-CASES.push({name:'Phone Workload filters',viewport:{width:390,height:844},prepare:p=>p.evaluate(async()=>{const api=await svArea('workload');document.getElementById('content').innerHTML=api.render();}),overlay:'.thumb-wl-filters[open]',open:()=>document.querySelector('[data-thumb-wl-filter]').click()});
+CASES.push({name:'Phone Workload filters',viewport:{width:390,height:844},prepare:p=>p.evaluate(async()=>{
+  // Earlier cases leave their Calendar/Samples roots outside #content. Clear
+  // those fictional clients before resizing, so their phone resize handlers
+  // cannot start an unrelated folder read during this dialog-only journey.
+  calState.client='';calState.posts=[];sxrState.client='';sxrState.posts=[];
+  const api=await svArea('workload');document.getElementById('content').innerHTML=api.render();
+}),overlay:'.thumb-wl-filters[open]',open:()=>document.querySelector('[data-thumb-wl-filter]').click()});
 const fs = require('fs');
 const path = require('path');
 const SRC = path.join(__dirname, '..', 'src', 'index');

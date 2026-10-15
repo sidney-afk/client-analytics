@@ -1,4 +1,4 @@
-import { svFocusKeep } from './041-core-layers.js';
+import { svFocusKeep, svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { CAL_SUPABASE_URL, _syncviewCloseStaffAccount, _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue } from './100-onboarding-staff-controls.js';
 import { showToast } from './040-shared-briefs.js';
 import { navTo } from './092-core-submit-form-navigation.js';
@@ -42,6 +42,55 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
     let _msgTimer = null;
     let _msgFirstTimer = null;
     const _msgFallbackHooks = [];
+    // Phone presentation only; the native inbox and Notes writers own access,
+    // unread marks, audience, component and reply persistence.
+    const _msgPhone = {query:'',drafts:new Map(),unread:new Map(),listScroll:0,focusId:'',firstOpen:false,returning:false};
+    const _msgIsPhone = () => !!window.svIsStaffPhone?.();
+    function _msgPhoneKeepDraft() {
+        if (_msgIsPhone() && _msgState.openId) _msgPhone.drafts.set(_msgState.openId,{draft:_msgState.draft,replyTo:_msgState.replyTo});
+    }
+    function _msgPhoneSearch(value) {
+        _msgPhone.query=value;
+        const list=document.querySelector('#msgPage .msg-convs');
+        if(list) list.innerHTML=_msgListHtml();
+    }
+    function _msgPhoneLayout() {
+        const root=document.getElementById('msgPage');if(!root)return;
+        if(!_msgIsPhone()){if(root.hasAttribute('data-thumb-messages')){delete root.dataset.thumbMessages;root.style.removeProperty('--thumb-msg-height');}return;}
+        root.dataset.thumbMessages='';
+        if(window.scrollY)window.scrollTo(0,0);
+        const viewport=window.visualViewport;
+        const height=Math.max(220,(viewport?.height||innerHeight)+(viewport?.offsetTop||0)-root.getBoundingClientRect().top-window.scrollY);
+        const value=Math.round(height)+'px';
+        if(root.style.getPropertyValue('--thumb-msg-height')!==value)root.style.setProperty('--thumb-msg-height',value);
+        const box=root.querySelector('#msgReplyBox');
+        if(box&&box.scrollHeight>box.clientHeight&&box.clientHeight<120)box.style.height=Math.min(120,Math.max(44,box.scrollHeight))+'px';
+    }
+    window.addEventListener('resize',_msgPhoneLayout);
+    window.visualViewport?.addEventListener('resize',_msgPhoneLayout);
+    window.visualViewport?.addEventListener('scroll',_msgPhoneLayout);
+    window.matchMedia?.('(max-width:767px)').addEventListener('change',()=>{
+        const root=document.getElementById('msgPage');if(!root)return;
+        const box=root.querySelector('#msgReplyBox'),focused=box&&document.activeElement===box;
+        const selection=focused?[box.selectionStart,box.selectionEnd]:null;
+        document.querySelectorAll('.thumb-msg-more[open]').forEach(d=>d.close());
+        if(focused)box.blur();
+        _msgPaint();
+        const next=root.querySelector('#msgReplyBox');
+        if(focused&&next){next.focus({preventScroll:true});next.setSelectionRange(...selection);}
+    });
+    function _msgPhoneMore(trigger) {
+        if(!_msgIsPhone()||!_msgCanUse())return;
+        const dialog=document.createElement('dialog');dialog.className='thumb-msg-more';dialog.setAttribute('aria-label','Conversation actions');dialog.setAttribute('data-backdrop-dismiss','');
+        dialog.innerHTML='<header><h2>Conversation</h2><button type="button" aria-label="Close conversation actions">Close</button></header><section aria-label="Conversation actions"><button type="button" data-msg-more="unread">Mark as unread</button><button type="button" data-msg-more="card">Open card</button></section>';
+        dialog.querySelector('header button').onclick=()=>dialog.close();
+        dialog.querySelector('[data-msg-more=unread]').onclick=()=>{dialog.close();_msgMarkUnread();};
+        dialog.querySelector('[data-msg-more=card]').onclick=()=>{dialog.close();_msgOpenCard();};
+        dialog.addEventListener('click',e=>{if(e.target===dialog&&dialog._backdropPressBegan)dialog.close();});
+        dialog.addEventListener('close',()=>{svLayerRelease('thumb-message-actions');dialog.remove();if(trigger?.isConnected)trigger.focus({preventScroll:true});});
+        document.body.append(dialog);dialog.showModal();
+        svLayerOpen({key:'thumb-message-actions',region:dialog,opener:trigger,isOpen:()=>dialog.open,close:()=>dialog.close()});
+    }
 
     /* The page can go live before the production-comments deploy that adds
        the inbox. The old function answers `inbox` with invalid_deliverable_id;
@@ -142,9 +191,16 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
     /* Called whenever the staff sign-in changes (100): start or stop the
        quiet background refresh that keeps the counts current. */
     function _msgOnIdentity() {
+        const member=_msgMyId();
+        if(_msgPhone.member!==member){
+            _msgPhone.drafts.clear();_msgPhone.unread.clear();_msgPhone.query='';
+            if(_msgPhone.member&&_msgIsPhone()){_msgState.draft='';_msgState.replyTo='';_msgState.openId='';}
+            _msgPhone.member=member;
+        }
         if (_msgTimer) { clearInterval(_msgTimer); _msgTimer = null; }
         if (_msgFirstTimer) { clearTimeout(_msgFirstTimer); _msgFirstTimer = null; }
         if (!_msgCanUse()) {
+            _msgPhone.drafts.clear();_msgPhone.unread.clear();_msgPhone.query='';
             _msgState.conversations = []; _msgState.loaded = false; _msgState.openId = '';
             _msgPaintCounts(); _msgLeavePage();
             return;
@@ -168,7 +224,7 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         const src = _calDeriveThumb({ thumbnail_url: c.thumbnail_url, asset_url: c.asset_url });
         return src
             ? `<img class="msg-thumb" alt="" src="${_calEscAttr(src)}" loading="lazy">`
-            : '<span class="msg-thumb is-empty" aria-hidden="true"></span>';
+            : '<span class="msg-thumb is-empty" aria-hidden="true">'+(_msgIsPhone()?_calEsc(_msgClientName(c).split(/\s+/).filter(Boolean).slice(0,2).map(n=>n[0]).join('').toUpperCase()):'')+'</span>';
     }
     function _msgClientName(c) {
         return String(c.client_name || c.client_slug || '');
@@ -187,8 +243,10 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         return role === 'client' ? 'Client' : role === 'smm' ? 'SMM' : role === 'kasper' ? 'Reviewer' : '';
     }
     function _msgListHtml() {
-        const list = _msgState.conversations.filter(c => _msgState.filter !== 'unread' || Number(c.unread) > 0);
+        const query=_msgIsPhone()?_msgPhone.query.trim().toLowerCase():'';
+        const list=_msgState.conversations.filter(c=>(_msgState.filter!=='unread'||Number(c.unread)>0)&&(!query||[_msgClientName(c),c.title,c.last_body].join(' ').toLowerCase().includes(query)));
         if (!list.length) {
+            if(query)return '<div class="msg-list-empty">No conversations match your search.</div>';
             return `<div class="msg-list-empty">${_msgState.filter === 'unread' ? 'Nothing unread.' : 'No conversations yet.'}</div>`;
         }
         return list.map(c => {
@@ -220,16 +278,17 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         }
         const target = _msgReplyTarget(c);
         let day = '';
+        const phone=_msgIsPhone(),firstUnread=phone?_msgPhone.unread.get(c.post_id):'';
         const bubbles = c.messages.map(m => {
             const d = String(m.created_at || '').slice(0, 10);
-            const dayRow = d && d !== day ? `<div class="msg-day">${_calEsc(d)}</div>` : '';
+            const dayRow = d && d !== day ? `<div class="msg-day">${_calEsc(phone?(window.svPhoneDate?.(d)||d):d)}</div>` : '';
             day = d || day;
             const mine = _msgIsMine(m);
             const isRoot = m.root_id === m.id;
             const tweak = isRoot && m.is_tweak ? '<span class="cal-cm-type-tag is-tweak">Change request</span>' : '';
             const role = _msgRoleLabel(m);
-            return `${dayRow}<div class="msg-b${mine ? ' is-me' : ''}${isRoot ? '' : ' is-reply'}" data-msg-id="${_calEscAttr(m.id)}">
-                <div class="msg-b-meta"><b>${_calEsc(mine ? 'You' : _calNoteAuthorName(m))}</b>${role && !mine ? `<span>${_calEsc(role)}</span>` : ''}${isRoot ? _msgPartTag(m) + tweak + _msgToTag(m) : ''}<span>${_calEsc(_calFmtCommentTime(m.created_at))}</span></div>
+            return `${dayRow}${m.id===firstUnread?'<div class="thumb-msg-new" role="separator">New messages</div>':''}<div class="msg-b${mine ? ' is-me' : ''}${isRoot ? '' : ' is-reply'}" data-msg-id="${_calEscAttr(m.id)}">
+                <div class="msg-b-meta"><b>${_calEsc(mine ? 'You' : _calNoteAuthorName(m))}</b>${role && !mine && (!phone || role.toLowerCase()!==_calNoteAuthorName(m).toLowerCase()) ? `<span>${_calEsc(role)}</span>` : ''}${isRoot ? _msgPartTag(m) + tweak + _msgToTag(m) : ''}<span>${_calEsc(_calFmtCommentTime(m.created_at))}</span></div>
                 <div class="msg-b-text">${_calEsc(m.body || '')}</div>
                 <button type="button" class="msg-b-reply" onclick="_msgSetReplyTo(${_jsAttrArg(m.root_id)})">Reply</button>
             </div>`;
@@ -238,7 +297,7 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         const replyCap = target
             ? `Replying to <b>${_calEsc(_msgIsMine(target) ? 'you' : _calNoteAuthorName(target))}</b> ${_msgPartTag(target)} ${_msgToTag(target)}`
             : '';
-        return `<div class="msg-chat-head">
+        const html = `<div class="msg-chat-head">
                 <button type="button" class="msg-back" onclick="_msgBack()" aria-label="Back to conversations">‹</button>
                 ${_msgThumb(c)}
                 <div class="msg-chat-titles"><div class="msg-chat-title">${_calEsc(c.title || 'Untitled post')}</div><div class="msg-chat-sub">${_calEsc(_msgClientName(c))}</div></div>
@@ -255,6 +314,7 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
                     <div class="cal-cm-composer-actions"><button class="cal-cm-send" type="button" onclick="_msgReply()" aria-label="Send reply" ${_msgState.draft.trim() && !_msgState.sending && target ? '' : 'disabled'}>${sendIco}</button></div>
                 </div>
             </div>`;
+        return phone ? html.replace(/<div class="msg-chat-actions">[\s\S]*?<\/div>/, '<div class="msg-chat-actions"><button type="button" class="msg-act thumb-msg-options" onclick="_msgPhoneMore(this)" aria-label="More conversation actions">•••</button></div>') : html;
     }
     function _msgInboxHtml() {
         if (!_msgCanUse()) return '<div class="msg-chat-empty"><b>Messages are for the team</b><span>Sign in as staff to see your conversations.</span></div>';
@@ -266,7 +326,7 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
             return `<div class="kasper-empty"><div class="kasper-empty-icon"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg></div><div class="kasper-empty-title">You're all caught up</div><div class="kasper-empty-sub">Notes on your clients' posts show up here. A conversation leaves this list once its post is posted.</div></div>`;
         }
         const unread = _msgUnreadConversations();
-        return `<div class="msg-inbox${_msgState.openId ? ' is-chat-open' : ''}">
+        const html = `<div class="msg-inbox${_msgState.openId ? ' is-chat-open' : ''}">
             <div class="msg-list">
                 <div class="msg-filters" role="group" aria-label="Show">
                     <button type="button" class="${_msgState.filter === 'all' ? 'is-active' : ''}" onclick="_msgSetFilter('all')">All</button>
@@ -276,6 +336,7 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
             </div>
             <div class="msg-chat">${_msgChatHtml()}</div>
         </div>`;
+        return _msgIsPhone() ? html.replace('<div class="msg-list">','<div class="msg-list">'+`<label class="thumb-msg-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/></svg><input type="search" placeholder="Search conversations" aria-label="Search conversations" value="${_calEscAttr(_msgPhone.query)}" oninput="_msgPhoneSearch(this.value)"></label>`) : html;
     }
     /* Repaint every mounted inbox (Kasper tab and/or the staff panel),
        keeping a reply being typed: never rebuild under the caret. */
@@ -284,6 +345,8 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         if (!roots.length) return;
         const box = document.getElementById('msgReplyBox');
         const typing = box && document.activeElement === box;
+        const previous=document.getElementById('msgBubbles');
+        const scroll=previous?{top:previous.scrollTop,pinned:previous.scrollHeight-previous.clientHeight-previous.scrollTop<40}:null;
         roots.forEach(root => {
             if (typing && root.contains(box)) {
                 const list = root.querySelector('.msg-convs');
@@ -295,7 +358,13 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
             restore();
         });
         const bubbles = document.getElementById('msgBubbles');
-        if (bubbles && !typing) bubbles.scrollTop = bubbles.scrollHeight;
+        if(bubbles&&!typing){
+            const divider=bubbles.querySelector('.thumb-msg-new');
+            if(_msgIsPhone()&&_msgPhone.firstOpen&&divider)bubbles.scrollTop=divider.getBoundingClientRect().top-bubbles.getBoundingClientRect().top+bubbles.scrollTop;
+            else if(_msgIsPhone()&&scroll&&!scroll.pinned&&!_msgPhone.firstOpen)bubbles.scrollTop=scroll.top;
+            else bubbles.scrollTop=bubbles.scrollHeight;
+        }
+        _msgPhone.firstOpen=false;_msgPhoneLayout();
     }
     function _msgRenderInto(root) {
         if (!root) return;
@@ -308,16 +377,20 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
     function _msgSetFilter(f) { _msgState.filter = f === 'unread' ? 'unread' : 'all'; _msgPaint(); }
     function _msgSetReplyTo(rootId) {
         _msgState.replyTo = String(rootId || '');
+        _msgPhoneKeepDraft();
         _msgPaint();
         const box = document.getElementById('msgReplyBox');
         if (box) box.focus();
     }
     function _msgOnDraft(ta) {
         _msgState.draft = ta.value;
+        _msgPhoneKeepDraft();
+        if(_msgIsPhone()){ta.style.height='auto';ta.style.height=Math.min(120,Math.max(44,ta.scrollHeight))+'px';}
         const send = ta.closest('.cal-cm-composer') && ta.closest('.cal-cm-composer').querySelector('.cal-cm-send');
         if (send) send.disabled = !ta.value.trim() || _msgState.sending;
     }
     function _msgOnKey(e) {
+        if(_msgIsPhone())return;
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _msgReply(); }
     }
     async function _msgMark(postId, state) {
@@ -326,24 +399,68 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
             return value;
         } catch (e) { return null; }
     }
-    async function _msgOpen(postId) {
+    async function _msgOpen(postId,navigate=true) {
+        const phone=_msgIsPhone(),fromList=!_msgState.openId;
+        if(phone){
+            _msgPhoneKeepDraft();
+            if(fromList)_msgPhone.listScroll=document.querySelector('#msgPage .msg-convs')?.scrollTop||0;
+            _msgPhone.focusId=String(postId||'');_msgPhone.firstOpen=true;
+            if(navigate&&fromList&&document.getElementById('msgPage')){
+                history.replaceState({...history.state,thumbMessagesParent:true},'');
+                history.pushState({...history.state,thumbMessagesParent:false,thumbMessagesThread:String(postId)},'');
+            }
+        }
         _msgState.openId = String(postId || '');
         _msgState.replyTo = '';
         _msgState.draft = '';
         const c = _msgState.conversations.find(x => x.post_id === _msgState.openId);
+        if(phone){
+            const draft=_msgPhone.drafts.get(_msgState.openId);
+            if(draft){_msgState.draft=draft.draft;_msgState.replyTo=draft.replyTo;}
+            const incoming=(c?.messages||[]).filter(m=>!_msgIsMine(m));
+            const unread=Math.min(incoming.length,Math.max(0,Math.floor(Number(c?.unread)||0)));
+            if(unread)_msgPhone.unread.set(c.post_id,incoming[incoming.length-unread].id);
+            else _msgPhone.unread.delete(c?.post_id);
+        }
         if (c && Number(c.unread) > 0) {
             c.unread = 0;          // opening = read; the server stamps it below
             _msgPaintCounts();
             _msgMark(c.post_id, 'read');
         }
         _msgPaint();
+        if(phone)document.querySelector('#msgPage .msg-back')?.focus({preventScroll:true});
     }
-    function _msgBack() { _msgState.openId = ''; _msgPaint(); }
+    function _msgBack(navigate=true) {
+        const phone=_msgIsPhone();if(phone){_msgPhoneKeepDraft();document.getElementById('msgReplyBox')?.blur();}
+        _msgState.openId='';_msgPaint();
+        if(phone){
+            const list=document.querySelector('#msgPage .msg-convs');
+            if(list){list.scrollTop=_msgPhone.listScroll;[...list.querySelectorAll('[data-msg-conv]')].find(n=>n.dataset.msgConv===_msgPhone.focusId)?.focus({preventScroll:true});}
+            if(navigate&&history.state?.thumbMessagesThread){_msgPhone.returning=true;history.back();}
+        }
+    }
+    window.svThumbMessagesConsumeHistory=e=>{
+        if(!_msgIsPhone()||!_msgCanUse()||(!e.state?.thumbMessagesParent&&!e.state?.thumbMessagesThread))return false;
+        if(!document.getElementById('msgPage')){
+            navTo('messages',false);
+            if(!document.getElementById('msgPage'))return false;
+            // navTo restores the page's normal route; keep this owned history
+            // entry so Back/Forward can still restore its list or thread.
+            history.replaceState(e.state,'',location.href);
+        }
+        if(e.state?.thumbMessagesParent){
+            if(!_msgPhone.returning)_msgBack(false);_msgPhone.returning=false;return true;
+        }
+        if(e.state?.thumbMessagesThread){_msgOpen(e.state.thumbMessagesThread,false);return true;}
+        return false;
+    };
+
     async function _msgMarkUnread() {
         const c = _msgState.conversations.find(x => x.post_id === _msgState.openId);
         if (!c) return;
         const answer = await _msgMark(c.post_id, 'unread');
         if (!answer) { showToast('Could not mark it unread. Try again.'); return; }
+        if(_msgIsPhone())_msgBack();
         _msgState.openId = '';
         await _msgLoad(true);
     }
@@ -403,6 +520,7 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
             return;
         }
         _msgState.draft = '';
+        _msgPhone.drafts.delete(c.post_id);
         // Sent: let the chat redraw with the reply in it (the paint keeps
         // its hands off a box that still has the caret).
         const box = document.getElementById('msgReplyBox');
@@ -442,6 +560,6 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
         _msgBack, _msgLoad, _msgMarkUnread, _msgOnDraft, _msgOnKey, _msgOpen, _msgOpenCard, _msgOpenPage,
-        _msgReply, _msgSetFilter, _msgSetReplyTo
+        _msgPhoneMore, _msgPhoneSearch, _msgReply, _msgSetFilter, _msgSetReplyTo
     });
 export { _msgInboxLive, _msgOnFallback, _msgOnIdentity, _msgPaintCounts };

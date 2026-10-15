@@ -171,7 +171,7 @@ async function shoot(browser, build, width, url, mode, clickId, view, token, sna
     return out.join('\n');
   });
   let publicPng = null;
-  if (process.env.PARITY_PUBLIC_DESKTOP && mode === 'staff' && clickId === 'navCalendar') {
+  if (process.env.PARITY_PUBLIC_DESKTOP && mode === 'staff' && clickId) {
     const top = await page.locator('.header').evaluate(el => Math.ceil(el.getBoundingClientRect().bottom));
     publicPng = await page.screenshot({ clip: { x: 0, y: top, width, height: HEIGHT - top } });
   }
@@ -189,7 +189,7 @@ async function staffTabs(browser) {
   const page = await ctx.newPage();
   await page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(SETTLE_STAFF);
-  const tabs = await page.evaluate(() => [...document.querySelectorAll('#headerNav > .header-nav-btn')]
+  const tabs = await page.evaluate(() => [...document.querySelectorAll('#headerNav > .header-nav-btn, #navMessages')]
     .filter(a => a.getClientRects().length && getComputedStyle(a).display !== 'none')
     .map(a => ({ id: a.id, href: a.getAttribute('href') })));
   await ctx.close();
@@ -234,10 +234,11 @@ async function staffTabs(browser) {
       }
       if (a.publicPng && b.publicPng) {
         const dir = process.env.PARITY_PUBLIC_DESKTOP;
+        const surface = pg.name.replace(/^staff-nav/, '').toLowerCase();
         fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(path.join(dir, `calendar-${w}-before.png`), a.publicPng);
-        fs.writeFileSync(path.join(dir, `calendar-${w}-after.png`), b.publicPng);
-        fs.writeFileSync(path.join(dir, `calendar-${w}-pair.json`), JSON.stringify({ width: w, contentOnly: true, pngBytesIdentical: a.publicPng.equals(b.publicPng), sha256: crypto.createHash('sha256').update(b.publicPng).digest('hex') }, null, 2) + '\n');
+        fs.writeFileSync(path.join(dir, `${surface}-${w}-before.png`), a.publicPng);
+        fs.writeFileSync(path.join(dir, `${surface}-${w}-after.png`), b.publicPng);
+        fs.writeFileSync(path.join(dir, `${surface}-${w}-pair.json`), JSON.stringify({ width: w, contentOnly: true, pngBytesIdentical: a.publicPng.equals(b.publicPng), sha256: crypto.createHash('sha256').update(b.publicPng).digest('hex') }, null, 2) + '\n');
       }
       const row = { page: pg.name, width: w, pixels: a.png.equals(b.png) ? 'identical' : 'DIFFERENT', styles: a.styleHash === b.styleHash ? 'identical' : 'DIFFERENT', sha: crypto.createHash('sha256').update(b.png).digest('hex').slice(0, 12), attempts };
       if (!same) fail++;

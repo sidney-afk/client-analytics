@@ -617,12 +617,13 @@ async function assertNoWriteRequests(requests) {
      * needs_attribution, so the attribution refusal outranked the authority
      * text asserted here and the suite went red without any code changing.
      */
-    /* The app re-reads the real authority flag every 30 seconds and writes the
-       answer over `_prodState.authority`. The block below forces that value to
-       measure the Linear lock, so the forced value has to be the one that stays:
-       stop the timer (a truthy handle keeps the app from starting another), then
-       let any read already on its way land BEFORE forcing, not after. */
-    await page.evaluate(() => { clearInterval(_prodAuthorityTimer); });
+    /* The app re-reads the real authority flag every 30 seconds, and its refresh
+       tick can reload the lists (which re-reads it again); each writes the answer
+       over `_prodState.authority`. The block below forces that value to measure
+       the Linear lock, so the forced value has to be the one that stays: stop the
+       ticks and the live channel, then let any read already on its way land
+       BEFORE forcing, not after. */
+    await holdBackgroundRefresh(page);
     await readConsoleAudit.quiesce();
     const writeFixture = await page.evaluate(() => {
       _syncviewStaffIdentityMem = {

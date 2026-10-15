@@ -22,7 +22,7 @@ let failures = 0;
 const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; console.error('FAIL  ' + m); } };
 
 (async () => {
-  const inbox = await import(path.join(root, 'supabase/functions/production-comments/inbox.mjs'));
+  const inbox = await import(require('node:url').pathToFileURL(path.join(root, 'supabase/functions/production-comments/inbox.mjs')).href);
   const clients = [
     { slug: 'alphafixture', display_name: 'Alpha Fixture', active: true },
     { slug: 'betafixture', display_name: 'Beta Fixture', active: true },
@@ -155,7 +155,7 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
   ok(ids(inbox.visibleMessages(kAll, 'smm', smmIds, smmOne)) === ids(inbox.visibleMessages(kAll, 'smm', smmIds)), 'SMM view: unchanged by the reviewer rule');
 
   // The client never receives a staff name.
-  const policy = await import(path.join(root, 'supabase/functions/production-comments/policy.mjs'));
+  const policy = await import(require('node:url').pathToFileURL(path.join(root, 'supabase/functions/production-comments/policy.mjs')).href);
   const staffRow = { id: 'c1', author_name: 'Second Manager', author_member_id: 'u2', role: 'smm', audience: 'client', body: 'Hello' };
   const clientRow = { id: 'c2', author_name: 'Fixture Client', role: 'client', audience: 'client', body: 'Hi' };
   const asClient = policy.publicComment(staffRow, 'client');

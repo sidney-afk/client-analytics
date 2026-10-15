@@ -1,5 +1,8 @@
 # Repo map
 
+Thumb Messages phone: `qa/staff-phone-messages.js` verifies inbox/thread/draft/composer journeys; `qa/messages-desktop-parity.js` proves populated desktop parity; evidence lives in `docs/audits/2026-10-15-thumb-messages/`.
+
+
 `qa/staff-phone-responsiveness.js` measures native staff cold useful paint and
 touch-to-sheet paint with fictional 4G transports. It guards repeated taps,
 inside taps, phone-height resize, retained refresh content/drafts and card-scan

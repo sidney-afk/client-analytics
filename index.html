@@ -12769,6 +12769,70 @@ html .fv-overlay .fv-markers .fv-mark:hover { transform: scale(1.25); }
  .fv-side-foot { padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); }
  .fv-foot-note { display: none; }
 }
+
+/* Thumb Messages: one phone conversation at a time, in the native page. */
+@media(max-width:767px){
+ html.sv-staff-phone body:has(#msgPage[data-thumb-messages]) {height:100dvh;overflow:hidden;}
+ html.sv-staff-phone body:has(#msgPage[data-thumb-messages]) .main {padding:0;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] {height:var(--thumb-msg-height,calc(100dvh - 76px));min-height:0;box-sizing:border-box;padding:0 16px;overflow:hidden;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-page-head {display:none;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-page-body {flex:1;min-height:0;height:100%;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-inbox {height:100%!important;min-height:0;border:0;border-radius:0;background:var(--bg);grid-template-rows:minmax(0,1fr);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-list {min-height:0;border:0;background:none;}
+ html.sv-staff-phone #msgPage .thumb-msg-search {display:flex;align-items:center;gap:10px;margin:12px 0;min-height:48px;padding:0 12px;border:1px solid var(--border);border-radius:14px;background:var(--white);color:var(--text-secondary);}
+ html.sv-staff-phone #msgPage .thumb-msg-search svg {flex:none;width:20px;height:20px;}
+ html.sv-staff-phone #msgPage .thumb-msg-search input {min-width:0;width:100%;min-height:46px;border:0;background:none;color:var(--text-primary);font:inherit;font-size:16px;outline:none;}
+ html.sv-staff-phone #msgPage .thumb-msg-search:focus-within {outline:2px solid var(--focus-ring);outline-offset:2px;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-filters {display:flex;gap:4px;flex-shrink:0;padding:4px;border:0;border-radius:15px;background:var(--surface-raised);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-filters button {flex:1;min-height:44px;border:0;border-radius:11px;background:none;color:var(--text-secondary);font-size:14px;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-filters button.is-active {background:var(--white);color:var(--text-primary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-convs {flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:8px 0 16px;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-conv {grid-template-columns:56px minmax(0,1fr) 24px;gap:12px;min-height:100px;margin:0;padding:14px 0;border:0;border-bottom:1px solid var(--border);border-radius:0;background:none;text-align:left;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-thumb {width:56px;height:56px;border-radius:12px;object-fit:cover;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-conv-client {font-size:13px;color:var(--text-secondary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-conv-time {font-size:11px;color:var(--text-secondary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-conv-sub {font-size:15px;font-weight:700;line-height:1.5;color:var(--text-primary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-conv-last {font-size:13px;line-height:1.5;color:var(--text-secondary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-unread {min-width:22px;min-height:22px;display:grid;place-items:center;font-size:12px;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-chat {min-height:0;height:100%;background:none;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-chat-head {display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:8px;padding:8px 0;flex-shrink:0;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-chat-title {font-size:15px;line-height:1.4;white-space:normal;overflow-wrap:anywhere;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-chat-sub {display:block;font-size:12px;color:var(--text-secondary);margin-top:3px;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-chat-actions {margin:0;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] :is(.msg-back,.thumb-msg-options) {min-width:44px;min-height:44px;padding:0;background:none;border:0;color:var(--text-primary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-back {font-size:30px;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-bubbles {flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:16px 0;gap:16px;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-b {max-width:88%;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-b-text {padding:10px 13px;font-size:15px;line-height:1.5;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-b-meta,
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-b-meta b {font-size:12px;line-height:1.5;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-b-reply {font-size:13px;min-height:44px;padding:0 4px;color:var(--text-secondary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-day {font-size:12px;color:var(--text-secondary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .thumb-msg-new {display:flex;align-items:center;gap:12px;width:100%;font-size:12px;font-weight:700;color:var(--text-primary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .thumb-msg-new::before,
+ html.sv-staff-phone #msgPage[data-thumb-messages] .thumb-msg-new::after {content:'';height:1px;flex:1;background:var(--border);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-reply {flex-shrink:0;margin:0 -16px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:var(--bg);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-reply-cap {padding:0 2px 8px;font-size:12px;color:var(--text-secondary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-reply .cal-cm-composer {align-items:flex-end;border-radius:18px;background:var(--white);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-reply textarea {min-height:44px;max-height:120px;overflow:auto;font-size:16px;line-height:1.5;box-sizing:border-box;padding:10px 4px;}
+ html.sv-staff-phone .thumb-msg-more {position:fixed;inset:auto 0 0;width:100%;max-width:none;max-height:80dvh;margin:0;padding:16px 16px calc(24px + env(safe-area-inset-bottom));border:1px solid var(--border);border-radius:24px 24px 0 0;background:var(--white);color:var(--text-primary);}
+ html.sv-staff-phone .thumb-msg-more header {display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+ html.sv-staff-phone .thumb-msg-more h2 {font-size:21px;margin:0;}
+ html.sv-staff-phone .thumb-msg-more button {min-height:48px;border:0;border-radius:12px;background:none;color:var(--text-primary);font:inherit;font-size:15px;}
+ html.sv-staff-phone .thumb-msg-more header button {padding:0 12px;background:var(--surface-raised);font-size:13px;}
+ html.sv-staff-phone .thumb-msg-more section {display:flex;flex-direction:column;}
+ html.sv-staff-phone .thumb-msg-more section button {text-align:left;padding:0 12px;}
+}
+
+@media(max-width:767px){html.sv-staff-phone .thumb-msg-more::backdrop {background:var(--overlay);}}
+
+@media(max-width:767px){html.sv-staff-phone #msgPage[data-thumb-messages] .msg-conv .msg-thumb.is-empty {display:grid;place-items:center;background:var(--surface-raised);color:var(--text-secondary);font-size:16px;font-weight:700;}}
+
+@media(max-width:767px){
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-b {position:relative;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-b-meta {min-height:28px;padding-right:52px;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-b-reply {position:absolute;right:0;top:-8px;min-width:48px;min-height:44px;}
+}
     </style>
 </head>
 <body>
@@ -13340,8 +13404,8 @@ html .fv-overlay .fv-markers .fv-mark:hover { transform: scale(1.25); }
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-501fe8c9170e.js";
-        var PARTS = ["js/sv-01-core-0db2471d2e82.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-dd5e7141bebf.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-672770a09172.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-2fa354755646.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-ff0af3970c2d.js","js/sv-20-core-f43f39965587.js"];
+        var FULL = "js/sv-full-07f2c60a44c1.js";
+        var PARTS = ["js/sv-01-core-3a8d88727193.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-bf792c07a4a8.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-672770a09172.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-2fa354755646.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-30f7fa855f8d.js","js/sv-20-core-f43f39965587.js"];
         var LAZY = {"templates":"js/sv-02-templates-ed22b16a2bda.js","workload":"js/sv-04-workload-1b2df89fe1d1.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-ae60b29ece00.js"};
         var FORCE = null;
         var CLIENTS = true;

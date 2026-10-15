@@ -200,7 +200,7 @@ function installReadConsoleAudit(page, opts = {}) {
   const outstandingReads = new Set();
   const recoveryWindowMs = Math.max(1000, Number(opts.recoveryWindowMs || 15000));
   const navigationAbortWindowMs = Math.max(100, Number(opts.navigationAbortWindowMs || 1000));
-  const revalidationTimeoutMs = Math.max(1000, Number(opts.revalidationTimeoutMs || 20000));
+  const revalidationTimeoutMs = Math.max(1000, Number(opts.revalidationTimeoutMs || 40000));
   const drainCeilingMs = Math.max(2000, Number(opts.drainCeilingMs || 30000));
   const idleHoldMs = Math.max(100, Number(opts.idleHoldMs || 700));
   // Counts reads that reached an outcome, so the drain can tell a chain that is

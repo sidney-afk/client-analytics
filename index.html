@@ -7414,7 +7414,12 @@
         /* The Messages page uses the whole width under the header. */
         body:has(#msgPage) .main { padding: 0; }
         .msg-page { padding: 14px 16px 16px; display: flex; flex-direction: column; }
-        .msg-page-head h1 { margin: 0 0 10px; font-size: 1.3rem; color: var(--text-primary); }
+        .msg-page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 10px; min-height: 25px; }
+        .msg-page-head h1 { margin: 0; font-size: 1.3rem; color: var(--text-primary); }
+        .msg-close { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 0.74rem; font-weight: 600; line-height: 1.2; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); cursor: pointer; }
+        .msg-close svg { width: 12px; height: 12px; }
+        .msg-close:hover { background: var(--bg); }
+        .msg-close:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
         .msg-page .msg-inbox { height: calc(100vh - 150px); }
         @media (max-width: 767px) {
             /* minmax(0, 1fr): a plain 1fr track grows to the longest unwrapped
@@ -13394,8 +13399,8 @@ html .fv-overlay .fv-markers .fv-mark:hover { transform: scale(1.25); }
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-09dd1a83d1f4.js";
-        var PARTS = ["js/sv-01-core-3a8d88727193.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-bf792c07a4a8.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-457b522a38c2.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-2fa354755646.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-81402e3d9cf7.js","js/sv-20-core-f43f39965587.js"];
+        var FULL = "js/sv-full-65090aa44269.js";
+        var PARTS = ["js/sv-01-core-4c708793b16f.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-de84ab46e14a.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-ef5812a31d96.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-457b522a38c2.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-2fa354755646.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-0be47e754701.js","js/sv-20-core-f43f39965587.js"];
         var LAZY = {"templates":"js/sv-02-templates-ed22b16a2bda.js","workload":"js/sv-04-workload-1b2df89fe1d1.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-ae60b29ece00.js"};
         var FORCE = null;
         var CLIENTS = true;

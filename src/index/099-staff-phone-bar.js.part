@@ -289,6 +289,18 @@
             }
             const h1 = bar.querySelector('.pocket-staff-title');
             if (h1.textContent !== title) h1.textContent = title;
+            // On Messages the title bar carries a Close that does what the header Messages button does.
+            const actions = bar.querySelector('.pocket-staff-actions');
+            let closeMsg = actions.querySelector('.pocket-staff-msg-close');
+            if (title === 'Messages') {
+                if (!closeMsg) {
+                    closeMsg = document.createElement('button');
+                    closeMsg.type = 'button'; closeMsg.className = 'pocket-staff-msg-close';
+                    closeMsg.textContent = 'Close'; closeMsg.setAttribute('aria-label', 'Close Messages');
+                    closeMsg.addEventListener('click', () => window._msgClose?.());
+                    actions.insertBefore(closeMsg, actions.firstChild);
+                }
+            } else if (closeMsg) closeMsg.remove();
         }
         function start() {
             const nav = document.getElementById('headerNav');

@@ -2800,7 +2800,12 @@
         /* The Messages page uses the whole width under the header. */
         body:has(#msgPage) .main { padding: 0; }
         .msg-page { padding: 14px 16px 16px; display: flex; flex-direction: column; }
-        .msg-page-head h1 { margin: 0 0 10px; font-size: 1.3rem; color: var(--text-primary); }
+        .msg-page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 10px; min-height: 25px; }
+        .msg-page-head h1 { margin: 0; font-size: 1.3rem; color: var(--text-primary); }
+        .msg-close { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 0.74rem; font-weight: 600; line-height: 1.2; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); cursor: pointer; }
+        .msg-close svg { width: 12px; height: 12px; }
+        .msg-close:hover { background: var(--bg); }
+        .msg-close:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
         .msg-page .msg-inbox { height: calc(100vh - 150px); }
         @media (max-width: 767px) {
             /* minmax(0, 1fr): a plain 1fr track grows to the longest unwrapped

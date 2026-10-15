@@ -220,7 +220,7 @@ async function markUnread(page){
         inboxW: Math.round(inbox.width), vw: innerWidth, listLeft: list.left <= inbox.left + 1, chatW: Math.round(chat.width) };
     });
     check(f.headerShown && f.below, 'F: the page sits under the main header, which stays visible');
-    check(!f.close && !f.dialog, 'F: a page, not a dialog: no Close button');
+    check(f.close && !f.dialog, 'F: a page with a Close button, not a dialog');
     check(f.active, 'F: the header button shows as the active tab');
     check(f.listLeft && f.inboxW >= f.vw - 80 && f.chatW >= f.inboxW - 360, 'F: full width, list on the left, conversation takes the rest ' + JSON.stringify(f));
     await shot('messages-page-desktop');
@@ -511,6 +511,124 @@ async function markUnread(page){
         await pg.close();
       }
       inboxDelay = 0;
+    }
+
+    // P: getting out of Messages (owner, 2026-10-15): the Messages button toggles, a Close button, Escape (desktop),
+    // browser Back, all back to exactly where the person was; a link-opened page closes to the Calendar.
+    {
+      // Enough cards for the Sheet's strip to scroll sideways.
+      for (let i = 2; i <= 14; i++) S.cards.push({ ...S.card('p_t1'), id: 'p_x' + i, name: 'Extra card ' + i, order_index: i, scheduled_date: '2026-10-' + String(10 + (i % 15)).padStart(2, '0'), video_deliverable_id: null, graphic_deliverable_id: null });
+      const read = pg => pg.evaluate(() => ({ nav: currentNav, view: calState.view, client: calState.client, y: Math.round(scrollY),
+        strip: Math.round((document.querySelector('.cal-organizer-strip') || {}).scrollLeft || 0),
+        card: !!document.querySelector('.cal-card-focused[data-pid="p_t1"]'), msg: !!document.getElementById('msgPage') }));
+      const ready = async (pg) => {
+        await S.openCalendar(pg);
+        await pg.evaluate(() => { _syncviewStaffIdentityVerified = true; _syncviewStaffRefreshChrome(); });
+        await pg.waitForFunction(() => { const b = document.getElementById('navMessages'); return b && !b.hidden; }, null, { timeout: 30000 });
+      };
+      // Put the Calendar in a known place: the Sheet (organizer) view, one card open, scrolled down.
+      const arrange = async (pg, name0) => {
+        await pg.evaluate(() => onCalViewChange('organizer'));
+        await pg.waitForSelector('.cal-card[data-pid="p_t1"]', { timeout: 10000 });
+        await pg.evaluate(() => { try { WL_CLIENT_NAMES.push('fixtureclient'); } catch (e) {} history.pushState({ nav: 'calendar', client: null }, '', '#calendar/fixtureclient/p_t1'); window.dispatchEvent(new PopStateEvent('popstate', { state: null })); });
+        check(await until(() => pg.evaluate(() => !!document.querySelector('.cal-card-focused')), 8000), 'P: setup: a card is open on the Calendar');
+        await pg.evaluate(() => { window.scrollTo(0, 100); const st = document.querySelector('.cal-organizer-strip'); if (st) st.scrollLeft = 300; });
+        await pg.waitForTimeout(250);
+        const state = await read(pg);
+        if (name0 === 'desktop') check(state.strip >= 250, 'P: setup: the Sheet strip is scrolled sideways (' + state.strip + ')');
+        return state;
+      };
+      const same = (a, b) => a.nav === b.nav && a.view === b.view && a.client === b.client && Math.abs(a.y - b.y) <= 6 && Math.abs(a.strip - b.strip) <= 6 && a.card === b.card && !b.msg;
+      const openers = {
+        desktop: pg => pg.click('#navMessages'),
+        // The phone's Tabs menu copy of the button just clicks the native one.
+        phone: pg => pg.evaluate(() => document.getElementById('navMessages').click()),
+      };
+      for (const [name, w, h] of [['desktop', 1366, 900], ['phone', 390, 844]]) {
+        for (const t of ['light', 'dark']) {
+          const pg = await S.newPage();
+          await pg.setViewportSize({ width: w, height: h });
+          inboxDelay = 0;
+          await ready(pg);
+          await pg.evaluate(t => document.documentElement.setAttribute('data-theme', t), t);
+          const before = await arrange(pg, name);
+          const tag = `P: ${name} ${t}`;
+          const opened = async () => { await openers[name](pg); return until(() => pg.evaluate(() => currentNav === 'messages' && !!document.querySelector('#msgPage .msg-conv')), 8000); };
+          const back = async (label) => {
+            check(await until(() => pg.evaluate(() => !document.getElementById('msgPage') && currentNav === 'calendar'), 8000), `${tag}: ${label}: Messages closes`);
+            await until(() => pg.evaluate(() => !!document.querySelector('.cal-card-focused') && Math.abs(scrollY - 100) <= 6 && Math.abs(((document.querySelector('.cal-organizer-strip') || {}).scrollLeft || 0) - 300) <= 6), 6000);
+            const after = await read(pg);
+            check(same(before, after), `${tag}: ${label}: back where they were (${JSON.stringify(before)} -> ${JSON.stringify(after)})`);
+          };
+          // 1. the Messages button again
+          check(await opened(), `${tag}: Messages opens`);
+          if (SHOTS && name === 'desktop') await pg.screenshot({ path: path.join(SHOTS, `close-${name}-${t}.png`) });
+          if (name === 'phone') {
+            check(await pg.evaluate(() => { const b = document.querySelector('.pocket-staff-msg-close'); if (!b) return false; const r = b.getBoundingClientRect(); const bar = document.getElementById('pocketStaffBar').getBoundingClientRect(); return r.width >= 44 && r.height >= 44 && r.right <= bar.right + 0.5 && r.left >= 0 && document.documentElement.scrollWidth <= innerWidth + 1; }), `${tag}: the Close button fits the phone title bar (44px, inside it, no sideways scroll)`);
+            if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, `close-${name}-${t}.png`) });
+          } else {
+            check(await pg.evaluate(() => { const b = document.querySelector('#msgPage .msg-close'); const i = document.querySelector('#msgPage .msg-inbox').getBoundingClientRect(); if (!b) return false; const r = b.getBoundingClientRect(); return r.width > 0 && r.right >= i.right - 4 && r.top < i.top; }), `${tag}: the Close button is top right of the page`);
+          }
+          if (name === 'phone') {
+            // The Messages tile in the phone Tabs menu is the same toggle.
+            await pg.click('.pocket-staff-tabs-btn');
+            await pg.click('dialog[open] [data-nav="navMessages"]');
+          } else await openers[name](pg);
+          await back(name === 'phone' ? 'the Messages tile in the Tabs menu' : 'the Messages button again');
+          // 2. the Close button
+          check(await opened(), `${tag}: Messages opens again`);
+          await pg.click(name === 'phone' ? '.pocket-staff-msg-close' : '#msgPage .msg-close');
+          await back('the Close button');
+          // 3. Escape (desktop only)
+          if (name === 'desktop') {
+            check(await opened(), `${tag}: Messages opens a third time`);
+            await pg.keyboard.press('Escape');
+            await back('Escape');
+          }
+          // 4. browser Back
+          check(await opened(), `${tag}: Messages opens once more`);
+          await pg.goBack();
+          await back('browser Back');
+          check(!pg.errors.length, `${tag}: no page errors ` + JSON.stringify(pg.errors));
+          await pg.close();
+        }
+      }
+
+      // Escape never throws away a typed reply; the Close button keeps it for the next visit.
+      {
+        const pg = await S.newPage();
+        await pg.setViewportSize({ width: 1366, height: 900 });
+        await ready(pg);
+        await pg.click('#navMessages');
+        await until(() => pg.evaluate(() => !!document.querySelector('#msgPage [data-msg-conv="p_t1"]')), 8000);
+        await pg.click('#msgPage [data-msg-conv="p_t1"]');
+        await pg.fill('#msgReplyBox', 'A reply I am still writing');
+        await pg.keyboard.press('Escape');
+        await pg.waitForTimeout(300);
+        check(await pg.evaluate(() => !!document.getElementById('msgPage') && document.getElementById('msgReplyBox').value === 'A reply I am still writing'), 'P: Escape in a box with typed text keeps Messages open and the text');
+        await pg.click('#msgPage .msg-close');
+        check(await until(() => pg.evaluate(() => !document.getElementById('msgPage')), 6000), 'P: the Close button closes it even with a typed reply');
+        await pg.click('#navMessages');
+        check(await until(() => pg.evaluate(() => { const b = document.getElementById('msgReplyBox'); return !!b && b.value === 'A reply I am still writing'; }), 8000), 'P: the typed reply is still there on the next visit');
+        await pg.fill('#msgReplyBox', '');
+        await pg.keyboard.press('Escape');
+        check(await until(() => pg.evaluate(() => !document.getElementById('msgPage')), 6000), 'P: Escape closes it when the box is empty');
+        await pg.close();
+      }
+
+      // Opened straight from a link: nothing to go back to, so Close goes to the Calendar.
+      {
+        const pg = await S.newPage();
+        await pg.setViewportSize({ width: 1366, height: 900 });
+        await pg.goto(S.origin + '/index.html#messages', { waitUntil: 'domcontentloaded' });
+        await pg.waitForFunction(() => typeof _syncviewStaffCan === 'function' && typeof navTo === 'function', null, { timeout: 30000 });
+        await pg.evaluate(() => { _syncviewStaffIdentityVerified = true; _syncviewStaffRefreshChrome(); });
+        check(await until(() => pg.evaluate(() => currentNav === 'messages' && !!document.getElementById('msgPage')), 10000), 'P: a link straight to Messages opens it');
+        await pg.click('#msgPage .msg-close');
+        check(await until(() => pg.evaluate(() => currentNav === 'calendar' && !document.getElementById('msgPage')), 8000), 'P: opened from a link, Close goes to the Calendar');
+        await pg.close();
+      }
+      S.cards = S.cards.filter(c => !/^p_x/.test(c.id));
     }
 
     // H: the page ships before the backend

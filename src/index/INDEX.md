@@ -10,11 +10,11 @@
 | 2 | `003-sv-route.html.part` | 222 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3965 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 8211 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 8216 | Templates view |
 | 6 | `030-body-shell.html.part` | 566 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2158 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `041-core-layers.js.part` | 397 | LAYERS: ONE RULE FOR EVERY POP-UP (owner request, ). |
-| 9 | `050-market-briefs.js.part` | 1804 | Market Research Brief Tab Renderers |
+| 9 | `050-market-briefs.js.part` | 1805 | Market Research Brief Tab Renderers |
 | 10 | `060-templates-filming.js.part` | 2463 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 11 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
 | 12 | `066-core-workload-state.js.part` | 123 | Workload Calendar |
@@ -25,13 +25,13 @@
 | 17 | `071-workload-planner.js.part` | 651 | CARRIED OVER (owner request ). A saved plan day is never edited |
 | 18 | `080-workload-render.js.part` | 3479 | Smart default: a creative lands on their own work (see |
 | 19 | `090-workload-popovers.js.part` | 1038 | Sub-issue popover |
-| 20 | `092-core-submit-form-navigation.js.part` | 907 | True for ctrl/cmd/shift/alt-clicks (and non-primary buttons): the user |
+| 20 | `092-core-submit-form-navigation.js.part` | 908 | True for ctrl/cmd/shift/alt-clicks (and non-primary buttons): the user |
 | 21 | `095-shared-client.js.part` | 598 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
 | 22 | `096-quick-jump.js.part` | 188 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
 | 23 | `097-today.js.part` | 943 | TODAY (owner design , session Compass). |
 | 24 | `098-smm-clients.js.part` | 115 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
 | 25 | `099-phone-staff-shell.js.part` | 392 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
-| 26 | `099-staff-phone-bar.js.part` | 658 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
+| 26 | `099-staff-phone-bar.js.part` | 670 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
 | 27 | `100-onboarding-staff-controls.js.part` | 2449 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 28 | `110-time-off.js.part` | 1393 | Kasper Time Off calendar |
 | 29 | `112-smm-weekly-reports.js.part` | 722 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
@@ -71,7 +71,7 @@
 | 63 | `322-core-kasper-tab-counts.js.part` | 34 | — |
 | 64 | `323-kasper-dashboard-tail.js.part` | 984 | Messages tab = the shared Messages inbox (326-core-messages-inbox), or |
 | 65 | `324-client-onboarding-panel.js.part` | 800 | talking to the functions (admin only; the server checks the key and the member again) |
-| 66 | `326-core-messages-inbox.js.part` | 708 | Messages inbox (Notes Step 2) |
+| 66 | `326-core-messages-inbox.js.part` | 815 | Messages inbox (Notes Step 2) |
 | 67 | `330-kasper-review-history.js.part` | 2669 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 68 | `340-kasper-editors-board.js.part` | 734 | Editor work model |
 | 69 | `345-core-tooltip-date-picker.js.part` | 671 | Global styled tooltip — replaces every browser-native title popup |

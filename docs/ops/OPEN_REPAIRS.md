@@ -33175,9 +33175,8 @@ database work itself is small (read-only EXPLAIN ANALYZE: open posts 7.6 ms for 
 no migration. The cost is requests waiting for each other: for an admin (634 open posts, 948 linked deliverables) `inbox` made
 17 sequential round trips (member, budget, audit, roster, posts, 5 deliverable chunks, 5 note chunks, 2 read-mark chunks).
 
-**Fix.** Page: the call starts when the pointer or finger reaches the Messages button (a first version also started it 250 ms after
-the page was up; the repo's hermetic gates (`prod-structure-subset.js`, `pto-ui-polish.js`) treat any POST the page was not asked to
-make as a bug, so it was dropped rather than loosening them; the first quiet refresh still waits a minute); the last list is kept 10 minutes in this tab's own storage (sessionStorage), tagged with the member id, list lines only
+**Fix.** Page: the call starts when the pointer or finger reaches the Messages button (no timer or background tick starts it: the repo's hermetic gates (`prod-structure-subset.js`, `pto-ui-polish.js`, the TikTok queue first-read test) treat any POST the page was not asked to
+make as a bug, so only a real intent on the Messages button, or opening Messages, starts it; the live refresh runs only while Messages is open); the last list is kept 10 minutes in this tab's own storage (sessionStorage), tagged with the member id, list lines only
 (no conversation text beyond the one preview line), shown at once and replaced by the fresh answer; it is discarded on sign-out,
 on a different member, when expired, on any mismatch. A conversation opened from the cached list shows a chat placeholder and is
 marked read only after its notes arrive. The loading placeholder is the loaded markup with see-through words and grey bars, so
@@ -33188,6 +33187,12 @@ visibility, audit) is untouched.
 
 **After** (same script): cold click at once 1909 (it is the server answer), pointer resting on the button 0.5 s 1376,
 1.5 s 376, reopened in the same tab 14, second visit 16; first grey placeholder 15 to 17 ms after the click.
+
+**Getting out (owner, 2026-10-15; replaces "no Close button").** The Messages button toggles: pressed while Messages is open it
+closes and puts the person back on the same tab, client, open card, Sheet or window scroll. A Close button sits top right on desktop and
+in the phone title bar (44 px) and does the same; Escape closes on desktop unless a text box holds typed text (drafts are kept); browser
+Back returns the same way; a page opened straight from a link closes to the Calendar. Tests: block P of `messages-inbox-browser.js`
+(desktop and 390 px, light and dark); screenshots `docs/audits/messages-speed/close-*.png`.
 
 **Release.** The page ships with the next Pages deploy of main. The server part needs a `production-comments` deploy; the page
 works with the old function too (the saving is then only the early start and the cache). No migration. **Way back:** revert the

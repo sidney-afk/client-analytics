@@ -4,7 +4,7 @@ import { showToast } from './040-shared-briefs.js';
 import { navTo } from './092-core-submit-form-navigation.js';
 import { currentNav } from './065-core-nav-intake-state.js';
 import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
-import { calState } from './130-calendar-model-cache.js';
+import { _calSetFocusRequest, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
 import { _calDeriveThumb, onCalClientChange } from './160-calendar-organize-ui.js';
 import { COMP_LABELS } from './180-calendar-native-post-media.js';
@@ -33,14 +33,12 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
        thread it answers, so it keeps that thread's part and audience. */
     const MSG_URL = CAL_SUPABASE_URL + '/functions/v1/production-comments';
     const MSG_REFRESH_MS = 120000;
-    const MSG_FIRST_LOAD_MS = 60000;
     const _msgState = {
         loading: false, loaded: false, error: '', conversations: [], scope: '',
         openId: '', replyTo: '', draft: '', sending: false, filter: 'all', lastAt: 0,
         unavailable: false, fromCache: false, readWhenFresh: '', owner: '', epoch: 0,
     };
     let _msgTimer = null;
-    let _msgFirstTimer = null;
     const _msgFallbackHooks = [];
     // Phone presentation only; the native inbox and Notes writers own access,
     // unread marks, audience, component and reply persistence.
@@ -103,7 +101,7 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         _msgState.unavailable = true;
         _msgCacheClear();
         if (_msgTimer) { clearInterval(_msgTimer); _msgTimer = null; }
-        if (_msgFirstTimer) { clearTimeout(_msgFirstTimer); _msgFirstTimer = null; }
+        _msgReturn = null;
         _msgLeavePage();
         const btn = document.getElementById('navMessages');
         if (btn) btn.style.display = 'none';
@@ -261,8 +259,8 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
             el.hidden = n === 0;
         });
     }
-    /* Called whenever the staff sign-in changes (100): start or stop the
-       quiet background refresh that keeps the counts current. */
+    /* Called whenever the staff sign-in changes (100): forget the last
+       person's list when the sign-in ends or changes. */
     function _msgOnIdentity() {
         const member=_msgMyId();
         if(_msgPhone.member!==member){
@@ -270,9 +268,9 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
             if(_msgPhone.member&&_msgIsPhone()){_msgState.draft='';_msgState.replyTo='';_msgState.openId='';}
             _msgPhone.member=member;
         }
-        if (_msgTimer) { clearInterval(_msgTimer); _msgTimer = null; }
-        if (_msgFirstTimer) { clearTimeout(_msgFirstTimer); _msgFirstTimer = null; }
         if (!_msgCanUse()) {
+            if (_msgTimer) { clearInterval(_msgTimer); _msgTimer = null; }
+            _msgReturn = null;
             _msgPhone.drafts.clear();_msgPhone.unread.clear();_msgPhone.query='';
             _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgState.openId = '';
             _msgState.readWhenFresh = '';
@@ -292,15 +290,13 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         _msgState.owner = _msgMyId();
         // The Messages page was opened before the sign-in was known (a reload
         // on #messages): draw it now.
-        if (document.getElementById('msgPage')) { _msgPaint(); _msgLoad(false); }
-        // Nothing loads during boot: the first quiet refresh waits a minute
-        // (opening the inbox loads at once), then repeats every two minutes.
-        _msgFirstTimer = setTimeout(() => {
-            _msgFirstTimer = null;
-            if (!_msgCanUse() || _msgState.unavailable) return;
-            if (!document.hidden) _msgLoad(true);
-            _msgTimer = setInterval(() => { if (!document.hidden) _msgLoad(true); }, MSG_REFRESH_MS);
-        }, MSG_FIRST_LOAD_MS);
+        // (The page can also have been put on screen before this file ran, an empty shell: fill it.)
+        const shell = document.getElementById('msgPage');
+        if (shell && !shell.querySelector('.msg-page-body')) _msgMountPage(shell);
+        else if (shell) { _msgPaint(); _msgLoad(false); }
+        // Nothing is asked of the server from here: the inbox is read only when
+        // the person shows intent (pointer or focus on the Messages button, or
+        // opening Messages), never from a timer on some other page.
     }
 
     /* ── Drawing ── */
@@ -683,18 +679,129 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
     /* ── The Messages page ──
        A normal page under the header, like Calendar or Samples (route
        "messages" in navTo). The header Messages button, its copy in the phone
-       Tabs menu, and the Kasper Messages tab all open it; any other tab
-       leaves it. No Close button and no focus trap: it is a page, not a
-       dialog. */
+       Tabs menu, and the Kasper Messages tab all open it.
+
+       Getting out (owner, 2026-10-15): the Messages button is a toggle, there
+       is a Close button (top right; on a phone in the phone title bar), Escape
+       closes it on a desktop (never while a typed reply has the caret), and the
+       browser Back button leaves it too. All of them put the person back where
+       they were when they opened it: the same tab and client, the card that was
+       open, and every scroll position. Opened straight from a link (nothing
+       to go back to), they land on the Calendar. Nothing typed is thrown away. */
+    let _msgReturn = null;           // where the person was when Messages opened
+    let _msgLeftBoot = false;        // the page was first loaded on Messages itself
+    const _msgBootOnMessages = /^\/messages\/?$/.test(location.pathname) || /^#\/?messages/.test(location.hash);
+    const _msgSig = el => el.id ? '#' + el.id : el.tagName.toLowerCase() + '.' + [...el.classList].slice(0, 2).join('.');
+    // Pressing the Messages button (or Tabs, on a phone) counts as "clicking away" for the Calendar's open-card
+    // outline, which drops it before the page changes. Note the card on the way down, in the capture phase, ahead of it.
+    let _msgPeek = null;
+    document.addEventListener('mousedown', e => {
+        if (!e.target || !e.target.closest || !e.target.closest('#navMessages, [onclick*="_msgOpenPage"], .pocket-staff-tabs-btn, #pocketStaffTabs')) return;
+        const open = document.querySelector('.cal-card-focused');
+        if (open) _msgPeek = { cardId: String(open.dataset.pid || ''), at: Date.now() };
+    }, { capture: true, passive: true });
+    function _msgCapture() {
+        if (_msgBootOnMessages && !_msgLeftBoot) { _msgReturn = null; return; }
+        const scrollers = [];
+        const content = document.getElementById('content');
+        if (content) {
+            const seen = new Map();
+            content.querySelectorAll('*').forEach(el => {
+                const key = _msgSig(el), n = seen.get(key) || 0;
+                seen.set(key, n + 1);
+                if (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) {
+                    if (el.scrollTop > 0 || el.scrollLeft > 0) scrollers.push({ key, n, top: el.scrollTop, left: el.scrollLeft });
+                }
+            });
+        }
+        // The card that is open on the Calendar (outlined, and named in the address).
+        const open = document.querySelector('.cal-card-focused');
+        const cardId = open ? String(open.dataset.pid || '') : (_msgPeek && Date.now() - _msgPeek.at < 20000 ? _msgPeek.cardId : '');
+        _msgPeek = null;
+        _msgReturn = {
+            nav: currentNav, client: String(calState.client || ''), cardId,
+            scrollY: window.scrollY || 0, scrollers
+        };
+    }
+    // navTo tells this before it changes anything, so the page being left is still whole.
+    window.svMessagesNavHook = function (page) {
+        if (page === 'messages') { if (currentNav !== 'messages') _msgCapture(); }
+        else if (currentNav === 'messages') _msgLeftBoot = true;
+    };
+    // Put the places back, and keep doing it for a few seconds: the Calendar paints in stages (cards arrive, its own
+    // scroll-into-view runs, a refresh re-draws the strip) and any of them can move a place the person just got back.
+    // The first thing the person does themselves (wheel, touch, key, press) ends it.
+    function _msgApplyScroll(r, tries) {
+        const content = document.getElementById('content');
+        if (content && content.children.length && !document.getElementById('msgPage')) {
+            const bySig = new Map();
+            content.querySelectorAll('*').forEach(el => { const k = _msgSig(el); if (!bySig.has(k)) bySig.set(k, []); bySig.get(k).push(el); });
+            r.scrollers.forEach(sc => {
+                const el = (bySig.get(sc.key) || [])[sc.n];
+                if (el && (Math.abs(el.scrollTop - sc.top) > 1 || Math.abs(el.scrollLeft - sc.left) > 1)) { el.scrollTop = sc.top; el.scrollLeft = sc.left; }
+            });
+            if (r.scrollY && Math.abs(window.scrollY - r.scrollY) > 1) window.scrollTo({ top: r.scrollY, behavior: 'instant' });
+        }
+        if (tries < 60 && !r.stop) setTimeout(() => _msgApplyScroll(r, tries + 1), 100);
+    }
+    function _msgRestore(push) {
+        const r = _msgReturn; _msgReturn = null;
+        const nav = r && r.nav && r.nav !== 'messages' ? r.nav : 'calendar';
+        // Ask the Calendar for the card (or the client, when a reply loaded another one) only when it is needed:
+        // a bare request would also move it off the view the person had.
+        if (nav === 'calendar' && r && r.client && (r.cardId || calState.client !== r.client)) {
+            _calSetFocusRequest({ client: r.client, cardId: r.cardId || null });
+        }
+        navTo(nav, push);
+        if (r && (r.scrollY || r.scrollers.length)) {
+            const stop = () => { r.stop = true; };
+            ['wheel', 'touchstart', 'keydown', 'mousedown'].forEach(t => window.addEventListener(t, stop, { once: true, passive: true }));
+            _msgApplyScroll(r, 0);
+        }
+    }
+    function _msgClose() {
+        if (!document.getElementById('msgPage')) return;
+        _msgPhoneKeepDraft();
+        try { document.getElementById('msgReplyBox')?.blur(); } catch (e) {}
+        _msgRestore(true);
+    }
+    // The header button, the Tabs menu copy of it and the Kasper tab: open it, or close it when it is open.
     function _msgOpenPage() {
         if (!_msgCanUse()) return;
+        if (document.getElementById('msgPage')) { _msgClose(); return; }
         try { _syncviewCloseStaffAccount(); } catch (e) {}
         navTo('messages');
     }
+    // Browser Back (and Forward) out of the page: where the person was, not just the same tab.
+    window.svMessagesConsumeReturn = function (e) {
+        if (!document.getElementById('msgPage') || !_msgReturn) return false;
+        const st = e.state;
+        if (st && (st.nav === 'messages' || st.thumbMessagesParent || st.thumbMessagesThread)) return false;
+        _msgRestore(false);
+        return true;
+    };
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return;
+        if (!document.getElementById('msgPage') || _msgIsPhone()) return;
+        const a = document.activeElement;
+        if (a && /^(TEXTAREA|INPUT)$/.test(a.tagName) && String(a.value || '').trim()) return;   // a typed reply is never lost
+        if (document.querySelector('dialog[open]')) return;
+        e.preventDefault();
+        _msgClose();
+    });
+    // While the page is open it refreshes itself every two minutes; the timer ends with the page.
+    function _msgStartLive() {
+        if (_msgTimer) return;
+        _msgTimer = setInterval(() => {
+            if (!document.getElementById('msgPage')) { clearInterval(_msgTimer); _msgTimer = null; return; }
+            if (!document.hidden && !_msgState.unavailable) _msgLoad(true);
+        }, MSG_REFRESH_MS);
+    }
     function _msgMountPage(el) {
         if (!el) return;
-        el.innerHTML = '<div class="msg-page-head"><h1>Messages</h1></div><div class="msg-page-body"></div>';
+        el.innerHTML = '<div class="msg-page-head"><h1>Messages</h1><button type="button" class="msg-close" onclick="_msgClose()" aria-label="Close Messages"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>Close</button></div><div class="msg-page-body"></div>';
         _msgRenderInto(el.querySelector('.msg-page-body'));
+        _msgStartLive();
     }
     window._msgMountPage = _msgMountPage;
     // Signed out, or the inbox backend is gone: leave the Messages page.
@@ -702,7 +809,7 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        _msgBack, _msgLoad, _msgMarkUnread, _msgOnDraft, _msgOnKey, _msgOpen, _msgOpenCard, _msgOpenPage,
-        _msgPhoneMore, _msgPhoneSearch, _msgReply, _msgSetFilter, _msgSetReplyTo
+        _msgBack, _msgClose, _msgLoad, _msgMarkUnread, _msgOnDraft, _msgOnKey, _msgOpen, _msgOpenCard,
+        _msgOpenPage, _msgPhoneMore, _msgPhoneSearch, _msgReply, _msgSetFilter, _msgSetReplyTo
     });
 export { _msgInboxLive, _msgOnFallback, _msgOnIdentity, _msgPaintCounts };

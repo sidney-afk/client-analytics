@@ -1,0 +1,394 @@
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewRequireStaffIdentity } from './100-onboarding-staff-controls.js';
+import { _calRuntimeFlagClient, _calRuntimeFlagRawMembers, _calRuntimeFlagSlug, _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
+import { calClientSlug, calState } from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
+    /* WATCH HERE: a card's Frame.io video and its Frame.io comments, inside SyncView (staff only).
+
+       ONE viewer, opened from the Calendar card, the SMM review panel and Kasper's review. Every
+       "Watch here" button carries the card's video link; the viewer asks the frameio-view function
+       (a staff key is required; client links never get the button or the viewer) for a fresh playable
+       address and the comments, and plays them in our own player. Read only: replying stays in Frame.io
+       (the buttons open the video there), and nothing the function returns is saved by the page.
+
+       If anything fails, the viewer says so in a sentence and the normal Frame.io link keeps working:
+       the link is in the header from the first frame, before anything has loaded. */
+    const FRAMEIO_VIEW_EF_URL = CAL_SUPABASE_URL + '/functions/v1/frameio-view';
+    const FV_FETCH_MS = 45000;
+    // The three link shapes the function understands. Anything else gets no button.
+    const FV_LINK_RE = /https?:\/\/(?:f\.io\/[A-Za-z0-9_-]{3,40}|next\.frame\.io\/(?:share|project)\/[0-9a-f-]{36}[^\s<>"']*)/i;
+    const FV_STATE = { open: false, seq: 0, link: '', title: '', data: null, opener: null, retried: false, resumeAt: 0 };
+
+    function _fvLinkOf(raw) {
+        const m = String(raw || '').match(FV_LINK_RE);
+        return m ? m[0].replace(/[),.;]+$/, '') : '';
+    }
+    const FV_PLAY_ICO = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4.5 2.7v10.6a.5.5 0 0 0 .76.43l8.6-5.3a.5.5 0 0 0 0-.86l-8.6-5.3a.5.5 0 0 0-.76.43z"/></svg>';
+
+    /* WHO SEES IT: one runtime flag row, read the way the per-client flags are read (a bounded read with the
+       public key, then a realtime channel). Key frame_viewer_clients, value { "all": false, "clients": [...] }.
+       It fails closed: a missing row, a value of the wrong shape, a failed read or a deleted row all mean hidden.
+       The list lives only in the database, never in this repo. A client link never reads it at all.
+
+       The buttons are always drawn (so a later flip needs no repaint of the cards) but carry the hidden
+       attribute unless the flag allows their card's client; hidden is display none, so with the flag off the
+       page looks exactly as it did before the viewer existed. */
+    const FRAME_VIEWER_FLAG_KEY = 'frame_viewer_clients';
+    const FV_FLAG_TIMEOUT_MS = 4000;
+    const FV_FLAG_RETRY_MS = 30000;
+    let _fvFlag = { all: false, clients: new Set() };
+    let _fvFlagPromise = null;
+    let _fvFlagChannel = null;
+    let _fvFlagTriedAt = 0;
+
+    // The flag row's value to the answer. Only exact shapes open anything: all must be literally true, and the
+    // clients must be a list of strings.
+    function _fvFlagParse(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return { all: false, clients: new Set() };
+        const members = _calRuntimeFlagRawMembers(value) || [];
+        return { all: value.all === true, clients: new Set(members.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)) };
+    }
+    function _fvFlagSlugOf(clientOrSlug) {
+        let slug = '';
+        try { slug = calClientSlug(String(clientOrSlug == null ? '' : clientOrSlug)); } catch (e) { slug = ''; }
+        return slug || '';
+    }
+    function _fvEnabledFor(clientOrSlug) {
+        if (_isClientLink) return false;
+        if (_fvFlag.all === true) return true;
+        const slug = _fvFlagSlugOf(clientOrSlug);
+        return !!slug && _fvFlag.clients.has(slug);
+    }
+    function _fvSyncButtons() {
+        document.querySelectorAll('.fv-gated').forEach((b) => {
+            if (_fvEnabledFor(b.getAttribute('data-fv-client'))) b.removeAttribute('hidden');
+            else b.setAttribute('hidden', '');
+        });
+    }
+    function _fvFlagSet(value) {
+        _fvFlag = _fvFlagParse(value);
+        _fvSyncButtons();
+    }
+    async function _fvFlagFetch() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _fvFlagSet(null); return; }
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, FV_FLAG_TIMEOUT_MS) : null;
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(FRAME_VIEWER_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined, headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            if (!Array.isArray(rows)) throw new Error('shape');
+            _fvFlagSet(rows[0] && rows[0].value ? rows[0].value : null);
+        } catch (e) {
+            _fvFlagSet(null);
+            _fvFlagPromise = null;   // a later render may try again (not sooner than FV_FLAG_RETRY_MS)
+            console.warn('[Frame viewer] switch unreadable; the viewer stays hidden', e && e.message);
+        } finally { if (timer) clearTimeout(timer); }
+    }
+    async function _fvFlagSubscribe() {
+        if (_fvFlagChannel) return;
+        const client = await _calRuntimeFlagClient();
+        if (!client || _fvFlagChannel) return;
+        try {
+            _fvFlagChannel = client
+                .channel('syncview-frame-viewer-flag')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + FRAME_VIEWER_FLAG_KEY }, (payload) => {
+                    // A delete arrives with no new row: that is off.
+                    const row = payload && payload.new ? payload.new : null;
+                    _fvFlagSet(row && row.value ? row.value : null);
+                })
+                .subscribe();
+        } catch (e) {
+            console.warn('[Frame viewer] realtime subscribe failed', e);
+            _fvFlagChannel = null;
+        }
+    }
+    // Staff pages only, once per page (again after a failed read, at most every 30 seconds).
+    function _fvPrimeFlag() {
+        if (_isClientLink) return;
+        if (_fvFlagPromise) return;
+        if (Date.now() - _fvFlagTriedAt < FV_FLAG_RETRY_MS && _fvFlagTriedAt) return;
+        _fvFlagTriedAt = Date.now();
+        _fvFlagPromise = _fvFlagFetch();
+        _fvFlagPromise.then(() => _fvFlagSubscribe()).catch(() => null);
+    }
+
+    /* The button every surface drops in. Empty for a client link page, and for a card whose video link is
+       not a Frame.io link, so nothing about those pages changes. */
+    function svFrameWatchBtnHtml(rawLink, title, cls, client) {
+        if (_isClientLink) return '';
+        const link = _fvLinkOf(rawLink);
+        if (!link) return '';
+        _fvPrimeFlag();
+        const who = _fvFlagSlugOf(client || (calState && calState.client) || '');
+        const hidden = _fvEnabledFor(who) ? '' : ' hidden';
+        return `<button type="button" class="${_calEscAttr(cls || 'fv-watch-btn')} fv-gated" data-fv-client="${_calEscAttr(who)}" data-fv-link="${_calEscAttr(link)}" data-fv-title="${_calEscAttr(title || '')}"${hidden} onclick="event.stopPropagation();svFrameViewerOpen(this)" title="Watch the video and read its Frame.io comments here">${FV_PLAY_ICO}<span>Watch here</span></button>`;
+    }
+
+    // Escape closes it wherever the focus is (it can be on nothing after a button inside the viewer is replaced).
+    function _fvKey(e) { if (e.key === 'Escape' && FV_STATE.open) { e.stopPropagation(); svFrameViewerClose(); } }
+
+    function _fvEl() { return document.getElementById('fvOverlay'); }
+    function _fvPart(sel) { const el = _fvEl(); return el ? el.querySelector(sel) : null; }
+    function _fvTime(sec) {
+        const s = Math.max(0, Math.floor(Number(sec) || 0));
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+        return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(r).padStart(2, '0');
+    }
+    function _fvAgo(iso) {
+        const t = Date.parse(iso);
+        if (!t) return '';
+        const d = Math.max(0, Date.now() - t), day = 86400000;
+        if (d < 3600000) return Math.max(1, Math.round(d / 60000)) + ' min ago';
+        if (d < day) return Math.round(d / 3600000) + ' h ago';
+        if (d < 30 * day) return Math.round(d / day) + ' d ago';
+        return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function _fvBuild() {
+        if (_fvEl()) return _fvEl();
+        const el = document.createElement('div');
+        el.id = 'fvOverlay';
+        el.className = 'fv-overlay';
+        el.setAttribute('role', 'dialog');
+        el.setAttribute('aria-modal', 'true');
+        el.setAttribute('aria-labelledby', 'fvTitle');
+        el.innerHTML = `<div class="fv-panel">
+            <div class="fv-head">
+                <div class="fv-head-text"><div class="fv-eyebrow">Frame.io</div><h2 class="fv-title" id="fvTitle"></h2></div>
+                <a class="fv-open-link" id="fvOpenLink" target="_blank" rel="noopener noreferrer">Open in Frame.io</a>
+                <button type="button" class="fv-close" aria-label="Close" onclick="svFrameViewerClose()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
+            </div>
+            <div class="fv-body">
+                <div class="fv-stage">
+                    <div class="fv-player" id="fvPlayer">
+                        <video class="fv-video" id="fvVideo" controls playsinline preload="metadata"></video>
+                        <div class="fv-state" id="fvState" role="status"></div>
+                    </div>
+                    <div class="fv-markers" id="fvMarkers" aria-hidden="true"></div>
+                    <div class="fv-meta" id="fvMeta"></div>
+                </div>
+                <aside class="fv-side" aria-label="Frame.io comments">
+                    <div class="fv-side-head"><span class="fv-side-title">Comments <span class="fv-count" id="fvCount"></span></span><button type="button" class="fv-refresh" id="fvRefresh" onclick="svFrameViewerReload()">Refresh</button></div>
+                    <div class="fv-list" id="fvList"></div>
+                    <div class="fv-side-foot"><a class="fv-reply-main" id="fvReplyMain" target="_blank" rel="noopener noreferrer">Reply in Frame.io</a><div class="fv-foot-note">Comments stay in Frame.io. Replies are written there.</div></div>
+                </aside>
+            </div>
+        </div>`;
+        // A press that began on the backdrop and ended on it closes the viewer; a drag out of the panel does not.
+        el.setAttribute('data-backdrop-dismiss', '');
+        el.addEventListener('click', (e) => { if (e.target === el && el._backdropPressBegan) svFrameViewerClose(); });
+        const v = el.querySelector('#fvVideo');
+        v.addEventListener('timeupdate', _fvTick);
+        v.addEventListener('loadedmetadata', _fvMarkers);
+        v.addEventListener('error', _fvVideoFailed);
+        document.body.appendChild(el);
+        return el;
+    }
+
+    function _fvSetState(kind, text, withRetry) {
+        const box = _fvPart('#fvState');
+        const player = _fvPart('#fvPlayer');
+        if (!box || !player) return;
+        player.setAttribute('data-state', kind);
+        if (kind === 'ready') { box.innerHTML = ''; return; }
+        if (kind === 'loading') {
+            box.innerHTML = `<div class="fv-spin" aria-hidden="true"></div><div class="fv-state-text">${_calEsc(text || 'Loading the video from Frame.io…')}</div>`;
+            return;
+        }
+        box.innerHTML = `<div class="fv-state-text fv-state-bad">${_calEsc(text || 'The video could not be loaded.')}</div>
+            <div class="fv-state-actions">${withRetry ? '<button type="button" class="fv-btn" onclick="svFrameViewerReload()">Try again</button>' : ''}<a class="fv-btn fv-btn-ghost" href="${_calEscAttr(FV_STATE.link)}" target="_blank" rel="noopener noreferrer">Open in Frame.io</a></div>`;
+    }
+
+    function _fvRenderList(data, loading, failMsg) {
+        const list = _fvPart('#fvList'), count = _fvPart('#fvCount');
+        if (!list) return;
+        if (loading) {
+            list.innerHTML = '<div class="fv-skel"></div><div class="fv-skel"></div><div class="fv-skel fv-skel-short"></div>';
+            if (count) count.textContent = '';
+            return;
+        }
+        if (failMsg) {
+            list.innerHTML = `<div class="fv-note fv-note-bad">${_calEsc(failMsg)}<div><button type="button" class="fv-btn fv-btn-small" onclick="svFrameViewerReload()">Try again</button></div></div>`;
+            if (count) count.textContent = '';
+            return;
+        }
+        const comments = (data && data.comments) || [];
+        if (count) count.textContent = comments.length ? String(comments.length) : '';
+        if (!comments.length) { list.innerHTML = '<div class="fv-note">No comments on this video yet.</div>'; return; }
+        const reply = _calEscAttr((data && data.open_url) || FV_STATE.link);
+        const who = (c) => (c.author ? _calEsc(c.author) : '<span class="fv-guest">Guest reviewer</span>');
+        const items = comments.map((c) => {
+            const t = c.time_seconds;
+            const chip = t == null ? '<span class="fv-time fv-time-none">No time</span>' : `<span class="fv-time">${_fvTime(t)}</span>`;
+            const replies = (c.replies || []).map((r) => `<div class="fv-reply"><div class="fv-r-top"><span class="fv-c-by">${who(r)}</span><span class="fv-c-when">${_calEsc(_fvAgo(r.created_at))}</span></div><div class="fv-c-text">${_calEsc(r.text)}</div></div>`).join('');
+            return `<li class="fv-c${c.done ? ' is-done' : ''}" data-id="${_calEscAttr(c.id)}" data-t="${t == null ? '' : t}">
+                <button type="button" class="fv-c-main" ${t == null ? 'disabled' : ''} onclick="svFrameViewerSeek(this)" title="${t == null ? 'This comment has no time in the video' : 'Jump to ' + _fvTime(t)}">
+                    <div class="fv-c-top">${chip}<span class="fv-c-by">${who(c)}</span><span class="fv-c-when">${_calEsc(_fvAgo(c.created_at))}</span>${c.done ? '<span class="fv-done">Done</span>' : ''}</div>
+                    <div class="fv-c-text">${_calEsc(c.text)}</div>
+                </button>
+                ${replies ? `<div class="fv-replies">${replies}</div>` : ''}
+                <a class="fv-c-reply" href="${reply}" target="_blank" rel="noopener noreferrer">Reply in Frame.io</a>
+            </li>`;
+        }).join('');
+        const notes = (data.comments_truncated ? '<div class="fv-note">Showing the first comments only. The rest are in Frame.io.</div>' : '')
+            + (data.reply_names_partial ? '<div class="fv-note">Some reply names are not shown.</div>' : '');
+        list.innerHTML = `<ul class="fv-c-list">${items}</ul>${notes}`;
+    }
+
+    function _fvMarkers() {
+        const track = _fvPart('#fvMarkers'), v = _fvPart('#fvVideo'), data = FV_STATE.data;
+        if (!track) return;
+        const dur = (v && isFinite(v.duration) && v.duration > 0) ? v.duration : ((data && data.video && data.video.duration_seconds) || 0);
+        if (!data || !dur) { track.innerHTML = ''; return; }
+        track.innerHTML = (data.comments || []).filter((c) => c.time_seconds != null && c.time_seconds <= dur)
+            .map((c) => `<button type="button" class="fv-mark" style="left:${Math.min(100, (c.time_seconds / dur) * 100).toFixed(2)}%" data-id="${_calEscAttr(c.id)}" data-t="${c.time_seconds}" onclick="svFrameViewerSeek(this)" aria-label="Comment at ${_calEscAttr(_fvTime(c.time_seconds))}"></button>`).join('');
+    }
+
+    function _fvTick() {
+        const v = _fvPart('#fvVideo'), list = _fvPart('#fvList');
+        if (!v || !list) return;
+        let now = null;
+        list.querySelectorAll('.fv-c[data-t]').forEach((li) => {
+            const t = li.getAttribute('data-t');
+            if (t !== '' && Number(t) <= v.currentTime + 0.25) now = li;
+        });
+        list.querySelectorAll('.fv-c.is-now').forEach((li) => { if (li !== now) li.classList.remove('is-now'); });
+        if (now) now.classList.add('is-now');
+    }
+
+    function svFrameViewerSeek(btn) {
+        const holder = btn.closest('[data-t]') || btn;
+        const t = Number(holder.getAttribute('data-t'));
+        const v = _fvPart('#fvVideo');
+        if (!v || !isFinite(t)) return;
+        v.currentTime = t;
+        const p = v.play();
+        if (p && p.catch) p.catch(() => {});
+        _fvTick();
+    }
+
+    function _fvShowReady(data) {
+        FV_STATE.data = data;
+        const v = _fvPart('#fvVideo');
+        const meta = _fvPart('#fvMeta');
+        const open = data.open_url || FV_STATE.link;
+        _fvPart('#fvOpenLink').setAttribute('href', open);
+        _fvPart('#fvReplyMain').setAttribute('href', open);
+        if (meta) meta.textContent = [data.video.name, data.video.duration_seconds ? _fvTime(data.video.duration_seconds) : ''].filter(Boolean).join(' · ');
+        const resume = FV_STATE.resumeAt;
+        FV_STATE.resumeAt = 0;
+        v.src = data.video.url;
+        if (resume > 0) v.addEventListener('loadedmetadata', () => { try { v.currentTime = resume; } catch (e) {} }, { once: true });
+        _fvSetState('ready');
+        if (data.comments_error) _fvRenderList(data, false, 'The comments could not be loaded just now.');
+        else _fvRenderList(data, false);
+        _fvMarkers();
+    }
+
+    async function _fvLoad() {
+        const seq = ++FV_STATE.seq;
+        _fvSetState('loading');
+        _fvRenderList(null, true);
+        const markers = _fvPart('#fvMarkers'); if (markers) markers.innerHTML = '';
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, FV_FETCH_MS) : null;
+        try {
+            const resp = await fetch(FRAMEIO_VIEW_EF_URL, {
+                method: 'POST',
+                headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, FRAMEIO_VIEW_EF_URL),
+                body: JSON.stringify({ link: FV_STATE.link }),
+                signal: ctrl ? ctrl.signal : undefined
+            });
+            const json = await resp.json().catch(() => null);
+            if (seq !== FV_STATE.seq || !FV_STATE.open) return;
+            if (!resp.ok || !json || !json.ok || !json.video || !json.video.url) {
+                const msg = (json && json.message) || (resp.status === 401 || resp.status === 403
+                    ? 'Your staff sign-in was not accepted for this. Sign in again and retry.'
+                    : 'The video could not be loaded from Frame.io.');
+                _fvSetState('error', msg, true);
+                _fvRenderList(null, false, 'The comments could not be loaded.');
+                return;
+            }
+            _fvShowReady(json);
+        } catch (e) {
+            if (seq !== FV_STATE.seq || !FV_STATE.open) return;
+            _fvSetState('error', ctrl && e && e.name === 'AbortError' ? 'Frame.io took too long to answer.' : 'The video could not be loaded. Check your connection.', true);
+            _fvRenderList(null, false, 'The comments could not be loaded.');
+        } finally { if (timer) clearTimeout(timer); }
+    }
+
+    /* The video address is signed and expires. If the player stops with an error, ask once for a new one and
+       carry on from the same second; a second failure is shown as a normal error. */
+    function _fvVideoFailed() {
+        const v = _fvPart('#fvVideo');
+        if (!FV_STATE.open || !v || !v.getAttribute('src')) return;
+        if (!FV_STATE.retried) {
+            FV_STATE.retried = true;
+            FV_STATE.resumeAt = v.currentTime || 0;
+            _fvLoad();
+            return;
+        }
+        _fvSetState('error', 'This video could not be played here. It may need a different format.', true);
+    }
+
+    async function svFrameViewerOpen(btn) {
+        if (_isClientLink) return;
+        const link = _fvLinkOf(btn && btn.getAttribute && btn.getAttribute('data-fv-link'));
+        if (!link) return;
+        // A click can land before the switch has been read: wait for that one read (bounded), then decide.
+        _fvPrimeFlag();
+        if (_fvFlagPromise) { try { await _fvFlagPromise; } catch (e) {} }
+        if (!_fvEnabledFor(btn.getAttribute('data-fv-client'))) return;
+        try { await _syncviewRequireStaffIdentity('frame-view'); } catch (e) { return; }
+        FV_STATE.opener = btn || null;
+        FV_STATE.link = link;
+        FV_STATE.title = (btn && btn.getAttribute('data-fv-title')) || '';
+        FV_STATE.data = null;
+        FV_STATE.retried = false;
+        FV_STATE.resumeAt = 0;
+        FV_STATE.open = true;
+        const el = _fvBuild();
+        _fvPart('#fvTitle').textContent = FV_STATE.title || 'Watch here';
+        _fvPart('#fvOpenLink').setAttribute('href', link);
+        _fvPart('#fvReplyMain').setAttribute('href', link);
+        _fvPart('#fvMeta').textContent = '';
+        const v = _fvPart('#fvVideo'); v.removeAttribute('src'); try { v.load(); } catch (e) {}
+        el.classList.add('open');
+        document.body.classList.add('fv-lock');
+        document.addEventListener('keydown', _fvKey, true);
+        const close = _fvPart('.fv-close'); if (close) close.focus();
+        _fvLoad();
+    }
+
+    function svFrameViewerReload() {
+        if (!FV_STATE.open) return;
+        FV_STATE.retried = false;
+        const v = _fvPart('#fvVideo');
+        FV_STATE.resumeAt = (v && v.currentTime) || 0;
+        _fvLoad();
+    }
+
+    function svFrameViewerClose() {
+        const el = _fvEl();
+        FV_STATE.open = false;
+        FV_STATE.seq++;
+        if (!el) return;
+        const v = el.querySelector('#fvVideo');
+        if (v) { try { v.pause(); } catch (e) {} v.removeAttribute('src'); try { v.load(); } catch (e) {} }
+        el.classList.remove('open');
+        document.body.classList.remove('fv-lock');
+        document.removeEventListener('keydown', _fvKey, true);
+        const back = FV_STATE.opener;
+        FV_STATE.opener = null;
+        if (back && document.contains(back) && back.focus) { try { back.focus(); } catch (e) {} }
+    }
+
+    // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
+    Object.assign(window, {
+        svFrameViewerClose, svFrameViewerOpen, svFrameViewerReload, svFrameViewerSeek
+    });
+export {
+  svFrameWatchBtnHtml
+};

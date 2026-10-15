@@ -60,7 +60,7 @@ check('legacy client Samples view canonicalizes to sample-reviews',
 check('canonical client Samples history preserves the exact verified binding',
   INDEX.includes("clientSlug: entry.slug")
   && INDEX.includes("clientEntryView: view")
-  && INDEX.includes("return Object.freeze({ client: entry.client, slug: entry.slug, view, verified: true })"));
+  && INDEX.includes("return Object.freeze({ client: entry.client, slug: entry.slug, view, tab: entry.tab || '', verified: true })"));
 const clientSxrBoot = (INDEX.match(
   /if \(_isClientLink && _syncviewClientEntryCapability && _syncviewClientEntryCapability\.view === 'sample-reviews'\) \{[\s\S]{0,1600}?\n            \}/
 ) || [])[0] || '';

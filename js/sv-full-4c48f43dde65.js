@@ -13124,7 +13124,6 @@
         renderUndatedStrip();
         renderUnassignedStrip();
         renderWorkloadWeekendNotice();
-        if (typeof wlPhoneRender === 'function') wlPhoneRender();
 
         const bodyEl = document.getElementById('wlBody');
         if (!bodyEl) return;
@@ -13168,143 +13167,6 @@
             ? (wlState.showDeadlines ? renderWeekDeadlineTimeline() : renderWeekGrid())
             : renderMonthGrid();
     }
-
-    /* Thumb phone agenda is a presentation of the existing board. The board
-       remains the sole owner of filters, placements, weights and write guards. */
-    const wlPhone = { mode: 'agenda', date: null, person: null, scroll: 0 };
-    function wlPhoneRender() {
-        const root = document.querySelector('.workload-view');
-        if (!root) return;
-        if (!window.svIsStaffPhone?.()) {
-            const panel = root.querySelector('.thumb-wl-filter-contents');
-            const home = root.querySelector('.thumb-wl-filter-home');
-            if (panel && home) home.before(panel.firstElementChild);
-            root.querySelector('.thumb-wl-filters')?.close();
-            const content = root.querySelector('.thumb-wl-content');
-            if (content) content.replaceWith(...content.children);
-            root.querySelectorAll('[data-thumb-wl-node]').forEach(n => n.remove());
-            delete root.dataset.thumbWorkload;
-            root.style.removeProperty('--thumb-wl-top');
-            return;
-        }
-        if (!wlStaffMayView()) return;
-        if (!root.dataset.thumbWorkload) {
-            const header = document.createElement('div'); header.className = 'thumb-wl-header'; header.dataset.thumbWlNode = '';
-            header.innerHTML = '<div><strong>Agenda</strong><small class="thumb-wl-scope"></small></div><button type="button" data-thumb-wl-filter>Filters</button><button type="button" data-thumb-wl-refresh aria-label="Refresh workload">↻</button>';
-            const agenda = document.createElement('section'); agenda.className = 'thumb-wl-agenda'; agenda.dataset.thumbWlNode = ''; agenda.setAttribute('aria-label','Workload agenda');
-            const nav = document.createElement('nav'); nav.className = 'thumb-wl-nav'; nav.dataset.thumbWlNode = ''; nav.setAttribute('aria-label','Workload views');
-            nav.innerHTML = ['agenda','week','month'].map(mode => '<button type="button" data-thumb-wl-mode="'+mode+'">'+({agenda:'☰',week:'▤',month:'▦'}[mode])+'<span>'+mode[0].toUpperCase()+mode.slice(1)+'</span></button>').join('');
-            root.prepend(header, agenda); root.append(nav);
-            const content = document.createElement('div'); content.className = 'thumb-wl-content'; content.dataset.thumbWlNode = '';
-            agenda.before(content);
-            content.append(agenda,...root.querySelectorAll('#wlOverview,.workload-calendar-module,#wlUnassigned,#wlUndated,.workload-legend'));
-            const filters = root.querySelectorAll('.workload-toolbar-row')[1];
-            const dialog = document.createElement('dialog'); dialog.className = 'thumb-wl-filters'; dialog.dataset.thumbWlNode = ''; dialog.setAttribute('aria-label','Workload filters'); dialog.setAttribute('data-backdrop-dismiss','');
-            dialog.innerHTML = '<header><h2>Filters</h2><button type="button" data-thumb-wl-close>Done</button></header><div class="thumb-wl-filter-contents"></div>';
-            const home = document.createElement('span'); home.className = 'thumb-wl-filter-home'; home.dataset.thumbWlNode = ''; filters.before(home);
-            dialog.lastElementChild.append(filters); root.append(dialog);
-            const close = () => { wlCloseDropdowns(null); dialog.close(); };
-            dialog.querySelector('[data-thumb-wl-close]').onclick = close;
-            dialog.addEventListener('click', e => { if (e.target === dialog && dialog._backdropPressBegan) close(); });
-            dialog.addEventListener('close', () => { svLayerRelease('thumb-workload-filters'); header.querySelector('[data-thumb-wl-filter]').focus(); });
-            header.querySelector('[data-thumb-wl-filter]').onclick = e => {
-                dialog.showModal(); svLayerOpen({key:'thumb-workload-filters',region:dialog,opener:e.currentTarget,isOpen:()=>dialog.open,close});
-            };
-            header.querySelector('[data-thumb-wl-refresh]').onclick = () => root.querySelector('[data-wl-nav=refresh]').click();
-            root.addEventListener('click', e => {
-                if (e.target.closest('[data-thumb-wl-retry]')) { wlManualRefresh(); return; }
-                const mode = e.target.closest('[data-thumb-wl-mode]');
-                if (mode) {
-                    if (wlState.popoverAnchor) wlClosePopover(false);
-                    wlPhone.person = null; wlPhone.mode = mode.dataset.thumbWlMode; content.scrollTop = 0;
-                    if (wlPhone.mode !== 'agenda') {
-                        if (wlPhone.mode === 'month' && wlState.showDeadlines) {
-                            // The native Month guard still owns this boundary.
-                            wlPhone.mode = 'week';
-                        }
-                        root.querySelector('[data-wl-view='+wlPhone.mode+']').click();
-                    }
-                    wlPhoneRender(); return;
-                }
-                const date = e.target.closest('[data-thumb-wl-date]');
-                if (date) { wlPhone.date = date.dataset.thumbWlDate; wlPhoneRender(); return; }
-                const person = e.target.closest('[data-thumb-wl-person]');
-                if (person) {
-                    wlPhone.scroll = content.scrollTop; wlPhone.person = person.dataset.thumbWlPerson;
-                    history.replaceState({...history.state,thumbWorkloadParent:true},'');
-                    history.pushState({...history.state,thumbWorkloadParent:false,thumbWorkloadQueue:true},'');
-                    wlPhoneRender(); content.scrollTop = 0; root.querySelector('[data-thumb-wl-back]')?.focus({preventScroll:true}); return;
-                }
-                if (e.target.closest('[data-thumb-wl-back]')) {
-                    const id = wlPhone.person; wlPhone.person = null; wlPhoneRender(); content.scrollTop = wlPhone.scroll;
-                    [...root.querySelectorAll('[data-thumb-wl-person]')].find(n => n.dataset.thumbWlPerson === id)?.focus({preventScroll:true});
-                    if (history.state?.thumbWorkloadQueue) { wlPhone.returning = true; wlPhone.returningPerson = id; history.back(); }
-                }
-            });
-        }
-        root.dataset.thumbWorkload = wlPhone.mode;
-        root.style.setProperty('--thumb-wl-top',Math.max(0,root.getBoundingClientRect().top+window.scrollY)+'px');
-        if (window.scrollY) window.scrollTo(0,0);
-        root.querySelector('.thumb-wl-scope').textContent = [wlState.client === 'all' ? 'All clients' : wlState.client, wlState.team === 'all' ? 'All teams' : wlState.team].join(' · ');
-        root.querySelectorAll('[data-thumb-wl-mode]').forEach(button => {
-            button.setAttribute('aria-current',button.dataset.thumbWlMode === wlPhone.mode ? 'page' : 'false');
-            button.disabled = button.dataset.thumbWlMode === 'month' && wlState.showDeadlines;
-            button.setAttribute('data-tip',button.disabled ? 'Choose Plan only in Filters to use Month' : '');
-            button.setAttribute('aria-label',button.disabled ? 'Month unavailable. Choose Plan only in Filters.' : button.dataset.thumbWlMode);
-        });
-        root.querySelector('.thumb-wl-header strong').textContent = wlPhone.mode === 'agenda' ? 'Agenda' : 'Plan the '+wlPhone.mode;
-        const host = root.querySelector('.thumb-wl-agenda');
-        const today = wlWorkloadTodayISO(), date = wlPhone.date || today;
-        const rows = (wlState.allActiveSubs || []).filter(wlPassesFilters);
-        const loading = !_wlBoardHasAnyData() && (wlState.loading || wlState.planStatus === 'loading');
-        if (loading) { host.innerHTML = '<p>Loading workload…</p>'+Array.from({length:3},()=>_svLoadingSkeletonHtml('linear-search')).join(''); return; }
-        if (wlState.error && !rows.length) { host.innerHTML = '<div class="workload-error">Could not load workload. '+wlEscape(wlState.error)+' <button type="button" data-thumb-wl-retry>Try again</button></div>'; return; }
-        const overdue = new Set((wlState.overdue || []).map(s => s.id));
-        const due = s => String(s.dueDate || '').slice(0,10);
-        const workday = s => wlDisplayDate(s) || '';
-        const item = s => '<button type="button" class="thumb-wl-item" data-wl-issue-open="1" data-wl-issue-id="'+wlEscape(s.id)+'" data-wl-assignee-id="'+wlEscape(s.assigneeId || '')+'" data-wl-client="'+wlEscape(s.clientName || '')+'" data-wl-editor-name="'+wlEscape(wlDisplayName(s.assigneeName))+'"><span><strong>'+wlEscape(s.title || s.identifier || 'Work item')+'</strong><small>'+wlEscape([s.clientName,s.identifier].filter(Boolean).join(' · '))+'</small><small>'+wlEscape((workday(s) ? 'Work '+wlFormatShort(workday(s))+' · ' : '')+(due(s) ? 'Due '+wlFormatShort(due(s)) : 'No deadline'))+'</small><span class="thumb-wl-status'+(overdue.has(s.id)?' is-overdue':'')+'">'+wlEscape(overdue.has(s.id)?'Overdue':s.status || s.statusName || 'Active')+'</span></span><span aria-hidden="true">›</span></button>';
-        const sorted = list => list.slice().sort((a,b) => Number(overdue.has(b.id))-Number(overdue.has(a.id)) || (due(a)||'9999').localeCompare(due(b)||'9999') || wlSortSubIssues([a,b]).indexOf(a)-wlSortSubIssues([a,b]).indexOf(b));
-        if (wlPhone.person !== null) {
-            const id = wlPhone.person, queue = sorted(rows.filter(s => (s.assigneeId || '') === id));
-            const roster = wlState.editorRoster.find(r => r.id === id);
-            const name = wlDisplayName(queue[0]?.assigneeName || roster?.name) || 'Unassigned';
-            host.innerHTML = '<div class="thumb-wl-queue-head"><button type="button" data-thumb-wl-back aria-label="Back to agenda">‹</button><div><h2>'+wlEscape(name)+'</h2><small>'+queue.length+' active items · all dates</small></div></div>'+ (queue.length ? queue.map(item).join('') : '<p class="thumb-wl-empty">No active work for these filters.</p>');
-            return;
-        }
-        const monday = wlDefaultWeekStartISO(date);
-        const strip = Array.from({length:7},(_,i) => {
-            const day = wlAddDays(monday,i), d = wlParseISO(day);
-            return '<button type="button" data-thumb-wl-date="'+day+'" aria-pressed="'+(day===date)+'" aria-label="'+wlEscape(d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'}))+'"><small>'+d.toLocaleDateString('en-GB',{weekday:'short'})+'</small><strong>'+d.getDate()+'</strong>'+(day===today?'<span class="thumb-wl-today-dot" aria-label="Today"></span>':'')+'</button>';
-        }).join('');
-        const dayRows = rows.filter(s => workday(s)===date || due(s)===date);
-        const people = new Map();
-        for (const r of wlState.editorRoster) {
-            if ((wlState.editor==='all' || wlState.editor===r.id) && (wlState.team==='all' || wlState.team===r.team)) people.set(r.id,{id:r.id,name:r.name,team:r.team});
-        }
-        for (const s of rows) if (!people.has(s.assigneeId || '')) people.set(s.assigneeId || '',{id:s.assigneeId || '',name:s.assigneeName || 'Unassigned',team:wlTeamBucket(s.teamKey,s.teamName)});
-        const persons = [...people.values()].sort((a,b) => rows.filter(s=>s.assigneeId===b.id && overdue.has(s.id)).length-rows.filter(s=>s.assigneeId===a.id && overdue.has(s.id)).length || String(a.name).localeCompare(String(b.name)));
-        const personHtml = persons.map(p => {
-            const active = rows.filter(s=>(s.assigneeId || '')===p.id), assignedToday = dayRows.filter(s=>(s.assigneeId || '')===p.id);
-            const late = active.filter(s=>overdue.has(s.id)).length;
-            const units = wlWorkloadUnits(active.filter(s=>workday(s)===date));
-            const capacity = wlEditorCapacity(p.team==='graphics'?'GFX':'VID',p.team==='graphics'?'Graphics':'Video');
-            return '<button type="button" class="thumb-wl-person" data-thumb-wl-person="'+wlEscape(p.id)+'"><span class="thumb-wl-avatar">'+wlEscape(wlInitials(wlDisplayName(p.name)))+'</span><span><strong>'+wlEscape(wlDisplayName(p.name))+'</strong><small>'+wlEscape(p.team==='graphics'?'Graphics':'Video')+' · '+active.length+' active</small><small>'+units+' / '+capacity+' units on this day</small></span><span class="thumb-wl-person-count"><strong>'+assignedToday.length+'</strong><small'+(late?' class="is-overdue"':'')+'>'+(late?late+' overdue':'View queue')+'</small></span><span aria-hidden="true">›</span></button>';
-        }).join('');
-        const attention = sorted(rows.filter(s=>overdue.has(s.id))).slice(0,5);
-        host.innerHTML = '<div class="thumb-wl-period"><span>'+wlFormatShort(monday)+' – '+wlFormatShort(wlAddDays(monday,6))+'</span><button type="button" data-thumb-wl-date="'+wlAddDays(date,-7)+'" aria-label="Previous agenda week">‹</button><button type="button" data-thumb-wl-date="'+wlAddDays(date,7)+'" aria-label="Next agenda week">›</button></div><div class="thumb-wl-week">'+strip+'</div><div class="thumb-wl-summary"><span><strong>'+rows.filter(s=>overdue.has(s.id)).length+'</strong> Overdue</span><span><strong>'+dayRows.length+'</strong> On this day</span><button type="button" data-thumb-wl-date="'+today+'">Today</button></div><h2 class="thumb-wl-date-heading">'+wlParseISO(date).toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})+'</h2>'+personHtml+(persons.length?'':'<p class="thumb-wl-empty">No work matches these filters.</p>')+(attention.length?'<h3>Needs attention</h3>'+attention.map(item).join(''):'');
-    }
-    window.matchMedia?.('(max-width:767px)').addEventListener('change', () => {
-        if (document.querySelector('.workload-view') && wlStaffMayView()) wlPhoneRender();
-    });
-    window.addEventListener('popstate', e => {
-        const root = document.querySelector('.workload-view[data-thumb-workload]');
-        if (!root || !e.state?.thumbWorkloadParent || (wlPhone.person === null && !wlPhone.returning)) return;
-        e.stopImmediatePropagation();
-        const id = wlPhone.person ?? wlPhone.returningPerson; wlPhone.person = null; wlPhone.returning = false; wlPhone.returningPerson = null;
-        if (wlState.popoverAnchor) wlClosePopover(false);
-        wlPhoneRender(); root.querySelector('.thumb-wl-content').scrollTop = wlPhone.scroll;
-        [...root.querySelectorAll('[data-thumb-wl-person]')].find(n => n.dataset.thumbWlPerson === id)?.focus({preventScroll:true});
-    }, true);
 
     // Group a list of sub-issues into (assigneeId × clientName) rollups.
     // In-progress and planned items for the same editor+client on the same
@@ -30114,11 +29976,18 @@
        on the Sheet (organizer) by default but can pin their own Review (SMM
        Approval) queue; a saved view belonging to the other audience is coerced
        back to that side's default. */
+    let _calClientTabUsed = false;
     function _calResolveInitialView(savedView) {
         const allowed = ['review','smmreview','organizer','month','week'];
         const saved = allowed.includes(savedView) ? savedView : null;
         // Each audience only has its own review tab: coerce away a saved view
         // that belongs to the other side (client ↔ smmreview, SMM ↔ review).
+        // A client link made with tab=review (the Notify client alert) opens on Review once,
+        // whatever view this browser used last. Without it the saved view still decides.
+        if (_isClientLink && !_calClientTabUsed && _syncviewClientEntryCapability && _syncviewClientEntryCapability.tab === 'review') {
+            _calClientTabUsed = true;
+            return 'review';
+        }
         if (_isClientLink) return (saved && saved !== 'smmreview') ? saved : 'review';
         if (saved && saved !== 'review') return saved;
         return 'organizer';
@@ -70546,7 +70415,11 @@
     // step 5). It carries no credential and no route: only those two values pass
     // (see _syncviewClientEntryEnvelope) and it is dropped from the address once the
     // link is verified. Every other key is still refused.
-    const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr', 'split']);
+    // 'tab' is read only here, on a client link: tab=review opens the Calendar (or the
+    // Samples) on its Review view instead of the view this browser last used. It carries
+    // no credential and no route, only the value "review" passes, and it is dropped from
+    // the address once the link is verified. Links without it behave exactly as before.
+    const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr', 'split', 'tab']);
     let _syncviewClientEntryCapability = null;
     function _syncviewSetClientEntryCapability(value) { _syncviewClientEntryCapability = value; }
     let _syncviewClientEntryGeneration = 0;
@@ -70609,6 +70482,7 @@
         }
         // The one key that is not part of the link itself: exactly 0 or 1, nothing else.
         if (q.has('split') && q.get('split') !== '0' && q.get('split') !== '1') return { ok: false, reason: 'invalid_split' };
+        if (q.has('tab') && q.get('tab') !== 'review') return { ok: false, reason: 'invalid_tab' };
         if (q.getAll('c').length !== 1 || q.getAll('t').length !== 1) return { ok: false, reason: 'missing_credential' };
         const client = String(q.get('c') || '').trim();
         const token = String(q.get('t') || '').trim();
@@ -70642,7 +70516,9 @@
         if ((view === 'analytics' || !q.get('v')) && state && state.client && _syncviewClientEntrySlug(state.client) === slug) {
             if (state.clientTab === 'calendar' || state.clientTab === 'brief') view = 'calendar';
         }
-        return { ok: true, client, slug, token, view, legacyHash: !!hash };
+        // Only the Calendar and the Samples have a Review view to open on.
+        const tab = q.get('tab') === 'review' && (view === 'calendar' || view === 'sample-reviews') ? 'review' : '';
+        return { ok: true, client, slug, token, view, tab, legacyHash: !!hash };
     }
     function _writeUiCancelClientLegacyRetryTimers() {
         if (!_isClientLink) return;
@@ -70772,6 +70648,7 @@
         if (view === 'analytics') q.delete('v'); else q.set('v', view);
         if (view === 'sample-reviews') q.set('sxr', '1'); else q.delete('sxr');
         q.delete('split');   // the loader has read it by now; it is not part of the link
+        q.delete('tab');     // read once (kept on the capability below); a reload goes back to the saved view
         const tab = view === 'sample-reviews' ? 'sample-reviews' : view;
         const prev = history.state && _syncviewClientEntrySlug(history.state.client) === entry.slug ? history.state : {};
         const state = Object.assign({}, prev, {
@@ -70784,7 +70661,7 @@
         // A share link keeps whatever path it was opened on.
         const url = location.pathname + '?' + q.toString();
         history.replaceState(state, '', url);
-        return Object.freeze({ client: entry.client, slug: entry.slug, view, verified: true });
+        return Object.freeze({ client: entry.client, slug: entry.slug, view, tab: entry.tab || '', verified: true });
     }
     async function _syncviewPreflightClientEntry(generation, href) {
         const entry = _syncviewClientEntryEnvelope();
@@ -93331,4 +93208,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-7e7d46645d61.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-4c48f43dde65.js");

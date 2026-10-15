@@ -17,7 +17,13 @@ The separately reported `plp_console_errors` failure has not reproduced in three
 prod-layout-polish: desktop, compact desktop, and mobile list/filter/project/card/menu clipping checks plus 0 recovered read retries and 0 navigation-aborted reads passed
 ```
 
-The full fast lane is being replayed separately. These local passes do not establish the cause of the earlier hosted console error or make that failed run green.
+The full unchanged fast lane also completed locally:
+
+```text
+prod-polish-gate (fast): all 19 selected suite(s) passed in 324.1s
+```
+
+These local passes do not establish the cause of the earlier hosted console error or make that failed run green. The branches subsequently conflicted with new main commits. Main `71f684554e95f6a9b5ddc2167685fcc2979477c4` is now integrated, preserving the new viewer, notifications and every CI check. The complete dialog suite, required gateway and Production layout pass again on that integration. The refreshed full desktop comparison ends `1/1 desktop shots identical to origin/main`; its public pair is unchanged byte for byte.
 
 Actual final lines; intercepted fictional fixtures. No live write.
 

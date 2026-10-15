@@ -796,10 +796,10 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
        up the channel and the link itself (supabase/functions/client-review-alert),
        so nothing here can aim a message anywhere. Staff only (admin and SMM).
        The box always shows the exact words, the channel name and when an alert
-       last went out; inside six hours it says so and still allows sending. */
+       last went out (only when one did); inside six hours that one line is the warning and sending is still allowed. */
     const CLIENT_REVIEW_ALERT_URL = CAL_SUPABASE_URL + '/functions/v1/client-review-alert';
     const NOTIFY_CLIENT_SURFACES = { calendar: 'Calendar', samples: 'Samples' };
-    const _notifyClient = { surface: '', client: '', status: null, busy: false, error: '', done: '', note: '', loading: false, run: 0 };
+    const _notifyClient = { surface: '', client: '', status: null, busy: false, error: '', loading: false, run: 0 };
 
     function _notifyClientBtnHtml(surface) {
         if (_isClientLink) return '';
@@ -823,7 +823,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             case 'review_token_missing':
                 return 'This client has no review link yet. Use "Copy client link" once to create it, then try again.';
             case 'sending_not_enabled':
-                return 'Sending to clients is not switched on yet. Use "Send preview to me" to see the message.';
+                return 'Sending to clients is not switched on yet.';
             case 'log_unavailable':
                 return 'Could not save a record of this alert, so it was not sent. Try again in a moment.';
             case 'recently_sent':
@@ -858,16 +858,14 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         let json = null; try { json = await resp.json(); } catch (e) {}
         return { ok: !!(resp.ok && json && json.ok), code: json && json.error, status: resp.status, json: json || {} };
     }
-    function _notifyClientWhen(iso) {
+    function _notifyClientAgo(iso) {
         const t = Date.parse(iso || '');
         if (!Number.isFinite(t)) return '';
         const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
-        const hrs = Math.floor(mins / 60), days = Math.floor(mins / 1440);
-        const rel = mins < 1 ? 'just now' : mins < 60 ? mins + ' minute' + (mins === 1 ? '' : 's') + ' ago'
-            : mins < 1440 ? hrs + ' hour' + (hrs === 1 ? '' : 's') + ' ago' : days + ' day' + (days === 1 ? '' : 's') + ' ago';
-        let abs = '';
-        try { abs = new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) {}
-        return rel + (abs ? ' (' + abs + ')' : '');
+        if (mins < 1) return 'just now';
+        if (mins < 60) return mins + 'm ago';
+        if (mins < 1440) return Math.floor(mins / 60) + 'h ago';
+        return Math.floor(mins / 1440) + 'd ago';
     }
     function _notifyClientDialog() {
         let dlg = document.getElementById('notifyClientDialog');
@@ -884,7 +882,6 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             const what = act.getAttribute('data-nc-act');
             if (what === 'close') dlg.close();
             else if (what === 'send') _notifyClientSend();
-            else if (what === 'preview') _notifyClientPreview();
         });
         dlg.addEventListener('cancel', ev => { if (_notifyClient.busy) ev.preventDefault(); });
         dlg.addEventListener('close', () => { _notifyClient.run++; });
@@ -895,43 +892,36 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const dlg = document.getElementById('notifyClientDialog');
         if (!dlg) return;
         const st = _notifyClient.status;
-        const label = NOTIFY_CLIENT_SURFACES[_notifyClient.surface] || '';
         const busy = _notifyClient.busy;
         const who = _calEsc(_notifyClient.client);
         let body = '';
         if (_notifyClient.loading) {
-            body = '<p class="nc-note" role="status">Checking this client\'s channel…</p>';
+            body = '<p class="nc-note" role="status">Checking…</p>';
         } else if (st) {
-            const chan = st.channel && st.channel.name ? '<strong>#' + _calEsc(st.channel.name) + '</strong>' : 'their private Slack channel';
-            const memberWarn = st.channel && st.channel.bot_member === false
-                ? '<p class="nc-alert" role="alert">The Slack bot is not in this channel yet, so this send will fail. Add the bot in Slack first.</p>' : '';
-            const last = st.last
-                ? 'Last ' + _calEsc(label) + ' alert: ' + _calEsc(_notifyClientWhen(st.last.at)) + (st.last.by ? ' by ' + _calEsc(st.last.by) : '') + '.'
-                : 'No ' + _calEsc(label) + ' alert has been sent to this client yet.';
-            const recent = st.recent
-                ? '<p class="nc-warn" role="alert">An alert was sent less than ' + _calEsc(st.recent_hours) + ' hours ago. You can still send another.</p>' : '';
+            // One short line, only when an alert really went out before. Inside six hours it is the warning.
+            let last = '';
+            if (st.last) {
+                const when = _calEsc(_notifyClientAgo(st.last.at)) + (st.last.by ? ' by ' + _calEsc(st.last.by) : '');
+                last = st.recent
+                    ? '<p class="nc-warn" role="alert">Last sent ' + when + '</p>'
+                    : '<p class="nc-last">Last sent ' + when + '</p>';
+            }
             const blocked = !st.has_channel ? 'no_slack_channel' : !st.link_ready ? 'review_token_missing' : !st.sending_enabled ? 'sending_not_enabled' : '';
-            body = `<p class="nc-where">Goes to ${chan}, ${who}'s private channel.</p>
-                <div class="nc-msg" aria-label="The message">
+            const memberWarn = st.channel && st.channel.bot_member === false ? 'bot_not_in_channel' : '';
+            body = `<div class="nc-msg" aria-label="The message">
                     <div class="nc-msg-line">${_calEsc(st.headline)}</div>
-                    <span class="nc-msg-btn">${_calEsc(st.button)}</span>
-                </div>
-                <p class="nc-note">The button opens ${who}'s review page.</p>
-                <p class="nc-last">${last}</p>${recent}${memberWarn}`
-                + (blocked ? '<p class="nc-alert" role="alert">' + _calEsc(_notifyClientErrorText(blocked)) + '</p>' : '');
+                    <div class="nc-msg-link">${_calEsc(st.link_label || st.button || 'Review now')}</div>
+                </div>${last}`
+                + (blocked || memberWarn ? '<p class="nc-alert" role="alert">' + _calEsc(_notifyClientErrorText(blocked || memberWarn)) + '</p>' : '');
         }
-        if (_notifyClient.done) body += '<p class="nc-done" role="status">' + _calEsc(_notifyClient.done) + '</p>';
-        if (_notifyClient.note) body += '<p class="nc-done" role="status">' + _calEsc(_notifyClient.note) + '</p>';
         if (_notifyClient.error) body += '<p class="nc-alert" role="alert">' + _calEsc(_notifyClient.error) + '</p>';
-        const canSend = !!st && !_notifyClient.loading && st.has_channel && st.link_ready && st.sending_enabled && !_notifyClient.done;
+        const canSend = !!st && !_notifyClient.loading && st.has_channel && st.link_ready && st.sending_enabled;
         const sendLabel = busy === 'send' ? 'Sending…' : st && st.recent ? 'Send anyway' : 'Send alert';
         dlg.innerHTML = `<h2 id="notifyClientTitle">Notify ${who}</h2>
-            <p class="nc-sub">${_calEsc(label)} · one alert to their Slack channel</p>
             ${body}
             <div class="nc-actions">
-                <button type="button" class="nc-cancel" data-nc-act="close"${busy ? ' disabled' : ''}>${_notifyClient.done ? 'Close' : 'Cancel'}</button>
-                ${st && st.can_preview ? `<button type="button" class="nc-preview" data-nc-act="preview"${busy ? ' disabled' : ''}>${busy === 'preview' ? 'Sending preview…' : 'Send preview to me'}</button>` : ''}
-                ${_notifyClient.done ? '' : `<button type="button" class="nc-send" data-nc-act="send"${canSend && !busy ? '' : ' disabled'}>${_calEsc(sendLabel)}</button>`}
+                <button type="button" class="nc-cancel" data-nc-act="close"${busy ? ' disabled' : ''}>Cancel</button>
+                <button type="button" class="nc-send" data-nc-act="send"${canSend && !busy ? '' : ' disabled'}>${_calEsc(sendLabel)}</button>
             </div>`;
     }
     async function notifyClientOpen(surface) {
@@ -940,7 +930,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         if (!_syncviewStaffCan('notify-client')) { showToast('Only staff accounts can notify clients.'); return; }
         const dlg = _notifyClientDialog();
         const run = ++_notifyClient.run;
-        Object.assign(_notifyClient, { surface, client, status: null, busy: false, error: '', done: '', note: '', loading: true });
+        Object.assign(_notifyClient, { surface, client, status: null, busy: false, error: '', loading: true });
         _notifyClientRender();
         if (!dlg.open) dlg.showModal();
         const res = await _notifyClientCall({ action: 'status', client, surface });
@@ -954,15 +944,16 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const st = _notifyClient.status;
         if (!st || _notifyClient.busy) return;
         const run = _notifyClient.run;
-        Object.assign(_notifyClient, { busy: 'send', error: '', done: '', note: '' });
+        Object.assign(_notifyClient, { busy: 'send', error: '' });
         _notifyClientRender();
         const res = await _notifyClientCall({ action: 'send', client: _notifyClient.client, surface: _notifyClient.surface, confirm_recent: st.recent === true });
         if (run !== _notifyClient.run) return;
         _notifyClient.busy = false;
         if (res.ok) {
-            _notifyClient.done = 'Sent to ' + (st.channel && st.channel.name ? '#' + st.channel.name : 'their channel') + '.';
-            _notifyClient.status = Object.assign({}, st, { recent: true, last: { at: new Date().toISOString(), by: null, status: 'sent' } });
-            showToast('Client alerted in Slack');
+            const dlg = document.getElementById('notifyClientDialog');
+            if (dlg && dlg.open) dlg.close();
+            showToast('Alert sent');
+            return;
         } else if (res.code === 'recently_sent') {
             // Someone else sent while this box was open: show their time, ask again.
             _notifyClient.status = Object.assign({}, st, { recent: true, last: res.json.last || st.last });
@@ -970,18 +961,6 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         } else {
             _notifyClient.error = _notifyClientErrorText(res.code, res.status);
         }
-        _notifyClientRender();
-    }
-    async function _notifyClientPreview() {
-        if (_notifyClient.busy) return;
-        const run = _notifyClient.run;
-        Object.assign(_notifyClient, { busy: 'preview', error: '', done: '', note: '' });
-        _notifyClientRender();
-        const res = await _notifyClientCall({ action: 'preview', client: _notifyClient.client, surface: _notifyClient.surface });
-        if (run !== _notifyClient.run) return;
-        _notifyClient.busy = false;
-        if (res.ok) _notifyClient.note = 'Preview sent to your Slack messages. Nothing went to the client.';
-        else _notifyClient.error = _notifyClientErrorText(res.code, res.status);
         _notifyClientRender();
     }
 

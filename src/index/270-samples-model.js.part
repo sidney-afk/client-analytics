@@ -28,7 +28,7 @@ import {
   _calFetchDeliverableLinkRows, _calIdentFromUrl, _calLinkAdoptTriedSet, _calSupabaseFetchAllRows, _calV2LoadLib,
   _calV2Log
 } from './150-calendar-hydration-import.js';
-import {
+import { _notifyClientBtnHtml,
   _calChevron, _calClientHue, _calDeriveThumbInfo, _calDriveWarnHtml, _calFillLookupExisting,
   _calMatchClients, _calScrollTabStripToActive, _calStatusLabel, _calTabScrollBy,
   _calThumbFolderIconSvg, _calThumbIconHtml, _calThumbMediaHtml, _calThumbnailFolderUrl,
@@ -658,6 +658,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
                             return `<button type="button" class="cal-view-btn${sxrState.view === v ? ' active' : ''}" data-cal-view="${v}" onclick="onSxrViewChange('${v}')">${viewLabels[v]}${badge}</button>`;
                         }).join('')}
                     </div>
+                    ${_notifyClientBtnHtml('samples')}
                     <div class="cal-zoom" id="sxrZoomCtl" title="Card size">
                         <svg class="cal-zoom-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
                         <button type="button" id="sxrZoomOut" onclick="sxrZoom(-1)" aria-label="Zoom out"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="7" x2="11" y2="7"/></svg></button>

@@ -138,6 +138,15 @@ async function check(page, label, failures, totals) {
       for (const key of subtabs) {
         await page.evaluate(k => _kasperGotoTab(k), key);
         await page.waitForTimeout(SETTLE_MS);
+        // The Messages subtab opens the Messages page (route "messages").
+        if (key === 'replies') {
+          const nav = await page.evaluate(() => currentNav);
+          if (nav !== 'messages') { failures.push(`Kasper replies: did not open the Messages page (on ${nav})`); continue; }
+          await check(page, 'staff Messages page', failures, totals);
+          await page.click('#navKasper');
+          await page.waitForTimeout(SETTLE_MS);
+          continue;
+        }
         const now = await page.evaluate(() => _kasperState.tab);
         if (now !== key) { failures.push(`Kasper ${key}: subtab did not mount (on ${now})`); continue; }
         await check(page, `staff Kasper ${key}`, failures, totals);

@@ -14,6 +14,7 @@
      * `body:has(.pocket-staff-bar)`.
      *
      * Menu-only Time Off is identified by its mounted root, not a new nav tab.
+     * The Messages page is found the same way, by its mounted root.
      * Other staff screens join by adding their nav id to POCKET_STAFF_PAGES. */
     (function () {
         const POCKET_STAFF_PAGES = { navToday: 'Today', navTemplates: 'Templates', navFilmingPlans: 'Filming Plans', navLinear: 'Submit' };
@@ -52,6 +53,7 @@
             if (document.documentElement.classList.contains('boot-client')) return '';
             if (document.body.classList.contains('intake-mode') || document.body.classList.contains('onboarding-mode')) return '';
             if (document.querySelector('#content > .pto-wrap')) return 'Time Off';
+            if (document.querySelector('#content > #msgPage')) return 'Messages';
             // A page booting into Today (no tab active yet) already wears the
             // Today bar, so the bar does not change when Today opens.
             if (!activeNavId() && document.documentElement.getAttribute('data-boot-nav') === 'today') return 'Today';

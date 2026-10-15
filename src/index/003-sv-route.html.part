@@ -19,7 +19,7 @@
             'tiktok-upload': 'tiktok-upload', 'time-off': 'time-off',
             'sample-reviews': 'sample-reviews', 'smm-weekly-report': 'smm-weekly-report',
             'smm-weekly-reports': 'smm-weekly-reports', 'kasper': 'kasper',
-            'client-credentials': 'client-credentials'
+            'client-credentials': 'client-credentials', 'messages': 'messages'
         };
         var LEGACY = {};
         for (var k in SIMPLE) LEGACY[SIMPLE[k]] = k;

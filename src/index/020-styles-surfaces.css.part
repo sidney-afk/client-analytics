@@ -2791,13 +2791,11 @@
         .msg-nav-btn { position: relative; }
         .msg-nav-btn[hidden] { display: none; }
         .msg-nav-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-        .msg-panel { position: fixed; inset: 0; z-index: 900; background: var(--bg); display: flex; flex-direction: column; padding: 16px 24px 24px; }
-        .msg-panel[hidden] { display: none; }
-        .msg-panel-head { display: flex; align-items: center; justify-content: space-between; max-width: 1180px; width: 100%; margin: 0 auto 12px; }
-        .msg-panel-head h2 { margin: 0; font-size: 1.4rem; color: var(--text-primary); }
-        .msg-panel-body { max-width: 1180px; width: 100%; margin: 0 auto; flex: 1; min-height: 0; }
-        .msg-panel .msg-inbox { height: 100%; }
-        body.msg-panel-open { overflow: hidden; }
+        /* The Messages page uses the whole width under the header. */
+        body:has(#msgPage) .main { padding: 0; }
+        .msg-page { padding: 14px 16px 16px; display: flex; flex-direction: column; }
+        .msg-page-head h1 { margin: 0 0 10px; font-size: 1.3rem; color: var(--text-primary); }
+        .msg-page .msg-inbox { height: calc(100vh - 150px); }
         @media (max-width: 767px) {
             /* minmax(0, 1fr): a plain 1fr track grows to the longest unwrapped
                title or last message and pushed the time and unread badge off
@@ -2811,7 +2809,11 @@
             .msg-chat-sub { display: none; }
             .msg-act, .msg-filters button { min-height: 44px; }
             .msg-conv { min-height: 64px; }
-            .msg-panel { padding: 12px; }
+            .msg-page { padding: 12px 12px 16px; }
+            .msg-page .msg-inbox { height: calc(100vh - 150px); }
+            /* The phone title bar already says Messages. */
+            body:has(.pocket-staff-bar) .msg-page-head { display: none; }
+            body:has(.pocket-staff-bar) .msg-page .msg-inbox { height: calc(100vh - 110px); }
             .msg-reply .cal-cm-send { width: 44px; height: 44px; }
             .msg-chat-head .msg-thumb { display: none; }
             .msg-chat-head { gap: 6px; padding: 8px 10px; }

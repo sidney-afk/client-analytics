@@ -341,6 +341,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/calendar-card-status-filter-browser.js
+      - name: A client link made with tab=review opens on the Review view (Calendar and Samples)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/client-link-review-tab-browser.js
       - name: Notify client button and confirm box (Calendar and Samples, desktop and phone)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

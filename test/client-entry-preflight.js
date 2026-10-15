@@ -334,6 +334,7 @@ assert.deepStrictEqual(envelope('?c=Client+One&t=current-token'), {
   slug: 'clientone',
   token: 'current-token',
   view: 'analytics',
+  tab: '',
   legacyHash: false,
 });
 assert.strictEqual(envelope('?c=Client+One').reason, 'missing_credential');
@@ -358,6 +359,18 @@ for (const other of ['splitx', 'SPLIT', 'Split', 'spl', 'prod', 'kasper', 'nav',
   assert.strictEqual(envelope('?c=Client+One&t=token&' + other + '=1').reason, 'mixed_entry', other + ' is still refused');
   assert.strictEqual(envelope('?c=Client+One&t=token&split=0&' + other + '=1').reason, 'mixed_entry', other + ' is still refused next to split');
 }
+// tab=review (the Notify client alert's link) opens the Calendar or the Samples on Review. Only that value.
+assert.strictEqual(envelope('?c=Client+One&t=current-token&v=calendar&tab=review').tab, 'review', 'tab=review is carried for a Calendar link');
+assert.strictEqual(envelope('?c=Client+One&t=current-token&v=sample-reviews&sxr=1&tab=review').tab, 'review', 'tab=review is carried for a Samples link');
+assert.strictEqual(envelope('?c=Client+One&t=current-token&v=calendar').tab, '', 'a link without tab carries none');
+assert.strictEqual(envelope('?c=Client+One&t=current-token&tab=review').ok, true, 'tab=review on an Analytics link is accepted');
+assert.strictEqual(envelope('?c=Client+One&t=current-token&tab=review').tab, '', 'and ignored there');
+for (const bad of ['sheet', '', 'Review', 'month', 'review ']) {
+  assert.strictEqual(envelope('?c=Client+One&t=token&v=calendar&tab=' + encodeURIComponent(bad)).reason, 'invalid_tab', 'tab=' + JSON.stringify(bad) + ' is refused');
+}
+assert.strictEqual(envelope('?c=Client+One&t=token&v=calendar&tab=review&tab=review').reason, 'duplicate_tab', 'a repeated tab is refused');
+assert.strictEqual(envelope('?c=Client+One&t=token&v=calendar&tab=review&prod=1').reason, 'mixed_entry', 'tab does not let another key through');
+assert.strictEqual(envelope('?c=Client+One&tab=review').reason, 'missing_credential', 'tab never stands in for a credential');
 assert.strictEqual(envelope('?c=Client+One&split=0').reason, 'missing_credential', 'split never stands in for a credential');
 assert.strictEqual(envelope('?split=0').reason, 'missing_credential');
 assert.strictEqual(envelope('?c=Client+One&t=token&v=unknown').reason, 'unsupported_view');
@@ -389,6 +402,7 @@ assert.deepStrictEqual(envelope('?c=Client+One&t=current-token&v=brief'), {
   slug: 'clientone',
   token: 'current-token',
   view: 'calendar',
+  tab: '',
   legacyHash: false,
 }, 'a legacy v=brief client link is accepted and redirected to the Calendar');
 
@@ -424,6 +438,7 @@ assert.deepStrictEqual(canonical.capability, {
   client: 'Client One',
   slug: 'clientone',
   view: 'sample-reviews',
+  tab: '',
   verified: true,
 });
 assert.strictEqual(canonical.replacement.state.client, 'Client One');

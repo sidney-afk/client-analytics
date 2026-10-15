@@ -165,8 +165,8 @@ async function runDesktopOrPhone(browser, origin, label, device) {
   console.log(`--- ${label}: switch on for the client (function) ---`);
   t = await open(browser, origin, { flag: { clients: [SLUG] }, device });
   expect(!(await t.page.locator(sel('n1', '.cal-cap-gen')).isDisabled()), `${label} on: Generate is enabled on a card with no video`);
-  expect(await t.page.locator(sel('v2', '.cal-cap-tx')).count() === 1 && await t.page.locator(sel('n1', '.cal-cap-tx')).count() === 0,
-    `${label} on: the optional Transcript pill shows on video cards only`);
+  expect(await t.page.locator('.cal-cap-tx').count() === 0,
+    `${label} on: there is no separate Transcript button on any card (Generate opens the one box)`);
   await shot(t.page, `after-${prefix}`, 'v2');
 
   // 1. Video card: Generate opens the box (platform, call to action, note), whose Generate starts the job on the function.
@@ -199,8 +199,8 @@ async function runDesktopOrPhone(browser, origin, label, device) {
   const e2 = t.state.ef[1] || { body: {} };
   expect(e2.body.postId === 'n1' && e2.body.assetUrl === '' && /rest is part of the work/.test(e2.body.transcript || ''), `${label} on: the function got the transcript and no video link`);
 
-  // 3. Video + optional transcript.
-  await t.page.locator(sel('v2', '.cal-cap-tx')).click();
+  // 3. Video + optional transcript, pasted inside the Generate box.
+  await t.page.locator(sel('v2', '.cal-cap-gen')).click();
   await t.page.waitForSelector('#calPromptOverlay.open #calTxTA', { timeout: 5000 });
   expect(!(await t.page.locator('#calTxGo').isDisabled()), `${label} on: with a video the transcript is optional (button enabled while empty)`);
   await t.page.fill('#calTxTA', 'Notes: keep the line about Sunday walks.');
@@ -234,24 +234,13 @@ async function runDesktopOrPhone(browser, origin, label, device) {
   await sleep(200);
   expect(!(await modalOpen(t.page)), `${label} on: an empty box closes without asking`);
 
-  // 6. The Transcript pill never sits on the "Show more" toggle (desktop), and on a phone it hides once a caption exists.
-  if (label === 'desktop') {
-    const overlap = await t.page.evaluate(sel => {
-      const wrap = document.querySelector(sel);
-      const toggle = wrap.querySelector('.cal-cap-toggle'); const tx = wrap.querySelector('.cal-cap-tx');
-      toggle.hidden = false;
-      const a = toggle.getBoundingClientRect(), b = tx.getBoundingClientRect();
-      return !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top);
-    }, '.cal-card[data-pid="v1"] .cal-cap-wrap[data-capwrap="main"]'.replace('v1', 'v2'));
-    expect(!overlap, `${label} on: the Transcript pill and the Show more toggle do not overlap`);
-  } else {
-    // v2 got a caption from step 3; the pill must be hidden next to it.
-    const shown = await t.page.evaluate(() => {
-      const tx = document.querySelector('.cal-card[data-pid="v2"] .cal-cap-tx');
-      return tx ? getComputedStyle(tx).display !== 'none' : 'missing';
-    });
-    expect(shown === false, `${label} on: with a caption in the box the Transcript pill is hidden (${shown})`);
-  }
+  // 6. The "Show more" toggle is just the arrow (its words take no room), whatever the width.
+  const tog = await t.page.evaluate(() => {
+    const b = document.querySelector('.cal-card[data-pid="v2"] .cal-cap-toggle'); b.hidden = false;
+    const r = b.getBoundingClientRect(), tx = b.querySelector('.cal-cap-toggle-txt').getBoundingClientRect();
+    return { w: Math.round(r.width), txw: Math.round(tx.width) };
+  });
+  expect(tog.w <= (label === 'phone' ? 48 : 24) && tog.txw <= 1, `${label} on: the Show more toggle is just an arrow (${tog.w}px wide, a 44px touch target on a phone, label ${tog.txw}px)`);
   expect(t.pageErrors.length === 0, `${label} on: no page errors (${t.pageErrors.join(' | ')})`);
   await t.ctx.close();
 }

@@ -85,6 +85,43 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   eq(L.captionFromResponse({ content: [{ type: 'text', text: threeOptions }] }), threeOptions, 'a 3 options caption comes through exactly as written');
   eq(L.captionFromResponse({ content: [{ type: 'text', text: 'Caption: "Plain old answer #one #two #three"' }] }), 'Plain old answer #one #two #three', 'the old wrapper clean-up applies; the caption keeps its own hashtags when the prompt asks for them');
 
+  // --- 2026-10-16: a redo works from the video's words, and a chat reply is never saved as a caption
+  r = L.parseRequest({ client: 'c', postId: 'p', note: 'one more example from the video', assetUrl: FRAME, redo: { caption: 'Old caption' } });
+  eq([r.ok, r.mode, r.assetUrl, r.transcript], [true, 'redo', FRAME, ''], 'a redo carries the card\'s Frame.io link so the video can be transcribed when no words were kept');
+  eq(L.parseRequest({ client: 'c', postId: 'p', note: 'x', assetUrl: 'https://example.com/v.mp4', redo: { caption: 'C' } }).assetUrl, '', 'a link that is not Frame.io is not carried');
+  const redoArgs = { captionPrompt: 'CLIENT PROMPT', voice: null, rules: R.WRITING_RULES, note: 'bring in another example or two from the video', redo: { caption: 'PREVIOUS CAPTION TEXT' } };
+  m = L.buildMessages({ ...redoArgs, videoTranscript: 'STORED WORDS FROM THE VIDEO' });
+  ok(/<transcript>\nSTORED WORDS FROM THE VIDEO\n<\/transcript>/.test(m.user) && !/no transcript for this post/i.test(m.user), 'a redo with kept words puts them in the message, tagged as data');
+  ok(m.user.indexOf('<current_caption>') < m.user.indexOf('<transcript>') && m.user.indexOf('<transcript>') < m.user.indexOf('<team_note>'), 'the words sit between the current caption and the note');
+  m = L.buildMessages({ ...redoArgs, videoTranscript: '' });
+  ok(m.user.includes(L.NO_TRANSCRIPT_NOTICE) && /no transcript for this post/i.test(m.user) && !/<transcript>/.test(m.user), 'with no video and no words the model is told plainly there is no transcript');
+  ok(/work from the current caption/i.test(L.NO_TRANSCRIPT_NOTICE), 'and told to work from the current caption');
+  for (const built of [m, L.buildMessages({ ...common, note: 'x' })]) {
+    ok(built.system.includes(L.REPLY_RULE) && /only the caption/.test(L.REPLY_RULE) && /never ask a question/i.test(L.REPLY_RULE), 'the system message says: reply with only the caption, never ask questions');
+  }
+  ok(m.user.endsWith(L.REPLY_RULE), 'a redo repeats the rule at the very end of its message');
+  const chatty = {
+    'a question about the missing transcript': 'Looking up the transcript... there isn\'t one attached. Could you paste it?',
+    'a chatty intro, a --- line, then a caption': 'Sure! Happy to bring in more.\n\n---\n\nRest is not a reward. It is part of the work.',
+    'a preamble line': 'Here is the revised caption:\nRest is not a reward.',
+    'an offer': 'Would you like me to make it shorter or hookier?',
+    'a note about what it has': 'I don\'t have the transcript for this video, so I kept the caption as is.',
+    'a request to send something': 'Please paste the transcript and I will add the examples.',
+  };
+  for (const [what, text] of Object.entries(chatty)) {
+    ok(L.chatReply(text) !== '', 'refused: ' + what);
+    const redoOut = L.acceptReply(text, true), genOut = L.acceptReply(text, false);
+    eq([redoOut.ok, redoOut.error, redoOut.caption], [false, "Couldn't redo this one, try again or use Generate", undefined], 'a chat reply is not a caption on a redo: ' + what);
+    eq([genOut.ok, genOut.caption], [false, undefined], 'nor on a Generate: ' + what);
+  }
+  const untouched = L.failureUpdate('j', L.acceptReply(chatty['a preamble line'], true).error, '');
+  eq([untouched.update.status, untouched.update.error, 'caption' in untouched.update], ['error', "Couldn't redo this one, try again or use Generate", false], 'a refused redo ends in an error row that carries no caption, so the caption in the box stays as it was');
+  for (const text of ['I used to think rest was a reward.\n\n#rest #habits #calm', 'Caption: "Hello there."', 'I will never apologize for resting. Here is why.', 'Three things I learned:\n1. rest\n2. sleep\n3. repeat', 'Here\'s what nobody tells you about rest.', threeOptions]) {
+    ok(L.chatReply(text) === '', 'a real caption passes: ' + text.slice(0, 30).replace(/\n/g, ' '));
+  }
+  eq(L.acceptReply('Caption: "Hello there."', false), { ok: true, caption: 'Hello there.' }, 'a real caption is cleaned and accepted');
+  eq(L.acceptReply('   ', true).ok, false, 'an empty reply is refused');
+
   // --- the tells check, the revision and failures
   ok(L.findTells('Rest — a reward').length === 1, 'a dash is a tell');
   ok(!/layout|titles/i.test(L.revisionRequest(['"delve"'])), 'the revision asks for the caption only');
@@ -107,6 +144,16 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(/if \(job\.redo\) \{[^}]*patchJob\(job, \{ status: "done", stage: "done", caption: job\.caption \}\);\s*return;/.test(runBody), 'a redo ends with the new caption on the job row');
   ok(/failureUpdate\(job\.jobId, msg, job\.redo \? "" : job\.caption\)/.test(runBody), 'a failed redo hands back no caption (the page would otherwise save it)');
   ok(!/extras|titles|parseModelOutput|extrasFrom/.test(HANDLER.replace(/^\/\/.*$/gm, '')), 'the generator writes no extras and parses no titles');
+  // The kept words: written by a Generate, read by a later redo for the same post, never sent to a page.
+  ok(/from\("caption_jobs"\)\.update\(\{ transcript: kept \}\)\.eq\("job_id", job\.jobId\)/.test(HANDLER), 'a Generate keeps the video\'s words (or the pasted ones) on its job row');
+  ok(/from\("caption_jobs"\)\.select\("transcript"\)\s*\.eq\("client", job\.client\)\.eq\("post_id", job\.postId\)\.neq\("job_id", job\.jobId\)[\s\S]{0,140}\.order\("updated_at", \{ ascending: false \}\)\.limit\(1\)/.test(HANDLER), 'a redo reads the newest kept transcript for the same post');
+  const redoBranch = runBody.slice(runBody.indexOf('job.mode === "redo"'), runBody.indexOf('checkBudget(job);'));
+  ok(/videoTranscript = await latestTranscript\(job\);\s*if \(!videoTranscript && job\.assetUrl\) \{\s*videoTranscript = await transcribeVideo\(job\);\s*await keepTranscript\(job, videoTranscript\);/.test(redoBranch), 'with none kept and a video link, the redo transcribes the video (and keeps the words)');
+  ok(/const accepted = acceptReply\(first, !!job\.redo\);\s*if \(!accepted\.ok\) throw new Error\(accepted\.error\);/.test(HANDLER) && HANDLER.indexOf('acceptReply(first') < HANDLER.indexOf('job.caption = await writeCaption'), 'a chat reply throws before any caption is set on the job');
+  ok(!/transcript/.test(JOBS_FN.slice(JOBS_FN.indexOf('const cols ='), JOBS_FN.indexOf('const cols =') + 160)), 'caption-jobs never names the transcript column, so it is not sent to a page');
+  ok(!/transcript/i.test(read('supabase/functions/caption-jobs/jobs.mjs').replace(/transcript(?:s)? or/g, '')), 'and its row shaping and patch builder do not know it');
+  const TMIG = read('migrations/2026-10-16-caption-jobs-transcript.sql');
+  ok(/add column if not exists transcript text/.test(TMIG) && /revoke all on table public\.caption_jobs from public, anon, authenticated, service_role;/.test(TMIG) && /grant select, insert, update, delete on table public\.caption_jobs to service_role;/.test(TMIG) && /has_column_privilege\('anon'/.test(TMIG), 'the migration adds the column, names all four roles in its revoke and asserts no browser role reads it');
   const logs = (HANDLER.match(/console\.(log|warn|error)\([^\n]*/g) || []).map((l) => l.replace('[caption-generate]', ''));
   ok(logs.every((l) => !/note|transcript|caption|titles|hashtag/i.test(l.replace(/"[^"]*"/g, ''))), 'no note, transcript, caption or title is logged');
   ok(/req\.method === "GET"/.test(HANDLER) && /q\.get\("action"\) !== "cta_get"/.test(HANDLER) && /action === "cta_get" \|\| action === "cta_save"/.test(HANDLER) && /from\("caption_cta_options"\)\.select\("options"\)\.eq\("client_slug", client\)/.test(HANDLER) && /from\("caption_cta_options"\)\.upsert\(/.test(HANDLER), 'the function reads and saves the list (the editor and the box use it)');

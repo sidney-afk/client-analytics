@@ -18,6 +18,13 @@ const CREATIVE = 'C0CREATIVE1';
 const OWNER_DM = 'U0OWNER0001';
 const NOW = Date.parse('2026-10-14T12:00:00Z');
 
+// The message's one section: "*headline*\n<url|Review now>". Returns the unescaped url and the pieces.
+function parseMessage(m) {
+  const t = m.blocks[0].text.text;
+  const hit = /^(\*[^*\n]+\*)\n<([^|>]+)\|([^>]+)>$/.exec(t);
+  return hit ? { bold: hit[1], url: hit[2].replace(/&amp;/g, '&'), label: hit[3] } : null;
+}
+
 function fakeDb(state) {
   const calls = { selects: [], inserts: [], updates: [] };
   function query(table) {
@@ -122,19 +129,21 @@ async function call(mod, deps, body, headers = { 'x-syncview-key': 'smm-key', 'x
     const reads = s.db.calls.selects.filter((c) => c.table === 'client_profiles');
     ok(reads.length === 1 && !/creative/.test(reads[0].cols) && /slack_channel_id/.test(reads[0].cols), 'the creative channel column is never even selected');
     const m = s.slack.log.channel[0].message;
-    const url = new URL(m.blocks[1].elements[0].url);
+    const parsed = parseMessage(m);
+    const url = new URL(parsed.url);
     ok(url.origin === 'https://app.example.test' && url.searchParams.get('c') === 'Fixture Client' && url.searchParams.get('v') === 'calendar' && url.searchParams.get('t') === REVIEW_TOKEN && !url.searchParams.has('sxr'), 'the calendar link is built on the server like the Copy link button builds it');
     ok(!JSON.stringify(m).includes('evil.test'), 'a caller-supplied address never reaches the message');
-    ok(m.blocks.length === 2 && m.blocks[0].text.text === '*New content is ready for your review.*', 'the bold line is exact');
-    ok(m.blocks[1].type === 'actions' && m.blocks[1].elements.length === 1 && m.blocks[1].elements[0].text.text === 'Review now', 'one button: Review now');
-    ok(m.text === 'New content is ready for your review. Review now: ' + m.blocks[1].elements[0].url, 'the plain-text fallback carries the link');
+    ok(parsed && m.blocks.length === 1 && m.blocks[0].type === 'section' && parsed.bold === '*New content is ready for your review.*', 'one section: the bold line is exact, and the link is on the next line');
+    ok(parsed.label === 'Review now' && !JSON.stringify(m).includes('"actions"') && !JSON.stringify(m).includes('"button"'), 'the link is plain text "Review now": no button, no actions block, nothing interactive');
+    ok(m.text === 'New content is ready for your review. Review now: ' + parsed.url, 'the plain-text fallback carries the link');
+    ok(!/&(?!amp;)/.test(m.blocks[0].text.text), 'ampersands in the address are escaped for Slack');
     const words = JSON.stringify(m).replace(/https?:\/\/[^"]+/g, '');
     ok(!/Test SMM|Fixture Client/.test(words) && !/\d/.test(words.replace(/[a-z]+0[a-z0-9]*/gi, '')) && !/[\u{1F300}-\u{1FAFF}☀-➿]/u.test(words), 'no SMM name, no count, no emoji in the wording');
   }
   {
     const s = setup(); const r = await call(mod, s.deps, { ...SEND, surface: 'samples' });
-    const m = s.slack.log.channel[0].message; const url = new URL(m.blocks[1].elements[0].url);
-    ok(r.json.sent && m.blocks[0].text.text === '*New samples are ready for your review.*', 'samples say new samples');
+    const m = s.slack.log.channel[0].message; const parsed = parseMessage(m); const url = new URL(parsed.url);
+    ok(r.json.sent && parsed.bold === '*New samples are ready for your review.*', 'samples say new samples');
     ok(url.searchParams.get('sxr') === '1' && url.searchParams.get('v') === 'sample-reviews' && [...url.searchParams.keys()].join() === 'sxr,c,v,t', 'the samples link carries sxr=1 then c, v, t');
   }
   { const s = setup(); const r = await call(mod, s.deps, { ...SEND, client: 'Old Client' }); ok(r.status === 410 && !s.slack.log.channel.length, 'an inactive client is refused'); }
@@ -190,7 +199,7 @@ async function call(mod, deps, body, headers = { 'x-syncview-key': 'smm-key', 'x
   // ── Status: what the confirm box shows.
   {
     const s = setup(); const r = await call(mod, s.deps, { action: 'status', client: 'Fixture Client', surface: 'samples' });
-    ok(r.json.headline === 'New samples are ready for your review.' && r.json.button === 'Review now' && r.json.channel.name === 'acme-private' && r.json.channel.bot_member === true && r.json.has_channel && r.json.last === null && r.json.recent === false, 'status: exact words, channel name, no earlier alert');
+    ok(r.json.headline === 'New samples are ready for your review.' && r.json.link_label === 'Review now' && r.json.button === undefined && r.json.channel.name === 'acme-private' && r.json.channel.bot_member === true && r.json.has_channel && r.json.last === null && r.json.recent === false, 'status: exact words, channel name, no earlier alert');
     ok(!JSON.stringify(r.json).includes(REVIEW_TOKEN) && !JSON.stringify(r.json).includes(PRIVATE) && !JSON.stringify(r.json).includes(SLACK_SECRET), 'status never returns the review token, a channel id or the bot token');
     ok(s.slack.log.channel.length === 0 && s.db.calls.inserts.length === 0, 'status posts and records nothing');
   }

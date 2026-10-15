@@ -2,7 +2,7 @@
 //
 // One general Slack alert to a client's PRIVATE channel (the roster's
 // slack_channel_id, never creative_channel_id) saying new content or new
-// samples are ready for review, with one button to that client's review page.
+// samples are ready for review, with a link to that client's review page.
 //
 // The browser sends only { action, client, surface }. The channel and the link
 // are looked up here, so a caller can never aim a message at another channel or
@@ -12,8 +12,8 @@
 // wires it to Deno, the role-key gate, Slack and a service-role client.
 //
 // Actions:
-//   status   admin|smm  what the confirm box shows: the exact words, the channel
-//                       name, the last alert for this client and surface.
+//   status   admin|smm  what the confirm box shows: the exact words and the last
+//                       alert for this client and surface.
 //   send     admin|smm  posts the alert to the client's private channel. Records
 //                       every attempt first, so "last sent" is always true.
 //   preview  admin      posts the exact same message to the owner's DM only
@@ -61,24 +61,27 @@ export function buildReviewLink({ origin, displayName, surface, token }) {
   return clean(origin).replace(/\/+$/, '') + '/?' + q.toString();
 }
 
-// Slack blocks: one bold line and one button. No name, no count, no emoji.
+// Slack blocks: one bold line and, on the next line, a plain "Review now" link.
+// No button: a button makes Slack call the app on every click, and an app with no
+// interactivity address answers with a warning. A link sends nothing. No name, no
+// count, no emoji. Slack wants & escaped inside a <url|text> link.
 export function buildMessage(surface, link) {
   const s = SURFACES[surface];
   if (!s) throw new Error('unknown_surface');
+  const href = link.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   return {
     text: s.headline + ' ' + BUTTON_LABEL + ': ' + link,
     blocks: [
-      { type: 'section', text: { type: 'mrkdwn', text: '*' + s.headline + '*' } },
-      { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: BUTTON_LABEL }, url: link }] },
+      { type: 'section', text: { type: 'mrkdwn', text: '*' + s.headline + '*\n<' + href + '|' + BUTTON_LABEL + '>' } },
     ],
   };
 }
 
-// The words the confirm box shows. Same headline and button label as the
+// The words the confirm box shows. Same headline and link label as the
 // message above, with no address in it (the link carries the client's token).
 export function previewWords(surface) {
   const s = SURFACES[surface];
-  return { headline: s.headline, button: BUTTON_LABEL };
+  return { headline: s.headline, link_label: BUTTON_LABEL };
 }
 
 // Was an alert sent for this client and surface inside the last six hours? A

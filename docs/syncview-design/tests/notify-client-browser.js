@@ -9,11 +9,13 @@
  *     44px tall on a phone, and nothing scrolls sideways;
  *   - it is absent for a signed-in creative (admin and SMM only);
  *   - opening it asks the server for { action, client, surface } and NOTHING else (no channel id,
- *     no address), then shows the exact words, the channel name and the last alert;
- *   - inside six hours it says so, still allows sending, and sends with confirm_recent;
- *   - Send posts once; success, "bot not in channel", no private channel, sending switched off,
- *     signed-out and offline are each a clear sentence inside the box;
- *   - the preview button exists for an admin only and sends action "preview".
+ *     no address), then shows only the title, the message (bold line and a plain "Review now"
+ *     link, no button), a last-sent line when one was really sent, Cancel and Send alert;
+ *   - none of the old extra text (subtitle, "Goes to", "opens ... review page") and no preview button;
+ *   - inside six hours the last-sent line is the warning, sending is still allowed and sends with
+ *     confirm_recent;
+ *   - a successful send closes the box and shows the toast "Alert sent"; "bot not in channel",
+ *     no private channel, sending switched off, signed-out and offline stay open with a sentence.
  *
  * Run:  node docs/syncview-design/tests/notify-client-browser.js
  * Pictures: set NOTIFY_CLIENT_SHOTS=<dir> to write PNGs.
@@ -36,7 +38,7 @@ const CLIENT = 'Fixture Client';
 const HEADLINE = { calendar: 'New content is ready for your review.', samples: 'New samples are ready for your review.' };
 function statusBody(surface, over) {
   return Object.assign({
-    ok: true, client: 'fixtureclient', surface, headline: HEADLINE[surface], button: 'Review now',
+    ok: true, client: 'fixtureclient', surface, headline: HEADLINE[surface], link_label: 'Review now',
     has_channel: true, channel: { name: 'fixture-private', bot_member: true }, link_ready: true,
     last: null, recent: false, recent_hours: 6, log_available: true, sending_enabled: true, can_preview: true,
   }, over || {});
@@ -129,41 +131,55 @@ async function scenario(browser, origin, label, viewport, phone, surface) {
     ok(/\/functions\/v1\/client-review-alert$/.test(calls[0].url), L + ': goes to the client-review-alert function');
     let text = await page.locator('#notifyClientDialog').innerText();
     ok(text.includes('Notify ' + CLIENT), L + ': title names the client');
-    ok(text.includes(HEADLINE[surface]) && text.includes('Review now'), L + ': the exact words and the button label');
-    ok(text.includes('#fixture-private'), L + ': the channel name');
-    ok(text.includes('No ' + (surface === 'samples' ? 'Samples' : 'Calendar') + ' alert has been sent to this client yet.'), L + ': no earlier alert');
-    ok(!/6 hours/.test(text), L + ': no recent warning when nothing was sent');
+    ok(text.includes(HEADLINE[surface]), L + ': the message preview has the bold line');
+    eq((await page.locator('#notifyClientDialog .nc-msg-link').innerText()).trim(), 'Review now', L + ': and a plain Review now link on the next line');
+    ok(await page.locator('#notifyClientDialog .nc-msg button, #notifyClientDialog .nc-msg-btn').count() === 0, L + ': the preview has no button');
+    ok(await page.evaluate(() => { const l = document.querySelector('#notifyClientDialog .nc-msg-link'); const t = document.querySelector('#notifyClientDialog .nc-msg-line'); return l.getBoundingClientRect().top >= t.getBoundingClientRect().bottom - 1; }), L + ': the link sits on the line below the bold line');
+    ok(await page.evaluate(() => getComputedStyle(document.querySelector('#notifyClientDialog .nc-msg-line')).fontWeight >= 700), L + ': the first line is bold');
+    for (const gone of ['one alert', 'Goes to', '#fixture-private', 'private channel', 'review page', 'Send preview', 'Last sent', 'No ']) ok(!text.includes(gone), L + ': no "' + gone + '" in the box');
     ok(!/C0[A-Z0-9]{6,}|https?:\/\//.test(text), L + ': no channel id and no address in the box');
-    ok(await page.locator('#notifyClientDialog .nc-preview').count() === 1, L + ': an admin sees the preview button');
-    ok((await page.locator('#notifyClientDialog .nc-send').innerText()).trim() === 'Send alert' && !(await page.locator('#notifyClientDialog .nc-send').isDisabled()), L + ': Send alert is ready');
+    ok(await page.locator('#notifyClientDialog .nc-preview').count() === 0, L + ': no preview button, even though the server offers one');
+    eq(await page.locator('#notifyClientDialog button').allInnerTexts(), ['Cancel', 'Send alert'], L + ': only Cancel and Send alert');
+    ok(!(await page.locator('#notifyClientDialog .nc-send').isDisabled()), L + ': Send alert is ready');
     await shot(page, `${label}-${surface}-2-confirm`);
 
-    // ── Send: once, with confirm_recent false; success is shown in the box.
+    // ── Send: once, with confirm_recent false; success closes the box and shows a short toast.
     mock.send = { status: 200, body: { ok: true, sent: true, receipt_saved: true } };
     await page.locator('#notifyClientDialog .nc-send').click();
-    await page.locator('#notifyClientDialog .nc-done').waitFor();
+    await page.waitForFunction(() => !document.querySelector('#notifyClientDialog[open]'));
     eq(calls.length, 2, L + ': exactly one send request');
     eq(calls[1].body, { action: 'send', client: CLIENT, surface, confirm_recent: false }, L + ': send body');
-    ok((await page.locator('#notifyClientDialog .nc-done').innerText()).includes('Sent to #fixture-private.'), L + ': success sentence');
-    ok(await page.locator('#notifyClientDialog .nc-send').count() === 0, L + ': no second Send once sent');
-    await shot(page, `${label}-${surface}-3-sent`);
-    await page.locator('#notifyClientDialog .nc-cancel').click();
-    ok(!(await page.locator('#notifyClientDialog[open]').count()), L + ': Close closes the box');
+    await page.waitForFunction(() => /Alert sent/.test((document.getElementById('toast') || document.body).innerText));
+    ok(await page.evaluate(() => (document.body.innerText.match(/Alert sent/g) || []).length === 1), L + ': the toast says Alert sent');
+    await shot(page, `${label}-${surface}-3-sent-toast`);
 
-    // ── Inside six hours: says so, still allows sending, sends with confirm_recent.
+    // ── A last alert older than six hours is one plain short line.
+    calls.length = 0;
+    mock.status = { status: 200, body: statusBody(surface, { last: { at: new Date(Date.now() - 7 * 3600000).toISOString(), by: 'Earlier SMM', status: 'sent' } }) };
+    await page.locator(btn).click();
+    await page.locator('#notifyClientDialog .nc-last').waitFor();
+    eq((await page.locator('#notifyClientDialog .nc-last').innerText()).trim(), 'Last sent 7h ago by Earlier SMM', L + ': the last-sent line is short');
+    ok(await page.locator('#notifyClientDialog .nc-warn').count() === 0, L + ': and it is not a warning');
+    await page.keyboard.press('Escape');
+
+    // ── Inside six hours: the same single short line is the warning; sending is still allowed.
     calls.length = 0;
     mock.status = { status: 200, body: statusBody(surface, { recent: true, last: { at: new Date(Date.now() - 2 * 3600000).toISOString(), by: 'Earlier SMM', status: 'sent' } }) };
     await page.locator(btn).click();
     await page.locator('#notifyClientDialog .nc-warn').waitFor();
-    text = await page.locator('#notifyClientDialog').innerText();
-    ok(/less than 6 hours ago/.test(text) && /2 hours ago/.test(text) && text.includes('Earlier SMM'), L + ': the recent alert is named: when and who');
-    ok(/You can still send another/.test(text), L + ': and it says sending is still allowed');
+    eq((await page.locator('#notifyClientDialog .nc-warn').innerText()).trim(), 'Last sent 2h ago by Earlier SMM', L + ': the warning is the one short line: when and who');
+    ok(await page.locator('#notifyClientDialog .nc-last').count() === 0, L + ': there is only that one line');
     eq((await page.locator('#notifyClientDialog .nc-send').innerText()).trim(), 'Send anyway', L + ': button reads Send anyway');
     ok(!(await page.locator('#notifyClientDialog .nc-send').isDisabled()), L + ': Send anyway is enabled');
     await shot(page, `${label}-${surface}-4-recent`);
     await page.locator('#notifyClientDialog .nc-send').click();
-    await page.locator('#notifyClientDialog .nc-done').waitFor();
+    await page.waitForFunction(() => !document.querySelector('#notifyClientDialog[open]'));
     eq(calls[1].body.confirm_recent, true, L + ': the recent send carries confirm_recent');
+    // An alert from a long time ago, or none, never shows a warning.
+    mock.status = { status: 200, body: statusBody(surface) };
+    await page.locator(btn).click();
+    await page.locator('#notifyClientDialog .nc-msg').waitFor();
+    ok(await page.locator('#notifyClientDialog .nc-warn, #notifyClientDialog .nc-last').count() === 0, L + ': nothing sent before means no last-sent line at all');
     await page.keyboard.press('Escape');
     ok(!(await page.locator('#notifyClientDialog[open]').count()), L + ': Escape closes the box');
 
@@ -184,7 +200,7 @@ async function scenario(browser, origin, label, viewport, phone, surface) {
       await page.locator('#notifyClientDialog .nc-alert').waitFor();
       ok(pattern.test(await page.locator('#notifyClientDialog .nc-alert').innerText()), L + ': ' + code + ' is explained');
       ok(!(await page.locator('#notifyClientDialog .nc-send').isDisabled()), L + ': ' + code + ': Send can be tried again');
-      ok(!(await page.locator('#notifyClientDialog .nc-done').count()), L + ': ' + code + ' never shows success');
+      ok(await page.locator('#notifyClientDialog[open]').count() === 1, L + ': ' + code + ' keeps the box open');
       if (code === 'bot_not_in_channel') await shot(page, `${label}-${surface}-5-bot-error`);
       await page.keyboard.press('Escape');
     }
@@ -192,7 +208,7 @@ async function scenario(browser, origin, label, viewport, phone, surface) {
     mock.status = { status: 200, body: statusBody(surface, { channel: { name: 'fixture-private', bot_member: false } }) };
     await page.locator(btn).click();
     await page.locator('#notifyClientDialog .nc-alert').waitFor();
-    ok(/bot is not in this channel yet/.test(await page.locator('#notifyClientDialog').innerText()), L + ': known missing bot is warned about up front');
+    ok(/Slack bot is not in this client's channel/.test(await page.locator('#notifyClientDialog').innerText()), L + ': known missing bot is warned about up front');
     ok(!(await page.locator('#notifyClientDialog .nc-send').isDisabled()), L + ': and Send stays available (the server decides)');
     await page.keyboard.press('Escape');
     // Things the server already knows make Send unavailable, with the reason.
@@ -220,24 +236,6 @@ async function scenario(browser, origin, label, viewport, phone, surface) {
     ok(/Could not reach the server/.test(await page.locator('#notifyClientDialog').innerText()), L + ': offline is explained');
     await page.keyboard.press('Escape');
     mock.offline = false;
-
-    // ── Preview (admin): action "preview" and a note that nothing went to the client.
-    calls.length = 0;
-    mock.status = { status: 200, body: statusBody(surface) };
-    mock.preview = { status: 200, body: { ok: true, previewed: true } };
-    await page.locator(btn).click();
-    await page.locator('#notifyClientDialog .nc-preview').click();
-    await page.locator('#notifyClientDialog .nc-done').waitFor();
-    eq(calls[1].body, { action: 'preview', client: CLIENT, surface }, L + ': preview body');
-    ok(/Nothing went to the client/.test(await page.locator('#notifyClientDialog').innerText()), L + ': preview says nothing went to the client');
-    ok(!(await page.locator('#notifyClientDialog .nc-send').isDisabled()), L + ': a preview does not use up Send');
-    await page.keyboard.press('Escape');
-    // An SMM is not offered the preview.
-    mock.status = { status: 200, body: statusBody(surface, { can_preview: false }) };
-    await page.locator(btn).click();
-    await page.locator('#notifyClientDialog .nc-msg').waitFor();
-    ok(await page.locator('#notifyClientDialog .nc-preview').count() === 0, L + ': no preview button when the server does not offer it');
-    await page.keyboard.press('Escape');
 
     ok(errors.length === 0, L + ': no page errors: ' + errors.join(' | '));
   } finally { await ctx.close(); }

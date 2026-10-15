@@ -33132,7 +33132,7 @@ matches; a teammate's change while typing waited for blur → drawn at once, the
 
 ## 418. [2026-10-15, BUILT, NOT MERGED, NOT DEPLOYED] Messages page opens fast; its loading placeholder is the real layout (session Swift)
 
-**Measured first.** `docs/syncview-design/tests/messages-inbox-timing.js` (real browser, fully mocked, inbox answer held for the live
+**Measured first.** `scripts/messages-inbox-timing.js` (real browser, fully mocked, inbox answer held for the live
 median). Click on Messages to list visible, ms, median of 3, on `origin/main`: cold click at once 1921, click after 1.5 s 1922,
 after 6 s 1921, reopened in the same tab 1927, second visit inside the page 13. Where the time goes: script loading 0 (the Messages
 code is in core: DOMContentLoaded 250 ms, button usable 300 ms after navigation start); the inbox call 1910 of 1921; rendering 8 to

@@ -1,5 +1,5 @@
 'use strict';
-/* messages-inbox-timing.js -- how long the Messages page takes, click to list.
+/* scripts/messages-inbox-timing.js -- how long the Messages page takes, click to list.
  *
  * A MEASURING script, not a gate: it prints numbers and fails only on a page
  * error or a list that never shows. Fully mocked (lost-work-lib.js): the inbox
@@ -7,7 +7,7 @@
  * the live production-comments function), so what it measures is everything
  * the PAGE adds or hides around that wait. Nothing reaches a live backend.
  *
- *   node docs/syncview-design/tests/messages-inbox-timing.js
+ *   node scripts/messages-inbox-timing.js
  *   INBOX_MS=1000 RUNS=5 node ...      (other server time / more runs, median shown)
  *
  * Rows, all "click on Messages -> list visible" in ms:
@@ -19,7 +19,7 @@
  * call started relative to the click (negative = before it) and how long it took.
  */
 const path = require('path');
-const { createEnv, sleep } = require('./lost-work-lib');
+const { createEnv, sleep } = require('../docs/syncview-design/tests/lost-work-lib');
 
 const INBOX_MS = Number(process.env.INBOX_MS || 1900);
 const RUNS = Number(process.env.RUNS || 3);

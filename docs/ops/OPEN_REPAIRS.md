@@ -33164,7 +33164,7 @@ matches; a teammate's change while typing waited for blur → drawn at once, the
 
 **Nothing was skipped, quarantined or loosened.** Every assertion and failure case stays. `test/prod-read-console-audit.js` gains cases for each audit rule above (waits for each app flag, the finished half landing, a navigation-gap abort, and the excused/not-excused matrix of cause 4) and those cases fail against the old audit.
 
-**Counts, passes out of runs, run alone on one machine against the live backend ("slow" adds the simulated delay), before → after.**
+**Counts, passes out of runs, on one 4-core machine against the live backend, a normal and a slow loop side by side ("slow" adds the simulated delay), before → after.**
 
 | Suite | Normal | Slow |
 |---|---|---|

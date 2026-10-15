@@ -131,7 +131,7 @@ async function call(mod, deps, body, headers = { 'x-syncview-key': 'smm-key', 'x
     const m = s.slack.log.channel[0].message;
     const parsed = parseMessage(m);
     const url = new URL(parsed.url);
-    ok(url.origin === 'https://app.example.test' && url.searchParams.get('c') === 'Fixture Client' && url.searchParams.get('v') === 'calendar' && url.searchParams.get('t') === REVIEW_TOKEN && !url.searchParams.has('sxr'), 'the calendar link is built on the server like the Copy link button builds it');
+    ok(url.origin === 'https://app.example.test' && url.searchParams.get('c') === 'Fixture Client' && url.searchParams.get('v') === 'calendar' && url.searchParams.get('tab') === 'review' && [...url.searchParams.keys()].join() === 'c,v,tab,t' && url.searchParams.get('t') === REVIEW_TOKEN && !url.searchParams.has('sxr'), 'the calendar link is built on the server like the Copy link button builds it, plus tab=review');
     ok(!JSON.stringify(m).includes('evil.test'), 'a caller-supplied address never reaches the message');
     ok(parsed && m.blocks.length === 1 && m.blocks[0].type === 'section' && parsed.bold === '*New content is ready for your review.*', 'one section: the bold line is exact, and the link is on the next line');
     ok(parsed.label === 'Review now' && !JSON.stringify(m).includes('"actions"') && !JSON.stringify(m).includes('"button"'), 'the link is plain text "Review now": no button, no actions block, nothing interactive');
@@ -144,7 +144,7 @@ async function call(mod, deps, body, headers = { 'x-syncview-key': 'smm-key', 'x
     const s = setup(); const r = await call(mod, s.deps, { ...SEND, surface: 'samples' });
     const m = s.slack.log.channel[0].message; const parsed = parseMessage(m); const url = new URL(parsed.url);
     ok(r.json.sent && parsed.bold === '*New samples are ready for your review.*', 'samples say new samples');
-    ok(url.searchParams.get('sxr') === '1' && url.searchParams.get('v') === 'sample-reviews' && [...url.searchParams.keys()].join() === 'sxr,c,v,t', 'the samples link carries sxr=1 then c, v, t');
+    ok(url.searchParams.get('sxr') === '1' && url.searchParams.get('v') === 'sample-reviews' && [...url.searchParams.keys()].join() === 'sxr,c,v,tab,t' && url.searchParams.get('tab') === 'review', 'the samples link carries sxr=1, then c, v, tab=review and t');
   }
   { const s = setup(); const r = await call(mod, s.deps, { ...SEND, client: 'Old Client' }); ok(r.status === 410 && !s.slack.log.channel.length, 'an inactive client is refused'); }
   { const s = setup(); const r = await call(mod, s.deps, { ...SEND, client: 'Nobody' }); ok(r.status === 404 && !s.slack.log.channel.length, 'an unknown client is refused'); }

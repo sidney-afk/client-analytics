@@ -22,7 +22,7 @@ let failures = 0;
 const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; console.error('FAIL  ' + m); } };
 
 (async () => {
-  const inbox = await import(path.join(root, 'supabase/functions/production-comments/inbox.mjs'));
+  const inbox = await import(require('node:url').pathToFileURL(path.join(root, 'supabase/functions/production-comments/inbox.mjs')).href);
   const clients = [
     { slug: 'alphafixture', display_name: 'Alpha Fixture', active: true },
     { slug: 'betafixture', display_name: 'Beta Fixture', active: true },
@@ -108,7 +108,7 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
     caption_tweaks: JSON.stringify([
       { id: 'v1', role: 'client', author: 'Fixture Client', audience: 'client', is_tweak: false, body: 'Love it, one question', created_at: '2026-10-12T09:00:00Z' },
       { id: 'v2', role: 'client', author: 'Fixture Client', audience: 'client', is_tweak: true, body: 'Please change the hook', created_at: '2026-10-12T10:00:00Z' },
-      { id: 'v3', parent_id: 'v2', role: 'smm', author: shared, author_member_id: 'u1', body: 'On it', created_at: '2026-10-12T10:30:00Z' },
+      { id: 'v3', parent_id: 'v2', role: 'client', author: 'Fixture Client', body: 'And the ending too', created_at: '2026-10-12T10:30:00Z' },
       { id: 'v4', role: 'smm', author: shared, author_member_id: 'u1', audience: 'internal', body: 'Team note from the SMM', created_at: '2026-10-12T11:00:00Z' },
       { id: 'v5', role: 'smm', author: shared, author_member_id: 'u7', audience: 'internal', body: 'Team note from an editor', created_at: '2026-10-12T12:00:00Z' },
       { id: 'v6', role: 'kasper', author: 'Kasper', audience: 'internal', body: 'Team note from the reviewer', created_at: '2026-10-12T13:00:00Z' },
@@ -120,7 +120,7 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
   ok(inbox.inboxView(inbox.inboxScope(reviewer, managers, [], clients)) === 'reviewer', 'an admin not on the roster gets the reviewer view');
   const smmView = inbox.visibleMessages(viewAll, 'smm', smmIds);
   ok(smmView.some(m => m.id === 'v1'), 'SMM view: a client plain comment is shown');
-  ok(!smmView.some(m => m.id === 'v2'), 'SMM view: a client change request is hidden');
+  ok(!smmView.some(m => m.id === 'v2'), 'SMM view: an unanswered client change request is hidden');
   ok(!smmView.some(m => m.id === 'v3'), 'SMM view: a reply under a client change request is hidden with it');
   ok(ids(smmView) === 'v1,v4,v5,v6', 'SMM view: team-only notes between staff are shown');
   const revView = inbox.visibleMessages(viewAll, 'reviewer', smmIds);
@@ -154,8 +154,36 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
   ok(inbox.unreadCount(kView, reviewer, '2026-10-14T09:30:00Z', Date.parse('2026-10-15T00:00:00Z')) === 2 && inbox.unreadCount(kView, reviewer, '2026-10-14T10:30:00Z', Date.parse('2026-10-15T00:00:00Z')) === 1, 'reviewer view: the editor reply after the read mark is unread');
   ok(ids(inbox.visibleMessages(kAll, 'smm', smmIds, smmOne)) === ids(inbox.visibleMessages(kAll, 'smm', smmIds)), 'SMM view: unchanged by the reviewer rule');
 
+  // A hidden client message comes back when staff answer it (owner, 2026-10-15).
+  const aPost = { id: 'p7', client: 'alphafixture', name: 'Fixture answered post',
+    caption_tweaks: JSON.stringify([
+      { id: 'q1', role: 'client', author: 'Fixture Client', audience: 'client', is_tweak: true, body: 'Change the hook please', created_at: '2026-10-14T09:00:00Z' },
+      { id: 'q2', parent_id: 'q1', role: 'smm', author: shared, author_member_id: 'u5', body: 'Done, new hook is up', created_at: '2026-10-14T10:00:00Z' },
+      { id: 'q3', role: 'client', author: 'Fixture Client', audience: 'client', is_tweak: true, body: 'Swap the music', created_at: '2026-10-14T11:00:00Z' },
+      { id: 'q4', role: 'client', author: 'Fixture Client', audience: 'client', is_tweak: false, body: 'Love the colours', created_at: '2026-10-14T12:00:00Z' },
+      { id: 'q5', parent_id: 'q4', role: 'smm', author: shared, author_member_id: 'u1', body: 'Thank you', created_at: '2026-10-14T13:00:00Z' },
+    ]) };
+  const aAll = inbox.collectMessages(aPost, []);
+  const aSmm = inbox.visibleMessages(aAll, 'smm', smmIds, smmOne);
+  ok(aSmm.some(m => m.id === 'q1') && aSmm.some(m => m.id === 'q2'), 'SMM view: an answered change request is shown above the staff reply');
+  ok(!aSmm.some(m => m.id === 'q3'), 'SMM view: an unanswered change request stays hidden');
+  const aRev = inbox.visibleMessages(aAll, 'reviewer', smmIds, reviewer);
+  ok(aRev.some(m => m.id === 'q1') && aRev.some(m => m.id === 'q2'), 'reviewer view: a client message the reviewer replied to is shown, with the reply');
+  ok(!aRev.some(m => m.id === 'q3' || m.id === 'q4' || m.id === 'q5'), 'reviewer view: client messages the reviewer did not reply to stay hidden, even when someone else did');
+  ok(inbox.unreadCount(aRev, reviewer, '', Date.parse('2026-10-15T00:00:00Z')) === 1, 'reviewer view: unread counts only visible messages (the client message, never the own reply)');
+  ok(inbox.unreadCount(aSmm, smmOne, '', Date.parse('2026-10-15T00:00:00Z')) === 3, 'SMM view: unread counts only visible messages (the hidden request is not counted)');
+
+  // Canonical rows: parent and root are database row ids, listed under native ids.
+  const cAll = inbox.collectMessages({ id: 'p8', client: 'alphafixture' }, [
+    { id: 'db1', native_comment_id: 'n_req', team: 'video', role: 'client', author_name: 'Fixture Client', audience: 'client', is_tweak: true, body: 'Change the intro', created_at: '2026-10-14T09:00:00Z' },
+    { id: 'db2', native_comment_id: 'n_rep', parent_id: 'db1', thread_root_id: 'db1', team: 'video', role: 'smm', author_name: shared, author_member_id: 'u5', body: 'Changed it', created_at: '2026-10-14T10:00:00Z' },
+  ]);
+  ok(cAll.find(m => m.id === 'n_rep').parent_id === 'n_req' && cAll.find(m => m.id === 'n_rep').root_id === 'n_req', 'canonical replies point at the listed id of their parent');
+  ok(ids(inbox.visibleMessages(cAll, 'smm', smmIds, smmOne)) === 'n_req,n_rep', 'SMM view: an answered canonical change request is shown with its reply');
+  ok(ids(inbox.visibleMessages(cAll, 'reviewer', smmIds, reviewer)) === 'n_req,n_rep', 'reviewer view: a canonical client message the reviewer answered is shown with the reply');
+
   // The client never receives a staff name.
-  const policy = await import(path.join(root, 'supabase/functions/production-comments/policy.mjs'));
+  const policy = await import(require('node:url').pathToFileURL(path.join(root, 'supabase/functions/production-comments/policy.mjs')).href);
   const staffRow = { id: 'c1', author_name: 'Second Manager', author_member_id: 'u2', role: 'smm', audience: 'client', body: 'Hello' };
   const clientRow = { id: 'c2', author_name: 'Fixture Client', role: 'client', audience: 'client', body: 'Hi' };
   const asClient = policy.publicComment(staffRow, 'client');

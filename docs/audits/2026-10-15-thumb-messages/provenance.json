@@ -1,0 +1,50 @@
+{
+  "baseline": "71f684554e95f6a9b5ddc2167685fcc2979477c4",
+  "sourceFragmentsSha256": "dc44d03bfdf6023fb5230aa414c949557c773bddf7c6c199384cb0970baba17c",
+  "buildIndexSha256": "e80a4deccbdcee075bdac9d0525808f24f1bc7d2432877e0f577307ace2cd7a1",
+  "phoneStates": 12,
+  "phoneWidths": [
+    390,
+    430
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "required390Screenshots": 24,
+  "scope": "Fully intercepted fictional fixtures; native viewport phone captures; simulated keyboard; exact populated desktop comparison.",
+  "screenshots": {
+    "desktop-populated/messages-inbox-dark-after.png": "7a4266f2ff190b9709ddb6e70360299de508b5d34a4ec182106fc9cb40d9d7c9",
+    "desktop-populated/messages-inbox-dark-before.png": "7a4266f2ff190b9709ddb6e70360299de508b5d34a4ec182106fc9cb40d9d7c9",
+    "desktop-populated/messages-inbox-light-after.png": "3b09d7215d57e60850d0e00af734a4e1c2ea6489b924da032acd3b808498659c",
+    "desktop-populated/messages-inbox-light-before.png": "3b09d7215d57e60850d0e00af734a4e1c2ea6489b924da032acd3b808498659c",
+    "desktop-populated/messages-thread-dark-after.png": "331cd77c9b766f04076d227c372bfdd8c922846be425de162316bdaca5176c7c",
+    "desktop-populated/messages-thread-dark-before.png": "331cd77c9b766f04076d227c372bfdd8c922846be425de162316bdaca5176c7c",
+    "desktop-populated/messages-thread-light-after.png": "1471b35025c4971d414fcbf08db04ae3a959124db4fd3affa8239ebdae817062",
+    "desktop-populated/messages-thread-light-before.png": "1471b35025c4971d414fcbf08db04ae3a959124db4fd3affa8239ebdae817062",
+    "messages-composer-dark-390.png": "bb64f5a511cf474662cbacd38d7c04270e9127ac687f8f8dda381319b6597dc9",
+    "messages-composer-light-390.png": "30b6a8ebe653ecfa23bde55afbd4d6184a78d29fc882eef01bfca8e1c46dd55d",
+    "messages-empty-dark-390.png": "beae0c02cc38334716448b27d44afa57f77ac663cb464ae61fc4373c5ffd57b3",
+    "messages-empty-light-390.png": "3408c91e12e83a12e6d3323795b284bf2563b8fe85e325a0393162a013e133ad",
+    "messages-error-dark-390.png": "3393b8e3849ec0fed6db536ec82b5bc90c0bbd130089b3cb2f89fa6991107721",
+    "messages-error-light-390.png": "fa173917a6c223b750b72648583c16782b3d472b61bd437387cf84c72128f621",
+    "messages-inbox-dark-390.png": "b6c09a2665a0b2b86b637fc8e9b94ad1914f43726b947356f6fffdb7c7473a3b",
+    "messages-inbox-light-390.png": "4598b0ca252e1f25a87001e41168ff3cc16fb6cb8ea3202b6b30f8d79f91e188",
+    "messages-keyboard-dark-390.png": "f6371b8ba37f0378e48d38d6c72527aafc86b9c38cafb73ec27e11a65977505e",
+    "messages-keyboard-light-390.png": "e64599d84dae6170e10997a426a6848ed5921c78f2284ce604736e557606188f",
+    "messages-loading-dark-390.png": "8610c44998f1e0d14f633a126dc016c4be36f3a0d5c894f024eee4c631796c8f",
+    "messages-loading-light-390.png": "81c6072b4b30f91af8b7ade5c241ec91374f0f22310e02971d267d0c4787eff2",
+    "messages-more-dark-390.png": "28db43b9fa55b376b9782dea1d83d2a21557abdc6f1f4aa7f00f809ecb025fc8",
+    "messages-more-light-390.png": "2349f33a8df2f6a6385dbbb751e039bdabb2705c7f80f58b6f5574229bddfd2c",
+    "messages-refused-dark-390.png": "e2a9a4ba20c7ec12d8d3220125d7f65ebbe34c61120f9adcba7bfd5dedb71c8b",
+    "messages-refused-light-390.png": "4b682b6c54b23730bf363704cbbb9fb1b9fc4b23a8208f758ef06318076e7e5f",
+    "messages-search-dark-390.png": "abb5c5bf5edd60c59109bb8ff6987247d6dc0ed742e4ff2d7827fb45135b6719",
+    "messages-search-light-390.png": "93b9e33d48e927c918ca53a7e1ddbadf43adf57b56b939e11fe26a02a75d35de",
+    "messages-tabs-dark-390.png": "9235f81a0dbb61a241680da66de5738a4ac2b95f269b2027765e131ff8ef28a1",
+    "messages-tabs-light-390.png": "266e98a451a4d015f2ff086332191d2f965b489258c1a7d29566adc1a7dcf6cb",
+    "messages-thread-dark-390.png": "6fe6861c5c52ed92484a355c4f2132154c9fe9c5aefd6eed08c57621feec43e0",
+    "messages-thread-light-390.png": "2ffbd00690c7983e762ab4ee368e074c94f6a4784a35afc12788ac2cbe89ad4d",
+    "messages-unread-dark-390.png": "f1eee13a9b5d8be91ac50e5d2f3de323b681002808648a75b6a7231dc5d2999f",
+    "messages-unread-light-390.png": "89bd33801954fbc8ea3cda65e825316e0297a8006f028ec06154159a8f316f03"
+  }
+}

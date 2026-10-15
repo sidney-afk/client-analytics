@@ -338,7 +338,9 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     // K: phone list keeps the time and badge inside the row
     await page.setViewportSize({ width: 390, height: 844 });
     await page.evaluate(() => { _msgState.openId = ''; _msgLoad(true); });
-    await until(() => page.evaluate(() => document.querySelectorAll('#msgPage .msg-conv').length > 0 && document.querySelector('#msgPage .msg-list').offsetParent !== null));
+    // Wait for the reloaded list: the conversation marked unread above shows
+    // its badge only once the reload lands.
+    await until(() => page.evaluate(() => document.querySelectorAll('#msgPage .msg-conv').length > 0 && document.querySelector('#msgPage .msg-list').offsetParent !== null && !!document.querySelector('#msgPage .msg-conv .msg-unread')));
     for (const t of ['light', 'dark']) {
       await theme(t);
       const k = await page.evaluate(() => {

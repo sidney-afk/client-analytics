@@ -341,6 +341,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/calendar-card-status-filter-browser.js
+      - name: Notify client button and confirm box (Calendar and Samples, desktop and phone)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/notify-client-browser.js
       - name: Calendar work item hover card and per-card files menu
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -379,6 +383,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/quick-jump-browser.js
+      - name: Every pop-up closes the same way (Escape, outside click, focus return, kept text, refresh)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/popup-behaviour-browser.js
       - name: Creatives open on their own work in Workload and SyncLinear
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -515,6 +523,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/today-open-card-address-browser.js
+      - name: Today opens new tabs, SyncLinear offers Back to card
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/back-to-card-browser.js
       - name: Workload, signed out shows no board
         if: ${{ !cancelled() }}
         env:

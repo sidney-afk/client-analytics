@@ -1,3 +1,4 @@
+import { svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { _writeUiRecordSaveFailure, _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
 import { wlAddWorkingDays, wlTodayISO } from './068-core-workload-dates.js';
@@ -681,6 +682,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         overlay.innerHTML = '<div class="cal-import-modal" role="dialog" aria-modal="true" aria-labelledby="calNativePostTitle"><div class="cal-import-head"><h3 id="calNativePostTitle">Create Post</h3><p>Finding the current batch for ' + _calEsc(clientName) + '...</p></div><div class="cal-import-body"><div class="cal-import-progress">Loading batch options...</div></div></div>';
         document.body.appendChild(overlay);
         document.body.classList.add('cal-modal-open');
+        if (typeof svLayerOverlay === 'function') svLayerOverlay('cal-nativepost', '#calNativePostOverlay', '#calNativePostOverlay > .cal-import-modal', () => _calCloseNativePost());
         _calSetNativePostState({
             clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, batchMaxOrdinals: null, mode: 'both', batchChoice: null, batchFilter: '',
             batchName: '', postNames: [],
@@ -2121,8 +2123,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
     }
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
-        const overlay = document.getElementById('calPromptOverlay');
-        if (overlay && overlay.classList.contains('open')) { _calCloseCaptionPromptModal(); return; }
+        // (An open prompt box is a layer and closes through the shared handler.)
         // Otherwise Escape leaves multi-select entirely — same as the "Done"
         // button: clears the selection and restores the normal calendar. Guard on
         // cal-modal-open so we never tear down select mode behind an open modal.
@@ -2171,7 +2172,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             '</div>' +
             '<div class="cal-prompt-body">' +
                 bannerHtml +
-                '<textarea class="cal-prompt-textarea" id="calPromptTA" placeholder="The transcript is appended automatically — write only the instructions.">' + _calEsc(initial) + '</textarea>' +
+                '<textarea class="cal-prompt-textarea" id="calPromptTA" oninput="this.dataset.edited=\'1\'" placeholder="The transcript is appended automatically — write only the instructions.">' + _calEsc(initial) + '</textarea>' +
                 '<div class="cal-prompt-hint">' +
                     'Tip: the transcript is appended automatically after your prompt, prefixed with <code>Transcript:</code>. ' +
                     'Don\'t include the transcript yourself. Clear the field and save to fall back to the default.' +
@@ -2206,6 +2207,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             const box = document.getElementById('calCtaTA');
             if (box) box.placeholder = 'Could not load the choices. They stay as saved.';
         });
+        svLayerOverlay('cal-prompt', '#calPromptOverlay', '#calPromptModal', () => _calCloseCaptionPromptModal());
     }
     /* Every way out of the dialog (X, Cancel, backdrop, Escape) comes here. When
        it is the transcript box and text was pasted, ask first: the text is not
@@ -2218,12 +2220,22 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             showConfirm('Discard what you typed?', 'The transcript and note are not saved anywhere. Close the box and lose them?', () => _calCloseCaptionPromptModal(true), 'Discard');
             return;
         }
+        /* Typed or changed prompt text is not kept anywhere either, so closing the box
+           (X, Cancel, backdrop, Escape) asks first instead of dropping it. Emptying
+           the box leaves nothing to lose, so that closes at once. */
+        const pta = document.getElementById('calPromptTA');
+        if (force !== true && overlay && overlay.classList.contains('open') && pta && pta.dataset.edited === '1' && pta.value.trim() && pta.value !== pta.defaultValue) {
+            showConfirm('Discard your changes?', 'Your edits to this prompt are not saved. Close the box and lose them?', () => _calCloseCaptionPromptModal(true), 'Discard');
+            return;
+        }
+        svLayerRelease('cal-prompt', { focus: true });
         if (overlay) overlay.classList.remove('open');
     }
     function _calResetCaptionPromptToDefault() {
         const ta = document.getElementById('calPromptTA');
         if (!ta) return;
         ta.value = DEFAULT_CAPTION_PROMPT;
+        ta.dataset.edited = '1';
         ta.focus();
     }
     function _calCtaLines(text) { return String(text || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean); }
@@ -2273,7 +2285,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             }
             _calCaptionPrompts[calClientSlug(client)] = promptText;
             _calCaptionPromptsLkgWrite(_calCaptionPrompts);
-            _calCloseCaptionPromptModal();
+            _calCloseCaptionPromptModal(true);
             showNotify('Saved', promptText
                 ? 'Custom caption prompt saved for ' + client + '.'
                 : 'Using the default prompt for ' + client + '.');
@@ -2323,6 +2335,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const closeOnly = '<div class="cal-prompt-foot-left"></div><div class="cal-prompt-foot-right"><button type="button" class="cal-prompt-btn" onclick="_calCloseCaptionPromptModal()">Close</button></div>';
         modal.innerHTML = _calThumbTitlePromptHtml(client, '<div class="cal-prompt-banner is-default"><span>Loading the prompt…</span></div>', closeOnly);
         overlay.classList.add('open');
+        svLayerOverlay('cal-prompt', '#calPromptOverlay', '#calPromptModal', () => _calCloseCaptionPromptModal());
         let j;
         try {
             j = await _calThumbTitlePromptCall({ action: 'get', client: calClientSlug(client) });
@@ -2349,7 +2362,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                 ' (' + initial.length + ' characters). Edit and Save to make your own version.</span></div>';
         modal.innerHTML = _calThumbTitlePromptHtml(client,
             bannerHtml +
-            '<textarea class="cal-prompt-textarea" id="calPromptTA" placeholder="Write only the instructions; the videos and the filming plan are added automatically.">' + _calEsc(initial) + '</textarea>' +
+            '<textarea class="cal-prompt-textarea" id="calPromptTA" oninput="this.dataset.edited=\'1\'" placeholder="Write only the instructions; the videos and the filming plan are added automatically.">' + _calEsc(initial) + '</textarea>' +
             '<div class="cal-prompt-hint">' +
                 'Tip: the list of videos and the filming plan are added automatically after your prompt. ' +
                 'Titles are written only into an empty description, never over text someone wrote. Clear the field and save to fall back to the default.' +
@@ -2392,7 +2405,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             }, { requireOk: true });
             const j = await r.json();
             if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
-            _calCloseCaptionPromptModal();
+            _calCloseCaptionPromptModal(true);
             showNotify('Saved', j.prompt
                 ? 'Custom thumbnail title prompt saved for ' + client + '.'
                 : 'Using the default thumbnail title prompt for ' + client + '.');
@@ -2450,6 +2463,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                 '</div>' +
             '</div>';
         overlay.classList.add('open');
+        svLayerOverlay('cal-prompt', '#calPromptOverlay', '#calPromptModal', () => _calCloseCaptionPromptModal());
         const clientAtOpen = calState.client;
         // The client's own call-to-action list, when it has one. A slow or failed read is just no list: the box works without it.
         _calLoadCtaOptions(clientAtOpen).then(options => {

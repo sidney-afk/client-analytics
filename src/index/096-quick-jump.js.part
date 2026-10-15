@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { currentNav } from './065-core-nav-intake-state.js';
 import { WL_CLIENT_NAMES, wlCanonicalClient } from './070-core-client-names.js';
 import { navTo } from './092-core-submit-form-navigation.js';
@@ -113,8 +114,18 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
         const input = document.getElementById('svJumpInput');
         _svJumpActive = 0;
         if (input) { input.value = ''; _svJumpRender(); input.focus(); }
+        svLayerOpen({
+            key: 'quick-jump',
+            region: '#svJump .sv-jump-box',
+            holdRefresh: false,
+            opener: () => (_svJumpReturnFocus && document.contains(_svJumpReturnFocus) ? _svJumpReturnFocus : null),
+            isOpen: () => { const b = document.getElementById('svJump'); return !!b && !b.hidden; },
+            focusOnClose: false,   // the box returns focus itself, below
+            close: () => svQuickJumpClose(),
+        });
     }
     function svQuickJumpClose() {
+        svLayerRelease('quick-jump');
         const box = document.getElementById('svJump');
         if (!box || box.hidden) return;
         box.hidden = true;

@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { _msgOnIdentity } from './326-core-messages-inbox.js';
 import {
   _syncviewApplyStatusPalette, _syncviewApplyTheme, _syncviewStoredStatusPalette,
@@ -1353,6 +1354,7 @@ import {
         // dashboard is the same inbox. Editors and designers have no inbox.
         if (capability === 'messages-button') return role === 'admin' || role === 'smm';
         if (capability === 'review-link') return role === 'admin' || role === 'smm';
+        if (capability === 'notify-client') return role === 'admin' || role === 'smm';
         if (capability === 'restore-archived') return role === 'admin' || role === 'smm';
         if (capability === 'intake') return role === 'admin' || role === 'smm';
         if (capability === 'onboarding') return role === 'admin' || role === 'smm' || role === 'creative';
@@ -1459,7 +1461,7 @@ import {
                 && svAreaApi('kasper') && !document.querySelector('#kasperContent > :not(.kasper-empty)')) svAreaApi('kasper').staffPageRender(currentNav);
         } catch (e) {}
         if (!valid) {
-            _syncviewCloseStaffAccount();
+            _syncviewCloseStaffAccount({ restoreFocus: false });
             // Purging the in-memory PTO caches is not enough: immediately
             // replace any mounted HR view so previous staff data never
             // remains visible after sign-out, a cross-tab identity change, or
@@ -1670,6 +1672,7 @@ import {
         const popover = document.getElementById('staffAccountPopover');
         const button = document.getElementById('headerMenuButton');
         if (!popover || popover.hidden) return;
+        svLayerRelease('staff-account');
         if (popover._syncviewOutside) document.removeEventListener('mousedown', popover._syncviewOutside, true);
         if (popover._syncviewKeydown) document.removeEventListener('keydown', popover._syncviewKeydown, true);
         popover._syncviewOutside = null;
@@ -1677,7 +1680,7 @@ import {
         popover.classList.remove('is-open');
         popover.hidden = true;
         if (button) button.setAttribute('aria-expanded', 'false');
-        if (options.restoreFocus && button) button.focus();
+        if (options.restoreFocus !== false && button) button.focus();
     }
     function _syncviewOpenStaffAccount() {
         const identity = _syncviewStaffIdentityForHeaders();
@@ -1704,7 +1707,7 @@ import {
                 + '<div class="staff-account-copy"><div class="staff-account-line">SyncView staff</div><div class="staff-account-note">Sign in to use staff-only tools</div></div>';
             if (identityLabel) identityLabel.textContent = 'Staff sign in';
             if (identityAction) identityAction.onclick = () => {
-                _syncviewCloseStaffAccount();
+                _syncviewCloseStaffAccount({ restoreFocus: false });
                 _syncviewOpenStaffIdentity({ reason: 'required' });
             };
         }
@@ -1723,10 +1726,24 @@ import {
                 return;
             }
             if (event.key === 'Tab') {
-                setTimeout(() => { if (!wrap.contains(document.activeElement)) _syncviewCloseStaffAccount(); }, 0);
+                setTimeout(() => { if (!wrap.contains(document.activeElement)) _syncviewCloseStaffAccount({ restoreFocus: false }); }, 0);
             }
         };
         document.addEventListener('keydown', popover._syncviewKeydown, true);
+        svLayerOpen({
+            key: 'staff-account',
+            region: '#staffIdentityWrap',
+            holdRefresh: false,
+            /* The header button, or on the Kasper phone layout (where it is
+               tucked away) the More button the account sheet came from. */
+            opener: () => {
+                const btn = document.getElementById('headerMenuButton');
+                if (btn && btn.getClientRects().length) return btn;
+                return document.querySelector('[data-kasper-more-trigger]') || btn;
+            },
+            isOpen: () => { const p = document.getElementById('staffAccountPopover'); return !!p && !p.hidden; },
+            close: () => _syncviewCloseStaffAccount({ restoreFocus: false }),
+        });
         const action = popover.querySelector('#staffIdentitySignOut');
         if (action) action.focus();
         setTimeout(() => { if (!popover.hidden) document.addEventListener('mousedown', popover._syncviewOutside, true); }, 0);
@@ -1901,7 +1918,7 @@ import {
             if (!options.entry) _syncviewOpenStaffAccount();
             return Promise.resolve(identity);
         }
-        _syncviewCloseStaffAccount();
+        _syncviewCloseStaffAccount({ restoreFocus: false });
         if (_syncviewStaffPromptPromise) return _syncviewStaffPromptPromise;
         _syncviewStaffPromptPromise = (async () => {
             const overlay = document.createElement('div');
@@ -2212,6 +2229,7 @@ import {
             button.removeAttribute('aria-activedescendant');
             if (returnFocus) button.focus();
         }
+        svLayerRelease('svselect:' + id);
         if (_svOpenSelectId === id) {
             document.removeEventListener('mousedown', _svSelectOutside, true);
             _svOpenSelectId = null;
@@ -2258,6 +2276,16 @@ import {
         button.setAttribute('aria-expanded', 'true');
         _svOpenSelectId = id;
         setTimeout(() => document.addEventListener('mousedown', _svSelectOutside, true), 0);
+        /* A layer on the staff side: one Escape closes just this list, and
+           focus goes back to its button. */
+        if (!_isClientLink) svLayerOpen({
+            key: 'svselect:' + id,
+            region: () => document.getElementById(id + 'Wrap'),
+            opener: () => document.getElementById(id + 'Btn'),
+            isOpen: () => { const w = document.getElementById(id + 'Wrap'); return !!w && w.classList.contains('open'); },
+            holdRefresh: false,
+            close: () => _svSelectClose(id),
+        });
         if (focusMode) {
             const options = _svSelectOptions(id);
             const selected = options.findIndex(option => option.getAttribute('aria-selected') === 'true');

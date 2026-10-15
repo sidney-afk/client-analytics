@@ -1,4 +1,4 @@
-import { _msgInboxLive, _msgOnFallback, _msgRenderInto } from './326-core-messages-inbox.js';
+import { _msgInboxLive, _msgOnFallback } from './326-core-messages-inbox.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showToast, svArea, svAreaApi } from './040-shared-briefs.js';
 import {
@@ -18,7 +18,8 @@ import {
 import { _calFmtCommentTime, _calLatestMsgAt, _calLatestMsgCreatedAt, _calMintCommentId, _calNoteAuthorName } from './190-calendar-approval-comments.js';
 import { _sxrKasperLoadQueue, _sxrKasperState } from './290-samples-writes-review.js';
 import { CA_RECENT_KEY, _kasperPersistPost, _kasperSamplesEnabled, _kasperState } from './305-core-kasper-shared.js';
-import { _ccEnsureIdentity, _kasperLoadFilming, _kasperUpdateReplyCount } from './321-kasper-dashboard-replies.js';
+import { _ccEnsureIdentity, _kasperFallbackToReviewNow, _kasperLoadFilming, _kasperUpdateReplyCount } from './321-kasper-dashboard-replies.js';
+import { navTo } from './092-core-submit-form-navigation.js';
 import { _cbPurge, _cbSync, _cnRender } from './324-client-onboarding-panel.js';
 import { _svClientHue } from './095-shared-client.js';
 import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-history.js';
@@ -60,18 +61,28 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
     /* Messages tab = the shared Messages inbox (326-core-messages-inbox), or
        the old replies view while the inbox backend is not deployed yet. */
     let _kasperRepliesFallbackHooked = false;
+    let _kasperMessagesFromTab = false;
     function _kasperRenderReplies() {
         if (!_kasperRepliesFallbackHooked) {
             _kasperRepliesFallbackHooked = true;
             _msgOnFallback(() => {
                 _kasperUpdateReplyCount();
                 if (_kasperState.tab === 'replies') _kasperRenderReplies();
+                // Came from this tab and the inbox backend is not there:
+                // back to the Kasper page and its old Messages view.
+                if (_kasperMessagesFromTab) {
+                    _kasperMessagesFromTab = false;
+                    navTo('kasper');
+                    window._kasperGotoTab('replies');
+                }
             });
         }
         if (!_msgInboxLive()) { _kasperRenderRepliesLegacy(); return; }
-        const root = document.getElementById('kasperContent');
-        if (!root) return;
-        _msgRenderInto(root);
+        // The inbox is its own page now: the Kasper Messages tab opens it, and
+        // the Kasper page itself goes back to Review for the next visit.
+        _kasperFallbackToReviewNow();
+        _kasperMessagesFromTab = true;
+        navTo('messages');
     }
     function _kasperRenderRepliesLegacy() {
         const root = document.getElementById('kasperContent');

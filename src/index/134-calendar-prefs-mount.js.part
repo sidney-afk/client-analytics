@@ -1,3 +1,4 @@
+import { svLayerOverlay, svLayerRelease, svLayerTouches } from './041-core-layers.js';
 import { showNotify, showToast } from './040-shared-briefs.js';
 import { currentNav } from './065-core-nav-intake-state.js';
 import { WL_CLIENT_NAMES, wlCanonicalClient, wlIsAllowedClient, wlNormalizeClient } from './070-core-client-names.js';
@@ -629,6 +630,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (isTextEntry && calBody.contains(a)) return true;
         if (Object.keys(_calPendingEdits).length > 0) return true;
         if (_calOpenStatusMenu) return true;
+        if (svLayerTouches(calBody)) return true;   // a menu, picker or panel is open inside the calendar
         return false;
     }
     function _calSchedulePendingRender() {
@@ -896,9 +898,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!ovl) return;
         ovl.classList.add('open');
         document.body.classList.add('cal-modal-open');
+        svLayerOverlay('cal-import', '#calImportOverlay', '#calImportOverlay > *', () => closeCalImport());
         _calRenderImportPick();
     }
     function closeCalImport() {
+        svLayerRelease('cal-import', { focus: true });
         const ovl = document.getElementById('calImportOverlay');
         if (ovl) ovl.classList.remove('open');
         document.body.classList.remove('cal-modal-open');

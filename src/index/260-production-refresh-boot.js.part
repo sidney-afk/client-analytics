@@ -752,7 +752,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             _prodListRowBudget = (!root.querySelector('.prod-row') && !_prodState.listScrollTop && !_prodState.focusRow)
                 ? _prodFirstScreenRows() : Infinity;
             try {
-                root.innerHTML = _prodSidebar() + '<div class="prod-main">' + _prodTopbar() + '<div class="prod-content">' + _prodBody() + '</div></div>';
+                root.innerHTML = _prodSidebar() + '<div class="prod-main">' + _prodBackToCardStrip() + _prodTopbar() + '<div class="prod-content">' + _prodBody() + '</div></div>';
             } finally {
                 _prodListRowBudget = Infinity;
             }
@@ -882,7 +882,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                         : '')
                     + '</div>';
             };
-            return '<aside class="prod-side"><div class="prod-side-top"><span class="prod-spacer"></span><button class="prod-search-btn" type="button" onclick="_prodOpenPalette()" title="Search workspace (/)" data-prod-tip="Search workspace|/">' + _prodIcon('search') + '</button></div>'
+            return '<aside class="prod-side"><div class="prod-side-top">' + (_prodBackToCardHTML() || '<span class="prod-spacer"></span>') + '<button class="prod-search-btn" type="button" onclick="_prodOpenPalette()" title="Search workspace (/)" data-prod-tip="Search workspace|/">' + _prodIcon('search') + '</button></div>'
                 + '<div class="prod-side-scroll"><div class="prod-nav">'
                 + _prodNavItem(_prodIcon('issues'), 'My issues', _prodState.view === 'my', '_prodSetView(' + _jsAttrArg('my') + ')')
                 + '</div>' + favHTML
@@ -908,6 +908,27 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             const createClient = _prodState.clientSlug && _prodClient(_prodState.clientSlug) ? _prodState.clientSlug : '';
             const createTeam = _prodState.team === 'video' || _prodState.team === 'graphics' ? _prodState.team : '';
             return '<div class="prod-topbar">' + crumb + '<div class="prod-spacer"></div>' + _prodFreshnessHTML() + '<button class="prod-icon-btn" type="button" onclick="return _prodOpenArchiveRepair()" aria-label="Archive asset repair" data-prod-tip="Archive asset repair">' + _prodIcon('issues') + '</button>' + _prodCreateTopbarButton(createClient, createTeam) + '</div>' + subbar;
+        }
+        /* "Back to card": shown only when SyncLinear was opened from a card
+           (svRoute.fromCard reads it from the address). It goes to that exact
+           card in this tab; the card's own tab, if still open, is simply left. */
+        function _prodBackToCardHTML() {
+            const o = svRoute.fromCard();
+            if (!o) return '';
+            const where = o.from === 'samples' ? 'sample' : 'Calendar';
+            return '<button class="prod-back-card" type="button" data-prod-back-card="' + _calEscAttr(o.card) + '" data-prod-back-from="' + _calEscAttr(o.from) + '" onclick="return _prodBackToCard()" title="Back to the ' + where + ' card" aria-label="Back to card">' + _prodIcon('back') + '<span>Back to card</span></button>';
+        }
+        /* The same button again, as a full-width strip above the header. The
+           sidebar is hidden on a narrow screen, so this is where a phone sees it. */
+        function _prodBackToCardStrip() {
+            const b = _prodBackToCardHTML();
+            return b ? '<div class="prod-back-strip">' + b + '</div>' : '';
+        }
+        function _prodBackToCard() {
+            const o = svRoute.fromCard();
+            if (!o) return false;
+            try { location.assign(o.href); } catch (e) {}
+            return false;
         }
         function _prodProjectTopbar() {
             const c = _prodClient(_prodState.openProjectId);
@@ -2312,6 +2333,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             if(hash==='filming-plans'){navTo(hash,false);return;}
             if(hash==='tiktok-upload'){navTo(hash,false);return;}
             if(hash==='time-off'){navTo('time-off',false);return;}
+            if(hash==='messages'){navTo('messages',false);return;}
             if(hash==='staff-onboarding'||hash==='client-credentials'){navTo(hash,false);return;}
             if(hashRoute==='smm-weekly-report'){navTo('smm-weekly-report',false);return;}
             if(hashRoute==='smm-weekly-reports'){navTo('smm-weekly-reports',false);return;}
@@ -2338,7 +2360,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(wlIsAllowedClient(tn)){_templatesSetSelected(wlCanonicalClient(tn));navTo('templates',false);return;}}
             if(hash&&wlIsAllowedClient(hash)){render(wlCanonicalClient(hash),false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
-            if(history.state&&history.state.nav&&(savedNav==='today'||savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||savedNav==='time-off'||(savedNav==='kasper'&&_kasperUnlocked))){navTo(savedNav,false);return;}
+            if(history.state&&history.state.nav&&(savedNav==='today'||savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||savedNav==='time-off'||savedNav==='messages'||(savedNav==='kasper'&&_kasperUnlocked))){navTo(savedNav,false);return;}
             navTo('home',false);
         }catch(err){
             if(_isClientLink){
@@ -2820,7 +2842,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        _prodManualRefresh, _prodOpenBulkActions, _prodRender, _syncviewStartClientEntry
+        _prodBackToCard, _prodManualRefresh, _prodOpenBulkActions, _prodRender, _syncviewStartClientEntry
     });
 export {
   _isClientLink, _isIntake, _isOnboarding, _isOnboardingView, _isSmmWeeklyEntry,

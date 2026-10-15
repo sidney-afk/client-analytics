@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { CALENDAR_REORDER_EF_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewStaffCan, _syncviewStaffIdentityValid } from './100-onboarding-staff-controls.js';
 import {
   WRITE_UI_PRODUCTION_WRITE_URL, _calAssertSavingOn, _calUpsertFetch, _calUpsertHeaders,
@@ -212,7 +213,7 @@ import {
                 + (opts.note ? '<div class="arx-note">' + _arxEsc(opts.note) + '</div>' : '')
                 + '<div class="confirm-box-actions">' + (opts.cancel === false ? '' : '<button type="button" class="brief-action-btn" data-arx="no">Cancel</button>')
                 + '<button type="button" class="brief-action-btn primary" data-arx="yes">' + _arxEsc(opts.yes || 'OK') + '</button></div></div>';
-            const done = v => { document.removeEventListener('keydown', onKey, true); root.remove(); resolve(v); };
+            const done = v => { document.removeEventListener('keydown', onKey, true); svLayerRelease('arx-dialog', { focus: true }); root.remove(); resolve(v); };
             const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); done(false); } };
             root.addEventListener('click', e => {
                 const a = e.target && e.target.getAttribute && e.target.getAttribute('data-arx');
@@ -220,6 +221,7 @@ import {
             });
             document.addEventListener('keydown', onKey, true);
             document.body.appendChild(root);
+            svLayerOpen({ key: 'arx-dialog', region: () => root.querySelector('.arx-confirm'), isOpen: () => root.isConnected, holdRefresh: false, close: () => done(false) });
             const yes = root.querySelector('[data-arx="yes"]');
             if (yes) yes.focus();
         });
@@ -245,6 +247,7 @@ import {
         arxState.open = false;
         arxState.seq += 1;
         document.removeEventListener('keydown', _arxKey);
+        svLayerRelease('arx-list', { focus: true });
         const o = document.getElementById('arxOverlay');
         if (o) o.remove();
     }
@@ -324,11 +327,24 @@ import {
             }).join('') + (arxState.error ? '<div class="arx-error-s">Couldn\'t load more. <button class="cal-prompt-btn" type="button" data-arx-act="retry">Try again</button></div>' : '');
         }
         const more = (arxState.hasMore || arxState.canWiden) ? '<button class="cal-prompt-btn" type="button" data-arx-act="more"' + (arxState.loading ? ' disabled' : '') + '>Show older</button>' : '';
+        /* A redraw (a page loaded, a restore finished) keeps the focused
+           button and the list position instead of dropping to the page. */
+        const fa = document.activeElement;
+        const fKey = fa && o.contains(fa) && fa.getAttribute ? [fa.getAttribute('data-arx-act'), fa.getAttribute('data-id')] : null;
+        const oldBody = o.querySelector('.cal-prompt-body');
+        const keepTop = oldBody ? oldBody.scrollTop : 0;
         o.innerHTML = '<div class="cal-prompt-modal arx-modal" role="dialog" aria-modal="true" aria-labelledby="arxTitle">'
             + '<div class="cal-prompt-head"><div class="cal-prompt-head-text"><h3 id="arxTitle">' + k.title + '</h3><p>Restore puts ' + (kind === 'sxr' ? 'a sample' : 'a card') + ' back exactly as it was. Only admins and SMMs see this.</p></div>'
             + '<button class="cal-prompt-close" type="button" data-arx-act="close" aria-label="Close">&times;</button></div>'
             + '<div class="cal-prompt-body">' + body + '</div>'
             + '<div class="cal-prompt-foot"><div class="cal-prompt-foot-left"><span class="cal-prompt-hint">Showing the last ' + days + ' days, newest first.</span></div><div class="cal-prompt-foot-right">' + more + '</div></div></div>';
+        const newBody = o.querySelector('.cal-prompt-body');
+        if (newBody && keepTop) newBody.scrollTop = keepTop;
+        if (fKey && fKey[0]) {
+            const again = [...o.querySelectorAll('[data-arx-act="' + fKey[0] + '"]')].find(b => (b.getAttribute('data-id') || null) === (fKey[1] || null));
+            if (again && !again.disabled) again.focus();
+        }
+        svLayerOverlay('arx-list', '#arxOverlay', '#arxOverlay .arx-modal', () => _arxClose());
     }
 
     /* ── Restore ── */

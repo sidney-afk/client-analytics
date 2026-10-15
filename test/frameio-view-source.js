@@ -3,7 +3,8 @@
 // checks on the handler. No network. What it holds the function to:
 //   - a card's Frame.io link (short, share, or project view) becomes a playable address and the comments;
 //   - the Adobe access token is only ever sent to Frame.io: never in a response, a log line or an error;
-//   - the handler answers only to a staff role key, refuses client links, and writes nothing.
+//   - the handler answers to a staff role key, or to a client review token for that client's OWN card only;
+//     a client never gets comments, never gets anything for another client, and nothing is written.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -204,15 +205,83 @@ function deps(f, over = {}) {
   // ---- the handler
   const src = read('supabase/functions/frameio-view/index.ts');
   const lg = read('supabase/functions/frameio-view/logic.mjs');
-  ok(/authorizeStaffKey\(clean\(req\.headers\.get\("x-syncview-key"\)\), \["admin", "smm", "creative"\]\)/.test(src), 'a staff role key is required');
-  ok(src.indexOf('x-syncview-client-token") ) return') === -1 && /req\.headers\.get\("x-syncview-client-token"\)\) return json\(\{ ok: false, error: "staff_only" \}, 403\)/.test(src), 'a client link is refused');
+  ok(/authorizeStaffKey\(staffKey, \["admin", "smm", "creative"\]\)/.test(src), 'a staff role key is required for a staff request');
+  ok(/if \(clientToken && staffKey\) return json\(\{ ok: false, error: "ambiguous_credentials" \}, 400\)/.test(src), 'a request with both a staff key and a client token is refused');
+  ok(/if \(!clientToken\) \{\s*const auth = authorizeStaffKey/.test(src), 'no client token means the staff key check runs');
   ok(src.indexOf('authorizeStaffKey(') < src.indexOf('req.json()'), 'the key is checked before the body is read');
+  ok(src.indexOf('authorizeClientCard(') > src.indexOf('req.json()') && src.indexOf('authorizeClientCard(') < src.indexOf('await lookup('), 'a client is authorized before Frame.io is asked anything');
+  ok(/\{ comments: !clientToken \}/.test(src), 'a client lookup never asks for comments');
+  ok(/link = card\.link;/.test(src), "a client request plays the card's own link, not the one in the request");
   ok(/verify_jwt = false/.test(read('supabase/config.toml').split('[functions.frameio-view]')[1] || ''), 'registered in config.toml (the key is checked in code)');
   ok(src.split('\n').filter((l) => /console\./.test(l)).every((l) => !/link|token|url|body|comment/i.test(l.replace(/frameio-view/g, ''))), 'no log line carries a link, token, address or comment');
-  ok(!/\.from\(|createClient|supabase-js|\.insert\(|\.update\(|\.upsert\(/.test(src + lg), 'nothing is written to the database');
+  const cc = read('supabase/functions/frameio-view/client-card.mjs');
+  ok(!/\.from\(|createClient|supabase-js|\.insert\(|\.update\(|\.upsert\(|\.delete\(/.test(src + lg + cc), 'nothing is written to the database');
+  ok(!/method:\s*['"]?(PUT|PATCH|DELETE)/i.test(src + cc) && !/rest\/v1\/[^\n]*method:\s*"POST"/.test(src), 'the client check only reads');
   ok(!/method:\s*['"](POST|PUT|PATCH|DELETE)['"]/.test(lg.replace(/method: 'POST', headers: \{ 'x-broker-key'/, '')), 'only GETs reach Frame.io');
   ok(!/access_token/.test(src), 'the handler never touches the access token');
   ok(!/\baccess_token\b/.test(lg.replace(/body\.access_token/g, '').replace(/clean\(body\.access_token\)/g, '')), 'logic reads the token only from the key keeper reply');
+
+  // ---- the client side: one client's token plays that client's own card, nothing else
+  {
+    const cc = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/frameio-view/client-card.mjs')).href);
+    const { authorizeClientCard, ClientRefusal, flagAllows, normalizeClient } = cc;
+    const TOK_A = 'A'.repeat(32), TOK_B = 'B'.repeat(32);
+    const LINK = 'https://f.io/abc123';
+    function fakeDb(over = {}) {
+      const asked = [];
+      const db = Object.assign({
+        client_access: [{ slug: 'clientone', review_token: TOK_A }, { slug: 'clienttwo', review_token: TOK_B }],
+        flag: { all: false, clients: ['clientone', 'clienttwo'] },
+        clients: [{ slug: 'clientone' }, { slug: 'clienttwo' }],
+        cards: [{ id: 'card-1', client: 'clientone', asset_url: LINK }, { id: 'card-2', client: 'clienttwo', asset_url: 'https://f.io/other99' }, { id: 'card-3', client: 'clientone', asset_url: '' }],
+      }, over);
+      const rest = async (p) => {
+        asked.push(p);
+        if (db.down) throw new Error('db down');
+        if (p.startsWith('client_access?')) return db.client_access;
+        if (p.startsWith('syncview_runtime_flags?')) { if (db.flagDown) throw new Error('flag read failed'); return db.flag === null ? [] : [{ value: db.flag }]; }
+        if (p.startsWith('clients?')) { const m = /slug=eq\.([^&]+)/.exec(p); return db.clients.filter((c) => c.slug === decodeURIComponent(m[1])); }
+        if (p.startsWith('calendar_posts?')) { const c = /client=eq\.([^&]+)/.exec(p), i = /id=eq\.([^&]+)/.exec(p); return db.cards.filter((r) => r.client === decodeURIComponent(c[1]) && r.id === decodeURIComponent(i[1])); }
+        throw new Error('unexpected read ' + p);
+      };
+      return { rest, asked };
+    }
+    const refused = async (args, db) => { try { await authorizeClientCard(args, db.rest); return 'no error'; } catch (e) { return e instanceof ClientRefusal ? e.code + ' ' + e.status : 'other:' + e.message; } };
+
+    { const db = fakeDb(); const r = await authorizeClientCard({ token: TOK_A, cardId: 'card-1' }, db.rest); eq(r, { slug: 'clientone', link: LINK }, "a client plays its own card, with the card's own link"); }
+    { const db = fakeDb(); eq(await refused({ token: '', cardId: 'card-1' }, db), 'credentials_required 401', 'no token is refused'); eq(db.asked.length, 0, 'no token: nothing was read'); }
+    eq(await refused({ token: '   ', cardId: 'card-1' }, fakeDb()), 'credentials_required 401', 'a blank token is refused');
+    eq(await refused({ token: 'C'.repeat(32), cardId: 'card-1' }, fakeDb()), 'invalid_client_token 401', 'an unknown token is refused');
+    { const wrong = await refused({ token: TOK_A, cardId: 'card-2' }, fakeDb()), missing = await refused({ token: TOK_A, cardId: 'card-nope' }, fakeDb());
+      eq(wrong, 'not_found 404', 'the wrong client is refused'); eq(wrong, missing, "another client's card and a missing card look the same"); }
+    eq(await refused({ token: TOK_B, cardId: 'card-1' }, fakeDb()), 'not_found 404', 'the other client is refused the same way');
+    eq(await refused({ token: TOK_A, cardId: 'card-1', link: 'https://f.io/other99' }, fakeDb()), 'not_found 404', "a link that is not the card's own is refused");
+    eq((await authorizeClientCard({ token: TOK_A, cardId: 'card-1', link: LINK }, fakeDb().rest)).link, LINK, "the card's own link may be sent back");
+    eq(await refused({ token: TOK_A, cardId: 'card-3' }, fakeDb()), 'not_found 404', 'a card with no video link has nothing to play');
+    eq(await refused({ token: TOK_A, cardId: '../x' }, fakeDb()), 'invalid_scope 400', 'an odd card id is refused');
+    eq(await refused({ token: TOK_A, cardId: 'card-1' }, fakeDb({ client_access: [{ slug: 'clientone', review_token: TOK_A }, { slug: 'clienttwo', review_token: TOK_A }] })), 'ambiguous_client_token 403', 'a token shared by two clients is refused');
+    eq(await refused({ token: TOK_A, cardId: 'card-1' }, fakeDb({ client_access: [{ slug: 'clientone', review_token: '' }] })), 'invalid_client_token 401', 'a blank stored token never matches');
+    eq(await refused({ token: TOK_A, cardId: 'card-1' }, fakeDb({ flag: null })), 'not_enabled 403', 'no flag row means off');
+    eq(await refused({ token: TOK_A, cardId: 'card-1' }, fakeDb({ flag: { all: false, clients: ['clienttwo'] } })), 'not_enabled 403', 'a flag that lists other clients means off for this one');
+    eq(await refused({ token: TOK_A, cardId: 'card-1' }, fakeDb({ flag: { all: 'true', clients: [] } })), 'not_enabled 403', 'all must be literally true');
+    eq(await refused({ token: TOK_A, cardId: 'card-1' }, fakeDb({ flag: ['clientone'] })), 'not_enabled 403', 'a flag of the wrong shape means off');
+    eq(await refused({ token: TOK_A, cardId: 'card-1' }, fakeDb({ flagDown: true })), 'not_enabled 403', 'a failed flag read means off');
+    eq((await authorizeClientCard({ token: TOK_A, cardId: 'card-1' }, fakeDb({ flag: { all: true, clients: [] } }).rest)).slug, 'clientone', 'all:true switches every client on');
+    eq(await refused({ token: TOK_A, cardId: 'card-1' }, fakeDb({ clients: [] })), 'inactive_client 403', 'an inactive client is refused');
+    eq(await refused({ token: TOK_A, cardId: 'card-1' }, fakeDb({ down: true })), 'authorization_unavailable 503', 'a database that does not answer is refused, not guessed');
+    eq([flagAllows({ all: false, clients: ['Client One'] }, 'clientone'), flagAllows({ clients: 'clientone' }, 'clientone'), flagAllows(null, 'clientone')], [true, false, false], 'the flag reads display names like the page does');
+    eq(normalizeClient('Client One'), 'clientone', 'client names are normalized like the other client functions');
+    { const db = fakeDb(); await authorizeClientCard({ token: TOK_A, cardId: 'card-1' }, db.rest); ok(db.asked.every((a) => /^(client_access|syncview_runtime_flags|clients|calendar_posts)\?/.test(a)), 'only the four tables are read'); }
+
+    { const f = fakeFrameio(); const out = await lookup(LINK, deps(f), { comments: false });
+      ok(out.ok && out.video.url === STREAM, 'a client gets the playable address');
+      ok(!('comments' in out) && !('comments_error' in out) && !('comments_truncated' in out) && !('reply_names_partial' in out), 'a client response has no comments at all');
+      ok(!JSON.stringify(out).includes('Second note') && !JSON.stringify(out).includes('Team Member') && !JSON.stringify(out).includes('Fixed, thanks'), 'no comment text, author or reply anywhere in it');
+      ok(!('open_url' in out) && !('name' in out.video) && !('file_id' in out.video), 'no Frame.io page address, file name or id either');
+      ok(f.log.every((e) => !/\/comments/.test(e.url)), 'Frame.io was never even asked for comments');
+      ok(!JSON.stringify(out).includes(SECRET_TOKEN), 'and the access token is not in it'); }
+    { const out = await lookup(LINK, deps(fakeFrameio())); ok(out.comments.length === 3 && out.open_url && out.video.name, 'staff still get comments, the Frame.io page and the file name'); }
+  }
 
   console.log(`frameio-view-source: ${checks} checks passed`);
 })().catch((e) => { console.error(e); process.exit(1); });

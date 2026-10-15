@@ -21,7 +21,7 @@ import {
   _calRenderShell, _calRenderTabs, _calResetSelection
 } from './160-calendar-organize-ui.js';
 import { _calFlushCardSave, _calOpenStatusMenu } from './170-calendar-links-status.js';
-import { _isClientLink } from './260-production-refresh-boot.js';
+import { _isClientLink, _syncviewClientEntryCapability } from './260-production-refresh-boot.js';
 
     function _calLoadPrefs() { try { return JSON.parse(localStorage.getItem(CAL_PREFS_KEY) || '{}'); } catch { return {}; } }
     function _calSavePrefs() {
@@ -723,11 +723,18 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        on the Sheet (organizer) by default but can pin their own Review (SMM
        Approval) queue; a saved view belonging to the other audience is coerced
        back to that side's default. */
+    let _calClientTabUsed = false;
     function _calResolveInitialView(savedView) {
         const allowed = ['review','smmreview','organizer','month','week'];
         const saved = allowed.includes(savedView) ? savedView : null;
         // Each audience only has its own review tab: coerce away a saved view
         // that belongs to the other side (client ↔ smmreview, SMM ↔ review).
+        // A client link made with tab=review (the Notify client alert) opens on Review once,
+        // whatever view this browser used last. Without it the saved view still decides.
+        if (_isClientLink && !_calClientTabUsed && _syncviewClientEntryCapability && _syncviewClientEntryCapability.tab === 'review') {
+            _calClientTabUsed = true;
+            return 'review';
+        }
         if (_isClientLink) return (saved && saved !== 'smmreview') ? saved : 'review';
         if (saved && saved !== 'review') return saved;
         return 'organizer';

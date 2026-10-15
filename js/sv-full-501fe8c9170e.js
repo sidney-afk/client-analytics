@@ -29976,11 +29976,18 @@
        on the Sheet (organizer) by default but can pin their own Review (SMM
        Approval) queue; a saved view belonging to the other audience is coerced
        back to that side's default. */
+    let _calClientTabUsed = false;
     function _calResolveInitialView(savedView) {
         const allowed = ['review','smmreview','organizer','month','week'];
         const saved = allowed.includes(savedView) ? savedView : null;
         // Each audience only has its own review tab: coerce away a saved view
         // that belongs to the other side (client ↔ smmreview, SMM ↔ review).
+        // A client link made with tab=review (the Notify client alert) opens on Review once,
+        // whatever view this browser used last. Without it the saved view still decides.
+        if (_isClientLink && !_calClientTabUsed && _syncviewClientEntryCapability && _syncviewClientEntryCapability.tab === 'review') {
+            _calClientTabUsed = true;
+            return 'review';
+        }
         if (_isClientLink) return (saved && saved !== 'smmreview') ? saved : 'review';
         if (saved && saved !== 'review') return saved;
         return 'organizer';
@@ -39192,12 +39199,14 @@
             const href = /^https?:\/\//i.test(v) ? v : 'https://' + v;
             return `<div class="cal-link-field has-link cal-link-ro cal-link-${kind}">
                 <a class="cal-link-pill-open" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer">${extIco}<span class="cal-link-label">${label}</span></a>
+                ${svFrameWatchBtnHtml(v, post && post.name, 'cal-link-watch', post && post.client)}
             </div>`;
         }
         const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_calEsc(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnLinkInput(this)" onblur="_calOnLinkBlur(this)" onkeydown="_calOnLinkKey(event,this)">`;
         if (v) {
             return `<div class="cal-link-field has-link cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
                 <button type="button" class="cal-link-pill-open" onclick="_calOpenLink('${pid}','${fld}')" title="Open link">${extIco}<span class="cal-link-label">${label}</span></button>
+                ${isThumb ? '' : svFrameWatchBtnHtml(v, post && post.name, 'cal-link-watch', post && post.client)}
                 ${folderBtn}
                 ${compareSlot}
                 <button type="button" class="cal-link-edit" tabindex="-1" onclick="_calEditLink('${pid}','${fld}')" title="Edit link">${pencil}</button>
@@ -48111,6 +48120,392 @@
     Object.assign(window, {
         _arxOpen
     });
+    /* WATCH HERE: a card's Frame.io video and its Frame.io comments, inside SyncView (staff only).
+
+       ONE viewer, opened from the Calendar card, the SMM review panel and Kasper's review. Every
+       "Watch here" button carries the card's video link; the viewer asks the frameio-view function
+       (a staff key is required; client links never get the button or the viewer) for a fresh playable
+       address and the comments, and plays them in our own player. Read only: replying stays in Frame.io
+       (the buttons open the video there), and nothing the function returns is saved by the page.
+
+       If anything fails, the viewer says so in a sentence and the normal Frame.io link keeps working:
+       the link is in the header from the first frame, before anything has loaded. */
+    const FRAMEIO_VIEW_EF_URL = CAL_SUPABASE_URL + '/functions/v1/frameio-view';
+    const FV_FETCH_MS = 45000;
+    // The three link shapes the function understands. Anything else gets no button.
+    const FV_LINK_RE = /https?:\/\/(?:f\.io\/[A-Za-z0-9_-]{3,40}|next\.frame\.io\/(?:share|project)\/[0-9a-f-]{36}[^\s<>"']*)/i;
+    const FV_STATE = { open: false, seq: 0, link: '', title: '', data: null, opener: null, retried: false, resumeAt: 0 };
+
+    function _fvLinkOf(raw) {
+        const m = String(raw || '').match(FV_LINK_RE);
+        return m ? m[0].replace(/[),.;]+$/, '') : '';
+    }
+    const FV_PLAY_ICO = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4.5 2.7v10.6a.5.5 0 0 0 .76.43l8.6-5.3a.5.5 0 0 0 0-.86l-8.6-5.3a.5.5 0 0 0-.76.43z"/></svg>';
+
+    /* WHO SEES IT: one runtime flag row, read the way the per-client flags are read (a bounded read with the
+       public key, then a realtime channel). Key frame_viewer_clients, value { "all": false, "clients": [...] }.
+       It fails closed: a missing row, a value of the wrong shape, a failed read or a deleted row all mean hidden.
+       The list lives only in the database, never in this repo. A client link never reads it at all.
+
+       The buttons are always drawn (so a later flip needs no repaint of the cards) but carry the hidden
+       attribute unless the flag allows their card's client; hidden is display none, so with the flag off the
+       page looks exactly as it did before the viewer existed. */
+    const FRAME_VIEWER_FLAG_KEY = 'frame_viewer_clients';
+    const FV_FLAG_TIMEOUT_MS = 4000;
+    const FV_FLAG_RETRY_MS = 30000;
+    let _fvFlag = { all: false, clients: new Set() };
+    let _fvFlagPromise = null;
+    let _fvFlagChannel = null;
+    let _fvFlagTriedAt = 0;
+
+    // The flag row's value to the answer. Only exact shapes open anything: all must be literally true, and the
+    // clients must be a list of strings.
+    function _fvFlagParse(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return { all: false, clients: new Set() };
+        const members = _calRuntimeFlagRawMembers(value) || [];
+        return { all: value.all === true, clients: new Set(members.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)) };
+    }
+    function _fvFlagSlugOf(clientOrSlug) {
+        let slug = '';
+        try { slug = calClientSlug(String(clientOrSlug == null ? '' : clientOrSlug)); } catch (e) { slug = ''; }
+        return slug || '';
+    }
+    function _fvEnabledFor(clientOrSlug) {
+        if (_isClientLink) return false;
+        if (_fvFlag.all === true) return true;
+        const slug = _fvFlagSlugOf(clientOrSlug);
+        return !!slug && _fvFlag.clients.has(slug);
+    }
+    function _fvSyncButtons() {
+        document.querySelectorAll('.fv-gated').forEach((b) => {
+            if (_fvEnabledFor(b.getAttribute('data-fv-client'))) b.removeAttribute('hidden');
+            else b.setAttribute('hidden', '');
+        });
+    }
+    function _fvFlagSet(value) {
+        _fvFlag = _fvFlagParse(value);
+        _fvSyncButtons();
+    }
+    async function _fvFlagFetch() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _fvFlagSet(null); return; }
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, FV_FLAG_TIMEOUT_MS) : null;
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(FRAME_VIEWER_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined, headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            if (!Array.isArray(rows)) throw new Error('shape');
+            _fvFlagSet(rows[0] && rows[0].value ? rows[0].value : null);
+        } catch (e) {
+            _fvFlagSet(null);
+            _fvFlagPromise = null;   // a later render may try again (not sooner than FV_FLAG_RETRY_MS)
+            console.warn('[Frame viewer] switch unreadable; the viewer stays hidden', e && e.message);
+        } finally { if (timer) clearTimeout(timer); }
+    }
+    async function _fvFlagSubscribe() {
+        if (_fvFlagChannel) return;
+        const client = await _calRuntimeFlagClient();
+        if (!client || _fvFlagChannel) return;
+        try {
+            _fvFlagChannel = client
+                .channel('syncview-frame-viewer-flag')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + FRAME_VIEWER_FLAG_KEY }, (payload) => {
+                    // A delete arrives with no new row: that is off.
+                    const row = payload && payload.new ? payload.new : null;
+                    _fvFlagSet(row && row.value ? row.value : null);
+                })
+                .subscribe();
+        } catch (e) {
+            console.warn('[Frame viewer] realtime subscribe failed', e);
+            _fvFlagChannel = null;
+        }
+    }
+    // Staff pages only, once per page (again after a failed read, at most every 30 seconds).
+    function _fvPrimeFlag() {
+        if (_isClientLink) return;
+        if (_fvFlagPromise) return;
+        if (Date.now() - _fvFlagTriedAt < FV_FLAG_RETRY_MS && _fvFlagTriedAt) return;
+        _fvFlagTriedAt = Date.now();
+        _fvFlagPromise = _fvFlagFetch();
+        _fvFlagPromise.then(() => _fvFlagSubscribe()).catch(() => null);
+    }
+
+    /* The button every surface drops in. Empty for a client link page, and for a card whose video link is
+       not a Frame.io link, so nothing about those pages changes. */
+    function svFrameWatchBtnHtml(rawLink, title, cls, client) {
+        if (_isClientLink) return '';
+        const link = _fvLinkOf(rawLink);
+        if (!link) return '';
+        _fvPrimeFlag();
+        const who = _fvFlagSlugOf(client || (calState && calState.client) || '');
+        const hidden = _fvEnabledFor(who) ? '' : ' hidden';
+        return `<button type="button" class="${_calEscAttr(cls || 'fv-watch-btn')} fv-gated" data-fv-client="${_calEscAttr(who)}" data-fv-link="${_calEscAttr(link)}" data-fv-title="${_calEscAttr(title || '')}"${hidden} onclick="event.stopPropagation();svFrameViewerOpen(this)" title="Watch the video and read its Frame.io comments here">${FV_PLAY_ICO}<span>Watch here</span></button>`;
+    }
+
+    // Escape closes it wherever the focus is (it can be on nothing after a button inside the viewer is replaced).
+    function _fvKey(e) { if (e.key === 'Escape' && FV_STATE.open) { e.stopPropagation(); svFrameViewerClose(); } }
+
+    function _fvEl() { return document.getElementById('fvOverlay'); }
+    function _fvPart(sel) { const el = _fvEl(); return el ? el.querySelector(sel) : null; }
+    function _fvTime(sec) {
+        const s = Math.max(0, Math.floor(Number(sec) || 0));
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+        return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(r).padStart(2, '0');
+    }
+    function _fvAgo(iso) {
+        const t = Date.parse(iso);
+        if (!t) return '';
+        const d = Math.max(0, Date.now() - t), day = 86400000;
+        if (d < 3600000) return Math.max(1, Math.round(d / 60000)) + ' min ago';
+        if (d < day) return Math.round(d / 3600000) + ' h ago';
+        if (d < 30 * day) return Math.round(d / day) + ' d ago';
+        return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function _fvBuild() {
+        if (_fvEl()) return _fvEl();
+        const el = document.createElement('div');
+        el.id = 'fvOverlay';
+        el.className = 'fv-overlay';
+        el.setAttribute('role', 'dialog');
+        el.setAttribute('aria-modal', 'true');
+        el.setAttribute('aria-labelledby', 'fvTitle');
+        el.innerHTML = `<div class="fv-panel">
+            <div class="fv-head">
+                <div class="fv-head-text"><div class="fv-eyebrow">Frame.io</div><h2 class="fv-title" id="fvTitle"></h2></div>
+                <a class="fv-open-link" id="fvOpenLink" target="_blank" rel="noopener noreferrer">Open in Frame.io</a>
+                <button type="button" class="fv-close" aria-label="Close" onclick="svFrameViewerClose()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
+            </div>
+            <div class="fv-body">
+                <div class="fv-stage">
+                    <div class="fv-player" id="fvPlayer">
+                        <video class="fv-video" id="fvVideo" controls playsinline preload="metadata"></video>
+                        <div class="fv-state" id="fvState" role="status"></div>
+                    </div>
+                    <div class="fv-markers" id="fvMarkers" aria-hidden="true"></div>
+                    <div class="fv-meta" id="fvMeta"></div>
+                </div>
+                <aside class="fv-side" aria-label="Frame.io comments">
+                    <div class="fv-side-head"><span class="fv-side-title">Comments <span class="fv-count" id="fvCount"></span></span><button type="button" class="fv-refresh" id="fvRefresh" onclick="svFrameViewerReload()">Refresh</button></div>
+                    <div class="fv-list" id="fvList"></div>
+                    <div class="fv-side-foot"><a class="fv-reply-main" id="fvReplyMain" target="_blank" rel="noopener noreferrer">Reply in Frame.io</a><div class="fv-foot-note">Comments stay in Frame.io. Replies are written there.</div></div>
+                </aside>
+            </div>
+        </div>`;
+        // A press that began on the backdrop and ended on it closes the viewer; a drag out of the panel does not.
+        el.setAttribute('data-backdrop-dismiss', '');
+        el.addEventListener('click', (e) => { if (e.target === el && el._backdropPressBegan) svFrameViewerClose(); });
+        const v = el.querySelector('#fvVideo');
+        v.addEventListener('timeupdate', _fvTick);
+        v.addEventListener('loadedmetadata', _fvMarkers);
+        v.addEventListener('error', _fvVideoFailed);
+        document.body.appendChild(el);
+        return el;
+    }
+
+    function _fvSetState(kind, text, withRetry) {
+        const box = _fvPart('#fvState');
+        const player = _fvPart('#fvPlayer');
+        if (!box || !player) return;
+        player.setAttribute('data-state', kind);
+        if (kind === 'ready') { box.innerHTML = ''; return; }
+        if (kind === 'loading') {
+            box.innerHTML = `<div class="fv-spin" aria-hidden="true"></div><div class="fv-state-text">${_calEsc(text || 'Loading the video from Frame.io…')}</div>`;
+            return;
+        }
+        box.innerHTML = `<div class="fv-state-text fv-state-bad">${_calEsc(text || 'The video could not be loaded.')}</div>
+            <div class="fv-state-actions">${withRetry ? '<button type="button" class="fv-btn" onclick="svFrameViewerReload()">Try again</button>' : ''}<a class="fv-btn fv-btn-ghost" href="${_calEscAttr(FV_STATE.link)}" target="_blank" rel="noopener noreferrer">Open in Frame.io</a></div>`;
+    }
+
+    function _fvRenderList(data, loading, failMsg) {
+        const list = _fvPart('#fvList'), count = _fvPart('#fvCount');
+        if (!list) return;
+        if (loading) {
+            list.innerHTML = '<div class="fv-skel"></div><div class="fv-skel"></div><div class="fv-skel fv-skel-short"></div>';
+            if (count) count.textContent = '';
+            return;
+        }
+        if (failMsg) {
+            list.innerHTML = `<div class="fv-note fv-note-bad">${_calEsc(failMsg)}<div><button type="button" class="fv-btn fv-btn-small" onclick="svFrameViewerReload()">Try again</button></div></div>`;
+            if (count) count.textContent = '';
+            return;
+        }
+        const comments = (data && data.comments) || [];
+        if (count) count.textContent = comments.length ? String(comments.length) : '';
+        if (!comments.length) { list.innerHTML = '<div class="fv-note">No comments on this video yet.</div>'; return; }
+        const reply = _calEscAttr((data && data.open_url) || FV_STATE.link);
+        const who = (c) => (c.author ? _calEsc(c.author) : '<span class="fv-guest">Guest reviewer</span>');
+        const items = comments.map((c) => {
+            const t = c.time_seconds;
+            const chip = t == null ? '<span class="fv-time fv-time-none">No time</span>' : `<span class="fv-time">${_fvTime(t)}</span>`;
+            const replies = (c.replies || []).map((r) => `<div class="fv-reply"><div class="fv-r-top"><span class="fv-c-by">${who(r)}</span><span class="fv-c-when">${_calEsc(_fvAgo(r.created_at))}</span></div><div class="fv-c-text">${_calEsc(r.text)}</div></div>`).join('');
+            return `<li class="fv-c${c.done ? ' is-done' : ''}" data-id="${_calEscAttr(c.id)}" data-t="${t == null ? '' : t}">
+                <button type="button" class="fv-c-main" ${t == null ? 'disabled' : ''} onclick="svFrameViewerSeek(this)" title="${t == null ? 'This comment has no time in the video' : 'Jump to ' + _fvTime(t)}">
+                    <div class="fv-c-top">${chip}<span class="fv-c-by">${who(c)}</span><span class="fv-c-when">${_calEsc(_fvAgo(c.created_at))}</span>${c.done ? '<span class="fv-done">Done</span>' : ''}</div>
+                    <div class="fv-c-text">${_calEsc(c.text)}</div>
+                </button>
+                ${replies ? `<div class="fv-replies">${replies}</div>` : ''}
+                <a class="fv-c-reply" href="${reply}" target="_blank" rel="noopener noreferrer">Reply in Frame.io</a>
+            </li>`;
+        }).join('');
+        const notes = (data.comments_truncated ? '<div class="fv-note">Showing the first comments only. The rest are in Frame.io.</div>' : '')
+            + (data.reply_names_partial ? '<div class="fv-note">Some reply names are not shown.</div>' : '');
+        list.innerHTML = `<ul class="fv-c-list">${items}</ul>${notes}`;
+    }
+
+    function _fvMarkers() {
+        const track = _fvPart('#fvMarkers'), v = _fvPart('#fvVideo'), data = FV_STATE.data;
+        if (!track) return;
+        const dur = (v && isFinite(v.duration) && v.duration > 0) ? v.duration : ((data && data.video && data.video.duration_seconds) || 0);
+        if (!data || !dur) { track.innerHTML = ''; return; }
+        track.innerHTML = (data.comments || []).filter((c) => c.time_seconds != null && c.time_seconds <= dur)
+            .map((c) => `<button type="button" class="fv-mark" style="left:${Math.min(100, (c.time_seconds / dur) * 100).toFixed(2)}%" data-id="${_calEscAttr(c.id)}" data-t="${c.time_seconds}" onclick="svFrameViewerSeek(this)" aria-label="Comment at ${_calEscAttr(_fvTime(c.time_seconds))}"></button>`).join('');
+    }
+
+    function _fvTick() {
+        const v = _fvPart('#fvVideo'), list = _fvPart('#fvList');
+        if (!v || !list) return;
+        let now = null;
+        list.querySelectorAll('.fv-c[data-t]').forEach((li) => {
+            const t = li.getAttribute('data-t');
+            if (t !== '' && Number(t) <= v.currentTime + 0.25) now = li;
+        });
+        list.querySelectorAll('.fv-c.is-now').forEach((li) => { if (li !== now) li.classList.remove('is-now'); });
+        if (now) now.classList.add('is-now');
+    }
+
+    function svFrameViewerSeek(btn) {
+        const holder = btn.closest('[data-t]') || btn;
+        const t = Number(holder.getAttribute('data-t'));
+        const v = _fvPart('#fvVideo');
+        if (!v || !isFinite(t)) return;
+        v.currentTime = t;
+        const p = v.play();
+        if (p && p.catch) p.catch(() => {});
+        _fvTick();
+    }
+
+    function _fvShowReady(data) {
+        FV_STATE.data = data;
+        const v = _fvPart('#fvVideo');
+        const meta = _fvPart('#fvMeta');
+        const open = data.open_url || FV_STATE.link;
+        _fvPart('#fvOpenLink').setAttribute('href', open);
+        _fvPart('#fvReplyMain').setAttribute('href', open);
+        if (meta) meta.textContent = [data.video.name, data.video.duration_seconds ? _fvTime(data.video.duration_seconds) : ''].filter(Boolean).join(' · ');
+        const resume = FV_STATE.resumeAt;
+        FV_STATE.resumeAt = 0;
+        v.src = data.video.url;
+        if (resume > 0) v.addEventListener('loadedmetadata', () => { try { v.currentTime = resume; } catch (e) {} }, { once: true });
+        _fvSetState('ready');
+        if (data.comments_error) _fvRenderList(data, false, 'The comments could not be loaded just now.');
+        else _fvRenderList(data, false);
+        _fvMarkers();
+    }
+
+    async function _fvLoad() {
+        const seq = ++FV_STATE.seq;
+        _fvSetState('loading');
+        _fvRenderList(null, true);
+        const markers = _fvPart('#fvMarkers'); if (markers) markers.innerHTML = '';
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, FV_FETCH_MS) : null;
+        try {
+            const resp = await fetch(FRAMEIO_VIEW_EF_URL, {
+                method: 'POST',
+                headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, FRAMEIO_VIEW_EF_URL),
+                body: JSON.stringify({ link: FV_STATE.link }),
+                signal: ctrl ? ctrl.signal : undefined
+            });
+            const json = await resp.json().catch(() => null);
+            if (seq !== FV_STATE.seq || !FV_STATE.open) return;
+            if (!resp.ok || !json || !json.ok || !json.video || !json.video.url) {
+                const msg = (json && json.message) || (resp.status === 401 || resp.status === 403
+                    ? 'Your staff sign-in was not accepted for this. Sign in again and retry.'
+                    : 'The video could not be loaded from Frame.io.');
+                _fvSetState('error', msg, true);
+                _fvRenderList(null, false, 'The comments could not be loaded.');
+                return;
+            }
+            _fvShowReady(json);
+        } catch (e) {
+            if (seq !== FV_STATE.seq || !FV_STATE.open) return;
+            _fvSetState('error', ctrl && e && e.name === 'AbortError' ? 'Frame.io took too long to answer.' : 'The video could not be loaded. Check your connection.', true);
+            _fvRenderList(null, false, 'The comments could not be loaded.');
+        } finally { if (timer) clearTimeout(timer); }
+    }
+
+    /* The video address is signed and expires. If the player stops with an error, ask once for a new one and
+       carry on from the same second; a second failure is shown as a normal error. */
+    function _fvVideoFailed() {
+        const v = _fvPart('#fvVideo');
+        if (!FV_STATE.open || !v || !v.getAttribute('src')) return;
+        if (!FV_STATE.retried) {
+            FV_STATE.retried = true;
+            FV_STATE.resumeAt = v.currentTime || 0;
+            _fvLoad();
+            return;
+        }
+        _fvSetState('error', 'This video could not be played here. It may need a different format.', true);
+    }
+
+    async function svFrameViewerOpen(btn) {
+        if (_isClientLink) return;
+        const link = _fvLinkOf(btn && btn.getAttribute && btn.getAttribute('data-fv-link'));
+        if (!link) return;
+        // A click can land before the switch has been read: wait for that one read (bounded), then decide.
+        _fvPrimeFlag();
+        if (_fvFlagPromise) { try { await _fvFlagPromise; } catch (e) {} }
+        if (!_fvEnabledFor(btn.getAttribute('data-fv-client'))) return;
+        try { await _syncviewRequireStaffIdentity('frame-view'); } catch (e) { return; }
+        FV_STATE.opener = btn || null;
+        FV_STATE.link = link;
+        FV_STATE.title = (btn && btn.getAttribute('data-fv-title')) || '';
+        FV_STATE.data = null;
+        FV_STATE.retried = false;
+        FV_STATE.resumeAt = 0;
+        FV_STATE.open = true;
+        const el = _fvBuild();
+        _fvPart('#fvTitle').textContent = FV_STATE.title || 'Watch here';
+        _fvPart('#fvOpenLink').setAttribute('href', link);
+        _fvPart('#fvReplyMain').setAttribute('href', link);
+        _fvPart('#fvMeta').textContent = '';
+        const v = _fvPart('#fvVideo'); v.removeAttribute('src'); try { v.load(); } catch (e) {}
+        el.classList.add('open');
+        document.body.classList.add('fv-lock');
+        document.addEventListener('keydown', _fvKey, true);
+        const close = _fvPart('.fv-close'); if (close) close.focus();
+        _fvLoad();
+    }
+
+    function svFrameViewerReload() {
+        if (!FV_STATE.open) return;
+        FV_STATE.retried = false;
+        const v = _fvPart('#fvVideo');
+        FV_STATE.resumeAt = (v && v.currentTime) || 0;
+        _fvLoad();
+    }
+
+    function svFrameViewerClose() {
+        const el = _fvEl();
+        FV_STATE.open = false;
+        FV_STATE.seq++;
+        if (!el) return;
+        const v = el.querySelector('#fvVideo');
+        if (v) { try { v.pause(); } catch (e) {} v.removeAttribute('src'); try { v.load(); } catch (e) {} }
+        el.classList.remove('open');
+        document.body.classList.remove('fv-lock');
+        document.removeEventListener('keydown', _fvKey, true);
+        const back = FV_STATE.opener;
+        FV_STATE.opener = null;
+        if (back && document.contains(back) && back.focus) { try { back.focus(); } catch (e) {} }
+    }
+
+    // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
+    Object.assign(window, {
+        svFrameViewerClose, svFrameViewerOpen, svFrameViewerReload, svFrameViewerSeek
+    });
     function _calHasMedia(p) {
         return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim());
     }
@@ -48606,6 +49001,9 @@
         if (comp === 'video') {
             const url = String(p.asset_url || '').trim();
             if (!url) return `<div class="cal-review-preview-empty">No video yet.</div>`;
+            // Staff review only: a client link page gets no button (svFrameWatchBtnHtml answers '' there).
+            const watch = svFrameWatchBtnHtml(url, p.name, 'fv-watch-btn fv-watch-review', p.client);
+            const withWatch = (tile) => (watch ? `<div class="fv-review-video">${tile}${watch}</div>` : tile);
             // Use the same thumbnail image as the graphic panel, blurred,
             // with "Open video" overlaid — keeps the video column the same
             // visual weight as the thumbnail column so the Approve buttons
@@ -48615,9 +49013,9 @@
             if (!thumbUrl) {
                 // No image to blur — fall back to a styled stand-in tile
                 // so the column still has the same height.
-                return `<a class="cal-review-video-tile cal-review-video-tile-blank" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span><span class="cal-review-video-label">Open video ↗</span></span></a>`;
+                return withWatch(`<a class="cal-review-video-tile cal-review-video-tile-blank" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span><span class="cal-review-video-label">Open video ↗</span></span></a>`);
             }
-            return `<a class="cal-review-video-tile" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><img class="cal-review-video-bg" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'"><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span><span class="cal-review-video-label">Open video ↗</span></span></a>`;
+            return withWatch(`<a class="cal-review-video-tile" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><img class="cal-review-video-bg" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'"><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span><span class="cal-review-video-label">Open video ↗</span></span></a>`);
         }
         if (comp === 'graphic') {
             const raw = String(p.thumbnail_url || '').trim();
@@ -70408,7 +70806,11 @@
     // step 5). It carries no credential and no route: only those two values pass
     // (see _syncviewClientEntryEnvelope) and it is dropped from the address once the
     // link is verified. Every other key is still refused.
-    const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr', 'split']);
+    // 'tab' is read only here, on a client link: tab=review opens the Calendar (or the
+    // Samples) on its Review view instead of the view this browser last used. It carries
+    // no credential and no route, only the value "review" passes, and it is dropped from
+    // the address once the link is verified. Links without it behave exactly as before.
+    const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr', 'split', 'tab']);
     let _syncviewClientEntryCapability = null;
     function _syncviewSetClientEntryCapability(value) { _syncviewClientEntryCapability = value; }
     let _syncviewClientEntryGeneration = 0;
@@ -70471,6 +70873,7 @@
         }
         // The one key that is not part of the link itself: exactly 0 or 1, nothing else.
         if (q.has('split') && q.get('split') !== '0' && q.get('split') !== '1') return { ok: false, reason: 'invalid_split' };
+        if (q.has('tab') && q.get('tab') !== 'review') return { ok: false, reason: 'invalid_tab' };
         if (q.getAll('c').length !== 1 || q.getAll('t').length !== 1) return { ok: false, reason: 'missing_credential' };
         const client = String(q.get('c') || '').trim();
         const token = String(q.get('t') || '').trim();
@@ -70504,7 +70907,9 @@
         if ((view === 'analytics' || !q.get('v')) && state && state.client && _syncviewClientEntrySlug(state.client) === slug) {
             if (state.clientTab === 'calendar' || state.clientTab === 'brief') view = 'calendar';
         }
-        return { ok: true, client, slug, token, view, legacyHash: !!hash };
+        // Only the Calendar and the Samples have a Review view to open on.
+        const tab = q.get('tab') === 'review' && (view === 'calendar' || view === 'sample-reviews') ? 'review' : '';
+        return { ok: true, client, slug, token, view, tab, legacyHash: !!hash };
     }
     function _writeUiCancelClientLegacyRetryTimers() {
         if (!_isClientLink) return;
@@ -70634,6 +71039,7 @@
         if (view === 'analytics') q.delete('v'); else q.set('v', view);
         if (view === 'sample-reviews') q.set('sxr', '1'); else q.delete('sxr');
         q.delete('split');   // the loader has read it by now; it is not part of the link
+        q.delete('tab');     // read once (kept on the capability below); a reload goes back to the saved view
         const tab = view === 'sample-reviews' ? 'sample-reviews' : view;
         const prev = history.state && _syncviewClientEntrySlug(history.state.client) === entry.slug ? history.state : {};
         const state = Object.assign({}, prev, {
@@ -70646,7 +71052,7 @@
         // A share link keeps whatever path it was opened on.
         const url = location.pathname + '?' + q.toString();
         history.replaceState(state, '', url);
-        return Object.freeze({ client: entry.client, slug: entry.slug, view, verified: true });
+        return Object.freeze({ client: entry.client, slug: entry.slug, view, tab: entry.tab || '', verified: true });
     }
     async function _syncviewPreflightClientEntry(generation, href) {
         const entry = _syncviewClientEntryEnvelope();
@@ -88798,12 +89204,14 @@
        thread it answers, so it keeps that thread's part and audience. */
     const MSG_URL = CAL_SUPABASE_URL + '/functions/v1/production-comments';
     const MSG_REFRESH_MS = 120000;
+    const MSG_FIRST_LOAD_MS = 60000;
     const _msgState = {
         loading: false, loaded: false, error: '', conversations: [], scope: '',
         openId: '', replyTo: '', draft: '', sending: false, filter: 'all', lastAt: 0,
-        unavailable: false, fromCache: false, readWhenFresh: '', owner: '',
+        unavailable: false,
     };
     let _msgTimer = null;
+    let _msgFirstTimer = null;
     const _msgFallbackHooks = [];
 
     /* The page can go live before the production-comments deploy that adds
@@ -88815,7 +89223,6 @@
     function _msgFallBack() {
         if (_msgState.unavailable) return;
         _msgState.unavailable = true;
-        _msgCacheClear();
         if (_msgTimer) { clearInterval(_msgTimer); _msgTimer = null; }
         _msgLeavePage();
         const btn = document.getElementById('navMessages');
@@ -88851,65 +89258,6 @@
     }
     window.addEventListener('sv-staff-names', () => { try { _msgPaint(); } catch (e) {} });
 
-    /* ── Short-lived list cache ──
-       So the list can be on screen the moment the page opens, the last list is
-       kept in this TAB's own storage (sessionStorage: gone when the tab closes,
-       never shared with another tab or browser). It is only ever shown to the
-       person who fetched it: it carries their member id, and it is thrown away
-       when the sign-in changes or ends, when it is older than ten minutes, or
-       when the id does not match the signed-in member. It holds the list lines
-       only (no conversation text beyond the one preview line); the chat pane
-       always comes from a fresh answer from the server, which is also what
-       replaces the cached list a moment later. */
-    const MSG_CACHE_KEY = 'sv_msg_inbox_v1';
-    const MSG_CACHE_MS = 10 * 60 * 1000;
-    function _msgCacheClear() { try { sessionStorage.removeItem(MSG_CACHE_KEY); } catch (e) {} }
-    function _msgCacheWrite() {
-        const me = _msgMyId();
-        if (!me || !_msgCanUse() || !_msgState.loaded || _msgState.fromCache) return;
-        try {
-            sessionStorage.setItem(MSG_CACHE_KEY, JSON.stringify({
-                v: 1, member: me, at: _msgState.lastAt, scope: _msgState.scope,
-                conversations: _msgState.conversations.map(c => ({
-                    post_id: c.post_id, client_slug: c.client_slug, client_name: c.client_name, title: c.title,
-                    thumbnail_url: c.thumbnail_url, asset_url: c.asset_url, last_at: c.last_at,
-                    last_author: c.last_author, last_author_member_id: c.last_author_member_id, last_role: c.last_role,
-                    last_body: String(c.last_body || '').slice(0, 160), unread: Number(c.unread) || 0
-                }))
-            }));
-        } catch (e) {}
-    }
-    /* Put the cached list on screen (once), if it is this person's and fresh. */
-    function _msgCacheHydrate() {
-        if (_msgState.loaded || !_msgCanUse()) return;
-        let saved = null;
-        try { saved = JSON.parse(sessionStorage.getItem(MSG_CACHE_KEY) || 'null'); } catch (e) { saved = null; }
-        const me = _msgMyId();
-        const ok = saved && saved.v === 1 && me && saved.member === me && Array.isArray(saved.conversations)
-            && Date.now() - Number(saved.at) < MSG_CACHE_MS && Date.now() >= Number(saved.at);
-        if (!ok) { if (saved) _msgCacheClear(); return; }
-        _msgState.conversations = saved.conversations;
-        _msgState.scope = String(saved.scope || '');
-        _msgState.loaded = true;
-        _msgState.fromCache = true;
-        _msgState.lastAt = Number(saved.at);
-        _msgPaintCounts();
-    }
-    /* Start the inbox call early, once the page has settled, and when the
-       pointer or finger reaches the Messages button. Changes nothing visible. */
-    let _msgPrefetchTimer = null;
-    function _msgPrefetchSoon() {
-        if (_msgPrefetchTimer || _msgState.loaded || _msgState.loading) return;
-        const go = () => { _msgPrefetchTimer = null; if (_msgCanUse() && !_msgState.unavailable) _msgLoad(false); };
-        _msgPrefetchTimer = setTimeout(() => {
-            if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 1000 }); else go();
-        }, 250);
-    }
-    ['pointerover', 'pointerdown', 'focusin'].forEach(type => document.addEventListener(type, e => {
-        const t = e.target && e.target.closest && e.target.closest('#navMessages, [onclick*="_msgOpenPage"]');
-        if (t && _msgCanUse() && !_msgState.unavailable) _msgLoad(false);
-    }, { capture: true, passive: true }));
-
     async function _msgCall(body) {
         const response = await fetch(MSG_URL, {
             method: 'POST', cache: 'no-store',
@@ -88927,7 +89275,7 @@
     async function _msgLoad(force) {
         if (!_msgCanUse()) { _msgPaintCounts(); return; }
         if (_msgState.unavailable || _msgState.loading) return;
-        if (!force && _msgState.loaded && !_msgState.fromCache && Date.now() - _msgState.lastAt < 15000) { _msgPaint(); return; }
+        if (!force && _msgState.loaded && Date.now() - _msgState.lastAt < 15000) { _msgPaint(); return; }
         _msgState.loading = true;
         _msgPaint();
         try {
@@ -88936,21 +89284,10 @@
             _msgState.scope = String(value.scope || '');
             _msgState.error = '';
             _msgState.loaded = true;
-            _msgState.fromCache = false;
             _msgState.lastAt = Date.now();
             if (_msgState.openId && !_msgState.conversations.some(c => c.post_id === _msgState.openId)) _msgState.openId = '';
-            _msgCacheWrite();
-            // A conversation opened from the cached list is marked read only now,
-            // after the person can actually see what is in it.
-            if (_msgState.readWhenFresh) {
-                const id = _msgState.readWhenFresh;
-                _msgState.readWhenFresh = '';
-                const c = _msgState.conversations.find(x => x.post_id === id);
-                if (c && id === _msgState.openId && Number(c.unread) > 0) { c.unread = 0; _msgMark(id, 'read'); _msgCacheWrite(); }
-            }
         } catch (e) {
-            if (e && e.message === 'invalid_deliverable_id') { _msgState.loading = false; _msgCacheClear(); _msgFallBack(); return; }
-            if (_msgState.fromCache) { _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgCacheClear(); }
+            if (e && e.message === 'invalid_deliverable_id') { _msgState.loading = false; _msgFallBack(); return; }
             _msgState.error = 'Messages could not load. Try again in a moment.';
         } finally {
             _msgState.loading = false;
@@ -88977,30 +89314,24 @@
        quiet background refresh that keeps the counts current. */
     function _msgOnIdentity() {
         if (_msgTimer) { clearInterval(_msgTimer); _msgTimer = null; }
+        if (_msgFirstTimer) { clearTimeout(_msgFirstTimer); _msgFirstTimer = null; }
         if (!_msgCanUse()) {
-            _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgState.openId = '';
-            _msgState.readWhenFresh = '';
-            _msgCacheClear();
+            _msgState.conversations = []; _msgState.loaded = false; _msgState.openId = '';
             _msgPaintCounts(); _msgLeavePage();
             return;
         }
-        // A different member signed in on this tab: nothing of the last one stays.
-        if (_msgState.owner && _msgState.owner !== _msgMyId()) {
-            _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgState.openId = '';
-            _msgState.readWhenFresh = '';
-            _msgCacheClear();
-            _msgPaintCounts();
-        }
-        _msgState.owner = _msgMyId();
         // The Messages page was opened before the sign-in was known (a reload
         // on #messages): draw it now.
         if (document.getElementById('msgPage')) { _msgPaint(); _msgLoad(false); }
-        // Nothing loads during boot itself: the first call starts once the page
-        // has settled (a moment, when the browser is idle), so the Messages page
-        // usually opens onto an answer that is already there. After that a quiet
-        // refresh every two minutes keeps the counts current.
-        _msgPrefetchSoon();
-        _msgTimer = setInterval(() => { if (!document.hidden && !_msgState.unavailable) _msgLoad(true); }, MSG_REFRESH_MS);
+        // Nothing loads during boot: the first quiet refresh waits a minute
+        // (opening the inbox loads at once), then repeats every two minutes.
+        if (_msgFirstTimer) clearTimeout(_msgFirstTimer);
+        _msgFirstTimer = setTimeout(() => {
+            _msgFirstTimer = null;
+            if (!_msgCanUse() || _msgState.unavailable) return;
+            if (!document.hidden) _msgLoad(true);
+            _msgTimer = setInterval(() => { if (!document.hidden) _msgLoad(true); }, MSG_REFRESH_MS);
+        }, MSG_FIRST_LOAD_MS);
     }
 
     /* ── Drawing ── */
@@ -89058,7 +89389,6 @@
         if (!c) {
             return `<div class="msg-chat-empty"><b>Pick a conversation</b><span>Notes on your posts show up here, newest first.</span></div>`;
         }
-        if (!Array.isArray(c.messages)) return _msgChatSkeletonHtml(c);
         const target = _msgReplyTarget(c);
         let day = '';
         const bubbles = c.messages.map(m => {
@@ -89097,55 +89427,9 @@
                 </div>
             </div>`;
     }
-    /* ── Loading placeholder ──
-       The SAME markup and classes as the loaded page (list rows, filter pills,
-       chat pane), with the words made see-through and a grey bar painted over
-       each line, so every box lands exactly where the real one will. */
-    const _MSG_SKEL_ROWS = [[58, 74, 82], [44, 62, 70], [66, 80, 56], [50, 68, 76], [60, 56, 84], [46, 72, 64]];
-    function _msgSkelRowsHtml() {
-        return Array.from({ length: 12 }, (_, i) => {
-            const w = _MSG_SKEL_ROWS[i % _MSG_SKEL_ROWS.length];
-            return `<button type="button" class="msg-conv is-skeleton" disabled tabindex="-1" aria-hidden="true">
-                <span class="msg-thumb is-empty sv-skeleton"></span>
-                <span class="msg-conv-main">
-                    <span class="msg-conv-top"><span class="msg-conv-client msg-skel sv-skeleton" style="width:${w[0]}%">Client name</span><span class="msg-conv-time msg-skel sv-skeleton" style="width:34px">12:00</span></span>
-                    <span class="msg-conv-sub msg-skel sv-skeleton" style="width:${w[1]}%">Post title</span>
-                    <span class="msg-conv-last msg-skel sv-skeleton" style="width:${w[2]}%">Name: the last message</span>
-                </span>
-            </button>`;
-        }).join('');
-    }
-    function _msgSkelFiltersHtml() {
-        return `<div class="msg-filters" aria-hidden="true">
-            <button type="button" class="is-active" disabled tabindex="-1">All</button>
-            <button type="button" class="msg-skel sv-skeleton" disabled tabindex="-1">Unread · 0</button>
-        </div>`;
-    }
-    function _msgSkeletonHtml() {
-        return `<div class="msg-inbox is-skeleton" role="status" aria-label="Loading messages">
-            <div class="msg-list">
-                ${_msgSkelFiltersHtml()}
-                <div class="msg-convs">${_msgSkelRowsHtml()}</div>
-            </div>
-            <div class="msg-chat">${_msgChatHtml()}</div>
-        </div>`;
-    }
-    /* A conversation opened from the cached list: its head is known, its notes
-       are still on the way. */
-    function _msgChatSkeletonHtml(c) {
-        const bar = (cls, w, text) => `<span class="${cls} msg-skel sv-skeleton" style="width:${w}">${text}</span>`;
-        const bubble = (me, w) => `<div class="msg-b${me ? ' is-me' : ''}"><div class="msg-b-meta"><b>${bar('', '70px', 'Name')}</b></div><div class="msg-b-text msg-skel sv-skeleton" style="width:${w}">Message text goes here</div></div>`;
-        return `<div class="msg-chat-head">
-                <button type="button" class="msg-back" onclick="_msgBack()" aria-label="Back to conversations">‹</button>
-                ${_msgThumb(c)}
-                <div class="msg-chat-titles"><div class="msg-chat-title">${_calEsc(c.title || 'Untitled post')}</div><div class="msg-chat-sub">${_calEsc(_msgClientName(c))}</div></div>
-            </div>
-            <div class="msg-bubbles" role="status" aria-label="Loading the conversation">${bubble(false, '62%')}${bubble(true, '48%')}${bubble(false, '70%')}</div>
-            <div class="msg-reply"><div class="msg-reply-cap"></div><div class="cal-cm-composer"><textarea rows="1" placeholder="Reply…" disabled></textarea></div></div>`;
-    }
     function _msgInboxHtml() {
         if (!_msgCanUse()) return '<div class="msg-chat-empty"><b>Messages are for the team</b><span>Sign in as staff to see your conversations.</span></div>';
-        if (!_msgState.loaded && !_msgState.error) return _msgSkeletonHtml();
+        if (!_msgState.loaded && _msgState.loading) return _svLoadingSkeletonHtml('kasper', { label: 'Loading messages' });
         if (!_msgState.loaded && _msgState.error) {
             return `<div class="msg-chat-empty"><b>${_calEsc(_msgState.error)}</b><button type="button" class="msg-act" onclick="_msgLoad(true)">Try again</button></div>`;
         }
@@ -89187,7 +89471,6 @@
     function _msgRenderInto(root) {
         if (!root) return;
         root.setAttribute('data-msg-root', '1');
-        _msgCacheHydrate();
         root.innerHTML = _msgInboxHtml();
         _msgLoad(false);
     }
@@ -89222,9 +89505,7 @@
         if (c && Number(c.unread) > 0) {
             c.unread = 0;          // opening = read; the server stamps it below
             _msgPaintCounts();
-            // From the cached list the notes are not here yet: mark it read once they are.
-            if (Array.isArray(c.messages)) { _msgMark(c.post_id, 'read'); _msgCacheWrite(); }
-            else _msgState.readWhenFresh = c.post_id;
+            _msgMark(c.post_id, 'read');
         }
         _msgPaint();
     }
@@ -90633,6 +90914,7 @@
                     ${urgentBtn}
                     ${doneBtn}
                     ${watchBtn}
+                    ${svFrameWatchBtnHtml(videoUrl, p.name, 'kcard-watch-btn kcard-watch-here', p.client)}
                     <button class="kcard-expand-btn" type="button" onclick="_kasperToggleCard('${_calEscAttr(pid)}')" aria-label="${item._expanded ? 'Collapse' : 'Expand'} card"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
                 </div>
             </div>
@@ -90713,10 +90995,12 @@
             const url = String(p.asset_url || '').trim();
             const thumbUrl = _calDeriveThumb(p);
             if (!url) return `<div class="kasper-hero-poster kasper-hero-poster-empty"><span class="kasper-hero-play-label">No video yet</span></div>`;
+            const watch = svFrameWatchBtnHtml(url, p.name, 'fv-watch-btn fv-watch-hero', p.client);
+            const withWatch = (tile) => (watch ? `<div class="fv-review-video fv-hero-video">${tile}${watch}</div>` : tile);
             if (thumbUrl) {
-                return `<a class="kasper-hero-poster" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><img class="kasper-hero-poster-bg" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'"><span class="kasper-hero-poster-overlay"><span class="kasper-hero-play">${playIco}</span><span class="kasper-hero-play-label">Open video</span></span></a>`;
+                return withWatch(`<a class="kasper-hero-poster" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><img class="kasper-hero-poster-bg" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'"><span class="kasper-hero-poster-overlay"><span class="kasper-hero-play">${playIco}</span><span class="kasper-hero-play-label">Open video</span></span></a>`);
             }
-            return `<a class="kasper-hero-poster kasper-hero-poster-blank" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><span class="kasper-hero-poster-overlay"><span class="kasper-hero-play">${playIco}</span><span class="kasper-hero-play-label">Open video</span></span></a>`;
+            return withWatch(`<a class="kasper-hero-poster kasper-hero-poster-blank" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><span class="kasper-hero-poster-overlay"><span class="kasper-hero-play">${playIco}</span><span class="kasper-hero-play-label">Open video</span></span></a>`);
         }
         if (comp === 'graphic') {
             const raw = String(p.thumbnail_url || '').trim();
@@ -93318,4 +93602,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-cd726e40077e.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-501fe8c9170e.js");

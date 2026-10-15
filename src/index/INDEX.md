@@ -42,7 +42,7 @@
 | 34 | `131-core-html.js.part` | 113 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 35 | `132-calendar-dates-ids.js.part` | 14 | — |
 | 36 | `133-core-loading-skeletons.js.part` | 378 | Modern animated loader — a single rotating ring with a subtle label. |
-| 37 | `134-calendar-prefs-mount.js.part` | 1096 | Hydrate calState.monthFilter/statusFilter/cardStatusFilter from the named client's saved |
+| 37 | `134-calendar-prefs-mount.js.part` | 1103 | Hydrate calState.monthFilter/statusFilter/cardStatusFilter from the named client's saved |
 | 38 | `140-calendar-legacy-outbox.js.part` | 3505 | Shed the retired legacy rows from storage, under the surface mutation |
 | 39 | `150-calendar-hydration-import.js.part` | 2410 | For a card linked to a real sub-issue (not a parent), return which of |
 | 40 | `160-calendar-organize-ui.js.part` | 4127 | Card status filter (STATE_OF_THINGS D3) |
@@ -58,7 +58,7 @@
 | 50 | `230-production-create-comments.js.part` | 2792 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 51 | `240-production-description.js.part` | 2766 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
 | 52 | `250-production-controls-data.js.part` | 3125 | A layer: Escape closes only the top pop (a sub-menu first, then |
-| 53 | `260-production-refresh-boot.js.part` | 2856 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 53 | `260-production-refresh-boot.js.part` | 2864 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 54 | `270-samples-model.js.part` | 3159 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 55 | `280-samples-cards-notes.js.part` | 3079 | SURFACE 3: the save engine |
 | 56 | `290-samples-writes-review.js.part` | 1981 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |

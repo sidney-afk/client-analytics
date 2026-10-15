@@ -29976,11 +29976,18 @@
        on the Sheet (organizer) by default but can pin their own Review (SMM
        Approval) queue; a saved view belonging to the other audience is coerced
        back to that side's default. */
+    let _calClientTabUsed = false;
     function _calResolveInitialView(savedView) {
         const allowed = ['review','smmreview','organizer','month','week'];
         const saved = allowed.includes(savedView) ? savedView : null;
         // Each audience only has its own review tab: coerce away a saved view
         // that belongs to the other side (client ↔ smmreview, SMM ↔ review).
+        // A client link made with tab=review (the Notify client alert) opens on Review once,
+        // whatever view this browser used last. Without it the saved view still decides.
+        if (_isClientLink && !_calClientTabUsed && _syncviewClientEntryCapability && _syncviewClientEntryCapability.tab === 'review') {
+            _calClientTabUsed = true;
+            return 'review';
+        }
         if (_isClientLink) return (saved && saved !== 'smmreview') ? saved : 'review';
         if (saved && saved !== 'review') return saved;
         return 'organizer';
@@ -70408,7 +70415,11 @@
     // step 5). It carries no credential and no route: only those two values pass
     // (see _syncviewClientEntryEnvelope) and it is dropped from the address once the
     // link is verified. Every other key is still refused.
-    const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr', 'split']);
+    // 'tab' is read only here, on a client link: tab=review opens the Calendar (or the
+    // Samples) on its Review view instead of the view this browser last used. It carries
+    // no credential and no route, only the value "review" passes, and it is dropped from
+    // the address once the link is verified. Links without it behave exactly as before.
+    const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr', 'split', 'tab']);
     let _syncviewClientEntryCapability = null;
     function _syncviewSetClientEntryCapability(value) { _syncviewClientEntryCapability = value; }
     let _syncviewClientEntryGeneration = 0;
@@ -70471,6 +70482,7 @@
         }
         // The one key that is not part of the link itself: exactly 0 or 1, nothing else.
         if (q.has('split') && q.get('split') !== '0' && q.get('split') !== '1') return { ok: false, reason: 'invalid_split' };
+        if (q.has('tab') && q.get('tab') !== 'review') return { ok: false, reason: 'invalid_tab' };
         if (q.getAll('c').length !== 1 || q.getAll('t').length !== 1) return { ok: false, reason: 'missing_credential' };
         const client = String(q.get('c') || '').trim();
         const token = String(q.get('t') || '').trim();
@@ -70504,7 +70516,9 @@
         if ((view === 'analytics' || !q.get('v')) && state && state.client && _syncviewClientEntrySlug(state.client) === slug) {
             if (state.clientTab === 'calendar' || state.clientTab === 'brief') view = 'calendar';
         }
-        return { ok: true, client, slug, token, view, legacyHash: !!hash };
+        // Only the Calendar and the Samples have a Review view to open on.
+        const tab = q.get('tab') === 'review' && (view === 'calendar' || view === 'sample-reviews') ? 'review' : '';
+        return { ok: true, client, slug, token, view, tab, legacyHash: !!hash };
     }
     function _writeUiCancelClientLegacyRetryTimers() {
         if (!_isClientLink) return;
@@ -70634,6 +70648,7 @@
         if (view === 'analytics') q.delete('v'); else q.set('v', view);
         if (view === 'sample-reviews') q.set('sxr', '1'); else q.delete('sxr');
         q.delete('split');   // the loader has read it by now; it is not part of the link
+        q.delete('tab');     // read once (kept on the capability below); a reload goes back to the saved view
         const tab = view === 'sample-reviews' ? 'sample-reviews' : view;
         const prev = history.state && _syncviewClientEntrySlug(history.state.client) === entry.slug ? history.state : {};
         const state = Object.assign({}, prev, {
@@ -70646,7 +70661,7 @@
         // A share link keeps whatever path it was opened on.
         const url = location.pathname + '?' + q.toString();
         history.replaceState(state, '', url);
-        return Object.freeze({ client: entry.client, slug: entry.slug, view, verified: true });
+        return Object.freeze({ client: entry.client, slug: entry.slug, view, tab: entry.tab || '', verified: true });
     }
     async function _syncviewPreflightClientEntry(generation, href) {
         const entry = _syncviewClientEntryEnvelope();
@@ -88802,7 +88817,7 @@
     const _msgState = {
         loading: false, loaded: false, error: '', conversations: [], scope: '',
         openId: '', replyTo: '', draft: '', sending: false, filter: 'all', lastAt: 0,
-        unavailable: false, fromCache: false, readWhenFresh: '', owner: '', epoch: 0,
+        unavailable: false,
     };
     let _msgTimer = null;
     let _msgFirstTimer = null;
@@ -88817,9 +88832,7 @@
     function _msgFallBack() {
         if (_msgState.unavailable) return;
         _msgState.unavailable = true;
-        _msgCacheClear();
         if (_msgTimer) { clearInterval(_msgTimer); _msgTimer = null; }
-        if (_msgFirstTimer) { clearTimeout(_msgFirstTimer); _msgFirstTimer = null; }
         _msgLeavePage();
         const btn = document.getElementById('navMessages');
         if (btn) btn.style.display = 'none';
@@ -88854,59 +88867,6 @@
     }
     window.addEventListener('sv-staff-names', () => { try { _msgPaint(); } catch (e) {} });
 
-    /* ── Short-lived list cache ──
-       So the list can be on screen the moment the page opens, the last list is
-       kept in this TAB's own storage (sessionStorage: gone when the tab closes,
-       never shared with another tab or browser). It is only ever shown to the
-       person who fetched it: it carries their member id, and it is thrown away
-       when the sign-in changes or ends, when it is older than ten minutes, or
-       when the id does not match the signed-in member. It holds the list lines
-       only (no conversation text beyond the one preview line); the chat pane
-       always comes from a fresh answer from the server, which is also what
-       replaces the cached list a moment later. */
-    const MSG_CACHE_KEY = 'sv_msg_inbox_v1';
-    const MSG_CACHE_MS = 10 * 60 * 1000;
-    function _msgCacheClear() { try { sessionStorage.removeItem(MSG_CACHE_KEY); } catch (e) {} }
-    function _msgCacheWrite() {
-        const me = _msgMyId();
-        if (!me || !_msgCanUse() || !_msgState.loaded || _msgState.fromCache) return;
-        try {
-            sessionStorage.setItem(MSG_CACHE_KEY, JSON.stringify({
-                v: 1, member: me, at: _msgState.lastAt, scope: _msgState.scope,
-                conversations: _msgState.conversations.map(c => ({
-                    post_id: c.post_id, client_slug: c.client_slug, client_name: c.client_name, title: c.title,
-                    thumbnail_url: c.thumbnail_url, asset_url: c.asset_url, last_at: c.last_at,
-                    last_author: c.last_author, last_author_member_id: c.last_author_member_id, last_role: c.last_role,
-                    last_body: String(c.last_body || '').slice(0, 160), unread: Number(c.unread) || 0
-                }))
-            }));
-        } catch (e) {}
-    }
-    /* Put the cached list on screen (once), if it is this person's and fresh. */
-    function _msgCacheHydrate() {
-        if (_msgState.loaded || !_msgCanUse()) return;
-        let saved = null;
-        try { saved = JSON.parse(sessionStorage.getItem(MSG_CACHE_KEY) || 'null'); } catch (e) { saved = null; }
-        const me = _msgMyId();
-        const ok = saved && saved.v === 1 && me && saved.member === me && Array.isArray(saved.conversations)
-            && Date.now() - Number(saved.at) < MSG_CACHE_MS && Date.now() >= Number(saved.at);
-        if (!ok) { if (saved) _msgCacheClear(); return; }
-        _msgState.conversations = saved.conversations;
-        _msgState.scope = String(saved.scope || '');
-        _msgState.loaded = true;
-        _msgState.fromCache = true;
-        _msgState.lastAt = Number(saved.at);
-        _msgPaintCounts();
-    }
-    /* Start the inbox call when the pointer or finger reaches the Messages
-       button (a few hundred ms before the click), so the answer is on its way
-       while the click lands. Never at page load: every page treats a POST it did
-       not ask for as a bug, and the Production tab's read-only gate allows none. */
-    ['pointerover', 'pointerdown', 'focusin'].forEach(type => document.addEventListener(type, e => {
-        const t = e.target && e.target.closest && e.target.closest('#navMessages, [onclick*="_msgOpenPage"]');
-        if (t && _msgCanUse() && !_msgState.unavailable) _msgLoad(false);
-    }, { capture: true, passive: true }));
-
     async function _msgCall(body) {
         const response = await fetch(MSG_URL, {
             method: 'POST', cache: 'no-store',
@@ -88924,39 +88884,22 @@
     async function _msgLoad(force) {
         if (!_msgCanUse()) { _msgPaintCounts(); return; }
         if (_msgState.unavailable || _msgState.loading) return;
-        if (!force && _msgState.loaded && !_msgState.fromCache && Date.now() - _msgState.lastAt < 15000) { _msgPaint(); return; }
+        if (!force && _msgState.loaded && Date.now() - _msgState.lastAt < 15000) { _msgPaint(); return; }
         _msgState.loading = true;
         _msgPaint();
-        // An answer belongs to the sign-in that asked for it: if the sign-in
-        // changed or ended while it was on its way, it is dropped.
-        const epoch = _msgState.epoch, asker = _msgMyId();
-        const stale = () => epoch !== _msgState.epoch || asker !== _msgMyId();
         try {
             const value = await _msgCall({ action: 'inbox' });
-            if (stale()) return;
             _msgState.conversations = Array.isArray(value.conversations) ? value.conversations : [];
             _msgState.scope = String(value.scope || '');
             _msgState.error = '';
             _msgState.loaded = true;
-            _msgState.fromCache = false;
             _msgState.lastAt = Date.now();
             if (_msgState.openId && !_msgState.conversations.some(c => c.post_id === _msgState.openId)) _msgState.openId = '';
-            _msgCacheWrite();
-            // A conversation opened from the cached list is marked read only now,
-            // after the person can actually see what is in it.
-            if (_msgState.readWhenFresh) {
-                const id = _msgState.readWhenFresh;
-                _msgState.readWhenFresh = '';
-                const c = _msgState.conversations.find(x => x.post_id === id);
-                if (c && id === _msgState.openId && Number(c.unread) > 0) { c.unread = 0; _msgMark(id, 'read'); _msgCacheWrite(); }
-            }
         } catch (e) {
-            if (stale()) return;
-            if (e && e.message === 'invalid_deliverable_id') { _msgState.loading = false; _msgCacheClear(); _msgFallBack(); return; }
-            if (_msgState.fromCache) { _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgCacheClear(); }
+            if (e && e.message === 'invalid_deliverable_id') { _msgState.loading = false; _msgFallBack(); return; }
             _msgState.error = 'Messages could not load. Try again in a moment.';
         } finally {
-            if (!stale()) _msgState.loading = false;
+            _msgState.loading = false;
         }
         _msgPaintCounts();
         _msgPaint();
@@ -88982,27 +88925,16 @@
         if (_msgTimer) { clearInterval(_msgTimer); _msgTimer = null; }
         if (_msgFirstTimer) { clearTimeout(_msgFirstTimer); _msgFirstTimer = null; }
         if (!_msgCanUse()) {
-            _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgState.openId = '';
-            _msgState.readWhenFresh = '';
-            _msgState.epoch++; _msgState.loading = false; _msgState.owner = '';
-            _msgCacheClear();
+            _msgState.conversations = []; _msgState.loaded = false; _msgState.openId = '';
             _msgPaintCounts(); _msgLeavePage();
             return;
         }
-        // A different member signed in on this tab: nothing of the last one stays.
-        if (_msgState.owner && _msgState.owner !== _msgMyId()) {
-            _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgState.openId = '';
-            _msgState.readWhenFresh = '';
-            _msgState.epoch++; _msgState.loading = false;
-            _msgCacheClear();
-            _msgPaintCounts();
-        }
-        _msgState.owner = _msgMyId();
         // The Messages page was opened before the sign-in was known (a reload
         // on #messages): draw it now.
         if (document.getElementById('msgPage')) { _msgPaint(); _msgLoad(false); }
         // Nothing loads during boot: the first quiet refresh waits a minute
         // (opening the inbox loads at once), then repeats every two minutes.
+        if (_msgFirstTimer) clearTimeout(_msgFirstTimer);
         _msgFirstTimer = setTimeout(() => {
             _msgFirstTimer = null;
             if (!_msgCanUse() || _msgState.unavailable) return;
@@ -89066,7 +88998,6 @@
         if (!c) {
             return `<div class="msg-chat-empty"><b>Pick a conversation</b><span>Notes on your posts show up here, newest first.</span></div>`;
         }
-        if (!Array.isArray(c.messages)) return _msgChatSkeletonHtml(c);
         const target = _msgReplyTarget(c);
         let day = '';
         const bubbles = c.messages.map(m => {
@@ -89105,55 +89036,9 @@
                 </div>
             </div>`;
     }
-    /* ── Loading placeholder ──
-       The SAME markup and classes as the loaded page (list rows, filter pills,
-       chat pane), with the words made see-through and a grey bar painted over
-       each line, so every box lands exactly where the real one will. */
-    const _MSG_SKEL_ROWS = [[58, 74, 82], [44, 62, 70], [66, 80, 56], [50, 68, 76], [60, 56, 84], [46, 72, 64]];
-    function _msgSkelRowsHtml() {
-        return Array.from({ length: 12 }, (_, i) => {
-            const w = _MSG_SKEL_ROWS[i % _MSG_SKEL_ROWS.length];
-            return `<button type="button" class="msg-conv is-skeleton" disabled tabindex="-1" aria-hidden="true">
-                <span class="msg-thumb is-empty sv-skeleton"></span>
-                <span class="msg-conv-main">
-                    <span class="msg-conv-top"><span class="msg-conv-client msg-skel sv-skeleton" style="width:${w[0]}%">Client name</span><span class="msg-conv-time msg-skel sv-skeleton" style="width:34px">12:00</span></span>
-                    <span class="msg-conv-sub msg-skel sv-skeleton" style="width:${w[1]}%">Post title</span>
-                    <span class="msg-conv-last msg-skel sv-skeleton" style="width:${w[2]}%">Name: the last message</span>
-                </span>
-            </button>`;
-        }).join('');
-    }
-    function _msgSkelFiltersHtml() {
-        return `<div class="msg-filters" aria-hidden="true">
-            <button type="button" class="is-active" disabled tabindex="-1">All</button>
-            <button type="button" class="msg-skel sv-skeleton" disabled tabindex="-1">Unread · 0</button>
-        </div>`;
-    }
-    function _msgSkeletonHtml() {
-        return `<div class="msg-inbox is-skeleton" role="status" aria-label="Loading messages">
-            <div class="msg-list">
-                ${_msgSkelFiltersHtml()}
-                <div class="msg-convs">${_msgSkelRowsHtml()}</div>
-            </div>
-            <div class="msg-chat">${_msgChatHtml()}</div>
-        </div>`;
-    }
-    /* A conversation opened from the cached list: its head is known, its notes
-       are still on the way. */
-    function _msgChatSkeletonHtml(c) {
-        const bar = (cls, w, text) => `<span class="${cls} msg-skel sv-skeleton" style="width:${w}">${text}</span>`;
-        const bubble = (me, w) => `<div class="msg-b${me ? ' is-me' : ''}"><div class="msg-b-meta"><b>${bar('', '70px', 'Name')}</b></div><div class="msg-b-text msg-skel sv-skeleton" style="width:${w}">Message text goes here</div></div>`;
-        return `<div class="msg-chat-head">
-                <button type="button" class="msg-back" onclick="_msgBack()" aria-label="Back to conversations">‹</button>
-                ${_msgThumb(c)}
-                <div class="msg-chat-titles"><div class="msg-chat-title">${_calEsc(c.title || 'Untitled post')}</div><div class="msg-chat-sub">${_calEsc(_msgClientName(c))}</div></div>
-            </div>
-            <div class="msg-bubbles" role="status" aria-label="Loading the conversation">${bubble(false, '62%')}${bubble(true, '48%')}${bubble(false, '70%')}</div>
-            <div class="msg-reply"><div class="msg-reply-cap"></div><div class="cal-cm-composer"><textarea rows="1" placeholder="Reply…" disabled></textarea></div></div>`;
-    }
     function _msgInboxHtml() {
         if (!_msgCanUse()) return '<div class="msg-chat-empty"><b>Messages are for the team</b><span>Sign in as staff to see your conversations.</span></div>';
-        if (!_msgState.loaded && !_msgState.error) return _msgSkeletonHtml();
+        if (!_msgState.loaded && _msgState.loading) return _svLoadingSkeletonHtml('kasper', { label: 'Loading messages' });
         if (!_msgState.loaded && _msgState.error) {
             return `<div class="msg-chat-empty"><b>${_calEsc(_msgState.error)}</b><button type="button" class="msg-act" onclick="_msgLoad(true)">Try again</button></div>`;
         }
@@ -89195,7 +89080,6 @@
     function _msgRenderInto(root) {
         if (!root) return;
         root.setAttribute('data-msg-root', '1');
-        _msgCacheHydrate();
         root.innerHTML = _msgInboxHtml();
         _msgLoad(false);
     }
@@ -89230,9 +89114,7 @@
         if (c && Number(c.unread) > 0) {
             c.unread = 0;          // opening = read; the server stamps it below
             _msgPaintCounts();
-            // From the cached list the notes are not here yet: mark it read once they are.
-            if (Array.isArray(c.messages)) { _msgMark(c.post_id, 'read'); _msgCacheWrite(); }
-            else _msgState.readWhenFresh = c.post_id;
+            _msgMark(c.post_id, 'read');
         }
         _msgPaint();
     }
@@ -93326,4 +93208,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-df41d1131c1f.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-4c48f43dde65.js");

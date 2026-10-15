@@ -46,8 +46,8 @@ import { normalizeBrowserWriteClient } from "../_shared/browser-write-auth.ts";
 import { buildPatch, selectJobs } from "../caption-jobs/jobs.mjs";
 import { findClientFolder, parseBrainFacts } from "../brain/parse.mjs";
 import {
-  buildMessages, captionFromResponse, duplicateRun, failureUpdate, findTells, FRAME_QUERY, MAX_TOKENS, MODEL,
-  normalizeCtaOptions, parseRequest, pickFrameMedia, revisionRequest, shareIds,
+  acceptReply, assetKey, buildMessages, duplicateRun, failureUpdate, findTells, FRAME_QUERY, MAX_TOKENS, MODEL,
+  normalizeCtaOptions, parseRequest, pickFrameMedia, rawTextFromResponse, revisionRequest, shareIds, TRANSCRIPT_KEEP_MAX,
   transcriptFromPrediction, voiceGuide, WHISPER_INPUT, WHISPER_VERSION,
 } from "./logic.mjs";
 import { WRITING_RULES } from "./writing-rules.mjs";
@@ -249,7 +249,7 @@ async function claude(system: string, messages: Array<{ role: string; content: s
     body: JSON.stringify({ model: env("CAPTION_MODEL") || MODEL, max_tokens: MAX_TOKENS, system, messages }),
   }, 120000);
   if (!r.ok) { await r.body?.cancel(); throw new Error(`The caption writer did not answer (${r.status}). Try again.`); }
-  return captionFromResponse(await r.json());
+  return rawTextFromResponse(await r.json());
 }
 
 async function writeCaption(job: Job, videoTranscript: string): Promise<string> {
@@ -259,8 +259,11 @@ async function writeCaption(job: Job, videoTranscript: string): Promise<string> 
     note: job.note, cta: job.cta, ctaOptions, platform: job.platform, redo: job.redo,
   });
   const first = await claude(m.system, [{ role: "user", content: m.user }]);
-  let out = first;
-  if (!out) throw new Error("Claude returned an empty caption");
+  // A reply that reads like talk to a person (a question, a note about a missing transcript, a preamble, a "---" line)
+  // is never a caption. Nothing is saved; the job ends in an error the box shows and the caption stays as it was.
+  const accepted = acceptReply(first, !!job.redo);
+  if (!accepted.ok) throw new Error(accepted.error);
+  let out: string = accepted.caption || "";
   const tells = findTells(out);
   if (tells.length) {
     // One revision for the mechanical tells; if it fails or comes back empty, the first draft stands.
@@ -269,7 +272,8 @@ async function writeCaption(job: Job, videoTranscript: string): Promise<string> 
       const revised = await claude(m.system, [
         { role: "user", content: m.user }, { role: "assistant", content: first }, { role: "user", content: revisionRequest(tells) },
       ]);
-      if (revised) out = revised;
+      const again = acceptReply(revised, !!job.redo);
+      if (again.ok && again.caption) out = again.caption;
     } catch (_e) { /* the first draft stands */ }
   }
   return out;
@@ -306,20 +310,60 @@ async function saveCaption(job: Job): Promise<boolean> {
   }
 }
 
+// The words of the post's video, kept on the job row so a later redo can use them. A failed write (the column is not
+// there yet) only means a later redo transcribes again; it never fails the caption.
+async function keepTranscript(job: Job, text: string) {
+  const kept = clean(text).slice(0, TRANSCRIPT_KEEP_MAX);
+  if (!kept) return;
+  const { error } = await job.db.from("caption_jobs").update({ transcript: kept, transcript_asset: assetKey(job.assetUrl) }).eq("job_id", job.jobId);
+  if (error) console.warn("[caption-generate] transcript not kept", error.code || "");
+}
+
+// The newest transcript an earlier run kept for this post AND this video ("" when there is none, it belongs to a
+// different video link (the card's video was replaced), or it cannot be read).
+async function latestTranscript(job: Job): Promise<string> {
+  const { data, error } = await job.db.from("caption_jobs").select("transcript")
+    .eq("client", job.client).eq("post_id", job.postId).eq("transcript_asset", assetKey(job.assetUrl)).neq("job_id", job.jobId)
+    .not("transcript", "is", null).neq("transcript", "").order("updated_at", { ascending: false }).limit(1);
+  if (error) {
+    console.warn("[caption-generate] kept transcript read failed", error.code || "");
+    return "";
+  }
+  const row = Array.isArray(data) ? data[0] : null;
+  return clean(row && (row as { transcript?: unknown }).transcript);
+}
+
+async function transcribeVideo(job: Job): Promise<string> {
+  const media = (await resolveFrameDirect(job.assetUrl)) || (await resolveFrameApify(job));
+  if (!media) throw new Error(NOT_READABLE);
+  checkBudget(job);
+  await patchJob(job, { stage: "transcribing" });
+  const text = await transcribe(job, media);
+  await checkCancel(job);                         // n8n "Cancel check 1": before the caption writer is ever called
+  return text;
+}
+
 async function run(job: Job) {
   active.set(job.jobId, job);
   try {
     let videoTranscript = "";
     if (job.mode === "video") {
-      const media = (await resolveFrameDirect(job.assetUrl)) || (await resolveFrameApify(job));
-      if (!media) throw new Error(NOT_READABLE);
-      checkBudget(job);
-      await patchJob(job, { stage: "transcribing" });
-      videoTranscript = await transcribe(job, media);
-      await checkCancel(job);                     // n8n "Cancel check 1": before the caption writer is ever called
+      videoTranscript = await transcribeVideo(job);
+      await keepTranscript(job, [videoTranscript, job.transcript].filter(Boolean).join("\n\n"));
+    } else if (job.mode === "transcript") {
+      await keepTranscript(job, job.transcript);
+    } else if (job.mode === "redo") {
+      // A redo works from the video's words: the ones the last Generate kept, else the card's video is transcribed now.
+      // Only a post with no video and no kept transcript goes without (the model is told so).
+      videoTranscript = await latestTranscript(job);
+      if (!videoTranscript && job.assetUrl) {
+        videoTranscript = await transcribeVideo(job);
+        await keepTranscript(job, videoTranscript);
+      }
     }
     checkBudget(job);
-    if (job.mode === "video") await patchJob(job, { stage: "writing" });   // a transcript-only row starts at writing
+    await checkCancel(job);                       // n8n "Cancel check 1": before the caption writer is ever called
+    if (job.mode !== "transcript") await patchJob(job, { stage: "writing" });   // a transcript-only row starts at writing
     job.caption = await writeCaption(job, videoTranscript);
     await checkCancel(job);                       // n8n "Cancel check 2": a cancelled caption is never saved
     if (job.redo) {

@@ -33,6 +33,7 @@ const state = {
   cardCaptions: new Map<string, string>(),
   typedWhileWriting: null as null | { postId: string; caption: string },
   cardReadFails: false,
+  claudeReply: null as null | string,   // when set, Claude answers with exactly this (a chat reply, for the refusal tests)
 };
 const reply = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(typeof body === "string" ? body : JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
@@ -40,7 +41,13 @@ const reply = (body: unknown, status = 200, headers: Record<string, string> = {}
 function postgrest(url: URL, init: RequestInit): Response {
   const table = url.pathname.split("/").pop();
   const filters = [...url.searchParams.entries()].filter(([k]) => !["select", "order", "limit", "on_conflict"].includes(k));
-  const match = (r: Row) => filters.every(([k, v]) => v.startsWith("eq.") ? String(r[k] ?? "") === v.slice(3) : true);
+  // eq., neq. and not.is.null, the filters the function uses; the newest updated_at first when asked.
+  const match = (r: Row) => filters.every(([k, v]) =>
+    v.startsWith("eq.") ? String(r[k] ?? "") === v.slice(3)
+      : v.startsWith("neq.") ? String(r[k] ?? "") !== v.slice(4)
+      : v === "not.is.null" ? r[k] != null : true);
+  const ordered = (rows: Row[]) => url.searchParams.get("order")?.startsWith("updated_at.desc")
+    ? [...rows].sort((a, b) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? ""))) : rows;
   const single = String(new Headers(init.headers).get("accept") || "").includes("vnd.pgrst.object");
   if (table === "caption_prompts") {
     const rows = state.prompt === null ? [] : [{ prompt: state.prompt }];
@@ -57,7 +64,7 @@ function postgrest(url: URL, init: RequestInit): Response {
   }
   if (table === "caption_jobs") {
     if ((init.method || "GET") === "GET") {
-      const rows = [...state.jobs.values()].filter(match);
+      const rows = ordered([...state.jobs.values()].filter(match)).slice(0, Number(url.searchParams.get("limit") || 1e9));
       if (single) return rows.length ? reply(rows[0]) : reply({ code: "PGRST116" }, 406);
       return reply(rows);
     }
@@ -74,6 +81,12 @@ function postgrest(url: URL, init: RequestInit): Response {
         if (p.stage) state.stages.push(`${p.job_id}:${p.stage}`);
       }
       return reply("", 201);
+    }
+    if (init.method === "PATCH") {
+      // supabase-js update(): the changed columns, for the rows the filters match.
+      const patch = JSON.parse(String(init.body));
+      for (const r of state.jobs.values()) if (match(r)) Object.assign(r, patch);
+      return new Response(null, { status: 204 });
     }
     if (init.method === "DELETE") return reply("", 204);
   }
@@ -120,7 +133,7 @@ globalThis.fetch = (async (input: Request | URL | string, init: RequestInit = {}
     state.claude.push(body);
     if (state.typedWhileWriting) state.cardCaptions.set(state.typedWhileWriting.postId, state.typedWhileWriting.caption);
     // First draft carries two tells; the revision is clean.
-    const text = body.messages.length === 1 ? "Caption: We delve into rest — slowly. #rest #calm #slow" : "We slow down and rest. #rest #calm #slow";
+    const text = state.claudeReply !== null ? state.claudeReply : body.messages.length === 1 ? "Caption: We delve into rest — slowly. #rest #calm #slow" : "We slow down and rest. #rest #calm #slow";
     return reply({ content: [{ type: "text", text }] });
   }
   if (url.host === "api.github.com") {
@@ -148,7 +161,7 @@ async function call(body: Record<string, unknown>, headers: Record<string, strin
   await Promise.all(pending.splice(0));
   return { status: res.status, json };
 }
-const reset = () => { state.claude.length = 0; state.saves.length = 0; state.stages.length = 0; state.calls.length = 0; state.cancelOnPoll = 0; state.saveOk = true; state.replicatePollsBeforeDone = 1; state.typedWhileWriting = null; state.cardReadFails = false; };
+const reset = () => { state.claude.length = 0; state.saves.length = 0; state.stages.length = 0; state.calls.length = 0; state.cancelOnPoll = 0; state.saveOk = true; state.replicatePollsBeforeDone = 1; state.typedWhileWriting = null; state.cardReadFails = false; state.claudeReply = null; };
 
 // 1. Video + an optional pasted transcript: the whole n8n chain, plus voice, rules and the extra.
 reset();
@@ -217,6 +230,60 @@ reset(); state.cardCaptions.set("p14", "   ");
 r = await call({ client: "fixtureclient", postId: "p14", jobId: "job_blank", transcript: "SAID" });
 ok(state.saves.length === 1 && state.jobs.get("job_blank")!.status === "done" && state.cardCaptions.get("p14") === "We slow down and rest. #rest #calm #slow", "a card whose caption is only spaces still gets the generated caption");
 ok(state.calls.some((c) => c === "GET fixture.supabase.local/rest/v1/calendar_posts"), "the card's caption is read before the save");
+
+
+// 5c. Redo with a note (2026-10-16). The Generate in scenario 1 kept the video's words, tied to the card's video link.
+row = state.jobs.get("job_video")!;
+ok(row.transcript === "WHISPER TRANSCRIPT\n\nPASTED NOTES" && row.transcript_asset === "https://f.io/abc", "kept words: the Generate stored the video's transcript and the pasted notes, tied to the card's video link");
+const redoBody = { client: "fixtureclient", postId: "p1", assetUrl: "https://f.io/abc", captionPrompt: "PAGE COPY", note: "bring in another example from the video", redo: { caption: "CURRENT CAPTION" } };
+reset(); state.cardCaptions.set("p1", "CURRENT CAPTION");
+r = await call({ ...redoBody, jobId: "job_redo" });
+let redoMsg = (state.claude[0] as { messages: Array<{ content: string }> }).messages[0].content;
+ok(r.json.accepted && !state.calls.some((c) => /replicate/.test(c)) && !state.calls.some((c) => /frame\.io|f\.io/.test(c)), "redo: reuses the kept transcript, no new transcription");
+ok(/<transcript>\nWHISPER TRANSCRIPT\n\nPASTED NOTES\n<\/transcript>/.test(redoMsg) && /<current_caption>\nCURRENT CAPTION\n/.test(redoMsg) && redoMsg.endsWith("no explanation. Never ask a question, never say what you have or do not have (a transcript, an attachment, a video), and never ask for anything to be pasted or sent. If something you would like is missing, write the best caption you can from what is here."), "redo: the message carries the kept words, the current caption, the note and ends with the reply rule");
+row = state.jobs.get("job_redo")!;
+ok(row.status === "done" && row.caption === "We slow down and rest. #rest #calm #slow" && state.saves.length === 0 && state.cardCaptions.get("p1") === "CURRENT CAPTION", "redo: done with the new caption on its row, nothing saved to the card");
+// The card's video was replaced: the old video's words are not reused; the new video is transcribed.
+reset();
+r = await call({ ...redoBody, assetUrl: "https://f.io/replaced", jobId: "job_redo_new" });
+redoMsg = (state.claude[0] as { messages: Array<{ content: string }> }).messages[0].content;
+ok(state.calls.some((c) => c === "POST api.replicate.com/v1/predictions"), "redo on a replaced video: the new video is transcribed");
+ok(state.jobs.get("job_redo_new")!.status === "done" && state.jobs.get("job_redo_new")!.transcript_asset === "https://f.io/replaced", "redo on a replaced video: done, and the new words are kept against the new link");
+// A post with a video link but nothing kept: transcribe it in the redo.
+reset();
+r = await call({ ...redoBody, postId: "p30", jobId: "job_redo_fresh" });
+ok(state.calls.some((c) => c === "POST api.replicate.com/v1/predictions") && /WHISPER TRANSCRIPT/.test((state.claude[0] as { messages: Array<{ content: string }> }).messages[0].content), "redo with none kept and a video link: the video is transcribed and its words used");
+ok(state.stages.join(",") === "job_redo_fresh:writing,job_redo_fresh:transcribing,job_redo_fresh:writing,job_redo_fresh:done", "redo that transcribes: starts at writing, then transcribing, writing, done: " + state.stages.join(","));
+// No video and nothing kept: the model is told plainly.
+reset();
+r = await call({ client: "fixtureclient", postId: "p31", note: "make it hookier", redo: { caption: "CURRENT CAPTION" }, jobId: "job_redo_none" });
+redoMsg = (state.claude[0] as { messages: Array<{ content: string }> }).messages[0].content;
+ok(r.json.accepted && !state.calls.some((c) => /replicate|f\.io/.test(c)) && /There is no transcript for this post/.test(redoMsg) && !/<transcript>/.test(redoMsg) && state.jobs.get("job_redo_none")!.status === "done", "redo with no video and no words: no transcription, the model is told there is no transcript");
+// Words pasted into a Generate with no video are kept (empty video key) and reused by a redo with no video.
+reset();
+r = await call({ client: "fixtureclient", postId: "p32", jobId: "job_pasted", transcript: "ONLY PASTED" });
+ok(state.jobs.get("job_pasted")!.transcript === "ONLY PASTED" && state.jobs.get("job_pasted")!.transcript_asset === "", "pasted-only Generate: the pasted words are kept with the empty video key");
+reset();
+r = await call({ client: "fixtureclient", postId: "p32", note: "add an example", redo: { caption: "CURRENT CAPTION" }, jobId: "job_pasted_redo" });
+ok(/<transcript>\nONLY PASTED\n<\/transcript>/.test((state.claude[0] as { messages: Array<{ content: string }> }).messages[0].content), "redo with no video reuses the pasted words");
+
+// 5d. A reply that is chat, not a caption, is never saved. The job ends in an error the box shows; the caption stays.
+const chat: Record<string, string> = {
+  "a question about the missing transcript": "Looking up the transcript... there isn't one attached. Could you paste it?",
+  "a chatty intro, a --- line, then a caption": "Sure! Happy to bring in more.\n\n---\n\nRest is not a reward.",
+  "a preamble line": "Here is the revised caption:\nRest is not a reward.",
+};
+for (const [what, text] of Object.entries(chat)) {
+  reset(); state.cardCaptions.set("p40", "CURRENT CAPTION"); state.claudeReply = text;
+  r = await call({ client: "fixtureclient", postId: "p40", note: "add an example", redo: { caption: "CURRENT CAPTION" }, jobId: "job_chat_" + what.length });
+  row = state.jobs.get("job_chat_" + what.length)!;
+  ok(row.status === "error" && row.error === "Couldn't redo this one, try again or use Generate" && !String(row.caption || "") && state.saves.length === 0 && state.cardCaptions.get("p40") === "CURRENT CAPTION", "redo, " + what + ": refused, the exact error, no caption on the row, nothing saved, the card is as it was");
+  ok(state.claude.length === 1, "redo, " + what + ": no revision is asked for a refused reply");
+}
+reset(); state.cardCaptions.set("p41", ""); state.claudeReply = chat["a preamble line"];
+r = await call({ client: "fixtureclient", postId: "p41", jobId: "job_chat_gen", transcript: "SAID" });
+row = state.jobs.get("job_chat_gen")!;
+ok(row.status === "error" && row.error === "Couldn't write this caption, please try again" && !String(row.caption || "") && state.saves.length === 0 && state.cardCaptions.get("p41") === "", "Generate with a chat reply: refused, an error, no caption on the row, nothing saved to the card");
 
 // 6. Refusals before anything runs.
 reset();

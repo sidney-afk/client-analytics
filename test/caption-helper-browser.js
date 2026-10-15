@@ -229,8 +229,8 @@ async function run(browser, origin, label, device, theme) {
   await page.locator('#calRedoGo').click();
   expect(await waitFor(async () => (await captionOf(page, 'v1')) === 'A shorter caption after the redo.'), `${tag}: the redo's caption replaces the untouched one`);
   const rb = (state.ef[1] || {}).body || {};
-  expect(rb.redo && rb.redo.caption === 'Caption written by the function' && rb.note === 'shorter, and a hookier hook' && !rb.assetUrl && !rb.transcript && rb.platform === 'tiktok' && !('titles' in rb.redo) && !('quick' in rb.redo),
-    `${tag}: the redo sent the current caption and the note (same platform), no video, no titles`);
+  expect(rb.redo && rb.redo.caption === 'Caption written by the function' && rb.note === 'shorter, and a hookier hook' && rb.assetUrl === FRAME && !rb.transcript && rb.platform === 'tiktok' && !('titles' in rb.redo) && !('quick' in rb.redo),
+    `${tag}: the redo sent the current caption, the note (same platform) and the card's video link so the server can find the words, no titles`);
   expect(await waitFor(async () => state.saves.slice(before).some(s => s.id === 'v1' && s.caption === 'A shorter caption after the redo.'), 8000), `${tag}: the redo is saved through the card's normal save`);
   const ex3 = await extraStuff(page);
   expect(ex3.panel === 0 && !ex3.words && ex3.btn === 0, `${tag}: after a redo nothing extra is open either`);

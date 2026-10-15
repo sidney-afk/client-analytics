@@ -359,11 +359,9 @@ const SHELL_SURFACES = [
     isOpen: p => p.evaluate(() => { const m = document.getElementById('svJump'); return !!m && !m.hidden; }), inside: '#svJump .sv-jump-box' },
 ];
 
-const MSG_SURFACES = [
-  { only: 'desktop', area: 'Messages', name: 'Messages panel', opener: '#navMessages',
-    open: async p => { await p.click('#navMessages'); },
-    isOpen: p => p.evaluate(() => { const m = document.getElementById('msgPanel'); return !!m && !m.hidden; }), inside: '#msgPanel' },
-];
+// Messages is a page under the header since #2083, not a pop-up, so it has
+// no layer to test here. Its own suite (messages-inbox-browser.js) covers it.
+const MSG_SURFACES = [];
 
 async function stackChecks(page, label) {
   // Two open at once: Escape closes only the top one.

@@ -233,3 +233,7 @@ verify_jwt = false
 # one-time login and callback are opened in a browser without a Supabase JWT.
 [functions.frameio-token]
 verify_jwt = false
+
+# Frame.io viewer ("Watch here"): staff role key checked in code, read-only against Frame.io.
+[functions.frameio-view]
+verify_jwt = false

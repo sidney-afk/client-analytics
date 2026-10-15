@@ -2,6 +2,8 @@
 
 ## Entry-links refresh repair
 
+The branch subsequently conflicted with new main commits. Main `71f684554e95f6a9b5ddc2167685fcc2979477c4` is now integrated, preserving the new card viewer, notification link and all CI checks. The complete dialog suite and required gateway pass on that integration. The refreshed full desktop comparison ends `1/1 desktop shots identical to origin/main`; its public pair is unchanged byte for byte. The new viewer test reproduced a stale phone journey locally (it waited for an editable card while Sheet displayed Grid). It now enters the retained List, and its full unchanged assertions end `frameio-viewer-browser: all checks passed`.
+
 The committed build was replayed locally and reproduced the 210px phone Review jump and the Month fixture scrolling the window instead of the content region. The fix captures the actual phone content scroller and includes stable grid anchors/focus IDs. The existing refresh runner now scrolls that region and enters the retained List; its assertions and 2px rounding tolerance are unchanged. A new collection regression also verifies a row inserted above the grid keeps the visible tile and focus in Calendar and Samples at 390/430 in both themes.
 
 Actual final lines of `calendar-refresh-final.log`, `calendar-grid-refresh.log`, `calendar-repair-gateway.log` and `calendar-repair-desktop.log`:

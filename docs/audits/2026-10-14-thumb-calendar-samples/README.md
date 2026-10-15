@@ -64,6 +64,7 @@ disabled. The CI phone job also runs the new `qa/staff-phone-collections.js`.
 | `staff-selection-samples-browser.js` | Use List and More → Select cards instead of the loose toolbar button. |
 | `notify-client-browser.js` | Open More to reach the native phone action; retain desktop placement and all colour, target, permission and request assertions. |
 | `calendar-refresh-scroll-browser.js` | Scroll and measure the actual phone content region; enter the retained editable List for its existing Sheet journey. All movement, focus, caret and pixel assertions remain unchanged. |
+| `frameio-viewer-browser.js` | Main added this native viewer while the PR was open. Its phone editable-card journey now enters List; all viewer, permission, video, failure/retry and read-only assertions remain unchanged. |
 
 Background refresh now captures the phone content scroller itself, in addition to its nested scrollers. Grid tiles have stable IDs and participate in the existing anchor/focus restoration. The collection suite also prepends a complete row and asserts visible tile position and focus in both areas, widths and themes. Existing screenshot provenance remains the capture version; this follow-up changes restoration and stable IDs, without changing the pictured layout.
 

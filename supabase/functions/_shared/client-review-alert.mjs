@@ -49,7 +49,10 @@ const clean = (value) => String(value == null ? '' : value).trim();
 const respond = (cors, body, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
 // The same address the page's "Copy client link" builds (see
-// _syncviewIssueClientShareUrl): samples carry sxr=1, then c, v and t.
+// _syncviewIssueClientShareUrl): samples carry sxr=1, then c, v and t. This link
+// also carries tab=review, which only a client link reads: it opens the Calendar
+// (or the Samples) on its Review view instead of the view last used in that browser.
+// Links without it, including every copied one, keep working as before.
 export function buildReviewLink({ origin, displayName, surface, token }) {
   const s = SURFACES[surface];
   if (!s) throw new Error('unknown_surface');
@@ -57,6 +60,7 @@ export function buildReviewLink({ origin, displayName, surface, token }) {
   if (surface === 'samples') q.set('sxr', '1');
   q.set('c', displayName);
   q.set('v', s.view);
+  q.set('tab', 'review');
   q.set('t', token);
   return clean(origin).replace(/\/+$/, '') + '/?' + q.toString();
 }

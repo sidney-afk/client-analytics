@@ -275,6 +275,7 @@
     "first-paint-not-cdn-hostage.js",
     "foreign-write-strand-check.js",
     "frameio-token-source.js",
+    "frameio-view-source.js",
     "gated-suites-have-their-harness.js",
     "gateway-no-undeclared-identifiers.js",
     "graphics-artifact-card-fallback.js",
@@ -1684,6 +1685,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, fictional test client and cards, no hosted credentials. Checks the staff Calendar and Samples Sheet: with a part Urgent every status row stays one line and the same height, and each status name carries its full-name tooltip, on desktop (three card sizes) and phone, light and dark, both status palettes.",
       "reproduce": "node test/calendar-status-row-urgent-height-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "frameio-viewer-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, the Frame.io lookup and the video clip are fixtures, no hosted credentials and no live data. Checks the Watch here viewer on the Calendar card, the SMM review panel and Kasper's review at desktop and phone size, light and dark: loading, could-not-load, comments, jump to a comment, and that a client link page shows no button.",
+      "reproduce": "node test/frameio-viewer-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

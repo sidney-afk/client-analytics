@@ -2392,7 +2392,11 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
     // step 5). It carries no credential and no route: only those two values pass
     // (see _syncviewClientEntryEnvelope) and it is dropped from the address once the
     // link is verified. Every other key is still refused.
-    const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr', 'split']);
+    // 'tab' is read only here, on a client link: tab=review opens the Calendar (or the
+    // Samples) on its Review view instead of the view this browser last used. It carries
+    // no credential and no route, only the value "review" passes, and it is dropped from
+    // the address once the link is verified. Links without it behave exactly as before.
+    const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr', 'split', 'tab']);
     let _syncviewClientEntryCapability = null;
     function _syncviewSetClientEntryCapability(value) { _syncviewClientEntryCapability = value; }
     let _syncviewClientEntryGeneration = 0;
@@ -2455,6 +2459,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         }
         // The one key that is not part of the link itself: exactly 0 or 1, nothing else.
         if (q.has('split') && q.get('split') !== '0' && q.get('split') !== '1') return { ok: false, reason: 'invalid_split' };
+        if (q.has('tab') && q.get('tab') !== 'review') return { ok: false, reason: 'invalid_tab' };
         if (q.getAll('c').length !== 1 || q.getAll('t').length !== 1) return { ok: false, reason: 'missing_credential' };
         const client = String(q.get('c') || '').trim();
         const token = String(q.get('t') || '').trim();
@@ -2488,7 +2493,9 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         if ((view === 'analytics' || !q.get('v')) && state && state.client && _syncviewClientEntrySlug(state.client) === slug) {
             if (state.clientTab === 'calendar' || state.clientTab === 'brief') view = 'calendar';
         }
-        return { ok: true, client, slug, token, view, legacyHash: !!hash };
+        // Only the Calendar and the Samples have a Review view to open on.
+        const tab = q.get('tab') === 'review' && (view === 'calendar' || view === 'sample-reviews') ? 'review' : '';
+        return { ok: true, client, slug, token, view, tab, legacyHash: !!hash };
     }
     function _writeUiCancelClientLegacyRetryTimers() {
         if (!_isClientLink) return;
@@ -2618,6 +2625,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         if (view === 'analytics') q.delete('v'); else q.set('v', view);
         if (view === 'sample-reviews') q.set('sxr', '1'); else q.delete('sxr');
         q.delete('split');   // the loader has read it by now; it is not part of the link
+        q.delete('tab');     // read once (kept on the capability below); a reload goes back to the saved view
         const tab = view === 'sample-reviews' ? 'sample-reviews' : view;
         const prev = history.state && _syncviewClientEntrySlug(history.state.client) === entry.slug ? history.state : {};
         const state = Object.assign({}, prev, {
@@ -2630,7 +2638,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         // A share link keeps whatever path it was opened on.
         const url = location.pathname + '?' + q.toString();
         history.replaceState(state, '', url);
-        return Object.freeze({ client: entry.client, slug: entry.slug, view, verified: true });
+        return Object.freeze({ client: entry.client, slug: entry.slug, view, tab: entry.tab || '', verified: true });
     }
     async function _syncviewPreflightClientEntry(generation, href) {
         const entry = _syncviewClientEntryEnvelope();

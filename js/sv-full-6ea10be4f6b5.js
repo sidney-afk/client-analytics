@@ -38415,7 +38415,7 @@
        positioned SIBLINGS of the <img>, not part of it. */
     // PORT-DELTA: preserve the phone artifact's native-controls container when
     // media is replaced. It exists only while the staff phone controller runs.
-    const CAL_THUMB_OVERLAY_SEL = '.cal-card-platforms, .cal-card-color-tag, .cal-card-color-picker, .cal-thumb-linear-warn, .cal-smm-warn, .sv-phone-card-tools, .cal-linear-pile';
+    const CAL_THUMB_OVERLAY_SEL = '.cal-thumb-play, .cal-card-platforms, .cal-card-color-tag, .cal-card-color-picker, .cal-thumb-linear-warn, .cal-smm-warn, .sv-phone-card-tools, .cal-linear-pile';
     /* Swap ONLY the thumbnail media (img / fallback / load-error notice),
        leaving the overlays above untouched. The thumb's src carries a
        cache-bust token derived from updated_at (see _calCacheBustThumb), and
@@ -38431,6 +38431,9 @@
         const overlays = Array.from(thumbDiv.children).filter(el => el.matches(CAL_THUMB_OVERLAY_SEL));
         thumbDiv.innerHTML = mediaHtml;
         overlays.forEach(el => thumbDiv.appendChild(el));
+        const holder = thumbDiv.closest ? thumbDiv.closest('.cal-card[data-pid]') : null;
+        const owner = holder && calState.posts.find(x => x.id === holder.dataset.pid);
+        if (owner) svFrameSyncPlayIcon(thumbDiv, owner);
     }
 
     function _calThumbIconHtml() {
@@ -39205,14 +39208,12 @@
             const href = /^https?:\/\//i.test(v) ? v : 'https://' + v;
             return `<div class="cal-link-field has-link cal-link-ro cal-link-${kind}">
                 <a class="cal-link-pill-open" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer">${extIco}<span class="cal-link-label">${label}</span></a>
-                ${svFrameWatchBtnHtml(v, post && post.name, 'cal-link-watch', post && post.client)}
             </div>`;
         }
         const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_calEsc(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnLinkInput(this)" onblur="_calOnLinkBlur(this)" onkeydown="_calOnLinkKey(event,this)">`;
         if (v) {
             return `<div class="cal-link-field has-link cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
                 <button type="button" class="cal-link-pill-open" onclick="_calOpenLink('${pid}','${fld}')" title="Open link">${extIco}<span class="cal-link-label">${label}</span></button>
-                ${isThumb ? '' : svFrameWatchBtnHtml(v, post && post.name, 'cal-link-watch', post && post.client)}
                 ${folderBtn}
                 ${compareSlot}
                 <button type="button" class="cal-link-edit" tabindex="-1" onclick="_calEditLink('${pid}','${fld}')" title="Edit link">${pencil}</button>
@@ -40363,7 +40364,7 @@
             ${isBlank ? '' : `<span class="cal-card-grip${autoSorted ? ' is-locked' : ''}" title="${autoSorted ? 'Cards are sorted by date. Switch Order to Manual to drag them.' : 'Drag to reorder'}"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>`}
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-link" type="button" data-card-link="${pid}" onclick="_calCopyCardLink(event,'${pid}')" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>`}
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
-            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this card to its sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : (parentComp ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}'${parentComp === 'graphic' ? ",'graphic'" : ''})" title="This card is linked to the parent issue, so its statuses never reach the editor’s Workload. Paste the ${parentComp === 'graphic' ? 'GRA (graphic)' : 'VID (video)'} sub-issue link instead."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Parent issue linked — link the sub-issue</button>` : (linearMissing ? `<a class="cal-thumb-linear-warn" href="${_calEscAttr(/^https?:\/\//i.test(linearMissing.url) ? linearMissing.url : 'https://' + linearMissing.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="The ${linearMissing.comp === 'graphic' ? 'graphic' : 'video'} sub-issue is missing ${linearMissing.missing.join(', ')}. Open it in Linear to fix."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Sub-issue has no ${linearMissing.missing.join(', no ')}</a>` : ''))}${_calThumbContent(p)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}${_isClientLink ? '' : _calSmmWarnOverlayHtml(p)}${(_isClientLink || ro) ? '' : _calLinearPileHtml(pid, p)}</div>
+            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this card to its sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : (parentComp ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}'${parentComp === 'graphic' ? ",'graphic'" : ''})" title="This card is linked to the parent issue, so its statuses never reach the editor’s Workload. Paste the ${parentComp === 'graphic' ? 'GRA (graphic)' : 'VID (video)'} sub-issue link instead."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Parent issue linked — link the sub-issue</button>` : (linearMissing ? `<a class="cal-thumb-linear-warn" href="${_calEscAttr(/^https?:\/\//i.test(linearMissing.url) ? linearMissing.url : 'https://' + linearMissing.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="The ${linearMissing.comp === 'graphic' ? 'graphic' : 'video'} sub-issue is missing ${linearMissing.missing.join(', ')}. Open it in Linear to fix."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Sub-issue has no ${linearMissing.missing.join(', no ')}</a>` : ''))}${_calThumbContent(p)}${_isClientLink ? '' : svFramePlayIconHtml(p.asset_url, p.name, p.client)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}${_isClientLink ? '' : _calSmmWarnOverlayHtml(p)}${(_isClientLink || ro) ? '' : _calLinearPileHtml(pid, p)}</div>
             <div class="cal-card-body">
                 ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_calEscAttr(_calDupeWarnText(dupePeers))}. Two cards can’t share a sub-issue. Archive one.">⚠ ${_calEsc(_calDupeWarnText(dupePeers))} — archive one of them</div>` : ''}
                 <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro, editableText)}</div>
@@ -46205,13 +46206,10 @@
         const route = await _calCaptionRoute(clientName);
         if (route !== 'ef') { _calSetCaptionBusy(pid, null, 'Redo is switched off for this client.'); return { ok: false, error: 'Redo is off' }; }
         if (_calCapJobActive(_calCaptionJobs.get(pid))) return { ok: false, error: 'Already generating' };
-        // The card's video link goes with a redo, so the server can transcribe it when no earlier run kept the words.
-        const redoAsset = _calCapLiveAssetUrl(pid, post);
-        const redoVideo = redoAsset && /f\.io|frame\.io/i.test(redoAsset) ? redoAsset : '';
         const job = {
             jobId: 'job_' + pid + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
             pid: pid, client: calClientSlug(clientName), clientName: clientName,
-            route: 'ef', transcript: '', assetUrl: redoVideo, captionPrompt: _calCaptionPromptFor(clientName),
+            route: 'ef', transcript: '', assetUrl: '', captionPrompt: _calCaptionPromptFor(clientName),
             cta: '', platform: _calCapPlatform.get(pid) || 'instagram', note: note,
             redo: { quick: '' }, base: live,
             status: 'queued', stage: 'queued', error: '', caption: '',
@@ -48015,7 +48013,11 @@
     Object.assign(window, {
         _arxOpen
     });
-    /* WATCH HERE: a card's Frame.io video and its Frame.io comments, inside SyncView (staff only).
+    /* WATCH HERE: a card's Frame.io video, inside SyncView. Three ways in, all behind the frame_viewer_clients switch:
+         - the Review tab's video preview plays the video in place (staff and client link; no comments);
+         - the Sheet's thumbnail has a small play icon that opens the pop-up below (staff only);
+         - Kasper's review keeps its "Watch here" button for the same pop-up (staff only).
+       The rest of this comment describes the pop-up.
 
        ONE viewer, opened from the Calendar card, the SMM review panel and Kasper's review. Every
        "Watch here" button carries the card's video link; the viewer asks the frameio-view function
@@ -48029,6 +48031,7 @@
     const FV_FETCH_MS = 45000;
     // The three link shapes the function understands. Anything else gets no button.
     const FV_LINK_RE = /https?:\/\/(?:f\.io\/[A-Za-z0-9_-]{3,40}|next\.frame\.io\/(?:share|project)\/[0-9a-f-]{36}[^\s<>"']*)/i;
+    const FV_INLINE_RETRY_LIMIT = 1;
     const FV_STATE = { open: false, seq: 0, link: '', title: '', data: null, opener: null, retried: false, resumeAt: 0 };
 
     function _fvLinkOf(raw) {
@@ -48066,7 +48069,6 @@
         return slug || '';
     }
     function _fvEnabledFor(clientOrSlug) {
-        if (_isClientLink) return false;
         if (_fvFlag.all === true) return true;
         const slug = _fvFlagSlugOf(clientOrSlug);
         return !!slug && _fvFlag.clients.has(slug);
@@ -48075,6 +48077,20 @@
         document.querySelectorAll('.fv-gated').forEach((b) => {
             if (_fvEnabledFor(b.getAttribute('data-fv-client'))) b.removeAttribute('hidden');
             else b.setAttribute('hidden', '');
+        });
+        // A video already playing in place goes when the switch turns off for its client: it stops and says where to watch.
+        document.querySelectorAll('.fv-inline').forEach((box) => {
+            if (_fvEnabledFor(box.getAttribute('data-fv-client'))) return;
+            const v = box.querySelector('video');
+            if (v) { try { v.pause(); } catch (e) {} v.removeAttribute('src'); try { v.load(); } catch (e) {} }
+            box._fvSeq = (box._fvSeq || 0) + 1;
+            const open = box.getAttribute('data-fv-link') || '';
+            box.innerHTML = `<div class="fv-inline-state"><div class="fv-state-text">Watching here has been switched off.</div><div class="fv-state-actions"><a class="fv-btn fv-btn-ghost fv-btn-small" href="${_calEscAttr(open)}" target="_blank" rel="noopener noreferrer">Open in Frame.io</a></div></div>`;
+        });
+        document.querySelectorAll('[data-fv-tile]').forEach((t) => {
+            const on = _fvEnabledFor(t.getAttribute('data-fv-client'));
+            if (on) { t.setAttribute('data-fv-on', ''); t.setAttribute('aria-label', 'Play video'); }
+            else { t.removeAttribute('data-fv-on'); t.setAttribute('aria-label', 'Open video'); }
         });
     }
     function _fvFlagSet(value) {
@@ -48116,9 +48132,9 @@
             _fvFlagChannel = null;
         }
     }
-    // Staff pages only, once per page (again after a failed read, at most every 30 seconds).
+    // Once per page (again after a failed read, at most every 30 seconds). Client link pages read it too, because
+    // the Review tab's inline player is theirs as well; the server checks the same switch before it answers.
     function _fvPrimeFlag() {
-        if (_isClientLink) return;
         if (_fvFlagPromise) return;
         if (Date.now() - _fvFlagTriedAt < FV_FLAG_RETRY_MS && _fvFlagTriedAt) return;
         _fvFlagTriedAt = Date.now();
@@ -48126,16 +48142,141 @@
         _fvFlagPromise.then(() => _fvFlagSubscribe()).catch(() => null);
     }
 
-    /* The button every surface drops in. Empty for a client link page, and for a card whose video link is
-       not a Frame.io link, so nothing about those pages changes. */
-    function svFrameWatchBtnHtml(rawLink, title, cls, client) {
+    /* The pop-up buttons every staff surface drops in. Empty for a client link page, and for a card whose video
+       link is not a Frame.io link, so nothing about those pages changes. */
+    function _fvOpenerHtml(rawLink, title, cls, client, inner, label) {
         if (_isClientLink) return '';
         const link = _fvLinkOf(rawLink);
         if (!link) return '';
         _fvPrimeFlag();
         const who = _fvFlagSlugOf(client || (calState && calState.client) || '');
         const hidden = _fvEnabledFor(who) ? '' : ' hidden';
-        return `<button type="button" class="${_calEscAttr(cls || 'fv-watch-btn')} fv-gated" data-fv-client="${_calEscAttr(who)}" data-fv-link="${_calEscAttr(link)}" data-fv-title="${_calEscAttr(title || '')}"${hidden} onclick="event.stopPropagation();svFrameViewerOpen(this)" title="Watch the video and read its Frame.io comments here">${FV_PLAY_ICO}<span>Watch here</span></button>`;
+        return `<button type="button" class="${_calEscAttr(cls)} fv-gated" data-fv-client="${_calEscAttr(who)}" data-fv-link="${_calEscAttr(link)}" data-fv-title="${_calEscAttr(title || '')}"${hidden}${label ? ` aria-label="${_calEscAttr(label)}"` : ''} onclick="event.stopPropagation();svFrameViewerOpen(this)" title="Watch the video and read its Frame.io comments here">${inner}</button>`;
+    }
+    function svFrameWatchBtnHtml(rawLink, title, cls, client) {
+        return _fvOpenerHtml(rawLink, title, cls || 'fv-watch-btn', client, `${FV_PLAY_ICO}<span>Watch here</span>`, '');
+    }
+    // The Sheet's thumbnail: a small play icon, top centre, shown on hover (always on a phone).
+    function svFramePlayIconHtml(rawLink, title, client) {
+        return _fvOpenerHtml(rawLink, title, 'cal-thumb-play', client, FV_PLAY_ICO, 'Watch the video here');
+    }
+
+    // A card's link can change while its thumbnail stays on screen: keep the icon pointing at the card's current video.
+    function svFrameSyncPlayIcon(thumbDiv, post) {
+        if (_isClientLink || !thumbDiv) return;
+        const want = _fvLinkOf(post && post.asset_url);
+        const cur = thumbDiv.querySelector('.cal-thumb-play');
+        if (cur && want && cur.getAttribute('data-fv-link') === want) { cur.setAttribute('data-fv-title', (post && post.name) || ''); return; }
+        if (cur) cur.remove();
+        if (want) thumbDiv.insertAdjacentHTML('beforeend', svFramePlayIconHtml(post.asset_url, post.name, post.client));
+    }
+
+    /* THE REVIEW TAB: the video preview plays in place. The tile stays a normal link to the video; with the
+       switch on it is marked data-fv-on, its label says "Play video" and a click plays the video where the
+       preview was. With the switch off (or any other kind of link) none of this applies and the tile opens
+       the link in a new tab exactly as before. */
+    function svFrameTileAttrs(rawLink, client, cardId) {
+        const link = _fvLinkOf(rawLink);
+        if (!link) return '';
+        _fvPrimeFlag();
+        const who = _fvFlagSlugOf(client || (calState && calState.client) || '');
+        const on = _fvEnabledFor(who);
+        return ` data-fv-tile${on ? ' data-fv-on' : ''} data-fv-client="${_calEscAttr(who)}" data-fv-link="${_calEscAttr(link)}" data-fv-card="${_calEscAttr(cardId || '')}" onclick="return svFrameInlinePlay(event,this)"`;
+    }
+    function svFrameTileLabelHtml(rawLink) {
+        if (!_fvLinkOf(rawLink)) return '<span class="cal-review-video-label">Open video ↗</span>';
+        return '<span class="cal-review-video-label fv-lbl-off">Open video ↗</span><span class="cal-review-video-label fv-lbl-on">Play video</span>';
+    }
+    // The small link under the preview (hidden unless the switch is on for this card's client).
+    function svFrameIoLinkHtml(rawLink, client) {
+        const link = _fvLinkOf(rawLink);
+        if (!link) return '';
+        _fvPrimeFlag();
+        const who = _fvFlagSlugOf(client || (calState && calState.client) || '');
+        const hidden = _fvEnabledFor(who) ? '' : ' hidden';
+        return `<a class="fv-frameio-link fv-gated" data-fv-client="${_calEscAttr(who)}" href="${_calEscAttr(link)}" target="_blank" rel="noopener noreferrer"${hidden}>Watch in Frame.io ↗</a>`;
+    }
+
+    function _fvInlineState(box, kind, text, withRetry) {
+        const st = box.querySelector('.fv-inline-state');
+        if (!st) return;
+        if (kind === 'ready') { st.innerHTML = ''; st.hidden = true; return; }
+        st.hidden = false;
+        if (kind === 'loading') {
+            st.innerHTML = '<div class="fv-spin" aria-hidden="true"></div><div class="fv-state-text">Loading the video…</div>';
+            return;
+        }
+        const open = box.getAttribute('data-fv-link') || '';
+        st.innerHTML = `<div class="fv-state-text fv-state-bad">${_calEsc(text || 'The video could not be loaded.')}</div>
+            <div class="fv-state-actions">${withRetry ? '<button type="button" class="fv-btn fv-btn-small" onclick="svFrameInlineRetry(this)">Try again</button>' : ''}<a class="fv-btn fv-btn-ghost fv-btn-small" href="${_calEscAttr(open)}" target="_blank" rel="noopener noreferrer">Open in Frame.io</a></div>`;
+    }
+    async function _fvInlineLoad(box, resumeAt) {
+        const seq = (box._fvSeq = (box._fvSeq || 0) + 1);
+        const video = box.querySelector('video');
+        // Every load and reload checks the switch first.
+        if (!_fvEnabledFor(box.getAttribute('data-fv-client'))) { _fvInlineState(box, 'error', 'Watching here has been switched off.', false); return; }
+        _fvInlineState(box, 'loading');
+        const link = box.getAttribute('data-fv-link') || '';
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, FV_FETCH_MS) : null;
+        try {
+            if (!_isClientLink) await _syncviewRequireStaffIdentity('frame-view');
+            // A client link sends only the card's id (and its own token, added by _syncviewEfHeaders): the server
+            // decides from the card which video this client may play, and never answers with comments.
+            const body = _isClientLink ? { card_id: box.getAttribute('data-fv-card') || '' } : { link };
+            const resp = await fetch(FRAMEIO_VIEW_EF_URL, {
+                method: 'POST',
+                headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, FRAMEIO_VIEW_EF_URL),
+                body: JSON.stringify(body),
+                signal: ctrl ? ctrl.signal : undefined
+            });
+            const json = await resp.json().catch(() => null);
+            if (seq !== box._fvSeq || !document.contains(box)) return;
+            if (!resp.ok || !json || !json.ok || !json.video || !json.video.url) {
+                _fvInlineState(box, 'error', (json && json.message) || 'The video could not be loaded here.', true);
+                return;
+            }
+            if (resumeAt > 0) video.addEventListener('loadedmetadata', () => { try { video.currentTime = resumeAt; } catch (e) {} }, { once: true });
+            video.src = json.video.url;
+            _fvInlineState(box, 'ready');
+            const p = video.play();
+            if (p && p.catch) p.catch(() => {});
+        } catch (e) {
+            if (seq !== box._fvSeq || !document.contains(box)) return;
+            _fvInlineState(box, 'error', ctrl && e && e.name === 'AbortError' ? 'Frame.io took too long to answer.' : 'The video could not be loaded. Check your connection.', true);
+        } finally { if (timer) clearTimeout(timer); }
+    }
+    function svFrameInlinePlay(ev, tile) {
+        // Switched off, or a modified click (new tab, new window): the link just opens.
+        if (!tile || !tile.hasAttribute('data-fv-on')) return true;
+        if (ev && (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey || ev.button === 1)) return true;
+        const link = _fvLinkOf(tile.getAttribute('data-fv-link'));
+        if (!link) return true;
+        if (ev && ev.preventDefault) ev.preventDefault();
+        if (ev && ev.stopPropagation) ev.stopPropagation();
+        document.querySelectorAll('.fv-inline-video').forEach((v) => { try { v.pause(); } catch (e) {} });
+        const box = document.createElement('div');
+        box.className = 'cal-review-video-tile fv-inline';
+        box.setAttribute('data-fv-link', link);
+        box.setAttribute('data-fv-client', tile.getAttribute('data-fv-client') || '');
+        box.setAttribute('data-fv-card', tile.getAttribute('data-fv-card') || '');
+        box.innerHTML = '<video class="fv-inline-video" controls playsinline preload="auto"></video><div class="fv-inline-state" role="status"></div>';
+        const video = box.querySelector('video');
+        video.addEventListener('error', () => {
+            if (!video.getAttribute('src')) return;
+            // The address is signed and expires: ask once for a new one and carry on from the same second.
+            if ((box._fvRetries || 0) < FV_INLINE_RETRY_LIMIT) { box._fvRetries = (box._fvRetries || 0) + 1; _fvInlineLoad(box, video.currentTime || 0); return; }
+            _fvInlineState(box, 'error', 'This video could not be played here. It may need a different format.', true);
+        });
+        tile.replaceWith(box);
+        _fvInlineLoad(box, 0);
+        return false;
+    }
+    function svFrameInlineRetry(btn) {
+        const box = btn && btn.closest ? btn.closest('.fv-inline') : null;
+        if (!box) return;
+        box._fvRetries = 0;
+        _fvInlineLoad(box, 0);
     }
 
     // Escape closes it wherever the focus is (it can be on nothing after a button inside the viewer is replaced).
@@ -48399,7 +48540,8 @@
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        svFrameViewerClose, svFrameViewerOpen, svFrameViewerReload, svFrameViewerSeek
+        svFrameInlinePlay, svFrameInlineRetry, svFrameViewerClose, svFrameViewerOpen, svFrameViewerReload,
+        svFrameViewerSeek
     });
     function _calHasMedia(p) {
         return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim());
@@ -48896,9 +49038,13 @@
         if (comp === 'video') {
             const url = String(p.asset_url || '').trim();
             if (!url) return `<div class="cal-review-preview-empty">No video yet.</div>`;
-            // Staff review only: a client link page gets no button (svFrameWatchBtnHtml answers '' there).
-            const watch = svFrameWatchBtnHtml(url, p.name, 'fv-watch-btn fv-watch-review', p.client);
-            const withWatch = (tile) => (watch ? `<div class="fv-review-video">${tile}${watch}</div>` : tile);
+            // With the viewer switched on for this card's client (frame_viewer_clients) the preview plays the video in
+            // place and a small "Watch in Frame.io" link sits under it; staff and client link alike, no pop-up and
+            // no comments. Switched off, or not a Frame.io link: the tile opens the link exactly as it always did.
+            const tileAttrs = svFrameTileAttrs(url, p.client, p.id);
+            const frameLink = svFrameIoLinkHtml(url, p.client);
+            const label = svFrameTileLabelHtml(url);
+            const withWatch = (tile) => (frameLink ? `<div class="fv-review-video">${tile}${frameLink}</div>` : tile);
             // Use the same thumbnail image as the graphic panel, blurred,
             // with "Open video" overlaid — keeps the video column the same
             // visual weight as the thumbnail column so the Approve buttons
@@ -48908,9 +49054,9 @@
             if (!thumbUrl) {
                 // No image to blur — fall back to a styled stand-in tile
                 // so the column still has the same height.
-                return withWatch(`<a class="cal-review-video-tile cal-review-video-tile-blank" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span><span class="cal-review-video-label">Open video ↗</span></span></a>`);
+                return withWatch(`<a class="cal-review-video-tile cal-review-video-tile-blank" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"${tileAttrs}><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>${label}</span></a>`);
             }
-            return withWatch(`<a class="cal-review-video-tile" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><img class="cal-review-video-bg" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'"><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span><span class="cal-review-video-label">Open video ↗</span></span></a>`);
+            return withWatch(`<a class="cal-review-video-tile" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"${tileAttrs}><img class="cal-review-video-bg" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'"><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>${label}</span></a>`);
         }
         if (comp === 'graphic') {
             const raw = String(p.thumbnail_url || '').trim();
@@ -93615,4 +93761,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-d50709d8fec3.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-6ea10be4f6b5.js");

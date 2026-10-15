@@ -33147,3 +33147,32 @@ matches; a teammate's change while typing waited for blur → drawn at once, the
 **Who sees it (owner, 2026-10-14: test client first).** Every entry point (Calendar card, SMM review panel, Kasper review) is behind one `syncview_runtime_flags` row, key `frame_viewer_clients`, value `{"all": false, "clients": ["<slug>", ...]}`. Read like the other per-client flags (a bounded read with the public key, then a realtime channel); fails closed: no row, a value of the wrong shape (`all` must be the boolean `true`), a failed read or a deleted row all mean hidden. The list lives only in the database. With the row missing the buttons carry the `hidden` attribute and take no room, so the page looks as it did before. Lighthouse adds the row; this change does not write it.
 
 **Release.** Two steps, in this order: (1) run the `deploy-single-function` workflow with function `frameio-view` and the merge commit's SHA (needs no new secret: it uses the same `FRAMEIO_BROKER_KEY` and `FRAMEIO_CLIENT_ID` as `frameio-token`, and the key keeper must already be signed in); (2) the page ships with the next Pages deploy of main. Until step 1 is done the button shows "could not load" and the normal Frame.io link keeps working. **Way back:** revert the pull request; the function can stay deployed, nothing calls it.
+
+## 419. [2026-10-15, BUILT, NOT MERGED, NOT DEPLOYED] The production-polish gate went red on unrelated PRs and on main, then passed on re-run (session Anchor)
+
+**Symptom.** `production-polish` failed as `Production accessibility/focus [error_generic]`, `Production structure subset [error_generic / page_error_resource_network]`, `Production layout polish [plp_console_errors]` and, on a push to main, the heavy lane's `Production wired behavior [behav_wired:groupCollapse]`, with nothing wrong in the change, and passed when re-run. The public summary only carries a code, so the cause had to be reproduced.
+
+**How it was reproduced.** Against the live backend, locally, the suites fail about 1 run in 5. A throwaway simulator (not committed) that adds a random 0 to 3.5 s delay to half of the live reads, and releases a held read when the page navigates, makes every reported family appear within a few runs. All causes were in the suites and their shared read audit, none in the app.
+
+**Causes found, and what changed (test files only; no app code).**
+1. **The last read check guessed instead of asking.** After the first paint the app keeps reading on its own (the finished half of the list, the 30 s refresh, a gap of up to 400 ms before the finished half starts). The audit waited only for the first load, then a 2.5 s "no read finished" budget, and called a slow page "pending read requests". It now also waits for `terminalTailPending`, `refreshInFlight`, `refreshing` and for the finished half to have landed (`terminalTailLoadedAt`), bounded by the same 20 s timeout, then drains as before. A read that really hangs still keeps its flag up and is reported. Accessibility's early failure was thrown without the `Browser errors: ` lead, which is why it classified as `error_generic`; it now classifies.
+2. **Suites asserted on a half-loaded page.** Structure subset and layout polish started at the first painted row. The finished half merging in re-parented rows, and the write-authority read landed on its own schedule and, every 30 s, overwrote the value the suite forces to measure the Linear lock. They now wait for the finished page; structure subset stops the page's ticks and the live channel before forcing the value.
+3. **A reload cut the suite's own reads off.** Structure subset now stops the ticks and lets reads land before it reloads. In the audit, a read opened after a navigation was requested but before it committed is torn down by that navigation (`item.startedAt <= navigation.committedAt`); a read opened after the commit still fails (`productAbort` case unchanged).
+4. **The page time-limits one read and cancels it itself.** The write routing flags read (`WRITE_UI_REROUTE_FLAG_TIMEOUT_MS`, 2 s) starts its timer before it waits for the batched boot read, so on a slow moment it is cancelled hundreds of ms after it opened and nothing re-reads it inside a suite (the heal runs on tab return or a minute timer). The audit now takes a fresh read of that one address outside the page; the cancel is excused only if that read answers 2xx within 2 s with the same headers. Any other cancelled read, a still-failing or still-slow backend, a foreign address, or no way to confirm still fails. **This is the one judgment call in the change**: a product fix (count the 2 s from the fetch, or retry once) would remove the need for it and is left to the owner.
+5. **Accessibility/focus measured a node it had picked earlier**, which a refresh repaint could replace (empty style, height 0). It now finds and measures in one step, and accessibility and layout hold the background refresh still after the first load (`holdBackgroundRefresh`; refresh has its own tests: `test/production-live-refresh.js`, the realtime controller suite).
+6. **Heavy lane `groupCollapse` counted rows while the list was still drawing** (first screenful, then chunks of 200; observed before 60 or 460, after 568). It counts once the number has stopped changing, and prints the counts when it fails. The final read check holds the refresh ticks first, because a tick could open one more read right after the wait.
+
+**Nothing was skipped, quarantined or loosened.** Every assertion and failure case stays. `test/prod-read-console-audit.js` gains cases for each audit rule above (waits for each app flag, the finished half landing, a navigation-gap abort, and the excused/not-excused matrix of cause 4) and those cases fail against the old audit.
+
+**Counts, passes out of runs, run alone on one machine against the live backend ("slow" adds the simulated delay), before → after.**
+
+| Suite | Normal | Slow |
+|---|---|---|
+| Accessibility/focus | 4/5 → 5/5 | 5/5 → 5/5 (4/5 on an earlier set) |
+| Structure subset | 5/5 → 8/8 | 3/5 → 8/8 |
+| Layout polish | 5/5 → 5/5 | 1/5 → 5/5 |
+| Heavy: wired behavior | 4/5 → 5/5 | 5/5 → 4/5 |
+
+The one slow-network heavy miss after the change is the reset step's existing 30 s wait for the app to be idle running out while a full reload was still re-reading under the simulated delay; it is not new and not caused by this change, and the simulator is harsher than CI.
+
+**Release.** Test files only; nothing ships to users. **Way back:** revert the pull request.

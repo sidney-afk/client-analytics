@@ -13232,7 +13232,7 @@
                 const person = e.target.closest('[data-thumb-wl-person]');
                 if (person) {
                     wlPhone.scroll = content.scrollTop; wlPhone.person = person.dataset.thumbWlPerson;
-                    history.replaceState({...history.state,thumbWorkloadParent:true},'');
+                    history.replaceState({...history.state,thumbWorkloadParent:true,thumbWorkloadQueue:false,thumbWorkloadPerson:null},'');
                     history.pushState({...history.state,thumbWorkloadParent:false,thumbWorkloadQueue:true,thumbWorkloadPerson:wlPhone.person},'');
                     wlPhoneRender(); content.scrollTop = 0; root.querySelector('[data-thumb-wl-back]')?.focus({preventScroll:true}); return;
                 }
@@ -13259,7 +13259,7 @@
         const rows = (wlState.allActiveSubs || []).filter(wlPassesFilters);
         const loading = !_wlBoardHasAnyData() && (wlState.loading || wlState.planStatus === 'loading');
         if (loading) { host.innerHTML = '<p>Loading workload…</p>'+Array.from({length:3},()=>_svLoadingSkeletonHtml('linear-search')).join(''); return; }
-        if (wlState.error && !rows.length) { host.innerHTML = '<div class="workload-error">Could not load workload. '+wlEscape(wlState.error)+' <button type="button" data-thumb-wl-retry>Try again</button></div>'; return; }
+        if (wlState.error && !_wlBoardHasAnyData()) { host.innerHTML = '<div class="workload-error">Could not load workload. '+wlEscape(wlState.error)+' <button type="button" data-thumb-wl-retry>Try again</button></div>'; return; }
         const overdue = new Set((wlState.overdue || []).map(s => s.id));
         const due = s => String(s.dueDate || '').slice(0,10);
         const workday = s => wlDisplayDate(s) || '';
@@ -93748,4 +93748,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-7056063a1e25.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-74d8b3017245.js");

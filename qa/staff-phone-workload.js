@@ -40,6 +40,9 @@ async function shot(page,name,width,theme){
    assert.equal(await p.locator('.thumb-wl-item').count(),expected,'Browser Forward restores the complete creative queue');
    assert(await p.locator('.thumb-wl-item').evaluateAll((ns,id)=>ns.every(n=>n.dataset.wlAssigneeId===id),id),'Forward restores the selected creative');
    await p.getByRole('button',{name:'Back to agenda'}).tap();await p.waitForTimeout(100);
+   await p.locator('.thumb-wl-person').first().tap();await p.locator('[data-thumb-wl-mode=agenda]').tap();
+   await p.locator('.thumb-wl-person').nth(1).tap();await p.goBack();await p.waitForTimeout(120);
+   assert(await p.locator('.thumb-wl-person').first().isVisible(),'Back from another creative must restore Agenda after using its bottom tab');
    const filter=p.locator('[data-thumb-wl-filter]');await filter.tap();
    await shot(p,'workload-filters',width,theme);
    assert.notEqual(await p.locator('.thumb-wl-filters').evaluate(n=>getComputedStyle(n,'::backdrop').backgroundColor),'rgba(0, 0, 0, 0)','Filters dim the background');
@@ -61,6 +64,11 @@ async function shot(page,name,width,theme){
    await shot(p,'workload-plan-and-due',width,theme);
    assert(await p.locator('[data-thumb-wl-mode=month]').isDisabled(),'Native Plan + Due Date Month guard is preserved');
    await p.locator('[data-thumb-wl-mode=agenda]').tap();
+   await p.evaluate(()=>{window.__thumbUndated=wlState.undated;wlState.undated=[wlState.allActiveSubs[0]];wlState.client='Client B';wlState.editor='ed-1';wlState.error='Fictional failed refresh';renderWorkloadAll();});
+   assert(await p.locator('.thumb-wl-person[data-thumb-wl-person="ed-1"]').getByText('Video · 0 active',{exact:true}).isVisible(),'A failed refresh must retain the zero-work creative in a filtered cached board');
+   assert.equal(await p.locator('.thumb-wl-agenda .workload-error').count(),0,'Cached work cannot become a fatal loading failure');
+   await shot(p,'workload-filtered-refresh-error',width,theme);
+   await p.evaluate(()=>{wlState.undated=window.__thumbUndated;delete window.__thumbUndated;wlState.client='all';wlState.editor='all';wlState.error=null;renderWorkloadAll();});
    await p.evaluate(()=>{wlState.allActiveSubs=[];wlState.planned=[];wlState.nowWorking=[];wlState.undated=[];wlState.unassigned=[];wlState.overdue=[];wlState.tweaksNeeded=[];wlState.calendarByDate=new Map();wlState.editorRoster=[];wlState.loading=false;wlState.planStatus='ready';wlState.error=null;renderWorkloadAll();});
    await shot(p,'workload-empty',width,theme);
    assert(await p.getByText('No work matches these filters.',{exact:true}).isVisible());

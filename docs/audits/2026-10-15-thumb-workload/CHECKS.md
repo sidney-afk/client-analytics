@@ -1,5 +1,15 @@
 # Workload check receipts
 
+## Follow-up review regressions
+
+Two further findings reproduced: after using the Agenda tab between creatives, stale queue metadata reopened the previous creative on Back; and a failed refresh replaced a zero-work filtered creative with a fatal error despite cached board data. Parent entries now clear queue metadata, and the phone uses the native whole-board data check for fatal errors. The fixture uses a valid editor/client pair with no matching work and retained cached buckets. Replaying the old error guard against that same valid fixture failed; the fixed full matrix passes:
+
+```text
+STAFF_PHONE_WORKLOAD: 52 screen/theme/width captures; all assertions passed; fictional transports; no live writes
+```
+
+All 26 required 390px images were recaptured and reviewed, including the retained zero-work creative after a failed refresh. The new state is in the gallery; existing failed attempts remain private. No assertion, threshold or CI condition was relaxed.
+
 ## Review navigation regressions
 
 Both review findings reproduced locally. Browser Forward failed to reopen the creative queue; after that repair the Month-to-Plan + Due Date journey exposed the stale Month header/current-tab marker. Queue history now stores the creative ID (including the unassigned empty ID), Forward restores that complete queue, and the phone mode follows the native forced Week guard. The regression no longer taps Week to mask that transition: it asserts the immediate native grid, header and current-tab state. The complete 390/430 light/dark replay ends:

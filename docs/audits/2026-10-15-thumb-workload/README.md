@@ -16,6 +16,6 @@ Every style is staff-phone scoped and capped at 767px. Desktop mount/render sema
 - `dialog-backdrop-press-browser.js`: the new phone sheet is in the source-driven inventory and real drag/outside-click journey. It clears prior Calendar/Samples fixture clients before resizing, then loads the Workload area without requesting board data. The strict zero-request ledger is unchanged.
 - New `qa/staff-phone-workload.js`: agenda, every creative item, native item identity, Back/browser Back, filters, nested Escape, kept search, local navigation, Month guard and empty/loading/error. CI runs it at both widths. No skip or gate exception was added.
 
-The screenshot fixtures include a native metadata warning; it remains explicit rather than implying those items have verified weights or deadlines. All 24 required 390px images were reviewed, including the corrected menu spacing, viewport clipping and planner ordering. Native viewport screenshots are fixture proof, not deployed or physical-device proof.
+The screenshot fixtures include a native metadata warning; it remains explicit rather than implying those items have verified weights or deadlines. All 26 required 390px images were reviewed, including the corrected menu spacing, viewport clipping and planner ordering. Native viewport screenshots are fixture proof, not deployed or physical-device proof.
 
 Keep this PR unmerged. Revert the implementation PR and rebuild generated assets for recovery; no migration or data rollback is required. Messages starts last from fresh main after #2083.

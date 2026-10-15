@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { wlWorkloadTodayISO } from './068-core-workload-dates.js';
 import { _svDateHtml, _svSelectHtml, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
@@ -1870,6 +1871,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
             let results = [];
             let sel = 0;
             const close = () => {
+                svLayerRelease('prod-palette', { focus: true });
                 bd.remove();
                 _prodState.paletteOpen = false;
             };
@@ -1914,6 +1916,13 @@ import { _prodRender } from './260-production-refresh-boot.js';
             });
             _prodState.paletteOpen = true;
             search();
+            svLayerOpen({
+                key: 'prod-palette',
+                region: () => bd.querySelector('.prod-cmd'),
+                holdRefresh: false,
+                isOpen: () => bd.isConnected,
+                close: () => close(),
+            });
             try { inp.focus(); } catch (e) {}
             return false;
         }
@@ -2117,6 +2126,11 @@ import { _prodRender } from './260-production-refresh-boot.js';
             }
         }
         function _prodClearLayer() {
+            svLayerRelease('prod-sub');
+            svLayerRelease('prod-pop', { focus: true });
+            svLayerRelease('prod-palette');
+            svLayerRelease('prod-create', { focus: true });
+            svLayerRelease('prod-archive', { focus: true });
             const layer = document.getElementById('prodLayer');
             if (layer) {
                 layer.innerHTML = '';
@@ -2838,6 +2852,16 @@ import { _prodRender } from './260-production-refresh-boot.js';
             _prodPersistCreateDraft();
             _prodEnsureOverlays();
             _prodRenderCreateModal();
+            /* A layer: Escape (when no date list or select is open above it) and
+               a click on the dim area close it. The draft is already kept in
+               session storage on every edit, so nothing typed is lost. */
+            svLayerOpen({
+                key: 'prod-create',
+                region: '#prodLayer .prod-create-bd > *',
+                holdRefresh: false,
+                isOpen: () => !!document.querySelector('#prodLayer .prod-create-bd'),
+                close: () => _prodCloseCreate(),
+            });
             _prodLoadCreateOptions(false);
             setTimeout(() => document.getElementById('prodCreateTitle')?.focus(), 0);
             return false;

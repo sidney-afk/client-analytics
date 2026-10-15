@@ -27,7 +27,7 @@ async function main(){
     const s=route==='calendar'?calState:sxrState;Object.assign(s,{loading:false,error:'',client:'Sample Client One',posts:[post],view:'organizer',monthFilter:'all',statusFilter:'all',settings:{enabled_platforms:['instagram','tiktok','youtube','linkedin','facebook']}});
     localStorage.setItem(CAL_ENABLED_PLATFORMS_KEY,JSON.stringify({sampleone:post.platforms}));
     if(route==='calendar'){_calInvalidateActiveLoad();_calRenderShell();_calRenderBody();}else{_sxrRenderShell();_sxrRenderBody();}
-   },{route,missing});await p.waitForTimeout(650);await p.evaluate(()=>document.fonts.ready);
+   },{route,missing});await staff.openEditableSheet(p);await p.waitForTimeout(650);await p.evaluate(()=>document.fonts.ready);
    const card=p.locator('.cal-card[data-pid=phone_design_fixture]'),label=route+'-'+width+'-'+theme+'-'+(missing?(route==='calendar'?'warning':'missing-media'):'linked');
    if(missing&&route==='calendar')assert.match(await card.locator('.cal-smm-warn-overlay').textContent(),/No video linked/);
    if(out){fs.mkdirSync(out,{recursive:true});await require('./client-phone/native-captures').anonymizePlaceholders(p);await p.evaluate(()=>document.fonts.ready);await card.screenshot({path:path.join(out,label+'.png'),animations:'disabled'});}

@@ -10,11 +10,11 @@
 | 2 | `003-sv-route.html.part` | 222 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3965 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 8036 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 8147 | Templates view |
 | 6 | `030-body-shell.html.part` | 566 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2158 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `041-core-layers.js.part` | 397 | LAYERS: ONE RULE FOR EVERY POP-UP (owner request, ). |
-| 9 | `050-market-briefs.js.part` | 1803 | Market Research Brief Tab Renderers |
+| 9 | `050-market-briefs.js.part` | 1804 | Market Research Brief Tab Renderers |
 | 10 | `060-templates-filming.js.part` | 2463 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 11 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
 | 12 | `066-core-workload-state.js.part` | 123 | Workload Calendar |
@@ -31,7 +31,7 @@
 | 23 | `097-today.js.part` | 943 | TODAY (owner design , session Compass). |
 | 24 | `098-smm-clients.js.part` | 115 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
 | 25 | `099-phone-staff-shell.js.part` | 392 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
-| 26 | `099-staff-phone-bar.js.part` | 654 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
+| 26 | `099-staff-phone-bar.js.part` | 913 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
 | 27 | `100-onboarding-staff-controls.js.part` | 2449 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 28 | `110-time-off.js.part` | 1393 | Kasper Time Off calendar |
 | 29 | `112-smm-weekly-reports.js.part` | 722 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
@@ -45,7 +45,7 @@
 | 37 | `134-calendar-prefs-mount.js.part` | 1096 | Hydrate calState.monthFilter/statusFilter/cardStatusFilter from the named client's saved |
 | 38 | `140-calendar-legacy-outbox.js.part` | 3505 | Shed the retired legacy rows from storage, under the surface mutation |
 | 39 | `150-calendar-hydration-import.js.part` | 2410 | For a card linked to a real sub-issue (not a parent), return which of |
-| 40 | `160-calendar-organize-ui.js.part` | 4124 | Card status filter (STATE_OF_THINGS D3) |
+| 40 | `160-calendar-organize-ui.js.part` | 4129 | Card status filter (STATE_OF_THINGS D3) |
 | 41 | `170-calendar-links-status.js.part` | 3533 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 42 | `180-calendar-native-post-media.js.part` | 3729 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 43 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
@@ -58,7 +58,7 @@
 | 50 | `240-production-description.js.part` | 2766 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
 | 51 | `250-production-controls-data.js.part` | 3125 | A layer: Escape closes only the top pop (a sub-menu first, then |
 | 52 | `260-production-refresh-boot.js.part` | 2856 | AND TYPING COUNTS, which is the case this guard was missing. |
-| 53 | `270-samples-model.js.part` | 3159 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
+| 53 | `270-samples-model.js.part` | 3164 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 54 | `280-samples-cards-notes.js.part` | 3079 | SURFACE 3: the save engine |
 | 55 | `290-samples-writes-review.js.part` | 1981 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 56 | `299-instagram-upload.js.part` | 762 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |

@@ -1,5 +1,10 @@
 # Repo map
 
+`qa/staff-phone-collections.js` verifies Thumb's phone collection grid, retained
+native List, card/back navigation, More sections, bulk selection, review and
+truthful empty/loading/error states at 390 and 430. Its approved design and
+actual screen/check evidence live in `docs/audits/2026-10-14-thumb-calendar-samples/`.
+
 `qa/staff-phone-responsiveness.js` measures native staff cold useful paint and
 touch-to-sheet paint with fictional 4G transports. It guards repeated taps,
 inside taps, phone-height resize, retained refresh content/drafts and card-scan

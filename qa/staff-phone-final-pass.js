@@ -287,7 +287,7 @@ async function verify(page, name, width, theme) {
     }
     if (/^(calendar|samples)-empty$/.test(name) && await page.getByRole('button', {name: 'Choose client', exact: true}).count() !== 1) faults.push('missing Choose client action');
     if (/^(calendar|samples)-sheet$/.test(name)) {
-      const segments = await page.locator('.cal-view-toggle .cal-view-btn').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return {width:r.width,badge:n.querySelector('.cal-view-badge')?.getBoundingClientRect().right,right:r.right};}));
+      const segments = await page.locator('.cal-view-toggle .cal-view-btn').evaluateAll(nodes=>nodes.filter(n=>n.checkVisibility({checkVisibilityCSS:true})).map(n=>{const r=n.getBoundingClientRect();return {width:r.width,badge:n.querySelector('.cal-view-badge')?.getBoundingClientRect().right,right:r.right};}));
       if(Math.max(...segments.map(x=>x.width))-Math.min(...segments.map(x=>x.width))>1) faults.push('unequal segments');
       if(segments.some(x=>x.badge&&x.badge>x.right-1)) faults.push('review count spills into next segment');
     }
@@ -645,6 +645,7 @@ async function prepare(page,name) {
     else { _calInvalidateActiveLoad();calState.loading=loading;calState.error=readError?'Fictional read failure':'';calState.client=empty?'':'Sample Client One';calState.posts=posts;calState.view=name==='calendar-month-loading'?'month':name==='calendar-week-loading'?'week':'organizer';calState.monthFilter='all';calState.statusFilter='all';_calRenderShell();_calRenderBody(); }
   }, {samples,name});
   await settle(page);
+  await staff.openEditableSheet(page);
   if(name.startsWith('calendar-thumbnail-prompt-')) {
     await page.route('**/functions/v1/thumbnail-title-prompts',async route=>{
       const body=route.request().postDataJSON();
@@ -717,10 +718,10 @@ async function prepare(page,name) {
   }
   if(/-(review|month|week)$/.test(name)) {
     const view=name.endsWith('review')?'smmreview':name.split('-').at(-1);
-    await page.locator('[data-cal-view="'+view+'"]').tap();await settle(page);
+    await staff.chooseCalendarView(page,view);await settle(page);
   }
   if(name==='calendar-card-detail') {
-    await page.locator('[data-cal-view="month"]').tap();await settle(page);await page.locator('.cal-month-pill').first().tap();
+    await staff.chooseCalendarView(page,'month');await settle(page);await page.locator('.cal-month-pill').first().tap();
     await page.locator('.cal-preview-overlay.open').waitFor();
   }
   if(name.endsWith('card-notes')) {

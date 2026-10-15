@@ -1,5 +1,8 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+Thumb's approved Calendar/Samples phone build and its actual screen gallery:
+[implementation and evidence](audits/2026-10-14-thumb-calendar-samples/README.md).
+
 Prism's full phone review: [coverage and batch evidence](audits/2026-10-07-prism-phone/README.md),
 [screen/state matrix](audits/2026-10-07-prism-phone/COVERAGE.md).
 

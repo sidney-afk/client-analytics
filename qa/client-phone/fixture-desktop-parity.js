@@ -27,6 +27,16 @@ const cases = [
   ...['analytics-loading','analytics-empty','analytics-pin','analytics-search','analytics-overview','analytics-detail','analytics-detail-dash','workload-loading','workload-month','workload-week','workload-popover','workload-plan-due','tiktok-client-ready','tiktok-no-account','linear-detail','linear-detail-empty','linear-detail-comment-draft','linear-detail-loading','linear-detail-menu','linear-detail-description-edit','linear-detail-asset-edit'].flatMap(name=>['light','dark'].flatMap(theme=>[false,true].map(warm=>({name,theme,warm,finch:true})))),
 ].filter(test => !arg('only') || new RegExp(arg('only')).test(test.name));
 assert(cases.length, 'No native parity cases selected');
+// Both builds must use the same single-file format, as desktop-parity.js does.
+// The test preload assembles only this checkout; a reference loader includes
+// extra script nodes and cannot be compared to the assembled candidate.
+const referenceSrc=path.join(reference,'src/index');
+const {readModuleList,servedBytes,stripWindowBlock}=require(path.join(reference,'scripts/index-modules'));
+const referenceModules=readModuleList(referenceSrc);
+const referenceIndex=Buffer.concat(fs.readFileSync(path.join(referenceSrc,'manifest.txt'),'utf8').split(/\r?\n/).map(s=>s.trim()).filter(s=>s&&!s.startsWith('#')).map(name=>{
+ const bytes=servedBytes(name,fs.readFileSync(path.join(referenceSrc,name)),referenceModules);
+ return referenceModules.has(name)?Buffer.from(stripWindowBlock(bytes.toString('utf8'))):bytes;
+}));
 async function renderFinch(build,test) {
   const trace=step=>{if(process.argv.includes('--diagnostic')) console.log('Finch parity '+test.name+' '+build+' '+(test.warm?'warm':'cold')+': '+step);};
   const scenario=SCENARIOS.find(s=>s.id===test.name)||(test.name.startsWith('linear-detail-')?SCENARIOS.find(s=>s.id==='linear-detail'):null);
@@ -107,7 +117,7 @@ async function render(browser, origin, build, test) {
     const file=path.resolve(source,'.'+decodeURIComponent(url.pathname==='/'?'/index.html':url.pathname));
     assert(file.startsWith(source+path.sep),'Reference path leaves build');
     if(!fs.existsSync(file)) return route.fulfill({status:404,body:'Fixture build asset unavailable'});
-    return route.fulfill({status:200,contentType:file.endsWith('.html')?'text/html':file.endsWith('.js')?'text/javascript':'image/svg+xml',body:fs.readFileSync(file)});
+    return route.fulfill({status:200,contentType:file.endsWith('.html')?'text/html':file.endsWith('.js')?'text/javascript':'image/svg+xml',body:(file===path.join(reference,'index.html')?referenceIndex:fs.readFileSync(file))});
   });
   await ctx.addInitScript(theme=>localStorage.setItem('syncview_theme',theme),test.theme);
   const page=await ctx.newPage(), errors=[];

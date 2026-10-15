@@ -15,8 +15,8 @@ const widths=arg('widths','390,430').split(',').map(Number);
 const rows=[],failures=[];
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const screens=[
- {name:'Calendar',route:'calendar',ready:'#calView .cal-card, #calView .kcard'},
- {name:'Samples',route:'sample-reviews',ready:'#sxrView .cal-card, #sxrView .kcard'},
+ {name:'Calendar',route:'calendar',ready:'#calView .thumb-tile, #calView .cal-card, #calView .kcard'},
+ {name:'Samples',route:'sample-reviews',ready:'#sxrView .thumb-tile, #sxrView .cal-card, #sxrView .kcard'},
  {name:'Workload',fixture:'workload-week',ready:'.workload-overview-row:not(.is-skeleton)'},
  {name:'SyncLinear',fixture:'linear-list',ready:'.prod-row'},
  {name:'Today',route:'today',ready:'.tdy-rings button, .tdy-win'},
@@ -284,7 +284,7 @@ async function tabRules(page,screen,label){
  const selectors={Calendar:'.cal-view-toggle',Samples:'.cal-view-toggle',Workload:'.workload-pills',SyncLinear:'.prod-tabs',Today:'.tdy-vw',Upload:'.tk-platform-switch','Instagram Upload':'.tk-platform-switch',Reviewer:'.kasper-wrap[data-pocket-reviewer] > .kasper-subtabs'};
  if(!selectors[screen.name])return;
  const bars=await page.locator(selectors[screen.name]).filter({visible:true}).evaluateAll(nodes=>nodes.map(node=>{
-  const s=getComputedStyle(node),buttons=[...node.children].filter(n=>n.matches('button')&&!n.hidden);
+  const s=getComputedStyle(node),buttons=[...node.children].filter(n=>n.matches('button')&&n.checkVisibility({checkVisibilityCSS:true}));
   return {radius:s.borderRadius,border:s.borderTopWidth,gap:s.gap,padding:s.paddingTop,buttons:buttons.map(n=>{const t=getComputedStyle(n),r=n.getBoundingClientRect();return {radius:t.borderRadius,height:r.height,font:t.fontSize,align:t.justifyContent};})};
  }));
  const consistent=bars.length>0&&bars.every(b=>b.radius==='15px'&&b.border==='0px'&&b.gap==='3px'&&b.padding==='4px'&&b.buttons.every(n=>n.radius==='11px'&&n.height>=44&&n.align==='center'));

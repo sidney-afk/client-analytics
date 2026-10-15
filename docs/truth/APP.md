@@ -1,5 +1,11 @@
 # App logic (`index.html`) — current truth
 
+**Thumb phone source, 2026-10-14, pending review:** standalone staff Calendar and
+Samples use a three-column Sheet grid with a persistent Grid/List switch,
+native card detail/back navigation, a primary Review action, and grouped More
+sections. Existing writers, permission gates, client links and desktop layouts
+are preserved. See [the source/evidence boundary](../audits/2026-10-14-thumb-calendar-samples/README.md).
+
 **Pocket phone source, 2026-10-04, not deployed:** staff Samples Review and Sheet
 use full Expanded sections below 768px in light and dark, with title/Tabs/More,
 native Tools and setup controls. Calendar and Samples selection actions sit at

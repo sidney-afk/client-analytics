@@ -54,6 +54,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     function _calStaffPhoneRestore() {
         const state = _calStaffPhoneState;
         if (!state) return;
+        state.thumbDispose?.();
         for (const item of state.moved) {
             window.svStaffPhoneMenus.restoreNative(item.node);
             if (item.next?.parentNode === item.parent) item.parent.insertBefore(item.node, item.next);
@@ -108,19 +109,21 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const moreBody = menus.more.querySelector('.pocket-staff-cal-menu-body');
         menus.more.addEventListener('click', event => {
             if (event.target.closest('.sv-jump-touch')) menus.more.close();
+            const notify = event.target.closest('.notify-client-btn');
+            if (notify) menus.more.close();
             const button = event.target.closest('.cal-kebab-item');
             if (button && !button.classList.contains('cal-kebab-toggle') && !button.classList.contains('cal-kebab-import-toggle')) menus.more.close();
             queueMicrotask(() => { if (menus.more.open && state.kebab) state.kebab.node.hidden = false; });
         }, true);
         const arrange = () => {
-            const target = moreBody.querySelector('.sv-phone-more-native') || moreBody;
-            for (const node of root.querySelectorAll('.cal-toolbar .cal-organize, .cal-toolbar .cal-status-filter, .cal-toolbar .cal-zoom, .cal-toolbar .cal-kebab-wrap')) {
+            const target = moreBody.querySelector('.thumb-more-view-rows') || moreBody.querySelector('.sv-phone-more-native') || moreBody;
+            for (const node of root.querySelectorAll('.cal-toolbar .cal-organize, .cal-toolbar .cal-status-filter, .cal-toolbar .cal-zoom, .cal-toolbar .cal-kebab-wrap, .cal-toolbar .notify-client-btn, .cal-toolbar .cal-client-links')) {
                 state.moved.push({ node, parent: node.parentNode, next: node.nextSibling });
                 const next = node.classList.contains('cal-organize')
                     ? target.querySelector('.cal-status-filter, .cal-zoom, .cal-kebab-wrap')
                     : node.classList.contains('cal-status-filter') ? target.querySelector('.cal-zoom, .cal-kebab-wrap')
                     : node.classList.contains('cal-zoom') ? target.querySelector('.cal-kebab-wrap') : null;
-                target.insertBefore(node, next);
+                target.insertBefore(node, next?.parentNode === target ? next : null);
                 const kebab = node.querySelector('#calKebabMenu');
                 if (kebab && !state.kebab) {
                     state.kebab = { node: kebab, hidden: kebab.hidden };
@@ -129,6 +132,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             }
         };
         arrange();
+        state.thumbDispose = window.svThumbCollections?.mount(root, calState, 'calendar', () => _calRenderBody());
         state.observer = new MutationObserver(() => {
             if (!root.isConnected) _calStaffPhoneRestore();
             else arrange();
@@ -651,7 +655,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     function _calSyncClientLinks() {
         const mid = document.querySelector('.cal-toolbar-mid');
         if (!mid) return;
-        const existing = mid.querySelector('#calClientLinksWrap');
+        const existing = _calStaffPhoneActive() ? document.querySelector('#calView #calClientLinksWrap') : mid.querySelector('#calClientLinksWrap');
         const html = _calClientLinksHtml();
         if (!html) { if (existing) existing.remove(); return; }
         if (existing) {
@@ -3086,13 +3090,14 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
                     <button type="button" class="cal-select-cancel" onclick="_calToggleSelectMode()">Done</button>
                 </div>`
             : '';
-        return `<div class="cal-organizer-wrap">
+        const nativeHtml = `<div class="cal-organizer-wrap">
             <div class="cal-organizer-strip${empty ? ' is-empty' : ''}${calState.selectMode ? ' cal-selecting' : ''}" id="calStrip">
                 ${posts.map((p,i) => _calRenderInlineCard(p, false, i === currentIdx)).join('')}
                 ${addBtn}
             </div>
             ${selectBar}
         </div>`;
+        return window.svThumbCollections?.render('calendar', calState, posts, nativeHtml, p => _calRenderInlineCard(p, false, false)) ?? nativeHtml;
     }
 
     function _calBlankPost() {

@@ -17,7 +17,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
-import { SERVER_INFO, TEAM_START_NOTE, authorFor, isTeamLink } from "./who.mjs";
+import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, isTeamLink, logActivity } from "./who.mjs";
 import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
 import { brainChange, clientBrain, clientStyle, filmingPlan, listClients } from "./clientinfo.ts";
 import { DIRECT_MODELS, directEstimate, isDirect, runDirect, type Fetched } from "./direct.ts";
@@ -135,6 +135,7 @@ const INSTRUCTIONS = [
   "Input media must be public links. If they have a file in Google Drive or Dropbox, pass its share link to import_file and use the link it returns.",
   "After create, call wait_for_job and keep calling it in the same reply until the job is done, giving a one-line progress update between calls; never ask the person to check back or to say \"check again\". Wait up to 30 minutes (GPT Image and Nano Banana take under a minute; Higgsfield images wait in Higgsfield's queue and can take several minutes when it is busy; videos 1 to 5 minutes, sometimes 15 or more when Higgsfield is busy), then give them the download link. Finished images come back as pictures too, so look at them and tell the person honestly whether they match the request before offering the next step.",
   "Never go around the monthly budget. If create refuses for budget, tell them to ask the account owner.",
+  SUMMARY_NOTE,
 ].join(" ");
 
 const EMPTY = { type: "object", properties: {}, additionalProperties: false };
@@ -145,6 +146,7 @@ const MAX_QUOTED_USD = 40;
 const QUOTED_ARG = { type: "number", description: `Only when price_check said Higgsfield's price description cannot be read: your own price in dollars worked out from that description, rounded up (at most ${MAX_QUOTED_USD}). Pass the same number to price_check and create.` };
 const MODEL_ARG = { type: "string", description: "Model id, e.g. bytedance/seedance-2.5/text-to-video" };
 const WHO_ARG = { type: "string", description: "Optional. The person's first name, only when start_here asked you to pass it; otherwise leave it out." };
+const SUMMARY_ARG = { type: "string", description: "Optional. One line, in the person's own words, saying what they asked for (at most 200 characters)." };
 const INPUTS_ARG = { type: "object", description: "The model's settings, as listed by model_details (prompt, duration, aspect_ratio, image_url, ...)." };
 
 // Job-check tools point at the in-chat viewer (MCP Apps); hosts without MCP
@@ -183,7 +185,7 @@ const TOOLS = [
     name: "create",
     _meta: VIEWER_META,
     description: "Make a video or image. Only call after the person agreed to the model, settings and price. Returns a job_id for wait_for_job.",
-    inputSchema: { type: "object", required: ["model", "inputs"], additionalProperties: false, properties: { model: MODEL_ARG, inputs: INPUTS_ARG, quoted_usd: QUOTED_ARG, who: WHO_ARG } },
+    inputSchema: { type: "object", required: ["model", "inputs"], additionalProperties: false, properties: { model: MODEL_ARG, inputs: INPUTS_ARG, quoted_usd: QUOTED_ARG } },
   },
   {
     name: "check_job",
@@ -231,7 +233,6 @@ const TOOLS = [
         model: { type: "string" },
         notes: { type: "string" },
         aspect_ratio: { type: "string" },
-        who: WHO_ARG,
       },
     },
   },
@@ -267,7 +268,6 @@ const TOOLS = [
         client: { type: "string", description: "The client's name as SyncView shows it." },
         what_changed: { type: "string", description: "The new or corrected information, in plain words, as complete as the person said it." },
         fact_id: { type: "string", description: "Optional: the fact id from client_brain that this changes." },
-        who: WHO_ARG,
       },
     },
   },
@@ -287,6 +287,14 @@ const TOOLS = [
   },
   { name: "team_usage", description: "This month's team spending against the budget, and the most recent jobs with who made them.", inputSchema: EMPTY },
 ];
+
+// Every tool takes the two optional activity-log arguments: "who" (the first
+// name, only when start_here asked for it) and "summary" (what the person
+// asked). Added here so no tool can miss them; each schema gets its own copy.
+for (const tool of TOOLS) {
+  const schema = tool.inputSchema as { properties?: Record<string, unknown> };
+  tool.inputSchema = { ...schema, properties: { ...(schema.properties || {}), who: WHO_ARG, summary: SUMMARY_ARG } } as typeof tool.inputSchema;
+}
 
 // ---- Input validation (light; Higgsfield validates fully too) -------------
 
@@ -1128,6 +1136,12 @@ function rpcError(id: unknown, code: number, message: string): Response {
   return reply({ jsonrpc: "2.0", id: id ?? null, error: { code, message } });
 }
 
+// The activity log (hf_activity): service role only, one row per tools/call.
+async function writeActivity(row: JsonMap): Promise<void> {
+  const { error } = await db().from("hf_activity").insert(row);
+  if (error) throw new Error(error.message);
+}
+
 async function memberFor(req: Request): Promise<string | null> {
   const url = new URL(req.url);
   const token = (url.searchParams.get("key") || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "").trim();
@@ -1176,10 +1190,20 @@ Deno.serve(async (req) => {
   }
   if (method === "tools/call") {
     const params = (msg.params || {}) as JsonMap;
+    const toolName = String(params.name || "");
+    const callArgs = (params.arguments && typeof params.arguments === "object" ? params.arguments : {}) as JsonMap;
+    // One activity row per call, written after the reply is on its way; a row
+    // that cannot be written never fails or slows the tool.
+    let logged = false;
+    const log = (ok: boolean, error?: string) => {
+      if (logged) return;
+      logged = true;
+      background(logActivity(writeActivity, activityRow({ member, tool: toolName, args: callArgs, ok, error })));
+    };
     try {
-      const toolName = String(params.name || "");
-      const text = await callTool(toolName, (params.arguments || {}) as JsonMap, member);
-      const args = (params.arguments || {}) as JsonMap;
+      const text = await callTool(toolName, callArgs, member);
+      log(true);
+      const args = callArgs;
       if (!VIEWER_TOOLS.has(toolName)) return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }] } });
       // Job checks: the result files (plus small previews the model can look
       // at). Plans, creates, recipes and imports: the input and imported media,
@@ -1193,6 +1217,7 @@ Deno.serve(async (req) => {
       const structuredContent = { result: text, images: media.filter((l) => !isVideoLink(l)), videos: media.filter(isVideoLink), status: isCheck ? text.split("\n")[0] : "" };
       return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }, ...previews.map(({ url: _url, ...block }) => block)], structuredContent } });
     } catch (e) {
+      log(false, (e as Error).message);
       return reply({ jsonrpc: "2.0", id, result: { isError: true, content: [{ type: "text", text: "Something went wrong: " + (e as Error).message }] } });
     }
   }

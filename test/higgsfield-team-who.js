@@ -59,14 +59,11 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
   // The viewer's ids are deliberately untouched (Claude caches them).
   assert.ok(/ui:\/\/synchro-higgsfield\/preview\.html/.test(read('viewer.ts')), 'VIEWER_URI is unchanged');
 
-  // "who" is an optional input of exactly brain_change and create.
+  // Every tool takes optional "who" and "summary" (added in one loop after TOOLS, so none can miss them).
   const tools = idx.slice(idx.indexOf('const TOOLS = ['), idx.indexOf('// ---- Input validation'));
-  const block = (name) => tools.slice(tools.indexOf(`name: "${name}"`), tools.indexOf('\n  },', tools.indexOf(`name: "${name}"`)));
-  for (const t of ['create', 'brain_change', 'run_recipe']) {
-    assert.ok(/who: WHO_ARG/.test(block(t)), t + ' accepts "who"');
-    assert.ok(!/required: \[[^\]]*"who"/.test(block(t)), '"who" is optional on ' + t);
-  }
-  assert.strictEqual((tools.match(/who: WHO_ARG/g) || []).length, 3, 'no other tool takes "who"');
+  assert.ok(/for \(const tool of TOOLS\) \{[\s\S]*?properties: \{ \.\.\.\(schema\.properties \|\| \{\}\), who: WHO_ARG, summary: SUMMARY_ARG \}/.test(tools), 'every tool gets "who" and "summary"');
+  assert.ok(!/required: \[[^\]]*"(who|summary)"/.test(tools), '"who" and "summary" are never required');
+  assert.ok(/\.\.\.schema, properties: \{ \.\.\./.test(tools), 'each tool gets its own copy of the schema (EMPTY is shared)');
 
   // The recorded author is the one authorFor gives, for both tools.
   assert.ok(/const author = authorFor\(member, args\.who\);/.test(idx));
@@ -78,7 +75,7 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
   // start_here: the ask-for-a-name note appears on the team link only.
   const start = idx.slice(idx.indexOf('if (name === "start_here")'), idx.indexOf('if (name === "find_models")'));
   assert.ok(/isTeamLink\(member\) \? `\\n\\n\$\{TEAM_START_NOTE\}` : ""/.test(start), 'only the team link gets the note');
-  assert.ok(/first name once/.test(who.TEAM_START_NOTE) && /"who"/.test(who.TEAM_START_NOTE) && /brain_change, create and run_recipe/.test(who.TEAM_START_NOTE));
+  assert.ok(/first name once/.test(who.TEAM_START_NOTE) && /"who"/.test(who.TEAM_START_NOTE) && /every tool call/.test(who.TEAM_START_NOTE) && /"summary"/.test(who.TEAM_START_NOTE));
   assert.ok(!/first name|"who"|team link/.test(start.replace(/isTeamLink\(member\)[^\n]*TEAM_START_NOTE[^\n]*/, '')), 'nothing about it elsewhere in start_here');
   // The tool texts every link sees say nothing about the team link.
   assert.ok(!/team link/i.test(tools), 'tool descriptions do not mention the team link');

@@ -50,7 +50,7 @@
 | 42 | `180-calendar-native-post-media.js.part` | 3729 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 43 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
 | 44 | `186-archived-restore.js.part` | 484 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
-| 45 | `187-frame-viewer.js.part` | 527 | WATCH HERE: a card's Frame.io video, inside SyncView. Three ways in, all behind the frame_viewer_clients switch: |
+| 45 | `187-frame-viewer.js.part` | 538 | WATCH HERE: a card's Frame.io video, inside SyncView. Three ways in, all behind the frame_viewer_clients switch: |
 | 46 | `190-calendar-approval-comments.js.part` | 3516 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 47 | `200-intake-data-startup.js.part` | 1883 | Video-only and Thumbnail-only were already built, but sat |
 | 48 | `210-production-state-writes.js.part` | 3321 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |

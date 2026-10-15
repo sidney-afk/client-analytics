@@ -537,8 +537,13 @@ async function flagRun(browser, origin) {
     await sleep(300);
     const onNow = await page.evaluate(sel => { const t = document.querySelector(sel); const l = document.querySelector('.cal-review-panel[data-comp="video"] .fv-frameio-link'); return { text: t.innerText.trim(), link: !!l && !l.hidden && getComputedStyle(l).display !== 'none' }; }, tileSel);
     expect(onNow.text === 'Play video' && onNow.link, 'switch: realtime: the row is added: "Play video" and the Frame.io link appear without a reload');
+    // A video already playing in place stops when the row goes.
+    await page.locator(tileSel).click();
+    await page.waitForFunction(() => { const v = document.querySelector('.fv-inline-video'); return v && v.readyState >= 2 && v.currentTime > 0.1; }, null, { timeout: 20000 });
     await page.evaluate(() => window.__rts['syncview-frame-viewer-flag']({ old: { key: 'frame_viewer_clients' } }));
     await sleep(300);
+    expect(await page.locator('.fv-inline-video').count() === 0 && (await page.locator('.fv-inline').innerText()).includes('switched off'), 'switch: realtime: a video already playing in place stops when the row is deleted');
+    await page.evaluate(() => onCalViewChange('smmreview')); await sleep(600);
     const offNow = await page.evaluate(sel => ({ text: document.querySelector(sel).innerText.trim(), shown: Array.from(document.querySelectorAll('.fv-frameio-link')).filter(l => getComputedStyle(l).display !== 'none').length }), tileSel);
     expect(offNow.text === 'Open video ↗' && offNow.shown === 0, 'switch: realtime: the row is deleted and the Review tab goes back to "Open video"');
     await ctx.close();

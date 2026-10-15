@@ -68,6 +68,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             if (_fvEnabledFor(b.getAttribute('data-fv-client'))) b.removeAttribute('hidden');
             else b.setAttribute('hidden', '');
         });
+        // A video already playing in place goes when the switch turns off for its client: it stops and says where to watch.
+        document.querySelectorAll('.fv-inline').forEach((box) => {
+            if (_fvEnabledFor(box.getAttribute('data-fv-client'))) return;
+            const v = box.querySelector('video');
+            if (v) { try { v.pause(); } catch (e) {} v.removeAttribute('src'); try { v.load(); } catch (e) {} }
+            box._fvSeq = (box._fvSeq || 0) + 1;
+            const open = box.getAttribute('data-fv-link') || '';
+            box.innerHTML = `<div class="fv-inline-state"><div class="fv-state-text">Watching here has been switched off.</div><div class="fv-state-actions"><a class="fv-btn fv-btn-ghost fv-btn-small" href="${_calEscAttr(open)}" target="_blank" rel="noopener noreferrer">Open in Frame.io</a></div></div>`;
+        });
         document.querySelectorAll('[data-fv-tile]').forEach((t) => {
             const on = _fvEnabledFor(t.getAttribute('data-fv-client'));
             if (on) { t.setAttribute('data-fv-on', ''); t.setAttribute('aria-label', 'Play video'); }
@@ -194,6 +203,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     async function _fvInlineLoad(box, resumeAt) {
         const seq = (box._fvSeq = (box._fvSeq || 0) + 1);
         const video = box.querySelector('video');
+        // Every load and reload checks the switch first.
+        if (!_fvEnabledFor(box.getAttribute('data-fv-client'))) { _fvInlineState(box, 'error', 'Watching here has been switched off.', false); return; }
         _fvInlineState(box, 'loading');
         const link = box.getAttribute('data-fv-link') || '';
         const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;

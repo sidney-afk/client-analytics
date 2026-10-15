@@ -166,17 +166,49 @@ const isClientChangeRequest = (m) => clean(m && m.role).toLowerCase() === "clien
 // member id; in the reviewer view they are the reviewer's own.
 const isReviewerNote = (m) => clean(m && m.role).toLowerCase() === "kasper" && !clean(m && m.author_member_id);
 
+// The client message a staff reply answers: the client message it replies to
+// directly, else the latest client message before it in the same thread.
+function answeredClientMessage(reply, list) {
+  const parent = list.find((m) => m.id === reply.parent_id);
+  if (parent && isClientMessage(parent)) return parent;
+  let hit = null;
+  for (const m of list) {
+    if (m.root_id === reply.root_id && isClientMessage(m) && m.created_at <= reply.created_at) hit = m;
+  }
+  return hit;
+}
+const isClientMessage = (m) => clean(m && m.role).toLowerCase() === "client";
+
+// Hidden client messages come back when a staff reply answers them, so the
+// thread reads properly (owner, 2026-10-15). In the SMM view any staff reply
+// counts; in the reviewer view only the reviewer's own reply does, and that
+// reply is shown with it. Unanswered ones stay hidden.
 export function visibleMessages(messages, view, smmIds, member) {
   const list = Array.isArray(messages) ? messages : [];
   if (view === "reviewer") {
-    const staffInternal = list.filter((m) => m.audience === "internal" && clean(m.role).toLowerCase() !== "client")
+    const mine = (m) => !!member && !isClientMessage(m) && isMine(m, member);
+    const staffInternal = list.filter((m) => m.audience === "internal" && !isClientMessage(m))
       .map((m) => (isReviewerNote(m) && member && clean(member.id) ? { ...m, author_member_id: clean(member.id) } : m));
     const own = (m) => !!member && isMine(m, member);
     const joined = new Set(staffInternal.filter(own).map((m) => m.root_id));
-    return staffInternal.filter((m) => own(m) || joined.has(m.root_id) || isSmmAuthor(m, smmIds));
+    const keep = new Set(staffInternal.filter((m) => own(m) || joined.has(m.root_id) || isSmmAuthor(m, smmIds)).map((m) => m.id));
+    for (const r of list) {
+      if (!mine(r)) continue;
+      const answered = answeredClientMessage(r, list);
+      if (answered) { keep.add(answered.id); keep.add(r.id); }
+    }
+    const byId = new Map(staffInternal.map((m) => [m.id, m]));
+    return list.filter((m) => keep.has(m.id)).map((m) => byId.get(m.id) || m);
   }
-  const hiddenRoots = new Set(list.filter(isClientChangeRequest).map((m) => m.id));
-  return list.filter((m) => !isClientChangeRequest(m) && !hiddenRoots.has(m.root_id));
+  const answered = new Set();
+  for (const r of list) {
+    if (isClientMessage(r)) continue;
+    const a = answeredClientMessage(r, list);
+    if (a) answered.add(a.id);
+  }
+  const hidden = (m) => isClientChangeRequest(m) && !answered.has(m.id);
+  const hiddenRoots = new Set(list.filter(hidden).map((m) => m.id));
+  return list.filter((m) => !hidden(m) && !hiddenRoots.has(m.root_id));
 }
 
 // Yours when it carries your member id. Staff notes written before the id

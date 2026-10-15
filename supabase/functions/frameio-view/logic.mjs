@@ -281,7 +281,9 @@ async function commentsFor(ctx, acct, fileId, fps) {
 // ---------------------------------------------------------------- the whole lookup
 
 // deps: { fetchFn, getToken(), dropToken(), clientId, now() }. Returns the body to send, or throws a ViewError.
-export async function lookup(rawLink, deps) {
+// opts.comments === false is the client's lookup: the comments are never asked for from Frame.io, so there is
+// nothing to leak, and only the playable address and the facts needed to play it come back.
+export async function lookup(rawLink, deps, opts = {}) {
   const link = parseFrameLink(rawLink);
   if (!link) throw fail('unsupported_link');
   const started = deps.now();
@@ -301,6 +303,13 @@ export async function lookup(rawLink, deps) {
     const facts = await videoFacts(ctx, found.acct, found.file.id);
     // Comments are a bonus: if only they fail, the video still plays.
     let com = { comments: [], truncated: false, replyNamesPartial: false }, commentsError = '';
+    if (opts.comments === false) {
+      return {
+        ok: true,
+        video: { url: video.url, expires_at: addressExpiry(video.url, deps.now()), duration_seconds: facts.duration, fps: facts.fps },
+        fetched_at: new Date(deps.now()).toISOString(),
+      };
+    }
     try { com = await commentsFor(ctx, found.acct, found.file.id, facts.fps); } catch (e) {
       commentsError = e instanceof ViewError ? e.code : 'frameio_unavailable';
     }

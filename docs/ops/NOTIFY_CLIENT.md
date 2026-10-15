@@ -11,8 +11,13 @@ Slack channel (the roster's `slack_channel_id`, never `creative_channel_id`):
 > **New content is ready for your review.** (Samples: **New samples are ready for your review.**)
 > Review now
 
-One bold line and, on the next line, a plain **Review now** link to the client's review page (the same
-address "Copy client link" gives for that surface). It is a link, not a button: a button makes Slack call the
+One bold line and, on the next line, a plain **Review now** link to the client's review page. It is the
+address "Copy client link" gives for that surface plus one key, `tab=review`: a client link made with it opens
+the Calendar (or the Samples) on its Review view once, whatever view that browser used last, and the key is
+removed from the address after the link is verified (a reload goes back to the saved view). Only a client link
+reads it, only the exact value `review` passes, and links without it, including every copied one, behave as
+before, so the two can land on different views (a copied Calendar link opens on the Sheet for a browser that last
+used the Sheet). It is a link, not a button: a button makes Slack call the
 app on every click, and the app has no interactivity address, so Slack shows a warning. No SMM name, no
 count, no emoji. The plain-text fallback carries the link.
 

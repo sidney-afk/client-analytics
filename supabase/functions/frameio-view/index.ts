@@ -11,14 +11,23 @@
 //        share_expired 404, empty_share 404, not_video 415, still_processing 409, frameio_login_needed 503,
 //        frameio_busy 429, frameio_unavailable 502, timeout 504, unauthorized 401/403, staff_only 403
 //
-// Staff only: the key must match a staff role key (admin, smm or creative). The browser's public key is not enough,
-// and a client review link (X-Syncview-Client-Token) is refused outright. The Adobe access token comes from the
-// frameio-token key keeper and is never returned or logged. Nothing is written anywhere.
+// Staff: the key must match a staff role key (admin, smm or creative). The browser's public key is not enough.
 //
-// Env: SUPABASE_URL, the staff role key secrets, FRAMEIO_BROKER_KEY and FRAMEIO_CLIENT_ID (the same secrets
-// frameio-token uses). Logs only step names and status codes: never a link, a file name, a comment or an address.
+// A client review link may ask for the playable address only, with its token in X-Syncview-Client-Token and the
+// card's id in the body: POST { card_id }. The server checks that the token belongs to the same client as the card,
+// takes the Frame.io link from the card itself (never from the request), and requires the client to be switched on
+// in the frame_viewer_clients flag. It answers { ok:true, video:{ url, expires_at, duration_seconds, fps }, fetched_at }
+// and never asks Frame.io for comments, so there are none to return. Anything else about another client's card
+// answers 404 not_found. A request with both a staff key and a client token is refused.
+//
+// The Adobe access token comes from the frameio-token key keeper and is never returned or logged. Nothing is
+// written anywhere.
+//
+// Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (client path: reads only), the staff role key secrets,
+// FRAMEIO_BROKER_KEY and FRAMEIO_CLIENT_ID (the same secrets frameio-token uses). Logs only step names and status codes: never a link, a file name, a comment or an address.
 
 import { authorizeStaffKey, staffAuthFailureStatus } from "../_shared/staff-role-auth.ts";
+import { authorizeClientCard, ClientRefusal } from "./client-card.mjs";
 import { lookup, tokenSource, ViewError } from "./logic.mjs";
 
 const CORS: Record<string, string> = {
@@ -39,10 +48,13 @@ let tokens: ReturnType<typeof tokenSource> | null = null;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
-  if (req.headers.get("x-syncview-client-token")) return json({ ok: false, error: "staff_only" }, 403);
-
-  const auth = authorizeStaffKey(clean(req.headers.get("x-syncview-key")), ["admin", "smm", "creative"]);
-  if (!auth.ok) return json({ ok: false, error: "unauthorized" }, staffAuthFailureStatus(auth));
+  const clientToken = clean(req.headers.get("x-syncview-client-token"));
+  const staffKey = clean(req.headers.get("x-syncview-key"));
+  if (clientToken && staffKey) return json({ ok: false, error: "ambiguous_credentials" }, 400);
+  if (!clientToken) {
+    const auth = authorizeStaffKey(staffKey, ["admin", "smm", "creative"]);
+    if (!auth.ok) return json({ ok: false, error: "unauthorized" }, staffAuthFailureStatus(auth));
+  }
 
   const supabaseUrl = env("SUPABASE_URL").replace(/\/+$/, "");
   const brokerKey = env("FRAMEIO_BROKER_KEY");
@@ -52,14 +64,31 @@ Deno.serve(async (req) => {
   }
 
   const body = await req.json().catch(() => ({}));
-  const link = clean(body && body.link);
+  let link = clean(body && body.link);
+  if (clientToken) {
+    const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
+    if (!serviceKey) return json({ ok: false, error: "not_configured", message: "The Frame.io connection is not set up on the server." }, 500);
+    try {
+      const card = await authorizeClientCard({ token: clientToken, cardId: clean(body && body.card_id), link }, async (path: string) => {
+        const r = await fetch(supabaseUrl + "/rest/v1/" + path, { headers: { apikey: serviceKey, Authorization: "Bearer " + serviceKey, Accept: "application/json" } });
+        if (!r.ok) throw new Error("read_failed");
+        return await r.json();
+      });
+      link = card.link;
+    } catch (e) {
+      const code = e instanceof ClientRefusal ? e.code : "authorization_unavailable";
+      const status = e instanceof ClientRefusal ? e.status : 503;
+      console.warn("frameio-view client refused", code);
+      return json({ ok: false, error: code }, status);
+    }
+  }
   if (!link || link.length > 2000) return json({ ok: false, error: "unsupported_link", message: "Send the card's Frame.io link." }, 400);
 
   if (!tokens) {
     tokens = tokenSource({ fetchFn: fetch, brokerUrl: supabaseUrl + "/functions/v1/frameio-token", brokerKey });
   }
   try {
-    const out = await lookup(link, { fetchFn: fetch, getToken: () => tokens!.get(), dropToken: () => tokens!.drop(), clientId, now: Date.now });
+    const out = await lookup(link, { fetchFn: fetch, getToken: () => tokens!.get(), dropToken: () => tokens!.drop(), clientId, now: Date.now }, { comments: !clientToken });
     return json(out, 200);
   } catch (e) {
     if (e instanceof ViewError) {

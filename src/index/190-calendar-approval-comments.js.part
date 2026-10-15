@@ -1,6 +1,6 @@
 import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
-import { svFrameWatchBtnHtml } from './187-frame-viewer.js';
+import { svFrameIoLinkHtml, svFrameTileAttrs, svFrameTileLabelHtml } from './187-frame-viewer.js';
 import { _svPhoneNotesPresentation } from './095-shared-client.js';
 import {
   CAL_COMPONENTS, CAL_REVIEW_COMPONENTS, _calClearStaleApprovals, _calComponentsFor,
@@ -542,9 +542,13 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
         if (comp === 'video') {
             const url = String(p.asset_url || '').trim();
             if (!url) return `<div class="cal-review-preview-empty">No video yet.</div>`;
-            // Staff review only: a client link page gets no button (svFrameWatchBtnHtml answers '' there).
-            const watch = svFrameWatchBtnHtml(url, p.name, 'fv-watch-btn fv-watch-review', p.client);
-            const withWatch = (tile) => (watch ? `<div class="fv-review-video">${tile}${watch}</div>` : tile);
+            // With the viewer switched on for this card's client (frame_viewer_clients) the preview plays the video in
+            // place and a small "Watch in Frame.io" link sits under it; staff and client link alike, no pop-up and
+            // no comments. Switched off, or not a Frame.io link: the tile opens the link exactly as it always did.
+            const tileAttrs = svFrameTileAttrs(url, p.client, p.id);
+            const frameLink = svFrameIoLinkHtml(url, p.client);
+            const label = svFrameTileLabelHtml(url);
+            const withWatch = (tile) => (frameLink ? `<div class="fv-review-video">${tile}${frameLink}</div>` : tile);
             // Use the same thumbnail image as the graphic panel, blurred,
             // with "Open video" overlaid — keeps the video column the same
             // visual weight as the thumbnail column so the Approve buttons
@@ -554,9 +558,9 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
             if (!thumbUrl) {
                 // No image to blur — fall back to a styled stand-in tile
                 // so the column still has the same height.
-                return withWatch(`<a class="cal-review-video-tile cal-review-video-tile-blank" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span><span class="cal-review-video-label">Open video ↗</span></span></a>`);
+                return withWatch(`<a class="cal-review-video-tile cal-review-video-tile-blank" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"${tileAttrs}><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>${label}</span></a>`);
             }
-            return withWatch(`<a class="cal-review-video-tile" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><img class="cal-review-video-bg" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'"><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span><span class="cal-review-video-label">Open video ↗</span></span></a>`);
+            return withWatch(`<a class="cal-review-video-tile" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"${tileAttrs}><img class="cal-review-video-bg" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'"><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>${label}</span></a>`);
         }
         if (comp === 'graphic') {
             const raw = String(p.thumbnail_url || '').trim();

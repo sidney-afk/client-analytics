@@ -77,12 +77,12 @@ ok(/<div class="cal-cap-fade" aria-hidden="true">/.test(INDEX),
    'each caption wrap renders the fade element');
 ok(/onclick="_calCaptionWrapClick\(event,this\)"/.test(INDEX),
    'the caption wrap is wired as a click-to-expand target');
-ok(/<span class="cal-cap-toggle-txt">Show more<\/span>/.test(INDEX),
-   'the toggle is an explicit "Show more" pill, not a bare chevron');
+ok(/<span class="cal-cap-toggle-txt">Show more<\/span>/.test(INDEX) && /\.cal-cap-toggle-txt \{ position: absolute; width: 1px; height: 1px; overflow: hidden;/.test(INDEX),
+   'the toggle is an arrow only (its words stay for screen readers but take no room under the caption)');
 ok(/wrap\.classList\.toggle\('is-clamped', overflowing && !open\)/.test(INDEX),
    '_calRefreshCaption drives is-clamped from overflow + collapsed state');
-ok(/\.cal-cap-toggle\.is-expanded \.cal-cap-toggle-txt \{ display: none; \}/.test(INDEX),
-   'expanded toggle collapses to an arrow-only button (label hidden) so it does not cover the caption end');
+ok(/\.cal-cap-toggle \{ position: absolute; right: 7px; bottom: 7px; width: 21px; height: 21px; padding: 0;/.test(INDEX),
+   'the toggle is a small arrow-only button in both states, so it does not cover the caption end');
 ok(/function _calCaptionWrapClick\(/.test(INDEX) && /if \(!ta \|\| !ta\.readOnly/.test(INDEX),
    'click-to-expand only hijacks the read-only (client) caption');
 

@@ -13,8 +13,8 @@
      * 020-styles-surfaces, every rule of which is phone-capped and rooted at
      * `body:has(.pocket-staff-bar)`.
      *
-     * Menu-only Time Off and the Messages page are identified by their
-     * mounted roots, not a new nav tab.
+     * Menu-only Time Off is identified by its mounted root, not a new nav tab.
+     * The Messages page is found the same way, by its mounted root.
      * Other staff screens join by adding their nav id to POCKET_STAFF_PAGES. */
     (function () {
         const POCKET_STAFF_PAGES = { navToday: 'Today', navTemplates: 'Templates', navFilmingPlans: 'Filming Plans', navLinear: 'Submit' };

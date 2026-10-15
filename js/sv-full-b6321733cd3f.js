@@ -19283,7 +19283,7 @@
                 const title = post.name || 'Untitled card';
                 const status = post.status || 'In progress';
                 const date = type === 'calendar' && post.scheduled_date ? window.svPhoneDate(post.scheduled_date) : '';
-                return '<button type="button" class="thumb-tile" data-thumb-card="' + esc(post.id) + '" aria-label="Open ' + esc(title) + '">' + (image?.outerHTML || '') + '<span class="thumb-tile-fallback">' + icon('grid') + '</span>' + '<span class="thumb-tile-number">' + (i+1) + '</span><span class="thumb-tile-info"><strong>' + esc(title) + '</strong><span>' + esc(status) + '</span>' + (date ? '<span>' + esc(date) + '</span>' : '') + '</span></button>';
+                return '<button type="button" class="thumb-tile" id="thumb-' + type + '-card-' + esc(post.id) + '" data-thumb-card="' + esc(post.id) + '" aria-label="Open ' + esc(title) + '">' + (image?.outerHTML || '') + '<span class="thumb-tile-fallback">' + icon('grid') + '</span>' + '<span class="thumb-tile-number">' + (i+1) + '</span><span class="thumb-tile-info"><strong>' + esc(title) + '</strong><span>' + esc(status) + '</span>' + (date ? '<span>' + esc(date) + '</span>' : '') + '</span></button>';
             }).join('');
             return viewbar + '<div class="thumb-collection-grid">' + html + '</div><button type="button" class="thumb-create" onclick="' + (type === 'samples' ? 'addSxrBlankCard()' : 'addCalBlankCard()') + '">Create ' + (type === 'samples' ? 'sample' : 'post') + '</button>';
         }
@@ -37776,7 +37776,7 @@
        Sheet card is taller than the screen, so a one-card shift there is
        already bigger than the box). An item with no box left (folded,
        display:none) counts as gone. */
-    const CAL_SCROLL_KEYS = ['data-pid', 'data-cal-review-pid', 'data-iso', 'data-cal-move'];
+    const CAL_SCROLL_KEYS = ['data-pid', 'data-cal-review-pid', 'data-iso', 'data-cal-move', 'data-thumb-card'];
     const CAL_SCROLL_KEY_SEL = CAL_SCROLL_KEYS.map(a => '[' + a + ']').join(',');
     function _calScrollKey(el) {
         for (const attr of CAL_SCROLL_KEYS) { const v = el.getAttribute(attr); if (v) return { attr, value: v }; }
@@ -37858,12 +37858,14 @@
     }
     function _calCaptureScroll(body) {
         const boxes = [];
+        const inner = !!(window.svIsStaffPhone?.() && body.closest?.('[data-thumb-collection]'));
+        if (inner) boxes.push({ path: { id: body.id }, x: body.scrollLeft, y: body.scrollTop, anchors: _calScrollAnchors(body, body) });
         body.querySelectorAll('*').forEach(el => {
             if (!el.scrollLeft && !el.scrollTop) return;
             const path = _calScrollerPath(el, body);
             if (path) boxes.push({ path, x: el.scrollLeft, y: el.scrollTop, anchors: _calScrollAnchors(el, el) });
         });
-        return { boxes, page: { x: window.scrollX, y: window.scrollY, anchors: _calScrollAnchors(body, null) } };
+        return { boxes, page: { x: window.scrollX, y: window.scrollY, anchors: inner ? null : _calScrollAnchors(body, null) } };
     }
     /* A background repaint (realtime, fallback poll, tab return, save echo)
        rebuilds every card, so anything the person had open lived only on the
@@ -93464,4 +93466,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-b0a84bbd0146.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-b6321733cd3f.js");

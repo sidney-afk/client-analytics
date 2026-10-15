@@ -41,6 +41,28 @@ async function main(){
     await root.locator('.thumb-tile').first().waitFor();
     assert.equal(await root.locator('.thumb-tile').count(),12,'Grid must keep all filtered cards');
     assert.equal(await root.locator('.thumb-collection-grid').evaluate(n=>getComputedStyle(n).gridTemplateColumns.split(' ').length),3,'Exactly three columns');
+    // A complete row arriving above the viewport must keep the visible tile
+    // and its keyboard focus in place in both collections.
+    const anchor=await root.evaluate(n=>{
+     const body=n.querySelector('.cal-body');body.scrollTop=150;
+     const box=body.getBoundingClientRect(),tile=[...n.querySelectorAll('.thumb-tile')].find(t=>t.getBoundingClientRect().top>=box.top+8);
+     tile.focus({preventScroll:true});return {id:tile.id,y:tile.getBoundingClientRect().top,scroll:body.scrollTop};
+    });
+    assert(anchor.scroll>0,'Grid refresh fixture must scroll away from the start');
+    await page.evaluate(type=>{
+     const state=type==='calendar'?calState:sxrState;window.__thumbOriginalPosts=state.posts;
+     state.posts=[...state.posts.slice(0,3).map((p,i)=>({...p,id:'thumb_refresh_'+i,order_index:i-3,video_deliverable_id:null,graphic_deliverable_id:null})),...state.posts];
+     (type==='calendar'?_calRenderBody:_sxrRenderBody)({preserveScroll:true});
+    },type);
+    await page.waitForTimeout(150);
+    const held=await page.evaluate(id=>{const tile=document.getElementById(id);return {y:tile.getBoundingClientRect().top,focus:tile===document.activeElement};},anchor.id);
+    assert(Math.abs(held.y-anchor.y)<=2,type+': a new grid row moved the tile in view');
+    assert(held.focus,type+': background grid repaint lost tile focus');
+    await page.evaluate(type=>{
+     const state=type==='calendar'?calState:sxrState;state.posts=window.__thumbOriginalPosts;delete window.__thumbOriginalPosts;
+     (type==='calendar'?_calRenderBody:_sxrRenderBody)({preserveScroll:true});
+     document.querySelector(type==='calendar'?'#calBody':'#sxrBody').scrollTop=0;document.activeElement.blur();
+    },type);
     await shot(page,type+'-grid',width,theme);
     await root.getByRole('button',{name:'List view',exact:true}).tap();
     assert.equal(await root.locator('.cal-card').count(),12,'Existing List keeps every native card');

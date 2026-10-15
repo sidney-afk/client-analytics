@@ -905,7 +905,7 @@
                 const title = post.name || 'Untitled card';
                 const status = post.status || 'In progress';
                 const date = type === 'calendar' && post.scheduled_date ? window.svPhoneDate(post.scheduled_date) : '';
-                return '<button type="button" class="thumb-tile" data-thumb-card="' + esc(post.id) + '" aria-label="Open ' + esc(title) + '">' + (image?.outerHTML || '') + '<span class="thumb-tile-fallback">' + icon('grid') + '</span>' + '<span class="thumb-tile-number">' + (i+1) + '</span><span class="thumb-tile-info"><strong>' + esc(title) + '</strong><span>' + esc(status) + '</span>' + (date ? '<span>' + esc(date) + '</span>' : '') + '</span></button>';
+                return '<button type="button" class="thumb-tile" id="thumb-' + type + '-card-' + esc(post.id) + '" data-thumb-card="' + esc(post.id) + '" aria-label="Open ' + esc(title) + '">' + (image?.outerHTML || '') + '<span class="thumb-tile-fallback">' + icon('grid') + '</span>' + '<span class="thumb-tile-number">' + (i+1) + '</span><span class="thumb-tile-info"><strong>' + esc(title) + '</strong><span>' + esc(status) + '</span>' + (date ? '<span>' + esc(date) + '</span>' : '') + '</span></button>';
             }).join('');
             return viewbar + '<div class="thumb-collection-grid">' + html + '</div><button type="button" class="thumb-create" onclick="' + (type === 'samples' ? 'addSxrBlankCard()' : 'addCalBlankCard()') + '">Create ' + (type === 'samples' ? 'sample' : 'post') + '</button>';
         }

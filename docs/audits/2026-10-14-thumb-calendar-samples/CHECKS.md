@@ -1,5 +1,18 @@
 # Calendar/Samples check receipts
 
+## Entry-links refresh repair
+
+The committed build was replayed locally and reproduced the 210px phone Review jump and the Month fixture scrolling the window instead of the content region. The fix captures the actual phone content scroller and includes stable grid anchors/focus IDs. The existing refresh runner now scrolls that region and enters the retained List; its assertions and 2px rounding tolerance are unchanged. A new collection regression also verifies a row inserted above the grid keeps the visible tile and focus in Calendar and Samples at 390/430 in both themes.
+
+Actual final lines of `calendar-refresh-final.log`, `calendar-grid-refresh.log`, `calendar-repair-gateway.log` and `calendar-repair-desktop.log`:
+
+```text
+calendar-refresh-scroll-browser: PASS (16 checks: 8 insertion views, 5 moved-card cases, 2 live-UI cases, 1 invisible-refresh case)
+STAFF_PHONE_COLLECTIONS: 100 screen/theme/width captures; all assertions passed; fictional data; no live writes
+prod-write-gateway-browser: mirror operations plus Submit and Calendar native intake passed
+1/1 desktop shots identical to b98f90f9e903d873358388a446430d4bbc082a07
+```
+
 Fictional intercepted transports; no live writes. Earlier attempts remain in the private evidence directory. The post-recovery checks use refreshed main. Older broader guards below are labelled by their saved invocation.
 
 ## release-screens-v2.log

@@ -573,15 +573,10 @@ async function handleInbox(supabase: SupabaseClient, principal: Principal, body:
   const member = principal.member as Member;
   const action = clean(body.action).toLowerCase();
   // Durable allow audit before any note body is read, as the thread reader does.
-  // The audit and the roster lookups (who this member may see: no note text)
-  // are sent together; no post or note is read until the audit has answered.
-  const audited = auditRead(supabase, principal, "", "allow", action === "inbox" ? "inbox" : "inbox_mark");
-  const scoped = inboxScopeFor(supabase, member);
-  scoped.catch(() => {});
-  if (!(await audited)) {
+  if (!(await auditRead(supabase, principal, "", "allow", action === "inbox" ? "inbox" : "inbox_mark"))) {
     return json({ ok: false, error: "read_authorization_unavailable" }, 503);
   }
-  const { scope, names, smmIds } = await scoped;
+  const { scope, names, smmIds } = await inboxScopeFor(supabase, member);
   const view = inboxView(scope);
   if (action === "inbox_mark") {
     const postId = clean(body.post_id);

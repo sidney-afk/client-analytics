@@ -33149,8 +33149,8 @@ button; the last list is kept 10 minutes in this tab's own storage (sessionStora
 on a different member, when expired, on any mismatch. A conversation opened from the cached list shows a chat placeholder and is
 marked read only after its notes arrive. The loading placeholder is the loaded markup with see-through words and grey bars, so
 every box matches (asserted: 23 boxes, desktop and 390 px, light and dark). Server (`production-comments`, `inbox` and
-`inbox_mark`): audit and roster lookups sent together (no post or note is read before the audit answers), deliverable chunks,
-note chunks and the read marks fetched in parallel: 17 sequential round trips down to 6. Who sees what (`inbox.mjs`, scope,
+`inbox_mark`): the deliverable chunks, the note chunks and the read marks are fetched in parallel instead of one after another:
+17 sequential round trips down to 7 (the audit still answers before any post or note is read, as before). Who sees what (`inbox.mjs`, scope,
 visibility, audit) is untouched.
 
 **After** (same script): cold click at once 1907 (nothing to hide behind yet; it is the server answer), click after 1.5 s 593,

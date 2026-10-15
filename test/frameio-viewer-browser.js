@@ -443,7 +443,7 @@ async function clientLinkRun(browser, origin, label, device, over) {
   await sleep(400);
   expect(!(await page.evaluate(() => !!document.getElementById('fvOverlay'))) && state.calls.length === 0, `${label}: the pop-up cannot be opened from a client link, even by calling it`);
   if (!on) {
-    expect((await tile.innerText()).trim() === 'Open video' && await page.locator(panel + ' .fv-frameio-link:visible').count() === 0, `${label}: switched off: "Open video", no Frame.io link, as before`);
+    expect((await tile.innerText()).trim() === 'Open video ↗' && await page.locator(panel + ' .fv-frameio-link:visible').count() === 0, `${label}: switched off: "Open video", no Frame.io link, as before`);
     expect(await tile.evaluate(e => !e.hasAttribute('data-fv-on') && e.getAttribute('href') === 'https://f.io/fixture-video' && e.getAttribute('target') === '_blank'), `${label}: switched off: the tile is still a plain link to the video`);
     await tile.evaluate(e => e.addEventListener('click', ev => ev.preventDefault(), { once: true })); await tile.click(); await sleep(400);
     expect(state.calls.length === 0 && await page.locator('.fv-inline-video').count() === 0, `${label}: switched off: clicking asks the function nothing and plays nothing`);
@@ -526,7 +526,7 @@ async function flagRun(browser, origin) {
     expect(await visibleButtons(page) === 0, 'switch: no row: nothing shown in the SMM review panel');
     const tile = await page.evaluate(() => { const t = document.querySelector('.cal-review-panel[data-comp="video"] .cal-review-video-tile'); const w = t.parentElement; return { wrapper: w.className, display: getComputedStyle(w).display, text: t.innerText.trim(), on: t.hasAttribute('data-fv-on'), label: t.getAttribute('aria-label') }; });
     expect(!/fv-review-video/.test(tile.wrapper) || tile.display === 'contents', `switch: no row: the review tile sits where it always did (${tile.wrapper || 'no wrapper'} / ${tile.display})`);
-    expect(tile.text === 'Open video' && !tile.on && tile.label === 'Open video', `switch: no row: the preview still says "Open video" (${tile.text})`);
+    expect(tile.text === 'Open video ↗' && !tile.on && tile.label === 'Open video', `switch: no row: the preview still says "Open video" (${tile.text})`);
     await page.locator(tileSel).evaluate(e => e.addEventListener('click', ev => ev.preventDefault(), { once: true }));
     await page.locator(tileSel).click(); await sleep(400);
     expect(state.calls.length === 0 && await page.locator('.fv-inline-video').count() === 0, 'switch: no row: clicking the preview just follows the link (nothing asked, nothing played)');
@@ -540,7 +540,7 @@ async function flagRun(browser, origin) {
     await page.evaluate(() => window.__rts['syncview-frame-viewer-flag']({ old: { key: 'frame_viewer_clients' } }));
     await sleep(300);
     const offNow = await page.evaluate(sel => ({ text: document.querySelector(sel).innerText.trim(), shown: Array.from(document.querySelectorAll('.fv-frameio-link')).filter(l => getComputedStyle(l).display !== 'none').length }), tileSel);
-    expect(offNow.text === 'Open video' && offNow.shown === 0, 'switch: realtime: the row is deleted and the Review tab goes back to "Open video"');
+    expect(offNow.text === 'Open video ↗' && offNow.shown === 0, 'switch: realtime: the row is deleted and the Review tab goes back to "Open video"');
     await ctx.close();
   }
   {

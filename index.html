@@ -11386,7 +11386,6 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
         }
         @media (max-width: 767px) {
             #calView[data-pocket-staff-phone] .cal-card .cal-link-field.has-link .cal-link-edit,
-            #calView[data-pocket-staff-phone] .cal-card .cal-link-field.has-link .cal-link-watch,
             #calView[data-pocket-staff-phone] .cal-card .cal-link-field.has-link .cal-link-folder { background: transparent !important; color: var(--text-secondary) !important; border-color: var(--border) !important; }
         }
         @media (max-width: 767px) {
@@ -11835,7 +11834,6 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
         }
         @media (max-width: 767px) {
             #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link .cal-link-edit,
-            #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link .cal-link-watch,
             #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link .cal-link-folder { background: transparent !important; color: var(--text-secondary) !important; border-color: var(--border) !important; }
         }
         @media (max-width: 767px) {
@@ -12627,24 +12625,40 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
  html.sv-staff-phone .arx-row-meta {font-size:13px;line-height:1.5;color:var(--text-secondary);}
 }
 
-/* WATCH HERE: the Frame.io viewer (staff only; src/index/187-frame-viewer.js.part).
-   One viewer, opened from the Calendar card, the SMM review panel and Kasper's review.
+/* WATCH HERE: the Frame.io viewer (src/index/187-frame-viewer.js.part), behind the frame_viewer_clients switch.
+   The pop-up (staff only) opens from the Sheet's thumbnail icon and Kasper's review; the Review tab's video
+   preview plays in place (staff and client link).
    Tokens only, so light and dark follow the page. Desktop: video left, comments right.
    Phone: the video on top and the comments below it, full screen. */
-.cal-link-watch { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; background: var(--field-bg); border: 0; border-left: 1px solid var(--sv-border-e3e3e0); color: var(--text-secondary); font-family: inherit; font-size: 0.7rem; font-weight: 700; white-space: nowrap; cursor: pointer; transition: background 0.12s, color 0.12s; }
-.cal-link-watch svg { width: 10px; height: 10px; flex-shrink: 0; }
-.cal-link-watch:hover { background: var(--field-bg-hover); color: var(--text-primary); }
-.cal-link-watch:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
-.cal-link-field.has-link.editing .cal-link-watch { display: none; }
-.cal-link-post.has-link .cal-link-watch { background: var(--sv-slot-video-bg); color: var(--sv-slot-video-fg-soft); border-left-color: var(--sv-slot-video-border); }
-.cal-link-post.has-link .cal-link-watch:hover { background: var(--sv-slot-video-bg-hover); color: var(--sv-slot-video-fg); }
-.cal-link-ro .cal-link-watch { border-radius: 0 8px 8px 0; }
-
 .fv-watch-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; margin-top: 8px; padding: 8px 14px; background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); border-radius: 10px; font-family: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
 .fv-watch-btn svg { width: 11px; height: 11px; flex-shrink: 0; }
 .fv-watch-btn:hover { background: var(--surface-hover); }
 .fv-watch-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .fv-review-video { display: flex; flex-direction: column; align-items: stretch; width: 100%; max-width: 260px; margin: 0 auto; }
+/* Review tab: label swap and the small Frame.io link. With the switch off the tile shows "Open video" as before. */
+.cal-review-video-tile .fv-lbl-on { display: none; }
+.cal-review-video-tile[data-fv-on] .fv-lbl-on { display: inline; }
+.cal-review-video-tile[data-fv-on] .fv-lbl-off { display: none; }
+html .fv-review-video .fv-frameio-link { display: inline-flex; align-self: center; align-items: center; min-height: 0; margin-top: 6px; padding: 2px 4px; color: var(--text-secondary); font-size: 0.72rem; font-weight: 600; text-decoration: none; }
+html .fv-review-video .fv-frameio-link:hover { color: var(--text-primary); text-decoration: underline; }
+.fv-frameio-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
+/* The video playing in place of the preview. Same column, as wide as the column allows. */
+.cal-review-video-tile.fv-inline { aspect-ratio: auto; max-height: none; max-width: 100%; min-height: 120px; background: var(--sv-bg-000); transform: none; }
+.cal-review-video-tile.fv-inline:hover { transform: none; }
+.fv-inline-video { display: block; width: 100%; height: auto; max-height: min(62vh, 520px); background: var(--sv-bg-000); object-fit: contain; }
+.fv-inline-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 14px; text-align: center; background: var(--surface-subtle); color: var(--text-primary); }
+.fv-inline-state[hidden] { display: none; }
+.fv-inline-state .fv-state-text { font-size: 0.78rem; }
+/* The Sheet's thumbnail: a small play icon at the top centre, shown on hover (always on a phone). */
+html .cal-card-thumb .cal-thumb-play { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 4; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; min-width: 0 !important; min-height: 0 !important; margin: 0; padding: 0; border: 0; border-radius: 50%; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); cursor: pointer; opacity: 0; transition: opacity 0.15s, background 0.12s; }
+html .cal-card-thumb .cal-thumb-play::before { content: ""; position: absolute; inset: -7px; }
+html .cal-card-thumb .cal-thumb-play svg { width: 12px; height: 12px; margin-left: 1px; }
+html .cal-card-thumb .cal-thumb-play[hidden] { display: none !important; }
+html .cal-card-thumb:hover .cal-thumb-play, html .cal-card-thumb .cal-thumb-play:focus-visible { opacity: 1; }
+html .cal-card-thumb .cal-thumb-play:hover { transform: translateX(-50%) scale(1.1); }
+html .cal-card-thumb .cal-thumb-play:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+html .cal-card-thumb .cal-thumb-linear-warn ~ .cal-thumb-play { top: 46px; }
+@media (hover: none), (max-width: 767px) { html .cal-card-thumb .cal-thumb-play { opacity: 1; } }
 .fv-hero-video { max-width: 380px; }
 .fv-review-video .fv-watch-btn { width: 100%; }
 /* With the viewer switched off for this client the button is hidden and the page must look as it did before:
@@ -13380,8 +13394,8 @@ html .fv-overlay .fv-markers .fv-mark:hover { transform: scale(1.25); }
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-de6d5d2f00b5.js";
-        var PARTS = ["js/sv-01-core-3a8d88727193.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-bf792c07a4a8.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-091e7b1ae18b.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-2fa354755646.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-81402e3d9cf7.js","js/sv-20-core-f43f39965587.js"];
+        var FULL = "js/sv-full-09dd1a83d1f4.js";
+        var PARTS = ["js/sv-01-core-3a8d88727193.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-bf792c07a4a8.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-457b522a38c2.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-2fa354755646.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-81402e3d9cf7.js","js/sv-20-core-f43f39965587.js"];
         var LAZY = {"templates":"js/sv-02-templates-ed22b16a2bda.js","workload":"js/sv-04-workload-1b2df89fe1d1.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-ae60b29ece00.js"};
         var FORCE = null;
         var CLIENTS = true;

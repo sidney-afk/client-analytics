@@ -101,12 +101,17 @@ export function collectMessages(post, canonicalRows) {
     seen.add(key);
     out.push(m);
   };
-  for (const row of Array.isArray(canonicalRows) ? canonicalRows : []) {
-    if (!row || row.deleted_at) continue;
+  // Canonical rows are listed under native_comment_id, but their parent and
+  // thread root are database row ids: translate those to the listed ids.
+  const rows = (Array.isArray(canonicalRows) ? canonicalRows : []).filter((row) => row && !row.deleted_at);
+  const listedId = new Map(rows.map((row) => [clean(row.id), clean(row.native_comment_id) || clean(row.id)]));
+  const toListed = (v) => (clean(v) ? listedId.get(clean(v)) || clean(v) : "");
+  for (const row of rows) {
     const id = clean(row.native_comment_id) || clean(row.id);
+    const root = toListed(row.thread_root_id);
     push({
       id,
-      parent_id: clean(row.thread_root_id) && clean(row.thread_root_id) !== id ? clean(row.thread_root_id) : (clean(row.parent_id) || null),
+      parent_id: root && root !== id ? root : (toListed(row.parent_id) || null),
       author: clean(row.author_name),
       author_member_id: clean(row.author_member_id),
       role: clean(row.role),

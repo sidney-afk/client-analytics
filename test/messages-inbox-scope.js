@@ -173,6 +173,15 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
   ok(inbox.unreadCount(aRev, reviewer, '', Date.parse('2026-10-15T00:00:00Z')) === 1, 'reviewer view: unread counts only visible messages (the client message, never the own reply)');
   ok(inbox.unreadCount(aSmm, smmOne, '', Date.parse('2026-10-15T00:00:00Z')) === 3, 'SMM view: unread counts only visible messages (the hidden request is not counted)');
 
+  // Canonical rows: parent and root are database row ids, listed under native ids.
+  const cAll = inbox.collectMessages({ id: 'p8', client: 'alphafixture' }, [
+    { id: 'db1', native_comment_id: 'n_req', team: 'video', role: 'client', author_name: 'Fixture Client', audience: 'client', is_tweak: true, body: 'Change the intro', created_at: '2026-10-14T09:00:00Z' },
+    { id: 'db2', native_comment_id: 'n_rep', parent_id: 'db1', thread_root_id: 'db1', team: 'video', role: 'smm', author_name: shared, author_member_id: 'u5', body: 'Changed it', created_at: '2026-10-14T10:00:00Z' },
+  ]);
+  ok(cAll.find(m => m.id === 'n_rep').parent_id === 'n_req' && cAll.find(m => m.id === 'n_rep').root_id === 'n_req', 'canonical replies point at the listed id of their parent');
+  ok(ids(inbox.visibleMessages(cAll, 'smm', smmIds, smmOne)) === 'n_req,n_rep', 'SMM view: an answered canonical change request is shown with its reply');
+  ok(ids(inbox.visibleMessages(cAll, 'reviewer', smmIds, reviewer)) === 'n_req,n_rep', 'reviewer view: a canonical client message the reviewer answered is shown with the reply');
+
   // The client never receives a staff name.
   const policy = await import(path.join(root, 'supabase/functions/production-comments/policy.mjs'));
   const staffRow = { id: 'c1', author_name: 'Second Manager', author_member_id: 'u2', role: 'smm', audience: 'client', body: 'Hello' };

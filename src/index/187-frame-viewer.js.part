@@ -3,7 +3,11 @@ import { _calRuntimeFlagClient, _calRuntimeFlagRawMembers, _calRuntimeFlagSlug, 
 import { calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
-    /* WATCH HERE: a card's Frame.io video and its Frame.io comments, inside SyncView (staff only).
+    /* WATCH HERE: a card's Frame.io video, inside SyncView. Three ways in, all behind the frame_viewer_clients switch:
+         - the Review tab's video preview plays the video in place (staff and client link; no comments);
+         - the Sheet's thumbnail has a small play icon that opens the pop-up below (staff only);
+         - Kasper's review keeps its "Watch here" button for the same pop-up (staff only).
+       The rest of this comment describes the pop-up.
 
        ONE viewer, opened from the Calendar card, the SMM review panel and Kasper's review. Every
        "Watch here" button carries the card's video link; the viewer asks the frameio-view function
@@ -17,6 +21,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     const FV_FETCH_MS = 45000;
     // The three link shapes the function understands. Anything else gets no button.
     const FV_LINK_RE = /https?:\/\/(?:f\.io\/[A-Za-z0-9_-]{3,40}|next\.frame\.io\/(?:share|project)\/[0-9a-f-]{36}[^\s<>"']*)/i;
+    const FV_INLINE_RETRY_LIMIT = 1;
     const FV_STATE = { open: false, seq: 0, link: '', title: '', data: null, opener: null, retried: false, resumeAt: 0 };
 
     function _fvLinkOf(raw) {
@@ -54,7 +59,6 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return slug || '';
     }
     function _fvEnabledFor(clientOrSlug) {
-        if (_isClientLink) return false;
         if (_fvFlag.all === true) return true;
         const slug = _fvFlagSlugOf(clientOrSlug);
         return !!slug && _fvFlag.clients.has(slug);
@@ -63,6 +67,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         document.querySelectorAll('.fv-gated').forEach((b) => {
             if (_fvEnabledFor(b.getAttribute('data-fv-client'))) b.removeAttribute('hidden');
             else b.setAttribute('hidden', '');
+        });
+        document.querySelectorAll('[data-fv-tile]').forEach((t) => {
+            const on = _fvEnabledFor(t.getAttribute('data-fv-client'));
+            if (on) { t.setAttribute('data-fv-on', ''); t.setAttribute('aria-label', 'Play video'); }
+            else { t.removeAttribute('data-fv-on'); t.setAttribute('aria-label', 'Open video'); }
         });
     }
     function _fvFlagSet(value) {
@@ -104,9 +113,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             _fvFlagChannel = null;
         }
     }
-    // Staff pages only, once per page (again after a failed read, at most every 30 seconds).
+    // Once per page (again after a failed read, at most every 30 seconds). Client link pages read it too, because
+    // the Review tab's inline player is theirs as well; the server checks the same switch before it answers.
     function _fvPrimeFlag() {
-        if (_isClientLink) return;
         if (_fvFlagPromise) return;
         if (Date.now() - _fvFlagTriedAt < FV_FLAG_RETRY_MS && _fvFlagTriedAt) return;
         _fvFlagTriedAt = Date.now();
@@ -114,16 +123,139 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _fvFlagPromise.then(() => _fvFlagSubscribe()).catch(() => null);
     }
 
-    /* The button every surface drops in. Empty for a client link page, and for a card whose video link is
-       not a Frame.io link, so nothing about those pages changes. */
-    function svFrameWatchBtnHtml(rawLink, title, cls, client) {
+    /* The pop-up buttons every staff surface drops in. Empty for a client link page, and for a card whose video
+       link is not a Frame.io link, so nothing about those pages changes. */
+    function _fvOpenerHtml(rawLink, title, cls, client, inner, label) {
         if (_isClientLink) return '';
         const link = _fvLinkOf(rawLink);
         if (!link) return '';
         _fvPrimeFlag();
         const who = _fvFlagSlugOf(client || (calState && calState.client) || '');
         const hidden = _fvEnabledFor(who) ? '' : ' hidden';
-        return `<button type="button" class="${_calEscAttr(cls || 'fv-watch-btn')} fv-gated" data-fv-client="${_calEscAttr(who)}" data-fv-link="${_calEscAttr(link)}" data-fv-title="${_calEscAttr(title || '')}"${hidden} onclick="event.stopPropagation();svFrameViewerOpen(this)" title="Watch the video and read its Frame.io comments here">${FV_PLAY_ICO}<span>Watch here</span></button>`;
+        return `<button type="button" class="${_calEscAttr(cls)} fv-gated" data-fv-client="${_calEscAttr(who)}" data-fv-link="${_calEscAttr(link)}" data-fv-title="${_calEscAttr(title || '')}"${hidden}${label ? ` aria-label="${_calEscAttr(label)}"` : ''} onclick="event.stopPropagation();svFrameViewerOpen(this)" title="Watch the video and read its Frame.io comments here">${inner}</button>`;
+    }
+    function svFrameWatchBtnHtml(rawLink, title, cls, client) {
+        return _fvOpenerHtml(rawLink, title, cls || 'fv-watch-btn', client, `${FV_PLAY_ICO}<span>Watch here</span>`, '');
+    }
+    // The Sheet's thumbnail: a small play icon, top centre, shown on hover (always on a phone).
+    function svFramePlayIconHtml(rawLink, title, client) {
+        return _fvOpenerHtml(rawLink, title, 'cal-thumb-play', client, FV_PLAY_ICO, 'Watch the video here');
+    }
+
+    // A card's link can change while its thumbnail stays on screen: keep the icon pointing at the card's current video.
+    function svFrameSyncPlayIcon(thumbDiv, post) {
+        if (_isClientLink || !thumbDiv) return;
+        const want = _fvLinkOf(post && post.asset_url);
+        const cur = thumbDiv.querySelector('.cal-thumb-play');
+        if (cur && want && cur.getAttribute('data-fv-link') === want) { cur.setAttribute('data-fv-title', (post && post.name) || ''); return; }
+        if (cur) cur.remove();
+        if (want) thumbDiv.insertAdjacentHTML('beforeend', svFramePlayIconHtml(post.asset_url, post.name, post.client));
+    }
+
+    /* THE REVIEW TAB: the video preview plays in place. The tile stays a normal link to the video; with the
+       switch on it is marked data-fv-on, its label says "Play video" and a click plays the video where the
+       preview was. With the switch off (or any other kind of link) none of this applies and the tile opens
+       the link in a new tab exactly as before. */
+    function svFrameTileAttrs(rawLink, client, cardId) {
+        const link = _fvLinkOf(rawLink);
+        if (!link) return '';
+        _fvPrimeFlag();
+        const who = _fvFlagSlugOf(client || (calState && calState.client) || '');
+        const on = _fvEnabledFor(who);
+        return ` data-fv-tile${on ? ' data-fv-on' : ''} data-fv-client="${_calEscAttr(who)}" data-fv-link="${_calEscAttr(link)}" data-fv-card="${_calEscAttr(cardId || '')}" onclick="return svFrameInlinePlay(event,this)"`;
+    }
+    function svFrameTileLabelHtml(rawLink) {
+        if (!_fvLinkOf(rawLink)) return '<span class="cal-review-video-label">Open video ↗</span>';
+        return '<span class="cal-review-video-label fv-lbl-off">Open video ↗</span><span class="cal-review-video-label fv-lbl-on">Play video</span>';
+    }
+    // The small link under the preview (hidden unless the switch is on for this card's client).
+    function svFrameIoLinkHtml(rawLink, client) {
+        const link = _fvLinkOf(rawLink);
+        if (!link) return '';
+        _fvPrimeFlag();
+        const who = _fvFlagSlugOf(client || (calState && calState.client) || '');
+        const hidden = _fvEnabledFor(who) ? '' : ' hidden';
+        return `<a class="fv-frameio-link fv-gated" data-fv-client="${_calEscAttr(who)}" href="${_calEscAttr(link)}" target="_blank" rel="noopener noreferrer"${hidden}>Watch in Frame.io ↗</a>`;
+    }
+
+    function _fvInlineState(box, kind, text, withRetry) {
+        const st = box.querySelector('.fv-inline-state');
+        if (!st) return;
+        if (kind === 'ready') { st.innerHTML = ''; st.hidden = true; return; }
+        st.hidden = false;
+        if (kind === 'loading') {
+            st.innerHTML = '<div class="fv-spin" aria-hidden="true"></div><div class="fv-state-text">Loading the video…</div>';
+            return;
+        }
+        const open = box.getAttribute('data-fv-link') || '';
+        st.innerHTML = `<div class="fv-state-text fv-state-bad">${_calEsc(text || 'The video could not be loaded.')}</div>
+            <div class="fv-state-actions">${withRetry ? '<button type="button" class="fv-btn fv-btn-small" onclick="svFrameInlineRetry(this)">Try again</button>' : ''}<a class="fv-btn fv-btn-ghost fv-btn-small" href="${_calEscAttr(open)}" target="_blank" rel="noopener noreferrer">Open in Frame.io</a></div>`;
+    }
+    async function _fvInlineLoad(box, resumeAt) {
+        const seq = (box._fvSeq = (box._fvSeq || 0) + 1);
+        const video = box.querySelector('video');
+        _fvInlineState(box, 'loading');
+        const link = box.getAttribute('data-fv-link') || '';
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, FV_FETCH_MS) : null;
+        try {
+            if (!_isClientLink) await _syncviewRequireStaffIdentity('frame-view');
+            // A client link sends only the card's id (and its own token, added by _syncviewEfHeaders): the server
+            // decides from the card which video this client may play, and never answers with comments.
+            const body = _isClientLink ? { card_id: box.getAttribute('data-fv-card') || '' } : { link };
+            const resp = await fetch(FRAMEIO_VIEW_EF_URL, {
+                method: 'POST',
+                headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, FRAMEIO_VIEW_EF_URL),
+                body: JSON.stringify(body),
+                signal: ctrl ? ctrl.signal : undefined
+            });
+            const json = await resp.json().catch(() => null);
+            if (seq !== box._fvSeq || !document.contains(box)) return;
+            if (!resp.ok || !json || !json.ok || !json.video || !json.video.url) {
+                _fvInlineState(box, 'error', (json && json.message) || 'The video could not be loaded here.', true);
+                return;
+            }
+            if (resumeAt > 0) video.addEventListener('loadedmetadata', () => { try { video.currentTime = resumeAt; } catch (e) {} }, { once: true });
+            video.src = json.video.url;
+            _fvInlineState(box, 'ready');
+            const p = video.play();
+            if (p && p.catch) p.catch(() => {});
+        } catch (e) {
+            if (seq !== box._fvSeq || !document.contains(box)) return;
+            _fvInlineState(box, 'error', ctrl && e && e.name === 'AbortError' ? 'Frame.io took too long to answer.' : 'The video could not be loaded. Check your connection.', true);
+        } finally { if (timer) clearTimeout(timer); }
+    }
+    function svFrameInlinePlay(ev, tile) {
+        // Switched off, or a modified click (new tab, new window): the link just opens.
+        if (!tile || !tile.hasAttribute('data-fv-on')) return true;
+        if (ev && (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey || ev.button === 1)) return true;
+        const link = _fvLinkOf(tile.getAttribute('data-fv-link'));
+        if (!link) return true;
+        if (ev && ev.preventDefault) ev.preventDefault();
+        if (ev && ev.stopPropagation) ev.stopPropagation();
+        document.querySelectorAll('.fv-inline-video').forEach((v) => { try { v.pause(); } catch (e) {} });
+        const box = document.createElement('div');
+        box.className = 'cal-review-video-tile fv-inline';
+        box.setAttribute('data-fv-link', link);
+        box.setAttribute('data-fv-client', tile.getAttribute('data-fv-client') || '');
+        box.setAttribute('data-fv-card', tile.getAttribute('data-fv-card') || '');
+        box.innerHTML = '<video class="fv-inline-video" controls playsinline preload="auto"></video><div class="fv-inline-state" role="status"></div>';
+        const video = box.querySelector('video');
+        video.addEventListener('error', () => {
+            if (!video.getAttribute('src')) return;
+            // The address is signed and expires: ask once for a new one and carry on from the same second.
+            if ((box._fvRetries || 0) < FV_INLINE_RETRY_LIMIT) { box._fvRetries = (box._fvRetries || 0) + 1; _fvInlineLoad(box, video.currentTime || 0); return; }
+            _fvInlineState(box, 'error', 'This video could not be played here. It may need a different format.', true);
+        });
+        tile.replaceWith(box);
+        _fvInlineLoad(box, 0);
+        return false;
+    }
+    function svFrameInlineRetry(btn) {
+        const box = btn && btn.closest ? btn.closest('.fv-inline') : null;
+        if (!box) return;
+        box._fvRetries = 0;
+        _fvInlineLoad(box, 0);
     }
 
     // Escape closes it wherever the focus is (it can be on nothing after a button inside the viewer is replaced).
@@ -387,8 +519,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        svFrameViewerClose, svFrameViewerOpen, svFrameViewerReload, svFrameViewerSeek
+        svFrameInlinePlay, svFrameInlineRetry, svFrameViewerClose, svFrameViewerOpen, svFrameViewerReload,
+        svFrameViewerSeek
     });
 export {
-  svFrameWatchBtnHtml
+  svFrameIoLinkHtml, svFramePlayIconHtml, svFrameSyncPlayIcon, svFrameTileAttrs, svFrameTileLabelHtml, svFrameWatchBtnHtml
 };

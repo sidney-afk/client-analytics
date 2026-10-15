@@ -4,15 +4,17 @@
  * lookup is a stand-in for the frameio-view function, and the clip is a 12 second fixture. All names, links and
  * comments below are made up.
  *
- *   CALENDAR CARD     a card with a Frame.io link has "Watch here"; a Drive link or no link has none. Clicking it
- *                     opens the viewer with the link visible at once, asks the function with the staff key, plays the
- *                     video and lists the comments (time, author, text, replies). A comment click jumps the video.
+ *   SHEET             a card with a Frame.io link has a small play icon at the top centre of its thumbnail (on hover; always
+ *                     on a phone); a Drive link or no link has none, and there is no "Watch here" text button. Clicking it
+ *                     opens the pop-up with the link visible at once, asks the function with the staff key, plays the video
+ *                     and lists the comments (time, author, text, replies). A comment click jumps the video.
  *   STATES            loading, "could not load" (with Try again and the normal Frame.io link still there), comments
  *                     failing alone, an address that stops working (asked for again once), a link the function refuses.
- *   SMM REVIEW        the same viewer opens from the review panel's video.
- *   KASPER REVIEW     and from Kasper's board, on the card row and inside the opened card.
- *   CLIENT LINK       a tokened client link shows no button anywhere and cannot open the viewer.
- *   THE SWITCH        the viewer shows only when the runtime flag row frame_viewer_clients lists the client (or says all: true); a missing row, wrong shape or failed read hides it, and realtime changes show and hide it live. Off, the page looks as it did before.
+ *   REVIEW TAB        staff (SMM review) and client link: the video preview says "Play video", clicking it plays the video
+ *                     in its place (no pop-up, no comments), and a small "Watch in Frame.io" link opens Frame.io in a new tab.
+ *                     A client link asks with its token and only the card's id.
+ *   KASPER REVIEW     Kasper's board keeps its "Watch here" button for the pop-up.
+ *   THE SWITCH        everything shows only when the runtime flag row frame_viewer_clients lists the client (or says all: true); a missing row, wrong shape or failed read hides it, and realtime changes show and hide it live. Off, the page looks as it did before: "Open video", no icon, no link.
  *   LOOK              desktop 1440x900 and phone 390x844, light and dark. Set FRAMEIO_VIEWER_SHOT_DIR to save screenshots.
  */
 const fs = require('node:fs');
@@ -86,6 +88,11 @@ async function installRoutes(ctx, origin, state) {
       state.calls.push({ body, key: r.headers()['x-syncview-key'] || '', clientToken: r.headers()['x-syncview-client-token'] || '', method: r.method() });
       if (state.delay) await sleep(state.delay);
       const out = state.view(state.calls.length);
+      // A client link is answered the way the server answers it: the playable address and nothing else.
+      if (r.headers()['x-syncview-client-token'] && out.status === 200 && out.body && out.body.ok) {
+        const g = out.body;
+        return json({ ok: true, video: { url: g.video.url, expires_at: g.video.expires_at, duration_seconds: g.video.duration_seconds, fps: 24 }, fetched_at: g.fetched_at }, 200);
+      }
       return json(out.body, out.status);
     }
     if (p === '/functions/v1/key-verify') return json({ ok: true, role: 'admin', member: ADMIN });
@@ -157,17 +164,34 @@ async function calendarRun(browser, origin, label, device) {
   console.log(`--- ${label}: Calendar card ---`);
   const state = makeState();
   const { page, ctx, pageErrors } = await openCalendar(browser, origin, state, device);
-  await page.locator('.cal-card[data-pid="v1"] .cal-link-watch:visible').waitFor({ timeout: 8000 });
-  expect(await page.locator('.cal-card[data-pid="v1"] .cal-link-watch:visible').count() === 1, `${label}: a card with a Frame.io link has "Watch here"`);
-  expect(await page.locator('.cal-card[data-pid="d1"] .cal-link-watch').count() === 0, `${label}: a Drive link has none`);
-  expect(await page.locator('.cal-card[data-pid="n1"] .cal-link-watch').count() === 0, `${label}: a card with no video has none`);
+  const ICON = '.cal-card[data-pid="v1"] .cal-thumb-play';
+  await page.locator(ICON + ':not([hidden])').waitFor({ state: 'attached', timeout: 8000 });
+  expect(await page.locator(ICON + ':not([hidden])').count() === 1, `${label}: a card with a Frame.io link has the play icon on its thumbnail`);
+  expect(await page.locator('.cal-card[data-pid="d1"] .cal-thumb-play').count() === 0, `${label}: a Drive link has none`);
+  expect(await page.locator('.cal-card[data-pid="n1"] .cal-thumb-play').count() === 0, `${label}: a card with no video has none`);
+  expect(await page.locator('.cal-link-watch').count() === 0 && !(await page.locator('.cal-card[data-pid="v1"]').innerText()).includes('Watch here'), `${label}: the "Watch here" text button is gone from the link row`);
   await page.evaluate(() => document.querySelector('.cal-card[data-pid="v1"]').scrollIntoView({ block: 'center' }));
-  await shot(page, `${tag}-1-card-light`);
-  await theme(page, 'dark'); await shot(page, `${tag}-1-card-dark`); await theme(page, 'light');
+  await page.mouse.move(2, 2); await sleep(250);
+  const rest = await page.locator(ICON).evaluate(e => Number(getComputedStyle(e).opacity));
+  const geo = await page.evaluate(() => { const t = document.querySelector('.cal-card[data-pid="v1"] .cal-card-thumb').getBoundingClientRect(), i = document.querySelector('.cal-card[data-pid="v1"] .cal-thumb-play').getBoundingClientRect(); return { dx: Math.abs((i.left + i.width / 2) - (t.left + t.width / 2)), top: i.top - t.top, w: Math.round(i.width) }; });
+  expect(geo.dx <= 2 && geo.top >= 0 && geo.top <= 16 && geo.w <= 36, `${label}: the icon is small and sits at the top centre of the thumbnail (off by ${geo.dx.toFixed(1)}px, ${geo.top.toFixed(0)}px down, ${geo.w}px wide)`);
+  if (label === 'phone') {
+    expect(rest === 1, `${label}: on a phone the icon is always visible`);
+    await shot(page, `${tag}-1-sheet-light`);
+    await theme(page, 'dark'); await shot(page, `${tag}-1-sheet-dark`); await theme(page, 'light');
+  } else {
+    expect(rest === 0, `${label}: the icon is hidden until the thumbnail is hovered`);
+    await page.locator('.cal-card[data-pid="v1"] .cal-card-thumb').hover();
+    await sleep(350);
+    expect(await page.locator(ICON).evaluate(e => Number(getComputedStyle(e).opacity)) === 1, `${label}: hovering the thumbnail shows it`);
+    await shot(page, `${tag}-1-sheet-hover-light`);
+    await theme(page, 'dark'); await shot(page, `${tag}-1-sheet-hover-dark`); await theme(page, 'light');
+  }
 
   // Slow answer: loading state, and the normal Frame.io link is already there.
   state.delay = 1400;
-  await page.locator('.cal-card[data-pid="v1"] .cal-link-watch').click();
+  await page.locator('.cal-card[data-pid="v1"] .cal-card-thumb').hover();
+  await page.locator(ICON).click();
   await page.waitForSelector('#fvOverlay.open', { timeout: 5000 });
   expect(await page.locator('#fvPlayer').getAttribute('data-state') === 'loading', `${label}: loading state while Frame.io answers`);
   expect((await page.locator('#fvState').innerText()).includes('Loading'), `${label}: loading words`);
@@ -232,12 +256,13 @@ async function calendarRun(browser, origin, label, device) {
   await page.keyboard.press('Escape');
   await sleep(200);
   expect(!(await vOpen(page)) && !(await page.evaluate(() => document.getElementById('fvVideo').getAttribute('src'))), `${label}: Escape closes it and stops the video`);
-  expect(await page.evaluate(() => document.activeElement && document.activeElement.classList.contains('cal-link-watch')), `${label}: focus goes back to the button`);
+  expect(await page.evaluate(() => document.activeElement && document.activeElement.classList.contains('cal-thumb-play')), `${label}: focus goes back to the icon`);
   expect(await page.evaluate(() => !document.body.classList.contains('fv-lock')), `${label}: the page scrolls again`);
 
   // Could not load: message, Try again, normal link still there; Try again then works.
   state.view = n => (n === 2 ? { status: 502, body: { ok: false, error: 'frameio_unavailable', message: 'Frame.io did not answer. Try again in a minute.' } } : { status: 200, body: GOOD() });
-  await page.locator('.cal-card[data-pid="v1"] .cal-link-watch').click();
+  await page.locator('.cal-card[data-pid="v1"] .cal-card-thumb').hover();
+  await page.locator(ICON).click();
   await waitState(page, 'error');
   const errText = await page.locator('#fvState').innerText();
   expect(errText.includes('Frame.io did not answer'), `${label}: the failure is said in a sentence`);
@@ -252,14 +277,16 @@ async function calendarRun(browser, origin, label, device) {
 
   // Comments failing alone: the video still plays.
   state.view = () => ({ status: 200, body: Object.assign(GOOD(), { comments: [], comments_error: 'frameio_unavailable' }) });
-  await page.locator('.cal-card[data-pid="v1"] .cal-link-watch').click();
+  await page.locator('.cal-card[data-pid="v1"] .cal-card-thumb').hover();
+  await page.locator(ICON).click();
   await waitReady(page);
   expect((await page.locator('#fvList').innerText()).includes('comments could not be loaded') && await page.evaluate(() => !!document.getElementById('fvVideo').getAttribute('src')), `${label}: comments failing alone leaves the video playing`);
   await page.keyboard.press('Escape');
 
   // No comments.
   state.view = () => ({ status: 200, body: Object.assign(GOOD(), { comments: [] }) });
-  await page.locator('.cal-card[data-pid="v1"] .cal-link-watch').click();
+  await page.locator('.cal-card[data-pid="v1"] .cal-card-thumb').hover();
+  await page.locator(ICON).click();
   await waitReady(page);
   expect((await page.locator('#fvList').innerText()).includes('No comments on this video yet'), `${label}: an empty list is said plainly`);
   await shot(page, `${tag}-5-nocomments-light`);
@@ -267,14 +294,16 @@ async function calendarRun(browser, origin, label, device) {
 
   // A link the function refuses.
   state.view = () => ({ status: 422, body: { ok: false, error: 'unsupported_link', message: 'This link is not a Frame.io share or file link, so it cannot be played here.' } });
-  await page.locator('.cal-card[data-pid="v1"] .cal-link-watch').click();
+  await page.locator('.cal-card[data-pid="v1"] .cal-card-thumb').hover();
+  await page.locator(ICON).click();
   await waitState(page, 'error');
   expect((await page.locator('#fvState').innerText()).includes('not a Frame.io share'), `${label}: a refused link shows the function's own sentence`);
   await page.keyboard.press('Escape');
 
   // An address that stopped working: asked for again once, then plays.
   state.calls.length = 0; state.mediaFail = 1; state.view = () => ({ status: 200, body: GOOD() });
-  await page.locator('.cal-card[data-pid="v1"] .cal-link-watch').click();
+  await page.locator('.cal-card[data-pid="v1"] .cal-card-thumb').hover();
+  await page.locator(ICON).click();
   await page.waitForFunction(() => { const v = document.getElementById('fvVideo'); return v && v.readyState >= 1; }, null, { timeout: 20000 });
   expect(state.calls.length === 2, `${label}: an address that stopped working is asked for once more (${state.calls.length} requests)`);
   await page.keyboard.press('Escape');
@@ -284,23 +313,62 @@ async function calendarRun(browser, origin, label, device) {
   await ctx.close();
 }
 
-async function smmReviewRun(browser, origin) {
-  console.log('--- desktop: SMM review ---');
+async function smmReviewRun(browser, origin, label, device) {
+  console.log(`--- ${label}: Review tab (staff) ---`);
   const state = makeState({ cards: [card('v1', 'Video card', FRAME, 1, { video_status: 'For SMM Approval', status: 'For SMM Approval', thumbnail_url: '' })] });
-  const { page, ctx, pageErrors } = await openCalendar(browser, origin, state, { viewport: { width: 1440, height: 900 } }, { view: 'smmreview' });
+  const { page, ctx, pageErrors } = await openCalendar(browser, origin, state, device, { view: 'smmreview' });
   await page.locator('.kcard[data-cal-review-pid="v1"] .kcard-expand-btn').click();
   await page.waitForSelector('.kcard[data-cal-review-pid="v1"] .cal-review-body', { timeout: 10000 });
-  const btn = page.locator('.cal-review-panel[data-comp="video"] .fv-watch-review');
-  await btn.and(page.locator(':visible')).waitFor({ timeout: 8000 });
-  expect(await btn.and(page.locator(':visible')).count() === 1, 'SMM review: the video panel has "Watch here"');
-  await shot(page, 'smm-review-1-light');
-  await btn.click();
-  await waitReady(page);
-  expect(state.calls.length === 1 && state.calls[0].body.link === FRAME && !!state.calls[0].key, 'SMM review: opens the same viewer with the staff key');
-  expect(await page.locator('.fv-c').count() === 3, 'SMM review: comments are there');
-  await shot(page, 'smm-review-2-viewer-light');
-  await page.keyboard.press('Escape');
-  expect(pageErrors.length === 0, `SMM review: no page errors (${pageErrors.join(' | ')})`);
+  const panel = '.cal-review-panel[data-comp="video"]';
+  await page.locator(panel + ' .fv-frameio-link:not([hidden])').waitFor({ timeout: 8000 });
+  expect((await page.locator(panel + ' .cal-review-video-tile').innerText()).trim() === 'Play video', `${label}: the preview says "Play video", not "Open video"`);
+  expect(await page.locator(panel + ' .fv-watch-btn').count() === 0, `${label}: the "Watch here" button is gone from the Review tab`);
+  const fl = page.locator(panel + ' .fv-frameio-link');
+  expect((await fl.innerText()).includes('Watch in Frame.io') && await fl.getAttribute('href') === FRAME && await fl.getAttribute('target') === '_blank', `${label}: a small "Watch in Frame.io" link opens Frame.io in a new tab`);
+  const small = await fl.evaluate(e => ({ font: parseFloat(getComputedStyle(e).fontSize), bg: getComputedStyle(e).backgroundColor }));
+  expect(small.font <= 13 && /rgba\(0, 0, 0, 0\)|transparent/.test(small.bg), `${label}: it is a link, not a button (${small.font}px, ${small.bg})`);
+  await page.locator(panel).scrollIntoViewIfNeeded();
+  await shot(page, `review-staff-${label}-1-light`);
+  await theme(page, 'dark'); await shot(page, `review-staff-${label}-1-dark`); await theme(page, 'light');
+  // Clicking the preview plays the video in its place: no pop-up, no comments.
+  await page.locator(panel + ' .cal-review-video-tile').click();
+  await page.waitForSelector(panel + ' .fv-inline-video', { timeout: 8000 });
+  await page.waitForFunction(() => { const v = document.querySelector('.fv-inline-video'); return v && v.readyState >= 2; }, null, { timeout: 20000 });
+  expect(state.calls.length === 1 && state.calls[0].body.link === FRAME && Object.keys(state.calls[0].body).join() === 'link' && !!state.calls[0].key && !state.calls[0].clientToken, `${label}: one request with the staff key and only the card's link`);
+  expect(await page.evaluate(() => !document.getElementById('fvOverlay') || !document.getElementById('fvOverlay').classList.contains('open')), `${label}: no pop-up opened`);
+  expect(await page.locator('.fv-c, .fv-side, .fv-list').count() === 0, `${label}: no comments anywhere`);
+  expect(await page.locator(panel + ' .cal-review-video-tile[data-fv-tile]').count() === 0 && await page.locator(panel + ' .fv-inline-video').getAttribute('src') === MEDIA, `${label}: the video replaced the preview, playing the address the function gave`);
+  expect(await page.locator(panel + ' .fv-frameio-link').count() === 1, `${label}: the "Watch in Frame.io" link is still under it`);
+  await sleep(700);
+  expect(await page.evaluate(() => document.querySelector('.fv-inline-video').currentTime) > 0.2, `${label}: it is playing`);
+  const fits = await page.evaluate(() => { const v = document.querySelector('.fv-inline').getBoundingClientRect(); return { x: document.documentElement.scrollWidth > window.innerWidth + 1, w: Math.round(v.width), h: Math.round(v.height) }; });
+  expect(!fits.x && fits.w >= 120 && fits.h >= 60, `${label}: it fits the column (${fits.w}x${fits.h}) and nothing runs off the screen`);
+  await shot(page, `review-staff-${label}-2-playing-light`);
+  await theme(page, 'dark'); await shot(page, `review-staff-${label}-2-playing-dark`); await theme(page, 'light');
+  expect(pageErrors.length === 0, `${label}: Review tab (staff): no page errors (${pageErrors.join(' | ')})`);
+  await ctx.close();
+}
+
+async function reviewFailureRun(browser, origin) {
+  console.log('--- desktop: Review tab, when the video cannot load ---');
+  const state = makeState({ cards: [card('v1', 'Video card', FRAME, 1, { video_status: 'For SMM Approval', status: 'For SMM Approval' })] });
+  state.view = n => (n === 1 ? { status: 502, body: { ok: false, error: 'frameio_unavailable', message: 'Frame.io did not answer. Try again in a minute.' } } : { status: 200, body: GOOD() });
+  const { page, ctx, pageErrors } = await openCalendar(browser, origin, state, { viewport: { width: 1440, height: 900 } }, { view: 'smmreview' });
+  await page.locator('.kcard[data-cal-review-pid="v1"] .kcard-expand-btn').click();
+  const panel = '.cal-review-panel[data-comp="video"]';
+  await page.locator(panel + ' .fv-frameio-link:not([hidden])').waitFor({ timeout: 8000 });
+  await page.locator(panel + ' .cal-review-video-tile').click();
+  await page.waitForSelector(panel + ' .fv-inline-state a.fv-btn', { timeout: 8000 });
+  expect((await page.locator(panel + ' .fv-inline-state').innerText()).includes('Frame.io did not answer'), 'failure: said in a sentence');
+  expect(await page.locator(panel + ' .fv-inline-state a.fv-btn').getAttribute('href') === FRAME, 'failure: the normal Frame.io link still works from the error');
+  await shot(page, 'review-staff-error-light');
+  await page.locator(panel + ' .fv-inline-state button', { hasText: 'Try again' }).click();
+  await page.waitForFunction(() => { const v = document.querySelector('.fv-inline-video'); return v && v.readyState >= 2; }, null, { timeout: 20000 });
+  expect(state.calls.length === 2, 'failure: Try again asks once more and the video plays');
+  // An address that stopped working is asked for once more.
+  state.calls.length = 0; state.mediaFail = 1;
+  await page.evaluate(() => onCalViewChange('smmreview'));
+  expect(pageErrors.length === 0, `failure: no page errors (${pageErrors.join(' | ')})`);
   await ctx.close();
 }
 
@@ -328,12 +396,8 @@ async function kasperRun(browser, origin, label, device) {
   await row.and(page.locator(':visible')).waitFor({ timeout: 8000 });
   expect(await row.and(page.locator(':visible')).count() === 1, `${label}: Kasper's card row has "Watch here" next to the Frame.io link`);
   expect(await page.locator('.kcard[data-kasper-pid="k1"] a.kcard-watch-btn').count() === 1, `${label}: the normal "Watch video" link is still there`);
-  await page.locator('.kcard[data-kasper-pid="k1"] .kcard-expand-btn').click();
-  await page.waitForSelector('.kcard[data-kasper-pid="k1"] .cal-review-body', { timeout: 10000 });
-  const inside = page.locator('.kcard[data-kasper-pid="k1"] .cal-review-body .fv-watch-btn:visible');
-  expect(await inside.count() >= 1, `${label}: the opened card has "Watch here" on the video`);
   await shot(page, `kasper-${label}-1-light`);
-  await inside.first().click();
+  await row.click();
   await waitReady(page);
   expect(state.calls.length === 1 && state.calls[0].body.link === FRAME && !!state.calls[0].key, `${label}: Kasper's viewer asks with the staff key`);
   const dot = await page.locator('.fv-mark').first().evaluate(e => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height), getComputedStyle(e).minWidth]; });
@@ -342,14 +406,24 @@ async function kasperRun(browser, origin, label, device) {
   await shot(page, `kasper-${label}-2-viewer-light`);
   await theme(page, 'dark'); await shot(page, `kasper-${label}-2-viewer-dark`);
   await page.keyboard.press('Escape');
+  // The opened card's video preview is the Review tab's: it plays in place.
+  await page.locator('.kcard[data-kasper-pid="k1"] .kcard-expand-btn').click();
+  await page.waitForSelector('.kcard[data-kasper-pid="k1"] .cal-review-body', { timeout: 10000 });
+  const kTile = page.locator('.kcard[data-kasper-pid="k1"] .cal-review-body .cal-review-panel[data-comp="video"] .cal-review-video-tile');
+  expect((await kTile.innerText()).trim() === 'Play video', `${label}: the opened card's preview says "Play video"`);
+  state.calls.length = 0;
+  await kTile.click();
+  await page.waitForSelector('.kcard[data-kasper-pid="k1"] .fv-inline-video', { timeout: 8000 });
+  expect(state.calls.length === 1 && await page.evaluate(() => !document.getElementById('fvOverlay').classList.contains('open')), `${label}: it plays in place, no pop-up`);
   expect(pageErrors.length === 0, `${label}: Kasper: no page errors (${pageErrors.join(' | ')})`);
   await ctx.close();
 }
 
-async function clientLinkRun(browser, origin) {
-  console.log('--- phone: a client link page ---');
-  const state = makeState({ cards: [card('c1', 'Client fixture card', FRAME, 1, { status: 'Client Approval', video_status: 'Client Approval', graphic_status: 'Client Approval', caption_status: 'Client Approval', video_deliverable_id: 'del_client_v1' })] });
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+async function clientLinkRun(browser, origin, label, device, over) {
+  console.log(`--- ${label}: a client link page ---`);
+  const on = !(over && over.off);
+  const state = makeState(Object.assign({ cards: [card('c1', 'Client fixture card', FRAME, 1, { status: 'Client Approval', video_status: 'Client Approval', graphic_status: 'Client Approval', caption_status: 'Client Approval', video_deliverable_id: 'del_client_v1' })] }, over && over.state));
+  const ctx = await browser.newContext(Object.assign({ serviceWorkers: 'block' }, device));
   await installRoutes(ctx, origin, state);
   const page = await ctx.newPage();
   const pageErrors = [];
@@ -359,23 +433,53 @@ async function clientLinkRun(browser, origin) {
   await page.locator('.kcard[data-cal-review-pid="c1"] .kcard-expand-btn').click();
   await page.waitForSelector('.kcard[data-cal-review-pid="c1"] .cal-review-body', { timeout: 10000 });
   await page.locator('.kcard[data-cal-review-pid="c1"] .pocket-cal-fold > summary').first().click().catch(() => {});
-  expect(await page.locator('.cal-review-panel[data-comp="video"]').count() >= 1, 'client link: the review card is on screen');
-  expect(await page.locator('.fv-watch-btn, .cal-link-watch, .kcard-watch-here').count() === 0, 'client link: no "Watch here" button anywhere');
-  expect(state.flagReads === 0, 'client link: the page never reads the switch row');
+  await sleep(1200);
+  const panel = '.cal-review-panel[data-comp="video"]';
+  expect(await page.locator(panel).count() >= 1, `${label}: the review card is on screen`);
+  expect(await page.locator('.fv-watch-btn, .cal-thumb-play, .cal-link-watch, .kcard-watch-here').count() === 0, `${label}: no pop-up button or Sheet icon on a client link`);
+  expect(state.flagReads >= 1, `${label}: the page reads the switch row`);
+  const tile = page.locator(panel + ' .cal-review-video-tile').first();
   await page.evaluate(() => { const b = document.createElement('button'); b.setAttribute('data-fv-link', 'https://f.io/fixture-video'); b.id = 'fakeBtn'; document.body.appendChild(b); return typeof svFrameViewerOpen === 'function' ? svFrameViewerOpen(b) : null; });
-  await sleep(500);
-  expect(!(await page.evaluate(() => !!document.getElementById('fvOverlay'))) && state.calls.length === 0, 'client link: calling the viewer anyway opens nothing and asks nothing');
-  await shot(page, 'client-link-phone');
-  expect(pageErrors.length === 0, `client link: no page errors (${pageErrors.join(' | ')})`);
+  await sleep(400);
+  expect(!(await page.evaluate(() => !!document.getElementById('fvOverlay'))) && state.calls.length === 0, `${label}: the pop-up cannot be opened from a client link, even by calling it`);
+  if (!on) {
+    expect((await tile.innerText()).trim() === 'Open video' && await page.locator(panel + ' .fv-frameio-link:visible').count() === 0, `${label}: switched off: "Open video", no Frame.io link, as before`);
+    expect(await tile.evaluate(e => !e.hasAttribute('data-fv-on') && e.getAttribute('href') === 'https://f.io/fixture-video' && e.getAttribute('target') === '_blank'), `${label}: switched off: the tile is still a plain link to the video`);
+    await tile.evaluate(e => e.addEventListener('click', ev => ev.preventDefault(), { once: true })); await tile.click(); await sleep(400);
+    expect(state.calls.length === 0 && await page.locator('.fv-inline-video').count() === 0, `${label}: switched off: clicking asks the function nothing and plays nothing`);
+    expect(pageErrors.length === 0, `${label}: no page errors (${pageErrors.join(' | ')})`);
+    await ctx.close();
+    return;
+  }
+  expect((await tile.innerText()).trim() === 'Play video', `${label}: the preview says "Play video"`);
+  expect(await page.locator(panel + ' .fv-frameio-link:visible').first().getAttribute('href') === FRAME, `${label}: a small "Watch in Frame.io" link is under it`);
+  await page.locator(panel).first().scrollIntoViewIfNeeded();
+  await shot(page, `review-client-${label}-1-light`);
+  await theme(page, 'dark'); await shot(page, `review-client-${label}-1-dark`); await theme(page, 'light');
+  await tile.click();
+  await page.waitForSelector(panel + ' .fv-inline-video', { timeout: 8000 });
+  await page.waitForFunction(() => { const v = document.querySelector('.fv-inline-video'); return v && v.readyState >= 2; }, null, { timeout: 20000 });
+  const call = state.calls[0];
+  expect(state.calls.length === 1 && !!call.clientToken && !call.key, `${label}: asked with the client's token, never a staff key`);
+  expect(Object.keys(call.body).join() === 'card_id' && call.body.card_id === 'c1', `${label}: the request carries only the card's id (${JSON.stringify(call.body)})`);
+  expect(await page.locator('.fv-inline-video').getAttribute('src') === MEDIA, `${label}: plays the address the function gave`);
+  expect(await page.locator('.fv-c, .fv-side, .fv-list, #fvOverlay').count() === 0, `${label}: no comments and no pop-up`);
+  await sleep(700);
+  expect(await page.evaluate(() => document.querySelector('.fv-inline-video').currentTime) > 0.2, `${label}: it is playing`);
+  const fits = await page.evaluate(() => ({ x: document.documentElement.scrollWidth > window.innerWidth + 1 }));
+  expect(!fits.x, `${label}: nothing runs off the screen`);
+  await shot(page, `review-client-${label}-2-playing-light`);
+  await theme(page, 'dark'); await shot(page, `review-client-${label}-2-playing-dark`); await theme(page, 'light');
+  expect(pageErrors.length === 0, `${label}: no page errors (${pageErrors.join(' | ')})`);
   await ctx.close();
 }
 
 
 // WHO SEES IT: the one switch row. Hidden unless it lists the client (or says all), and hidden on any doubt.
-const BUTTONS = '.cal-link-watch, .fv-watch-btn, .kcard-watch-here';
+const BUTTONS = '.cal-thumb-play, .fv-watch-btn, .kcard-watch-here, .fv-frameio-link';
 const visibleButtons = page => page.evaluate(sel => Array.from(document.querySelectorAll(sel)).filter(b => !b.hidden && getComputedStyle(b).display !== 'none').length, BUTTONS);
 const canOpen = async page => {
-  await page.evaluate(() => { const b = document.querySelector('.cal-link-watch, .fv-watch-btn, .kcard-watch-here'); if (b) svFrameViewerOpen(b); });
+  await page.evaluate(() => { const b = document.querySelector('.cal-thumb-play, .fv-watch-btn, .kcard-watch-here'); if (b) svFrameViewerOpen(b); });
   await sleep(700);
   return page.evaluate(() => !!(document.getElementById('fvOverlay') && document.getElementById('fvOverlay').classList.contains('open')));
 };
@@ -413,15 +517,30 @@ async function flagRun(browser, origin) {
 
   // Off for the page you are on, and the other places say the same.
   {
-    const state = makeState({ frameFlag: null, cards: [card('v1', 'Video card', FRAME, 1, { video_status: 'For SMM Approval', status: 'For SMM Approval' })] });
+    const state = makeState({ fakeSupabase: true, frameFlag: null, cards: [card('v1', 'Video card', FRAME, 1, { video_status: 'For SMM Approval', status: 'For SMM Approval' })] });
     const { page, ctx } = await openCalendar(browser, origin, state, desktop, { view: 'smmreview' });
     await page.locator('.kcard[data-cal-review-pid="v1"] .kcard-expand-btn').click();
     await page.waitForSelector('.cal-review-panel[data-comp="video"]', { timeout: 10000 });
     await sleep(1200);
+    const tileSel = '.cal-review-panel[data-comp="video"] .cal-review-video-tile';
     expect(await visibleButtons(page) === 0, 'switch: no row: nothing shown in the SMM review panel');
-    const tile = await page.evaluate(() => { const t = document.querySelector('.cal-review-panel[data-comp="video"] .cal-review-video-tile'); const w = t.parentElement; return { wrapper: w.className, display: getComputedStyle(w).display }; });
+    const tile = await page.evaluate(() => { const t = document.querySelector('.cal-review-panel[data-comp="video"] .cal-review-video-tile'); const w = t.parentElement; return { wrapper: w.className, display: getComputedStyle(w).display, text: t.innerText.trim(), on: t.hasAttribute('data-fv-on'), label: t.getAttribute('aria-label') }; });
     expect(!/fv-review-video/.test(tile.wrapper) || tile.display === 'contents', `switch: no row: the review tile sits where it always did (${tile.wrapper || 'no wrapper'} / ${tile.display})`);
+    expect(tile.text === 'Open video' && !tile.on && tile.label === 'Open video', `switch: no row: the preview still says "Open video" (${tile.text})`);
+    await page.locator(tileSel).evaluate(e => e.addEventListener('click', ev => ev.preventDefault(), { once: true }));
+    await page.locator(tileSel).click(); await sleep(400);
+    expect(state.calls.length === 0 && await page.locator('.fv-inline-video').count() === 0, 'switch: no row: clicking the preview just follows the link (nothing asked, nothing played)');
     await shot(page, 'switch-off-smm-review');
+    // Live: the row is added and the Review tab changes without a reload; then it is removed again.
+    await page.waitForFunction(() => typeof (window.__rts && window.__rts['syncview-frame-viewer-flag']) === 'function', null, { timeout: 10000 });
+    await page.evaluate(slug => window.__rts['syncview-frame-viewer-flag']({ new: { value: { all: false, clients: [slug] } } }), SLUG);
+    await sleep(300);
+    const onNow = await page.evaluate(sel => { const t = document.querySelector(sel); const l = document.querySelector('.cal-review-panel[data-comp="video"] .fv-frameio-link'); return { text: t.innerText.trim(), link: !!l && !l.hidden && getComputedStyle(l).display !== 'none' }; }, tileSel);
+    expect(onNow.text === 'Play video' && onNow.link, 'switch: realtime: the row is added: "Play video" and the Frame.io link appear without a reload');
+    await page.evaluate(() => window.__rts['syncview-frame-viewer-flag']({ old: { key: 'frame_viewer_clients' } }));
+    await sleep(300);
+    const offNow = await page.evaluate(sel => ({ text: document.querySelector(sel).innerText.trim(), shown: Array.from(document.querySelectorAll('.fv-frameio-link')).filter(l => getComputedStyle(l).display !== 'none').length }), tileSel);
+    expect(offNow.text === 'Open video' && offNow.shown === 0, 'switch: realtime: the row is deleted and the Review tab goes back to "Open video"');
     await ctx.close();
   }
   {
@@ -469,10 +588,15 @@ async function flagRun(browser, origin) {
   try {
     await calendarRun(browser, origin, 'desktop', { viewport: { width: 1440, height: 900 } });
     await calendarRun(browser, origin, 'phone', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-    await smmReviewRun(browser, origin);
+    await smmReviewRun(browser, origin, 'desktop', { viewport: { width: 1440, height: 900 } });
+    await smmReviewRun(browser, origin, 'phone', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    await reviewFailureRun(browser, origin);
     await kasperRun(browser, origin, 'desktop', { viewport: { width: 1440, height: 900 } });
     await kasperRun(browser, origin, 'phone', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-    await clientLinkRun(browser, origin);
+    await clientLinkRun(browser, origin, 'client desktop', { viewport: { width: 1440, height: 900 } });
+    await clientLinkRun(browser, origin, 'client phone', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    await clientLinkRun(browser, origin, 'client, switched off', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, { off: true, state: { frameFlag: null } });
+    await clientLinkRun(browser, origin, 'client, another client listed', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, { off: true, state: { frameFlag: { all: false, clients: ['someotherclient'] } } });
     await flagRun(browser, origin);
   } finally { await browser.close(); server.close(); }
   if (failures.length) { console.error(`\n${failures.length} check(s) failed`); process.exit(1); }

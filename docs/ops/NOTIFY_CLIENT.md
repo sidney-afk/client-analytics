@@ -9,13 +9,17 @@ switch on Samples), for admins and SMMs only. It posts **one general alert** to 
 Slack channel (the roster's `slack_channel_id`, never `creative_channel_id`):
 
 > **New content is ready for your review.** (Samples: **New samples are ready for your review.**)
-> [Review now]
+> Review now
 
-One bold line and one button that opens the client's review page (the same address "Copy client link"
-gives for that surface). No SMM name, no count, no emoji. The plain-text fallback carries the link.
+One bold line and, on the next line, a plain **Review now** link to the client's review page (the same
+address "Copy client link" gives for that surface). It is a link, not a button: a button makes Slack call the
+app on every click, and the app has no interactivity address, so Slack shows a warning. No SMM name, no
+count, no emoji. The plain-text fallback carries the link.
 
-The confirm box shows the exact words, the channel name and the last alert for that client and surface.
-Inside six hours it says so and still allows sending ("Send anyway").
+The confirm box is short: the title, the message, Cancel and Send alert. A "Last sent 2h ago by Laura" line
+appears only when an alert was really sent before, and inside six hours that same line is the warning (the
+button then reads "Send anyway"). A successful send closes the box and shows the toast "Alert sent"; an error
+stays in the box.
 
 ## How it works
 
@@ -29,9 +33,9 @@ Inside six hours it says so and still allows sending ("Send anyway").
   **before** Slack is called. If that write fails nothing is posted. No token, link or message text is stored.
 - The bot token is only ever in the `Authorization` header: never in a URL, a log line, a response or a row.
 - If the bot is not in the channel the box says so, in plain words (and warns up front when it can tell).
-- **Owner preview:** `preview` posts the exact same message to the DM named by
-  `NOTIFY_PREVIEW_SLACK_USER_ID` (the same secret `notify` uses) and never to a channel. In the box,
-  admins see **Send preview to me**. It works even while client sending is off.
+- **Owner preview:** the `preview` action (admin only) posts the exact same message to the DM named by
+  `NOTIFY_PREVIEW_SLACK_USER_ID` (the same secret `notify` uses) and never to a channel. It works even while
+  client sending is off. The box no longer shows a button for it; call the function directly.
 
 ## To turn it on (the owner's steps, in order)
 
@@ -45,7 +49,7 @@ Inside six hours it says so and still allows sending ("Send anyway").
    client channel. Leave it unset until you have looked at the preview: without it every send answers
    "not switched on yet" and posts nothing. Optional: `CLIENT_REVIEW_ALERT_ORIGIN` (defaults to
    `https://syncview.synchrosocial.com`).
-4. Open the box on the test client, press **Send preview to me**, and check the DM.
+4. Call the `preview` action with an admin key and check the DM, then open the box on the test client.
 
 ## Coverage (counts only, measured 2026-10-14, read only)
 

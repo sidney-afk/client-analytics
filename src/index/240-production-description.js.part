@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { CAL_SUPABASE_ANON_KEY, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature, _syncviewStaffVerificationEpoch } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
 import { _calEsc, _calEscAttr, _jsAttrArg, _svDraftClear, _svDraftNoteHtml, _svDraftNorm, _svDraftRead, _svDraftSave } from './131-core-html.js';
@@ -90,6 +91,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
             state.caretBlock = state.draft.split('\n').length - 1;
             state.caretOffset = 1e9;
             state.restoredDraft = true;
+            if (typeof _prodDescLayer === 'function') _prodDescLayer(id);
             if (kept.meta.base != null && _svDraftNorm(kept.meta.base) !== _svDraftNorm(serverValue)) {
                 state.remoteChanged = true;
                 state.error = 'Description changed elsewhere. Your draft is preserved; review it against the refreshed version and save again.';
@@ -832,6 +834,14 @@ import { _prodRender } from './260-production-refresh-boot.js';
                 _prodEnsureDescription(id, true);
                 return false;
             }
+            state.baseline = state.value;
+            _prodDescDraftRestore(id, state, state.value);   // a draft kept by Escape or a click elsewhere comes back
+            if (state.editing) {
+                _prodDescLayer(id);
+                _prodRender();
+                _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state), options);
+                return false;
+            }
             state.editing = true;
             state.preview = false;
             state.saving = false;
@@ -852,6 +862,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
             state.caretBlock = state.draft.split('\n').length - 1;
             state.caretOffset = 1e9;
             _prodRender();
+            _prodDescLayer(id);
             _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state), options);
             return false;
         }
@@ -902,6 +913,43 @@ import { _prodRender } from './260-production-refresh-boot.js';
             _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state));
             return false;
         }
+        /* Escape and a click elsewhere close the editor but never throw the text
+           away: the draft stays in the shared draft store and the editor reopens
+           on it (with the "Restored" line) the next time Edit is pressed. The
+           explicit Cancel button still discards, as before. */
+        function _prodCloseDescriptionEditKeepDraft(id) {
+            const state = _prodDescriptionState(id);
+            if (!state || !state.editing) return false;
+            if (state.saving) return false;
+            if (_svDraftNorm(state.draft) === _svDraftNorm(state.baseline)) return _prodCancelDescriptionEdit(id);
+            _prodDescDraftKeep(id, state);
+            state.editing = false;
+            state.preview = false;
+            state.source = false;
+            state.sourceReason = '';
+            state.draft = state.value;
+            state.error = '';
+            state.remoteChanged = false;
+            state.requestId = '';
+            state.restoredDraft = false;
+            svLayerRelease('prod-desc:' + id);
+            _prodDescLinkPopHide(true);
+            _prodRender();
+            _prodToast('Your edit is kept as a draft. Press Edit to carry on.');
+            return false;
+        }
+        function _prodDescLayer(id) {
+            const sel = '[data-prod-description="' + (window.CSS && CSS.escape ? CSS.escape(String(id)) : String(id)) + '"]';
+            svLayerOpen({
+                key: 'prod-desc:' + id,
+                region: () => document.querySelector(sel + '[data-prod-description-mode]'),
+                alsoInside: t => !!(t.closest && t.closest('.prod-linkpop')),
+                opener: () => document.querySelector(sel + ' [data-prod-description-control="edit"]'),
+                isOpen: () => { const st = _prodDescriptionState(id); return !!(st && st.editing); },
+                holdRefresh: false,
+                close: () => _prodCloseDescriptionEditKeepDraft(id),
+            });
+        }
         function _prodCancelDescriptionEdit(id) {
             const state = _prodDescriptionState(id);
             if (!state || state.saving) return false;
@@ -914,6 +962,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
             state.remoteChanged = false;
             state.requestId = '';
             state.restoredDraft = false;
+            svLayerRelease('prod-desc:' + id);
             _svDraftClear('prod', _prodDescDraftClient(id), String(id), 'description');
             _prodDescLinkPopHide(true);
             _prodRender();
@@ -966,7 +1015,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
             if (event.key === 'Escape') {
                 event.preventDefault();
                 event.stopPropagation();
-                _prodCancelDescriptionEdit(id);
+                _prodCloseDescriptionEditKeepDraft(id);
                 return false;
             }
             if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {

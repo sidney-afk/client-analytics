@@ -24,8 +24,16 @@ async function shot(page,name,width,theme){
    assert.equal(await p.locator('.thumb-wl-week [data-thumb-wl-date]').count(),7);
    assert(await p.locator('.thumb-wl-week button').evaluateAll(ns=>ns.every(n=>n.getBoundingClientRect().width>=44)),'Seven dates have 44px targets');
    await shot(p,'workload-agenda',width,theme);
+   for(let crossing=0;crossing<2;crossing++){
+    await p.setViewportSize({width:1440,height:900});
+    await p.waitForFunction(()=>!document.querySelector('.workload-view[data-thumb-workload]'));
+    assert.equal(await p.locator('[data-thumb-wl-node]').count(),0,'Desktop removes the phone presentation');
+    await p.setViewportSize({width,height:844});await p.locator('.thumb-wl-person').first().waitFor();
+   }
    const person=p.locator('.thumb-wl-person').first();const id=await person.getAttribute('data-thumb-wl-person');
+   const historyBefore=await p.evaluate(()=>history.length);
    await person.tap();await p.getByRole('button',{name:'Back to agenda'}).waitFor();
+   assert.equal(await p.evaluate(()=>history.length),historyBefore+1,'One queue tap after breakpoint crossings pushes exactly one history entry');
    const expected=await p.evaluate(id=>wlState.allActiveSubs.filter(s=>(s.assigneeId||'')===id).length,id);
    assert.equal(await p.locator('.thumb-wl-item').count(),expected,'The queue retains every native active item');
    await shot(p,'workload-queue',width,theme);

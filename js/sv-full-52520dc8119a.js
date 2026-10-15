@@ -13172,10 +13172,14 @@
     /* Thumb phone agenda is a presentation of the existing board. The board
        remains the sole owner of filters, placements, weights and write guards. */
     const wlPhone = { mode: 'agenda', date: null, person: null, scroll: 0 };
+    const wlPhoneClickHandlers = new WeakMap();
     function wlPhoneRender() {
         const root = document.querySelector('.workload-view');
         if (!root) return;
         if (!window.svIsStaffPhone?.()) {
+            const click = wlPhoneClickHandlers.get(root);
+            if (click) root.removeEventListener('click', click);
+            wlPhoneClickHandlers.delete(root);
             const panel = root.querySelector('.thumb-wl-filter-contents');
             const home = root.querySelector('.thumb-wl-filter-home');
             if (panel && home) home.before(panel.firstElementChild);
@@ -13212,7 +13216,7 @@
                 dialog.showModal(); svLayerOpen({key:'thumb-workload-filters',region:dialog,opener:e.currentTarget,isOpen:()=>dialog.open,close});
             };
             header.querySelector('[data-thumb-wl-refresh]').onclick = () => root.querySelector('[data-wl-nav=refresh]').click();
-            root.addEventListener('click', e => {
+            const onPhoneClick = e => {
                 if (e.target.closest('[data-thumb-wl-retry]')) { wlManualRefresh(); return; }
                 const mode = e.target.closest('[data-thumb-wl-mode]');
                 if (mode) {
@@ -13241,7 +13245,9 @@
                     [...root.querySelectorAll('[data-thumb-wl-person]')].find(n => n.dataset.thumbWlPerson === id)?.focus({preventScroll:true});
                     if (history.state?.thumbWorkloadQueue) { wlPhone.returning = true; wlPhone.returningPerson = id; history.back(); }
                 }
-            });
+            };
+            wlPhoneClickHandlers.set(root,onPhoneClick);
+            root.addEventListener('click',onPhoneClick);
         }
         root.dataset.thumbWorkload = wlPhone.mode;
         root.style.setProperty('--thumb-wl-top',Math.max(0,root.getBoundingClientRect().top+window.scrollY)+'px');
@@ -93748,4 +93754,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-74d8b3017245.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-52520dc8119a.js");

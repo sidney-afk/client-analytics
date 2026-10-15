@@ -176,3 +176,35 @@ The Filters backdrop now uses the same existing overlay token as the other nativ
 ok Workload 390 dark: agenda, queue, exact native item, filters, planning, empty/loading/error
 STAFF_PHONE_WORKLOAD: 24 screen/theme/width captures; all assertions passed; fictional transports; no live writes
 ```
+
+## Breakpoint lifecycle follow-up
+
+Reproduced locally: after two phone/desktop crossings one queue tap pushed three entries (actual history length 5, expected 3). Phone teardown now removes its own delegated handler, so remount installs exactly one closure with the current content scroller. All existing checks remain.
+
+### workload-breakpoint-fixed.log
+
+```text
+ok Workload 430 dark: agenda, queue, exact native item, filters, planning, empty/loading/error
+STAFF_PHONE_WORKLOAD: 52 screen/theme/width captures; all assertions passed; fictional transports; no live writes
+```
+
+### workload-breakpoint-gateway.log
+
+```text
+--- phase: archive_park_sub_issues ---
+prod-write-gateway-browser: mirror operations plus Submit and Calendar native intake passed
+```
+
+### workload-breakpoint-modules.log
+
+```text
+check-modules: all checks passed
+```
+
+### workload-breakpoint-desktop.log
+
+```text
+ok   staff-navWorkload @1440: pixels identical, computed styles identical (351abf598956)
+
+1/1 desktop shots identical to origin/main
+```

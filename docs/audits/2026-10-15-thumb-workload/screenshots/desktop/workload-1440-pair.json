@@ -1,6 +1,8 @@
 {
+  "baseline": "71f684554e95f6a9b5ddc2167685fcc2979477c4",
   "width": 1440,
   "contentOnly": true,
   "pngBytesIdentical": true,
-  "sha256": "45e5578d9cd21ba62fef0eca8b315b5f2e07272f41c7b96444b6683c0f2b77aa"
+  "sha256": "3e1b37bf001821cb8e53fa20135da6b06e07b79cf98b77d4147e954ae0aae8c0",
+  "fullViewportPixelsAndComputedStyles": "identical"
 }

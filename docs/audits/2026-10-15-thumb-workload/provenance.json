@@ -1,7 +1,6 @@
 {
   "baseline": "71f684554e95f6a9b5ddc2167685fcc2979477c4",
-  "sourceFragmentsSha256": "dacaa58b1b8088d0d470ae556c3043bb9e81802381c7fbf672cbca8a64035ecb",
-  "buildIndexSha256": "8501b9e2d4690ecba6eba48275b47e970087032c6be4048182728fcef44e86cc",
+  "buildIndexSha256": "cd0eb9204389ed1a00bac2b9d7fcb80311f4201b767a3f50fe977e307af1f2e2",
   "phoneStates": 13,
   "phoneWidths": [
     390,
@@ -39,5 +38,9 @@
     "workload-queue-light-390.png": "8b1c81588299e09c65935bfa4a5d176a0c548a08c8197c929b9c41f10dabb1e9",
     "workload-week-dark-390.png": "287f14654fb9a766bb319ec8ff2237649f8b62b3be8c4d5a27e6c8611b5ba0aa",
     "workload-week-light-390.png": "7ef2a525183be6fa1eed3c3da2637f0e530b4272a380c89e8df2076d1b67ec9c"
+  },
+  "fragmentSha256": {
+    "020-styles-surfaces.css.part": "85c0ed38790dca96e744d0ccaba6f89bc11c25758f2013e241c72343e8edca52",
+    "080-workload-render.js.part": "aca3ece5f049c776d2f781fa0c5b02172fb8e20be0d60822eb6067947bf4ee29"
   }
 }

@@ -45,6 +45,11 @@
     "theme": "light"
   },
   {
+    "name": "workload-filtered-refresh-error",
+    "width": 390,
+    "theme": "light"
+  },
+  {
     "name": "workload-empty",
     "width": 390,
     "theme": "light"
@@ -105,6 +110,11 @@
     "theme": "dark"
   },
   {
+    "name": "workload-filtered-refresh-error",
+    "width": 390,
+    "theme": "dark"
+  },
+  {
     "name": "workload-empty",
     "width": 390,
     "theme": "dark"
@@ -165,6 +175,11 @@
     "theme": "light"
   },
   {
+    "name": "workload-filtered-refresh-error",
+    "width": 430,
+    "theme": "light"
+  },
+  {
     "name": "workload-empty",
     "width": 430,
     "theme": "light"
@@ -221,6 +236,11 @@
   },
   {
     "name": "workload-plan-and-due",
+    "width": 430,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-filtered-refresh-error",
     "width": 430,
     "theme": "dark"
   },

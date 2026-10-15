@@ -19,3 +19,5 @@ Every style is staff-phone scoped and capped at 767px. Desktop mount/render sema
 The screenshot fixtures include a native metadata warning; it remains explicit rather than implying those items have verified weights or deadlines. All 26 required 390px images were reviewed, including the corrected menu spacing, viewport clipping and planner ordering. Native viewport screenshots are fixture proof, not deployed or physical-device proof.
 
 Keep this PR unmerged. Revert the implementation PR and rebuild generated assets for recovery; no migration or data rollback is required. Messages starts last from fresh main after #2083.
+
+Phone breakpoint cleanup removes its delegated click handler before restoring desktop. The regression suite crosses phone → desktop → phone twice, verifies no phone nodes remain on desktop, then requires exactly one history entry from one queue tap and a working Back journey. This reproduced as three entries before the fix.

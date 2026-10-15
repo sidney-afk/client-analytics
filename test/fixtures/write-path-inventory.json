@@ -230,10 +230,6 @@
       ],
       "note": "Thumbnail title prompt save (thumbnail-title-prompts, action save). Recorded as thumbnail_title_prompt_save."
     },
-    "180-calendar-native-post-media.js.part|_calCtaCall|url|POST": {
-      "status": "read",
-      "note": "Reads one client's call to action choices by POST (caption-prompts-save, action get_cta). Saves nothing."
-    },
     "180-calendar-native-post-media.js.part|_calThumbTitlePromptCall|url|POST": {
       "status": "read",
       "note": "Reads one client's thumbnail title prompt by POST (thumbnail-title-prompts, action get). Saves nothing."

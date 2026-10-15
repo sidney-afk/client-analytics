@@ -2786,19 +2786,15 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         return false;
     }
     /* The client's call-to-action keywords (staff-edited with the caption prompt). A read that fails is just no list. */
-    async function _calCtaCall(body) {
-        const url = CAPTION_GENERATE_EF_URL;
-        const r = await fetch(url, { method: 'POST', headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, url), body: JSON.stringify(body), signal: AbortSignal.timeout(CAL_CTA_READ_MS) });
-        const j = await r.json().catch(() => null);
-        if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
-        return j;
-    }
     async function _calLoadCtaOptions(clientName) {
         const slug = calClientSlug(clientName || '');
         if (!slug) return [];
         if (_calCtaCache.has(slug)) return _calCtaCache.get(slug);
-        const j = await _calCtaCall({ action: 'cta_get', client: slug });
-        if (!Array.isArray(j.options)) throw new Error('cta read failed');
+        // A plain GET: opening the box sends nothing that writes.
+        const url = CAPTION_GENERATE_EF_URL + '?action=cta_get&client=' + encodeURIComponent(slug);
+        const r = await fetch(url, { method: 'GET', cache: 'no-store', headers: _syncviewEfHeaders({ Accept: 'application/json' }, CAPTION_GENERATE_EF_URL), signal: AbortSignal.timeout(CAL_CTA_READ_MS) });
+        const j = await r.json().catch(() => null);
+        if (!r.ok || !j || !j.ok || !Array.isArray(j.options)) throw new Error('cta read failed');
         _calCtaCache.set(slug, j.options.map(String));
         return _calCtaCache.get(slug);
     }

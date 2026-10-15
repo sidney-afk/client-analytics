@@ -60,9 +60,9 @@ async function open(browser, origin, opts) {
       state.promptSave = body;
       return json({ ok: true, client: body.client, prompt: body.prompt });
     }
+    if (p === '/functions/v1/caption-generate' && r.method() === 'GET') return json({ ok: true, client: sp.get('client'), options: state.ctas });
     if (p === '/functions/v1/caption-generate' && r.method() === 'POST') {
       const body = JSON.parse(r.postData() || '{}');
-      if (body.action === 'cta_get') return json({ ok: true, client: body.client, options: state.ctas });
       if (body.action === 'cta_save') { state.ctaSave = body; return json({ ok: true, client: body.client, options: body.options }); }
       state.ef.push({ body });
       const now = () => new Date().toISOString();

@@ -21,7 +21,7 @@
 //     -> { ok: true, accepted: true, jobId }   the work continues in the background; the page polls caption-jobs
 //     -> { ok: false, error }                  refused before anything ran (nothing written)
 //
-//   POST { action: "cta_get",  client }            -> { ok, client, options }   the client's call-to-action keywords
+//   GET  ?action=cta_get&client=<slug>              -> { ok, client, options }   the client's call-to-action keywords
 //   POST { action: "cta_save", client, options }   -> { ok, client, options }   saves them (the caption prompt editor)
 //     The list lives in caption_cta_options, closed to every browser role: only this function reads and writes it.
 //
@@ -56,7 +56,7 @@ import { apifyActorInput, mediaUrlFromApify } from "./apify.mjs";
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Max-Age": "7200",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-key, x-syncview-actor, x-syncview-role, x-syncview-source, x-syncview-client-token",
   "Cache-Control": "no-store",
 };
@@ -396,7 +396,7 @@ async function ctaAction(supabaseUrl: string, serviceKey: string, req: Request, 
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-  if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
+  if (req.method !== "POST" && req.method !== "GET") return json({ ok: false, error: "method not allowed" }, 405);
   if (req.headers.get("x-syncview-client-token")) return json({ ok: false, error: "staff_only" }, 403);
   const supabaseUrl = env("SUPABASE_URL"), serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceKey) return json({ ok: false, error: "server not configured" }, 500);
@@ -405,6 +405,12 @@ Deno.serve(async (req) => {
   const auth = authorizeStaffKey(key, ["admin", "smm", "creative"]);
   if (!auth.ok) return json({ ok: false, error: "unauthorized" }, staffAuthFailureStatus(auth));
 
+  if (req.method === "GET") {
+    // The only read: the client's call to action choices (?action=cta_get&client=...), sent as a GET so that opening the box writes nothing.
+    const q = new URL(req.url).searchParams;
+    if (q.get("action") !== "cta_get") return json({ ok: false, error: "method not allowed" }, 405);
+    return await ctaAction(supabaseUrl, serviceKey, req, { client: q.get("client") }, "cta_get");
+  }
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
   const action = clean(body && body.action);
   if (action === "cta_get" || action === "cta_save") return await ctaAction(supabaseUrl, serviceKey, req, body, action);

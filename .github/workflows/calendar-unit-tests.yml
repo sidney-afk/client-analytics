@@ -426,6 +426,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/caption-generate-browser.js
+      - name: Watch here viewer (Calendar card, SMM and Kasper review, desktop and phone, no button for clients)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/frameio-viewer-browser.js
       - name: Caption helper (call to action, platform, note, title ideas, hashtags, redo; desktop and phone, light and dark)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

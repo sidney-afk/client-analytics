@@ -476,6 +476,17 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
         check(await until(() => pg.evaluate(() => !sessionStorage.getItem('sv_msg_inbox_v1'))), 'N: signing out throws the saved copy away');
         await pg.close();
       }
+      // An answer still on its way when the sign-in ends is dropped, never kept for whoever signs in next.
+      {
+        const pg = await withCache(null);
+        inboxDelay = 1500;
+        await pg.evaluate(() => { _msgLoad(true); });
+        await pg.evaluate(() => { _syncviewStaffIdentityVerified = false; _syncviewStaffRefreshChrome(); });
+        await sleep(2400);
+        const left = await pg.evaluate(() => ({ loaded: _msgState.loaded, n: _msgState.conversations.length, loading: _msgState.loading, saved: sessionStorage.getItem('sv_msg_inbox_v1') }));
+        check(!left.loaded && left.n === 0 && !left.loading && !left.saved, 'N: an answer that lands after sign-out is dropped and not saved (' + JSON.stringify(left) + ')');
+        await pg.close();
+      }
       // O: the call starts by itself, soon after the page is up, without a click.
       {
         inboxDelay = 0;

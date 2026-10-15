@@ -35,7 +35,7 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
     const _msgState = {
         loading: false, loaded: false, error: '', conversations: [], scope: '',
         openId: '', replyTo: '', draft: '', sending: false, filter: 'all', lastAt: 0,
-        unavailable: false, fromCache: false, readWhenFresh: '', owner: '',
+        unavailable: false, fromCache: false, readWhenFresh: '', owner: '', epoch: 0,
     };
     let _msgTimer = null;
     const _msgFallbackHooks = [];
@@ -164,8 +164,13 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         if (!force && _msgState.loaded && !_msgState.fromCache && Date.now() - _msgState.lastAt < 15000) { _msgPaint(); return; }
         _msgState.loading = true;
         _msgPaint();
+        // An answer belongs to the sign-in that asked for it: if the sign-in
+        // changed or ended while it was on its way, it is dropped.
+        const epoch = _msgState.epoch, asker = _msgMyId();
+        const stale = () => epoch !== _msgState.epoch || asker !== _msgMyId();
         try {
             const value = await _msgCall({ action: 'inbox' });
+            if (stale()) return;
             _msgState.conversations = Array.isArray(value.conversations) ? value.conversations : [];
             _msgState.scope = String(value.scope || '');
             _msgState.error = '';
@@ -183,11 +188,12 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
                 if (c && id === _msgState.openId && Number(c.unread) > 0) { c.unread = 0; _msgMark(id, 'read'); _msgCacheWrite(); }
             }
         } catch (e) {
+            if (stale()) return;
             if (e && e.message === 'invalid_deliverable_id') { _msgState.loading = false; _msgCacheClear(); _msgFallBack(); return; }
             if (_msgState.fromCache) { _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgCacheClear(); }
             _msgState.error = 'Messages could not load. Try again in a moment.';
         } finally {
-            _msgState.loading = false;
+            if (!stale()) _msgState.loading = false;
         }
         _msgPaintCounts();
         _msgPaint();
@@ -214,6 +220,7 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         if (!_msgCanUse()) {
             _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgState.openId = '';
             _msgState.readWhenFresh = '';
+            _msgState.epoch++; _msgState.loading = false; _msgState.owner = '';
             _msgCacheClear();
             _msgPaintCounts(); _msgLeavePage();
             return;
@@ -222,6 +229,7 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         if (_msgState.owner && _msgState.owner !== _msgMyId()) {
             _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgState.openId = '';
             _msgState.readWhenFresh = '';
+            _msgState.epoch++; _msgState.loading = false;
             _msgCacheClear();
             _msgPaintCounts();
         }

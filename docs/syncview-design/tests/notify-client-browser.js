@@ -153,6 +153,14 @@ async function scenario(browser, origin, label, viewport, phone, surface) {
     ok(await page.evaluate(() => (document.body.innerText.match(/Alert sent/g) || []).length === 1), L + ': the toast says Alert sent');
     await shot(page, `${label}-${surface}-3-sent-toast`);
 
+    // ── Staggered rollout: the page ships on merge, the function later. An older function answers with
+    //    `button` and no `link_label`; the link must still read Review now.
+    mock.status = { status: 200, body: (() => { const b = statusBody(surface); delete b.link_label; b.button = 'Review now'; return b; })() };
+    await page.locator(btn).click();
+    await page.locator('#notifyClientDialog .nc-msg-link').waitFor();
+    eq((await page.locator('#notifyClientDialog .nc-msg-link').innerText()).trim(), 'Review now', L + ': an older status answer (button, no link_label) still shows Review now');
+    await page.keyboard.press('Escape');
+
     // ── A last alert older than six hours is one plain short line.
     calls.length = 0;
     mock.status = { status: 200, body: statusBody(surface, { last: { at: new Date(Date.now() - 7 * 3600000).toISOString(), by: 'Earlier SMM', status: 'sent' } }) };

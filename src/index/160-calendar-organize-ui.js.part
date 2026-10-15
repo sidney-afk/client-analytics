@@ -883,7 +883,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             const memberWarn = st.channel && st.channel.bot_member === false ? 'bot_not_in_channel' : '';
             body = `<div class="nc-msg" aria-label="The message">
                     <div class="nc-msg-line">${_calEsc(st.headline)}</div>
-                    <div class="nc-msg-link">${_calEsc(st.link_label)}</div>
+                    <div class="nc-msg-link">${_calEsc(st.link_label || st.button || 'Review now')}</div>
                 </div>${last}`
                 + (blocked || memberWarn ? '<p class="nc-alert" role="alert">' + _calEsc(_notifyClientErrorText(blocked || memberWarn)) + '</p>' : '');
         }

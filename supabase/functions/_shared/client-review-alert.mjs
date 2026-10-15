@@ -81,7 +81,8 @@ export function buildMessage(surface, link) {
 // message above, with no address in it (the link carries the client's token).
 export function previewWords(surface) {
   const s = SURFACES[surface];
-  return { headline: s.headline, link_label: BUTTON_LABEL };
+  // `button` is the old name for the link label; it is kept so a page cached from before this change still draws it.
+  return { headline: s.headline, link_label: BUTTON_LABEL, button: BUTTON_LABEL };
 }
 
 // Was an alert sent for this client and surface inside the last six hours? A

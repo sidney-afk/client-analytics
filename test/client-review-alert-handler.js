@@ -199,7 +199,7 @@ async function call(mod, deps, body, headers = { 'x-syncview-key': 'smm-key', 'x
   // ── Status: what the confirm box shows.
   {
     const s = setup(); const r = await call(mod, s.deps, { action: 'status', client: 'Fixture Client', surface: 'samples' });
-    ok(r.json.headline === 'New samples are ready for your review.' && r.json.link_label === 'Review now' && r.json.button === undefined && r.json.channel.name === 'acme-private' && r.json.channel.bot_member === true && r.json.has_channel && r.json.last === null && r.json.recent === false, 'status: exact words, channel name, no earlier alert');
+    ok(r.json.headline === 'New samples are ready for your review.' && r.json.link_label === 'Review now' && r.json.button === 'Review now' && r.json.channel.name === 'acme-private' && r.json.channel.bot_member === true && r.json.has_channel && r.json.last === null && r.json.recent === false, 'status: exact words, channel name, no earlier alert');
     ok(!JSON.stringify(r.json).includes(REVIEW_TOKEN) && !JSON.stringify(r.json).includes(PRIVATE) && !JSON.stringify(r.json).includes(SLACK_SECRET), 'status never returns the review token, a channel id or the bot token');
     ok(s.slack.log.channel.length === 0 && s.db.calls.inserts.length === 0, 'status posts and records nothing');
   }

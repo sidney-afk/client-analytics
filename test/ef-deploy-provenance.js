@@ -156,7 +156,7 @@ const slugRows = manifest.split(/\r?\n/).filter(line => /^\| `[a-z0-9-]+` \|/.te
 const writeDiagnosticsRow = slugRows.find(line => line.startsWith('| `write-diagnostics` |')) || '';
 // 2026-09-23: its manual release now runs through the one-function exact-SHA
 // lane, dispatch-only, and the deliberate-manual note stays on its row.
-ok(manifestCheck.status === 0 && slugRows.length === 62
+ok(manifestCheck.status === 0 && slugRows.length === 63
   && writeDiagnosticsRow.includes('[deploy-single-function]')
   && writeDiagnosticsRow.includes('| workflow_dispatch only (pinned SHA guard)<br>**Manual release note:**')
   && !writeDiagnosticsRow.includes('main push')

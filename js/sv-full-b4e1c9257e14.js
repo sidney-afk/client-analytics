@@ -45977,7 +45977,9 @@
             if (!wrap || !go || go.getAttribute('data-pid') !== pid || calState.client !== clientAtOpen || !options.length) return;
             wrap.innerHTML = _calCaptionDialogCtaHtml(options);
         }).catch(() => {});
-        const ta = document.getElementById(hasVideo ? 'calNoteTA' : 'calTxTA');
+        // Only the no-video box focuses a field (the transcript it needs), as before. With a video nothing is focused,
+        // so a person (or a script) already filling a field is not interrupted.
+        const ta = hasVideo ? null : document.getElementById('calTxTA');
         if (ta) setTimeout(() => { try { ta.focus(); } catch (e) {} }, 30);
     }
     function _calCaptionTranscriptInput() {
@@ -92969,4 +92971,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-4d4455372c72.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-b4e1c9257e14.js");

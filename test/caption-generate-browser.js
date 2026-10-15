@@ -240,7 +240,7 @@ async function runDesktopOrPhone(browser, origin, label, device) {
     const r = b.getBoundingClientRect(), tx = b.querySelector('.cal-cap-toggle-txt').getBoundingClientRect();
     return { w: Math.round(r.width), txw: Math.round(tx.width) };
   });
-  expect(tog.w <= 24 && tog.txw <= 1, `${label} on: the Show more toggle is just an arrow (${tog.w}px wide, label ${tog.txw}px)`);
+  expect(tog.w <= (label === 'phone' ? 48 : 24) && tog.txw <= 1, `${label} on: the Show more toggle is just an arrow (${tog.w}px wide, a 44px touch target on a phone, label ${tog.txw}px)`);
   expect(t.pageErrors.length === 0, `${label} on: no page errors (${t.pageErrors.join(' | ')})`);
   await t.ctx.close();
 }

@@ -379,6 +379,24 @@ async function main() {
   assert.equal(tailNotYetLanded.ok, true);
   assert.ok(tailNotYetLanded.elapsedMs >= 5000, 'settle waited for the finished half to land, not just to stop running');
 
+  /* One run ends and the next begins a tick later: for that tick every flag is
+     down. Looking once would call the page quiet and then catch the second read
+     mid-flight as pending. */
+  const chainedRun = await auditCase(page => {
+    page.prodState = { cachePartial: false, loading: false, error: '', terminalTailPending: false, terminalTailLoadedAt: 1 };
+    const second = request();
+    page.schedule(1300, () => {
+      page.prodState.terminalTailPending = true;
+      page.emit('request', second);
+    });
+    page.schedule(4000, () => {
+      page.prodState.terminalTailPending = false;
+      respond(page, second, 200);
+    });
+  });
+  assert.equal(chainedRun.ok, true, 'a run that starts right after the flags read idle is waited for');
+  assert.ok(chainedRun.elapsedMs >= 3000);
+
   /* The finished half never starts: every "running" flag is down and nothing is
      in flight, so the page looks quiet while it is incomplete. The wait runs out
      and that is a failure, not a pass. */

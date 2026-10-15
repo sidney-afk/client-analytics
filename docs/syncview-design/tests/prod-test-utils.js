@@ -202,6 +202,7 @@ function installReadConsoleAudit(page, opts = {}) {
   const navigationAbortWindowMs = Math.max(100, Number(opts.navigationAbortWindowMs || 1000));
   const revalidationTimeoutMs = Math.max(1000, Number(opts.revalidationTimeoutMs || 20000));
   const drainCeilingMs = Math.max(2000, Number(opts.drainCeilingMs || 30000));
+  const idleHoldMs = Math.max(100, Number(opts.idleHoldMs || 700));
   // Counts reads that reached an outcome, so the drain can tell a chain that is
   // still advancing from one that has stopped.
   let completedReads = 0;
@@ -357,8 +358,13 @@ function installReadConsoleAudit(page, opts = {}) {
      * load that errored, because that page will never clear the flag.
      */
     if (typeof page.waitForFunction === 'function') {
-      try {
-        await page.waitForFunction(() => {
+      /* The page is idle only if it STAYS idle. The app's loads chain: when the
+         finished-cards read ends it can queue a second one (a re-run requested
+         while the first was running), and for one tick between them every flag is
+         down. A single look at that tick calls the page quiet and the second read
+         is then caught mid-flight as "pending". So after the flags first read
+         idle, look again after a short pause and keep waiting if a new run began. */
+      const appIdle = () => {
           /* `_prodState` is a top-level `const`, which lives in the global
              LEXICAL environment and is therefore never a property of `window`
              -- reading it as `window._prodState` yields undefined on every
@@ -392,7 +398,16 @@ function installReadConsoleAudit(page, opts = {}) {
             && !_prodState.refreshInFlight
             && !_prodState.refreshing
             && tailLanded;
-        }, null, { timeout: revalidationTimeoutMs, polling: 100 });
+      };
+      const idleDeadline = Date.now() + revalidationTimeoutMs;
+      try {
+        for (;;) {
+          const left = idleDeadline - Date.now();
+          if (left <= 0) throw new Error('page did not go idle');
+          await page.waitForFunction(appIdle, null, { timeout: left, polling: 100 });
+          await page.waitForTimeout(idleHoldMs);
+          if (await page.evaluate(appIdle)) break;
+        }
       } catch (_) {
         // Timed out (or the page went away). Keep what the app said, booleans
         // only, so settle() can fail on it instead of auditing a quiet,

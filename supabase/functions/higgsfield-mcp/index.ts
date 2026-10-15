@@ -293,7 +293,7 @@ const TOOLS = [
 // asked). Added here so no tool can miss them; each schema gets its own copy.
 for (const tool of TOOLS) {
   const schema = tool.inputSchema as { properties?: Record<string, unknown> };
-  tool.inputSchema = { ...schema, properties: { ...(schema.properties || {}), who: WHO_ARG, summary: SUMMARY_ARG } } as typeof tool.inputSchema;
+  schema.properties = { ...(schema.properties || {}), who: WHO_ARG, summary: SUMMARY_ARG };
 }
 
 // ---- Input validation (light; Higgsfield validates fully too) -------------

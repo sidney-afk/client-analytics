@@ -97,6 +97,9 @@ async function txt(page, sel) {
           // Take no-mutation snapshots only after those existing reads settle.
           && !_prodState.refreshing
           && !_prodState.terminalTailPending
+          // Landed, not just not running: between the live swap and the tail's
+          // first request every flag above is down and most rows are missing.
+          && (!!_prodState.terminalTailLoadedAt || !!_prodState.terminalTailFailed)
           && _prodState.view === 'list'
           && root.querySelector('.prod-row')
           && root.querySelector('#prodFilterBtn'));
@@ -2134,8 +2137,16 @@ async function txt(page, sel) {
     await ok('groupCollapse', async () => {
       const before = await page.locator('.prod-row').count();
       await page.locator('.prod-group').first().click();
+      /* The collapse paints on the app's next render, not inside the click, so
+         the row count read straight after the click could still be the old
+         one. Wait for the collapse to be on screen, then compare. The same two
+         facts are asserted; they are just read once the page has made them
+         true. */
+      await page.waitForFunction(() => document.querySelectorAll('.prod-group.collapsed').length === 1, null, { timeout: 5000 });
       const after = await page.locator('.prod-row').count();
-      return before > after && await page.locator('.prod-group.collapsed').count() === 1;
+      const collapsed = await page.locator('.prod-group.collapsed').count();
+      // Counts only, so a failure says which half of the claim broke.
+      return (before > after && collapsed === 1) || `rows before ${before}, after ${after}, collapsed groups ${collapsed}`;
     }); await reset();
     await ok('groupCheckGuard', async () => {
       await page.locator('.prod-group-check').first().click();

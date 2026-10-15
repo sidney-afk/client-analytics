@@ -165,6 +165,25 @@ async function openProduction(page, port, pathSuffix = '/?prod=1', opts = {}) {
   }
 }
 
+/* HOLD THE PAGE'S BACKGROUND REFRESH STILL, once its first load is finished.
+ *
+ * The Production tab re-reads on its own: a 30-second tick, an authority
+ * re-read, and a realtime channel, and any of them repaints the list when live
+ * data has moved. A suite that is measuring the DOM (accessibility, layout)
+ * then finds the node it just picked replaced under it, on a clock it does not
+ * control and with data nobody controls. Those suites are not about refresh --
+ * the refresh has its own tests (test/production-live-refresh.js and the
+ * realtime controller suite) -- so stop the ticks (a truthy handle keeps the app
+ * from starting new ones) and the channel. The first load and everything it
+ * starts must already be finished: call this after quiesce(). */
+async function holdBackgroundRefresh(page) {
+  await page.evaluate(() => {
+    try { clearInterval(_prodOperationalTimer); } catch (_) {}
+    try { clearInterval(_prodAuthorityTimer); } catch (_) {}
+    try { _prodRt.stop(); } catch (_) {}
+  });
+}
+
 function formatFailures(title, failures) {
   return `${title}:\n` + failures.map(f => `  - ${f}`).join('\n');
 }
@@ -177,6 +196,7 @@ function installReadConsoleAudit(page, opts = {}) {
   const readOutcomes = new Map();
   const mainFrameNavigations = [];
   const requestStartedAt = new WeakMap();
+  const requestHeadersOf = new Map();
   const outstandingReads = new Set();
   const recoveryWindowMs = Math.max(1000, Number(opts.recoveryWindowMs || 15000));
   const navigationAbortWindowMs = Math.max(100, Number(opts.navigationAbortWindowMs || 1000));
@@ -215,6 +235,9 @@ function installReadConsoleAudit(page, opts = {}) {
       path,
       queryKeys,
       outcomes: outcomes.map(item => item.outcome),
+      // How long each attempt ran before it ended (ms). Shape only, no content:
+      // tells a request the page gave up on from one that failed at once.
+      durationsMs: outcomes.map(item => (Number.isFinite(item.at) && Number.isFinite(item.startedAt)) ? item.at - item.startedAt : null),
     };
   };
 
@@ -243,6 +266,9 @@ function installReadConsoleAudit(page, opts = {}) {
   });
   page.on('request', request => {
     requestStartedAt.set(request, Date.now());
+    if (request.method() === 'GET') {
+      try { requestHeadersOf.set(request.url(), request.headers()); } catch (_) {}
+    }
     if (['GET', 'HEAD'].includes(request.method())) outstandingReads.add(request);
     try {
       if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
@@ -265,7 +291,7 @@ function installReadConsoleAudit(page, opts = {}) {
     if (outstandingReads.delete(request)) completedReads++;
   });
 
-  const settle = async (waitMs = 2500) => {
+  const quiesce = async (waitMs = 2500) => {
     const waitBudgetMs = Math.max(100, Number(waitMs || 2500));
     /*
      * A CHAIN THAT IS STILL FINISHING PAGES IS NOT A HUNG READ.
@@ -334,12 +360,44 @@ function installReadConsoleAudit(page, opts = {}) {
              page and turns this wait into a no-op that looks like it works. */
           if (typeof _prodState === 'undefined' || !_prodState) return true;
           if (_prodState.error) return true;
-          return !_prodState.cachePartial && !_prodState.loading;
+          /* THE APP'S OWN "I AM STILL READING" FLAGS, ALL OF THEM.
+             `cachePartial` and `loading` cover the first projection only. After
+             first paint the app keeps reading on its own: the finished half of
+             the list (`terminalTailPending`, about four thousand rows in
+             sequential pages), and the 30-second delta tick or a realtime
+             nudge (`refreshInFlight`, `refreshing`). Leaving those out made the
+             drain below the only thing standing between a slow live page and a
+             "pending read requests" failure, and a drain is a guess about
+             time: it gives up when no request finishes for a budget. A read
+             the app itself says is still running is not hung, so wait for the
+             app to say it is done. A read that really hangs keeps its flag up
+             until this wait times out, and the drain then reports it exactly
+             as before. */
+          /* And the finished half has to have LANDED, not merely not be
+             running: between the live swap and the tail's first request the app
+             waits up to 400 ms on its saved copy, and in that gap every flag
+             above is down while about two thirds of the rows have not arrived.
+             (The app asks the same question: _prodRowSetComplete.) A tail that
+             failed ends the wait too; the fixture pages in unit tests that carry
+             no such field are not asked. */
+          const tailLanded = !('terminalTailLoadedAt' in _prodState)
+            || !!_prodState.terminalTailLoadedAt || !!_prodState.terminalTailFailed;
+          return !_prodState.cachePartial && !_prodState.loading
+            && !_prodState.terminalTailPending
+            && !_prodState.refreshInFlight
+            && !_prodState.refreshing
+            && tailLanded;
         }, null, { timeout: revalidationTimeoutMs, polling: 100 });
       } catch (_) {}
     }
 
     await drainOutstandingReads();
+    return drainOutstandingReads;
+  };
+
+  const settle = async (waitMs = 2500) => {
+    const waitBudgetMs = Math.max(100, Number(waitMs || 2500));
+    const drainOutstandingReads = await quiesce(waitMs);
     const hasFailedRead = outcomes => outcomes.some(item => failed(item.outcome));
     if ([...readOutcomes.values()].some(hasFailedRead)) {
       await page.waitForTimeout(waitBudgetMs);
@@ -360,6 +418,61 @@ function installReadConsoleAudit(page, opts = {}) {
     } finally { clearTimeout(bodyTimer); }
     if (responseBodies.size) pageErrors.push('schema compatibility response body remained pending');
     const readEntries = [...readOutcomes.entries()];
+    /*
+     * A READ THE APP GAVE UP ON ITSELF, CONFIRMED AGAINST THE SAME ADDRESS.
+     *
+     * Exactly one read is time-limited by the page: the write routing flags
+     * (WRITE_UI_REROUTE_FLAG_TIMEOUT_MS, two seconds). On giving up the page
+     * cancels the request and carries on in its safe default state, and it
+     * re-reads only when the reader returns to the tab or a minute passes,
+     * neither of which happens inside one of these suites. The two seconds also
+     * start BEFORE the page waits for the batched flag read the <head> script
+     * opened, so a slow moment there leaves the page's own read well under a
+     * second to finish -- the cancel can arrive hundreds of milliseconds after
+     * the request opened, and its duration says nothing about the backend.
+     *
+     * The audit used to call that a failed read, with no later success to pair
+     * it with. The only reading that tells a slow moment from a broken backend
+     * is a fresh read of the same address, so take one. It excuses the
+     * cancelled read only if ALL hold:
+     *   - it is that one time-limited read (no other cancel is vouched for: a
+     *     cancel of any other read is the page misbehaving),
+     *   - the address is the app's own backend,
+     *   - a fresh GET with the very same headers answers 2xx, and answers fast
+     *     (a backend that is still slow, or still failing, stays a failure).
+     * The probe is made outside the page, so it is not itself a page read.
+     */
+    const isPageTimedRead = url => {
+      try {
+        const parsed = new URL(url);
+        return parsed.origin === productionApiOrigin
+          && parsed.pathname === '/rest/v1/syncview_runtime_flags'
+          && String(parsed.searchParams.get('key') || '').includes('write_ui_reroute_clients');
+      } catch (_) { return false; }
+    };
+    const probeLimitMs = 2000;
+    const probeRecovered = new Set();
+    if (opts.schemaOnly !== true && page.request && typeof page.request.get === 'function') {
+      let probes = 0;
+      for (const [key, outcomes] of readEntries) {
+        const url = key.replace(/^[A-Z]+ /, '');
+        if (key.startsWith('HEAD ') || !isPageTimedRead(url)) continue;
+        for (const item of outcomes) {
+          if (!isNavigationAbort(item.outcome) || probes >= 8) continue;
+          probes++;
+          const headers = requestHeadersOf.get(url);
+          if (!headers) continue;
+          const sent = {};
+          ['apikey', 'authorization', 'accept'].forEach(name => { if (headers[name]) sent[name] = headers[name]; });
+          const began = Date.now();
+          try {
+            const answer = await page.request.get(url, { headers: sent, timeout: 10000 });
+            if (answer.status() >= 200 && answer.status() < 300 && Date.now() - began <= probeLimitMs) probeRecovered.add(item);
+            await answer.dispose().catch(() => {});
+          } catch (_) {}
+        }
+      }
+    }
     const recoveredReads = [];
     let navigationAborts = 0;
     const persistentReadFailures = [];
@@ -369,7 +482,12 @@ function installReadConsoleAudit(page, opts = {}) {
         if (!failed(item.outcome)) return false;
         const navigationAbort = opts.schemaOnly !== true && isNavigationAbort(item.outcome) && mainFrameNavigations.some(navigation =>
           navigation.committedAt !== null
-          && item.startedAt <= navigation.startedAt
+          /* Started before the navigation COMMITTED, not before it was
+             requested: the old document keeps running (and reading) until the
+             commit, so a read it opened in that gap is torn down by the same
+             navigation. A read opened after the commit still belongs to the new
+             document and an abort of it stays a failure. */
+          && item.startedAt <= navigation.committedAt
           && navigation.startedAt <= item.at
           && item.at - navigation.startedAt <= navigationAbortWindowMs
           && item.at <= navigation.committedAt + 250);
@@ -383,7 +501,7 @@ function installReadConsoleAudit(page, opts = {}) {
         const schemaRecovery = recoveryFor(item, schemaOutcomes, { origin: productionApiOrigin, windowMs: recoveryWindowMs });
         // Origin is additionally bound to the application's configured Supabase endpoint.
         const approvedSchemaRecovery = schemaRecovery && new URL(url).origin === productionApiOrigin;
-        if (recovery || approvedSchemaRecovery) {
+        if (recovery || approvedSchemaRecovery || probeRecovered.has(item)) {
           recoveredReads.push({ url, failedAt: item.at, recoveredAt: recovery ? recovery.at : item.at, used: false });
           return false;
         }
@@ -405,6 +523,20 @@ function installReadConsoleAudit(page, opts = {}) {
       return false;
     });
     const errors = [...pageErrors, ...otherConsoleErrors, ...unexplainedResourceErrors];
+    // The app's own "still reading" flags at the moment of the audit (booleans
+    // only), so a pending read can be told apart: one the app says it is still
+    // running, or one it has already stopped waiting for.
+    let appFlags = null;
+    if (outstandingReads.size && typeof page.evaluate === 'function') {
+      appFlags = await page.evaluate(() => {
+        if (typeof _prodState === 'undefined' || !_prodState) return null;
+        const f = {};
+        ['loaded', 'loading', 'cachePartial', 'terminalTailPending', 'terminalTailFailed', 'refreshInFlight', 'refreshing'].forEach(k => { f[k] = !!_prodState[k]; });
+        f.tailLanded = !!_prodState.terminalTailLoadedAt;
+        f.nav = typeof currentNav === 'string' ? currentNav : '';
+        return f;
+      }).catch(() => null);
+    }
     const pendingReadFailures = [...outstandingReads]
       .filter(request => opts.consoleOnly !== true && ['GET', 'HEAD'].includes(request.method()))
       .map(request => [`${request.method()} ${request.url()}`, [{ outcome: 'pending' }]]);
@@ -423,11 +555,12 @@ function installReadConsoleAudit(page, opts = {}) {
           + (pendingReadFailures.length
             ? (errors.length || persistentReadFailures.length ? ' | ' : '') + 'pending read requests: '
               + JSON.stringify(pendingReadFailures.slice(0, 8).map(describeRead))
+              + (appFlags ? ' app flags: ' + JSON.stringify(appFlags) : '')
             : ''),
     };
   };
 
-  return { settle };
+  return { settle, quiesce: async waitMs => { await quiesce(waitMs); } };
 }
 
 module.exports = { legacyPageUrl, pagesFallback,
@@ -438,5 +571,6 @@ module.exports = { legacyPageUrl, pagesFallback,
   installReadConsoleAudit,
   installProductionInit,
   openProduction,
+  holdBackgroundRefresh,
   formatFailures,
 };

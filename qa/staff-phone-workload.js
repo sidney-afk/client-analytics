@@ -36,6 +36,10 @@ async function shot(page,name,width,theme){
    assert(await p.locator('.thumb-wl-person').first().evaluate(n=>n===document.activeElement),'Back restores creative focus');
    await p.waitForTimeout(100);await p.locator('.thumb-wl-person').first().tap();await p.goBack();await p.waitForTimeout(100);
    assert(await p.locator('.thumb-wl-person').first().isVisible(),'Browser Back restores agenda without changing route');
+   await p.goForward();await p.getByRole('button',{name:'Back to agenda'}).waitFor();
+   assert.equal(await p.locator('.thumb-wl-item').count(),expected,'Browser Forward restores the complete creative queue');
+   assert(await p.locator('.thumb-wl-item').evaluateAll((ns,id)=>ns.every(n=>n.dataset.wlAssigneeId===id),id),'Forward restores the selected creative');
+   await p.getByRole('button',{name:'Back to agenda'}).tap();await p.waitForTimeout(100);
    const filter=p.locator('[data-thumb-wl-filter]');await filter.tap();
    await shot(p,'workload-filters',width,theme);
    assert.notEqual(await p.locator('.thumb-wl-filters').evaluate(n=>getComputedStyle(n,'::backdrop').backgroundColor),'rgba(0, 0, 0, 0)','Filters dim the background');
@@ -50,7 +54,11 @@ async function shot(page,name,width,theme){
    assert(await p.locator('.workload-grid-wrap').isVisible(),'Week retains the native planning grid');await shot(p,'workload-week',width,theme);
    await p.locator('[data-thumb-wl-mode=month]').tap();await shot(p,'workload-month',width,theme);
    await filter.tap();await p.locator('[data-wl-deadline-mode=deadlines]').tap();await p.getByRole('button',{name:'Done',exact:true}).tap();
-   await p.locator('[data-thumb-wl-mode=week]').tap();await shot(p,'workload-plan-and-due',width,theme);
+   assert.equal(await p.locator('[data-thumb-workload]').getAttribute('data-thumb-workload'),'week','Native deadline guard must synchronize the phone view');
+   assert.equal(await p.locator('[data-thumb-wl-mode=week]').getAttribute('aria-current'),'page');
+   assert.equal(await p.locator('.thumb-wl-header strong').textContent(),'Plan the week');
+   assert(await p.locator('.workload-grid-wrap').isVisible(),'Deadline mode must show the native Week planner');
+   await shot(p,'workload-plan-and-due',width,theme);
    assert(await p.locator('[data-thumb-wl-mode=month]').isDisabled(),'Native Plan + Due Date Month guard is preserved');
    await p.locator('[data-thumb-wl-mode=agenda]').tap();
    await p.evaluate(()=>{wlState.allActiveSubs=[];wlState.planned=[];wlState.nowWorking=[];wlState.undated=[];wlState.unassigned=[];wlState.overdue=[];wlState.tweaksNeeded=[];wlState.calendarByDate=new Map();wlState.editorRoster=[];wlState.loading=false;wlState.planStatus='ready';wlState.error=null;renderWorkloadAll();});

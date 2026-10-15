@@ -1,5 +1,15 @@
 # Workload check receipts
 
+## Review navigation regressions
+
+Both review findings reproduced locally. Browser Forward failed to reopen the creative queue; after that repair the Month-to-Plan + Due Date journey exposed the stale Month header/current-tab marker. Queue history now stores the creative ID (including the unassigned empty ID), Forward restores that complete queue, and the phone mode follows the native forced Week guard. The regression no longer taps Week to mask that transition: it asserts the immediate native grid, header and current-tab state. The complete 390/430 light/dark replay ends:
+
+```text
+STAFF_PHONE_WORKLOAD: 48 screen/theme/width captures; all assertions passed; fictional transports; no live writes
+```
+
+Existing screenshots remain representative: the earlier capture explicitly selected Week, and the repaired transition now arrives at that same Week screen automatically. No pictured geometry or desktop path changed.
+
 ## Browser guards and Production layout follow-up
 
 The complete dialog suite reproduced the hosted failure locally: a previous Calendar fixture remained mounted, and resizing for the new Workload case started an unrelated folder request. The new case now clears the previous fictional Calendar/Samples clients before resizing. Every dialog, inside-to-outside drag, outside dismissal and the strict zero-request assertion remains enabled and unchanged. The complete fixed replay ends:

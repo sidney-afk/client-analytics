@@ -13188,6 +13188,7 @@
             return;
         }
         if (!wlStaffMayView()) return;
+        if (wlPhone.mode === 'month' && wlState.showDeadlines) wlPhone.mode = 'week';
         if (!root.dataset.thumbWorkload) {
             const header = document.createElement('div'); header.className = 'thumb-wl-header'; header.dataset.thumbWlNode = '';
             header.innerHTML = '<div><strong>Agenda</strong><small class="thumb-wl-scope"></small></div><button type="button" data-thumb-wl-filter>Filters</button><button type="button" data-thumb-wl-refresh aria-label="Refresh workload">↻</button>';
@@ -13232,7 +13233,7 @@
                 if (person) {
                     wlPhone.scroll = content.scrollTop; wlPhone.person = person.dataset.thumbWlPerson;
                     history.replaceState({...history.state,thumbWorkloadParent:true},'');
-                    history.pushState({...history.state,thumbWorkloadParent:false,thumbWorkloadQueue:true},'');
+                    history.pushState({...history.state,thumbWorkloadParent:false,thumbWorkloadQueue:true,thumbWorkloadPerson:wlPhone.person},'');
                     wlPhoneRender(); content.scrollTop = 0; root.querySelector('[data-thumb-wl-back]')?.focus({preventScroll:true}); return;
                 }
                 if (e.target.closest('[data-thumb-wl-back]')) {
@@ -13298,6 +13299,13 @@
     });
     window.addEventListener('popstate', e => {
         const root = document.querySelector('.workload-view[data-thumb-workload]');
+        if (root && e.state?.thumbWorkloadQueue && typeof e.state.thumbWorkloadPerson === 'string') {
+            e.stopImmediatePropagation();
+            wlPhone.person = e.state.thumbWorkloadPerson; wlPhone.mode = 'agenda'; wlPhone.returning = false; wlPhone.returningPerson = null;
+            if (wlState.popoverAnchor) wlClosePopover(false);
+            wlPhoneRender(); root.querySelector('.thumb-wl-content').scrollTop = 0;
+            root.querySelector('[data-thumb-wl-back]')?.focus({preventScroll:true}); return;
+        }
         if (!root || !e.state?.thumbWorkloadParent || (wlPhone.person === null && !wlPhone.returning)) return;
         e.stopImmediatePropagation();
         const id = wlPhone.person ?? wlPhone.returningPerson; wlPhone.person = null; wlPhone.returning = false; wlPhone.returningPerson = null;
@@ -93740,4 +93748,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-86a941a7c301.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-7056063a1e25.js");

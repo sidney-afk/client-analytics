@@ -124,6 +124,12 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
   // the live prod_authority truth, the way it mirrored the mixed world between
   // the graphics flip (2026-08-16) and the video flip.
   const serverAuthority = { video: 'syncview', graphics: 'syncview' };
+  /* While set, the REST authority READ keeps answering this (the gate the tab last saw) even though the server's
+     own gate has moved. The stale-tab case below needs a tab that has NOT been told: without this, the page's own
+     30 second authority refresh (or any tab-return refresh) can land between the flip and the click, tell the tab
+     the truth, and disable the control the case means to click. The server's refusal clears it, so the tab then
+     learns exactly as it would live. */
+  let staleReadAuthority = null;
   const writeUiRerouteClients = { clients: ['normal-fixture', 'calendarfixture'] };
   const writes = [];
   /*
@@ -261,7 +267,7 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
              answer here silently sent the save to n8n. */
           : key === 'calendar_upsert_ef_clients'
             ? { clients: clients.map(client => client.slug) }
-            : { ...serverAuthority } }));
+            : { ...(staleReadAuthority || serverAuthority) } }));
     }
     // The Production list has read the bounded `production_deliverables_browser_v1`
     // view since the 2026-07-23 F34/F53 revoke; this mock still answered only the
@@ -658,6 +664,7 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     }
     const allowed = row && serverAuthority[row.team] === 'syncview';
     if (!allowed) {
+      staleReadAuthority = null;   // the refusal is how a stale tab learns the truth
       write.response = { ok: false, error: 'team_is_linear_authoritative' };
       await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify(write.response) });
       return;
@@ -1915,11 +1922,13 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     serverAuthority.graphics = 'syncview';
     await page.evaluate(async () => { await _prodRefreshAuthority({ silent: true }); _prodOpenDeliverable('gra-fixture'); });
     await page.waitForSelector('[data-prod-comment-form="gra-fixture"]');
+    staleReadAuthority = { ...serverAuthority };
     serverAuthority.graphics = 'linear';
     await page.locator('[data-prod-prop="status"]').click();
     await page.locator('[data-prod-pick]', { hasText: 'Approved' }).click();
     await page.waitForFunction(() => document.querySelector('[data-prod-prop="status"]')?.getAttribute('aria-disabled') === 'true');
     expect(writes.some(write => write.body.id === 'gra-fixture' && write.body.status === 'approved'), 'stale-tab simulation never reached the server gate');
+    staleReadAuthority = null;
 
     await page.evaluate(() => navTo('linear'));
     await page.waitForSelector('#linearClientSearch');

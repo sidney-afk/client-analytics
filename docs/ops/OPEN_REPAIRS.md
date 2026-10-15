@@ -33130,7 +33130,25 @@ matches; a teammate's change while typing waited for blur → drawn at once, the
 
 **Release.** Front end only: ships with the next Pages deploy of main. **Way back:** revert the pull request.
 
-## 418. [2026-10-15, BUILT, NOT MERGED, NOT DEPLOYED] Messages page opens fast; its loading placeholder is the real layout (session Swift)
+## 418. [2026-10-14, BUILT, NOT MERGED, NOT DEPLOYED] Watch here: a card's Frame.io video and comments inside SyncView (session Lens)
+
+**What staff asked for.** Watch a card's Frame.io video and read its Frame.io comments without leaving SyncView. Read only: replying stays in Frame.io.
+
+**What was measured first (2026-10-14, read only, test client's links, through the `frameio-token` key keeper; no client names kept here).**
+- Link to file: works. `f.io/<code>` answers a redirect to `next.frame.io/share/<id>`; with the account id (the login sees two accounts, the share is found by asking each) V4 gives the share, its assets, and for a version stack the newest version. 820 of the 1,165 live non-archived cards use `f.io` links, 15 use a project view link, 2 a project folder link; the other shapes (Drive, empty, other) get no button. A folder link and a legacy `app.frame.io` review link are not understood and get no button.
+- Playable address: `GET files/{id}?include=media_links.efficient,…` returns a signed MP4 on `stream-download.frame.io` (CORS open, range requests work) and the original on `assets.frame.io`. The smaller "efficient" file is used first. Measured lifetime: the efficient address carries a token that lasts about 24 hours; the original lasts to the next 12:00 UTC boundary (15 hours when measured). The page asks again once if the player fails. Expiry is read from the address itself and returned as `expires_at`.
+- Comments: `GET files/{id}/comments?include=owner,replies` returns text, a frame number, completion and replies. A frame number becomes seconds with the file's frame rate (`files/{id}/metadata`, field "Frame Rate"); checked on a 4,000 second file at 23.976 fps.
+- **Limit, authors.** V4 returns no author for a comment left through a share link by a guest (all 8 top-level comments on the three files found with comments were one), and it leaves the author off every reply even when asked. The function asks for each reply by itself (capped at 30 per open) so a team member's name shows; a guest shows as "Guest reviewer". V2 still returns guest names but is being retired and is not used.
+- **Limit, exact spot.** Frame.io documents no link to a comment or a time. `?t=`, `?time=`, `?timestamp=`, `?frame=` and `?commentId=` were tried on a public share page and none moved the player. "Reply in Frame.io" therefore opens the exact video (the share's view address, not the share's landing page); the comment's time is shown beside it.
+- **Limits, rates.** 100 calls per minute for the account, and the file-with-media-links call 10 per second. One open costs about 5 calls plus one per reply (max 30). The access token is cached in the function for its life (about an hour), so opens do not each refresh the Adobe login.
+
+**What was built.** `frameio-view` (staff role key only, a client link is refused, never returns or logs the access token, stores nothing), one shared viewer in `src/index/187-frame-viewer.js.part`, and "Watch here" on the Calendar card's Video link, the SMM review panel, and Kasper's review (row and opened card). Client link pages get no button and the viewer refuses to open there. Tests: `test/frameio-view-source.js` (fictional Frame.io), `test/frameio-viewer-browser.js` (desktop and 390px, light and dark; loading, could not load, comments failing alone, expired address, client link).
+
+**Who sees it (owner, 2026-10-14: test client first).** Every entry point (Calendar card, SMM review panel, Kasper review) is behind one `syncview_runtime_flags` row, key `frame_viewer_clients`, value `{"all": false, "clients": ["<slug>", ...]}`. Read like the other per-client flags (a bounded read with the public key, then a realtime channel); fails closed: no row, a value of the wrong shape (`all` must be the boolean `true`), a failed read or a deleted row all mean hidden. The list lives only in the database. With the row missing the buttons carry the `hidden` attribute and take no room, so the page looks as it did before. Lighthouse adds the row; this change does not write it.
+
+**Release.** Two steps, in this order: (1) run the `deploy-single-function` workflow with function `frameio-view` and the merge commit's SHA (needs no new secret: it uses the same `FRAMEIO_BROKER_KEY` and `FRAMEIO_CLIENT_ID` as `frameio-token`, and the key keeper must already be signed in); (2) the page ships with the next Pages deploy of main. Until step 1 is done the button shows "could not load" and the normal Frame.io link keeps working. **Way back:** revert the pull request; the function can stay deployed, nothing calls it.
+
+## 419. [2026-10-15, BUILT, NOT MERGED, NOT DEPLOYED] Messages page opens fast; its loading placeholder is the real layout (session Swift)
 
 **Measured first.** `scripts/messages-inbox-timing.js` (real browser, fully mocked, inbox answer held for the live
 median). Click on Messages to list visible, ms, median of 3, on `origin/main`: cold click at once 1921, click after 1.5 s 1922,

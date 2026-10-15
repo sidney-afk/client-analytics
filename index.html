@@ -11419,6 +11419,7 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
         }
         @media (max-width: 767px) {
             #calView[data-pocket-staff-phone] .cal-card .cal-link-field.has-link .cal-link-edit,
+            #calView[data-pocket-staff-phone] .cal-card .cal-link-field.has-link .cal-link-watch,
             #calView[data-pocket-staff-phone] .cal-card .cal-link-field.has-link .cal-link-folder { background: transparent !important; color: var(--text-secondary) !important; border-color: var(--border) !important; }
         }
         @media (max-width: 767px) {
@@ -11867,6 +11868,7 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
         }
         @media (max-width: 767px) {
             #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link .cal-link-edit,
+            #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link .cal-link-watch,
             #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link .cal-link-folder { background: transparent !important; color: var(--text-secondary) !important; border-color: var(--border) !important; }
         }
         @media (max-width: 767px) {
@@ -12661,6 +12663,125 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
  html.boot-client :is(.cal-org-sec,.cal-org-toggle .cal-org-toggle-sub),
  html.sv-staff-phone .arx-row-meta {font-size:13px;line-height:1.5;color:var(--text-secondary);}
 }
+
+/* WATCH HERE: the Frame.io viewer (staff only; src/index/187-frame-viewer.js.part).
+   One viewer, opened from the Calendar card, the SMM review panel and Kasper's review.
+   Tokens only, so light and dark follow the page. Desktop: video left, comments right.
+   Phone: the video on top and the comments below it, full screen. */
+.cal-link-watch { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; background: var(--field-bg); border: 0; border-left: 1px solid var(--sv-border-e3e3e0); color: var(--text-secondary); font-family: inherit; font-size: 0.7rem; font-weight: 700; white-space: nowrap; cursor: pointer; transition: background 0.12s, color 0.12s; }
+.cal-link-watch svg { width: 10px; height: 10px; flex-shrink: 0; }
+.cal-link-watch:hover { background: var(--field-bg-hover); color: var(--text-primary); }
+.cal-link-watch:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.cal-link-field.has-link.editing .cal-link-watch { display: none; }
+.cal-link-post.has-link .cal-link-watch { background: var(--sv-slot-video-bg); color: var(--sv-slot-video-fg-soft); border-left-color: var(--sv-slot-video-border); }
+.cal-link-post.has-link .cal-link-watch:hover { background: var(--sv-slot-video-bg-hover); color: var(--sv-slot-video-fg); }
+.cal-link-ro .cal-link-watch { border-radius: 0 8px 8px 0; }
+
+.fv-watch-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; margin-top: 8px; padding: 8px 14px; background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); border-radius: 10px; font-family: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+.fv-watch-btn svg { width: 11px; height: 11px; flex-shrink: 0; }
+.fv-watch-btn:hover { background: var(--surface-hover); }
+.fv-watch-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.fv-review-video { display: flex; flex-direction: column; align-items: stretch; width: 100%; max-width: 260px; margin: 0 auto; }
+.fv-hero-video { max-width: 380px; }
+.fv-review-video .fv-watch-btn { width: 100%; }
+/* With the viewer switched off for this client the button is hidden and the page must look as it did before:
+   the button takes no room, and the wrapper around a review tile drops out of the layout. */
+.fv-gated[hidden] { display: none !important; }
+.fv-review-video:has(> .fv-gated[hidden]) { display: contents; }
+.kcard-watch-btn.kcard-watch-here { background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); }
+.kcard-watch-btn.kcard-watch-here:hover { background: var(--surface-hover); transform: none; box-shadow: none; }
+.kcard-watch-here svg { width: 11px; height: 11px; flex-shrink: 0; }
+
+body.fv-lock { overflow: hidden; }
+.fv-overlay { display: none; position: fixed; inset: 0; z-index: 320; background: var(--overlay); align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+.fv-overlay.open { display: flex; }
+.fv-panel { display: flex; flex-direction: column; width: min(1180px, 100%); max-height: min(820px, 100%); background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-lg); overflow: hidden; }
+.fv-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border-light); }
+.fv-head-text { flex: 1; min-width: 0; }
+.fv-eyebrow { font-size: 0.64rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
+.fv-title { margin: 2px 0 0; font-size: 1rem; font-weight: 800; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fv-open-link, .fv-btn { display: inline-flex; align-items: center; justify-content: center; padding: 8px 14px; background: var(--text-primary); color: var(--white); border: 0; border-radius: 10px; font-family: inherit; font-size: 0.78rem; font-weight: 700; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.fv-open-link { background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); }
+.fv-open-link:hover, .fv-btn-ghost:hover { background: var(--surface-hover); }
+.fv-btn-ghost { background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); }
+.fv-btn-small { padding: 6px 11px; margin-top: 8px; }
+.fv-close { flex-shrink: 0; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-subtle); color: var(--text-secondary); border: 0; border-radius: 50%; cursor: pointer; }
+.fv-close svg { width: 12px; height: 12px; }
+.fv-close:hover { background: var(--surface-hover); color: var(--text-primary); }
+.fv-open-link:focus-visible, .fv-btn:focus-visible, .fv-close:focus-visible, .fv-refresh:focus-visible, .fv-reply-main:focus-visible, .fv-c-reply:focus-visible, .fv-c-main:focus-visible, .fv-mark:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+.fv-body { display: grid; grid-template-columns: minmax(0, 1fr) 360px; flex: 1; min-height: 0; }
+.fv-stage { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 16px 18px; overflow-y: auto; }
+.fv-player { position: relative; background: var(--sv-bg-000); border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 9; max-height: 62vh; display: flex; align-items: center; justify-content: center; }
+.fv-video { width: 100%; height: 100%; display: block; background: var(--sv-bg-000); object-fit: contain; }
+.fv-player:not([data-state="ready"]) .fv-video { visibility: hidden; }
+.fv-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center; background: var(--surface-subtle); color: var(--text-primary); }
+.fv-player[data-state="ready"] .fv-state { display: none; }
+.fv-state-text { font-size: 0.86rem; font-weight: 600; color: var(--text-secondary); max-width: 360px; }
+.fv-state-bad { color: var(--text-primary); }
+.fv-state-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.fv-spin { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--text-primary); animation: fvSpin 0.8s linear infinite; }
+@keyframes fvSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .fv-spin { animation-duration: 2.4s; } .fv-skel { animation: none; } }
+.fv-markers { position: relative; height: 14px; margin: 0 2px; border-radius: 7px; background: var(--surface-subtle); }
+.fv-markers:empty { display: none; }
+html .fv-overlay .fv-markers .fv-mark { position: absolute; top: 1px; width: 12px; height: 12px; min-width: 0 !important; min-height: 0 !important; margin: 0 0 0 -6px; padding: 0; border: 2px solid var(--surface-raised); border-radius: 50%; background: var(--focus-ring); cursor: pointer; }
+html .fv-overlay .fv-markers .fv-mark::before { content: ""; position: absolute; inset: -9px; }
+html .fv-overlay .fv-markers .fv-mark:hover { transform: scale(1.25); }
+.fv-r-top { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 2px; }
+.fv-meta { font-size: 0.74rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.fv-side { display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--border-light); background: var(--surface-subtle); }
+.fv-side-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border-light); }
+.fv-side-title { font-size: 0.8rem; font-weight: 800; }
+.fv-count { margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: var(--border-light); color: var(--text-secondary); font-size: 0.7rem; font-weight: 700; }
+.fv-count:empty { display: none; }
+.fv-refresh { background: none; border: 0; color: var(--text-secondary); font-family: inherit; font-size: 0.74rem; font-weight: 700; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
+.fv-refresh:hover { color: var(--text-primary); background: var(--surface-hover); }
+.fv-list { flex: 1; min-height: 120px; overflow-y: auto; padding: 10px 12px; }
+.fv-c-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.fv-c { background: var(--surface-raised); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.fv-c.is-now { border-color: var(--focus-ring); }
+.fv-c.is-done .fv-c-text { color: var(--text-secondary); }
+.fv-c-main { display: block; width: 100%; padding: 10px 12px 6px; background: none; border: 0; text-align: left; font-family: inherit; color: inherit; cursor: pointer; }
+.fv-c-main:hover { background: var(--surface-hover); }
+.fv-c-main:disabled { cursor: default; background: none; }
+.fv-c-top { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-bottom: 4px; }
+.fv-time { padding: 2px 7px; border-radius: 6px; background: var(--text-primary); color: var(--white); font-size: 0.7rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.fv-time-none { background: var(--border-light); color: var(--text-secondary); }
+.fv-c-by { font-size: 0.76rem; font-weight: 800; }
+.fv-guest { color: var(--text-secondary); font-weight: 700; }
+.fv-c-when { font-size: 0.7rem; color: var(--text-secondary); }
+.fv-done { padding: 1px 6px; border-radius: 6px; background: var(--up-bg); color: var(--up); font-size: 0.66rem; font-weight: 800; }
+.fv-c-text { font-size: 0.82rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fv-replies { margin: 0 12px 4px 24px; padding-left: 10px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.fv-reply { padding: 4px 0; }
+.fv-c-reply { display: inline-block; margin: 2px 12px 10px; font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); text-decoration: underline; text-underline-offset: 2px; }
+.fv-c-reply:hover { color: var(--text-primary); }
+.fv-note { padding: 12px; font-size: 0.8rem; color: var(--text-secondary); text-align: center; }
+.fv-note-bad { color: var(--text-primary); }
+.fv-skel { height: 66px; margin-bottom: 8px; border-radius: 12px; background: linear-gradient(90deg, var(--border-light), var(--surface-hover), var(--border-light)); background-size: 200% 100%; animation: fvShimmer 1.4s ease-in-out infinite; }
+.fv-skel-short { height: 44px; }
+@keyframes fvShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.fv-side-foot { padding: 12px 16px; border-top: 1px solid var(--border-light); }
+.fv-reply-main { display: flex; align-items: center; justify-content: center; padding: 9px 14px; background: var(--text-primary); color: var(--white); border-radius: 10px; font-size: 0.8rem; font-weight: 700; text-decoration: none; }
+.fv-foot-note { margin-top: 6px; text-align: center; font-size: 0.68rem; color: var(--text-secondary); }
+
+@media (max-width: 767px) {
+ .fv-overlay { padding: 0; align-items: stretch; }
+ .fv-panel { width: 100%; max-height: none; height: 100%; border: 0; border-radius: 0; }
+ .fv-head { padding: 10px 12px; gap: 8px; }
+ .fv-open-link { padding: 7px 10px; font-size: 0.74rem; }
+ .fv-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+ .fv-stage { padding: 10px 12px 8px; overflow: visible; }
+ .fv-player { max-height: 34vh; border-radius: 10px; }
+ .fv-side { border-left: 0; border-top: 1px solid var(--border-light); }
+ .fv-list { padding: 8px 10px; }
+ .fv-c-text { font-size: 0.86rem; }
+ .fv-c-reply { padding: 6px 0; }
+ .fv-side-foot { padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); }
+ .fv-foot-note { display: none; }
+}
     </style>
 </head>
 <body>
@@ -13232,9 +13353,9 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-df41d1131c1f.js";
-        var PARTS = ["js/sv-01-core-0db2471d2e82.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-dd5e7141bebf.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-5b1407a2be75.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-dd170c7da38f.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-12e3af4bfaaa.js","js/sv-20-core-f43f39965587.js"];
-        var LAZY = {"templates":"js/sv-02-templates-ed22b16a2bda.js","workload":"js/sv-04-workload-1b2df89fe1d1.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-8ec9588310e8.js"};
+        var FULL = "js/sv-full-893572161bfe.js";
+        var PARTS = ["js/sv-01-core-0db2471d2e82.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-dd5e7141bebf.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-afecfb1b56e2.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-dd170c7da38f.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-12e3af4bfaaa.js","js/sv-20-core-f43f39965587.js"];
+        var LAZY = {"templates":"js/sv-02-templates-ed22b16a2bda.js","workload":"js/sv-04-workload-1b2df89fe1d1.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-ae60b29ece00.js"};
         var FORCE = null;
         var CLIENTS = true;
         var isClient = false;

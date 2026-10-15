@@ -61,7 +61,7 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
 
   // Every tool takes optional "who" and "summary" (added in one loop after TOOLS, so none can miss them).
   const tools = idx.slice(idx.indexOf('const TOOLS = ['), idx.indexOf('// ---- Input validation'));
-  assert.ok(/for \(const tool of TOOLS\) \{[\s\S]*?properties: \{ \.\.\.\(schema\.properties \|\| \{\}\), who: WHO_ARG, summary: SUMMARY_ARG \}/.test(tools), 'every tool gets "who" and "summary"');
+  assert.ok(/for \(const tool of TOOLS\) \{[\s\S]*?properties: \{ \.\.\.\(schema\.properties \|\| \{\}\), who: WHO_ARG, summary: SUMMARY_ARG \}[\s\S]*?tool\.inputSchema = withWho/.test(tools), 'every tool gets "who" and "summary"');
   assert.ok(!/required: \[[^\]]*"(who|summary)"/.test(tools), '"who" and "summary" are never required');
   assert.ok(/\.\.\.schema, properties: \{ \.\.\./.test(tools), 'each tool gets its own copy of the schema (EMPTY is shared)');
 

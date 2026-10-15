@@ -293,7 +293,9 @@ const TOOLS = [
 // asked). Added here so no tool can miss them; each schema gets its own copy.
 for (const tool of TOOLS) {
   const schema = tool.inputSchema as { properties?: Record<string, unknown> };
-  schema.properties = { ...(schema.properties || {}), who: WHO_ARG, summary: SUMMARY_ARG };
+  // A fresh object per tool: several tools share the EMPTY schema.
+  const withWho = { ...schema, properties: { ...(schema.properties || {}), who: WHO_ARG, summary: SUMMARY_ARG } };
+  tool.inputSchema = withWho as unknown as typeof tool.inputSchema;
 }
 
 // ---- Input validation (light; Higgsfield validates fully too) -------------

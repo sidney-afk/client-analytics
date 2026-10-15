@@ -167,6 +167,7 @@ async function plainPage(browser, origin, url, viewport, member) {
 }
 
 const WL_SURFACES = [
+  {only:'phone',area:'Workload',name:'Filters sheet',opener:'[data-thumb-wl-filter]',open:p=>p.locator('[data-thumb-wl-filter]').click(),isOpen:p=>p.locator('.thumb-wl-filters').evaluate(n=>n.open),inside:'.thumb-wl-filters header',refresh:p=>p.evaluate(()=>renderWorkloadAll()),type:{selector:'#wlClientSearchInput',text:'Client',kept:p=>p.locator('#wlClientSearchInput').inputValue().then(t=>t.includes('Client'))}},
   { only: 'desktop', area: 'Workload', name: 'Editor filter dropdown', opener: '.wl-dropdown .dropdown-trigger',
     open: async p => { await p.locator('.wl-dropdown .dropdown-trigger').first().click(); },
     isOpen: p => p.evaluate(() => !!document.querySelector('.wl-dropdown .dropdown-trigger.open')), inside: '.wl-dropdown .dropdown-menu.open', insideEdge: true },
@@ -271,15 +272,16 @@ async function pass(browser, origin, label, viewport) {
   }
 }
 
-async function workloadPass() {
+async function workloadPass(phone=false) {
   console.log('--- workload (1440px) ---');
   const h = await launchWorkloadHarness({
     issues: [parentRow({}), issueRow({ id: 's1', identifier: 'VID-S1', title: 'Card s1', due_date: WED, client_name: 'Client A' })],
     plans: [{ issue_id: 's1', plan_date: MON }],
   });
   try {
+    if(phone) await h.page.setViewportSize({width:390,height:844});
     await waitForPlanSettled(h.page);
-    for (const s of WL_SURFACES) await runSurface(h.page, s, 'desktop');
+    for (const s of WL_SURFACES) await runSurface(h.page, s, phone?'phone':'desktop');
     expect(h.state.pageErrors.length === 0, '[desktop] no page errors (Workload)' + (h.state.pageErrors[0] ? ' : ' + h.state.pageErrors[0] : ''));
   } catch (e) {
     expect(false, '[desktop] workload raised: ' + String(e && e.message || e).slice(0, 260));
@@ -295,6 +297,7 @@ if (require.main === module) (async () => {
     await pass(browser, origin, 'desktop', { width: 1280, height: 1100 });
     await pass(browser, origin, 'phone', { width: 390, height: 844 });
     await workloadPass();
+    await workloadPass(true);
   } finally {
     await browser.close();
     server.close();

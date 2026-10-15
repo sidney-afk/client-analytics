@@ -1,5 +1,8 @@
 # Repo map
 
+Thumb Workload phone: `qa/staff-phone-workload.js` verifies agenda, creative queues, sheets and native planning; evidence is in `docs/audits/2026-10-15-thumb-workload/`.
+
+
 `qa/staff-phone-responsiveness.js` measures native staff cold useful paint and
 touch-to-sheet paint with fictional 4G transports. It guards repeated taps,
 inside taps, phone-height resize, retained refresh content/drafts and card-scan

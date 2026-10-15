@@ -1,0 +1,30 @@
+{
+  "baseline": "b98f90f9e903d873358388a446430d4bbc082a07",
+  "sourceHash": "0ff650245ce8415b9edcca224368f22c716177774fbe2a8d837b4d72bf0d6bb9",
+  "screenshots": {
+    "workload-agenda-dark-390.png": "8b780de5e7e496c55435047772338e7b3a0a648135abf9e2e09f377b399256f7",
+    "workload-agenda-light-390.png": "22e1a7554895f1924d6c3866b5ea131b5862285e35e28a3deafa89337d4fdcbe",
+    "workload-empty-dark-390.png": "587b761c716e89e16fede4c714c0e4fce5c5443b001d41f984fcb866dffbd7ca",
+    "workload-empty-light-390.png": "f276af742c8c358509ff850ad73144b26777b16ddfd9d226d105ddb374cc35b8",
+    "workload-error-dark-390.png": "cada5c7241b1d7c51f3c407bfc523dfa58ec40f76b7b861bff87cd0a1774b2c3",
+    "workload-error-light-390.png": "c5277f1e1db30876e113be8d79cd1a5c49dde369fba99702b89edd183d8d3246",
+    "workload-filter-client-dark-390.png": "3d758a8a47a0db33766e50fdd72b5ab96a6ef782606b34a9dcba93efb16c85fa",
+    "workload-filter-client-light-390.png": "a15f9a2e11ed27f67be1965e65fab9fa1e282d92bec08497039d413c2ef50866",
+    "workload-filter-editors-dark-390.png": "e6d5a89a364f78dd41263b00f8503e7b0d94dc34226b169b8dbad7d99931736c",
+    "workload-filter-editors-light-390.png": "08b39d3139ca380df28278f56f315b9d91223d4b211da48c5479f618dd3e259a",
+    "workload-filters-dark-390.png": "17618e2a0be52dd3fe4ffa63e34f14918cefe4f8a30753e78917567f4524ae11",
+    "workload-filters-light-390.png": "8301d9ccb1df6452e264db32d53810c52cf61334fc1e9149be9f693968b29714",
+    "workload-item-dark-390.png": "23cae8084f3aec5431fc6ed2899723f3c70fb2083384d04526eeac5452db425f",
+    "workload-item-light-390.png": "35dbad0488177f7e6ccb37579ff0311b5aa3a2d2b3eb42a76f78e8084d76b92e",
+    "workload-loading-dark-390.png": "3893bf1f08c268e429ab9cd26d307865fb675595a9189fbf91ca16f778f9a08f",
+    "workload-loading-light-390.png": "7772f0205323d9247dfaf9bfd74d4970c41a3708b70b01ccfde63e66aa15206b",
+    "workload-month-dark-390.png": "dc89dd20665c2f3064e103b58b721b835c3e3ffb6b4c7963b090bbdbb23cd173",
+    "workload-month-light-390.png": "e2058b84e33d5e1ef2a3481b9c2768b4248e8099356c0279b8266c6a1ff9d388",
+    "workload-plan-and-due-dark-390.png": "cc4aa24fbeebca8bfb70b4a85662262ed468698d8b4c7d47ef70a3f499831c6b",
+    "workload-plan-and-due-light-390.png": "a22f01fee558b2a7f129aa9833be2145265ec61121e0c08764a63bc4fbba9955",
+    "workload-queue-dark-390.png": "ca30e882050b20cfa8893ed029bfbfe715527ac7d4cd0589fed8961d33360cac",
+    "workload-queue-light-390.png": "8b1c81588299e09c65935bfa4a5d176a0c548a08c8197c929b9c41f10dabb1e9",
+    "workload-week-dark-390.png": "287f14654fb9a766bb319ec8ff2237649f8b62b3be8c4d5a27e6c8611b5ba0aa",
+    "workload-week-light-390.png": "7ef2a525183be6fa1eed3c3da2637f0e530b4272a380c89e8df2076d1b67ec9c"
+  }
+}

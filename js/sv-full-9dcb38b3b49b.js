@@ -89310,7 +89310,8 @@
        not ask for as a bug, and the Production tab's read-only gate allows none. */
     ['pointerover', 'pointerdown', 'focusin'].forEach(type => document.addEventListener(type, e => {
         const t = e.target && e.target.closest && e.target.closest('#navMessages, [onclick*="_msgOpenPage"]');
-        if (t && _msgCanUse() && !_msgState.unavailable) _msgLoad(false);
+        // Not on the Production tab: its read-only gate allows no POST the page was not asked to make.
+        if (t && _msgCanUse() && !_msgState.unavailable && currentNav !== 'production') _msgLoad(false);
     }, { capture: true, passive: true }));
 
     async function _msgCall(body) {
@@ -93735,4 +93736,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-19bd2437846c.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-9dcb38b3b49b.js");

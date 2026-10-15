@@ -19,8 +19,10 @@
 //     client notes that are plain comments. A client change request (the
 //     "Request changes" button, saved with is_tweak true) is hidden, with its
 //     replies.
-//   - reviewer view (an admin not on the roster): only team-only notes
-//     written by an SMM. No client messages.
+//   - reviewer view (an admin not on the roster): team-only notes written by
+//     an SMM, the reviewer's own notes, and every team-only staff reply
+//     (editors included) in a thread the reviewer started or replied to.
+//     Never a client message.
 // A conversation left with no visible message is dropped, and hidden
 // messages never count as unread.
 
@@ -160,9 +162,19 @@ export function isSmmAuthor(message, smmIds) {
 const isClientChangeRequest = (m) => clean(m && m.role).toLowerCase() === "client" && m.is_tweak === true;
 
 // The messages one view may see, from collectMessages() output.
-export function visibleMessages(messages, view, smmIds) {
+// Notes written on the Kasper dashboard are stored as role "kasper" with no
+// member id; in the reviewer view they are the reviewer's own.
+const isReviewerNote = (m) => clean(m && m.role).toLowerCase() === "kasper" && !clean(m && m.author_member_id);
+
+export function visibleMessages(messages, view, smmIds, member) {
   const list = Array.isArray(messages) ? messages : [];
-  if (view === "reviewer") return list.filter((m) => m.audience === "internal" && isSmmAuthor(m, smmIds));
+  if (view === "reviewer") {
+    const staffInternal = list.filter((m) => m.audience === "internal" && clean(m.role).toLowerCase() !== "client")
+      .map((m) => (isReviewerNote(m) && member && clean(member.id) ? { ...m, author_member_id: clean(member.id) } : m));
+    const own = (m) => !!member && isMine(m, member);
+    const joined = new Set(staffInternal.filter(own).map((m) => m.root_id));
+    return staffInternal.filter((m) => own(m) || joined.has(m.root_id) || isSmmAuthor(m, smmIds));
+  }
   const hiddenRoots = new Set(list.filter(isClientChangeRequest).map((m) => m.id));
   return list.filter((m) => !isClientChangeRequest(m) && !hiddenRoots.has(m.root_id));
 }

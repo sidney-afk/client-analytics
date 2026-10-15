@@ -652,6 +652,8 @@ import { _kasperState } from './305-core-kasper-shared.js';
         if (navCal) navCal.classList.toggle('active', page === 'calendar');
         const navTk = document.getElementById('navTiktokUpload');
         if (navTk) navTk.classList.toggle('active', page === 'tiktok-upload');
+        const navMsg = document.getElementById('navMessages');
+        if (navMsg) navMsg.classList.toggle('active', page === 'messages');
         const navKp = document.getElementById('navKasper');
         if (navKp) navKp.classList.toggle('active', page === 'kasper');
         const navSxr = document.getElementById('navSxr'); if (navSxr) navSxr.classList.toggle('active', page === 'sample-reviews'); // SXR_LINE
@@ -779,6 +781,12 @@ import { _kasperState } from './305-core-kasper-shared.js';
                 content.innerHTML = tpl.renderFilmingPlans();
                 tpl.mountFilmingPlans();
             }, () => navTo('filming-plans'));
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'messages') {
+            // Messages page (326-core-messages-inbox): list left, chat right.
+            pageTop.style.display = 'none';
+            content.innerHTML = '<section class="msg-page" id="msgPage" aria-label="Messages"></section>';
+            if (typeof window._msgMountPage === 'function') window._msgMountPage(document.getElementById('msgPage'));
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'today') {
             pageTop.style.display = 'none';

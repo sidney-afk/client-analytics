@@ -1506,6 +1506,48 @@
         .cal-select-btn:hover { background: var(--bg); color: var(--text-primary); }
         .cal-select-btn.active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
         .cal-select-btn svg { width: 15px; height: 15px; }
+        /* Notify client — one accent button beside Organize, and its confirm box. */
+        .notify-client-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 32px;
+            padding: 0 13px; border: 0; border-radius: 8px; background: var(--notify-bg); color: var(--notify-fg);
+            font-family: inherit; font-size: 0.78rem; font-weight: 700; white-space: nowrap; cursor: pointer;
+            transition: background 0.12s; }
+        .notify-client-btn:hover { background: var(--notify-bg-hover); }
+        .notify-client-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        .notify-client-btn[hidden] { display: none; }
+        .notify-client-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+        .notify-client-dialog { margin: auto; width: min(460px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; padding: 22px 22px 18px;
+            border: 1px solid var(--border); border-radius: 14px; background: var(--surface-raised); color: var(--text-primary);
+            box-shadow: var(--shadow-lg); }
+        .notify-client-dialog::backdrop { background: var(--overlay); }
+        .notify-client-dialog h2 { margin: 0 0 2px; font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; }
+        .notify-client-dialog p { margin: 0; }
+        .notify-client-dialog .nc-sub { font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 14px; }
+        .notify-client-dialog .nc-where { font-size: 0.84rem; color: var(--text-secondary); margin-bottom: 10px; }
+        .notify-client-dialog .nc-where strong { color: var(--text-primary); }
+        .notify-client-dialog .nc-msg { padding: 14px 16px; border: 1px solid var(--border); border-left: 3px solid var(--notify-bg); border-radius: 8px; background: var(--surface-subtle); }
+        .notify-client-dialog .nc-msg-line { font-size: 0.9rem; font-weight: 800; line-height: 1.35; }
+        .notify-client-dialog .nc-msg-btn { display: inline-block; margin-top: 10px; padding: 5px 14px; border: 1px solid var(--border); border-radius: 6px;
+            background: var(--white); font-size: 0.8rem; font-weight: 700; color: var(--text-primary); }
+        .notify-client-dialog .nc-note, .notify-client-dialog .nc-last { margin-top: 10px; font-size: 0.78rem; color: var(--text-secondary); line-height: 1.45; }
+        .notify-client-dialog .nc-warn, .notify-client-dialog .nc-alert, .notify-client-dialog .nc-done { margin-top: 12px; padding: 9px 12px; border-radius: 8px;
+            font-size: 0.78rem; font-weight: 600; line-height: 1.45; }
+        .notify-client-dialog .nc-warn { background: var(--warn-solid-bg); color: var(--warn-solid-fg); }
+        .notify-client-dialog .nc-alert { background: var(--err-solid-bg); color: var(--err-solid-fg); }
+        .notify-client-dialog .nc-done { background: var(--ok-solid-bg); color: var(--ok-solid-fg); }
+        .notify-client-dialog .nc-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+        .notify-client-dialog .nc-actions button { min-height: 36px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--border);
+            background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+        .notify-client-dialog .nc-actions button:hover:not(:disabled) { background: var(--bg); }
+        .notify-client-dialog .nc-actions .nc-send { background: var(--notify-bg); color: var(--notify-fg); border-color: var(--notify-bg); }
+        .notify-client-dialog .nc-actions .nc-send:hover:not(:disabled) { background: var(--notify-bg-hover); }
+        .notify-client-dialog .nc-actions button:disabled { opacity: 0.55; cursor: default; }
+        .notify-client-dialog .nc-actions button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        @media (max-width: 767px) {
+            .notify-client-btn { min-height: 44px; padding: 0 16px; font-size: 0.86rem; }
+            .notify-client-dialog { padding: 20px 18px 16px; }
+            .notify-client-dialog .nc-actions { flex-direction: column-reverse; }
+            .notify-client-dialog .nc-actions button { min-height: 44px; width: 100%; }
+        }
         .cal-card-select-overlay { position: absolute; inset: 0; z-index: 7; cursor: pointer; background: transparent;
             transition: background 0.12s; }
         .cal-card-select-overlay:hover { background: var(--sv-bg-rgba-37-99-235-0_07); }
@@ -2750,13 +2792,11 @@
         .msg-nav-btn { position: relative; }
         .msg-nav-btn[hidden] { display: none; }
         .msg-nav-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-        .msg-panel { position: fixed; inset: 0; z-index: 900; background: var(--bg); display: flex; flex-direction: column; padding: 16px 24px 24px; }
-        .msg-panel[hidden] { display: none; }
-        .msg-panel-head { display: flex; align-items: center; justify-content: space-between; max-width: 1180px; width: 100%; margin: 0 auto 12px; }
-        .msg-panel-head h2 { margin: 0; font-size: 1.4rem; color: var(--text-primary); }
-        .msg-panel-body { max-width: 1180px; width: 100%; margin: 0 auto; flex: 1; min-height: 0; }
-        .msg-panel .msg-inbox { height: 100%; }
-        body.msg-panel-open { overflow: hidden; }
+        /* The Messages page uses the whole width under the header. */
+        body:has(#msgPage) .main { padding: 0; }
+        .msg-page { padding: 14px 16px 16px; display: flex; flex-direction: column; }
+        .msg-page-head h1 { margin: 0 0 10px; font-size: 1.3rem; color: var(--text-primary); }
+        .msg-page .msg-inbox { height: calc(100vh - 150px); }
         @media (max-width: 767px) {
             /* minmax(0, 1fr): a plain 1fr track grows to the longest unwrapped
                title or last message and pushed the time and unread badge off
@@ -2770,7 +2810,11 @@
             .msg-chat-sub { display: none; }
             .msg-act, .msg-filters button { min-height: 44px; }
             .msg-conv { min-height: 64px; }
-            .msg-panel { padding: 12px; }
+            .msg-page { padding: 12px 12px 16px; }
+            .msg-page .msg-inbox { height: calc(100vh - 150px); }
+            /* The phone title bar already says Messages. */
+            body:has(.pocket-staff-bar) .msg-page-head { display: none; }
+            body:has(.pocket-staff-bar) .msg-page .msg-inbox { height: calc(100vh - 110px); }
             .msg-reply .cal-cm-send { width: 44px; height: 44px; }
             .msg-chat-head .msg-thumb { display: none; }
             .msg-chat-head { gap: 6px; padding: 8px 10px; }

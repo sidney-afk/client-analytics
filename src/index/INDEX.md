@@ -10,7 +10,7 @@
 | 2 | `003-sv-route.html.part` | 222 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3965 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 8019 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 8140 | Templates view |
 | 6 | `030-body-shell.html.part` | 566 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2158 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `041-core-layers.js.part` | 397 | LAYERS: ONE RULE FOR EVERY POP-UP (owner request, ). |
@@ -42,36 +42,37 @@
 | 34 | `131-core-html.js.part` | 113 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 35 | `132-calendar-dates-ids.js.part` | 14 | — |
 | 36 | `133-core-loading-skeletons.js.part` | 378 | Modern animated loader — a single rotating ring with a subtle label. |
-| 37 | `134-calendar-prefs-mount.js.part` | 1096 | Hydrate calState.monthFilter/statusFilter/cardStatusFilter from the named client's saved |
+| 37 | `134-calendar-prefs-mount.js.part` | 1103 | Hydrate calState.monthFilter/statusFilter/cardStatusFilter from the named client's saved |
 | 38 | `140-calendar-legacy-outbox.js.part` | 3505 | Shed the retired legacy rows from storage, under the surface mutation |
 | 39 | `150-calendar-hydration-import.js.part` | 2410 | For a card linked to a real sub-issue (not a parent), return which of |
-| 40 | `160-calendar-organize-ui.js.part` | 4124 | Card status filter (STATE_OF_THINGS D3) |
+| 40 | `160-calendar-organize-ui.js.part` | 4127 | Card status filter (STATE_OF_THINGS D3) |
 | 41 | `170-calendar-links-status.js.part` | 3533 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 42 | `180-calendar-native-post-media.js.part` | 3767 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 43 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
 | 44 | `186-archived-restore.js.part` | 484 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
-| 45 | `190-calendar-approval-comments.js.part` | 3508 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
-| 46 | `200-intake-data-startup.js.part` | 1883 | Video-only and Thumbnail-only were already built, but sat |
-| 47 | `210-production-state-writes.js.part` | 3321 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
-| 48 | `220-production-attribution-views.js.part` | 2933 | An ABSENT persisted slug is missing evidence, not |
-| 49 | `230-production-create-comments.js.part` | 2792 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
-| 50 | `240-production-description.js.part` | 2766 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
-| 51 | `250-production-controls-data.js.part` | 3125 | A layer: Escape closes only the top pop (a sub-menu first, then |
-| 52 | `260-production-refresh-boot.js.part` | 2856 | AND TYPING COUNTS, which is the case this guard was missing. |
-| 53 | `270-samples-model.js.part` | 3159 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
-| 54 | `280-samples-cards-notes.js.part` | 3079 | SURFACE 3: the save engine |
-| 55 | `290-samples-writes-review.js.part` | 1981 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
-| 56 | `299-instagram-upload.js.part` | 762 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
-| 57 | `300-tiktok-upload.js.part` | 2426 | TIKTOK UPLOAD MODULE |
-| 58 | `305-core-kasper-shared.js.part` | 801 | A Kasper save that did NOT land (calendar or samples): kept by card id and shown |
-| 59 | `310-sales-intake-hiring.js.part` | 1170 | KASPER REVIEW TAB |
-| 60 | `320-core-kasper-subtabs.js.part` | 20 | — |
-| 61 | `321-kasper-dashboard-replies.js.part` | 3095 | The Samples subtab was folded into Review (samples are listed in the |
-| 62 | `322-core-kasper-tab-counts.js.part` | 34 | — |
-| 63 | `323-kasper-dashboard-tail.js.part` | 984 | Messages tab = the shared Messages inbox (326-core-messages-inbox), or |
-| 64 | `324-client-onboarding-panel.js.part` | 800 | talking to the functions (admin only; the server checks the key and the member again) |
-| 65 | `326-core-messages-inbox.js.part` | 447 | Messages inbox (Notes Step 2) |
-| 66 | `330-kasper-review-history.js.part` | 2665 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
-| 67 | `340-kasper-editors-board.js.part` | 734 | Editor work model |
-| 68 | `345-core-tooltip-date-picker.js.part` | 671 | Global styled tooltip — replaces every browser-native title popup |
-| 69 | `350-footer.html.part` | 398 | Transcript preview modal |
+| 45 | `187-frame-viewer.js.part` | 394 | WATCH HERE: a card's Frame.io video and its Frame.io comments, inside SyncView (staff only). |
+| 46 | `190-calendar-approval-comments.js.part` | 3512 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 47 | `200-intake-data-startup.js.part` | 1883 | Video-only and Thumbnail-only were already built, but sat |
+| 48 | `210-production-state-writes.js.part` | 3321 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
+| 49 | `220-production-attribution-views.js.part` | 2933 | An ABSENT persisted slug is missing evidence, not |
+| 50 | `230-production-create-comments.js.part` | 2792 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
+| 51 | `240-production-description.js.part` | 2766 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
+| 52 | `250-production-controls-data.js.part` | 3125 | A layer: Escape closes only the top pop (a sub-menu first, then |
+| 53 | `260-production-refresh-boot.js.part` | 2864 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 54 | `270-samples-model.js.part` | 3159 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
+| 55 | `280-samples-cards-notes.js.part` | 3079 | SURFACE 3: the save engine |
+| 56 | `290-samples-writes-review.js.part` | 1981 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
+| 57 | `299-instagram-upload.js.part` | 762 | INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab) |
+| 58 | `300-tiktok-upload.js.part` | 2426 | TIKTOK UPLOAD MODULE |
+| 59 | `305-core-kasper-shared.js.part` | 801 | A Kasper save that did NOT land (calendar or samples): kept by card id and shown |
+| 60 | `310-sales-intake-hiring.js.part` | 1170 | KASPER REVIEW TAB |
+| 61 | `320-core-kasper-subtabs.js.part` | 20 | — |
+| 62 | `321-kasper-dashboard-replies.js.part` | 3095 | The Samples subtab was folded into Review (samples are listed in the |
+| 63 | `322-core-kasper-tab-counts.js.part` | 34 | — |
+| 64 | `323-kasper-dashboard-tail.js.part` | 984 | Messages tab = the shared Messages inbox (326-core-messages-inbox), or |
+| 65 | `324-client-onboarding-panel.js.part` | 800 | talking to the functions (admin only; the server checks the key and the member again) |
+| 66 | `326-core-messages-inbox.js.part` | 447 | Messages inbox (Notes Step 2) |
+| 67 | `330-kasper-review-history.js.part` | 2669 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
+| 68 | `340-kasper-editors-board.js.part` | 734 | Editor work model |
+| 69 | `345-core-tooltip-date-picker.js.part` | 671 | Global styled tooltip — replaces every browser-native title popup |
+| 70 | `350-footer.html.part` | 398 | Transcript preview modal |

@@ -505,6 +505,11 @@
       ],
       "note": "Onboarding checklist and HubSpot refresh. A checklist step change is recorded as client_onboarding_set_step; the checklist read and the HubSpot refresh are reads sent as POST and are not recorded."
     },
+    "187-frame-viewer.js.part|ctrl|FRAMEIO_VIEW_EF_URL|POST": {
+      "status": "read",
+      "note": "Watch here: asks the frameio-view function for a video address and comments. A POST only to carry the link; it reads from Frame.io and saves nothing."
+
+    },
     "160-calendar-organize-ui.js.part|_notifyClientCall|CLIENT_REVIEW_ALERT_URL|POST": {
       "status": "reports",
       "within": [

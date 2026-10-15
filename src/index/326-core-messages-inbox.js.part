@@ -148,6 +148,9 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
             _msgPaintCounts(); _msgLeavePage();
             return;
         }
+        // The Messages page was opened before the sign-in was known (a reload
+        // on #messages): draw it now.
+        if (document.getElementById('msgPage')) { _msgPaint(); _msgLoad(false); }
         // Nothing loads during boot: the first quiet refresh waits a minute
         // (opening the inbox loads at once), then repeats every two minutes.
         if (_msgFirstTimer) clearTimeout(_msgFirstTimer);

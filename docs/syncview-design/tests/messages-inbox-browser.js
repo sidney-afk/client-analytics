@@ -217,6 +217,10 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     check(f.active, 'F: the header button shows as the active tab');
     check(f.listLeft && f.inboxW >= f.vw - 80 && f.chatW >= f.inboxW - 360, 'F: full width, list on the left, conversation takes the rest ' + JSON.stringify(f));
     await shot('messages-page-desktop');
+    // A fresh load of the Messages address (the test server cannot serve the
+    // clean /messages path the live site redirects, so use its hash form).
+    await page.goto(S.origin + '/index.html#messages', { waitUntil: 'domcontentloaded' });
+    check(await until(() => page.evaluate(() => typeof currentNav !== 'undefined' && currentNav === 'messages' && document.querySelectorAll('#msgPage .msg-conv').length === 2), 30000), 'F: a reload on the Messages page comes back to it');
     await page.click('#navCalendar');
     check(await until(() => page.evaluate(() => currentNav === 'calendar' && !document.getElementById('msgPage'))), 'F: clicking another tab leaves the Messages page');
 

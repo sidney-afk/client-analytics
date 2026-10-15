@@ -170,7 +170,7 @@
                 de.setAttribute('data-boot-nav', seg);
                 return;
             }
-            var FAST = ['today', 'linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'smm-weekly-report', 'smm-weekly-reports'];
+            var FAST = ['today', 'linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'messages', 'smm-weekly-report', 'smm-weekly-reports'];
             var RESTORABLE_FAST = FAST.filter(function (nav) { return nav !== 'smm-weekly-report' && nav !== 'smm-weekly-reports'; });
             // Kasper is admin-only: mirror _kasperAdminAllowed()'s remembered
             // admin (a paint hint only; the tab itself waits for the check).
@@ -196,7 +196,7 @@
             // Any other page the address names (a Kasper link before the admin
             // check, Samples switched off, a sub-path the fast path does not
             // predict): never guess Analytics, paint the neutral skeleton.
-            else if (seg && ['today', 'production', 'linear', 'workload', 'calendar', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'kasper', 'sample-reviews', 'samples'].indexOf(seg) >= 0) target = 'neutral';
+            else if (seg && ['today', 'production', 'linear', 'workload', 'calendar', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'kasper', 'sample-reviews', 'samples', 'messages'].indexOf(seg) >= 0) target = 'neutral';
             else if (!hash) {
                 var saved = null; try { saved = localStorage.getItem('syncview_nav'); } catch (e) {}
                 var nav = (st && st.nav) || saved;

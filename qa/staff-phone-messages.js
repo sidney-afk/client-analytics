@@ -49,7 +49,12 @@ async function main(){
    await p.setViewportSize({width,height:844});await p.waitForTimeout(150);assert(await p.getByRole('button',{name:'More conversation actions'}).isVisible());
    await p.getByRole('button',{name:'Back to conversations'}).tap();await p.waitForTimeout(120);assert(await p.locator('[data-msg-conv="message-fixture-0"]').evaluate(n=>n===document.activeElement),'Back restores conversation focus: '+await p.evaluate(()=>JSON.stringify({active:document.activeElement?.outerHTML.slice(0,200),id:_msgState.openId,returning:_msgPhone.returning,focus:_msgPhone.focusId,history:history.state,list:document.querySelector('.msg-convs')?.scrollTop})));
    await p.locator('[data-msg-conv="message-fixture-0"]').tap();assert.equal(await box.inputValue(),'A retained fictional reply.');await p.goBack();await p.waitForTimeout(120);assert(await search.isVisible(),'Browser Back restores inbox');
-   await p.locator('[data-msg-conv="message-fixture-0"]').tap();const more=p.getByRole('button',{name:'More conversation actions'});await more.tap();
+   await p.locator('[data-msg-conv="message-fixture-0"]').tap();
+   await p.evaluate(()=>navTo('today'));await p.goBack();await p.getByRole('button',{name:'Back to conversations'}).waitFor();
+   assert.equal(await box.inputValue(),'A retained fictional reply.','Returning from another page keeps the thread draft');
+   await p.goBack();await search.waitFor();await p.goForward();await p.getByRole('button',{name:'Back to conversations'}).waitFor();
+   assert.equal(await box.inputValue(),'A retained fictional reply.','Forward after a cross-page return restores the thread and draft');
+   const more=p.getByRole('button',{name:'More conversation actions'});await more.tap();
    await shot(p,'messages-more',width,theme);await rules.scrollLock(p,'.thumb-msg-more');await p.keyboard.press('Escape');assert(await more.evaluate(n=>n===document.activeElement),'More returns focus');
    await p.getByRole('button',{name:'Send reply',exact:true}).tap();await p.getByText('Your reply was not sent. It is still in the box; try again.',{exact:true}).waitFor({timeout:30000});assert.equal(await box.inputValue(),'A retained fictional reply.');await shot(p,'messages-refused',width,theme);
    assert(!await p.getByRole('button',{name:'Send reply',exact:true}).isDisabled(),'A refused reply can be retried');

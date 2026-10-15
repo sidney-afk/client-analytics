@@ -89616,8 +89616,15 @@
         }
     }
     window.svThumbMessagesConsumeHistory=e=>{
-        if(!_msgIsPhone()||!document.getElementById('msgPage'))return false;
-        if(e.state?.thumbMessagesParent&&(_msgState.openId||_msgPhone.returning)){
+        if(!_msgIsPhone()||!_msgCanUse()||(!e.state?.thumbMessagesParent&&!e.state?.thumbMessagesThread))return false;
+        if(!document.getElementById('msgPage')){
+            navTo('messages',false);
+            if(!document.getElementById('msgPage'))return false;
+            // navTo restores the page's normal route; keep this owned history
+            // entry so Back/Forward can still restore its list or thread.
+            history.replaceState(e.state,'',location.href);
+        }
+        if(e.state?.thumbMessagesParent){
             if(!_msgPhone.returning)_msgBack(false);_msgPhone.returning=false;return true;
         }
         if(e.state?.thumbMessagesThread){_msgOpen(e.state.thumbMessagesThread,false);return true;}
@@ -93718,4 +93725,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-07f2c60a44c1.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-cd6a1a1bb683.js");

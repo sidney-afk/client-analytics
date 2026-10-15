@@ -1,5 +1,15 @@
 # Messages check receipts
 
+## Cross-page history regression
+
+Review found an owned thread history entry could fall through the general router when Messages was unmounted. The local reproduction returned from Today to the thread, then Back to the inbox; Forward lost the thread because the general remount had erased its history marker. The phone handler now remounts through native navigation and retains that owned entry before restoring the thread. Its native permission check remains in force. The new regression verifies the full cross-page Back/Back/Forward journey and retained draft in both widths/themes. Its complete replay ends:
+
+```text
+STAFF_PHONE_MESSAGES: 48 screen/theme/width captures; all assertions passed; fictional intercepted transports; no live writes
+```
+
+This changes history restoration only; the published capture source and layout remain valid.
+
 ## Final current-main replay
 
 Refreshed against main `71f684554e95f6a9b5ddc2167685fcc2979477c4`, after #2083 had merged and after the two earlier phone PRs were open. Final phone screenshots were recaptured and all 24 required 390px states reviewed together, with full-size thread, keyboard and Tabs inspection. Nothing looks clipped, crowded or misplaced. The populated desktop comparison retains all failed rasterization attempts privately and records exact accepted pairs (1, 2, 3 and 1 attempts); no pixel tolerance or check exception was added. `provenance.json` pins this source and the published image hashes.

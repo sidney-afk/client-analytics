@@ -5,7 +5,7 @@
  *   SWITCH OFF (no caption_generate_ef_clients row, the default): Generate behaves exactly as before. A card with a
  *     Frame.io link calls the n8n generate-caption webhook with the same five keys; the caption-generate function is
  *     never called; a card with no video keeps a disabled Generate and no transcript box exists.
- *   SWITCH ON for the client: a card with a video still generates in one click, now on the function, with the staff
+ *   SWITCH ON for the client: a card with a video opens the Generate box and its Generate starts the job on the function, with the staff
  *     headers and zero n8n calls. A card with no video: Generate opens the transcript box, its button stays disabled
  *     until text is pasted, and the caption is written from it. A card with a video also offers an optional
  *     Transcript pill whose text rides along with the video.
@@ -65,6 +65,7 @@ async function open(browser, origin, opts) {
       return json({ ok: true, prompts: {} });
     }
     if (p === '/functions/v1/key-verify') return json({ ok: true, role: 'admin', member: { id: 'm1', name: 'Browser Staff', role: 'admin', team: null } });
+    if (p === '/functions/v1/caption-generate' && r.method() === 'GET') return json({ ok: true, client: sp.get('client'), options: [] });   // the box's choices read, not a caption job
     if (p === '/functions/v1/caption-generate' && r.method() === 'POST') {
       const body = JSON.parse(r.postData() || '{}');
       state.ef.push({ body, key: r.headers()['x-syncview-key'] || '' });
@@ -168,10 +169,14 @@ async function runDesktopOrPhone(browser, origin, label, device) {
     `${label} on: the optional Transcript pill shows on video cards only`);
   await shot(t.page, `after-${prefix}`, 'v2');
 
-  // 1. Video card, one click, as before but on the function.
+  // 1. Video card: Generate opens the box (platform, call to action, note), whose Generate starts the job on the function.
   await t.page.locator(sel('v1', '.cal-cap-gen')).click();
+  await t.page.waitForSelector('#calPromptOverlay.open #calTxGo', { timeout: 5000 });
+  expect(await modalOpen(t.page) && !(await t.page.locator('#calTxGo').isDisabled()), `${label} on: a video card opens the box and its Generate is enabled with the transcript left empty`);
+  expect(t.state.ef.length === 0, `${label} on: nothing is sent until the box's Generate is clicked`);
+  await t.page.locator('#calTxGo').click();
   await sleep(300);
-  expect(!(await modalOpen(t.page)), `${label} on: a video card generates in one click (no box)`);
+  expect(!(await modalOpen(t.page)), `${label} on: the box closes on Generate`);
   let v = await waitCaption(t.page, 'v1');
   expect(v === 'Caption written by the function', `${label} on: the video card's caption comes from the function (${v})`);
   const e1 = t.state.ef[0] || { body: {} };

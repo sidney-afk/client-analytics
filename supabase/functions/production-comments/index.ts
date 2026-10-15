@@ -13,7 +13,7 @@ import {
 } from "../_shared/staff-role-auth.ts";
 import { timingSafeEqual } from "../_shared/staff-role-auth.ts";
 import { readLegacyFeedback } from "./feedback.mjs";
-import { buildConversation, clientKey, collectMessages, inboxScope, isClosedPost, unreadMark } from "./inbox.mjs";
+import { buildConversation, clientKey, collectMessages, inboxScope, inboxView, isClosedPost, rosterEntryFor, unreadMark, visibleMessages } from "./inbox.mjs";
 import {
   audienceAllowed,
   clean,
@@ -540,19 +540,26 @@ async function inboxCanonical(supabase: SupabaseClient, posts: JsonMap[]): Promi
 async function inboxScopeFor(
   supabase: SupabaseClient,
   member: Member,
-): Promise<{ scope: "all" | Set<string>; names: Map<string, string> }> {
+): Promise<{ scope: "all" | Set<string>; names: Map<string, string>; smmIds: Set<string> }> {
   const role = clean(member.role).toLowerCase();
-  if (role !== "admin" && role !== "smm") return { scope: new Set(), names: new Map() };
-  const [managers, also, clients] = await Promise.all([
+  if (role !== "admin" && role !== "smm") return { scope: new Set(), names: new Map(), smmIds: new Set() };
+  const [managers, also, clients, staff] = await Promise.all([
     supabase.from("social_media_managers").select("slug,name,email,active,source_clients").eq("active", true),
     supabase.from("smm_also_sees").select("viewer_member_id,manager_slug,client_name").eq("viewer_member_id", member.id),
     supabase.from("clients").select("slug,display_name,active"),
+    supabase.from("team_members").select("id,name,email,role,active"),
   ]);
-  if (managers.error || clients.error) throw new Error("inbox_scope_failed");
+  if (managers.error || clients.error || staff.error) throw new Error("inbox_scope_failed");
+  // SMM writers, for the reviewer view: an SMM by role, or anyone on the roster.
+  const smmIds = new Set<string>();
+  for (const s of (staff.data || []) as unknown as JsonMap[]) {
+    if (s.active === false) continue;
+    if (clean(s.role).toLowerCase() === "smm" || rosterEntryFor(managers.data || [], s)) smmIds.add(clean(s.id));
+  }
   const names = new Map<string, string>();
   for (const c of (clients.data || []) as unknown as JsonMap[]) names.set(clean(c.slug), clean(c.display_name));
   // smm_also_sees is optional: a missing grant list narrows, never widens.
-  return { scope: inboxScope(member, managers.data || [], also.error ? [] : (also.data || []), clients.data || []), names };
+  return { scope: inboxScope(member, managers.data || [], also.error ? [] : (also.data || []), clients.data || []), names, smmIds };
 }
 
 async function handleInbox(supabase: SupabaseClient, principal: Principal, body: JsonMap): Promise<Response> {
@@ -562,7 +569,8 @@ async function handleInbox(supabase: SupabaseClient, principal: Principal, body:
   if (!(await auditRead(supabase, principal, "", "allow", action === "inbox" ? "inbox" : "inbox_mark"))) {
     return json({ ok: false, error: "read_authorization_unavailable" }, 503);
   }
-  const { scope, names } = await inboxScopeFor(supabase, member);
+  const { scope, names, smmIds } = await inboxScopeFor(supabase, member);
+  const view = inboxView(scope);
   if (action === "inbox_mark") {
     const postId = clean(body.post_id);
     const state = clean(body.state).toLowerCase();
@@ -572,7 +580,7 @@ async function handleInbox(supabase: SupabaseClient, principal: Principal, body:
     const posts = await inboxPosts(supabase, scope, postId);
     if (posts.length !== 1) return json({ ok: false, error: "forbidden" }, 403);
     const canonical = await inboxCanonical(supabase, posts);
-    const messages = collectMessages(posts[0], canonical.get(postId) || []);
+    const messages = visibleMessages(collectMessages(posts[0], canonical.get(postId) || []), view, smmIds, member);
     const mark = state === "read" ? new Date().toISOString() : unreadMark(messages, member);
     if (!mark) return json({ ok: true, post_id: postId, last_read_at: null });
     const { error } = await supabase.from("message_reads").upsert(
@@ -595,7 +603,7 @@ async function handleInbox(supabase: SupabaseClient, principal: Principal, body:
   const now = Date.now();
   const conversations = posts
     .map((p) => {
-      const messages = collectMessages(p, canonical.get(clean(p.id)) || []);
+      const messages = visibleMessages(collectMessages(p, canonical.get(clean(p.id)) || []), view, smmIds, member);
       if (!messages.length) return null;
       const conversation = buildConversation(p, messages, member, reads.get(clean(p.id)) || "", now);
       return { ...conversation, client_name: names.get(clean(p.client)) || "" };

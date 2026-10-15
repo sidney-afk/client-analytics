@@ -52,6 +52,7 @@ const CASES = [
   { name: 'Archived cards list', overlay: '#arxOverlay', open: new Function(`${mountViews}; calState.client = ${CLIENT}; _arxOpen('cal');`) },
   { name: 'Archived restore confirm', overlay: '#arxDialog', open: () => { _arxDialog({ title: 'Restore this card?', msg: 'Fixture', yes: 'Restore' }); } },
   { name: 'Watch here viewer', overlay: '#fvOverlay.open', open: () => { const b = document.createElement('button'); b.setAttribute('data-fv-link', 'https://f.io/fixture-video'); b.setAttribute('data-fv-client', 'fixtureclient'); b.setAttribute('data-fv-title', 'Fixture'); document.body.appendChild(b); const real = window.fetch; window.fetch = (u, o) => (/frameio-view/.test(String(u)) ? new Promise(() => {}) : real(u, o)); svFrameViewerOpen(b); } },
+  { name: 'Notify client confirm', overlay: '#notifyClientDialog', open: () => { Object.assign(_notifyClient, { surface: 'calendar', client: 'Fixture client', status: null, busy: false, loading: false, error: '', done: '', note: '' }); const d = _notifyClientDialog(); _notifyClientRender(); d.showModal(); } },
 ];
 
 // Inventory, read from the source and independent of the cases above, so a

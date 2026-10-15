@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { svAreaRegister } from './040-shared-briefs.js';
 import { wlState } from './066-core-workload-state.js';
 import {
@@ -889,6 +890,17 @@ import { _calFmtCommentTime } from './190-calendar-approval-comments.js';
         const rect = rollupEl.getBoundingClientRect();
         pop.classList.add('open');
         pop.setAttribute('aria-hidden', 'false');
+        /* A layer: Escape and a click elsewhere close it, focus goes back to the
+           badge it opened from. A date picker opened inside it sits above it, so
+           the first Escape closes just that. Its own opener toggles it shut. */
+        if (typeof svLayerOpen === 'function') svLayerOpen({
+            key: 'wl-popover',
+            region: '#wlPopover',
+            opener: rollupEl,
+            isOpen: () => { const p = document.getElementById('wlPopover'); return !!p && p.classList.contains('open'); },
+            holdRefresh: false,
+            close: () => wlClosePopover(false),
+        });
         const popW = Math.min(pop.offsetWidth || 320, 380);
         let left = window.scrollX + rect.left;
         const maxLeft = window.scrollX + window.innerWidth - popW - 10;
@@ -974,6 +986,7 @@ import { _calFmtCommentTime } from './190-calendar-approval-comments.js';
     }
 
     function wlClosePopover(returnFocus) {
+        if (typeof svLayerRelease === 'function') svLayerRelease('wl-popover');
         const pop = document.getElementById('wlPopover');
         if (!pop) return;
         const anchor = wlState.popoverAnchor;

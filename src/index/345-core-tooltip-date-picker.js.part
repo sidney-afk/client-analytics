@@ -1,3 +1,5 @@
+import { svLayerLocate, svLayerOpen, svLayerRelease } from './041-core-layers.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
 import { wlWorkloadTodayISO } from './068-core-workload-dates.js';
 import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
     /* ──────────────────────────────────────────────────────────────────
@@ -460,7 +462,25 @@ import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
             if (typeof _svSyncDateControl === 'function' && dpInput.id) _svSyncDateControl(dpInput.id);
         }
 
+        /* Staff side only: the picker is a layer (Escape closes just the top
+           pop-up, and a card redrawn under an open picker does not close it:
+           the chip is found again in the new card). The client link keeps the
+           original behaviour. */
+        let dpLocate = null;
+        function triggerAlive() {
+            if (!dpTriggerEl) return false;
+            if (!document.contains(dpTriggerEl)) {
+                if (!dpLocate) return false;
+            } else return true;
+            const again = dpLocate();
+            if (!again || !document.contains(again)) return false;
+            if (dpTriggerEl.hasAttribute('aria-expanded') && again.hasAttribute('aria-expanded')) again.setAttribute('aria-expanded', 'true');
+            dpTriggerEl = again;
+            return true;
+        }
         function close(returnFocus) {
+            svLayerRelease('datepicker');
+            dpLocate = null;
             const trigger = dpTriggerEl;
             if (trigger && trigger.hasAttribute('aria-expanded')) trigger.setAttribute('aria-expanded', 'false');
             if (dpPositionFrame) cancelAnimationFrame(dpPositionFrame);
@@ -487,14 +507,14 @@ import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
             if (returnFocus && trigger && document.contains(trigger)) trigger.focus();
         }
         function viewportChange() {
-            if (!dpEl || !dpTriggerEl || !document.contains(dpTriggerEl)) {
+            if (!dpEl || !dpTriggerEl || !triggerAlive()) {
                 close(false);
                 return;
             }
             if (dpPositionFrame) cancelAnimationFrame(dpPositionFrame);
             dpPositionFrame = requestAnimationFrame(function () {
                 dpPositionFrame = 0;
-                if (!dpEl || !dpTriggerEl || !document.contains(dpTriggerEl)) close(false);
+                if (!dpEl || !dpTriggerEl || !triggerAlive()) close(false);
                 else position();
             });
         }
@@ -522,6 +542,17 @@ import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
             dpEl.addEventListener('click', onPopupClick);
             document.addEventListener('mousedown', outsideMouse, true);
             document.addEventListener('keydown', keyHandler);
+            if (!_isClientLink) {
+                dpLocate = svLayerLocate(chip);
+                svLayerOpen({
+                    key: 'datepicker',
+                    region: () => dpEl,
+                    opener: () => (dpTriggerEl && document.contains(dpTriggerEl) ? dpTriggerEl : (dpLocate ? dpLocate() : null)),
+                    isOpen: () => !!dpEl,
+                    holdRefresh: false,
+                    close: () => close(false),
+                });
+            }
             // Keep the body-portaled popover attached during mobile/ancestor
             // scrolling, and close it if a rerender removes its trigger.
             window.addEventListener('scroll', viewportChange, true);
@@ -531,7 +562,7 @@ import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
                 window.visualViewport.addEventListener('resize', viewportChange);
             }
             dpDisconnectObserver = new MutationObserver(function () {
-                if (dpTriggerEl && !document.contains(dpTriggerEl)) close(false);
+                if (dpTriggerEl && !triggerAlive()) close(false);
             });
             dpDisconnectObserver.observe(document.body, { childList: true, subtree: true });
         }
@@ -560,6 +591,7 @@ import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
 
         function outsideMouse(e) {
             if (!dpEl) return;
+            if (!_isClientLink) return;   // the shared layer handler decides on the staff side
             if (dpEl.contains(e.target)) return;
             // Re-clicking the same chip should toggle closed (and let the
             // chip-open handler reopen) instead of leaving a stale popup.
@@ -613,6 +645,15 @@ import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
             }
         }
 
+        // Staff side: a date chip can be reached and opened from the keyboard
+        // (Enter or Space), so Escape can hand focus back to it.
+        document.addEventListener('keydown', function (e) {
+            if (_isClientLink || (e.key !== 'Enter' && e.key !== ' ')) return;
+            const chip = e.target && e.target.matches && e.target.matches('.cal-date-chip[role="button"]') ? e.target : null;
+            if (!chip) return;
+            e.preventDefault();
+            if (chip === dpTriggerEl) close(true); else open(chip);
+        }, true);
         // Capture-phase click on date chips. The chip is inside a card and
         // may have other click handlers attached to ancestors, so we
         // catch in the capture phase and stop propagation to keep the

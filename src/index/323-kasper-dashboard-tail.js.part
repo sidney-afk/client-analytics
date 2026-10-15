@@ -1,4 +1,5 @@
-import { _msgInboxLive, _msgOnFallback, _msgRenderInto } from './326-core-messages-inbox.js';
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
+import { _msgInboxLive, _msgOnFallback } from './326-core-messages-inbox.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showToast, svArea, svAreaApi } from './040-shared-briefs.js';
 import {
@@ -18,7 +19,8 @@ import {
 import { _calFmtCommentTime, _calLatestMsgAt, _calLatestMsgCreatedAt, _calMintCommentId, _calNoteAuthorName } from './190-calendar-approval-comments.js';
 import { _sxrKasperLoadQueue, _sxrKasperState } from './290-samples-writes-review.js';
 import { CA_RECENT_KEY, _kasperPersistPost, _kasperSamplesEnabled, _kasperState } from './305-core-kasper-shared.js';
-import { _ccEnsureIdentity, _kasperLoadFilming, _kasperUpdateReplyCount } from './321-kasper-dashboard-replies.js';
+import { _ccEnsureIdentity, _kasperFallbackToReviewNow, _kasperLoadFilming, _kasperUpdateReplyCount } from './321-kasper-dashboard-replies.js';
+import { navTo } from './092-core-submit-form-navigation.js';
 import { _cbPurge, _cbSync, _cnRender } from './324-client-onboarding-panel.js';
 import { _svClientHue } from './095-shared-client.js';
 import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-history.js';
@@ -60,18 +62,28 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
     /* Messages tab = the shared Messages inbox (326-core-messages-inbox), or
        the old replies view while the inbox backend is not deployed yet. */
     let _kasperRepliesFallbackHooked = false;
+    let _kasperMessagesFromTab = false;
     function _kasperRenderReplies() {
         if (!_kasperRepliesFallbackHooked) {
             _kasperRepliesFallbackHooked = true;
             _msgOnFallback(() => {
                 _kasperUpdateReplyCount();
                 if (_kasperState.tab === 'replies') _kasperRenderReplies();
+                // Came from this tab and the inbox backend is not there:
+                // back to the Kasper page and its old Messages view.
+                if (_kasperMessagesFromTab) {
+                    _kasperMessagesFromTab = false;
+                    navTo('kasper');
+                    window._kasperGotoTab('replies');
+                }
             });
         }
         if (!_msgInboxLive()) { _kasperRenderRepliesLegacy(); return; }
-        const root = document.getElementById('kasperContent');
-        if (!root) return;
-        _msgRenderInto(root);
+        // The inbox is its own page now: the Kasper Messages tab opens it, and
+        // the Kasper page itself goes back to Review for the next visit.
+        _kasperFallbackToReviewNow();
+        _kasperMessagesFromTab = true;
+        navTo('messages');
     }
     function _kasperRenderRepliesLegacy() {
         const root = document.getElementById('kasperContent');
@@ -492,7 +504,24 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         }
         return { rows: _caFiltered(q).slice(0, CA_SEARCH_SHOWN), recent: false };
     }
-    function _caPaintSearch() {
+    /* The Clients tab's three pop-ups (search results, the All clients list and
+       the manager picker) are layers: Escape closes only the top one, a click
+       outside closes it, and focus goes back to what opened it. They are redrawn
+       from state, so this runs after every paint and opens or releases each
+       layer to match. */
+    function _caLayerSync() {
+        const defs = [
+            ['ca-search', () => !!(_caState.searchOpen && document.getElementById('caSearchPop') && !document.getElementById('caSearchPop').hidden), '#caSearchWrap', '#caSearch', reason => { if (reason === 'outside') { _caSearchQuietUntil = Date.now() + 500; document.getElementById('caSearch')?.blur(); } _caState.searchOpen = false; _caPaintSearch(); }],
+            ['ca-list', () => !!_caState.listOpen, '#caDrop', '#caAllBtn', () => _caCloseList()],
+            ['ca-mgr', () => !!_caState.picker, '#caMgrPop', '#caMgrBtn', () => _caMgrClose()],
+        ];
+        for (const [key, isOpen, region, openerSel, close] of defs) {
+            if (isOpen()) svLayerOpen({ key, region, opener: () => document.querySelector(openerSel), isOpen, holdRefresh: false, focusOnClose: key !== 'ca-search', close });   // the search box opens on focus: giving it focus back would only reopen it
+            else svLayerRelease(key);
+        }
+    }
+    function _caPaintSearch() { _caPaintSearchRaw(); _caLayerSync(); }
+    function _caPaintSearchRaw() {
         const pop = document.getElementById('caSearchPop');
         const input = document.getElementById('caSearch');
         if (!pop || !input) return;
@@ -520,7 +549,11 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         if (_caState.listOpen) _caCloseList();
         _caPaintSearch();
     }
-    function _caSearchFocus() { _caState.searchOpen = true; _caPaintSearch(); }
+    /* Clicking away from the search closes it. The phone bar hands focus back to
+       the box after any redraw, which would open it again at once, so a focus
+       that arrives right after an outside click does not reopen it. */
+    let _caSearchQuietUntil = 0;
+    function _caSearchFocus() { if (Date.now() < _caSearchQuietUntil) return; _caState.searchOpen = true; _caPaintSearch(); }
     function _caSearchKey(e) {
         const pop = document.getElementById('caSearchPop');
         const rows = (pop && pop._caRows) || [];
@@ -550,7 +583,8 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
     }
     function _caCloseList() { _caState.listOpen = false; _caPaintList(); }
     function _caToggleArchived() { _caState.showArchived = !_caState.showArchived; _caPaintList(); }
-    function _caPaintList() {
+    function _caPaintList() { _caPaintListRaw(); _caLayerSync(); }
+    function _caPaintListRaw() {
         const drop = document.getElementById('caDrop');
         const btn = document.getElementById('caAllBtn');
         if (btn) btn.setAttribute('aria-expanded', String(_caState.listOpen));
@@ -918,7 +952,8 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
             </div>`;
     }
 
-    function _caPaint() {
+    function _caPaint() { _caPaintRaw(); _caLayerSync(); }
+    function _caPaintRaw() {
         _caBindOutside();
         const body = document.getElementById('caBody');
         if (!body) return;

@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { showConfirm, showNotify } from './040-shared-briefs.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svSyncStepper, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import {
@@ -33,7 +34,7 @@ import {
   _calThumbIconHtml, _calThumbImgTag, _calTitleRowHtml, onCalMonthFilterChange
 } from './160-calendar-organize-ui.js';
 import {
-  COMP_LABELS, COMP_PILL_COLORS, _calRenderNativePostChoice, _calWireDragOnCard,
+  COMP_LABELS, COMP_PILL_COLORS, _calCapAiRefresh, _calRenderNativePostChoice, _calWireDragOnCard,
   _nativePostViewSlug, archiveCalPost
 } from './180-calendar-native-post-media.js';
 import { _calCrqBegin, _calCrqDone, _calCrqFailed } from './185-client-review-queue.js';
@@ -146,7 +147,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                         </div>
                     </div>`
             : `<div class="cal-fld-date-wrap">
-                        <div class="cal-date-chip${dateFmt ? '' : ' is-empty'}" data-date-display="${pid}">
+                        <div class="cal-date-chip${dateFmt ? '' : ' is-empty'}" data-date-display="${pid}"${_isClientLink ? '' : ' tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false"'}>
                             <svg class="cal-cal-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>
                             <span class="cal-date-txt">${dateFmt ? _calEsc(dateFmt) : 'Add date'}</span>
                             <svg class="cal-chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"/></svg>
@@ -272,7 +273,21 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
        same nice menu pattern used by the rest of the app. The menu is
        portaled to <body> so the card's overflow:hidden can't clip it. */
     let _calOpenStatusMenu = null;
-    function _calSetOpenStatusMenu(value) { _calOpenStatusMenu = value; }
+    /* Every way of filling the one status-menu slot (a status pill, Set all,
+       the alt-caption platform menu) goes through here, so each one is a
+       layer: Escape and an outside click close it and focus returns to the
+       button it opened from, on a pick as well. */
+    function _calSetOpenStatusMenu(value) {
+        _calOpenStatusMenu = value;
+        if (!value) return;
+        svLayerOpen({
+            key: 'cal-status',
+            region: () => (_calOpenStatusMenu ? _calOpenStatusMenu.el : null),
+            opener: value.triggerEl,
+            isOpen: () => !!_calOpenStatusMenu,
+            close: () => _calCloseStatusMenu(),
+        });
+    }
     /* The slug becomes a CSS class suffix, so every character that is illegal
        in a class name has to collapse to a dash: "N/A" would otherwise emit
        `cal-fld-status-n/a`, which no stylesheet can match and which silently
@@ -288,6 +303,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         const m = _calOpenStatusMenu.el;
         if (m && m.parentNode) m.parentNode.removeChild(m);
         _calOpenStatusMenu = null;
+        svLayerRelease('cal-status', { focus: true });
     }
     function _calStatusToggleMenu(event, pid, triggerEl, comp) {
         event.stopPropagation();
@@ -360,7 +376,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         menu.style.top = top + 'px';
         menu.style.minWidth = Math.max(rect.width, 200) + 'px';
         requestAnimationFrame(() => menu.classList.add('open'));
-        _calOpenStatusMenu = { pid, key: menuKey, comp: which, el: menu, triggerEl };
+        _calSetOpenStatusMenu({ pid, key: menuKey, comp: which, el: menu, triggerEl });
     }
     function _calStatusPick(pid, status, comp) {
         if (_isClientLink) return;   // status control is SMM-only (client review uses _calReviewApprove)
@@ -491,7 +507,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         menu.style.left = left + 'px';
         menu.style.top  = top + 'px';
         requestAnimationFrame(() => menu.classList.add('open'));
-        _calOpenStatusMenu = { el: menu, key: menuKey, triggerEl };
+        _calSetOpenStatusMenu({ el: menu, key: menuKey, triggerEl });
     }
     /* Settable means "the pill for this component is not locked", so the ONE
        predicate has to be the one the pill uses. This tested the Linear URL
@@ -708,13 +724,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         // view must not dismiss it before the person can choose.
         if (!_calStaffPhoneActive()) _calCloseStatusMenu();
     }, true);
-    document.addEventListener('keydown', event => {
-        if (event.key !== 'Escape' || !_calStaffPhoneActive() || !_calOpenStatusMenu) return;
-        const trigger = _calOpenStatusMenu.triggerEl;
-        _calCloseStatusMenu();
-        if (trigger && trigger.isConnected) trigger.focus();
-        event.preventDefault();
-    });
+    // Escape is handled by the shared layer (see _calSetOpenStatusMenu).
     /* Client-link view — the only status action a client can take is to
        approve a post. Flips the status to "Approved" and saves it. */
     function _calClientApprove(pid) {
@@ -854,10 +864,11 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         if (btn && btn.hidden) return;
         wrap.classList.add('expanded');
         _calRefreshCaption(ta, document.activeElement === ta);
+        _calCapLayerSync(wrap, null);
     }
     function _calOnCaptionInput(ta) { _calRefreshCaption(ta, document.activeElement === ta); _calOnFieldInput(ta); }
     function _calOnCaptionFocus(ta) { _calCaptionDragLock(ta, true); _calRefreshCaption(ta, true); }
-    function _calOnCaptionBlur(ta)  { _calCaptionDragLock(ta, false); _calRefreshCaption(ta, false); _calOnFieldBlur(ta); }
+    function _calOnCaptionBlur(ta)  { _calCaptionDragLock(ta, false); _calRefreshCaption(ta, false); _calOnFieldBlur(ta); if (ta.dataset.fld === 'caption') _calCapAiRefresh(ta.dataset.pid); }
     /* While a caption textarea has focus, switch the card's native HTML5 drag
        OFF so click-dragging to SELECT text inside the caption can't grab and
        reorder the whole card ("I'm in the caption and it drags the card").
@@ -909,6 +920,37 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         }
         wrap.classList.toggle('expanded');
         _calRefreshCaption(ta, document.activeElement === ta, measured);
+        _calCapLayerSync(wrap, btn);
+    }
+    /* A pinned-open (Show more) caption is a layer: Escape and a click outside
+       fold it back, and focus returns to the Show more button. Folding keeps
+       the person's text: if the box has focus it is blurred, which saves
+       exactly as clicking away does. Staff only: the client link keeps its
+       own behaviour. */
+    function _calCapLayerSync(wrap, opener) {
+        if (_isClientLink || !wrap) return;
+        const ta = wrap.querySelector('textarea');
+        if (!ta || !ta.dataset.pid) return;
+        const pid = ta.dataset.pid, which = wrap.dataset.capwrap || 'main';
+        const key = 'cal-cap:' + pid + ':' + which;
+        if (!wrap.classList.contains('expanded')) { svLayerRelease(key); return; }
+        const sel = '.cal-cap-wrap[data-capwrap="' + which + '"] > textarea[data-pid="' + (window.CSS && CSS.escape ? CSS.escape(pid) : pid) + '"]';
+        const live = () => { const t = document.querySelector(sel); return t ? t.closest('.cal-cap-wrap') : null; };
+        svLayerOpen({
+            key,
+            holdRefresh: false,   // _calCaptureLiveUi / _calRestoreLiveUi already carry an open caption across a repaint
+            region: () => live(),
+            opener: () => { const w = live(); return w && w.querySelector('.cal-cap-toggle'); },
+            isOpen: () => { const w = live(); return !!w && w.classList.contains('expanded'); },
+            close: () => {
+                const w = live();
+                if (!w) return;
+                const t = w.querySelector('textarea');
+                w.classList.remove('expanded');
+                if (t && document.activeElement === t) t.blur();
+                else if (t) _calRefreshCaption(t, false);
+            },
+        });
     }
     /* Re-measure captions when they actually get a size — fixes the "I entered
        a long caption but no Show-more appears / it won't expand" report. The
@@ -981,8 +1023,10 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         img.src = info.url;
         ovl.classList.add('open');
         document.body.classList.add('cal-modal-open');
+        if (!_isClientLink) svLayerOverlay('cal-lightbox', '#calLightbox', '#calLightbox img', () => closeCalLightbox());
     }
     function closeCalLightbox() {
+        svLayerRelease('cal-lightbox', { focus: true });
         const ovl = document.getElementById('calLightbox');
         if (ovl) { ovl.classList.remove('open'); const img = ovl.querySelector('img'); if (img) img.src = ''; }
         document.body.classList.remove('cal-modal-open');
@@ -2602,6 +2646,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
     function _calCloseNativePost(force) {
         const overlay = document.getElementById('calNativePostOverlay');
         if (!force && overlay && overlay.dataset.busy === '1') return;
+        if (typeof svLayerRelease === 'function') svLayerRelease('cal-nativepost', { focus: true });
         if (overlay) overlay.remove();
         document.body.classList.remove('cal-modal-open');
         _calNativePostState = null;

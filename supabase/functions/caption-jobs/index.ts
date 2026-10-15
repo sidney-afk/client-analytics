@@ -5,8 +5,8 @@
 // n8n; it writes progress here and the Calendar page reads it here.
 //
 //   GET  ?client=<slug>[&postId=..][&jobId=..]   { ok, jobs: [{ jobId, client, postId, status, stage, caption,
-//                                                   error, cancel_requested, started_at, updated_at }] }
-//   POST { jobId, client?, postId?, status?, stage?, caption?, error?, cancel_requested?, started_at? }
+//                                                   error, cancel_requested, extras, started_at, updated_at }] }
+//   POST { jobId, client?, postId?, status?, stage?, caption?, error?, extras?, cancel_requested?, started_at? }
 //                                                 { ok: true }   (only the keys sent are written)
 //
 // Auth: a staff role key (X-Syncview-Key), the same as the other staff functions, or the credentials staff key
@@ -54,17 +54,18 @@ Deno.serve(async (req) => {
       if (!client) return json({ ok: true, jobs: [] });
       const postId = clean(url.searchParams.get("postId"));
       const jobId = clean(url.searchParams.get("jobId"));
-      let query = db
-        .from("caption_jobs")
-        .select("job_id,client,post_id,status,stage,caption,error,cancel_requested,started_at,updated_at")
-        .eq("client", client);
-      // The cap belongs to the requested set. Limiting the entire client's
-      // history first can hide a named job behind 200 unrelated newer jobs.
-      if (postId) query = query.eq("post_id", postId);
-      if (jobId) query = query.eq("job_id", jobId);
-      const { data, error } = await query
-        .order("updated_at", { ascending: false })
-        .limit(STATUS_LIMIT);
+      const cols = "job_id,client,post_id,status,stage,caption,error,cancel_requested,started_at,updated_at";
+      let data, error;
+      // The extras column arrives with its migration; until then the rows are read without it so progress never breaks.
+      for (const select of [cols + ",extras", cols]) {
+        let query = db.from("caption_jobs").select(select).eq("client", client);
+        // The cap belongs to the requested set. Limiting the entire client's
+        // history first can hide a named job behind 200 unrelated newer jobs.
+        if (postId) query = query.eq("post_id", postId);
+        if (jobId) query = query.eq("job_id", jobId);
+        ({ data, error } = await query.order("updated_at", { ascending: false }).limit(STATUS_LIMIT));
+        if (!error) break;
+      }
       if (error) throw error;
       const jobs = selectJobs(data || [], { postId, jobId }, Date.now());
       return json({ ok: true, jobs });

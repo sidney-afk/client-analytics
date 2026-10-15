@@ -24,6 +24,7 @@
     "onboarding-checklist-tables-migration.js",
     "native-client-test-provision-migration.js",
     "client-onboarding-handler.js",
+    "client-review-alert-handler.js",
     "client-create-migration.js",
     "client-resource-match.js",
     "client-hubspot-sync-handler.js",
@@ -170,6 +171,7 @@
     "canonical-coverage-hold-routes-legacy.js",
     "caption-cancel-grace.js",
     "caption-generate-source.js",
+    "caption-helper-source.js",
     "caption-has-no-work-item.js",
     "caption-jobs-page-wiring.js",
     "caption-jobs-source.js",
@@ -1691,6 +1693,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, the Frame.io lookup and the video clip are fixtures, no hosted credentials and no live data. Checks the Watch here viewer on the Calendar card, the SMM review panel and Kasper's review at desktop and phone size, light and dark: loading, could-not-load, comments, jump to a comment, and that a client link page shows no button.",
       "reproduce": "node test/frameio-viewer-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "caption-helper-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Generate caption box (platform, call to action, note), the title ideas, hashtags and redo under the caption, at desktop and 390 pixel width in light and dark, and that a caption typed by a person is never overwritten.",
+      "reproduce": "node test/caption-helper-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

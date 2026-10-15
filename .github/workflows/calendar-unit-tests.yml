@@ -341,6 +341,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/calendar-card-status-filter-browser.js
+      - name: Notify client button and confirm box (Calendar and Samples, desktop and phone)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/notify-client-browser.js
       - name: Calendar work item hover card and per-card files menu
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -379,6 +383,14 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/quick-jump-browser.js
+      - name: Every pop-up closes the same way (Escape, outside click, focus return, kept text, refresh)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/popup-behaviour-browser.js
+      - name: Every pop-up closes the same way, part two (SyncLinear, Kasper, Workload, Analytics)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/popup-behaviour-areas-browser.js
       - name: Creatives open on their own work in Workload and SyncLinear
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -418,6 +430,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/frameio-viewer-browser.js
+      - name: Caption helper (call to action, platform, note, title ideas, hashtags, redo; desktop and phone, light and dark)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/caption-helper-browser.js
       - name: Client approve and request-changes always save through the function
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

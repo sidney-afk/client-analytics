@@ -115,6 +115,7 @@ and SMM weekly reports.
 | `160-calendar-organize-ui.js` | `_calFillComponentSubmit` | `PROD_WRITE_EF_URL` POST | reports | `_calFillComponentSubmit` | Calendar component fill. Already recorded (component_fill). |
 | `160-calendar-organize-ui.js` | `_calFrameFolderEnsure` | `url` POST | read |  | Calendar Frame folder button: reads the client's saved Frame folder (brain, action folders). Nothing is saved. |
 | `160-calendar-organize-ui.js` | `_calResolveThumbnailFolder` | `THUMBNAIL_FOLDER_RESOLVE_EF_URL` POST | read |  | Looks up a thumbnail folder. |
+| `160-calendar-organize-ui.js` | `_notifyClientCall` | `CLIENT_REVIEW_ALERT_URL` POST | reports | `_notifyClientCall` | The Notify client button: status, send and preview calls to client-review-alert (staff only). Recorded as client_alert. |
 | `160-calendar-organize-ui.js` | `_thumbCompareDiscoverAvailability` | `THUMBNAIL_REVISION_READ_EF_URL` POST | read |  | Reads thumbnail revisions. |
 | `160-calendar-organize-ui.js` | `_thumbCompareLoad` | `THUMBNAIL_REVISION_READ_EF_URL` POST | read |  | Reads thumbnail revisions. |
 | `170-calendar-links-status.js` | `current` | `url` POST | read |  | Reads the editor options for the intake picker. |
@@ -122,6 +123,7 @@ and SMM weekly reports.
 | `180-calendar-native-post-media.js` | `_calCapJobStart` | `CAPTION_GENERATE_EF_URL` POST | reports | `_calCapJobSettle` | Starts a caption generation on the caption-generate function (switch caption_generate_ef_clients). A job that ends in error is recorded once as caption_generate, where the job settles. |
 | `180-calendar-native-post-media.js` | `_calCapJobStart` | `GENERATE_CAPTION_URL` POST | reports | `_calCapJobSettle` | Starts a caption generation (n8n). A job that ends in error is recorded once as caption_generate, where the job settles. |
 | `180-calendar-native-post-media.js` | `_calCapJobsPoll` | `CAPTION_JOB_UPDATE_URL` POST | background |  | Stand-down message for a caption job that timed out; the job already ends in error and is recorded there. |
+| `180-calendar-native-post-media.js` | `_calSaveCaptionPrompt` | `ctaUrl` POST | reports | `_calSaveCaptionPrompt` | Call to action choices save (caption-generate, action cta_save), sent after the prompt save. Recorded as caption_cta_save. |
 | `180-calendar-native-post-media.js` | `_calSaveCaptionPrompt` | `writeUrl` POST | reports | `_calSaveCaptionPrompt` | Caption prompt save (caption-prompts-save). Recorded as caption_prompt_save. |
 | `180-calendar-native-post-media.js` | `_calSaveThumbTitlePrompt` | `url` POST | reports | `_calSaveThumbTitlePrompt` | Thumbnail title prompt save (thumbnail-title-prompts, action save). Recorded as thumbnail_title_prompt_save. |
 | `180-calendar-native-post-media.js` | `_calThumbTitlePromptCall` | `url` POST | read |  | Reads one client's thumbnail title prompt by POST (thumbnail-title-prompts, action get). Saves nothing. |

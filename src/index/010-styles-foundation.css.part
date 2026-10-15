@@ -17,6 +17,7 @@
             --field-bg: var(--sv-bg-f3f3f1); --field-bg-hover: var(--sv-bg-ebebe8); --field-bg-focus: var(--sv-bg-fff); --field-border-focus: var(--text-primary); --field-placeholder: var(--sv-fg-b6b6b1); --field-fade-from: var(--sv-bg-rgba-243-243-241-0); --field-fade-mid: var(--sv-bg-rgba-243-243-241-0_7);
             --media-tub-bg: linear-gradient(155deg, var(--sv-bg-f7f7f5) 0%, var(--sv-bg-e7e7e3) 100%); --media-tub-empty-bg: var(--sv-bg-f4f4f2);
             --cal-status-in-progress-bg: #fde047; --cal-status-in-progress-fg: #101114; --cal-status-for-smm-approval-bg: #e879f9; --cal-status-for-smm-approval-fg: #101114; --cal-status-kasper-approval-bg: #93c5fd; --cal-status-kasper-approval-fg: #101114; --cal-status-client-approval-bg: #ff6b6b; --cal-status-client-approval-fg: #101114; --cal-status-approved-bg: #4ade80; --cal-status-approved-fg: #101114; --cal-status-tweaks-needed-bg: #fb923c; --cal-status-tweaks-needed-fg: #101114; --cal-status-scheduled-bg: #60a5fa; --cal-status-scheduled-fg: #101114; --cal-status-posted-bg: #047857; --cal-status-posted-fg: #ffffff; --cal-status-archived-bg: #9ca3af; --cal-status-archived-fg: #101114; --cal-status-n-a-bg: #9ca3af; --cal-status-n-a-fg: #101114;
+            --notify-bg: #6c5ce7; --notify-bg-hover: #5b4bd6; --notify-fg: #ffffff;
             --cal-urgent-bg: #ff5a36; --cal-urgent-hover-bg: #f0442d; --cal-urgent-fg: #101114; --cal-urgent-disabled-bg: #9ca3af; --cal-urgent-sent-bg: #4ade80;
             /* Video and Thumbnail share the same vibrant pink/blue pair the
                link fields use (--sv-slot-video-fg / --sv-slot-thumb-fg,
@@ -50,6 +51,7 @@
             --surface-raised: #20232a; --surface-hover: #242730; --surface-subtle: #15171c;
             --text-primary: #f4f6f8; --text-secondary: #c2c7cf; --text-muted: #aeb6c2; --text-inverse: #ffffff; --toast-bg: #20232a; --toast-color: #f4f6f8;
             --focus-ring: #8b7cf6; --overlay: rgba(0,0,0,0.62);
+            --notify-bg: #8b7cf6; --notify-bg-hover: #a094f8; --notify-fg: #101114;
             --shadow-sm: 0 1px 3px rgba(0,0,0,0.35); --shadow-md: 0 10px 34px rgba(0,0,0,0.42); --shadow-lg: 0 18px 54px rgba(0,0,0,0.5);
             --ig: #ff5d9d; --ig-light: #351926; --ig-mid: #794058; --ig-dark: #ff9dc4;
             --tt: #f4f6f8; --tt-light: #1f2228; --tt-mid: #50545e; --tt-dark: #d9dee6;
@@ -3009,9 +3011,13 @@
         .prod-label-lock { padding: 7px 10px; border-top: 1px solid var(--prod-divider); color: var(--prod-faint); font-size: 10.5px; line-height: 15px; }
         .prod-create-trigger { min-height: 28px; border: 0; border-radius: 7px; padding: 0 11px; background: var(--prod-accent); color: #fff; display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
         .prod-create-trigger:hover { filter: brightness(.97); }
-        .prod-back-card { flex: none; min-height: 28px; border: 1px solid var(--prod-border); border-radius: 7px; padding: 0 10px 0 6px; background: transparent; color: var(--prod-text); display: inline-flex; align-items: center; gap: 4px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-        .prod-back-card:hover { background: var(--prod-hover); }
-        .prod-back-card:focus-visible { outline: 2px solid var(--prod-accent); outline-offset: 1px; }
+        .prod-back-card { flex: 1; min-width: 0; min-height: 36px; border: 0; border-radius: 8px; padding: 0 14px 0 10px; background: var(--prod-accent); color: #fff; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; box-shadow: 0 1px 2px rgba(0,0,0,.18); }
+        .prod-back-card:hover { filter: brightness(1.08); }
+        .prod-back-card:focus-visible { outline: 2px solid var(--prod-text); outline-offset: 2px; }
+        .prod-back-card svg { flex: none; }
+        .prod-back-strip { display: none; flex: none; padding: 8px 12px; background: var(--prod-bg); border-bottom: 1px solid var(--prod-divider); }
+        .prod-back-strip .prod-back-card { width: 100%; min-height: 44px; font-size: 14px; }
+        @media (max-width: 900px) { .prod-back-strip { display: flex; } }
         .prod-create-trigger[disabled] { background: var(--prod-hover); color: var(--prod-faint); cursor: not-allowed; filter: none; }
         .prod-create-bd { position: fixed; inset: 0; padding: 32px 18px; box-sizing: border-box; display: flex; justify-content: center; align-items: flex-start; overflow: auto; background: rgba(18,18,20,.34); pointer-events: auto; }
         .prod-create-modal { width: min(720px, calc(100vw - 36px)); max-height: calc(100vh - 64px); display: flex; flex-direction: column; border: 1px solid var(--prod-border); border-radius: 14px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: 0 24px 70px rgba(0,0,0,.24); overflow: hidden; }

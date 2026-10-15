@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { wlWorkloadTodayISO } from './068-core-workload-dates.js';
 import { _syncviewCreativeMe, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
@@ -69,14 +70,38 @@ import {
             layer.appendChild(pop);
             _prodPlacePop(pop, x, y);
             pop.style.visibility = 'visible';
+            /* A layer: Escape closes only the top pop (a sub-menu first, then
+               this one) and focus goes back to what opened it. The dim backdrop
+               above keeps its own outside-click handling (it passes the click
+               on to a trigger underneath), so the shared handler leaves the
+               outside click to it. */
+            svLayerOpen({
+                key: 'prod-pop',
+                region: '#prodLayer .prod-pop',
+                outside: false,
+                holdRefresh: false,
+                isOpen: () => !!document.querySelector('#prodLayer .prod-pop'),
+                close: () => _prodClearLayer(),
+            });
             return pop;
         }
         let _prodSubPop = null;
-        function _prodSetSubPop(value) { _prodSubPop = value; }
+        function _prodSetSubPop(value) {
+            _prodSubPop = value;
+            if (!value) { svLayerRelease('prod-sub'); return; }
+            svLayerOpen({
+                key: 'prod-sub',
+                region: () => _prodSubPop,
+                outside: false,
+                holdRefresh: false,
+                isOpen: () => !!_prodSubPop && _prodSubPop.isConnected,
+                close: () => _prodCloseSub(),
+            });
+        }
         function _prodCloseSub() {
             if (_prodSubPop) {
                 _prodSubPop.remove();
-                _prodSubPop = null;
+                _prodSetSubPop(null);
             }
         }
         function _prodWirePlainMenu(pop) {
@@ -434,7 +459,7 @@ import {
             const r = parentEl.getBoundingClientRect();
             if (kind === 'due') {
                 _prodBuildDue(p, _prodIssue(ids[0]), ids, { x: r.right - 4, y: r.top - 6, flipX: r.left });
-                _prodSubPop = p;
+                _prodSetSubPop(p);
                 return;
             }
             p.innerHTML = _prodPickerHTML(kind, ids.length === 1 ? _prodCurVal(kind, ids[0]) : null, ids);
@@ -454,7 +479,7 @@ import {
             }
             p.style.visibility = 'visible';
             _prodWirePicker(p, kind, ids);
-            _prodSubPop = p;
+            _prodSetSubPop(p);
         }
         function _prodOpenPicker(kind, ev, id) {
             if (ev) {

@@ -5,6 +5,7 @@
 020-styles-surfaces.css.part
 030-body-shell.html.part
 040-shared-briefs.js.part
+041-core-layers.js.part
 050-market-briefs.js.part
 060-templates-filming.js.part
 065-core-nav-intake-state.js.part

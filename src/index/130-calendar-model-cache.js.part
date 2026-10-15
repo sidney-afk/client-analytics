@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { _writeUiRecordSaveFailure } from './120-calendar-flags-write-repair.js';
 import {
   _toastEl, hideToast, showConfirm, showNotify, showToast
@@ -16,7 +17,7 @@ import {
   _calClientFieldEditBlocked, _calCloseStatusMenu, _calFlushCardSave, _calOnCaptionInput,
   _calOpenStatusMenu, _calRefreshCaption, _calSetOpenStatusMenu
 } from './170-calendar-links-status.js';
-import { CAL_BULK_ARCHIVE_CONCURRENCY, _calCapGenBtnHtml, _calMarkKasperSeen, _calRunPooled } from './180-calendar-native-post-media.js';
+import { CAL_BULK_ARCHIVE_CONCURRENCY, _calCapAiPanelHtml, _calCapAiToggleHtml, _calCapGenBtnHtml, _calMarkKasperSeen, _calRunPooled } from './180-calendar-native-post-media.js';
 import { _calStringifyComments } from './190-calendar-approval-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     function _calMigratePostShape(p) {
@@ -352,12 +353,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 <div class="cal-cap-fade" aria-hidden="true"></div>
                 ${capToggle}
                 ${genBtn}
+                ${canEdit ? _calCapAiToggleHtml(p) : ''}
             </div>
             ${hasAlt ? `<div class="cal-cap-wrap${active === 'alt' ? '' : ' captab-off'}" data-capwrap="alt" onclick="_calCaptionWrapClick(event,this)">
                 <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption_alt" placeholder="${_calEscAttr(platLabel)} caption" oninput="_calOnAltCapInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)" onkeydown="_calOnCaptionKey(event,this)"${!editableText ? ' readonly' : ''}>${_calEsc(alt)}</textarea>
                 <div class="cal-cap-fade" aria-hidden="true"></div>
                 ${capToggle}
-            </div>` : ''}`;
+            </div>` : ''}${canEdit ? _calCapAiPanelHtml(p) : ''}`;
     }
     /* Rebuilds the caption block in place (tab row + both textareas) after a
        tab is added / removed / re-platformed. Preserves any typed-but-unsaved
@@ -547,6 +549,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             ${CAL_COLORS.map(c => `<button type="button" class="cal-card-color-pick" data-color="${c}" style="background:${CAL_COLOR_HEX[c]}" title="${c}" onclick="_calSetCardColor(event,'${pid}','${c}')"></button>`).join('')}`;
         thumb.appendChild(picker);
         _calColorPickerOpenFor = pid;
+        svLayerOpen({
+            key: 'cal-color',
+            region: () => document.querySelector('.cal-card-color-picker[data-color-picker-pid="' + (window.CSS && CSS.escape ? CSS.escape(pid) : pid) + '"]'),
+            opener: thumb.querySelector('.cal-card-color-tag'),
+            isOpen: () => _calColorPickerOpenFor === pid,
+            close: () => _calCloseColorPicker(),
+        });
         setTimeout(() => { document.addEventListener('click', _calMaybeCloseColorPicker, { capture: true }); }, 0);
     }
     function _calMaybeCloseColorPicker(e) {
@@ -558,6 +567,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         document.querySelectorAll('.cal-card-color-picker').forEach(p => p.remove());
         document.removeEventListener('click', _calMaybeCloseColorPicker, { capture: true });
         _calColorPickerOpenFor = null;
+        svLayerRelease('cal-color', { focus: true });
     }
     function _calSetCardColor(e, pid, color) {
         if (e) e.stopPropagation();

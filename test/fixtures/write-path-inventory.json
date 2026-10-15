@@ -216,6 +216,13 @@
       ],
       "note": "Caption prompt save (caption-prompts-save). Recorded as caption_prompt_save."
     },
+    "180-calendar-native-post-media.js.part|_calSaveCaptionPrompt|ctaUrl|POST": {
+      "status": "reports",
+      "within": [
+        "_calSaveCaptionPrompt"
+      ],
+      "note": "Call to action choices save (caption-generate, action cta_save), sent after the prompt save. Recorded as caption_cta_save."
+    },
     "180-calendar-native-post-media.js.part|_calSaveThumbTitlePrompt|url|POST": {
       "status": "reports",
       "within": [
@@ -501,6 +508,14 @@
     "187-frame-viewer.js.part|ctrl|FRAMEIO_VIEW_EF_URL|POST": {
       "status": "read",
       "note": "Watch here: asks the frameio-view function for a video address and comments. A POST only to carry the link; it reads from Frame.io and saves nothing."
+
+    },
+    "160-calendar-organize-ui.js.part|_notifyClientCall|CLIENT_REVIEW_ALERT_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_notifyClientCall"
+      ],
+      "note": "The Notify client button: status, send and preview calls to client-review-alert (staff only). Recorded as client_alert."
     }
   }
 }

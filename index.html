@@ -45,7 +45,7 @@
             'tiktok-upload': 'tiktok-upload', 'time-off': 'time-off',
             'sample-reviews': 'sample-reviews', 'smm-weekly-report': 'smm-weekly-report',
             'smm-weekly-reports': 'smm-weekly-reports', 'kasper': 'kasper',
-            'client-credentials': 'client-credentials'
+            'client-credentials': 'client-credentials', 'messages': 'messages'
         };
         var LEGACY = {};
         for (var k in SIMPLE) LEGACY[SIMPLE[k]] = k;
@@ -418,7 +418,7 @@
                 de.setAttribute('data-boot-nav', seg);
                 return;
             }
-            var FAST = ['today', 'linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'smm-weekly-report', 'smm-weekly-reports'];
+            var FAST = ['today', 'linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'messages', 'smm-weekly-report', 'smm-weekly-reports'];
             var RESTORABLE_FAST = FAST.filter(function (nav) { return nav !== 'smm-weekly-report' && nav !== 'smm-weekly-reports'; });
             // Kasper is admin-only: mirror _kasperAdminAllowed()'s remembered
             // admin (a paint hint only; the tab itself waits for the check).
@@ -444,7 +444,7 @@
             // Any other page the address names (a Kasper link before the admin
             // check, Samples switched off, a sub-path the fast path does not
             // predict): never guess Analytics, paint the neutral skeleton.
-            else if (seg && ['today', 'production', 'linear', 'workload', 'calendar', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'kasper', 'sample-reviews', 'samples'].indexOf(seg) >= 0) target = 'neutral';
+            else if (seg && ['today', 'production', 'linear', 'workload', 'calendar', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'kasper', 'sample-reviews', 'samples', 'messages'].indexOf(seg) >= 0) target = 'neutral';
             else if (!hash) {
                 var saved = null; try { saved = localStorage.getItem('syncview_nav'); } catch (e) {}
                 var nav = (st && st.nav) || saved;
@@ -666,6 +666,7 @@
             --field-bg: var(--sv-bg-f3f3f1); --field-bg-hover: var(--sv-bg-ebebe8); --field-bg-focus: var(--sv-bg-fff); --field-border-focus: var(--text-primary); --field-placeholder: var(--sv-fg-b6b6b1); --field-fade-from: var(--sv-bg-rgba-243-243-241-0); --field-fade-mid: var(--sv-bg-rgba-243-243-241-0_7);
             --media-tub-bg: linear-gradient(155deg, var(--sv-bg-f7f7f5) 0%, var(--sv-bg-e7e7e3) 100%); --media-tub-empty-bg: var(--sv-bg-f4f4f2);
             --cal-status-in-progress-bg: #fde047; --cal-status-in-progress-fg: #101114; --cal-status-for-smm-approval-bg: #e879f9; --cal-status-for-smm-approval-fg: #101114; --cal-status-kasper-approval-bg: #93c5fd; --cal-status-kasper-approval-fg: #101114; --cal-status-client-approval-bg: #ff6b6b; --cal-status-client-approval-fg: #101114; --cal-status-approved-bg: #4ade80; --cal-status-approved-fg: #101114; --cal-status-tweaks-needed-bg: #fb923c; --cal-status-tweaks-needed-fg: #101114; --cal-status-scheduled-bg: #60a5fa; --cal-status-scheduled-fg: #101114; --cal-status-posted-bg: #047857; --cal-status-posted-fg: #ffffff; --cal-status-archived-bg: #9ca3af; --cal-status-archived-fg: #101114; --cal-status-n-a-bg: #9ca3af; --cal-status-n-a-fg: #101114;
+            --notify-bg: #6c5ce7; --notify-bg-hover: #5b4bd6; --notify-fg: #ffffff;
             --cal-urgent-bg: #ff5a36; --cal-urgent-hover-bg: #f0442d; --cal-urgent-fg: #101114; --cal-urgent-disabled-bg: #9ca3af; --cal-urgent-sent-bg: #4ade80;
             /* Video and Thumbnail share the same vibrant pink/blue pair the
                link fields use (--sv-slot-video-fg / --sv-slot-thumb-fg,
@@ -699,6 +700,7 @@
             --surface-raised: #20232a; --surface-hover: #242730; --surface-subtle: #15171c;
             --text-primary: #f4f6f8; --text-secondary: #c2c7cf; --text-muted: #aeb6c2; --text-inverse: #ffffff; --toast-bg: #20232a; --toast-color: #f4f6f8;
             --focus-ring: #8b7cf6; --overlay: rgba(0,0,0,0.62);
+            --notify-bg: #8b7cf6; --notify-bg-hover: #a094f8; --notify-fg: #101114;
             --shadow-sm: 0 1px 3px rgba(0,0,0,0.35); --shadow-md: 0 10px 34px rgba(0,0,0,0.42); --shadow-lg: 0 18px 54px rgba(0,0,0,0.5);
             --ig: #ff5d9d; --ig-light: #351926; --ig-mid: #794058; --ig-dark: #ff9dc4;
             --tt: #f4f6f8; --tt-light: #1f2228; --tt-mid: #50545e; --tt-dark: #d9dee6;
@@ -3658,9 +3660,13 @@
         .prod-label-lock { padding: 7px 10px; border-top: 1px solid var(--prod-divider); color: var(--prod-faint); font-size: 10.5px; line-height: 15px; }
         .prod-create-trigger { min-height: 28px; border: 0; border-radius: 7px; padding: 0 11px; background: var(--prod-accent); color: #fff; display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
         .prod-create-trigger:hover { filter: brightness(.97); }
-        .prod-back-card { flex: none; min-height: 28px; border: 1px solid var(--prod-border); border-radius: 7px; padding: 0 10px 0 6px; background: transparent; color: var(--prod-text); display: inline-flex; align-items: center; gap: 4px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-        .prod-back-card:hover { background: var(--prod-hover); }
-        .prod-back-card:focus-visible { outline: 2px solid var(--prod-accent); outline-offset: 1px; }
+        .prod-back-card { flex: 1; min-width: 0; min-height: 36px; border: 0; border-radius: 8px; padding: 0 14px 0 10px; background: var(--prod-accent); color: #fff; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; box-shadow: 0 1px 2px rgba(0,0,0,.18); }
+        .prod-back-card:hover { filter: brightness(1.08); }
+        .prod-back-card:focus-visible { outline: 2px solid var(--prod-text); outline-offset: 2px; }
+        .prod-back-card svg { flex: none; }
+        .prod-back-strip { display: none; flex: none; padding: 8px 12px; background: var(--prod-bg); border-bottom: 1px solid var(--prod-divider); }
+        .prod-back-strip .prod-back-card { width: 100%; min-height: 44px; font-size: 14px; }
+        @media (max-width: 900px) { .prod-back-strip { display: flex; } }
         .prod-create-trigger[disabled] { background: var(--prod-hover); color: var(--prod-faint); cursor: not-allowed; filter: none; }
         .prod-create-bd { position: fixed; inset: 0; padding: 32px 18px; box-sizing: border-box; display: flex; justify-content: center; align-items: flex-start; overflow: auto; background: rgba(18,18,20,.34); pointer-events: auto; }
         .prod-create-modal { width: min(720px, calc(100vw - 36px)); max-height: calc(100vh - 64px); display: flex; flex-direction: column; border: 1px solid var(--prod-border); border-radius: 14px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: 0 24px 70px rgba(0,0,0,.24); overflow: hidden; }
@@ -6114,6 +6120,43 @@
         .cal-select-btn:hover { background: var(--bg); color: var(--text-primary); }
         .cal-select-btn.active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
         .cal-select-btn svg { width: 15px; height: 15px; }
+        /* Notify client — one accent button beside Organize, and its confirm box. */
+        .notify-client-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 32px;
+            padding: 0 13px; border: 0; border-radius: 8px; background: var(--notify-bg); color: var(--notify-fg);
+            font-family: inherit; font-size: 0.78rem; font-weight: 700; white-space: nowrap; cursor: pointer;
+            transition: background 0.12s; }
+        .notify-client-btn:hover { background: var(--notify-bg-hover); }
+        .notify-client-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        .notify-client-btn[hidden] { display: none; }
+        .notify-client-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+        .notify-client-dialog { margin: auto; width: min(460px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; padding: 22px 22px 18px;
+            border: 1px solid var(--border); border-radius: 14px; background: var(--surface-raised); color: var(--text-primary);
+            box-shadow: var(--shadow-lg); }
+        .notify-client-dialog::backdrop { background: var(--overlay); }
+        .notify-client-dialog h2 { margin: 0 0 14px; font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; }
+        .notify-client-dialog p { margin: 0; }
+        .notify-client-dialog .nc-msg { padding: 14px 16px; border: 1px solid var(--border); border-left: 3px solid var(--notify-bg); border-radius: 8px; background: var(--surface-subtle); }
+        .notify-client-dialog .nc-msg-line { font-size: 0.9rem; font-weight: 800; line-height: 1.35; }
+        .notify-client-dialog .nc-msg-link { margin-top: 4px; font-size: 0.86rem; font-weight: 600; color: var(--notify-bg); text-decoration: underline; }
+        .notify-client-dialog .nc-note, .notify-client-dialog .nc-last { margin-top: 12px; font-size: 0.78rem; color: var(--text-secondary); line-height: 1.45; }
+        .notify-client-dialog .nc-warn, .notify-client-dialog .nc-alert { margin-top: 12px; padding: 9px 12px; border-radius: 8px;
+            font-size: 0.78rem; font-weight: 600; line-height: 1.45; }
+        .notify-client-dialog .nc-warn { background: var(--warn-solid-bg); color: var(--warn-solid-fg); }
+        .notify-client-dialog .nc-alert { background: var(--err-solid-bg); color: var(--err-solid-fg); }
+        .notify-client-dialog .nc-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+        .notify-client-dialog .nc-actions button { min-height: 36px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--border);
+            background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+        .notify-client-dialog .nc-actions button:hover:not(:disabled) { background: var(--bg); }
+        .notify-client-dialog .nc-actions .nc-send { background: var(--notify-bg); color: var(--notify-fg); border-color: var(--notify-bg); }
+        .notify-client-dialog .nc-actions .nc-send:hover:not(:disabled) { background: var(--notify-bg-hover); }
+        .notify-client-dialog .nc-actions button:disabled { opacity: 0.55; cursor: default; }
+        .notify-client-dialog .nc-actions button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        @media (max-width: 767px) {
+            .notify-client-btn { min-height: 44px; padding: 0 16px; font-size: 0.86rem; }
+            .notify-client-dialog { padding: 20px 18px 16px; }
+            .notify-client-dialog .nc-actions { flex-direction: column-reverse; }
+            .notify-client-dialog .nc-actions button { min-height: 44px; width: 100%; }
+        }
         .cal-card-select-overlay { position: absolute; inset: 0; z-index: 7; cursor: pointer; background: transparent;
             transition: background 0.12s; }
         .cal-card-select-overlay:hover { background: var(--sv-bg-rgba-37-99-235-0_07); }
@@ -6233,6 +6276,7 @@
         .cal-fld-date-wrap:hover .cal-date-chip { background: var(--field-bg-hover); }
         .cal-cal-ico { width: 13px; height: 13px; flex-shrink: 0; color: var(--text-muted); }
         .cal-date-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cal-date-chip[role="button"]:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
         .cal-date-chip.is-empty .cal-date-txt { color: var(--text-muted); font-weight: 500; }
         .cal-chev { width: 9px; height: 9px; flex-shrink: 0; color: var(--text-muted); }
         /* The native <input type="date"> is kept ONLY as the storage / change
@@ -7357,13 +7401,11 @@
         .msg-nav-btn { position: relative; }
         .msg-nav-btn[hidden] { display: none; }
         .msg-nav-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-        .msg-panel { position: fixed; inset: 0; z-index: 900; background: var(--bg); display: flex; flex-direction: column; padding: 16px 24px 24px; }
-        .msg-panel[hidden] { display: none; }
-        .msg-panel-head { display: flex; align-items: center; justify-content: space-between; max-width: 1180px; width: 100%; margin: 0 auto 12px; }
-        .msg-panel-head h2 { margin: 0; font-size: 1.4rem; color: var(--text-primary); }
-        .msg-panel-body { max-width: 1180px; width: 100%; margin: 0 auto; flex: 1; min-height: 0; }
-        .msg-panel .msg-inbox { height: 100%; }
-        body.msg-panel-open { overflow: hidden; }
+        /* The Messages page uses the whole width under the header. */
+        body:has(#msgPage) .main { padding: 0; }
+        .msg-page { padding: 14px 16px 16px; display: flex; flex-direction: column; }
+        .msg-page-head h1 { margin: 0 0 10px; font-size: 1.3rem; color: var(--text-primary); }
+        .msg-page .msg-inbox { height: calc(100vh - 150px); }
         @media (max-width: 767px) {
             /* minmax(0, 1fr): a plain 1fr track grows to the longest unwrapped
                title or last message and pushed the time and unread badge off
@@ -7377,7 +7419,11 @@
             .msg-chat-sub { display: none; }
             .msg-act, .msg-filters button { min-height: 44px; }
             .msg-conv { min-height: 64px; }
-            .msg-panel { padding: 12px; }
+            .msg-page { padding: 12px 12px 16px; }
+            .msg-page .msg-inbox { height: calc(100vh - 150px); }
+            /* The phone title bar already says Messages. */
+            body:has(.pocket-staff-bar) .msg-page-head { display: none; }
+            body:has(.pocket-staff-bar) .msg-page .msg-inbox { height: calc(100vh - 110px); }
             .msg-reply .cal-cm-send { width: 44px; height: 44px; }
             .msg-chat-head .msg-thumb { display: none; }
             .msg-chat-head { gap: 6px; padding: 8px 10px; }
@@ -7450,6 +7496,51 @@
         .cal-prompt-btn.is-primary { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
         .cal-prompt-btn.is-primary:hover { opacity: 0.9; background: var(--text-primary); }
         .cal-prompt-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+        /* ── Generate caption box: platform, call to action, note ── */
+        .cal-gen-label { font-size: 0.74rem; font-weight: 800; color: var(--text-primary); margin-top: 2px; }
+        .cal-gen-opt { font-weight: 600; color: var(--text-muted); }
+        #calCtaWrap { display: flex; flex-direction: column; gap: 10px; }
+        .cal-gen-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .cal-gen-chip { position: relative; display: inline-flex; cursor: pointer; }
+        .cal-gen-chip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+        .cal-gen-chip span { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--border); background: var(--white); color: var(--text-secondary); font-size: 0.78rem; font-weight: 700; }
+        .cal-gen-chip:hover span { border-color: var(--text-primary); color: var(--text-primary); }
+        .cal-gen-chip input:checked + span { background: var(--text-primary); border-color: var(--text-primary); color: var(--white); }
+        .cal-gen-chip input:focus-visible + span { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+        .cal-gen-note { width: 100%; box-sizing: border-box; resize: vertical; border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; font-family: inherit; font-size: 0.84rem; line-height: 1.45; color: var(--text-primary); background: var(--bg); }
+        .cal-gen-note:focus { border-color: var(--text-primary); background: var(--white); outline: none; }
+        .cal-prompt-textarea.cal-tx-textarea.is-compact { min-height: 110px; }
+
+        /* ── Title ideas, hashtags and redo, under the caption ── */
+        .cal-cap-ai-tog { position: absolute; right: 8px; top: 8px; display: inline-flex; align-items: center; padding: 5px 9px; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
+        .cal-cap-ai-tog:hover, .cal-cap-ai-tog.is-open { color: var(--text-primary); border-color: var(--text-primary); }
+        .cal-cap-wrap textarea.cal-fld-cap:focus ~ .cal-cap-ai-tog { opacity: 0; pointer-events: none; }
+        .cal-cap-ai { margin-top: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); font-size: 0.74rem; color: var(--text-secondary); }
+        .cal-cap-ai-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+        .cal-cap-ai-label { line-height: 1.3; font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin-top: 4px; }
+        .cal-cap-ai-titles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+        .cal-cap-ai-t { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); }
+        .cal-cap-ai-t.is-best { border-color: var(--text-primary); }
+        .cal-cap-ai-ttxt { flex: 1 1 140px; min-width: 0; color: var(--text-primary); font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
+        .cal-cap-ai-badge { font-size: 0.64rem; font-weight: 800; padding: 1px 7px; border-radius: 99px; background: var(--text-primary); color: var(--white); }
+        .cal-cap-ai-acts { display: flex; gap: 5px; flex-wrap: wrap; }
+        .cal-cap-ai-btn, .cal-cap-ai-chip { font-family: inherit; font-size: 0.72rem; font-weight: 700; min-height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); cursor: pointer; }
+        .cal-cap-ai-chip { border-radius: 99px; }
+        .cal-cap-ai-btn:hover:not(:disabled), .cal-cap-ai-chip:hover:not(:disabled) { background: var(--bg); border-color: var(--text-primary); }
+        .cal-cap-ai-btn.is-primary { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
+        .cal-cap-ai-btn:disabled, .cal-cap-ai-chip:disabled { opacity: .5; cursor: not-allowed; }
+        .cal-cap-ai-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); }
+        .cal-cap-ai-tagtxt { flex: 1 1 140px; min-width: 0; color: var(--text-primary); font-weight: 700; overflow-wrap: anywhere; }
+        .cal-cap-ai-meta { font-size: 0.72rem; color: var(--text-muted); }
+        .cal-cap-ai-pending { padding: 8px; border: 1px dashed var(--text-primary); border-radius: 8px; background: var(--white); display: flex; flex-direction: column; gap: 6px; }
+        .cal-cap-ai-pendtxt { white-space: pre-wrap; color: var(--text-primary); line-height: 1.4; max-height: 140px; overflow-y: auto; }
+        .cal-cap-ai-redo { display: flex; gap: 6px; }
+        .cal-cap-ai-note { flex: 1; min-width: 0; min-height: 32px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; font-family: inherit; font-size: 0.78rem; color: var(--text-primary); background: var(--white); }
+        .cal-cap-ai-note:focus { border-color: var(--text-primary); outline: none; }
+        .cal-cap-ai-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+        html.sv-staff-phone .cal-cap-wrap .cal-cap-ai-tog { position: static !important; inset: auto; order: 1; min-height: 44px; padding: 0 12px; }
+        html.sv-staff-phone .cal-cap-ai-btn, html.sv-staff-phone .cal-cap-ai-chip, html.sv-staff-phone .cal-cap-ai-note { min-height: 44px; }
 
         .cal-bulk-cap-bar { position: fixed; bottom: 24px; right: 24px; z-index: 320; background: var(--text-primary); color: var(--white); padding: 10px 14px; border-radius: 12px; box-shadow: 0 8px 26px var(--sv-shadow-rgba-0-0-0-0_22); font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 10px; visibility: hidden; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0.2s; }
         .cal-bulk-cap-bar.is-active { visibility: visible; opacity: 1; transform: none; pointer-events: auto; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0s; }
@@ -10724,7 +10815,6 @@
             html.fph-on[data-fph="production"] .prod-freshness { flex: none; gap: 0; }
             html.fph-on[data-fph="production"] .prod-freshness-age { display: none; }
             html.fph-on[data-fph="production"] .prod-icon-btn { width: 44px; height: 44px; min-width: 44px; }
-            html.fph-on[data-fph="production"] .prod-back-card { min-height: 44px; padding: 0 10px 0 6px; font-size: 13px; }
             html.fph-on[data-fph="production"] .prod-subbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px 4px; height: auto; padding: 8px 8px 8px 12px; }
             html.fph-on[data-fph="production"] .prod-tabs { grid-column: 1 / -1; display: flex; gap: 3px; padding: 4px; border-radius: 15px; background: var(--border-light); }
             html.fph-on[data-fph="production"] .prod-tab { flex: 1; justify-content: center; min-height: 44px; padding: 0 6px; border-radius: 11px; font-size: 13px; font-weight: 600; white-space: nowrap; color: var(--text-secondary); }
@@ -12824,7 +12914,7 @@ html .fv-overlay .fv-markers .fv-mark:hover { transform: scale(1.25); }
         </a>
     </div>
     <div class="header-actions">
-        <button class="theme-toggle msg-nav-btn" id="navMessages" type="button" data-staff-capability="messages-button" onclick="_msgOpenPanel()" title="Messages" aria-label="Messages" hidden>
+        <button class="theme-toggle msg-nav-btn" id="navMessages" type="button" data-staff-capability="messages-button" onclick="_msgOpenPage()" title="Messages" aria-label="Messages" hidden>
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>
             <span class="msg-nav-label">Messages</span>
             <span class="msg-unread" data-msg-count hidden>0</span>
@@ -13250,9 +13340,9 @@ html .fv-overlay .fv-markers .fv-mark:hover { transform: scale(1.25); }
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-99c9299f434a.js";
-        var PARTS = ["js/sv-01-core-f113b7cff656.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-b2c6095ba0b5.js","js/sv-08-quick-jump-3fd986ea87d7.js","js/sv-09-core-9fc07a27db02.js","js/sv-10-smm-weekly-fc0d300b0341.js","js/sv-11-core-b3eba31c5817.js","js/sv-12-synclinear-3e86ebae2689.js","js/sv-13-core-e3b4abef8056.js","js/sv-15-core-45cf1d45f190.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-ce2728998f6f.js","js/sv-20-core-2e66cf1b5d39.js"];
-        var LAZY = {"templates":"js/sv-02-templates-0bfb7b2adbf4.js","workload":"js/sv-04-workload-cac24a0637b7.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-a418448caed6.js"};
+        var FULL = "js/sv-full-307f9ab62ab6.js";
+        var PARTS = ["js/sv-01-core-0db2471d2e82.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-dd5e7141bebf.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-afecfb1b56e2.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-dd170c7da38f.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-ff0af3970c2d.js","js/sv-20-core-f43f39965587.js"];
+        var LAZY = {"templates":"js/sv-02-templates-ed22b16a2bda.js","workload":"js/sv-04-workload-1b2df89fe1d1.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-ae60b29ece00.js"};
         var FORCE = null;
         var CLIENTS = true;
         var isClient = false;

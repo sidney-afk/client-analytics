@@ -7238,6 +7238,16 @@
         .cal-cm-done-tag { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sv-fg-166534); background: var(--sv-bg-dcfce7); padding: 1px 7px; border-radius: 99px; }
         .cal-cm-row-body { font-size: 0.9rem; color: var(--text-primary); line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
         .cal-cm-row.is-reply .cal-cm-row-body { font-size: 0.86rem; }
+        /* Note outbox: a note on its way, or not sent (190, _noteOutboxStatusHtml). */
+        .is-outbox-sending .cal-cm-row-body, .is-outbox-sending .cal-review-comment-body, .is-outbox-sending .msg-b-text { opacity: 0.72; }
+        .sv-note-outbox { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 4px; font-size: 0.76rem; line-height: 1.4; color: var(--text-secondary); }
+        .sv-note-outbox.is-failed { color: var(--dn); }
+        .sv-note-outbox-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: sv-note-outbox-pulse 1s ease-in-out infinite alternate; }
+        @keyframes sv-note-outbox-pulse { from { opacity: 0.3; } to { opacity: 1; } }
+        @media (prefers-reduced-motion: reduce) { .sv-note-outbox-dot { animation: none; } }
+        .sv-note-outbox button { font: inherit; font-weight: 700; color: inherit; background: none; border: 0; padding: 8px 2px; margin: -8px 0; min-height: 40px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+        .sv-note-outbox button.sv-note-outbox-discard { font-weight: 500; color: var(--text-secondary); }
+        .is-outbox-failed.cal-cm-row, .is-outbox-failed.cal-review-comment, .msg-b.is-outbox-failed { box-shadow: inset 2px 0 0 var(--dn); }
         .cal-cm-actions { position: absolute; right: 16px; top: 4px; display: flex; gap: 2px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 2px; box-shadow: 0 2px 6px var(--sv-shadow-rgba-0-0-0-0_06); opacity: 0; pointer-events: none; transition: opacity 0.12s; }
         .cal-cm-row:hover .cal-cm-actions, .cal-cm-row:focus-within .cal-cm-actions { opacity: 1; pointer-events: auto; }
         .cal-cm-action { background: transparent; border: none; border-radius: 5px; padding: 5px 7px; cursor: pointer; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; font-family: inherit; }
@@ -13381,8 +13391,8 @@ html .fv-overlay .fv-markers .fv-mark:hover { transform: scale(1.25); }
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-6ea10be4f6b5.js";
-        var PARTS = ["js/sv-01-core-3a8d88727193.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-bf792c07a4a8.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-457b522a38c2.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-2fa354755646.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-728f47961b87.js","js/sv-20-core-f43f39965587.js"];
+        var FULL = "js/sv-full-df84b5bf6417.js";
+        var PARTS = ["js/sv-01-core-3a8d88727193.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-bf792c07a4a8.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-a143bd181dda.js","js/sv-12-synclinear-86b5ab793126.js","js/sv-13-core-2fa354755646.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-c91ecf1dd648.js","js/sv-20-core-f43f39965587.js"];
         var LAZY = {"templates":"js/sv-02-templates-ed22b16a2bda.js","workload":"js/sv-04-workload-1b2df89fe1d1.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-ae60b29ece00.js"};
         var FORCE = null;
         var CLIENTS = true;

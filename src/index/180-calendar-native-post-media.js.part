@@ -3300,7 +3300,9 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         saving: Object.create(null),
         errors: Object.create(null),
         draftActionIds: Object.create(null),
-        errorActionIds: Object.create(null)
+        errorActionIds: Object.create(null),
+        // The change request each part is sending: { id, body, role, author, created_at }.
+        sendingNotes: Object.create(null)
     };
 
     /* ── Review audience (client vs SMM) ──────────────────────────────

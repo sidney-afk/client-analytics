@@ -6413,18 +6413,15 @@
         .cal-cap-wrap.is-clamped .cal-cap-fade { opacity: 1; }
         /* The whole clamped, read-only caption is a tap-to-read-more target. */
         .cal-cap-wrap.is-clamped textarea.cal-fld-cap[readonly] { cursor: pointer; }
-        .cal-cap-toggle { position: absolute; right: 7px; bottom: 7px; height: 21px; padding: 0 8px; border-radius: 99px;
+        .cal-cap-toggle { position: absolute; right: 7px; bottom: 7px; width: 21px; height: 21px; padding: 0; justify-content: center; border-radius: 99px;
             display: inline-flex; align-items: center; gap: 4px;
             background: var(--sv-bg-rgba-255-255-255-0_96); border: 1px solid var(--border); box-shadow: 0 1px 4px var(--sv-shadow-rgba-0-0-0-0_12);
             cursor: pointer; color: var(--text-secondary); font-family: inherit; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.01em; }
         .cal-cap-toggle:hover { color: var(--text-primary); border-color: var(--sv-border-999); }
-        .cal-cap-toggle-txt { line-height: 1; white-space: nowrap; }
+        /* Arrow only: the words stay for screen readers (the label still flips to Show less) but take no room. */
+        .cal-cap-toggle-txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
         .cal-cap-toggle svg { width: 10px; height: 10px; transition: transform 0.16s; }
         .cal-cap-toggle.is-expanded svg { transform: rotate(180deg); }
-        /* Expanded: collapse the pill to just the up-chevron so it stops
-           covering the end of the caption (which is then clickable). */
-        .cal-cap-toggle.is-expanded { width: 21px; padding: 0; justify-content: center; }
-        .cal-cap-toggle.is-expanded .cal-cap-toggle-txt { display: none; }
 
         /* CTA + tweaks — clean filled fields */
         .cal-fld-cta, .cal-fld-tweaks { width: 100%; box-sizing: border-box; background: var(--field-bg); border: 1px solid transparent;
@@ -7457,14 +7454,6 @@
            cancel-X used to sit bottom-right where it overlapped that toggle when a
            long (overflowing) caption was re-generated. Top-right is the only free
            corner, and reads as the conventional "cancel" spot. */
-        /* Optional transcript pill (caption function path, card with a video): top right, clear of the bottom-right
-           "Show more" toggle; same show/hide rule as Generate. It is never drawn while a job runs, so the cancel x
-           that uses the same corner never meets it. */
-        .cal-cap-tx { position: absolute; right: 8px; top: 8px; display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_05); transition: color 0.12s, border-color 0.12s, background 0.12s, opacity 0.1s; }
-        .cal-cap-wrap textarea.cal-fld-cap:focus ~ .cal-cap-tx,
-        .cal-cap-wrap textarea.cal-fld-cap:not(:placeholder-shown) ~ .cal-cap-tx { opacity: 0; pointer-events: none; }
-        .cal-cap-tx:hover { color: var(--text-primary); border-color: var(--text-primary); background: var(--bg); }
-        .cal-cap-tx svg { width: 12px; height: 12px; }
         .cal-prompt-textarea.cal-tx-textarea { font-family: inherit; font-size: 0.86rem; min-height: 220px; }
         .cal-cap-gen-x { position: absolute; right: 8px; top: 8px; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_05); transition: color 0.12s, border-color 0.12s, background 0.12s; z-index: 2; }
         .cal-cap-gen-x:hover { color: var(--sv-fg-b91c1c); border-color: var(--sv-border-fecaca); background: var(--sv-bg-fef2f2); }
@@ -7512,35 +7501,13 @@
         .cal-gen-note:focus { border-color: var(--text-primary); background: var(--white); outline: none; }
         .cal-prompt-textarea.cal-tx-textarea.is-compact { min-height: 110px; }
 
-        /* ── Title ideas, hashtags and redo, under the caption ── */
-        .cal-cap-ai-tog { position: absolute; right: 8px; top: 8px; display: inline-flex; align-items: center; padding: 5px 9px; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
-        .cal-cap-ai-tog:hover, .cal-cap-ai-tog.is-open { color: var(--text-primary); border-color: var(--text-primary); }
-        .cal-cap-wrap textarea.cal-fld-cap:focus ~ .cal-cap-ai-tog { opacity: 0; pointer-events: none; }
-        .cal-cap-ai { margin-top: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); font-size: 0.74rem; color: var(--text-secondary); }
-        .cal-cap-ai-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
-        .cal-cap-ai-label { line-height: 1.3; font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin-top: 4px; }
-        .cal-cap-ai-titles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
-        .cal-cap-ai-t { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); }
-        .cal-cap-ai-t.is-best { border-color: var(--text-primary); }
-        .cal-cap-ai-ttxt { flex: 1 1 140px; min-width: 0; color: var(--text-primary); font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
-        .cal-cap-ai-badge { font-size: 0.64rem; font-weight: 800; padding: 1px 7px; border-radius: 99px; background: var(--text-primary); color: var(--white); }
-        .cal-cap-ai-acts { display: flex; gap: 5px; flex-wrap: wrap; }
-        .cal-cap-ai-btn, .cal-cap-ai-chip { font-family: inherit; font-size: 0.72rem; font-weight: 700; min-height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); cursor: pointer; }
-        .cal-cap-ai-chip { border-radius: 99px; }
-        .cal-cap-ai-btn:hover:not(:disabled), .cal-cap-ai-chip:hover:not(:disabled) { background: var(--bg); border-color: var(--text-primary); }
-        .cal-cap-ai-btn.is-primary { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
-        .cal-cap-ai-btn:disabled, .cal-cap-ai-chip:disabled { opacity: .5; cursor: not-allowed; }
-        .cal-cap-ai-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); }
-        .cal-cap-ai-tagtxt { flex: 1 1 140px; min-width: 0; color: var(--text-primary); font-weight: 700; overflow-wrap: anywhere; }
-        .cal-cap-ai-meta { font-size: 0.72rem; color: var(--text-muted); }
-        .cal-cap-ai-pending { padding: 8px; border: 1px dashed var(--text-primary); border-radius: 8px; background: var(--white); display: flex; flex-direction: column; gap: 6px; }
-        .cal-cap-ai-pendtxt { white-space: pre-wrap; color: var(--text-primary); line-height: 1.4; max-height: 140px; overflow-y: auto; }
-        .cal-cap-ai-redo { display: flex; gap: 6px; }
-        .cal-cap-ai-note { flex: 1; min-width: 0; min-height: 32px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; font-family: inherit; font-size: 0.78rem; color: var(--text-primary); background: var(--white); }
-        .cal-cap-ai-note:focus { border-color: var(--text-primary); outline: none; }
-        .cal-cap-ai-quick { display: flex; flex-wrap: wrap; gap: 6px; }
-        html.sv-staff-phone .cal-cap-wrap .cal-cap-ai-tog { position: static !important; inset: auto; order: 1; min-height: 44px; padding: 0 12px; }
-        html.sv-staff-phone .cal-cap-ai-btn, html.sv-staff-phone .cal-cap-ai-chip, html.sv-staff-phone .cal-cap-ai-note { min-height: 44px; }
+        /* ── Redo with a note, on the "+ Alt caption" row ── */
+        .cal-cap-tools { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; padding-bottom: 3px; }
+        .cal-cap-redo-open { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 99px; background: transparent; border: 1px solid var(--border); color: var(--text-secondary); font-family: inherit; font-size: 0.68rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
+        .cal-cap-redo-open:hover, .cal-cap-redo-open.is-open { color: var(--text-primary); border-color: var(--sv-border-999); }
+        .cal-redo-current { white-space: pre-wrap; max-height: 28vh; overflow-y: auto; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text-secondary); font-size: 0.84rem; line-height: 1.5; overflow-wrap: anywhere; }
+        .cal-redo-note { min-height: 96px; }
+        html.sv-staff-phone .cal-cap-tools .cal-cap-redo-open { min-height: 44px; padding: 0 12px; font-size: 13px; }
 
         .cal-bulk-cap-bar { position: fixed; bottom: 24px; right: 24px; z-index: 320; background: var(--text-primary); color: var(--white); padding: 10px 14px; border-radius: 12px; box-shadow: 0 8px 26px var(--sv-shadow-rgba-0-0-0-0_22); font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 10px; visibility: hidden; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0.2s; }
         .cal-bulk-cap-bar.is-active { visibility: visible; opacity: 1; transform: none; pointer-events: auto; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0s; }
@@ -12376,11 +12343,8 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
     html.sv-staff-phone .cal-cap-wrap .cal-fld-cap { flex: 1 1 100%; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle, html.sv-staff-phone .cal-cap-wrap .cal-cap-gen, html.sv-staff-phone .cal-cap-wrap .cal-cap-gen-x { position: static !important; inset: auto; margin: 0; margin-block: 0 !important; opacity: 1 !important; pointer-events: auto !important; padding: 0 12px; width: auto; min-height: 44px; align-self: center !important; display: inline-flex; background: transparent; border: 0; border-radius: 10px; box-shadow: none; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-gen { order: 1; }
-    html.sv-staff-phone .cal-cap-wrap .cal-cap-tx { position: static !important; inset: auto; margin: 0; opacity: 1 !important; pointer-events: auto !important; padding: 0 12px; min-height: 44px; align-self: center !important; display: inline-flex; background: transparent; border: 0; border-radius: 10px; box-shadow: none; color: var(--text-secondary); font-size: 12px; font-weight: 600; order: 1; }
-    html.sv-staff-phone .cal-cap-wrap textarea.cal-fld-cap:not(:placeholder-shown) ~ .cal-cap-tx { display: none !important; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-gen-x { order: 2; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle { order: 3; margin-left: auto; }
-    html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle-txt { display: inline; }
     html.sv-staff-phone .cal-cap-fade { bottom: 52px; }
     html.sv-staff-phone .tk-submit-bar { position: static; inset: auto; margin: 16px 0; }
     html.sv-staff-phone .ca-editbar { position: static; }
@@ -12592,7 +12556,6 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
  body:has(#calView[data-pocket-staff-phone]) :is(.cal-prompt-head-text p,.cal-prompt-hint) { font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
  body:has(#calView[data-pocket-staff-phone]) .cal-prompt-banner { font-size: 13px; line-height: 1.5; }
  body:has(#calView[data-pocket-staff-phone]) .cal-prompt-textarea::placeholder { color: var(--text-secondary); opacity: 1; }
- #calView[data-pocket-staff-phone] .cal-cap-tx { font-size: 13px; min-height: 44px; }
 }
 
 /* PRISM-COMPOSER-PHONE: readable feedback drafts without desktop shortcut hints. */
@@ -13418,8 +13381,8 @@ html .fv-overlay .fv-markers .fv-mark:hover { transform: scale(1.25); }
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-684d6001177d.js";
-        var PARTS = ["js/sv-01-core-3a8d88727193.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-bf792c07a4a8.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-2e337ffa09cc.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-2fa354755646.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-728f47961b87.js","js/sv-20-core-f43f39965587.js"];
+        var FULL = "js/sv-full-6ea10be4f6b5.js";
+        var PARTS = ["js/sv-01-core-3a8d88727193.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-bf792c07a4a8.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-457b522a38c2.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-2fa354755646.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-728f47961b87.js","js/sv-20-core-f43f39965587.js"];
         var LAZY = {"templates":"js/sv-02-templates-ed22b16a2bda.js","workload":"js/sv-04-workload-1b2df89fe1d1.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-ae60b29ece00.js"};
         var FORCE = null;
         var CLIENTS = true;

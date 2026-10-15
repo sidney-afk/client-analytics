@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { _msgInboxLive, _msgPaintCounts } from './326-core-messages-inbox.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import {
@@ -209,10 +210,19 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
         menu.hidden = !shouldOpen;
         const items = _kasperVisibleMoreItems();
         if (!shouldOpen) {
+            if (typeof svLayerRelease === 'function') svLayerRelease('kasper-more');
             items.forEach(item => { item.tabIndex = -1; });
             if (restoreTrigger) trigger.focus();
             return;
         }
+        if (typeof svLayerOpen === 'function') svLayerOpen({
+            key: 'kasper-more',
+            region: '.kasper-more',
+            opener: () => document.querySelector('[data-kasper-more-trigger]'),
+            isOpen: () => { const m = document.getElementById('kasperMoreMenu'); return !!m && !m.hidden; },
+            holdRefresh: false,
+            close: () => _kasperSetMoreOpen(false, false, false),
+        });
         if (focusMenu && items.length) {
             const target = items.find(item => item.getAttribute('aria-current') === 'page') || items[0];
             items.forEach(item => { item.tabIndex = item === target ? 0 : -1; });
@@ -328,8 +338,10 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
         const img = ovl.querySelector('img');
         img.src = info.url;
         ovl.classList.add('open');
+        svLayerOverlay('kasper-lightbox', '#kasperLightbox', '#kasperLightbox img', () => _kasperCloseLightbox());
     }
     function _kasperCloseLightbox() {
+        svLayerRelease('kasper-lightbox', { focus: true });
         const ovl = document.getElementById('kasperLightbox');
         if (ovl) ovl.classList.remove('open');
     }

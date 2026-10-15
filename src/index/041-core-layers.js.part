@@ -37,14 +37,30 @@
     let _svLayerLastTrigger = null;
     let _svLayerLastTriggerAt = 0;
     function _svLayerTriggerFrom(target) {
-        let n = target && target.nodeType === 1 ? target : (target && target.parentElement);
-        for (let i = 0; n && n !== document.body && i < 8; i++, n = n.parentElement) {
+        const start = target && target.nodeType === 1 ? target : (target && target.parentElement);
+        /* The nearest thing that is plainly a control. */
+        for (let n = start, i = 0; n && n !== document.body && i < 8; i++, n = n.parentElement) {
             if (n.matches && n.matches('button, a[href], input, select, textarea, summary, [tabindex], [role=button], [role=menuitem], [onclick]')) return n;
+        }
+        /* Otherwise the root of the region that shows a pointer cursor (the
+           cursor is inherited, so the first match would be the innermost icon). */
+        let top = null;
+        for (let n = start, i = 0; n && n !== document.body && i < 8; i++, n = n.parentElement) {
             let cur = '';
             try { cur = getComputedStyle(n).cursor; } catch {}
-            if (cur === 'pointer') return n;
+            if (cur === 'pointer') top = n; else if (top) break;
         }
-        return target && target.nodeType === 1 ? target : null;
+        return top || start || null;
+    }
+    /* No opener given: a focused control (button, link, field) is the opener.
+       When focus sits on a plain container (a list that keeps focus for its own
+       keyboard moves), whatever the person just pressed is. */
+    function _svLayerGuessOpener() {
+        const a = document.activeElement;
+        if (a && a.matches && a.matches('button, a[href], input, select, textarea, summary, [role=button], [role=menuitem], [role=combobox]')) return a;
+        const recent = _svLayerLastTrigger && _svLayerLastTrigger.isConnected && Date.now() - _svLayerLastTriggerAt < 1500;
+        if (recent) return _svLayerLastTrigger;
+        return a && a !== document.body && a !== document.documentElement ? a : null;
     }
     function _svLayerRemember(e) {
         _svLayerLastTrigger = _svLayerTriggerFrom(e.target);
@@ -161,9 +177,10 @@
         _svLayersWire();
         let opener = spec.opener;
         if (opener === undefined) {
-            const a = document.activeElement;
-            opener = a && a !== document.body && a !== document.documentElement ? a : null;
-            if (!opener && _svLayerLastTrigger && _svLayerLastTrigger.isConnected && Date.now() - _svLayerLastTriggerAt < 2500) opener = _svLayerLastTrigger;
+            /* What the person just pressed or activated beats whatever holds focus
+               (a list that keeps focus for its own keyboard moves, say). Failing
+               that, the focused control. */
+            opener = _svLayerGuessOpener();
         }
         const next = {
             key: spec.key || ('layer' + (_svLayers.length + 1) + '-' + Date.now()),
@@ -173,7 +190,7 @@
             openerSelector: spec.openerSelector || (typeof opener === 'function' ? '' : _svLayerSelectorFor(opener)),
             isOpen: spec.isOpen || null,
             escape: spec.escape !== false,   // false, or a function (e) that returns true when it used the key itself and the layer stays open
-            focusAtOpen: (document.activeElement && document.activeElement !== document.body ? document.activeElement : null) || (_svLayerLastTrigger && _svLayerLastTrigger.isConnected && Date.now() - _svLayerLastTriggerAt < 2500 ? _svLayerLastTrigger : null),
+            focusAtOpen: _svLayerGuessOpener(),
             outside: spec.outside !== false,
             alsoInside: spec.alsoInside || null,
             focusOnClose: spec.focusOnClose !== false,
@@ -339,7 +356,14 @@
         if (_svLayersWired) return;
         _svLayersWired = true;
         window.addEventListener('keydown', _svLayerOnKey, true);
-        window.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') _svLayerRemember(e); }, true);
+        /* A pop-up opened from the keyboard (Enter on a button, a shortcut key)
+           returns to whatever had focus when the key went down. */
+        window.addEventListener('keydown', e => {
+            if (e.key === 'Escape' || e.key === 'Tab' || e.isComposing) return;
+            const a = document.activeElement;
+            _svLayerLastTrigger = a && a !== document.body && a !== document.documentElement ? a : null;
+            _svLayerLastTriggerAt = Date.now();
+        }, true);
         /* Mouse and pen close on press (so a drag that starts inside and ends
            outside never closes it). A finger could be starting a scroll, so a
            touch closes on the tap itself. */
@@ -355,6 +379,10 @@
             _svLayerOutside(e);
         }, true);
     }
+
+    /* Listen from the start, so the first press that opens a pop-up is already
+       remembered as its opener. */
+    _svLayersWire();
 
     window.svLayerOpen = svLayerOpen;
     window.svFocusKeep = svFocusKeep;

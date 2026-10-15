@@ -387,6 +387,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/popup-behaviour-browser.js
+      - name: Every pop-up closes the same way, part two (SyncLinear, Kasper, Workload, Analytics)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/popup-behaviour-areas-browser.js
       - name: Creatives open on their own work in Workload and SyncLinear
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showNotify } from './040-shared-briefs.js';
 import { WL_DEADLINE_PREF_KEY, WL_VIEW_PREF_KEY, wlState } from './066-core-workload-state.js';
@@ -1508,6 +1509,14 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
                 ddTrigger.classList.toggle('open', willOpen);
                 ddTrigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
                 menu?.classList.toggle('open', willOpen);
+                if (willOpen) svLayerOpen({
+                    key: 'wl-dropdown',
+                    region: () => document.querySelector('.wl-dropdown .dropdown-trigger.open')?.closest('.wl-dropdown'),
+                    opener: ddTrigger,
+                    isOpen: () => !!document.querySelector('.wl-dropdown .dropdown-trigger.open'),
+                    holdRefresh: false,
+                    close: () => wlCloseDropdowns(null),
+                });
                 return;
             }
             if (ddItem) {
@@ -1852,6 +1861,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
     }
 
     function wlCloseDropdowns(except) {
+        if (except == null) svLayerRelease('wl-dropdown', { focus: true });
         document.querySelectorAll('.wl-dropdown').forEach(d => {
             if (d === except) return;
             d.querySelector('.dropdown-trigger')?.classList.remove('open');

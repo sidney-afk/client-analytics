@@ -1,3 +1,4 @@
+import { svLayerOpen } from './041-core-layers.js';
 import { currentNav } from './065-core-nav-intake-state.js';
 import {
   CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svSelectHtml, _syncviewStaffIdentityForHeaders,
@@ -2765,6 +2766,13 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
             _prodState.archiveRepair = _prodArchiveDefaultState();
             _prodEnsureOverlays();
             _prodRenderArchiveRepair();
+            svLayerOpen({
+                key: 'prod-archive',
+                region: '#prodLayer .prod-archive-modal',
+                holdRefresh: false,
+                isOpen: () => !!document.querySelector('#prodLayer .prod-archive-modal'),
+                close: () => _prodCloseArchiveRepair(),
+            });
             _prodArchiveLoadList(false);
             return false;
         }

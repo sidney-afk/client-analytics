@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { WL_CLIENT_NAMES, getClientRoster, wlNormalizeClient } from './070-core-client-names.js';
 import { CAL_SUPABASE_ANON_KEY, SMM_WEEKLY_REPORTS_URL, _syncviewRequireStaffIdentity, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
@@ -128,6 +129,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const btn = document.getElementById(id + 'Btn');
         if (wrap) wrap.classList.remove('open');
         if (btn) btn.setAttribute('aria-expanded', 'false');
+        svLayerRelease('srp-select:' + id, { focus: true });
         if (_srpOpenSelectId === id) {
             document.removeEventListener('mousedown', _srpSelectOutside);
             document.removeEventListener('keydown', _srpSelectKeydown);
@@ -147,6 +149,14 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
         if (opening) {
             _srpOpenSelectId = id;
+            svLayerOpen({
+                key: 'srp-select:' + id,
+                region: () => document.getElementById(id + 'Wrap'),
+                opener: btn,
+                isOpen: () => { const w = document.getElementById(id + 'Wrap'); return !!w && w.classList.contains('open'); },
+                holdRefresh: false,
+                close: () => _srpCloseSelect(id),
+            });
             setTimeout(() => {
                 document.addEventListener('mousedown', _srpSelectOutside);
                 document.addEventListener('keydown', _srpSelectKeydown);

@@ -136,7 +136,7 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         if (_msgPrefetchTimer || _msgState.loaded || _msgState.loading) return;
         const go = () => { _msgPrefetchTimer = null; if (_msgCanUse() && !_msgState.unavailable) _msgLoad(false); };
         _msgPrefetchTimer = setTimeout(() => {
-            if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 1000 }); else go();
+            if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(go, { timeout: 1000 }); else go();
         }, 250);
     }
     ['pointerover', 'pointerdown', 'focusin'].forEach(type => document.addEventListener(type, e => {

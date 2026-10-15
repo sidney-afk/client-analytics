@@ -1,0 +1,369 @@
+    /* ────────────────────────────────────────────────────────────────
+       LAYERS: ONE RULE FOR EVERY POP-UP (owner request, 2026-10-14).
+
+       Every pop-up, expanded panel, menu, dropdown and sheet on the site
+       must behave the same way:
+         1. Escape closes it. With two open, Escape closes only the top one.
+         2. A click outside it closes it. A click inside it never does.
+         3. When it closes, keyboard focus goes back to the button that
+            opened it.
+         4. Closing never loses typed text. The surface keeps its OWN close
+            routine (the one that already saves or keeps a draft); this file
+            only decides WHEN to call it. It never closes by hiding things
+            itself.
+         5. A background refresh never closes it or takes its focus: a
+            surface that is redrawn calls svLayerOpen again with the same
+            key, which updates the entry in place instead of stacking a
+            second one.
+
+       How a surface joins: call svLayerOpen({ key, region, close, opener })
+       when it opens. `close(reason)` is the surface's existing close
+       routine. `reason` is 'escape', 'outside' or 'api'. When the surface
+       closes by some other route (its own toggle button, a pick) it calls
+       svLayerRelease(key). A stale entry (surface gone or no longer open) is
+       dropped silently the next time any key or click arrives, so a missed
+       release can never leave a ghost that eats an Escape.
+
+       This file adds ONE key listener and ONE pointer listener for the whole
+       site, both in the capture phase so the top layer is decided before any
+       older per-surface handler runs. It reads and changes nothing on the
+       client approve / request-changes paths: those never register a layer.
+       ──────────────────────────────────────────────────────────────── */
+    const _svLayers = [];
+    let _svLayersWired = false;
+    let _svLayerPointerType = '';
+    /* What the person last pressed, so a pop-up opened from something that does
+       not hold focus (a row, a chip) still knows its opener. */
+    let _svLayerLastTrigger = null;
+    let _svLayerLastTriggerAt = 0;
+    function _svLayerTriggerFrom(target) {
+        let n = target && target.nodeType === 1 ? target : (target && target.parentElement);
+        for (let i = 0; n && n !== document.body && i < 8; i++, n = n.parentElement) {
+            if (n.matches && n.matches('button, a[href], input, select, textarea, summary, [tabindex], [role=button], [role=menuitem], [onclick]')) return n;
+            let cur = '';
+            try { cur = getComputedStyle(n).cursor; } catch {}
+            if (cur === 'pointer') return n;
+        }
+        return target && target.nodeType === 1 ? target : null;
+    }
+    function _svLayerRemember(e) {
+        _svLayerLastTrigger = _svLayerTriggerFrom(e.target);
+        _svLayerLastTriggerAt = Date.now();
+    }
+
+    function _svLayerResolve(value) {
+        const v = typeof value === 'function' ? value() : value;
+        if (!v) return [];
+        if (typeof v === 'string') return Array.from(document.querySelectorAll(v));
+        if (v.nodeType === 1) return [v];
+        return Array.from(v).filter(Boolean);
+    }
+    function _svLayerRegions(layer) {
+        return _svLayerResolve(layer.region).filter(el => el.isConnected);
+    }
+    function _svLayerOpenerEl(layer) {
+        const o = typeof layer.opener === 'function' ? layer.opener() : layer.opener;
+        if (o && o.isConnected) return o;
+        if (layer.openerSelector) {
+            const found = document.querySelector(layer.openerSelector);
+            if (found) return found;
+        }
+        /* The opener was redrawn and has no id: fall back to whatever had
+           focus when the layer opened, if that is still on the page. */
+        if (layer.locate) {
+            const again = layer.locate();
+            if (again && again.isConnected) return again;
+        }
+        const seen = layer.focusAtOpen;
+        return seen && seen.isConnected ? seen : null;
+    }
+    /* A layer is live while it still has an element on the page and, when it
+       supplied an isOpen test, that test still says open. */
+    function _svLayerLive(layer) {
+        if (layer.isOpen && !layer.isOpen()) return false;
+        return _svLayerRegions(layer).length > 0;
+    }
+    function _svLayerPrune() {
+        for (let i = _svLayers.length - 1; i >= 0; i--) {
+            if (!_svLayerLive(_svLayers[i])) _svLayers.splice(i, 1);
+        }
+    }
+    function _svLayerSelectorFor(el) {
+        if (!el || !el.id) return '';
+        try { return '#' + (window.CSS && CSS.escape ? CSS.escape(el.id) : el.id); } catch { return ''; }
+    }
+
+    /* Remember where an element sits so it can be found again after the page
+       around it has been redrawn: the nearest ancestor that has an id or any
+       data- attribute (matched by all its data- values), then the child
+       positions down to the element. The found node must have the same tag
+       and class, or nothing is returned. */
+    function svLayerLocate(el) {
+        if (!el || el.nodeType !== 1) return null;
+        let anchor = el;
+        const steps = [];
+        const dataAttrs = n => Array.from(n.attributes).filter(a => a.name.indexOf('data-') === 0);
+        while (anchor && anchor !== document.body && !anchor.id && !dataAttrs(anchor).length) {
+            const parent = anchor.parentElement;
+            if (!parent) return null;
+            steps.unshift(Array.prototype.indexOf.call(parent.children, anchor));
+            anchor = parent;
+        }
+        if (!anchor || anchor === document.body) return null;
+        const tag = el.tagName, cls = el.className;
+        const anchorTag = anchor.tagName;
+        const anchorSel = anchor.id
+            ? '#' + (window.CSS && CSS.escape ? CSS.escape(anchor.id) : anchor.id)
+            : anchorTag.toLowerCase() + dataAttrs(anchor).map(a => '[' + a.name + '="' + String(a.value).replace(/["\\]/g, '\\$&') + '"]').join('');
+        return () => {
+            let node;
+            /* Only when exactly one element answers to the anchor: a repeated
+               control (several date pickers sharing the same attributes) must
+               never be mistaken for the one that went away. */
+            try {
+                const found = document.querySelectorAll(anchorSel);
+                if (found.length !== 1) return null;
+                node = found[0];
+            } catch { return null; }
+            for (let i = 0; node && i < steps.length; i++) node = node.children[steps[i]] || null;
+            return node && node.tagName === tag && node.className === cls ? node : null;
+        };
+    }
+
+    /* Keep keyboard focus across a redraw of `root`. Call it BEFORE the redraw
+       and run the function it returns right AFTER: if focus was on a control
+       inside `root` and the redraw dropped it, the control in the same place
+       (same position, tag and class) gets it back. A text box being typed in
+       is handled separately by _svCaptureFocus; this covers buttons, rows and
+       links. Does nothing when focus has legitimately moved elsewhere. */
+    function svFocusKeep(root) {
+        const a = document.activeElement;
+        if (!root || !a || a === root || !root.contains(a)) return () => {};
+        const steps = [];
+        for (let n = a; n && n !== root; n = n.parentElement) {
+            if (!n.parentElement) return () => {};
+            steps.unshift(Array.prototype.indexOf.call(n.parentElement.children, n));
+        }
+        const tag = a.tagName, cls = a.className;
+        return () => {
+            const now = document.activeElement;
+            if (now && now !== document.body && now.isConnected) return;
+            let node = root;
+            for (let i = 0; node && i < steps.length; i++) node = node.children[steps[i]] || null;
+            if (node && node.tagName === tag && node.className === cls && typeof node.focus === 'function') {
+                try { node.focus({ preventScroll: true }); } catch {}
+            }
+        };
+    }
+
+    function svLayerOpen(spec) {
+        if (!spec || typeof spec.close !== 'function') return null;
+        _svLayersWire();
+        let opener = spec.opener;
+        if (opener === undefined) {
+            const a = document.activeElement;
+            opener = a && a !== document.body && a !== document.documentElement ? a : null;
+            if (!opener && _svLayerLastTrigger && _svLayerLastTrigger.isConnected && Date.now() - _svLayerLastTriggerAt < 2500) opener = _svLayerLastTrigger;
+        }
+        const next = {
+            key: spec.key || ('layer' + (_svLayers.length + 1) + '-' + Date.now()),
+            region: spec.region,
+            close: spec.close,
+            opener,
+            openerSelector: spec.openerSelector || (typeof opener === 'function' ? '' : _svLayerSelectorFor(opener)),
+            isOpen: spec.isOpen || null,
+            escape: spec.escape !== false,   // false, or a function (e) that returns true when it used the key itself and the layer stays open
+            focusAtOpen: (document.activeElement && document.activeElement !== document.body ? document.activeElement : null) || (_svLayerLastTrigger && _svLayerLastTrigger.isConnected && Date.now() - _svLayerLastTriggerAt < 2500 ? _svLayerLastTrigger : null),
+            outside: spec.outside !== false,
+            alsoInside: spec.alsoInside || null,
+            focusOnClose: spec.focusOnClose !== false,
+            holdRefresh: spec.holdRefresh !== false,   // false: the surface already survives a redraw by itself
+            locate: spec.locate || (opener && typeof opener !== 'function' ? svLayerLocate(opener) : null),
+        };
+        const at = _svLayers.findIndex(l => l.key === next.key);
+        if (at >= 0) {
+            /* Redrawn surface: refresh the entry in place. A real new opener
+               never replaces the one the surface first opened from. */
+            const prev = _svLayers[at];
+            if (next.opener == null || spec.opener === undefined) {
+                next.opener = prev.opener; next.openerSelector = prev.openerSelector || next.openerSelector;
+                next.locate = prev.locate; next.focusAtOpen = prev.focusAtOpen;
+            }
+            _svLayers[at] = next;
+        } else {
+            _svLayers.push(next);
+        }
+        return next.key;
+    }
+    /* A modal that is an overlay element with an `open` class: Escape and a
+       click on the dim area close it. `box` is the dialog itself (a selector).
+       `close` is the modal's own close routine; the modal's close routine also
+       calls svLayerRelease(key, { focus: true }) so every way out hands focus
+       back. */
+    function svLayerOverlay(key, overlay, box, close, opts) {
+        const cls = (opts && opts.openClass) || 'open';
+        return svLayerOpen(Object.assign({
+            key,
+            region: box,
+            holdRefresh: false,
+            isOpen: () => { const o = document.querySelector(overlay); return !!o && o.classList.contains(cls); },
+            close,
+        }, opts || {}));
+    }
+    /* The surface closed itself some other way: forget it, call nothing. */
+    function svLayerRelease(key, opts) {
+        const i = _svLayers.findIndex(l => l.key === key);
+        if (i < 0) return false;
+        const [layer] = _svLayers.splice(i, 1);
+        /* { focus: true } for a close the surface did itself (a pick, its own
+           toggle button): focus goes back to the opener like any other close.
+           A close the shared handler started removed the entry first, so it
+           never gets here. */
+        if (opts && opts.focus) _svLayerGiveFocus(layer);
+        return true;
+    }
+    function svLayerIsOpen(key) {
+        _svLayerPrune();
+        return _svLayers.some(l => l.key === key);
+    }
+    /* True while any open layer has its pop-up or its opener inside `root`.
+       A redraw of that part of the page uses this to leave it alone (or to
+       wait), so a background refresh never closes what the person has open. */
+    function svLayerTouches(root) {
+        if (!root || !_svLayers.length) return false;
+        _svLayerPrune();
+        return _svLayers.some(l => {
+            if (!l.holdRefresh) return false;
+            if (_svLayerRegions(l).some(r => root.contains(r) || r.contains(root))) return true;
+            const o = _svLayerOpenerEl(l);
+            return !!o && root.contains(o);
+        });
+    }
+    function svLayerKeys() {
+        _svLayerPrune();
+        return _svLayers.map(l => l.key);
+    }
+    /* Close one layer (and anything stacked above it, top first). Returns
+       true when something was closed. `reason` is passed to the surface's own
+       close routine. */
+    function svLayerClose(key, reason) {
+        const i = _svLayers.findIndex(l => l.key === key);
+        if (i < 0) return false;
+        const doomed = _svLayers.splice(i);
+        for (let j = doomed.length - 1; j >= 0; j--) _svLayerCloseOne(doomed[j], reason || 'api', i + j);
+        return true;
+    }
+    function svLayerCloseTop(reason) {
+        _svLayerPrune();
+        for (let i = _svLayers.length - 1; i >= 0; i--) {
+            if (_svLayers[i].escape) return svLayerClose(_svLayers[i].key, reason || 'api');
+        }
+        return false;
+    }
+    function _svLayerGiveFocus(layer, before) {
+        if (!layer.focusOnClose) return;
+        const o = _svLayerOpenerEl(layer) || (before && before.isConnected ? before : null);
+        if (!o || o.disabled || typeof o.focus !== 'function') return;
+        /* A row or chip that is not a button cannot take focus until it has a
+           tabindex; -1 keeps it out of the Tab order. */
+        if (o.tabIndex < 0 && !o.hasAttribute('tabindex')) o.setAttribute('tabindex', '-1');
+        try { o.focus({ preventScroll: true }); } catch { try { o.focus(); } catch {} }
+    }
+    function _svLayerCloseOne(layer, reason, at) {
+        const active = document.activeElement;
+        const regions = _svLayerRegions(layer);
+        const hadFocus = !!active && regions.some(r => r.contains(active));
+        /* Found before the surface closes: some surfaces forget their opener
+           the moment they close. */
+        const openerBefore = _svLayerOpenerEl(layer);
+        try { layer.close(reason); } catch (err) { try { console.error('[layers] close failed', layer.key, err); } catch {} }
+        /* The surface may refuse (busy saving, or it asked "discard?" first).
+           It is still open then: keep it on the stack and leave focus alone. */
+        if (layer.isOpen && layer.isOpen()) {
+            /* Back where it was: below anything its refusal opened (the "discard?"
+               question), so the next Escape answers the question first. */
+            if (!_svLayers.some(l => l.key === layer.key)) _svLayers.splice(Math.min(at == null ? _svLayers.length : at, _svLayers.length), 0, layer);
+            return;
+        }
+        if (!layer.focusOnClose) return;
+        const give = () => _svLayerGiveFocus(layer, openerBefore);
+        if (reason === 'outside') {
+            /* The person clicked somewhere else. If that click landed on
+               something that takes focus (a text box, another button), leave
+               focus there. Only a click on empty space, or one that left focus
+               on the closed pop-up, hands focus back to the opener. The
+               browser moves focus after the pointer event, so decide one tick
+               later. */
+            setTimeout(() => {
+                const a = document.activeElement;
+                if (!a || a === document.body || a === document.documentElement || (hadFocus && !a.isConnected)) give();
+            }, 0);
+        } else {
+            give();
+        }
+    }
+    function _svLayerContains(layer, target) {
+        if (!target || !target.isConnected) return true;   // removed mid-click: never treat as outside
+        if (_svLayerRegions(layer).some(r => r.contains(target))) return true;
+        if (layer.alsoInside && layer.alsoInside(target)) return true;
+        /* The opener counts as inside, so its own click can toggle the layer
+           shut without the outside rule closing it first and the toggle then
+           opening it again. */
+        const o = _svLayerOpenerEl(layer);
+        return !!(o && o.contains(target));
+    }
+    function _svLayerOnKey(e) {
+        if (e.key !== 'Escape' || e.isComposing) return;
+        _svLayerPrune();
+        for (let i = _svLayers.length - 1; i >= 0; i--) {
+            const layer = _svLayers[i];
+            if (!layer.escape) continue;
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof layer.escape === 'function' && layer.escape(e) === true) return;
+            svLayerClose(layer.key, 'escape');
+            return;
+        }
+    }
+    function _svLayerOutside(e) {
+        if (!_svLayers.length) return;
+        _svLayerPrune();
+        const target = e.target;
+        for (let i = _svLayers.length - 1; i >= 0; i--) {
+            const layer = _svLayers[i];
+            if (_svLayerContains(layer, target)) return;   // clicked inside this one: it and everything below stay
+            if (layer.outside) svLayerClose(layer.key, 'outside');
+        }
+    }
+    function _svLayersWire() {
+        if (_svLayersWired) return;
+        _svLayersWired = true;
+        window.addEventListener('keydown', _svLayerOnKey, true);
+        window.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') _svLayerRemember(e); }, true);
+        /* Mouse and pen close on press (so a drag that starts inside and ends
+           outside never closes it). A finger could be starting a scroll, so a
+           touch closes on the tap itself. */
+        document.addEventListener('pointerdown', e => {
+            _svLayerRemember(e);
+            _svLayerPointerType = e.pointerType || '';
+            if (e.pointerType === 'touch') return;
+            if (e.button != null && e.button > 0 && e.pointerType === 'mouse') return;
+            _svLayerOutside(e);
+        }, true);
+        document.addEventListener('click', e => {
+            if (_svLayerPointerType !== 'touch') return;
+            _svLayerOutside(e);
+        }, true);
+    }
+
+    window.svLayerOpen = svLayerOpen;
+    window.svFocusKeep = svFocusKeep;
+    window.svLayerOverlay = svLayerOverlay;
+    window.svLayerTouches = svLayerTouches;
+    window.svLayerLocate = svLayerLocate;
+    window.svLayerRelease = svLayerRelease;
+    window.svLayerClose = svLayerClose;
+    window.svLayerCloseTop = svLayerCloseTop;
+    window.svLayerIsOpen = svLayerIsOpen;
+    window.svLayerKeys = svLayerKeys;
+export { svFocusKeep, svLayerLocate, svLayerOpen, svLayerOverlay, svLayerRelease, svLayerTouches };

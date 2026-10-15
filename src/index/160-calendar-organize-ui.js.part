@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerRelease, svLayerTouches } from './041-core-layers.js';
 import { clientMap, showConfirm, showNotify, showToast, svArea } from './040-shared-briefs.js';
 import { _mrExternalLink, igUrl, ttUrl, ytUrl } from './050-market-briefs.js';
 import { WL_CLIENT_NAMES } from './070-core-client-names.js';
@@ -297,8 +298,19 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         menu.classList.toggle('open', !!open);
         btn.classList.toggle('open', !!open);
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-        if (open) _calWireCardStatusDismiss();
-        else if (opts && opts.focusTrigger) btn.focus();
+        if (open) {
+            _calWireCardStatusDismiss();
+            svLayerOpen({
+                key: 'cal-cardstatus',
+                region: '#calCardStatusWrap',
+                opener: () => document.getElementById('calCardStatusBtn'),
+                isOpen: () => { const m = document.getElementById('calCardStatusMenu'); return !!m && m.classList.contains('open'); },
+                close: () => _calSetCardStatusOpen(false),
+            });
+        } else {
+            svLayerRelease('cal-cardstatus');
+            if (opts && opts.focusTrigger) btn.focus();
+        }
     }
     function _calToggleCardStatusMenu(e) {
         if (e) e.stopPropagation();
@@ -505,7 +517,14 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
                 document.removeEventListener('click', close);
             };
             setTimeout(() => document.addEventListener('click', close), 0);
-        }
+            if (!_isClientLink) svLayerOpen({
+                key: 'cal-monthwarn',
+                region: '#calMonthWarnPop',
+                opener: () => document.getElementById('calMonthWarnIcon'),
+                isOpen: () => { const p = document.getElementById('calMonthWarnPop'); return !!p && p.classList.contains('is-open'); },
+                close: () => { const p = document.getElementById('calMonthWarnPop'); if (p) p.classList.remove('is-open'); },
+            });
+        } else svLayerRelease('cal-monthwarn');
     }
     /* Keep the info icon + popover in sync with the data between pill
        refreshes. Called from _calRenderBody so async post loads and edits
@@ -608,8 +627,16 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         };
         _calClientLinksOutside = close;
         setTimeout(() => document.addEventListener('click', close), 0);
+        svLayerOpen({
+            key: 'cal-clientlinks',
+            region: '#calClientLinksWrap',
+            opener: () => document.getElementById('calClientLinksBtn'),
+            isOpen: () => { const m = document.getElementById('calClientLinksMenu'); return !!m && m.classList.contains('open'); },
+            close: () => _calCloseClientLinks(),
+        });
     }
     function _calCloseClientLinks() {
+        svLayerRelease('cal-clientlinks');
         const menu = document.getElementById('calClientLinksMenu');
         const btn  = document.getElementById('calClientLinksBtn');
         if (menu) menu.classList.remove('open');
@@ -977,9 +1004,17 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         menu.hidden = !menu.hidden;
         if (!menu.hidden) {
             setTimeout(() => document.addEventListener('mousedown', _calKebabOutside), 0);
-        }
+            svLayerOpen({
+                key: 'cal-kebab',
+                region: '.cal-kebab-wrap',
+                opener: () => document.querySelector('.cal-kebab-wrap > button'),
+                isOpen: () => { const m = document.getElementById('calKebabMenu'); return !!m && !m.hidden; },
+                close: () => _calCloseKebab(),
+            });
+        } else svLayerRelease('cal-kebab');
     }
     function _calCloseKebab() {
+        svLayerRelease('cal-kebab', { focus: true });
         const menu = document.getElementById('calKebabMenu');
         if (menu) menu.hidden = true;
         _calSetImportActionsOpen(false);
@@ -1128,9 +1163,17 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             const input = document.getElementById('calClientSearchInput');
             if (input) { input.value = ''; setTimeout(() => input.focus(), 10); }
             _calWireSearchInput();
-        }
+            svLayerOpen({
+                key: 'cal-tabsearch',
+                region: '#calTabAddWrap',
+                opener: () => document.querySelector('#calTabAddWrap > button'),
+                isOpen: () => { const p = document.getElementById('calTabSearchPanel'); return !!p && !p.hidden; },
+                close: () => _calCloseTabSearch(),
+            });
+        } else svLayerRelease('cal-tabsearch', { focus: true });
     }
     function _calCloseTabSearch() {
+        svLayerRelease('cal-tabsearch');
         const panel = document.getElementById('calTabSearchPanel');
         if (panel && (!_calStaffPhoneActive() || !panel.hidden)) panel.hidden = true;
     }
@@ -1635,6 +1678,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         if (a && a !== document.body && el.contains(a)) return true;
         const menu = _calOpenStatusMenu;
         if (menu && menu.triggerEl && el.contains(menu.triggerEl)) return true;
+        if (svLayerTouches(el)) return true;   // an open menu, picker or panel belongs to this card
         const pids = [el, ...el.querySelectorAll('[data-pid],[data-cal-move],[data-cal-review-pid]')]
             .map(n => n.getAttribute('data-pid') || n.getAttribute('data-cal-move') || n.getAttribute('data-cal-review-pid')).filter(Boolean);
         return pids.some(pid => _calPendingEdits[pid]);
@@ -3580,6 +3624,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     }
     let _calFilesOpen = null;   // { pid, btn }
     function _calCloseFilesMenu(opts) {
+        svLayerRelease('cal-files');
         const menu = document.getElementById('calFilesMenu');
         if (menu) menu.remove();
         const was = _calFilesOpen;
@@ -3615,6 +3660,13 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         _calPlaceFilesMenu(menu, btn);
         _calFilesOpen = { pid, btn };
         btn.setAttribute('aria-expanded', 'true');
+        svLayerOpen({
+            key: 'cal-files',
+            region: '#calFilesMenu',
+            opener: btn,
+            isOpen: () => !!_calFilesOpen && !!document.getElementById('calFilesMenu'),
+            close: () => _calCloseFilesMenu(),
+        });
         _calWireFilesDismiss();
         const first = menu.querySelector('a.cal-files-item');
         if (first && e && e.detail === 0) first.focus();   // opened from the keyboard

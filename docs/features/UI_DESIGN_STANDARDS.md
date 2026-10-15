@@ -21,6 +21,30 @@ finished merely because its data and happy-path click work.
   buttons. It must clamp to the current business bounds; signed admin controls
   and bounded end-user controls are different configurations.
 
+## Every pop-up closes the same way (layers)
+
+Every pop-up, menu, dropdown, expanded panel, sheet and modal on the staff
+screens joins the shared layer list in `src/index/041-core-layers.js.part`
+(`svLayerOpen`, `svLayerOverlay`, `svLayerRelease`). One key listener and one
+pointer listener serve the whole site, so the five rules cannot drift:
+
+1. Escape closes it. With two open, Escape closes only the top one.
+2. A click outside closes it. A click inside never does.
+3. Focus returns to the button that opened it, on Escape, on a pick and on an
+   outside click onto empty space (not when the click landed on another control).
+4. Closing never loses typed text. The pop-up keeps its OWN close routine (the one
+   that saves, keeps a draft, or asks "discard?"). The layer list only decides
+   when to call it, and a close the pop-up refuses leaves it open.
+5. A background refresh never closes it or takes its focus. A redrawn pop-up
+   calls `svLayerOpen` again with the same key; `svLayerTouches` lets a redraw of
+   the page around an open pop-up wait.
+
+A new pop-up must register itself. `docs/syncview-design/tests/popup-behaviour-browser.js`
+opens each registered surface with a real click and checks all five rules at
+desktop width and at 390px; add one entry per new surface. The client link pages
+(`?c=`) do not register layers: their approve and request-changes code is not
+touched by this work.
+
 ## Explain through the label, not an icon
 
 - Keep warnings, validation, policy boundaries, and recovery actions visible.

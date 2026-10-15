@@ -346,7 +346,7 @@
             return leaves.sort((a, b) => (parseInt(getComputedStyle(b).zIndex) || 0) - (parseInt(getComputedStyle(a).zIndex) || 0))[0];
         }
         function cards() {
-            document.querySelectorAll('#calView .cal-card, #sxrView .cal-card').forEach(card => {
+            document.querySelectorAll('#calView .cal-card:not(.thumb-grid-card), #sxrView .cal-card:not(.thumb-grid-card)').forEach(card => {
                 const thumb = card.querySelector('.cal-card-thumb');
                 if (!thumb) return;
                 let tools = thumb.querySelector('.sv-phone-card-tools');
@@ -755,6 +755,21 @@
         m.repaint();
         queueMicrotask(() => sync(m));
     }
+    function openCard(m, id, navigate = true) {
+        if (m.state.view !== 'organizer') m.root.querySelector('[data-cal-view=organizer]')?.click();
+        const r = record(m.type,m.state);
+        if (navigate) r.scroll[r.mode] = m.root.querySelector('.cal-body').scrollTop;
+        r.detail = String(id); m.state.focusPid = r.detail;
+        if (navigate) {
+            m.syncCardUrl?.(null);
+            history.replaceState({...history.state,thumbCollectionParent:m.type,thumbCollection:null,thumbCollectionCard:null},'',location.href);
+            const selected = {thumbCollectionParent:false,thumbCollection:m.type,thumbCollectionCard:r.detail,thumbCollectionClient:m.state.client};
+            history.pushState({...history.state,...selected},'',location.href);
+            m.syncCardUrl?.(r.detail);
+            history.replaceState({...history.state,...selected},'',location.href);
+        }
+        paint(m); m.root.querySelector('.cal-body').scrollTop = 0; m.detailHead.firstElementChild.focus({preventScroll:true});
+    }
     function back(m, historyBack = true) {
         const r = record(m.type, m.state), id = r.detail;
         r.detail = null; m.state.focusPid = null; paint(m);
@@ -808,10 +823,19 @@
     }
     window.svThumbCollections = {
         restoreMenu, organizeMenu,
+        open(type,id) {
+            const m = [...mounts.values()].find(m => m.type === type && m.root.isConnected && active(m.state));
+            if (!m || !m.state.posts.some(p => String(p.id) === String(id))) return false;
+            openCard(m,id); return true;
+        },
         consumeHistory(event) {
             for (const m of mounts.values()) {
                 if (!m.root.isConnected || !active(m.state)) continue;
                 const r = record(m.type,m.state);
+                if (event.state?.thumbCollection === m.type && event.state.thumbCollectionClient === m.state.client && event.state.thumbCollectionCard) {
+                    openCard(m,event.state.thumbCollectionCard,false);
+                    return true;
+                }
                 if ((m.returningFromCard || r.detail) && event.state?.thumbCollectionParent === m.type
                     && event.state?.nav === (m.type === 'calendar' ? 'calendar' : 'sample-reviews')) {
                     m.returningFromCard = false;
@@ -821,7 +845,7 @@
             }
             return false;
         },
-        mount(root, state, type, repaint) {
+        mount(root, state, type, repaint, syncCardUrl) {
             root.dataset.thumbCollection = type;
             root.style.setProperty('--thumb-top',Math.max(0,root.getBoundingClientRect().top+scrollY)+'px');
             const heading = root.querySelector('[class$="-heading"]');
@@ -835,7 +859,7 @@
             const dock = document.createElement('div'); dock.className = 'thumb-review-dock';
             dock.innerHTML = '<div><strong></strong><small>' + (type === 'samples' ? 'Video & graphic' : 'Video, graphic & caption') + '</small></div><button type="button">Review ' + (type === 'samples' ? 'samples' : 'posts') + '</button>';
             root.append(dock);
-            const m = { root,state,type,repaint,workspace,detailHead,dock,calendarButton:null };
+            const m = { root,state,type,repaint,syncCardUrl,workspace,detailHead,dock,calendarButton:null };
             mounts.set(root,m);
             detailHead.firstElementChild.onclick = () => back(m);
             detailHead.lastElementChild.onclick = () => root.querySelector('.cal-card .sv-phone-card-more')?.click();
@@ -854,13 +878,24 @@
                     try { localStorage.setItem('sv-thumb-' + type + '-display',r.mode); } catch {}
                     paint(m); requestAnimationFrame(() => { root.querySelector('.cal-body').scrollTop = r.scroll[r.mode] || 0; root.querySelector('[data-thumb-display=' + r.mode + ']')?.focus({preventScroll:true}); });
                 } else if (tile) {
-                    r.scroll[r.mode] = root.querySelector('.cal-body').scrollTop; r.detail = tile.dataset.thumbCard;
-                    history.replaceState({...history.state,thumbCollectionParent:type},'',location.href);
-                    history.pushState({...history.state,thumbCollection:type},'',location.href);
-                    paint(m); root.querySelector('.cal-body').scrollTop = 0; detailHead.firstElementChild.focus();
+                    openCard(m,tile.dataset.thumbCard);
                 }
             };
-            const onMediaError = event => { if (event.target.matches('.thumb-tile > img')) event.target.hidden = true; };
+            const onMediaError = event => {
+                const image = event.target;
+                if (!image.matches('.thumb-tile-media img') || image.dataset.drive !== '1') return;
+                const tile = image.closest('.thumb-tile');
+                // Let the unchanged native handler produce its Drive warning,
+                // then keep those instructions in the tile's accessible name.
+                queueMicrotask(() => {
+                    if (!tile.isConnected) return;
+                    const warning = tile.querySelector('.cal-thumb-drive-warn');
+                    if (!warning) return;
+                    tile.dataset.thumbMediaError = 'drive';
+                    tile.setAttribute('aria-label',tile.getAttribute('aria-label') + '. ' + warning.textContent.replace(/\s+/g,' ').trim());
+                    tile.querySelector('.thumb-tile-fallback').innerHTML = warning.querySelector('svg').outerHTML + '<strong>Drive access needed</strong><span>Open for sharing steps</span>';
+                });
+            };
             root.addEventListener('error',onMediaError,true);
             root.addEventListener('click',handle);
             const onPop = event => {
@@ -901,13 +936,15 @@
                 const card = document.createElement('template'); card.innerHTML = renderCard(post);
                 const media = card.content.querySelector('.cal-card-thumb img');
                 const image = media?.cloneNode(true);
-                if (image) { image.removeAttribute('onclick'); image.removeAttribute('onerror'); image.alt = ''; image.loading = 'lazy'; }
+                if (image) { image.removeAttribute('onclick'); image.alt = ''; image.loading = 'lazy'; }
                 const title = post.name || 'Untitled card';
                 const status = post.status || 'In progress';
                 const date = type === 'calendar' && post.scheduled_date ? window.svPhoneDate(post.scheduled_date) : '';
-                return '<button type="button" class="thumb-tile" id="thumb-' + type + '-card-' + esc(post.id) + '" data-thumb-card="' + esc(post.id) + '" aria-label="Open ' + esc(title) + '">' + (image?.outerHTML || '') + '<span class="thumb-tile-fallback">' + icon('grid') + '</span>' + '<span class="thumb-tile-number">' + (i+1) + '</span><span class="thumb-tile-info"><strong>' + esc(title) + '</strong><span>' + esc(status) + '</span>' + (date ? '<span>' + esc(date) + '</span>' : '') + '</span></button>';
+                // Grid is another presentation of the native card collection.
+                // Keep its strip and card identities for filters and refreshes.
+                return '<div class="cal-card thumb-grid-card" data-pid="' + esc(post.id) + '"><button type="button" class="thumb-tile" id="thumb-' + type + '-card-' + esc(post.id) + '" data-thumb-card="' + esc(post.id) + '" aria-label="Open ' + esc(title) + '"><span class="thumb-tile-media cal-card-thumb" aria-hidden="true">' + (image?.outerHTML || '') + '</span><span class="thumb-tile-fallback">' + icon('grid') + '</span>' + '<span class="thumb-tile-number">' + (i+1) + '</span><span class="thumb-tile-info"><strong>' + esc(title) + '</strong><span>' + esc(status) + '</span>' + (date ? '<span>' + esc(date) + '</span>' : '') + '</span></button></div>';
             }).join('');
-            return viewbar + '<div class="thumb-collection-grid">' + html + '</div><button type="button" class="thumb-create" onclick="' + (type === 'samples' ? 'addSxrBlankCard()' : 'addCalBlankCard()') + '">Create ' + (type === 'samples' ? 'sample' : 'post') + '</button>';
+            return viewbar + '<div class="thumb-collection-grid" id="' + (type === 'samples' ? 'sxrStrip' : 'calStrip') + '">' + html + '</div><button type="button" class="thumb-create" onclick="' + (type === 'samples' ? 'addSxrBlankCard()' : 'addCalBlankCard()') + '">Create ' + (type === 'samples' ? 'sample' : 'post') + '</button>';
         }
     };
 })();

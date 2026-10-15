@@ -10,6 +10,7 @@ const captures=require('./client-phone/native-captures');
 const arg=(k,d)=>process.argv.find(s=>s.startsWith('--'+k+'='))?.slice(k.length+3)||d;
 const out=arg('out',''),widths=arg('widths','390,430').split(',').map(Number);
 const receipt=[];
+const CORS={'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'*'};
 async function shot(page,name,width,theme){
  await captures.anonymizePlaceholders(page);await page.evaluate(()=>document.fonts.ready);await page.waitForTimeout(120);
  if(out){fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,name+'-'+theme+'-'+width+'.png'),animations:'disabled'});}
@@ -24,6 +25,32 @@ async function main(){
  try{for(const width of widths)for(const theme of ['light','dark']){
   staff.resetScenario();const context=await browser.newContext({viewport:{width,height:844},hasTouch:true,isMobile:true,reducedMotion:'reduce'});
   await staff.installBackend(context);await seedStaffGate(context);
+  let authorityReads=0,creating=false;
+  await context.route('**/rest/v1/syncview_runtime_flags*',route=>{
+   const key=new URL(route.request().url()).searchParams.get('key')||'';
+   if(creating&&key==='eq.sample_review_ef_clients')return route.fulfill({json:[{key:'sample_review_ef_clients',value:{clients:['sampleclientone']}}],headers:CORS});
+   if(!key.includes('prod_authority'))return route.fallback();authorityReads++;
+   return route.fulfill({json:[{key:'prod_authority',value:{video:'syncview',graphics:'syncview'}}],headers:CORS});
+  });
+  await context.addInitScript(names=>{
+   const seed=()=>{
+    if(typeof WL_CLIENT_NAMES==='undefined'||typeof WL_CLIENT_CANONICAL==='undefined'){setTimeout(seed,10);return;}
+    WL_CLIENT_NAMES.splice(0,WL_CLIENT_NAMES.length,...names);WL_CLIENT_CANONICAL.clear();
+    names.forEach(n=>WL_CLIENT_CANONICAL.set(wlNormalizeClient(n),n));
+   };seed();
+  },staff.NAMES);
+  let intake=null,reloadedSamples=null;const materialized=[];
+  await context.route('**/functions/v1/production-write',route=>{
+   const body=route.request().postDataJSON();
+   if(body.operation!=='intake_create')return route.fallback();
+   assert.equal(body.surface,'sxr','Create sample keeps the native Samples intake lane');intake=body;
+   return route.fulfill({status:201,headers:CORS,json:{ok:true,native_committed:true,mirror_pending:false,batch:{id:'00000000-0000-4000-a000-000000000090',name:body.batch?.name||'Fictional batch'},items:body.items.map((item,i)=>({item_index:i,id:'00000000-0000-4000-a000-'+String(i+91).padStart(12,'0'),team:item.team,card_id:item.card_id,title:'New fictional sample'}))}});
+  });
+  await context.route('**/functions/v1/sample-review-upsert',route=>{
+   const body=route.request().postDataJSON();
+   if(!intake||!body.sample||!intake.items.some(i=>i.card_id===body.sample.id))return route.fallback();
+   materialized.push(body);reloadedSamples?.push(body.sample);return route.fulfill({headers:CORS,json:{ok:true,sample:body.sample}});
+  });
   await context.route('**/*',route=>route.request().resourceType()==='image'?route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="720" height="960"><rect width="720" height="960" fill="#6b8881"/><circle cx="360" cy="330" r="170" fill="#cbd5cb"/><path d="M90 960V680Q360 400 630 680V960Z" fill="#3c5551"/><text x="360" y="180" font-size="55" fill="white" text-anchor="middle">DEMO CLIP</text></svg>'}):route.fallback());
   await context.addInitScript(t=>localStorage.setItem('syncview_theme',t),theme);
   const page=await context.newPage(),errors=[];captures.prepareCaptures(page);page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(8000);
@@ -63,6 +90,7 @@ async function main(){
      (type==='calendar'?_calRenderBody:_sxrRenderBody)({preserveScroll:true});
      document.querySelector(type==='calendar'?'#calBody':'#sxrBody').scrollTop=0;document.activeElement.blur();
     },type);
+    await page.waitForTimeout(100);await root.locator('.cal-body').evaluate(n=>n.scrollTop=0);
     await shot(page,type+'-grid',width,theme);
     await root.getByRole('button',{name:'List view',exact:true}).tap();
     assert.equal(await root.locator('.cal-card').count(),12,'Existing List keeps every native card');
@@ -85,6 +113,30 @@ async function main(){
     assert.equal(await root.locator('textarea[data-pocket-title],input.cal-fld-name').filter({visible:true}).first().inputValue(),'Retained fictional title','Card draft was lost');
     await page.goBack();await page.waitForTimeout(120);
     assert.equal(await root.locator('.thumb-tile').count(),12,'Browser Back restores the collection');
+    await page.goForward();await root.getByRole('button',{name:'Back to collection',exact:true}).waitFor();
+    assert.equal(await root.locator('.cal-card').count(),1,'Forward restores the selected native card');
+    assert.equal(await field.inputValue(),'Retained fictional title','Forward restores the selected card draft');
+    const reloadRows=await page.evaluate(type=>(type==='calendar'?calState:sxrState).posts,type);
+    if(type==='samples')reloadedSamples=reloadRows;
+    const reloadPattern='**/rest/v1/'+(type==='calendar'?'calendar_posts':'sample_reviews')+'*';
+    const reloadRead=route=>route.fulfill({json:reloadRows,headers:CORS});
+    await context.route(reloadPattern,reloadRead);
+    await page.reload();await root.getByRole('button',{name:'Back to collection',exact:true}).waitFor();
+    await root.locator('.cal-card').waitFor();
+    assert.equal(await root.locator('.cal-card').count(),1,'Reload restores the selected native card');
+    assert.equal(await root.locator('.cal-card').getAttribute('data-pid'),reloadRows[0].id,'Reload keeps the selected card identity');
+    await page.waitForFunction(type=>!(type==='calendar'?calState:sxrState).loading,type);await page.waitForTimeout(150);
+    await page.goBack();await page.waitForTimeout(120);
+    assert.equal(await root.locator('.thumb-tile').count(),12,'Back after Reload restores Grid: '+JSON.stringify(await page.evaluate(type=>({focus:!!(type==='calendar'?calState:sxrState).focusPid,loading:(type==='calendar'?calState:sxrState).loading,mode:document.querySelector(type==='calendar'?'#calView':'#sxrView')?.dataset.thumbMode,parent:history.state?.thumbCollectionParent,selected:!!history.state?.thumbCollectionCard}),type)));
+    await page.goForward();await root.getByRole('button',{name:'Back to collection',exact:true}).waitFor();
+    assert.equal(await root.locator('.cal-card').getAttribute('data-pid'),reloadRows[0].id,'Forward after Reload keeps the selected card');
+    await page.goBack();await page.waitForTimeout(120);
+    if(type==='calendar')await page.evaluate(()=>{clientMap[calState.client]={...(clientMap[calState.client]||{}),instagram_handle:'demo.profile'};_calRenderShell();_calRenderBody();});
+    await root.locator('.thumb-tile img[data-drive="1"]').first().evaluate(n=>n.dispatchEvent(new Event('error')));
+    await page.waitForTimeout(120);
+    assert(await root.locator('.thumb-tile[data-thumb-media-error="drive"]').first().isVisible(),'Drive failures remain explicit in Grid');
+    assert.match(await root.locator('.thumb-tile[data-thumb-media-error="drive"]').first().getAttribute('aria-label'),/Anyone with the link/,'Grid retains the native Drive sharing instructions');
+    await shot(page,type+'-grid-drive-error',width,theme);
     await root.locator('[data-staff-menu=more]').tap();
     const dialog=root.locator('dialog[open]');
     assert.deepEqual(await dialog.locator('h3').allTextContents(),['Work on content','View & organize','Preferences','Tools & account']);
@@ -110,8 +162,24 @@ async function main(){
      await root.locator('.thumb-calendar-view').tap();await shot(page,'calendar-view-picker',width,theme);
      await root.locator('.thumb-view-sheet').getByRole('button',{name:'Month',exact:true}).tap();await shot(page,'calendar-month',width,theme);
      await root.locator('.thumb-calendar-view').tap();await root.locator('.thumb-view-sheet').getByRole('button',{name:'Week',exact:true}).tap();await shot(page,'calendar-week',width,theme);
+    }else{
+     creating=true;
+     await root.getByRole('button',{name:'Create sample',exact:true}).tap();await page.locator('#calNativePostCreate').waitFor();
+     await page.locator('#calNativePostCreate').tap();
+     await page.waitForFunction(()=>sxrState.posts.some(p=>p.name==='New fictional sample')).catch(async error=>{
+      throw new Error(error.message+' Native Create fixture: '+JSON.stringify({intake:!!intake,authorityReads,materializations:materialized.length,error:await page.locator('#calNativePostError').textContent()}));
+     });
+     assert(intake&&materialized.length===1,'Native Create must commit and materialize exactly one sample');
+     await page.locator('#confirmOverlay.active').waitFor();assert.equal(await page.locator('#confirmTitle').textContent(),'Sample created');
+     await page.locator('#confirmYes').tap();
+     await root.getByRole('button',{name:'Back to collection',exact:true}).waitFor();await page.waitForTimeout(150);
+     const created=root.locator('.cal-card[data-pid="'+intake.items[0].card_id+'"]');
+     assert.equal(await root.locator('.cal-card').count(),1,'New sample opens its native editor');
+     assert(await created.locator('.cal-fld-name').evaluate(n=>n===document.activeElement),'Native Create focuses the new sample title');
+     await shot(page,'samples-created',width,theme);await root.getByRole('button',{name:'Back to collection',exact:true}).tap();await page.waitForTimeout(120);
     }
     for(const kind of ['no-posts','loading','error','empty']){await prepare(page,type+'-'+kind);await shot(page,type+'-'+kind,width,theme);}
+    await context.unroute(reloadPattern,reloadRead);
    }
    assert.deepEqual(errors,[],'Page errors');
    console.log('ok Thumb collections '+width+' '+theme+': native navigation, menu, selection, review, empty/loading/error, no overlap');

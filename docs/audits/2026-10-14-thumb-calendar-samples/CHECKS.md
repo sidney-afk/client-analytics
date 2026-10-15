@@ -157,3 +157,69 @@ STAFF_PHONE_COLLECTIONS: 100 screen/theme/width captures; all assertions passed;
 --- phase: archive_park_sub_issues ---
 prod-write-gateway-browser: mirror operations plus Submit and Calendar native intake passed
 ```
+
+## Status-filter and review follow-up
+
+The original status-filter runner reproduced the phone failure (0 instead of 6).
+Its source is unchanged. Grid now preserves the native strip/card entities, with
+all six cards represented by visible thumbnail buttons. No hidden editor copies,
+check skips, CI exceptions or assertion changes were added.
+
+The additional collection guards cover Back/Forward/Reload, Drive-access failure
+instructions and native Create sample completion. Their transports are fictional
+and fully intercepted. Earlier failed attempts remain private; only final safe
+command tails and screenshots are published here.
+
+### calendar-status-unchanged-final.log
+
+```text
+calendar-card-status-filter: OK (77 checks; desktop and phone; Sheet, Month, Week, Review)
+```
+
+### calendar-status-layout-final-collections.log
+
+```text
+ok Thumb collections 430 light: native navigation, menu, selection, review, empty/loading/error, no overlap
+ok Thumb collections 430 dark: native navigation, menu, selection, review, empty/loading/error, no overlap
+STAFF_PHONE_COLLECTIONS: 112 screen/theme/width captures; all assertions passed; fictional data; no live writes
+```
+
+### calendar-status-layout-refresh.log
+
+```text
+ok  refresh held in flight: screenshots before, during, right after and 1.5 s after match
+  ok  typing in a caption while a teammate edits another card: that card redrawn at once; the caption keeps its node, focus, caret 53:53, text and look
+calendar-refresh-scroll-browser: PASS (16 checks: 8 insertion views, 5 moved-card cases, 2 live-UI cases, 1 invisible-refresh case)
+```
+
+### calendar-review-viewer-final.log
+
+```text
+ok  switch: Kasper: no page errors ()
+
+frameio-viewer-browser: all checks passed
+```
+
+### calendar-status-layout-gateway.log
+
+```text
+--- phase: calendar_native_intake ---
+--- phase: archive_park_sub_issues ---
+prod-write-gateway-browser: mirror operations plus Submit and Calendar native intake passed
+```
+
+### calendar-status-final-desktop.log
+
+```text
+ok   staff-navCalendar @1440: pixels identical, computed styles identical (1b87d864520a)
+
+1/1 desktop shots identical to origin/main
+```
+
+### calendar-status-modules.log
+
+```text
+minified parts: 20 files, 2855 KB, 5586 top-level names, 0 lost, 0 changed kind
+
+check-modules: all checks passed
+```

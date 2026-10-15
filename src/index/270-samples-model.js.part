@@ -136,7 +136,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             }
         };
         arrange();
-        state.thumbDispose = window.svThumbCollections?.mount(root, sxrState, 'samples', () => _sxrRenderBody());
+        state.thumbDispose = window.svThumbCollections?.mount(root, sxrState, 'samples', () => _sxrRenderBody(), _sxrSyncUrlCard);
         state.observer = new MutationObserver(() => {
             if (!root.isConnected) _sxrStaffPhoneRestore();
             else arrange();

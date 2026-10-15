@@ -19,7 +19,7 @@ import {
   CAL_PLATFORM_BY_KEY, _calBulkColorSwatchesHtml, _calCanDragCards, _calCardStatusFilterOn, _calCompLinked,
   _calCurrentMonthIso, _calIsAutoSortOn, _calIsCollabOn, _calMonthLabel, _calNormMonthFilter,
   _calNormCardStatusFilter, _calNormStatusFilter, _calOrganizerSort, _calPendingEdits, _calPostHasDate,
-  _calPostInCardStatusFilter, _calPostInMonthFilter, _calPostInStatusFilter, _calSyncUrlClient, _calThumbRev, calClientSlug,
+  _calPostInCardStatusFilter, _calPostInMonthFilter, _calPostInStatusFilter, _calSyncUrlCard, _calSyncUrlClient, _calThumbRev, calClientSlug,
   calState
 } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
@@ -133,7 +133,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
             }
         };
         arrange();
-        state.thumbDispose = window.svThumbCollections?.mount(root, calState, 'calendar', () => _calRenderBody());
+        state.thumbDispose = window.svThumbCollections?.mount(root, calState, 'calendar', () => _calRenderBody(), _calSyncUrlCard);
         state.observer = new MutationObserver(() => {
             if (!root.isConnected) _calStaffPhoneRestore();
             else arrange();

@@ -36,8 +36,8 @@ as new evidence. Physical-device and deployed behavior are not claimed.
 ## Verification
 
 [Check receipts](CHECKS.md) retain real command tails, earlier failures and their
-resolution. The primary regression suite captures 25 states in both themes at
-390 and 430; the 50 required 390px light/dark images are in the gallery. The
+resolution. The primary regression suite captures 28 states in both themes at
+390 and 430; the 56 required 390px light/dark images are in the gallery. The
 desktop folder contains an exact before/after 1440px pair plus its equality
 receipt; the public images omit the unchanged staff header for identity hygiene.
 The private run compares the full desktop and all computed styles.
@@ -69,6 +69,22 @@ disabled. The CI phone job also runs the new `qa/staff-phone-collections.js`.
 Background refresh now captures the phone content scroller itself, in addition to its nested scrollers. Grid tiles have stable IDs and participate in the existing anchor/focus restoration. The collection suite also prepends a complete row and asserts visible tile position and focus in both areas, widths and themes. Existing screenshot provenance remains the capture version; this follow-up changes restoration and stable IDs, without changing the pictured layout.
 
 The shared popup suite also enters the retained List and covers the new Calendar view sheet. The populated desktop helper now assembles both builds in the same format, matching the existing desktop-parity gate; pixel and style equality assertions are unchanged.
+
+## CI and review follow-up
+
+Grid retains the native `calStrip` / `sxrStrip` collection and one visible
+`.cal-card[data-pid]` entity for every thumbnail. Full editor controls are mounted
+only when a tile opens. This repairs the no-filter regression without changing
+`calendar-card-status-filter-browser.js`; its original 77 assertions pass on
+desktop and phone, including all six unfiltered cards and every filter mode.
+Compact tiles do not acquire editor-only action menus.
+
+Card selection now uses native card URLs as well as owned browser history, so
+Forward and Reload retain the selected editor. Drive thumbnail failures keep the
+native instructions in the accessible tile name and show an explicit compact
+warning. Native Create sample opens the materialized card and focuses its title
+before the existing success notice. The collection suite exercises these flows,
+with intake/materialization fully intercepted and no live writes.
 
 ## Review and recovery
 

@@ -152,5 +152,17 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(/redo: \{ caption: job\.base, quick: job\.redo\.quick \|\| '', titles: job\.redo\.titles \|\| \[\] \}/.test(C180), 'a redo sends the caption it starts from');
   ok(/if \(now === String\(job\.base \|\| ''\)\.trim\(\)\)/.test(C180) && /_calCapExtrasPending\(job, job\.caption\)/.test(C180), 'a redo is applied only while the box still holds the caption it started from; otherwise it waits for a click');
 
+  // --- the 2026-10-15 owner feedback: Redo is a pop-up on the shared layer, one Generate box, an arrow-only Show more
+  ok(/function _calOpenRedoPopup\(pid\)/.test(C180) && /svLayerOverlay\('cal-prompt', '#calPromptOverlay', '#calPromptModal'/.test(C180.slice(C180.indexOf('function _calOpenRedoPopup'), C180.indexOf('function _calRedoInput'))), 'Redo with a note opens on the shared pop-up layer (Escape, a click outside)');
+  ok(/onclick="_calCloseCaptionPromptModal\(\)">Close<\/button>/.test(C180.slice(C180.indexOf('function _calOpenRedoPopup'), C180.indexOf('function _calRedoInput'))), 'the pop-up has a Close button');
+  ok(!/Shorter<|New hook<|New titles</.test(C180) && !/cal-cap-ai-chip/.test(C180), 'the Shorter, New hook and New titles quick picks are gone from the page');
+  ok(!/cal-cap-tx\b/.test(C180) && !/_calOpenCaptionTranscript\(\\'/.test(C180), 'there is no separate Transcript button; the Generate box holds the transcript');
+  ok(/redoBox && redoGo[\s\S]{0,160}_calCapAiDraft\.set\(/.test(C180), 'closing the Redo pop-up keeps the note typed in it');
+  const C130 = read('src/index/130-calendar-model-cache.js.part');
+  ok((C130.match(/_calCapAiToolsHtml\(p\)/g) || []).length === 2 && !/cal-cap-ai-tog/.test(C130), 'the Redo button is rendered in the + Alt caption row (both row variants), not in the caption box');
+  const CSS = read('src/index/020-styles-surfaces.css.part');
+  ok(/\.cal-cap-tools \{ margin-left: auto;/.test(CSS) && !/\.cal-cap-tx\b/.test(CSS), 'the Redo button is pushed to the right of the row');
+  ok(/\.cal-cap-toggle \{ position: absolute; right: 7px; bottom: 7px; width: 21px; height: 21px; padding: 0;/.test(CSS), 'Show more is just the arrow');
+
   console.log(`caption-helper-source: ${checks} checks passed ✅`);
 })().catch((e) => { console.error(e); process.exit(1); });

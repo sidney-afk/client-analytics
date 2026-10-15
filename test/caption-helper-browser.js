@@ -6,7 +6,7 @@
  *                A client with no choices gets the note box only.
  *   THE PANEL    The title ideas (best one marked), the hashtags and copy buttons sit under the caption, never in it.
  *                "Use this title" fills the card's title.
- *   REDO         A note or a quick pick re-runs from the current caption. The new caption replaces the box only while
+ *   REDO         A button on the + Alt caption row opens a pop-up with a note box and Redo (Escape, a click outside or Close leave it). It re-runs from the current caption. The new caption replaces the box only while
  *                the box still holds the caption the redo started from; a caption typed meanwhile is kept and the new
  *                version waits for a click.
  * Run at 1440 wide and at 390 wide, in light and dark. Set CAPTION_SHOT_DIR to save screenshots there.
@@ -146,7 +146,7 @@ async function run(browser, origin, label, device, theme) {
   expect(chips.join(',') === ['Let the AI choose'].concat(CTAS).join(','), `${tag}: the box offers the client's own choices after "Let the AI choose" (${chips.join(',')})`);
   expect(await page.evaluate(() => document.querySelector('input[name="calCta"]:checked').value === '' && document.querySelector('input[name="calPlat"]:checked').value === 'instagram'),
     `${tag}: "Let the AI choose" and Instagram are the defaults`);
-  expect(await page.locator('#calNoteTA').count() === 1, `${tag}: there is a note box`);
+  expect(await page.locator('#calNoteTA').count() === 1 && await page.locator('#calTxTA').count() === 1, `${tag}: the one Generate box has the note box and the transcript box`);
   expect(await noOverflow(page, '#calPromptModal .cal-prompt-body') && await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), `${tag}: the box does not scroll sideways`);
   await shot(page, `box-${tag}`);
   await page.locator('#calCtaWrap .cal-gen-chip', { hasText: 'BETA' }).click();
@@ -181,31 +181,76 @@ async function run(browser, origin, label, device, theme) {
   expect(await page.evaluate(() => document.querySelector('.cal-card[data-pid="v1"] [data-fld="name"]').value) === TITLES[2], `${tag}: "Use this title" fills the card's title`);
   expect(await waitFor(async () => state.saves.some(s => s.id === 'v1' && s.name === TITLES[2]), 8000), `${tag}: the title is saved through the card's normal save`);
 
-  // REDO with a note: replaces the box because the box still holds the caption the redo started from
+  // THE ROW: Redo with a note sits on the "+ Alt caption" row, at the right, and never on the caption text
+  const redoBtn = '.cal-card[data-pid="v1"] .cal-cap-tabs .cal-cap-redo-open';
+  expect(await page.locator(redoBtn).count() === 1 && await page.locator('.cal-card[data-pid="v1"] .cal-cap-wrap .cal-cap-redo-open').count() === 0,
+    `${tag}: Redo with a note is a button on the + Alt caption row, not inside the caption box`);
+  const lay = await page.evaluate(() => {
+    const c = document.querySelector('.cal-card[data-pid="v1"]');
+    const b = c.querySelector('.cal-cap-redo-open').getBoundingClientRect(), a = c.querySelector('.cal-altcap-add').getBoundingClientRect();
+    const t = c.querySelector('textarea[data-fld="caption"]').getBoundingClientRect(), card = c.getBoundingClientRect();
+    return { right: b.left >= a.right, sameRow: Math.abs((b.top + b.height / 2) - (a.top + a.height / 2)) < 16, clear: b.bottom <= t.top + 1, inCard: b.right <= card.right + 1 };
+  });
+  expect(lay.right && lay.sameRow && lay.clear && lay.inCard, `${tag}: it is to the right of + Alt caption, on the same row, clear of the caption text (${JSON.stringify(lay)})`);
+  await shot(page, `row-${tag}`, 'v1');
+  expect(await page.locator('.cal-cap-tx').count() === 0, `${tag}: there is no separate Transcript button`);
+
+  // THE POP-UP: only a note box, Redo and Close; Escape, a click outside and Close all leave it, and the note is kept
+  const popOpen = () => page.evaluate(() => !!document.querySelector('#calPromptOverlay.open #calRedoTA'));
+  const openPop = async () => { await page.locator(redoBtn).click(); await page.waitForSelector('#calPromptOverlay.open #calRedoTA', { timeout: 5000 }); };
+  await openPop();
+  expect(await page.locator('#calPromptModal .cal-cap-ai-chip').count() === 0 && !/Shorter|New hook|New titles/.test(await page.locator('#calPromptModal').innerText()),
+    `${tag}: no Shorter, New hook or New titles: only the note box and Redo`);
+  expect(await page.locator('#calRedoGo').isDisabled() && /Caption written by the function/.test(await page.locator('#calPromptModal .cal-redo-current').innerText()),
+    `${tag}: Redo waits for a note; the current caption is shown to read`);
+  await shot(page, `popup-${tag}`);
+  await page.fill('#calRedoTA', 'keep this note');
+  await page.keyboard.press('Escape');
+  await sleep(250);
+  expect(!(await popOpen()) && !(await page.evaluate(() => document.getElementById('confirmOverlay').classList.contains('active'))), `${tag}: Escape closes it, with no question asked`);
+  await openPop();
+  expect(await page.inputValue('#calRedoTA') === 'keep this note', `${tag}: the note is still there when it opens again`);
+  await page.locator('#calPromptModal .cal-prompt-foot .cal-prompt-btn:not(.is-primary)').click();
+  await sleep(250);
+  expect(!(await popOpen()), `${tag}: the Close button closes it`);
+  await openPop();
+  await page.mouse.click(3, 3);
+  await sleep(250);
+  expect(!(await popOpen()), `${tag}: a click outside closes it`);
+  await openPop();
+  await page.locator('#calPromptModal .cal-prompt-close').click();
+  await sleep(250);
+  expect(!(await popOpen()) && await page.evaluate(() => /cal-cap-redo-open/.test(document.activeElement.className)), `${tag}: the X closes it and focus goes back to the Redo with a note button`);
+
+  // REDO: replaces the box because the box still holds the caption the redo started from
   const before = state.saves.length;
-  await page.locator(`${panel('v1')} .cal-cap-ai-note`).fill('shorter, and a hookier hook');
-  await page.locator(`${panel('v1')} .cal-cap-ai-redo .cal-cap-ai-btn`).click();
+  await openPop();
+  await page.fill('#calRedoTA', 'shorter, and a hookier hook');
+  await page.locator('#calRedoGo').click();
   expect(await waitFor(async () => (await captionOf(page, 'v1')) === 'A shorter caption after the redo.'), `${tag}: the redo's caption replaces the untouched one`);
   const rb = (state.ef[1] || {}).body || {};
-  expect(rb.redo && rb.redo.caption === 'Caption written by the function' && rb.note === 'shorter, and a hookier hook' && !rb.assetUrl && !rb.transcript && rb.redo.titles.length === 5,
+  expect(rb.redo && rb.redo.caption === 'Caption written by the function' && rb.note === 'shorter, and a hookier hook' && !rb.assetUrl && !rb.transcript && rb.redo.titles.length === 5 && rb.redo.quick === '',
     `${tag}: the redo sent the current caption, the note and the earlier titles, no video`);
   expect(await waitFor(async () => state.saves.slice(before).some(s => s.id === 'v1' && s.caption === 'A shorter caption after the redo.'), 8000), `${tag}: the redo is saved through the card's normal save`);
   expect((await page.evaluate(sel => Array.from(document.querySelector(sel).querySelectorAll('.cal-cap-ai-ttxt')).map(e => e.textContent), panel('v1')))[0] === 'New ' + TITLES[0], `${tag}: the redo brings new title ideas`);
 
-  // Quick pick New titles: the caption is untouched
-  await page.locator(`${panel('v1')} .cal-cap-ai-chip`, { hasText: 'New titles' }).click();
-  expect(await waitFor(async () => state.ef.length === 3 && (await page.locator(`${panel('v1')} .cal-cap-ai-chip`).first().isEnabled())), `${tag}: New titles runs`);
-  expect(((state.ef[2] || {}).body || {}).redo.quick === 'titles' && (await captionOf(page, 'v1')) === 'A shorter caption after the redo.', `${tag}: New titles leaves the caption as it is`);
+  // The titles panel can be hidden and shown again from the row
+  await page.locator(`${panel('v1')} .cal-cap-ai-top .cal-cap-ai-btn`).click();
+  expect(await page.locator(panel('v1')).count() === 0 && await page.locator('.cal-card[data-pid="v1"] .cal-cap-tools .cal-cap-ai-tog:not(.cal-cap-redo-open)').count() === 1, `${tag}: Hide closes the titles panel and a Titles button stays on the row`);
+  await page.locator('.cal-card[data-pid="v1"] .cal-cap-tools .cal-cap-ai-tog:not(.cal-cap-redo-open)').click();
+  expect(await page.locator(panel('v1')).count() === 1, `${tag}: the Titles button shows it again`);
 
   // A caption typed while a redo runs is never overwritten
   state.doneMs = 2500;
-  await page.locator(`${panel('v1')} .cal-cap-ai-chip`, { hasText: 'Shorter' }).click();
+  await openPop();
+  await page.fill('#calRedoTA', 'make it shorter');
+  await page.locator('#calRedoGo').click();
   await sleep(300);
   const ta = page.locator(capSel('v1'));
   await ta.click();
   await ta.fill('Typed by hand while the redo was running.');
   await page.evaluate(() => document.activeElement && document.activeElement.blur());
-  expect(await waitFor(async () => state.ef.length === 4 && !(await page.evaluate(() => _calCapJobsActiveList().length)), 20000), `${tag}: the slow redo finishes`);
+  expect(await waitFor(async () => state.ef.length === 3 && !(await page.evaluate(() => _calCapJobsActiveList().length)), 20000), `${tag}: the slow redo finishes`);
   await sleep(600);
   expect(await captionOf(page, 'v1') === 'Typed by hand while the redo was running.', `${tag}: the typed caption is still in the box`);
   expect(!state.saves.some(s => s.id === 'v1' && s.caption === 'A shorter caption after the redo.' && state.saves.indexOf(s) > before + 1), `${tag}: nothing was saved over the typed caption`);
@@ -213,21 +258,12 @@ async function run(browser, origin, label, device, theme) {
   expect(pend === 1, `${tag}: the new version waits in the panel for a click`);
   await shot(page, `pending-${tag}`, 'v1');
   await page.locator(`${panel('v1')} .cal-cap-ai-pending .is-primary`).click();
-  const usedOk = await waitFor(async () => (await captionOf(page, 'v1')) === 'A shorter caption after the redo.');
-  if (!usedOk) console.log('DEBUG', JSON.stringify(await page.evaluate(() => ({ box: (document.querySelector('.cal-card[data-pid="v1"] textarea[data-fld="caption"]') || {}).value, post: calState.posts.find(p => p.id === 'v1').caption, pe: _calPendingEdits.v1, entry: _calCapAiEntry('v1') }))));
-  expect(usedOk, `${tag}: clicking "Use this version" puts it in the box`);
+  expect(await waitFor(async () => (await captionOf(page, 'v1')) === 'A shorter caption after the redo.'), `${tag}: clicking "Use this version" puts it in the box`);
 
-  // A hand-written caption: a small pill, no panel (the card does not grow) until it is opened; then Redo and no titles
-  const wTog = `.cal-card[data-pid="w1"] .cal-cap-ai-tog`;
-  expect(await page.locator(wTog).count() === 1 && await page.locator(panel('w1')).count() === 0, `${tag}: a caption somebody wrote has a "Redo with a note" pill and no panel yet`);
-  const h0 = await page.evaluate(() => document.querySelector('.cal-card[data-pid="w1"]').getBoundingClientRect().height);
-  await page.locator(wTog).click();
-  await page.waitForSelector(panel('w1'), { timeout: 5000 });
-  expect(await page.locator(`${panel('w1')} .cal-cap-ai-t`).count() === 0 && await page.locator(`${panel('w1')} .cal-cap-ai-note`).count() === 1, `${tag}: opened, it offers Redo with a note and no titles`);
-  expect(await page.evaluate(() => document.querySelector('.cal-card[data-pid="w1"]').getBoundingClientRect().height) > h0, `${tag}: the card only grows once the panel is opened`);
-  await page.locator(wTog).click();
-  expect(await page.locator(panel('w1')).count() === 0, `${tag}: the pill closes it again`);
-  expect(await page.locator('.cal-card[data-pid="v2"] .cal-cap-ai-tog').count() === 0 && await page.locator(panel('v2')).count() === 0, `${tag}: a card with no caption has no pill and no panel`);
+  // A hand-written caption gets the Redo button too, and no titles
+  expect(await page.locator('.cal-card[data-pid="w1"] .cal-cap-tabs .cal-cap-redo-open').count() === 1 && await page.locator(panel('w1')).count() === 0
+    && await page.locator('.cal-card[data-pid="w1"] .cal-cap-tools .cal-cap-ai-tog:not(.cal-cap-redo-open)').count() === 0, `${tag}: a caption somebody wrote has the Redo with a note button and no titles`);
+  expect(await page.locator('.cal-card[data-pid="v2"] .cal-cap-tools').count() === 0 && await page.locator(panel('v2')).count() === 0, `${tag}: a card with no caption has no Redo button and no panel`);
   expect(t.pageErrors.length === 0, `${tag}: no page errors (${t.pageErrors.join(' | ')})`);
   await t.ctx.close();
 }
@@ -239,9 +275,11 @@ async function runNoChoices(browser, origin) {
   await t.page.waitForSelector('#calPromptOverlay.open #calTxGo', { timeout: 5000 });
   await sleep(800);
   expect(await t.page.locator('#calCtaWrap .cal-gen-chip').count() === 0 && await t.page.locator('#calNoteTA').count() === 1, 'no choices: the box shows the note box and no call to action group');
+  await t.page.fill('#calTxTA', 'Some words pasted into the Generate box.');
   await t.page.locator('#calTxGo').click();
   await waitFor(async () => t.state.ef.length === 1);
   const b = t.state.ef[0].body;
+  expect(b.transcript === 'Some words pasted into the Generate box.', 'a transcript can still be pasted inside the Generate box and it is sent');
   expect(b.cta === '' && b.platform === 'instagram' && b.note === '', 'no choices: nothing chosen goes as no call to action, Instagram, no note');
   expect(t.pageErrors.length === 0, `no choices: no page errors (${t.pageErrors.join(' | ')})`);
   await t.ctx.close();

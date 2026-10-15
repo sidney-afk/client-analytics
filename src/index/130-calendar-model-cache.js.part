@@ -17,7 +17,7 @@ import {
   _calClientFieldEditBlocked, _calCloseStatusMenu, _calFlushCardSave, _calOnCaptionInput,
   _calOpenStatusMenu, _calRefreshCaption, _calSetOpenStatusMenu
 } from './170-calendar-links-status.js';
-import { CAL_BULK_ARCHIVE_CONCURRENCY, _calCapAiPanelHtml, _calCapAiToggleHtml, _calCapGenBtnHtml, _calMarkKasperSeen, _calRunPooled } from './180-calendar-native-post-media.js';
+import { CAL_BULK_ARCHIVE_CONCURRENCY, _calCapAiPanelHtml, _calCapAiToolsHtml, _calCapGenBtnHtml, _calMarkKasperSeen, _calRunPooled } from './180-calendar-native-post-media.js';
 import { _calStringifyComments } from './190-calendar-approval-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     function _calMigratePostShape(p) {
@@ -340,10 +340,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             tabsHtml = `<div class="cal-cap-tabs">
                 <button type="button" class="cal-cap-tab${active === 'main' ? ' is-active' : ''}" data-captab="main" onclick="_calCapTabSwitch('${pid}','main')">Caption</button>
                 <button type="button" class="cal-cap-tab${active === 'alt' ? ' is-active' : ''}" data-captab="alt" onclick="_calCapAltTabClick(event,'${pid}',this)" title="${canEdit ? _calEscAttr(platLabel) + ' caption. Click to switch platform.' : _calEscAttr(platLabel) + ' caption'}">${_calEsc(platLabel)}${canEdit ? `<span class="cal-cap-tab-chev">${chevIco}</span><span class="cal-cap-tab-x" onclick="_calAltCapRemove(event,'${pid}')" title="Remove the ${_calEscAttr(platLabel)} caption">${xIco}</span>` : ''}</button>
+                ${canEdit ? _calCapAiToolsHtml(p) : ''}
             </div>`;
         } else if (canEdit) {
             tabsHtml = `<div class="cal-cap-tabs">
                 <button type="button" class="cal-altcap-add" onclick="_calCapTabAddMenu(event,'${pid}',this)" title="Add a caption for another platform. It’s approved together with the main one."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"/></svg>Alt caption</button>
+                ${canEdit ? _calCapAiToolsHtml(p) : ''}
             </div>`;
         }
         const genBtn = canEdit ? _calCapGenBtnHtml(p) : '';
@@ -353,7 +355,6 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 <div class="cal-cap-fade" aria-hidden="true"></div>
                 ${capToggle}
                 ${genBtn}
-                ${canEdit ? _calCapAiToggleHtml(p) : ''}
             </div>
             ${hasAlt ? `<div class="cal-cap-wrap${active === 'alt' ? '' : ' captab-off'}" data-capwrap="alt" onclick="_calCaptionWrapClick(event,this)">
                 <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption_alt" placeholder="${_calEscAttr(platLabel)} caption" oninput="_calOnAltCapInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)" onkeydown="_calOnCaptionKey(event,this)"${!editableText ? ' readonly' : ''}>${_calEsc(alt)}</textarea>

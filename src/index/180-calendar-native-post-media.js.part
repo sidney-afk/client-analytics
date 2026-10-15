@@ -1516,17 +1516,13 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const url = _calCapLiveAssetUrl(pid, p);
         const hasVideo = !!url && /f\.io|frame\.io/i.test(url);
         const blank = _calIsBlankId(pid);
-        // Function path only: no video means Generate opens the transcript box,
-        // and with a video a second pill adds an optional transcript.
+        // Function path only: Generate opens the box (platform, call to action, note and a transcript, optional with a video).
         const ef = !blank && _calCaptionRouteShown(calState.client) === 'ef';
         const can = !blank && (hasVideo || ef);
         const title = !can ? ' disabled title="Add a video Frame link first"'
             : (!hasVideo ? ' title="No video linked: paste the transcript and the caption is written from it"' : '');
         const gen = '<button type="button" class="cal-cap-gen" onclick="_calCaptionGenerateClick(\'' + pid + '\')"' + title + '><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span></button>';
-        const tx = (ef && hasVideo)
-            ? '<button type="button" class="cal-cap-tx" onclick="_calOpenCaptionTranscript(\'' + pid + '\')" title="Optional: paste a transcript or notes to use with the video"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h5.5L12 5v8.5H4z"/><path d="M6 8h4M6 10.5h4"/></svg><span>Transcript</span></button>'
-            : '';
-        return gen + tx;
+        return gen;
     }
     /* Re-render the Generate pill (and per-card cancel ✕) in place from the
        current job state, without a full body re-render. */
@@ -1541,12 +1537,10 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         if (!btn) return;
         const html = _calCapGenBtnHtml(post);
         const oldX = wrap.querySelector('.cal-cap-gen-x');
-        const oldTx = wrap.querySelector('.cal-cap-tx');
         // Nothing to change: leave the pills alone (a hovered or focused pill
         // keeps its state, and a refresh touches nothing it does not change).
-        if ([btn, oldX, oldTx].filter(Boolean).map(el => el.outerHTML).join('') === html) return;
+        if ([btn, oldX].filter(Boolean).map(el => el.outerHTML).join('') === html) return;
         if (oldX) oldX.remove();
-        if (oldTx) oldTx.remove();
         btn.outerHTML = html;
     }
     /* Kept as the one place that paints per-card error chips; the busy state
@@ -2214,6 +2208,9 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
        kept anywhere. `force` is the box's own Generate and the confirm's Discard. */
     function _calCloseCaptionPromptModal(force) {
         const overlay = document.getElementById('calPromptOverlay');
+        // A note typed in the Redo pop-up is kept for the next time it opens (closing never loses typed text).
+        const redoBox = document.getElementById('calRedoTA'), redoGo = document.getElementById('calRedoGo');
+        if (redoBox && redoGo && overlay && overlay.classList.contains('open')) _calCapAiDraft.set(redoGo.getAttribute('data-pid') || '', redoBox.value);
         const tx = document.getElementById('calTxTA');
         const noteBox = document.getElementById('calNoteTA');
         if (force !== true && overlay && overlay.classList.contains('open') && tx && (tx.value.trim() || (noteBox && noteBox.value.trim()))) {
@@ -2578,25 +2575,30 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
     function _calCapAiIsOpen(pid) {
         if (_calCapAiOpen.has(pid)) return _calCapAiOpen.get(pid);
         const e = _calCapAiEntry(pid);
-        return !!(e && ((e.titles && e.titles.length) || e.pending));
+        return _calCapAiHasResult(e);
     }
-    function _calCapAiToggleHtml(p) {
+    function _calCapAiHasResult(e) { return !!(e && ((e.titles && e.titles.length) || (e.hashtags && e.hashtags.length) || e.pending)); }
+    /* The two small buttons at the right end of the "+ Alt caption" row: Titles (only when there is something to show)
+       and Redo with a note, which opens a pop-up. Nothing sits on the caption text. */
+    function _calCapAiToolsHtml(p) {
         if (!_calCapAiEligible(p) || _calCapJobActive(_calCaptionJobs.get(p.id))) return '';
-        const e = _calCapAiEntry(p.id), open = _calCapAiIsOpen(p.id);
-        const label = (e && e.titles && e.titles.length) ? 'Titles, redo' : 'Redo with a note';
-        const ea = _calEscAttr(p.id);
-        return '<button type="button" class="cal-cap-ai-tog' + (open ? ' is-open' : '') + '" aria-expanded="' + (open ? 'true' : 'false') + '" onclick="_calCapAiToggleOpen(\'' + ea + '\')">' + label + '</button>';
+        const ea = _calEscAttr(p.id), e = _calCapAiEntry(p.id), open = _calCapAiIsOpen(p.id);
+        const titles = _calCapAiHasResult(e)
+            ? '<button type="button" class="cal-cap-ai-tog' + (open ? ' is-open' : '') + '" aria-expanded="' + (open ? 'true' : 'false') + '" onclick="_calCapAiToggleOpen(\'' + ea + '\')">Titles</button>' : '';
+        return '<span class="cal-cap-tools" data-captools="' + ea + '">' + titles +
+            '<button type="button" class="cal-cap-ai-tog cal-cap-redo-open" onclick="_calOpenRedoPopup(\'' + ea + '\')">Redo with a note</button></span>';
     }
     function _calCapAiPanelHtml(p) {
         if (!_calCapAiEligible(p) || !_calCapAiIsOpen(p.id)) return '';
         const pid = p.id, ea = _calEscAttr(pid);
         const e = _calCapAiEntry(pid);
-        const hasCaption = true;
-        const busy = _calCapJobActive(_calCaptionJobs.get(pid));
-        const hasTitles = !!(e && e.titles && e.titles.length);
-        let h = '<div class="cal-cap-ai" data-capai="' + ea + '"><div class="cal-cap-ai-body">';
+        if (!_calCapAiHasResult(e)) return '';
+        const hasTitles = !!(e.titles && e.titles.length);
+        let h = '<div class="cal-cap-ai" data-capai="' + ea + '"><div class="cal-cap-ai-body">' +
+            '<div class="cal-cap-ai-top"><span class="cal-cap-ai-label">' + (hasTitles ? 'Title ideas' : 'New version') + '</span>' +
+            '<button type="button" class="cal-cap-ai-btn" onclick="_calCapAiToggleOpen(\'' + ea + '\')">Hide</button></div>';
         if (hasTitles) {
-            h += '<div class="cal-cap-ai-label">Title ideas</div><ul class="cal-cap-ai-titles">';
+            h += '<ul class="cal-cap-ai-titles">';
             e.titles.forEach((t, i) => {
                 h += '<li class="cal-cap-ai-t' + (i === e.best ? ' is-best' : '') + '"><span class="cal-cap-ai-ttxt">' + _calEsc(t) + '</span>' +
                     (i === e.best ? '<span class="cal-cap-ai-badge">Best</span>' : '') +
@@ -2605,41 +2607,33 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             });
             h += '</ul>';
         }
-        if (e && e.hashtags && e.hashtags.length) {
+        if (e.hashtags && e.hashtags.length) {
             h += '<div class="cal-cap-ai-label">Hashtags</div><div class="cal-cap-ai-tags"><span class="cal-cap-ai-tagtxt">' + _calEsc(e.hashtags.join(' ')) + '</span>' +
                 '<button type="button" class="cal-cap-ai-btn" onclick="_calCapAiCopy(\'' + ea + '\',\'h\',0,this)">Copy</button></div>';
         }
-        if (e && e.cta) h += '<div class="cal-cap-ai-meta">Call to action used: <strong>' + _calEsc(e.cta) + '</strong></div>';
-        if (e && e.pending) {
+        if (e.cta) h += '<div class="cal-cap-ai-meta">Call to action used: <strong>' + _calEsc(e.cta) + '</strong></div>';
+        if (e.pending) {
             h += '<div class="cal-cap-ai-pending"><div class="cal-cap-ai-label">New version (the caption was changed while this ran, so yours was kept)</div>' +
                 '<div class="cal-cap-ai-pendtxt">' + _calEsc(e.pending) + '</div>' +
                 '<div class="cal-cap-ai-acts"><button type="button" class="cal-cap-ai-btn is-primary" onclick="_calCapAiUsePending(\'' + ea + '\')">Use this version</button>' +
                 '<button type="button" class="cal-cap-ai-btn" onclick="_calCapAiDismissPending(\'' + ea + '\')">Dismiss</button></div></div>';
         }
-        const dis = (busy || !hasCaption) ? ' disabled' : '';
-        h += '<div class="cal-cap-ai-label">Redo with a note</div><div class="cal-cap-ai-redo">' +
-            '<input type="text" class="cal-cap-ai-note" maxlength="' + CAL_CAP_NOTE_MAX + '" data-pid="' + ea + '" value="' + _calEscAttr(_calCapAiDraft.get(pid) || '') + '" aria-label="Note for the redo" title="For example: shorter, hookier hook, use BACK instead" placeholder="shorter, hookier hook\u2026" oninput="_calCapAiDraftInput(this)" onkeydown="_calCapAiNoteKey(event,\'' + ea + '\')"' + (busy ? ' disabled' : '') + '>' +
-            '<button type="button" class="cal-cap-ai-btn is-primary" onclick="_calCapAiRedo(\'' + ea + '\',\'\')"' + dis + '>Redo</button></div>' +
-            '<div class="cal-cap-ai-quick">' +
-            '<button type="button" class="cal-cap-ai-chip" onclick="_calCapAiRedo(\'' + ea + '\',\'shorter\')"' + dis + '>Shorter</button>' +
-            '<button type="button" class="cal-cap-ai-chip" onclick="_calCapAiRedo(\'' + ea + '\',\'hook\')"' + dis + '>New hook</button>' +
-            '<button type="button" class="cal-cap-ai-chip" onclick="_calCapAiRedo(\'' + ea + '\',\'titles\')"' + dis + '>New titles</button></div>';
         return h + '</div></div>';
     }
-    /* Repaint one card's pill and panel in place, keeping what is typed in the redo box. */
+    /* Repaint one card's buttons and panel in place. */
     function _calCapAiRefresh(pid) {
         const card = _calCapAiCardEl(pid);
         const block = card ? card.querySelector('[data-capblock]') : null;
         const post = (calState.posts || []).find(p => p.id === pid);
         if (!block || !post) return;
-        const old = block.querySelector('.cal-cap-ai');
-        const live = old && old.querySelector('.cal-cap-ai-note');
-        if (live && document.activeElement === live) return;   // never repaint under a person who is typing
         const p = Object.assign({}, post, { caption: _calCapLiveCaptionOf(pid) });
-        const wrap = block.querySelector('.cal-cap-wrap[data-capwrap="main"]');
-        const oldTog = wrap ? wrap.querySelector('.cal-cap-ai-tog') : null;
-        if (oldTog) oldTog.remove();
-        if (wrap) wrap.insertAdjacentHTML('beforeend', _calCapAiToggleHtml(p));
+        const row = block.querySelector('.cal-cap-tabs');
+        if (row) {
+            const oldTools = row.querySelector('.cal-cap-tools');
+            if (oldTools) oldTools.remove();
+            row.insertAdjacentHTML('beforeend', _calCapAiToolsHtml(p));
+        }
+        const old = block.querySelector('.cal-cap-ai');
         if (old) old.remove();
         const html = _calCapAiPanelHtml(p);
         if (html) block.insertAdjacentHTML('beforeend', html);
@@ -2648,8 +2642,6 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         _calCapAiOpen.set(pid, !_calCapAiIsOpen(pid));
         _calCapAiRefresh(pid);
     }
-    function _calCapAiDraftInput(el) { _calCapAiDraft.set(el.dataset.pid, el.value); }
-    function _calCapAiNoteKey(ev, pid) { if (ev.key === 'Enter') { ev.preventDefault(); _calCapAiRedo(pid, ''); } }
     async function _calCapAiCopy(pid, kind, i, btn) {
         const e = _calCapAiEntry(pid);
         if (!e) return;
@@ -2719,11 +2711,57 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         if (e) { e.pending = ''; _calCapExtrasPersist(); }
         _calCapAiRefresh(pid);
     }
-    function _calCapAiRedo(pid, quick) {
-        const card = _calCapAiCardEl(pid);
-        const input = card ? card.querySelector('.cal-cap-ai-note') : null;
-        const note = String((input ? input.value : _calCapAiDraft.get(pid)) || '').trim();
-        return _calRedoCaption(pid, { quick: quick || '', note: note });
+    /* Redo with a note: a pop-up on the shared caption dialog layer (Escape, a click outside and Close all leave it; what
+       was typed is kept for the next time it opens). The caption stays as it is until the redo is applied. */
+    function _calOpenRedoPopup(pid) {
+        const post = (calState.posts || []).find(p => p.id === pid);
+        const overlay = document.getElementById('calPromptOverlay');
+        const modal = document.getElementById('calPromptModal');
+        if (!post || !overlay || !modal || _isClientLink) return;
+        if (_calCapJobActive(_calCaptionJobs.get(pid))) return;
+        const live = _calCapLiveCaptionOf(pid);
+        if (!live) { _calSetCaptionBusy(pid, null, 'Write or generate a caption first.'); return; }
+        modal.innerHTML =
+            '<div class="cal-prompt-head">' +
+                '<div class="cal-prompt-head-text">' +
+                    '<h3>Redo with a note</h3>' +
+                    '<p>The caption is rewritten with your note, like asking the chat for a tweak. If you change the caption while it runs, yours is kept.</p>' +
+                '</div>' +
+                '<button class="cal-prompt-close" type="button" onclick="_calCloseCaptionPromptModal()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>' +
+            '</div>' +
+            '<div class="cal-prompt-body">' +
+                '<div class="cal-gen-label">Current caption</div>' +
+                '<div class="cal-redo-current">' + _calEsc(live) + '</div>' +
+                '<label class="cal-gen-label" for="calRedoTA">Your note</label>' +
+                '<textarea class="cal-gen-note cal-redo-note" id="calRedoTA" rows="3" maxlength="' + CAL_CAP_NOTE_MAX + '" placeholder="e.g. shorter, a hookier opening, use BACK instead" oninput="_calRedoInput()" onkeydown="_calRedoKey(event)"></textarea>' +
+            '</div>' +
+            '<div class="cal-prompt-foot">' +
+                '<div class="cal-prompt-foot-left"></div>' +
+                '<div class="cal-prompt-foot-right">' +
+                    '<button type="button" class="cal-prompt-btn" onclick="_calCloseCaptionPromptModal()">Close</button>' +
+                    '<button type="button" class="cal-prompt-btn is-primary" id="calRedoGo" data-pid="' + _calEscAttr(pid) + '" disabled onclick="_calSubmitRedo()">Redo</button>' +
+                '</div>' +
+            '</div>';
+        overlay.classList.add('open');
+        const ta = document.getElementById('calRedoTA');
+        if (ta) { ta.value = _calCapAiDraft.get(pid) || ''; _calRedoInput(); setTimeout(() => { try { ta.focus(); } catch (e) {} }, 30); }
+        svLayerOverlay('cal-prompt', '#calPromptOverlay', '#calPromptModal', () => _calCloseCaptionPromptModal());
+    }
+    function _calRedoInput() {
+        const ta = document.getElementById('calRedoTA'), go = document.getElementById('calRedoGo');
+        if (ta && go) go.disabled = !ta.value.trim();
+    }
+    function _calRedoKey(ev) {
+        if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); _calSubmitRedo(); }
+    }
+    function _calSubmitRedo() {
+        const ta = document.getElementById('calRedoTA'), go = document.getElementById('calRedoGo');
+        if (!ta || !go) return;
+        const note = ta.value.trim();
+        if (!note) return;
+        const pid = go.getAttribute('data-pid') || '';
+        _calCloseCaptionPromptModal(true);
+        _calRedoCaption(pid, { quick: '', note: note });
     }
     /* A redo: the caption as it is now plus a note, like asking the chat for a tweak. */
     async function _calRedoCaption(pid, o) {
@@ -3706,17 +3744,17 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
         _calArchiveSelected, _calBulkGenerateCaptions, _calCancelBulkCaption, _calCancelCaptionJob,
-        _calCapAiCopy, _calCapAiDismissPending, _calCapAiDraftInput, _calCapAiNoteKey, _calCapAiRedo,
-        _calCapAiToggleOpen, _calCapAiUsePending, _calCapAiUseTitle, _calCaptionGenerateClick,
-        _calCaptionTranscriptInput, _calCardSelectClick, _calCloseCaptionPromptModal,
-        _calOpenCaptionPromptModal, _calOpenCaptionTranscript, _calOpenThumbTitlePromptModal,
-        _calResetCaptionPromptToDefault, _calResetThumbTitlePromptToDefault, _calSaveCaptionPrompt,
-        _calSaveThumbTitlePrompt, _calSubmitCaptionTranscript, _calSubmitNativePost, _calToggleSelectMode,
+        _calCapAiCopy, _calCapAiDismissPending, _calCapAiToggleOpen, _calCapAiUsePending, _calCapAiUseTitle,
+        _calCaptionGenerateClick, _calCaptionTranscriptInput, _calCardSelectClick,
+        _calCloseCaptionPromptModal, _calOpenCaptionPromptModal, _calOpenRedoPopup,
+        _calOpenThumbTitlePromptModal, _calRedoInput, _calRedoKey, _calResetCaptionPromptToDefault,
+        _calResetThumbTitlePromptToDefault, _calSaveCaptionPrompt, _calSaveThumbTitlePrompt,
+        _calSubmitCaptionTranscript, _calSubmitNativePost, _calSubmitRedo, _calToggleSelectMode,
         addCalBlankCard, archiveCalPost, calMonthShift, calMonthToday, calWeekShift, calWeekToday
     });
 export {
   CAL_BULK_ARCHIVE_CONCURRENCY, CAL_REORDER_GUARD_MS, COMP_LABELS, COMP_PILL_COLORS,
-  _CAL_REVIEW_CFG, _calCapAiPanelHtml, _calCapAiRefresh, _calCapAiToggleHtml, _calCapGenBtnHtml, _calCapGenBtnRefresh, _calCapJobsRestore,
+  _CAL_REVIEW_CFG, _calCapAiPanelHtml, _calCapAiRefresh, _calCapAiToolsHtml, _calCapGenBtnHtml, _calCapGenBtnRefresh, _calCapJobsRestore,
   _calClearApprovedAfterTweaks, _calHasBeenToKasper, _calHasUnreadNotes, _calLoadCaptionPrompts,
   _calMarkKasperSeen, _calOpenNativePost, _calRecordApprovedAfterTweaks,
   _calRecordKasperSeenOnPost, _calRenderNativePostChoice, _calReorderOptimistic,

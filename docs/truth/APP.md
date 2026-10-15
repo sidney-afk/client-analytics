@@ -1,5 +1,8 @@
 # App logic (`index.html`) — current truth
 
+Phone Messages is prepared for review after the merged page rebuild: [Thumb scope and fictional evidence](../audits/2026-10-15-thumb-messages/README.md). This is not a deployment claim.
+
+
 **Pocket phone source, 2026-10-04, not deployed:** staff Samples Review and Sheet
 use full Expanded sections below 768px in light and dark, with title/Tabs/More,
 native Tools and setup controls. Calendar and Samples selection actions sit at

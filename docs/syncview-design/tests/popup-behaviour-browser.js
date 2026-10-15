@@ -361,7 +361,7 @@ const SHELL_SURFACES = [
 
 // Messages is a page under the header since #2083, not a pop-up, so it has
 // no layer to test here. Its own suite (messages-inbox-browser.js) covers it.
-const MSG_SURFACES = [];
+const MSG_SURFACES = [{only:'phone',area:'Messages',name:'Conversation actions sheet',opener:STUB,open:fromStub("_msgPhoneMore(document.getElementById('popupTestOpener'))"),isOpen:p=>p.locator('.thumb-msg-more[open]').count().then(Boolean),inside:'.thumb-msg-more header',refresh:p=>p.evaluate(()=>_msgLoad(true))}];
 
 async function stackChecks(page, label) {
   // Two open at once: Escape closes only the top one.

@@ -39,10 +39,15 @@ const parse = v => { try { return Array.isArray(v) ? v : JSON.parse(v || '[]'); 
 const SHOTS = process.env.SCREENSHOTS || '';
 const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
 
+async function markUnread(page){
+ const direct=page.locator('#msgPage .msg-act[title="Mark as unread"]');
+ if(await direct.isVisible())await direct.click();
+ else {await page.getByRole('button',{name:'More conversation actions'}).click();await page.locator('.thumb-msg-more').getByRole('button',{name:'Mark as unread',exact:true}).click();}
+}
 (async () => {
   const S = await createEnv();
   // The real unread rules (production-comments/inbox.mjs) decide the counts.
-  const inbox = await import(path.join(__dirname, '../../../supabase/functions/production-comments/inbox.mjs'));
+  const inbox = await import(require('node:url').pathToFileURL(path.join(__dirname, '../../../supabase/functions/production-comments/inbox.mjs')).href);
   const ME = { id: 'm1', name: 'Browser Staff', role: 'admin' };
   const NOW = Date.parse('2026-10-15T00:00:00.000Z');
   // Made-up colleague on the fictional roster.
@@ -152,7 +157,7 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     check(await until(() => page.evaluate(() => [...document.querySelectorAll('#msgPage .msg-b-text')].some(b => b.textContent === 'Fixture reply from the inbox'))), 'D: the reply shows in the chat');
 
     // C: mark as unread
-    await page.click('#msgPage .msg-act[title="Mark as unread"]');
+    await markUnread(page);
     check(await until(() => marks.includes('p_t1:unread')), 'C: Mark as unread tells the server "unread"');
     check(await until(() => page.evaluate(() => document.querySelector('#navMessages [data-msg-count]').textContent === '3')), 'C: the count comes back to 3');
 
@@ -334,7 +339,7 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     await until(() => page.evaluate(() => document.querySelectorAll('#msgPage .msg-b').length === 1));
     check(await page.evaluate(() => { const b = document.querySelector('#msgPage .msg-b'); return !b.classList.contains('is-me') && b.querySelector('.msg-b-meta b').textContent === 'Browser Staff'; }), 'L: the chat shows it as the client\'s, not yours');
     // Leave one conversation unread for the phone check below.
-    await page.click('#msgPage .msg-act[title="Mark as unread"]');
+    await markUnread(page);
     await until(() => marks.includes('p_twin:unread'));
 
     // K: phone list keeps the time and badge inside the row

@@ -291,6 +291,11 @@ function installReadConsoleAudit(page, opts = {}) {
     if (outstandingReads.delete(request)) completedReads++;
   });
 
+  // Set when the wait for the app's own "finished loading" signals ran out.
+  // Sticky: a page that did not finish loading inside the timeout is reported
+  // by settle() even if it finished later, because the suite has already been
+  // asserting against it. Ended early (not recorded) by an error state.
+  const loadTimeouts = [];
   const quiesce = async (waitMs = 2500) => {
     const waitBudgetMs = Math.max(100, Number(waitMs || 2500));
     /*
@@ -388,7 +393,19 @@ function installReadConsoleAudit(page, opts = {}) {
             && !_prodState.refreshing
             && tailLanded;
         }, null, { timeout: revalidationTimeoutMs, polling: 100 });
-      } catch (_) {}
+      } catch (_) {
+        // Timed out (or the page went away). Keep what the app said, booleans
+        // only, so settle() can fail on it instead of auditing a quiet,
+        // incomplete page.
+        const flags = await page.evaluate(() => {
+          if (typeof _prodState === 'undefined' || !_prodState) return null;
+          const f = {};
+          ['loading', 'cachePartial', 'terminalTailPending', 'terminalTailFailed', 'refreshInFlight', 'refreshing'].forEach(k => { f[k] = !!_prodState[k]; });
+          f.tailLanded = !!_prodState.terminalTailLoadedAt;
+          return f;
+        }).catch(() => null);
+        if (flags) loadTimeouts.push(flags);
+      }
     }
 
     await drainOutstandingReads();
@@ -447,7 +464,10 @@ function installReadConsoleAudit(page, opts = {}) {
         const parsed = new URL(url);
         return parsed.origin === productionApiOrigin
           && parsed.pathname === '/rest/v1/syncview_runtime_flags'
-          && String(parsed.searchParams.get('key') || '').includes('write_ui_reroute_clients');
+          // The exact request the page time-limits: two keys, limit 2. The <head>
+          // boot read also names this key among seven and is not time-limited.
+          && parsed.searchParams.get('key') === 'in.(write_ui_reroute_clients,client_comment_gateway_enabled)'
+          && parsed.searchParams.get('limit') === '2';
       } catch (_) { return false; }
     };
     const probeLimitMs = 2000;
@@ -522,7 +542,9 @@ function installReadConsoleAudit(page, opts = {}) {
       recovery.used = true;
       return false;
     });
-    const errors = [...pageErrors, ...otherConsoleErrors, ...unexplainedResourceErrors];
+    const loadErrors = loadTimeouts.slice(0, 1).map(flags =>
+      'page did not finish loading within ' + revalidationTimeoutMs + 'ms; app flags: ' + JSON.stringify(flags));
+    const errors = [...pageErrors, ...otherConsoleErrors, ...unexplainedResourceErrors, ...loadErrors];
     // The app's own "still reading" flags at the moment of the audit (booleans
     // only), so a pending read can be told apart: one the app says it is still
     // running, or one it has already stopped waiting for.

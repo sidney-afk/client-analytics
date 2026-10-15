@@ -33186,7 +33186,10 @@ matches; a teammate's change while typing waited for blur → drawn at once, the
 | Structure subset | 5/5 → 8/8 | 3/5 → 8/8 |
 | Layout polish | 5/5 → 5/5 | 1/5 → 5/5 |
 | Heavy: wired behavior | 4/5 → 5/5 | 5/5 → 4/5 |
+| Boot budget (found by PR CI after the first push) | 11/12 → 20/20 | 10/12 → 4/5 |
 
-The one slow-network heavy miss after the change is the reset step's existing 30 s wait for the app to be idle running out while a full reload was still re-reading under the simulated delay; it is not new and not caused by this change, and the simulator is harsher than CI.
+**Boot budget (7th cause).** A finished-cards run can queue a second as it ends; for one tick every flag is down, so one look called the page quiet and the second read was caught mid-flight as pending. The wait now looks again after a 700 ms pause and keeps waiting if a new run began; the ceiling for the wait is 40 s (it proves the page finished loading, speed has its own budget in that suite). A load that never finishes fails and prints the app's flags.
+
+The slow-network misses after the change (boot budget and heavy lane, 1 run in 5 each, under delays on half of all live reads) are the simulator being harsher than CI: the finished-cards load (or, in the heavy lane, the reset step's existing 30 s wait for idle) ran out of time while the page was still re-reading. They are not new. On normal network all five suites passed 5/5.
 
 **Release.** Test files only; nothing ships to users. **Way back:** revert the pull request.

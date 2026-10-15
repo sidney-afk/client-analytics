@@ -7398,6 +7398,19 @@
         .msg-reply textarea { flex: 1; border: 0; background: transparent; resize: none; font: inherit; color: inherit; outline: 0; min-height: 22px; padding: 5px 0; }
         .msg-chat-empty { margin: auto; padding: 32px 20px; text-align: center; display: flex; flex-direction: column; gap: 6px; align-items: center; color: var(--text-muted); font-size: 0.82rem; }
         .msg-chat-empty b { color: var(--text-primary); font-size: 0.92rem; }
+        /* Loading placeholder: the loaded markup with see-through words and a grey bar
+           painted over each line, so no box moves when the real list arrives. The bars
+           are clipped a little top and bottom so stacked lines read as separate lines. */
+        .msg-inbox.is-skeleton { pointer-events: none; }
+        .msg-inbox.is-skeleton .sv-skeleton { --sv-skel-base: var(--border); --sv-skel-sheen: var(--border-light); }
+        html[data-theme="dark"] .msg-inbox.is-skeleton .sv-skeleton { --sv-skel-base: var(--field-bg-hover); --sv-skel-sheen: var(--border); }
+        .msg-skel { color: transparent !important; user-select: none; }
+        .msg-conv-main .msg-skel, .msg-b-meta .msg-skel, .msg-b-text.msg-skel { clip-path: inset(2px 0 2px 0 round 4px); border-radius: 4px; }
+        .msg-conv-top > .msg-skel { align-self: flex-start; }
+        .msg-conv-top > .msg-conv-client.msg-skel { font-weight: 700; }
+        .msg-filters button.msg-skel { border-color: transparent; border-radius: 99px; background: var(--sv-skel-base); }
+        .msg-conv.is-skeleton .msg-thumb { border-radius: 7px; }
+        .msg-b-text.msg-skel { border-color: transparent; }
         .msg-nav-btn { position: relative; }
         .msg-nav-btn[hidden] { display: none; }
         .msg-nav-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -13219,8 +13232,8 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-9c8892496953.js";
-        var PARTS = ["js/sv-01-core-0db2471d2e82.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-dd5e7141bebf.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-5b1407a2be75.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-dd170c7da38f.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-ff0af3970c2d.js","js/sv-20-core-f43f39965587.js"];
+        var FULL = "js/sv-full-cd726e40077e.js";
+        var PARTS = ["js/sv-01-core-0db2471d2e82.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-dd5e7141bebf.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-5b1407a2be75.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-dd170c7da38f.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-fc154c57da12.js","js/sv-20-core-f43f39965587.js"];
         var LAZY = {"templates":"js/sv-02-templates-ed22b16a2bda.js","workload":"js/sv-04-workload-1b2df89fe1d1.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-8ec9588310e8.js"};
         var FORCE = null;
         var CLIENTS = true;

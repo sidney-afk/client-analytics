@@ -10,7 +10,7 @@
 | 2 | `003-sv-route.html.part` | 222 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3965 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 8036 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 8049 | Templates view |
 | 6 | `030-body-shell.html.part` | 566 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2158 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `041-core-layers.js.part` | 397 | LAYERS: ONE RULE FOR EVERY POP-UP (owner request, ). |
@@ -70,7 +70,7 @@
 | 62 | `322-core-kasper-tab-counts.js.part` | 34 | — |
 | 63 | `323-kasper-dashboard-tail.js.part` | 984 | Messages tab = the shared Messages inbox (326-core-messages-inbox), or |
 | 64 | `324-client-onboarding-panel.js.part` | 800 | talking to the functions (admin only; the server checks the key and the member again) |
-| 65 | `326-core-messages-inbox.js.part` | 447 | Messages inbox (Notes Step 2) |
+| 65 | `326-core-messages-inbox.js.part` | 571 | Messages inbox (Notes Step 2) |
 | 66 | `330-kasper-review-history.js.part` | 2665 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 67 | `340-kasper-editors-board.js.part` | 734 | Editor work model |
 | 68 | `345-core-tooltip-date-picker.js.part` | 671 | Global styled tooltip — replaces every browser-native title popup |

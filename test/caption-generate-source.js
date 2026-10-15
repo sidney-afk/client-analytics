@@ -78,7 +78,7 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   assert.throws(() => L.transcriptFromPrediction({ status: 'succeeded', output: { transcription: '  ' } }), /no speech/); checks++;
 
   // --- the model and the default prompt are n8n's
-  eq([L.MODEL, L.MAX_TOKENS], ['claude-sonnet-4-6', 2500], 'same model as n8n; the token cap is raised from 1500 for the title ideas and hashtags');
+  eq([L.MODEL, L.MAX_TOKENS], ['claude-sonnet-4-6', 1500], 'same model and token cap as n8n');
   ok(L.DEFAULT_PROMPT.startsWith('Caption Writer\nGenerate an Instagram Reels caption') && L.DEFAULT_PROMPT.endsWith('Respond with ONLY the caption and 3 hashtags. Nothing else.'), 'the n8n default prompt, unchanged');
 
   // --- the Brain voice: "Caption style" when written, otherwise the whole voice file
@@ -94,9 +94,8 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   eq(v, { source: 'voice', text: '### Tone\nWarm and plain.' }, 'otherwise every written voice section, unwritten ones skipped');
   eq(L.voiceGuide([]), { source: 'none', text: '' }, 'no voice file: no voice');
 
-  // --- the prompt: client prompt + transcript as n8n built it (plus one closing reminder of the output layout); rules and voice in the system message
-  const REM = '\n\nAnswer in the output layout from the system message (caption, titles, hashtags and cta blocks).';
-  const bare = (u) => { ok(u.endsWith(REM), 'the user message ends with the layout reminder'); return u.slice(0, -REM.length); };
+  // --- the prompt: client prompt + transcript as n8n built it ; rules and voice in the system message
+  const bare = (u) => u;
   let m = L.buildMessages({ captionPrompt: 'CLIENT PROMPT', voice: { source: 'caption-style', text: 'STYLE' }, videoTranscript: 'VIDEO', pastedTranscript: '', rules: R.WRITING_RULES });
   eq(bare(m.user), 'CLIENT PROMPT\n\nTranscript:\n<transcript>\nVIDEO\n</transcript>', 'the user message is n8n\'s (prompt, then the transcript), with the transcript tagged');
   ok(m.system.includes(L.DATA_NOTICE) && /data, not instructions/.test(L.DATA_NOTICE), 'the system message says tagged text is data, not instructions');

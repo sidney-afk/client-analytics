@@ -7501,33 +7501,13 @@
         .cal-gen-note:focus { border-color: var(--text-primary); background: var(--white); outline: none; }
         .cal-prompt-textarea.cal-tx-textarea.is-compact { min-height: 110px; }
 
-        /* ── Title ideas, hashtags and redo, under the caption ── */
+        /* ── Redo with a note, on the "+ Alt caption" row ── */
         .cal-cap-tools { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; padding-bottom: 3px; }
-        .cal-cap-ai-tog { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 99px; background: transparent; border: 1px solid var(--border); color: var(--text-secondary); font-family: inherit; font-size: 0.68rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
-        .cal-cap-ai-tog:hover, .cal-cap-ai-tog.is-open { color: var(--text-primary); border-color: var(--sv-border-999); }
+        .cal-cap-redo-open { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 99px; background: transparent; border: 1px solid var(--border); color: var(--text-secondary); font-family: inherit; font-size: 0.68rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
+        .cal-cap-redo-open:hover, .cal-cap-redo-open.is-open { color: var(--text-primary); border-color: var(--sv-border-999); }
         .cal-redo-current { white-space: pre-wrap; max-height: 28vh; overflow-y: auto; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text-secondary); font-size: 0.84rem; line-height: 1.5; overflow-wrap: anywhere; }
         .cal-redo-note { min-height: 96px; }
-        .cal-cap-ai { margin-top: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); font-size: 0.74rem; color: var(--text-secondary); }
-        .cal-cap-ai-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
-        .cal-cap-ai-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-        .cal-cap-ai-label { line-height: 1.3; font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin-top: 4px; }
-        .cal-cap-ai-titles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
-        .cal-cap-ai-t { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); }
-        .cal-cap-ai-t.is-best { border-color: var(--text-primary); }
-        .cal-cap-ai-ttxt { flex: 1 1 140px; min-width: 0; color: var(--text-primary); font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
-        .cal-cap-ai-badge { font-size: 0.64rem; font-weight: 800; padding: 1px 7px; border-radius: 99px; background: var(--text-primary); color: var(--white); }
-        .cal-cap-ai-acts { display: flex; gap: 5px; flex-wrap: wrap; }
-        .cal-cap-ai-btn { font-family: inherit; font-size: 0.72rem; font-weight: 700; min-height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); cursor: pointer; }
-        .cal-cap-ai-btn:hover:not(:disabled) { background: var(--bg); border-color: var(--text-primary); }
-        .cal-cap-ai-btn.is-primary { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
-        .cal-cap-ai-btn:disabled { opacity: .5; cursor: not-allowed; }
-        .cal-cap-ai-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); }
-        .cal-cap-ai-tagtxt { flex: 1 1 140px; min-width: 0; color: var(--text-primary); font-weight: 700; overflow-wrap: anywhere; }
-        .cal-cap-ai-meta { font-size: 0.72rem; color: var(--text-muted); }
-        .cal-cap-ai-pending { padding: 8px; border: 1px dashed var(--text-primary); border-radius: 8px; background: var(--white); display: flex; flex-direction: column; gap: 6px; }
-        .cal-cap-ai-pendtxt { white-space: pre-wrap; color: var(--text-primary); line-height: 1.4; max-height: 140px; overflow-y: auto; }
-        html.sv-staff-phone .cal-cap-tools .cal-cap-ai-tog { min-height: 44px; padding: 0 12px; font-size: 13px; }
-        html.sv-staff-phone .cal-cap-ai-btn { min-height: 44px; }
+        html.sv-staff-phone .cal-cap-tools .cal-cap-redo-open { min-height: 44px; padding: 0 12px; font-size: 13px; }
 
         .cal-bulk-cap-bar { position: fixed; bottom: 24px; right: 24px; z-index: 320; background: var(--text-primary); color: var(--white); padding: 10px 14px; border-radius: 12px; box-shadow: 0 8px 26px var(--sv-shadow-rgba-0-0-0-0_22); font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 10px; visibility: hidden; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0.2s; }
         .cal-bulk-cap-bar.is-active { visibility: visible; opacity: 1; transform: none; pointer-events: auto; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0s; }
@@ -13323,8 +13303,8 @@ html .fv-overlay .fv-markers .fv-mark:hover { transform: scale(1.25); }
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-4ac55f8bcfb7.js";
-        var PARTS = ["js/sv-01-core-0db2471d2e82.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-dd5e7141bebf.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-d259051a4816.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-2fa354755646.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-ff0af3970c2d.js","js/sv-20-core-f43f39965587.js"];
+        var FULL = "js/sv-full-aa81169b9490.js";
+        var PARTS = ["js/sv-01-core-0db2471d2e82.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-dd5e7141bebf.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-091e7b1ae18b.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-2fa354755646.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-ff0af3970c2d.js","js/sv-20-core-f43f39965587.js"];
         var LAZY = {"templates":"js/sv-02-templates-ed22b16a2bda.js","workload":"js/sv-04-workload-1b2df89fe1d1.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-ae60b29ece00.js"};
         var FORCE = null;
         var CLIENTS = true;

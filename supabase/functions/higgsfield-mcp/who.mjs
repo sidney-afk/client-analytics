@@ -73,6 +73,32 @@ export function activityRow({ member, tool, args, ok, error }) {
   };
 }
 
+// Whether a tool call that returned normally actually did what was asked.
+// Handlers report refusals and failures as text instead of throwing (budget
+// refusals, unknown models, bad links, failed jobs), so "did not throw" is not
+// success. A reply whose first line opens with one of the connector's own
+// refusal phrasings is a failure; for the job and batch tools every line is
+// read, so one failed job in a batch marks the call as failed.
+export const FAILURE_OPENINGS = [
+  "Could not", "Refused", "Unknown ", "Fix these", "That link", "That file",
+  "That job_id", "The link must", "The upload failed", "The monthly budget setting",
+  "Higgsfield could not", "Higgsfield blocked", "It failed", "The image was made",
+  "This job was canceled", "A worked-out price", "Give ", "Unsupported",
+  "No models in", "This recipe runs on", "At most ", "Which client?",
+  "The Synchro Brain is not connected", "Skipped:", "Stopped:", "Something went wrong",
+];
+const LINE_TOOLS = new Set(["check_job", "check_video", "check_jobs", "wait_for_job", "run_recipe"]);
+
+export function outcomeOf(tool, text) {
+  const body = typeof text === "string" ? text : "";
+  const lines = LINE_TOOLS.has(tool) ? body.split("\n") : [body.split("\n")[0]];
+  for (const raw of lines) {
+    const line = raw.replace(/^\s*\d+\.\s*(\[[^\]]*\]\s*)?/, "").trim();
+    if (FAILURE_OPENINGS.some((o) => line.startsWith(o))) return { ok: false, error: line };
+  }
+  return { ok: true };
+}
+
 // Write one row. Whatever the write does (throws, rejects, returns an error),
 // this resolves quietly: the log must never break the tool.
 export async function logActivity(write, row) {

@@ -17,7 +17,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
-import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, isTeamLink, logActivity } from "./who.mjs";
+import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, isTeamLink, logActivity, outcomeOf } from "./who.mjs";
 import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
 import { brainChange, clientBrain, clientStyle, filmingPlan, listClients } from "./clientinfo.ts";
 import { DIRECT_MODELS, directEstimate, isDirect, runDirect, type Fetched } from "./direct.ts";
@@ -1202,7 +1202,9 @@ Deno.serve(async (req) => {
     };
     try {
       const text = await callTool(toolName, callArgs, member);
-      log(true);
+      // A refusal returned as text is logged as a failure, not a success.
+      const outcome = outcomeOf(toolName, text);
+      log(outcome.ok, outcome.error);
       const args = callArgs;
       if (!VIEWER_TOOLS.has(toolName)) return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }] } });
       // Job checks: the result files (plus small previews the model can look

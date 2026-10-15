@@ -64,11 +64,38 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
   assert.ok(/\n  SUMMARY_NOTE,\n\]\.join\(" "\);/.test(idx), 'the summary note is in the instructions every link gets');
   const call = idx.slice(idx.indexOf('if (method === "tools/call")'), idx.indexOf('return rpcError(id, -32601'));
   assert.ok(/background\(logActivity\(writeActivity, activityRow\(\{ member, tool: toolName, args: callArgs, ok, error \}\)\)\)/.test(call), 'the row goes out in the background');
-  assert.ok(/const text = await callTool\(toolName, callArgs, member\);\n\s*log\(true\);/.test(call), 'success is logged');
+  assert.ok(/const text = await callTool\(toolName, callArgs, member\);[\s\S]{0,120}const outcome = outcomeOf\(toolName, text\);\n\s*log\(outcome\.ok, outcome\.error\);/.test(call), 'a returned reply is logged by its outcome, not as a blanket success');
+  assert.ok(!/log\(true\)/.test(call), 'nothing is logged as a success just for not throwing');
   assert.ok(/catch \(e\) \{\n\s*log\(false, \(e as Error\)\.message\);/.test(call), 'failure is logged');
   assert.ok(!/await logActivity|await log\(/.test(call), 'the reply never waits for the log');
   assert.ok(/if \(logged\) return;/.test(call), 'one row per call');
   assert.ok(/from\("hf_activity"\)\.insert\(row\)/.test(idx), 'the row goes to hf_activity');
+
+  // Refusals that come back as text are failures, not successes.
+  const { outcomeOf } = who;
+  const no = (tool, text) => { const o = outcomeOf(tool, text); assert.strictEqual(o.ok, false, tool + ': ' + text); assert.ok(o.error && o.error.length, 'the error says why'); };
+  const yes = (tool, text) => assert.deepStrictEqual(outcomeOf(tool, text), { ok: true }, tool + ': ' + text);
+  no('create', "Refused: this ($4.00) would pass the team's monthly budget of $100.00 ($98.00 already used). Ask the account owner.");
+  no('create', 'Higgsfield could not price this request: bad input');
+  no('create', 'The monthly budget setting (HF_MONTHLY_CAP_USD) is not a valid dollar amount, so nothing new can be made. Ask the account owner.');
+  no('create', 'Unknown model. Use find_models for the exact ids.');
+  no('price_check', 'Fix these settings first:\n- duration must be 5 or 10');
+  no('import_file', 'Could not download that link (403). Make sure it is shared as "anyone with the link".');
+  no('import_file', 'That file is over 60 MB, too big to import.');
+  no('check_job', 'It failed: provider error. Failed jobs are not charged; try again or adjust the prompt.');
+  no('check_job', 'Higgsfield blocked this for its content rules (not charged). Try a different prompt or image.');
+  no('wait_for_job', '1. [a] Done. Download:\nhttps://x/y.png\n\n2. [b] It failed: no reason given. Failed jobs are not charged.');
+  no('run_recipe', 'Fix: started 2 image(s) at $0.10 each.\n1. job_id: x\n2. Skipped: Could not open that link.\n\nCheck them all with check_jobs in about 30 seconds.');
+  no('client_brain', 'Which client? Options: a, b');
+  no('client_brain', 'Could not read the Synchro Brain (timeout). Try again in a minute.');
+  yes('create', 'Started: GPT Image, $0.04.\njob_id: 123\nNow call wait_for_job with this job_id.');
+  yes('price_check', 'Plan card\nSay go, or tell me what to change.');
+  yes('wait_for_job', '1. [a] Done. Download:\nhttps://x/y.png\n\n2. [b] Still working (in progress). Running for 2 min so far.');
+  yes('import_file', 'Imported (image/png, 1.2 MB). Use this link as the model\'s input:\nhttps://x/y.png');
+  // Content tools: only the first line counts, so a brief that happens to
+  // contain a line starting "Give " is not a failure.
+  yes('client_brain', 'Test client, brief from the Synchro Brain:\nGive them punchy hooks.\nCould not be happier with the results.');
+  yes('find_models', '- GPT Image [openai/gpt-image] (image)');
 
   // The migration: the table, and the revoke names all four roles.
   const mig = fs.readFileSync(path.join(root, 'supabase', 'migrations', '20261015180000_hf_activity.sql'), 'utf8');

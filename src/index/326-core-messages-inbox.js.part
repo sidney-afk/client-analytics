@@ -2,7 +2,6 @@ import { svFocusKeep } from './041-core-layers.js';
 import { CAL_SUPABASE_URL, _syncviewCloseStaffAccount, _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue } from './100-onboarding-staff-controls.js';
 import { showToast } from './040-shared-briefs.js';
 import { navTo } from './092-core-submit-form-navigation.js';
-import { currentNav } from './065-core-nav-intake-state.js';
 import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
 import { calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
@@ -33,12 +32,14 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
        thread it answers, so it keeps that thread's part and audience. */
     const MSG_URL = CAL_SUPABASE_URL + '/functions/v1/production-comments';
     const MSG_REFRESH_MS = 120000;
+    const MSG_FIRST_LOAD_MS = 60000;
     const _msgState = {
         loading: false, loaded: false, error: '', conversations: [], scope: '',
         openId: '', replyTo: '', draft: '', sending: false, filter: 'all', lastAt: 0,
         unavailable: false, fromCache: false, readWhenFresh: '', owner: '', epoch: 0,
     };
     let _msgTimer = null;
+    let _msgFirstTimer = null;
     const _msgFallbackHooks = [];
 
     /* The page can go live before the production-comments deploy that adds
@@ -52,6 +53,7 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         _msgState.unavailable = true;
         _msgCacheClear();
         if (_msgTimer) { clearInterval(_msgTimer); _msgTimer = null; }
+        if (_msgFirstTimer) { clearTimeout(_msgFirstTimer); _msgFirstTimer = null; }
         _msgLeavePage();
         const btn = document.getElementById('navMessages');
         if (btn) btn.style.display = 'none';
@@ -130,19 +132,10 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         _msgState.lastAt = Number(saved.at);
         _msgPaintCounts();
     }
-    /* Start the inbox call early, once the page has settled, and when the
-       pointer or finger reaches the Messages button. Changes nothing visible. */
-    let _msgPrefetchTimer = null;
-    function _msgPrefetchSoon() {
-        if (_msgPrefetchTimer || _msgState.loaded || _msgState.loading) return;
-        // Not on the Production tab: its read-only gate allows no POST at all, and
-        // the inbox question is a POST. There the first call keeps waiting for the
-        // pointer reaching the button or the two-minute refresh.
-        const go = () => { _msgPrefetchTimer = null; if (_msgCanUse() && !_msgState.unavailable && currentNav !== 'production') _msgLoad(false); };
-        _msgPrefetchTimer = setTimeout(() => {
-            if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(go, { timeout: 1000 }); else go();
-        }, 250);
-    }
+    /* Start the inbox call when the pointer or finger reaches the Messages
+       button (a few hundred ms before the click), so the answer is on its way
+       while the click lands. Never at page load: every page treats a POST it did
+       not ask for as a bug, and the Production tab's read-only gate allows none. */
     ['pointerover', 'pointerdown', 'focusin'].forEach(type => document.addEventListener(type, e => {
         const t = e.target && e.target.closest && e.target.closest('#navMessages, [onclick*="_msgOpenPage"]');
         if (t && _msgCanUse() && !_msgState.unavailable) _msgLoad(false);
@@ -221,6 +214,7 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
        quiet background refresh that keeps the counts current. */
     function _msgOnIdentity() {
         if (_msgTimer) { clearInterval(_msgTimer); _msgTimer = null; }
+        if (_msgFirstTimer) { clearTimeout(_msgFirstTimer); _msgFirstTimer = null; }
         if (!_msgCanUse()) {
             _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgState.openId = '';
             _msgState.readWhenFresh = '';
@@ -241,12 +235,14 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         // The Messages page was opened before the sign-in was known (a reload
         // on #messages): draw it now.
         if (document.getElementById('msgPage')) { _msgPaint(); _msgLoad(false); }
-        // Nothing loads during boot itself: the first call starts once the page
-        // has settled (a moment, when the browser is idle), so the Messages page
-        // usually opens onto an answer that is already there. After that a quiet
-        // refresh every two minutes keeps the counts current.
-        _msgPrefetchSoon();
-        _msgTimer = setInterval(() => { if (!document.hidden && !_msgState.unavailable) _msgLoad(true); }, MSG_REFRESH_MS);
+        // Nothing loads during boot: the first quiet refresh waits a minute
+        // (opening the inbox loads at once), then repeats every two minutes.
+        _msgFirstTimer = setTimeout(() => {
+            _msgFirstTimer = null;
+            if (!_msgCanUse() || _msgState.unavailable) return;
+            if (!document.hidden) _msgLoad(true);
+            _msgTimer = setInterval(() => { if (!document.hidden) _msgLoad(true); }, MSG_REFRESH_MS);
+        }, MSG_FIRST_LOAD_MS);
     }
 
     /* ── Drawing ── */

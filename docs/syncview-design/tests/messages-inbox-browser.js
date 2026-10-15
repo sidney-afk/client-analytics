@@ -364,7 +364,7 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     await page.setViewportSize({ width: 1366, height: 900 });
     check(!page.errors.length, 'J-L: no page errors ' + JSON.stringify(page.errors));
 
-    // M, N, O: the loading placeholder, the short-lived list cache and the early call.
+    // M, N, O: the loading placeholder, the short-lived list cache and the call on pointer arrival.
     {
       const goHome = async (pg) => {
         await pg.goto(S.origin + '/index.html', { waitUntil: 'domcontentloaded' });
@@ -487,7 +487,7 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
         check(!left.loaded && left.n === 0 && !left.loading && !left.saved, 'N: an answer that lands after sign-out is dropped and not saved (' + JSON.stringify(left) + ')');
         await pg.close();
       }
-      // O: the call starts by itself, soon after the page is up, without a click.
+      // O: nothing is asked at page load; the call starts when the pointer reaches the button.
       {
         inboxDelay = 0;
         const pg = await S.newPage();
@@ -496,8 +496,11 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
         await pg.evaluate(() => sessionStorage.clear());
         const n0 = inboxCalls;
         await goHome(pg);
-        check(await until(() => inboxCalls > n0, 4000), 'O: the inbox call starts on its own once the page is up (no click)');
-        await pg.evaluate(() => _msgOpenPage());
+        await sleep(2500);
+        check(inboxCalls === n0, 'O: no inbox call at page load (' + (inboxCalls - n0) + ')');
+        await pg.hover('#navMessages');
+        check(await until(() => inboxCalls > n0, 3000), 'O: the call starts when the pointer reaches the Messages button');
+        await pg.click('#navMessages');
         check(await until(() => pg.evaluate(() => !!document.querySelector('#msgPage [data-msg-conv="p_t1"]')), 3000), 'O: opening afterwards shows the list');
         check(inboxCalls === n0 + 1, 'O: opening did not start a second call (' + (inboxCalls - n0) + ')');
         await pg.close();

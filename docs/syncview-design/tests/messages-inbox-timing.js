@@ -12,7 +12,7 @@
  *
  * Rows, all "click on Messages -> list visible" in ms:
  *   cold, click at once     fresh browser, click the moment the button shows
- *   cold, click after 1.5 s / 6 s   fresh browser, someone who looked around first
+ *   cold, pointer rests N s  fresh browser, pointer on the button N s before the click
  *   reload, same tab        the tab was used before (short-lived cache exists)
  *   second visit            leave Messages and come back inside the same page
  * Also printed: the first grey placeholder ("skeleton") paint, when the inbox
@@ -105,14 +105,14 @@ async function clickAndTime(page) {
     return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
       body: JSON.stringify(body.action === 'inbox' ? { ok: true, scope: 'all', conversations } : { ok: true, post_id: body.post_id, last_read_at: null }) });
   });
-  const rows = { 'cold, click at once': [], 'cold, click after 1.5 s': [], 'cold, click after 6 s': [], 'reload, same tab': [], 'second visit': [] };
-  const extra = { 'cold, click at once': [], 'cold, click after 1.5 s': [], 'cold, click after 6 s': [], 'reload, same tab': [], 'second visit': [] };
+  const rows = { 'cold, click at once': [], 'cold, pointer rests 0.5 s': [], 'cold, pointer rests 1.5 s': [], 'reload, same tab': [], 'second visit': [] };
+  const extra = { 'cold, click at once': [], 'cold, pointer rests 0.5 s': [], 'cold, pointer rests 1.5 s': [], 'reload, same tab': [], 'second visit': [] };
   const loads = [];
   const note = (k, r) => { rows[k].push(r.list); extra[k].push(r); };
   try {
     for (let run = 0; run < RUNS; run++) {
       // A new page has empty tab storage, so every run starts cold.
-      for (const [label, wait] of [['cold, click at once', 0], ['cold, click after 1.5 s', 1500], ['cold, click after 6 s', 6000]]) {
+      for (const [label, wait] of [['cold, click at once', 0], ['cold, pointer rests 0.5 s', 500], ['cold, pointer rests 1.5 s', 1500]]) {
         const page = await S.newPage();
         await openHome(S, page);
         if (label === 'cold, click at once') {
@@ -121,7 +121,7 @@ async function clickAndTime(page) {
             return { dcl: Math.round(n.domContentLoadedEventEnd), loaded: Math.round(n.loadEventEnd), buttonReady: Math.round(performance.now()), scripts: performance.getEntriesByType('resource').filter(r => /\/js\/sv-/.test(r.name)).length };
           }));
         }
-        if (wait) await sleep(wait);
+        if (wait) { await page.hover('#navMessages'); await sleep(wait); }
         note(label, await clickAndTime(page));
         if (label === 'cold, click at once') {
           // second visit: leave and come back without reloading

@@ -171,6 +171,7 @@
     "canonical-coverage-hold-routes-legacy.js",
     "caption-cancel-grace.js",
     "caption-generate-source.js",
+    "caption-helper-source.js",
     "caption-has-no-work-item.js",
     "caption-jobs-page-wiring.js",
     "caption-jobs-source.js",
@@ -1683,6 +1684,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, fictional test client and cards, no hosted credentials. Checks the staff Calendar and Samples Sheet: with a part Urgent every status row stays one line and the same height, and each status name carries its full-name tooltip, on desktop (three card sizes) and phone, light and dark, both status palettes.",
       "reproduce": "node test/calendar-status-row-urgent-height-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "caption-helper-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Generate caption box (platform, call to action, note), the title ideas, hashtags and redo under the caption, at desktop and 390 pixel width in light and dark, and that a caption typed by a person is never overwritten.",
+      "reproduce": "node test/caption-helper-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

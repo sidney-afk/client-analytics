@@ -2883,6 +2883,51 @@
         .cal-prompt-btn.is-primary:hover { opacity: 0.9; background: var(--text-primary); }
         .cal-prompt-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
+        /* ── Generate caption box: platform, call to action, note ── */
+        .cal-gen-label { font-size: 0.74rem; font-weight: 800; color: var(--text-primary); margin-top: 2px; }
+        .cal-gen-opt { font-weight: 600; color: var(--text-muted); }
+        #calCtaWrap { display: flex; flex-direction: column; gap: 10px; }
+        .cal-gen-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .cal-gen-chip { position: relative; display: inline-flex; cursor: pointer; }
+        .cal-gen-chip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+        .cal-gen-chip span { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--border); background: var(--white); color: var(--text-secondary); font-size: 0.78rem; font-weight: 700; }
+        .cal-gen-chip:hover span { border-color: var(--text-primary); color: var(--text-primary); }
+        .cal-gen-chip input:checked + span { background: var(--text-primary); border-color: var(--text-primary); color: var(--white); }
+        .cal-gen-chip input:focus-visible + span { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+        .cal-gen-note { width: 100%; box-sizing: border-box; resize: vertical; border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; font-family: inherit; font-size: 0.84rem; line-height: 1.45; color: var(--text-primary); background: var(--bg); }
+        .cal-gen-note:focus { border-color: var(--text-primary); background: var(--white); outline: none; }
+        .cal-prompt-textarea.cal-tx-textarea.is-compact { min-height: 110px; }
+
+        /* ── Title ideas, hashtags and redo, under the caption ── */
+        .cal-cap-ai-tog { position: absolute; right: 8px; top: 8px; display: inline-flex; align-items: center; padding: 5px 9px; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
+        .cal-cap-ai-tog:hover, .cal-cap-ai-tog.is-open { color: var(--text-primary); border-color: var(--text-primary); }
+        .cal-cap-wrap textarea.cal-fld-cap:focus ~ .cal-cap-ai-tog { opacity: 0; pointer-events: none; }
+        .cal-cap-ai { margin-top: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); font-size: 0.74rem; color: var(--text-secondary); }
+        .cal-cap-ai-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+        .cal-cap-ai-label { line-height: 1.3; font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin-top: 4px; }
+        .cal-cap-ai-titles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+        .cal-cap-ai-t { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); }
+        .cal-cap-ai-t.is-best { border-color: var(--text-primary); }
+        .cal-cap-ai-ttxt { flex: 1 1 140px; min-width: 0; color: var(--text-primary); font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
+        .cal-cap-ai-badge { font-size: 0.64rem; font-weight: 800; padding: 1px 7px; border-radius: 99px; background: var(--text-primary); color: var(--white); }
+        .cal-cap-ai-acts { display: flex; gap: 5px; flex-wrap: wrap; }
+        .cal-cap-ai-btn, .cal-cap-ai-chip { font-family: inherit; font-size: 0.72rem; font-weight: 700; min-height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); cursor: pointer; }
+        .cal-cap-ai-chip { border-radius: 99px; }
+        .cal-cap-ai-btn:hover:not(:disabled), .cal-cap-ai-chip:hover:not(:disabled) { background: var(--bg); border-color: var(--text-primary); }
+        .cal-cap-ai-btn.is-primary { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
+        .cal-cap-ai-btn:disabled, .cal-cap-ai-chip:disabled { opacity: .5; cursor: not-allowed; }
+        .cal-cap-ai-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); }
+        .cal-cap-ai-tagtxt { flex: 1 1 140px; min-width: 0; color: var(--text-primary); font-weight: 700; overflow-wrap: anywhere; }
+        .cal-cap-ai-meta { font-size: 0.72rem; color: var(--text-muted); }
+        .cal-cap-ai-pending { padding: 8px; border: 1px dashed var(--text-primary); border-radius: 8px; background: var(--white); display: flex; flex-direction: column; gap: 6px; }
+        .cal-cap-ai-pendtxt { white-space: pre-wrap; color: var(--text-primary); line-height: 1.4; max-height: 140px; overflow-y: auto; }
+        .cal-cap-ai-redo { display: flex; gap: 6px; }
+        .cal-cap-ai-note { flex: 1; min-width: 0; min-height: 32px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; font-family: inherit; font-size: 0.78rem; color: var(--text-primary); background: var(--white); }
+        .cal-cap-ai-note:focus { border-color: var(--text-primary); outline: none; }
+        .cal-cap-ai-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+        html.sv-staff-phone .cal-cap-wrap .cal-cap-ai-tog { position: static !important; inset: auto; order: 1; min-height: 44px; padding: 0 12px; }
+        html.sv-staff-phone .cal-cap-ai-btn, html.sv-staff-phone .cal-cap-ai-chip, html.sv-staff-phone .cal-cap-ai-note { min-height: 44px; }
+
         .cal-bulk-cap-bar { position: fixed; bottom: 24px; right: 24px; z-index: 320; background: var(--text-primary); color: var(--white); padding: 10px 14px; border-radius: 12px; box-shadow: 0 8px 26px var(--sv-shadow-rgba-0-0-0-0_22); font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 10px; visibility: hidden; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0.2s; }
         .cal-bulk-cap-bar.is-active { visibility: visible; opacity: 1; transform: none; pointer-events: auto; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0s; }
         /* Inner text span is a flex row so the inline spinner sits at a

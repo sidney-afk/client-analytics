@@ -216,6 +216,13 @@
       ],
       "note": "Caption prompt save (caption-prompts-save). Recorded as caption_prompt_save."
     },
+    "180-calendar-native-post-media.js.part|_calSaveCaptionPrompt|ctaUrl|POST": {
+      "status": "reports",
+      "within": [
+        "_calSaveCaptionPrompt"
+      ],
+      "note": "Call to action choices save (caption-generate, action cta_save), sent after the prompt save. Recorded as caption_cta_save."
+    },
     "180-calendar-native-post-media.js.part|_calSaveThumbTitlePrompt|url|POST": {
       "status": "reports",
       "within": [

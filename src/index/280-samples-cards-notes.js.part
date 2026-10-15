@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import {
   _svCaptureFocus, _svRestoreFocus, showConfirm, showNotify, showToast
 } from './040-shared-briefs.js';
@@ -1204,8 +1205,10 @@ import {
         const stayBtn = document.getElementById('resolveDestStay');
         if (stayBtn) { stayBtn.hidden = !!opts.fromReview; stayBtn.onclick = () => pick('stay'); }
         overlay.classList.add('active');
+        svLayerOverlay('sxr-resolvedest', '#resolveDestOverlay', '#resolveDestOverlay .confirm-box', () => _sxrDismissResolveDest(), { openClass: 'active' });
     }
     function _sxrDismissResolveDest() {
+        svLayerRelease('sxr-resolvedest', { focus: true });
         const overlay = document.getElementById('resolveDestOverlay');
         if (overlay) overlay.classList.remove('active');
         _sxrResolveDestCb = null;
@@ -1919,10 +1922,34 @@ import {
         if (!ovl) return;
         ovl.classList.add('open');
         document.body.classList.add('cal-modal-open');
+        _sxrCommentsLayerOpen(pid);
         _sxrRenderCommentsModal();
         setTimeout(() => { const feed = document.getElementById('sxrCommentsFeed'); if (feed) feed.scrollTop = feed.scrollHeight; const ta = document.getElementById('sxrCommentComposer'); if (ta) ta.focus(); }, 30);
     }
+    /* The Notes panel is a layer (staff only; the client link keeps its own
+       behaviour): Escape and a click on the backdrop close it, drafts are kept
+       by closeSxrComments exactly as before, and focus goes back to the card's
+       Notes button. While a reply or edit is open, the first Escape leaves it. */
+    function _sxrCommentsLayerOpen(pid) {
+        if (_isClientLink) return;
+        svLayerOpen({
+            key: 'sxr-notes',
+            holdRefresh: false,   // lives outside the redrawn card list
+            region: '#sxrCommentsModal',
+            opener: () => document.querySelector('[data-comments-btn="' + (window.CSS && CSS.escape ? CSS.escape(pid) : pid) + '"]'),
+            isOpen: () => !!document.querySelector('#sxrCommentsOverlay.open'),
+            escape: () => {
+                if (!(_sxrReplyTarget || _sxrEditTarget)) return false;
+                if (_sxrEditTarget) _sxrBeginCommentEdit(null); else _sxrBeginReply(null);
+                return true;
+            },
+            close: () => closeSxrComments(),
+        });
+    }
     function closeSxrComments() {
+        svLayerRelease('sxr-notes');
+        const ovlOpen = document.getElementById('sxrCommentsOverlay');
+        if (!ovlOpen || !ovlOpen.classList.contains('open')) return;
         _sxrCaptureModalDrafts();
         const ovl = document.getElementById('sxrCommentsOverlay');
         if (ovl) ovl.classList.remove('open');

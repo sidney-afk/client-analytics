@@ -1,3 +1,4 @@
+import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
 import { _svPhoneNotesPresentation } from './095-shared-client.js';
 import {
@@ -1452,9 +1453,11 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
         `;
         ovl.classList.add('open');
         document.body.classList.add('cal-modal-open');
+        if (!_isClientLink) svLayerOverlay('cal-preview', '#calPreviewOverlay', '#calPreview', () => closeCalPreview());
     }
 
     function closeCalPreview() {
+        svLayerRelease('cal-preview', { focus: true });
         const ovl = document.getElementById('calPreviewOverlay');
         if (ovl) ovl.classList.remove('open');
         calState.previewId = null;
@@ -1715,6 +1718,7 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
             : 'Team only · ' + comp;
     }
     function _calCloseSendMenu() {
+        svLayerRelease('cal-sendmenu');
         const menu = document.querySelector('#calCommentsModal .cal-cm-send-menu');
         if (menu) menu.hidden = true;
         const more = document.querySelector('#calCommentsModal .cal-cm-send-more');
@@ -1730,7 +1734,15 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
         if (!menu.hidden) {
             const item = menu.querySelector('button');
             if (item) item.focus();
-        }
+            svLayerOpen({
+                key: 'cal-sendmenu',
+            holdRefresh: false,   // lives outside the redrawn card list
+                region: () => document.querySelector('#calCommentsModal .cal-cm-send-menu'),
+                opener: () => document.querySelector('#calCommentsModal .cal-cm-send-more'),
+                isOpen: () => { const m = document.querySelector('#calCommentsModal .cal-cm-send-menu'); return !!m && !m.hidden; },
+                close: () => _calCloseSendMenu(),
+            });
+        } else svLayerRelease('cal-sendmenu');
     }
     /* "Request change" from the split Send button. Reuses the review panel's
        request lane as is (status to Tweaks Needed, editor told, round number,
@@ -2288,6 +2300,7 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
         if (!ovl) return;
         ovl.classList.add('open');
         document.body.classList.add('cal-modal-open');
+        _calCommentsLayerOpen(pid);
         _calRenderCommentsModal();
         // Auto-scroll the feed to the latest message and focus the composer.
         setTimeout(() => {
@@ -2297,7 +2310,31 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
             if (ta) ta.focus();
         }, 30);
     }
+    /* The Notes panel is a layer: Escape and a click on the backdrop close it
+       (closeCalComments keeps the typed note as a draft, as before), and focus
+       goes back to the card's Notes button. While a reply or an edit is being
+       written, the first Escape leaves that reply or edit, as it always did,
+       and the next one closes the panel. Staff only. */
+    function _calCommentsLayerOpen(pid) {
+        if (_isClientLink) return;
+        svLayerOpen({
+            key: 'cal-notes',
+            holdRefresh: false,   // lives outside the redrawn card list
+            region: '#calCommentsModal',
+            opener: () => document.querySelector('[data-comments-btn="' + (window.CSS && CSS.escape ? CSS.escape(pid) : pid) + '"]'),
+            isOpen: () => !!document.querySelector('#calCommentsOverlay.open'),
+            escape: () => {
+                if (!(_calReplyTarget || _calEditTarget)) return false;
+                if (_calEditTarget) _calBeginCommentEdit(null); else _calBeginReply(null);
+                return true;
+            },
+            close: () => closeCalComments(),
+        });
+    }
     function closeCalComments() {
+        svLayerRelease('cal-notes');
+        const ovlOpen = document.getElementById('calCommentsOverlay');
+        if (!ovlOpen || !ovlOpen.classList.contains('open')) return;
         _calCaptureModalDrafts();
         const ovl = document.getElementById('calCommentsOverlay');
         if (ovl) ovl.classList.remove('open');
@@ -2640,20 +2677,8 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
         if (moreBtn) moreBtn.disabled = !ta.value.trim() || _calComposeAudience === 'client'
             || (sendBtn && sendBtn.hasAttribute('data-send-pending'));
     }
-    // The split Send menu closes on Escape or a click anywhere else.
-    document.addEventListener('click', e => {
-        if (e.target && e.target.closest && e.target.closest('.cal-cm-send-menu, .cal-cm-send-more')) return;
-        _calCloseSendMenu();
-    });
-    document.addEventListener('keydown', e => {
-        if (e.key !== 'Escape') return;
-        const menu = document.querySelector('#calCommentsModal .cal-cm-send-menu');
-        if (!menu || menu.hidden) return;
-        e.stopPropagation();
-        _calCloseSendMenu();
-        const more = document.querySelector('#calCommentsModal .cal-cm-send-more');
-        if (more) more.focus();
-    }, true);
+    // The split Send menu closes on Escape or a click anywhere else: it is a
+    // layer (see _calToggleSendMenu), so the shared handler does both.
     function _calOnComposerKey(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -3213,10 +3238,12 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
         const stayBtn = document.getElementById('resolveDestStay');
         if (stayBtn) { stayBtn.hidden = !!opts.fromReview; stayBtn.onclick = () => pick('stay'); }
         overlay.classList.add('active');
+        svLayerOverlay('cal-resolvedest', '#resolveDestOverlay', '#resolveDestOverlay .confirm-box', () => _calDismissResolveDest(), { openClass: 'active' });
     }
     // ✕ / backdrop click just closes the chooser — closing is non-destructive
     // (nothing is applied until a route is picked), so no confirm is needed.
     function _calDismissResolveDest() {
+        svLayerRelease('cal-resolvedest', { focus: true });
         const overlay = document.getElementById('resolveDestOverlay');
         if (overlay) overlay.classList.remove('active');
         _calResolveDestCb = null;

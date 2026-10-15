@@ -1,3 +1,4 @@
+import { svFocusKeep } from './041-core-layers.js';
 import { CAL_SUPABASE_URL, _syncviewCloseStaffAccount, _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue } from './100-onboarding-staff-controls.js';
 import { showToast } from './040-shared-briefs.js';
 import { navTo } from './092-core-submit-form-navigation.js';
@@ -289,7 +290,9 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
                 if (list) list.innerHTML = _msgListHtml();
                 return;
             }
+            const restore = svFocusKeep(root);
             root.innerHTML = _msgInboxHtml();
+            restore();
         });
         const bubbles = document.getElementById('msgBubbles');
         if (bubbles && !typing) bubbles.scrollTop = bubbles.scrollHeight;

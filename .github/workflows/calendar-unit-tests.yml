@@ -383,6 +383,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/quick-jump-browser.js
+      - name: Every pop-up closes the same way (Escape, outside click, focus return, kept text, refresh)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/popup-behaviour-browser.js
       - name: Creatives open on their own work in Workload and SyncLinear
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

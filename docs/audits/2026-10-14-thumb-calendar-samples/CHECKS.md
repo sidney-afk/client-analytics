@@ -86,3 +86,28 @@ repo-map-sync: 1189 passed, 0 failed
 ## Earlier failures retained
 
 The first full Windows unit run had 24 failures. Three candidate problems were repaired; all 21 remaining failures reproduced on pristine main (Windows module paths, permissions and other existing platform failures). Linux hosted CI remains required. The initial final-pass transcript timeout passed its focused replay; the complete refreshed inventory is running again. One early desktop reviewer PNG mismatch passed exact replay; earlier populated Samples warm PNG attempts failed and are retained. A post-recovery populated attempt compared a reference loader against an assembled candidate; the helper now uses the same source format on both sides and retains exact pixel/style assertions. A source-fidelity attempt caught CRLF conversion; fragments were restored to LF and byte fidelity passes. The Notify journey was updated for main’s added scenarios.
+
+## Hosted findings repaired
+
+The first phone CI matrix caught the native caption below the reduced keyboard viewport. Its phone max-height is now bounded; the unchanged keyboard assertion passes at both widths. The backdrop gate caught the new Calendar sheet missing its press-origin guard and inventory case. Both are added; the new browser case passes a real inside-to-outside drag and ordinary outside click. No exception was added. The client boot lane failed its streamed-first-paint assertion; a local replay timed out earlier in that existing suite. Neither is called green.
+
+### native-font-screens.log
+
+```text
+ok Thumb collections 430 dark: native navigation, menu, selection, review, empty/loading/error, no overlap
+STAFF_PHONE_COLLECTIONS: 100 screen/theme/width captures; all assertions passed; fictional data; no live writes
+```
+
+### keyboard-replay.log
+
+```text
+ok calendar-dark-430 screen, menus, layout and scroll lock
+STAFF_PHONE_RULES: 28 states; 0 failures; 390/430 touch; synthetic transports; no live writes
+```
+
+### backdrop-new-sheet-final.log
+
+```text
+  Phone Calendar view
+dialog-backdrop-press-browser ok
+```

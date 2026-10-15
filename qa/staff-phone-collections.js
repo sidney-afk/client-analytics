@@ -26,7 +26,7 @@ async function main(){
   await staff.installBackend(context);await seedStaffGate(context);
   await context.route('**/*',route=>route.request().resourceType()==='image'?route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="720" height="960"><rect width="720" height="960" fill="#6b8881"/><circle cx="360" cy="330" r="170" fill="#cbd5cb"/><path d="M90 960V680Q360 400 630 680V960Z" fill="#3c5551"/><text x="360" y="180" font-size="55" fill="white" text-anchor="middle">DEMO CLIP</text></svg>'}):route.fallback());
   await context.addInitScript(t=>localStorage.setItem('syncview_theme',t),theme);
-  const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(8000);
+  const page=await context.newPage(),errors=[];captures.prepareCaptures(page);page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(8000);
   try{
    await page.goto('http://127.0.0.1:'+server.address().port);await page.waitForFunction(()=>typeof navTo==='function');
    for(const type of ['calendar','samples']){

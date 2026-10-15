@@ -8145,3 +8145,6 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
  html.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] .thumb-collection-bar { padding-block:8px; }
  html.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection]:is([data-thumb-mode=select],[data-thumb-mode=smmreview],[data-thumb-mode=month],[data-thumb-mode=week]) { padding-bottom:16px; }
 }
+
+/* Keep the native caption field inside a reduced keyboard viewport. */
+@media(max-width:767px){html.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] textarea.cal-fld-cap {max-height:min(336px,calc(100dvh - 260px))!important;overflow-y:auto;}}

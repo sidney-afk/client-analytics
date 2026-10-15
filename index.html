@@ -12759,6 +12759,9 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
  html.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] .thumb-collection-bar { padding-block:8px; }
  html.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection]:is([data-thumb-mode=select],[data-thumb-mode=smmreview],[data-thumb-mode=month],[data-thumb-mode=week]) { padding-bottom:16px; }
 }
+
+/* Keep the native caption field inside a reduced keyboard viewport. */
+@media(max-width:767px){html.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] textarea.cal-fld-cap {max-height:min(336px,calc(100dvh - 260px))!important;overflow-y:auto;}}
     </style>
 </head>
 <body>
@@ -13330,8 +13333,8 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-0c1b60df9ce2.js";
-        var PARTS = ["js/sv-01-core-fa5d4d47b3f2.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-f2c0f7ef9c19.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-bfb871296934.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-c56ae7a3b11f.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-ff0af3970c2d.js","js/sv-20-core-f43f39965587.js"];
+        var FULL = "js/sv-full-3298401d8261.js";
+        var PARTS = ["js/sv-01-core-fa5d4d47b3f2.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-fc5a992b43e9.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-3fc9ea0b1e9b.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-bfb871296934.js","js/sv-12-synclinear-df9cbe8df6a3.js","js/sv-13-core-c56ae7a3b11f.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-ff0af3970c2d.js","js/sv-20-core-f43f39965587.js"];
         var LAZY = {"templates":"js/sv-02-templates-ed22b16a2bda.js","workload":"js/sv-04-workload-1b2df89fe1d1.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-8ec9588310e8.js"};
         var FORCE = null;
         var CLIENTS = true;

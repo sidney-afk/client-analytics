@@ -60,7 +60,7 @@ const CASES = [
 //      case here (the sign-in backdrop is one site exercised in two modes);
 //   2. no event-target comparison may go without reading the press mark,
 //      unless it is listed below as not being a backdrop click.
-CASES.push({name:'Phone Calendar view',viewport:{width:390,height:844},overlay:'.thumb-view-sheet[open]',open:new Function(`${mountViews}; calState.embedded=false; calState.client=''; calState.posts=[]; calState.view='organizer'; _calRenderShell(); _calRenderBody(); document.querySelector('.thumb-calendar-view').click();`)});
+CASES.push({name:'Phone Calendar view',prepare:p=>p.evaluate(()=>{calState.client='';calState.posts=[];}),viewport:{width:390,height:844},overlay:'.thumb-view-sheet[open]',open:new Function(`${mountViews}; calState.embedded=false; calState.client=''; calState.posts=[]; calState.view='organizer'; _calRenderShell(); _calRenderBody(); document.querySelector('.thumb-calendar-view').click();`)});
 const fs = require('fs');
 const path = require('path');
 const SRC = path.join(__dirname, '..', 'src', 'index');
@@ -184,6 +184,7 @@ const SIGN_IN_GATE = { name: 'Staff sign-in (start-up gate)', overlay: '#staffId
 
   async function drive(page, c) {
     const label = c.name;
+    if(c.prepare)await c.prepare(page);
     await page.setViewportSize(c.viewport || {width:1280,height:900});
     await page.waitForTimeout(100);
     await page.evaluate(c.open);

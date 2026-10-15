@@ -1,6 +1,6 @@
 {
   "baseline": "b98f90f9e903d873358388a446430d4bbc082a07",
-  "sourceHash": "c86b81a6298659974ea597ee433927291fe200e66e80ff02b0eefc931afb7770",
+  "sourceHash": "3d9d871dcbf5a4e3b0501af7cbd05a8857baceb478bf187f6581426d948af6a0",
   "screenshots": {
     "calendar-card-dark-390.png": "acb3e6e49e3ba9c93c44d3a0a06b8337a734e567c60eafda75fe8927cb3fc6a1",
     "calendar-card-light-390.png": "7177e399b1e86f0d1e213742e9eda1227877a7e069e32a4bb92a738cb14f184c",
@@ -16,8 +16,8 @@
     "calendar-loading-light-390.png": "c5ef0a41ecbaa7186d9306194d7a2610b497721d3afaced53b5187bc8b6b5583",
     "calendar-month-dark-390.png": "493948b1c4df7b21e0c4090b4e12a4b8619dc886205fef845a45166fcc1bd503",
     "calendar-month-light-390.png": "066a35dc9246773abb61b53cd2158f10b156438348f8319b77b2711d15ecac2a",
-    "calendar-more-account-dark-390.png": "f1f52d2b2d9a9b60790d038ba7d9ae48142cf09cc5ba3c4e954cb55e131a5562",
-    "calendar-more-account-light-390.png": "4a5c78018a30aa710d9e512e27cfa5c232466cfbd49ec14fd973b54349057408",
+    "calendar-more-account-dark-390.png": "4114dccb393b1f0f6c2c5ce276ab600f036fb4074a406ae89023476d77711db8",
+    "calendar-more-account-light-390.png": "94dc72160a04da7a1b8fcad85b37efb3338a9d99a3c2a1ddc3d98f03b8bc7c78",
     "calendar-more-dark-390.png": "09cc4a39caaf57ece6a88b825e45489a086272ec0e0f09bbf6c655de1b86508e",
     "calendar-more-light-390.png": "c985cc36a4639598c1774a9e0c2e20a51480ab52e0528c159b2210f6e5e7dc00",
     "calendar-no-posts-dark-390.png": "7302a8799a928d0646978b73c64b76bc569528949099fc5132477c92a2b9eb0e",

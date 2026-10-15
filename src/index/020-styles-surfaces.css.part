@@ -8086,7 +8086,7 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
  html.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] .thumb-menu-secondary { display:none !important; }
  html.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] .thumb-menu-content summary { display:flex;align-items:center;min-height:48px;padding:8px;list-style:none;cursor:pointer;font-size:14px;font-weight:600; }
  html.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] .thumb-menu-content summary::-webkit-details-marker { display:none; }
- html.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] .thumb-menu-content summary::after { content:'âŒ„';margin-left:auto; }
+ html.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] .thumb-menu-content summary::after { content:'';width:7px;height:7px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(45deg);margin-left:auto; }
  html.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] .thumb-more .cal-client-links { display:block;width:100%; }
  html.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] .thumb-more .cal-client-links .dropdown-trigger { display:flex;gap:12px;width:100%;min-height:48px;justify-content:flex-start; }
  html.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] .thumb-profile-label { font-size:14px; }

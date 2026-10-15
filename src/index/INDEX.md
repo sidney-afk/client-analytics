@@ -30,7 +30,7 @@
 | 22 | `096-quick-jump.js.part` | 188 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
 | 23 | `097-today.js.part` | 943 | TODAY (owner design , session Compass). |
 | 24 | `098-smm-clients.js.part` | 115 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
-| 25 | `099-phone-staff-shell.js.part` | 392 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
+| 25 | `099-phone-staff-shell.js.part` | 393 | PHONE SHELL FOR THE STAFF SCREENS (TikTok and Instagram Upload, |
 | 26 | `099-staff-phone-bar.js.part` | 913 | STAFF PHONE BAR (Pocket phone design, approved layout A "Expanded"). |
 | 27 | `100-onboarding-staff-controls.js.part` | 2449 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 28 | `110-time-off.js.part` | 1393 | Kasper Time Off calendar |

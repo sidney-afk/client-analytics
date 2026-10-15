@@ -111,3 +111,34 @@ STAFF_PHONE_RULES: 28 states; 0 failures; 390/430 touch; synthetic transports; n
   Phone Calendar view
 dialog-backdrop-press-browser ok
 ```
+
+## Split-build replay
+
+The hosted split lane caught a wrapped title losing its border-height pixels. The native phone autosizer now includes the border; its cache and desktop restoration are unchanged. The complete backdrop suite also required clearing the previous fictional client before entering the new phone fixture; it now keeps the unchanged zero-write assertion. A supplemental Samples phone-to-desktop fixture comparison still differs in 13 antialiased edge pixels, with exact computed styles and bounding rectangles. Cold populated Samples/Calendar pairs and the required desktop gate match exactly. No pixel tolerance, exception, or skip was introduced.
+
+### expanded-split-replay.log
+
+```text
+staff-calendar-expanded: OK (6392 checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 390/430).
+```
+
+### backdrop-full-final.log
+
+```text
+  Staff sign-in (start-up gate)
+dialog-backdrop-press-browser ok
+```
+
+### calendar-final-reviewed.log
+
+```text
+ok Thumb collections 430 dark: native navigation, menu, selection, review, empty/loading/error, no overlap
+STAFF_PHONE_COLLECTIONS: 100 screen/theme/width captures; all assertions passed; fictional data; no live writes
+```
+
+### gateway-final.log
+
+```text
+--- phase: archive_park_sub_issues ---
+prod-write-gateway-browser: mirror operations plus Submit and Calendar native intake passed
+```

@@ -18279,7 +18279,8 @@
         if (previous && previous.value === editor.value && previous.width === width
             && previous.font === font && previous.fonts === fonts) return;
         editor.style.height = 'auto';
-        editor.style.height = Math.max(44, editor.scrollHeight) + 'px';
+        const border = editor.offsetHeight - editor.clientHeight;
+        editor.style.height = Math.max(44, editor.scrollHeight + border) + 'px';
         _fphNameSizes.set(editor, { value: editor.value, width, font, fonts });
     }
     function _fphNameEditorsSync() {
@@ -93463,4 +93464,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-3298401d8261.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-b0a84bbd0146.js");

@@ -762,7 +762,7 @@ async function main(){
     if(st.name.endsWith('save-error')) await ctx.route('**/rest/v1/syncview_runtime_flags?**',route=>{
       const raw=new URL(route.request().url()).searchParams.get('key')||'';
       const keys=raw.startsWith('in.(')?raw.slice(4,-1).split(','):[raw.replace(/^eq\./,'')];
-      return route.fulfill({status:200,headers:{'access-control-allow-origin':'*'},contentType:'application/json',body:JSON.stringify(keys.map(key=>({key,value:key==='prod_authority'?{video:'syncview',graphics:'syncview'}:/_clients$/.test(key)?{clients:['sampleone','sampleclientone','sample-one']}:{enabled:false}})))});
+      return route.fulfill({status:200,headers:{'access-control-allow-origin':'*'},contentType:'application/json',body:JSON.stringify(keys.filter(key=>key!=='calendar_card_write_clients').map(key=>({key,value:key==='prod_authority'?{video:'syncview',graphics:'syncview'}:/_clients$/.test(key)?{clients:['sampleone','sampleclientone','sample-one']}:{enabled:false}})))});
     });
     if(st.editor) await seedStaffIdentity(ctx,{id:'qa_editor',name:'QA Editor',role:'editor',team:'video'}); else await seedStaffGate(ctx);
     await ctx.addInitScript(t=>localStorage.setItem('syncview_theme',t),theme);

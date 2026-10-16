@@ -136,7 +136,7 @@ const ADMIN_CASES = [
   ['/#time-off', '/time-off', null],
   ['/#smm-weekly-report', '/smm-weekly-report', 'smm-weekly-report'],
   ['/#filming-plans', '/filming-plans', 'filming-plans'],
-  ['/#tiktok-upload', '/tiktok-upload', 'tiktok-upload'],
+  ['/#tiktok-upload', '/post', 'tiktok-upload'],   // the Post tab (TikTok and Instagram), once TikTok Upload
   ['/#sample-reviews', '/sample-reviews', 'sample-reviews'],
   ['/?sxr=1#sample-reviews/fixture-client/p_fixture_1', '/sample-reviews/fixture-client/p_fixture_1?sxr=1', 'sample-reviews'],
   ['/#samples', '/sample-reviews', 'sample-reviews'],
@@ -190,6 +190,9 @@ const ADMIN_CASES = [
     check(deepCal.bootLegacy === `#calendar/${slug}/p_fixture_1|`, 'calendar deep link carries client and card');
     const deepTpl = await land(ctx, base, `/templates/${slug}`);
     check(deepTpl.bootLegacy === `#templates/${slug}|`, 'templates deep link carries the client');
+    // The Post tab's old address, /tiktok-upload, still opens it (and shows /post).
+    const oldPost = await land(ctx, base, '/tiktok-upload');
+    check(oldPost.nav === 'tiktok-upload' && oldPost.url === '/post', `/tiktok-upload: screen ${oldPost.nav} at ${oldPost.url}, expected the Post tab at /post`);
     const deepProd = await land(ctx, base, '/synclinear/del_fixture_1');
     check(/[?&]d=del_fixture_1/.test(deepProd.bootLegacy), 'SyncLinear deep link carries the card');
     check(errors.length === 0, 'page errors: ' + errors.slice(0, 3).join(' | '));
@@ -223,7 +226,7 @@ const ADMIN_CASES = [
     await anon.close();
 
     // 3. Stubs answer 200; deep links hop through 404.html and land.
-    for (const name of ['synclinear', 'submit', 'workload', 'calendar', 'templates', 'kasper', 'onboarding', 'client-credentials', 'intake']) {
+    for (const name of ['synclinear', 'submit', 'workload', 'calendar', 'templates', 'kasper', 'onboarding', 'client-credentials', 'intake', 'post', 'tiktok-upload']) {
       const r = await fetch(`${base}/${name}`);
       check(r.status === 200, `/${name} answers ${r.status}`);
     }

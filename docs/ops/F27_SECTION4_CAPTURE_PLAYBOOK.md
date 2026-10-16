@@ -1,3 +1,33 @@
+> **Superseded 2026-10-16: the capture runs in GitHub. Nobody runs anything on a
+> Windows machine any more, and no session should ask Sidney to.** A merge that
+> changes `production-write`, `deliverable-write` or `batch-write` makes
+> `deploy-edge-functions-on-merge.yml` dispatch the Section 4 lane with
+> `capture` as both bundle inputs. The lane then, in one run and minutes before
+> it deploys:
+>
+> 1. runs this same capture (`node scripts/f27-edge-source-rollback.js capture
+>    --slugs=production-write,deliverable-write,batch-write`) with the token it
+>    already holds in the `production` Environment, and requires the receipt's
+>    `PASS` / `provider_contract` / `provider_source_exactness`, plus agreement
+>    with an independent live fingerprint read for every function;
+> 2. stores the sealed bundle with the uploader of section 2a, content-addressed
+>    in the `SyncView Backups/` Shared Drive root, after checking the root secret
+>    against its pinned hash, with an independent readback, and deletes the
+>    runner's copy;
+> 3. fetches it back by name and inspects it with the exact steps that always
+>    verified an owner upload;
+> 4. only then deploys and attests.
+>
+> The two values a restore needs (`sealed_bundle_sha256`,
+> `sealed_bundle_byte_length`) are printed in that run's summary. The same
+> format means the same hash: on 2026-10-16 the old command (section 1) and the
+> lane's step, given the same provider answers, wrote byte-identical bundles
+> (OPEN_REPAIRS entry for session Conveyor). Manual fallback: Run workflow with
+> `capture` as both bundle inputs. Dry run: `operation` = `capture-only`,
+> `confirm` = `CAPTURE_F27_SECTION4_PRIOR_THREE` (captures, stores, fetches,
+> inspects, deploys nothing). The sections below are kept as the record of the
+> old flow and for a bundle captured elsewhere, which the lane still accepts.
+
 > **Superseded 2026-09-26:** the Section 4 lane now captures and releases three functions (production-write, deliverable-write, batch-write); linear-outbound was deleted 2026-09-24. See [STATE_OF_THINGS](../STATE_OF_THINGS.md).
 
 # F27 Section 4 — capturing the sealed rollback bundle (owner, Windows)

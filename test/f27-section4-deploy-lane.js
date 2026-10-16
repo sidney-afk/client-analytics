@@ -518,7 +518,9 @@ const CANDIDATES = new Map([
     // itself after a native create and imports ./card-link.mjs (9 -> 10 files);
     // re-pinned with ef-fingerprint. Comment round 0 (2026-10-08, OPEN_REPAIRS
     // 382): round 0 is saved as no round, never a 500; re-pinned with ef-fingerprint.
-    source: '692b5c473be2d404ee05da0eb2fb87dca64e94cb4654cc0daa931d8c4f544502',
+    // Note outbox (2026-10-15, OPEN_REPAIRS 421): the Slack sender wake runs
+    // after the answer (waitUntil); re-pinned with ef-fingerprint.
+    source: '07677a1f0b62271710df7b63aff8a7eb7c732473f00c796d5e34c384c56387d2',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 10,
   }],
@@ -597,6 +599,9 @@ ok(workflow.includes('F27_PROJECT_REF=$project_ref')
   && rollbackLibrary.includes('provider.supabase_cli_version !== expectedCliVersion'),
 'the sealed undo is privately bound to the masked reviewed project, exact CLI, and both approved adapters before either operation mutates');
 
+const blockOf = name => { const at = workflow.indexOf(name); return at < 0 ? '' : workflow.slice(at, workflow.indexOf('\n      - name:', at + 1)); };
+const captureSealBlock = blockOf('- name: Capture and seal the live prior three (read only)');
+const captureStoreBlock = blockOf('- name: Store the sealed bundle in the F27 Shared Drive root (independent readback)');
 const sqlPreflightAt = workflow.indexOf('- name: Assert compatible native SQL before the first forward deployment');
 const sqlPreflightEnd = workflow.indexOf('\n      - name:', sqlPreflightAt + 1);
 const sqlPreflightBlock = workflow.slice(sqlPreflightAt, sqlPreflightEnd);
@@ -606,8 +611,15 @@ const notifyPreflightBlock = workflow.slice(notifyPreflightAt, notifyPreflightEn
 ok(/^  deploy:\n(?:    [^\n]*\n)*    environment: production\n/m.test(workflow)
   && !/^    env:\n(?:      [^\n]*\n)*      (?:SUPABASE_ACCESS_TOKEN|F27_PRIVATE_SHARED_DRIVE_ROOT_ID|TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON):/m.test(workflow)
   && occurrences(workflow, /F27_PRIVATE_SHARED_DRIVE_ROOT_ID: \$\{\{ secrets\.F27_PRIVATE_SHARED_DRIVE_ROOT_ID \}\}/g).length === 1
-  && occurrences(workflow, /TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: \$\{\{ secrets\.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON \}\}/g).length === 1
-  && occurrences(workflow, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 7
+  // Since 2026-10-16 the lane captures the prior three itself: one more token
+  // use (the read-only capture step) and one more Drive credential use (the
+  // store step), each step-scoped inside its own block and nowhere else.
+  && occurrences(workflow, /TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: \$\{\{ secrets\.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON \}\}/g).length === 2
+  && occurrences(captureStoreBlock, /TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: \$\{\{ secrets\.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON \}\}/g).length === 1
+  && occurrences(workflow, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 8
+  && occurrences(captureSealBlock, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 1
+  && !/TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON|F27_PRIVATE_SHARED_DRIVE_ROOT_ID/.test(captureSealBlock)
+  && !/SUPABASE_ACCESS_TOKEN/.test(captureStoreBlock)
   && validationAt < firstSecretAt
   && sqlPreflightAt > validationAt && sqlPreflightAt < firstDeployAt
   && /if: github\.event_name == 'workflow_dispatch' && inputs\.operation == 'deploy-reviewed-release'/.test(sqlPreflightBlock)
@@ -767,7 +779,15 @@ ok(workflow.includes(`--slugs=${PRIOR_SLUGS.join(',')}`)
 ok(!/upload-artifact/.test(workflow)
   && !/\$\{\{ vars\./.test(workflow)
   && !/\bproject_ref:\s*[a-z0-9]{20}\b/.test(workflow)
-  && !/TRACK_B_BACKUP_DRIVE_FOLDER_ID/.test(workflow)
+  // The uploader reads its folder from TRACK_B_BACKUP_DRIVE_FOLDER_ID. In this
+  // lane that name is bound ONCE, in the store step, to the F27 root secret
+  // (never to the Track-B snapshot folder's own secret) and checked against
+  // the pinned root hash before the upload.
+  && occurrences(workflow, /TRACK_B_BACKUP_DRIVE_FOLDER_ID: /g).length === 1
+  && captureStoreBlock.includes('TRACK_B_BACKUP_DRIVE_FOLDER_ID: ${{ secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID }}')
+  && captureStoreBlock.includes('[ "$root_hash" != "$EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256" ]')
+  && !/secrets\.TRACK_B_BACKUP_DRIVE_FOLDER_ID/.test(workflow)
+  && workflow.split('TRACK_B_BACKUP_DRIVE_FOLDER_ID').length - 1 === occurrences(captureStoreBlock, /TRACK_B_BACKUP_DRIVE_FOLDER_ID/g).length
   && occurrences(workflow, /if: always\(\)/g).length === 1
   && workflow.indexOf('- name: Delete private source and raw receipts') > firstDeployAt
   && workflow.indexOf('- name: Delete private source and raw receipts') > restoreAt,
@@ -811,6 +831,88 @@ ok(runbook.includes('This Node-only Section 1 operation, not the Section 4 deplo
   && runbook.includes('RESTORE_CAPTURED_F27_SECTION4_CLOSURES')
   && runbook.includes('must never substitute for this exact-four lane'),
 'the runbook says plainly that §0/§1 prior-version capture is separate and the reviewed §4 lane is the only install deploy/restore mechanism');
+
+// 2026-10-16, run 38933979961: production-write's deploy failed in 1.6 s and
+// the only public line was "failed or was ambiguous". Each deploy now publishes
+// the CLI's own reason through the trusted, allowlisted, redacting script, and
+// the bundler image is pulled (by pinned digest, retried, ghcr.io as the
+// same-bytes fallback) before any deploy, so docker run never pulls.
+const reasonScriptPath = path.join(ROOT, 'scripts', 'ef-deploy-public-reason.js');
+const { publicReason, MAX_LINES, MAX_CHARS, PREFIX } = require(reasonScriptPath);
+const prePullBlock = blockOf('- name: Pre-pull the exact Edge Runtime bundler image (retried)');
+const prePullAt = workflow.indexOf('- name: Pre-pull the exact Edge Runtime bundler image (retried)');
+const cliVerifyAt = workflow.indexOf('- name: Verify exact Supabase CLI and Docker bundler');
+const restoreStepAt = workflow.indexOf('- name: Restore the exact captured prior three');
+let reasonWired = true;
+for (const slug of EXACT_SLUGS) {
+  const step = blockOf(`- name: Deploy and verify ${EXACT_SLUGS.indexOf(slug) + 1} of 3 - ${slug}`);
+  const reasonAt = step.indexOf(`node "$GITHUB_WORKSPACE/operator/scripts/ef-deploy-public-reason.js" \\\n              "$F27_PRIVATE_DIR/${slug}-deploy.log" || true`);
+  const errorAt = step.indexOf(`echo "::error::The reviewed ${slug} deployment failed or was ambiguous"`);
+  const deployAt = step.indexOf(`supabase functions deploy ${slug} \\`);
+  if (!(deployAt >= 0 && reasonAt > deployAt && errorAt > reasonAt)) reasonWired = false;
+}
+ok(reasonWired && occurrences(workflow, /ef-deploy-public-reason\.js/g).length === 3,
+  'each of the three deploy steps publishes the CLI reason from the trusted operator copy before its error line');
+
+ok(prePullAt > cliVerifyAt && prePullAt < firstDeployAt && prePullAt < restoreStepAt
+  && /if: inputs\.operation == 'deploy-reviewed-release' \|\| inputs\.operation == 'restore-captured-prior-three'/.test(prePullBlock)
+  && !/secrets\./.test(prePullBlock)
+  && /EXPECTED_EDGE_RUNTIME_TAG: v1\.73\.13\n/.test(workflow)
+  && /EXPECTED_EDGE_RUNTIME_AMD64_DIGEST: sha256:[0-9a-f]{64}\n/.test(workflow)
+  && prePullBlock.includes('for registry in public.ecr.aws ghcr.io; do')
+  && prePullBlock.includes('pinned="$registry/supabase/edge-runtime@$EXPECTED_EDGE_RUNTIME_AMD64_DIGEST"')
+  && prePullBlock.includes('docker tag "$pinned" "$image"')
+  && prePullBlock.includes('image="public.ecr.aws/supabase/edge-runtime:$EXPECTED_EDGE_RUNTIME_TAG"')
+  && prePullBlock.includes('for delay in 0 10 30 60; do')
+  && prePullBlock.includes(`grep -aoE '"edge-runtime":"[0-9][0-9.]*"' "$cli_path"`)
+  && prePullBlock.includes('SUPABASE_INTERNAL_IMAGE_REGISTRY')
+  && prePullBlock.includes('release/supabase/.temp/edge-runtime-version')
+  && !/docker pull[^\n]*:\$EXPECTED_EDGE_RUNTIME_TAG/.test(prePullBlock),
+'the bundler image is pulled by its pinned digest, retried, from ECR then the same-digest ghcr.io copy, before any deploy or restore, with no secret');
+
+const fakeRef = 'abcdefghijklmnopqrst';
+const pullRefused = publicReason([
+  'Bundling Function: production-write',
+  `Using project ${fakeRef} at https://supabase.com/dashboard/project/${fakeRef}/functions?tab=x`,
+  "Unable to find image 'public.ecr.aws/supabase/edge-runtime:v1.73.13' locally",
+  'docker: Error response from daemon: toomanyrequests: Data limit exceeded.',
+  'failed to bundle function: exit 125',
+].join('\n'), { projectRef: fakeRef });
+ok(pullRefused[0] === `${PREFIX}stage: reached Docker bundling`
+  && pullRefused.some(line => line.includes('toomanyrequests: Data limit exceeded'))
+  && pullRefused[pullRefused.length - 1] === `${PREFIX}failed to bundle function: exit 125`
+  && pullRefused.length <= MAX_LINES
+  && pullRefused.every(line => line.startsWith(PREFIX) && line.length <= PREFIX.length + MAX_CHARS)
+  && !pullRefused.join('\n').includes(fakeRef)
+  && !pullRefused.join('\n').includes('Using project'),
+'a refused image pull names itself publicly: stage, daemon reason and exit code, never the project ref or an unlisted line');
+
+// Built at run time so no token-shaped string sits in the repository.
+const fakeToken = ['sbp', '_', '0'.repeat(40)].join('');
+const fakeJwt = ['eyJ' + 'hbGciOiJub25lIn0', 'eyJ' + 'zdWIiOiJ4In0', 'c2ln'].join('.');
+const secretsLeak = publicReason([
+  `{"_tag":"Error","error":{"code":"UnknownError","message":"unexpected deploy status 401: token=${fakeToken} for ${fakeRef}"}}`,
+  `Error: Bearer ${fakeJwt} rejected; also ${fakeJwt} for owner@example.com`,
+  '::error::injected workflow command',
+  '259 | `),q8H=(H,$)=>{Forbidden Unauthorized',
+  'x'.repeat(5000) + ' Forbidden',
+].join('\n'), { projectRef: '' });
+const leakText = secretsLeak.join('\n');
+ok(leakText.includes('UnknownError: unexpected deploy status 401')
+  && !/sbp_|eyJ|owner@example\.com|abcdefghijklmnopqrst/.test(leakText)
+  && !/(^|\n)::/.test(leakText)
+  && !leakText.includes('injected workflow command')
+  && !leakText.includes('q8H')
+  && secretsLeak.every(line => line.length <= PREFIX.length + MAX_CHARS),
+'the reason is redacted (tokens, JWTs, e-mail, ref-shaped words), JSON CLI errors are unwrapped, and source excerpts or workflow commands never print');
+
+const nothingKnown = publicReason(`Some private line with ${fakeRef}\nanother one`, { projectRef: fakeRef });
+ok(nothingKnown.length === 1 && nothingKnown[0] === `${PREFIX}no recognised CLI failure line (2 lines in the private log)`,
+  'an unrecognised failure prints only a line count, never a line');
+
+const missingLog = spawnSync(process.execPath, [reasonScriptPath, path.join(ROOT, 'no-such-deploy.log')], { encoding: 'utf8' });
+ok(missingLog.status === 0 && missingLog.stdout === `${PREFIX}the private deploy log was not written\n`,
+  'the reason script never fails the step itself and says so when the log is missing');
 
 if (failures) {
   console.error(`\n${failures} F27 Section 4 deploy-lane check(s) failed`);

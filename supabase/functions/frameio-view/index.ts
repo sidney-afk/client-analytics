@@ -3,8 +3,9 @@
 // "Watch here" in SyncView: from a card's Frame.io link, a fresh playable video address and the video's comments,
 // read from Frame.io's V4 API. Read-only. Replying stays in Frame.io, and nothing is copied into our database.
 //
-//   POST { link }  header X-Syncview-Key: a staff role key
-//     -> 200 { ok:true, video:{ url, expires_at, name, file_id, duration_seconds, fps },
+//   POST { link, part? }  header X-Syncview-Key: a staff role key. part is "video" (the playable addresses, fast),
+//     "comments" (the comments only) or left out (both, as before); the page asks for the first two in parallel.
+//     -> 200 { ok:true, video:{ url, renditions:{ efficient, high_quality, original }, expires_at, name, file_id, duration_seconds, fps },
 //              comments:[{ id, time_seconds, frame, text, author, guest, created_at, done, replies:[...] }],
 //              comments_error, comments_truncated, reply_names_partial, open_url, fetched_at }
 //     -> { ok:false, error:<code>, message:<plain sentence> }   unsupported_link 422, link_not_found 404, share_off 404,
@@ -44,6 +45,8 @@ function json(obj: unknown, status = 200): Response {
 }
 
 let tokens: ReturnType<typeof tokenSource> | null = null;
+// A link's file is remembered for a minute (see logic.mjs): the hover before a click does the slow part of the open.
+const resolved = new Map();
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
@@ -88,7 +91,7 @@ Deno.serve(async (req) => {
     tokens = tokenSource({ fetchFn: fetch, brokerUrl: supabaseUrl + "/functions/v1/frameio-token", brokerKey });
   }
   try {
-    const out = await lookup(link, { fetchFn: fetch, getToken: () => tokens!.get(), dropToken: () => tokens!.drop(), clientId, now: Date.now }, { comments: !clientToken });
+    const out = await lookup(link, { fetchFn: fetch, getToken: () => tokens!.get(), dropToken: () => tokens!.drop(), clientId, now: Date.now, cache: resolved }, clientToken ? { client: true } : { part: clean(body && body.part) });
     return json(out, 200);
   } catch (e) {
     if (e instanceof ViewError) {

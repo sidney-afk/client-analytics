@@ -62,3 +62,12 @@ deno.lock
 
 # GitHub Pages site folder (scripts/pages-site.js build)
 .pages-site/
+
+# The page is BUILT, never committed (since 2026-10-15). `npm run build:index`
+# writes these from src/index/; the Pages publish and every CI job that reads
+# them build them first (.github/actions/build-index). Committing them made
+# every merge conflict every other open pull request. `npm run check:index`
+# fails if one is tracked again. Way back: ROLLBACK.md, "Committed build output".
+/index.html
+/js/sv-*.js
+/src/index/INDEX.md

@@ -11,6 +11,13 @@ const SHARED_PATH = path.join(ROOT, 'supabase/functions/_shared/staff-role-auth.
 const INDEX = read('index.html');
 const CAPTURE = read('supabase/functions/onboarding-capture/index.ts');
 const DEPLOY = read('.github/workflows/deploy-onboarding-edge-functions.yml');
+// Since 2026-10-16 merges deploy through deploy-edge-functions-on-merge.yml: a
+// push to main that touches any function runs it, and the plan deploys every
+// function it does not keep manual (scripts/ef-auto-deploy-plan.js).
+const MERGE_LANE = read('.github/workflows/deploy-edge-functions-on-merge.yml');
+const { MANUAL_ONLY: AUTO_MANUAL, F27_LANE: AUTO_F27 } = require('../scripts/ef-auto-deploy-plan');
+const autoDeploys = slug => /^  push:\n    branches: \[main\]\n    paths:\n(?:      - '[^']+'\n)*      - 'supabase\/functions\/\*\*'/m.test(MERGE_LANE)
+  && !AUTO_MANUAL[slug] && !AUTO_F27.includes(slug);
 const READERS = [
   'legacy-onboarding-list',
   'onboarding-list',
@@ -46,7 +53,7 @@ for (const { name, source } of READERS) {
     `${name} must return 401 for unmatched keys and 403 for disallowed role keys`);
   ok(source.indexOf('authorizeStaffKey(given') < source.indexOf('createClient(Deno.env.get("SUPABASE_URL")'),
     `${name} must authenticate before constructing the service-role client`);
-  ok(DEPLOY.includes(`supabase/functions/${name}/**`), `${name} must remain covered by deploy path filters`);
+  ok(autoDeploys(name), `${name} must remain covered by the deploy on merge`);
 }
 
 const deployLoop = (DEPLOY.match(/for fn in ([^;]+); do/) || [])[1] || '';

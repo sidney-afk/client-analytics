@@ -4,6 +4,12 @@ name: Pages site
 # instead of publishing the whole repository, checks it, and, only from main and
 # only once the repository's Pages source is set to "GitHub Actions", publishes it.
 #
+# index.html and js/sv-*.js are NOT committed (since 2026-10-15): the build job
+# builds them from src/index/ first (.github/actions/build-index), then puts the
+# older bundles the live site has always kept back into js/ so a tab left open
+# on an older page still finds its files (scripts/pages-retained-bundles.js).
+# Way back to committed build output: ROLLBACK.md, "Committed build output".
+#
 # Until the owner switches the Pages source (Settings, Pages, Build and
 # deployment, Source: GitHub Actions), this workflow builds and checks and
 # deploys NOTHING, and the branch build keeps serving the site as before.
@@ -32,7 +38,15 @@ on:
       - 'onboarding-video/**'
       - 'scripts/pages-site.js'
       - 'scripts/build-route-stubs.js'
-      - 'src/index/003-sv-route.html.part'
+      # The page is built here from these (index.html and js/ are not
+      # committed); test/pages-build-inputs.js keeps this list complete.
+      - 'src/index/**'
+      - 'scripts/build-index.js'
+      - 'scripts/index-modules.js'
+      - 'scripts/index-split.js'
+      - 'scripts/index-minify.js'
+      - 'scripts/pages-retained-bundles.js'
+      - '.github/actions/build-index/**'
       - 'test/pages-site-allowlist.js'
       - 'docs/syncview-design/tests/pages-site-browser.js'
       - 'qa/staff-gate-seed.js'
@@ -53,7 +67,15 @@ on:
       - 'onboarding-video/**'
       - 'scripts/pages-site.js'
       - 'scripts/build-route-stubs.js'
-      - 'src/index/003-sv-route.html.part'
+      # The page is built here from these (index.html and js/ are not
+      # committed); test/pages-build-inputs.js keeps this list complete.
+      - 'src/index/**'
+      - 'scripts/build-index.js'
+      - 'scripts/index-modules.js'
+      - 'scripts/index-split.js'
+      - 'scripts/index-minify.js'
+      - 'scripts/pages-retained-bundles.js'
+      - '.github/actions/build-index/**'
       - 'test/pages-site-allowlist.js'
       - 'docs/syncview-design/tests/pages-site-browser.js'
       - 'qa/staff-gate-seed.js'
@@ -78,9 +100,17 @@ jobs:
       source: ${{ steps.source.outputs.source }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the retained older bundles are read from history
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+
+      - name: Build index.html and js/ from src/index/
+        uses: ./.github/actions/build-index
+
+      - name: Keep the older bundles open tabs may still ask for
+        run: node scripts/pages-retained-bundles.js
 
       - name: Build the site folder from the allowlist
         run: node scripts/pages-site.js build --out=.pages-site

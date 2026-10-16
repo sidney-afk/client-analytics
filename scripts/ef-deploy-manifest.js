@@ -21,6 +21,14 @@ const FUNCTIONS_ROOT = path.join(ROOT, 'supabase', 'functions');
 const WORKFLOWS_ROOT = path.join(ROOT, '.github', 'workflows');
 const OUTPUT_FILE = path.join(ROOT, 'docs', 'ops', 'EF_DEPLOY_MANIFEST.md');
 
+// The merge lane deploys from a planned list, not a literal one: its slugs are
+// every function scripts/ef-auto-deploy-plan.js does not keep manual or route
+// through the Section 4 lane.
+const AUTO_WORKFLOW = Object.freeze({
+  id: 'deploy-on-merge',
+  file: '.github/workflows/deploy-edge-functions-on-merge.yml',
+});
+
 const WORKFLOWS = Object.freeze([
   Object.freeze({
     id: 'deploy-f27-section4',
@@ -127,9 +135,9 @@ function localImportSpecifiers(file) {
   return Array.from(new Set(specifiers)).sort((a, b) => a.localeCompare(b));
 }
 
-function resolveLocalImport(fromFile, specifier) {
+function resolveLocalImport(fromFile, specifier, functionsRoot = FUNCTIONS_ROOT) {
   const base = path.resolve(path.dirname(fromFile), specifier);
-  const functionsRelative = path.relative(FUNCTIONS_ROOT, base);
+  const functionsRelative = path.relative(functionsRoot, base);
   if (functionsRelative === '..' || functionsRelative.startsWith(`..${path.sep}`)) {
     throw new Error(`${repoRelative(fromFile)} imports outside supabase/functions: ${specifier}`);
   }
@@ -150,15 +158,17 @@ function resolveLocalImport(fromFile, specifier) {
   return resolved;
 }
 
-function functionDependencies(slug) {
-  const entrypoint = path.join(FUNCTIONS_ROOT, slug, 'index.ts');
+// functionsRoot defaults to this checkout; scripts/ef-auto-deploy-plan.js
+// passes another checkout's supabase/functions for its history dry run.
+function functionDependencies(slug, functionsRoot = FUNCTIONS_ROOT) {
+  const entrypoint = path.join(functionsRoot, slug, 'index.ts');
   const visited = new Set([entrypoint]);
   const pending = [entrypoint];
 
   while (pending.length) {
     const current = pending.pop();
     for (const specifier of localImportSpecifiers(current)) {
-      const dependency = resolveLocalImport(current, specifier);
+      const dependency = resolveLocalImport(current, specifier, functionsRoot);
       if (visited.has(dependency)) continue;
       visited.add(dependency);
       pending.push(dependency);
@@ -169,7 +179,7 @@ function functionDependencies(slug) {
   const local = [];
   for (const dependency of visited) {
     if (dependency === entrypoint) continue;
-    const relative = slash(path.relative(FUNCTIONS_ROOT, dependency));
+    const relative = slash(path.relative(functionsRoot, dependency));
     if (relative.startsWith('_shared/')) shared.push(relative);
     else local.push(relative);
   }
@@ -210,8 +220,28 @@ function deployedSlugsFromStep(step) {
   return Array.from(new Set(found));
 }
 
+function inspectAutoWorkflow(slugs) {
+  const { F27_LANE, MANUAL_ONLY } = require('./ef-auto-deploy-plan');
+  const source = fs.readFileSync(path.join(ROOT, AUTO_WORKFLOW.file), 'utf8');
+  if (!/^  push:\n    branches: \[main\]/m.test(source) || !/^  workflow_dispatch:/m.test(source)) {
+    throw new Error(`${AUTO_WORKFLOW.file} must run on a push to main and on workflow_dispatch`);
+  }
+  const deploys = source.match(/\bsupabase\s+functions\s+deploy\s+[^\n]*/g) || [];
+  if (deploys.length !== 1 || !deploys[0].startsWith('supabase functions deploy "$unit" ') || !deploys[0].includes('--no-verify-jwt')) {
+    throw new Error(`${AUTO_WORKFLOW.file} must deploy exactly one planned unit at a time, JWT off`);
+  }
+  // Defense in depth in the YAML itself: the Section 4 three and every manual
+  // function are refused by name before any deploy command.
+  const refusal = source.match(/^ {14}([a-z0-9|-]+)\)\n {16}# Defense in depth/m);
+  const refused = new Set(refusal ? refusal[1].split('|') : []);
+  for (const slug of [...F27_LANE, ...Object.keys(MANUAL_ONLY)]) {
+    if (!refused.has(slug)) throw new Error(`${AUTO_WORKFLOW.file} does not refuse ${slug} by name`);
+  }
+  return slugs.filter(slug => !F27_LANE.includes(slug) && !MANUAL_ONLY[slug]);
+}
+
 function inspectDeployWorkflows(slugs) {
-  const knownWorkflowFiles = new Set(WORKFLOWS.map((workflow) => workflow.file));
+  const knownWorkflowFiles = new Set([...WORKFLOWS.map((workflow) => workflow.file), AUTO_WORKFLOW.file]);
   for (const entry of fs.readdirSync(WORKFLOWS_ROOT, { withFileTypes: true })) {
     if (!entry.isFile() || !/\.ya?ml$/i.test(entry.name)) continue;
     const file = path.join(WORKFLOWS_ROOT, entry.name);
@@ -254,6 +284,9 @@ function inspectDeployWorkflows(slugs) {
         if (!slugSet.has(slug)) {
           throw new Error(`${workflow.file} deploys unknown function slug: ${slug}`);
         }
+        if (hasPush && !dispatchOnly && ['production-write', 'deliverable-write', 'batch-write'].includes(slug)) {
+          throw new Error(`${workflow.file} could deploy ${slug} on a push; only the Section 4 lane may deploy it`);
+        }
         if (hasPush && !dispatchOnly) {
           const sourcePath = `supabase/functions/${slug}/**`;
           if (!source.includes(sourcePath)) {
@@ -288,7 +321,7 @@ function inspectDeployWorkflows(slugs) {
       throw new Error(`${slug} is missing its exact reviewed multiple-workflow deploy owner set`);
     }
   }
-  return owners;
+  return { owners, auto: new Set(inspectAutoWorkflow(slugs)) };
 }
 
 function markdownCodeList(values) {
@@ -297,20 +330,25 @@ function markdownCodeList(values) {
 }
 
 function workflowLink(id) {
-  const workflow = WORKFLOWS.find((candidate) => candidate.id === id);
+  const workflow = [...WORKFLOWS, AUTO_WORKFLOW].find((candidate) => candidate.id === id);
   if (!workflow) return 'NONE';
   return `[${id}](../../${workflow.file})`;
 }
 
 function generateManifest() {
   const slugs = listFunctionSlugs();
-  const owners = inspectDeployWorkflows(slugs);
+  const { owners, auto } = inspectDeployWorkflows(slugs);
+  const f27 = ['production-write', 'deliverable-write', 'batch-write'];
   const rows = slugs.map((slug) => {
     const dependencies = functionDependencies(slug);
-    const ownerRows = owners.get(slug) || [];
+    const manualRows = owners.get(slug) || [];
+    const ownerRows = auto.has(slug)
+      ? [{ workflow: AUTO_WORKFLOW.id, deployPath: 'main push (auto, in order)' }, ...manualRows]
+      : manualRows;
     let deployPath;
     if (ownerRows.length) {
       deployPath = ownerRows.map(owner => owner.deployPath).join('<br>');
+      if (f27.includes(slug)) deployPath += '<br>dispatched on merge by deploy-on-merge (the lane captures the rollback bundle itself)';
       // A deliberate-manual note still binds a lane that can deploy the slug.
       if (DELIBERATE_MANUAL[slug]) deployPath += `<br>**Manual release note:** ${DELIBERATE_MANUAL[slug]}`;
     } else if (DELIBERATE_MANUAL[slug]) {
@@ -330,7 +368,7 @@ function generateManifest() {
     };
   });
 
-  const pushCount = rows.filter((row) => row.deployPath.startsWith('main push')).length;
+  const pushCount = rows.filter((row) => row.deployPath.startsWith('main push') || f27.includes(row.slug)).length;
   const dispatchOnlyCount = rows.filter((row) => row.deployPath.startsWith('workflow_dispatch only')).length;
   const noCiCount = rows.filter((row) => row.workflow === 'NONE').length;
   const deliberateManualCount = rows.filter((row) => row.deliberateManual).length;
@@ -431,9 +469,13 @@ function main() {
   printCounts(`Wrote ${repoRelative(OUTPUT_FILE)}.`, generated.counts);
 }
 
-try {
-  main();
-} catch (error) {
-  process.stderr.write(`ef-deploy-manifest: ${error.message}\n`);
-  process.exitCode = 1;
+if (require.main === module) {
+  try {
+    main();
+  } catch (error) {
+    process.stderr.write(`ef-deploy-manifest: ${error.message}\n`);
+    process.exitCode = 1;
+  }
 }
+
+module.exports = { listFunctionSlugs, functionDependencies, generateManifest };

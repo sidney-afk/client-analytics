@@ -1,8 +1,8 @@
 name: Deploy staff-sensitive edge functions
 
-# Auto-deploys onboarding, credentials, filming-plan, and SMM-report functions
-# plus their shared role-key helper whenever they change on main, or on manual
-# dispatch. The Track-B write/read set — production-write,
+# Manual fallback (since 2026-10-16) for the onboarding, credentials,
+# filming-plan and SMM-report functions; merges deploy them through
+# deploy-edge-functions-on-merge.yml. The Track-B write/read set — production-write,
 # production-comments, production-archive — is manual-only (linear-outbound left
 # this set in B2 Slice 8, 2026-09-24): it must come from an
 # exact commit already on main, and within the set the provider and the write
@@ -21,19 +21,9 @@ name: Deploy staff-sensitive edge functions
 # cannot reach the production secret at all. Role keys and transition-only
 # legacy passphrases live as Supabase function secrets, never in this repository.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'supabase/functions/onboarding-list/**'
-      - 'supabase/functions/ai-onboarding-list/**'
-      - 'supabase/functions/legacy-onboarding-list/**'
-      - 'supabase/functions/onboarding-full/**'
-      - 'supabase/functions/client-credentials/**'
-      - 'supabase/functions/filming-plans/**'
-      - 'supabase/functions/smm-weekly-reports/**'
-      - 'supabase/functions/key-verify/**'
-      - 'supabase/functions/_shared/staff-role-auth.ts'
-      - '.github/workflows/deploy-onboarding-edge-functions.yml'
+  # Automatic deploys on merge moved to deploy-edge-functions-on-merge.yml
+  # (2026-10-16), which deploys every changed function in order, with the
+  # same checks. This lane stays as the manual fallback.
   workflow_dispatch:
     inputs:
       commit_sha:

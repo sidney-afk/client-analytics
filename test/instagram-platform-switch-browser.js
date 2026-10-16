@@ -80,7 +80,7 @@ const SERVER_ROWS = [
     await page.waitForSelector('#tkPlatTiktok', { timeout: 20000 });
 
     // --- the switch, TikTok default
-    assert.equal(await page.innerText('.tk-title'), 'TikTok Upload', 'the tab keeps its name'); checks++;
+    assert.equal(await page.innerText('.tk-title'), 'Post', 'the tab is called Post'); checks++;
     assert.equal(await page.getAttribute('#tkPlatTiktok', 'aria-selected'), 'true', 'TikTok is the default side'); checks++;
     assert.equal(await page.isVisible('#tkFormCol'), true, 'the TikTok form shows'); checks++;
     assert.equal(await page.isHidden('#igFormCol'), true, 'the Instagram form is hidden'); checks++;
@@ -95,7 +95,7 @@ const SERVER_ROWS = [
     assert.equal(await page.getAttribute('#tkPlatInstagram', 'aria-selected'), 'true'); checks++;
     assert.equal(await page.isHidden('#tkFormCol'), true, 'the TikTok form hides'); checks++;
     assert.equal(await page.isVisible('#igFormCol'), true, 'the Instagram form shows'); checks++;
-    assert.equal(await page.innerText('.tk-title'), 'TikTok Upload', 'still not renamed'); checks++;
+    assert.equal(await page.innerText('.tk-title'), 'Post', 'the title stays Post on both sides'); checks++;
     assert.equal(calls.list, 1, 'the Instagram queue is read once on opening'); checks++;
     assert.ok(calls.headers['x-syncview-key'], 'the staff key goes to the function'); checks++;
 
@@ -156,7 +156,7 @@ const SERVER_ROWS = [
     await page.setInputFiles('#igFile', { name: 'clip2.mp4', mimeType: 'video/mp4', buffer: Buffer.from('not really a video') });
     await page.fill('#igTitle', 'Scheduled caption');
     assert.equal(await page.isVisible('#igPostNow + .tk-toggle-track'), true, 'the Post immediately switch is visible'); checks++;
-    assert.match(await page.innerText('#igFormCol'), /Posts as soon as you press Post now/, 'the note explains the switch'); checks++;
+    assert.match(await page.innerText('#igFormCol'), /Posts to Instagram as soon as you press Post to Instagram/, 'the note explains the switch'); checks++;
     assert.equal(await page.isHidden('#igScheduleFields'), true, 'no date fields while posting now'); checks++;
     await page.click('label.tk-toggle:has(#igPostNow)');
     await page.waitForSelector('#igScheduleFields:not([hidden])');
@@ -164,7 +164,7 @@ const SERVER_ROWS = [
     await page.click('#igSubmit');
     await page.waitForSelector('#igFormCol .tk-error');
     assert.match(await page.innerText('#igFormCol .tk-error'), /Pick a schedule date and time/, 'pressing it without a date and time says what is missing'); checks++;
-    assert.match(await page.innerText('#igSubmit'), /Schedule post/, 'the button now says Schedule post'); checks++;
+    assert.match(await page.innerText('#igSubmit'), /Schedule on Instagram/, 'the button now says Schedule on Instagram'); checks++;
     await page.click('#igDateBtn');
     await page.waitForSelector('#svDatePickerPopup [data-dp-day]');
     const pickedDay = await page.evaluate(() => {

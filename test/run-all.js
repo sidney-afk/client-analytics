@@ -13,6 +13,10 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const dir = __dirname;
+// index.html and js/sv-*.js are build output and are not committed: build them
+// from src/index/ before any suite reads them, so no suite sees a stale or
+// missing page (the same build CI runs through .github/actions/build-index).
+require('../scripts/ensure-built').ensureBuilt();
 const plan = require('../scripts/test-suite-routing').unitPlan();
 const files = plan.files;
 for (const proof of plan.deferred) console.log(JSON.stringify({required_test:proof.file,status:proof.status,reason:proof.required_inputs,reproduce:proof.reproduce}));

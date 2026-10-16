@@ -353,6 +353,7 @@ import { _kasperState } from './305-core-kasper-shared.js';
             // mid-animation size and flips back and forth.
             nav.classList.add('is-measuring');
             nav.classList.remove('is-compact', 'is-icons');
+            nav.style.minWidth = '';
             void nav.offsetWidth;
             // Measure the tabs themselves, not scrollWidth: the sliding pill is
             // absolutely positioned and can sit at a stale offset mid-route.
@@ -382,6 +383,15 @@ import { _kasperState } from './305-core-kasper-shared.js';
                 if (overflows()) nav.classList.add('is-icons');
             }
             void nav.offsetWidth;
+            /* A row that fits but is a fraction of a pixel wide (904.28) reports a
+               clientWidth rounded down (904) under a scrollWidth rounded up (905),
+               so it could scroll sideways by one pixel, and the active-tab
+               scrollIntoView did (seen on touch at 1366px once the Post tab was
+               renamed). Round the fitting row up to whole pixels. */
+            if (!overflows()) {
+                const w = nav.getBoundingClientRect().width;
+                if (w % 1) nav.style.minWidth = Math.ceil(w) + 'px';
+            }
             nav.classList.remove('is-measuring');
             // Tab widths just changed: move the sliding pill under the active tab again.
             if (nav.classList.contains('is-compact') + ':' + nav.classList.contains('is-icons') !== wasCompact) requestAnimationFrame(() => _navPillSync(false));
@@ -522,7 +532,7 @@ import { _kasperState } from './305-core-kasper-shared.js';
         workload: '/nav-icons/workload-favicon.png',
         calendar: '/nav-icons/calendar-favicon.png',
         'sample-reviews': '/nav-icons/samples-favicon.png',
-        'tiktok-upload': '/nav-icons/tiktok-favicon.png',
+        'tiktok-upload': '/nav-icons/post-favicon.png',
         // The two onboarding-facing routes keep SynchroSocial branding, which
         // the entry router already applies; naming them here keeps navTo from
         // overwriting it with the SyncView default.
@@ -609,6 +619,7 @@ import { _kasperState } from './305-core-kasper-shared.js';
             return;
         }
         _syncviewNextNavEpoch(); // Phase D: tell a still-loading boot router that someone has moved on.
+        try { window.svMessagesNavHook?.(page); } catch (e) {} // Messages remembers where the person was, before anything is torn down.
         if (page === 'brief') page = 'home';
         // Client intake link locks the whole SPA to the Linear submission flow,
         // so every navigation (back button, restored hash, logo) lands on it.

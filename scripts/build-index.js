@@ -40,7 +40,14 @@
  * manifest.txt and INDEX.md are metadata: never part of the assembled output
  * and never subject to fragment coverage checks.
  *
- * Usage: node scripts/build-index.js
+ * Usage: node scripts/build-index.js [--out=<dir>]
+ *
+ * These outputs are NOT committed (since 2026-10-15, .gitignore): the Pages
+ * publish (.github/workflows/pages-site.yml) and every CI job that reads them
+ * build them first through .github/actions/build-index. --out=<dir> writes
+ * index.html, js/ and src/index/INDEX.md under <dir> instead of the
+ * repository root (scripts/check-build.js builds twice that way to prove the
+ * build is deterministic).
  */
 
 const fs = require('fs');
@@ -51,8 +58,10 @@ const { buildOutputs } = require('./index-split');
 const ROOT = path.resolve(__dirname, '..');
 const SRC_DIR = path.join(ROOT, 'src', 'index');
 const MANIFEST_PATH = path.join(SRC_DIR, 'manifest.txt');
-const OUTPUT_PATH = path.join(ROOT, 'index.html');
-const INDEX_MD_PATH = path.join(SRC_DIR, 'INDEX.md');
+const OUT_ARG = process.argv.find((a) => a.startsWith('--out='));
+const OUT_ROOT = OUT_ARG ? path.resolve(OUT_ARG.slice('--out='.length)) : ROOT;
+const OUTPUT_PATH = path.join(OUT_ROOT, 'index.html');
+const INDEX_MD_PATH = path.join(OUT_ROOT, 'src', 'index', 'INDEX.md');
 
 function fail(message) {
   console.error('build-index: ' + message);
@@ -220,16 +229,18 @@ function main() {
   let outputs;
   try { outputs = buildOutputs(SRC_DIR, entries, fragmentBufs, modules, force); } catch (e) { fail(e.message); }
   const assembled = outputs.get('index.html');
+  fs.mkdirSync(OUT_ROOT, { recursive: true });
   fs.writeFileSync(OUTPUT_PATH, assembled);
   for (const [rel, buf] of outputs) {
     if (rel === 'index.html') continue;
-    const full = path.join(ROOT, rel);
+    const full = path.join(OUT_ROOT, rel);
     fs.mkdirSync(path.dirname(full), { recursive: true });
     if (!fs.existsSync(full)) fs.writeFileSync(full, buf);
     console.log('build-index: ' + rel + ' (' + buf.length + ' bytes)');
   }
 
   const indexMd = buildIndexMd(entries, fragmentBufs);
+  fs.mkdirSync(path.dirname(INDEX_MD_PATH), { recursive: true });
   fs.writeFileSync(INDEX_MD_PATH, indexMd);
 
   console.log('build-index: wrote index.html (' + assembled.length + ' bytes) from ' + entries.length + ' fragment(s)');

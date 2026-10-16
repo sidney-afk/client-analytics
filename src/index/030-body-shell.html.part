@@ -113,15 +113,15 @@
             <span class="header-nav-ico ico-filmingplans" aria-hidden="true"></span>
             Filming
         </a>
-        <a class="header-nav-btn" id="navTiktokUpload" title="TikTok Upload" aria-label="TikTok Upload" href="/tiktok-upload" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-upload')">
-            <span class="header-nav-ico ico-tiktok" aria-hidden="true"></span>
-            TikTok
+        <a class="header-nav-btn" id="navTiktokUpload" title="Post to TikTok or Instagram" aria-label="Post" href="/post" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-upload')">
+            <span class="header-nav-ico ico-post" aria-hidden="true"></span>
+            Post
         </a>
         <a class="header-nav-btn active" id="navHome" href="/" onclick="if(_modClick(event))return;event.preventDefault();svOpenAnalytics()">
             <span class="header-nav-ico ico-analytics" aria-hidden="true"></span>
             Analytics
         </a>
-        <!-- Tab row labels (owner, 2026-09-28): Filming, TikTok and Linear are short so the
+        <!-- Tab row labels (owner, 2026-09-28): Filming, Post and Linear are short so the
              admin row keeps full labels at 1366/1440px; title and aria-label keep the full names. -->
         <!-- The six tabs above follow the shared top-bar client; the team tabs below ignore it. -->
         <span class="header-nav-sep" aria-hidden="true"></span>

@@ -28,6 +28,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Build index.html and js/ from src/index/ (build output, not committed)
+        uses: ./.github/actions/build-index
       - id: files
         env:
           BEFORE: ${{ github.event.before }}
@@ -53,6 +55,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Build index.html and js/ from src/index/ (build output, not committed)
+        uses: ./.github/actions/build-index
       - name: Install the pinned browser harness
         run: |
           npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
@@ -125,6 +129,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Build index.html and js/ from src/index/ (build output, not committed)
+        uses: ./.github/actions/build-index
       - name: Check index.html is exactly the assembled src/index/ fragments
         run: npm run check:index
       - name: Run unit suite (test/*.js)
@@ -163,6 +169,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Build index.html and js/ from src/index/ (build output, not committed)
+        uses: ./.github/actions/build-index
       - name: Does this change name a client or a colleague?
         run: |
           set +e
@@ -220,6 +228,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Build index.html and js/ from src/index/ (build output, not committed)
+        uses: ./.github/actions/build-index
       - name: Install the parser and scope analyser into a temp prefix (package.json untouched)
         run: npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/c3" acorn@8.15.0 eslint-scope@9.1.2
       - name: Module readiness checks
@@ -261,6 +271,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Build index.html and js/ from src/index/ (build output, not committed)
+        uses: ./.github/actions/build-index
       - name: Install Playwright into a temp prefix (package.json untouched)
         run: |
           npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
@@ -293,6 +305,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/lost-work-conflict-browser.js
+      - name: A second status pick while the first is still saving reaches production-write (mocked)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/cal-status-pick-during-save-browser.js
       - name: Typed captions, notes, comments and descriptions survive a closed tab or a failed save (mocked)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -309,6 +325,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/messages-inbox-browser.js
+      - name: A note shows the moment it is sent and is never lost (slow server, error then retry, double click, refresh mid-send; desktop and phone) (mocked)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/note-send-outbox-browser.js
       - name: The client link shows staff notes as the team and never receives a staff name (mocked)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -357,6 +377,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/calendar-hover-files-browser.js
+      - name: Calendar card video and thumbnail buttons each have their own icon and tooltip
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/calendar-prod-button-icons-browser.js
       - name: Client review link works on phones (approve + request change)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -430,7 +454,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/calendar-status-row-urgent-height-browser.js
-      - name: Generate caption off n8n (switch off unchanged, function path, transcript box, desktop and phone)
+      - name: Calendar card writes route to calendar-card-write only for clients on its switch (calendar-upsert otherwise)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/calendar-card-write-routing-browser.js
+      - name: Generate caption off n8n (no n8n fallback, function path, transcript box, desktop and phone)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/caption-generate-browser.js
@@ -485,6 +513,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Build index.html and js/ from src/index/ (build output, not committed)
+        uses: ./.github/actions/build-index
       - name: Install Playwright into a temp prefix (package.json untouched)
         run: |
           npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
@@ -544,6 +574,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/back-to-card-browser.js
+      - name: SyncLinear work item opens its Calendar card in a new tab
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/open-in-calendar-browser.js
       - name: Workload, signed out shows no board
         if: ${{ !cancelled() }}
         env:
@@ -634,6 +669,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/instagram-platform-switch-browser.js
+      - name: Post tab (name, platform tint, caption from the Calendar)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/post-tab-browser.js
 
 
   split-preview:
@@ -650,6 +690,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Build index.html and js/ from src/index/ (build output, not committed)
+        uses: ./.github/actions/build-index
       - name: Install Playwright into a temp prefix (package.json untouched)
         run: |
           npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
@@ -707,6 +749,8 @@ jobs:
       PGDATABASE: postgres
     steps:
       - uses: actions/checkout@v4
+      - name: Build index.html and js/ from src/index/ (build output, not committed)
+        uses: ./.github/actions/build-index
       - name: Detect F27 proof source
         id: source
         run: |

@@ -155,10 +155,12 @@ ok(!/alter table public\.workload_issues/i.test(MIGRATION)
 'migration does not modify the Linear mirror or any runtime flag');
 
 ok(!/\[functions\.workload-plan\]/.test(CONFIG)
-  && /-\s+['"]supabase\/config\.toml['"]/.test(THUMBNAIL_DEPLOY)
-  // 2026-09-23: its exact-SHA manual release runs through the dispatch-only
-  // one-function lane; never a push path, and the release note still binds.
-  && /\| `workload-plan` \| \[deploy-single-function\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>\*\*Manual release note:\*\*[^\n]*`--no-verify-jwt`/.test(DEPLOY_MANIFEST),
+  // The thumbnail lane has no push trigger at all since 2026-10-16.
+  && !/^  push:/m.test(THUMBNAIL_DEPLOY)
+  // 2026-10-16: it deploys on merge (deploy-on-merge: --no-verify-jwt and an
+  // exact-SHA fingerprint attestation, which is what its release note asks),
+  // and the dispatch-only one-function lane stays as the manual fallback.
+  && /\| `workload-plan` \| \[deploy-on-merge\]\([^)]*\)<br>\[deploy-single-function\]\([^)]*\) \| main push \(auto, in order\)<br>workflow_dispatch only \(pinned SHA guard\)<br>\*\*Manual release note:\*\*[^\n]*`--no-verify-jwt`/.test(DEPLOY_MANIFEST),
   'manual-only function stays out of shared config and cannot trigger unrelated thumbnail deploys');
 
 for (const header of [

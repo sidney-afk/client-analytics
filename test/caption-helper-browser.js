@@ -7,7 +7,7 @@
  *   NOTHING EXTRA  After Generate the new caption is just in the caption box. No title ideas, no "Best" marker, no
  *                "Use this title", no Titles button, no hashtags panel, even when the job row still carries titles in
  *                `extras` (an older job) and even when an older version left them in this browser.
- *   REDO         A button on the + Alt caption row opens a pop-up with a note box and Redo (Escape, a click outside or Close leave it). It re-runs from the current caption. The new caption replaces the box only while
+ *   REDO         A small regenerate icon (circular arrows, tooltip "Regenerate with a note") in the top right corner of the caption box (on the staff phone layout: at the end of the action row under it) opens a pop-up with a note box and Redo (Escape, a click outside or Close leave it). It re-runs from the current caption. The new caption replaces the box only while
  *                the box still holds the caption the redo started from; a caption typed meanwhile is kept, a short
  *                note says so, and nothing waits in a panel.
  * Run at 1440 wide and at 390 wide, in light and dark. Set CAPTION_SHOT_DIR to save screenshots there.
@@ -181,18 +181,31 @@ async function run(browser, origin, label, device, theme) {
   const ex2 = await extraStuff(page);
   expect(ex2.panel === 0 && !ex2.words && ex2.btn === 0 && await captionOf(page, 'v1') === 'Caption written by the function', `${tag}: a refresh of the card list shows nothing extra`);
 
-  // THE ROW: Redo with a note sits on the "+ Alt caption" row, at the right, and never on the caption text
-  const redoBtn = '.cal-card[data-pid="v1"] .cal-cap-tabs .cal-cap-redo-open';
-  expect(await page.locator(redoBtn).count() === 1 && await page.locator('.cal-card[data-pid="v1"] .cal-cap-wrap .cal-cap-redo-open').count() === 0,
-    `${tag}: Redo with a note is a button on the + Alt caption row, not inside the caption box`);
-  const lay = await page.evaluate(() => {
-    const c = document.querySelector('.cal-card[data-pid="v1"]');
-    const b = c.querySelector('.cal-cap-redo-open').getBoundingClientRect(), a = c.querySelector('.cal-altcap-add').getBoundingClientRect();
-    const t = c.querySelector('textarea[data-fld="caption"]').getBoundingClientRect(), card = c.getBoundingClientRect();
-    return { right: b.left >= a.right, sameRow: Math.abs((b.top + b.height / 2) - (a.top + a.height / 2)) < 16, clear: b.bottom <= t.top + 1, inCard: b.right <= card.right + 1 };
-  });
-  expect(lay.right && lay.sameRow && lay.clear && lay.inCard, `${tag}: it is to the right of + Alt caption, on the same row, clear of the caption text (${JSON.stringify(lay)})`);
-  await shot(page, `row-${tag}`, 'v1');
+  // THE ICON: a small regenerate icon (circular arrows) in the top right corner of the caption box, with a tooltip
+  const redoBtn = '.cal-card[data-pid="v1"] .cal-cap-wrap[data-capwrap="main"] .cal-cap-redo-open';
+  expect(await page.locator(redoBtn).count() === 1 && await page.locator('.cal-card[data-pid="v1"] .cal-cap-tabs .cal-cap-redo-open').count() === 0,
+    `${tag}: the regenerate icon is inside the caption box, not on the + Alt caption row`);
+  const ico = await page.evaluate(sel => {
+    const b = document.querySelector(sel);
+    return { title: b.getAttribute('title'), aria: b.getAttribute('aria-label'), text: b.textContent.trim(), paths: b.querySelectorAll('svg path').length };
+  }, redoBtn);
+  expect(ico.title === 'Regenerate with a note' && ico.aria === 'Regenerate with a note' && ico.text === '' && ico.paths === 2,
+    `${tag}: it is an icon only (two arrows), with the tooltip "Regenerate with a note" (${JSON.stringify(ico)})`);
+  const lay = await page.evaluate(sel => {
+    const b = document.querySelector(sel), r = b.getBoundingClientRect();
+    const wrap = b.closest('.cal-cap-wrap'), w = wrap.getBoundingClientRect();
+    const ta = wrap.querySelector('textarea'), cs = getComputedStyle(ta), tr = ta.getBoundingClientRect();
+    const textRight = tr.right - parseFloat(cs.paddingRight);
+    return { phone: document.documentElement.classList.contains('sv-staff-phone'), w: Math.round(r.width), h: Math.round(r.height), top: Math.round(r.top - w.top), right: Math.round(w.right - r.right), clearOfText: textRight <= r.left + 1, belowBox: r.top >= tr.bottom - 1, inCard: r.right <= document.querySelector('.cal-card[data-pid="v1"]').getBoundingClientRect().right + 1 };
+  }, redoBtn);
+  const minSize = device.hasTouch ? 40 : 22;
+  // On the staff phone layout the caption's actions sit in a row under the box and no control may sit on another
+  // (qa/staff-phone-rules-browser.js), so there the icon ends that row instead of covering the box's corner.
+  if (lay.phone) expect(lay.belowBox && lay.inCard && lay.w >= 44 && lay.h >= 44,
+    `${tag}: on a phone it ends the action row under the caption box, off the box, big enough to tap (${JSON.stringify(lay)})`);
+  else expect(lay.top <= 10 && lay.right <= 10 && lay.clearOfText && lay.inCard && lay.w >= minSize && lay.h >= minSize,
+    `${tag}: it sits in the top right corner of the caption box, clear of the caption text, big enough to tap (${JSON.stringify(lay)})`);
+  await shot(page, `icon-${tag}`, 'v1');
   expect(await page.locator('.cal-cap-tx').count() === 0, `${tag}: there is no separate Transcript button`);
 
   // THE POP-UP: only a note box, Redo and Close; Escape, a click outside and Close all leave it, and the note is kept
@@ -220,7 +233,7 @@ async function run(browser, origin, label, device, theme) {
   await openPop();
   await page.locator('#calPromptModal .cal-prompt-close').click();
   await sleep(250);
-  expect(!(await popOpen()) && await page.evaluate(() => /cal-cap-redo-open/.test(document.activeElement.className)), `${tag}: the X closes it and focus goes back to the Redo with a note button`);
+  expect(!(await popOpen()) && await page.evaluate(() => /cal-cap-redo-open/.test(document.activeElement.className)), `${tag}: the X closes it and focus goes back to the regenerate icon`);
 
   // REDO: replaces the box because the box still holds the caption the redo started from
   const before = state.saves.length;
@@ -229,8 +242,8 @@ async function run(browser, origin, label, device, theme) {
   await page.locator('#calRedoGo').click();
   expect(await waitFor(async () => (await captionOf(page, 'v1')) === 'A shorter caption after the redo.'), `${tag}: the redo's caption replaces the untouched one`);
   const rb = (state.ef[1] || {}).body || {};
-  expect(rb.redo && rb.redo.caption === 'Caption written by the function' && rb.note === 'shorter, and a hookier hook' && !rb.assetUrl && !rb.transcript && rb.platform === 'tiktok' && !('titles' in rb.redo) && !('quick' in rb.redo),
-    `${tag}: the redo sent the current caption and the note (same platform), no video, no titles`);
+  expect(rb.redo && rb.redo.caption === 'Caption written by the function' && rb.note === 'shorter, and a hookier hook' && rb.assetUrl === FRAME && !rb.transcript && rb.platform === 'tiktok' && !('titles' in rb.redo) && !('quick' in rb.redo),
+    `${tag}: the redo sent the current caption, the note (same platform) and the card's video link so the server can find the words, no titles`);
   expect(await waitFor(async () => state.saves.slice(before).some(s => s.id === 'v1' && s.caption === 'A shorter caption after the redo.'), 8000), `${tag}: the redo is saved through the card's normal save`);
   const ex3 = await extraStuff(page);
   expect(ex3.panel === 0 && !ex3.words && ex3.btn === 0, `${tag}: after a redo nothing extra is open either`);
@@ -255,8 +268,8 @@ async function run(browser, origin, label, device, theme) {
   await shot(page, `kept-${tag}`, 'v1');
 
   // A hand-written caption gets the Redo button too, and no titles
-  expect(await page.locator('.cal-card[data-pid="w1"] .cal-cap-tabs .cal-cap-redo-open').count() === 1 && await page.locator(panel('w1')).count() === 0
-    && await page.locator('.cal-card[data-pid="w1"] .cal-cap-tools button').count() === 1, `${tag}: a caption somebody wrote has the Redo with a note button, and the panel an older version left on it is gone`);
+  expect(await page.locator('.cal-card[data-pid="w1"] .cal-cap-wrap[data-capwrap="main"] .cal-cap-redo-open').count() === 1 && await page.locator(panel('w1')).count() === 0
+    && await page.locator('.cal-card[data-pid="w1"] .cal-cap-tools button').count() === 1, `${tag}: a caption somebody wrote has the regenerate icon, and the panel an older version left on it is gone`);
   expect(await page.locator('.cal-card[data-pid="v2"] .cal-cap-tools').count() === 0 && await page.locator(panel('v2')).count() === 0, `${tag}: a card with no caption has no Redo button and no panel`);
   expect(t.pageErrors.length === 0, `${tag}: no page errors (${t.pageErrors.join(' | ')})`);
   await t.ctx.close();
@@ -303,9 +316,12 @@ async function runEditor(browser, origin) {
   const desktop = { viewport: { width: 1440, height: 900 } };
   const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true,
     userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' };
+  const tablet = { viewport: { width: 820, height: 1180 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
   try {
     for (const theme of ['light', 'dark']) await run(browser, origin, 'desktop', desktop, theme);
     for (const theme of ['light', 'dark']) await run(browser, origin, 'phone', phone, theme);
+    // A touch screen wider than the phone breakpoint (a tablet, a phone in landscape): the icon is still tappable.
+    for (const theme of ['light', 'dark']) await run(browser, origin, 'tablet', tablet, theme);
     await runNoChoices(browser, origin);
     await runEditor(browser, origin);
   } finally {

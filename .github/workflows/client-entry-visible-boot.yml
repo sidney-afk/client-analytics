@@ -3,7 +3,13 @@ name: Client entry visible boot
 on:
   pull_request:
     paths:
-      - 'index.html'
+      # index.html is built from these, not committed (since 2026-10-15):
+      - 'src/index/**'
+      - 'scripts/build-index.js'
+      - 'scripts/index-modules.js'
+      - 'scripts/index-split.js'
+      - 'scripts/index-minify.js'
+      - '.github/actions/build-index/**'
       - 'package.json'
       - 'qa/boot/**'
       - 'supabase/functions/client-token-verify/index.ts'
@@ -13,7 +19,13 @@ on:
     branches:
       - main
     paths:
-      - 'index.html'
+      # index.html is built from these, not committed (since 2026-10-15):
+      - 'src/index/**'
+      - 'scripts/build-index.js'
+      - 'scripts/index-modules.js'
+      - 'scripts/index-split.js'
+      - 'scripts/index-minify.js'
+      - '.github/actions/build-index/**'
       - 'package.json'
       - 'qa/boot/**'
       - 'supabase/functions/client-token-verify/index.ts'
@@ -35,6 +47,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Build index.html and js/ from src/index/ (build output, not committed)
+        uses: ./.github/actions/build-index
       - name: Resolve Playwright version
         id: playwright-version
         run: node -e "require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + require('./package.json').devDependencies.playwright + '\n')"

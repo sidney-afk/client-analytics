@@ -40,7 +40,7 @@ the sections below, delete it from this block in the same PR.
   to be saved through `studio_profile_save` by the connector supervisor). Then #2094 (Anchor: the production-polish suites wait
   for the page to finish loading instead of guessing; OPEN_REPAIRS 426) and #2087 (Thumb: phone Workload opens as an
   agenda with per-person queues, Week and Month keep the native planners, filters in a bottom sheet; phone-scoped only).
-  Thumb's #2085 (phone Calendar and Samples) is red on a source-copy check and waits on Thumb. Card saver watcher: 1 clean run, test client only.
+  Thumb's #2085 (phone Calendar and Samples) is red on a source-copy check and waits on Thumb. Card saver watcher: 2 clean runs (21:41 UTC), test client only, no real save on it yet.
 
 **Live (session Cinema, 2026-10-16, #2120): Watch here, one view for the video and its notes.** Every door (the Notes
 button, the Sheet's play icon, the Review tab's video preview, Kasper's "Watch here") opens the card's Notes dialog with

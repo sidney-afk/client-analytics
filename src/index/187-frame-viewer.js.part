@@ -423,6 +423,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             });
         }
         if (video.readyState >= 2) _fvInlineState(box, 'ready');
+        // A warmed video can have failed before it was handed over: treat that as the error it is.
+        if (video.error) setTimeout(() => { if (video.error && document.contains(box)) video.dispatchEvent(new Event('error')); }, 0);
         _fvAutoplay(video, () => { const b = box.querySelector('.fv-unmute'); if (b) b.hidden = false; });
     }
     function svFrameInlinePlay(ev, tile) {
@@ -649,6 +651,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (v.readyState >= 1 && v.videoWidth) _fvOrient(v.videoWidth, v.videoHeight);
         if (v.readyState >= 2) _fvSetState('ready');
         _fvMarkers();
+        // A warmed video can have failed before it was handed over: treat that as the error it is.
+        if (v.error) setTimeout(() => { if (FV_STATE.open && v.error) _fvVideoFailed(); }, 0);
         _fvAutoplay(v, () => { const b = _fvPart('#fvUnmute'); if (b) b.hidden = false; });
     }
 

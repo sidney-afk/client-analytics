@@ -376,8 +376,8 @@ async function calendarRun(browser, origin, name, device, orient) {
   expect((await page.locator('#fvState').innerText()).includes('not a Frame.io share'), `${label}: a refused link shows the function's own sentence`);
   await page.keyboard.press('Escape');
 
-  // An address that stopped working: asked for again once, then plays.
-  state.calls.length = 0; state.mediaFail = 1; state.view = (n, body) => ({ status: 200, body: answerFor(body) });
+  // An address that stopped working (the full-size file and then the small one both refuse): asked for again once, then plays.
+  state.calls.length = 0; state.mediaFail = 2; state.view = (n, body) => ({ status: 200, body: answerFor(body) });
   await openCard(6);
   await page.waitForFunction(() => { const v = document.getElementById('fvVideo'); return v && v.readyState >= 2; }, null, { timeout: 20000 });
   expect(state.calls.filter(c => c.part === 'video').length === 2, `${label}: an address that stopped working is asked for once more (${state.calls.filter(c => c.part === 'video').length} video requests)`);

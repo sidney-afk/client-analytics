@@ -1421,12 +1421,15 @@ look to a real Notify client button; checks 390px and 430px). Rollback: revert t
 
 ## 2026-10-16 - "Open in Calendar" hidden when opened from a card (Signpost Two)
 
-When SyncLinear was opened from a Calendar or Samples card, the left sidebar
-(and on a phone, the strip above the header) shows "Back to card", and "Open in
-Calendar" would only lead back to the same place. It is now hidden then. Both
-buttons read the same signal, `svRoute.fromCard()` (from=, card=, cslug= in the
-address, kept for the life of the page), so exactly one of the two shows on a
-work item made from a Calendar card. Opened any other way, "Open in Calendar" is
-unchanged. Proof: `docs/syncview-design/tests/open-in-calendar-browser.js`
-(from a card, opened directly, moving between work items, Back to card then the
-browser Back button, 390px light and dark). Rollback: revert the PR.
+When SyncLinear was opened from a Calendar card, the left sidebar (and on a
+phone, the strip above the header) shows "Back to card". On a work item from
+that SAME card, "Open in Calendar" would only lead back to the same place, so it
+is hidden then. On a work item from any other card it stays, since it leads
+somewhere new (owner decision on #2127). A Samples origin keeps it too: its Back
+to card goes to the sample, not the Calendar card. The check compares
+`svRoute.fromCard()` (from=, card=, cslug= in the address, kept for the life of
+the page) with the work item's card and client. Opened any other way, "Open in
+Calendar" is unchanged. Proof: `docs/syncview-design/tests/open-in-calendar-browser.js`
+(same card, different card, Samples origin, opened directly, moving between work
+items, Back to card then the browser Back button, 390px light and dark).
+Rollback: revert the PR.

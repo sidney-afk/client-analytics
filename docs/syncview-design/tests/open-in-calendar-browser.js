@@ -15,12 +15,13 @@
  *    drops to its own line under that row (44px tall, full label), the row
  *    above stays on one line with the id unsquashed, and nothing scrolls
  *    sideways.
- * 5. Opened from a card (from=, card=, cslug= in the address), SyncLinear
- *    shows "Back to card" instead, and Open in Calendar is hidden: it would
- *    only lead back to where the person came from. Exactly one of the two
- *    shows, on desktop and on a phone, and it stays that way when moving to
- *    another work item inside SyncLinear, after pressing Back to card and
- *    coming back, and (opened directly) when moving between work items.
+ * 5. Opened from a Calendar card (from=, card=, cslug= in the address),
+ *    SyncLinear shows "Back to card", and on a work item from that SAME card
+ *    Open in Calendar is hidden: it would only lead back to where the person
+ *    came from. A work item from any OTHER card keeps Open in Calendar (to
+ *    that card), and so does a Samples origin (its Back to card goes to the
+ *    sample). Checked on desktop and on a phone, when moving between work
+ *    items inside SyncLinear, and after pressing Back to card and coming back.
  *
  * Fixture names only; every outside request is answered by the mock below.
  * Set OPENCAL_SHOTS=<dir> to also save desktop and phone screenshots.
@@ -73,6 +74,7 @@ function pagesServer() {
   const deliverables = [
     row('del_cal', 'VID-9001', 'video', 'Video 1 · Calendar fixture title that is long enough to need cutting short on a narrow screen', { origin: 'calendar', card_id: CARD }),
     row('del_gra', 'GRA-9002', 'graphics', 'Thumbnail 1 · Calendar fixture', { origin: 'calendar', card_id: CARD }),
+    row('del_other', 'VID-9006', 'video', 'Video 2 · Another card fixture', { origin: 'calendar', card_id: 'p_card_a' }),
     row('del_samples', 'VID-9003', 'video', 'Sample fixture', { origin: 'samples', card_id: 'sample-card-1' }),
     row('del_none', 'VID-9004', 'video', 'No card fixture', { origin: 'production', card_id: null }),
     row('del_nocard', 'VID-9005', 'video', 'Calendar origin, card missing', { origin: 'calendar', card_id: null }),
@@ -201,7 +203,7 @@ function pagesServer() {
       await tab.close();
     }
 
-    /* ---- opened from a card: Back to card shows, so Open in Calendar does not ---- */
+    /* ---- opened from a card: Back to card shows; Open in Calendar only for another card ---- */
     const ORIGIN = '&from=calendar&card=' + CARD + '&cslug=' + SLUG;
     const buttons = tab => tab.evaluate(() => {
       const seen = el => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
@@ -210,6 +212,7 @@ function pagesServer() {
         detail: detail && detail.getAttribute('data-prod-detail'),
         back: Array.from(document.querySelectorAll('.prod-back-card')).filter(seen).length,
         open: Array.from(document.querySelectorAll('[data-prod-open-card]')).filter(seen).length,
+        href: (Array.from(document.querySelectorAll('[data-prod-open-card]')).filter(seen)[0] || { getAttribute: () => '' }).getAttribute('href') || '',
         scroll: document.documentElement.scrollWidth, vw: window.innerWidth,
       };
     });
@@ -223,10 +226,14 @@ function pagesServer() {
     let fc = await buttons(fromCard);
     if (shots) await fromCard.screenshot({ path: path.join(shots, 'from-card-desktop.png') });
     expect(fc.back === 1, 'opened from a card: Back to card shows (' + fc.back + ')');
-    expect(fc.open === 0, 'opened from a card: Open in Calendar is hidden (' + fc.open + ' shown)');
+    expect(fc.open === 0, 'opened from a card, on a work item from that card: Open in Calendar is hidden (' + fc.open + ' shown)');
     await showDetail(fromCard, 'del_gra');
     fc = await buttons(fromCard);
-    expect(fc.detail === 'del_gra' && fc.back === 1 && fc.open === 0, 'moving to another work item inside SyncLinear keeps Back to card and keeps Open in Calendar hidden');
+    expect(fc.detail === 'del_gra' && fc.back === 1 && fc.open === 0, 'moving to another work item from the same card keeps Back to card and keeps Open in Calendar hidden');
+    await showDetail(fromCard, 'del_other');
+    fc = await buttons(fromCard);
+    if (shots) await fromCard.screenshot({ path: path.join(shots, 'from-card-other-card-desktop.png') });
+    expect(fc.detail === 'del_other' && fc.back === 1 && fc.open === 1 && /#calendar\/cardlinkfixture\/p_card_a$/.test(fc.href), 'moving to a work item from a different card shows Open in Calendar to that card (' + fc.href + '), with Back to card still there');
     await fromCard.evaluate(() => _prodSetView('list'));
     await fromCard.waitForTimeout(300);
     await showDetail(fromCard, 'del_cal');
@@ -242,11 +249,11 @@ function pagesServer() {
     expect(fc.back === 1 && fc.open === 0, 'after Back to card and the browser Back button, still only Back to card (' + fc.back + '/' + fc.open + ')');
     await fromCard.close();
 
-    /* the same rule for a Samples origin: its Back to card leads to the sample card */
+    /* a Samples origin: Back to card goes to the sample, so the Calendar card is somewhere new */
     const fromSample = await open('del_cal', 1280, null, '&from=samples&card=sample-card-1&cslug=' + SLUG);
     await fromSample.waitForSelector('.prod-back-card:visible', { timeout: 20000 });
     fc = await buttons(fromSample);
-    expect(fc.back === 1 && fc.open === 0, 'opened from a sample card: Back to card shows and Open in Calendar is hidden');
+    expect(fc.back === 1 && fc.open === 1, 'opened from a sample card: Back to card (to the sample) and Open in Calendar both show');
     await fromSample.close();
 
     /* opened directly: Open in Calendar stays, and stays when moving between work items */
@@ -275,7 +282,11 @@ function pagesServer() {
       expect(pc.scroll <= pc.vw + 1, `phone 390px ${theme}, opened from a card: no sideways scroll`);
       await showDetail(phoneCard, 'del_gra');
       const pg = await buttons(phoneCard);
-      expect(pg.back === 1 && pg.open === 0, `phone 390px ${theme}: still only Back to card after moving to another work item`);
+      expect(pg.back === 1 && pg.open === 0, `phone 390px ${theme}: still only Back to card after moving to another work item from the same card`);
+      await showDetail(phoneCard, 'del_other');
+      const po = await buttons(phoneCard);
+      if (shots && theme === 'light') await phoneCard.screenshot({ path: path.join(shots, 'from-card-other-card-phone.png') });
+      expect(po.back === 1 && po.open === 1 && po.scroll <= po.vw + 1, `phone 390px ${theme}: a work item from a different card shows Open in Calendar, no sideways scroll`);
       await phoneCard.close();
     }
 

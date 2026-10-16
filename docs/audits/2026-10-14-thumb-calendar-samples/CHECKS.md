@@ -336,3 +336,24 @@ Merged current main 6c962496 (including merged #2087) without rebasing. Resolved
 staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 126 rules phone-capped and staff-scoped
 check-index: OK - the build succeeds, two builds are byte-identical, and no output (index.html, js/sv-*.js, src/index/INDEX.md) is committed
 ```
+
+## Backdrop opener after the two phone areas meet
+
+Reproduced the full-suite null-click failure and added dialog names to opener errors: **Phone Workload filters** was the failing case. The preceding Phone Calendar view case leaves the viewport at 390px. Workload's fixture had rendered only its shell and depended on a desktop-to-phone media change to paint the native Filters button; at 390 → 390 that change never fires.
+
+The fixture now calls the native phone renderer after mounting the shell. It then clicks the same Filters button and exercises the same real inside-to-backdrop drag and outside click. All 29 dialog cases, source-driven inventory, strict zero-write ledger, page-error assertion and dismissal checks remain. No product source, test assertion or CI condition was loosened. Errors now include the case name. Main 96e5a36f was integrated with a merge commit and no rebase.
+
+An initial attempt to render the whole board exposed the deliberately uninitialized planning dates in this dialog-only fixture; that attempt was discarded. The final fix paints only the native phone presentation and starts no board reads or writes. Earlier failed attempts remain private receipts.
+
+```text
+dialog-backdrop-press-browser: 29 dialogs covered
+  Phone Calendar view
+  Phone Workload filters
+  Phone conversation actions
+  Staff sign-in
+  Staff sign-in (start-up gate)
+dialog-backdrop-press-browser ok
+staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 126 rules phone-capped and staff-scoped
+check-index: OK - the build succeeds, two builds are byte-identical, and no output (index.html, js/sv-*.js, src/index/INDEX.md) is committed
+prod-write-gateway-browser: mirror operations plus Submit and Calendar native intake passed
+```

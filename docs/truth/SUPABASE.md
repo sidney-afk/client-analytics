@@ -398,7 +398,7 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 
 ## Edge Functions
 
-**Atlas catalog correction, 2026-09-30:** 47 live functions, 46 source entrypoint folders here and one shared helper folder. `pipeline-google` and `fp-tab-test` have source in synchro-pipelines; `doctors-partial-capture` has no traced source in the four checked repo trees. `linear-inbound` and `linear-outbound` remain source-only and are absent live. [Atlas](../ATLAS.md#edge-functions) lists presence, versions and release lanes. Older release receipts below keep their original dates.
+**Atlas catalog correction, 2026-09-30:** 47 live functions, 46 source entrypoint folders here and one shared helper folder. `fp-tab-test` has source in synchro-pipelines (`pipeline-google` moved here 2026-10-16, see below); `doctors-partial-capture` has no traced source in the four checked repo trees. `linear-inbound` and `linear-outbound` remain source-only and are absent live. [Atlas](../ATLAS.md#edge-functions) lists presence, versions and release lanes. Older release receipts below keep their original dates.
 
 Client/staff verifier truth is also not ready for enforcement: F87 records missing request controls,
 uniform denials, bounded event retention, and explicit audit-outage behavior. F89 proves
@@ -564,3 +564,6 @@ adversarial `linear_raw` shapes, and `create or replace view` preserving grants 
 
 `migrations/` is additive-only SQL, manually applied, baseline-plus-deltas
 (`migrations/README.md`). Log every applied migration in `EXECUTION_LOG.md`.
+
+
+**pipeline-google moved here, 2026-10-16:** source now at `supabase/functions/pipeline-google/index.ts`, deployed on merge like every other function; synchro-pipelines keeps only a pointer.

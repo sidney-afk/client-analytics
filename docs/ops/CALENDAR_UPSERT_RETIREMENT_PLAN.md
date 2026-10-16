@@ -124,7 +124,7 @@ to confirm the loop is gone from every open tab, and list any outbox repairs
 still pinned to `webhook` or `supabase`. Way back: nothing to undo.
 
 **Step 1. The function, and the test client behind a switch (built
-2026-10-16, not deployed).** `supabase/functions/calendar-card-write`: the same
+2026-10-16, live v1 since 2026-10-16 with the test client on the switch).** `supabase/functions/calendar-card-write`: the same
 request and answers as `calendar-upsert`, with every guard ported line for line
 from the live writer into `logic.mjs` (phantom row, comment three-way merge
 through `calendar_merge_comments`, link clobber and `__CLEAR_LINK__`, duplicate

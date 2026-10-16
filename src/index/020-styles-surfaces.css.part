@@ -2887,13 +2887,18 @@
         .cal-gen-note:focus { border-color: var(--text-primary); background: var(--white); outline: none; }
         .cal-prompt-textarea.cal-tx-textarea.is-compact { min-height: 110px; }
 
-        /* ── Redo with a note, on the "+ Alt caption" row ── */
-        .cal-cap-tools { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; padding-bottom: 3px; }
-        .cal-cap-redo-open { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 99px; background: transparent; border: 1px solid var(--border); color: var(--text-secondary); font-family: inherit; font-size: 0.68rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
-        .cal-cap-redo-open:hover, .cal-cap-redo-open.is-open { color: var(--text-primary); border-color: var(--sv-border-999); }
+        /* ── Regenerate with a note: a small icon in the top right corner of the caption box ── */
+        .cal-cap-tools { position: absolute; top: 7px; right: 7px; z-index: 3; display: inline-flex; }
+        .cal-cap-wrap:has(.cal-cap-tools) textarea.cal-fld-cap { padding-right: 38px; }
+        .cal-cap-redo-open { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; }
+        .cal-cap-redo-open svg { width: 13px; height: 13px; }
+        .cal-cap-redo-open:hover, .cal-cap-redo-open:focus-visible { color: var(--text-primary); border-color: var(--sv-border-999); }
         .cal-redo-current { white-space: pre-wrap; max-height: 28vh; overflow-y: auto; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text-secondary); font-size: 0.84rem; line-height: 1.5; overflow-wrap: anywhere; }
         .cal-redo-note { min-height: 96px; }
-        html.sv-staff-phone .cal-cap-tools .cal-cap-redo-open { min-height: 44px; padding: 0 12px; font-size: 13px; }
+        html.sv-staff-phone .cal-cap-tools { top: 4px; right: 4px; }
+        html.sv-staff-phone .cal-cap-redo-open { width: 44px; height: 44px; }
+        html.sv-staff-phone .cal-cap-redo-open svg { width: 20px; height: 20px; }
+        html.sv-staff-phone .cal-cap-wrap:has(.cal-cap-tools) textarea.cal-fld-cap { padding-right: 54px; }
 
         .cal-bulk-cap-bar { position: fixed; bottom: 24px; right: 24px; z-index: 320; background: var(--text-primary); color: var(--white); padding: 10px 14px; border-radius: 12px; box-shadow: 0 8px 26px var(--sv-shadow-rgba-0-0-0-0_22); font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 10px; visibility: hidden; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0.2s; }
         .cal-bulk-cap-bar.is-active { visibility: visible; opacity: 1; transform: none; pointer-events: auto; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0s; }

@@ -193,9 +193,11 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(!/cal-cap-tx\b/.test(C180) && !/_calOpenCaptionTranscript\(\\'/.test(C180), 'there is no separate Transcript button; the Generate box holds the transcript');
   ok(/redoBox && redoGo[\s\S]{0,160}_calCapAiDraft\.set\(/.test(C180), 'closing the Redo pop-up keeps the note typed in it');
   const C130 = read('src/index/130-calendar-model-cache.js.part');
-  ok((C130.match(/_calCapAiToolsHtml\(p\)/g) || []).length === 2 && !/cal-cap-ai-tog|cal-cap-ai-panel/.test(C130), 'the Redo button is rendered in the + Alt caption row (both row variants), not in the caption box');
+  ok((C130.match(/_calCapAiToolsHtml\(p\)/g) || []).length === 1 && /\$\{genBtn\}\s*\$\{canEdit \? _calCapAiToolsHtml\(p\) : ''\}\s*<\/div>/.test(C130) && !/cal-cap-ai-tog|cal-cap-ai-panel/.test(C130), 'the regenerate icon is rendered once, inside the main caption box (not on the + Alt caption row)');
+  ok(/title="' \+ label \+ '" aria-label="' \+ label \+ '"/.test(C180) && /const label = 'Regenerate with a note';/.test(C180) && !/>Redo with a note<\/button>/.test(C180), 'the icon button carries the tooltip and label "Regenerate with a note" and no visible words');
   const CSS = read('src/index/020-styles-surfaces.css.part');
-  ok(/\.cal-cap-tools \{ margin-left: auto;/.test(CSS) && !/\.cal-cap-tx\b/.test(CSS), 'the Redo button is pushed to the right of the row');
+  ok(/\.cal-cap-tools \{ position: absolute; top: 7px; right: 7px;/.test(CSS) && !/\.cal-cap-tx\b/.test(CSS), 'the regenerate icon is pinned to the top right corner of the caption box');
+  ok(/html\.sv-staff-phone \.cal-cap-redo-open \{ width: 44px; height: 44px; \}/.test(CSS), 'on a phone the icon is 44px, big enough to tap');
   ok(/\.cal-cap-toggle \{ position: absolute; right: 7px; bottom: 7px; width: 21px; height: 21px; padding: 0;/.test(CSS), 'Show more is just the arrow');
 
   console.log(`caption-helper-source: ${checks} checks passed ✅`);

@@ -2528,27 +2528,27 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         if (_calCaptionRouteShown(calState.client) !== 'ef') return false;
         return !!String(p.caption || '').trim();
     }
-    /* The one small button at the right end of the "+ Alt caption" row: Redo with a note, which opens a pop-up.
-       Nothing sits on the caption text, and no panel is ever drawn under it. */
+    /* A small regenerate icon (circular arrows) in the top right corner of the caption box: it opens the Redo with a
+       note pop-up. No panel is ever drawn under the caption. Only the main caption has it (a redo rewrites that one). */
     function _calCapAiToolsHtml(p) {
         if (!_calCapAiEligible(p) || _calCapJobActive(_calCaptionJobs.get(p.id))) return '';
         const ea = _calEscAttr(p.id);
+        const label = 'Regenerate with a note';
         return '<span class="cal-cap-tools" data-captools="' + ea + '">' +
-            '<button type="button" class="cal-cap-redo-open" onclick="_calOpenRedoPopup(\'' + ea + '\')">Redo with a note</button></span>';
+            '<button type="button" class="cal-cap-redo-open" title="' + label + '" aria-label="' + label + '" onclick="event.stopPropagation();_calOpenRedoPopup(\'' + ea + '\')">' +
+            '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.4 8a5.4 5.4 0 1 1-1.7-3.9"/><path d="M13.6 2.2v3.2h-3.2"/></svg></button></span>';
     }
-    /* Repaint one card's Redo button in place. */
+    /* Repaint one card's regenerate button in place. */
     function _calCapAiRefresh(pid) {
         const card = _calCapAiCardEl(pid);
         const block = card ? card.querySelector('[data-capblock]') : null;
         const post = (calState.posts || []).find(p => p.id === pid);
         if (!block || !post) return;
         const p = Object.assign({}, post, { caption: _calCapLiveCaptionOf(pid) });
-        const row = block.querySelector('.cal-cap-tabs');
-        if (row) {
-            const oldTools = row.querySelector('.cal-cap-tools');
-            if (oldTools) oldTools.remove();
-            row.insertAdjacentHTML('beforeend', _calCapAiToolsHtml(p));
-        }
+        const wrap = block.querySelector('.cal-cap-wrap[data-capwrap="main"]');
+        const oldTools = block.querySelector('.cal-cap-tools');
+        if (oldTools) oldTools.remove();
+        if (wrap) wrap.insertAdjacentHTML('beforeend', _calCapAiToolsHtml(p));
         // A panel an older version drew on this card is not shown any more.
         const old = block.querySelector('.cal-cap-ai');
         if (old) old.remove();

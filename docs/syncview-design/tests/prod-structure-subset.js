@@ -13,7 +13,7 @@ const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
-const { installReadConsoleAudit, legacyPageUrl, pagesFallback } = require('./prod-test-utils');
+const { installReadConsoleAudit, legacyPageUrl, pagesFallback, holdBackgroundRefresh } = require('./prod-test-utils');
 
 const root = path.resolve(__dirname, '..', '..', '..');
 const mime = {
@@ -275,6 +275,15 @@ async function assertNoWriteRequests(requests) {
     await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.prod-row, .prod-empty, .prod-error', { timeout: 30000 });
     if (await page.locator('.prod-error').count()) throw new Error('Production preview rendered an error card');
+    /* The first row is on screen long before the page has finished loading:
+       the finished-cards half of the list merges in afterwards (which re-parents
+       rows and adds sub-issues), and the write-authority answer lands on its own
+       read. Every assertion below was written against the finished page, and on a
+       slow connection they ran against the half-loaded one (a parent with no
+       children yet, a status menu not yet locked). Wait for the app to say it
+       has everything; a page that never gets there still fails, at the timeout. */
+    await page.waitForFunction(() => _prodState.authorityLoaded || _prodState.error, null, { timeout: 30000 });
+    await readConsoleAudit.quiesce();
     const adapterFixture = await page.evaluate(() => {
       const adapted = window._prodAdapter({
         clients: [{ slug: 'noemoji', display_name: 'No Emoji', active: true, board_status: 'in_progress', linear_project_ids: [{ id: 'project-noemoji' }] }],
@@ -608,6 +617,14 @@ async function assertNoWriteRequests(requests) {
      * needs_attribution, so the attribution refusal outranked the authority
      * text asserted here and the suite went red without any code changing.
      */
+    /* The app re-reads the real authority flag every 30 seconds, and its refresh
+       tick can reload the lists (which re-reads it again); each writes the answer
+       over `_prodState.authority`. The block below forces that value to measure
+       the Linear lock, so the forced value has to be the one that stays: stop the
+       ticks and the live channel, then let any read already on its way land
+       BEFORE forcing, not after. */
+    await holdBackgroundRefresh(page);
+    await readConsoleAudit.quiesce();
     const writeFixture = await page.evaluate(() => {
       _syncviewStaffIdentityMem = {
         key: 'structure-fixture-key',
@@ -1075,12 +1092,24 @@ async function assertNoWriteRequests(requests) {
     }
 
     await page.evaluate(() => localStorage.setItem('syncview_theme', 'dark'));
+    /* Let the app finish its own reads before the reload. A reload cancels
+       whatever the old document still has in flight (finished-cards pages, a
+       delta or authority tick), and a cancelled read is reported as a failed
+       read. So stop the page's own repeating ticks (the 30-second refresh and
+       the authority re-read start reads on their own), let what is already on
+       its way land, and only then reload. The audit still sees every read and
+       every outcome; the suite just does not cut its own reads off. */
+    await page.evaluate(() => { clearInterval(_prodOperationalTimer); clearInterval(_prodAuthorityTimer); });
+    await readConsoleAudit.quiesce();
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.prod-row, .prod-empty, .prod-error', { timeout: 30000 });
     if (await page.locator('.prod-error').count()) throw new Error('Dark Production preview rendered an error card');
     const darkSmoke = await page.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark' && !!document.querySelector('.prod-view'));
     if (!darkSmoke) throw new Error('Production preview did not follow syncview_theme=dark');
 
+    // Last, so a tick of the reloaded page cannot open one more read right after the
+    // audit's wait for the app's own reads has ended.
+    await holdBackgroundRefresh(page);
     const readConsole = await readConsoleAudit.settle();
     await assertNoWriteRequests(requests);
     if (!readConsole.ok) throw new Error('Browser errors: ' + readConsole.error);

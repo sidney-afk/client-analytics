@@ -8,6 +8,7 @@ const {
   installReadConsoleAudit,
   installProductionInit,
   openProduction,
+  holdBackgroundRefresh,
   formatFailures,
 } = require('./prod-test-utils');
 
@@ -29,7 +30,11 @@ const {
     // before scanning so it cannot delay an otherwise valid schema fallback.
     // The same bounded audit and unchanged final audit still reject failures.
     const initialReadConsole = await readConsoleAudit.settle();
-    if (!initialReadConsole.ok) throw new Error(formatFailures('prod-a11y-focus initial read failures', [initialReadConsole.error]));
+    // Same 'Browser errors: ' lead as the other suites' console audit, so the gate's
+    // failure classifier names the cause (pending / persistent read, resource
+    // error) instead of filing every early read failure under error_generic.
+    if (!initialReadConsole.ok) throw new Error('Browser errors: ' + initialReadConsole.error);
+    await holdBackgroundRefresh(page);
 
     const axe = await new AxeBuilder({ page })
       .include('#prodRoot')
@@ -146,7 +151,11 @@ const {
     });
     await page.waitForSelector('.prod-row', { timeout: 5000 });
 
-    const containment = await page.locator('.prod-row').first().evaluate(row => {
+    // Found and measured in one step: a row picked first and measured later can
+    // be replaced by a repaint in between and then measures as an empty node.
+    const containment = await page.evaluate(() => {
+      const row = document.querySelector('.prod-row');
+      if (!row) return { contentVisibility: '', contain: '', intrinsicWidth: '', intrinsicHeight: '', height: 0 };
       const style = getComputedStyle(row);
       const rect = row.getBoundingClientRect();
       return {

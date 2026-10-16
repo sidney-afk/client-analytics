@@ -3302,10 +3302,22 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         if (verdict && verdict.state !== 'valid') return '';
         const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
         const href = svRoute.fast('/?prod=1&d=' + encodeURIComponent(id) + svRoute.cardOrigin('calendar', calClientSlug(calState.client), p.id));
-        const mark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6 10.2 10.2 6M7.2 6h3v3"/></svg>`;
         _calWireWorkCard();
-        return `<a class="cal-linear-btn cal-prod-btn cal-linear-btn-${which}" href="${_calEscAttr(href)}" target="_blank" rel="noopener" data-deliverable-id="${_calEscAttr(id)}" aria-label="Open the ${label} in SyncLinear">${mark}</a>`;
+        return `<a class="cal-linear-btn cal-prod-btn cal-linear-btn-${which}" href="${_calEscAttr(href)}" target="_blank" rel="noopener" data-deliverable-id="${_calEscAttr(id)}" title="${_calProdBtnTip(which)}" aria-label="Open the ${label} in SyncLinear">${_calProdBtnIconSvg(which)}</a>`;
     }
+    /* The two Production buttons in the pile used to share one "open in a new
+       tab" arrow, so only the outline colour told them apart (owner,
+       2026-10-16: "I cannot tell which is which"). Each now carries its own
+       picture: a framed landscape for the thumbnail, a play mark for the
+       video. Same 16px box and stroke as before, so size and outline hold.
+       Shared with the Samples twin (_sxrProdSlotHtml). */
+    function _calProdBtnIconSvg(which) {
+        const inner = which === 'graphic'
+            ? '<rect x="2.2" y="2.7" width="11.6" height="10.6" rx="2.2"/><circle cx="5.8" cy="6.2" r="1.1"/><path d="m2.8 12 3.5-3.3 2.3 2.1 1.9-1.7 2.7 2.6"/>'
+            : '<rect x="2.2" y="2.7" width="11.6" height="10.6" rx="2.2"/><path d="M6.7 5.7v4.6L10.4 8z" fill="currentColor"/>';
+        return `<svg class="cal-prod-ico cal-prod-ico-${which === 'graphic' ? 'thumb' : 'video'}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+    }
+    function _calProdBtnTip(which) { return which === 'graphic' ? 'Open thumbnail' : 'Open video'; }
     /* ── Fill a missing component, from the card that is missing it ──────
      *
      * Measured live 2026-08-31 across non-archived cards: 459 carry both
@@ -4107,7 +4119,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     });
 export {
   onCalClientChange, _notifyClientBtnHtml,
-  _calStaffPhoneActive, _calPhoneClient, _calPhoneSectionHtml,
+  _calStaffPhoneActive, _calPhoneClient, _calPhoneSectionHtml, _calProdBtnIconSvg, _calProdBtnTip,
   _calCaptureLiveUi, _calCaptureScroll, _calRestoreLiveUi, _calRestoreScroll,
   _CAL_CLIENT_READY_STATES, _CAL_WEEK_BUFFER, _calAdoptThumbnailFolderMeta, _calBlankPost,
   _calChevron, _calClearThumbnailFolderMeta, _calClientCompPillsHtml, _calClientHue,

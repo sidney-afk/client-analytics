@@ -327,7 +327,12 @@ hiring senders when the editor hire closes.
 
 ## Needs the owner
 
-- **Retiring calendar-upsert, step 1 (session Sunset, `docs/ops/CALENDAR_UPSERT_RETIREMENT_PLAN.md`): built, not merged, not deployed, switch off.** The new `calendar-card-write` function writes a card's own fields with calendar-upsert's guards (proven equal on generated saves by `test/calendar-card-write-parity.js`). Staff saves go there only for clients on `calendar_card_write_clients`; client review links stay on calendar-upsert. Needs, in order: merge, deploy the function on the one-function lane, then the test client on the switch.
+- **Retiring calendar-upsert, step 1 (session Sunset, `docs/ops/CALENDAR_UPSERT_RETIREMENT_PLAN.md`): merged 2026-10-16 (#2104, `e0652a7a`), not deployed, switch off.** The new `calendar-card-write` function writes a card's own fields with calendar-upsert's guards (proven equal on generated saves by `test/calendar-card-write-parity.js`). Staff saves go there only for clients on `calendar_card_write_clients`; client review links stay on calendar-upsert. Needs, in order: deploy the function on the one-function lane (owner), then Lighthouse puts the test client on the switch.
+  Lighthouse review 2026-10-16: the function's logic was diffed against live calendar-upsert v90 and the parity test re-run
+  against live (21,205 checks pass). Intended differences only. Notes: a rejected staff key fails the save instead of
+  saving; switch entries must be exact slugs; never list a client before the function is deployed (a 404 does not fall
+  back). Test gaps for Sunset's step 2: two deliberate breaks went unnoticed (comment merge `>` to `>=`, the archived-twin
+  exclusion in the duplicate-link guard).
 - **Scheduled posts turn Posted by themselves (session Herald, OPEN_REPAIRS 402): built, not merged, not deployed, switch off.** Needs, in order: Vault key, the `CALENDAR_AUTO_POSTED_ACTOR` secret, the one-line `calendar-upsert` live delta, the `calendar-auto-posted` function, `migrations/2026-10-10-calendar-auto-posted.sql`, then `calendar_auto_posted` on for the test client.
 
 - **One ordered sitting for everything built and waiting: [`docs/ops/OWNER_SHIP_LIST.md`](ops/OWNER_SHIP_LIST.md)**

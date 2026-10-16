@@ -95,7 +95,9 @@ supervisor manual's "Writing it down"):**
   that includes #2096.
 - Sunset #2097 (calendar-upsert map and retirement plan, docs only): merged 2026-10-16. Next: the fallback removal, then the new function.
 - Quill #2098 (regenerate icon): merged 2026-10-16.
-- Lens #2100 (Frame.io pop-up polish): in review; needs a `frameio-view` deploy after merge.
+- Lens #2100 (Frame.io pop-up polish): merged 2026-10-16 03:31 UTC (`43d39e46`); the page part is live with the next Pages
+  publish (still test client only). Needs a `frameio-view` deploy (deploy-single-function, merge SHA above); until then the
+  old function answers with everything at once and the video still plays.
 - Conveyor: auto-deploy on merge and the capture in GitHub; merges last.
 - Thumb #2085 and #2087 (phone Calendar, Samples, Workload): waiting for Thumb to merge main.
 - Vista: review sheet polish, running.

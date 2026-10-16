@@ -37,7 +37,10 @@ the sections below, delete it from this block in the same PR.
 - **Live by merge, later that evening:** #2121 (Post tab), #2122 (labelled Open in Calendar button), #2120 (Cinema: one
   view for video and notes; merged 20:37 UTC, and Lighthouse set `frame_viewer_clients` to `all: true` at 20:40 UTC once
   Pages had published), #2115 (video profiles; merged 21:22 UTC, on-merge deploy green; the first client video profile is
-  to be saved through `studio_profile_save` by the connector supervisor). Card saver watcher: 1 clean run, test client only.
+  to be saved through `studio_profile_save` by the connector supervisor). Then #2094 (Anchor: the production-polish suites wait
+  for the page to finish loading instead of guessing; OPEN_REPAIRS 426) and #2087 (Thumb: phone Workload opens as an
+  agenda with per-person queues, Week and Month keep the native planners, filters in a bottom sheet; phone-scoped only).
+  Thumb's #2085 (phone Calendar and Samples) is red on a source-copy check and waits on Thumb. Card saver watcher: 2 clean runs (21:41 UTC), test client only, no real save on it yet.
 
 **Live (session Cinema, 2026-10-16, #2120): Watch here, one view for the video and its notes.** Every door (the Notes
 button, the Sheet's play icon, the Review tab's video preview, Kasper's "Watch here") opens the card's Notes dialog with
@@ -175,7 +178,7 @@ supervisor manual's "Writing it down"):**
   the only lane for it (deploy-onboarding-edge-functions) also redeploys `production-write`, which now differs from live
   (Scribe #2096) and should go through the Section 4 path with its rollback capture. It ships with Conveyor's deploy on
   merge (#2101). The page works with the old function meanwhile.
-- Anchor #2094 (production-polish gate waits for the app instead of guessing): fixing its own boot-budget runs.
+- Anchor #2094 (production-polish gate waits for the app instead of guessing): merged 2026-10-16 21:56 UTC.
 - Scribe #2096 (a note shows the moment it is sent): merged 2026-10-16; the page part is live with the next Pages publish.
   Its small `production-write` change (the Slack sender wakes after the answer, not before) waits for the next F27
   Section 4 deploy; nothing breaks meanwhile. The fingerprint is re-pinned, so the next Section 4 deploy must use a main
@@ -186,7 +189,8 @@ supervisor manual's "Writing it down"):**
   publish (still test client only). Needs a `frameio-view` deploy (deploy-single-function, merge SHA above); until then the
   old function answers with everything at once and the video still plays.
 - Conveyor: auto-deploy on merge and the capture in GitHub; merges last.
-- Thumb #2085 and #2087 (phone Calendar, Samples, Workload): waiting for Thumb to merge main.
+- Thumb #2087 (phone Workload): merged 2026-10-16 21:57 UTC. Thumb #2085 (phone Calendar and Samples): red on the
+  staff-phone-rules source-copy check, waiting on Thumb to fix it and merge main again.
 - Vista: review sheet polish, running.
 
 **Waiting on the owner:** the five doctor-funnel changes from Rewind; the branding session; the Frame.io viewer for every

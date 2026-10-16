@@ -598,6 +598,17 @@
             --sv-misc-d946ef: #d946ef;
             --sv-misc-d97706: #d97706;
             --sv-misc-e1306c: #E1306C;
+            /* Post tab: a faint wash per platform, so TikTok and Instagram never look alike (2026-10-16). */
+            --sv-post-tiktok-wash-a: rgba(37, 99, 235, 0.075);
+            --sv-post-tiktok-wash-b: rgba(14, 165, 233, 0.03);
+            --sv-post-tiktok-edge: rgba(37, 99, 235, 0.16);
+            --sv-post-tiktok-chip: rgba(37, 99, 235, 0.1);
+            --sv-post-tiktok-ink: #1d4ed8;
+            --sv-post-instagram-wash-a: rgba(249, 115, 22, 0.075);
+            --sv-post-instagram-wash-b: rgba(225, 48, 108, 0.06);
+            --sv-post-instagram-edge: rgba(225, 48, 108, 0.17);
+            --sv-post-instagram-chip: rgba(225, 48, 108, 0.1);
+            --sv-post-instagram-ink: #be185d;
             --sv-misc-ececea: #ececea;
             --sv-misc-ef4444: #ef4444;
             --sv-misc-f3f3f1: #f3f3f1;
@@ -1169,6 +1180,16 @@
             --sv-misc-d946ef: #752f83;
             --sv-misc-d97706: #754713;
             --sv-misc-e1306c: #782544;
+            --sv-post-tiktok-wash-a: rgba(96, 165, 250, 0.1);
+            --sv-post-tiktok-wash-b: rgba(56, 189, 248, 0.04);
+            --sv-post-tiktok-edge: rgba(96, 165, 250, 0.22);
+            --sv-post-tiktok-chip: rgba(96, 165, 250, 0.16);
+            --sv-post-tiktok-ink: #93c5fd;
+            --sv-post-instagram-wash-a: rgba(251, 146, 60, 0.09);
+            --sv-post-instagram-wash-b: rgba(244, 114, 182, 0.08);
+            --sv-post-instagram-edge: rgba(244, 114, 182, 0.22);
+            --sv-post-instagram-chip: rgba(244, 114, 182, 0.15);
+            --sv-post-instagram-ink: #f9a8d4;
             --sv-misc-ececea: #20232a;
             --sv-misc-ef4444: #7f2e31;
             --sv-misc-f3f3f1: #20232a;
@@ -2647,6 +2668,7 @@
         .header-nav-btn .ico-calendar { -webkit-mask-image: url('/nav-icons/calendar.png'); mask-image: url('/nav-icons/calendar.png'); }
         .header-nav-btn .ico-samples { -webkit-mask-image: url('/nav-icons/samples.png'); mask-image: url('/nav-icons/samples.png'); }
         .header-nav-btn .ico-tiktok { -webkit-mask-image: url('/nav-icons/tiktok.png'); mask-image: url('/nav-icons/tiktok.png'); }
+        .header-nav-btn .ico-post { -webkit-mask-image: url('/nav-icons/post.png'); mask-image: url('/nav-icons/post.png'); }
         /* Sliding active pill.
            The pill is an absolutely-positioned sibling INSIDE #headerNav, so the
            buttons stay direct children (the active-tab scrollIntoView and the

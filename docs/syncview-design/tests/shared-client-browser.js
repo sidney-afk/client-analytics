@@ -580,11 +580,13 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
         }
         expect(m.over <= 0, `${tag}: overflows by ${m.over}px`);
         expect(!m.outside.length, `${tag}: tabs cut off: ${m.outside.join(',')}`);
-        const want = compactCase ? {} : { navFilmingPlans: ['Filming', 'Filming Plans'], navTiktokUpload: ['TikTok', 'TikTok Upload'], navProd: ['Linear', 'SyncLinear'] };
+        const want = compactCase ? {} : { navFilmingPlans: ['Filming', 'Filming Plans'], navTiktokUpload: ['Post', 'Post'], navProd: ['Linear', 'SyncLinear'] };
         for (const [id, [text, full]] of Object.entries(want)) {
           const s = m.short[id];
           expect(s.text === text, `${tag}: ${id} reads "${s.text}", expected "${text}"`);
-          expect(s.title === full && s.aria === full, `${tag}: ${id} title/aria-label should be "${full}" (got "${s.title}" / "${s.aria}")`);
+          // The Post tab's tooltip spells out both platforms; its accessible name is the label.
+          const title = id === 'navTiktokUpload' ? 'Post to TikTok or Instagram' : full;
+          expect(s.title === title && s.aria === full, `${tag}: ${id} title/aria-label should be "${title}" / "${full}" (got "${s.title}" / "${s.aria}")`);
         }
         await context.close();
       }

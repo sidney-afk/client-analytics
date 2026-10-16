@@ -23,6 +23,21 @@ line is older than a week, re-check it before relying on it.
 Newest first. Checked against main and the live database on 2026-10-16. When an item here is finished or moved into
 the sections below, delete it from this block in the same PR.
 
+**Evening 2026-10-16 (Lighthouse, checked live):**
+- **First Section 4 release through the new lanes SUCCEEDED** (manual merge-lane run 38953309940 at `27ce2100`, 19:13 UTC):
+  the Section 4 run 38953471717 verified the sealed backup, then deployed and verified `production-write`,
+  `deliverable-write` and `batch-write`; `production-comments` deployed and attested after it. The server halves of
+  Swift #2089 (Messages) and Scribe #2096 (notes) are live. The earlier failure was most likely the bundler image pull
+  being rate-limited; #2117 (Mechanic) pre-pulls it by digest with retries and a second registry and publishes the
+  CLI's own failure reason (OPEN_REPAIRS 425).
+- **Live by merge:** #2113 (Nano Banana switched off; live check: a price_check for it answers "switched off" with a GPT
+  Image price), #2116 (Open in Calendar button in Production), #2119 (Calendar and Samples card buttons: play icon for
+  the video, picture icon for the thumbnail).
+- **Studio:** version 0.3 in the `studio` bucket; a real Chelsey cut was made through it on the owner's computer.
+- **In review:** #2115 (video profiles; waits on synchro-brain #83 and the owner's go), #2120 (Cinema: one view for
+  video and notes; reviewed, merging when green, then `frame_viewer_clients` to all), #2121 (Post tab), #2122 (labelled
+  Open in Calendar button). Card saver watcher: 1 clean run, test client only.
+
 **In review (session Cinema, 2026-10-16): Watch here, one view for the video and its notes.** Every door (the Notes
 button, the Sheet's play icon, the Review tab's video preview, Kasper's "Watch here") opens the card's Notes dialog with
 the player on the left (on a phone, on top). Nothing plays until play is pressed (bottom centre of the player). Staff
@@ -51,8 +66,6 @@ change: `frame_viewer_clients` is untouched, Lighthouse turns it on for everyone
   owner's clients, then all staff saves; client review links stay on `calendar-upsert`.
 - **Instagram upload** works for one more client (its Post For Me account id saved in its profile, allow-list secret
   set by the owner).
-- **In review:** #2113 (Nano Banana off), #2115 (Atelier step 2: `studio_profile`, `studio_profile_save`), #2116
-  (Doorway: Open in Calendar button in Production).
 
 **Live on 2026-10-16 (Sidney's one-function runs, checked by Lighthouse):**
 - **`calendar-card-write` v1** deployed about 13:23 UTC. Lighthouse put the test client on `calendar_card_write_clients`

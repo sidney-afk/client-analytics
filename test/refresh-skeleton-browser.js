@@ -31,7 +31,7 @@ const ROUTES = [
   ['/templates', 'templates'],
   [`/templates/${C}`, 'templates'],
   ['/filming-plans', 'filming'],
-  ['/tiktok-upload', 'tiktok'],
+  ['/post', 'tiktok'],   // the Post tab (TikTok and Instagram); its old /tiktok-upload address moves to /post on load
   ['/time-off', 'neutral'],
   ['/sample-reviews', 'review'],
   [`/sample-reviews/${C}/p_fixture_1`, 'review'],

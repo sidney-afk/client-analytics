@@ -10,7 +10,10 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
 import { WL_CLIENT_NAMES } from './070-core-client-names.js';
 import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
-import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, renderInstagramPanel, teardownInstagramPanel } from './299-instagram-upload.js';
+import {
+  instagramResumePolling, mountInstagramPanel, refreshInstagramForm, renderInstagramPanel, svCalendarCaptionFor,
+  svCaptionFillHtml, svPlatformLogo, svPostButtonLabel, teardownInstagramPanel
+} from './299-instagram-upload.js';
     /* ============================================================
        TIKTOK UPLOAD MODULE
        Posts videos to Post For Me (api.postforme.dev) through a
@@ -74,6 +77,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         photos: [],                 // photo mode only: [{file, objectUrl}], carousel order = array order
         photosMeta: null,           // [{name,size,type}] — persisted so we can warn after reload (mirrors fileMeta)
         title: '',
+        captionFill: null,          // { name, text }: the caption the chosen video's file name filled from the Calendar, while it can be undone
         options: {
             privacy_level: 'PUBLIC_TO_EVERYONE',
             post_mode: 'DIRECT_POST',
@@ -228,6 +232,22 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
             .tk-right-col { grid-column: 1; grid-row: 3; }
         }
         .tk-title { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); }
+        /* Which platform is showing, at a glance (owner, 2026-10-16: nobody posts a TikTok to Instagram by
+           mistake). The whole panel takes a faint wash of the platform's colour, TikTok blue or Instagram
+           orange to pink, and its name and logo sit beside the title, in the switch and on the post button. */
+        .tk-page { border-radius: 18px; background: var(--tk-plat-wash, none); box-shadow: inset 0 0 0 1px var(--tk-plat-edge, transparent); }
+        .tk-page[data-platform="tiktok"] { --tk-plat-wash: linear-gradient(160deg, var(--sv-post-tiktok-wash-a), var(--sv-post-tiktok-wash-b) 60%); --tk-plat-edge: var(--sv-post-tiktok-edge); --tk-plat-chip: var(--sv-post-tiktok-chip); --tk-plat-ink: var(--sv-post-tiktok-ink); }
+        .tk-page[data-platform="instagram"] { --tk-plat-wash: linear-gradient(160deg, var(--sv-post-instagram-wash-a), var(--sv-post-instagram-wash-b) 60%); --tk-plat-edge: var(--sv-post-instagram-edge); --tk-plat-chip: var(--sv-post-instagram-chip); --tk-plat-ink: var(--sv-post-instagram-ink); }
+        .tk-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .tk-plat-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px 4px 9px; border-radius: 999px; background: var(--tk-plat-chip); color: var(--tk-plat-ink); font-size: 0.8rem; font-weight: 700; }
+        .tk-plat-logo { display: inline-flex; width: 14px; height: 14px; flex-shrink: 0; }
+        .tk-plat-logo svg { width: 100%; height: 100%; }
+        .tk-platform-switch .tk-q-tab.on { color: var(--tk-plat-ink, var(--text-primary)); }
+        .tk-submit-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+        .tk-cap-fill { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin-top: 6px; font-size: 0.8rem; color: var(--text-secondary); }
+        .tk-cap-fill strong { color: var(--text-primary); font-weight: 650; }
+        .tk-cap-undo { border: 0; background: none; padding: 2px 4px; font: inherit; font-weight: 700; color: var(--tk-plat-ink, var(--text-primary)); text-decoration: underline; cursor: pointer; }
+        .tk-cap-undo:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; border-radius: 4px; }
         .tk-sub { font-size: 0.86rem; color: var(--text-secondary); margin-top: 2px; }
         .tk-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
         .tk-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; }
@@ -682,8 +702,8 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
 
     function _tkPlatformSub(platform) {
         return platform === 'instagram'
-            ? 'Post a video to a client\'s Instagram — uploads through Post For Me.'
-            : 'Schedule a TikTok post for a client — uploads through Post For Me.';
+            ? 'Posting to the client\'s Instagram — uploads through Post For Me.'
+            : 'Posting to the client\'s TikTok — uploads through Post For Me.';
     }
     function _tkLoadPlatform() {
         try { return localStorage.getItem(TK_PLATFORM_KEY) === 'instagram' ? 'instagram' : 'tiktok'; } catch { return 'tiktok'; }
@@ -700,6 +720,8 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         if ($('tkPlatTiktok')) { $('tkPlatTiktok').classList.toggle('on', !ig); $('tkPlatTiktok').setAttribute('aria-selected', String(!ig)); }
         if ($('tkPlatInstagram')) { $('tkPlatInstagram').classList.toggle('on', ig); $('tkPlatInstagram').setAttribute('aria-selected', String(ig)); }
         if ($('tkPlatformSub')) $('tkPlatformSub').textContent = _tkPlatformSub(tkState.platform);
+        if ($('tkPlatBadge')) $('tkPlatBadge').innerHTML = _tkPlatBadgeInner(tkState.platform);
+        document.querySelector('.tk-page')?.setAttribute('data-platform', tkState.platform);
         if (ig) {
             _tkStopPolling();
             mountInstagramPanel({
@@ -715,18 +737,21 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         _tkApplyPlatform(platform, true);
     }
 
+    function _tkPlatBadgeInner(platform) {
+        return svPlatformLogo(platform) + '<span>' + (platform === 'instagram' ? 'Instagram' : 'TikTok') + '</span>';
+    }
     function renderTiktokUploadView() {
         _tkInjectCSSOnce();
         return `
-            <div class="tk-page">
+            <div class="tk-page" data-platform="${tkState.platform}">
                 <div class="tk-header">
                     <div>
-                        <div class="tk-title">TikTok Upload</div>
+                        <div class="tk-title-row"><div class="tk-title">Post</div><span class="tk-plat-badge" id="tkPlatBadge">${_tkPlatBadgeInner(tkState.platform)}</span></div>
                         <div class="tk-sub" id="tkPlatformSub">${_tkPlatformSub(tkState.platform)}</div>
                     </div>
                     <div class="tk-q-tabs tk-platform-switch" role="tablist" aria-label="Platform">
-                        <button type="button" class="tk-q-tab${tkState.platform === 'tiktok' ? ' on' : ''}" id="tkPlatTiktok" role="tab" aria-selected="${tkState.platform === 'tiktok'}" onclick="_tkSetPlatform('tiktok')">TikTok</button>
-                        <button type="button" class="tk-q-tab${tkState.platform === 'instagram' ? ' on' : ''}" id="tkPlatInstagram" role="tab" aria-selected="${tkState.platform === 'instagram'}" onclick="_tkSetPlatform('instagram')">Instagram</button>
+                        <button type="button" class="tk-q-tab${tkState.platform === 'tiktok' ? ' on' : ''}" id="tkPlatTiktok" role="tab" aria-selected="${tkState.platform === 'tiktok'}" onclick="_tkSetPlatform('tiktok')">${svPlatformLogo('tiktok')}TikTok</button>
+                        <button type="button" class="tk-q-tab${tkState.platform === 'instagram' ? ' on' : ''}" id="tkPlatInstagram" role="tab" aria-selected="${tkState.platform === 'instagram'}" onclick="_tkSetPlatform('instagram')">${svPlatformLogo('instagram')}Instagram</button>
                     </div>
                 </div>
                 <div class="tk-col tk-form-col" id="tkFormCol"${tkState.platform === 'instagram' ? ' hidden' : ''}></div>
@@ -895,6 +920,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
                     <label for="tkTitle">Title / caption</label>
                     <textarea class="tpl-textarea" id="tkTitle" placeholder="What this post is about — include hashtags here." rows="4" ${tkState.submitting ? 'disabled' : ''}>${_tkEscape(tkState.title)}</textarea>
                     <div class="tk-counter ${titleOver ? 'over' : ''}">${titleCount} / 2200</div>
+                    ${tkState.captionFill ? svCaptionFillHtml('tkCapFill', tkState.captionFill.name) : ''}
                 </div>
             </div>
 
@@ -907,7 +933,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
                         Post immediately
                     </label>
                 </div>
-                ${tkState.schedule.postNow ? '<div class="tk-step-note">Posts as soon as you press Post now. Switch off to pick a date and time.</div>' : ''}
+                ${tkState.schedule.postNow ? '<div class="tk-step-note">Posts to TikTok as soon as you press Post to TikTok. Switch off to pick a date and time.</div>' : ''}
                 <div id="tkScheduleFields" ${tkState.schedule.postNow ? 'hidden' : ''}>
                     <div class="tk-grid-2">
                         <div class="tk-row">
@@ -1003,7 +1029,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
 
             <div class="tk-submit-bar">
                 <button class="tk-submit-btn" id="tkSubmit" ${submittable ? '' : 'disabled'}>
-                    ${tkState.submitting ? 'Uploading…' : (tkState.schedule.postNow ? 'Post now' : 'Schedule post')}
+                    ${tkState.submitting ? 'Uploading…' : svPostButtonLabel('tiktok', tkState.schedule.postNow)}
                 </button>
                 <div class="tk-progress"><div class="tk-progress-bar" id="tkProgress" style="width:${tkState.progress}%"></div></div>
                 ${tkState.submitting
@@ -1035,6 +1061,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         return [...WL_CLIENT_NAMES].sort((a, b) => a.localeCompare(b));
     }
     function _tkPickClient(name) {
+        if ((name || null) !== tkState.client) _tkDropCaptionFill();
         tkState.client = name || null;
         if (tkState.client) svSharedClientNote(tkState.client);
         const r = _tkResolveProfile(tkState.client);
@@ -1042,6 +1069,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         tkState.profileSource = r.source;
         _tkSaveDraft();
         _tkRenderForm();
+        if (tkState.file && tkState.mediaType === 'video') _tkTryCaptionFill(tkState.file);
     }
     function _tkWireClientSearch() {
         const wrap = document.getElementById('tkClientWrap');
@@ -1151,6 +1179,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
 
         $('tkTitle')?.addEventListener('input', (e) => {
             tkState.title = e.target.value;
+            if (tkState.captionFill && tkState.title !== tkState.captionFill.text) { tkState.captionFill = null; $('tkCapFill')?.remove(); }
             const c = document.querySelector('.tk-counter');
             if (c) { c.textContent = `${tkState.title.length} / 2200`; c.classList.toggle('over', tkState.title.length > 2200); }
             const btn = $('tkSubmit');
@@ -1220,6 +1249,27 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         });
 
         $('tkSubmit')?.addEventListener('click', _tkSubmit);
+        $('tkCapFillUndo')?.addEventListener('click', () => { _tkDropCaptionFill(); _tkSaveDraft(); _tkRenderForm(); $('tkTitle')?.focus(); });
+    }
+
+    /* A video whose file name names exactly one of the client's Calendar cards fills an empty caption with
+       that card's caption (svCalendarCaptionFor, in the Instagram module, does the matching for both sides).
+       Typed text is never replaced: the box must still be empty when the answer arrives. */
+    async function _tkTryCaptionFill(file) {
+        if (!file || !tkState.client || tkState.title.trim()) return;
+        const client = tkState.client;
+        const hit = await svCalendarCaptionFor(client, file.name, 'tiktok');
+        if (!hit || tkState.file !== file || tkState.client !== client || tkState.mediaType !== 'video' || tkState.title.trim() || tkState.submitting) return;
+        tkState.title = hit.caption;
+        tkState.captionFill = { name: hit.name, text: hit.caption };
+        _tkSaveDraft();
+        if (_tkMounted) _tkRenderForm();
+    }
+    // A caption the file name filled, still as it was filled, leaves with the video (or the client) it came from.
+    function _tkDropCaptionFill() {
+        const f = tkState.captionFill;
+        if (f && tkState.title === f.text) tkState.title = '';
+        tkState.captionFill = null;
     }
 
     function _tkHandleFile(file) {
@@ -1236,12 +1286,14 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
             return;
         }
         if (tkState.objectUrl) URL.revokeObjectURL(tkState.objectUrl);
+        _tkDropCaptionFill();
         tkState.file = file;
         tkState.objectUrl = URL.createObjectURL(file);
         tkState.fileMeta = { name: file.name, size: file.size, type: file.type };
         tkState.error = null;
         _tkSaveDraft();
         _tkRenderForm();
+        _tkTryCaptionFill(file);
     }
 
     function _tkReplaceFile() {
@@ -1255,6 +1307,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
     }
     function _tkClearFile() {
         if (tkState.objectUrl) URL.revokeObjectURL(tkState.objectUrl);
+        _tkDropCaptionFill();
         tkState.file = null;
         tkState.objectUrl = null;
         tkState.fileMeta = null;
@@ -1540,6 +1593,7 @@ import { instagramResumePolling, mountInstagramPanel, refreshInstagramForm, rend
         tkState.fileMeta = null;
         _tkClearAllPhotos();
         tkState.title = '';
+        tkState.captionFill = null;
         tkState.progress = 0;
         _tkClearDraft();
         _tkRenderForm();

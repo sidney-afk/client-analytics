@@ -67,6 +67,14 @@ change: `frame_viewer_clients` is untouched, Lighthouse turns it on for everyone
 - **Instagram upload** works for one more client (its Post For Me account id saved in its profile, allow-list secret
   set by the owner).
 
+**Synchro video studio (session Atelier, 2026-10-16).** Step 1, `studio_latest`, merged (#2112): the newest studio zip
+from the private `studio` bucket as a signed link valid about 10 minutes, each call logged in `hf_studio_downloads`. Live
+since about 17:09 UTC; a real call at 17:32 UTC returned version 0.2 and was logged.
+Step 2, merged (#2115): `studio_profile` reads a client's video look from the brain file `clients/<folder>/video-profile.json`
+(or, with none yet, the brief's Look lines and exact spec values to draft from), and `studio_profile_save` files a profile
+through the same change path as `brain_change`. The brain writes the file only once the "Video profile updates" section
+is in its `POLICY/syncview-changes.md` (synchro-brain #83, merged by the owner at 20:19 UTC). Step 3 (`studio_transcribe`) is a design only.
+
 **Live on 2026-10-16 (Sidney's one-function runs, checked by Lighthouse):**
 - **`calendar-card-write` v1** deployed about 13:23 UTC. Lighthouse put the test client on `calendar_card_write_clients`
   (`{"clients": [test client]}`) at 13:33 UTC, so staff saves on the test client now go to the new writer; every other

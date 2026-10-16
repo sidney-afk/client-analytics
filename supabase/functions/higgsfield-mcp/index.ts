@@ -22,6 +22,8 @@ import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
 import { guideIndex, guideReply, latestGuides } from "./guides.mjs";
 import { STUDIO_BUCKET, studioLatest } from "./studio.mjs";
 import { brainChange, clientBrain, clientStyle, filmingPlan, listClients } from "./clientinfo.ts";
+import { studioProfile, studioProfileSave } from "./studioprofile.ts";
+import { PROFILE_FIELDS } from "./profile.mjs";
 import { answeredFromLog, asksSwitchedOff, DIRECT_MODELS, directEstimate, GOOGLE_IMAGE_ENABLED, GOOGLE_IMAGE_IDS, gptImageInputs, isDirect, runDirect, SWITCHED_OFF_TEXT, type Fetched } from "./direct.ts";
 
 const HF_API = "https://api.higgsfield.ai";
@@ -299,6 +301,25 @@ const TOOLS = [
     name: "studio_latest",
     description: "The newest version of the Synchro video studio: its version, a private download link (valid about 10 minutes) and what changed. Use it when someone wants to install or update the studio, or asks which version is current. Read only.",
     inputSchema: EMPTY,
+  },
+  {
+    name: "studio_profile",
+    description: "A client's video look for the Synchro video studio, as one JSON (colours, fonts, subtitle style, hook style, music rule, things to avoid, handle, platform, call to action, camera, notes). If the client has no profile yet, it returns what the Synchro Brain knows about their look so a first profile can be drafted. Read only.",
+    inputSchema: { type: "object", required: ["client"], additionalProperties: false, properties: { client: { type: "string", description: "The client's name as SyncView shows it." } } },
+  },
+  {
+    name: "studio_profile_save",
+    description: "Save a client's video profile to the Synchro Brain, filed with who sent it like brain_change. Only after the person has seen the profile and agreed. By default the fields given are merged into the current profile (objects key by key, lists and text replaced, null removes a field); set replace to true to save the whole profile as given. Fields: " + Object.entries(PROFILE_FIELDS).map(([k, v]) => `${k} (${v})`).join("; ") + ". Any other field is kept. Never put money, passwords or keys in it. Afterwards say it will be filed within a few minutes.",
+    inputSchema: {
+      type: "object",
+      required: ["client", "profile"],
+      additionalProperties: false,
+      properties: {
+        client: { type: "string", description: "The client's name as SyncView shows it." },
+        profile: { type: "object", description: "The profile fields to save (all of them, or only the ones that change).", additionalProperties: true },
+        replace: { type: "boolean", description: "true: save exactly this as the whole profile. Default false: merge into the current one." },
+      },
+    },
   },
 ];
 
@@ -1153,6 +1174,9 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   if (name === "brain_change") return await brainChange(db(), String(args.client || ""), String(args.what_changed || ""), String(args.fact_id || ""), author);
 
   if (name === "import_file") return await importFile(String(args.link || "").trim());
+
+  if (name === "studio_profile") return await studioProfile(db(), String(args.client || ""));
+  if (name === "studio_profile_save") return await studioProfileSave(db(), String(args.client || ""), args.profile, args.replace === true, author);
 
   if (name === "studio_latest") {
     return await studioLatest(studioStore(), { member, who: isTeamLink(member) ? cleanWho(args.who) : "" });

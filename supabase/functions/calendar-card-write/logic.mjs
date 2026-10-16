@@ -7,6 +7,9 @@
 // stale-save conflict, and the event ledger with the live role overrides. Do not
 // "improve" a guard here without changing it in calendar-upsert's live copy too:
 // while both writers run, the same card must get the same answer from either.
+// One intended difference, on the write itself, not a guard: a blank urgent time
+// is stored as no time (see NULLABLE_STAMP_COLUMNS), where calendar-upsert sends
+// "" and Postgres refuses the whole save.
 
 export const ALLOWED = [
   "order_index", "scheduled_date", "name", "asset_url", "thumbnail_url",
@@ -43,6 +46,15 @@ export const CLEAR = "__CLEAR_LINK__";
 const RETAIN_MS = 30 * 24 * 60 * 60 * 1000;
 const LINK_COLUMNS = ["graphic_linear_issue_id", "linear_issue_id", "video_deliverable_id", "graphic_deliverable_id"];
 const NULLABLE_LINK_COLUMNS = new Set(["video_deliverable_id", "graphic_deliverable_id"]);
+/* The four urgent times are timestamp columns, and Postgres refuses "" for one,
+   which fails the whole save with "calendar update failed". The page sends them
+   blank in every whole-card save (a Retry with no kept edit, a journal replay)
+   of a card that was never pinged, so that Retry failed again on most cards
+   (measured live on the test client, 2026-10-16). A blank one is stored as no
+   time instead. The two urgent marker guards run first and are unchanged: a blank
+   never replaces a stored time, so this only turns a refused save into one
+   that keeps the column empty. calendar-upsert still refuses those saves. */
+const NULLABLE_STAMP_COLUMNS = new Set(["video_urgent_pinged_at", "video_urgent_status_at", "kasper_urgent_pinged_at", "kasper_urgent_status_at"]);
 const URGENT_MARKER_FIELDS = ["video_urgent_pinged_at", "video_urgent_status_at", "video_urgent_issue", "video_urgent_editor"];
 const KASPER_URGENT_MARKER_FIELDS = ["kasper_urgent_pinged_at", "kasper_urgent_status_at", "kasper_urgent_comp", "kasper_urgent_by"];
 const KASPER_URGENT_COMPONENTS = ["video", "graphic", "caption", "title"];
@@ -95,7 +107,7 @@ export function stripPrivate(row) {
   const out = {};
   for (const [k, v] of Object.entries(row)) {
     if (k.charAt(0) === "_") continue;
-    if (NULLABLE_LINK_COLUMNS.has(k) && clean(v) === "") out[k] = null;
+    if ((NULLABLE_LINK_COLUMNS.has(k) || NULLABLE_STAMP_COLUMNS.has(k)) && clean(v) === "") out[k] = null;
     else out[k] = String(v == null ? "" : v);
   }
   return out;
@@ -111,7 +123,8 @@ export function responsePayload(row) {
   const out = {};
   for (const [k, v] of Object.entries(row)) {
     if (NULLABLE_LINK_COLUMNS.has(k) && v == null) continue;
-    out[k] = v;
+    // The answer keeps the shape calendar-upsert gives the page: "" for no time.
+    out[k] = NULLABLE_STAMP_COLUMNS.has(k) && v == null ? "" : v;
   }
   return out;
 }

@@ -32,8 +32,24 @@ the sections below, delete it from this block in the same PR.
 - **`frameio-view` v3** (Lens #2100's polish) deployed about 13:34 UTC. The owner judged it ready for everyone; at the
   owner's word `frame_viewer_clients` now lists the test client plus two of the owner's own clients (13:47 UTC) for a
   short real-use test before `{"all": true}`.
-- **Session Vigil** (started 13:48 UTC) tries every staff save path on the test client now instead of waiting two
-  working days (owner's call), and closes the two step-2 test gaps.
+- **Session Vigil, step 2 tried by hand (13:48 to 14:35 UTC, test client only, real browser on the live site):** every
+  staff save the page can still make went to `calendar-card-write` and landed: create, name, caption (typed, cleared,
+  generated), date, CTA, thumbnail and video links set, video link cleared, platform, colour, caption, graphic, video
+  and title status, comments on all four cells, request change, Kasper comment, approve and undo, both urgent markers (the Slack sends were stubbed, no message went
+  out), archive, restore, setting toggle and the on-load link adoption. Each reload showed what the row holds; the
+  ledger has one row per change with the right action, role and source; every refusal reached the refusal log. A stale
+  Kasper tab got the conflict answer and a clear message; a comment added in another tab survived. Switch read failing
+  or the function refusing goes on to `calendar-upsert` (as built). A client review link still saves through
+  `calendar-upsert`. Not reachable from the page: setting a Linear link (sealed since the Linear exit; set, clear,
+  duplicate and archived-twin were tested by direct calls instead) and Kasper Finish.
+  **Bug found, in both writers:** a Retry after a failed save sends the whole card, and on any card never urgent-pinged
+  its blank urgent times are refused by Postgres, so the Retry fails again ("HTTP 500"). Only the test run hit it in
+  the last day. Fixed in `calendar-card-write` (blank urgent time stored as no time), with the two step-2 test gaps
+  closed (merge and stale-save ties, archived twin): PR #2111.
+  Needs: merge, then redeploy `calendar-card-write` on the one-function lane. Clients still on `calendar-upsert` keep
+  the bug until they move. Also seen, not this writer's: a stored work-item repair on the test card replays
+  `repair_payload_mismatch` in the page on every load after an archive (status label and payload disagree), and the
+  refusal log records the stale-save conflict as a 500.
 
 **Live since the last update (2026-10-11 to 2026-10-15):**
 - **Notify client** (#2080, #2084, #2088): one Slack alert to the client's private channel, short box that closes by
@@ -339,12 +355,13 @@ hiring senders when the editor hire closes.
 
 ## Needs the owner
 
-- **Retiring calendar-upsert, step 1 (session Sunset, `docs/ops/CALENDAR_UPSERT_RETIREMENT_PLAN.md`): merged 2026-10-16 (#2104, `e0652a7a`), live v1 since 2026-10-16, switch on for the test client only.** The new `calendar-card-write` function writes a card's own fields with calendar-upsert's guards (proven equal on generated saves by `test/calendar-card-write-parity.js`). Staff saves go there only for clients on `calendar_card_write_clients`; client review links stay on calendar-upsert. Needs, in order: deploy the function on the one-function lane (owner), then Lighthouse puts the test client on the switch.
+- **Retiring calendar-upsert, step 1 (session Sunset, `docs/ops/CALENDAR_UPSERT_RETIREMENT_PLAN.md`): merged 2026-10-16 (#2104, `e0652a7a`), live v1 since 2026-10-16, switch on for the test client only.** The new `calendar-card-write` function writes a card's own fields with calendar-upsert's guards (proven equal on generated saves by `test/calendar-card-write-parity.js`). Staff saves go there only for clients on `calendar_card_write_clients`; client review links stay on calendar-upsert. Deployed and on for the test client 2026-10-16; Vigil's hand test the same day passed every staff path (see Latest). Needs: the Retry fix (#2111) merged and redeployed on the one-function lane, then step 3 or 4.
   Lighthouse review 2026-10-16: the function's logic was diffed against live calendar-upsert v90 and the parity test re-run
   against live (21,205 checks pass). Intended differences only. Notes: a rejected staff key fails the save instead of
   saving; switch entries must be exact slugs; never list a client before the function is deployed (a 404 does not fall
   back). Test gaps for Sunset's step 2: two deliberate breaks went unnoticed (comment merge `>` to `>=`, the archived-twin
-  exclusion in the duplicate-link guard).
+  exclusion in the duplicate-link guard). Closed by Vigil's PR: the parity test now fails on each of them, on the
+  stale-save tie, and on the urgent-time fix being undone.
 - **Scheduled posts turn Posted by themselves (session Herald, OPEN_REPAIRS 402): built, not merged, not deployed, switch off.** Needs, in order: Vault key, the `CALENDAR_AUTO_POSTED_ACTOR` secret, the one-line `calendar-upsert` live delta, the `calendar-auto-posted` function, `migrations/2026-10-10-calendar-auto-posted.sql`, then `calendar_auto_posted` on for the test client.
 
 - **One ordered sitting for everything built and waiting: [`docs/ops/OWNER_SHIP_LIST.md`](ops/OWNER_SHIP_LIST.md)**

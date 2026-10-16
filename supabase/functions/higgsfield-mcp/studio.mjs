@@ -16,11 +16,13 @@ export const LINK_SECONDS = 600;
 
 export const VERSION_RE = /^[0-9A-Za-z][0-9A-Za-z._-]{0,39}$/;
 export const NOTES_MAX = 2000;
+// A studio zip at the top of the bucket: no "/", so no folder and no "..".
+export const STUDIO_FILE_RE = /^synchro-video-studio-[0-9A-Za-z._-]{1,40}\.zip$/;
 
 export const NO_VERSION =
   "No studio version uploaded yet. Ask the account owner to upload the studio zip and latest.json to the studio bucket.";
 
-// The file must be the zip for that exact version, at the top of the bucket.
+// The file name used when latest.json gives none.
 export function studioFileFor(version) {
   return `synchro-video-studio-${version}.zip`;
 }
@@ -36,8 +38,14 @@ export function parseLatest(text) {
   if (!j || typeof j !== "object" || Array.isArray(j)) return { error: "latest.json is not an object" };
   const version = typeof j.version === "string" ? j.version.trim() : "";
   if (!VERSION_RE.test(version)) return { error: "latest.json has no valid version" };
-  const file = typeof j.file === "string" && j.file.trim() ? j.file.trim() : studioFileFor(version);
-  if (file !== studioFileFor(version)) return { error: `latest.json names "${file.slice(0, 80)}", expected ${studioFileFor(version)}` };
+  // The file is taken as given (the uploaded names carry a "v", e.g. -v0.1.zip)
+  // when it is a studio zip at the top of the bucket; only when it is absent is
+  // it worked out from the version.
+  const given = typeof j.file === "string" ? j.file.trim() : "";
+  const file = given || studioFileFor(version);
+  if (!STUDIO_FILE_RE.test(file) || file.includes("..")) {
+    return { error: `latest.json names "${file.slice(0, 80)}", expected a synchro-video-studio-<version>.zip at the top of the bucket` };
+  }
   const notes = typeof j.notes === "string" ? j.notes.trim().slice(0, NOTES_MAX) : "";
   return { version, file, notes };
 }

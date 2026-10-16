@@ -41,8 +41,15 @@ function store(files, opts = {}) {
   assert.ok(s.parseLatest('not json').error);
   assert.ok(s.parseLatest('[]').error);
   assert.ok(s.parseLatest('{"version":"../x"}').error, 'a version cannot climb out of the bucket');
-  assert.ok(s.parseLatest('{"version":"1.0","file":"other.zip"}').error, 'the file must be that version\'s zip');
+  assert.ok(s.parseLatest('{"version":"1.0","file":"other.zip"}').error, 'the file must be a studio zip');
   assert.ok(s.parseLatest('{"version":"1.0","file":"../synchro-video-studio-1.0.zip"}').error);
+  assert.ok(s.parseLatest('{"version":"1.0","file":"old/synchro-video-studio-1.0.zip"}').error, 'top of the bucket only');
+  assert.ok(s.parseLatest('{"version":"1.0","file":"synchro-video-studio-..zip"}').error, 'no ".." in the name');
+  assert.ok(s.parseLatest('{"version":"1.0","file":"synchro-video-studio-1.0.zip.exe"}').error);
+  // Exactly the latest.json uploaded to the live bucket on 2026-10-16: the file
+  // name carries a "v" the version does not, and is used as given.
+  const real = '{"version": "0.1", "file": "synchro-video-studio-v0.1.zip", "notes": "First release"}';
+  assert.deepStrictEqual(s.parseLatest(real), { version: '0.1', file: 'synchro-video-studio-v0.1.zip', notes: 'First release' });
 
   // Happy path: the three fields, a 10-minute signed link, one log row with the version.
   const ok = store({ 'latest.json': '{"version":"1.2.0","file":"synchro-video-studio-1.2.0.zip","notes":"New presets"}', 'synchro-video-studio-1.2.0.zip': 'zip' });
@@ -54,6 +61,13 @@ function store(files, opts = {}) {
   assert.deepStrictEqual(ok.signed, [{ name: 'synchro-video-studio-1.2.0.zip', seconds: 600 }]);
   assert.deepStrictEqual(ok.logged, [{ member_name: 'sidneylaruel', who: null, version: '1.2.0', file: 'synchro-video-studio-1.2.0.zip' }]);
   assert.strictEqual(who.outcomeOf('studio_latest', out).ok, true);
+
+  // The real upload end to end: the link is for the "v" file.
+  const live = store({ 'latest.json': real, 'synchro-video-studio-v0.1.zip': 'zip' });
+  const liveOut = JSON.parse(await s.studioLatest(live, { member: 'sidneylaruel', who: '' }));
+  assert.deepStrictEqual([liveOut.version, liveOut.notes], ['0.1', 'First release']);
+  assert.deepStrictEqual(live.signed, [{ name: 'synchro-video-studio-v0.1.zip', seconds: 600 }]);
+  assert.strictEqual(live.logged[0].file, 'synchro-video-studio-v0.1.zip');
 
   // Team link: the first name is logged.
   const team = store({ 'latest.json': '{"version":"1.2.0"}', 'synchro-video-studio-1.2.0.zip': 'zip' });

@@ -23,12 +23,29 @@ line is older than a week, re-check it before relying on it.
 Newest first. Checked against main and the live database on 2026-10-16. When an item here is finished or moved into
 the sections below, delete it from this block in the same PR.
 
-**In review (session Atelier, 2026-10-16): Synchro video studio, step 1.** A read-only `studio_latest` tool on the
-Synchro connector gives the newest studio zip from the private `studio` bucket (version, a signed download link valid
-about 10 minutes, notes) and says "No studio version uploaded yet" when `latest.json` is missing. Each call is logged in
-the new `hf_studio_downloads` table (migration `20261016180000_hf_studio_downloads.sql`, applied by Lighthouse; until it
-is applied the on-merge lane holds `higgsfield-mcp`). Steps 2 (`studio_profile`, `studio_profile_save`) and 3 (design of
-`studio_transcribe`) follow after this merges.
+**Later on 2026-10-16 (Lighthouse, checked live):**
+- **Merged means live (#2101, Conveyor) is on main:** the page builds at publish (index.html is no longer committed) and
+  Edge Functions deploy on merge through `deploy-edge-functions-on-merge.yml`; the Section 4 capture runs in GitHub.
+  The capture-only proof passed (14:42 UTC, deployed nothing). Every merge since deployed itself and attested.
+- **First manual Section 4 release FAILED CLOSED** (16:41 UTC, `production-write` and `production-comments`): the
+  in-run capture passed, then `supabase functions deploy production-write --use-docker` exited in 1.6 s with its reason
+  only in the private log. Nothing changed live (every function's bundle hash unchanged). Session Mechanic is finding
+  the cause and making the lane publish the CLI's reason. The server halves of Swift #2089 and Scribe #2096 wait on it.
+- **Live by merge:** #2111 (Vigil: a Retry on a never-pinged card no longer fails in `calendar-card-write`), #2112
+  (Atelier: `studio_latest` on the Synchro connector; Lighthouse applied `hf_studio_downloads`; the owner uploaded
+  studio 0.2 to the private `studio` bucket; a test call handed out 0.2 at 17:09), #2114 (Relay: a second status pick
+  during the production-write wait now reaches Production; OPEN_REPAIRS 424). The one real card left behind by that race
+  was moved to Posted by the owner; the card-vs-work-item drift robot is clean again.
+- **Connector guide `video-studio`** added to `hf_guides` (first-time studio setup in Claude Code).
+- **Owner decisions:** Nano Banana is dropped, the team uses GPT Image only (#2113 switches it off; Google billing not
+  enabled). Kasper's bot reads the database through a project-scoped Read-only Supabase token the owner made.
+  The Frame.io player gets one more design round (session Cinema: one view for notes and video, no autoplay) before it
+  goes to everyone. The new card saver widens only when sure: a watcher every 3 hours, test client, then two of the
+  owner's clients, then all staff saves; client review links stay on `calendar-upsert`.
+- **Instagram upload** works for one more client (its Post For Me account id saved in its profile, allow-list secret
+  set by the owner).
+- **In review:** #2113 (Nano Banana off), #2115 (Atelier step 2: `studio_profile`, `studio_profile_save`), #2116
+  (Doorway: Open in Calendar button in Production).
 
 **Live on 2026-10-16 (Sidney's one-function runs, checked by Lighthouse):**
 - **`calendar-card-write` v1** deployed about 13:23 UTC. Lighthouse put the test client on `calendar_card_write_clients`

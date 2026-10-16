@@ -1,17 +1,17 @@
 {
-  "baseline": "72062c1f737e8d88298a1b4a62374f9bca6a462b",
+  "baseline": "ef8da61ae4bc76bd481e40b13b9d7b37ca61f144",
   "expandedReference": {
     "pr": 1950,
     "commit": "e2ab30ab3f34a2afb2a2c781ebe9855acf38b625",
     "direction": "A - Expanded"
   },
-  "buildIndexSha256": "201da39de82f6370d4478e952dc139d95a66f8b3a091ae200fa7760c1871a293",
+  "buildIndexSha256": "00dae034c82ffe577abe6d45eee76dd87bd3f7595ce1a250585b2a3107e45aa9",
   "fragmentSha256": {
-    "src/index/020-styles-surfaces.css.part": "2ea7935e8efab9146fc7d01592927715a1b77e0daa6343eac50c3a4c8c83a424",
+    "src/index/020-styles-surfaces.css.part": "ebe962caf819b554f5f9f8746b9f7195df22770bbe743bebe1427f1a1357a64c",
     "src/index/050-market-briefs.js.part": "441a3b56345971e60d3d41b12c04c7c84fbe488322586eeacc44b02e64782daf",
     "src/index/099-phone-staff-shell.js.part": "1039d54cb4e08e96b4a65711b39a8ea802bc290db1b1ce3abaf1e13625f82947",
     "src/index/099-staff-phone-bar.js.part": "0dd261eee8021142770bd988eaa3d079a900ea5719abd24842b094b1a1df89d1",
-    "src/index/160-calendar-organize-ui.js.part": "4e7fc99919ee5e9fb3d431da129de338e34757299f9310e82bfd115741231b41",
+    "src/index/160-calendar-organize-ui.js.part": "44b896c0a080ff4e966d77ca62dd198d9b222c50383faed327acd666ab108b76",
     "src/index/180-calendar-native-post-media.js.part": "790ba3e0aaab806ef48d6e0d32ba8074fc454f0ff9a6f95a409ad2fbdee6b750",
     "src/index/270-samples-model.js.part": "82821247803fcaad550bab08a11a8760b32c4a1f1336591b323bda8d4caec5c1"
   },
@@ -49,16 +49,16 @@
     "calendar-no-posts-light-390.png": "e329f6d22f9ff21cc04001c57aa280bae9230fce223d99b5a37286b194f4fe9e",
     "calendar-review-dark-390.png": "4967cf418ff923ffeecd764eef794f5a2d9aaa5f8a08b6ab88e40eae0a8ab053",
     "calendar-review-light-390.png": "3400ce13f5742d1baaa0a4a498336921088a17fb79fad14395a36efcb040a16f",
-    "calendar-review-playing-dark-390.png": "b45921c3c98cb0c3c924cbcb1c609326ca10ea1ab38706242f0e25155e32147c",
-    "calendar-review-playing-light-390.png": "5bed7b20c3ec75f9b38b433bc19d4c989f7d0999318e26b3ddf8647dd284fdd4",
+    "calendar-review-video-and-notes-dark-390.png": "306bf5c8b076df18a42081ad7d8974f603ec4ff39a575e3322177a92703e65af",
+    "calendar-review-video-and-notes-light-390.png": "73780c81e875ec64d4b512b961cb10c5a9df97206e78d6bbab3f5d5a5d94441e",
     "calendar-selection-dark-390.png": "abf8f9df8efeb43a314e78474ac553baaed8fd6a429c7382da0c78cdc89de3c9",
     "calendar-selection-light-390.png": "e4c3aeb2e11a15a8b4d20b48481e6f16b561723da5c0a0218974180a312a3fb5",
     "calendar-tabs-dark-390.png": "a712cb1d8d05913400406c8da670ef9e432dbc3d80971e6edc3968209674ac57",
     "calendar-tabs-light-390.png": "8b162a5a35c705730206d6be9c494861a32b4cbe8610829adc448c3d97ece98a",
-    "calendar-vertical-video-and-notes-dark-390.png": "22fe7f6caa6d44d760000a1736863836c8b86c1627006492155035119ed53e16",
-    "calendar-vertical-video-and-notes-light-390.png": "1fd2f5d11b93b4a66bad5fb0bdf5e96cf95773c15d77b509046cd2b17d4e2c6d",
-    "calendar-video-and-notes-dark-390.png": "6b5dcdabb64c19290e515332cda2128c23f2c847d8e63cd282a060020e0f5fb1",
-    "calendar-video-and-notes-light-390.png": "73fad47570cffdac2be2f156929fdf3ab8d714fd9020d4044fc13ff9d2a7b82f",
+    "calendar-vertical-video-and-notes-dark-390.png": "d2a2092ce69c0de1a162e3a227b6f8f05b528588bae2233ceb769036ba5bb08d",
+    "calendar-vertical-video-and-notes-light-390.png": "647ca1a9e2e44a913c706c8b910c4a19ac1d364e24276e03573b7dbb7cfcfb5b",
+    "calendar-video-and-notes-dark-390.png": "5ba0da36f5a5ca5c52ca276f845cc73a57dc9dcb6438c0b1d338d0e5889d9bad",
+    "calendar-video-and-notes-light-390.png": "9ac03c077a366615fe80c83864fc49e386d53e3a2b9faf5901792820c5352116",
     "calendar-view-picker-dark-390.png": "97d7f68215f6f9e5431fee264e5e761333d4ad986ead20e7e8b24155d55c1399",
     "calendar-view-picker-light-390.png": "fbfeb775c3fe20f9fd127dac7296d50ec161c7732ec5e92da343be844f6a4c18",
     "calendar-week-dark-390.png": "bf96f645d48b20bbf3aef0abc0087292f16adef4f513d3bd61c7c6215f4776c3",
@@ -92,6 +92,6 @@
     "samples-tabs-dark-390.png": "3a3e5280ff927962542a8996a9a30e9a6113ef8a91271b9a55abaa6a544453a4",
     "samples-tabs-light-390.png": "dd9b181d8bd968286bfaafa8b6cce61e9f8682eda1d93d1aa94803b2cd7894de"
   },
-  "fonts": "Plus Jakarta Sans, five local fixture weights verified by native capture guard",
+  "fonts": "Primary flow captures use five verified local Plus Jakarta Sans weights; supplemental native integration captures use their own unchanged fixtures",
   "buildOutputs": "Local only; index.html, js/sv-*.js and src/index/INDEX.md are ignored and not tracked"
 }

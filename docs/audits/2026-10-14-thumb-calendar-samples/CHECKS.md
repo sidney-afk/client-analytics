@@ -223,3 +223,107 @@ minified parts: 20 files, 2855 KB, 5586 top-level names, 0 lost, 0 changed kind
 
 check-modules: all checks passed
 ```
+
+## Main integration and fresh evidence, 2026-10-16
+
+Both merges preserve the publish-time build contract. The original merge target was 72062c1f; main advanced to ef8da61a while checks ran, so the final Cinema implementation was merged too and affected captures/checks were rerun. No build output is tracked and no CI condition was changed. No OPEN_REPAIRS number was allocated.
+
+Screens were retaken and manually reviewed against #1950 direction A (Expanded), with #2082 retaining authority over the grid/agenda navigation. The initial new Tabs assertions needed the actual per-area shell and native anchor role; the corrected fixture asserts the visible native Post link and icon. The media-icon phone journey enters List; all 56 original assertions remain.
+
+Retained earlier attempts: the first gateway replay on 72062c1f timed out waiting for the description link editor to return focus. The unchanged replay passed, and the final ef8da61a run passes. The broader 72062c1f Calendar inventory was interrupted when main advanced; it is not counted as a pass. Final acceptance uses the full Expanded Calendar and Selection/Samples suites, the collection capture suite and the focused integration guards below. No check was skipped or loosened.
+
+### calendar-cinema-phone.log
+
+```text
+STAFF_PHONE_COLLECTIONS: 120 screen/theme/width captures; all assertions passed; fictional data; no live writes
+```
+
+### calendar-cinema-expanded.log
+
+```text
+staff-calendar-expanded: OK (6416 checks; Review/Sheet/Month/Week, light/dark, menus/dialogs, loading/empty/error/saving, desktop restore; 390/430).
+```
+
+### calendar-cinema-samples.log
+
+```text
+staff-selection-samples: OK (4802 checks; Selection, Samples Review/Sheet, light/dark, dialogs, loading/empty/error/saving and desktop restore; 360/390/430).
+```
+
+### calendar-cinema-status.log
+
+```text
+calendar-card-status-filter: OK (77 checks; desktop and phone; Sheet, Month, Week, Review)
+```
+
+### calendar-cinema-scroll.log
+
+```text
+calendar-refresh-scroll-browser: PASS (16 checks: 8 insertion views, 5 moved-card cases, 2 live-UI cases, 1 invisible-refresh case)
+```
+
+### calendar-cinema-icons.log
+
+```text
+calendar-prod-button-icons: OK (56 checks; desktop light and dark, phone, Samples twin)
+```
+
+### calendar-cinema.log
+
+```text
+frameio-viewer-browser: all checks passed
+```
+
+### calendar-cinema-post.log
+
+```text
+post-tab-browser: 58 checks passed ✅
+```
+
+### calendar-cinema-open-calendar.log
+
+```text
+open-in-calendar-browser: all checks passed
+```
+
+### calendar-cinema-backdrop.log
+
+```text
+dialog-backdrop-press-browser ok
+```
+
+### calendar-cinema-gateway.log
+
+```text
+prod-write-gateway-browser: mirror operations plus Submit and Calendar native intake passed
+```
+
+### calendar-cinema-desktop.log
+
+```text
+1/1 desktop shots identical to origin/main
+```
+
+### calendar-cinema-index.log
+
+```text
+check-index: OK - the build succeeds, two builds are byte-identical, and no output (index.html, js/sv-*.js, src/index/INDEX.md) is committed
+```
+
+### calendar-cinema-map.log
+
+```text
+repo-map-sync: 1223 passed, 0 failed
+```
+
+### calendar-cinema-truth.log
+
+```text
+truth-sync: 524 passed, 0 failed
+```
+
+### calendar-cinema-modules.log
+
+```text
+check-modules: all checks passed
+```

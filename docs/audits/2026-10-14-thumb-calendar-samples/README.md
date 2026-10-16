@@ -36,8 +36,8 @@ as new evidence. Physical-device and deployed behavior are not claimed.
 ## Verification
 
 [Check receipts](CHECKS.md) retain real command tails, earlier failures and their
-resolution. The primary regression suite captures 28 states in both themes at
-390 and 430; the 56 required 390px light/dark images are in the gallery. The
+resolution. The primary regression suite captures 30 states in both themes at
+390 and 430; the 60 primary-flow 390px light/dark images plus six native video/notes integration images are in the gallery. The
 desktop folder contains an exact before/after 1440px pair plus its equality
 receipt; the public images omit the unchanged staff header for identity hygiene.
 The private run compares the full desktop and all computed styles.
@@ -88,9 +88,18 @@ with intake/materialization fully intercepted and no live writes.
 
 ## Review and recovery
 
-Keep this PR unmerged. Workload is a separate fresh-main PR. Messages remains
-last and may begin only after #2083 merges. Closing the mockup PR after this
+Keep this PR unmerged. Workload is a separate fresh-main PR. Messages is now inherited from main (#2090). Closing the mockup PR after this
 build PR opens records approval; it does not authorize merging this build.
 
 If a merged release later needs recovery, revert this implementation PR and
 rebuild its generated assets. There are no data migrations or backfills to undo.
+
+## Current-main integration, 2026-10-16
+
+Main `ef8da61ae4bc76bd481e40b13b9d7b37ca61f144` is merged with merge commits, without rebasing. Both existing PRs remain unmerged. `index.html`, `js/sv-*.js` and `src/index/INDEX.md` are no longer tracked: they are ignored local build output, built from source at publish under #2101. CI test registrations and all main checks are retained. No skip or exception was added.
+
+The merge keeps Cinema's final shared Notes/video view, including no autoplay; Glyph's distinct video and thumbnail icons; Postbox's Post tab artwork, label and native behavior; and Signpost's labelled Open in Calendar action. The phone menu uses the native Post link. Existing Messages navigation, return handling and its dialog coverage remain alongside this area's phone journeys. No `OPEN_REPAIRS` entry was added or number reused.
+
+Fresh phone screenshots were reviewed against direction A (Expanded) in [#1950](https://github.com/sidney-afk/client-analytics/pull/1950), reference commit `e2ab30ab3f34a2afb2a2c781ebe9855acf38b625`: title/Tabs/More hierarchy, readable fields, retained component decisions, full-width native editors and scrollable sheets. Navigation still follows approved #2082's grid and agenda contract. Both 390px themes and 430px captures were reviewed; the fresh desktop pair is pixel/style identical to this main baseline. This is fictional fixture evidence, with all browser transports intercepted. No live writer or message was used.
+
+The new Tabs captures assert the native Post label and icon. The media-icon test's phone setup enters the retained List before inspecting editable card buttons; every original assertion remains. The status-filter test is unchanged. Tests, earlier failed or superseded attempts and exact final tails are recorded in [CHECKS.md](CHECKS.md); screenshot hashes and source pins are in [provenance.json](provenance.json).

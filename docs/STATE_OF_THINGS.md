@@ -42,6 +42,29 @@ the sections below, delete it from this block in the same PR.
   in the synchro-brain repo (`team-skills/synchro/SKILL.md`).
 - **Pop-ups part 2** (#2081) and SyncLinear "Back to card" (#2078).
 
+**Merged 2026-10-11 to 14 and not recorded here at the time (added 2026-10-16; Lighthouse missed these, see the
+supervisor manual's "Writing it down"):**
+- Calendar: status filter (Show only / Hide on the overall card status, #2043, item D3 below); clear on the pill, work item
+  hover card, per-card files menu (#2059, #2064); background refresh keeps what the person is using and is invisible (#2061,
+  #2065); a wheel over a long open caption scrolls the caption (#2057).
+- Thumbnail titles: month fallback, long and template plans, re-queue, borrowed-tab check, cleaner default prompt (#2041,
+  #2042, #2048).
+- Phone: staff phone polish, Tabs grid, round 2 from the owner's own phone notes (#2047, #2050, #2056); dark mode contrast
+  gate (#2049); Templates Audience section and Copy button (#2051).
+- Notes and Messages: Notes step 1 (quiet composer, folding threads, #2060), done and delete reach the canonical thread
+  (#2053), Notes step 2 Messages inbox for all staff (#2063, #2066, #2071), old-notes label script ran (#2062).
+- Today: lists sorted by upload date with a date pill, cards and SyncLinear open in new tabs (#2070, #2072).
+- Pop-ups part 1, one rule for Escape, outside click, focus and kept text (#2076).
+- Frame.io key keeper `frameio-token` (#2053 branch) and Watch here first version (#2074).
+- Connector: client_brain and brain_change tools (#2058), the person named on the shared team link, renamed "synchro"
+  with an icon (#2068, #2069).
+- Hiring: the 2026-10-14 audit findings and n8n fixes recorded in `docs/truth/` (#2073, #2075).
+- Backups and robots: Track-B corpus v13 (#2046); monitoring pages only a confirmed failure; robots read their own admin key
+  (#2027); calendar-upsert live delta lane (#2040); Production CI back to normal with no branch exceptions (#2055).
+- n8n changes by Lighthouse that were not logged at the time are now in `docs/ops/N8N_EDIT_LOG.md`: the 2026-10-06 sales
+  email fixes, CLIENTS METRICS and TOP VIDEOS off (2026-10-06) and four Calendar workflows off (2026-10-13). The 2026-10-06
+  sales edit dropped the video-editor interview admit; another session restored it on 2026-10-14.
+
 **Owner decisions, 2026-10-15 and 16:**
 - **Staff use only the Synchro Social organization Claude accounts.** The skill and connector live in the org settings.
 - **Every Edge Function deploys itself on merge** (session Conveyor, building). The owner's single "yes" is at the start of
@@ -66,10 +89,10 @@ the sections below, delete it from this block in the same PR.
 **Open sessions and where they stand (2026-10-16):**
 - Swift #2089 (Messages opens fast, Close button): in review; needs a `production-comments` deploy after merge.
 - Anchor #2094 (production-polish gate waits for the app instead of guessing): fixing its own boot-budget runs.
-- Scribe #2096 (a note shows the moment it is sent): in review.
+- Scribe #2096 (a note shows the moment it is sent): merged 2026-10-16, live with the next Pages publish.
 - Sunset #2097 (calendar-upsert map and retirement plan, docs only): merged 2026-10-16. Next: the fallback removal, then the new function.
 - Quill #2098 (regenerate icon): merged 2026-10-16.
-- Lens: Frame.io pop-up polish, PR to come.
+- Lens #2100 (Frame.io pop-up polish): in review; needs a `frameio-view` deploy after merge.
 - Conveyor: auto-deploy on merge and the capture in GitHub; merges last.
 - Thumb #2085 and #2087 (phone Calendar, Samples, Workload): waiting for Thumb to merge main.
 - Vista: review sheet polish, running.
@@ -148,7 +171,7 @@ here with where it stopped, so it can be restarted.
   the overall card status, including EXCLUDE (for example hide every approved post). "Overall status" means the
   card's existing computed overall status (the roll-up of video, graphic and caption that the card already shows;
   title review stays out of it, as designed). The filter reads that value; it does not redefine its inputs.
-  **Built 2026-10-11 by session Sieve, in review (one PR, not merged).** A "Status" pill beside Organize in Sheet,
+  **Built 2026-10-11 by session Sieve, merged the same day (#2043), live.** A "Status" pill beside Organize in Sheet,
   Month and Week (not Review, not the client link): Show only or Hide, any set of the nine overall statuses, remembered
   per client with the month and dated/undated filters, and a strip above the cards says what is on with a one-tap Clear
   (on a phone the pill sits in the More sheet and the strip is what shows). Test:

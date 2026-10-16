@@ -173,6 +173,9 @@ Other:
 
 - `functions/v1/calendar-upsert`, `functions/v1/calendar-reorder` — Track A ports of the
   calendar write path
+- `functions/v1/calendar-card-write` — the native card writer replacing calendar-upsert
+  (retirement plan step 1, 2026-10-16): same request and answers, staff key required, used only
+  for clients on the `calendar_card_write_clients` switch; not deployed yet
 - `functions/v1/sample-review-upsert`, `functions/v1/sample-review-reorder` — SXR write ports
 - `functions/v1/brain` — Templates page: reads one client's Synchro Brain facts and records "Send a change" text into the private brain repo's syncview-changes inputs folder (staff key only).
 - `functions/v1/templates-save`, `functions/v1/caption-prompts-save` — save-path ports. Candidate

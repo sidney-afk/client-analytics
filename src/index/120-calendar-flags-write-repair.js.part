@@ -3045,13 +3045,80 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             body: JSON.stringify(payload)
         });
     }
-    async function _calUpsertFetchGuarded(clientOrSlug, payload, source) {
-        await _calAssertSavingOn(clientOrSlug);
-        return fetch(CALENDAR_UPSERT_EF_URL, {
+    /* calendar-card-write (calendar-upsert retirement plan, step 1): the native
+       writer for a card's own fields. A staff save goes there only when the
+       runtime switch calendar_card_write_clients lists the client
+       ({"clients": ["<slug>"]} or {"all": true}) AND this tab has a signed-in
+       staff identity (the function requires the staff key; calendar-upsert does
+       not). Anything else -- no row, a malformed value, a failed or slow read,
+       no identity, a client review link -- stays on calendar-upsert, today's
+       path. The switch is read at most every 30 seconds, so taking a client off
+       it is the way back, with no deploy. The function also checks the switch
+       itself; when it answers that the client is not on it, or that it could
+       not read the switch, it has written nothing, and the same save goes to
+       calendar-upsert at once. */
+    const CALENDAR_CARD_WRITE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/calendar-card-write';
+    const CALENDAR_CARD_WRITE_FLAG_KEY = 'calendar_card_write_clients';
+    const CAL_CARD_WRITE_FLAG_MS = 2500;
+    const CAL_CARD_WRITE_FLAG_FRESH_MS = 30000;
+    let _calCardWriteFlag = { value: null, at: 0 };
+    async function _calCardWriteFlagRead() {
+        let value = null;
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => ctrl.abort(), CAL_CARD_WRITE_FLAG_MS) : null;
+        try {
+            if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase not configured');
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(CALENDAR_CARD_WRITE_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined, headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            const row = Array.isArray(rows) ? rows[0] : null;
+            value = row && row.value && typeof row.value === 'object' && !Array.isArray(row.value) ? row.value : null;
+        } catch (e) {
+            value = null;   // unreadable means calendar-upsert, today's path
+        } finally { if (timer) clearTimeout(timer); }
+        _calCardWriteFlag = { value, at: Date.now() };
+        return value;
+    }
+    async function _calCardWriteOn(clientOrSlug) {
+        if (_isClientLink) return false;
+        let identity = null;
+        try { identity = _syncviewStaffIdentityForHeaders(); } catch (e) { identity = null; }
+        if (!identity) return false;
+        const value = Date.now() - _calCardWriteFlag.at > CAL_CARD_WRITE_FLAG_FRESH_MS ? await _calCardWriteFlagRead() : _calCardWriteFlag.value;
+        if (!value) return false;
+        if (value.all === true) return true;
+        const members = _calRuntimeFlagRawMembers(value);
+        if (!members) return false;
+        let slug = '';
+        try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+        return !!slug && members.some(member => _calRuntimeFlagSlug(member) === slug);
+    }
+    function _calUpsertPost(url, payload, source) {
+        return fetch(url, {
             method: 'POST',
-            headers: _calUpsertHeaders(source, CALENDAR_UPSERT_EF_URL),
+            headers: _calUpsertHeaders(source, url),
             body: JSON.stringify(payload)
         });
+    }
+    /* A refusal that guarantees nothing was written: the function's own switch
+       says no, or it could not read it. Only these two go on to calendar-upsert;
+       any other answer (a conflict, a guard, an error) is the save's answer. */
+    async function _calCardWriteRefusedBeforeWriting(resp) {
+        if (!resp || (resp.status !== 403 && resp.status !== 503)) return false;
+        try {
+            const body = await resp.clone().json();
+            return !!body && body.ok === false && (body.error === 'client_not_enabled' || body.error === 'switch_unreadable');
+        } catch (e) { return false; }
+    }
+    async function _calUpsertFetchGuarded(clientOrSlug, payload, source) {
+        await _calAssertSavingOn(clientOrSlug);
+        if (await _calCardWriteOn(clientOrSlug)) {
+            const resp = await _calUpsertPost(CALENDAR_CARD_WRITE_EF_URL, payload, source);
+            if (!(await _calCardWriteRefusedBeforeWriting(resp))) return resp;
+            _calCardWriteFlag = { value: null, at: Date.now() };   // the server said off: stop asking it for 30 seconds
+        }
+        return _calUpsertPost(CALENDAR_UPSERT_EF_URL, payload, source);
     }
     function _calUpsertFetch(clientOrSlug, payload, source) {
         if (_isClientLink) return _calUpsertFetchClientLink(clientOrSlug, payload, source);

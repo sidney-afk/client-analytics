@@ -10,9 +10,9 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 63 |
+| Deployable function slugs | 64 |
 | Main-push plus manual-dispatch paths | 12 |
-| Manual-dispatch-only paths | 34 |
+| Manual-dispatch-only paths | 35 |
 | No CI deploy path | 13 |
 | Deliberate-manual subset of no-CI paths | 6 |
 
@@ -29,6 +29,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `batch-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/b4-write.ts` | - |
 | `brain` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `brain/change.mjs`<br>`brain/parse.mjs` |
 | `calendar-auto-posted` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | - | `calendar-auto-posted/logic.mjs` |
+| `calendar-card-write` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | `calendar-card-write/logic.mjs` |
 | `calendar-reorder` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
 | `calendar-upsert` | [calendar-upsert-live-delta](../../.github/workflows/calendar-upsert-live-delta.yml) | workflow_dispatch<br>**Manual release note:** FROZEN: the repo source is never deployed (it re-gates client links). The only lane downloads the LIVE function, adds the one auto-posted line, deploys that copy with --no-verify-jwt, verifies by hash and rolls back on failure (OPEN_REPAIRS 402). | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
 | `caption-generate` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `brain/parse.mjs`<br>`caption-generate/apify.mjs`<br>`caption-generate/logic.mjs`<br>`caption-generate/writing-rules.mjs`<br>`caption-jobs/jobs.mjs` |

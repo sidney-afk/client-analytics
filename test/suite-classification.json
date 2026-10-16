@@ -43,6 +43,7 @@
     "b2-brief-link-rewrite.mjs",
     "a2-writer-edge-source.js",
     "a4-settings-edge-source.js",
+    "calendar-card-write-parity.js",
     "alert-digest.js",
     "assurance-cycle2-saves-and-selection.js",
     "assurance-review-corrections.js",
@@ -1703,6 +1704,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Generate caption box (platform, call to action, note), the title ideas, hashtags and redo under the caption, at desktop and 390 pixel width in light and dark, and that a caption typed by a person is never overwritten.",
       "reproduce": "node test/caption-helper-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "calendar-card-write-routing-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that a staff Calendar save goes to calendar-card-write only when calendar_card_write_clients lists the client and the tab has a staff identity, stays on calendar-upsert otherwise, and goes on to calendar-upsert when the function refuses before writing.",
+      "reproduce": "node test/calendar-card-write-routing-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

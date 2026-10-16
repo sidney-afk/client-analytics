@@ -33162,7 +33162,7 @@ matches; a teammate's change while typing waited for blur → drawn at once, the
 
 **Tests.** `test/frameio-view-source.js` (107 checks: the wrong client is refused, no token is refused, a client gets no comments, the flag fails closed, only reads), `test/frameio-viewer-browser.js` (Sheet icon, staff and client Review tab, desktop and 390px, switch off and live changes).
 
-## 420. [2026-10-16, BUILT, NOT MERGED, NOT DEPLOYED] Watch here polish: fast start, autoplay, vertical videos, one comment list, full quality on the Review tab (session Lens)
+## 423. [2026-10-16, BUILT, NOT MERGED, NOT DEPLOYED] Watch here polish: fast start, autoplay, vertical videos, one comment list, full quality on the Review tab (session Lens)
 
 **Owner feedback (2026-10-15).** The Sheet's pop-up should start the video as fast as possible and play by itself; vertical (phone-shaped) videos should use the height with the comments beside them; the Frame.io comments and the card's SyncView notes should be one list in time order, each marked with its source; less text (no "FRAME.IO" label, no Refresh, no "Comments stay in Frame.io" line, one "Open in Frame.io" button); and the Review tab's inline video played at low resolution.
 

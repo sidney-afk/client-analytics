@@ -1393,3 +1393,16 @@ Read-only presentation; nothing about writes or authority changed.
 Shared phone segments and overlay behavior were checked with fictional transports. No writer authority or business decision changed. Exact desktop and populated phone-to-desktop comparisons, timing limits and blocked live-observation lanes are recorded in [the dated proof](../audits/2026-10-12-phone-responsiveness/README.md). Not merged or deployed.
 
 Staff phone Tabs grid follow-up: native actions and permissions preserved; phone-only styling and exact desktop comparison. See `docs/audits/2026-10-12-staff-tabs-grid/README.md`; Production live fast lane is explicitly deferred for the branch.
+
+## 2026-10-16 - "Open in Calendar" beside a work item's title (Doorway)
+
+A work item made from a Calendar card (`origin` calendar with a `card_id`) shows
+one icon button right after its title in the detail top bar, tooltip "Open in
+Calendar", the same size as its icon-button neighbours (25px desktop, 44px
+phone). It is a plain link that opens a new tab on the card's existing address
+(`#calendar/<client>/<card>`, the one Today's "Open card" uses), which lands on
+the Calendar with that card outlined. No new URL parameter, so client review
+links accept exactly what they did before. Hidden for Samples work items, items
+with no card, and on client links. Read-only navigation; no write or authority
+changed. Proof: `docs/syncview-design/tests/open-in-calendar-browser.js`.
+Rollback: revert the PR.

@@ -1120,7 +1120,8 @@ import {
        endpoints on this row stay as they are -- A2 defers them to
        AFTER-STEP-7. The server-side reconcilers in scripts/ still hold their
        own copies of these URLs and are tracked separately. */
-    const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';
+    /* generate-caption (n8n) was removed from the page on 2026-10-16: every caption
+       runs on CAPTION_GENERATE_EF_URL, with no fallback to the workflow. */
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
     /* caption-prompts-save (n8n) was removed in the n8n exit, PR 3: the save goes
        to CAPTION_PROMPTS_SAVE_EF_URL only, behind the settings_ef_clients pause switch. */
@@ -1134,9 +1135,8 @@ import {
     const CAPTION_JOB_STATUS_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-jobs';
     const CAPTION_JOB_UPDATE_URL = CAPTION_JOB_STATUS_URL;
     const CAPTION_PROMPTS_SAVE_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-prompts-save';
-    /* n8n exit: the caption job on a Supabase Edge Function instead of the
-       generate-caption workflow. Used only for clients the runtime switch
-       caption_generate_ef_clients lists; everyone else keeps GENERATE_CAPTION_URL. */
+    /* n8n exit: the caption job runs on this Supabase Edge Function, for every
+       client (the generate-caption workflow is no longer called). */
     const CAPTION_GENERATE_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-generate';
     /* Thumbnail title prompt read + save (staff key; the table is closed to the browser). */
     const THUMBNAIL_TITLE_PROMPTS_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/thumbnail-title-prompts';
@@ -2428,7 +2428,7 @@ export {
   CALENDAR_UPSERT_EF_URL, CALENDAR_UPSERT_N8N_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL,
   CAL_SUPABASE_URL, CAPTION_GENERATE_EF_URL, CAPTION_JOB_STATUS_URL, CAPTION_JOB_UPDATE_URL, CAPTION_PROMPTS_GET_URL,
   CAPTION_PROMPTS_SAVE_EF_URL, CLIENT_REVIEW_LINK_URL,
-  CLIENT_TOKEN_VERIFY_URL, GENERATE_CAPTION_URL, OB_VARIANT, PTO_API_TIMEOUT_MS,
+  CLIENT_TOKEN_VERIFY_URL, OB_VARIANT, PTO_API_TIMEOUT_MS,
   PTO_EF_URL, PTO_FLAG_KEY, SMM_WEEKLY_REPORTS_URL, _svReadWithRetry, SYNCVIEW_CLIENT_ENTRY_PROTOCOL,
   THUMBNAIL_FOLDER_RESOLVE_EF_URL, THUMBNAIL_REVISION_READ_EF_URL, THUMBNAIL_TITLE_PROMPTS_EF_URL, URGENT_KASPER_SLACK_URL,
   WORKLOAD_LINEAR_URL, WORKLOAD_PLAN_URL, _obEsc, _obPost, _obSetDraftKey, _obSetSubIdKey,

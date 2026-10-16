@@ -33180,6 +33180,60 @@ matches; a teammate's change while typing waited for blur → drawn at once, the
 
 **Tests.** `docs/syncview-design/tests/note-send-outbox-browser.js` (fast path, slow server, error then retry, double click, refresh mid-send with the server's answer lost, Messages, client comment and request, the stuck-lookup case; desktop and 390 px; screenshots light and dark in `docs/audits/note-send-speed/`).
 
+## 423. [2026-10-16, BUILT, NOT MERGED, NOT DEPLOYED] Watch here polish: fast start, autoplay, vertical videos, one comment list, full quality on the Review tab (session Lens)
+
+**Owner feedback (2026-10-15).** The Sheet's pop-up should start the video as fast as possible and play by itself; vertical (phone-shaped) videos should use the height with the comments beside them; the Frame.io comments and the card's SyncView notes should be one list in time order, each marked with its source; less text (no "FRAME.IO" label, no Refresh, no "Comments stay in Frame.io" line, one "Open in Frame.io" button); and the Review tab's inline video played at low resolution.
+
+**What was measured first (2026-10-16, against the test client's real Frame.io links, through the `frameio-token` key keeper).**
+- The old answer took 750 to 1,370 ms (median about 855) over 7 sequential Frame.io calls (find the link, search the accounts, the share, its assets, the file with its addresses, its metadata, its comments). With the comments and the video address now separate requests, and the file behind a link remembered for 60 seconds, the video-only answer takes about 610 to 680 ms the first time (6 calls, the address and the metadata asked for side by side) and about 85 to 95 ms (2 calls) once the link is known, which is what the hover before a click now does. The comments answer separately in about 170 ms once the link is known.
+- Why the Review tab looked low resolution: the page started on Frame.io's "efficient" proxy, which on the one 1080x1920 test file is 360x640 at about 1 Mbit/s (6.8 MB). The "high_quality" file is the full 1080x1920 at about 4 Mbit/s (23.5 MB), the original is 1080x1920 at about 2.9 Mbit/s. All three have their index at the front, so they start playing without downloading the whole file; the first 1 MB took about 330 ms (efficient) and 460 ms (full size).
+- The API gives no width or height for a file, so the page learns the video's shape from the thumbnail (before the video loads) and then from the video itself.
+
+**What was built.**
+- `frameio-view`: takes `part` ("video", "comments", or both as before); the video part returns every address by name (`video.renditions`: efficient, high_quality, original) with `video.url` now the full-size file first; a minute's memory of what a link points at (the video and comments requests that arrive together share one search); the client path is unchanged in what it may see (the addresses only, no comments, only for its own card), and now also gets the renditions. No new secret. `frameio-token` is not touched.
+- Pop-up: opens with the card's thumbnail on the stage and the SyncView notes already in the list; asks for the video and the comments side by side; pointing at the icon (hover for 120 ms, focus, press, touch) fetches the address and starts loading the video so the click mostly finds it ready; plays by itself with sound, or muted with a "Tap for sound" control if the browser refuses; vertical videos get a narrower panel with the video using the height and the comments beside it (stacked on a phone), wide ones keep today's layout; the player is exactly the video's shape, so no black bars; one list, oldest first, a purple edge and a timecode on Frame.io comments (click to jump), a grey edge on SyncView notes, the source named small at the end of each line; one "Open in Frame.io" button; the label, Refresh, the footnote and the per-comment reply links are gone.
+- Quality: the pop-up and the Review tab's inline player both start on the full-size file; they use the small proxy only when the browser reports data saver, 2g or 3g, or under 3 Mbit/s, and fall back to it (from the same second, with a quiet "Smaller version for your connection" note) if the first frame has not come in 4 seconds or playback stalls for 2.5 seconds.
+- Still behind `frame_viewer_clients` (test client only until the owner says everyone); a hover on anything that is switched off asks for nothing.
+
+**Release.** `frameio-view` needs a redeploy ([deploy-single-function](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml), function `frameio-view`, the merge commit's SHA): the page sends `part`, and the new rendition list comes from the function. Until it is deployed, the old function ignores `part` and answers with everything in one go, so the page still plays (on the small file, with the comments arriving with the video); nothing breaks. **Way back:** revert the pull request.
+
+**One decision for the owner.** The merged list is in time order by when each entry was written (the only order a Frame.io comment and a SyncView note share; a note has no spot in the video). Frame.io comments with a time still show it and still jump the video, and the markers under the video are in video order.
+## 420. [2026-10-15, BUILT, NOT MERGED, NOT DEPLOYED] Messages page opens fast; its loading placeholder is the real layout (session Swift)
+
+**Measured first.** `scripts/messages-inbox-timing.js` (real browser, fully mocked, inbox answer held for the live
+median). Click on Messages to list visible, ms, median of 3, on `origin/main`: cold click at once 1921, click after 1.5 s 1922,
+after 6 s 1921, reopened in the same tab 1927, second visit inside the page 13. Where the time goes: script loading 0 (the Messages
+code is in core: DOMContentLoaded 250 ms, button usable 300 ms after navigation start); the inbox call 1910 of 1921; rendering 8 to
+12 ms for 60 conversations. The call only started on the click (the first background call waited a full minute), and the loading
+state was the generic Kasper skeleton, preceded by a flash of "You're all caught up" because the empty-list branch ran before the
+loading flag was set. Live: `production-comments` median 1870 ms, p90 2950 ms over 1220 calls (all actions of the function). The
+database work itself is small (read-only EXPLAIN ANALYZE: open posts 7.6 ms for 634 of 17168 rows, notes 14 ms), so no index and
+no migration. The cost is requests waiting for each other: for an admin (634 open posts, 948 linked deliverables) `inbox` made
+17 sequential round trips (member, budget, audit, roster, posts, 5 deliverable chunks, 5 note chunks, 2 read-mark chunks).
+
+**Fix.** Page: the call starts when the pointer or finger reaches the Messages button (no timer or background tick starts it: the repo's hermetic gates (`prod-structure-subset.js`, `pto-ui-polish.js`, the TikTok queue first-read test) treat any POST the page was not asked to
+make as a bug, so only a real intent on the Messages button, or opening Messages, starts it; the live refresh runs only while Messages is open); the last list is kept 10 minutes in this tab's own storage (sessionStorage), tagged with the member id, list lines only
+(no conversation text beyond the one preview line), shown at once and replaced by the fresh answer; it is discarded on sign-out,
+on a different member, when expired, on any mismatch. A conversation opened from the cached list shows a chat placeholder and is
+marked read only after its notes arrive. The loading placeholder is the loaded markup with see-through words and grey bars, so
+every box matches (asserted: 23 boxes, desktop and 390 px, light and dark). Server (`production-comments`, `inbox` and
+`inbox_mark`): the deliverable chunks, the note chunks and the read marks are fetched in parallel instead of one after another:
+17 sequential round trips down to 7 (the audit still answers before any post or note is read, as before). Who sees what (`inbox.mjs`, scope,
+visibility, audit) is untouched.
+
+**After** (same script): cold click at once 1909 (it is the server answer), pointer resting on the button 0.5 s 1376,
+1.5 s 376, reopened in the same tab 14, second visit 16; first grey placeholder 15 to 17 ms after the click.
+
+**Getting out (owner, 2026-10-15; replaces "no Close button").** The Messages button toggles: pressed while Messages is open it
+closes and puts the person back on the same tab, client, open card, Sheet or window scroll. A Close button sits top right on desktop and
+in the phone title bar (44 px) and does the same; Escape closes on desktop unless a text box holds typed text (drafts are kept); browser
+Back returns the same way; a page opened straight from a link closes to the Calendar. Tests: block P of `messages-inbox-browser.js`
+(desktop and 390 px, light and dark); screenshots `docs/audits/messages-speed/close-*.png`.
+
+**Release.** The page ships with the next Pages deploy of main. The server part needs a `production-comments` deploy; the page
+works with the old function too (the saving is then only the early start and the cache). No migration. **Way back:** revert the
+pull request (and redeploy the previous `production-comments`).
+
 ## 422. [2026-10-16, BUILT, NOT MERGED, NOT LIVE] Merged means live: no committed build output, Edge Functions deploy on merge, the Section 4 capture runs in GitHub (session Conveyor)
 
 **Why.** Every session committed `index.html` and `js/sv-*.js`, so each merge made every other

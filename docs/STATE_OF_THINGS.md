@@ -18,6 +18,101 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (Lighthouse, 2026-10-16)
+
+Newest first. Checked against main and the live database on 2026-10-16. When an item here is finished or moved into
+the sections below, delete it from this block in the same PR.
+
+**Live since the last update (2026-10-11 to 2026-10-15):**
+- **Notify client** (#2080, #2084, #2088): one Slack alert to the client's private channel, short box that closes by
+  itself, and the "Review now" link opens the Review view. The button is there for every client; 3 alerts recorded so far
+  (checked 2026-10-16).
+- **Messages** (#2079, #2083, #2090, #2092): a page under the header, the reviewer view follows the reviewer's threads,
+  a hidden client message shows once staff answered it, and the phone version has native conversations with a docked reply.
+- **Watch here, Frame.io inline viewer** (#2091): the Review tab plays the video in place. Switch `frame_viewer_clients`
+  is on for the test client only; everyone else waits on the owner's word.
+- **Caption helper** (#2077, #2086, #2095): call to action, platform, note, title ideas, hashtags; Redo as a pop-up that
+  uses the video's own words (new `caption_jobs` columns `transcript` and `transcript_asset`, applied) and never saves a
+  chat reply as the caption. `caption-generate` runs every caption (`caption_generate_ef_clients` = all, since 2026-10-09).
+- **One client's caption prompt replaced** at the owner's go (2026-10-15); the old prompt is kept as a backup row in
+  `caption_prompts` (name starts `_backup_`).
+- **Synchro connector** (#2093): tool calls are logged to `hf_activity` with who and a one-line summary, best effort (a
+  failed log write is dropped, never blocks the call; refusals are logged as failures), and a `guide` tool reads `hf_guides` (5 topics live; the newest row per topic wins, so a guide
+  changes with no reinstall). The team skill `synchro` is managed in the Claude organization settings; its master copy is
+  in the synchro-brain repo (`team-skills/synchro/SKILL.md`).
+- **Pop-ups part 2** (#2081) and SyncLinear "Back to card" (#2078).
+
+**Merged 2026-10-11 to 14 and not recorded here at the time (added 2026-10-16; Lighthouse missed these, see the
+supervisor manual's "Writing it down"):**
+- Calendar: status filter (Show only / Hide on the overall card status, #2043, item D3 below); clear on the pill, work item
+  hover card, per-card files menu (#2059, #2064); background refresh keeps what the person is using and is invisible (#2061,
+  #2065); a wheel over a long open caption scrolls the caption (#2057).
+- Thumbnail titles: month fallback, long and template plans, re-queue, borrowed-tab check, cleaner default prompt (#2041,
+  #2042, #2048).
+- Phone: staff phone polish, Tabs grid, round 2 from the owner's own phone notes (#2047, #2050, #2056); dark mode contrast
+  gate (#2049); Templates Audience section and Copy button (#2051).
+- Notes and Messages: Notes step 1 (quiet composer, folding threads, #2060), done and delete reach the canonical thread
+  (#2053), Notes step 2 Messages inbox for all staff (#2063, #2066, #2071), old-notes label script ran (#2062).
+- Today: lists sorted by upload date with a date pill, cards and SyncLinear open in new tabs (#2070, #2072).
+- Pop-ups part 1, one rule for Escape, outside click, focus and kept text (#2076).
+- Frame.io key keeper `frameio-token` (#2053 branch) and Watch here first version (#2074).
+- Connector: client_brain and brain_change tools (#2058), the person named on the shared team link, renamed "synchro"
+  with an icon (#2068, #2069).
+- Hiring: the 2026-10-14 audit findings and n8n fixes recorded in `docs/truth/` (#2073, #2075).
+- Backups and robots: Track-B corpus v13 (#2046); monitoring pages only a confirmed failure; robots read their own admin key
+  (#2027); calendar-upsert live delta lane (#2040); Production CI back to normal with no branch exceptions (#2055).
+- n8n changes by Lighthouse that were not logged at the time are now in `docs/ops/N8N_EDIT_LOG.md`: the 2026-10-06 sales
+  email fixes, CLIENTS METRICS and TOP VIDEOS off (2026-10-06) and four Calendar workflows off (2026-10-13). The 2026-10-06
+  sales edit dropped the video-editor interview admit; another session restored it on 2026-10-14.
+
+**Owner decisions, 2026-10-15 and 16:**
+- **Staff use only the Synchro Social organization Claude accounts.** The skill and connector live in the org settings.
+- **Every Edge Function deploys itself on merge** (session Conveyor, building). The owner's single "yes" is at the start of
+  a request, not per deploy. **The F27 Section 4 capture moves off the owner's computer into GitHub** (Conveyor follow-up),
+  so the three core save functions stop depending on a script on one machine.
+- **`calendar-upsert` gets retired, carefully** (session Sunset; the measured caller map is #2097: 14 callers, about
+  1,200 real saves a day). Plan: a new, small, separate function; move the test client first, then staff, then client
+  review links last; the old route stays as an automatic fallback for about 14 days; then delete the old function.
+  Nothing a client sees changes until the staff move has run clean. Until then `calendar-upsert` stays frozen.
+- **Old n8n "SyncView Calendar, Generate Caption" workflow: DONE 2026-10-16.** Sunset's #2102 removed the page fallback
+  (merged, checked live), then Lighthouse switched the workflow off (not deleted; N8N_EDIT_LOG). Original decision:
+  **switch off, not delete.** Zero runs since 2026-10-09. First the
+  page's fallback to it (`GENERATE_CAPTION_URL`) is removed (Sunset); once that is live, Lighthouse deactivates the
+  workflow (owner's go given 2026-10-16 on that condition) and logs it in `docs/ops/N8N_EDIT_LOG.md`.
+- **Messages:** clicking Messages again closes it and returns to where you were, and it gets a Close button (reverses the
+  earlier "no Close button"). In #2089 (Swift).
+- **Caption box:** a small regenerate icon replaces "Redo with a note" (#2098, Quill): merged 2026-10-16, live with the next Pages publish.
+- **Frame.io pop-up polish** (session Lens): faster, autoplay, a vertical layout for phone videos, one comment list
+  (Frame.io and SyncView notes together), less text, one Open/Reply button, no "FRAME.IO" label, full quality on the Review tab.
+- **After Vista: a lifecycle review session** that walks every dependency end to end and tests everything, so nothing
+  from the moves off Sheets, n8n and Linear is forgotten. Lighthouse writes its prompt once Vista and the review-sheet
+  changes settle.
+
+**Open sessions and where they stand (2026-10-16):**
+- Swift #2089 (Messages opens fast, Close button, click again to close): merged 2026-10-16 04:35 UTC (`599b7a22`); the page
+  part is live with the next Pages publish. Its `production-comments` speed-up (parallel reads) is NOT deployed on purpose:
+  the only lane for it (deploy-onboarding-edge-functions) also redeploys `production-write`, which now differs from live
+  (Scribe #2096) and should go through the Section 4 path with its rollback capture. It ships with Conveyor's deploy on
+  merge (#2101). The page works with the old function meanwhile.
+- Anchor #2094 (production-polish gate waits for the app instead of guessing): fixing its own boot-budget runs.
+- Scribe #2096 (a note shows the moment it is sent): merged 2026-10-16; the page part is live with the next Pages publish.
+  Its small `production-write` change (the Slack sender wakes after the answer, not before) waits for the next F27
+  Section 4 deploy; nothing breaks meanwhile. The fingerprint is re-pinned, so the next Section 4 deploy must use a main
+  that includes #2096.
+- Sunset #2097 (calendar-upsert map and retirement plan, docs only): merged 2026-10-16. Next: the fallback removal, then the new function.
+- Quill #2098 (regenerate icon): merged 2026-10-16.
+- Lens #2100 (Frame.io pop-up polish): merged 2026-10-16 03:31 UTC (`43d39e46`); the page part is live with the next Pages
+  publish (still test client only). Needs a `frameio-view` deploy (deploy-single-function, merge SHA above); until then the
+  old function answers with everything at once and the video still plays.
+- Conveyor: auto-deploy on merge and the capture in GitHub; merges last.
+- Thumb #2085 and #2087 (phone Calendar, Samples, Workload): waiting for Thumb to merge main.
+- Vista: review sheet polish, running.
+
+**Waiting on the owner:** the five doctor-funnel changes from Rewind; the branding session; the Frame.io viewer for every
+client; the follow-up Slack message asking who still uses a personal Claude account.
+
+---
+
 ## The owner's priority order (set 2026-09-29, keep this current)
 
 The owner asked for this list to live here so no session loses it. Work top down.
@@ -87,7 +182,7 @@ here with where it stopped, so it can be restarted.
   the overall card status, including EXCLUDE (for example hide every approved post). "Overall status" means the
   card's existing computed overall status (the roll-up of video, graphic and caption that the card already shows;
   title review stays out of it, as designed). The filter reads that value; it does not redefine its inputs.
-  **Built 2026-10-11 by session Sieve, in review (one PR, not merged).** A "Status" pill beside Organize in Sheet,
+  **Built 2026-10-11 by session Sieve, merged the same day (#2043), live.** A "Status" pill beside Organize in Sheet,
   Month and Week (not Review, not the client link): Show only or Hide, any set of the nine overall statuses, remembered
   per client with the month and dated/undated filters, and a strip above the cards says what is on with a one-tap Clear
   (on a phone the pill sits in the More sheet and the strip is what shows). Test:
@@ -150,7 +245,7 @@ here with where it stopped, so it can be restarted.
    about $13; and the live site publishes the whole repo (docs, scripts,
    migrations), so the Pages deploy must become an allowlist before any switch.
 6b. **n8n exit, phase 2 (plan #1874, owner decisions recorded 2026-09-30; status 2026-10-01).** Order: D, B, A, E, F, C, K.
-   Generate caption's AI job itself: BUILT 2026-10-09, not deployed, switch off (`caption-generate` function, transcript box, fixed writing rules; OPEN_REPAIRS 388). Until the owner sets `caption_generate_ef_clients`, every caption still runs on n8n.
+   Generate caption's AI job itself: LIVE for every client (`caption-generate` function, transcript box, fixed writing rules; OPEN_REPAIRS 388; `caption_generate_ef_clients` = all since 2026-10-09, checked 2026-10-16). The old n8n Generate Caption workflow has had zero runs since 2026-10-09. On 2026-10-16 the page's switch read and its n8n `generate-caption` fallback were removed (session Sunset); once that is live, Lighthouse deactivates the workflow (deactivate, not delete).
    D (TikTok poll trim) DONE #1878. B (caption progress in Supabase) DONE: `caption-jobs` live, Generate Caption edited and
    published, Calendar page switched (#1889). A (Slack Creative Channel Finalizer): trigger webhook and daily safety check are
    live next to the 15 minute timer (#1892); the timer is removed in a small follow-up only after the next real client's
@@ -232,6 +327,12 @@ hiring senders when the editor hire closes.
 
 ## Needs the owner
 
+- **Retiring calendar-upsert, step 1 (session Sunset, `docs/ops/CALENDAR_UPSERT_RETIREMENT_PLAN.md`): merged 2026-10-16 (#2104, `e0652a7a`), not deployed, switch off.** The new `calendar-card-write` function writes a card's own fields with calendar-upsert's guards (proven equal on generated saves by `test/calendar-card-write-parity.js`). Staff saves go there only for clients on `calendar_card_write_clients`; client review links stay on calendar-upsert. Needs, in order: deploy the function on the one-function lane (owner), then Lighthouse puts the test client on the switch.
+  Lighthouse review 2026-10-16: the function's logic was diffed against live calendar-upsert v90 and the parity test re-run
+  against live (21,205 checks pass). Intended differences only. Notes: a rejected staff key fails the save instead of
+  saving; switch entries must be exact slugs; never list a client before the function is deployed (a 404 does not fall
+  back). Test gaps for Sunset's step 2: two deliberate breaks went unnoticed (comment merge `>` to `>=`, the archived-twin
+  exclusion in the duplicate-link guard).
 - **Scheduled posts turn Posted by themselves (session Herald, OPEN_REPAIRS 402): built, not merged, not deployed, switch off.** Needs, in order: Vault key, the `CALENDAR_AUTO_POSTED_ACTOR` secret, the one-line `calendar-upsert` live delta, the `calendar-auto-posted` function, `migrations/2026-10-10-calendar-auto-posted.sql`, then `calendar_auto_posted` on for the test client.
 
 - **One ordered sitting for everything built and waiting: [`docs/ops/OWNER_SHIP_LIST.md`](ops/OWNER_SHIP_LIST.md)**

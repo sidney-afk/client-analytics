@@ -45,6 +45,7 @@
     "b2-brief-link-rewrite.mjs",
     "a2-writer-edge-source.js",
     "a4-settings-edge-source.js",
+    "calendar-card-write-parity.js",
     "alert-digest.js",
     "assurance-cycle2-saves-and-selection.js",
     "assurance-review-corrections.js",
@@ -1708,10 +1709,18 @@
       "ci": "representative"
     },
     {
+      "file": "calendar-card-write-routing-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that a staff Calendar save goes to calendar-card-write only when calendar_card_write_clients lists the client and the tab has a staff identity, stays on calendar-upsert otherwise, and goes on to calendar-upsert when the function refuses before writing.",
+      "reproduce": "node test/calendar-card-write-routing-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "caption-generate-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks Generate caption on desktop and phone size: switch off keeps the n8n call unchanged; switch on uses the caption-generate function and the transcript box; a caption typed on a card waiting in the bulk queue is kept and that card is never sent.",
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks Generate caption on desktop and phone size: with no switch row it still uses the caption-generate function and never calls n8n (the fallback was removed 2026-10-16); the function path uses the transcript box; a caption typed on a card waiting in the bulk queue is kept and that card is never sent.",
       "reproduce": "node test/caption-generate-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },

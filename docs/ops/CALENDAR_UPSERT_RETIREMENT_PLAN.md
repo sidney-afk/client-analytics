@@ -97,6 +97,23 @@ Real-client changes by action (ledger, 14 days, 2,439 in all): status change
 (graphic 88, video 80, caption 76), Kasper finish 60, comment delete 26,
 archive 20, urgent ping 4.
 
+## Owner decisions (2026-10-16)
+
+1. **A separate small Edge Function**, `calendar-card-write`, not a new
+   `production-write` operation. It ships on the one-function lane
+   (`deploy-single-function`), so a fix never needs a Section 4 capture.
+2. **Client review links move too, but last**, after the test client and the
+   staff paths have run cleanly for a while. Clients see no change at all: same
+   link, same buttons. On the client path `calendar-upsert` stays switched on as
+   a **fallback**: a native save that fails goes to `calendar-upsert` and the
+   client never sees an error. `calendar-upsert` is deleted only after no client
+   save has needed that fallback for 14 days.
+3. **The n8n Generate Caption workflow** has not run since 2026-10-09
+   (`caption_generate_ef_clients` is `{"all": true}`). First the page's fallback
+   to it is removed, so a failed switch read uses the function, not n8n (PR
+   #2102). Once that is live, Lighthouse deactivates the workflow (deactivate,
+   not delete). Sessions never touch an n8n workflow.
+
 ## Plan
 
 Each step has a switch to go back. Nothing moves to the next step until the
@@ -106,45 +123,55 @@ previous one has run clean on the test client for at least two working days.
 to confirm the loop is gone from every open tab, and list any outbox repairs
 still pinned to `webhook` or `supabase`. Way back: nothing to undo.
 
-**Step 1. Build the native card patch (no switch on).** One new
-`production-write` operation that writes card fields with every guard
-`calendar-upsert` has today: phantom row, comment three-way merge through
-`calendar_merge_comments`, link clobber and `__CLEAR_LINK__`, duplicate link,
-both urgent marker guards, stale-save conflict, `thumb_rev` minting, graphic
-tweak baseline and the event ledger (with the real `X-Syncview-Source`, which
-the live function drops: it records every save as `ui`). A client link may only
-write approval stamps, comments and the one client status move it can already
-make. Proof: replay the golden client-review fixture and a recorded set of staff
-saves through both writers and compare the stored rows field by field. Ships at
-a Section 4 deploy (capture first). Way back: the operation is unused until
-step 2, so no rollback is needed beyond the Section 4 bundle.
+**Step 1. The function, and the test client behind a switch (built
+2026-10-16, not deployed).** `supabase/functions/calendar-card-write`: the same
+request and answers as `calendar-upsert`, with every guard ported line for line
+from the live writer into `logic.mjs` (phantom row, comment three-way merge
+through `calendar_merge_comments`, link clobber and `__CLEAR_LINK__`, duplicate
+link, both urgent marker guards, stale-save conflict, `thumb_rev`, graphic tweak
+baseline, the event ledger with the live role overrides and source rule). It
+requires the staff key, refuses a client token for now, and checks its own
+switch `calendar_card_write_clients` (`{"clients": ["<slug>"]}` or
+`{"all": true}`; anything else is off). The page sends a staff save there only
+when the switch lists the client and the tab has a staff identity; everything
+else stays on `calendar-upsert`, and a refusal that guarantees nothing was
+written (`client_not_enabled`, `switch_unreadable`) goes on to
+`calendar-upsert` at once. Proof: `test/calendar-card-write-parity.js` runs both
+writers' guard code on thousands of generated saves and compares every answer;
+`test/calendar-card-write-routing-browser.js` drives the routing in a browser.
+To start: deploy the function, then add the test client to the switch. Way
+back: take the client off the switch (tabs pick it up within 30 seconds), no
+deploy.
 
-**Step 2. Test client, staff saves, behind a flag.** New roster flag
-`calendar_card_native_clients`, read fresh at save time like
-`calendar_upsert_ef_clients`. One branch inside the four send helpers sends
-listed clients to the native operation; all eleven page callers follow. Turn on
-for the test client only. Way back: remove the slug from the flag; live tabs
-pick it up through the realtime subscription, no deploy.
+**Step 2. Staff paths for the test client.** Watch the function's log
+(`fn: calendar-card-write`), the ledger and the write-refusal log for two
+working days of real use on the test client, covering the eleven page callers.
+Way back: the switch.
 
-**Step 3. Test client, client review link.** A second flag (or a `links`
-field on the same row) so client links move separately. The native path must
-accept every link clients hold today; otherwise this repeats the 2026-07-15
-outage (see the freeze in `AGENTS.md`). Way back: same one-row flag change.
+**Step 3. Server callers and harnesses.** `caption-generate` and
+`calendar-auto-posted` read the same switch and call `calendar-card-write`
+(with the automation key). The sign-off reconcile script and the nightly,
+morning and probe harnesses listed above move too, each proven by one run on
+the test client. Way back: the switch.
 
-**Step 4. Server callers and harnesses.** `caption-generate` and
-`calendar-auto-posted` read the same flag and call the native operation. The
-sign-off reconcile script and the nightly, morning and probe harnesses listed
-above move to the native operation too, each proven by one run on the test
-client. The n8n Generate Caption workflow
-stops being a caller only when `caption_generate_ef_clients` covers every client
-(owner's switch) or the owner approves an edit to it. Way back: the flag.
+**Step 4. Staff saves for everyone.** Widen the switch in two batches (five
+clients, then `{"all": true}`). Watch the write-refusal log, the ledger by
+source and the `calendar-upsert` log count. Way back: take clients off the
+switch.
 
-**Step 5. Everyone.** Widen the roster in two batches (five clients, then all).
-Watch the write-refusal log, the ledger by source and the `calendar-upsert` log
-count. Way back: remove slugs from the roster.
+**Step 5. Client review links, last, with the fallback.** The function accepts
+the link token, limited to what a link can write today (approval stamps,
+comments, the one client status move). The page sends a client save to
+`calendar-card-write` first; any answer other than success or a conflict sends
+the same save to `calendar-upsert`, so the client never sees an error, and the
+page reports each fallback to the write-refusal log as its own code so it can be
+counted. Same link, same buttons, nothing visible changes. A second flag (or a
+`links` field on the same row) turns this on for the test client first, then
+everyone. Way back: the flag.
 
-**Step 6. Switch off.** Three conditions, all needed:
+**Step 6. Switch off.** All of these:
 
+- No client save has needed the fallback for 14 days.
 - `calendar-upsert` has logged zero real-client calls for 14 days.
 - Every scheduled caller above (sign-off reconcile, nightly, morning) has run
   at least once on the native path.
@@ -166,13 +193,3 @@ back inside the same run.
 folder, the n8n URL constants, the pinned-repair branch, the live-delta lane,
 its manifest row and warm-up entry, and move or retire the tests above. Way
 back: the saved live source and git history.
-
-## Decisions for Lighthouse and the owner
-
-1. Build the native card patch as one new `production-write` operation (above)
-   or as a separate small function. One operation keeps one gateway; a separate
-   function avoids a Section 4 capture for every fix.
-2. Whether client review links move in step 3 at all, or keep `calendar-upsert`
-   until every client is on a fresh link.
-3. Whether the n8n Generate Caption workflow is retired by the caption switch
-   or edited (needs explicit go-ahead).

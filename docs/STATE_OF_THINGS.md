@@ -45,7 +45,7 @@ the sections below, delete it from this block in the same PR.
   **Bug found, in both writers:** a Retry after a failed save sends the whole card, and on any card never urgent-pinged
   its blank urgent times are refused by Postgres, so the Retry fails again ("HTTP 500"). Only the test run hit it in
   the last day. Fixed in `calendar-card-write` (blank urgent time stored as no time), with the two step-2 test gaps
-  closed (merge and stale-save ties, archived twin): PR on branch `claude/calendar-card-write-urgent-stamp-retry`.
+  closed (merge and stale-save ties, archived twin): PR #2111.
   Needs: merge, then redeploy `calendar-card-write` on the one-function lane. Clients still on `calendar-upsert` keep
   the bug until they move. Also seen, not this writer's: a stored work-item repair on the test card replays
   `repair_payload_mismatch` in the page on every load after an archive (status label and payload disagree), and the
@@ -355,7 +355,7 @@ hiring senders when the editor hire closes.
 
 ## Needs the owner
 
-- **Retiring calendar-upsert, step 1 (session Sunset, `docs/ops/CALENDAR_UPSERT_RETIREMENT_PLAN.md`): merged 2026-10-16 (#2104, `e0652a7a`), live v1 since 2026-10-16, switch on for the test client only.** The new `calendar-card-write` function writes a card's own fields with calendar-upsert's guards (proven equal on generated saves by `test/calendar-card-write-parity.js`). Staff saves go there only for clients on `calendar_card_write_clients`; client review links stay on calendar-upsert. Deployed and on for the test client 2026-10-16; Vigil's hand test the same day passed every staff path (see Latest). Needs: the Retry fix on branch `claude/calendar-card-write-urgent-stamp-retry` merged and redeployed on the one-function lane, then step 3 or 4.
+- **Retiring calendar-upsert, step 1 (session Sunset, `docs/ops/CALENDAR_UPSERT_RETIREMENT_PLAN.md`): merged 2026-10-16 (#2104, `e0652a7a`), live v1 since 2026-10-16, switch on for the test client only.** The new `calendar-card-write` function writes a card's own fields with calendar-upsert's guards (proven equal on generated saves by `test/calendar-card-write-parity.js`). Staff saves go there only for clients on `calendar_card_write_clients`; client review links stay on calendar-upsert. Deployed and on for the test client 2026-10-16; Vigil's hand test the same day passed every staff path (see Latest). Needs: the Retry fix (#2111) merged and redeployed on the one-function lane, then step 3 or 4.
   Lighthouse review 2026-10-16: the function's logic was diffed against live calendar-upsert v90 and the parity test re-run
   against live (21,205 checks pass). Intended differences only. Notes: a rejected staff key fails the save instead of
   saving; switch entries must be exact slugs; never list a client before the function is deployed (a 404 does not fall

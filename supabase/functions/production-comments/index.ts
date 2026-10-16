@@ -503,11 +503,18 @@ async function inboxCanonical(supabase: SupabaseClient, posts: JsonMap[]): Promi
   // scoped only to this card's client.
   const postById = new Map(posts.map((p) => [clean(p.id), p]));
   const all = [...owner.keys()];
+  // One request per 200 ids, all sent together: the database work is a few
+  // milliseconds, the time was the requests waiting for each other.
+  const chunks = <T>(list: T[]): T[][] => {
+    const out: T[][] = [];
+    for (let i = 0; i < list.length; i += 200) out.push(list.slice(i, i + 200));
+    return out;
+  };
+  const found = await Promise.all(chunks(all).map((part) => supabase.from("deliverables")
+    .select("id,client_slug,team,card_id")
+    .in("id", part)));
   const ids: string[] = [];
-  for (let i = 0; i < all.length; i += 200) {
-    const { data, error } = await supabase.from("deliverables")
-      .select("id,client_slug,team,card_id")
-      .in("id", all.slice(i, i + 200));
+  for (const { data, error } of found) {
     if (error) throw new Error("inbox_deliverables_failed");
     for (const d of (data || []) as unknown as JsonMap[]) {
       const id = clean(d.id);
@@ -521,11 +528,11 @@ async function inboxCanonical(supabase: SupabaseClient, posts: JsonMap[]): Promi
     }
   }
   const out = new Map<string, JsonMap[]>();
-  for (let i = 0; i < ids.length; i += 200) {
-    const { data, error } = await supabase.from("production_comments")
-      .select("id,native_comment_id,deliverable_id,team,parent_id,thread_root_id,author_name,author_member_id,role,body,audience,component,is_tweak,source_created_at,created_at,deleted_at")
-      .in("deliverable_id", ids.slice(i, i + 200))
-      .is("deleted_at", null);
+  const fetched = await Promise.all(chunks(ids).map((part) => supabase.from("production_comments")
+    .select("id,native_comment_id,deliverable_id,team,parent_id,thread_root_id,author_name,author_member_id,role,body,audience,component,is_tweak,source_created_at,created_at,deleted_at")
+    .in("deliverable_id", part)
+    .is("deleted_at", null)));
+  for (const { data, error } of fetched) {
     if (error) throw new Error("inbox_comments_failed");
     for (const row of (data || []) as unknown as JsonMap[]) {
       const pid = owner.get(clean(row.deliverable_id));
@@ -591,15 +598,22 @@ async function handleInbox(supabase: SupabaseClient, principal: Principal, body:
     return json({ ok: true, post_id: postId, last_read_at: mark });
   }
   const posts = await inboxPosts(supabase, scope);
-  const canonical = await inboxCanonical(supabase, posts);
-  const reads = new Map<string, string>();
   const ids = posts.map((p) => clean(p.id));
-  for (let i = 0; i < ids.length; i += 500) {
-    const { data, error } = await supabase.from("message_reads")
-      .select("post_id,last_read_at").eq("reader_id", member.id).in("post_id", ids.slice(i, i + 500));
-    if (error) return json({ ok: false, error: "inbox_reads_unavailable" }, 503);
-    for (const r of (data || []) as unknown as JsonMap[]) reads.set(clean(r.post_id), clean(r.last_read_at));
-  }
+  // This reader's own read marks, fetched while the notes are being fetched.
+  const readsOf = async (): Promise<Map<string, string> | null> => {
+    const parts: string[][] = [];
+    for (let i = 0; i < ids.length; i += 500) parts.push(ids.slice(i, i + 500));
+    const answers = await Promise.all(parts.map((part) => supabase.from("message_reads")
+      .select("post_id,last_read_at").eq("reader_id", member.id).in("post_id", part)));
+    const marks = new Map<string, string>();
+    for (const { data, error } of answers) {
+      if (error) return null;
+      for (const r of (data || []) as unknown as JsonMap[]) marks.set(clean(r.post_id), clean(r.last_read_at));
+    }
+    return marks;
+  };
+  const [canonical, reads] = await Promise.all([inboxCanonical(supabase, posts), readsOf()]);
+  if (!reads) return json({ ok: false, error: "inbox_reads_unavailable" }, 503);
   const now = Date.now();
   const conversations = posts
     .map((p) => {

@@ -98,6 +98,7 @@ async function open(browser, origin, opts) {
       const keys = /^in\.\(/.test(raw) ? raw.replace(/^in\.\(/, '').replace(/\)$/, '').split(',') : [raw.replace(/^eq\./, '')];
       const rows = [];
       for (const k of keys) {
+        if (k === 'calendar_card_write_clients') continue;   // no row in production yet (retirement plan step 1)
         if (k === 'caption_generate_ef_clients') { if (state.flag) rows.push({ key: k, value: state.flag }); continue; }
         rows.push({ key: k, value: k === 'prod_authority' ? { video: 'syncview', graphics: 'syncview' } : (/_clients$/.test(k) ? { clients: [SLUG] } : { enabled: false }) });
       }

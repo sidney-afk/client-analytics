@@ -434,6 +434,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/calendar-status-row-urgent-height-browser.js
+      - name: Calendar card writes route to calendar-card-write only for clients on its switch (calendar-upsert otherwise)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/calendar-card-write-routing-browser.js
       - name: Generate caption off n8n (no n8n fallback, function path, transcript box, desktop and phone)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

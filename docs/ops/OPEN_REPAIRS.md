@@ -33303,3 +33303,33 @@ the publish keeps the bundles of the last 30 builds (was 10).
 **Proof.** `docs/syncview-design/tests/cal-status-pick-during-save-browser.js` (mocked, with the first production-write push held 2.5 s) runs the race once per writer. On the old code it fails 6 checks (the first card write says Posted, the graphic and video work items stay Scheduled); with the fix all pass. Added to `calendar-unit-tests.yml`.
 
 **Not done here.** The one real card already drifted is not repaired by this change (moving its work items to Posted is a data fix for the owner or Lighthouse). **Way back:** revert the pull request.
+## 425. [2026-10-16, BUILT, NOT MERGED] The first Section 4 release through the new lanes failed closed in 1.6 s with no reason; the lane now names the reason and pulls its bundler image itself (session Mechanic)
+
+**What happened.** Run 38933979961 (dispatched by the merge lane, run 38933820318, at `bb5bf40`) passed
+the in-run capture, the store, every gate, and then `supabase functions deploy production-write
+--use-docker` exited non-zero in about 1.6 s. Its output went to the private log, deleted at cleanup,
+so the public log said only "failed or was ambiguous". Nothing changed live (checked by Lighthouse).
+
+**Cause, as far as public evidence goes.** Everything else the step needs was proven seconds before
+or reproduced: the same CLI (2.109.0, version-checked), Docker (preflight passed), the token (the
+notify prerequisite read live with it), `supabase/config.toml` and the function tree at `bb5bf40`
+(CLI 2.109.0 run locally from that tree with a fake token parses the config, resolves all 10 files
+and reaches the upload). What differs from the 2026-10-09 success (run 37945305081, same step 24 s
+including the pull): a newer runner image (20261004.327.1 then, 20261012.334.1 now), so a fresh pull.
+CLI 2.109.0's Docker path runs `docker run public.ecr.aws/supabase/edge-runtime:v1.73.13`, one
+registry, no retry, no mirror; a refused pull fails in about a second. public.ecr.aws answered
+13 of 15 anonymous manifest reads of exactly that image with 429 `TOOMANYREQUESTS: Data limit
+exceeded` on 2026-10-16. Most likely cause: a throttled bundler image pull. Not proven, because the
+one line that would prove it was deleted; the change below makes the next failure name itself.
+
+**What changed.** (1) Each of the three deploy steps prints the CLI's own reason
+(`scripts/ef-deploy-public-reason.js`, run from the trusted operator checkout: allowlisted lines,
+redacted, at most four, 200 characters each, a line count only when nothing matches). (2) A new step
+before any deploy or restore pulls the bundler image by its pinned linux/amd64 digest (identical on
+public.ecr.aws and ghcr.io), retried, ECR first then ghcr.io, and tags it as the name the CLI runs,
+so docker never pulls during a deploy; it fails closed if the installed CLI names another Edge
+Runtime tag. Tests: `test/f27-section4-deploy-lane.js`.
+
+**After merge:** the same manual run of the merge lane at main's tip, `functions` =
+`production-write,production-comments`.
+

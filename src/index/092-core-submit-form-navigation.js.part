@@ -609,6 +609,7 @@ import { _kasperState } from './305-core-kasper-shared.js';
             return;
         }
         _syncviewNextNavEpoch(); // Phase D: tell a still-loading boot router that someone has moved on.
+        try { window.svMessagesNavHook?.(page); } catch (e) {} // Messages remembers where the person was, before anything is torn down.
         if (page === 'brief') page = 'home';
         // Client intake link locks the whole SPA to the Linear submission flow,
         // so every navigation (back button, restored hash, logo) lands on it.

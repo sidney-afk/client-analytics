@@ -33198,3 +33198,38 @@ matches; a teammate's change while typing waited for blur → drawn at once, the
 **Release.** `frameio-view` needs a redeploy ([deploy-single-function](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml), function `frameio-view`, the merge commit's SHA): the page sends `part`, and the new rendition list comes from the function. Until it is deployed, the old function ignores `part` and answers with everything in one go, so the page still plays (on the small file, with the comments arriving with the video); nothing breaks. **Way back:** revert the pull request.
 
 **One decision for the owner.** The merged list is in time order by when each entry was written (the only order a Frame.io comment and a SyncView note share; a note has no spot in the video). Frame.io comments with a time still show it and still jump the video, and the markers under the video are in video order.
+## 420. [2026-10-15, BUILT, NOT MERGED, NOT DEPLOYED] Messages page opens fast; its loading placeholder is the real layout (session Swift)
+
+**Measured first.** `scripts/messages-inbox-timing.js` (real browser, fully mocked, inbox answer held for the live
+median). Click on Messages to list visible, ms, median of 3, on `origin/main`: cold click at once 1921, click after 1.5 s 1922,
+after 6 s 1921, reopened in the same tab 1927, second visit inside the page 13. Where the time goes: script loading 0 (the Messages
+code is in core: DOMContentLoaded 250 ms, button usable 300 ms after navigation start); the inbox call 1910 of 1921; rendering 8 to
+12 ms for 60 conversations. The call only started on the click (the first background call waited a full minute), and the loading
+state was the generic Kasper skeleton, preceded by a flash of "You're all caught up" because the empty-list branch ran before the
+loading flag was set. Live: `production-comments` median 1870 ms, p90 2950 ms over 1220 calls (all actions of the function). The
+database work itself is small (read-only EXPLAIN ANALYZE: open posts 7.6 ms for 634 of 17168 rows, notes 14 ms), so no index and
+no migration. The cost is requests waiting for each other: for an admin (634 open posts, 948 linked deliverables) `inbox` made
+17 sequential round trips (member, budget, audit, roster, posts, 5 deliverable chunks, 5 note chunks, 2 read-mark chunks).
+
+**Fix.** Page: the call starts when the pointer or finger reaches the Messages button (no timer or background tick starts it: the repo's hermetic gates (`prod-structure-subset.js`, `pto-ui-polish.js`, the TikTok queue first-read test) treat any POST the page was not asked to
+make as a bug, so only a real intent on the Messages button, or opening Messages, starts it; the live refresh runs only while Messages is open); the last list is kept 10 minutes in this tab's own storage (sessionStorage), tagged with the member id, list lines only
+(no conversation text beyond the one preview line), shown at once and replaced by the fresh answer; it is discarded on sign-out,
+on a different member, when expired, on any mismatch. A conversation opened from the cached list shows a chat placeholder and is
+marked read only after its notes arrive. The loading placeholder is the loaded markup with see-through words and grey bars, so
+every box matches (asserted: 23 boxes, desktop and 390 px, light and dark). Server (`production-comments`, `inbox` and
+`inbox_mark`): the deliverable chunks, the note chunks and the read marks are fetched in parallel instead of one after another:
+17 sequential round trips down to 7 (the audit still answers before any post or note is read, as before). Who sees what (`inbox.mjs`, scope,
+visibility, audit) is untouched.
+
+**After** (same script): cold click at once 1909 (it is the server answer), pointer resting on the button 0.5 s 1376,
+1.5 s 376, reopened in the same tab 14, second visit 16; first grey placeholder 15 to 17 ms after the click.
+
+**Getting out (owner, 2026-10-15; replaces "no Close button").** The Messages button toggles: pressed while Messages is open it
+closes and puts the person back on the same tab, client, open card, Sheet or window scroll. A Close button sits top right on desktop and
+in the phone title bar (44 px) and does the same; Escape closes on desktop unless a text box holds typed text (drafts are kept); browser
+Back returns the same way; a page opened straight from a link closes to the Calendar. Tests: block P of `messages-inbox-browser.js`
+(desktop and 390 px, light and dark); screenshots `docs/audits/messages-speed/close-*.png`.
+
+**Release.** The page ships with the next Pages deploy of main. The server part needs a `production-comments` deploy; the page
+works with the old function too (the saving is then only the early start and the cache). No migration. **Way back:** revert the
+pull request (and redeploy the previous `production-comments`).

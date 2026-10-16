@@ -40,7 +40,13 @@ the sections below, delete it from this block in the same PR.
   to be saved through `studio_profile_save` by the connector supervisor). Then #2094 (Anchor: the production-polish suites wait
   for the page to finish loading instead of guessing; OPEN_REPAIRS 426) and #2087 (Thumb: phone Workload opens as an
   agenda with per-person queues, Week and Month keep the native planners, filters in a bottom sheet; phone-scoped only).
-  Thumb's #2085 (phone Calendar and Samples) is red on a source-copy check and waits on Thumb. Card saver watcher: 2 clean runs (21:41 UTC), test client only, no real save on it yet.
+  Thumb's #2085 (phone Calendar and Samples) waits on Thumb (now red on the dialog backdrop browser test).
+  #2126 (pipeline-google moved here from synchro-pipelines; on-merge deploy green, live version 26).
+- **Card saver, stage B (23:34 UTC):** session Vigil Round made a full round of real staff saves on the test client
+  through `calendar-card-write` (every save landed, Retry fix confirmed, no refusals), so `calendar_card_write_clients`
+  now holds the test client and the owner's two own clients. Everyone else follows after 8 clean watcher runs that
+  include real saves on those two. A component status change also writes a card-level ledger row; that is the old
+  saver's behaviour too (130 of 368 status changes in 7 days), not a new-saver regression.
 
 **Live (session Cinema, 2026-10-16, #2120): Watch here, one view for the video and its notes.** Every door (the Notes
 button, the Sheet's play icon, the Review tab's video preview, Kasper's "Watch here") opens the card's Notes dialog with

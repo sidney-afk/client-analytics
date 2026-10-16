@@ -3066,6 +3066,10 @@
         .prod-search-btn, .prod-icon-btn { width: 25px; height: 25px; border: 0; border-radius: 6px; display: grid; place-items: center; color: var(--prod-muted); background: transparent; font: inherit; cursor: pointer; }
         .prod-search-btn:hover, .prod-icon-btn:hover { background: var(--prod-hover); color: var(--prod-text); }
         .prod-search-btn.active, .prod-icon-btn.active { background: var(--prod-hover); color: var(--prod-text); }
+        /* "Open in Calendar" beside a work item's title: a link styled as its icon-button neighbours, never squeezed by a long title. */
+        .prod-open-card { flex: none; text-decoration: none; }
+        .prod-open-card svg { width: 15px; height: 15px; } /* the shared 12px calendar glyph, at its neighbours' optical size */
+        .prod-open-card:focus-visible { outline: 2px solid var(--prod-accent); outline-offset: 1px; }
         .prod-icon-btn[data-prod-disabled] { color: var(--prod-faint); }
         .prod-side-scroll { flex: 1; min-height: 0; overflow: auto; padding-top: 2px; }
         .prod-nav { display: flex; flex-direction: column; gap: 1px; }

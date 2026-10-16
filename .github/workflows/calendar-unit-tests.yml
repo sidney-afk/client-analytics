@@ -566,6 +566,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/back-to-card-browser.js
+      - name: SyncLinear work item opens its Calendar card in a new tab
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/open-in-calendar-browser.js
       - name: Workload, signed out shows no board
         if: ${{ !cancelled() }}
         env:

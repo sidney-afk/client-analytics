@@ -195,7 +195,16 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
   ok(asStaff.author_name === 'Second Manager' && asStaff.author_member_id === 'u2', 'staff see the name and the id');
 
   const cal = fs.readFileSync(path.join(root, 'src/index/190-calendar-approval-comments.js.part'), 'utf8');
-  ok((cal.match(/author_member_id: _calCurrentAuthorId\(\)/g) || []).length === 2, 'new staff notes and replies on the Notes save path, and review comments, store the member id (the request-change path stays byte-identical to main)');
+  // Since the note outbox (2026-10-15) the Notes Send and the review Comment
+  // take the member id at the click (it rides the outbox entry into the note);
+  // _calAppendComment keeps its own for any other caller. The request-change
+  // path still adds none.
+  const fnBody = name => { const i = cal.indexOf('function ' + name + '('); return i < 0 ? '' : cal.slice(i, cal.indexOf('\n    }\n', i)); };
+  ok(/author_member_id: _calCurrentAuthorId\(\)/.test(fnBody('_calAppendComment'))
+    && /author_member_id: _calCurrentAuthorId\(\) \|\| undefined/.test(fnBody('_calSubmitComposerNow'))
+    && /author_member_id: _calCurrentAuthorId\(\) \|\| undefined/.test(fnBody('_calReviewComment'))
+    && /author_member_id: entry\.author_member_id/.test(fnBody('_calReviewAddOutboxComment'))
+    && !/_calCurrentAuthorId/.test(fnBody('_calReviewRequestTweak')), 'new staff notes and replies on the Notes save path, and review comments, store the member id (the request-change path adds none)');
   ok(/if \(_isClientLink\) return '';\s*try \{\s*const identity = _syncviewStaffIdentityForHeaders\(\);\s*return String\(identity && identity\.member && identity\.member\.id/.test(cal), 'the stored value is the member id only, and never on the client link');
   ok(/if \(_isClientLink\) return role === 'client' \? String\(c\.author \|\| fallback \|\| 'Client'\) : 'Synchro team';/.test(cal), 'the client link shows every staff note as "Synchro team"');
 

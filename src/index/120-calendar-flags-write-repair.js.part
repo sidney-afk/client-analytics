@@ -1163,6 +1163,29 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
        VALID — the only ones a canonical projection may touch. Returns null when
        the card binding changed during the lookup, which the caller treats as
        "abort, resolve nothing". */
+    /* Which cards have a crosswalk lookup running, by card id. The answer to
+       "is this card's link still being looked up?" lives here, not on the card
+       object: a card is often replaced by a fresh copy while a lookup runs (a
+       save's answer, a refresh), and a copy taken mid-lookup kept the old
+       in-flight mark forever, so Send stayed locked on "Notes are still
+       loading" (measured live 2026-10-15, after a note sent in the background
+       overlapped reopening the Notes). The mark on the card object is still
+       kept for older readers; nothing decides on it any more. */
+    const _prodCrosswalkRuns = new Map();
+    function _prodCrosswalkRunStart(post) {
+        const id = String(post && post.id || '');
+        _prodCrosswalkRuns.set(id, (_prodCrosswalkRuns.get(id) || 0) + 1);
+        post._canonicalCrosswalkInFlight = (post._canonicalCrosswalkInFlight || 0) + 1;
+    }
+    function _prodCrosswalkRunEnd(post) {
+        const id = String(post && post.id || '');
+        const left = Math.max(0, (_prodCrosswalkRuns.get(id) || 1) - 1);
+        if (left) _prodCrosswalkRuns.set(id, left); else _prodCrosswalkRuns.delete(id);
+        post._canonicalCrosswalkInFlight = Math.max(0, (post._canonicalCrosswalkInFlight || 1) - 1);
+    }
+    function _prodCrosswalkInFlight(post) {
+        return !!post && (_prodCrosswalkRuns.get(String(post.id || '')) || 0) > 0;
+    }
     async function _prodResolveCardCrosswalk(surface, post, components) {
         const wanted = new Map();
         (components || []).forEach(component => {
@@ -3522,4 +3545,4 @@ export {
   _writeUiSnapshotRepairRefs, _writeUiSourceClientSlug, _writeUiSourceEditsOnly, _writeUiTeam,
   _writeUiUseGatewayWhenReady, computeOverallStatus
 };
-export { _writeUiRecordSaveFailure, _writeUiTrackSave };
+export { _prodCrosswalkInFlight, _prodCrosswalkRunEnd, _prodCrosswalkRunStart, _writeUiRecordSaveFailure, _writeUiTrackSave };

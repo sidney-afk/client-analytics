@@ -172,6 +172,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _crqSending();
     }
 
+    /* True while this part's action waits in the queue for a re-send (the
+       connection failed), rather than being sent right now. */
+    function _calCrqHeld(pid, comp) {
+        if (!_crqActive()) return false;
+        return !!_crqGet(pid, comp) && !_crqRun.inflight.has(pid + '|' + comp);
+    }
+
     /* Hand-off 2: the server confirmed. Returns true when the confirmation
        was shown here, so the caller can skip its own toast. */
     function _calCrqDone(pid, comp) {
@@ -374,4 +381,4 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         });
         setTimeout(() => _crqResumeWhenLoaded(0), 1500);
     }
-export { _calCrqBegin, _calCrqDone, _calCrqFailed, _calCrqResolve };
+export { _calCrqBegin, _calCrqDone, _calCrqFailed, _calCrqHeld, _calCrqResend, _calCrqResolve };

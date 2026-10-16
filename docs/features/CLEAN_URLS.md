@@ -26,7 +26,8 @@ and docs never break.
 | `/calendar`, `/calendar/<client>/<card>` | `#calendar/...` |
 | `/templates`, `/templates/<client>` | `#templates/...` |
 | `/filming-plans` | `#filming-plans` |
-| `/tiktok-upload` | `#tiktok-upload` |
+| `/post` | `#tiktok-upload` (the Post tab, TikTok and Instagram; since 2026-10-16) |
+| `/tiktok-upload` | `#tiktok-upload` (the Post tab's old address; still opens it, and the address bar then shows `/post`) |
 | `/time-off` | `#time-off` |
 | `/sample-reviews/<client>/<card>` | `#sample-reviews/...`, `#samples...` |
 | `/smm-weekly-report`, `/smm-weekly-reports?week=...` | `#smm-weekly-report(s)...` |

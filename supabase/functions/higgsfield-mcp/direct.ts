@@ -1,5 +1,6 @@
 // Image models the connector calls directly instead of through Higgsfield:
-// OpenAI's GPT Image (the ChatGPT image model) and Google's Nano Banana. Their
+// OpenAI's GPT Image (the ChatGPT image model) and Google's Nano Banana (switched
+// off for the team since 2026-10-16, see GOOGLE_IMAGE_ENABLED). Their
 // APIs answer synchronously with the image bytes, so index.ts runs them in the
 // background after the budget reservation and stores the result itself.
 //
@@ -23,6 +24,14 @@ const OPENAI_MODELS: Record<string, string> = {
   "openai/gpt-image": "gpt-image-2.5-sunburst-2026-09-08",
   "openai/gpt-image-fast": "gpt-image-2.5-flare-2026-09-08",
 };
+// Google's Nano Banana models are switched off for the team (owner's decision,
+// 2026-10-16): the key never had quota, so every call ever made failed with
+// Google's raw "You exceeded your current quota" message. GPT Image does the
+// same job. While this is false the Google models are not offered anywhere
+// (shortlist, find_models, model_details, recipes) and no Google call can be
+// made. Setting it to true brings them back as they were.
+export const GOOGLE_IMAGE_ENABLED: boolean = false;
+export const GOOGLE_IMAGE_IDS = ["google/nano-banana", "google/nano-banana-pro"];
 const GOOGLE_MODELS: Record<string, { api: string; inRate: number; perImage: Record<string, number> }> = {
   "google/nano-banana": { api: "gemini-3.1-flash-image", inRate: 0.5e-6, perImage: { "1K": 0.067, "2K": 0.101, "4K": 0.151 } },
   "google/nano-banana-pro": { api: "gemini-3-pro-image", inRate: 2e-6, perImage: { "1K": 0.134, "2K": 0.134, "4K": 0.24 } },
@@ -30,7 +39,7 @@ const GOOGLE_MODELS: Record<string, { api: string; inRate: number; perImage: Rec
 
 const IMAGES = { type: "array", items: { type: "string", format: "uri" }, maxItems: 4, description: "Up to 4 public image links to edit or use as references. Leave out to make a new image from the prompt." };
 
-export const DIRECT_MODELS: CatalogModel[] = [
+const ALL_DIRECT_MODELS: CatalogModel[] = [
   {
     id: "openai/gpt-image",
     name: "GPT Image (ChatGPT's image model)",
@@ -103,8 +112,45 @@ export const DIRECT_MODELS: CatalogModel[] = [
   },
 ];
 
+export const DIRECT_MODELS: CatalogModel[] = ALL_DIRECT_MODELS.filter((m) => GOOGLE_IMAGE_ENABLED || !GOOGLE_IMAGE_IDS.includes(m.id));
+
 export function isDirect(id: string): boolean {
-  return id.startsWith("openai/") || id.startsWith("google/");
+  return id.startsWith("openai/") || (GOOGLE_IMAGE_ENABLED && id.startsWith("google/"));
+}
+
+// A job already in the log from a direct model is answered from its log row,
+// never from Higgsfield, even while that model is switched off: the Nano
+// Banana jobs logged before the switch stay readable, and reading them makes
+// no Higgsfield call and no Google call.
+export function answeredFromLog(id: string): boolean {
+  return isDirect(id) || GOOGLE_IMAGE_IDS.includes(id);
+}
+
+// True when someone asks for Nano Banana by id or by name ("nano-banana",
+// "Nano Banana Pro", "google/nano-banana") while it is switched off. The
+// connector then answers with SWITCHED_OFF_TEXT and a GPT Image price card,
+// and runs nothing until the person says go to that card.
+export function asksSwitchedOff(model: unknown): boolean {
+  if (GOOGLE_IMAGE_ENABLED) return false;
+  const m = String(model || "").trim().toLowerCase();
+  return m.startsWith("google/") || /nano[\s_-]*banana/.test(m);
+}
+export const SWITCHED_OFF_TEXT = "Nano Banana is switched off for the team. GPT Image does the same job; here is its price.";
+
+// The same request in GPT Image's settings: the prompt and input images carry
+// over, a Nano Banana aspect_ratio becomes the matching WIDTHxHEIGHT (no shape
+// keeps the photo's own), at the default medium quality.
+const GPT_SIZE_FOR: Record<string, string> = {
+  "1:1": "1024x1024", "2:3": "1024x1536", "3:2": "1536x1024", "3:4": "1152x1536", "4:3": "1536x1152",
+  "4:5": "1024x1280", "5:4": "1280x1024", "9:16": "1152x2048", "16:9": "2048x1152", "21:9": "2016x864",
+};
+export function gptImageInputs(inputs: JsonMap): JsonMap {
+  const out: JsonMap = { prompt: String(inputs.prompt || "") };
+  const imgs = images(inputs);
+  if (imgs.length) out.image_urls = imgs;
+  out.size = GPT_SIZE_FOR[String(inputs.aspect_ratio || "")] || (typeof inputs.size === "string" && inputs.size ? inputs.size : "auto");
+  out.quality = ["low", "medium", "high"].includes(String(inputs.quality)) ? String(inputs.quality) : "medium";
+  return out;
 }
 
 function images(inputs: JsonMap): string[] {
@@ -154,8 +200,8 @@ export function directEstimate(id: string, inputs: JsonMap): { usd: number } | {
     const out = size === "1024x1024" ? sq : Math.ceil(wide * Math.max(1, dims ? (dims[0] * dims[1]) / (1024 * 1536) : 1));
     return { usd: out * 30e-6 + n * OPENAI_IN_IMAGE_TOKENS * 8e-6 + textTokens(inputs) * 5e-6 };
   }
-  const g = GOOGLE_MODELS[id];
-  if (!g) return { error: "Unknown model." };
+  const g = GOOGLE_IMAGE_ENABLED ? GOOGLE_MODELS[id] : undefined;
+  if (!g) return { error: GOOGLE_MODELS[id] ? SWITCHED_OFF_TEXT : "Unknown model." };
   if (!Deno.env.get("GOOGLE_AI_KEY")) return { error: "Nano Banana is not set up yet (GOOGLE_AI_KEY missing)." };
   const size = String(inputs.image_size || "2K");
   return { usd: (g.perImage[size] ?? g.perImage["2K"]) + (n * GOOGLE_IN_IMAGE_TOKENS + textTokens(inputs)) * g.inRate };
@@ -180,6 +226,8 @@ function bytesToB64(bytes: Uint8Array): string {
 // Runs one direct job. `fetchImage` is index.ts's guarded fetch (public https
 // only, size-limited), so caller-supplied links go through the same checks.
 export async function runDirect(id: string, inputs: JsonMap, fetchImage: (url: string) => Promise<Fetched>): Promise<DirectResult> {
+  // Checked before anything is fetched, so no Google call can happen while off.
+  if (!OPENAI_MODELS[id] && !(GOOGLE_IMAGE_ENABLED && GOOGLE_MODELS[id])) throw new Error(GOOGLE_MODELS[id] ? SWITCHED_OFF_TEXT : "Unknown model.");
   const refs = await Promise.all(images(inputs).map(fetchImage));
   const prompt = String(inputs.prompt || "");
 

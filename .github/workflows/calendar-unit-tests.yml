@@ -305,6 +305,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/lost-work-conflict-browser.js
+      - name: A second status pick while the first is still saving reaches production-write (mocked)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/cal-status-pick-during-save-browser.js
       - name: Typed captions, notes, comments and descriptions survive a closed tab or a failed save (mocked)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -373,6 +377,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/calendar-hover-files-browser.js
+      - name: Calendar card video and thumbnail buttons each have their own icon and tooltip
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/calendar-prod-button-icons-browser.js
       - name: Client review link works on phones (approve + request change)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -566,6 +574,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/back-to-card-browser.js
+      - name: SyncLinear work item opens its Calendar card in a new tab
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/open-in-calendar-browser.js
       - name: Workload, signed out shows no board
         if: ${{ !cancelled() }}
         env:
@@ -656,6 +669,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/instagram-platform-switch-browser.js
+      - name: Post tab (name, platform tint, caption from the Calendar)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/post-tab-browser.js
 
 
   split-preview:

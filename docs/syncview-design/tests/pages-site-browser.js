@@ -56,7 +56,9 @@ const CASES = [
   ['staff calendar', '/calendar', { staff: true, keepPath: true, parts: 5 }],
   ['staff templates', '/templates', { staff: true, keepPath: true, parts: 5 }],
   ['staff filming plans', '/filming-plans', { staff: true, keepPath: true, parts: 5 }],
-  ['staff tiktok upload', '/tiktok-upload', { staff: true, keepPath: true, parts: 5 }],
+  ['staff post', '/post', { staff: true, keepPath: true, parts: 5 }],
+  // The Post tab's old address still opens it, and the address bar shows its new one.
+  ['staff old tiktok upload address', '/tiktok-upload', { staff: true, wantPath: '/post', parts: 5 }],
   // Time off is behind the PTO flag, which reads as off in this offline run (every
   // backend read is empty), so the app sends the visitor home. Same as today.
   ['staff time off', '/time-off', { staff: true, wantPath: '/', parts: 5 }],

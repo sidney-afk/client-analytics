@@ -23,6 +23,43 @@ line is older than a week, re-check it before relying on it.
 Newest first. Checked against main and the live database on 2026-10-16. When an item here is finished or moved into
 the sections below, delete it from this block in the same PR.
 
+**Evening 2026-10-16 (Lighthouse, checked live):**
+- **First Section 4 release through the new lanes SUCCEEDED** (manual merge-lane run 38953309940 at `27ce2100`, 19:13 UTC):
+  the Section 4 run 38953471717 verified the sealed backup, then deployed and verified `production-write`,
+  `deliverable-write` and `batch-write`; `production-comments` deployed and attested after it. The server halves of
+  Swift #2089 (Messages) and Scribe #2096 (notes) are live. The earlier failure was most likely the bundler image pull
+  being rate-limited; #2117 (Mechanic) pre-pulls it by digest with retries and a second registry and publishes the
+  CLI's own failure reason (OPEN_REPAIRS 425).
+- **Live by merge:** #2113 (Nano Banana switched off; live check: a price_check for it answers "switched off" with a GPT
+  Image price), #2116 (Open in Calendar button in Production), #2119 (Calendar and Samples card buttons: play icon for
+  the video, picture icon for the thumbnail).
+- **Studio:** version 0.3 in the `studio` bucket; a real Chelsey cut was made through it on the owner's computer.
+- **In review:** #2115 (video profiles; waits on synchro-brain #83 and the owner's go), #2120 (Cinema: one view for
+  video and notes; reviewed, merging when green, then `frame_viewer_clients` to all), #2121 (Post tab), #2122 (labelled
+  Open in Calendar button). Card saver watcher: 1 clean run, test client only.
+
+**Later on 2026-10-16 (Lighthouse, checked live):**
+- **Merged means live (#2101, Conveyor) is on main:** the page builds at publish (index.html is no longer committed) and
+  Edge Functions deploy on merge through `deploy-edge-functions-on-merge.yml`; the Section 4 capture runs in GitHub.
+  The capture-only proof passed (14:42 UTC, deployed nothing). Every merge since deployed itself and attested.
+- **First manual Section 4 release FAILED CLOSED** (16:41 UTC, `production-write` and `production-comments`): the
+  in-run capture passed, then `supabase functions deploy production-write --use-docker` exited in 1.6 s with its reason
+  only in the private log. Nothing changed live (every function's bundle hash unchanged). Session Mechanic is finding
+  the cause and making the lane publish the CLI's reason. The server halves of Swift #2089 and Scribe #2096 wait on it.
+- **Live by merge:** #2111 (Vigil: a Retry on a never-pinged card no longer fails in `calendar-card-write`), #2112
+  (Atelier: `studio_latest` on the Synchro connector; Lighthouse applied `hf_studio_downloads`; the owner uploaded
+  studio 0.2 to the private `studio` bucket; a test call handed out 0.2 at 17:09), #2114 (Relay: a second status pick
+  during the production-write wait now reaches Production; OPEN_REPAIRS 424). The one real card left behind by that race
+  was moved to Posted by the owner; the card-vs-work-item drift robot is clean again.
+- **Connector guide `video-studio`** added to `hf_guides` (first-time studio setup in Claude Code).
+- **Owner decisions:** Nano Banana is dropped, the team uses GPT Image only (#2113 switches it off; Google billing not
+  enabled). Kasper's bot reads the database through a project-scoped Read-only Supabase token the owner made.
+  The Frame.io player gets one more design round (session Cinema: one view for notes and video, no autoplay) before it
+  goes to everyone. The new card saver widens only when sure: a watcher every 3 hours, test client, then two of the
+  owner's clients, then all staff saves; client review links stay on `calendar-upsert`.
+- **Instagram upload** works for one more client (its Post For Me account id saved in its profile, allow-list secret
+  set by the owner).
+
 **Synchro video studio (session Atelier, 2026-10-16).** Step 1, `studio_latest`, merged (#2112): the newest studio zip
 from the private `studio` bucket as a signed link valid about 10 minutes, each call logged in `hf_studio_downloads`. Live
 since about 17:09 UTC; a real call at 17:32 UTC returned version 0.2 and was logged.
@@ -442,7 +479,11 @@ hiring senders when the editor hire closes.
   **2026-10-08 (OPEN_REPAIRS 373, session Mend): Calendar E2E, Samples E2E and the drift check.** Robot causes
   fixed in test code (fake-key refusal shadowing the fake gateway; fake-key 401s on staff reads signing the robot
   out, which since admin-only Kasper sends it to Home; notes sent before their thread loads; two probes on
-<<<<<<< HEAD
+  retired addresses or rules). The drift check now lists N/A slots apart (owner: N/A wins). Measured 2026-10-09: the migration is
+  applied from the LF copy (both routine bodies match the preflight pins, OPEN_REPAIRS 381), the test-client repair ran,
+  and the pins are re-pointed (today's Section 4 run passed its preflight). Left: the `SYNCVIEW_STAFF_KEY` repository
+  secret holds a role key (p96); a secret cannot be read, so the next Calendar and Samples nightly runs show it.
+
   retired addresses or rules). The drift check now lists N/A slots apart (owner: N/A wins). Owner steps left:
   apply `migrations/2026-10-08-native-calendar-na-wins-one-client.sql` and run its one-client repair for the
   test client; set the `SYNCVIEW_STAFF_KEY` repository secret to a role key (p96). Then re-point the deploy
@@ -453,12 +494,6 @@ hiring senders when the editor hire closes.
   was a real bug (fixed); Finish expectation follows the owner's 2026-09-27 rule; robot servers answer like Pages. p28,
   p29, p30, p36 stay (they test native routing). The robots now read the SMM role key from the repository secret `ROBOT_ROLE_KEY_SMM` (owner decision; the
   `production` environment keeps its approval rule). Owner check: `SYNCVIEW_STAFF_ACTOR` names an active SMM.
-=======
-  retired addresses or rules). The drift check now lists N/A slots apart (owner: N/A wins). Measured 2026-10-09: the migration is
-  applied from the LF copy (both routine bodies match the preflight pins, OPEN_REPAIRS 381), the test-client repair ran,
-  and the pins are re-pointed (today's Section 4 run passed its preflight). Left: the `SYNCVIEW_STAFF_KEY` repository
-  secret holds a role key (p96); a secret cannot be read, so the next Calendar and Samples nightly runs show it.
->>>>>>> origin/main
 - **Workload plan `list` deadline** is only budget-raised, not fixed
   (OPEN_REPAIRS 210).
 - **Dialog press-and-release (OPEN_REPAIRS 215) is DONE.** Fixed on main since

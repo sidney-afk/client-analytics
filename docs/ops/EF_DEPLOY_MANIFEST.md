@@ -10,8 +10,8 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 64 |
-| Main-push plus manual-dispatch paths | 59 |
+| Deployable function slugs | 65 |
+| Main-push plus manual-dispatch paths | 60 |
 | Manual-dispatch-only paths | 3 |
 | No CI deploy path | 4 |
 | Deliberate-manual subset of no-CI paths | 6 |
@@ -62,6 +62,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `onboarding-capture` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml) | main push (auto, in order) | - | - |
 | `onboarding-full` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push (auto, in order)<br>workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `onboarding-list` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push (auto, in order)<br>workflow_dispatch | `_shared/staff-role-auth.ts` | - |
+| `pipeline-google` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-single-function](../../.github/workflows/deploy-single-function.yml) | main push (auto, in order)<br>workflow_dispatch only (pinned SHA guard) | - | - |
 | `production-archive` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push (auto, in order)<br>workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | - |
 | `production-comments` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push (auto, in order)<br>workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `production-comments/feedback.mjs`<br>`production-comments/inbox.mjs`<br>`production-comments/policy.mjs` |
 | `production-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml)<br>[deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard)<br>workflow_dispatch only (pinned SHA guard)<br>dispatched on merge by deploy-on-merge (the lane captures the rollback bundle itself) | `_shared/linear-create-id.mjs`<br>`_shared/native-brief-media.mjs`<br>`_shared/staff-role-auth.ts`<br>`_shared/title-name-rule.mjs`<br>`_shared/write-refusal-codes.mjs`<br>`_shared/write-refusal-diagnostics.mjs` | `production-write/card-link.mjs`<br>`production-write/policy.mjs`<br>`production-write/selected-label-pages.mjs` |

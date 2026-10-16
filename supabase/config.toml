@@ -218,6 +218,12 @@ verify_jwt = false
 [functions.higgsfield-mcp]
 verify_jwt = false
 
+# The filming-plan pipeline's door to Google Docs, Sheets and Drive (moved here from
+# synchro-pipelines 2026-10-16). JWT off: the pipeline is not a Supabase client;
+# every request carries the pipeline password (PIPELINE_GOOGLE_KEY).
+[functions.pipeline-google]
+verify_jwt = false
+
 # Server-to-server roster doors (n8n): JWT off because n8n is not a Supabase
 # browser client; both require ROSTER_SERVICE_KEY (32+ characters) in
 # X-Roster-Key. roster-write only writes natively once the owner flips

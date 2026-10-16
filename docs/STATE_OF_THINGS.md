@@ -23,12 +23,12 @@ line is older than a week, re-check it before relying on it.
 Newest first. Checked against main and the live database on 2026-10-16. When an item here is finished or moved into
 the sections below, delete it from this block in the same PR.
 
-**In review (session Atelier, 2026-10-16): Synchro video studio, step 1.** A read-only `studio_latest` tool on the
-Synchro connector gives the newest studio zip from the private `studio` bucket (version, a signed download link valid
-about 10 minutes, notes) and says "No studio version uploaded yet" when `latest.json` is missing. Each call is logged in
-the new `hf_studio_downloads` table (migration `20261016180000_hf_studio_downloads.sql`, applied by Lighthouse; until it
-is applied the on-merge lane holds `higgsfield-mcp`). Steps 2 (`studio_profile`, `studio_profile_save`) and 3 (design of
-`studio_transcribe`) follow after this merges.
+**Synchro video studio (session Atelier, 2026-10-16).** Step 1, `studio_latest`, merged (#2112): the newest studio zip
+from the private `studio` bucket as a signed link valid about 10 minutes, each call logged in `hf_studio_downloads`.
+Step 2 in review: `studio_profile` reads a client's video look from the brain file `clients/<folder>/video-profile.json`
+(or, with none yet, the brief's Look lines and exact spec values to draft from), and `studio_profile_save` files a profile
+through the same change path as `brain_change`. The brain writes the file only once the "Video profile updates" section
+is in its `POLICY/syncview-changes.md` (a synchro-brain PR for Sidney). Step 3 (`studio_transcribe`) is a design only.
 
 **Live on 2026-10-16 (Sidney's one-function runs, checked by Lighthouse):**
 - **`calendar-card-write` v1** deployed about 13:23 UTC. Lighthouse put the test client on `calendar_card_write_clients`

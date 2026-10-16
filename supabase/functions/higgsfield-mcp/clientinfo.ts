@@ -30,7 +30,7 @@ async function plans(db: SupabaseClient): Promise<Plan[]> {
 }
 
 // Match a typed client name loosely: exact slug/name first, then "contains".
-async function findClient(db: SupabaseClient, query: string): Promise<{ plan?: Plan; choices?: string[] }> {
+export async function findClient(db: SupabaseClient, query: string): Promise<{ plan?: Plan; choices?: string[] }> {
   const q = norm(query);
   if (!q) return { choices: [] };
   const all = await plans(db);
@@ -111,7 +111,7 @@ export async function filmingPlan(db: SupabaseClient, client: string, month: str
   return `${p.client_name} filming plan, tab ${pick.n} (${pick.month})${labelled.length > 1 ? `. Other tabs:\n${list}\n` : ""}\n\n${pick.text.slice(0, PLAN_MAX_CHARS)}${cut ? "\n\n[cut here]" : ""}`;
 }
 
-function gh(path: string, raw = false, init: RequestInit = {}): Promise<Response> {
+export function gh(path: string, raw = false, init: RequestInit = {}): Promise<Response> {
   const repo = Deno.env.get("BRAIN_REPO") || "sidney-afk/synchro-brain";
   return fetch(`https://api.github.com/repos/${repo}/${path}`, {
     ...init,
@@ -167,7 +167,7 @@ export async function clientStyle(db: SupabaseClient, client: string): Promise<s
 const BRAIN_FILES = ["identity", "voice", "editing", "relationship"];
 const BRAIN_MAX_CHARS = 60_000;
 
-async function brainFolder(slug: string, name: string): Promise<{ folder?: string; folders: string[]; error?: string }> {
+export async function brainFolder(slug: string, name: string): Promise<{ folder?: string; folders: string[]; error?: string }> {
   const ref = encodeURIComponent(Deno.env.get("BRAIN_BRANCH") || "main");
   const list = await gh(`contents/clients?ref=${ref}`);
   if (!list.ok) return { folders: [], error: `Could not read the Synchro Brain (${list.status}).` };

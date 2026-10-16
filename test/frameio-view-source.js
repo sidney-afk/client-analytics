@@ -103,7 +103,7 @@ function deps(f, over = {}) {
 
 (async () => {
   const logic = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/frameio-view/logic.mjs')).href);
-  const { lookup, parseFrameLink, addressExpiry, pickAddress, tokenSource, ViewError } = logic;
+  const { lookup, parseFrameLink, addressExpiry, pickAddress, pickRenditions, tokenSource, ViewError } = logic;
   const code = async (p) => { try { await p; return 'no error'; } catch (e) { return e instanceof ViewError ? e.code : 'other:' + e.message; } };
 
   // ---- the link
@@ -125,7 +125,8 @@ function deps(f, over = {}) {
   const d = deps(f);
   const out = await lookup('https://f.io/abc123', d);
   ok(out.ok === true, 'short link resolves');
-  eq(out.video.url, STREAM, 'the smaller stream is preferred');
+  eq(out.video.url, STREAM + '&q=hq', 'the full-size file is the one to start with');
+  eq(out.video.renditions, { efficient: STREAM, high_quality: STREAM + '&q=hq', original: ORIGINAL }, 'every rendition Frame.io gave is handed on by name, so the page can fall back to the small one on a slow connection');
   eq(out.video.name, 'Sample Video V2.mp4', 'file name');
   eq(out.video.fps, 24, 'frame rate read');
   eq(out.video.duration_seconds, 45.5, 'duration read');
@@ -151,6 +152,8 @@ function deps(f, over = {}) {
 
   // ---- fallbacks and limits
   eq((await lookup('https://f.io/abc123', deps(fakeFrameio({ originalOnly: true })))).video.url, ORIGINAL, 'the original is the last resort');
+  eq(pickAddress({ efficient: { download_url: STREAM }, original: { inline_url: ORIGINAL } }), STREAM, 'with no full-size file the small one is next, the original after it');
+  eq(Object.keys(pickRenditions({ efficient: { download_url: 'http://evil.test/x' }, high_quality: { download_url: STREAM } })), ['high_quality'], 'an address off Frame.io is left out of the renditions');
   eq(addressExpiry(ORIGINAL, NOW), new Date(EXPIRES * 1000).toISOString(), 'expiry from a signed Expires');
   eq(addressExpiry('https://assets.frame.io/x', NOW), new Date(NOW + 3600000).toISOString(), 'one hour when nothing says');
   eq(pickAddress({ efficient: { download_url: 'http://evil.test/x' } }), '', 'an address off Frame.io is never handed on');
@@ -210,7 +213,7 @@ function deps(f, over = {}) {
   ok(/if \(!clientToken\) \{\s*const auth = authorizeStaffKey/.test(src), 'no client token means the staff key check runs');
   ok(src.indexOf('authorizeStaffKey(') < src.indexOf('req.json()'), 'the key is checked before the body is read');
   ok(src.indexOf('authorizeClientCard(') > src.indexOf('req.json()') && src.indexOf('authorizeClientCard(') < src.indexOf('await lookup('), 'a client is authorized before Frame.io is asked anything');
-  ok(/\{ comments: !clientToken \}/.test(src), 'a client lookup never asks for comments');
+  ok(/clientToken \? \{ client: true \}/.test(src), 'a client lookup never asks for comments');
   ok(/link = card\.link;/.test(src), "a client request plays the card's own link, not the one in the request");
   ok(/verify_jwt = false/.test(read('supabase/config.toml').split('[functions.frameio-view]')[1] || ''), 'registered in config.toml (the key is checked in code)');
   ok(src.split('\n').filter((l) => /console\./.test(l)).every((l) => !/link|token|url|body|comment/i.test(l.replace(/frameio-view/g, ''))), 'no log line carries a link, token, address or comment');
@@ -220,6 +223,37 @@ function deps(f, over = {}) {
   ok(!/method:\s*['"](POST|PUT|PATCH|DELETE)['"]/.test(lg.replace(/method: 'POST', headers: \{ 'x-broker-key'/, '')), 'only GETs reach Frame.io');
   ok(!/access_token/.test(src), 'the handler never touches the access token');
   ok(!/\baccess_token\b/.test(lg.replace(/body\.access_token/g, '').replace(/clean\(body\.access_token\)/g, '')), 'logic reads the token only from the key keeper reply');
+
+  // ---- fast start: the video address comes back without waiting for the comments, and a repeat open skips the search
+  {
+    const pf = fakeFrameio();
+    const only = await lookup('https://f.io/abc123', deps(pf), { part: 'video' });
+    ok(only.ok && only.video.url && only.video.name && only.open_url && !('comments' in only), 'part "video" answers with the addresses and no comments');
+    ok(pf.log.every((e) => !/\/comments/.test(e.url)), 'part "video": Frame.io is not asked for comments at all');
+    const cf = fakeFrameio();
+    const com = await lookup('https://f.io/abc123', deps(cf), { part: 'comments' });
+    ok(com.ok && com.comments.length === 3 && !('video' in com) && com.open_url, 'part "comments" answers with the comments only');
+    ok(cf.log.every((e) => !/media_links/.test(e.url)), 'part "comments": no media address is asked for');
+    eq((await lookup('https://f.io/abc123', deps(fakeFrameio()), { part: 'nonsense' })).comments.length, 3, 'an unknown part means both, as before');
+
+    // the file behind a link is remembered for a minute (hover, then click)
+    const cache = new Map(); let t = NOW; const f1 = fakeFrameio();
+    const d1 = deps(f1, { cache, now: () => t });
+    await lookup('https://f.io/abc123', d1, { part: 'video' });
+    const first = f1.log.length;
+    await lookup('https://f.io/abc123', d1, { part: 'comments' });
+    const second = f1.log.length - first;
+    ok(first >= 6 && second <= 4, `a second ask for the same link skips the redirect, the account search, the share and the assets (${first} calls, then ${second})`);
+    ok(f1.log.filter((e) => e.url === 'https://f.io/abc123').length === 1, 'the short link is followed once');
+    t += 61000; const before = f1.log.length;
+    await lookup('https://f.io/abc123', d1, { part: 'video' });
+    ok(f1.log.length - before >= 6, 'after a minute the link is looked up afresh (a new version shows within a minute)');
+    // the two halves are asked for side by side: the video address does not wait for metadata
+    const order = []; const slow = fakeFrameio(); const base = slow.fn;
+    const fnOrder = async (url, init) => { if (/\/metadata$/.test(url)) order.push('meta-start'); if (/media_links/.test(url)) order.push('media-start'); return base(url, init); };
+    await lookup('https://f.io/abc123', deps({ fn: fnOrder, log: slow.log }), { part: 'video' });
+    eq(order, ['media-start', 'meta-start'], 'the address and the metadata are asked for together, not one after the other');
+  }
 
   // ---- the client side: one client's token plays that client's own card, nothing else
   {
@@ -274,7 +308,7 @@ function deps(f, over = {}) {
     { const db = fakeDb(); await authorizeClientCard({ token: TOK_A, cardId: 'card-1' }, db.rest); ok(db.asked.every((a) => /^(client_access|syncview_runtime_flags|clients|calendar_posts)\?/.test(a)), 'only the four tables are read'); }
 
     { const f = fakeFrameio(); const out = await lookup(LINK, deps(f), { comments: false });
-      ok(out.ok && out.video.url === STREAM, 'a client gets the playable address');
+      ok(out.ok && out.video.url === STREAM + '&q=hq' && out.video.renditions.efficient === STREAM, 'a client gets the playable addresses');
       ok(!('comments' in out) && !('comments_error' in out) && !('comments_truncated' in out) && !('reply_names_partial' in out), 'a client response has no comments at all');
       ok(!JSON.stringify(out).includes('Second note') && !JSON.stringify(out).includes('Team Member') && !JSON.stringify(out).includes('Fixed, thanks'), 'no comment text, author or reply anywhere in it');
       ok(!('open_url' in out) && !('name' in out.video) && !('file_id' in out.video), 'no Frame.io page address, file name or id either');

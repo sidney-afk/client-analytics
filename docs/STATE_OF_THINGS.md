@@ -150,7 +150,7 @@ here with where it stopped, so it can be restarted.
    about $13; and the live site publishes the whole repo (docs, scripts,
    migrations), so the Pages deploy must become an allowlist before any switch.
 6b. **n8n exit, phase 2 (plan #1874, owner decisions recorded 2026-09-30; status 2026-10-01).** Order: D, B, A, E, F, C, K.
-   Generate caption's AI job itself: BUILT 2026-10-09, not deployed, switch off (`caption-generate` function, transcript box, fixed writing rules; OPEN_REPAIRS 388). Until the owner sets `caption_generate_ef_clients`, every caption still runs on n8n.
+   Generate caption's AI job itself: DONE (`caption-generate` function, transcript box, fixed writing rules; OPEN_REPAIRS 388). The switch was set to everyone, and on 2026-10-16 the page's switch read and its n8n `generate-caption` fallback were removed (session Sunset), so a failed read can no longer send a caption to n8n. Once that is live, Lighthouse deactivates the n8n "SyncView Calendar — Generate Caption" workflow (deactivate, not delete).
    D (TikTok poll trim) DONE #1878. B (caption progress in Supabase) DONE: `caption-jobs` live, Generate Caption edited and
    published, Calendar page switched (#1889). A (Slack Creative Channel Finalizer): trigger webhook and daily safety check are
    live next to the 15 minute timer (#1892); the timer is removed in a small follow-up only after the next real client's

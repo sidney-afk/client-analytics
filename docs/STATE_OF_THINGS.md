@@ -56,7 +56,7 @@ the sections below, delete it from this block in the same PR.
   workflow (owner's go given 2026-10-16 on that condition) and logs it in `docs/ops/N8N_EDIT_LOG.md`.
 - **Messages:** clicking Messages again closes it and returns to where you were, and it gets a Close button (reverses the
   earlier "no Close button"). In #2089 (Swift).
-- **Caption box:** a small regenerate icon replaces "Redo with a note" (#2098, Quill).
+- **Caption box:** a small regenerate icon replaces "Redo with a note" (#2098, Quill): merged 2026-10-16, live with the next Pages publish.
 - **Frame.io pop-up polish** (session Lens): faster, autoplay, a vertical layout for phone videos, one comment list
   (Frame.io and SyncView notes together), less text, one Open/Reply button, no "FRAME.IO" label, full quality on the Review tab.
 - **After Vista: a lifecycle review session** that walks every dependency end to end and tests everything, so nothing
@@ -67,8 +67,8 @@ the sections below, delete it from this block in the same PR.
 - Swift #2089 (Messages opens fast, Close button): in review; needs a `production-comments` deploy after merge.
 - Anchor #2094 (production-polish gate waits for the app instead of guessing): fixing its own boot-budget runs.
 - Scribe #2096 (a note shows the moment it is sent): in review.
-- Sunset #2097 (calendar-upsert map, docs only): in review; next is the fallback removal, then the new function.
-- Quill #2098 (regenerate icon): in review.
+- Sunset #2097 (calendar-upsert map and retirement plan, docs only): merged 2026-10-16. Next: the fallback removal, then the new function.
+- Quill #2098 (regenerate icon): merged 2026-10-16.
 - Lens: Frame.io pop-up polish, PR to come.
 - Conveyor: auto-deploy on merge and the capture in GitHub; merges last.
 - Thumb #2085 and #2087 (phone Calendar, Samples, Workload): waiting for Thumb to merge main.

@@ -198,7 +198,7 @@ async function run(browser, origin, label, device, theme) {
     const textRight = tr.right - parseFloat(cs.paddingRight);
     return { w: Math.round(r.width), h: Math.round(r.height), top: Math.round(r.top - w.top), right: Math.round(w.right - r.right), clearOfText: textRight <= r.left + 1, inCard: r.right <= document.querySelector('.cal-card[data-pid="v1"]').getBoundingClientRect().right + 1 };
   }, redoBtn);
-  const minSize = device.isMobile ? 40 : 22;
+  const minSize = device.hasTouch ? 40 : 22;
   expect(lay.top <= 10 && lay.right <= 10 && lay.clearOfText && lay.inCard && lay.w >= minSize && lay.h >= minSize,
     `${tag}: it sits in the top right corner of the caption box, clear of the caption text, big enough to tap on a phone (${JSON.stringify(lay)})`);
   await shot(page, `icon-${tag}`, 'v1');
@@ -312,9 +312,12 @@ async function runEditor(browser, origin) {
   const desktop = { viewport: { width: 1440, height: 900 } };
   const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true,
     userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' };
+  const tablet = { viewport: { width: 820, height: 1180 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
   try {
     for (const theme of ['light', 'dark']) await run(browser, origin, 'desktop', desktop, theme);
     for (const theme of ['light', 'dark']) await run(browser, origin, 'phone', phone, theme);
+    // A touch screen wider than the phone breakpoint (a tablet, a phone in landscape): the icon is still tappable.
+    for (const theme of ['light', 'dark']) await run(browser, origin, 'tablet', tablet, theme);
     await runNoChoices(browser, origin);
     await runEditor(browser, origin);
   } finally {

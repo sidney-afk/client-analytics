@@ -2893,6 +2893,13 @@
         .cal-cap-redo-open { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; }
         .cal-cap-redo-open svg { width: 13px; height: 13px; }
         .cal-cap-redo-open:hover, .cal-cap-redo-open:focus-visible { color: var(--text-primary); border-color: var(--sv-border-999); }
+        /* A touch screen above the phone breakpoint (a tablet, a phone in landscape) gets the same 44px target. */
+        @media (pointer: coarse) {
+            .cal-cap-redo-open { width: 44px; height: 44px; }
+            .cal-cap-redo-open svg { width: 20px; height: 20px; }
+            .cal-cap-tools { top: 4px; right: 4px; }
+            .cal-cap-wrap:has(.cal-cap-tools) textarea.cal-fld-cap { padding-right: 54px; }
+        }
         .cal-redo-current { white-space: pre-wrap; max-height: 28vh; overflow-y: auto; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text-secondary); font-size: 0.84rem; line-height: 1.5; overflow-wrap: anywhere; }
         .cal-redo-note { min-height: 96px; }
         html.sv-staff-phone .cal-cap-tools { top: 4px; right: 4px; }

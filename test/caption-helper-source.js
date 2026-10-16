@@ -198,6 +198,7 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   const CSS = read('src/index/020-styles-surfaces.css.part');
   ok(/\.cal-cap-tools \{ position: absolute; top: 7px; right: 7px;/.test(CSS) && !/\.cal-cap-tx\b/.test(CSS), 'the regenerate icon is pinned to the top right corner of the caption box');
   ok(/html\.sv-staff-phone \.cal-cap-redo-open \{ width: 44px; height: 44px; \}/.test(CSS), 'on a phone the icon is 44px, big enough to tap');
+  ok(/@media \(pointer: coarse\) \{\s*\.cal-cap-redo-open \{ width: 44px; height: 44px; \}/.test(CSS), 'and so is it on any touch screen above the phone breakpoint (a tablet)');
   ok(/\.cal-cap-toggle \{ position: absolute; right: 7px; bottom: 7px; width: 21px; height: 21px; padding: 0;/.test(CSS), 'Show more is just the arrow');
 
   console.log(`caption-helper-source: ${checks} checks passed ✅`);

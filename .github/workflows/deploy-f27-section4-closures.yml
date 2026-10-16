@@ -411,7 +411,13 @@ jobs:
       # --slugs=production-write --expected-only; entrypoint and file count (10)
       # unchanged.
       # (Previous pin: 192c9aa1b3... -- production-write, files=10, 2026-09-25.)
-      PRODUCTION_WRITE_SOURCE_SHA256: 692b5c473be2d404ee05da0eb2fb87dca64e94cb4654cc0daa931d8c4f544502
+      # Re-pinned 2026-10-15 (OPEN_REPAIRS 421, note outbox): the Slack sender
+      # wake after an ordinary comment or status write runs after the answer
+      # (EdgeRuntime.waitUntil) instead of holding it. Regenerated with
+      # scripts/ef-fingerprint.js --slugs=production-write --expected-only;
+      # entrypoint and file count (10) unchanged.
+      # (Previous pin: 692b5c473b... -- production-write, files=10, 2026-10-08.)
+      PRODUCTION_WRITE_SOURCE_SHA256: 07677a1f0b62271710df7b63aff8a7eb7c732473f00c796d5e34c384c56387d2
       # The two bundle values are exported to GITHUB_ENV as ROLLBACK_BUNDLE_SHA256
       # and ROLLBACK_BUNDLE_BYTE_LENGTH by the validation step (given) or the
       # capture step (sealed in this run); a job-level value would shadow those.

@@ -127,7 +127,13 @@ const prodD = stripComments(frag('240-production-description.js.part'));
 const post = stripComments(frag('180-calendar-native-post-media.js.part'));
 ok(/_calCaptionDraftWrite\(pid, val\)/.test(cal) && /_svDraftClearIf\('cal', _saveSlug, realId, 'caption', edits\.caption\)/.test(cal), 'Calendar caption: kept on every change, dropped only when a save of that text lands');
 ok(/_calCaptionDraftView\(p\)/.test(cal) && /meta\.base != null && _svDraftNorm\(d\.meta\.base\) !== _svDraftNorm\(p\.caption\)/.test(cal), 'Calendar caption: a restore over a caption that changed elsewhere goes to the two-choice notice, never straight over it');
-ok(/_calNoteDraftSet\(pid, body, \{ sending: Date\.now\(\) \}\)/.test(notes) && /_calNoteDraftClearIfSent\(pid, body\)/.test(notes) && /d\.meta\.sending && _calNoteInThread\(post, d\.text\)/.test(notes), 'Calendar note: marked while on its way, dropped on acknowledgement, not restored when the thread already holds it');
+// Since the note outbox (2026-10-15) a note being sent lives in the outbox, not
+// the draft: the box is free at the click, the note waits in the thread, and a
+// note the thread already holds is never offered again (an older "sending"
+// draft from before this change is still checked against the thread).
+ok(/_noteOutboxPut\(\{[\s\S]*?body,/.test(notes) && /_calNoteDraftSet\(pid, ''\)/.test(notes) && /_noteOutboxSend\(entry\.id\)/.test(notes)
+  && /_calNoteDraftClearIfSent\(pid, body\)/.test(notes) && /d\.meta\.sending && _calNoteInThread\(post, d\.text\)/.test(notes)
+  && /_noteOutboxInList\(post, e\.id\)/.test(notes), 'Calendar note: kept in the outbox while on its way, the draft dropped at the click, not offered again when the thread already holds it');
 ok(!/sessionStorage\.setItem\('sv_noteDraft_' \+ _calOpenCommentsPid/.test(notes), 'Calendar note: staff no longer rely on tab-only storage');
 ok(/_svDraftSave\('prod', _prodCommentDraftClient\(id\), String\(id\), 'comment'/.test(prodC) && /_svDraftClearIf\('prod', _prodCommentDraftClient\(id\), String\(id\), 'comment', comment\.body\)/.test(prodC) && /_svDraftRead\('prod', _prodCommentDraftClient\(id\), id, 'comment'\)/.test(prodC), 'Production comment and reply composer: kept, restored, dropped on acknowledgement');
 ok(/_prodCommentBegin[\s\S]*?draft\.restored = false/.test(prodC) && /action !== 'add'\) return;/.test(prodC), 'Production: an edit of an existing comment is never stored');

@@ -232,6 +232,11 @@ function makeApp(opts, source) {
     extractFunction('_prodFetchCrosswalkRows', source),
     extractFunction('_prodCardBindingToken', source),
     extractFunction('_prodResolveCardCrosswalk', source),
+    // The per-card in-flight count (2026-10-15) and its two writers.
+    'const _prodCrosswalkRuns = new Map();',
+    extractFunction('_prodCrosswalkRunStart', source),
+    extractFunction('_prodCrosswalkRunEnd', source),
+    extractFunction('_prodCrosswalkInFlight', source),
     extractFunction('_prodCanonicalCommentGate', source),
     extractFunction('_prodProjectCanonicalCardComments', source),
     extractFunction('_calCommentsFor', source),

@@ -5,7 +5,7 @@ import {
 } from './100-onboarding-staff-controls.js';
 import {
   _calComponentsFor, _clientCommentGatewayOn, _prodCanonicalCoversLegacy, _prodCardBindingToken,
-  _prodCrosswalkVerdict, _prodLegacyReadIncomplete, _prodLegacyUnrepresentableState,
+  _prodCrosswalkInFlight, _prodCrosswalkRunEnd, _prodCrosswalkRunStart, _prodCrosswalkVerdict, _prodLegacyReadIncomplete, _prodLegacyUnrepresentableState,
   _prodResolveCardCrosswalk, _syncviewClientWriteToken, _syncviewEfHeaders, _writeUiCommentRound, _writeUiFailureText,
   _writeUiNativeId, _writeUiPrimeRerouteFlag, _writeUiRecordFailure
 } from './120-calendar-flags-write-repair.js';
@@ -2125,11 +2125,9 @@ import {
             // Send also waits on this lookup specifically: a kept 'ready' verdict
             // may only be reused once the CURRENT crosswalk confirms the card is
             // still bound to the same deliverable.
-            post._canonicalCrosswalkInFlight = (post._canonicalCrosswalkInFlight || 0) + 1;
+            _prodCrosswalkRunStart(post);
             const validComponents = await _prodResolveCardCrosswalk(surface, post, allComponents)
-                .finally(() => {
-                    post._canonicalCrosswalkInFlight = Math.max(0, (post._canonicalCrosswalkInFlight || 1) - 1);
-                });
+                .finally(() => { _prodCrosswalkRunEnd(post); });
             if (validComponents === null) return false;
             if (_prodCardBindingToken(surface, post, allComponents) !== bindingToken) return false;
             const components = allComponents.filter(component => validComponents.has(component));
@@ -2369,7 +2367,7 @@ import {
            statement. Rows that are already held are shown as they are. */
         function _prodCardCommentsPending(post, surface) {
             if (!post) return false;
-            if (post._canonicalCrosswalkInFlight) return true;
+            if (_prodCrosswalkInFlight(post)) return true;
             const reads = post._canonicalCommentReads;
             if (!reads) return false;
             /* Only the deliverables bound to the card NOW count. A projection that

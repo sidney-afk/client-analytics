@@ -2645,9 +2645,14 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
         // This person's notes still on their way (or not sent): roots join the
         // feed as their own threads, replies sit under the note they answer.
         const outboxReplies = new Map();
-        // A waiting note the thread now holds was confirmed (here or in
-        // another tab): its outbox entry has done its job.
-        _noteOutboxFor(pid, e => !_noteOutboxLive.has(e.id) && e.state !== 'sent' && _noteOutboxInList(post, e.id)).forEach(e => _noteOutboxDrop(e.id));
+        // A send cut off by a refresh or a closed tab whose note the reloaded
+        // thread now holds did arrive: its outbox entry has done its job. A
+        // FAILED entry is never dropped here: a refused card save leaves the
+        // note in this page's local thread, which is not a server receipt.
+        // It goes only on a confirmed retry, or Discard.
+        _noteOutboxFor(pid, e => !_noteOutboxLive.has(e.id) && e.state === 'sending' && _noteOutboxInList(post, e.id)).forEach(e => _noteOutboxDrop(e.id));
+        // Waiting or refused notes already in the local thread keep their mark.
+        const outboxMarks = new Map(_noteOutboxFor(pid, e => _noteOutboxInList(post, e.id)).map(e => [e.id, _noteOutboxAsComment(e)]));
         _noteOutboxFor(pid, e => !_noteOutboxInList(post, e.id)).forEach(e => {
             const c = _noteOutboxAsComment(e);
             if (!e.parent_id) { compThreads.push({ comp: e.comp || 'video', list: [c], root: c }); return; }
@@ -2663,6 +2668,10 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
         const postName = _calEsc(post.name || 'Untitled post');
 
         const renderRow = (c, isReply, comp) => {
+            if (!c._outbox && outboxMarks.has(c.id)) {
+                const mark = outboxMarks.get(c.id);
+                c = Object.assign({}, c, { _outbox: mark._outbox, _outboxError: mark._outboxError });
+            }
             const roleCls = c.role === 'client' ? 'is-client' : 'is-smm';
             const author  = _calNoteAuthorName(c, c.role === 'client' ? 'Client' : 'SMM');
             const initial = _calAvatarInitial(author, c.role);

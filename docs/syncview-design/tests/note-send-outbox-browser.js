@@ -16,6 +16,9 @@
  *     E refresh mid-send, server committed but the answer was lost: after the
  *       reload the note is still there as "Not sent", Retry does not make a
  *       second one (one id per note, the server keeps one per id)
+ *     L a caption note refused by the card save stays "Not sent" across a
+ *       reopen and a refresh, and Retry saves it once
+ *     K a card refreshed during its link lookup does not keep Send locked
  *     F a reply from the Messages page shows in the chat at once, then is saved
  *   Client, review link (own fixture; the caption part, saved on the card):
  *     G a plain comment shows "Sending…" at once and clears when saved
@@ -163,6 +166,32 @@ async function staffLanes(view) {
     check(await until(async () => { const r = await rowState(page, 'Outbox note E'); return r.length === 1 && !r[0].failed && !r[0].sending; }, 8000), tag('E: Retry confirms it'));
     check(commentsWith('Outbox note E').length === 1 && committedE <= 1, tag(`E: still one note on the server (one id per note) [${committedE} before retry]`));
     check(S.log.some(l => l.key === 'gw:comment-replay'), tag('E: the retry carried the same id, and the server answered with the note it had'));
+    await page.evaluate(() => closeCalComments());
+
+    // L a caption note (saved on the card only) whose card save is refused
+    // stays "Not sent" when Notes is opened again and after a refresh: the
+    // note in the page's own thread is not a server receipt (Codex, PR 2096)
+    S.behave['cal-upsert'] = { mode: 'http', status: 503, times: 40, commit: false };
+    await page.evaluate(() => openCalComments('p_t1'));
+    await page.waitForSelector('#calCommentsModal #calCommentComposer');
+    await page.evaluate(() => _calSetComposeComp('caption'));
+    await page.fill('#calCommentComposer', 'Outbox caption note L');
+    await page.click('#calCommentsModal .cal-cm-send');
+    check(await until(async () => (await rowState(page, 'Outbox caption note L')).some(r => r.failed && r.retry), 15000), tag('L: a refused caption note says "Not sent"'));
+    await page.evaluate(() => closeCalComments());
+    await page.evaluate(() => openCalComments('p_t1'));
+    await sleep(400);
+    check((await rowState(page, 'Outbox caption note L')).some(r => r.failed && r.retry), tag('L: opening Notes again keeps it "Not sent"'));
+    await page.evaluate(() => closeCalComments());
+    delete S.behave['cal-upsert'];
+    await S.openCalendar(page);
+    await page.evaluate(() => openCalComments('p_t1'));
+    await page.waitForSelector('#calCommentsModal #calCommentComposer');
+    check(await until(async () => (await rowState(page, 'Outbox caption note L')).some(r => r.failed && r.retry), 6000), tag('L: after a refresh it is still there, "Not sent", with its words'));
+    await page.click('.cal-cm-row.is-outbox-failed .sv-note-outbox-retry');
+    const captionSaved = () => { try { const c = S.card('p_t1'); const v = c.caption_tweaks || c.caption_comments; return (Array.isArray(v) ? v : JSON.parse(v || '[]')).filter(m => m && m.body === 'Outbox caption note L').length; } catch (e) { return 0; } };
+    check(await until(() => captionSaved() === 1, 10000), tag('L: Retry saves it on the card, once'));
+    check(await until(async () => { const r = await rowState(page, 'Outbox caption note L'); return r.length === 1 && !r[0].failed && !r[0].sending; }, 6000), tag('L: then it is a normal note'));
     await page.evaluate(() => closeCalComments());
 
     // K a refresh replaces the card while its work-item link is being looked

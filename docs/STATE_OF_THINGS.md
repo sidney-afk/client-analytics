@@ -24,7 +24,8 @@ Newest first. Checked against main and the live database on 2026-10-16. When an 
 the sections below, delete it from this block in the same PR.
 
 **Synchro video studio (session Atelier, 2026-10-16).** Step 1, `studio_latest`, merged (#2112): the newest studio zip
-from the private `studio` bucket as a signed link valid about 10 minutes, each call logged in `hf_studio_downloads`.
+from the private `studio` bucket as a signed link valid about 10 minutes, each call logged in `hf_studio_downloads`. Live
+since about 17:09 UTC; a real call at 17:32 UTC returned version 0.2 and was logged.
 Step 2 in review: `studio_profile` reads a client's video look from the brain file `clients/<folder>/video-profile.json`
 (or, with none yet, the brief's Look lines and exact spec values to draft from), and `studio_profile_save` files a profile
 through the same change path as `brain_change`. The brain writes the file only once the "Video profile updates" section

@@ -9,7 +9,7 @@
  */
 const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const { chromium } = require('playwright');
-const { installReadConsoleAudit, serveStatic, isNonReadRequest } = require('./prod-test-utils');
+const { installReadConsoleAudit, serveStatic, isNonReadRequest, holdBackgroundRefresh } = require('./prod-test-utils');
 
 const TOTAL = 169;
 
@@ -97,6 +97,9 @@ async function txt(page, sel) {
           // Take no-mutation snapshots only after those existing reads settle.
           && !_prodState.refreshing
           && !_prodState.terminalTailPending
+          // Landed, not just not running: between the live swap and the tail's
+          // first request every flag above is down and most rows are missing.
+          && (!!_prodState.terminalTailLoadedAt || !!_prodState.terminalTailFailed)
           && _prodState.view === 'list'
           && root.querySelector('.prod-row')
           && root.querySelector('#prodFilterBtn'));
@@ -2132,10 +2135,31 @@ async function txt(page, sel) {
       return await page.locator('.prod-nav-btn.active', { hasText: 'My issues' }).count() === 1;
     }); await reset();
     await ok('groupCollapse', async () => {
-      const before = await page.locator('.prod-row').count();
+      /* The list draws in pieces: the first screenful, then chunks of 200 rows a
+         task later, and every render starts the fill again. A row count read
+         while the fill is running is a snapshot of a number still climbing, so
+         "before" could be 60 and "after" 568. Count only once it has stopped
+         changing (four equal samples 100 ms apart, about as long as a slow
+         machine takes between chunks). */
+      const settledRows = async () => {
+        let last = -1;
+        let same = 0;
+        for (let i = 0; i < 100 && same < 4; i++) {
+          const now = await page.locator('.prod-row').count();
+          same = now === last ? same + 1 : 0;
+          last = now;
+          await page.waitForTimeout(100);
+        }
+        return last;
+      };
+      const before = await settledRows();
       await page.locator('.prod-group').first().click();
-      const after = await page.locator('.prod-row').count();
-      return before > after && await page.locator('.prod-group.collapsed').count() === 1;
+      /* The collapse paints on the app's next render, not inside the click. */
+      await page.waitForFunction(() => document.querySelectorAll('.prod-group.collapsed').length === 1, null, { timeout: 5000 });
+      const after = await settledRows();
+      const collapsed = await page.locator('.prod-group.collapsed').count();
+      // Counts only, so a failure says which half of the claim broke.
+      return (before > after && collapsed === 1) || `rows before ${before}, after ${after}, collapsed groups ${collapsed}`;
     }); await reset();
     await ok('groupCheckGuard', async () => {
       await page.locator('.prod-group-check').first().click();
@@ -2341,6 +2365,9 @@ async function txt(page, sel) {
     if (await page.locator('.prod-error').count()) throw new Error('dark Production preview rendered an error card');
     const darkSmoke = await page.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark' && !!document.querySelector('.prod-view'));
     if (!darkSmoke) throw new Error('dark Production preview did not follow syncview_theme=dark');
+    // Last, so a tick cannot open one more read right after the audit's wait for
+    // the app's own reads has ended; whatever is already running is still waited for.
+    await holdBackgroundRefresh(page).catch(() => {});
     const readConsole = await readConsoleAudit.settle();
     await ok('noWriteRequests', async () => requests.filter(isNonReadRequest).length === 0);
     await ok('noConsoleErrors', async () => readConsole.ok ? true : readConsole.error);

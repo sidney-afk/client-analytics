@@ -1,6 +1,10 @@
 'use strict';
 /* Every screen and state the phone layout covers, with invented data. */
 const F = require('./fixtures');
+// Existing planning journeys enter the native planning view on the new phone shell.
+async function workloadPlan(p){const b=p.locator('[data-thumb-wl-mode=week]');if(await b.count())await b.click();}
+async function workloadFilters(p){const b=p.locator('[data-thumb-wl-filter]');if(await b.count()&&!await p.locator('.thumb-wl-filters').evaluate(n=>n.open))await b.click();}
+async function workloadDone(p){const b=p.locator('.thumb-wl-filters[open] [data-thumb-wl-close]');if(await b.count())await b.click();}
 const json = body => r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
 const fail = r => r.fulfill({ status: 500, contentType: 'application/json', body: '{"ok":false}' });
 const sheets = over => Object.assign({
@@ -102,17 +106,17 @@ const SCENARIOS = [
   { id: 'analytics-search', open: base('#analytics'), settle: 3500, steps: async p => { await p.fill('#searchInput', 'Client'); await wait(p, 700); } },
   { id: 'analytics-pin', open: base('#analytics'), settle: 3500, steps: async p => { await p.click('.pin-add-btn'); await wait(p, 600); } },
   { id: 'analytics-week', open: base('#analytics'), settle: 3500, steps: async p => { await p.click('.controls-left >> text=Week'); await wait(p, 800); } },
-  { id: 'workload-editors-menu', open: wl(), settle: 4000, steps: async p => { await p.click('text=All editors'); await wait(p, 600); } },
-  { id: 'workload-clients-search', open: wl(), settle: 4000, steps: async p => { await p.click('#wlClientSearchInput'); await wait(p, 700); } },
-  { id: 'workload-popover', open: wl(), settle: 4000, steps: async p => { await p.click('.workload-day .workload-day-card-chip >> nth=0'); await wait(p, 800); } },
-  { id: 'workload-plan-due', open: wl(), settle: 4000, steps: async p => { await p.click('text=Plan + Due Date'); await wait(p, 800); } },
+  { id: 'workload-editors-menu', open: wl(), settle: 4000, steps: async p => { await workloadFilters(p); await p.click('text=All editors'); await wait(p, 600); } },
+  { id: 'workload-clients-search', open: wl(), settle: 4000, steps: async p => { await workloadFilters(p); await p.click('#wlClientSearchInput'); await wait(p, 700); } },
+  { id: 'workload-popover', open: wl(), settle: 4000, steps: async p => { await workloadPlan(p); await p.click('.workload-day .workload-day-card-chip >> nth=0'); await wait(p, 800); } },
+  { id: 'workload-plan-due', open: wl(), settle: 4000, steps: async p => { await workloadFilters(p); await p.click('text=Plan + Due Date'); await workloadDone(p); await workloadPlan(p); await wait(p, 800); } },
   { id: 'linear-search', open: prodOpts(), settle: 4500, viewportOnly: true, steps: async p => { await p.click('#fphMoreBtn'); await wait(p); await p.click('.fph-row >> text=Search'); await wait(p, 900); } },
   { id: 'linear-status-picker', open: prodOpts(), settle: 4500, viewportOnly: true, steps: async p => { await p.click('.prod-row .prod-status >> nth=0'); await wait(p, 700); } },
   { id: 'linear-assignee-picker', open: prodOpts(), settle: 4500, viewportOnly: true, steps: async p => { await p.click('.prod-row .prod-assign-hot >> nth=0'); await wait(p, 700); } },
   { id: 'linear-due-picker', open: prodOpts(), settle: 4500, viewportOnly: true, steps: async p => { await p.click('.prod-row .prod-due >> nth=0'); await wait(p, 700); } },
   { id: 'linear-backlog', open: prodOpts(), settle: 4500, viewportOnly: true, steps: async p => { await p.click('.prod-tab >> text=Backlog'); await wait(p, 700); } },
-  { id: 'workload-week', open: wl(), settle: 4000 },
-  { id: 'workload-month', open: wl(), settle: 4000, steps: async p => { await p.click('text=Month'); await wait(p, 800); } },
+  { id: 'workload-week', open: wl(), settle: 4000, steps:workloadPlan },
+  { id: 'workload-month', open: wl(), settle: 4000, steps: async p => { const b=p.locator('[data-thumb-wl-mode=month]');if(await b.count())await b.click();else await p.click('text=Month'); await wait(p, 800); } },
   { id: 'workload-loading', open: (() => { const o = wl(); o.fn = Object.assign({}, o.fn, { 'workload-plan': { __hold: true } }); return o; })(), settle: 2500 },
   { id: 'workload-empty', open: wl({ rows: [] }), settle: 4000 },
   { id: 'workload-error', open: wl({ fail: true }), settle: 4000 },

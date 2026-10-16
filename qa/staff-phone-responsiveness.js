@@ -17,7 +17,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const screens=[
  {name:'Calendar',route:'calendar',ready:'#calView .thumb-tile, #calView .cal-card, #calView .kcard'},
  {name:'Samples',route:'sample-reviews',ready:'#sxrView .thumb-tile, #sxrView .cal-card, #sxrView .kcard'},
- {name:'Workload',fixture:'workload-week',ready:'.workload-overview-row:not(.is-skeleton)'},
+ {name:'Workload',fixture:'workload-week',ready:'.thumb-wl-person'},
  {name:'SyncLinear',fixture:'linear-list',ready:'.prod-row'},
  {name:'Today',route:'today',ready:'.tdy-rings button, .tdy-win'},
  {name:'Templates',route:'templates',ready:'.tpl-index, .tpl-card, #tplSearchInput'},
@@ -262,6 +262,7 @@ async function regularAction(page,screen){
  return{action:screen.name==='Calendar'?'Expand caption in a 20-card list':screen.name==='Samples'?'Open Set all':'Open native status',ms:Math.round(tap.ms)};
 }
 async function workloadRules(page,label){
+ const planning=page.locator('[data-thumb-wl-mode=week]');if(await planning.count())await planning.tap();
  // Put seven fictional video tasks on one day through the native state model.
  // The regular fixture has no overloaded day and missed the cramped badge.
  await page.evaluate(()=>{
@@ -281,6 +282,14 @@ async function workloadRules(page,label){
  await page.keyboard.press('Escape');
 }
 async function tabRules(page,screen,label){
+ if(screen.name==='Workload'){
+  const nav=page.locator('.thumb-wl-nav');const labels=await nav.locator('button span').allTextContents();
+  assert.deepEqual(labels,['Agenda','Week','Month'],'The phone has three stable planning destinations');
+  assert.equal(await nav.locator('[aria-current=page]').count(),1,'Exactly one destination is current');
+  assert(await nav.locator('button').evaluateAll(ns=>ns.every(n=>n.getBoundingClientRect().height>=44)),'Local navigation keeps 44px targets');
+  rows.push({rule:'phone Workload local navigation',label,passed:true});return;
+ }
+
  const selectors={Calendar:'.cal-view-toggle',Samples:'.cal-view-toggle',Workload:'.workload-pills',SyncLinear:'.prod-tabs',Today:'.tdy-vw',Upload:'.tk-platform-switch','Instagram Upload':'.tk-platform-switch',Reviewer:'.kasper-wrap[data-pocket-reviewer] > .kasper-subtabs'};
  if(!selectors[screen.name])return;
  const bars=await page.locator(selectors[screen.name]).filter({visible:true}).evaluateAll(nodes=>nodes.map(node=>{

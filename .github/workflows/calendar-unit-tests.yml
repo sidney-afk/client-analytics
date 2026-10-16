@@ -85,6 +85,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node qa/staff-phone-collections.js --widths=${{ matrix.width }}
+      - name: Thumb phone Workload agenda, queues, filters and native planning
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node qa/staff-phone-workload.js --widths=${{ matrix.width }}
       - name: Thumb phone Messages list, threads, drafts, composer and unread markers
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

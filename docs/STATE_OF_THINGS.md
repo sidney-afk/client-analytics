@@ -34,16 +34,17 @@ the sections below, delete it from this block in the same PR.
   Image price), #2116 (Open in Calendar button in Production), #2119 (Calendar and Samples card buttons: play icon for
   the video, picture icon for the thumbnail).
 - **Studio:** version 0.3 in the `studio` bucket; a real Chelsey cut was made through it on the owner's computer.
-- **In review:** #2115 (video profiles; waits on synchro-brain #83 and the owner's go), #2120 (Cinema: one view for
-  video and notes; reviewed, merging when green, then `frame_viewer_clients` to all), #2121 (Post tab), #2122 (labelled
-  Open in Calendar button). Card saver watcher: 1 clean run, test client only.
+- **Live by merge, later that evening:** #2121 (Post tab), #2122 (labelled Open in Calendar button), #2120 (Cinema: one
+  view for video and notes; merged 20:37 UTC, and Lighthouse set `frame_viewer_clients` to `all: true` at 20:40 UTC once
+  Pages had published), #2115 (video profiles; merged 21:22 UTC, on-merge deploy green; the first client video profile is
+  to be saved through `studio_profile_save` by the connector supervisor). Card saver watcher: 1 clean run, test client only.
 
-**In review (session Cinema, 2026-10-16): Watch here, one view for the video and its notes.** Every door (the Notes
+**Live (session Cinema, 2026-10-16, #2120): Watch here, one view for the video and its notes.** Every door (the Notes
 button, the Sheet's play icon, the Review tab's video preview, Kasper's "Watch here") opens the card's Notes dialog with
 the player on the left (on a phone, on top). Nothing plays until play is pressed (bottom centre of the player). Staff
 see the Frame.io comments as rows in the notes list, in time order, marked "Frame.io", with clickable video times; a
-client link never does. The old pop-up and the in-place player on the Review tab are gone. No function or switch
-change: `frame_viewer_clients` is untouched, Lighthouse turns it on for everyone after this merges.
+client link never does. The old pop-up and the in-place player on the Review tab are gone. No function
+change; `frame_viewer_clients` is on for every client since 20:40 UTC.
 
 **Later on 2026-10-16 (Lighthouse, checked live):**
 - **Merged means live (#2101, Conveyor) is on main:** the page builds at publish (index.html is no longer committed) and
@@ -66,6 +67,14 @@ change: `frame_viewer_clients` is untouched, Lighthouse turns it on for everyone
   owner's clients, then all staff saves; client review links stay on `calendar-upsert`.
 - **Instagram upload** works for one more client (its Post For Me account id saved in its profile, allow-list secret
   set by the owner).
+
+**Synchro video studio (session Atelier, 2026-10-16).** Step 1, `studio_latest`, merged (#2112): the newest studio zip
+from the private `studio` bucket as a signed link valid about 10 minutes, each call logged in `hf_studio_downloads`. Live
+since about 17:09 UTC; a real call at 17:32 UTC returned version 0.2 and was logged.
+Step 2, merged (#2115): `studio_profile` reads a client's video look from the brain file `clients/<folder>/video-profile.json`
+(or, with none yet, the brief's Look lines and exact spec values to draft from), and `studio_profile_save` files a profile
+through the same change path as `brain_change`. The brain writes the file only once the "Video profile updates" section
+is in its `POLICY/syncview-changes.md` (synchro-brain #83, merged by the owner at 20:19 UTC). Step 3 (`studio_transcribe`) is a design only.
 
 **Live on 2026-10-16 (Sidney's one-function runs, checked by Lighthouse):**
 - **`calendar-card-write` v1** deployed about 13:23 UTC. Lighthouse put the test client on `calendar_card_write_clients`

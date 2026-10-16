@@ -5,6 +5,7 @@ Samples use a three-column Sheet grid with a persistent Grid/List switch,
 native card detail/back navigation, a primary Review action, and grouped More
 sections. Existing writers, permission gates, client links and desktop layouts
 are preserved. See [the source/evidence boundary](../audits/2026-10-14-thumb-calendar-samples/README.md).
+Phone Workload implementation is prepared for review in the Thumb branch: [scope and fixture evidence](../audits/2026-10-15-thumb-workload/README.md). This is not a deployment claim.
 Phone Messages is prepared for review after the merged page rebuild: [Thumb scope and fictional evidence](../audits/2026-10-15-thumb-messages/README.md). This is not a deployment claim.
 
 

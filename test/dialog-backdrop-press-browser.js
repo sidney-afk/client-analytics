@@ -64,6 +64,13 @@ const CASES = [
 //   2. no event-target comparison may go without reading the press mark,
 //      unless it is listed below as not being a backdrop click.
 CASES.push({name:'Phone Calendar view',prepare:p=>p.evaluate(()=>{calState.client='';calState.posts=[];}),viewport:{width:390,height:844},overlay:'.thumb-view-sheet[open]',open:new Function(`${mountViews}; calState.embedded=false; calState.client=''; calState.posts=[]; calState.view='organizer'; _calRenderShell(); _calRenderBody(); document.querySelector('.thumb-calendar-view').click();`)});
+CASES.push({name:'Phone Workload filters',viewport:{width:390,height:844},prepare:p=>p.evaluate(async()=>{
+  // Earlier cases leave their Calendar/Samples roots outside #content. Clear
+  // those fictional clients before resizing, so their phone resize handlers
+  // cannot start an unrelated folder read during this dialog-only journey.
+  calState.client='';calState.posts=[];sxrState.client='';sxrState.posts=[];
+  const api=await svArea('workload');document.getElementById('content').innerHTML=api.render();
+}),overlay:'.thumb-wl-filters[open]',open:()=>document.querySelector('[data-thumb-wl-filter]').click()});
 CASES.push({name:'Phone conversation actions',viewport:{width:390,height:844},prepare:p=>p.evaluate(()=>{calState.client='';calState.posts=[];sxrState.client='';sxrState.posts=[];}),overlay:'.thumb-msg-more[open]',open:()=>{const b=document.createElement('button');b.textContent='Conversation actions';document.body.append(b);_msgPhoneMore(b);}});
 const fs = require('fs');
 const path = require('path');

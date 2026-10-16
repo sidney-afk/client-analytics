@@ -64,6 +64,10 @@ async function auditCase(build, options = {}) {
       }
     } finally { delete global._prodState; }
   };
+  page.evaluate = async fn => {
+    if (page.prodState === null) delete global._prodState; else global._prodState = page.prodState;
+    try { return fn(); } finally { delete global._prodState; }
+  };
   page.waitForTimeout = async ms => {
     const target = now + ms;
     for (;;) {
@@ -230,6 +234,65 @@ async function main() {
   });
   assert.equal(productAbort.ok, false);
 
+  /* A read the old document opened AFTER the navigation was requested but
+     BEFORE it committed is torn down by that same navigation. */
+  const navigationGapAbort = await auditCase((page, frame) => {
+    const navigation = request('http://localhost/', { navigation: true, frame });
+    page.emit('request', navigation);
+    page.at(1001);
+    const gapRead = request(readUrl, { failure: 'net::ERR_ABORTED' });
+    page.emit('request', gapRead);
+    page.at(1003);
+    page.emit('requestfailed', gapRead);
+    page.at(1004);
+    page.emit('framenavigated', frame);
+    respond(page, navigation, 200);
+  });
+  assert.equal(navigationGapAbort.ok, true);
+  assert.equal(navigationGapAbort.navigationAborts, 1);
+
+  /* --- a read the page gave up on itself, confirmed by a fresh read -------
+   * The page time-limits one small read (the write routing flags) and cancels
+   * it when the limit passes. That cancel is excused only for that read, on the
+   * app's own backend, and only when a fresh read of the same address answers
+   * 2xx quickly. */
+  const flagsUrl = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/syncview_runtime_flags?select=key,value&key=in.(write_ui_reroute_clients%2Cclient_comment_gateway_enabled)&limit=2';
+  const otherProdUrl = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/team_members?select=id';
+  const gaveUp = async ({ waitedMs = 440, probeStatus = 200, probeTakesMs = 50, url = flagsUrl, noProbe = false } = {}) => {
+    let probeCalls = 0;
+    const result = await auditCase((page) => {
+      if (!noProbe) {
+        page.request = { get: async (probeUrl, init) => {
+          probeCalls++;
+          assert.equal(probeUrl, url);
+          assert.equal(init.headers.apikey, 'k');
+          assert.equal(init.headers['x-other'], undefined);
+          page.at(page.elapsed() + 1000 + probeTakesMs);
+          return { status: () => probeStatus, dispose: async () => {} };
+        } };
+      }
+      const aborted = request(url, { failure: 'net::ERR_ABORTED' });
+      aborted.headers = () => ({ apikey: 'k', 'x-other': 'dropped' });
+      page.emit('request', aborted);
+      page.at(1000 + waitedMs);
+      page.emit('requestfailed', aborted);
+    });
+    return { result, probeCalls };
+  };
+  const timedOut = await gaveUp();
+  assert.equal(timedOut.result.ok, true, 'the page timing out its own flags read is excused when a fresh read answers');
+  assert.equal(timedOut.result.recoveredReadAttempts, 1);
+  assert.equal(timedOut.probeCalls, 1);
+  assert.equal((await gaveUp({ probeStatus: 500 })).result.ok, false, 'a backend that still fails stays a failure');
+  assert.equal((await gaveUp({ probeTakesMs: 2500 })).result.ok, false, 'a backend that is still slow stays a failure');
+  assert.equal((await gaveUp({ noProbe: true })).result.ok, false, 'with no way to confirm, the cancel stays a failure');
+  const bootBatchUrl = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/syncview_runtime_flags?select=key,value&key=in.(calendar_upsert_ef_clients%2Ckasper_urgent_ping_enabled%2Cwrite_ui_reroute_clients%2Cclient_comment_gateway_enabled%2Csettings_ef_clients%2Csample_review_ef_clients%2Canalytics_mirror_read_enabled)&limit=7';
+  for (const url of [otherProdUrl, readUrl, bootBatchUrl]) {
+    const other = await gaveUp({ url });
+    assert.equal(other.result.ok, false, 'a cancel of any other read is the page misbehaving');
+    assert.equal(other.probeCalls, 0);
+  }
+
   const pending = await auditCase(page => {
     page.emit('request', request());
   });
@@ -283,6 +346,69 @@ async function main() {
     'the revalidation a cached paint promises is audited, not skipped past');
   assert.ok(revalidationAwaited.elapsedMs >= 1000,
     'which means settle waited for it to start rather than returning on quiet');
+
+  /* The app keeps reading after first paint on its own (the finished half of
+     the list, a refresh tick). While it says so, the audit waits for it rather
+     than calling the read it is waiting on "pending". */
+  for (const flag of ['terminalTailPending', 'refreshInFlight', 'refreshing']) {
+    const tailAwaited = await auditCase(page => {
+      page.prodState = { cachePartial: false, loading: false, error: '', [flag]: true };
+      const live = request();
+      page.emit('request', live);
+      page.schedule(6000, () => {
+        page.prodState[flag] = false;
+        respond(page, live, 200);
+      });
+    });
+    assert.equal(tailAwaited.ok, true, flag + ': a read the app still says it is running is not pending');
+    assert.ok(tailAwaited.elapsedMs >= 5000, flag + ': settle waited for the app to finish');
+  }
+
+  /* Every "running" flag is down in the gap between the live swap and the
+     finished half's first request, with most rows still missing. The audit
+     waits for that half to have landed. */
+  const tailNotYetLanded = await auditCase(page => {
+    page.prodState = { cachePartial: false, loading: false, error: '', terminalTailPending: false, terminalTailLoadedAt: 0 };
+    const live = request();
+    page.emit('request', live);
+    page.schedule(6000, () => {
+      page.prodState.terminalTailLoadedAt = 1;
+      respond(page, live, 200);
+    });
+  });
+  assert.equal(tailNotYetLanded.ok, true);
+  assert.ok(tailNotYetLanded.elapsedMs >= 5000, 'settle waited for the finished half to land, not just to stop running');
+
+  /* One run ends and the next begins a tick later: for that tick every flag is
+     down. Looking once would call the page quiet and then catch the second read
+     mid-flight as pending. */
+  const chainedRun = await auditCase(page => {
+    page.prodState = { cachePartial: false, loading: false, error: '', terminalTailPending: false, terminalTailLoadedAt: 1 };
+    const second = request();
+    page.schedule(1300, () => {
+      page.prodState.terminalTailPending = true;
+      page.emit('request', second);
+    });
+    page.schedule(4000, () => {
+      page.prodState.terminalTailPending = false;
+      respond(page, second, 200);
+    });
+  });
+  assert.equal(chainedRun.ok, true, 'a run that starts right after the flags read idle is waited for');
+  assert.ok(chainedRun.elapsedMs >= 3000);
+
+  /* The finished half never starts: every "running" flag is down and nothing is
+     in flight, so the page looks quiet while it is incomplete. The wait runs out
+     and that is a failure, not a pass. */
+  const tailNeverLands = await auditCase(page => {
+    page.prodState = { cachePartial: false, loading: false, error: '', terminalTailPending: false, terminalTailLoadedAt: 0, terminalTailFailed: false };
+  });
+  assert.equal(tailNeverLands.ok, false, 'a page that never finishes loading is not audited as quiet');
+  assert.match(tailNeverLands.error, /did not finish loading/);
+  const tailFailedExplicitly = await auditCase(page => {
+    page.prodState = { cachePartial: false, loading: false, error: '', terminalTailPending: false, terminalTailLoadedAt: 0, terminalTailFailed: true };
+  });
+  assert.equal(tailFailedExplicitly.ok, true, 'an explicit failed state ends the wait without a timeout');
 
   /* But the wait is bounded by the flag it is waiting on, not by the clock: a
      load that errored never clears cachePartial, and a suite must not pay the

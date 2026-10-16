@@ -327,3 +327,12 @@ truth-sync: 524 passed, 0 failed
 ```text
 check-modules: all checks passed
 ```
+
+## Canonical phone-rules transplant follow-up
+
+Merged current main 6c962496 (including merged #2087) without rebasing. Resolved both phone areas' styles, test registrations, readiness selectors, dialog cases and documentation together, preserving every check. A full marked-block comparison found exactly one source/fragment difference: `cards()` must exclude `.thumb-grid-card` wrappers. The canonical `docs/syncview-design/staff-phone-rules.js` now matches the fragment; the fragment and `test/staff-phone-rules-source.js` were not changed for the correction. Earlier image capture provenance remains unchanged; this synchronization changes no rendered layout.
+
+```text
+staff-phone-rules-source: artifact CSS/JS transplanted byte-identically; 126 rules phone-capped and staff-scoped
+check-index: OK - the build succeeds, two builds are byte-identical, and no output (index.html, js/sv-*.js, src/index/INDEX.md) is committed
+```

@@ -7,6 +7,7 @@ const {
   installReadConsoleAudit,
   installProductionInit,
   openProduction,
+  holdBackgroundRefresh,
   formatFailures,
 } = require('./prod-test-utils');
 
@@ -145,6 +146,13 @@ async function collectLayoutFailures(page, label) {
       page.on('request', req => requests.push(req));
       await installProductionInit(page);
       await openProduction(page, port);
+      /* The first rows paint before the finished-cards half of the list has
+         merged in, and the fixtures below (a project with a child issue) are
+         picked from whatever is loaded. Measure the finished page, not a
+         half-loaded one. A page that never finishes still fails, at the
+         audit's timeout and in its final check. */
+      await readConsoleAudit.quiesce();
+      await holdBackgroundRefresh(page);
 
       failures.push(...await collectLayoutFailures(page, `${vp.name} list`));
 

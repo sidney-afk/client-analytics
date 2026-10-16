@@ -1486,6 +1486,14 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             post = Object.assign({}, calState.posts[idx], edits);
             calState.posts[idx] = post;
         }
+        /* `post` is the card on screen, so a status picked while this save
+           waits on the gateway lands on it too (and queues as the next save).
+           Statuses this save sends are taken from this snapshot and `edits`,
+           never from `post` after an await: a card write carrying the newer
+           pick made the next save look unchanged, and that pick never reached
+           the gateway (OPEN_REPAIRS 424). */
+        const statusAtSaveStart = {};
+        CAL_WHOLE_CARD_STATUS_FIELDS.forEach(k => { statusAtSaveStart[k] = post[k]; });
         // Local updated_at stamp so a background poll racing this write
         // (sheet hasn't reflected the change yet) keeps our optimistic
         // state instead of snapping the card back to its pre-mutation
@@ -1579,8 +1587,8 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 };
                 // Each component pushes ONLY its own issue and its own sub-status.
                 const acknowledgement = component === 'graphic'
-                    ? await _calPushStatusToLinear(post.graphic_linear_issue_id, post.graphic_status, pushMeta)
-                    : await _calPushStatusToLinear(post.linear_issue_id, post.video_status, pushMeta);
+                    ? await _calPushStatusToLinear(post.graphic_linear_issue_id, edits.graphic_status, pushMeta)
+                    : await _calPushStatusToLinear(post.linear_issue_id, edits.video_status, pushMeta);
                 return { component, acknowledgement };
             })());
             const statusResults = await Promise.allSettled(statusPushes);
@@ -1624,7 +1632,14 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             // A replay may have adopted a newer native component state above.
             // Derive the source shadow overall status from those current
             // component values before constructing the field patch.
-            _writeUiApplyOverallStatus('calendar', post, edits, wasNewRow, true);
+            const overallRecomputed = _writeUiApplyOverallStatus('calendar', post, edits, wasNewRow, true);
+            // The statuses this save means: its snapshot, then its own edits
+            // (a replay adoption above updates `edits`). The overall is
+            // recomputed from those, not from `post`, which may already show a
+            // newer pick that the queued save will send.
+            const ownStatus = Object.assign({}, statusAtSaveStart);
+            CAL_WHOLE_CARD_STATUS_FIELDS.forEach(k => { if (k in edits) ownStatus[k] = edits[k]; });
+            if (overallRecomputed) ownStatus.status = edits.status = computeOverallStatus(Object.assign({}, post, ownStatus));
             // Build the payload. v1 (and any brand-new row, regardless of
             // flag) sends the whole card. v2 sends a FIELD-LEVEL PATCH — only
             // the columns this edit touched — which is exactly what the upsert
@@ -1640,7 +1655,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 wirePost = { id: post.id };
                 for (const k of Object.keys(edits)) {
                     if (k === 'comments' || k === 'tweaks' || /_tweaks$/.test(k)) continue;
-                    wirePost[k] = post[k];
+                    wirePost[k] = CAL_WHOLE_CARD_STATUS_FIELDS.indexOf(k) >= 0 ? ownStatus[k] : post[k];
                 }
                 // Per-component comment threads: send only the component(s)
                 // whose thread changed, re-derived from the live arrays so
@@ -1655,7 +1670,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 });
                 // Overall status only moves when a sub-status changes, and
                 // those edits always carry it; send the recomputed value then.
-                if ('video_status' in edits || 'graphic_status' in edits || 'caption_status' in edits) wirePost.status = post.status;
+                if ('video_status' in edits || 'graphic_status' in edits || 'caption_status' in edits) wirePost.status = ownStatus.status;
                 // Patch through the persisted cache-bust token so the echo +
                 // realtime carry the fresh thumbnail URL to every viewer.
                 if (bumpThumbRev) wirePost.thumb_rev = post.thumb_rev;
@@ -1703,6 +1718,9 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                     for (const k of CAL_WHOLE_CARD_STATUS_FIELDS) {
                         if (!(k in edits)) delete wirePost[k];
                     }
+                }
+                for (const k of CAL_WHOLE_CARD_STATUS_FIELDS) {
+                    if (k in wirePost) wirePost[k] = ownStatus[k];
                 }
             }
             // comments_base_at = the sheet's updated_at this browser last saw.

@@ -33285,3 +33285,21 @@ own merge changed; (4) Section 4 is dispatched only at the planned commit (or a 
 or lane change since), else handed to the tip's own run. Also: the attestation covers what went live even when
 a later deploy fails, a manual run's summary says it skipped the drift guard and marks drift per function, and
 the publish keeps the bundles of the last 30 builds (was 10).
+
+## 424. [2026-10-16, BUILT, NOT MERGED] A second status pick while the first is still saving never reached production-write (session Relay)
+
+**Found by Lighthouse (2026-10-16, read only), confirmed and reproduced by Relay.** One real card was red on the card-vs-work-item drift check from the morning of 2026-10-16: the card said Posted, its work items said Scheduled. The same pattern shows 4 times since 2026-10-01. Any two status picks on one card inside the gateway wait can cause it.
+
+**Root cause (in `_calFlushCardSave`, `src/index/170-calendar-links-status.js.part`).**
+- Save A (for example "Set all" to Scheduled) puts its merged card object into `calState.posts`, so that object IS the card on screen, then waits about 2.5 s on the production-write status push.
+- A second pick in that wait ("Set all" to Posted) changes that same object and queues save B.
+- Save A then built its card write from the object (`wirePost[k] = post[k]`, and the overall from `post.status`), so the write meant to say Scheduled said Posted.
+- Its echo moved the conflict check's base to Posted (`_calBaseAfterSave`), so save B's check (`_calConflictGate`, #1915) saw "unchanged" and dropped both statuses. Posted was never pushed to production-write.
+
+**Fix.** Save A takes a snapshot of the card's statuses when it starts, and every status it sends (the production-write push value, the card write's `*_status` and the overall `status`, in both the field patch and the whole-card send) comes from that snapshot plus its own edits, never from the card on screen after an await. The overall is recomputed from those. Save B then sees its Posted as a real change and pushes it to production-write first, as the callers table in `docs/ops/CALENDAR_UPSERT_RETIREMENT_PLAN.md` requires. The page builds the same payload for `calendar-upsert` and `calendar-card-write`, so both writers are covered by the one change.
+
+**Other fields checked.** A text field (caption, name, dates, links) typed during the wait can still ride along early in save A's card write. That does no harm: nothing about those has to reach production-write first, the value written is the newer one, and save B simply has nothing left to send. Comment threads are already rebuilt from the live lists on purpose. No server-side backstop was added; the page fix closes the path, and the drift robot already catches anything else.
+
+**Proof.** `docs/syncview-design/tests/cal-status-pick-during-save-browser.js` (mocked, with the first production-write push held 2.5 s) runs the race once per writer. On the old code it fails 6 checks (the first card write says Posted, the graphic and video work items stay Scheduled); with the fix all pass. Added to `calendar-unit-tests.yml`.
+
+**Not done here.** The one real card already drifted is not repaired by this change (moving its work items to Posted is a data fix for the owner or Lighthouse). **Way back:** revert the pull request.

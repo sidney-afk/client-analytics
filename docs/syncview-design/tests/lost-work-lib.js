@@ -62,7 +62,7 @@ async function createEnv(opts = {}) {
   const server = await serveStatic();
   const origin = 'http://127.0.0.1:' + server.address().port;
   const browser = await chromium.launch({ headless: true, executablePath: opts.executablePath });
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+  const ctx = await browser.newContext(Object.assign({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' }, opts.context || {}));
   let tick = 0;
   const T0 = Date.parse('2026-10-01T09:00:00.000Z');
   const S = {
@@ -256,8 +256,13 @@ async function createEnv(opts = {}) {
           if (body.operation === 'due') d.due_date = body.due_date || null;
           if (body.operation === 'assignee') d.assignee_id = body.assignee_id || null;
           d.updated_at = iso(Date.now());
+          // Like production-write: one comment per native_comment_id; a repeat
+          // of the same id is answered with the comment already saved.
+          const sentNative = body.operation === 'comment' && body.comment ? String(body.comment.native_comment_id || '') : '';
+          const already = sentNative && S.comments.find(c => c._sent_native === sentNative);
+          if (already) return { status: 200, body: { ok: true, native_committed: true, mirror_pending: true, row: deliverableOut(d), comment: already } };
           if (body.operation === 'comment') {
-            comment = { id: 'c' + (S.comments.length + 1), deliverable_id: d.id, round: sentRound == null ? null : sentRound, body: (body.comment || {}).body, audience: (body.comment || {}).audience, author_name: 'Browser Staff', created_at: iso(Date.now()), updated_at: iso(Date.now()), version: 1, native_comment_id: 'nc' + (S.comments.length + 1) };
+            comment = { id: 'c' + (S.comments.length + 1), _sent_native: sentNative || undefined, deliverable_id: d.id, round: sentRound == null ? null : sentRound, body: (body.comment || {}).body, audience: (body.comment || {}).audience, author_name: 'Browser Staff', created_at: iso(Date.now()), updated_at: iso(Date.now()), version: 1, native_comment_id: 'nc' + (S.comments.length + 1) };
             S.comments.push(comment);
           }
           return { status: 200, body: { ok: true, native_committed: true, mirror_pending: true, row: deliverableOut(d), ...(comment ? { comment } : {}) } };

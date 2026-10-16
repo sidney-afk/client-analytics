@@ -65,6 +65,7 @@ function world({ linked = true, crosswalkInFlight = false } = {}) {
     showNotify: (t, m) => notices.push(t + ' ' + m),
     showConfirm: (t, m, cb) => { confirmCb = cb; },
     _writeUiNativeId: (p, comp) => comp === 'video' ? p.video_deliverable_id : '',
+    _prodCrosswalkInFlight: p => !!(p && p._canonicalCrosswalkInFlight),
     _prodCanonicalCommentGate: () => state.linked && !post._canonicalCrosswalkInFlight
       ? { linked: true, ready: true } : { linked: false, ready: false, status: 'crosswalk_unresolved' },
     _writeUiCommitCardCommentLifecycle: async (surface, p, comp, comment, action) => {

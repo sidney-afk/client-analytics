@@ -7,6 +7,7 @@
 // what uses it. Lives here since 2026-10-16 so a merge deploys it.
 //
 //   POST { action, ... }   header x-pipeline-key: <the pipeline password>
+//                       or header x-pipeline-pass: <a filming pipeline pass>
 //
 //   docs.get          { documentId, includeTabsContent?, fields? }
 //   docs.batchUpdate  { documentId, requests }          add tabs, write, edit
@@ -24,9 +25,21 @@
 // value in google_relay_key.txt in the private repo (setup_google_relay.py makes
 // both). Without it set, every request is refused.
 //
+// A pass (since 2026-10-16, item 1 PR 1) is the per-person alternative: the
+// connector's pipeline_pass tool hands one out for 6 hours, for one client and
+// one target (test or client), and only its SHA-256 is stored (fp_passes). It
+// is used only when no x-pipeline-key header is sent; the password path is
+// unchanged. What a pass may touch is in rules.mjs: that client's own files,
+// and writes only inside tabs created through a pass (fp_pass_tabs). Refusals
+// are plain-English JSON with status 403.
+//
 // Service account: GOOGLE_SERVICE_ACCOUNT_JSON, or GOOGLE_CLIENT_EMAIL +
 // GOOGLE_PRIVATE_KEY - the same secrets and login code as SyncView's
 // filming-plan-tabs. It can only reach files shared with it.
+
+import { createClient } from "npm:@supabase/supabase-js@2.49.8";
+import { PASS_HEADER, isPassToken, passHash } from "./pass.mjs";
+import { WRITE_ACTIONS, allowedFiles, checkDocsBatch, checkFile, checkSheetsBatch, checkValuesRange, clientFiles, createdTabIds } from "./rules.mjs";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/documents",
@@ -114,6 +127,10 @@ function need(b: Record<string, unknown>, ...keys: string[]) {
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ ok: false, error: "use POST" }, 405);
+  // A filming pipeline pass, only when no password is sent: the password path
+  // below is exactly as before.
+  const pass = clean(req.headers.get(PASS_HEADER));
+  if (pass && !clean(req.headers.get("x-pipeline-key"))) return await withPass(req, pass);
   const secret = clean(Deno.env.get("PIPELINE_GOOGLE_KEY"));
   if (!secret) return json({ ok: false, error: "not set up: PIPELINE_GOOGLE_KEY is missing (run setup_google_relay.py)" }, 503);
   if (!sameText(clean(req.headers.get("x-pipeline-key")), secret)) return json({ ok: false, error: "wrong or missing x-pipeline-key" }, 401);
@@ -126,7 +143,12 @@ Deno.serve(async (req) => {
 
   let tok: string;
   try { tok = await token(creds); } catch (_) { return json({ ok: false, error: "Google login failed" }, 502); }
+  return await perform(tok, action, b);
+});
 
+// One Google call for an action whose caller is already let in.
+// deno-lint-ignore no-explicit-any
+async function perform(tok: string, action: string, b: Record<string, any>): Promise<Response> {
   const q = (params: Record<string, unknown>) => {
     const u = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null && v !== "") u.set(k, String(v));
@@ -185,4 +207,103 @@ Deno.serve(async (req) => {
     default:
       return bad("unknown action " + JSON.stringify(action));
   }
-});
+}
+
+// ---- Filming pipeline passes ------------------------------------------------
+
+function db() {
+  const url = clean(Deno.env.get("SUPABASE_URL"));
+  const key = clean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
+  return url && key ? createClient(url, key, { auth: { persistSession: false } }) : null;
+}
+
+const refused = (error: string, status = 403) => json({ ok: false, error }, status);
+
+// What a rule in rules.mjs answers: ok, or a refusal with its message and status.
+type Verdict = { ok: boolean; status?: number; error?: string; fileId?: string; adds?: number };
+const refusal = (v: Verdict) => refused(String(v.error || "refused"), v.status || 403);
+
+// The tab ids created through a pass in this file for this client.
+async function passTabs(sb: NonNullable<ReturnType<typeof db>>, fileId: string, client: string): Promise<string[] | null> {
+  const { data, error } = await sb.from("fp_pass_tabs").select("tab_id").eq("file_id", fileId).eq("client_slug", client);
+  if (error) return null;
+  return (data || []).map((r: { tab_id: string }) => String(r.tab_id));
+}
+
+async function withPass(req: Request, raw: string): Promise<Response> {
+  // The token is never echoed, logged or stored; only its hash is looked up.
+  if (!isPassToken(raw)) return refused("That pipeline pass is not valid. Ask the connector for a new one (pipeline_pass).", 401);
+  const sb = db();
+  if (!sb) return refused("not set up: the database connection is missing", 503);
+  const { data: rows, error: useError } = await sb.rpc("fp_pass_use", { p_token_hash: await passHash(raw) });
+  if (useError) return refused("Could not check the pipeline pass (the pass tables may not be set up yet).", 503);
+  const pass = Array.isArray(rows) ? rows[0] : null;
+  if (!pass) return refused("That pipeline pass is not known. Ask the connector for a new one (pipeline_pass).", 401);
+  if (pass.expired) {
+    return refused(`That pipeline pass ran out at ${String(pass.expires_at)}. Ask the connector for a new one (pipeline_pass).`, 401);
+  }
+
+  // deno-lint-ignore no-explicit-any
+  const b = await req.json().catch(() => ({})) as Record<string, any>;
+  const action = clean(b.action);
+  const client = String(pass.client_slug);
+  const target = String(pass.target);
+
+  // The client's own files come from its config.json in the file store; the
+  // TEST Sheet from fp_settings. Nothing is hardcoded here.
+  const cfg = await sb.from("fp_files").select("body").eq("client_slug", client).eq("name", "config.json").maybeSingle();
+  if (cfg.error) return refused("Could not read the client's config from the file store.", 503);
+  if (!cfg.data) return refused("This client has no config.json in the file store yet, so a pass cannot reach its files.");
+  let config: unknown;
+  try { config = JSON.parse(String(cfg.data.body)); } catch (_) { return refused("This client's config.json in the file store is not valid JSON.", 500); }
+  let testSheet: unknown = "";
+  if (target === "test") {
+    const s = await sb.from("fp_settings").select("value").eq("key", "test_sheet").maybeSingle();
+    if (s.error) return refused("Could not read the TEST Sheet setting.", 503);
+    testSheet = s.data ? s.data.value : "";
+  }
+  const allowed = allowedFiles(target, clientFiles(config), testSheet);
+  const file = checkFile(action, b, allowed, target) as Verdict;
+  if (!file.ok) return refusal(file);
+  const fileId = String(file.fileId);
+
+  const creds = readCreds();
+  if (!creds) return refused("the Google service account is not set up in Supabase", 503);
+  if (action === "whoami") return json({ ok: true, account: creds.email });
+  let tok: string;
+  try { tok = await token(creds); } catch (_) { return refused("Google login failed", 502); }
+
+  if (!WRITE_ACTIONS.has(action)) return await perform(tok, action, b);
+
+  const tabs = await passTabs(sb, fileId, client);
+  if (tabs === null) return refused("Could not read which tabs were created through a pass.", 503);
+  let adds = 0;
+  if (action === "docs.batchUpdate" || action === "sheets.batchUpdate") {
+    const check = (action === "docs.batchUpdate" ? checkDocsBatch(b.requests, tabs) : checkSheetsBatch(b.requests, tabs)) as Verdict;
+    if (!check.ok) return refusal(check);
+    adds = check.adds || 0;
+  } else {
+    // values.update / values.append: the range's tab, by title, must be a pass tab.
+    const list = await fetch(SHEETS + fileId + "?fields=" + encodeURIComponent("sheets.properties(sheetId,title)"),
+      { headers: { Authorization: "Bearer " + tok } });
+    const listed = await list.json().catch(() => ({}));
+    if (!list.ok) return json({ ok: false, status: list.status, error: clean((listed.error || {}).message) || list.statusText }, list.status);
+    // deno-lint-ignore no-explicit-any
+    const sheetTabs = (Array.isArray(listed.sheets) ? listed.sheets : []).map((x: any) => (x && x.properties) || {});
+    const check = checkValuesRange(b.range, sheetTabs, tabs) as Verdict;
+    if (!check.ok) return refusal(check);
+  }
+
+  const resp = await perform(tok, action, b);
+  if (!adds || !resp.ok) return resp;
+  // Record the new tabs so this and later passes for this client may write in them.
+  const out = await resp.clone().json().catch(() => ({}));
+  const ids = createdTabIds(action === "docs.batchUpdate" ? "docs" : "sheets", out.result);
+  if (!ids.length) return resp;
+  const { error: tabError } = await sb.from("fp_pass_tabs").insert(ids.map((tab_id: string) =>
+    ({ file_id: fileId, tab_id, client_slug: client, pass_id: pass.pass_id })));
+  if (tabError) {
+    return json({ ...out, warning: "The tab was made, but it could not be recorded, so this pass cannot write in it. Tell the Connector supervisor." }, resp.status);
+  }
+  return resp;
+}

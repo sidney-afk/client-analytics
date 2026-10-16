@@ -1632,14 +1632,15 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             // A replay may have adopted a newer native component state above.
             // Derive the source shadow overall status from those current
             // component values before constructing the field patch.
-            const overallRecomputed = _writeUiApplyOverallStatus('calendar', post, edits, wasNewRow, true);
+            _writeUiApplyOverallStatus('calendar', post, edits, wasNewRow, true);
             // The statuses this save means: its snapshot, then its own edits
             // (a replay adoption above updates `edits`). The overall is
             // recomputed from those, not from `post`, which may already show a
             // newer pick that the queued save will send.
             const ownStatus = Object.assign({}, statusAtSaveStart);
             CAL_WHOLE_CARD_STATUS_FIELDS.forEach(k => { if (k in edits) ownStatus[k] = edits[k]; });
-            if (overallRecomputed) ownStatus.status = edits.status = computeOverallStatus(Object.assign({}, post, ownStatus));
+            const ownView = Object.assign({}, post, ownStatus);
+            if (_writeUiApplyOverallStatus('calendar', ownView, edits, wasNewRow, true)) ownStatus.status = ownView.status;
             // Build the payload. v1 (and any brand-new row, regardless of
             // flag) sends the whole card. v2 sends a FIELD-LEVEL PATCH — only
             // the columns this edit touched — which is exactly what the upsert

@@ -227,12 +227,14 @@ const LIVE_SHAPE = () => [{
   // ---------- the Production buttons ----------------------------------------
   const svRoute = require('./helpers/sv-route.js').svRoute;
   const prodSlot = (isClient, esc, location) => new Function('_isClientLink', '_sxrEscAttr', 'location', 'svRoute', 'sxrClientSlug', 'sxrState',
-    extract('_sxrProdSlotHtml') + ' return _sxrProdSlotHtml;')(isClient, esc, location, svRoute, c => String(c || '').toLowerCase(), { client: 'Fixture' });
+    extract('_calProdBtnIconSvg') + extract('_calProdBtnTip') + extract('_sxrProdSlotHtml') + ' return _sxrProdSlotHtml;')(isClient, esc, location, svRoute, c => String(c || '').toLowerCase(), { client: 'Fixture' });
   const esc = s => String(s).replace(/"/g, '&quot;');
   const slot = prodSlot(false, esc, { pathname: '/index.html' });
   const withIds = { video_deliverable_id: 'del_vid', graphic_deliverable_id: 'del_gra' };
   ok(/prod=1&(?:amp;)?d=del_vid#production/.test(slot(withIds, 'video')) && /prod=1&(?:amp;)?d=del_gra#production/.test(slot(withIds, 'graphic')),
   'both components render an open-in-Production link built from the deliverable id');
+  ok(/title="Open video"/.test(slot(withIds, 'video')) && /title="Open thumbnail"/.test(slot(withIds, 'graphic')),
+  'the video and thumbnail buttons carry their own tooltips');
   const fromCard = slot({ id: 'card-9', video_deliverable_id: 'del_vid' }, 'video');
   ok(/from=samples&(?:amp;)?card=card-9&(?:amp;)?cslug=fixture/.test(fromCard),
   'the Production link from a sample card carries the card it came from, so SyncLinear can offer Back to card');

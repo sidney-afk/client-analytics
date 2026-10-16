@@ -1536,6 +1536,14 @@
       "ci": "representative"
     },
     {
+      "file": "post-tab-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the test client's Calendar cards included), no hosted credentials and no live data. Checks the Post tab (TikTok and Instagram): its name, icon and addresses (/post and the old /tiktok-upload), the per-platform tint and button labels in light and dark, and the caption filled from a matching Calendar card (one match fills, two do not, typed text stays, Undo).",
+      "reproduce": "node test/post-tab-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "kasper-board-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

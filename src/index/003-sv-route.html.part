@@ -16,7 +16,10 @@
         var SIMPLE = {
             'today': 'today', 'submit': 'linear', 'workload': 'workload', 'calendar': 'calendar',
             'templates': 'templates', 'filming-plans': 'filming-plans',
-            'tiktok-upload': 'tiktok-upload', 'time-off': 'time-off',
+            // The Post tab (TikTok and Instagram) is /post; /tiktok-upload, its
+            // old name, still opens it. 'post' comes after it, so the address
+            // the app shows is /post.
+            'tiktok-upload': 'tiktok-upload', 'post': 'tiktok-upload', 'time-off': 'time-off',
             'sample-reviews': 'sample-reviews', 'smm-weekly-report': 'smm-weekly-report',
             'smm-weekly-reports': 'smm-weekly-reports', 'kasper': 'kasper',
             'client-credentials': 'client-credentials', 'messages': 'messages'

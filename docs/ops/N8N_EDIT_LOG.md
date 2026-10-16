@@ -293,3 +293,57 @@ Evidence, checked immediately before switching off: the workflow's last run was 
 2026-10-09 (14:03 to 15:29 UTC) were flipped to `posted` with their TikTok link in `tiktok_uploads` with no n8n run at all.
 `tiktok_upload_source` reads `supabase`.
 Undo: in n8n open the workflow and publish it again, then register its URL as a Post For Me webhook.
+
+## 2026-10-06 Sales email fixes in five workflows (owner's go, session Lighthouse; recorded late on 2026-10-16)
+
+Written down ten days late, from the session transcript and n8n's own version history (each version carries its own
+description). The edits were made through the n8n connector, not a PR.
+- Normal Sales, Booking Handler (`ghpbQQJizAnR6p2b`): before `2d1251a3-c12b-4c05-b124-07158026b7ba`, after
+  `8ec62fc6-300a-4531-9541-5b01829e8607` (14:48 UTC, same-day new leads no longer start the nurture twice) and
+  `9db9a023-54c8-44c7-9c7c-e1ded6702392` (16:48, new lead decided by HubSpot deal id; a contact created in the last day or
+  with a sequence started in the last 14 days is the same lead rebooking).
+- Normal Sales, Pre-Call Nurture (`310kO3OnG1yytE2D`): before `3c1aaee9-89ad-4b82-9bac-558c54c07a88`, after
+  `9fed15bf-4ec2-4c06-8306-5a8cbe27d26b`, `b8a44a19-f018-4ab3-baf9-ec4f9fd6d56e` (same-day calls get no nurture, owner's
+  decision) and `c2f093c6-c645-4c5b-be47-c681ce5922e0` (one sequence per booking; a rebook supersedes the old sequence at
+  its next step; email 1 skipped if already sent in the last 7 days; older cancellations ignored).
+- AI Sales, Pre-Call Nurture (`GaYgLJy8NCPUUfw5`): before `2df4bdaf-d68d-4c49-8806-6cef994395c2`, after
+  `6be68c03-4aa8-456a-887e-11d00e804fd2` (the same guard as the normal nurture).
+- Sales, Call Booked (iClosed) (`xoPqojySDriQ8Mzh`): before `53b41eeb-365a-492d-b49c-83f55381bd68`, after
+  `2458d5a7-de48-48b6-a933-53297c074128` (16:50, AI funnel: single sequence start, new lead by deal id, same-lead rebook),
+  then `15b2bfc5-a89d-45e1-99d1-d746abd5cdf9` and `2f2414c5-f2fc-4317-9434-fc92ac47bd5e` (19:19, emails carry the
+  booking's own iClosed meeting link; Roam links refused).
+- Sales, Doctors Instant Booking Link (`cM3G9REliKpwicnR`): before `a36d56f1-9a10-4260-9fa4-f28de44ea4ff`, after
+  `ffd58a03-7b2f-4a48-a0b5-dc5fa8d1a9c8` (waits 3 minutes after Submit; a lead who booked meanwhile gets no instant email
+  or text).
+- Sales, Booked Call to Meta CAPI (`s8lsPpKqWYhscLPV`): settings only (an error workflow so a failure alerts), no new
+  saved version.
+Why: leads got duplicate or missing pre-call emails (owner's reports 2026-10-06).
+Tested: each change on fake addresses with the sending steps pinned, so nothing was sent; every test sequence stopped by
+itself at the "still the current booking?" check (checked 2026-10-06 21:06 UTC). Not tested end to end: the 3 minute pause
+and the HubSpot deal lookup (first real run on the next real booking).
+**Regression this caused, found and fixed by another session:** the 19:19 edit of `xoPqojySDriQ8Mzh` was made from a copy
+older than 2026-09-15 and dropped the video-editor interview admit. Restored 2026-10-14 in `afaa0f36-f917-47ce-89f3-a63bf6d55f72`
+(see `docs/truth/`, #2075).
+Undo: restore the "before" version of each workflow in n8n's version history and publish.
+
+## 2026-10-06 CLIENTS METRICS and TOP VIDEOS switched off (owner's go, session Lighthouse; recorded late on 2026-10-16)
+
+Workflows: CLIENTS METRICS (`Q4n1bagJYBkurEaI`) and TOP VIDEOS (`DyVPx0neUZ94R0hJ`), 20:47 UTC.
+Changed: unpublished (active true to false). Nothing deleted, nothing edited.
+Why: the owner paused analytics (2026-10-06) and both were the main Apify spenders. The replacement jobs'
+practice runs were switched off the same evening. A daily watcher checks they stay off.
+Undo: in n8n open each workflow and publish it again (Apify must still be paid for).
+
+## 2026-10-13 Four SyncView Calendar workflows switched off (owner's go, session Lighthouse; recorded late on 2026-10-16)
+
+Workflows (unpublished only; no step, connection or credential touched), 14:42 UTC:
+- SyncView Calendar, Append Post (`iA54ipMOybicmYBh`)
+- SyncView Calendar, Delete Post (`JcekBKUzELgX4HjH`)
+- SyncView Calendar, Reorder (`OXd0sUoSJYMspGTF`)
+- SyncView Calendar, Reorder (batch) (`lTtZNLrQLpIZqwAY`)
+Changed: unpublished (active true to false). Nothing deleted, nothing edited. With the three switched off earlier, all
+seven Calendar workflows are off.
+Why: the old Calendar workbook is kept as a frozen backup (owner's decision 2026-10-13); the page has saved to the
+database since 2026-10-07.
+Evidence, checked immediately before: no run of any of the four since 2026-10-07.
+Undo: in n8n open each workflow and publish it again.

@@ -1,6 +1,6 @@
 import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
-import { svFrameIoLinkHtml, svFrameTileAttrs, svFrameTileLabelHtml } from './187-frame-viewer.js';
+import { svFrameIoLinkHtml, svFrameAddNotesProvider, svFrameTileAttrs, svFrameTileLabelHtml } from './187-frame-viewer.js';
 import { _svPhoneNotesPresentation } from './095-shared-client.js';
 import {
   CAL_COMPONENTS, CAL_REVIEW_COMPONENTS, _calClearStaleApprovals, _calComponentsFor, _prodCrosswalkInFlight,
@@ -568,7 +568,8 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
             // With the viewer switched on for this card's client (frame_viewer_clients) the preview plays the video in
             // place and a small "Watch in Frame.io" link sits under it; staff and client link alike, no pop-up and
             // no comments. Switched off, or not a Frame.io link: the tile opens the link exactly as it always did.
-            const tileAttrs = svFrameTileAttrs(url, p.client, p.id);
+            const thumbUrl = _calDeriveThumb(p);
+            const tileAttrs = svFrameTileAttrs(url, p.client, p.id, thumbUrl);
             const frameLink = svFrameIoLinkHtml(url, p.client);
             const label = svFrameTileLabelHtml(url);
             const withWatch = (tile) => (frameLink ? `<div class="fv-review-video">${tile}${frameLink}</div>` : tile);
@@ -577,7 +578,6 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
             // visual weight as the thumbnail column so the Approve buttons
             // line up across all three panels instead of the video row
             // collapsing to a tiny black button.
-            const thumbUrl = _calDeriveThumb(p);
             if (!thumbUrl) {
                 // No image to blur — fall back to a styled stand-in tile
                 // so the column still has the same height.
@@ -1996,6 +1996,15 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
     }
     window.addEventListener('sv-staff-names', () => {
         try { if (_calOpenCommentsPid) _calRenderCommentsModal(); } catch (e) {}
+    });
+    // The Watch here pop-up lists the card's SyncView notes on the video beside the Frame.io comments.
+    svFrameAddNotesProvider((postId) => {
+        const post = (calState.posts || []).find(x => x.id === postId);
+        if (!post) return null;
+        return _calCommentsForView(post, 'video').map(c => ({
+            id: String(c.id || ''), parent_id: String(c.parent_id || ''), done: !!c.done, created_at: String(c.created_at || ''),
+            text: String(c.body || ''), author: _calNoteAuthorName(c, c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM'),
+        }));
     });
     function _calMintCommentId() { return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
 

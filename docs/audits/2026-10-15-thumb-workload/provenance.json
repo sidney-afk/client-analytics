@@ -1,13 +1,13 @@
 {
-  "baseline": "72062c1f737e8d88298a1b4a62374f9bca6a462b",
+  "baseline": "ef8da61ae4bc76bd481e40b13b9d7b37ca61f144",
   "expandedReference": {
     "pr": 1950,
     "commit": "e2ab30ab3f34a2afb2a2c781ebe9855acf38b625",
     "direction": "A - Expanded"
   },
-  "buildIndexSha256": "11bc8cc094a13bedf6bef48be7e20f1b1e143b0134f1bf25fb55d9deb2826b16",
+  "buildIndexSha256": "8346c34a39e4b3587ec8b92090708360071142111a071333c7f30ee4f744bfdd",
   "fragmentSha256": {
-    "src/index/020-styles-surfaces.css.part": "3236437882251489bc2830e1075d78db2ef22cc7a772904c427a9607b718b460",
+    "src/index/020-styles-surfaces.css.part": "c30fbda5798a57b85d1fc517e45db57d0c6a697c3f03809ade0b2ff150c1bf99",
     "src/index/080-workload-render.js.part": "aca3ece5f049c776d2f781fa0c5b02172fb8e20be0d60822eb6067947bf4ee29",
     "src/index/099-staff-phone-bar.js.part": "61c2bf5c9c3c66baf4dee4ad91718b1f0f949100ffe0d80354c11aeffec98bb1"
   },
@@ -22,13 +22,13 @@
   "required390Screenshots": 30,
   "screenshots": {
     "workload-agenda-dark-390.png": "8b780de5e7e496c55435047772338e7b3a0a648135abf9e2e09f377b399256f7",
-    "workload-agenda-light-390.png": "78b54e76c137e83454440fb826ccfedbb7ecc0cc4836453af78cbfb9cbb4e8d4",
+    "workload-agenda-light-390.png": "22e1a7554895f1924d6c3866b5ea131b5862285e35e28a3deafa89337d4fdcbe",
     "workload-empty-dark-390.png": "e458c1e5b16f38b2015f36297429e41e18412b31d7d9a858d06134b9b8b87553",
     "workload-empty-light-390.png": "0a284ee8b3883d92746dcadf4cd7d316bb175454d7dac4c464f25ba65a619b19",
     "workload-error-dark-390.png": "cada5c7241b1d7c51f3c407bfc523dfa58ec40f76b7b861bff87cd0a1774b2c3",
     "workload-error-light-390.png": "c5277f1e1db30876e113be8d79cd1a5c49dde369fba99702b89edd183d8d3246",
-    "workload-filter-client-dark-390.png": "582814da497ae515c4f788b05ee41596c8907d5eeadd8a4e12857c235ce2ed70",
-    "workload-filter-client-light-390.png": "0661ecd3df898e58ffed6938748940f5e746658cfd772b8ed015cffb4e355315",
+    "workload-filter-client-dark-390.png": "f9ad70899123090bf22cf0c971680e4acbd5d8fcafdc25cab827d80bbe178afb",
+    "workload-filter-client-light-390.png": "a877c7b28cab0df0fc497e0ec5b61af9ae933a6b5eb8939ea91e1697008cdf0a",
     "workload-filter-editors-dark-390.png": "cc082d8938670b837132c361c56703db9f635a7a9d57777589d0f0ec19eafffa",
     "workload-filter-editors-light-390.png": "c1064fea436896e993afb2a09c36153c82fd64ff2a715b481135c1495c7bbd82",
     "workload-filtered-refresh-error-dark-390.png": "e4f2b669360da4ca73b5d21f991db856b5dff4d61517c50c390893ed360daef0",
@@ -48,10 +48,10 @@
     "workload-queue-dark-390.png": "ca30e882050b20cfa8893ed029bfbfe715527ac7d4cd0589fed8961d33360cac",
     "workload-queue-light-390.png": "8b1c81588299e09c65935bfa4a5d176a0c548a08c8197c929b9c41f10dabb1e9",
     "workload-tabs-dark-390.png": "1b8f2f55d3630857d15d7300f56dd05ce037bf100f3ba52afa9cc3437e82e619",
-    "workload-tabs-light-390.png": "1e634febe1d7e9de681f380b6c1696d9dd64fd7482935bc94f293dbb2f09ab94",
+    "workload-tabs-light-390.png": "9279d3300b6826c37dba923c02a9c88bb1e68c7a067745351dc64f3238f21e3a",
     "workload-week-dark-390.png": "287f14654fb9a766bb319ec8ff2237649f8b62b3be8c4d5a27e6c8611b5ba0aa",
     "workload-week-light-390.png": "7ef2a525183be6fa1eed3c3da2637f0e530b4272a380c89e8df2076d1b67ec9c"
   },
-  "fonts": "Plus Jakarta Sans, five local fixture weights verified by native capture guard",
+  "fonts": "Primary flow captures use five verified local Plus Jakarta Sans weights; supplemental native integration captures use their own unchanged fixtures",
   "buildOutputs": "Local only; index.html, js/sv-*.js and src/index/INDEX.md are ignored and not tracked"
 }

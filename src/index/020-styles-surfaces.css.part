@@ -8041,15 +8041,15 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
  html.sv-staff-phone .arx-row-meta {font-size:13px;line-height:1.5;color:var(--text-secondary);}
 }
 
-/* WATCH HERE: the Frame.io viewer (src/index/187-frame-viewer.js.part), behind the frame_viewer_clients switch.
-   The pop-up (staff only) opens from the Sheet's thumbnail icon and Kasper's review; the Review tab's video
-   preview plays in place (staff and client link).
-   Tokens only, so light and dark follow the page. Desktop: video left, comments right.
-   Phone: the video on top and the comments below it, full screen. */
+/* WATCH HERE: the Frame.io video and its notes in ONE view (src/index/187-frame-viewer.js.part), behind the
+   frame_viewer_clients switch. The card's Notes dialog grows a player on its left (on a phone, on top); every door
+   opens it: the Notes button, the Sheet's thumbnail icon, the Review tab's video preview and Kasper's "Watch here".
+   Tokens only, so light and dark follow the page. */
 .fv-watch-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; margin-top: 8px; padding: 8px 14px; background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); border-radius: 10px; font-family: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
 .fv-watch-btn svg { width: 11px; height: 11px; flex-shrink: 0; }
 .fv-watch-btn:hover { background: var(--surface-hover); }
 .fv-watch-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.fv-watch-btn[aria-busy="true"], .cal-thumb-play[aria-busy="true"] { opacity: 0.6; cursor: progress; }
 .fv-review-video { display: flex; flex-direction: column; align-items: stretch; width: 100%; max-width: 260px; margin: 0 auto; }
 /* Review tab: label swap and the small Frame.io link. With the switch off the tile shows "Open video" as before. */
 .cal-review-video-tile .fv-lbl-on { display: none; }
@@ -8058,17 +8058,6 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
 html .fv-review-video .fv-frameio-link { display: inline-flex; align-self: center; align-items: center; min-height: 0; margin-top: 6px; padding: 2px 4px; color: var(--text-secondary); font-size: 0.72rem; font-weight: 600; text-decoration: none; }
 html .fv-review-video .fv-frameio-link:hover { color: var(--text-primary); text-decoration: underline; }
 .fv-frameio-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
-/* The video playing in place of the preview. Same column, as wide as the column allows. */
-.cal-review-video-tile.fv-inline { display: flex; justify-content: center; aspect-ratio: auto; width: fit-content; min-width: 140px; max-height: none; max-width: 100%; min-height: 120px; background: var(--sv-bg-000); transform: none; }
-.cal-review-video-tile.fv-inline:hover { transform: none; }
-html body .cal-review-video-tile.fv-inline { align-items: center; min-height: 0 !important; height: auto !important; width: fit-content !important; max-width: 100% !important; aspect-ratio: auto !important; }
-.fv-inline-video { display: block; align-self: center; width: auto; max-width: 100%; height: auto; max-height: min(66vh, 560px); background: var(--sv-bg-000); object-fit: contain; }
-.fv-inline-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 14px; text-align: center; background: var(--surface-subtle); color: var(--text-primary); }
-.fv-inline-state.is-loading { background: transparent; pointer-events: none; }
-.fv-inline-state[hidden] { display: none; }
-.fv-inline-state .fv-state-text { font-size: 0.78rem; }
-.fv-inline .fv-unmute { bottom: 46px; }
-.fv-inline[data-fv-small]::after { content: "Smaller version for your connection"; position: absolute; left: 8px; top: 8px; padding: 2px 8px; border-radius: 999px; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); font-size: 0.64rem; font-weight: 600; pointer-events: none; }
 /* The Sheet's thumbnail: a small play icon at the top centre, shown on hover (always on a phone). */
 html .cal-card-thumb .cal-thumb-play { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 4; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; min-width: 0 !important; min-height: 0 !important; margin: 0; padding: 0; border: 0; border-radius: 50%; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); cursor: pointer; opacity: 0; transition: opacity 0.15s, background 0.12s; }
 html .cal-card-thumb .cal-thumb-play::before { content: ""; position: absolute; inset: -7px; }
@@ -8089,98 +8078,103 @@ html .cal-card-thumb .cal-thumb-linear-warn ~ .cal-thumb-play { top: 46px; }
 .kcard-watch-btn.kcard-watch-here:hover { background: var(--surface-hover); transform: none; box-shadow: none; }
 .kcard-watch-here svg { width: 11px; height: 11px; flex-shrink: 0; }
 
-body.fv-lock { overflow: hidden; }
-.fv-overlay { display: none; position: fixed; inset: 0; z-index: 320; background: var(--overlay); align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
-.fv-overlay.open { display: flex; }
-/* The pop-up. --fv-h is the height the video may use; the player takes its width from the video's own shape, so
-   there are no black bars: a vertical video uses the height and the comments sit beside it, a wide one keeps the
-   wide layout with the comments on the right. */
-.fv-panel { --fv-h: calc(min(780px, 100vh - 48px) - 118px); display: flex; flex-direction: column; width: min(1120px, 100%); max-height: min(780px, 100%); background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-lg); overflow: hidden; }
-.fv-panel[data-orient="portrait"] { --fv-h: calc(min(860px, 100vh - 48px) - 118px); width: min(960px, 100%); max-height: min(860px, 100%); }
-.fv-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px 12px 20px; border-bottom: 1px solid var(--border-light); }
-.fv-title { flex: 1; min-width: 0; margin: 0; font-size: 1rem; font-weight: 800; line-height: 1.25; letter-spacing: -0.005em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fv-open-link, .fv-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 14px; background: var(--text-primary); color: var(--white); border: 0; border-radius: 10px; font-family: inherit; font-size: 0.78rem; font-weight: 700; text-decoration: none; cursor: pointer; white-space: nowrap; }
-.fv-open-link { background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); }
-.fv-open-link svg { width: 12px; height: 12px; flex-shrink: 0; color: var(--text-secondary); }
-.fv-open-link:hover, .fv-btn-ghost:hover { background: var(--surface-hover); }
-.fv-btn-ghost { background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); }
-.fv-btn-small { padding: 6px 11px; margin-top: 8px; }
-.fv-close { flex-shrink: 0; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-subtle); color: var(--text-secondary); border: 0; border-radius: 50%; cursor: pointer; }
-.fv-close svg { width: 12px; height: 12px; }
-.fv-close:hover { background: var(--surface-hover); color: var(--text-primary); }
-.fv-open-link:focus-visible, .fv-btn:focus-visible, .fv-close:focus-visible, .fv-c-main:focus-visible, .fv-mark:focus-visible, .fv-unmute:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-
-.fv-body { display: grid; grid-template-columns: minmax(0, 1fr) 340px; flex: 1; min-height: 0; }
-.fv-panel[data-orient="portrait"] .fv-body { grid-template-columns: auto minmax(280px, 1fr); }
-.fv-stage { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; padding: 16px 20px; overflow: hidden; }
-.fv-player { position: relative; flex: none; width: min(100%, calc(var(--fv-h) * var(--fv-ar, 1.7778))); aspect-ratio: var(--fv-ar, 16 / 9); background-color: var(--sv-bg-000); background-size: contain; background-position: center; background-repeat: no-repeat; border-radius: 12px; overflow: hidden; }
-.fv-panel[data-orient="portrait"] .fv-player { width: calc(var(--fv-h) * var(--fv-ar, 0.5625)); max-width: 100%; }
-.fv-video { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: transparent; object-fit: contain; }
+/* The shell around the Notes dialog. Without a video it takes no room at all, so the dialog is exactly as before. With
+   one, it is the dialog's frame: the stage on the left, the notes column (the same Notes dialog) on the right.
+   --fv-h is the height the video may use; the player takes its width from the video's own shape (no black bars). */
+.cal-notes-shell { display: contents; }
+.cal-notes-stage[hidden] { display: none !important; }
+.cal-notes-shell[data-video] { display: flex; width: min(1240px, 96vw); height: 86vh; max-height: 760px; background: var(--white); border-radius: 16px; box-shadow: 0 24px 70px var(--sv-shadow-rgba-0-0-0-0_24); overflow: hidden; }
+.cal-notes-shell[data-video]:has(> .cal-notes-stage[data-orient="portrait"]) { width: min(980px, 96vw); }
+.cal-notes-shell[data-video] > .cal-comments-modal { flex: 0 0 420px; width: 420px; max-width: none; height: auto; max-height: none; border-radius: 0; box-shadow: none; border-left: 1px solid var(--border); }
+.cal-notes-stage { --fv-h: calc(min(86vh, 760px) - 92px); flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 20px 24px 14px; background: var(--surface-subtle); box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+.fv-player { position: relative; flex: none; width: min(100%, calc(var(--fv-h) * var(--fv-ar, 1.7778))); aspect-ratio: var(--fv-ar, 16 / 9); background: var(--sv-bg-000); border-radius: 12px; overflow: hidden; }
+.fv-poster, .fv-video { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain; }
+.fv-video { background: transparent; cursor: pointer; }
 .fv-player:not([data-state="ready"]) .fv-video { visibility: hidden; }
-.fv-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center; background: var(--surface-subtle); color: var(--text-primary); }
-.fv-player[data-state="loading"] .fv-state { background: transparent; pointer-events: none; }
-.fv-player[data-state="ready"] .fv-state { display: none; }
-.fv-state-text { font-size: 0.86rem; font-weight: 600; color: var(--text-secondary); max-width: 360px; }
-.fv-state-bad { color: var(--text-primary); }
+/* Loading: the poster, breathing very slightly, and a thin line moving along the bottom. No spinner, no box. */
+.fv-player[data-state="loading"] .fv-poster { animation: fvBreathe 1.6s ease-in-out infinite alternate; }
+@keyframes fvBreathe { from { opacity: 0.78; } to { opacity: 1; } }
+.fv-loadline { display: none; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; overflow: hidden; pointer-events: none; }
+.fv-player[data-state="loading"] .fv-loadline, .fv-player[data-buffering] .fv-loadline { display: block; }
+.fv-loadline::after { content: ""; position: absolute; top: 0; bottom: 0; left: -30%; width: 30%; background: var(--sv-fg-fff); opacity: 0.85; animation: fvLoadline 1.3s ease-in-out infinite; }
+@keyframes fvLoadline { to { left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .fv-player[data-state="loading"] .fv-poster, .fv-loadline::after { animation: none; } .fv-loadline::after { left: 0; width: 100%; opacity: 0.4; } }
+/* Error: one sentence, Try again and the Frame.io link, over the player. */
+.fv-state { display: none; }
+.fv-player[data-state="error"] .fv-state { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center; background: var(--surface-subtle); color: var(--text-primary); }
+.fv-player[data-state="error"] .fv-controls, .fv-player[data-state="error"] .fv-poster { display: none; }
+.fv-state-text { max-width: 340px; font-size: 0.86rem; font-weight: 600; }
 .fv-state-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.fv-spin { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--sv-bg-rgba-255-255-255-0_18); border-top-color: var(--sv-fg-fff); animation: fvSpin 0.8s linear infinite; }
-.fv-player[data-state="error"] .fv-spin, .fv-inline-state:not(.is-loading) .fv-spin { border-color: var(--border); border-top-color: var(--text-primary); }
-@keyframes fvSpin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .fv-spin { animation-duration: 2.4s; } .fv-skel { animation: none; } }
-.fv-unmute { position: absolute; left: 12px; bottom: 56px; z-index: 2; display: inline-flex; align-items: center; min-height: 0 !important; min-width: 0 !important; padding: 7px 12px; border: 0; border-radius: 999px; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); font-family: inherit; font-size: 0.74rem; font-weight: 700; cursor: pointer; backdrop-filter: blur(6px); }
-.fv-unmute[hidden] { display: none; }
-.fv-player[data-small]::after { content: "Smaller version for your connection"; position: absolute; left: 10px; top: 10px; padding: 2px 8px; border-radius: 999px; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); font-size: 0.64rem; font-weight: 600; pointer-events: none; }
-.fv-markers { position: relative; flex: none; align-self: stretch; height: 14px; margin: 0 2px; border-radius: 7px; background: var(--surface-subtle); }
-.fv-markers:empty { display: none; }
-html .fv-overlay .fv-markers .fv-mark { position: absolute; top: 1px; width: 12px; height: 12px; min-width: 0 !important; min-height: 0 !important; margin: 0 0 0 -6px; padding: 0; border: 2px solid var(--surface-raised); border-radius: 50%; background: var(--focus-ring); cursor: pointer; }
-html .fv-overlay .fv-markers .fv-mark::before { content: ""; position: absolute; inset: -9px; }
-html .fv-overlay .fv-markers .fv-mark:hover { transform: scale(1.25); }
+.fv-btn, .fv-open-link { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 14px; background: var(--text-primary); color: var(--white); border: 0; border-radius: 10px; font-family: inherit; font-size: 0.78rem; font-weight: 700; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.fv-btn-ghost, .fv-open-link { background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); }
+.fv-btn-ghost:hover, .fv-open-link:hover { background: var(--surface-hover); }
+.fv-open-link { padding: 6px 11px; font-size: 0.74rem; }
+.fv-open-link svg { width: 12px; height: 12px; flex-shrink: 0; color: var(--text-secondary); }
+/* The controls: a bar along the bottom of the video. The play button sits at its centre. While the video plays the
+   bar fades unless the pointer is over the player. */
+.fv-controls { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; flex-direction: column; gap: 4px; padding: 30px 12px 10px; background: linear-gradient(to top, var(--sv-bg-rgba-0-0-0-0_55), transparent); color: var(--sv-fg-fff); transition: opacity 0.2s; }
+.fv-player[data-playing]:not(:hover):not(:focus-within) .fv-controls { opacity: 0; }
+.fv-track { position: relative; height: 16px; }
+.fv-scrub { -webkit-appearance: none; appearance: none; position: absolute; inset: 0; width: 100%; height: 16px; margin: 0; padding: 0; background: transparent; cursor: pointer; min-height: 0 !important; }
+.fv-scrub:disabled { cursor: default; }
+.fv-scrub::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--sv-fg-fff) var(--fv-pos, 0%), var(--sv-bg-rgba-255-255-255-0_3) var(--fv-pos, 0%)); }
+.fv-scrub::-moz-range-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--sv-fg-fff) var(--fv-pos, 0%), var(--sv-bg-rgba-255-255-255-0_3) var(--fv-pos, 0%)); }
+.fv-scrub::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4px; border: 0; border-radius: 50%; background: var(--sv-fg-fff); }
+.fv-scrub::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--sv-fg-fff); }
+.fv-scrub:disabled::-webkit-slider-thumb { opacity: 0; }
+.fv-scrub:disabled::-moz-range-thumb { opacity: 0; }
+.fv-scrub:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
+.fv-markers { position: absolute; left: 0; right: 0; top: 50%; height: 0; pointer-events: none; }
+.fv-mark { position: absolute; top: -9px; width: 2px; height: 6px; margin-left: -1px; border-radius: 1px; background: var(--sv-fg-fff); opacity: 0.9; }
+.fv-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; }
+.fv-clock { justify-self: start; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: clip; font-size: 0.74rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.fv-bar-right { justify-self: end; display: inline-flex; gap: 2px; }
+html .fv-player .fv-play { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 50%; background: var(--surface-raised); color: var(--text-primary); box-shadow: var(--shadow-md); cursor: pointer; transition: transform 0.12s, background 0.12s; }
+html .fv-player .fv-play svg { width: 16px; height: 16px; }
+html .fv-player .fv-play[aria-label="Play"] svg { margin-left: 2px; }
+html .fv-player .fv-play:hover { transform: scale(1.06); background: var(--surface-hover); }
+html .fv-player .fv-play[data-pending] { animation: fvBreathe 0.9s ease-in-out infinite alternate; }
+html .fv-player .fv-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--sv-fg-fff); cursor: pointer; }
+html .fv-player .fv-icon-btn svg { width: 16px; height: 16px; }
+html .fv-player .fv-icon-btn:hover { background: var(--sv-bg-rgba-255-255-255-0_18); }
+.fv-play:focus-visible, .fv-icon-btn:focus-visible, .fv-btn:focus-visible, .fv-open-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* A narrow player (a vertical video on a phone): the full-screen button and the length give way to the play button. */
+.fv-player { container-type: inline-size; }
+@container (max-width: 300px) { .fv-player .fv-full, .fv-player .fv-dur { display: none !important; } }
+.fv-player:fullscreen { width: 100%; height: 100%; border-radius: 0; aspect-ratio: auto; }
+.fv-stage-foot { display: flex; align-items: center; justify-content: flex-end; gap: 10px; width: min(100%, calc(var(--fv-h) * var(--fv-ar, 1.7778))); min-width: min(100%, 260px); }
+.fv-small-note { margin-right: auto; font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); }
+.fv-small-note[hidden] { display: none; }
 
-/* The comments: one list, oldest first. A purple edge and a timecode mark a Frame.io comment (click to jump);
-   a grey edge marks a SyncView note. The source is named small and quiet at the end of each line. */
-.fv-side { display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--border-light); background: var(--surface-subtle); }
-.fv-side-head { display: flex; align-items: baseline; gap: 8px; padding: 14px 18px 10px; }
-.fv-side-title { font-size: 0.8rem; font-weight: 800; }
-.fv-count { color: var(--text-secondary); font-size: 0.74rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.fv-list { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 12px 16px; overscroll-behavior: contain; }
-.fv-c-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.fv-c { border-left: 2px solid var(--border); border-radius: 4px 10px 10px 4px; background: var(--surface-raised); transition: background 0.15s; }
-.fv-c.fv-src-frameio { border-left-color: color-mix(in srgb, var(--focus-ring) 60%, transparent); }
-.fv-c.is-now { background: color-mix(in srgb, var(--focus-ring) 9%, var(--surface-raised)); }
-.fv-c.is-done .fv-c-text { color: var(--text-secondary); }
-.fv-c-main { display: block; width: 100%; padding: 10px 12px 10px 12px; margin: 0; background: transparent; border: 0; border-radius: inherit; font: inherit; color: inherit; text-align: left; }
-button.fv-c-main { cursor: pointer; }
-button.fv-c-main:hover { background: color-mix(in srgb, var(--focus-ring) 6%, transparent); }
-.fv-c-top { display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px 8px; margin-bottom: 3px; }
-.fv-time { padding: 1px 7px; border-radius: 6px; background: color-mix(in srgb, var(--focus-ring) 15%, transparent); color: var(--focus-ring); font-size: 0.7rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.fv-c-by { font-size: 0.76rem; font-weight: 800; }
-.fv-guest { color: var(--text-secondary); font-weight: 700; }
-.fv-c-when { font-size: 0.7rem; color: var(--text-secondary); }
-.fv-src { margin-left: auto; font-size: 0.64rem; font-weight: 600; color: var(--text-muted); }
-.fv-done { padding: 1px 6px; border-radius: 6px; background: var(--up-bg); color: var(--up); font-size: 0.66rem; font-weight: 800; }
-.fv-c-text { font-size: 0.82rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
-.fv-replies { margin: 0 12px 8px 24px; padding-left: 10px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
-.fv-reply { padding: 2px 0; }
-.fv-r-top { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 2px; }
-.fv-note { padding: 12px; font-size: 0.8rem; color: var(--text-secondary); text-align: center; }
-.fv-note-bad { color: var(--text-primary); }
-.fv-skel { height: 66px; margin-bottom: 8px; border-radius: 12px; background: linear-gradient(90deg, var(--border-light), var(--surface-hover), var(--border-light)); background-size: 200% 100%; animation: fvShimmer 1.4s linear infinite; }
-.fv-skel-short { height: 44px; }
-@keyframes fvShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+/* The Frame.io comments in the notes list: the same row as a note (avatar, name, time, status, text, replies under
+   it), no box. A grey square avatar and a quiet "FRAME.IO" where a note names its part; the video time leads the
+   text and moves the player there. The row matching the playing moment is lightly tinted. */
+.cal-cm-avatar.is-frameio { background: var(--surface-subtle); color: var(--text-secondary); box-shadow: inset 0 0 0 1px var(--border); }
+.cal-cm-author.is-guest { color: var(--text-secondary); }
+.cal-cm-src-label { margin-left: auto; flex-shrink: 0; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+html .cal-comments-modal .cal-cm-tc { display: inline-flex; align-items: center; min-width: 0 !important; min-height: 0 !important; margin: 0 7px 0 0; padding: 1px 7px; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--focus-ring) 14%, transparent); color: var(--focus-ring); font-family: inherit; font-size: 0.76rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.4; vertical-align: 1px; cursor: pointer; }
+html .cal-comments-modal .cal-cm-tc:hover { background: color-mix(in srgb, var(--focus-ring) 24%, transparent); }
+.cal-cm-tc:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.cal-cm-row.is-frameio.is-now { background: color-mix(in srgb, var(--focus-ring) 7%, transparent); }
+.cal-cm-fio-note { padding: 6px 22px; font-size: 0.78rem; color: var(--text-secondary); }
+html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height: 0 !important; padding: 0; border: 0; background: none; color: var(--text-primary); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.cal-cm-fio-skeleton { padding-top: 6px; }
 
 @media (max-width: 767px) {
- .fv-overlay { padding: 0; align-items: stretch; }
- .fv-panel, .fv-panel[data-orient="portrait"] { --fv-h: min(54dvh, 100vw * 1.3); width: 100%; max-height: none; height: 100%; border: 0; border-radius: 0; }
- .fv-head { padding: 10px 10px 10px 14px; gap: 8px; }
- .fv-open-link { padding: 7px 10px; font-size: 0.74rem; }
- .fv-body, .fv-panel[data-orient="portrait"] .fv-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
- .fv-stage { padding: 10px 12px 8px; }
- .fv-panel[data-orient="landscape"] { --fv-h: 42dvh; }
- .fv-panel[data-orient="landscape"] .fv-player { width: 100%; }
- .fv-side { border-left: 0; border-top: 1px solid var(--border-light); }
- .fv-list { padding: 2px 10px calc(14px + env(safe-area-inset-bottom, 0px)); }
- .fv-c-text { font-size: 0.86rem; }
- .fv-unmute { bottom: 52px; }
+ .cal-comments-overlay:has(.cal-notes-shell[data-video]) { padding: 0 !important; align-items: stretch !important; }
+ .cal-notes-shell[data-video], .cal-notes-shell[data-video]:has(> .cal-notes-stage[data-orient="portrait"]) { flex-direction: column; width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; box-shadow: none; }
+ html body .cal-notes-shell[data-video] > .cal-comments-modal { flex: 1 1 auto; width: 100%; max-width: 100%; height: auto; min-height: 0; max-height: none; border-radius: 0; border-left: 0; border-top: 1px solid var(--border); }
+ .cal-notes-stage { --fv-h: 38dvh; flex: none; padding: 10px 12px 8px; gap: 6px; }
+ .cal-notes-stage[data-orient="landscape"] .fv-player { width: 100%; }
+ .fv-controls { padding: 24px 8px 6px; }
+ .fv-player[data-playing]:not(:hover):not(:focus-within) .fv-controls { opacity: 1; }
+ .cal-notes-stage { position: relative; }
+ /* On a phone the Frame.io link rides on the video's top corner, so the notes keep the room. */
+ .fv-stage-foot { position: absolute; top: 18px; right: 20px; z-index: 3; width: auto; min-width: 0; }
+ .fv-stage-foot .fv-open-link { padding: 5px 9px; border: 0; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); font-size: 0.7rem; }
+ .fv-stage-foot .fv-open-link svg { color: var(--sv-fg-fff); }
+ .fv-small-note { display: none; }
+ html body .cal-comments-modal .cal-cm-tc { min-height: 26px !important; padding: 2px 9px; }
 }
 
 /* Thumb Messages: one phone conversation at a time, in the native page. */

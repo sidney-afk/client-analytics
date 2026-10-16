@@ -16,6 +16,8 @@ import {
 } from './190-calendar-approval-comments.js';
 import { _prodCanonicalCommentGate, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
 import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
+import { wlCanonicalClient } from './070-core-client-names.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
     /* ── Messages inbox (Notes Step 2) ─────────────────────────────────────
        Plan: docs/plans/2026-10-13-notes-messages.md, section 6 "Step 2".
 
@@ -655,6 +657,21 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         _prodProjectCanonicalCardComments('calendar', c.post_id);
         return post;
     }
+    /* The one video-and-notes view, from any door (187's play icon, Review tile and Kasper's "Watch here"): the
+       card's Notes dialog, with the player when its video can be watched here. A card the Calendar has not loaded
+       (Kasper's board is cross-client) is loaded first, the way a Messages conversation is. True when it opened. */
+    async function svOpenCardNotes(client, pid) {
+        if (!pid) return false;
+        if (!calState.posts.some(p => p.id === pid)) {
+            if (_isClientLink) return false;
+            const name = String(wlCanonicalClient(client) || client || '');
+            const post = await _msgEnsureCard({ client_name: name, post_id: pid });
+            if (!post) { showToast('That card could not be loaded. Try again.'); return false; }
+        }
+        openCalComments(pid);
+        return true;
+    }
+    window.svOpenCardNotes = svOpenCardNotes;
     /* A reply shows in the chat the moment it is sent (the note outbox in 190
        keeps it, with its words, until the server confirms it; a failed one
        stays as "Not sent" with Retry, also after a refresh). The box is free

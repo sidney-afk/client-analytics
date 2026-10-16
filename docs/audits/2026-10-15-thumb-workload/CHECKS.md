@@ -208,3 +208,75 @@ ok   staff-navWorkload @1440: pixels identical, computed styles identical (351ab
 
 1/1 desktop shots identical to origin/main
 ```
+
+## Main integration and fresh evidence, 2026-10-16
+
+Both merges preserve the publish-time build contract. The original merge target was 72062c1f; main advanced to ef8da61a while checks ran, so the final Cinema implementation was merged too and affected captures/checks were rerun. No build output is tracked and no CI condition was changed. No OPEN_REPAIRS number was allocated.
+
+Screens were retaken and manually reviewed against #1950 direction A (Expanded), with #2082 retaining authority over the grid/agenda navigation. The initial new Tabs assertions needed the actual per-area shell and native anchor role; the corrected fixture asserts the visible native Post link and icon. The media-icon phone journey enters List; all 56 original assertions remain.
+
+### workload-cinema-phone.log
+
+```text
+STAFF_PHONE_WORKLOAD: 56 screen/theme/width captures; all assertions passed; fictional transports; no live writes
+```
+
+### workload-cinema-backdrop.log
+
+```text
+dialog-backdrop-press-browser ok
+```
+
+### workload-cinema-post.log
+
+```text
+post-tab-browser: 58 checks passed ✅
+```
+
+### workload-cinema-open-calendar.log
+
+```text
+open-in-calendar-browser: all checks passed
+```
+
+### workload-cinema-gateway.log
+
+```text
+prod-write-gateway-browser: mirror operations plus Submit and Calendar native intake passed
+```
+
+### workload-cinema-desktop.log
+
+```text
+1/1 desktop shots identical to origin/main
+```
+
+### workload-cinema-index.log
+
+```text
+check-index: OK - the build succeeds, two builds are byte-identical, and no output (index.html, js/sv-*.js, src/index/INDEX.md) is committed
+```
+
+### workload-cinema-inventory.log
+
+```text
+staff-phone-final-pass: 44 renders, 0 problems
+```
+
+### workload-cinema-map.log
+
+```text
+repo-map-sync: 1223 passed, 0 failed
+```
+
+### workload-cinema-truth.log
+
+```text
+truth-sync: 524 passed, 0 failed
+```
+
+### workload-cinema-modules.log
+
+```text
+check-modules: all checks passed
+```

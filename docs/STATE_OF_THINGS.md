@@ -87,7 +87,11 @@ supervisor manual's "Writing it down"):**
   changes settle.
 
 **Open sessions and where they stand (2026-10-16):**
-- Swift #2089 (Messages opens fast, Close button): in review; needs a `production-comments` deploy after merge.
+- Swift #2089 (Messages opens fast, Close button, click again to close): merged 2026-10-16 04:35 UTC (`599b7a22`); the page
+  part is live with the next Pages publish. Its `production-comments` speed-up (parallel reads) is NOT deployed on purpose:
+  the only lane for it (deploy-onboarding-edge-functions) also redeploys `production-write`, which now differs from live
+  (Scribe #2096) and should go through the Section 4 path with its rollback capture. It ships with Conveyor's deploy on
+  merge (#2101). The page works with the old function meanwhile.
 - Anchor #2094 (production-polish gate waits for the app instead of guessing): fixing its own boot-budget runs.
 - Scribe #2096 (a note shows the moment it is sent): merged 2026-10-16; the page part is live with the next Pages publish.
   Its small `production-write` change (the Slack sender wakes after the answer, not before) waits for the next F27

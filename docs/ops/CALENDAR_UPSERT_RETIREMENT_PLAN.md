@@ -42,6 +42,19 @@ What "native covers" means: the same user action already reaches
 | 14 | n8n: "SyncView Calendar — Generate Caption" (active) | Generate caption for every other client | `caption` | No. 14 runs in 14 days, last on 2026-10-09 |
 | - | n8n: "SyncView Calendar — Upsert Post" | Old Sheets-era writer | - | Inactive. Only a staff repair pinned to `webhook` still points at its URL |
 
+**Scripts and harnesses that post to it directly** (dormant most days, so a
+quiet log does not prove they are gone):
+
+- `scripts/client-signoff-reconcile.js --apply`, run by
+  `.github/workflows/client-signoff-reconcile.yml`, posts sign-off repairs.
+- The nightly and morning harnesses: `qa/golden_lib.js` and
+  `qa/sxr_courier_lib.js` (calendar and samples nightly), `qa/probes/lib.js`
+  and the `qa/probes/` scripts, `qa/ef-writepath/`, and the dawn check.
+- Rehearsal and evidence tooling that only reads or replays a saved copy
+  (`qa/linear-exit-rehearsal/`, `scripts/a1-calendar-upsert-parity.js`,
+  `scripts/calendar-upsert-live-delta.js` and others). These need no move and
+  are retired in step 7.
+
 Not callers: reorder goes to `calendar-reorder`; the Workload warm-up list
 (067) only lists the name; `production-write` mentions it in comments only.
 
@@ -118,8 +131,11 @@ field on the same row) so client links move separately. The native path must
 accept every link clients hold today; otherwise this repeats the 2026-07-15
 outage (see the freeze in `AGENTS.md`). Way back: same one-row flag change.
 
-**Step 4. Server callers.** `caption-generate` and `calendar-auto-posted` read
-the same flag and call the native operation. The n8n Generate Caption workflow
+**Step 4. Server callers and harnesses.** `caption-generate` and
+`calendar-auto-posted` read the same flag and call the native operation. The
+sign-off reconcile script and the nightly, morning and probe harnesses listed
+above move to the native operation too, each proven by one run on the test
+client. The n8n Generate Caption workflow
 stops being a caller only when `caption_generate_ef_clients` covers every client
 (owner's switch) or the owner approves an edit to it. Way back: the flag.
 
@@ -127,10 +143,24 @@ stops being a caller only when `caption_generate_ef_clients` covers every client
 Watch the write-refusal log, the ledger by source and the `calendar-upsert` log
 count. Way back: remove slugs from the roster.
 
-**Step 6. Switch off.** When `calendar-upsert` has logged zero real-client calls
-for 14 days: download and keep the live source in `SyncView Backups/`, then
-deploy a version that answers every call with a clear refusal. Way back: deploy
-the saved live source (the live-delta lane already knows how).
+**Step 6. Switch off.** Three conditions, all needed:
+
+- `calendar-upsert` has logged zero real-client calls for 14 days.
+- Every scheduled caller above (sign-off reconcile, nightly, morning) has run
+  at least once on the native path.
+- A review page opened before the move can no longer post to it. Zero calls
+  does not prove that, because a client can leave an old tab open for weeks.
+  Either the page checks its own build on load and refuses to save from a stale
+  copy (and that check has been live for 14 days), or every active client has
+  been reissued a fresh link and confirmed, as the freeze in `AGENTS.md`
+  requires.
+
+Then download and keep the live source in `SyncView Backups/`, and deploy a
+version that answers every call with a clear refusal. Way back: a restore
+lane, built and rehearsed on a throwaway copy **before** this step. It deploys
+the saved bundle by its hash and checks the result. The current live-delta
+lane cannot do this: it only applies its own one-line change and only rolls
+back inside the same run.
 
 **Step 7. Delete.** After 14 more quiet days: delete the function, its repo
 folder, the n8n URL constants, the pinned-repair branch, the live-delta lane,

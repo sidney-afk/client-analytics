@@ -597,6 +597,9 @@ ok(workflow.includes('F27_PROJECT_REF=$project_ref')
   && rollbackLibrary.includes('provider.supabase_cli_version !== expectedCliVersion'),
 'the sealed undo is privately bound to the masked reviewed project, exact CLI, and both approved adapters before either operation mutates');
 
+const blockOf = name => { const at = workflow.indexOf(name); return at < 0 ? '' : workflow.slice(at, workflow.indexOf('\n      - name:', at + 1)); };
+const captureSealBlock = blockOf('- name: Capture and seal the live prior three (read only)');
+const captureStoreBlock = blockOf('- name: Store the sealed bundle in the F27 Shared Drive root (independent readback)');
 const sqlPreflightAt = workflow.indexOf('- name: Assert compatible native SQL before the first forward deployment');
 const sqlPreflightEnd = workflow.indexOf('\n      - name:', sqlPreflightAt + 1);
 const sqlPreflightBlock = workflow.slice(sqlPreflightAt, sqlPreflightEnd);
@@ -606,8 +609,15 @@ const notifyPreflightBlock = workflow.slice(notifyPreflightAt, notifyPreflightEn
 ok(/^  deploy:\n(?:    [^\n]*\n)*    environment: production\n/m.test(workflow)
   && !/^    env:\n(?:      [^\n]*\n)*      (?:SUPABASE_ACCESS_TOKEN|F27_PRIVATE_SHARED_DRIVE_ROOT_ID|TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON):/m.test(workflow)
   && occurrences(workflow, /F27_PRIVATE_SHARED_DRIVE_ROOT_ID: \$\{\{ secrets\.F27_PRIVATE_SHARED_DRIVE_ROOT_ID \}\}/g).length === 1
-  && occurrences(workflow, /TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: \$\{\{ secrets\.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON \}\}/g).length === 1
-  && occurrences(workflow, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 7
+  // Since 2026-10-16 the lane captures the prior three itself: one more token
+  // use (the read-only capture step) and one more Drive credential use (the
+  // store step), each step-scoped inside its own block and nowhere else.
+  && occurrences(workflow, /TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: \$\{\{ secrets\.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON \}\}/g).length === 2
+  && occurrences(captureStoreBlock, /TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: \$\{\{ secrets\.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON \}\}/g).length === 1
+  && occurrences(workflow, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 8
+  && occurrences(captureSealBlock, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 1
+  && !/TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON|F27_PRIVATE_SHARED_DRIVE_ROOT_ID/.test(captureSealBlock)
+  && !/SUPABASE_ACCESS_TOKEN/.test(captureStoreBlock)
   && validationAt < firstSecretAt
   && sqlPreflightAt > validationAt && sqlPreflightAt < firstDeployAt
   && /if: github\.event_name == 'workflow_dispatch' && inputs\.operation == 'deploy-reviewed-release'/.test(sqlPreflightBlock)
@@ -767,7 +777,15 @@ ok(workflow.includes(`--slugs=${PRIOR_SLUGS.join(',')}`)
 ok(!/upload-artifact/.test(workflow)
   && !/\$\{\{ vars\./.test(workflow)
   && !/\bproject_ref:\s*[a-z0-9]{20}\b/.test(workflow)
-  && !/TRACK_B_BACKUP_DRIVE_FOLDER_ID/.test(workflow)
+  // The uploader reads its folder from TRACK_B_BACKUP_DRIVE_FOLDER_ID. In this
+  // lane that name is bound ONCE, in the store step, to the F27 root secret
+  // (never to the Track-B snapshot folder's own secret) and checked against
+  // the pinned root hash before the upload.
+  && occurrences(workflow, /TRACK_B_BACKUP_DRIVE_FOLDER_ID: /g).length === 1
+  && captureStoreBlock.includes('TRACK_B_BACKUP_DRIVE_FOLDER_ID: ${{ secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID }}')
+  && captureStoreBlock.includes('[ "$root_hash" != "$EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256" ]')
+  && !/secrets\.TRACK_B_BACKUP_DRIVE_FOLDER_ID/.test(workflow)
+  && workflow.split('TRACK_B_BACKUP_DRIVE_FOLDER_ID').length - 1 === occurrences(captureStoreBlock, /TRACK_B_BACKUP_DRIVE_FOLDER_ID/g).length
   && occurrences(workflow, /if: always\(\)/g).length === 1
   && workflow.indexOf('- name: Delete private source and raw receipts') > firstDeployAt
   && workflow.indexOf('- name: Delete private source and raw receipts') > restoreAt,

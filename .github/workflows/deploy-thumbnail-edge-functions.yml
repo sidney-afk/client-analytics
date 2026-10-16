@@ -1,15 +1,9 @@
 name: Deploy thumbnail edge functions
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'supabase/functions/thumbnail-revision-read/**'
-      - 'supabase/functions/thumbnail-revision-scan/**'
-      - 'supabase/functions/_shared/thumbnail-revisions.ts'
-      - 'supabase/functions/_shared/staff-role-auth.ts'
-      - 'supabase/config.toml'
-      - '.github/workflows/deploy-thumbnail-edge-functions.yml'
+  # Automatic deploys on merge moved to deploy-edge-functions-on-merge.yml
+  # (2026-10-16), which deploys every changed function in order, with the
+  # same checks. This lane stays as the manual fallback.
   workflow_dispatch:
     inputs:
       confirm:

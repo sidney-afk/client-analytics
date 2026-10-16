@@ -1089,7 +1089,12 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     'supabase/functions/client-review-link/**',
     'supabase/functions/_shared/**',
   ];
-  ok(!!pushBlock && forbiddenPushPaths.every(path => !pushBlock.includes(`- '${path}'`)),
+  // Since 2026-10-16 that lane has no push trigger at all (merges deploy through
+  // deploy-edge-functions-on-merge.yml), so it can never push-deploy any of these;
+  // the merge lane refuses linear-outbound and production-write by name.
+  const mergeLane = read('.github/workflows/deploy-edge-functions-on-merge.yml');
+  ok(!pushBlock && !/^  push:/m.test(deployWorkflow) && forbiddenPushPaths.length === 5
+    && /production-write\|deliverable-write\|batch-write\|calendar-upsert\|sample-review-upsert\|linear-inbound\|linear-outbound\|client-token-verify\)/.test(mergeLane),
     'high-risk functions and broad shared changes never trigger a push deploy');
 
   const pinnedStepAt = deployWorkflow.indexOf('- name: Deploy pinned Track-B write/read functions');

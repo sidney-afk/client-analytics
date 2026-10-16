@@ -21,7 +21,7 @@ import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, isT
 import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
 import { guideIndex, guideReply, latestGuides } from "./guides.mjs";
 import { brainChange, clientBrain, clientStyle, filmingPlan, listClients } from "./clientinfo.ts";
-import { DIRECT_MODELS, directEstimate, isDirect, runDirect, type Fetched } from "./direct.ts";
+import { asksSwitchedOff, DIRECT_MODELS, directEstimate, GOOGLE_IMAGE_ENABLED, GOOGLE_IMAGE_IDS, gptImageInputs, isDirect, runDirect, SWITCHED_OFF_TEXT, type Fetched } from "./direct.ts";
 
 const HF_API = "https://api.higgsfield.ai";
 const CAP_RAW = (Deno.env.get("HF_MONTHLY_CAP_USD") || "200").trim();
@@ -58,7 +58,7 @@ const GO_TO: Pick[] = [
   { task: "Copy the movement from one video onto a person in a photo", picks: ["higgsfield/genjutsu/motion-transfer/v1.0", "kling-video/v3/motion-control/pro"] },
   { task: "Swap an object in a video for another", picks: ["higgsfield/genjutsu/object-swap/v1.0"] },
   { task: "Photorealistic image of people or scenes", picks: ["higgsfield-ai/soul/v2/standard"] },
-  { task: "Edit a photo (change a person, outfit, background, add or remove things)", picks: ["openai/gpt-image", "openai/gpt-image-fast", "google/nano-banana", "xai/grok-imagine-image-2.0"] },
+  { task: "Edit a photo (change a person, outfit, background, add or remove things)", picks: ["openai/gpt-image", "openai/gpt-image-fast", ...(GOOGLE_IMAGE_ENABLED ? ["google/nano-banana"] : []), "xai/grok-imagine-image-2.0"] },
   { task: "Image with readable text: thumbnails, posters, quotes", picks: ["ideogram/v4.0"] },
   { task: "Logos, icons, illustrations, design assets", picks: ["recraft/v4.1/pro/text-to-image", "recraft/v4.1/utility/pro/text-to-image"] },
   { task: "Quick, cheap image drafts", picks: ["z-image/turbo"] },
@@ -125,7 +125,8 @@ const INSTRUCTIONS = [
   "Start with start_here. Before any task, call guide with that task's topic and follow it: it is the team's current playbook and wins over these notes and anything you remember.",
   "Work out what they want (ask one short question if unclear), pick a model from the shortlist and say why in one sentence.",
   "Call model_details before the first create with a model, write a rich prompt for them (subject, action, setting, camera, lighting, mood) and show it.",
-  "For photo edits, thumbnails and new photos prefer GPT Image (openai/gpt-image; openai/gpt-image-fast for quick drafts), since it runs directly and never waits in Higgsfield's queue, then Nano Banana; they change only what is asked. ",
+  "For photo edits, thumbnails and new photos prefer GPT Image (openai/gpt-image; openai/gpt-image-fast for quick drafts), since it runs directly and never waits in Higgsfield's queue; it changes only what is asked. ",
+  "Nano Banana (Google) is switched off for the team. If someone asks for it, say so and offer GPT Image instead: the connector answers with GPT Image's price card. Never switch models without saying so.",
   "Choose sensible settings yourself: vertical 9:16 for social media unless they say otherwise, and a sharp but not wasteful quality (1080p or 2K when offered).",
   "Before EVERY create, run price_check and show its plan card to the person exactly as returned: model, what it will make, every setting (shape, quality, length, sound, inputs), the exact price, and the other quality and shape options. End with: \"Say go, or tell me what to change.\"",
   "Only call create after they say go (or yes). If they change anything, run price_check again and show the updated card. Never make anything without showing its price first. Mention the cost again when it is done.",
@@ -135,7 +136,7 @@ const INSTRUCTIONS = [
   "Whenever a client is named, call client_brain before answering, without being asked. When someone states something new and lasting about a client, save it with brain_change and confirm in one line; never for notes about one video.",
   "For thumbnail titles, read the client's voice with client_style and the videos with client_filming_plan instead of asking the person to paste them.",
   "Input media must be public links. If they have a file in Google Drive or Dropbox, pass its share link to import_file and use the link it returns.",
-  "After create, call wait_for_job and keep calling it in the same reply until the job is done, giving a one-line progress update between calls; never ask the person to check back or to say \"check again\". Wait up to 30 minutes (GPT Image and Nano Banana take under a minute; Higgsfield images wait in Higgsfield's queue and can take several minutes when it is busy; videos 1 to 5 minutes, sometimes 15 or more when Higgsfield is busy), then give them the download link. Finished images come back as pictures too, so look at them and tell the person honestly whether they match the request before offering the next step.",
+  "After create, call wait_for_job and keep calling it in the same reply until the job is done, giving a one-line progress update between calls; never ask the person to check back or to say \"check again\". Wait up to 30 minutes (GPT Image takes under a minute; Higgsfield images wait in Higgsfield's queue and can take several minutes when it is busy; videos 1 to 5 minutes, sometimes 15 or more when Higgsfield is busy), then give them the download link. Finished images come back as pictures too, so look at them and tell the person honestly whether they match the request before offering the next step.",
   "Never go around the monthly budget. If create refuses for budget, tell them to ask the account owner.",
   SUMMARY_NOTE,
 ].join(" ");
@@ -765,7 +766,7 @@ const RECIPES: Recipe[] = [
     name: "Thumbnail expression fix",
     forWho: "graphic designers making thumbnails",
     summary: "Fixes an awkward mid-word face in a client screenshot with the smallest possible change, keeping everything else identical. Works on one screenshot or a batch.",
-    models: ["openai/gpt-image", "google/nano-banana", "google/nano-banana-pro", "xai/grok-imagine-image-2.0", "alibaba/qwen-image-3/edit"],
+    models: ["openai/gpt-image", ...(GOOGLE_IMAGE_ENABLED ? GOOGLE_IMAGE_IDS : []), "xai/grok-imagine-image-2.0", "alibaba/qwen-image-3/edit"],
     build: (model, image, notes, aspect) => {
       const prompt = EXPRESSION_FIX_PROMPT + (notes ? `\n\nAdditional instruction for this image: ${notes}` : "");
       if (model === "openai/gpt-image") return { prompt, image_urls: [image], size: "auto", quality: "medium" };
@@ -987,7 +988,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
 
   if (name === "start_here") {
     const list = GO_TO.map((g) => `- ${g.task}: ${g.picks.map((id) => `${BY_ID.get(id)?.name} [${id}]`).join(" or ")}`).join("\n");
-    return `This connector can make videos and images with ${ALL_MODELS.length} models (Higgsfield, plus GPT Image and Nano Banana), plus saved team recipes (use recipes). Go-to picks:\n${list}\n\nThere are more options per task: use find_models.\nPrices vary by model, length and resolution; price_check gives the exact figure.\nInput photos, videos and audio must be public links; import_file converts Drive and Dropbox links.\n\nClient knowledge (the Synchro Brain): whenever a client is named, or someone asks \"what does X want\", call client_brain first, without being asked. When someone says something new and lasting about a client (a preference, a decision, a date, a change of direction) or says \"add this to X's brain\", call brain_change and confirm in one line. Not for notes about one video.${isTeamLink(member) ? `\n\n${TEAM_START_NOTE}` : ""}${await guideList()}\n\n${await budget()}`;
+    return `This connector can make videos and images with ${ALL_MODELS.length} models (Higgsfield, plus GPT Image), plus saved team recipes (use recipes). Go-to picks:\n${list}\n\nThere are more options per task: use find_models.\nPrices vary by model, length and resolution; price_check gives the exact figure.\nInput photos, videos and audio must be public links; import_file converts Drive and Dropbox links.\n\nClient knowledge (the Synchro Brain): whenever a client is named, or someone asks \"what does X want\", call client_brain first, without being asked. When someone says something new and lasting about a client (a preference, a decision, a date, a change of direction) or says \"add this to X's brain\", call brain_change and confirm in one line. Not for notes about one video.${isTeamLink(member) ? `\n\n${TEAM_START_NOTE}` : ""}${await guideList()}\n\n${await budget()}`;
   }
 
   if (name === "guide") {
@@ -1006,8 +1007,21 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   }
 
   if (name === "model_details") {
+    if (asksSwitchedOff(args.model)) return SWITCHED_OFF_TEXT.replace("; here is its price.", ".") + "\n\n" + describeModel("openai/gpt-image");
     const id = needModel();
     return id ? describeModel(id) : "Unknown model. Use find_models for the exact ids.";
+  }
+
+  if ((name === "price_check" || name === "create") && asksSwitchedOff(args.model)) {
+    // Never a silent switch: the GPT Image card is shown and nothing is made
+    // until the person says go to it.
+    const gpt = gptImageInputs(inputsOf());
+    const problems = validate(BY_ID.get("openai/gpt-image")!.schema as Schema, gpt);
+    if (problems.length) return SWITCHED_OFF_TEXT + "\n\nFix these settings first:\n- " + problems.join("\n- ") + "\n\n" + describeModel("openai/gpt-image");
+    const est = await estimate("openai/gpt-image", gpt);
+    if ("error" in est) return SWITCHED_OFF_TEXT + "\n\nGPT Image could not be priced: " + est.error;
+    return SWITCHED_OFF_TEXT + (name === "create" ? " Nothing was made." : "") + "\n\n" + planCard("openai/gpt-image", gpt, est.usd) + "\n" + await budget()
+      + "\n\nSay go, or tell me what to change. (After go, call create with model openai/gpt-image and these settings: " + JSON.stringify(gpt) + ".)";
   }
 
   if (name === "price_check" || name === "create") {
@@ -1077,7 +1091,11 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
     const recipe = RECIPE_BY_KEY.get(String(args.recipe || ""));
     if (!recipe) return "Unknown recipe. Use recipes to see them.";
     if (!recipe.build) return `${recipe.name}\n\n${recipe.guide}`;
-    const model = String(args.model || recipe.models[0]);
+    // Nano Banana asked for by name: plan the recipe on GPT Image instead, say
+    // so, and run nothing until the person says go to that plan.
+    const off = asksSwitchedOff(args.model);
+    if (off && !recipe.models.includes("openai/gpt-image")) return SWITCHED_OFF_TEXT.replace("; here is its price.", ".") + ` This recipe runs on: ${recipe.models.join(", ")}.`;
+    const model = off ? "openai/gpt-image" : String(args.model || recipe.models[0]);
     if (!recipe.models.includes(model)) return `This recipe runs on: ${recipe.models.join(", ")}.`;
     const images = (Array.isArray(args.images) ? args.images : []).map((x) => String(x).trim()).filter(Boolean);
     if (!images.length) return "Give one or more image links (Drive, Dropbox or any public link).";
@@ -1090,8 +1108,9 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
     const est = await estimate(model, sample);
     if ("error" in est) return "Higgsfield could not price this: " + est.error;
     const total = est.usd * images.length;
-    if (name === "recipe_plan") {
+    if (name === "recipe_plan" || off) {
       return [
+        ...(off ? [SWITCHED_OFF_TEXT + (name === "run_recipe" ? " Nothing was run." : ""), ""] : []),
         `Plan: ${recipe.name}`,
         `- Model: ${BY_ID.get(model)!.name}${recipe.models.length > 1 ? `  [other options: ${recipe.models.filter((m) => m !== model).map((m) => BY_ID.get(m)?.name).join(", ")}]` : ""}`,
         `- Images: ${images.length}`,
@@ -1100,7 +1119,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
         `- Price: ${money(est.usd)} each, ${money(total)} total`,
         await budget(),
         "",
-        "Say go, or tell me what to change.",
+        "Say go, or tell me what to change." + (off ? " (After go, call run_recipe with model openai/gpt-image.)" : ""),
       ].join("\n");
     }
     if (CAP_USD === null) return BAD_CAP;

@@ -60,8 +60,72 @@ function build(prefix) {
   return { env, api };
 }
 
+/* Calendar, since the note outbox (2026-10-15): the click hands the note to
+   the outbox (190, _noteOutboxPut / _noteOutboxSend) and frees the box at
+   once; the send runs behind it and a failed one stays in the thread as "Not
+   sent" with Retry (docs/syncview-design/tests/note-send-outbox-browser.js).
+   What this suite still holds the Calendar to: one note per click, the box
+   free at the click, and nothing done to another card's box. */
+function buildCal() {
+  const env = { queued: [], sent: [], rendered: 0, state: { open: 'card-1', root: 'A note' } };
+  const api = new Function('env', `
+    let _calComposerSending = false;
+    let _calOpenCommentsPid = env.state.open;
+    let _calRootDraft = env.state.root;
+    let _calRootDraftRestored = '';
+    let _calReplyTarget = null;
+    let _calEditTarget = null;
+    let _calComposeComp = 'video', _calComposeAudience = 'internal', _calComposeIsTweak = false;
+    const _calEditDrafts = {};
+    const _calReplyDrafts = {};
+    const calState = { posts: [{ id: 'card-1' }, { id: 'card-2' }] };
+    const _calCaptureModalDrafts = () => {};
+    const _calSaveCommentEdit = async () => true;
+    const _calNoteDraftSet = () => {};
+    const _calReplyDraftsPersist = () => {};
+    const _calRenderCommentsModal = () => { env.rendered++; };
+    const _calFindCompForCommentId = () => 'video';
+    const _calComponentsFor = () => ['video'];
+    const _prodCanonicalCommentGate = () => ({ linked: false, ready: true });
+    const _calCommentSendPending = () => false;
+    const _calCommentRole = () => 'smm';
+    const _calCurrentAuthor = () => 'Fixture';
+    const _calCurrentAuthorId = () => 'm1';
+    const _calNextTweakRound = () => 1;
+    let n = 0;
+    const _calMintCommentId = () => 'c_' + (++n);
+    const _noteOutboxPut = e => { env.queued.push(e); return e; };
+    const _noteOutboxSend = id => { env.sent.push(id); return Promise.resolve(true); };
+    const showNotify = () => {};
+    const document = { getElementById: () => null };
+    const setTimeout = () => 0;
+    ${liftAsync('_calSubmitComposerNow')}
+    ${liftAsync('_calSubmitComposer')}
+    return {
+      submit: _calSubmitComposer,
+      openOther: (pid, text) => { _calOpenCommentsPid = pid; _calRootDraft = text; },
+      root: () => _calRootDraft,
+    };
+  `)(env);
+  return { env, api };
+}
+
 (async () => {
-  for (const [surface, prefix] of [['Calendar', '_cal'], ['Samples', '_sxr']]) {
+  {
+    const { env, api } = buildCal();
+    const first = api.submit();
+    const second = api.submit();
+    await Promise.all([first, second]);
+    ok(env.queued.length === 1 && env.sent.length === 1, 'Calendar: Enter twice sends the note once');
+    ok(api.root() === '', 'Calendar: the box is free the moment the note is sent');
+    ok(env.queued[0].body === 'A note' && env.queued[0].pid === 'card-1' && env.sent[0] === env.queued[0].id, 'Calendar: the outbox gets the note, with its own id, for its own card');
+    api.openOther('card-2', 'Half a note on another card');
+    ok(api.root() === 'Half a note on another card', 'Calendar: what is typed on another card is left alone');
+    api.openOther('card-1', 'A second note');
+    await api.submit();
+    ok(env.queued.length === 2 && env.queued[1].body === 'A second note' && env.queued[1].id !== env.queued[0].id, 'Calendar: the next note sends normally, with a new id');
+  }
+  for (const [surface, prefix] of [['Samples', '_sxr']]) {
     // --- Enter twice: one send ---------------------------------------------------
     {
       const { env, api } = build(prefix);

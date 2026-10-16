@@ -3605,7 +3605,6 @@
 
     window.addEventListener('popstate',(e)=>{
         if (window.svThumbMessagesConsumeHistory?.(e)) return;
-        if (window.svMessagesConsumeReturn?.(e)) return;
         // Several branches below route without navTo; keep the client bar in step.
         setTimeout(()=>{ if (typeof svClientBarSync === 'function') svClientBarSync(currentNav); },0);
         const state=e.state;
@@ -15897,7 +15896,6 @@
             return;
         }
         _syncviewNextNavEpoch(); // Phase D: tell a still-loading boot router that someone has moved on.
-        try { window.svMessagesNavHook?.(page); } catch (e) {} // Messages remembers where the person was, before anything is torn down.
         if (page === 'brief') page = 'home';
         // Client intake link locks the whole SPA to the Linear submission flow,
         // so every navigation (back button, restored hash, logo) lands on it.
@@ -18668,18 +18666,6 @@
             }
             const h1 = bar.querySelector('.pocket-staff-title');
             if (h1.textContent !== title) h1.textContent = title;
-            // On Messages the title bar carries a Close that does what the header Messages button does.
-            const actions = bar.querySelector('.pocket-staff-actions');
-            let closeMsg = actions.querySelector('.pocket-staff-msg-close');
-            if (title === 'Messages') {
-                if (!closeMsg) {
-                    closeMsg = document.createElement('button');
-                    closeMsg.type = 'button'; closeMsg.className = 'pocket-staff-msg-close';
-                    closeMsg.textContent = 'Close'; closeMsg.setAttribute('aria-label', 'Close Messages');
-                    closeMsg.addEventListener('click', () => window._msgClose?.());
-                    actions.insertBefore(closeMsg, actions.firstChild);
-                }
-            } else if (closeMsg) closeMsg.remove();
         }
         function start() {
             const nav = document.getElementById('headerNav');
@@ -24799,6 +24785,29 @@
        VALID — the only ones a canonical projection may touch. Returns null when
        the card binding changed during the lookup, which the caller treats as
        "abort, resolve nothing". */
+    /* Which cards have a crosswalk lookup running, by card id. The answer to
+       "is this card's link still being looked up?" lives here, not on the card
+       object: a card is often replaced by a fresh copy while a lookup runs (a
+       save's answer, a refresh), and a copy taken mid-lookup kept the old
+       in-flight mark forever, so Send stayed locked on "Notes are still
+       loading" (measured live 2026-10-15, after a note sent in the background
+       overlapped reopening the Notes). The mark on the card object is still
+       kept for older readers; nothing decides on it any more. */
+    const _prodCrosswalkRuns = new Map();
+    function _prodCrosswalkRunStart(post) {
+        const id = String(post && post.id || '');
+        _prodCrosswalkRuns.set(id, (_prodCrosswalkRuns.get(id) || 0) + 1);
+        post._canonicalCrosswalkInFlight = (post._canonicalCrosswalkInFlight || 0) + 1;
+    }
+    function _prodCrosswalkRunEnd(post) {
+        const id = String(post && post.id || '');
+        const left = Math.max(0, (_prodCrosswalkRuns.get(id) || 1) - 1);
+        if (left) _prodCrosswalkRuns.set(id, left); else _prodCrosswalkRuns.delete(id);
+        post._canonicalCrosswalkInFlight = Math.max(0, (post._canonicalCrosswalkInFlight || 1) - 1);
+    }
+    function _prodCrosswalkInFlight(post) {
+        return !!post && (_prodCrosswalkRuns.get(String(post.id || '')) || 0) > 0;
+    }
     async function _prodResolveCardCrosswalk(surface, post, components) {
         const wanted = new Map();
         (components || []).forEach(component => {
@@ -46891,7 +46900,9 @@
         saving: Object.create(null),
         errors: Object.create(null),
         draftActionIds: Object.create(null),
-        errorActionIds: Object.create(null)
+        errorActionIds: Object.create(null),
+        // The change request each part is sending: { id, body, role, author, created_at }.
+        sendingNotes: Object.create(null)
     };
 
     /* ── Review audience (client vs SMM) ──────────────────────────────
@@ -47354,6 +47365,13 @@
             at: replay && prior && prior.at || Date.now(), diag }, data || {}));
         _crqRun.inflight.add(key);
         _crqSending();
+    }
+
+    /* True while this part's action waits in the queue for a re-send (the
+       connection failed), rather than being sent right now. */
+    function _calCrqHeld(pid, comp) {
+        if (!_crqActive()) return false;
+        return !!_crqGet(pid, comp) && !_crqRun.inflight.has(pid + '|' + comp);
     }
 
     /* Hand-off 2: the server confirmed. Returns true when the confirmation
@@ -48851,10 +48869,13 @@
         // Client Approval. The internal non-client preview may also retain
         // Tweaks Needed, as defined by _calReviewComponentActive.
         const _reviewMode = _calReviewMode();
+        // A part whose change request is on its way stays on screen, so the
+        // note just sent is in sight, marked "Sending…", until it is confirmed.
+        const noteSending = c => !!_calReviewSendingNote(p.id, c);
         const activeComps = (_reviewMode === 'smm')
-            ? _calComponentsFor(p).filter(c => _calReviewComponentActive(p, c, 'smm') || (_calStaffPhoneActive() && _calReviewState.saving[p.id + '|' + c]))
+            ? _calComponentsFor(p).filter(c => _calReviewComponentActive(p, c, 'smm') || noteSending(c) || (_calStaffPhoneActive() && _calReviewState.saving[p.id + '|' + c]))
             : (_isClientLink
-                ? _calComponentsFor(p).filter(c => _calReviewComponentActive(p, c, 'client'))
+                ? _calComponentsFor(p).filter(c => _calReviewComponentActive(p, c, 'client') || noteSending(c))
                 : _calComponentsFor(p));
         if (!activeComps.length) {
             return `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing left to review on this post.</div></div>`;
@@ -48895,7 +48916,10 @@
        false claim in the same spot this fix is removing one from. */
     const REVIEW_APPROVE_DRAFT_TITLE = 'You have an unsent note. Press Comment to send it, or clear it, then approve.';
     function _calReviewPanelHtml(p, comp) {
-        if (_calStaffPhoneActive() && _calReviewState.saving[p.id + '|' + comp]) {
+        // A note being sent stays in sight (its thread shows it as "Sending…");
+        // only an approve or a status change takes the panel over.
+        const _noteSending = _noteOutboxFor(p.id, e => e.comp === comp && (e.kind === 'review-comment' || e.kind === 'request')).length > 0;
+        if (_calStaffPhoneActive() && _calReviewState.saving[p.id + '|' + comp] && !_noteSending) {
             return `<div class="cal-review-panel" data-comp="${_calEscAttr(comp)}" data-state="pending"><div class="cal-review-panel-title">${_calEsc(COMP_LABELS[comp])}</div><div class="pocket-staff-cal-saving" role="status">Saving…</div></div>`;
         }
         const escId = _calEscAttr(p.id);
@@ -48907,7 +48931,23 @@
                     : (subStatus === 'Posted' ? 'posted' : 'pending')));
         // _calCommentsForView hides Kasper-role tweaks from the client-link
         // surface; SMM/Kasper sessions still see everything.
-        const comments = _calCommentsForView(p, comp);
+        // This person's review notes not confirmed yet: marked in the thread,
+        // and shown even when the thread lost them (a refresh mid-send).
+        const outboxById = new Map(_noteOutboxFor(p.id, e => e.comp === comp && e.kind === 'review-comment').map(e => [e.id, e]));
+        const viewComments = _calCommentsForView(p, comp) || [];
+        let comments = viewComments.map(c => outboxById.has(c.id) ? Object.assign({}, c, { _outbox: _noteOutboxAsComment(outboxById.get(c.id))._outbox, _outboxError: outboxById.get(c.id).error || '' }) : c)
+            .concat([...outboxById.values()].filter(e => !viewComments.some(c => c && c.id === e.id)).map(_noteOutboxAsComment));
+        // A change request on its way: its note, marked "Sending…" (or "Not
+        // sent yet" while the client send queue holds it for a re-send).
+        const reqNote = _calReviewSendingNote(p.id, comp);
+        if (reqNote) {
+            const mark = { _outbox: reqNote.held ? 'failed' : 'sending', _outboxError: reqNote.held ? 'Waiting for the connection.' : '', _outboxRequest: true };
+            const found = !!reqNote.id && comments.some(c => c && c.id === reqNote.id);
+            comments = found
+                ? comments.map(c => c && c.id === reqNote.id ? Object.assign({}, c, mark) : c)
+                : comments.concat([Object.assign({ id: reqNote.id || 'sending-' + comp, parent_id: null, author: reqNote.author, role: reqNote.role,
+                    body: reqNote.body, created_at: reqNote.created_at, is_tweak: true, done: false }, mark)]);
+        }
         // The per-panel Linear icon was visual noise — dropped. Linear linking
         // still lives on the Sheet/organizer cards for the SMM.
         const linkBadge = '';
@@ -48977,13 +49017,14 @@
                 const resolvedBadge = isResolved
                     ? `<span class="cal-review-resolved-pill" title="Done${c.done_by ? ' by ' + _calEsc(c.done_by) : ''}${c.done_at ? ' · ' + _calEsc(_calFmtCommentTime(c.done_at)) : ''}">${resolvedIco}Resolved</span>`
                     : '';
-                return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${c.parent_id ? ' is-reply' : ''}${isResolved ? ' is-resolved' : ''}">
+                return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${c.parent_id ? ' is-reply' : ''}${isResolved ? ' is-resolved' : ''}${c._outbox ? ' is-outbox is-outbox-' + c._outbox : ''}">
                     <div class="cal-review-comment-head">
                         <strong>${_calEsc(author)}</strong>
                         <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
                         ${resolvedBadge}
                     </div>
                     <div class="cal-review-comment-body">${_calEsc(c.body || '')}</div>
+                    ${_noteOutboxStatusHtml(c)}
                 </div>`;
             }).join('')
             : `<div class="cal-review-comment-empty">No comments yet.</div>`;
@@ -49314,7 +49355,7 @@
        legacy-only write that the canonical thread never saw. Staff only:
        a client is never canonical on the Calendar. */
     function _calCanonicalCrosswalkPending(post, comp) {
-        if (_isClientLink || !post || !post._canonicalCrosswalkInFlight) return false;
+        if (_isClientLink || !post || !_prodCrosswalkInFlight(post)) return false;
         if (!_writeUiNativeId(post, comp)) return false;
         showNotify('Notes are still loading', 'Nothing was changed. Try again in a moment.');
         return true;
@@ -49440,22 +49481,16 @@
         const body = String(_calReviewState.drafts[key] || '').trim();
         if (!body || _calReviewState.saving[key]) return;
         const role = _calCommentRole();
-        const list = _calCommentsFor(post, comp).slice();
         const _now = new Date().toISOString();
-        list.push({
-            id: _calMintCommentId(),
-            parent_id: null,
-            author: _calCurrentAuthor(),
-            ...(_calCurrentAuthorId() ? { author_member_id: _calCurrentAuthorId() } : {}),
-            role: role,
-            is_tweak: false,
-            audience: (role === 'client') ? 'client' : 'internal',
-            body: body,
-            created_at: _now,
-            updated_at: _now,
-            done: false, done_at: '', done_by: '',
+        // The note goes in the outbox first (its words survive a failed send
+        // and a refresh), then in the thread, where it shows as "Sending…".
+        const entry = _noteOutboxPut({
+            id: _calMintCommentId(), surface: 'review', kind: 'review-comment', pid, comp, parent_id: null, body,
+            author: _calCurrentAuthor(), author_member_id: _calCurrentAuthorId() || undefined, role,
+            audience: (role === 'client') ? 'client' : 'internal', is_tweak: false,
+            created_at: _now, at: Date.now(), state: 'sending'
         });
-        _calSetCommentsFor(post, comp, list);
+        _calReviewAddOutboxComment(post, entry);
         post.updated_at = _now;                 // no status change — it's a comment
         _calV2Log('REVIEW comment →', pid, '| comp:', comp, '| role:', _calCommentRole());
         _calReviewState.drafts[key] = '';
@@ -49463,33 +49498,61 @@
         _calReviewState.errors[key] = '';
         delete _calReviewState.draftActionIds[key];
         delete _calReviewState.errorActionIds[key];
-        _calReviewRepaintCard(pid);
-        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, {
-            [comp + '_tweaks']: _calStringifyComments(list),
-        });
-        Promise.resolve(_calFlushCardSave(pid)).then(() => {
+        _noteOutboxSend(entry.id).then(() => {
             _calReviewState.saving[key] = false;
-            /* The card save does not reject: it catches its own failure and
-               marks the card. The .catch below therefore never ran, and a
-               comment that did not save sat in the thread looking sent, with
-               no error anywhere in the Review view (the "Save failed" chip is
-               only on Sheet cards). Read the mark, as Approve does. */
-            const current = calState.posts.find(p => p.id === pid);
-            // "Not saved yet: ..." is the chip the engine puts BACK after a save
-            // that worked, for an older status, date or order change still
-            // waiting on this card (_calRestoreFailedIntentChip). It is not this
-            // comment failing, and saying so would invite a duplicate.
-            if (current && current._saveError && !/^Not saved yet: /.test(String(current._saveError))) {
-                _calReviewState.errors[key] = 'Comment not saved yet: ' + current._saveError;
-                _calReviewRepaintCard(pid);
-                return;
-            }
-            if (_calStaffPhoneActive()) _calReviewRepaintCard(pid);
-        }).catch(e => {
-            _calReviewState.saving[key] = false;
-            _calReviewState.errors[key] = _writeUiFailureSentence(e);
             _calReviewRepaintCard(pid);
         });
+    }
+    /* The change request this part is sending, or null. Lives only while the
+       part is saving; a held client request (no connection) says so. */
+    function _calReviewSendingNote(pid, comp) {
+        const key = pid + '|' + comp;
+        const note = _calReviewState.sendingNotes[key];
+        if (!note) return null;
+        if (!_calReviewState.saving[key]) { delete _calReviewState.sendingNotes[key]; return null; }
+        return Object.assign({}, note, { held: _isClientLink && _calCrqHeld(pid, comp) });
+    }
+    /* Put an outbox review comment in the card's local thread (once). */
+    function _calReviewAddOutboxComment(post, entry) {
+        const list = _calCommentsFor(post, entry.comp).slice();
+        if (list.some(c => c && c.id === entry.id)) return list;
+        list.push({
+            id: entry.id,
+            parent_id: null,
+            author: entry.author,
+            ...(entry.author_member_id ? { author_member_id: entry.author_member_id } : {}),
+            role: entry.role,
+            is_tweak: false,
+            audience: entry.audience,
+            body: entry.body,
+            created_at: entry.created_at,
+            updated_at: entry.created_at,
+            done: false, done_at: '', done_by: '',
+        });
+        _calSetCommentsFor(post, entry.comp, list);
+        if (entry.comp === 'video') post.comments = list;
+        return list;
+    }
+    /* One try at saving a review comment: the card row is its only home (no
+       work item gets it). The card save never rejects; it marks the card. */
+    async function _calReviewCommentSend(entry) {
+        const pid = entry.pid;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) throw new Error('This card is not loaded.');
+        const list = _calReviewAddOutboxComment(post, entry);
+        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, {
+            [entry.comp + '_tweaks']: _calStringifyComments(list),
+        });
+        await _calFlushCardSave(pid);
+        const current = calState.posts.find(p => p.id === pid);
+        // "Not saved yet: ..." is the chip the engine puts BACK after a save
+        // that worked, for an older status, date or order change still
+        // waiting on this card (_calRestoreFailedIntentChip). It is not this
+        // comment failing, and saying so would invite a duplicate.
+        if (current && current._saveError && !/^Not saved yet: /.test(String(current._saveError))) {
+            throw new Error(String(current._saveError));
+        }
+        return true;
     }
     function _calReviewRequestTweak(pid, comp) {
         const initialPost = calState.posts.find(p => p.id === pid);
@@ -49511,6 +49574,13 @@
         // The queue stores this request's action id before the first send
         // (185), so a replay after a crash or reload reuses it.
         if (_isClientLink) _calCrqBegin('request', pid, comp, { body: rawDraft });
+        // The note shows in the part's thread from the click, "Sending…". Its
+        // id is learned under the target lock below (where the action identity
+        // is minted or adopted), so the saved note then takes its place.
+        _calReviewState.sendingNotes[key] = {
+            id: String(_calReviewState.draftActionIds[key] || ''), body, role: _calCommentRole(),
+            author: _calCurrentAuthor(), created_at: new Date().toISOString(), is_tweak: true
+        };
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
         delete _calReviewState.errorActionIds[key];
@@ -49559,6 +49629,7 @@
                 const commentId = retryGate
                     ? String(retryGate.comment_id || '')
                     : attemptId;
+                if (_calReviewState.sendingNotes[key]) _calReviewState.sendingNotes[key].id = commentId;
                 const role = retryGate ? String(retryGate.comment_role || '') : _calCommentRole();
                 const author = retryGate ? String(retryGate.comment_author || '') : _calCurrentAuthor();
                 const audience = retryGate
@@ -50457,6 +50528,208 @@
         try { if (_calOpenCommentsPid) _calRenderCommentsModal(); } catch (e) {}
     });
     function _calMintCommentId() { return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
+
+    /* NOTE OUTBOX: a note shows the moment it is sent, and is never lost
+       (owner, 2026-10-15: a note with Request changes "took a long time to
+       send"; measured: the Notes dialog waited about 2.4 s for two server
+       calls before showing the note, Messages about 4 to 6 s).
+
+       Every note gets its id at the click, and that id is the one sent to the
+       server on every try. The gateway keeps one comment per id
+       (`native_comment_id`) and the card save merges comments by id, so a
+       retry, a double click or a re-send after a refresh can never make a
+       second note.
+
+       Until the server confirms it, the note is kept here, in this browser's
+       storage, with its words: it is drawn in the thread as "Sending…", and if
+       the send fails (or the page was closed or refreshed mid-send) as "Not
+       sent" with Retry. Retry sends the same id again. An entry is removed
+       only when the server confirmed it, or the person discards it.
+
+       Entries belong to one sender: the client link of one client, or one
+       staff member. Nothing here is shown to anyone else. */
+    const NOTE_OUTBOX_KEY = 'sv-note-outbox-v1';
+    const NOTE_OUTBOX_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+    // Notes whose send is running in this tab (an entry in storage that is
+    // "sending" but not here was interrupted: a refresh or a closed tab).
+    const _noteOutboxLive = new Set();
+    // One send at a time per card, in click order: each send builds on the
+    // card's thread as the one before it left it.
+    const _noteOutboxChains = new Map();
+    function _noteOutboxOwner() {
+        try {
+            if (_isClientLink) return 'client:' + calClientSlug(calState.client);
+            return 'staff:' + (_calCurrentAuthorId() || _calCurrentAuthor() || '');
+        } catch (e) { return ''; }
+    }
+    function _noteOutboxRead() {
+        try {
+            const all = JSON.parse(localStorage.getItem(NOTE_OUTBOX_KEY) || '{}');
+            return all && typeof all === 'object' && !Array.isArray(all) ? all : {};
+        } catch (e) { return {}; }
+    }
+    function _noteOutboxWrite(all) {
+        try {
+            const now = Date.now();
+            Object.keys(all).forEach(id => { if (!all[id] || now - Number(all[id].at || 0) > NOTE_OUTBOX_MAX_AGE_MS) delete all[id]; });
+            if (Object.keys(all).length) localStorage.setItem(NOTE_OUTBOX_KEY, JSON.stringify(all));
+            else localStorage.removeItem(NOTE_OUTBOX_KEY);
+        } catch (e) {}
+    }
+    function _noteOutboxGet(id) {
+        const e = _noteOutboxRead()[id];
+        return e && e.owner === _noteOutboxOwner() ? e : null;
+    }
+    function _noteOutboxPut(entry) {
+        const all = _noteOutboxRead();
+        all[entry.id] = Object.assign({}, all[entry.id] || {}, entry, { owner: _noteOutboxOwner() });
+        _noteOutboxWrite(all);
+        return all[entry.id];
+    }
+    function _noteOutboxSet(id, patch) {
+        const all = _noteOutboxRead();
+        if (!all[id]) return null;
+        all[id] = Object.assign(all[id], patch);
+        _noteOutboxWrite(all);
+        return all[id];
+    }
+    function _noteOutboxDrop(id) {
+        const all = _noteOutboxRead();
+        if (!all[id]) return;
+        delete all[id];
+        _noteOutboxWrite(all);
+    }
+    /* This sender's waiting notes on one card, oldest first. An entry that says
+       "sending" while no send runs in this tab was cut off mid-send: it reads
+       as not sent, so the person can send it again (same id, no double). */
+    function _noteOutboxFor(pid, filter) {
+        const owner = _noteOutboxOwner();
+        return Object.values(_noteOutboxRead())
+            // A confirmed Messages reply waits only for the inbox refresh.
+            .filter(e => e && e.pid === pid && e.owner === owner && (!filter || filter(e))
+                && !(e.state === 'sent' && !_noteOutboxLive.has(e.id) && Date.now() - Number(e.at || 0) > 60000))
+            .map(e => (e.state === 'sending' && !_noteOutboxLive.has(e.id))
+                ? Object.assign({}, e, { state: 'failed', error: e.error || 'The page was closed before this was confirmed.' })
+                : e)
+            .sort((a, b) => Number(a.at || 0) - Number(b.at || 0));
+    }
+    /* The note as the thread draws it: the same fields a saved note has, plus
+       its outbox state. */
+    function _noteOutboxAsComment(e) {
+        return {
+            id: e.id, parent_id: e.parent_id || null, author: e.author, author_member_id: e.author_member_id,
+            role: e.role, body: e.body, created_at: e.created_at, updated_at: e.created_at,
+            audience: e.audience, is_tweak: !!e.is_tweak, done: false,
+            _outbox: e.state === 'failed' ? 'failed' : (e.state === 'sent' ? 'sent' : 'sending'),
+            _outboxError: e.error || ''
+        };
+    }
+    function _noteOutboxInList(post, id) {
+        if (!post || !id) return false;
+        return CAL_REVIEW_COMPONENTS.some(c => {
+            const list = c === 'video' ? (Array.isArray(post.comments) ? post.comments : _calLoadComments(post)) : _calCommentsFor(post, c);
+            return Array.isArray(list) && list.some(m => m && m.id === id);
+        });
+    }
+    /* The small line under a waiting note: "Sending…", or "Not sent" with
+       Retry and Discard. */
+    function _noteOutboxStatusHtml(c) {
+        if (!c || !c._outbox || c._outbox === 'sent') return '';
+        if (c._outbox === 'sending') return `<div class="sv-note-outbox is-sending" role="status"><span class="sv-note-outbox-dot" aria-hidden="true"></span>Sending…</div>`;
+        if (c._outboxRequest) {
+            return `<div class="sv-note-outbox is-failed" role="alert"><span>Not sent yet. It will be sent when the connection is back.</span>
+            <button type="button" class="sv-note-outbox-retry" onclick="_noteOutboxRetryRequest()">Tap to retry</button></div>`;
+        }
+        const idArg = _jsAttrArg(c.id);
+        return `<div class="sv-note-outbox is-failed" role="alert"><span>Not sent.</span>
+            <button type="button" class="sv-note-outbox-retry" onclick="_noteOutboxRetry(${idArg})">Tap to retry</button>
+            <button type="button" class="sv-note-outbox-discard" onclick="_noteOutboxDiscard(${idArg})">Discard</button></div>`;
+    }
+    // Redraw whatever shows this card's notes.
+    function _noteOutboxRepaint(pid) {
+        try { if (_calOpenCommentsPid === pid) _calRenderCommentsModal(); } catch (e) {}
+        try { _calReviewRepaintCard(pid); } catch (e) {}
+        try { _calRefreshCommentsBtn(pid); } catch (e) {}
+        try { window.dispatchEvent(new CustomEvent('sv-note-outbox', { detail: { pid } })); } catch (e) {}
+    }
+    /* Send (or re-send) one waiting note. Never awaited by a click. */
+    function _noteOutboxSend(id) {
+        const first = _noteOutboxGet(id);
+        if (!first || _noteOutboxLive.has(id)) return Promise.resolve(false);
+        _noteOutboxLive.add(id);
+        _noteOutboxSet(id, { state: 'sending', error: '' });
+        const pid = first.pid;
+        const prev = _noteOutboxChains.get(pid) || Promise.resolve();
+        const run = prev.catch(() => {}).then(async () => {
+            const entry = _noteOutboxGet(id);
+            if (!entry) return false;
+            let ok = false, error = '';
+            try {
+                if (entry.kind === 'review-comment') ok = await _calReviewCommentSend(entry);
+                else {
+                    if (entry.surface === 'msg' && typeof window._msgBeforeNoteSend === 'function') await window._msgBeforeNoteSend(entry);
+                    ok = await _calAppendComment(pid, entry.parent_id || null, entry.body, {
+                        id: entry.id, comp: entry.comp || '', audience: entry.audience, isTweak: !!entry.is_tweak, background: true
+                    });
+                    const post = calState.posts.find(p => p.id === pid);
+                    // A caption or title note lives only on the card row: its
+                    // card save failing means it is not saved.
+                    if (ok && post && post._saveError && !_writeUiComponentHasWorkItem(entry.comp || _calFindCompForCommentId(post, entry.id))
+                        && !/^Not saved yet: /.test(String(post._saveError))) {
+                        ok = false; error = post._saveError;
+                    }
+                }
+            } catch (e) { ok = false; error = _writeUiFailureSentence(e); }
+            if (!ok && !error) {
+                const post = calState.posts.find(p => p.id === pid);
+                error = (post && post._saveError) || 'It did not reach the server.';
+            }
+            if (ok) {
+                if (entry.surface === 'msg') _noteOutboxSet(id, { state: 'sent', error: '' });
+                else _noteOutboxDrop(id);
+            } else {
+                _noteOutboxSet(id, { state: 'failed', error: String(error || '').slice(0, 300) });
+                // A plain review comment's card save does not go through the
+                // gateway, so its refusal is logged here (the gateway paths
+                // log their own).
+                if (entry.kind === 'review-comment') {
+                    _writeUiRecordFailure('calendar', 'comment', new Error(String(error || 'note_not_sent')), { note_outbox: 1 });
+                }
+            }
+            return ok;
+        }).finally(() => {
+            _noteOutboxLive.delete(id);
+            if (_noteOutboxChains.get(pid) === run) _noteOutboxChains.delete(pid);
+            _noteOutboxRepaint(pid);
+        });
+        _noteOutboxChains.set(pid, run);
+        _noteOutboxRepaint(pid);
+        return run;
+    }
+    function _noteOutboxRetry(id) {
+        const e = _noteOutboxGet(id);
+        if (!e || _noteOutboxLive.has(id)) return;
+        if (e.surface === 'msg' && typeof window._msgSendQueued === 'function') { window._msgSendQueued(id); return; }
+        _noteOutboxSend(id);
+    }
+    // A held client change request is re-sent by the client send queue (185).
+    function _noteOutboxRetryRequest() { _calCrqResend(); }
+    function _noteOutboxDiscard(id) {
+        const e = _noteOutboxGet(id);
+        if (!e || _noteOutboxLive.has(id)) return;
+        _noteOutboxDrop(id);
+        // A review comment is already in the card's local thread; take it out
+        // so the screen does not show a note the server never got.
+        if (e.kind === 'review-comment') {
+            const post = calState.posts.find(p => p.id === e.pid);
+            if (post) {
+                const list = _calCommentsFor(post, e.comp).filter(m => m && m.id !== e.id);
+                _calSetCommentsFor(post, e.comp, list);
+                if (e.comp === 'video') post.comments = list;
+            }
+        }
+        _noteOutboxRepaint(e.pid);
+    }
     function _calCommentRoots(arr) {
         return arr.filter(c => !c.parent_id && (!c.deleted || c.canonical) && !c.hidden)
             .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
@@ -50899,6 +51172,23 @@
             if (!Array.isArray(list) || !list.length) return [];
             return _calCommentRoots(list).map(r => ({ comp: c, list, root: r }));
         });
+        // This person's notes still on their way (or not sent): roots join the
+        // feed as their own threads, replies sit under the note they answer.
+        const outboxReplies = new Map();
+        // A send cut off by a refresh or a closed tab whose note the reloaded
+        // thread now holds did arrive: its outbox entry has done its job. A
+        // FAILED entry is never dropped here: a refused card save leaves the
+        // note in this page's local thread, which is not a server receipt.
+        // It goes only on a confirmed retry, or Discard.
+        _noteOutboxFor(pid, e => !_noteOutboxLive.has(e.id) && e.state === 'sending' && _noteOutboxInList(post, e.id)).forEach(e => _noteOutboxDrop(e.id));
+        // Waiting or refused notes already in the local thread keep their mark.
+        const outboxMarks = new Map(_noteOutboxFor(pid, e => _noteOutboxInList(post, e.id)).map(e => [e.id, _noteOutboxAsComment(e)]));
+        _noteOutboxFor(pid, e => !_noteOutboxInList(post, e.id)).forEach(e => {
+            const c = _noteOutboxAsComment(e);
+            if (!e.parent_id) { compThreads.push({ comp: e.comp || 'video', list: [c], root: c }); return; }
+            if (!outboxReplies.has(e.parent_id)) outboxReplies.set(e.parent_id, []);
+            outboxReplies.get(e.parent_id).push(c);
+        });
         // Sort all roots chronologically across components.
         compThreads.sort((a, b) => String(a.root.created_at || '').localeCompare(String(b.root.created_at || '')));
         // Resolved threads (done change-requests) are history — hidden from the
@@ -50908,6 +51198,10 @@
         const postName = _calEsc(post.name || 'Untitled post');
 
         const renderRow = (c, isReply, comp) => {
+            if (!c._outbox && outboxMarks.has(c.id)) {
+                const mark = outboxMarks.get(c.id);
+                c = Object.assign({}, c, { _outbox: mark._outbox, _outboxError: mark._outboxError });
+            }
             const roleCls = c.role === 'client' ? 'is-client' : 'is-smm';
             const author  = _calNoteAuthorName(c, c.role === 'client' ? 'Client' : 'SMM');
             const initial = _calAvatarInitial(author, c.role);
@@ -50934,7 +51228,7 @@
                     '<a class="prod-comment-attachment" href="' + _calEscAttr(item.url) + '" target="_blank" rel="noopener noreferrer">' + _calEsc(item.name || 'Attachment') + '</a>'
                 ).join('') + '</div>'
                 : '';
-            return `<div class="cal-cm-row${isReply ? ' is-reply' : ''}" data-cm-row="${c.id}">
+            return `<div class="cal-cm-row${isReply ? ' is-reply' : ''}${c._outbox ? ' is-outbox is-outbox-' + c._outbox : ''}" data-cm-row="${c.id}">
                 <div class="cal-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
                 <div class="cal-cm-body-col">
                     <div class="cal-cm-head-line">
@@ -50946,15 +51240,17 @@
                         ${compLabel}
                     </div>
                     <div class="cal-cm-row-body">${c.deleted ? 'Comment deleted.' : _calEsc(c.body || '')}${editedTag}${attachments}</div>
+                    ${_noteOutboxStatusHtml(c)}
                 </div>
-                ${_calCommentActionsHtml(c, isReply, !c.canonical || (!post._calCommentActionBusy && _prodCanonicalCommentGate(post, comp || c.component).ready))}
+                ${c._outbox ? '' : _calCommentActionsHtml(c, isReply, !c.canonical || (!post._calCommentActionBusy && _prodCanonicalCommentGate(post, comp || c.component).ready))}
             </div>`;
         };
 
         // Reddit-style: replies sit under the message they answer, with a thin
         // rail on the left that folds the thread to a "n replies" link.
         const renderThread = (entry) => {
-            const replies = _calCommentReplies(entry.list, entry.root.id);
+            const replies = _calCommentReplies(entry.list, entry.root.id).concat(outboxReplies.get(entry.root.id) || []);
+            outboxReplies.delete(entry.root.id);
             const rootArg = _jsAttrArg(entry.root.id);
             const collapsed = replies.length > 0 && _calCollapsedThreads.has(entry.root.id);
             const count = `${replies.length} ${replies.length === 1 ? 'reply' : 'replies'}`;
@@ -50977,7 +51273,11 @@
             : (resolvedCount
                 ? `<div class="cal-comments-empty"><div class="cal-comments-empty-title">All clear</div>No open notes — resolved items are in history (top right).</div>`
                 : `<div class="cal-comments-empty"><div class="cal-comments-empty-title">No notes yet</div>Start the conversation — type below.</div>`);
-        const feedHtml = roots.length ? roots.map(renderThread).join('') : (_prodCardCommentsPending(post, 'calendar') ? _prodCommentsSkeletonHtml() : emptyMsg);
+        const threadsHtml = roots.map(renderThread).join('');
+        // A reply whose thread is not on screen (resolved, or history hidden)
+        // still shows, on its own, so it is never out of sight while waiting.
+        const strayReplies = [...outboxReplies.values()].flat().map(c => `<div class="cal-cm-thread">${renderRow(c, true, '')}</div>`).join('');
+        const feedHtml = (roots.length || strayReplies) ? threadsHtml + strayReplies : (_prodCardCommentsPending(post, 'calendar') ? _prodCommentsSkeletonHtml() : emptyMsg);
 
         // History toggle (top-right): hidden unless there's something resolved.
         const histBtn = resolvedCount
@@ -51065,7 +51365,7 @@
        'ready' verdict still describes this card's binding is known. */
     function _calCommentSendPending(post, gate) {
         if (gate.linked && !gate.ready) return true;
-        return !!(post && post._canonicalCrosswalkInFlight);
+        return _prodCrosswalkInFlight(post);
     }
     function _calComposerHtml(post, comments) {
         const role     = _calCommentRole();
@@ -51266,26 +51566,41 @@
             return;
         }
         const parentId = _calReplyTarget;
-        // While a new note is on its way, the saved draft says so: if the page goes away before
-        // the answer, the restore checks the thread before offering it again.
-        if (!parentId) _calNoteDraftSet(pid, body, { sending: Date.now() });
-        const saved = await _calAppendComment(pid, parentId, body);
-        if (!saved) { if (!parentId) _calNoteDraftSet(pid, body); return; }
-        if (parentId) { delete _calReplyDrafts[parentId]; _calReplyDraftsPersist(pid); }
-        else {
-            // The box on screen is only this card's while its Notes are still open.
-            if (_calOpenCommentsPid === pid) { _calRootDraft = ''; _calRootDraftRestored = ''; }
-            _calNoteDraftSet(pid, '');
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        // Decided now, from what the person sees as they click: a send that
+        // runs a moment later must not pick up a picker changed meanwhile.
+        const comp = parentId
+            ? _calFindCompForCommentId(post, parentId)
+            : (_calComponentsFor(post).indexOf(_calComposeComp) >= 0 ? _calComposeComp : 'video');
+        const gate = _prodCanonicalCommentGate(post, comp);
+        if ((gate.linked && !gate.ready) || _calCommentSendPending(post, gate)) {
+            showNotify('Notes are still loading', 'Retry the canonical thread before sending.');
+            return;
         }
-        // Notes closed, or another card's opened, while this one was sending:
-        // what is typed there now is not this note's to clear.
-        if (_calOpenCommentsPid !== pid) return;
+        const role = _calCommentRole();
+        const isTweak = !parentId && role === 'client' && _calComposeIsTweak;
+        const now = new Date().toISOString();
+        const entry = _noteOutboxPut({
+            id: _calMintCommentId(), surface: 'notes', kind: parentId ? 'reply' : 'note',
+            pid, comp: parentId ? '' : comp, parent_id: parentId || null, body,
+            author: _calCurrentAuthor(), author_member_id: _calCurrentAuthorId() || undefined, role,
+            audience: parentId ? undefined : (role === 'client' ? 'client' : _calComposeAudience),
+            is_tweak: isTweak, round: isTweak ? _calNextTweakRound(post, comp) : undefined,
+            created_at: now, at: Date.now(), state: 'sending'
+        });
+        // The words are safe in the outbox now: the box is free for the next note.
+        if (parentId) { delete _calReplyDrafts[parentId]; _calReplyDraftsPersist(pid); }
+        else { _calRootDraft = ''; _calRootDraftRestored = ''; _calNoteDraftSet(pid, ''); }
         _calReplyTarget = null;
-        _calRenderCommentsModal();
-        setTimeout(() => {
-            const feed = document.getElementById('calCommentsFeed');
-            if (feed) feed.scrollTop = feed.scrollHeight;
-        }, 0);
+        _noteOutboxSend(entry.id);
+        if (_calOpenCommentsPid === pid) {
+            _calRenderCommentsModal();
+            setTimeout(() => {
+                const feed = document.getElementById('calCommentsFeed');
+                if (feed) feed.scrollTop = feed.scrollHeight;
+            }, 0);
+        }
     }
     /* Flush a comment-carrying save and, if it failed while the Notes modal is
        still open on that card, tell the user. The card's "Save failed" chip is
@@ -51301,18 +51616,26 @@
             }
         });
     }
-    async function _calAppendComment(pid, parentId, body) {
+    /* `opts` comes from the note outbox: the note's own id (minted at the
+       click and the same on every try), and the component, audience, change
+       request flag and round the person chose when they clicked, so a send
+       that runs later still sends what they sent. `background` means no
+       pop-up: the outbox shows the outcome in the thread. */
+    async function _calAppendComment(pid, parentId, body, opts) {
+        const o = opts || {};
         const post = calState.posts.find(p => p.id === pid);
-        if (!post) return;
+        if (!post) { if (o.background) throw new Error('This card is not loaded.'); return; }
         // Replies inherit the component of the parent thread so a reply to a
         // thumbnail tweak lands in graphic_tweaks (not video). A NEW root targets
         // the component the SMM/client picked in the composer (Part B), validated
         // against the card's active review components (default 'video').
         const comp = parentId
             ? _calFindCompForCommentId(post, parentId)
-            : (_calComponentsFor(post).indexOf(_calComposeComp) >= 0 ? _calComposeComp : 'video');
+            : (o.comp && CAL_REVIEW_COMPONENTS.indexOf(o.comp) >= 0 ? o.comp
+                : (_calComponentsFor(post).indexOf(_calComposeComp) >= 0 ? _calComposeComp : 'video'));
         const canonicalGate = _prodCanonicalCommentGate(post, comp);
         if ((canonicalGate.linked && !canonicalGate.ready) || _calCommentSendPending(post, canonicalGate)) {
+            if (o.background) throw new Error('The notes were still loading.');
             showNotify('Notes are still loading', 'Retry the canonical thread before sending.');
             return false;
         }
@@ -51325,7 +51648,7 @@
         let nativeCommentCommitted = false;
         let committedBatch = null;
         const msg = {
-            id: _calMintCommentId(),
+            id: o.id || _calMintCommentId(),
             parent_id: parentId || null,
             author: _calCurrentAuthor(),
             ...(_calCurrentAuthorId() ? { author_member_id: _calCurrentAuthorId() } : {}),
@@ -51344,10 +51667,14 @@
         // panel); the client posts a comment by default and only flips status
         // when they explicitly pick "Request a change".
         if (isRoot) {
-            msg.audience = (role === 'client') ? 'client' : _calComposeAudience;
-            msg.is_tweak = (role === 'client') ? _calComposeIsTweak : false;
-            if (msg.is_tweak) msg.round = _calNextTweakRound(post, comp);
+            const audience = o.audience === 'client' || o.audience === 'internal' ? o.audience : _calComposeAudience;
+            msg.audience = (role === 'client') ? 'client' : audience;
+            msg.is_tweak = (role === 'client') ? ('isTweak' in o ? !!o.isTweak : _calComposeIsTweak) : false;
+            if (msg.is_tweak) msg.round = Number.isInteger(o.round) ? o.round : _calNextTweakRound(post, comp);
         }
+        // Sent before and confirmed by the card (a retry after a lost answer):
+        // the thread already has it, so nothing is added twice.
+        const alreadyHere = !!(o.id && arr.some(c => c && c.id === o.id));
         if (comp === 'video' || comp === 'graphic') {
             const rootMsg = isRoot ? msg : arr.find(c => c && c.id === parentId);
             try {
@@ -51402,18 +51729,22 @@
                 // Acknowledged: the draft must not come back after a reload and be sent a second time.
                 if (isRoot) _calNoteDraftClearIfSent(pid, body);
             } catch (e) {
+                if (o.background) {
+                    _writeUiRecordFailure('calendar', 'comment', e, { note_outbox: 1 });
+                    throw e;
+                }
                 _writeUiReportFailure('calendar', 'comment', e);
                 return false;
             }
         }
-        arr.push(msg);
+        if (!alreadyHere) arr.push(msg);
         _calSetCommentsFor(post, comp, arr);
         if (comp === 'video') post.comments = arr;
         const fieldKey = comp + '_tweaks';
         _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [fieldKey]: _calStringifyComments(arr) });
         // Only a client's explicit change-REQUEST root flips status — a plain
         // comment or any reply leaves the status untouched.
-        if (isRoot && role === 'client' && msg.is_tweak) _calApplyAutoStatus(pid, 'client_added', comp);
+        if (isRoot && role === 'client' && msg.is_tweak && !alreadyHere) _calApplyAutoStatus(pid, 'client_added', comp);
         if (committedBatch) _writeUiMergeCommittedBatch(_calPendingEdits[pid], committedBatch);
         // Part B — route a video/thumbnail note to its Linear sub-issue so the
         // editor / designer sees every piece of feedback in their inbox: BOTH
@@ -52009,7 +52340,8 @@
         _calReviewOpenInSheet, _calReviewRequestTweak, _calReviewToggleCard, _calSetComposeComp,
         _calSetComposeIsTweak, _calSubmitComposer, _calSubmitComposerAsTweak, _calToggleCommentDone,
         _calToggleComposeAudience, _calToggleSendMenu, _calToggleShowResolved, _calToggleThreadCollapse,
-        closeCalComments, closeCalPreview, editInOrganizerFromPreview, openCalComments, openCalPreview
+        _noteOutboxDiscard, _noteOutboxRetry, _noteOutboxRetryRequest, closeCalComments, closeCalPreview,
+        editInOrganizerFromPreview, openCalComments, openCalPreview
     });
     function renderLinearView() {
         const saved = loadLinearForm();
@@ -62087,11 +62419,9 @@
             // Send also waits on this lookup specifically: a kept 'ready' verdict
             // may only be reused once the CURRENT crosswalk confirms the card is
             // still bound to the same deliverable.
-            post._canonicalCrosswalkInFlight = (post._canonicalCrosswalkInFlight || 0) + 1;
+            _prodCrosswalkRunStart(post);
             const validComponents = await _prodResolveCardCrosswalk(surface, post, allComponents)
-                .finally(() => {
-                    post._canonicalCrosswalkInFlight = Math.max(0, (post._canonicalCrosswalkInFlight || 1) - 1);
-                });
+                .finally(() => { _prodCrosswalkRunEnd(post); });
             if (validComponents === null) return false;
             if (_prodCardBindingToken(surface, post, allComponents) !== bindingToken) return false;
             const components = allComponents.filter(component => validComponents.has(component));
@@ -62331,7 +62661,7 @@
            statement. Rows that are already held are shown as they are. */
         function _prodCardCommentsPending(post, surface) {
             if (!post) return false;
-            if (post._canonicalCrosswalkInFlight) return true;
+            if (_prodCrosswalkInFlight(post)) return true;
             const reads = post._canonicalCommentReads;
             if (!reads) return false;
             /* Only the deliverables bound to the card NOW count. A projection that
@@ -89261,12 +89591,14 @@
        thread it answers, so it keeps that thread's part and audience. */
     const MSG_URL = CAL_SUPABASE_URL + '/functions/v1/production-comments';
     const MSG_REFRESH_MS = 120000;
+    const MSG_FIRST_LOAD_MS = 60000;
     const _msgState = {
         loading: false, loaded: false, error: '', conversations: [], scope: '',
         openId: '', replyTo: '', draft: '', sending: false, filter: 'all', lastAt: 0,
-        unavailable: false, fromCache: false, readWhenFresh: '', owner: '', epoch: 0,
+        unavailable: false,
     };
     let _msgTimer = null;
+    let _msgFirstTimer = null;
     const _msgFallbackHooks = [];
     // Phone presentation only; the native inbox and Notes writers own access,
     // unread marks, audience, component and reply persistence.
@@ -89327,9 +89659,7 @@
     function _msgFallBack() {
         if (_msgState.unavailable) return;
         _msgState.unavailable = true;
-        _msgCacheClear();
         if (_msgTimer) { clearInterval(_msgTimer); _msgTimer = null; }
-        _msgReturn = null;
         _msgLeavePage();
         const btn = document.getElementById('navMessages');
         if (btn) btn.style.display = 'none';
@@ -89364,60 +89694,6 @@
     }
     window.addEventListener('sv-staff-names', () => { try { _msgPaint(); } catch (e) {} });
 
-    /* ── Short-lived list cache ──
-       So the list can be on screen the moment the page opens, the last list is
-       kept in this TAB's own storage (sessionStorage: gone when the tab closes,
-       never shared with another tab or browser). It is only ever shown to the
-       person who fetched it: it carries their member id, and it is thrown away
-       when the sign-in changes or ends, when it is older than ten minutes, or
-       when the id does not match the signed-in member. It holds the list lines
-       only (no conversation text beyond the one preview line); the chat pane
-       always comes from a fresh answer from the server, which is also what
-       replaces the cached list a moment later. */
-    const MSG_CACHE_KEY = 'sv_msg_inbox_v1';
-    const MSG_CACHE_MS = 10 * 60 * 1000;
-    function _msgCacheClear() { try { sessionStorage.removeItem(MSG_CACHE_KEY); } catch (e) {} }
-    function _msgCacheWrite() {
-        const me = _msgMyId();
-        if (!me || !_msgCanUse() || !_msgState.loaded || _msgState.fromCache) return;
-        try {
-            sessionStorage.setItem(MSG_CACHE_KEY, JSON.stringify({
-                v: 1, member: me, at: _msgState.lastAt, scope: _msgState.scope,
-                conversations: _msgState.conversations.map(c => ({
-                    post_id: c.post_id, client_slug: c.client_slug, client_name: c.client_name, title: c.title,
-                    thumbnail_url: c.thumbnail_url, asset_url: c.asset_url, last_at: c.last_at,
-                    last_author: c.last_author, last_author_member_id: c.last_author_member_id, last_role: c.last_role,
-                    last_body: String(c.last_body || '').slice(0, 160), unread: Number(c.unread) || 0
-                }))
-            }));
-        } catch (e) {}
-    }
-    /* Put the cached list on screen (once), if it is this person's and fresh. */
-    function _msgCacheHydrate() {
-        if (_msgState.loaded || !_msgCanUse()) return;
-        let saved = null;
-        try { saved = JSON.parse(sessionStorage.getItem(MSG_CACHE_KEY) || 'null'); } catch (e) { saved = null; }
-        const me = _msgMyId();
-        const ok = saved && saved.v === 1 && me && saved.member === me && Array.isArray(saved.conversations)
-            && Date.now() - Number(saved.at) < MSG_CACHE_MS && Date.now() >= Number(saved.at);
-        if (!ok) { if (saved) _msgCacheClear(); return; }
-        _msgState.conversations = saved.conversations;
-        _msgState.scope = String(saved.scope || '');
-        _msgState.loaded = true;
-        _msgState.fromCache = true;
-        _msgState.lastAt = Number(saved.at);
-        _msgPaintCounts();
-    }
-    /* Start the inbox call when the pointer or finger reaches the Messages
-       button (a few hundred ms before the click), so the answer is on its way
-       while the click lands. Never at page load: every page treats a POST it did
-       not ask for as a bug, and the Production tab's read-only gate allows none. */
-    ['pointerover', 'pointerdown', 'focusin'].forEach(type => document.addEventListener(type, e => {
-        const t = e.target && e.target.closest && e.target.closest('#navMessages, [onclick*="_msgOpenPage"]');
-        // Not on the Production tab: its read-only gate allows no POST the page was not asked to make.
-        if (t && _msgCanUse() && !_msgState.unavailable && currentNav !== 'production') _msgLoad(false);
-    }, { capture: true, passive: true }));
-
     async function _msgCall(body) {
         const response = await fetch(MSG_URL, {
             method: 'POST', cache: 'no-store',
@@ -89435,39 +89711,22 @@
     async function _msgLoad(force) {
         if (!_msgCanUse()) { _msgPaintCounts(); return; }
         if (_msgState.unavailable || _msgState.loading) return;
-        if (!force && _msgState.loaded && !_msgState.fromCache && Date.now() - _msgState.lastAt < 15000) { _msgPaint(); return; }
+        if (!force && _msgState.loaded && Date.now() - _msgState.lastAt < 15000) { _msgPaint(); return; }
         _msgState.loading = true;
         _msgPaint();
-        // An answer belongs to the sign-in that asked for it: if the sign-in
-        // changed or ended while it was on its way, it is dropped.
-        const epoch = _msgState.epoch, asker = _msgMyId();
-        const stale = () => epoch !== _msgState.epoch || asker !== _msgMyId();
         try {
             const value = await _msgCall({ action: 'inbox' });
-            if (stale()) return;
             _msgState.conversations = Array.isArray(value.conversations) ? value.conversations : [];
             _msgState.scope = String(value.scope || '');
             _msgState.error = '';
             _msgState.loaded = true;
-            _msgState.fromCache = false;
             _msgState.lastAt = Date.now();
             if (_msgState.openId && !_msgState.conversations.some(c => c.post_id === _msgState.openId)) _msgState.openId = '';
-            _msgCacheWrite();
-            // A conversation opened from the cached list is marked read only now,
-            // after the person can actually see what is in it.
-            if (_msgState.readWhenFresh) {
-                const id = _msgState.readWhenFresh;
-                _msgState.readWhenFresh = '';
-                const c = _msgState.conversations.find(x => x.post_id === id);
-                if (c && id === _msgState.openId && Number(c.unread) > 0) { c.unread = 0; _msgMark(id, 'read'); _msgCacheWrite(); }
-            }
         } catch (e) {
-            if (stale()) return;
-            if (e && e.message === 'invalid_deliverable_id') { _msgState.loading = false; _msgCacheClear(); _msgFallBack(); return; }
-            if (_msgState.fromCache) { _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgCacheClear(); }
+            if (e && e.message === 'invalid_deliverable_id') { _msgState.loading = false; _msgFallBack(); return; }
             _msgState.error = 'Messages could not load. Try again in a moment.';
         } finally {
-            if (!stale()) _msgState.loading = false;
+            _msgState.loading = false;
         }
         _msgPaintCounts();
         _msgPaint();
@@ -89487,8 +89746,8 @@
             el.hidden = n === 0;
         });
     }
-    /* Called whenever the staff sign-in changes (100): forget the last
-       person's list when the sign-in ends or changes. */
+    /* Called whenever the staff sign-in changes (100): start or stop the
+       quiet background refresh that keeps the counts current. */
     function _msgOnIdentity() {
         const member=_msgMyId();
         if(_msgPhone.member!==member){
@@ -89496,35 +89755,26 @@
             if(_msgPhone.member&&_msgIsPhone()){_msgState.draft='';_msgState.replyTo='';_msgState.openId='';}
             _msgPhone.member=member;
         }
+        if (_msgTimer) { clearInterval(_msgTimer); _msgTimer = null; }
+        if (_msgFirstTimer) { clearTimeout(_msgFirstTimer); _msgFirstTimer = null; }
         if (!_msgCanUse()) {
-            if (_msgTimer) { clearInterval(_msgTimer); _msgTimer = null; }
-            _msgReturn = null;
             _msgPhone.drafts.clear();_msgPhone.unread.clear();_msgPhone.query='';
-            _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgState.openId = '';
-            _msgState.readWhenFresh = '';
-            _msgState.epoch++; _msgState.loading = false; _msgState.owner = '';
-            _msgCacheClear();
+            _msgState.conversations = []; _msgState.loaded = false; _msgState.openId = '';
             _msgPaintCounts(); _msgLeavePage();
             return;
         }
-        // A different member signed in on this tab: nothing of the last one stays.
-        if (_msgState.owner && _msgState.owner !== _msgMyId()) {
-            _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgState.openId = '';
-            _msgState.readWhenFresh = '';
-            _msgState.epoch++; _msgState.loading = false;
-            _msgCacheClear();
-            _msgPaintCounts();
-        }
-        _msgState.owner = _msgMyId();
         // The Messages page was opened before the sign-in was known (a reload
         // on #messages): draw it now.
-        // (The page can also have been put on screen before this file ran, an empty shell: fill it.)
-        const shell = document.getElementById('msgPage');
-        if (shell && !shell.querySelector('.msg-page-body')) _msgMountPage(shell);
-        else if (shell) { _msgPaint(); _msgLoad(false); }
-        // Nothing is asked of the server from here: the inbox is read only when
-        // the person shows intent (pointer or focus on the Messages button, or
-        // opening Messages), never from a timer on some other page.
+        if (document.getElementById('msgPage')) { _msgPaint(); _msgLoad(false); }
+        // Nothing loads during boot: the first quiet refresh waits a minute
+        // (opening the inbox loads at once), then repeats every two minutes.
+        if (_msgFirstTimer) clearTimeout(_msgFirstTimer);
+        _msgFirstTimer = setTimeout(() => {
+            _msgFirstTimer = null;
+            if (!_msgCanUse() || _msgState.unavailable) return;
+            if (!document.hidden) _msgLoad(true);
+            _msgTimer = setInterval(() => { if (!document.hidden) _msgLoad(true); }, MSG_REFRESH_MS);
+        }, MSG_FIRST_LOAD_MS);
     }
 
     /* ── Drawing ── */
@@ -89584,7 +89834,6 @@
         if (!c) {
             return `<div class="msg-chat-empty"><b>Pick a conversation</b><span>Notes on your posts show up here, newest first.</span></div>`;
         }
-        if (!Array.isArray(c.messages)) return _msgChatSkeletonHtml(c);
         const target = _msgReplyTarget(c);
         let day = '';
         const phone=_msgIsPhone(),firstUnread=phone?_msgPhone.unread.get(c.post_id):'';
@@ -89600,6 +89849,17 @@
                 <div class="msg-b-meta"><b>${_calEsc(mine ? 'You' : _calNoteAuthorName(m))}</b>${role && !mine && (!phone || role.toLowerCase()!==_calNoteAuthorName(m).toLowerCase()) ? `<span>${_calEsc(role)}</span>` : ''}${isRoot ? _msgPartTag(m) + tweak + _msgToTag(m) : ''}<span>${_calEsc(_calFmtCommentTime(m.created_at))}</span></div>
                 <div class="msg-b-text">${_calEsc(m.body || '')}</div>
                 <button type="button" class="msg-b-reply" onclick="_msgSetReplyTo(${_jsAttrArg(m.root_id)})">Reply</button>
+            </div>`;
+        }).join('') + _noteOutboxFor(c.post_id, e => {
+            if (!c.messages.some(m => m.id === e.id)) return true;
+            if (e.state === 'sent' || e.state === 'failed') _noteOutboxDrop(e.id);
+            return false;
+        }).map(e => {
+            const m = _noteOutboxAsComment(e);
+            return `<div class="msg-b is-me is-reply is-outbox is-outbox-${m._outbox}" data-msg-id="${_calEscAttr(m.id)}">
+                <div class="msg-b-meta"><b>You</b><span>${_calEsc(_calFmtCommentTime(m.created_at))}</span></div>
+                <div class="msg-b-text">${_calEsc(m.body || '')}</div>
+                ${_noteOutboxStatusHtml(m)}
             </div>`;
         }).join('');
         const sendIco = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>';
@@ -89620,69 +89880,14 @@
                 <div class="msg-reply-cap">${replyCap}</div>
                 <div class="cal-cm-composer">
                     <textarea id="msgReplyBox" rows="1" placeholder="Reply…" oninput="_msgOnDraft(this)" onkeydown="_msgOnKey(event)">${_calEsc(_msgState.draft)}</textarea>
-                    <div class="cal-cm-composer-actions"><button class="cal-cm-send" type="button" onclick="_msgReply()" aria-label="Send reply" ${_msgState.draft.trim() && !_msgState.sending && target ? '' : 'disabled'}>${sendIco}</button></div>
+                    <div class="cal-cm-composer-actions"><button class="cal-cm-send" type="button" onclick="_msgReply()" aria-label="Send reply" ${_msgState.draft.trim() && target ? '' : 'disabled'}>${sendIco}</button></div>
                 </div>
             </div>`;
         return phone ? html.replace(/<div class="msg-chat-actions">[\s\S]*?<\/div>/, '<div class="msg-chat-actions"><button type="button" class="msg-act thumb-msg-options" onclick="_msgPhoneMore(this)" aria-label="More conversation actions">•••</button></div>') : html;
     }
-    /* ── Loading placeholder ──
-       The SAME markup and classes as the loaded page (list rows, filter pills,
-       chat pane), with the words made see-through and a grey bar painted over
-       each line, so every box lands exactly where the real one will. */
-    const _MSG_SKEL_ROWS = [[58, 74, 82], [44, 62, 70], [66, 80, 56], [50, 68, 76], [60, 56, 84], [46, 72, 64]];
-    function _msgSkelRowsHtml() {
-        return Array.from({ length: 12 }, (_, i) => {
-            const w = _MSG_SKEL_ROWS[i % _MSG_SKEL_ROWS.length];
-            return `<button type="button" class="msg-conv is-skeleton" disabled tabindex="-1" aria-hidden="true">
-                <span class="msg-thumb is-empty sv-skeleton"></span>
-                <span class="msg-conv-main">
-                    <span class="msg-conv-top"><span class="msg-conv-client msg-skel sv-skeleton" style="width:${w[0]}%">Client name</span><span class="msg-conv-time msg-skel sv-skeleton" style="width:34px">12:00</span></span>
-                    <span class="msg-conv-sub msg-skel sv-skeleton" style="width:${w[1]}%">Post title</span>
-                    <span class="msg-conv-last msg-skel sv-skeleton" style="width:${w[2]}%">Name: the last message</span>
-                </span>
-            </button>`;
-        }).join('');
-    }
-    function _msgSkelFiltersHtml() {
-        return `<div class="msg-filters" aria-hidden="true">
-            <button type="button" class="is-active" disabled tabindex="-1">All</button>
-            <button type="button" class="msg-skel sv-skeleton" disabled tabindex="-1">Unread · 0</button>
-        </div>`;
-    }
-    /* The phone list's search field. The loading placeholder carries a disabled
-       copy so the filters and rows below it sit where the loaded page puts them. */
-    function _msgPhoneSearchHtml(placeholder) {
-        const input = placeholder
-            ? '<input type="search" placeholder="Search conversations" aria-hidden="true" tabindex="-1" disabled>'
-            : `<input type="search" placeholder="Search conversations" aria-label="Search conversations" value="${_calEscAttr(_msgPhone.query)}" oninput="_msgPhoneSearch(this.value)">`;
-        return `<label class="thumb-msg-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/></svg>${input}</label>`;
-    }
-    function _msgSkeletonHtml() {
-        return `<div class="msg-inbox is-skeleton" role="status" aria-label="Loading messages">
-            <div class="msg-list">
-                ${_msgIsPhone() ? _msgPhoneSearchHtml(true) : ''}
-                ${_msgSkelFiltersHtml()}
-                <div class="msg-convs">${_msgSkelRowsHtml()}</div>
-            </div>
-            <div class="msg-chat">${_msgChatHtml()}</div>
-        </div>`;
-    }
-    /* A conversation opened from the cached list: its head is known, its notes
-       are still on the way. */
-    function _msgChatSkeletonHtml(c) {
-        const bar = (cls, w, text) => `<span class="${cls} msg-skel sv-skeleton" style="width:${w}">${text}</span>`;
-        const bubble = (me, w) => `<div class="msg-b${me ? ' is-me' : ''}"><div class="msg-b-meta"><b>${bar('', '70px', 'Name')}</b></div><div class="msg-b-text msg-skel sv-skeleton" style="width:${w}">Message text goes here</div></div>`;
-        return `<div class="msg-chat-head">
-                <button type="button" class="msg-back" onclick="_msgBack()" aria-label="Back to conversations">‹</button>
-                ${_msgThumb(c)}
-                <div class="msg-chat-titles"><div class="msg-chat-title">${_calEsc(c.title || 'Untitled post')}</div><div class="msg-chat-sub">${_calEsc(_msgClientName(c))}</div></div>
-            </div>
-            <div class="msg-bubbles" role="status" aria-label="Loading the conversation">${bubble(false, '62%')}${bubble(true, '48%')}${bubble(false, '70%')}</div>
-            <div class="msg-reply"><div class="msg-reply-cap"></div><div class="cal-cm-composer"><textarea rows="1" placeholder="Reply…" disabled></textarea></div></div>`;
-    }
     function _msgInboxHtml() {
         if (!_msgCanUse()) return '<div class="msg-chat-empty"><b>Messages are for the team</b><span>Sign in as staff to see your conversations.</span></div>';
-        if (!_msgState.loaded && !_msgState.error) return _msgSkeletonHtml();
+        if (!_msgState.loaded && _msgState.loading) return _svLoadingSkeletonHtml('kasper', { label: 'Loading messages' });
         if (!_msgState.loaded && _msgState.error) {
             return `<div class="msg-chat-empty"><b>${_calEsc(_msgState.error)}</b><button type="button" class="msg-act" onclick="_msgLoad(true)">Try again</button></div>`;
         }
@@ -89700,7 +89905,7 @@
             </div>
             <div class="msg-chat">${_msgChatHtml()}</div>
         </div>`;
-        return _msgIsPhone() ? html.replace('<div class="msg-list">','<div class="msg-list">'+_msgPhoneSearchHtml(false)) : html;
+        return _msgIsPhone() ? html.replace('<div class="msg-list">','<div class="msg-list">'+`<label class="thumb-msg-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/></svg><input type="search" placeholder="Search conversations" aria-label="Search conversations" value="${_calEscAttr(_msgPhone.query)}" oninput="_msgPhoneSearch(this.value)"></label>`) : html;
     }
     /* Repaint every mounted inbox (Kasper tab and/or the staff panel),
        keeping a reply being typed: never rebuild under the caret. */
@@ -89715,6 +89920,19 @@
             if (typing && root.contains(box)) {
                 const list = root.querySelector('.msg-convs');
                 if (list) list.innerHTML = _msgListHtml();
+                // The chat's bubbles still follow (a reply sent a moment ago,
+                // its "Sending…" mark), without touching the box being typed in.
+                const live = root.querySelector('#msgBubbles');
+                if (live) {
+                    const fresh = document.createElement('div');
+                    fresh.innerHTML = _msgInboxHtml();
+                    const next = fresh.querySelector('#msgBubbles');
+                    if (next && next.innerHTML !== live.innerHTML) {
+                        const pinned = live.scrollHeight - live.clientHeight - live.scrollTop < 40;
+                        live.innerHTML = next.innerHTML;
+                        if (pinned) live.scrollTop = live.scrollHeight;
+                    }
+                }
                 return;
             }
             const restore = svFocusKeep(root);
@@ -89733,7 +89951,6 @@
     function _msgRenderInto(root) {
         if (!root) return;
         root.setAttribute('data-msg-root', '1');
-        _msgCacheHydrate();
         root.innerHTML = _msgInboxHtml();
         _msgLoad(false);
     }
@@ -89790,9 +90007,7 @@
         if (c && Number(c.unread) > 0) {
             c.unread = 0;          // opening = read; the server stamps it below
             _msgPaintCounts();
-            // From the cached list the notes are not here yet: mark it read once they are.
-            if (Array.isArray(c.messages)) { _msgMark(c.post_id, 'read'); _msgCacheWrite(); }
-            else _msgState.readWhenFresh = c.post_id;
+            _msgMark(c.post_id, 'read');
         }
         _msgPaint();
         if(phone)document.querySelector('#msgPage .msg-back')?.focus({preventScroll:true});
@@ -89857,44 +90072,71 @@
         _prodProjectCanonicalCardComments('calendar', c.post_id);
         return post;
     }
-    async function _msgReply() {
+    /* A reply shows in the chat the moment it is sent (the note outbox in 190
+       keeps it, with its words, until the server confirms it; a failed one
+       stays as "Not sent" with Retry, also after a refresh). The box is free
+       at once; loading the card, the save, the read mark and the inbox
+       refresh all run behind it. */
+    function _msgReply() {
         const c = _msgState.conversations.find(x => x.post_id === _msgState.openId);
         const target = _msgReplyTarget(c);
         const body = String(_msgState.draft || '').trim();
-        if (!c || !target || !body || _msgState.sending) return;
-        _msgState.sending = true;
-        _msgPaint();
-        let saved = false;
-        try {
-            const post = await _msgEnsureCard(c);
-            if (!post) throw new Error('card not found');
-            const comp = _calFindCompForCommentId(post, target.id) || target.component;
-            const started = Date.now();
-            while (Date.now() - started < 15000) {
-                const gate = _prodCanonicalCommentGate(post, comp);
-                if (!(gate.linked && !gate.ready) && !_calCommentSendPending(post, gate)) break;
-                await new Promise(resolve => setTimeout(resolve, 150));
-            }
-            saved = await _calAppendComment(c.post_id, target.id, body);
-        } catch (e) {
-            saved = false;
-        } finally {
-            _msgState.sending = false;
-        }
-        if (!saved) {
-            showToast('Your reply was not sent. It is still in the box; try again.');
-            _msgPaint();
-            return;
-        }
+        if (!c || !target || !body) return;
+        const entry = _noteOutboxPut({
+            id: _calMintCommentId(), surface: 'msg', kind: 'reply', pid: c.post_id, comp: '',
+            parent_id: target.id, body, author: _calCurrentAuthor(),
+            author_member_id: _calCurrentAuthorId() || undefined, role: _calCommentRole(),
+            created_at: new Date().toISOString(), at: Date.now(), state: 'sending'
+        });
         _msgState.draft = '';
         _msgPhone.drafts.delete(c.post_id);
-        // Sent: let the chat redraw with the reply in it (the paint keeps
-        // its hands off a box that still has the caret).
         const box = document.getElementById('msgReplyBox');
-        if (box) { box.value = ''; box.blur(); }
-        await _msgMark(c.post_id, 'read');
-        await _msgLoad(true);
+        if (box) box.value = '';
+        _msgSendQueued(entry.id);
+        _msgPaint();
+        const bubbles = document.getElementById('msgBubbles');
+        if (bubbles) bubbles.scrollTop = bubbles.scrollHeight;
     }
+    function _msgSendQueued(id) {
+        const postId = (_noteOutboxGet(id) || {}).pid;
+        return _noteOutboxSend(id).then(ok => {
+            if (!ok) return;
+            // Confirmed. The read mark and the inbox refresh follow; the reply
+            // stays drawn from the outbox until the refreshed inbox has it.
+            return _msgMark(postId, 'read').then(async () => {
+                // A load already running started before this reply was saved.
+                for (let i = 0; i < 100 && _msgState.loading; i++) await new Promise(r => setTimeout(r, 100));
+                await _msgLoad(true);
+            }).catch(() => {}).finally(() => {
+                const c = _msgState.conversations.find(x => x.post_id === postId);
+                // Drawn from the inbox now; until then it stays drawn from the
+                // outbox as sent (an entry that is never listed lapses in a minute).
+                if (c && c.messages.some(m => m.id === id)) _noteOutboxDrop(id);
+                _msgPaint();
+            });
+        });
+    }
+    /* Run by the outbox before a Messages reply is saved: the Notes save path
+       works on the Calendar's cards, so the conversation's client is loaded
+       first and its thread allowed to finish loading. */
+    window._msgSendQueued = _msgSendQueued;
+    window._msgBeforeNoteSend = _msgBeforeNoteSend;
+    async function _msgBeforeNoteSend(entry) {
+        const c = _msgState.conversations.find(x => x.post_id === entry.pid);
+        if (!c) throw new Error('This conversation is no longer in your inbox.');
+        const post = await _msgEnsureCard(c);
+        if (!post) throw new Error('card not found');
+        const comp = _calFindCompForCommentId(post, entry.parent_id) || 'video';
+        const started = Date.now();
+        while (Date.now() - started < 15000) {
+            const gate = _prodCanonicalCommentGate(post, comp);
+            if (!(gate.linked && !gate.ready) && !_calCommentSendPending(post, gate)) break;
+            await new Promise(resolve => setTimeout(resolve, 150));
+        }
+    }
+    window.addEventListener('sv-note-outbox', e => {
+        if (e && e.detail && e.detail.pid === _msgState.openId && document.getElementById('msgPage')) _msgPaint();
+    });
     async function _msgOpenCard() {
         const c = _msgState.conversations.find(x => x.post_id === _msgState.openId);
         if (!c) return;
@@ -89907,129 +90149,18 @@
     /* ── The Messages page ──
        A normal page under the header, like Calendar or Samples (route
        "messages" in navTo). The header Messages button, its copy in the phone
-       Tabs menu, and the Kasper Messages tab all open it.
-
-       Getting out (owner, 2026-10-15): the Messages button is a toggle, there
-       is a Close button (top right; on a phone in the phone title bar), Escape
-       closes it on a desktop (never while a typed reply has the caret), and the
-       browser Back button leaves it too. All of them put the person back where
-       they were when they opened it: the same tab and client, the card that was
-       open, and every scroll position. Opened straight from a link (nothing
-       to go back to), they land on the Calendar. Nothing typed is thrown away. */
-    let _msgReturn = null;           // where the person was when Messages opened
-    let _msgLeftBoot = false;        // the page was first loaded on Messages itself
-    const _msgBootOnMessages = /^\/messages\/?$/.test(location.pathname) || /^#\/?messages/.test(location.hash);
-    const _msgSig = el => el.id ? '#' + el.id : el.tagName.toLowerCase() + '.' + [...el.classList].slice(0, 2).join('.');
-    // Pressing the Messages button (or Tabs, on a phone) counts as "clicking away" for the Calendar's open-card
-    // outline, which drops it before the page changes. Note the card on the way down, in the capture phase, ahead of it.
-    let _msgPeek = null;
-    document.addEventListener('mousedown', e => {
-        if (!e.target || !e.target.closest || !e.target.closest('#navMessages, [onclick*="_msgOpenPage"], .pocket-staff-tabs-btn, #pocketStaffTabs')) return;
-        const open = document.querySelector('.cal-card-focused');
-        if (open) _msgPeek = { cardId: String(open.dataset.pid || ''), at: Date.now() };
-    }, { capture: true, passive: true });
-    function _msgCapture() {
-        if (_msgBootOnMessages && !_msgLeftBoot) { _msgReturn = null; return; }
-        const scrollers = [];
-        const content = document.getElementById('content');
-        if (content) {
-            const seen = new Map();
-            content.querySelectorAll('*').forEach(el => {
-                const key = _msgSig(el), n = seen.get(key) || 0;
-                seen.set(key, n + 1);
-                if (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) {
-                    if (el.scrollTop > 0 || el.scrollLeft > 0) scrollers.push({ key, n, top: el.scrollTop, left: el.scrollLeft });
-                }
-            });
-        }
-        // The card that is open on the Calendar (outlined, and named in the address).
-        const open = document.querySelector('.cal-card-focused');
-        const cardId = open ? String(open.dataset.pid || '') : (_msgPeek && Date.now() - _msgPeek.at < 20000 ? _msgPeek.cardId : '');
-        _msgPeek = null;
-        _msgReturn = {
-            nav: currentNav, client: String(calState.client || ''), cardId,
-            scrollY: window.scrollY || 0, scrollers
-        };
-    }
-    // navTo tells this before it changes anything, so the page being left is still whole.
-    window.svMessagesNavHook = function (page) {
-        if (page === 'messages') { if (currentNav !== 'messages') _msgCapture(); }
-        else if (currentNav === 'messages') _msgLeftBoot = true;
-    };
-    // Put the places back, and keep doing it for a few seconds: the Calendar paints in stages (cards arrive, its own
-    // scroll-into-view runs, a refresh re-draws the strip) and any of them can move a place the person just got back.
-    // The first thing the person does themselves (wheel, touch, key, press) ends it.
-    function _msgApplyScroll(r, tries) {
-        const content = document.getElementById('content');
-        if (content && content.children.length && !document.getElementById('msgPage')) {
-            const bySig = new Map();
-            content.querySelectorAll('*').forEach(el => { const k = _msgSig(el); if (!bySig.has(k)) bySig.set(k, []); bySig.get(k).push(el); });
-            r.scrollers.forEach(sc => {
-                const el = (bySig.get(sc.key) || [])[sc.n];
-                if (el && (Math.abs(el.scrollTop - sc.top) > 1 || Math.abs(el.scrollLeft - sc.left) > 1)) { el.scrollTop = sc.top; el.scrollLeft = sc.left; }
-            });
-            if (r.scrollY && Math.abs(window.scrollY - r.scrollY) > 1) window.scrollTo({ top: r.scrollY, behavior: 'instant' });
-        }
-        if (tries < 60 && !r.stop) setTimeout(() => _msgApplyScroll(r, tries + 1), 100);
-    }
-    function _msgRestore(push) {
-        const r = _msgReturn; _msgReturn = null;
-        const nav = r && r.nav && r.nav !== 'messages' ? r.nav : 'calendar';
-        // Ask the Calendar for the card (or the client, when a reply loaded another one) only when it is needed:
-        // a bare request would also move it off the view the person had.
-        if (nav === 'calendar' && r && r.client && (r.cardId || calState.client !== r.client)) {
-            _calSetFocusRequest({ client: r.client, cardId: r.cardId || null });
-        }
-        navTo(nav, push);
-        if (r && (r.scrollY || r.scrollers.length)) {
-            const stop = () => { r.stop = true; };
-            ['wheel', 'touchstart', 'keydown', 'mousedown'].forEach(t => window.addEventListener(t, stop, { once: true, passive: true }));
-            _msgApplyScroll(r, 0);
-        }
-    }
-    function _msgClose() {
-        if (!document.getElementById('msgPage')) return;
-        _msgPhoneKeepDraft();
-        try { document.getElementById('msgReplyBox')?.blur(); } catch (e) {}
-        _msgRestore(true);
-    }
-    // The header button, the Tabs menu copy of it and the Kasper tab: open it, or close it when it is open.
+       Tabs menu, and the Kasper Messages tab all open it; any other tab
+       leaves it. No Close button and no focus trap: it is a page, not a
+       dialog. */
     function _msgOpenPage() {
         if (!_msgCanUse()) return;
-        if (document.getElementById('msgPage')) { _msgClose(); return; }
         try { _syncviewCloseStaffAccount(); } catch (e) {}
         navTo('messages');
     }
-    // Browser Back (and Forward) out of the page: where the person was, not just the same tab.
-    window.svMessagesConsumeReturn = function (e) {
-        if (!document.getElementById('msgPage') || !_msgReturn) return false;
-        const st = e.state;
-        if (st && (st.nav === 'messages' || st.thumbMessagesParent || st.thumbMessagesThread)) return false;
-        _msgRestore(false);
-        return true;
-    };
-    document.addEventListener('keydown', e => {
-        if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return;
-        if (!document.getElementById('msgPage') || _msgIsPhone()) return;
-        const a = document.activeElement;
-        if (a && /^(TEXTAREA|INPUT)$/.test(a.tagName) && String(a.value || '').trim()) return;   // a typed reply is never lost
-        if (document.querySelector('dialog[open]')) return;
-        e.preventDefault();
-        _msgClose();
-    });
-    // While the page is open it refreshes itself every two minutes; the timer ends with the page.
-    function _msgStartLive() {
-        if (_msgTimer) return;
-        _msgTimer = setInterval(() => {
-            if (!document.getElementById('msgPage')) { clearInterval(_msgTimer); _msgTimer = null; return; }
-            if (!document.hidden && !_msgState.unavailable) _msgLoad(true);
-        }, MSG_REFRESH_MS);
-    }
     function _msgMountPage(el) {
         if (!el) return;
-        el.innerHTML = '<div class="msg-page-head"><h1>Messages</h1><button type="button" class="msg-close" onclick="_msgClose()" aria-label="Close Messages"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>Close</button></div><div class="msg-page-body"></div>';
+        el.innerHTML = '<div class="msg-page-head"><h1>Messages</h1></div><div class="msg-page-body"></div>';
         _msgRenderInto(el.querySelector('.msg-page-body'));
-        _msgStartLive();
     }
     window._msgMountPage = _msgMountPage;
     // Signed out, or the inbox backend is gone: leave the Messages page.
@@ -90037,8 +90168,8 @@
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        _msgBack, _msgClose, _msgLoad, _msgMarkUnread, _msgOnDraft, _msgOnKey, _msgOpen, _msgOpenCard,
-        _msgOpenPage, _msgPhoneMore, _msgPhoneSearch, _msgReply, _msgSetFilter, _msgSetReplyTo
+        _msgBack, _msgLoad, _msgMarkUnread, _msgOnDraft, _msgOnKey, _msgOpen, _msgOpenCard, _msgOpenPage,
+        _msgPhoneMore, _msgPhoneSearch, _msgReply, _msgSetFilter, _msgSetReplyTo
     });
     async function _kasperRenderReview() {
         const root = document.getElementById('kasperContent');
@@ -94027,4 +94158,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-14a25c0a500f.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-fc9bafccbf25.js");

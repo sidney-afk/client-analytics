@@ -42,7 +42,8 @@ assert(done.some(b => /Notes are still loading/.test(b) && /disabled/.test(b)), 
 const legacyDefault = buttons(ctx._calCommentActionsHtml({ id: 'l1', canonical: false, done: false }, false));
 assert(legacyDefault.length > 0 && legacyDefault.every(b => !/\sdisabled\b/.test(b)), 'the default (legacy comments) stays enabled');
 
-const call = INDEX.match(/\$\{_calCommentActionsHtml\(c, isReply, ([^\n]+)\)\}/);
+// A note still in the outbox (sending or not sent) has no actions yet.
+const call = INDEX.match(/\$\{(?:c\._outbox \? '' : )?_calCommentActionsHtml\(c, isReply, ([^\n]+)\)\}/);
 assert(call && /!c\.canonical \|\| \(!post\._calCommentActionBusy && _prodCanonicalCommentGate\(post, comp \|\| c\.component\)\.ready\)/.test(call[1]),
   'the comment modal disables canonical actions while the thread loads OR an action on the card is in flight');
 

@@ -32,7 +32,7 @@ assert(index.includes('const writeUrl = TEMPLATES_SAVE_EF_URL;'), 'templates wri
 assert(index.includes('await _settingsAssertSavingOn(client);') && index.includes('const writeUrl = CAPTION_PROMPTS_SAVE_EF_URL;')
   && !index.includes('CAPTION_PROMPTS_SAVE_URL') && !index.includes('webhook/caption-prompts-save'),
   'caption prompt write must ask settings_ef_clients afresh and go to the function only, never n8n');
-assert(index.includes("const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';"), 'caption generation URL must remain n8n');
+assert(!index.includes('webhook/generate-caption'), 'caption generation must not call the n8n workflow (removed 2026-10-16)');
 
 assert(migration.includes('create table if not exists public.templates'), 'templates table migration missing');
 assert(migration.includes('create table if not exists public.caption_prompts'), 'caption_prompts table migration missing');

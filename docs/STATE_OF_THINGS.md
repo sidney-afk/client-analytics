@@ -87,7 +87,11 @@ supervisor manual's "Writing it down"):**
   changes settle.
 
 **Open sessions and where they stand (2026-10-16):**
-- Swift #2089 (Messages opens fast, Close button): in review; needs a `production-comments` deploy after merge.
+- Swift #2089 (Messages opens fast, Close button, click again to close): merged 2026-10-16 04:35 UTC (`599b7a22`); the page
+  part is live with the next Pages publish. Its `production-comments` speed-up (parallel reads) is NOT deployed on purpose:
+  the only lane for it (deploy-onboarding-edge-functions) also redeploys `production-write`, which now differs from live
+  (Scribe #2096) and should go through the Section 4 path with its rollback capture. It ships with Conveyor's deploy on
+  merge (#2101). The page works with the old function meanwhile.
 - Anchor #2094 (production-polish gate waits for the app instead of guessing): fixing its own boot-budget runs.
 - Scribe #2096 (a note shows the moment it is sent): merged 2026-10-16; the page part is live with the next Pages publish.
   Its small `production-write` change (the Slack sender wakes after the answer, not before) waits for the next F27
@@ -239,7 +243,7 @@ here with where it stopped, so it can be restarted.
    about $13; and the live site publishes the whole repo (docs, scripts,
    migrations), so the Pages deploy must become an allowlist before any switch.
 6b. **n8n exit, phase 2 (plan #1874, owner decisions recorded 2026-09-30; status 2026-10-01).** Order: D, B, A, E, F, C, K.
-   Generate caption's AI job itself: LIVE for every client (`caption-generate` function, transcript box, fixed writing rules; OPEN_REPAIRS 388; `caption_generate_ef_clients` = all since 2026-10-09, checked 2026-10-16). The old n8n Generate Caption workflow has had zero runs since 2026-10-09; it is switched off once the page's fallback to it is removed (Latest block above).
+   Generate caption's AI job itself: LIVE for every client (`caption-generate` function, transcript box, fixed writing rules; OPEN_REPAIRS 388; `caption_generate_ef_clients` = all since 2026-10-09, checked 2026-10-16). The old n8n Generate Caption workflow has had zero runs since 2026-10-09. On 2026-10-16 the page's switch read and its n8n `generate-caption` fallback were removed (session Sunset); once that is live, Lighthouse deactivates the workflow (deactivate, not delete).
    D (TikTok poll trim) DONE #1878. B (caption progress in Supabase) DONE: `caption-jobs` live, Generate Caption edited and
    published, Calendar page switched (#1889). A (Slack Creative Channel Finalizer): trigger webhook and daily safety check are
    live next to the 15 minute timer (#1892); the timer is removed in a small follow-up only after the next real client's

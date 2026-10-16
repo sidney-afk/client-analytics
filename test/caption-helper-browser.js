@@ -7,7 +7,7 @@
  *   NOTHING EXTRA  After Generate the new caption is just in the caption box. No title ideas, no "Best" marker, no
  *                "Use this title", no Titles button, no hashtags panel, even when the job row still carries titles in
  *                `extras` (an older job) and even when an older version left them in this browser.
- *   REDO         A small regenerate icon (circular arrows, tooltip "Regenerate with a note") in the top right corner of the caption box opens a pop-up with a note box and Redo (Escape, a click outside or Close leave it). It re-runs from the current caption. The new caption replaces the box only while
+ *   REDO         A small regenerate icon (circular arrows, tooltip "Regenerate with a note") in the top right corner of the caption box (on the staff phone layout: at the end of the action row under it) opens a pop-up with a note box and Redo (Escape, a click outside or Close leave it). It re-runs from the current caption. The new caption replaces the box only while
  *                the box still holds the caption the redo started from; a caption typed meanwhile is kept, a short
  *                note says so, and nothing waits in a panel.
  * Run at 1440 wide and at 390 wide, in light and dark. Set CAPTION_SHOT_DIR to save screenshots there.
@@ -196,11 +196,15 @@ async function run(browser, origin, label, device, theme) {
     const wrap = b.closest('.cal-cap-wrap'), w = wrap.getBoundingClientRect();
     const ta = wrap.querySelector('textarea'), cs = getComputedStyle(ta), tr = ta.getBoundingClientRect();
     const textRight = tr.right - parseFloat(cs.paddingRight);
-    return { w: Math.round(r.width), h: Math.round(r.height), top: Math.round(r.top - w.top), right: Math.round(w.right - r.right), clearOfText: textRight <= r.left + 1, inCard: r.right <= document.querySelector('.cal-card[data-pid="v1"]').getBoundingClientRect().right + 1 };
+    return { phone: document.documentElement.classList.contains('sv-staff-phone'), w: Math.round(r.width), h: Math.round(r.height), top: Math.round(r.top - w.top), right: Math.round(w.right - r.right), clearOfText: textRight <= r.left + 1, belowBox: r.top >= tr.bottom - 1, inCard: r.right <= document.querySelector('.cal-card[data-pid="v1"]').getBoundingClientRect().right + 1 };
   }, redoBtn);
   const minSize = device.hasTouch ? 40 : 22;
-  expect(lay.top <= 10 && lay.right <= 10 && lay.clearOfText && lay.inCard && lay.w >= minSize && lay.h >= minSize,
-    `${tag}: it sits in the top right corner of the caption box, clear of the caption text, big enough to tap on a phone (${JSON.stringify(lay)})`);
+  // On the staff phone layout the caption's actions sit in a row under the box and no control may sit on another
+  // (qa/staff-phone-rules-browser.js), so there the icon ends that row instead of covering the box's corner.
+  if (lay.phone) expect(lay.belowBox && lay.inCard && lay.w >= 44 && lay.h >= 44,
+    `${tag}: on a phone it ends the action row under the caption box, off the box, big enough to tap (${JSON.stringify(lay)})`);
+  else expect(lay.top <= 10 && lay.right <= 10 && lay.clearOfText && lay.inCard && lay.w >= minSize && lay.h >= minSize,
+    `${tag}: it sits in the top right corner of the caption box, clear of the caption text, big enough to tap (${JSON.stringify(lay)})`);
   await shot(page, `icon-${tag}`, 'v1');
   expect(await page.locator('.cal-cap-tx').count() === 0, `${tag}: there is no separate Transcript button`);
 

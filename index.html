@@ -7544,10 +7544,13 @@
         }
         .cal-redo-current { white-space: pre-wrap; max-height: 28vh; overflow-y: auto; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text-secondary); font-size: 0.84rem; line-height: 1.5; overflow-wrap: anywhere; }
         .cal-redo-note { min-height: 96px; }
-        html.sv-staff-phone .cal-cap-tools { top: 4px; right: 4px; }
+        /* Staff phone: the caption's actions (Generate, show more) sit in a row under the box, and a control may not
+           sit on top of another one there (qa/staff-phone-rules-browser.js). So the icon joins that row, at its end,
+           instead of the box's corner, and the box needs no room kept free for it. */
+        html.sv-staff-phone .cal-cap-wrap .cal-cap-tools { position: static; order: 4; }
         html.sv-staff-phone .cal-cap-redo-open { width: 44px; height: 44px; }
         html.sv-staff-phone .cal-cap-redo-open svg { width: 20px; height: 20px; }
-        html.sv-staff-phone .cal-cap-wrap:has(.cal-cap-tools) textarea.cal-fld-cap { padding-right: 54px; }
+        html.sv-staff-phone .cal-cap-wrap:has(.cal-cap-tools) textarea.cal-fld-cap { padding-right: 9px; }
 
         .cal-bulk-cap-bar { position: fixed; bottom: 24px; right: 24px; z-index: 320; background: var(--text-primary); color: var(--white); padding: 10px 14px; border-radius: 12px; box-shadow: 0 8px 26px var(--sv-shadow-rgba-0-0-0-0_22); font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 10px; visibility: hidden; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0.2s; }
         .cal-bulk-cap-bar.is-active { visibility: visible; opacity: 1; transform: none; pointer-events: auto; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0s; }
@@ -13428,8 +13431,8 @@ button.fv-c-main:hover { background: color-mix(in srgb, var(--focus-ring) 6%, tr
        share links get the code in parts; everyone else (forms, signed-out visitors)
        gets the whole script as one file. Must never throw. */
     (function () {
-        var FULL = "js/sv-full-1780f48d9f09.js";
-        var PARTS = ["js/sv-01-core-4c708793b16f.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-de84ab46e14a.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-ef5812a31d96.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-c5dc2418963a.js","js/sv-12-synclinear-86b5ab793126.js","js/sv-13-core-2fa354755646.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-dc5f6115bb74.js","js/sv-20-core-f43f39965587.js"];
+        var FULL = "js/sv-full-423c1bd36673.js";
+        var PARTS = ["js/sv-01-core-4c708793b16f.js","js/sv-03-core-c3e6124a943d.js","js/sv-05-core-1704377c3779.js","js/sv-06-core-bdabc42ec06f.js","js/sv-07-core-de84ab46e14a.js","js/sv-08-quick-jump-d1d5022451a3.js","js/sv-09-core-1fbf895d8503.js","js/sv-10-smm-weekly-9dceff81d513.js","js/sv-11-core-ccf06b17881c.js","js/sv-12-synclinear-86b5ab793126.js","js/sv-13-core-2fa354755646.js","js/sv-15-core-f285e69fd2dd.js","js/sv-17-core-5de14ae29cac.js","js/sv-18-core-4050f4429c3a.js","js/sv-19-core-dc5f6115bb74.js","js/sv-20-core-f43f39965587.js"];
         var LAZY = {"templates":"js/sv-02-templates-ed22b16a2bda.js","workload":"js/sv-04-workload-1b2df89fe1d1.js","tiktok":"js/sv-14-tiktok-402215a533a7.js","kasper":"js/sv-16-kasper-97af3e85cb6e.js"};
         var FORCE = null;
         var CLIENTS = true;

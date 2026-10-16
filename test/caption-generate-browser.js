@@ -2,9 +2,8 @@
 /*
  * Generate caption off n8n: the Calendar page in a real browser, fully offline (every backend answer is local).
  *
- *   SWITCH OFF (no caption_generate_ef_clients row, the default): Generate behaves exactly as before. A card with a
- *     Frame.io link calls the n8n generate-caption webhook with the same five keys; the caption-generate function is
- *     never called; a card with no video keeps a disabled Generate and no transcript box exists.
+ *   NO SWITCH ROW: the page no longer reads caption_generate_ef_clients and has no n8n fallback (removed 2026-10-16),
+ *     so Generate still runs on the function and the n8n generate-caption webhook is never called.
  *   SWITCH ON for the client: a card with a video opens the Generate box and its Generate starts the job on the function, with the staff
  *     headers and zero n8n calls. A card with no video: Generate opens the transcript box, its button stays disabled
  *     until text is pasted, and the caption is written from it. A card with a video also offers an optional
@@ -141,25 +140,19 @@ const modalOpen = page => page.evaluate(() => !!document.querySelector('#calProm
 async function runDesktopOrPhone(browser, origin, label, device) {
   const prefix = label === 'phone' ? 'iphone' : 'desktop';
 
-  // ---------- BEFORE: switch off (the default) ----------
-  console.log(`--- ${label}: switch off (default, n8n) ---`);
+  // ---------- NO SWITCH ROW: still the function, never n8n (fallback removed 2026-10-16) ----------
+  console.log(`--- ${label}: no switch row (function, the n8n fallback is gone) ---`);
   let t = await open(browser, origin, { flag: null, device });
-  expect(await t.page.locator(sel('n1', '.cal-cap-gen')).isDisabled(), `${label} off: a card with no video keeps a disabled Generate`);
-  expect(await t.page.locator(sel('v1', '.cal-cap-tx')).count() === 0, `${label} off: no Transcript pill`);
+  expect(!(await t.page.locator(sel('n1', '.cal-cap-gen')).isDisabled()), `${label} no switch: Generate is enabled on a card with no video`);
   await shot(t.page, `before-${prefix}`, 'v1');
   await t.page.locator(sel('v1', '.cal-cap-gen')).click();
+  await t.page.waitForSelector('#calPromptOverlay.open #calTxGo', { timeout: 5000 });
+  await t.page.locator('#calTxGo').click();
   const offCaption = await waitCaption(t.page, 'v1');
-  expect(offCaption === 'Caption from n8n', `${label} off: Generate writes the caption through n8n (${offCaption})`);
-  expect(t.state.n8n.length === 1 && t.state.ef.length === 0, `${label} off: one n8n call, zero function calls`);
-  expect(t.state.n8n[0] && Object.keys(t.state.n8n[0]).sort().join(',') === 'assetUrl,captionPrompt,client,jobId,postId'
-    && t.state.n8n[0].client === SLUG && t.state.n8n[0].assetUrl === FRAME && t.state.n8n[0].captionPrompt === 'Fixture caption prompt',
-    `${label} off: the n8n body is the same five keys as before`);
-  await t.page.evaluate(() => _calGenerateCaption('n1'));
-  await sleep(300);
-  expect(!(await modalOpen(t.page)), `${label} off: no transcript box`);
-  expect(t.state.n8n.length === 1 && t.state.ef.length === 0, `${label} off: a card with no video sends nothing`);
+  expect(offCaption === 'Caption written by the function', `${label} no switch: Generate writes the caption through the function (${offCaption})`);
+  expect(t.state.n8n.length === 0 && t.state.ef.length === 1, `${label} no switch: zero n8n calls, one function call`);
   await shot(t.page, `before-${prefix}-done`, 'v1');
-  expect(t.pageErrors.length === 0, `${label} off: no page errors (${t.pageErrors.join(' | ')})`);
+  expect(t.pageErrors.length === 0, `${label} no switch: no page errors (${t.pageErrors.join(' | ')})`);
   await t.ctx.close();
 
   // ---------- AFTER: switch on for this client ----------

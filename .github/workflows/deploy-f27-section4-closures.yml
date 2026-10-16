@@ -83,6 +83,17 @@ jobs:
       DELIVERABLE_WRITE_SOURCE_SHA256: 78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575
       DEPLOY_COMMIT: ${{ inputs.commit_sha }}
       EXPECTED_CLI_VERSION: 2.109.0
+      # The Edge Runtime image CLI 2.109.0 bundles with under --use-docker (its
+      # built-in "edge-runtime" default, pulled from public.ecr.aws with no
+      # retry and no mirror). The pre-pull step below proves the installed CLI
+      # still names exactly this tag, so a CLI bump that moves it fails closed
+      # there; re-derive with:
+      #   grep -ao '"edge-runtime":"[0-9][0-9.]*"' "$(command -v supabase)"
+      EXPECTED_EDGE_RUNTIME_TAG: v1.73.13
+      # Its linux/amd64 image manifest, identical on public.ecr.aws and ghcr.io
+      # (read from both registries' v1.73.13 index on 2026-10-16). Pulling by
+      # this digest makes either registry give byte-identical bundler bytes.
+      EXPECTED_EDGE_RUNTIME_AMD64_DIGEST: sha256:e8ddc7b0f4888818159d4b665e922de667948e2864c895ed62acdfd29e7c6c80
       EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256: 9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042
       # linear-outbound pins removed in B2 Slice 8: it is no longer in the release
       # set. Its re-pin history is in git history of this file.
@@ -873,6 +884,69 @@ jobs:
             echo "- Docker bundler: PASS"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # The bundler image, pulled before any deploy and retried.
+      #
+      # A `--use-docker` deploy with CLI 2.109.0 runs
+      # `docker run public.ecr.aws/supabase/edge-runtime:<tag> bundle ...`, and
+      # docker pulls the image on first use, once, from that one registry. A
+      # refused or throttled pull fails the deploy in about a second, after the
+      # gates and before anything is bundled: the shape of run 38933979961
+      # (2026-10-16, production-write failed in 1.6 s on a fresh runner whose
+      # image had changed since the 2026-10-09 success, where the same step took
+      # 24 s including the pull). public.ecr.aws answers anonymous reads with
+      # 429 TOOMANYREQUESTS "Data limit exceeded" intermittently (measured
+      # 2026-10-16: 13 of 15 manifest reads of this very tag). Pulling here, by
+      # the pinned digest, with retries and then from the ghcr.io copy (the
+      # same digest, so the same bytes), means the deploy finds the image
+      # locally and never pulls. No secret is in this step.
+      - name: Pre-pull the exact Edge Runtime bundler image (retried)
+        if: inputs.operation == 'deploy-reviewed-release' || inputs.operation == 'restore-captured-prior-three'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${SUPABASE_INTERNAL_IMAGE_REGISTRY:-}" ]; then
+            echo "::error::SUPABASE_INTERNAL_IMAGE_REGISTRY would move the bundler image; it must be unset"
+            exit 1
+          fi
+          if [ -e release/supabase/.temp/edge-runtime-version ]; then
+            echo "::error::The reviewed checkout overrides the Edge Runtime version"
+            exit 1
+          fi
+          cli_path="$(readlink -f "$(command -v supabase)")"
+          named="$(grep -aoE '"edge-runtime":"[0-9][0-9.]*"' "$cli_path" | sort -u)"
+          if [ "$named" != "\"edge-runtime\":\"${EXPECTED_EDGE_RUNTIME_TAG#v}\"" ]; then
+            echo "::error::The installed Supabase CLI does not bundle with Edge Runtime $EXPECTED_EDGE_RUNTIME_TAG; re-derive EXPECTED_EDGE_RUNTIME_TAG"
+            exit 1
+          fi
+          if [ "$(uname -m)" != "x86_64" ]; then
+            echo "::error::The bundler image digest is pinned for linux/amd64 runners"
+            exit 1
+          fi
+          image="public.ecr.aws/supabase/edge-runtime:$EXPECTED_EDGE_RUNTIME_TAG"
+          pull_log="$RUNNER_TEMP/edge-runtime-pull.log"
+          source_registry=""
+          for registry in public.ecr.aws ghcr.io; do
+            pinned="$registry/supabase/edge-runtime@$EXPECTED_EDGE_RUNTIME_AMD64_DIGEST"
+            for delay in 0 10 30 60; do
+              sleep "$delay"
+              if docker pull --quiet "$pinned" > "$pull_log" 2>&1; then
+                docker tag "$pinned" "$image"
+                source_registry="$registry"
+                break 2
+              fi
+              echo "Pull of the bundler image from $registry failed: $(tail -n 1 "$pull_log" | tr -d '\r' | cut -c1-200)"
+            done
+          done
+          if [ -z "$source_registry" ] || ! docker image inspect "$image" > /dev/null 2>&1; then
+            echo "::error::The Edge Runtime bundler image could not be pulled from either registry; nothing was deployed"
+            exit 1
+          fi
+          image_id="$(docker image inspect --format '{{.Id}}' "$image")"
+          {
+            echo "- Edge Runtime bundler image: \`$image\` pinned to \`$EXPECTED_EDGE_RUNTIME_AMD64_DIGEST\`, pulled from $source_registry"
+            echo "  - Local image id: \`$image_id\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Bind the sealed restore provider target and CLI
         shell: bash
         working-directory: operator
@@ -1115,6 +1189,10 @@ jobs:
             --project-ref "$project_ref" \
             --no-verify-jwt --use-docker --yes \
             > "$F27_PRIVATE_DIR/production-write-deploy.log" 2>&1; then
+            # The CLI's own reason, allowlisted, redacted and capped by the
+            # trusted copy of the script (never the project ref or a secret).
+            node "$GITHUB_WORKSPACE/operator/scripts/ef-deploy-public-reason.js" \
+              "$F27_PRIVATE_DIR/production-write-deploy.log" || true
             echo "::error::The reviewed production-write deployment failed or was ambiguous"
             exit 1
           fi
@@ -1214,6 +1292,10 @@ jobs:
             --project-ref "$project_ref" \
             --no-verify-jwt --use-docker --yes \
             > "$F27_PRIVATE_DIR/deliverable-write-deploy.log" 2>&1; then
+            # The CLI's own reason, allowlisted, redacted and capped by the
+            # trusted copy of the script (never the project ref or a secret).
+            node "$GITHUB_WORKSPACE/operator/scripts/ef-deploy-public-reason.js" \
+              "$F27_PRIVATE_DIR/deliverable-write-deploy.log" || true
             echo "::error::The reviewed deliverable-write deployment failed or was ambiguous"
             exit 1
           fi
@@ -1313,6 +1395,10 @@ jobs:
             --project-ref "$project_ref" \
             --no-verify-jwt --use-docker --yes \
             > "$F27_PRIVATE_DIR/batch-write-deploy.log" 2>&1; then
+            # The CLI's own reason, allowlisted, redacted and capped by the
+            # trusted copy of the script (never the project ref or a secret).
+            node "$GITHUB_WORKSPACE/operator/scripts/ef-deploy-public-reason.js" \
+              "$F27_PRIVATE_DIR/batch-write-deploy.log" || true
             echo "::error::The reviewed batch-write deployment failed or was ambiguous"
             exit 1
           fi

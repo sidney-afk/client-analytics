@@ -42,7 +42,8 @@ ok(/production_notification_reconcile/.test(sql) && /RETRY_MAY_DUPLICATE/.test(s
 ok(/notification_urgent_destination_unconfigured/.test(sql), 'urgent never guesses a video-editing channel');
 const urgentBlock = gateway.slice(gateway.indexOf('async function handleNativeUrgentDispatch'), gateway.indexOf('async function handleCreateOptions'));
 ok(/production_notification_enqueue_urgent/.test(urgentBlock), 'gateway routes urgent to committed notification admission');
-ok(/operation === "status" \|\| operation === "comment"/.test(gateway) && /await wakeNotificationSender\(\)/.test(gateway), 'ordinary native status/comment commits best-effort wake the sender after SQL commit');
+ok(/operation === "status" \|\| operation === "comment"\) && authority === "syncview"\s*\n\s*&& !principal\.testOnly && !legacyParity\) afterResponse\(wakeNotificationSender\(\)\)/.test(gateway), 'ordinary native status/comment commits best-effort wake the sender after SQL commit, without holding the answer');
+ok(/function afterResponse[\s\S]{0,400}EdgeRuntime[\s\S]{0,300}waitUntil\(settled\)/.test(gateway), 'the after-answer wake is kept alive by the Edge runtime and can never reject');
 ok(!/n8n\.cloud/.test(urgentBlock) && /wakeNotificationSender/.test(urgentBlock), 'gateway urgent action has no n8n handoff and only wakes the notification sender after commit');
 ok(/delivery: "pending"/.test(urgentBlock) && !/delivery: "sent"/.test(urgentBlock), 'enqueue is not misreported as delivered');
 ok(/NOTIFY_RUNNER_KEY/.test(sender) && /SLACK_BOT_TOKEN/.test(sender) && /MAX_LIMIT = 10/.test(sender), 'manual sender requires separate runner/provider configuration and a bounded batch');

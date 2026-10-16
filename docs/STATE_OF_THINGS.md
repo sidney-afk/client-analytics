@@ -23,6 +23,13 @@ line is older than a week, re-check it before relying on it.
 Newest first. Checked against main and the live database on 2026-10-16. When an item here is finished or moved into
 the sections below, delete it from this block in the same PR.
 
+**In review (session Atelier, 2026-10-16): Synchro video studio, step 1.** A read-only `studio_latest` tool on the
+Synchro connector gives the newest studio zip from the private `studio` bucket (version, a signed download link valid
+about 10 minutes, notes) and says "No studio version uploaded yet" when `latest.json` is missing. Each call is logged in
+the new `hf_studio_downloads` table (migration `20261016180000_hf_studio_downloads.sql`, applied by Lighthouse; until it
+is applied the on-merge lane holds `higgsfield-mcp`). Steps 2 (`studio_profile`, `studio_profile_save`) and 3 (design of
+`studio_transcribe`) follow after this merges.
+
 **Live on 2026-10-16 (Sidney's one-function runs, checked by Lighthouse):**
 - **`calendar-card-write` v1** deployed about 13:23 UTC. Lighthouse put the test client on `calendar_card_write_clients`
   (`{"clients": [test client]}`) at 13:33 UTC, so staff saves on the test client now go to the new writer; every other

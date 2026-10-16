@@ -2791,13 +2791,31 @@
         .msg-reply textarea { flex: 1; border: 0; background: transparent; resize: none; font: inherit; color: inherit; outline: 0; min-height: 22px; padding: 5px 0; }
         .msg-chat-empty { margin: auto; padding: 32px 20px; text-align: center; display: flex; flex-direction: column; gap: 6px; align-items: center; color: var(--text-muted); font-size: 0.82rem; }
         .msg-chat-empty b { color: var(--text-primary); font-size: 0.92rem; }
+        /* Loading placeholder: the loaded markup with see-through words and a grey bar
+           painted over each line, so no box moves when the real list arrives. The bars
+           are clipped a little top and bottom so stacked lines read as separate lines. */
+        .msg-inbox.is-skeleton { pointer-events: none; }
+        .msg-inbox.is-skeleton .sv-skeleton { --sv-skel-base: var(--border); --sv-skel-sheen: var(--border-light); }
+        html[data-theme="dark"] .msg-inbox.is-skeleton .sv-skeleton { --sv-skel-base: var(--field-bg-hover); --sv-skel-sheen: var(--border); }
+        .msg-skel { color: transparent !important; user-select: none; }
+        .msg-conv-main .msg-skel, .msg-b-meta .msg-skel, .msg-b-text.msg-skel { clip-path: inset(2px 0 2px 0 round 4px); border-radius: 4px; }
+        .msg-conv-top > .msg-skel { align-self: flex-start; }
+        .msg-conv-top > .msg-conv-client.msg-skel { font-weight: 700; }
+        .msg-filters button.msg-skel { border-color: transparent; border-radius: 99px; background: var(--sv-skel-base); }
+        .msg-conv.is-skeleton .msg-thumb { border-radius: 7px; }
+        .msg-b-text.msg-skel { border-color: transparent; }
         .msg-nav-btn { position: relative; }
         .msg-nav-btn[hidden] { display: none; }
         .msg-nav-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
         /* The Messages page uses the whole width under the header. */
         body:has(#msgPage) .main { padding: 0; }
         .msg-page { padding: 14px 16px 16px; display: flex; flex-direction: column; }
-        .msg-page-head h1 { margin: 0 0 10px; font-size: 1.3rem; color: var(--text-primary); }
+        .msg-page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 10px; min-height: 25px; }
+        .msg-page-head h1 { margin: 0; font-size: 1.3rem; color: var(--text-primary); }
+        .msg-close { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 0.74rem; font-weight: 600; line-height: 1.2; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); cursor: pointer; }
+        .msg-close svg { width: 12px; height: 12px; }
+        .msg-close:hover { background: var(--bg); }
+        .msg-close:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
         .msg-page .msg-inbox { height: calc(100vh - 150px); }
         @media (max-width: 767px) {
             /* minmax(0, 1fr): a plain 1fr track grows to the longest unwrapped

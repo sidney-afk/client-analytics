@@ -9,7 +9,13 @@ on:
       - 'test/**'
       - 'supabase/migrations/**'
       - 'supabase/functions/**'
-      - 'index.html'
+      # index.html is built from these, not committed (since 2026-10-15):
+      - 'src/index/**'
+      - 'scripts/build-index.js'
+      - 'scripts/index-modules.js'
+      - 'scripts/index-split.js'
+      - 'scripts/index-minify.js'
+      - '.github/actions/build-index/**'
       - '.gitattributes'
       - 'migrations/**'
       - 'docs/independence/**'
@@ -57,6 +63,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Build index.html and js/ from src/index/ (build output, not committed)
+        uses: ./.github/actions/build-index
       - name: Verify explicit routing and profile guard
         run: node test/test-suite-routing.js
       - name: Run the isolated profile

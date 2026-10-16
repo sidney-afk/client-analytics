@@ -247,11 +247,29 @@ function pathsContaining(term) {
    nothing fuzzy, and no name- or path-based exemption of any kind. A change
    that reflows, retypes or introduces a roster term on a line that did not
    already read that way in `base`'s `index.html` is still caught. */
+/* Since 2026-10-15 index.html is build output and not committed. With the
+   split on (src/index/split.json), the built index.html is every byte of the
+   page OUTSIDE the main script plus a short loader, so its lines are the lines
+   of the non-script fragments (*.html.part, *.css.part). Read those from the
+   base in memory; the loader lines carry no roster term. Fewer lines can only
+   make the check stricter, never looser. */
+function pageLinesWithoutCommittedIndexAt(base) {
+  const listing = git(['ls-tree', '--name-only', base, 'src/index/'], {});
+  if (listing === null) return null;
+  const parts = listing.split('\n').filter(name => /^src\/index\/[^/]+\.(html|css)\.part$/.test(name));
+  if (!parts.length) return null;
+  return parts.map(name => git(['show', `${base}:${name}`], {}) || '').join('\n');
+}
 let baseIndexHtmlLineSet = null;
 let baseIndexHtmlLineSetBase = null;
 function baseIndexHtmlLines(base) {
   if (baseIndexHtmlLineSetBase !== base) {
-    const out = git(['show', `${base}:index.html`], {});
+    // `git show` of a missing path exits 128, which the wrapper throws on, so
+    // ask the tree first.
+    const tracked = (git(['ls-tree', '--name-only', base, 'index.html'], {}) || '').trim() === 'index.html';
+    let out = tracked ? git(['show', `${base}:index.html`], {}) : null;
+    // A base newer than 2026-10-15 has no committed index.html; see above.
+    if (out === null) out = pageLinesWithoutCommittedIndexAt(base);
     baseIndexHtmlLineSet = new Set(out === null ? [] : out.split('\n'));
     baseIndexHtmlLineSetBase = base;
   }
@@ -308,7 +326,9 @@ function baseGeneratedScriptsContain(term, base) {
 }
 
 function addedLinesContaining(term, base) {
-  const out = git(['diff', '--unified=0', base + '...HEAD'], {});
+  // --diff-filter=d: a deleted file adds no line, and printing one in full can
+  // overflow the buffer (the 2026-10-16 removal of 1.1 GB of built bundles did).
+  const out = git(['diff', '--unified=0', '--diff-filter=d', base + '...HEAD'], {});
   if (out === null) return [];
   const preexisting = baseIndexHtmlLines(base);
   const preexistingScripts = baseGeneratedScriptLines(base);

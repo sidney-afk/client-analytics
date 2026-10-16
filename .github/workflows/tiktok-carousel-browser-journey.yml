@@ -13,14 +13,26 @@ name: TikTok carousel browser journey
 on:
   pull_request:
     paths:
-      - 'index.html'
+      # index.html is built from these, not committed (since 2026-10-15):
+      - 'src/index/**'
+      - 'scripts/build-index.js'
+      - 'scripts/index-modules.js'
+      - 'scripts/index-split.js'
+      - 'scripts/index-minify.js'
+      - '.github/actions/build-index/**'
       - 'docs/syncview-design/tests/tiktok-carousel-browser-journey.js'
       - '.github/workflows/tiktok-carousel-browser-journey.yml'
   push:
     branches:
       - main
     paths:
-      - 'index.html'
+      # index.html is built from these, not committed (since 2026-10-15):
+      - 'src/index/**'
+      - 'scripts/build-index.js'
+      - 'scripts/index-modules.js'
+      - 'scripts/index-split.js'
+      - 'scripts/index-minify.js'
+      - '.github/actions/build-index/**'
       - 'docs/syncview-design/tests/tiktok-carousel-browser-journey.js'
       - '.github/workflows/tiktok-carousel-browser-journey.yml'
   workflow_dispatch:
@@ -41,6 +53,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Build index.html and js/ from src/index/ (build output, not committed)
+        uses: ./.github/actions/build-index
       - name: Install pinned browser-test dependencies
         run: npm install --no-package-lock
       - name: Install Chromium

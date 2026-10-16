@@ -18,7 +18,7 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
 
 ## 1. How to read this map
 
-- **The app is assembled from fragments.** Edit `src/index`, rebuild with `npm run build:index` and verify with `npm run check:index`. The [Pages workflow](../../.github/workflows/pages-site.yml) publishes matching source changes from main; a documentation-only merge does not publish. Routes and screen owners are in the [Atlas](../ATLAS.md#screens).
+- **The app is assembled from fragments.** Edit `src/index`, rebuild with `npm run build:index` to test by hand (the built page is not committed since 2026-10-15; `npm run check:index` proves the build is deterministic). The [Pages workflow](../../.github/workflows/pages-site.yml) builds and publishes matching source changes from main; a documentation-only merge does not publish. Routes and screen owners are in the [Atlas](../ATLAS.md#screens).
 - **Endpoint kinds.** Four backends serve the app and this map always names which one: **n8n**
   webhook (`…app.n8n.cloud/webhook/<path>`), **edge-fn** (Supabase Edge Function,
   `…/functions/v1/<name>`), **rest** (Supabase PostgREST, `…/rest/v1/<table>`), **realtime**

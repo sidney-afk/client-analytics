@@ -28,6 +28,18 @@ loads; its README calls its smart-picks mock data) is no longer served at
 `/thumbnails/`. To serve it again, add `'thumbnails'` to `PUBLISHED_DIRS` in
 `scripts/pages-site.js` (one line).
 
+## Built at publish (since 2026-10-15)
+
+`index.html`, `js/sv-*.js` and `src/index/INDEX.md` are no longer committed. The
+build job runs `.github/actions/build-index` (the same `npm run build:index`),
+then `scripts/pages-retained-bundles.js` puts back the older content-hashed
+bundles the site has always kept (every bundle committed before the switch, plus
+the bundles of the last 10 builds after it, each rebuilt from its own commit), and
+only then builds the allowlisted folder below. The checkout is full history
+(`fetch-depth: 0`) for that step. Before the switch, the folder built this way from
+the same commit was byte-identical to the one built from the committed files
+(616 files). Way back: `ROLLBACK.md`, "Committed build output".
+
 ## How it works
 
 - `scripts/pages-site.js build` copies the allowlist into `.pages-site/`.

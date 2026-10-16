@@ -118,6 +118,14 @@ export function isDirect(id: string): boolean {
   return id.startsWith("openai/") || (GOOGLE_IMAGE_ENABLED && id.startsWith("google/"));
 }
 
+// A job already in the log from a direct model is answered from its log row,
+// never from Higgsfield, even while that model is switched off: the Nano
+// Banana jobs logged before the switch stay readable, and reading them makes
+// no Higgsfield call and no Google call.
+export function answeredFromLog(id: string): boolean {
+  return isDirect(id) || GOOGLE_IMAGE_IDS.includes(id);
+}
+
 // True when someone asks for Nano Banana by id or by name ("nano-banana",
 // "Nano Banana Pro", "google/nano-banana") while it is switched off. The
 // connector then answers with SWITCHED_OFF_TEXT and a GPT Image price card,

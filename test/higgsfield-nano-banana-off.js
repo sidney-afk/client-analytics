@@ -13,6 +13,10 @@
  *   create / price_check / model_details / recipe_plan / run_recipe answer
  *   a Nano Banana ask with the switched-off line and a GPT Image card,
  *   making nothing.
+ * - checkJob (extracted from index.ts and run here, log and Higgsfield
+ *   mocked): a Nano Banana job logged before the switch is still answered
+ *   from its log row, never sent to Higgsfield's job-status request or to
+ *   Google.
  */
 const assert = require('assert');
 const fs = require('fs');
@@ -90,5 +94,45 @@ const OFF = 'Nano Banana is switched off for the team. GPT Image does the same j
   assert.ok(/const off = asksSwitchedOff\(args\.model\);/.test(recipe) && /if \(name === "recipe_plan" \|\| off\) \{/.test(recipe), 'a recipe asked on Nano Banana shows the GPT Image plan and runs nothing');
   assert.ok(recipe.indexOf('if (name === "recipe_plan" || off)') < recipe.indexOf('submitJob('), 'before any job is submitted');
 
-  console.log('higgsfield-nano-banana-off: Nano Banana is switched off, never called, and an ask for it gets a GPT Image price card ✅');
+  // Old Nano Banana jobs (logged before the switch) are still answered from
+  // the log row. checkJob is taken from index.ts and run for real, with the
+  // log and Higgsfield mocked; a Higgsfield model is the control that proves
+  // the Higgsfield mock is reached when it should be.
+  for (const id of d.GOOGLE_IMAGE_IDS) assert.strictEqual(d.answeredFromLog(id), true, id + ' jobs are answered from the log while off');
+  for (const id of ['openai/gpt-image', 'openai/gpt-image-fast']) assert.strictEqual(d.answeredFromLog(id), true, id + ' jobs are answered from the log');
+  for (const id of ['higgsfield-ai/soul/v2/standard', 'kling-video/v2.6/pro/image-to-video']) assert.strictEqual(d.answeredFromLog(id), false, id + ' jobs go to Higgsfield');
+  const { stripTypeScriptTypes } = require('module');
+  assert.strictEqual(typeof stripTypeScriptTypes, 'function', 'this Node can strip TypeScript (needed to run checkJob)');
+  const cjAt = src.indexOf('async function checkJob(');
+  assert.ok(cjAt > 0, 'checkJob is where this test expects it');
+  const cjSrc = stripTypeScriptTypes(src.slice(cjAt, src.indexOf('\n}\n', cjAt) + 3));
+  const JOB = '0b7e2c1a-4d5f-4a6b-8c9d-0e1f2a3b4c5d';
+  const runCheck = async (row) => {
+    const hfCalls = [];
+    const logWrites = [];
+    const fakeDb = () => ({ from: () => ({
+      select: () => ({ eq: (col, val) => ({ maybeSingle: async () => ({ data: col === 'request_id' && val === JOB ? row : null }) }) }),
+      update: (patch) => { logWrites.push(patch); return { eq: () => ({ select: async () => ({ data: [{ est_cost_usd: 0.05 }] }) }) }; },
+    }) });
+    const fakeHf = async (...a) => { hfCalls.push(a); return { ok: true, status: 200, data: { status: 'completed', images: [{ url: 'https://higgsfield.example/out.png' }] } }; };
+    const checkJob = new Function('db', 'hf', 'answeredFromLog', 'isDirect', 'money', 'outputs', 'hfError', cjSrc + '\nreturn checkJob;')(
+      fakeDb, fakeHf, d.answeredFromLog, d.isDirect, (n) => '$' + Number(n).toFixed(2), (data) => (data.images || []).map((x) => x.url), () => 'refused');
+    const text = await checkJob(JOB);
+    return { text, hfCalls, logWrites };
+  };
+  const fetchedBefore = fetched.length;
+  for (const model of d.GOOGLE_IMAGE_IDS) {
+    const done = await runCheck({ model, status: 'completed', video_url: 'https://store.example/old-banana.png', est_cost_usd: 0.101 });
+    assert.deepStrictEqual(done.hfCalls, [], 'an old ' + model + ' job is never sent to Higgsfield');
+    assert.deepStrictEqual(done.logWrites, [], 'and its log row is not overwritten');
+    assert.ok(done.text.startsWith('Done. It cost $0.10. Download:\nhttps://store.example/old-banana.png'), 'it is answered from the log row: ' + done.text);
+    const failed = await runCheck({ model, status: 'failed', error: 'You exceeded your current quota', est_cost_usd: 0.101 });
+    assert.deepStrictEqual(failed.hfCalls, [], 'a failed old ' + model + ' job is never sent to Higgsfield');
+    assert.ok(failed.text.startsWith('It failed: You exceeded your current quota'), 'and reads its failure from the log: ' + failed.text);
+  }
+  assert.strictEqual(fetched.length, fetchedBefore, 'no network call (Google or otherwise) was made to read old Nano Banana jobs');
+  const control = await runCheck({ model: 'higgsfield-ai/soul/v2/standard', status: 'queued', est_cost_usd: 0.05 });
+  assert.deepStrictEqual(control.hfCalls, [['GET', 'requests/' + JOB + '/status']], 'a Higgsfield job does reach the Higgsfield mock (the control)');
+
+  console.log('higgsfield-nano-banana-off: Nano Banana is switched off, never called, an ask for it gets a GPT Image price card, and old Nano Banana jobs are answered from the log ✅');
 })().catch((e) => { console.error(e); process.exit(1); });

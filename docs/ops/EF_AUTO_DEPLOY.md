@@ -46,7 +46,9 @@ runs nothing on his own machine.
      touched only `production-comments`), its live source is read, and the
      follower is held until it matches.
    - **Already live.** Whatever held a function, if the live source already equals
-     this commit's, it is `already-live` and nothing is done.
+     this commit's, it is `already-live` and nothing is done. (Not a function whose
+     `supabase/config.toml` block says `verify_jwt = true`: that hold is never
+     checked against live, because this lane only deploys JWT-off functions.)
    - **The manual lanes' own safeguards**, the same reads: the onboarding,
      HubSpot sync and Frame.io keeper schema readbacks
      (`deploy-single-function.yml`), `PTO_SCHEMA_CONTRACT`
@@ -100,6 +102,17 @@ migrations and pins of every merge in between. That hand-over shows as a red run
 that says so and pages nobody; the tip's run pages if it fails. If a merge slips
 in during the dispatch, the lane refuses at validation, before any secret, and
 the rule is applied again at the new tip.
+
+The three are one group: if any one of them is held (its own migration, the
+drift guard, a stale pin, a failed safeguard), all three are held, because the
+Section 4 lane would deploy the held one too. Release the held one first.
+
+**A manual Section 4 release uses `commit_sha` = main's tip** (Run workflow on
+[the merge lane](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-edge-functions-on-merge.yml),
+`functions` = the held ones, or the Section 4 lane itself with `capture`). A manual
+run of an older commit, with function, migration or lane changes since, ends in
+the hand-over above and nothing follows it: the summary says so and names the tip
+to use. Nobody's push run takes over a manual one.
 
 Dry run of the capture: Run workflow on the Section 4 lane with
 `operation=capture-only`, `confirm=CAPTURE_F27_SECTION4_PRIOR_THREE`, both bundle

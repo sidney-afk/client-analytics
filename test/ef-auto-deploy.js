@@ -113,6 +113,21 @@ try {
   p = run(c5, c6);
   ok(decision(p, 'beta') === 'held', 'a function whose config asks for verify_jwt = true is held (this lane deploys JWT-off only)');
 
+  // The Section 4 lane deploys all three together: one held sibling holds the group.
+  put('supabase/functions/production-write/index.ts', 'Deno.serve(() => new Response("pw 7"));\n');
+  put('supabase/functions/deliverable-write/index.ts', 'Deno.serve(() => new Response("dw 7"));\n');
+  const cg = pinLane();
+  p = run(c6, cg, ['--functions=production-write,deliverable-write']);
+  ok(units(p).includes('@f27-section4'), 'with all pins right the lane is dispatched once for the group');
+  // Only deliverable-write is held (a hand-chosen run, its pin removed); production-write is fine on its own.
+  const laneFile = path.join(tmp, '.github/workflows/deploy-f27-section4-closures.yml');
+  fs.writeFileSync(laneFile, fs.readFileSync(laneFile, 'utf8').replace(/DELIVERABLE_WRITE_SOURCE_SHA256: [0-9a-f]{64}/, 'DELIVERABLE_WRITE_SOURCE_SHA256: ' + '0'.repeat(64)));
+  g('add', '.'); g('commit', '-q', '-m', 'one bad pin'); const cgBad = g('rev-parse', 'HEAD');
+  p = run(c6, cgBad, ['--functions=production-write,deliverable-write']);
+  ok(decision(p, 'deliverable-write') === 'held' && decision(p, 'production-write') === 'held'
+    && /waits for deliverable-write/.test(p.functions.find(r => r.slug === 'production-write').reason) && !units(p).includes('@f27-section4'),
+    'one of the three held means the whole Section 4 group is held and the lane is never dispatched for the others');
+
   // A run can span several merges: a migration holds only the functions its own merge changed.
   put('migrations/2026-10-18-needs-apply.sql', 'create table if not exists u (id int);\n');
   put('supabase/functions/beta/index.ts', 'Deno.serve(() => new Response("beta 6"));\n');

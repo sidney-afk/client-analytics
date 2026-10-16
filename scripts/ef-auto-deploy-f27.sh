@@ -36,8 +36,8 @@ tip_is_safe() {
   local tip="$1"
   [ "$tip" = "$DEPLOY_COMMIT" ] && return 0
   if [ -n "$(git diff --name-only "$DEPLOY_COMMIT" "$tip" -- "${watched[@]}")" ]; then
-    echo "Main moved on to $tip and the merges in between changed functions, migrations or this lane. Not dispatching Section 4 at a commit that was not planned." >> "$GITHUB_STEP_SUMMARY"
-    echo "::warning::Section 4 is handed to the run of main's newer tip ($tip), which plans it with the migrations and pins of every merge in between."
+    echo "Main moved on to $tip and the merges in between changed functions, migrations or this lane. Section 4 was not dispatched. A push run: the run of $tip plans it. A manual run: run this lane again with commit_sha = $tip." >> "$GITHUB_STEP_SUMMARY"
+    echo "::warning::Section 4 is handed to the run of main's newer tip ($tip), which plans it with the migrations and pins of every merge in between. On a manual run nothing follows: run this lane again by hand with commit_sha = $tip."
     return 3
   fi
   echo "Main moved on to $tip, but nothing the lane plans from changed since $DEPLOY_COMMIT; the tip is dispatched."

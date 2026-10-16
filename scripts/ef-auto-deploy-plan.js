@@ -190,6 +190,20 @@ function cascadeHolds(rows) {
   let changed = true;
   while (changed) {
     changed = false;
+    // The Section 4 lane deploys all three together. If one of the three is held
+    // (its own migration, drift guard, pin, safeguard), the whole group is held:
+    // dispatching the lane would deploy the held one too.
+    const group = rows.filter(r => F27_LANE.includes(r.slug));
+    const blocker = group.find(r => r.decision === 'held');
+    if (blocker) {
+      for (const r of group) {
+        if (r.decision !== 'f27-lane') continue;
+        r.decision = 'held';
+        r.reason = `waits for ${blocker.slug}: the Section 4 lane deploys production-write, deliverable-write and batch-write together, and ${blocker.slug} is held (${blocker.reason})`;
+        r.release = `release ${blocker.slug} first (${blocker.release}); this one is released with it`;
+        changed = true;
+      }
+    }
     for (const [before, after] of ORDER) {
       const b = rows.find(r => r.slug === before);
       const a = rows.find(r => r.slug === after);

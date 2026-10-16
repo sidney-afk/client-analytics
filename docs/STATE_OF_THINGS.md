@@ -23,6 +23,13 @@ line is older than a week, re-check it before relying on it.
 Newest first. Checked against main and the live database on 2026-10-16. When an item here is finished or moved into
 the sections below, delete it from this block in the same PR.
 
+**In review (session Cinema, 2026-10-16): Watch here, one view for the video and its notes.** Every door (the Notes
+button, the Sheet's play icon, the Review tab's video preview, Kasper's "Watch here") opens the card's Notes dialog with
+the player on the left (on a phone, on top). Nothing plays until play is pressed (bottom centre of the player). Staff
+see the Frame.io comments as rows in the notes list, in time order, marked "Frame.io", with clickable video times; a
+client link never does. The old pop-up and the in-place player on the Review tab are gone. No function or switch
+change: `frame_viewer_clients` is untouched, Lighthouse turns it on for everyone after this merges.
+
 **In review (session Atelier, 2026-10-16): Synchro video studio, step 1.** A read-only `studio_latest` tool on the
 Synchro connector gives the newest studio zip from the private `studio` bucket (version, a signed download link valid
 about 10 minutes, notes) and says "No studio version uploaded yet" when `latest.json` is missing. Each call is logged in

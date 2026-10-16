@@ -3,27 +3,28 @@ import { _calRuntimeFlagClient, _calRuntimeFlagRawMembers, _calRuntimeFlagSlug, 
 import { calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
-    /* WATCH HERE: a card's Frame.io video, inside SyncView. Three ways in, all behind the frame_viewer_clients switch:
-         - the Review tab's video preview plays the video in place (staff and client link; no comments);
-         - the Sheet's thumbnail has a small play icon that opens the pop-up below (staff only);
-         - Kasper's review keeps its "Watch here" button for the same pop-up (staff only).
-       The rest of this comment describes the pop-up.
+    /* WATCH HERE: a card's Frame.io video, inside SyncView, behind the frame_viewer_clients switch.
 
-       ONE viewer, opened from the Calendar card, the SMM review panel and Kasper's review. Every
-       "Watch here" button carries the card's video link; the viewer asks the frameio-view function
-       (a staff key is required; client links never get the button or the viewer) for a fresh playable
-       address and the comments, and plays them in our own player. Read only: replying stays in Frame.io
-       (the buttons open the video there), and nothing the function returns is saved by the page.
+       ONE view for the video and its notes (owner, 2026-10-16): the card's Notes dialog, with the player on the
+       left and the notes on the right (on a phone the video on top and the notes below). It opens the same way
+       from every door: the Notes button, the Sheet thumbnail's play icon, the Review tab's video preview and
+       Kasper's "Watch here". Staff, Kasper and the client link get the same view; a client link never sees the
+       Frame.io comments (the frameio-view function only gives it the playable address of its own card).
 
-       If anything fails, the viewer says so in a sentence and the normal Frame.io link keeps working:
-       the link is in the header from the first frame, before anything has loaded. */
+       Opening it never plays anything: the video plays only when the person presses play, the button at the
+       bottom centre of the player. Until the address arrives the poster shows with a quiet loading line, and the
+       Frame.io comments (staff) arrive as rows in the notes list, in time order with the notes, each marked
+       "Frame.io"; a comment's video time jumps the player there.
+
+       This file owns the player and the Frame.io comments; the Notes dialog (190) owns the notes and asks this
+       file for the stage (svFrameStageMount) and for the Frame.io rows (svFrameFeed). Read only: replying to a
+       Frame.io comment stays in Frame.io, and nothing the function returns is saved by the page.
+
+       If anything fails, the player says so in a sentence, with Try again, and the Frame.io link keeps working. */
     const FRAMEIO_VIEW_EF_URL = CAL_SUPABASE_URL + '/functions/v1/frameio-view';
     const FV_FETCH_MS = 45000;
-    // The three link shapes the function understands. Anything else gets no button.
+    // The three link shapes the function understands. Anything else gets no player.
     const FV_LINK_RE = /https?:\/\/(?:f\.io\/[A-Za-z0-9_-]{3,40}|next\.frame\.io\/(?:share|project)\/[0-9a-f-]{36}[^\s<>"']*)/i;
-    const FV_INLINE_RETRY_LIMIT = 1;
-    const FV_STATE = { open: false, seq: 0, link: '', title: '', card: '', poster: '', data: null, rec: null, frio: null, notes: [], opener: null, retried: false, resumeAt: 0 };
-
     function _fvLinkOf(raw) {
         const m = String(raw || '').match(FV_LINK_RE);
         return m ? m[0].replace(/[),.;]+$/, '') : '';
@@ -68,24 +69,17 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             if (_fvEnabledFor(b.getAttribute('data-fv-client'))) b.removeAttribute('hidden');
             else b.setAttribute('hidden', '');
         });
-        // A video already playing in place goes when the switch turns off for its client: it stops and says where to watch.
-        document.querySelectorAll('.fv-inline').forEach((box) => {
-            if (_fvEnabledFor(box.getAttribute('data-fv-client'))) return;
-            const v = box.querySelector('video');
-            if (v) { try { v.pause(); } catch (e) {} v.removeAttribute('src'); try { v.load(); } catch (e) {} }
-            box._fvSeq = (box._fvSeq || 0) + 1;
-            const open = box.getAttribute('data-fv-link') || '';
-            box.innerHTML = `<div class="fv-inline-state"><div class="fv-state-text">Watching here has been switched off.</div><div class="fv-state-actions"><a class="fv-btn fv-btn-ghost fv-btn-small" href="${_calEscAttr(open)}" target="_blank" rel="noopener noreferrer">Open in Frame.io</a></div></div>`;
-        });
         document.querySelectorAll('[data-fv-tile]').forEach((t) => {
             const on = _fvEnabledFor(t.getAttribute('data-fv-client'));
-            if (on) { t.setAttribute('data-fv-on', ''); t.setAttribute('aria-label', 'Play video'); }
+            if (on) { t.setAttribute('data-fv-on', ''); t.setAttribute('aria-label', 'Watch the video with its notes'); }
             else { t.removeAttribute('data-fv-on'); t.setAttribute('aria-label', 'Open video'); }
         });
     }
     function _fvFlagSet(value) {
         _fvFlag = _fvFlagParse(value);
         _fvSyncButtons();
+        // The Notes view re-checks its player: the switch turning on or off for its card shows or removes it.
+        try { window.dispatchEvent(new Event('sv-frame-switch')); } catch (e) {}
     }
     async function _fvFlagFetch() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _fvFlagSet(null); return; }
@@ -123,7 +117,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }
     }
     // Once per page (again after a failed read, at most every 30 seconds). Client link pages read it too, because
-    // the Review tab's inline player is theirs as well; the server checks the same switch before it answers.
+    // the Review tab's video preview opens the same view for them; the server checks the same switch before it answers.
     function _fvPrimeFlag() {
         if (_fvFlagPromise) return;
         if (Date.now() - _fvFlagTriedAt < FV_FLAG_RETRY_MS && _fvFlagTriedAt) return;
@@ -131,25 +125,28 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _fvFlagPromise = _fvFlagFetch();
         _fvFlagPromise.then(() => _fvFlagSubscribe()).catch(() => null);
     }
-    /* The pop-up openers every staff surface drops in. Empty for a client link page, and for a card whose video
-       link is not a Frame.io link, so nothing about those pages changes. Pointing at one (hover, focus, press,
-       touch) starts the slow part of the open at once: the function's answer and the first bytes of the video
-       are fetched while the click is still on its way (svFrameIntent). */
+    /* THE DOORS. The Sheet thumbnail's play icon and Kasper's "Watch here" (staff only), and the Review tab's video
+       preview (staff and client link). They are always drawn (so a later flip of the switch needs no repaint) but do
+       nothing new unless the switch allows their card's client: the icon and the button carry the hidden attribute,
+       and the preview stays a plain link to the video, exactly as before the viewer existed. With the switch on, each
+       one opens the card's Notes view with the player (svOpenCardNotes, 326). Pointing at one (hover, focus, press,
+       touch) starts the slow part at once: the function's answer and the first bytes of the video are fetched while
+       the click is still on its way (svFrameIntent). */
     function _fvOpenerHtml(rawLink, title, cls, client, inner, label, cardId) {
         if (_isClientLink) return '';
         const link = _fvLinkOf(rawLink);
-        if (!link) return '';
+        if (!link || !cardId) return '';
         _fvPrimeFlag();
         const who = _fvFlagSlugOf(client || (calState && calState.client) || '');
         const hidden = _fvEnabledFor(who) ? '' : ' hidden';
-        return `<button type="button" class="${_calEscAttr(cls)} fv-gated" data-fv-client="${_calEscAttr(who)}" data-fv-link="${_calEscAttr(link)}" data-fv-title="${_calEscAttr(title || '')}" data-fv-card="${_calEscAttr(cardId || '')}"${hidden}${label ? ` aria-label="${_calEscAttr(label)}"` : ''} onpointerenter="svFrameIntent(this,120)" onfocus="svFrameIntent(this,0)" onpointerdown="svFrameIntent(this,0)" ontouchstart="svFrameIntent(this,0)" onclick="event.stopPropagation();svFrameViewerOpen(this)" title="Watch the video and read its comments here">${inner}</button>`;
+        return `<button type="button" class="${_calEscAttr(cls)} fv-gated" data-fv-client="${_calEscAttr(who)}" data-fv-link="${_calEscAttr(link)}" data-fv-title="${_calEscAttr(title || '')}" data-fv-card="${_calEscAttr(cardId || '')}"${hidden}${label ? ` aria-label="${_calEscAttr(label)}"` : ''} onpointerenter="svFrameIntent(this,120)" onfocus="svFrameIntent(this,0)" onpointerdown="svFrameIntent(this,0)" ontouchstart="svFrameIntent(this,0)" onclick="event.stopPropagation();svFrameOpen(this)" title="Watch the video with its notes">${inner}</button>`;
     }
     function svFrameWatchBtnHtml(rawLink, title, cls, client, cardId) {
         return _fvOpenerHtml(rawLink, title, cls || 'fv-watch-btn', client, `${FV_PLAY_ICO}<span>Watch here</span>`, '', cardId);
     }
     // The Sheet's thumbnail: a small play icon, top centre, shown on hover (always on a phone).
     function svFramePlayIconHtml(rawLink, title, client, cardId) {
-        return _fvOpenerHtml(rawLink, title, 'cal-thumb-play', client, FV_PLAY_ICO, 'Watch the video here', cardId);
+        return _fvOpenerHtml(rawLink, title, 'cal-thumb-play', client, FV_PLAY_ICO, 'Watch the video with its notes', cardId);
     }
     // A card's link can change while its thumbnail stays on screen: keep the icon pointing at the card's current video.
     function svFrameSyncPlayIcon(thumbDiv, post) {
@@ -160,22 +157,43 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (cur) cur.remove();
         if (want) thumbDiv.insertAdjacentHTML('beforeend', svFramePlayIconHtml(post.asset_url, post.name, post.client, post.id));
     }
+    async function svFrameOpen(btn) {
+        if (_isClientLink || !btn || !btn.getAttribute) return;
+        const pid = btn.getAttribute('data-fv-card') || '';
+        if (!pid || !_fvLinkOf(btn.getAttribute('data-fv-link'))) return;
+        // A click can land before the switch has been read: wait for that one read (bounded), then decide.
+        _fvPrimeFlag();
+        if (_fvFlagPromise) { try { await _fvFlagPromise; } catch (e) {} }
+        if (!_fvEnabledFor(btn.getAttribute('data-fv-client'))) return;
+        if (typeof window.svOpenCardNotes !== 'function') return;
+        btn.setAttribute('aria-busy', 'true');
+        try { await window.svOpenCardNotes(btn.getAttribute('data-fv-client') || '', pid); }
+        finally { btn.removeAttribute('aria-busy'); }
+    }
 
-    /* THE REVIEW TAB: the video preview plays in place. The tile stays a normal link to the video; with the switch
-       on it is marked data-fv-on, its label says "Play video" and a click plays the video where the preview was.
-       With the switch off (or any other kind of link) none of this applies and the tile opens the link in a new
-       tab exactly as before. */
+    /* THE REVIEW TAB: the video preview stays a normal link to the video; with the switch on it is marked data-fv-on
+       and a click opens the Notes view with the player instead (a modified click still opens the link). */
     function svFrameTileAttrs(rawLink, client, cardId, poster) {
         const link = _fvLinkOf(rawLink);
         if (!link) return '';
         _fvPrimeFlag();
         const who = _fvFlagSlugOf(client || (calState && calState.client) || '');
         const on = _fvEnabledFor(who);
-        return ` data-fv-tile${on ? ' data-fv-on' : ''} data-fv-client="${_calEscAttr(who)}" data-fv-link="${_calEscAttr(link)}" data-fv-card="${_calEscAttr(cardId || '')}" data-fv-poster="${_calEscAttr(poster || '')}" onpointerenter="svFrameIntent(this,120)" onpointerdown="svFrameIntent(this,0)" ontouchstart="svFrameIntent(this,0)" onclick="return svFrameInlinePlay(event,this)"`;
+        return ` data-fv-tile${on ? ' data-fv-on' : ''} data-fv-client="${_calEscAttr(who)}" data-fv-link="${_calEscAttr(link)}" data-fv-card="${_calEscAttr(cardId || '')}" data-fv-poster="${_calEscAttr(poster || '')}" onpointerenter="svFrameIntent(this,120)" onpointerdown="svFrameIntent(this,0)" ontouchstart="svFrameIntent(this,0)" onclick="return svFrameTileOpen(event,this)"`;
     }
     function svFrameTileLabelHtml(rawLink) {
         if (!_fvLinkOf(rawLink)) return '<span class="cal-review-video-label">Open video ↗</span>';
-        return '<span class="cal-review-video-label fv-lbl-off">Open video ↗</span><span class="cal-review-video-label fv-lbl-on">Play video</span>';
+        return '<span class="cal-review-video-label fv-lbl-off">Open video ↗</span><span class="cal-review-video-label fv-lbl-on">Watch video</span>';
+    }
+    function svFrameTileOpen(ev, tile) {
+        if (!tile || !tile.hasAttribute('data-fv-on')) return true;
+        if (ev && (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey || ev.button === 1)) return true;
+        const pid = tile.getAttribute('data-fv-card') || '';
+        if (!pid || !_fvLinkOf(tile.getAttribute('data-fv-link')) || typeof window.svOpenCardNotes !== 'function') return true;
+        if (ev && ev.preventDefault) ev.preventDefault();
+        if (ev && ev.stopPropagation) ev.stopPropagation();
+        window.svOpenCardNotes(tile.getAttribute('data-fv-client') || '', pid);
+        return false;
     }
     // The small link under the preview (hidden unless the switch is on for this card's client).
     function svFrameIoLinkHtml(rawLink, client) {
@@ -187,26 +205,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return `<a class="fv-frameio-link fv-gated" data-fv-client="${_calEscAttr(who)}" href="${_calEscAttr(link)}" target="_blank" rel="noopener noreferrer"${hidden}>Watch in Frame.io ↗</a>`;
     }
 
-    /* THE NOTES: the card's own SyncView notes on the video, shown in the same list as the Frame.io comments. The code
-       that owns the cards (the Calendar, and Kasper's queue, which holds cards the Calendar has not loaded) registers a
-       provider each: it answers with the card's notes, or null when the card is not one of its own. This file never
-       reads notes itself. */
-    const _fvNotesProviders = [];
-    function svFrameAddNotesProvider(fn) { if (typeof fn === 'function') _fvNotesProviders.push(fn); }
-    function _fvNotesFor(cardId) {
-        if (!cardId) return [];
-        for (const fn of _fvNotesProviders) {
-            try { const out = fn(cardId); if (Array.isArray(out)) return out; } catch (e) { /* try the next */ }
-        }
-        return [];
-    }
-
-    /* THE PLAYER, shared by the pop-up and the Review tab's in-place player.
+    /* THE PLAYER, inside the Notes view.
          start    the full-size file (the best one the link allows), or the small proxy on a slow connection;
          wait     no first frame within 4 seconds, or playback stalling for 2.5 seconds: carry on from the same
                   second with the small proxy (and say so quietly);
          warm     pointing at the opener already fetched the address and the first bytes into a video element that
-                  is handed over on open, so the first frame is mostly there before the click. */
+                  is handed over on open, so the first frame is mostly there before the click. It is only
+                  loaded, never played: nothing plays until the person presses play. */
     const FV_START_MS = 4000;
     const FV_STALL_MS = 2500;
     const FV_PRE_TTL_MS = 45000;
@@ -281,18 +286,6 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         video.removeAttribute('src');
         try { video.load(); } catch (e) {}
     }
-    // Sound on if the browser allows it; otherwise muted, and onMuted() shows the "tap for sound" control.
-    function _fvAutoplay(video, onMuted) {
-        video.muted = false;
-        const p = video.play();
-        if (p && p.catch) p.catch(() => {
-            video.muted = true;
-            const q = video.play();
-            if (q && q.catch) q.catch(() => {});
-            if (onMuted) onMuted();
-        });
-    }
-
     // ---- asking the function. The address and the comments are two requests, sent side by side, so the video
     // never waits for the comments (and a client link never asks for comments at all).
     async function _fvRequest(body) {
@@ -359,8 +352,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         FV_PRE.set(key, rec);
         return rec;
     }
-    // Pointing at an opener (staff pop-up icon, or either Review tile). Hover waits 120 ms so a mouse passing over
-    // does not fetch; focus, press and touch start at once.
+    // Pointing at a door. Hover waits 120 ms so a mouse passing over does not fetch; focus, press and touch start at once.
     function svFrameIntent(el, delay) {
         if (!el || !el.getAttribute) return;
         const tile = el.hasAttribute('data-fv-tile');
@@ -371,393 +363,318 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const cardId = el.getAttribute('data-fv-card') || '';
         const go = () => {
             const rec = _fvGetVideo(link, cardId, false);
-            if (!tile && !_isClientLink && !rec.comments) rec.comments = _fvFetchComments(link);
+            if (!_isClientLink && !rec.comments) rec.comments = _fvFetchComments(link);
         };
         clearTimeout(_fvIntentTimer);
         if (delay > 0) _fvIntentTimer = setTimeout(go, delay); else go();
     }
 
-    // ---- the Review tab's in-place player
-    function _fvInlineState(box, kind, text, withRetry) {
-        const st = box.querySelector('.fv-inline-state');
-        if (!st) return;
-        if (kind === 'ready') { st.innerHTML = ''; st.hidden = true; return; }
-        st.hidden = false;
-        st.className = 'fv-inline-state' + (kind === 'loading' ? ' is-loading' : '');
-        if (kind === 'loading') { st.innerHTML = '<div class="fv-spin" aria-hidden="true"></div>'; return; }
-        const open = box.getAttribute('data-fv-link') || '';
-        st.innerHTML = `<div class="fv-state-text fv-state-bad">${_calEsc(text || 'The video could not be loaded.')}</div>
-            <div class="fv-state-actions">${withRetry ? '<button type="button" class="fv-btn fv-btn-small" onclick="svFrameInlineRetry(this)">Try again</button>' : ''}<a class="fv-btn fv-btn-ghost fv-btn-small" href="${_calEscAttr(open)}" target="_blank" rel="noopener noreferrer">Open in Frame.io</a></div>`;
-    }
-    async function _fvInlineLoad(box, resumeAt, fresh) {
-        const seq = (box._fvSeq = (box._fvSeq || 0) + 1);
-        // Every load and reload checks the switch first.
-        if (!_fvEnabledFor(box.getAttribute('data-fv-client'))) { _fvInlineState(box, 'error', 'Watching here has been switched off.', false); return; }
-        _fvInlineState(box, 'loading');
-        const link = box.getAttribute('data-fv-link') || '';
-        if (!_isClientLink) { try { await _syncviewRequireStaffIdentity('frame-view'); } catch (e) { _fvInlineState(box, 'error', 'Your staff sign-in was not accepted for this. Sign in again and retry.', true); return; } }
-        const rec = _fvGetVideo(link, box.getAttribute('data-fv-card') || '', !!fresh);
-        const res = await rec.video;
-        if (seq !== box._fvSeq || !document.contains(box)) return;
-        if (!res.ok) { _fvInlineState(box, 'error', res.message, true); return; }
-        const old = box.querySelector('video');
-        let video = old;
-        if (rec.warm && !rec.adopted) { video = rec.warm; rec.adopted = true; rec.warm = null; old.replaceWith(video); }
-        else if (old._fvCtl) _fvStart(old, res.video, resumeAt || 0);
-        else _fvStart(old, res.video, resumeAt || 0);
-        video.className = 'fv-inline-video'; video.controls = true;
-        const poster = box.getAttribute('data-fv-poster') || '';
-        if (poster) video.poster = poster;
-        box._fvVideo = video;
-        if (!video._fvInlineWired) {
-            video._fvInlineWired = true;
-            video.addEventListener('loadeddata', () => { if (box._fvSeq === seq || true) _fvInlineState(box, 'ready'); });
-            video.addEventListener('fv-smaller', () => box.setAttribute('data-fv-small', ''));
-            video.addEventListener('volumechange', () => { const b = box.querySelector('.fv-unmute'); if (b && !video.muted) b.hidden = true; });
-            video.addEventListener('error', () => {
-                if (!video.getAttribute('src')) return;
-                if (_fvTryEfficient(video)) return;
-                // The address is signed and expires: ask once for a new one and carry on from the same second.
-                if ((box._fvRetries || 0) < FV_INLINE_RETRY_LIMIT) { box._fvRetries = (box._fvRetries || 0) + 1; _fvInlineLoad(box, video.currentTime || 0, true); return; }
-                _fvInlineState(box, 'error', 'This video could not be played here. It may need a different format.', true);
-            });
-        }
-        if (video.readyState >= 2) _fvInlineState(box, 'ready');
-        // A warmed video can have failed before it was handed over: treat that as the error it is.
-        if (video.error) setTimeout(() => { if (video.error && document.contains(box)) video.dispatchEvent(new Event('error')); }, 0);
-        _fvAutoplay(video, () => { const b = box.querySelector('.fv-unmute'); if (b) b.hidden = false; });
-    }
-    function svFrameInlinePlay(ev, tile) {
-        // Switched off, or a modified click (new tab, new window): the link just opens.
-        if (!tile || !tile.hasAttribute('data-fv-on')) return true;
-        if (ev && (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey || ev.button === 1)) return true;
-        const link = _fvLinkOf(tile.getAttribute('data-fv-link'));
-        if (!link) return true;
-        if (ev && ev.preventDefault) ev.preventDefault();
-        if (ev && ev.stopPropagation) ev.stopPropagation();
-        document.querySelectorAll('.fv-inline-video').forEach((v) => { try { v.pause(); } catch (e) {} });
-        const box = document.createElement('div');
-        box.className = 'cal-review-video-tile fv-inline';
-        box.setAttribute('data-fv-link', link);
-        box.setAttribute('data-fv-client', tile.getAttribute('data-fv-client') || '');
-        box.setAttribute('data-fv-card', tile.getAttribute('data-fv-card') || '');
-        box.setAttribute('data-fv-poster', tile.getAttribute('data-fv-poster') || '');
-        box.innerHTML = '<video class="fv-inline-video" controls playsinline preload="auto"></video><div class="fv-inline-state is-loading" role="status"></div><button type="button" class="fv-unmute" hidden onclick="svFrameUnmute(this)">Tap for sound</button>';
-        _fvWire(box.querySelector('video'));
-        const poster = box.getAttribute('data-fv-poster');
-        if (poster) box.querySelector('video').poster = poster;
-        tile.replaceWith(box);
-        _fvInlineLoad(box, 0, false);
-        return false;
-    }
-    function svFrameInlineRetry(btn) {
-        const box = btn && btn.closest ? btn.closest('.fv-inline') : null;
-        if (!box) return;
-        box._fvRetries = 0;
-        _fvInlineLoad(box, 0, true);
-    }
-    function svFrameUnmute(btn) {
-        const host = btn && btn.closest ? btn.closest('.fv-inline, .fv-player') : null;
-        const v = host ? host.querySelector('video') : null;
-        if (v) { v.muted = false; if (v.paused) { const p = v.play(); if (p && p.catch) p.catch(() => {}); } }
-        btn.hidden = true;
-    }
-
-    // ---- the pop-up (Sheet icon, Kasper's row)
-    // Escape closes it wherever the focus is (it can be on nothing after a button inside the viewer is replaced).
-    function _fvKey(e) { if (e.key === 'Escape' && FV_STATE.open) { e.stopPropagation(); svFrameViewerClose(); } }
-
-    function _fvEl() { return document.getElementById('fvOverlay'); }
-    function _fvPart(sel) { const el = _fvEl(); return el ? el.querySelector(sel) : null; }
-    function _fvTime(sec) {
+    function svFrameTime(sec) {
         const s = Math.max(0, Math.floor(Number(sec) || 0));
         const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
         return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(r).padStart(2, '0');
     }
-    function _fvAgo(iso) {
-        const t = Date.parse(iso);
-        if (!t) return '';
-        const d = Math.max(0, Date.now() - t), day = 86400000;
-        if (d < 3600000) return Math.max(1, Math.round(d / 60000)) + ' min ago';
-        if (d < day) return Math.round(d / 3600000) + ' h ago';
-        if (d < 30 * day) return Math.round(d / day) + ' d ago';
-        return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-    }
     const FV_EXT_ICO = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5h3.5V6M11.5 2.5 6.5 7.5"/><path d="M10 8.5v2a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h2"/></svg>';
+    const FV_PAUSE_ICO = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3.5" y="2.5" width="3.2" height="11" rx="1"/><rect x="9.3" y="2.5" width="3.2" height="11" rx="1"/></svg>';
+    const FV_SOUND_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6h2.5l3.5-3v10L5 10H2.5z" fill="currentColor"/><path d="M11 5.5a3.5 3.5 0 0 1 0 5M12.8 3.6a6 6 0 0 1 0 8.8"/></svg>';
+    const FV_MUTED_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6h2.5l3.5-3v10L5 10H2.5z" fill="currentColor"/><path d="M11 6l3.5 4M14.5 6 11 10"/></svg>';
+    const FV_FULL_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/></svg>';
 
-    function _fvBuild() {
-        if (_fvEl()) return _fvEl();
-        const el = document.createElement('div');
-        el.id = 'fvOverlay';
-        el.className = 'fv-overlay';
-        el.setAttribute('role', 'dialog');
-        el.setAttribute('aria-modal', 'true');
-        el.setAttribute('aria-labelledby', 'fvTitle');
-        el.innerHTML = `<div class="fv-panel" data-orient="landscape">
-            <div class="fv-head">
-                <h2 class="fv-title" id="fvTitle"></h2>
-                <a class="fv-open-link" id="fvOpenLink" target="_blank" rel="noopener noreferrer"><span>Open in Frame.io</span>${FV_EXT_ICO}</a>
-                <button type="button" class="fv-close" aria-label="Close" onclick="svFrameViewerClose()"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
-            </div>
-            <div class="fv-body">
-                <div class="fv-stage">
-                    <div class="fv-player" id="fvPlayer" data-state="loading">
-                        <div class="fv-state" id="fvState" role="status"></div>
-                        <button type="button" class="fv-unmute" id="fvUnmute" hidden onclick="svFrameUnmute(this)">Tap for sound</button>
+    /* THE STAGE: the player on the left of the Notes view (on top on a phone). The Notes view (190) gives it a host
+       element and the card; one stage at a time. Before the address arrives the poster shows with a thin moving line
+       along the bottom, no spinner and no empty box; the controls are drawn from the first frame so nothing moves when
+       the video is ready. The play button sits at the bottom centre; it never presses itself. */
+    const FV_STAGE = { host: null, pid: '', link: '', client: '', seq: 0, rec: null, frio: null, video: null, retried: false, wantPlay: false, resumeAt: 0, seekTo: null, scrubbing: false };
+
+    // The Frame.io link the card's player would play, or '' when this card gets no player (no Frame.io link, or the
+    // switch is off for its client).
+    function svFrameStageFor(post) {
+        if (!post) return '';
+        const link = _fvLinkOf(post.asset_url);
+        if (!link) return '';
+        _fvPrimeFlag();
+        return _fvEnabledFor(post.client || (calState && calState.client) || '') ? link : '';
+    }
+    function _fvSp(sel) { return FV_STAGE.host ? FV_STAGE.host.querySelector(sel) : null; }
+
+    function svFrameStageMount(host, post, poster) {
+        if (!host) return false;
+        const link = svFrameStageFor(post);
+        if (!link) { if (FV_STAGE.host === host) svFrameStageUnmount(); return false; }
+        if (FV_STAGE.host === host && FV_STAGE.pid === post.id && FV_STAGE.link === link && host.firstElementChild) return true;
+        svFrameStageUnmount();
+        Object.assign(FV_STAGE, { host, pid: post.id, link, client: post.client || (calState && calState.client) || '', rec: null, frio: null, video: null, retried: false, wantPlay: false, resumeAt: 0, seekTo: null, scrubbing: false });
+        const posterSafe = String(poster || '');
+        host.hidden = false;
+        host.setAttribute('data-orient', 'landscape');
+        host.innerHTML = `<div class="fv-player" data-state="loading">
+                ${posterSafe ? `<img class="fv-poster" src="${_calEscAttr(posterSafe)}" alt="" onerror="this.remove()">` : ''}
+                <div class="fv-state" role="status" aria-live="polite"></div>
+                <div class="fv-controls">
+                    <div class="fv-track"><input type="range" class="fv-scrub" min="0" max="1000" step="1" value="0" aria-label="Video position" disabled><div class="fv-markers" aria-hidden="true"></div></div>
+                    <div class="fv-bar">
+                        <span class="fv-clock"><span class="fv-now">0:00</span><span class="fv-dur"></span></span>
+                        <button type="button" class="fv-play" aria-label="Play">${FV_PLAY_ICO}</button>
+                        <span class="fv-bar-right">
+                            <button type="button" class="fv-icon-btn fv-mute" aria-label="Mute">${FV_SOUND_ICO}</button>
+                            <button type="button" class="fv-icon-btn fv-full" aria-label="Full screen">${FV_FULL_ICO}</button>
+                        </span>
                     </div>
-                    <div class="fv-markers" id="fvMarkers" aria-hidden="true"></div>
                 </div>
-                <aside class="fv-side" aria-label="Comments">
-                    <div class="fv-side-head"><span class="fv-side-title">Comments</span><span class="fv-count" id="fvCount"></span></div>
-                    <div class="fv-list" id="fvList"></div>
-                </aside>
+                <div class="fv-loadline" aria-hidden="true"></div>
             </div>
-        </div>`;
-        // A press that began on the backdrop and ended on it closes the viewer; a drag out of the panel does not.
-        el.setAttribute('data-backdrop-dismiss', '');
-        el.addEventListener('click', (e) => { if (e.target === el && el._backdropPressBegan) svFrameViewerClose(); });
-        document.body.appendChild(el);
-        return el;
-    }
-
-    function _fvSetState(kind, text, withRetry) {
-        const box = _fvPart('#fvState');
-        const player = _fvPart('#fvPlayer');
-        if (!box || !player) return;
-        player.setAttribute('data-state', kind);
-        if (kind === 'ready') { box.innerHTML = ''; return; }
-        if (kind === 'loading') { box.innerHTML = '<div class="fv-spin" aria-hidden="true"></div>'; return; }
-        box.innerHTML = `<div class="fv-state-text fv-state-bad">${_calEsc(text || 'The video could not be loaded.')}</div>
-            ${withRetry ? '<div class="fv-state-actions"><button type="button" class="fv-btn" onclick="svFrameViewerReload()">Try again</button></div>' : ''}`;
-    }
-
-    // The card's SyncView notes and the Frame.io comments, one list, oldest first. Each says where it came from.
-    function _fvEntries() {
-        const out = [];
-        const frio = FV_STATE.frio;
-        if (frio && frio.ok) {
-            (frio.data.comments || []).forEach((c) => out.push({
-                src: 'frameio', id: c.id, author: c.author || '', text: c.text, created_at: c.created_at, time: c.time_seconds == null ? null : c.time_seconds,
-                done: !!c.done, replies: (c.replies || []).map((r) => ({ author: r.author || '', text: r.text, created_at: r.created_at })),
-            }));
+            <div class="fv-stage-foot"><span class="fv-small-note" hidden>Smaller version for your connection</span><a class="fv-open-link" href="${_calEscAttr(link)}" target="_blank" rel="noopener noreferrer"><span>Open in Frame.io</span>${FV_EXT_ICO}</a></div>`;
+        const img = _fvSp('.fv-poster');
+        if (img) {
+            const fit = () => { if (img.naturalWidth && FV_STAGE.host === host && !(FV_STAGE.video && FV_STAGE.video.videoWidth)) _fvOrient(img.naturalWidth, img.naturalHeight); };
+            if (img.complete) fit(); else img.addEventListener('load', fit, { once: true });
         }
-        const notes = FV_STATE.notes || [];
-        const byParent = new Map();
-        notes.forEach((n) => { if (n.parent_id) { const a = byParent.get(n.parent_id) || []; a.push(n); byParent.set(n.parent_id, a); } });
-        notes.filter((n) => !n.parent_id || !notes.some((m) => m.id === n.parent_id)).forEach((n) => out.push({
-            src: 'syncview', id: n.id, author: n.author || '', text: n.text, created_at: n.created_at, time: null, done: !!n.done,
-            replies: (byParent.get(n.id) || []).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))).map((r) => ({ author: r.author || '', text: r.text, created_at: r.created_at })),
-        }));
-        out.sort((a, b) => (Date.parse(a.created_at) || 0) - (Date.parse(b.created_at) || 0));
-        return out;
-    }
-    function _fvRenderList() {
-        const list = _fvPart('#fvList'), count = _fvPart('#fvCount');
-        if (!list) return;
-        const frio = FV_STATE.frio;
-        const items = _fvEntries();
-        if (count) count.textContent = items.length ? String(items.length) : '';
-        const who = (a) => (a ? _calEsc(a) : '<span class="fv-guest">Guest reviewer</span>');
-        const html = items.map((c) => {
-            const t = c.time;
-            const chip = t == null ? '' : `<span class="fv-time">${_fvTime(t)}</span>`;
-            const replies = c.replies.map((r) => `<div class="fv-reply"><div class="fv-r-top"><span class="fv-c-by">${who(r.author)}</span><span class="fv-c-when">${_calEsc(_fvAgo(r.created_at))}</span></div><div class="fv-c-text">${_calEsc(r.text)}</div></div>`).join('');
-            const head = `<div class="fv-c-top">${chip}<span class="fv-c-by">${who(c.author)}</span><span class="fv-c-when">${_calEsc(_fvAgo(c.created_at))}</span>${c.done ? '<span class="fv-done">Done</span>' : ''}<span class="fv-src">${c.src === 'frameio' ? 'Frame.io' : 'SyncView'}</span></div><div class="fv-c-text">${_calEsc(c.text)}</div>`;
-            const main = t == null
-                ? `<div class="fv-c-main fv-c-static">${head}</div>`
-                : `<button type="button" class="fv-c-main" onclick="svFrameViewerSeek(this)" title="Jump to ${_fvTime(t)}">${head}</button>`;
-            return `<li class="fv-c fv-src-${c.src}${c.done ? ' is-done' : ''}" data-id="${_calEscAttr(c.id)}"${t == null ? '' : ` data-t="${t}"`}>${main}${replies ? `<div class="fv-replies">${replies}</div>` : ''}</li>`;
-        }).join('');
-        let tail = '';
-        if (!frio) tail = '<div class="fv-skel"></div>' + (items.length ? '' : '<div class="fv-skel"></div><div class="fv-skel fv-skel-short"></div>');
-        else if (!frio.ok) tail = '<div class="fv-note fv-note-bad">The Frame.io comments could not be loaded.<div><button type="button" class="fv-btn fv-btn-small" onclick="svFrameViewerReload()">Try again</button></div></div>';
-        else {
-            if (frio.data.comments_error) tail += '<div class="fv-note fv-note-bad">The Frame.io comments could not be loaded just now.</div>';
-            if (frio.data.comments_truncated) tail += '<div class="fv-note">Showing the first Frame.io comments only. The rest are in Frame.io.</div>';
-            if (frio.data.reply_names_partial) tail += '<div class="fv-note">Some reply names are not shown.</div>';
-            if (!items.length) tail += '<div class="fv-note">No comments yet.</div>';
-        }
-        list.innerHTML = (html ? `<ul class="fv-c-list">${html}</ul>` : '') + tail;
-        _fvTick();
-    }
-
-    function _fvMarkers() {
-        const track = _fvPart('#fvMarkers'), v = _fvPart('#fvVideo');
-        if (!track) return;
-        const frio = FV_STATE.frio;
-        const dur = (v && isFinite(v.duration) && v.duration > 0) ? v.duration : ((FV_STATE.data && FV_STATE.data.duration_seconds) || 0);
-        const list = (frio && frio.ok && frio.data.comments) || [];
-        if (!dur || !list.length) { track.innerHTML = ''; return; }
-        track.innerHTML = list.filter((c) => c.time_seconds != null && c.time_seconds <= dur)
-            .map((c) => `<button type="button" class="fv-mark" style="left:${Math.min(100, (c.time_seconds / dur) * 100).toFixed(2)}%" data-id="${_calEscAttr(c.id)}" data-t="${c.time_seconds}" onclick="svFrameViewerSeek(this)" aria-label="Comment at ${_calEscAttr(_fvTime(c.time_seconds))}"></button>`).join('');
-    }
-
-    function _fvTick() {
-        const v = _fvPart('#fvVideo'), list = _fvPart('#fvList');
-        if (!v || !list) return;
-        let now = null;
-        list.querySelectorAll('.fv-c.fv-src-frameio[data-t]').forEach((li) => {
-            if (Number(li.getAttribute('data-t')) <= v.currentTime + 0.25) now = li;
+        _fvSp('.fv-play').addEventListener('click', svFrameTogglePlay);
+        _fvSp('.fv-mute').addEventListener('click', () => { const v = FV_STAGE.video; if (v) v.muted = !v.muted; else _fvMuteIcon(); });
+        _fvSp('.fv-full').addEventListener('click', _fvFullscreen);
+        const scrub = _fvSp('.fv-scrub');
+        scrub.addEventListener('pointerdown', () => { FV_STAGE.scrubbing = true; });
+        ['pointerup', 'pointercancel', 'change'].forEach(ev => scrub.addEventListener(ev, () => { FV_STAGE.scrubbing = false; }));
+        scrub.addEventListener('input', () => {
+            const v = FV_STAGE.video, d = _fvDuration();
+            if (v && d) { v.currentTime = (Number(scrub.value) / 1000) * d; _fvClock(); }
         });
-        list.querySelectorAll('.fv-c.is-now').forEach((li) => { if (li !== now) li.classList.remove('is-now'); });
-        if (now) now.classList.add('is-now');
+        _fvStageLoad(false);
+        return true;
+    }
+    function svFrameStageUnmount() {
+        FV_STAGE.seq++;
+        if (FV_STAGE.video) _fvStop(FV_STAGE.video);
+        const host = FV_STAGE.host;
+        if (host) { host.innerHTML = ''; host.hidden = true; host.removeAttribute('data-orient'); host.style.removeProperty('--fv-ar'); }
+        Object.assign(FV_STAGE, { host: null, pid: '', link: '', client: '', rec: null, frio: null, video: null, wantPlay: false, resumeAt: 0, seekTo: null, scrubbing: false });
+        if (document.fullscreenElement && host && host.contains(document.fullscreenElement)) { try { document.exitFullscreen(); } catch (e) {} }
     }
 
-    function svFrameViewerSeek(btn) {
-        const holder = btn.closest('[data-t]') || btn;
-        const t = Number(holder.getAttribute('data-t'));
-        const v = _fvPart('#fvVideo');
-        if (!v || !isFinite(t)) return;
-        v.currentTime = t;
-        const p = v.play();
-        if (p && p.catch) p.catch(() => {});
-        _fvTick();
+    function _fvStageState(kind, text, withRetry) {
+        const player = _fvSp('.fv-player'), box = _fvSp('.fv-state');
+        if (!player || !box) return;
+        player.setAttribute('data-state', kind);
+        if (kind !== 'error') { box.innerHTML = ''; return; }
+        box.innerHTML = `<div class="fv-state-text">${_calEsc(text || 'The video could not be loaded.')}</div>
+            <div class="fv-state-actions">${withRetry ? '<button type="button" class="fv-btn" onclick="svFrameStageRetry()">Try again</button>' : ''}<a class="fv-btn fv-btn-ghost" href="${_calEscAttr(FV_STAGE.link)}" target="_blank" rel="noopener noreferrer">Open in Frame.io</a></div>`;
     }
-
-    // Vertical videos use the height and sit beside the comments; wide ones keep the wide layout.
+    // Vertical videos are drawn tall and narrow, wide ones wide; the player takes the video's own shape, so there are
+    // no black bars. The poster gives the shape before the video does.
     function _fvOrient(w, h) {
-        const panel = _fvPart('.fv-panel'), player = _fvPart('#fvPlayer');
-        if (!panel || !player || !(w > 0) || !(h > 0)) return;
-        panel.setAttribute('data-orient', h > w * 1.05 ? 'portrait' : 'landscape');
-        player.style.setProperty('--fv-ar', (w / h).toFixed(4));
-        player.setAttribute('data-sized', '');
+        const host = FV_STAGE.host;
+        if (!host || !(w > 0) || !(h > 0)) return;
+        host.setAttribute('data-orient', h > w * 1.05 ? 'portrait' : 'landscape');
+        host.style.setProperty('--fv-ar', (w / h).toFixed(4));
+    }
+    function _fvDuration() {
+        const v = FV_STAGE.video;
+        if (v && isFinite(v.duration) && v.duration > 0) return v.duration;
+        return 0;
+    }
+    function _fvClock() {
+        const v = FV_STAGE.video, d = _fvDuration();
+        const now = _fvSp('.fv-now'), dur = _fvSp('.fv-dur'), scrub = _fvSp('.fv-scrub');
+        if (now) now.textContent = svFrameTime(v ? v.currentTime : 0);
+        if (dur) dur.textContent = d ? ' / ' + svFrameTime(d) : '';
+        if (scrub && d && !FV_STAGE.scrubbing) {
+            scrub.value = String(Math.round(((v ? v.currentTime : 0) / d) * 1000));
+            scrub.style.setProperty('--fv-pos', ((v ? v.currentTime : 0) / d * 100).toFixed(2) + '%');
+        }
+        _fvNowRow();
+    }
+    function _fvPlayIcon() {
+        const v = FV_STAGE.video, b = _fvSp('.fv-play'), player = _fvSp('.fv-player');
+        if (!b) return;
+        const playing = !!(v && !v.paused && !v.ended);
+        b.innerHTML = playing ? FV_PAUSE_ICO : FV_PLAY_ICO;
+        b.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+        if (player) player.toggleAttribute('data-playing', playing);
+    }
+    function _fvMuteIcon() {
+        const v = FV_STAGE.video, b = _fvSp('.fv-mute');
+        if (!b) return;
+        const muted = !!(v && v.muted);
+        b.innerHTML = muted ? FV_MUTED_ICO : FV_SOUND_ICO;
+        b.setAttribute('aria-label', muted ? 'Sound on' : 'Mute');
+    }
+    function _fvFullscreen() {
+        const player = _fvSp('.fv-player'), v = FV_STAGE.video;
+        try {
+            if (document.fullscreenElement) { document.exitFullscreen(); return; }
+            if (player && player.requestFullscreen) { player.requestFullscreen(); return; }
+            if (v && v.webkitEnterFullscreen) v.webkitEnterFullscreen();
+        } catch (e) {}
+    }
+    // The one way the video starts: the person pressed play (or the video itself). Before the address has arrived the
+    // press is remembered and the video starts as soon as it can.
+    function svFrameTogglePlay() {
+        const v = FV_STAGE.video;
+        if (!v) { FV_STAGE.wantPlay = true; const b = _fvSp('.fv-play'); if (b) b.setAttribute('data-pending', ''); return; }
+        if (v.paused || v.ended) { const p = v.play(); if (p && p.catch) p.catch(() => _fvPlayIcon()); }
+        else v.pause();
+    }
+    // A comment's video time: the player goes there and stays paused or playing as it was.
+    function svFrameSeek(sec) {
+        const t = Number(sec);
+        if (!isFinite(t) || t < 0 || !FV_STAGE.host) return;
+        const v = FV_STAGE.video;
+        if (v && v.readyState >= 1) { v.currentTime = t; _fvClock(); }
+        else FV_STAGE.seekTo = t;
+    }
+    function _fvNowRow() {
+        const v = FV_STAGE.video;
+        const rows = document.querySelectorAll('.cal-cm-row[data-fio-t]');
+        if (!rows.length) return;
+        let now = null;
+        const at = v ? v.currentTime : -1;
+        if (v && (v.currentTime > 0 || !v.paused)) rows.forEach((r) => { if (Number(r.getAttribute('data-fio-t')) <= at + 0.25) now = r; });
+        rows.forEach((r) => r.classList.toggle('is-now', r === now));
+    }
+    function _fvStageMarkers() {
+        const track = _fvSp('.fv-markers');
+        if (!track) return;
+        const d = _fvDuration();
+        const f = FV_STAGE.frio;
+        const list = (f && f.ok && f.data.comments) || [];
+        if (!d || !list.length) { track.innerHTML = ''; return; }
+        track.innerHTML = list.filter((c) => c.time_seconds != null && c.time_seconds <= d)
+            .map((c) => `<span class="fv-mark" style="left:${Math.min(100, (c.time_seconds / d) * 100).toFixed(2)}%"></span>`).join('');
     }
 
-    function _fvShowVideo(res, rec) {
-        const player = _fvPart('#fvPlayer');
-        FV_STATE.data = res.video;
-        const open = res.open_url || FV_STATE.link;
-        _fvPart('#fvOpenLink').setAttribute('href', open);
+    async function _fvStageLoad(fresh) {
+        const seq = ++FV_STAGE.seq;
+        const host = FV_STAGE.host, link = FV_STAGE.link, pid = FV_STAGE.pid;
+        _fvStageState('loading');
+        if (!_isClientLink) { try { await _syncviewRequireStaffIdentity('frame-view'); } catch (e) { if (seq === FV_STAGE.seq) _fvStageState('error', 'Your staff sign-in was not accepted for this. Sign in again and retry.', true); return; } }
+        if (seq !== FV_STAGE.seq || FV_STAGE.host !== host) return;
+        const rec = _fvGetVideo(link, pid, !!fresh);
+        FV_STAGE.rec = rec;
+        if (!_isClientLink) {
+            // The comments are asked for beside the video (or already were, when the pointer reached the door first).
+            if (!rec.comments || fresh) rec.comments = _fvFetchComments(link);
+            if (fresh || !FV_STAGE.frio) { FV_STAGE.frio = null; _fvFeedChanged(); }
+            rec.comments.then((c) => { if (seq !== FV_STAGE.seq) return; FV_STAGE.frio = c; _fvStageMarkers(); _fvFeedChanged(); });
+        }
+        const res = await rec.video;
+        if (seq !== FV_STAGE.seq || FV_STAGE.host !== host) return;
+        if (!res.ok) { _fvStageState('error', res.message, true); return; }
+        const open = _fvSp('.fv-open-link');
+        if (open && res.open_url) open.setAttribute('href', res.open_url);
+        _fvStageAttach(res, rec);
+    }
+    function _fvStageAttach(res, rec) {
+        const player = _fvSp('.fv-player');
+        if (!player) return;
         let v = null;
         if (rec && rec.warm && !rec.adopted) { v = rec.warm; rec.adopted = true; rec.warm = null; }
         const fresh = !v;
         if (!v) v = _fvNewVideo();
-        v.id = 'fvVideo'; v.className = 'fv-video'; v.controls = true;
-        if (FV_STATE.poster) v.poster = FV_STATE.poster;
-        const old = _fvPart('#fvVideo');
+        // The warmed copy was loaded silently; here it gets its sound back. It is still paused.
+        v.muted = false;
+        v.className = 'fv-video'; v.controls = false;
+        const img = _fvSp('.fv-poster');
+        if (img && img.getAttribute('src')) v.poster = img.getAttribute('src');
+        const old = FV_STAGE.video;
         if (old && old !== v) { _fvStop(old); old.remove(); }
-        if (!v.isConnected || v.parentNode !== player) player.insertBefore(v, player.firstChild);
-        if (!v._fvPopWired) {
-            v._fvPopWired = true;
-            v.addEventListener('timeupdate', _fvTick);
-            v.addEventListener('loadedmetadata', () => { _fvOrient(v.videoWidth, v.videoHeight); _fvMarkers(); });
-            v.addEventListener('loadeddata', () => { if (FV_STATE.open) _fvSetState('ready'); });
-            v.addEventListener('volumechange', () => { const b = _fvPart('#fvUnmute'); if (b && !v.muted) b.hidden = true; });
-            v.addEventListener('fv-smaller', () => { player.setAttribute('data-small', ''); });
-            v.addEventListener('error', _fvVideoFailed);
+        if (v.parentNode !== player) player.insertBefore(v, player.firstChild);
+        FV_STAGE.video = v;
+        if (!v._fvStageWired) {
+            v._fvStageWired = true;
+            const mine = () => FV_STAGE.video === v;
+            v.addEventListener('click', () => { if (mine()) svFrameTogglePlay(); });
+            v.addEventListener('timeupdate', () => { if (mine()) _fvClock(); });
+            v.addEventListener('loadedmetadata', () => {
+                if (!mine()) return;
+                _fvOrient(v.videoWidth, v.videoHeight);
+                if (FV_STAGE.seekTo != null) { try { v.currentTime = FV_STAGE.seekTo; } catch (e) {} FV_STAGE.seekTo = null; }
+                const s = _fvSp('.fv-scrub'); if (s) s.disabled = false;
+                _fvClock(); _fvStageMarkers();
+            });
+            v.addEventListener('loadeddata', () => { if (mine()) _fvStageState('ready'); });
+            ['play', 'pause', 'ended', 'playing'].forEach(ev => v.addEventListener(ev, () => { if (mine()) _fvPlayIcon(); }));
+            v.addEventListener('waiting', () => { const p = mine() && _fvSp('.fv-player'); if (p) p.setAttribute('data-buffering', ''); });
+            ['playing', 'pause', 'seeked', 'canplay'].forEach(ev => v.addEventListener(ev, () => { const p = mine() && _fvSp('.fv-player'); if (p) p.removeAttribute('data-buffering'); }));
+            v.addEventListener('volumechange', () => { if (mine()) _fvMuteIcon(); });
+            v.addEventListener('fv-smaller', () => { const n = mine() && _fvSp('.fv-small-note'); if (n) n.hidden = false; });
+            v.addEventListener('error', () => { if (mine()) _fvStageFailed(); });
         }
-        if (fresh) _fvStart(v, res.video, FV_STATE.resumeAt);
-        FV_STATE.resumeAt = 0;
-        if (v.readyState >= 1 && v.videoWidth) _fvOrient(v.videoWidth, v.videoHeight);
-        if (v.readyState >= 2) _fvSetState('ready');
-        _fvMarkers();
+        if (fresh) _fvStart(v, res.video, FV_STAGE.resumeAt);
+        else if (FV_STAGE.resumeAt > 0) FV_STAGE.seekTo = FV_STAGE.resumeAt;
+        FV_STAGE.resumeAt = 0;
+        if (v.readyState >= 1 && v.videoWidth) {
+            _fvOrient(v.videoWidth, v.videoHeight);
+            if (FV_STAGE.seekTo != null) { try { v.currentTime = FV_STAGE.seekTo; } catch (e) {} FV_STAGE.seekTo = null; }
+            const s = _fvSp('.fv-scrub'); if (s) s.disabled = false;
+        }
+        if (v.readyState >= 2) _fvStageState('ready');
+        _fvClock(); _fvPlayIcon(); _fvMuteIcon(); _fvStageMarkers();
         // A warmed video can have failed before it was handed over: treat that as the error it is.
-        if (v.error) setTimeout(() => { if (FV_STATE.open && v.error) _fvVideoFailed(); }, 0);
-        _fvAutoplay(v, () => { const b = _fvPart('#fvUnmute'); if (b) b.hidden = false; });
+        if (v.error) setTimeout(() => { if (FV_STAGE.video === v && v.error) _fvStageFailed(); }, 0);
+        if (FV_STAGE.wantPlay) {
+            FV_STAGE.wantPlay = false;
+            const b = _fvSp('.fv-play'); if (b) b.removeAttribute('data-pending');
+            const p = v.play(); if (p && p.catch) p.catch(() => _fvPlayIcon());
+        }
     }
-
-    async function _fvLoad(fresh) {
-        const seq = ++FV_STATE.seq;
-        _fvSetState('loading');
-        FV_STATE.frio = null;
-        FV_STATE.notes = _fvNotesFor(FV_STATE.card);
-        _fvRenderList();
-        const markers = _fvPart('#fvMarkers'); if (markers) markers.innerHTML = '';
-        const rec = _fvGetVideo(FV_STATE.link, FV_STATE.card, !!fresh);
-        FV_STATE.rec = rec;
-        // The comments are asked for beside the video (or already were, when the pointer reached the icon first).
-        if (!rec.comments || fresh) rec.comments = _fvFetchComments(FV_STATE.link);
-        rec.comments.then((c) => { if (seq !== FV_STATE.seq || !FV_STATE.open) return; FV_STATE.frio = c; _fvRenderList(); _fvMarkers(); });
-        const res = await rec.video;
-        if (seq !== FV_STATE.seq || !FV_STATE.open) return;
-        if (!res.ok) { _fvSetState('error', res.message, true); return; }
-        _fvShowVideo(res, rec);
-    }
-
-    /* The video address is signed and expires. If the player stops with an error, ask once for a new one and
-       carry on from the same second; a second failure is shown as a normal error. */
-    function _fvVideoFailed() {
-        const v = _fvPart('#fvVideo');
-        if (!FV_STATE.open || !v || !v.getAttribute('src')) return;
+    /* The video address is signed and expires. If the player stops with an error, the small file is tried, then a
+       new address is asked for once and the video carries on from the same second; a second failure is shown. */
+    function _fvStageFailed() {
+        const v = FV_STAGE.video;
+        if (!FV_STAGE.host || !v || !v.getAttribute('src')) return;
         if (_fvTryEfficient(v)) return;
-        if (!FV_STATE.retried) {
-            FV_STATE.retried = true;
-            FV_STATE.resumeAt = v.currentTime || 0;
-            _fvLoad(true);
+        if (!FV_STAGE.retried) {
+            FV_STAGE.retried = true;
+            FV_STAGE.resumeAt = v.currentTime || 0;
+            _fvStop(v); v.remove(); FV_STAGE.video = null;
+            _fvStageLoad(true);
             return;
         }
-        _fvSetState('error', 'This video could not be played here. It may need a different format.', true);
+        _fvStageState('error', 'This video could not be played here. It may need a different format.', true);
+    }
+    function svFrameStageRetry() {
+        if (!FV_STAGE.host) return;
+        FV_STAGE.retried = false;
+        const v = FV_STAGE.video;
+        FV_STAGE.resumeAt = (v && v.currentTime) || 0;
+        if (v) { _fvStop(v); v.remove(); FV_STAGE.video = null; }
+        _fvStageLoad(true);
     }
 
-    function _fvPosterOf(btn) {
-        const given = btn.getAttribute('data-fv-poster');
-        if (given) return given;
-        try { const img = btn.closest('.cal-card-thumb') && btn.closest('.cal-card-thumb').querySelector('img'); return img ? (img.currentSrc || img.src || '') : ''; } catch (e) { return ''; }
+    /* THE FRAME.IO COMMENTS, for the Notes view's list (staff only; a client link never asks for them). null when the
+       open card has no player. The Notes view draws them as rows like its own notes and re-draws on 'sv-frame-feed'. */
+    function svFrameFeed(pid) {
+        if (_isClientLink || !FV_STAGE.host || FV_STAGE.pid !== pid) return null;
+        const f = FV_STAGE.frio;
+        if (!f) return { state: 'loading', comments: [] };
+        if (!f.ok) return { state: 'error', comments: [] };
+        const d = f.data;
+        return {
+            state: 'ok',
+            comments: (d.comments || []).map((c) => ({
+                id: String(c.id || ''), author: String(c.author || ''), text: String(c.text || ''), created_at: String(c.created_at || ''),
+                time: c.time_seconds == null ? null : Number(c.time_seconds), done: !!c.done,
+                replies: (c.replies || []).map((r) => ({ id: String(r.id || ''), author: String(r.author || ''), text: String(r.text || ''), created_at: String(r.created_at || '') })),
+            })),
+            partial: !!d.comments_error, truncated: !!d.comments_truncated, namesPartial: !!d.reply_names_partial,
+        };
     }
-
-    async function svFrameViewerOpen(btn) {
-        if (_isClientLink) return;
-        const link = _fvLinkOf(btn && btn.getAttribute && btn.getAttribute('data-fv-link'));
-        if (!link) return;
-        // A click can land before the switch has been read: wait for that one read (bounded), then decide.
-        _fvPrimeFlag();
-        if (_fvFlagPromise) { try { await _fvFlagPromise; } catch (e) {} }
-        if (!_fvEnabledFor(btn.getAttribute('data-fv-client'))) return;
-        try { await _syncviewRequireStaffIdentity('frame-view'); } catch (e) { return; }
-        FV_STATE.opener = btn || null;
-        FV_STATE.link = link;
-        FV_STATE.card = btn.getAttribute('data-fv-card') || '';
-        FV_STATE.title = btn.getAttribute('data-fv-title') || '';
-        FV_STATE.poster = _fvPosterOf(btn);
-        FV_STATE.data = null;
-        FV_STATE.retried = false;
-        FV_STATE.resumeAt = 0;
-        FV_STATE.open = true;
-        const el = _fvBuild();
-        _fvPart('#fvTitle').textContent = FV_STATE.title || 'Video';
-        _fvPart('#fvOpenLink').setAttribute('href', link);
-        const panel = _fvPart('.fv-panel'), player = _fvPart('#fvPlayer');
-        panel.setAttribute('data-orient', 'landscape');
-        player.removeAttribute('data-sized'); player.removeAttribute('data-small'); player.style.removeProperty('--fv-ar');
-        player.style.backgroundImage = FV_STATE.poster ? `url("${FV_STATE.poster.replace(/["\\\n]/g, '')}")` : '';
-        const unmute = _fvPart('#fvUnmute'); if (unmute) unmute.hidden = true;
-        const stale = _fvPart('#fvVideo'); if (stale) { _fvStop(stale); stale.remove(); }
-        if (FV_STATE.poster) { const im = new Image(); im.onload = () => { if (FV_STATE.open && !_fvPart('#fvVideo')) _fvOrient(im.naturalWidth, im.naturalHeight); }; im.src = FV_STATE.poster; }
-        el.classList.add('open');
-        document.body.classList.add('fv-lock');
-        document.addEventListener('keydown', _fvKey, true);
-        const close = _fvPart('.fv-close'); if (close) close.focus();
-        _fvLoad(false);
+    function svFrameFeedRetry() {
+        const rec = FV_STAGE.rec;
+        if (!FV_STAGE.host || _isClientLink || !rec) return;
+        const seq = FV_STAGE.seq;
+        rec.comments = _fvFetchComments(FV_STAGE.link);
+        FV_STAGE.frio = null; _fvFeedChanged();
+        rec.comments.then((c) => { if (seq !== FV_STAGE.seq) return; FV_STAGE.frio = c; _fvStageMarkers(); _fvFeedChanged(); });
     }
-
-    function svFrameViewerReload() {
-        if (!FV_STATE.open) return;
-        FV_STATE.retried = false;
-        const v = _fvPart('#fvVideo');
-        FV_STATE.resumeAt = (v && v.currentTime) || 0;
-        _fvLoad(true);
-    }
-
-    function svFrameViewerClose() {
-        const el = _fvEl();
-        FV_STATE.open = false;
-        FV_STATE.seq++;
-        if (!el) return;
-        const v = el.querySelector('#fvVideo');
-        if (v) { _fvStop(v); v.remove(); }
-        el.classList.remove('open');
-        document.body.classList.remove('fv-lock');
-        document.removeEventListener('keydown', _fvKey, true);
-        const back = FV_STATE.opener;
-        FV_STATE.opener = null;
-        if (back && document.contains(back) && back.focus) { try { back.focus(); } catch (e) {} }
+    function _fvFeedChanged() {
+        try { window.dispatchEvent(new CustomEvent('sv-frame-feed', { detail: { pid: FV_STAGE.pid } })); } catch (e) {}
     }
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        svFrameInlinePlay, svFrameInlineRetry, svFrameIntent, svFrameUnmute, svFrameViewerClose,
-        svFrameViewerOpen, svFrameViewerReload, svFrameViewerSeek
+        svFrameFeedRetry, svFrameIntent, svFrameOpen, svFrameSeek, svFrameStageRetry, svFrameTileOpen
     });
 export {
-  svFrameIoLinkHtml, svFramePlayIconHtml, svFrameAddNotesProvider, svFrameSyncPlayIcon, svFrameTileAttrs, svFrameTileLabelHtml, svFrameWatchBtnHtml
+  svFrameFeed, svFrameIoLinkHtml, svFramePlayIconHtml, svFrameStageMount, svFrameStageUnmount, svFrameSyncPlayIcon, svFrameTileAttrs, svFrameTileLabelHtml, svFrameWatchBtnHtml, svFrameTime
 };

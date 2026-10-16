@@ -771,7 +771,10 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
                 <button class="cal-lightbox-close" type="button" onclick="closeCalLightbox()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </div>
             <div class="cal-comments-overlay" id="calCommentsOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeCalComments()">
-                <div class="cal-comments-modal" id="calCommentsModal" role="dialog" aria-modal="true" aria-labelledby="calCommentsTitle"></div>
+                <div class="cal-notes-shell" id="calNotesShell">
+                    <div class="cal-notes-stage" id="calNotesStage" role="region" aria-label="Video" hidden></div>
+                    <div class="cal-comments-modal" id="calCommentsModal" role="dialog" aria-modal="true" aria-labelledby="calCommentsTitle"></div>
+                </div>
             </div>
             <div class="cal-prompt-overlay" id="calPromptOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)_calCloseCaptionPromptModal()">
                 <div class="cal-prompt-modal" id="calPromptModal" role="dialog" aria-modal="true"></div>

@@ -10,7 +10,7 @@
 | 2 | `003-sv-route.html.part` | 222 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3965 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 8198 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 8210 | Templates view |
 | 6 | `030-body-shell.html.part` | 566 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2158 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `041-core-layers.js.part` | 397 | LAYERS: ONE RULE FOR EVERY POP-UP (owner request, ). |
@@ -38,7 +38,7 @@
 | 30 | `115-core-calendar-flags.js.part` | 153 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
 | 31 | `120-calendar-flags-write-repair.js.part` | 3458 | The members a flag value offers, or null when it offers no member list at |
 | 32 | `125-title-name-rule.js.part` | 349 | Title name rule (browser copy) |
-| 33 | `130-calendar-model-cache.js.part` | 1448 | Returns the comments array for a given component. Falls back to the |
+| 33 | `130-calendar-model-cache.js.part` | 1447 | Returns the comments array for a given component. Falls back to the |
 | 34 | `131-core-html.js.part` | 113 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 35 | `132-calendar-dates-ids.js.part` | 14 | — |
 | 36 | `133-core-loading-skeletons.js.part` | 378 | Modern animated loader — a single rotating ring with a subtle label. |

@@ -114,6 +114,18 @@ run of an older commit, with function, migration or lane changes since, ends in
 the hand-over above and nothing follows it: the summary says so and names the tip
 to use. Nobody's push run takes over a manual one.
 
+**When a Section 4 deploy fails, the run log says why.** Each deploy step prints
+up to four `ef-deploy-reason:` lines: how far the CLI got (`stage:`) and its own
+failure lines, allowlisted, redacted (never the project ref or a token) and capped
+by `scripts/ef-deploy-public-reason.js`. Before any deploy, the lane pulls the
+Edge Runtime bundler image itself, by a pinned digest, with retries, from
+public.ecr.aws and then the same-digest copy on ghcr.io (the first real release,
+run 38933979961 on 2026-10-16, failed in 1.6 s with no reason printed, the shape
+of a throttled image pull; public.ecr.aws refused 13 of 15 anonymous reads of
+that image the same day). A Supabase CLI bump must re-derive
+`EXPECTED_EDGE_RUNTIME_TAG` and its digest in the lane; the pre-pull step fails
+closed until it does.
+
 Dry run of the capture: Run workflow on the Section 4 lane with
 `operation=capture-only`, `confirm=CAPTURE_F27_SECTION4_PRIOR_THREE`, both bundle
 inputs `capture`. It captures, seals, stores, fetches back and inspects, and

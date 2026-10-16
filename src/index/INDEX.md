@@ -10,7 +10,7 @@
 | 2 | `003-sv-route.html.part` | 222 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3965 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 8217 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 8227 | Templates view |
 | 6 | `030-body-shell.html.part` | 566 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2158 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `041-core-layers.js.part` | 397 | LAYERS: ONE RULE FOR EVERY POP-UP (owner request, ). |
@@ -36,7 +36,7 @@
 | 28 | `110-time-off.js.part` | 1393 | Kasper Time Off calendar |
 | 29 | `112-smm-weekly-reports.js.part` | 722 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
 | 30 | `115-core-calendar-flags.js.part` | 153 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
-| 31 | `120-calendar-flags-write-repair.js.part` | 3458 | The members a flag value offers, or null when it offers no member list at |
+| 31 | `120-calendar-flags-write-repair.js.part` | 3481 | The members a flag value offers, or null when it offers no member list at |
 | 32 | `125-title-name-rule.js.part` | 349 | Title name rule (browser copy) |
 | 33 | `130-calendar-model-cache.js.part` | 1447 | Returns the comments array for a given component. Falls back to the |
 | 34 | `131-core-html.js.part` | 113 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
@@ -47,15 +47,15 @@
 | 39 | `150-calendar-hydration-import.js.part` | 2410 | For a card linked to a real sub-issue (not a parent), return which of |
 | 40 | `160-calendar-organize-ui.js.part` | 4128 | Card status filter (STATE_OF_THINGS D3) |
 | 41 | `170-calendar-links-status.js.part` | 3534 | Move a Linear sub-issue link from the old card onto the new one. The |
-| 42 | `180-calendar-native-post-media.js.part` | 3618 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
-| 43 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
+| 42 | `180-calendar-native-post-media.js.part` | 3620 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
+| 43 | `185-client-review-queue.js.part` | 384 | Client review send queue: a client's Approve or Request changes is |
 | 44 | `186-archived-restore.js.part` | 484 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
 | 45 | `187-frame-viewer.js.part` | 763 | WATCH HERE: a card's Frame.io video, inside SyncView. Three ways in, all behind the frame_viewer_clients switch: |
-| 46 | `190-calendar-approval-comments.js.part` | 3525 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 46 | `190-calendar-approval-comments.js.part` | 3840 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 47 | `200-intake-data-startup.js.part` | 1883 | Video-only and Thumbnail-only were already built, but sat |
 | 48 | `210-production-state-writes.js.part` | 3321 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 49 | `220-production-attribution-views.js.part` | 2933 | An ABSENT persisted slug is missing evidence, not |
-| 50 | `230-production-create-comments.js.part` | 2792 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
+| 50 | `230-production-create-comments.js.part` | 2790 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 51 | `240-production-description.js.part` | 2766 | Unsaved description text outlives the tab (OPEN_REPAIRS 314, item 3). |
 | 52 | `250-production-controls-data.js.part` | 3125 | A layer: Escape closes only the top pop (a sub-menu first, then |
 | 53 | `260-production-refresh-boot.js.part` | 2864 | AND TYPING COUNTS, which is the case this guard was missing. |
@@ -71,7 +71,7 @@
 | 63 | `322-core-kasper-tab-counts.js.part` | 34 | — |
 | 64 | `323-kasper-dashboard-tail.js.part` | 984 | Messages tab = the shared Messages inbox (326-core-messages-inbox), or |
 | 65 | `324-client-onboarding-panel.js.part` | 800 | talking to the functions (admin only; the server checks the key and the member again) |
-| 66 | `326-core-messages-inbox.js.part` | 565 | Messages inbox (Notes Step 2) |
+| 66 | `326-core-messages-inbox.js.part` | 618 | Messages inbox (Notes Step 2) |
 | 67 | `330-kasper-review-history.js.part` | 2680 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 68 | `340-kasper-editors-board.js.part` | 734 | Editor work model |
 | 69 | `345-core-tooltip-date-picker.js.part` | 671 | Global styled tooltip — replaces every browser-native title popup |

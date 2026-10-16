@@ -160,9 +160,13 @@ process.on('exit', c => { if (!finished && c === 0) { console.log('FAIL  the sui
 
   // --- 8 and 9. Review view: a failed comment is shown; a failed Samples approve keeps its card (read from the code)
   try {
-    const cal = code('_calReviewComment'), sxr = code('_sxrReviewComment');
-    ok(/\.then\(\(\) => \{[\s\S]*?_saveError[\s\S]*?_calReviewState\.errors\[key\] =[\s\S]*?_calReviewRepaintCard\(pid\)/.test(cal),
-      'Calendar Review: a comment whose save failed sets the panel error and repaints');
+    const cal = lift('_calReviewCommentSend'), sxr = code('_sxrReviewComment');
+    // The note outbox (2026-10-15): a failed card save throws out of the send,
+    // the outbox marks the note "Not sent" (with Retry) and repaints the card.
+    ok(/_saveError && !\/\^Not saved yet: \/[\s\S]*?throw new Error/.test(cal)
+      && /_noteOutboxSet\(id, \{ state: 'failed'[\s\S]*?_noteOutboxRepaint\(pid\)/.test(lift('_noteOutboxSend'))
+      && /_calReviewRepaintCard\(pid\)/.test(lift('_noteOutboxRepaint')),
+      'Calendar Review: a comment whose save failed is marked "Not sent" in the panel and repainted');
     ok(/\.then\(\(\) => \{[\s\S]*?_saveError[\s\S]*?_sxrReviewState\.errors\[key\] =[\s\S]*?_sxrReviewRepaintCard\(pid\)/.test(sxr),
       'Samples Review: a comment whose save failed sets the panel error and repaints');
     const approve = code('_sxrReviewApplyApprove');

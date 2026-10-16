@@ -9,8 +9,10 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
 import { _calDeriveThumb, onCalClientChange } from './160-calendar-organize-ui.js';
 import { COMP_LABELS } from './180-calendar-native-post-media.js';
 import {
-  _CAL_LOCK_ICO, _calAppendComment, _calCommentSendPending, _calFindCompForCommentId, _calFmtCommentTime,
-  _calNoteAuthorName, openCalComments
+  _CAL_LOCK_ICO, _calCommentRole, _calCommentSendPending, _calCurrentAuthor, _calCurrentAuthorId,
+  _calFindCompForCommentId, _calFmtCommentTime, _calMintCommentId, _calNoteAuthorName, _noteOutboxAsComment,
+  _noteOutboxDrop, _noteOutboxFor, _noteOutboxGet, _noteOutboxPut, _noteOutboxSend, _noteOutboxStatusHtml,
+  openCalComments
 } from './190-calendar-approval-comments.js';
 import { _prodCanonicalCommentGate, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
 import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
@@ -292,6 +294,17 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
                 <div class="msg-b-text">${_calEsc(m.body || '')}</div>
                 <button type="button" class="msg-b-reply" onclick="_msgSetReplyTo(${_jsAttrArg(m.root_id)})">Reply</button>
             </div>`;
+        }).join('') + _noteOutboxFor(c.post_id, e => {
+            if (!c.messages.some(m => m.id === e.id)) return true;
+            if (e.state === 'sent' || e.state === 'failed') _noteOutboxDrop(e.id);
+            return false;
+        }).map(e => {
+            const m = _noteOutboxAsComment(e);
+            return `<div class="msg-b is-me is-reply is-outbox is-outbox-${m._outbox}" data-msg-id="${_calEscAttr(m.id)}">
+                <div class="msg-b-meta"><b>You</b><span>${_calEsc(_calFmtCommentTime(m.created_at))}</span></div>
+                <div class="msg-b-text">${_calEsc(m.body || '')}</div>
+                ${_noteOutboxStatusHtml(m)}
+            </div>`;
         }).join('');
         const sendIco = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>';
         const replyCap = target
@@ -311,7 +324,7 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
                 <div class="msg-reply-cap">${replyCap}</div>
                 <div class="cal-cm-composer">
                     <textarea id="msgReplyBox" rows="1" placeholder="Reply…" oninput="_msgOnDraft(this)" onkeydown="_msgOnKey(event)">${_calEsc(_msgState.draft)}</textarea>
-                    <div class="cal-cm-composer-actions"><button class="cal-cm-send" type="button" onclick="_msgReply()" aria-label="Send reply" ${_msgState.draft.trim() && !_msgState.sending && target ? '' : 'disabled'}>${sendIco}</button></div>
+                    <div class="cal-cm-composer-actions"><button class="cal-cm-send" type="button" onclick="_msgReply()" aria-label="Send reply" ${_msgState.draft.trim() && target ? '' : 'disabled'}>${sendIco}</button></div>
                 </div>
             </div>`;
         return phone ? html.replace(/<div class="msg-chat-actions">[\s\S]*?<\/div>/, '<div class="msg-chat-actions"><button type="button" class="msg-act thumb-msg-options" onclick="_msgPhoneMore(this)" aria-label="More conversation actions">•••</button></div>') : html;
@@ -351,6 +364,19 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
             if (typing && root.contains(box)) {
                 const list = root.querySelector('.msg-convs');
                 if (list) list.innerHTML = _msgListHtml();
+                // The chat's bubbles still follow (a reply sent a moment ago,
+                // its "Sending…" mark), without touching the box being typed in.
+                const live = root.querySelector('#msgBubbles');
+                if (live) {
+                    const fresh = document.createElement('div');
+                    fresh.innerHTML = _msgInboxHtml();
+                    const next = fresh.querySelector('#msgBubbles');
+                    if (next && next.innerHTML !== live.innerHTML) {
+                        const pinned = live.scrollHeight - live.clientHeight - live.scrollTop < 40;
+                        live.innerHTML = next.innerHTML;
+                        if (pinned) live.scrollTop = live.scrollHeight;
+                    }
+                }
                 return;
             }
             const restore = svFocusKeep(root);
@@ -490,44 +516,71 @@ import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
         _prodProjectCanonicalCardComments('calendar', c.post_id);
         return post;
     }
-    async function _msgReply() {
+    /* A reply shows in the chat the moment it is sent (the note outbox in 190
+       keeps it, with its words, until the server confirms it; a failed one
+       stays as "Not sent" with Retry, also after a refresh). The box is free
+       at once; loading the card, the save, the read mark and the inbox
+       refresh all run behind it. */
+    function _msgReply() {
         const c = _msgState.conversations.find(x => x.post_id === _msgState.openId);
         const target = _msgReplyTarget(c);
         const body = String(_msgState.draft || '').trim();
-        if (!c || !target || !body || _msgState.sending) return;
-        _msgState.sending = true;
-        _msgPaint();
-        let saved = false;
-        try {
-            const post = await _msgEnsureCard(c);
-            if (!post) throw new Error('card not found');
-            const comp = _calFindCompForCommentId(post, target.id) || target.component;
-            const started = Date.now();
-            while (Date.now() - started < 15000) {
-                const gate = _prodCanonicalCommentGate(post, comp);
-                if (!(gate.linked && !gate.ready) && !_calCommentSendPending(post, gate)) break;
-                await new Promise(resolve => setTimeout(resolve, 150));
-            }
-            saved = await _calAppendComment(c.post_id, target.id, body);
-        } catch (e) {
-            saved = false;
-        } finally {
-            _msgState.sending = false;
-        }
-        if (!saved) {
-            showToast('Your reply was not sent. It is still in the box; try again.');
-            _msgPaint();
-            return;
-        }
+        if (!c || !target || !body) return;
+        const entry = _noteOutboxPut({
+            id: _calMintCommentId(), surface: 'msg', kind: 'reply', pid: c.post_id, comp: '',
+            parent_id: target.id, body, author: _calCurrentAuthor(),
+            author_member_id: _calCurrentAuthorId() || undefined, role: _calCommentRole(),
+            created_at: new Date().toISOString(), at: Date.now(), state: 'sending'
+        });
         _msgState.draft = '';
         _msgPhone.drafts.delete(c.post_id);
-        // Sent: let the chat redraw with the reply in it (the paint keeps
-        // its hands off a box that still has the caret).
         const box = document.getElementById('msgReplyBox');
-        if (box) { box.value = ''; box.blur(); }
-        await _msgMark(c.post_id, 'read');
-        await _msgLoad(true);
+        if (box) box.value = '';
+        _msgSendQueued(entry.id);
+        _msgPaint();
+        const bubbles = document.getElementById('msgBubbles');
+        if (bubbles) bubbles.scrollTop = bubbles.scrollHeight;
     }
+    function _msgSendQueued(id) {
+        const postId = (_noteOutboxGet(id) || {}).pid;
+        return _noteOutboxSend(id).then(ok => {
+            if (!ok) return;
+            // Confirmed. The read mark and the inbox refresh follow; the reply
+            // stays drawn from the outbox until the refreshed inbox has it.
+            return _msgMark(postId, 'read').then(async () => {
+                // A load already running started before this reply was saved.
+                for (let i = 0; i < 100 && _msgState.loading; i++) await new Promise(r => setTimeout(r, 100));
+                await _msgLoad(true);
+            }).catch(() => {}).finally(() => {
+                const c = _msgState.conversations.find(x => x.post_id === postId);
+                // Drawn from the inbox now; until then it stays drawn from the
+                // outbox as sent (an entry that is never listed lapses in a minute).
+                if (c && c.messages.some(m => m.id === id)) _noteOutboxDrop(id);
+                _msgPaint();
+            });
+        });
+    }
+    /* Run by the outbox before a Messages reply is saved: the Notes save path
+       works on the Calendar's cards, so the conversation's client is loaded
+       first and its thread allowed to finish loading. */
+    window._msgSendQueued = _msgSendQueued;
+    window._msgBeforeNoteSend = _msgBeforeNoteSend;
+    async function _msgBeforeNoteSend(entry) {
+        const c = _msgState.conversations.find(x => x.post_id === entry.pid);
+        if (!c) throw new Error('This conversation is no longer in your inbox.');
+        const post = await _msgEnsureCard(c);
+        if (!post) throw new Error('card not found');
+        const comp = _calFindCompForCommentId(post, entry.parent_id) || 'video';
+        const started = Date.now();
+        while (Date.now() - started < 15000) {
+            const gate = _prodCanonicalCommentGate(post, comp);
+            if (!(gate.linked && !gate.ready) && !_calCommentSendPending(post, gate)) break;
+            await new Promise(resolve => setTimeout(resolve, 150));
+        }
+    }
+    window.addEventListener('sv-note-outbox', e => {
+        if (e && e.detail && e.detail.pid === _msgState.openId && document.getElementById('msgPage')) _msgPaint();
+    });
     async function _msgOpenCard() {
         const c = _msgState.conversations.find(x => x.post_id === _msgState.openId);
         if (!c) return;

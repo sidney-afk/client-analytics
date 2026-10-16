@@ -267,7 +267,8 @@ const EXCLUDED = {
     _calRenderCommentsModal: 'reads gate readiness only to draw comment actions disabled while the canonical thread loads (refusal-log triage 2026-09-25, calendar-only refusals); not a write operation',
     _calReviewApprove: 'Review-tab Approve & send resolves via the canonical lifecycle when linked (OPEN_REPAIRS 414); Samples has no Review-tab twin',
     _calReviewResolveCanonical: 'the canonical half of _calReviewApprove; no Samples twin',
-    _msgReply: 'Messages inbox reply (Notes Step 2): waits for gate readiness, then writes through _calAppendComment, the family member that gates; not a separate operation',
+    _msgBeforeNoteSend: 'Messages inbox reply (Notes Step 2, sent through the note outbox since 2026-10-15): waits for gate readiness, then the outbox writes through _calAppendComment, the family member that gates; not a separate operation',
+    _calSubmitComposerNow: 'the Notes Send button (note outbox, 2026-10-15): refuses a new note while the thread is still loading, exactly as _calAppendComment does, before the note is queued; the write itself is _calAppendComment',
     _sxrRenderCommentsModal: 'reads gate readiness only to draw comment actions disabled while the canonical thread loads (the Samples twin of _calRenderCommentsModal, OPEN_REPAIRS 404); not a write operation',
 };
 

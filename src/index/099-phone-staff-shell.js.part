@@ -10,7 +10,7 @@ import { wlState } from './066-core-workload-state.js';
        every action (nav links, client picker, theme, staff menu) is the
        existing control, reached by clicking it. */
     const FPH_SCREENS = {
-        'tiktok-upload': { title: () => (document.getElementById('tkPlatInstagram')?.classList.contains('on') ? 'Instagram Upload' : 'TikTok Upload'), client: true },
+        'tiktok-upload': { title: () => (document.getElementById('tkPlatInstagram')?.classList.contains('on') ? 'Post to Instagram' : 'Post to TikTok'), client: true },
         home: { title: () => 'Analytics', client: true },
         workload: { title: () => 'Workload', client: false },
         production: { title: () => 'Linear', client: false }

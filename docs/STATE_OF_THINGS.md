@@ -89,7 +89,10 @@ supervisor manual's "Writing it down"):**
 **Open sessions and where they stand (2026-10-16):**
 - Swift #2089 (Messages opens fast, Close button): in review; needs a `production-comments` deploy after merge.
 - Anchor #2094 (production-polish gate waits for the app instead of guessing): fixing its own boot-budget runs.
-- Scribe #2096 (a note shows the moment it is sent): merged 2026-10-16, live with the next Pages publish.
+- Scribe #2096 (a note shows the moment it is sent): merged 2026-10-16; the page part is live with the next Pages publish.
+  Its small `production-write` change (the Slack sender wakes after the answer, not before) waits for the next F27
+  Section 4 deploy; nothing breaks meanwhile. The fingerprint is re-pinned, so the next Section 4 deploy must use a main
+  that includes #2096.
 - Sunset #2097 (calendar-upsert map and retirement plan, docs only): merged 2026-10-16. Next: the fallback removal, then the new function.
 - Quill #2098 (regenerate icon): merged 2026-10-16.
 - Lens #2100 (Frame.io pop-up polish): in review; needs a `frameio-view` deploy after merge.

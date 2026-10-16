@@ -25,7 +25,8 @@ the sections below, delete it from this block in the same PR.
 
 **Live since the last update (2026-10-11 to 2026-10-15):**
 - **Notify client** (#2080, #2084, #2088): one Slack alert to the client's private channel, short box that closes by
-  itself, and the "Review now" link opens the Review view. On for every client.
+  itself, and the "Review now" link opens the Review view. The button is there for every client; 3 alerts recorded so far
+  (checked 2026-10-16).
 - **Messages** (#2079, #2083, #2090, #2092): a page under the header, the reviewer view follows the reviewer's threads,
   a hidden client message shows once staff answered it, and the phone version has native conversations with a docked reply.
 - **Watch here, Frame.io inline viewer** (#2091): the Review tab plays the video in place. Switch `frame_viewer_clients`
@@ -35,8 +36,8 @@ the sections below, delete it from this block in the same PR.
   chat reply as the caption. `caption-generate` runs every caption (`caption_generate_ef_clients` = all, since 2026-10-09).
 - **One client's caption prompt replaced** at the owner's go (2026-10-15); the old prompt is kept as a backup row in
   `caption_prompts` (name starts `_backup_`).
-- **Synchro connector** (#2093): every tool call is logged to `hf_activity` with who and a one-line summary (refusals are
-  logged as failures), and a `guide` tool reads `hf_guides` (5 topics live; the newest row per topic wins, so a guide
+- **Synchro connector** (#2093): tool calls are logged to `hf_activity` with who and a one-line summary, best effort (a
+  failed log write is dropped, never blocks the call; refusals are logged as failures), and a `guide` tool reads `hf_guides` (5 topics live; the newest row per topic wins, so a guide
   changes with no reinstall). The team skill `synchro` is managed in the Claude organization settings; its master copy is
   in the synchro-brain repo (`team-skills/synchro/SKILL.md`).
 - **Pop-ups part 2** (#2081) and SyncLinear "Back to card" (#2078).

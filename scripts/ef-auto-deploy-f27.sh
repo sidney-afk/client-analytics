@@ -8,13 +8,20 @@
 # lane makes is its own and unchanged, including "commit_sha equals main's tip
 # at dispatch time" and the pinned fingerprints.
 #
-# Main can move between this merge and the dispatch. The lane only accepts main's
-# tip, so the tip is what is dispatched, and only if the lane's pins at the tip
-# equal the tip's own source for all three (otherwise that lane would refuse).
+# The Section 4 lane only accepts main's tip, and it does not look at what merged
+# between the planned commit and the tip. So this dispatches only when the tip is
+# the planned commit, or when nothing the lane plans from (functions, config,
+# migrations, the planner, the Section 4 lane itself) changed in between, which
+# makes the tip's three functions and migrations exactly the planned ones. If any
+# did change, the tip's own run of the merge lane plans it with its migrations
+# and its pins, so this run hands over (exit 3) instead of mixing versions.
 # Needs: GH_TOKEN with actions: write, DEPLOY_COMMIT, GITHUB_REPOSITORY.
 set -euo pipefail
 lane=deploy-f27-section4-closures.yml
 slugs=production-write,deliverable-write,batch-write
+watched=(supabase/functions supabase/config.toml migrations supabase/migrations
+  scripts/ef-auto-deploy-plan.js scripts/ef-fingerprint.js
+  .github/workflows/deploy-edge-functions-on-merge.yml .github/workflows/deploy-f27-section4-closures.yml)
 
 pins_match() {
   local sha="$1" pins fps
@@ -24,17 +31,27 @@ pins_match() {
   [ -n "$pins" ] && [ "$pins" = "$fps" ]
 }
 
+# 0: the tip may be dispatched. 3: hand over to the tip's own run.
+tip_is_safe() {
+  local tip="$1"
+  [ "$tip" = "$DEPLOY_COMMIT" ] && return 0
+  if [ -n "$(git diff --name-only "$DEPLOY_COMMIT" "$tip" -- "${watched[@]}")" ]; then
+    echo "Main moved on to $tip and the merges in between changed functions, migrations or this lane. Not dispatching Section 4 at a commit that was not planned." >> "$GITHUB_STEP_SUMMARY"
+    echo "::warning::Section 4 is handed to the run of main's newer tip ($tip), which plans it with the migrations and pins of every merge in between."
+    return 3
+  fi
+  echo "Main moved on to $tip, but nothing the lane plans from changed since $DEPLOY_COMMIT; the tip is dispatched."
+  if ! pins_match "$tip"; then
+    echo "::error::At main's tip the Section 4 lane's pins do not match the source of the three, so that lane would refuse. Re-pin it, then run this lane by hand."
+    exit 1
+  fi
+}
+
 attempt=1
 while :; do
   git fetch -q origin main:refs/remotes/origin/main
   tip="$(git rev-parse origin/main)"
-  if [ "$tip" != "$DEPLOY_COMMIT" ]; then
-    echo "Main moved on to $tip after $DEPLOY_COMMIT; the Section 4 lane only accepts the tip."
-    if ! pins_match "$tip"; then
-      echo "::error::At main's tip the Section 4 lane's pins do not match the source of the three, so that lane would refuse. Re-pin it, then run this lane by hand."
-      exit 1
-    fi
-  fi
+  tip_is_safe "$tip" || exit $?
   request="merge-$(printf '%s' "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$attempt")"
   started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   gh workflow run "$lane" --repo "$GITHUB_REPOSITORY" --ref main \
@@ -74,7 +91,7 @@ while :; do
   git fetch -q origin main:refs/remotes/origin/main
   if [ "$attempt" = 1 ] && [ "$failed_step" = "Validate the reviewed Section 4 release and operation" ] \
     && [ "$(git rev-parse origin/main)" != "$tip" ]; then
-    echo "::warning::Main moved during the dispatch; the Section 4 lane refused before deploying. Dispatching once more at the new tip."
+    echo "::warning::Main moved during the dispatch; the Section 4 lane refused before deploying. Checking the new tip."
     attempt=2
     continue
   fi

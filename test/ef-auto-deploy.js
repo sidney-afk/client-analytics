@@ -22,6 +22,7 @@ let failures = 0;
 function ok(cond, msg) { if (cond) console.log('  ok  ' + msg); else { failures++; console.error('FAIL  ' + msg); } }
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
+(async () => {
 // ---- 1. the plan, on a throwaway repository ---------------------------------
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ef-auto-plan-'));
 try {
@@ -111,6 +112,54 @@ try {
   const c6 = g('rev-parse', 'HEAD');
   p = run(c5, c6);
   ok(decision(p, 'beta') === 'held', 'a function whose config asks for verify_jwt = true is held (this lane deploys JWT-off only)');
+
+  // A run can span several merges: a migration holds only the functions its own merge changed.
+  put('migrations/2026-10-18-needs-apply.sql', 'create table if not exists u (id int);\n');
+  put('supabase/functions/beta/index.ts', 'Deno.serve(() => new Response("beta 6"));\n');
+  g('add', '.'); g('commit', '-q', '-m', 'merge with migration');
+  const c7 = g('rev-parse', 'HEAD');
+  put('supabase/functions/_shared/x.ts', 'export const x = 3;\n');
+  g('add', '.'); g('commit', '-q', '-m', 'later unrelated merge');
+  const c8 = g('rev-parse', 'HEAD');
+  p = run(c6, c8);
+  ok(decision(p, 'beta') === 'held' && decision(p, 'alpha') === 'deploy',
+    'over two merges the migration holds the function its merge changed and not the function a later merge changed');
+
+  // Order across runs: a follower planned alone is held unless its predecessor is live at the head's source.
+  const fpOf = (sha, slug) => fp(sha).find(r => r.slug === slug).expected_fingerprint;
+  put('supabase/functions/production-comments/index.ts', 'Deno.serve(() => new Response("pc 4"));\n');
+  g('add', '.'); g('commit', '-q', '-m', 'comments only');
+  const c9 = g('rev-parse', 'HEAD');
+  // The gate runs inside the throwaway repository (its own copy of the scripts), with the live reads supplied.
+  const gateWith = async (pwLivePasses, dispatch = false) => {
+    const live = {
+      'production-write': pwLivePasses
+        ? { result: 'PASS', verify_jwt: false, live_fingerprint: fpOf(c9, 'production-write'), version: 7 }
+        : { result: 'FAIL', verify_jwt: false, live_fingerprint: fpOf(c2, 'production-write'), version: 6 },
+      '*': { result: 'FAIL', verify_jwt: false, live_fingerprint: fpOf(c8, 'production-comments'), version: 1 },
+    };
+    const r = spawnSync(process.execPath, ['-e', `
+      const m = require(${JSON.stringify(path.join(tmp, 'scripts', 'ef-auto-deploy-plan.js'))});
+      const live = ${JSON.stringify(live)};
+      const p = m.plan({ root: ${JSON.stringify(tmp)}, base: ${JSON.stringify(c8)}, head: ${JSON.stringify(c9)} });
+      m.gate({ root: ${JSON.stringify(tmp)}, p, dispatch: ${dispatch},
+        readLive: (root, sha, slugs) => new Map(slugs.map(slug => [slug, { slug, ...(live[slug] || live['*']) }])),
+        checks: new Proxy({}, { get: () => async () => null }) })
+        .then(g => { g.__summary = m.summary(g); process.stdout.write(JSON.stringify(g)); }).catch(e => { console.error(e); process.exit(1); });`], { cwd: tmp, encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(r.stderr);
+    return JSON.parse(r.stdout);
+  };
+  let gated = await gateWith(false);
+  ok(JSON.stringify(units(run(c8, c9))) === '["production-comments"]' && decision(gated, 'production-comments') === 'held'
+    && /waits for production-write/.test(gated.functions[0].reason),
+    'a later merge touching only production-comments is held while the live production-write is older than the head');
+  gated = await gateWith(true);
+  ok(decision(gated, 'production-comments') === 'deploy', 'and it deploys once the live production-write is the head source');
+  gated = await gateWith(false, true);
+  ok(decision(gated, 'production-comments') === 'held' && /skipped/.test(gated.drift_guard)
+    && /Drift guard: skipped/.test(gated.__summary), 'a manual run keeps the order rule, and its summary says it skipped the drift guard');
+  gated = await gateWith(true, true);
+  ok(/DRIFT|recent main version/.test(gated.functions[0].drift) && gated.functions[0].decision === 'deploy', 'a manual run reports drift per function instead of holding');
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
@@ -129,7 +178,12 @@ ok(deployLines.length === 1 && deployLines[0].includes('--no-verify-jwt'), 'one 
 ok(/production-write\|deliverable-write\|batch-write\|calendar-upsert\|sample-review-upsert\|linear-inbound\|linear-outbound\|client-token-verify\)\n\s+# Defense in depth/.test(lane),
   'the Section 4 three and every manual function are refused by name before the deploy command');
 const attest = lane.slice(at('- name: Attest every function this job deployed'), at('- name: Report'));
-ok(attest.includes('x.result!=="PASS"||x.verify_jwt!==false') && !/^\s+if:[^\n]*always\(\)/m.test(attest), 'every deployed function is attested (fingerprint and JWT), never after a failure');
+ok(attest.includes('x.result!=="PASS"||x.verify_jwt!==false') && /^\s+if: always\(\) && steps\.plan\.outputs\.any == 'true' && steps\.deploy_units\.outputs\.deployed != ''/m.test(attest),
+  'every deployed function is attested (fingerprint and JWT), also when a later deploy failed, and only what was deployed');
+ok(lane.includes('(IFS=,; echo "deployed=${deployed[*]}" >> "$GITHUB_OUTPUT")') && lane.indexOf('deployed+=("$unit")') < lane.indexOf('echo "deployed=${deployed[*]}"'),
+  'the deployed list is written after every deploy, so a later failure cannot lose it');
+ok(lane.includes('status=success&per_page=1') && !/status=completed/.test(lane) && lane.includes('exit 1') && lane.includes('Failing instead of guessing from the push\'s own before'),
+  'a run starts from the last FULLY successful run, and a failed runs lookup fails the run instead of falling back to the push before');
 ok(at('- name: Gate on live state') < at('- name: Deploy in order') && at('- name: Deploy in order') < at('- name: Attest every function'), 'gate, then deploy, then attest');
 ok(lane.includes('scripts/ef-auto-deploy-notice.js') && lane.includes('SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}'), 'failure or hold pages the owner relay');
 for (const old of ['deploy-onboarding-edge-functions', 'deploy-pto-edge-functions', 'deploy-thumbnail-edge-functions', 'deploy-description-image-upload']) {
@@ -174,6 +228,28 @@ ok(f27sh.includes('-f operation=deploy-reviewed-release') && f27sh.includes('-f 
   && f27sh.includes('"Validate the reviewed Section 4 release and operation"'),
 'the merge lane dispatches the reviewed operation in capture mode, and retries only a refusal at validation');
 
+// Section 4 is dispatched only at the planned commit, or at a tip with nothing the lane plans from changed since.
+ok(f27sh.includes('tip_is_safe "$tip" || exit $?') && f27sh.includes('return 3') && lane.includes('"$rc" = 3') && lane.includes('handed-over'),
+  'Section 4 hands over to the tip\'s own run instead of dispatching a commit that was not planned');
+{
+  const fn = f27sh.slice(f27sh.indexOf('tip_is_safe() {'), f27sh.indexOf('\n}\n', f27sh.indexOf('tip_is_safe() {')) + 3);
+  const w = f27sh.slice(f27sh.indexOf('watched=('), f27sh.indexOf('\n\npins_match'));
+  const tmp2 = fs.mkdtempSync(path.join(os.tmpdir(), 'ef-auto-tip-'));
+  try {
+    const g2 = (...a) => execFileSync('git', ['-C', tmp2, ...a], { encoding: 'utf8' }).trim();
+    g2('init', '-q', '-b', 'main'); g2('config', 'user.email', 't@example.invalid'); g2('config', 'user.name', 't');
+    fs.mkdirSync(path.join(tmp2, 'supabase/functions/a'), { recursive: true });
+    fs.writeFileSync(path.join(tmp2, 'supabase/functions/a/index.ts'), '1');
+    g2('add', '.'); g2('commit', '-q', '-m', 'planned'); const planned = g2('rev-parse', 'HEAD');
+    fs.writeFileSync(path.join(tmp2, 'README.md'), 'docs'); g2('add', '.'); g2('commit', '-q', '-m', 'docs'); const docs = g2('rev-parse', 'HEAD');
+    fs.writeFileSync(path.join(tmp2, 'supabase/functions/a/index.ts'), '2'); g2('add', '.'); g2('commit', '-q', '-m', 'function'); const fnTip = g2('rev-parse', 'HEAD');
+    const rc = tip => spawnSync('bash', ['-c', `${w}\npins_match() { return 0; }\n${fn}\ntip_is_safe ${tip}`], { cwd: tmp2, encoding: 'utf8', env: { ...process.env, DEPLOY_COMMIT: planned, GITHUB_STEP_SUMMARY: '/dev/null' } }).status;
+    ok(rc(planned) === 0, 'the planned commit is dispatched');
+    ok(rc(docs) === 0, 'a tip that only added docs is dispatched (its three functions and migrations are the planned ones)');
+    ok(rc(fnTip) === 3, 'a tip with a function change since the plan is handed over (exit 3), never dispatched');
+  } finally { fs.rmSync(tmp2, { recursive: true, force: true }); }
+}
+
 // ---- 4. the notice is public-safe -------------------------------------------
 const { noticeSpec } = require(path.join(ROOT, 'scripts', 'ef-auto-deploy-notice.js'));
 const spec = noticeSpec({ head: 'a'.repeat(40), functions: [{ slug: 'beta', decision: 'held' }] }, { alpha: 'failed' });
@@ -181,6 +257,9 @@ const r = spawnSync(process.execPath, ['--input-type=module', '-e',
   `import { relayPayload } from ${JSON.stringify(path.join(ROOT, 'supabase/functions/_shared/monitoring-alert-relay-core.mjs'))};
    const p = relayPayload(${JSON.stringify(spec)}); process.stdout.write(p.type + ' ' + p.issue_identifier);`], { encoding: 'utf8' });
 ok(r.status === 0 && r.stdout.startsWith('ef_auto_deploy failed_alpha_held_beta'), 'the notice names what failed and what is held, through the relay screen');
+ok(noticeSpec({ head: 'a'.repeat(40), functions: [] }, { '@f27-section4': 'handed-over' }, 'success') === null, 'handing Section 4 to the newer tip pages nobody (that run pages if it fails)');
+ok(noticeSpec({ head: 'a'.repeat(40), functions: [] }, { '@f27-section4': 'handed-over', alpha: 'failed' }, 'failure') !== null, 'but a real failure alongside it still pages');
 
 if (failures) { console.error(`\n${failures} Edge-Functions-on-merge check(s) failed`); process.exit(1); }
 console.log('\nEdge Functions on merge checks passed');
+})().catch(e => { console.error(e); process.exit(1); });

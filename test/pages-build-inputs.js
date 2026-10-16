@@ -37,6 +37,13 @@ for (const wf of ['pages-site', 'production-polish-gate', 'pto-ui-tests', 'tikto
   ok(!missing.length, `${wf}.yml triggers on every build input${missing.length ? ' (missing ' + missing.join(', ') + ')' : ''}`);
   ok(text.includes('uses: ./.github/actions/build-index'), `${wf}.yml builds the page before reading it`);
 }
+// Sweep: any workflow that serves the page or runs a browser/page test must build it first.
+const WF_DIR = path.join(ROOT, '.github/workflows');
+const READS_PAGE = /pages_static_server|node qa\/|docs\/syncview-design\/tests|playwright test|npm run test:(prod|cal|pto)|node test\/run-all/;
+for (const f of fs.readdirSync(WF_DIR).filter(n => n.endsWith('.yml'))) {
+  const text = fs.readFileSync(path.join(WF_DIR, f), 'utf8');
+  if (READS_PAGE.test(text)) ok(text.includes('uses: ./.github/actions/build-index'), `${f} serves or tests the page, so it builds it first`);
+}
 const ignore = fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8');
 for (const line of ['/index.html', '/js/sv-*.js', '/src/index/INDEX.md']) ok(ignore.split('\n').includes(line), `.gitignore lists ${line}`);
 if (failures) { console.error(`\n${failures} build-input check(s) failed`); process.exit(1); }

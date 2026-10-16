@@ -16,7 +16,7 @@
  *      first-parent history that still tracked index.html. That is exactly
  *      what the site served before the switch, so the first publish after it
  *      is byte-identical to the last one before it.
- *   2. The RECENT set: for the newest --keep=N (default 10) first-parent
+ *   2. The RECENT set: for the newest --keep=N (default 30) first-parent
  *      commits after that one which changed the build's inputs, the bundles
  *      that commit's build writes. Each is rebuilt in a temporary worktree from
  *      that commit's own sources; the build is deterministic
@@ -112,7 +112,7 @@ function buildAt(sha) {
 
 function main() {
   const keepArg = process.argv.find(a => a.startsWith('--keep='));
-  const keep = keepArg ? Number(keepArg.split('=')[1]) : 10;
+  const keep = keepArg ? Number(keepArg.split('=')[1]) : 30;
   if (!Number.isInteger(keep) || keep < 0) throw new Error('--keep takes a whole number');
   const dryRun = process.argv.includes('--dry-run');
   const { legacy, switchCommit } = findLegacy();

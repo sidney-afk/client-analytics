@@ -208,6 +208,22 @@ function cascadeHolds(rows) {
 
 // ---- plan -------------------------------------------------------------------
 
+/**
+ * Which migration files each first-parent commit of base..head added, with the
+ * paths that commit changed. A run can span several merges (it starts from the
+ * last fully successful run), and a migration blocks only the functions its OWN
+ * merge changed: a later, unrelated merge must not be held by it.
+ */
+function commitsInRange(root, base, head) {
+  const out = [];
+  for (const c of git(root, ['rev-list', '--first-parent', '--reverse', `${base}..${head}`]).split('\n').filter(Boolean)) {
+    if (!gitOk(root, ['rev-parse', '--verify', '-q', `${c}^1`])) continue;
+    const files = changedFiles(root, `${c}^1`, c);
+    out.push({ commit: c, paths: new Set(files.map(f => f.path)), migrations: migrationsAdded(root, files, c) });
+  }
+  return out;
+}
+
 function plan({ root = ROOT, base, head, functions = null, migrationsApplied = false }) {
   if (!SHA.test(base) || !SHA.test(head)) throw new Error('--base and --head must be 40-character SHAs');
   const files = changedFiles(root, base, head);
@@ -229,8 +245,17 @@ function plan({ root = ROOT, base, head, functions = null, migrationsApplied = f
     });
   }
   const removed = [...before.keys()].filter(s => !after.has(s));
-  const migrations = migrationsAdded(root, files, head);
-  const blocking = migrations.filter(m => m.marker !== 'cope');
+  const commits = commitsInRange(root, base, head);
+  const migrations = commits.length ? commits.flatMap(c => c.migrations) : migrationsAdded(root, files, head);
+  // Chosen functions (a manual run) are held by any migration in the range, as before.
+  // Otherwise a function is held only by the migrations of the merges that changed it.
+  const blockingFor = slug => {
+    if (functions || !commits.length) return migrations.filter(m => m.marker !== 'cope');
+    const own = `supabase/functions/${slug}/`;
+    const closure = new Set(closureFiles(root, slug));
+    return commits.filter(c => [...c.paths].some(pth => pth.startsWith(own) || closure.has(pth)))
+      .flatMap(c => c.migrations).filter(m => m.marker !== 'cope');
+  };
   const ptoSql = files.some(f => /^migrations\/.*pto.*\.sql$/i.test(f.path));
   const pins = f27PinsAt(root);
 
@@ -255,12 +280,14 @@ function plan({ root = ROOT, base, head, functions = null, migrationsApplied = f
       Object.assign(row, { decision: 'held', reason: 'supabase/config.toml asks for verify_jwt = true; this lane only deploys JWT-off functions (every attested function is verify_jwt=false)', release: 'deploy by hand after review' });
       return row;
     }
+    const blocking = blockingFor(slug);
     if (!migrationsApplied && blocking.length) {
       Object.assign(row, {
         decision: 'held',
         reason: `this merge adds ${blocking.length} migration file(s) not yet known to be applied (${blocking.map(m => m.path).join(', ')})`,
         release: 'apply the migration(s), then run this lane by hand with commit_sha and migrations_applied=true (docs/ops/EF_AUTO_DEPLOY.md)',
         pending_probes: blocking.filter(m => m.marker === 'probe').map(m => m.path),
+        pending_unmarked: blocking.filter(m => m.marker === null).length,
       });
       return row;
     }
@@ -384,53 +411,89 @@ function recentMainVersions(root, p) {
   return bySlug;
 }
 
-async function gate({ root = ROOT, p, dispatch = false }) {
-  const going = p.functions.filter(r => r.decision === 'deploy' || r.decision === 'f27-lane');
-  const live = liveReport(root, p.head, going.map(r => r.slug));
-  for (const row of going) {
+// readLive and checks are injectable so the test can feed it live states without a network.
+async function gate({ root = ROOT, p, dispatch = false, readLive = liveReport, checks = GATE_CHECKS }) {
+  p.drift_guard = dispatch ? 'skipped (manual run): nothing is held for drift; each function row says whether live was a recent main version' : 'applied';
+  // 1. Migrations that say how to tell they are applied: ask, and release the
+  //    hold of a function whose every blocking migration answers yes.
+  const probes = p.migrations_added.filter(m => m.marker === 'probe');
+  if (probes.length) {
+    const { assertReadOnlyProbe } = require('./repo-vs-live');
+    for (const m of probes) {
+      try {
+        const rows = await sqlRead(`select * from (${assertReadOnlyProbe(m.probe_sql)}) as probe`);
+        m.applied = Object.values(rows[0] || {})[0] === true;
+      } catch (e) { m.applied = false; m.probe_error = e.message; }
+    }
+    for (const row of p.functions) {
+      if (row.decision !== 'held' || !row.pending_probes || row.pending_unmarked) continue;
+      if (row.pending_probes.every(path_ => (probes.find(m => m.path === path_) || {}).applied)) {
+        Object.assign(row, { decision: F27_LANE.includes(row.slug) ? 'f27-lane' : 'deploy', reason: 'its migration(s) answer applied', release: '' });
+        delete row.pending_probes;
+      }
+    }
+  }
+
+  // 2. One live read for everything that could go: a function whose live source
+  //    already equals this commit's has nothing to deploy, whatever held it.
+  const candidates = p.functions.filter(r => r.decision === 'deploy' || r.decision === 'f27-lane' || (r.decision === 'held' && !/verify_jwt = true/.test(r.reason)));
+  const live = readLive(root, p.head, candidates.map(r => r.slug));
+  for (const row of candidates) {
     const rep = live.get(row.slug) || {};
     row.live_version = rep.version ?? null;
     if (rep.result === 'PASS' && rep.verify_jwt === false) {
       Object.assign(row, { decision: 'already-live', reason: 'live already runs this commit\'s source (verify_jwt=false)', release: '' });
       continue;
     }
+    if (row.decision === 'held') continue;
     const liveFp = rep.live_fingerprint || null;
-    if (!row.new_function && !dispatch) {
+    if (!row.new_function) {
       const recent = recentMainVersions(root, p).get(row.slug) || new Set();
-      if (!liveFp || !recent.has(liveFp)) {
+      const isRecent = !!liveFp && recent.has(liveFp);
+      if (!dispatch && !isRecent) {
         Object.assign(row, {
           decision: 'held',
           reason: liveFp ? 'drift guard: the live source is not any recent version of main, so something deployed from elsewhere would be overwritten' : 'drift guard: the live source could not be read',
-          release: 'check what is live, then run this lane by hand with functions=' + row.slug + ' (a manual run reports drift instead of stopping)',
+          release: 'check what is live, then run this lane by hand with functions=' + row.slug + ' (a manual run skips the drift guard and reports the drift in its table)',
         });
         continue;
       }
+      row.drift = !liveFp ? 'not live yet' : isRecent ? 'live is a recent main version' : 'DRIFT: live was not a recent main version (manual run, deployed anyway)';
+    } else {
+      row.drift = liveFp ? 'new function' : 'not live yet';
     }
-    row.drift = liveFp ? (row.new_function ? 'new function' : 'live is a recent main version') : 'not live yet';
     for (const key of row.preconditions) {
       let problem;
-      try { problem = await GATE_CHECKS[key]({ root }); } catch (e) { problem = `${key} could not be checked (${e.message})`; }
+      try { problem = await checks[key]({ root }); } catch (e) { problem = `${key} could not be checked (${e.message})`; }
       if (problem) { Object.assign(row, { decision: 'held', reason: problem, release: 'fix that, then run this lane by hand with commit_sha' }); break; }
     }
   }
-  // Migrations that say how to tell they are applied: ask, and release their hold if every one answers yes.
-  const probes = p.migrations_added.filter(m => m.marker === 'probe');
-  const unmarked = p.migrations_added.filter(m => m.marker === null);
-  if (probes.length && !unmarked.length) {
-    const { assertReadOnlyProbe } = require('./repo-vs-live');
-    let allApplied = true;
-    for (const m of probes) {
-      try {
-        const rows = await sqlRead(`select * from (${assertReadOnlyProbe(m.probe_sql)}) as probe`);
-        m.applied = Object.values(rows[0] || {})[0] === true;
-      } catch (e) { m.applied = false; m.probe_error = e.message; }
-      if (!m.applied) allApplied = false;
-    }
-    if (allApplied) {
-      for (const row of p.functions) {
-        if (row.decision === 'held' && row.pending_probes) Object.assign(row, { decision: 'deploy', reason: 'its migration(s) answer applied', release: '' });
+
+  // 3. Order across runs. A function that must follow another is deployed only
+  //    when that other one is live at this commit's source: either it is in this
+  //    plan (ordered, and held if it will not go: cascadeHolds) or, when it is not,
+  //    its live source is read here. A later merge touching only production-comments
+  //    must not land on an older live production-write.
+  const inPlan = new Set(p.functions.map(r => r.slug));
+  const preds = [...new Set(p.functions
+    .filter(r => r.decision === 'deploy' || r.decision === 'f27-lane')
+    .flatMap(r => ORDER.filter(([, after]) => after === r.slug).map(([before]) => before))
+    .filter(b => !inPlan.has(b) && fs.existsSync(path.join(root, 'supabase', 'functions', b, 'index.ts'))))];
+  if (preds.length) {
+    const predLive = readLive(root, p.head, preds);
+    for (const row of p.functions) {
+      if (row.decision !== 'deploy' && row.decision !== 'f27-lane') continue;
+      for (const [before, after] of ORDER) {
+        if (after !== row.slug || inPlan.has(before) || !predLive.has(before)) continue;
+        const rep = predLive.get(before);
+        if (rep.result === 'PASS' && rep.verify_jwt === false) continue;
+        Object.assign(row, {
+          decision: 'held',
+          reason: `waits for ${before}: the live ${before} is not this commit's source, and it must be live first (a new reader against the old gateway would mis-handle an edit as a create)`,
+          release: `deploy ${before} first (run this lane by hand with functions=${before}), then run it by hand for ${row.slug}`,
+        });
+        break;
       }
-      return gate({ root, p: { ...p, migrations_added: p.migrations_added.map(m => ({ ...m, marker: 'cope' })) }, dispatch });
     }
   }
   cascadeHolds(p.functions);
@@ -446,11 +509,12 @@ function summary(p, results = {}) {
     `Changes since \`${p.base.slice(0, 12)}\` (${p.mode}); ${p.changed_file_count} file(s) changed; ${p.migrations_added.length} migration file(s) added${p.migrations_applied_confirmed ? ' (confirmed applied by the dispatcher)' : ''}.`,
     '',
   ];
+  if (p.drift_guard && p.drift_guard !== 'applied') lines.push(`Drift guard: ${p.drift_guard}.`, '');
   if (!p.functions.length) { lines.push('No Edge Function changed, so nothing was deployed.'); return lines.join('\n') + '\n'; }
   lines.push('| Order | Function | Decision | Result | Why / how to release |', '| ---: | --- | --- | --- | --- |');
   p.functions.forEach((r, i) => {
     const res = results[r.slug] || results[F27_LANE.includes(r.slug) ? '@f27-section4' : ''] || (r.decision === 'deploy' || r.decision === 'f27-lane' ? 'not run' : '-');
-    lines.push(`| ${i + 1} | \`${r.slug}\` | ${r.decision} | ${res} | ${[r.reason, r.release].filter(Boolean).join('. ') || '-'} |`);
+    lines.push(`| ${i + 1} | \`${r.slug}\` | ${r.decision} | ${res} | ${[r.reason, /^DRIFT/.test(r.drift || '') ? r.drift : '', r.release].filter(Boolean).join('. ') || '-'} |`);
   });
   for (const s of p.removed_functions) lines.push('', `- \`${s}\` was removed from the repository; it is NOT deleted live (do that by hand).`);
   return lines.join('\n') + '\n';

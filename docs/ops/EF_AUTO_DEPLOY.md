@@ -14,9 +14,12 @@ runs nothing on his own machine.
 
 1. **Validates first**, from the trusted default branch, with no secret and no
    script of the merge run: the commit must be on `main` and carry the attestor.
-2. **Counts the changes since the last run that really ran** (GitHub drops a
-   pending run when a newer one queues, so the push's own "before" is not
-   enough). A function changed when its folder, or any file it imports, changed
+2. **Counts the changes since the last run that fully succeeded.** Not the last
+   run that ran: a run that was red (a function held or failed) is not a starting
+   point, so whatever it left undone is planned again by every later run until it
+   is live (GitHub also drops a pending run when a newer one queues, so the push's
+   own "before" is never enough). If the list of earlier runs cannot be read, the
+   run fails instead of guessing. A function changed when its folder, or any file it imports, changed
    (the import walk of `scripts/ef-deploy-manifest.js`), or when its source
    fingerprint (`scripts/ef-fingerprint.js`) moved.
 3. **Plans, with no secret.** Each changed function gets one decision:
@@ -34,7 +37,16 @@ runs nothing on his own machine.
      version that was on `main` (at the base of this run or one of the 40 newest
      function-touching commits). Something deployed from elsewhere is never
      overwritten; it is held instead. A brand-new function has nothing live and
-     is deployed.
+     is deployed. A manual run skips this guard on purpose (a person chose it): its
+     summary says "Drift guard: skipped" and its table marks any function whose
+     live source was not a recent `main` version with `DRIFT`.
+   - **Order across runs.** A function that must follow another (below) is
+     deployed only when that other one is live at this commit's source. If the
+     other one is in this plan, the order handles it; if it is not (a later merge
+     touched only `production-comments`), its live source is read, and the
+     follower is held until it matches.
+   - **Already live.** Whatever held a function, if the live source already equals
+     this commit's, it is `already-live` and nothing is done.
    - **The manual lanes' own safeguards**, the same reads: the onboarding,
      HubSpot sync and Frame.io keeper schema readbacks
      (`deploy-single-function.yml`), `PTO_SCHEMA_CONTRACT`
@@ -53,7 +65,9 @@ runs nothing on his own machine.
    new reader against the old gateway would mis-handle an edit as a create). If
    a function that must go first is held, the ones after it are held too.
 6. **Attests** every function it deployed against the commit: live source equals
-   the committed source, `verify_jwt=false`. No attestation after a failure.
+   the committed source, `verify_jwt=false`. This also runs when a later deploy
+   failed, so what went live is always proved. Nothing is attested after a
+   failed gate, because nothing was deployed.
 7. **Reports**: a table in the run summary (function, decision, result, why and
    how to release), and on any failure or hold a page through the owner alert
    relay (`SLACK_ALERT_WEBHOOK`, the same relay the backup and the watchdog use).
@@ -77,10 +91,15 @@ in the F27 Shared Drive root with an independent readback, fetches it back and
 inspects it with the unchanged steps, and only then deploys and attests. The
 sealed SHA-256 and byte length are in its summary; they are what a
 `restore-captured-prior-three` needs. A failed forward is never retried forward.
-If main moved between the merge and the dispatch, the tip is dispatched (only if
-the lane's pins match the tip's source); if a merge slips in during the dispatch,
-the lane refuses at validation, before any secret, and this lane dispatches once
-more.
+The lane only accepts main's tip, and it does not look at the merges between
+the planned commit and the tip. So this lane dispatches only at the planned
+commit, or at a tip where nothing it plans from (functions, config, migrations,
+the planner, the two lanes) changed since. If any of those changed, it dispatches
+nothing and hands Section 4 to the run of the newer tip, which plans it with the
+migrations and pins of every merge in between. That hand-over shows as a red run
+that says so and pages nobody; the tip's run pages if it fails. If a merge slips
+in during the dispatch, the lane refuses at validation, before any secret, and
+the rule is applied again at the new tip.
 
 Dry run of the capture: Run workflow on the Section 4 lane with
 `operation=capture-only`, `confirm=CAPTURE_F27_SECTION4_PRIOR_THREE`, both bundle
@@ -110,10 +129,14 @@ Otherwise, **Lighthouse**:
 3. checks that the run is green and its table says `deployed` for each.
 
 A manual run deploys what that one merge changed (or the functions named), with
-every other check; it reports drift instead of stopping, because a person chose
-it. It does not overwrite a newer version: it refuses a commit that is not on
-`main`, and the drift guard still holds a function whose live source is not a
-`main` version unless named.
+every other check, including the order rule; it reports drift instead of
+stopping (its summary says the drift guard was skipped and marks each function
+with `DRIFT` when live was not a recent `main` version), because a person chose
+it. It never deploys a commit that is not on `main`.
+
+A migration holds only the functions its own merge changed, so a run that spans
+several merges (after a red run) does not hold an unrelated function because an
+earlier merge added a migration.
 
 ## Other holds
 
@@ -121,7 +144,7 @@ it. It does not overwrite a newer version: it refuses a commit that is not on
 |---|---|
 | drift guard: live is not a recent `main` version | look at what is live, then run the lane by hand with `functions=<name>` |
 | a safeguard failed (schema missing, `PTO_SCHEMA_CONTRACT`, hiring checks, Linear-exit preflight) | fix that, then run by hand with `commit_sha` |
-| waits for a predecessor | release the predecessor first, then run by hand |
+| waits for a predecessor (in this plan, or live at an older source) | release the predecessor first (run this lane by hand with `functions=<predecessor>`), then run by hand |
 | stale Section 4 pin | re-pin in a PR; its merge releases it |
 | `verify_jwt = true` in config | deploy by hand after review |
 

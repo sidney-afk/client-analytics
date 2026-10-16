@@ -33275,3 +33275,13 @@ capture script on one Windows machine plus a drag-and-drop into Drive.
 
 **Not yet proven live:** the first real run of each lane. After merge: one `capture-only` dispatch of
 the Section 4 lane (deploys nothing), and the first merge that changes a function.
+
+**Review round 1 (Lighthouse, 2026-10-16), fixed on the same branch:** (1) `dawn-check.yml` now builds the page,
+and `test/pages-build-inputs.js` fails for any workflow that serves or tests the page without the build step;
+(2) the order rule holds across runs (a follower is deployed only if its predecessor is live at the head's
+source, in the plan or read live); (3) a run starts from the last fully successful run, so held and failed
+functions are planned again, a failed runs lookup fails the run, and a migration holds only the functions its
+own merge changed; (4) Section 4 is dispatched only at the planned commit (or a tip with no function, migration
+or lane change since), else handed to the tip's own run. Also: the attestation covers what went live even when
+a later deploy fails, a manual run's summary says it skipped the drift guard and marks drift per function, and
+the publish keeps the bundles of the last 30 builds (was 10).

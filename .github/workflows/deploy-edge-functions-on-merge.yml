@@ -16,9 +16,15 @@ run-name: ${{ github.workflow }} (${{ github.event_name == 'workflow_dispatch' &
 #      authenticates itself), one function at a time; stop at the first failure.
 #      production-write, deliverable-write and batch-write are NEVER deployed by
 #      this job: it dispatches the Section 4 lane, which seals the live source
-#      into its rollback bundle, deploys and attests, and waits for it.
+#      into its rollback bundle, deploys and attests, and waits for it. It does
+#      so only at the planned commit (or a tip with no function, migration or
+#      lane change since); otherwise it hands over to the tip's own run.
+#   A follower (production-comments, production-archive after production-write;
+#   production-write after notify) is deployed only when its predecessor is live
+#   at this commit's source, in this plan or read live, whatever run planned it.
 #   5. Attest every function deployed here against the commit (fingerprint and
-#      verify_jwt=false). No always(): no attestation after a failed gate.
+#      verify_jwt=false), also when a later deploy failed. Nothing is attested
+#      after a failed gate, because nothing was deployed.
 #   6. Report in the run summary, and page the owner relay when anything failed
 #      or is held.
 # The job runs in the `production` Environment, so a branch copy of this file
@@ -62,8 +68,9 @@ permissions:
   actions: write # dispatch and watch the Section 4 lane; read earlier runs of this lane
 
 # One at a time, never cancelled midway. GitHub keeps only the newest pending
-# run, so the plan starts from the last run that really ran (see "Validate"),
-# never only from the push's own `before`: nothing a skipped run held is lost.
+# run, so the plan starts from the last FULLY SUCCESSFUL run (see "Validate"),
+# never only from the push's own `before`: whatever a skipped, held or failed
+# run left undone is planned again until it is live.
 concurrency:
   group: deploy-edge-functions-on-merge
   cancel-in-progress: false
@@ -110,18 +117,29 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             base="$(git rev-parse "$DEPLOY_COMMIT^1")"
           else
-            # The head of the newest earlier merge run of this lane that ran to
-            # an end (success or failure); a cancelled or skipped run deployed
-            # nothing, so its changes are still ahead of that point.
-            prev="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/deploy-edge-functions-on-merge.yml/runs?branch=main&event=push&status=completed&per_page=30" \
-              --jq '[.workflow_runs[] | select(.id != '"$GITHUB_RUN_ID"') | select(.conclusion == "success" or .conclusion == "failure")][0].head_sha // ""' 2>/dev/null || true)"
-            if [[ "$prev" =~ ^[0-9a-f]{40}$ ]] && git merge-base --is-ancestor "$prev" "$DEPLOY_COMMIT" && [ "$prev" != "$DEPLOY_COMMIT" ]; then
+            # Start from the head of the newest earlier merge run that FULLY
+            # succeeded. A run that was red (something held or failed) is not a
+            # starting point: what it left undone is still ahead of that point and is
+            # planned again here, until it is live. A cancelled or skipped run
+            # deployed nothing, so it is not one either.
+            if ! prev="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/deploy-edge-functions-on-merge.yml/runs?branch=main&event=push&status=success&per_page=1" \
+              --jq '[.workflow_runs[] | select(.id != '"$GITHUB_RUN_ID"')][0].head_sha // ""')"; then
+              echo "::error::Could not read the earlier runs of this lane, so the starting point is unknown. Failing instead of guessing from the push's own before; re-run this run, or run the lane by hand with commit_sha."
+              exit 1
+            fi
+            if [ -z "$prev" ]; then
+              # No run of this lane has ever succeeded (the first one after it was added).
+              if [[ "$PUSH_BEFORE" =~ ^[0-9a-f]{40}$ ]] && ! [[ "$PUSH_BEFORE" =~ ^0+$ ]] && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
+                base="$PUSH_BEFORE"
+                echo "::notice::No earlier successful run of this lane exists; planning from the push's own before ($PUSH_BEFORE)."
+              else
+                base="$(git rev-parse "$DEPLOY_COMMIT^1")"
+              fi
+            elif [[ "$prev" =~ ^[0-9a-f]{40}$ ]] && git merge-base --is-ancestor "$prev" "$DEPLOY_COMMIT"; then
               base="$prev"
-            elif [[ "$PUSH_BEFORE" =~ ^[0-9a-f]{40}$ ]] && ! [[ "$PUSH_BEFORE" =~ ^0+$ ]] && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
-              base="$PUSH_BEFORE"
-              echo "::warning::No earlier finished run of this lane was found; planning from the push's own before ($PUSH_BEFORE)."
             else
-              base="$(git rev-parse "$DEPLOY_COMMIT^1")"
+              echo "::error::The last successful run's commit ($prev) is not an ancestor of $DEPLOY_COMMIT, so the changes since it cannot be counted. Run the lane by hand with commit_sha."
+              exit 1
             fi
           fi
           echo "base=$base" >> "$GITHUB_OUTPUT"
@@ -210,7 +228,11 @@ jobs:
                 echo "::error::Refused: $unit is never deployed by this job"
                 record "$unit" refused; exit 1 ;;
               @f27-section4)
-                if ! bash scripts/ef-auto-deploy-f27.sh; then record "$unit" failed; exit 1; fi
+                bash scripts/ef-auto-deploy-f27.sh; rc=$?
+                if [ "$rc" = 3 ]; then
+                  # Main moved to a tip whose merges changed functions or migrations: the tip's own run plans Section 4.
+                  record "$unit" handed-over; break
+                elif [ "$rc" != 0 ]; then record "$unit" failed; exit 1; fi
                 record "$unit" released ;;
               *)
                 echo "Deploying $unit..."
@@ -222,14 +244,16 @@ jobs:
                   record "$unit" failed; exit 1
                 fi
                 record "$unit" deployed
-                deployed+=("$unit") ;;
+                deployed+=("$unit")
+                # Written after every deploy (last write wins), so the attestation covers
+                # what went live even when a later deploy fails.
+                (IFS=,; echo "deployed=${deployed[*]}" >> "$GITHUB_OUTPUT") ;;
             esac
           done < "$DIR/units.txt"
-          (IFS=,; echo "deployed=${deployed[*]:-}" >> "$GITHUB_OUTPUT")
 
       - name: Attest every function this job deployed
-        # No always(): an attestation is produced only after the gate and every deploy passed.
-        if: steps.plan.outputs.any == 'true' && steps.deploy_units.outputs.deployed != ''
+        # Also after a failed deploy: whatever went live is attested. Nothing is attested after a failed gate (no deploy ran, so the list is empty).
+        if: always() && steps.plan.outputs.any == 'true' && steps.deploy_units.outputs.deployed != ''
         shell: bash
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

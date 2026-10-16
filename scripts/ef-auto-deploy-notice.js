@@ -21,11 +21,13 @@ function arg(name) {
 }
 
 function noticeSpec(plan, results = {}, jobStatus = '') {
-  const failed = Object.entries(results).filter(([, v]) => v !== 'deployed' && v !== 'released').map(([k]) => k);
+  const failed = Object.entries(results).filter(([, v]) => v !== 'deployed' && v !== 'released' && v !== 'handed-over').map(([k]) => k);
   const held = plan.functions.filter(r => r.decision === 'held').map(r => r.slug);
   const parts = [];
   if (failed.length) parts.push(`failed_${failed.join('_')}`);
   if (held.length) parts.push(`held_${held.join('_')}`);
+  // Section 4 handed to the run of a newer main tip: that run pages if it fails, this one stays quiet.
+  if (!parts.length && Object.values(results).includes('handed-over') && jobStatus !== 'cancelled') return null;
   if (!parts.length) parts.push(`run_${jobStatus || 'red'}`);
   parts.push(`commit_${String(plan.head).slice(0, 12)}`);
   return {
@@ -46,7 +48,9 @@ async function main() {
     console.log('::warning::SLACK_ALERT_WEBHOOK is not set; the red run is the only notice.');
     return;
   }
-  const receipt = await sendAlert(noticeSpec(plan, results, arg('job-status')), { webhook });
+  const spec = noticeSpec(plan, results, arg('job-status'));
+  if (!spec) { console.log('Section 4 was handed to the run of the newer main tip; no page from this run.'); return; }
+  const receipt = await sendAlert(spec, { webhook });
   console.log(`owner relay: accepted=${receipt.accepted} delivery_confirmed=${receipt.delivery_confirmed}`);
 }
 

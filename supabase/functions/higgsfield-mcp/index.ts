@@ -17,9 +17,10 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
-import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, isTeamLink, logActivity, outcomeOf } from "./who.mjs";
+import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, cleanWho, isTeamLink, logActivity, outcomeOf } from "./who.mjs";
 import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
 import { guideIndex, guideReply, latestGuides } from "./guides.mjs";
+import { STUDIO_BUCKET, studioLatest } from "./studio.mjs";
 import { brainChange, clientBrain, clientStyle, filmingPlan, listClients } from "./clientinfo.ts";
 import { DIRECT_MODELS, directEstimate, isDirect, runDirect, type Fetched } from "./direct.ts";
 
@@ -293,6 +294,11 @@ const TOOLS = [
     inputSchema: { type: "object", properties: { topic: { type: "string", description: "The guide to read, e.g. brain or thumbnails. Leave out to list them." } }, additionalProperties: false },
   },
   { name: "team_usage", description: "This month's team spending against the budget, and the most recent jobs with who made them.", inputSchema: EMPTY },
+  {
+    name: "studio_latest",
+    description: "The newest version of the Synchro video studio: its version, a private download link (valid about 10 minutes) and what changed. Use it when someone wants to install or update the studio, or asks which version is current. Read only.",
+    inputSchema: EMPTY,
+  },
 ];
 
 // Every tool takes the two optional activity-log arguments: "who" (the first
@@ -1129,6 +1135,10 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
 
   if (name === "import_file") return await importFile(String(args.link || "").trim());
 
+  if (name === "studio_latest") {
+    return await studioLatest(studioStore(), { member, who: isTeamLink(member) ? cleanWho(args.who) : "" });
+  }
+
   if (name === "get_upload_link") {
     const type = String(args.content_type || "");
     if (!Object.values(UPLOAD_TYPES).includes(type)) return "Unsupported content_type.";
@@ -1168,6 +1178,35 @@ async function readGuides(): Promise<JsonMap[]> {
   const { data, error } = await db().from("hf_guides").select("topic,body,created_at").order("created_at", { ascending: false }).limit(1000);
   if (error) throw new Error(error.message);
   return (data || []) as JsonMap[];
+}
+
+// The studio bucket (private, read only here) and its download log
+// (hf_studio_downloads: service role only, one row per studio_latest call).
+function studioStore() {
+  const bucket = () => db().storage.from(STUDIO_BUCKET);
+  return {
+    exists: async (name: string): Promise<boolean> => {
+      const { data, error } = await bucket().list("", { search: name, limit: 100 });
+      if (error) throw new Error(error.message);
+      return (data || []).some((o) => o.name === name);
+    },
+    readText: async (name: string): Promise<string> => {
+      const { data, error } = await bucket().download(name);
+      if (error || !data) throw new Error(error?.message || "empty file");
+      return await data.text();
+    },
+    sign: async (name: string, seconds: number): Promise<string> => {
+      const { data, error } = await bucket().createSignedUrl(name, seconds, { download: true });
+      if (error || !data?.signedUrl) throw new Error(error?.message || "no link returned");
+      return data.signedUrl;
+    },
+    log: (row: JsonMap) => {
+      background(logActivity(async (r: JsonMap) => {
+        const { error } = await db().from("hf_studio_downloads").insert(r);
+        if (error) throw new Error(error.message);
+      }, row));
+    },
+  };
 }
 
 async function writeActivity(row: JsonMap): Promise<void> {

@@ -891,6 +891,7 @@ Each linked file contains table-creating DDL, including retained backup and temp
 | <!-- atlas:migration supabase/migrations/20261014120000_client_review_alerts.sql -->[`supabase/migrations/20261014120000_client_review_alerts.sql`](../supabase/migrations/20261014120000_client_review_alerts.sql) | `public.client_review_alerts` |
 | <!-- atlas:migration supabase/migrations/20261015180000_hf_activity.sql -->[`supabase/migrations/20261015180000_hf_activity.sql`](../supabase/migrations/20261015180000_hf_activity.sql) | `public.hf_activity` |
 | <!-- atlas:migration supabase/migrations/20261015200000_hf_guides.sql -->[`supabase/migrations/20261015200000_hf_guides.sql`](../supabase/migrations/20261015200000_hf_guides.sql) | `public.hf_guides` |
+| <!-- atlas:migration supabase/migrations/20261016180000_hf_studio_downloads.sql -->[`supabase/migrations/20261016180000_hf_studio_downloads.sql`](../supabase/migrations/20261016180000_hf_studio_downloads.sql) | `public.hf_studio_downloads` |
 
 
 ## Verification limits and keeping this map true

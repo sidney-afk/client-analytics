@@ -347,3 +347,15 @@ Why: the old Calendar workbook is kept as a frozen backup (owner's decision 2026
 database since 2026-10-07.
 Evidence, checked immediately before: no run of any of the four since 2026-10-07.
 Undo: in n8n open each workflow and publish it again.
+
+## 2026-10-16 SyncView Calendar, Generate Caption switched off (owner's go, session Lighthouse)
+
+Workflow and the version that stays saved (unpublished only; no step, connection or credential touched):
+- SyncView Calendar, Generate Caption (`rNrRCwKPGuau7sLH`, webhook `/webhook/generate-caption`): `09a03ded-d354-4c84-a90e-46c428014eb7`
+Changed: unpublished (active true to false) at about 05:45 UTC. Nothing deleted, nothing edited.
+Why: owner decision 3 on the calendar-upsert retirement plan (2026-10-16): remove the page's fallback first, then switch
+the workflow off. The fallback removal is #2102 (merged `e680a69f`); every caption runs on `caption-generate`.
+Evidence, checked immediately before: the live page and every bundle it loads no longer contain the webhook address; the
+workflow's last run was 2026-10-09 14:03 UTC; on main only backups, tests and mocked probes mention the address.
+Read back after: workflow details show `active: false`.
+Undo: in n8n open the workflow and publish it again (the page no longer calls it, so it would also need #2102 reverted).

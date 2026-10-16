@@ -74,7 +74,9 @@ supervisor manual's "Writing it down"):**
   1,200 real saves a day). Plan: a new, small, separate function; move the test client first, then staff, then client
   review links last; the old route stays as an automatic fallback for about 14 days; then delete the old function.
   Nothing a client sees changes until the staff move has run clean. Until then `calendar-upsert` stays frozen.
-- **Old n8n "SyncView Calendar, Generate Caption" workflow: switch off, not delete.** Zero runs since 2026-10-09. First the
+- **Old n8n "SyncView Calendar, Generate Caption" workflow: DONE 2026-10-16.** Sunset's #2102 removed the page fallback
+  (merged, checked live), then Lighthouse switched the workflow off (not deleted; N8N_EDIT_LOG). Original decision:
+  **switch off, not delete.** Zero runs since 2026-10-09. First the
   page's fallback to it (`GENERATE_CAPTION_URL`) is removed (Sunset); once that is live, Lighthouse deactivates the
   workflow (owner's go given 2026-10-16 on that condition) and logs it in `docs/ops/N8N_EDIT_LOG.md`.
 - **Messages:** clicking Messages again closes it and returns to where you were, and it gets a Close button (reverses the

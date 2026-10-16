@@ -10,7 +10,13 @@
  * Compared: buildIncoming, mergeCell, applyGuards (rows, conflicts and the phantom-row refusal), the update
  * payload, the comment-merge RPC arguments, and the event ledger. The one intended ledger difference is the live
  * writer's role override (an approval is the client's, a Kasper approve, finish or close is Kasper's), which the
- * repo copy of calendar-upsert never received; it is checked on its own below.
+ * repo copy of calendar-upsert never received; it is checked on its own below. The one intended difference in the
+ * stored row: a blank urgent time is stored as no time (null), where calendar-upsert sends "" and Postgres refuses
+ * the save; that is checked on its own too.
+ *
+ * Then exact cases at the edges the generator rarely hits, each of which went unnoticed when deliberately broken
+ * in review (Lighthouse, 2026-10-16): comment and stamp ties in the three-way merge and the stale-save check, and
+ * the archived twin the duplicate-link guard must ignore.
  *
  * Then the handler's wiring: staff key required, client tokens refused, the roster switch read by the function.
  */
@@ -96,7 +102,10 @@ const norm = v => String(v == null ? '' : v).trim().toLowerCase();
   const actor = { actor: 'Staff', role: 'smm', source: 'ui' };
 
   const capture = fn => { try { return { value: fn() }; } catch (e) { return { error: e.message }; } };
-  let compared = 0, conflicts = 0, refusals = 0;
+  let compared = 0, conflicts = 0, refusals = 0, blankStamps = 0;
+  // The intended difference in the stored row (see logic.mjs, NULLABLE_STAMP_COLUMNS).
+  const URGENT_STAMPS = ['video_urgent_pinged_at', 'video_urgent_status_at', 'kasper_urgent_pinged_at', 'kasper_urgent_status_at'];
+  const blankStampsToNull = row => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, URGENT_STAMPS.includes(k) && v === '' ? null : v]));
   for (let i = 0; i < 4000; i++) {
     const post = { id: 'p1' };
     for (const f of FIELDS) if (maybe(0.25)) post[f] = valueFor(f);
@@ -117,9 +126,10 @@ const norm = v => String(v == null ? '' : v).trim().toLowerCase();
     if (ga.error) { refusals += 1; continue; }
     if (ga.value._conflict) { conflicts += 1; continue; }
     const pa = OLD.stripPrivate(ga.value), pb = NEW.stripPrivate(gb.value);
-    ok(same(pa, pb), `case ${i}: the stored row agrees`);
+    if (URGENT_STAMPS.some(k => pa[k] === '')) blankStamps += 1;
+    ok(same(blankStampsToNull(pa), pb), `case ${i}: the stored row agrees (a blank urgent time stored as null)`);
     ok(same(OLD.responsePayload(pa), NEW.responsePayload(pb)), `case ${i}: the answer agrees`);
-    ok(same(OLD.updatePayload('fixture', OLD.scalarPayloadForExisting(pa)), NEW.updatePayload('fixture', NEW.scalarPayloadForExisting(pb))), `case ${i}: the update payload agrees`);
+    ok(same(blankStampsToNull(OLD.updatePayload('fixture', OLD.scalarPayloadForExisting(pa))), NEW.updatePayload('fixture', NEW.scalarPayloadForExisting(pb))), `case ${i}: the update payload agrees`);
     let rpcArgs = null;
     await OLD.callCommentRpc({ rpc: async (_name, args) => { rpcArgs = args; return { error: null }; } }, 'fixture', pa);
     ok(same(rpcArgs, NEW.commentRpcArgs('fixture', pb)), `case ${i}: the comment-merge arguments agree`);
@@ -129,7 +139,65 @@ const norm = v => String(v == null ? '' : v).trim().toLowerCase();
     ok(same(sorted(ea.map(e => ({ ...e, role: overridden(e) }))), sorted(eb)), `case ${i}: the ledger agrees (with the live role override)`);
     compared += 1;
   }
-  ok(compared > 1500 && conflicts > 50 && refusals > 20, `the generator reached every branch (${compared} saved, ${conflicts} conflicts, ${refusals} refusals)`);
+  ok(compared > 1500 && conflicts > 50 && refusals > 20 && blankStamps > 50, `the generator reached every branch (${compared} saved, ${conflicts} conflicts, ${refusals} refusals, ${blankStamps} blank urgent times)`);
+
+  /* The Retry that failed live (2026-10-16): a whole-card save of a card that was never pinged carries the four
+     urgent times blank. calendar-upsert stores "" (Postgres refuses it: "calendar update failed"); this writer
+     stores no time. A blank still never replaces a stored time: the marker guards put the stored one back first. */
+  {
+    const never = { id: 'p1', updated_at: STAMPS[1], video_status: 'In Progress' };
+    const blank = { id: 'p1', caption: 'kept', video_urgent_pinged_at: null, video_urgent_status_at: null, kasper_urgent_pinged_at: null, kasper_urgent_status_at: null };
+    const inc = NEW.buildIncoming({ client: 'Fixture', post: blank }, NOW, norm).row;
+    const oldRow = OLD.stripPrivate(OLD.applyGuards({ ...inc }, never, [], false, NOW_MS));
+    const newRow = NEW.stripPrivate(NEW.applyGuards({ ...inc }, never, [], false, NOW_MS));
+    ok(URGENT_STAMPS.every(k => oldRow[k] === ''), 'calendar-upsert sends the never-pinged card\'s urgent times as "", which Postgres refuses');
+    ok(URGENT_STAMPS.every(k => newRow[k] === null) && newRow.caption === 'kept', 'calendar-card-write stores them as no time, and the rest of the save goes through');
+    ok(URGENT_STAMPS.every(k => NEW.responsePayload(newRow)[k] === ''), 'the answer still says "" for no time, as calendar-upsert\'s does');
+    const pinged = { ...never, video_urgent_pinged_at: STAMPS[2], kasper_urgent_pinged_at: STAMPS[3], kasper_urgent_status_at: STAMPS[3], kasper_urgent_comp: 'graphic' };
+    const kept = NEW.stripPrivate(NEW.applyGuards({ ...inc }, pinged, [], false, NOW_MS));
+    ok(kept.video_urgent_pinged_at === STAMPS[2] && kept.kasper_urgent_pinged_at === STAMPS[3] && kept.kasper_urgent_status_at === STAMPS[3],
+      'a blank urgent time never replaces a stored one');
+  }
+
+  /* Ties in the comment merge and the stale-save check. Changing any of these three ">" to ">=" in either writer
+     changes an answer below. Both writers are held to them. */
+  for (const [W, name] of [[OLD, 'calendar-upsert'], [NEW, 'calendar-card-write']]) {
+    const T = '2026-10-10T10:00:00.000Z';
+    const cellOf = s => JSON.parse(s || '[]');
+    // The same comment at the same time on both sides: the incoming copy is the one kept.
+    const tie = cellOf(W.mergeCell(JSON.stringify([{ id: 'c1', body: 'stored', updated_at: T }]), JSON.stringify([{ id: 'c1', body: 'mine', updated_at: T }]), T, NOW_MS));
+    ok(tie.length === 1 && tie[0].body === 'mine', `${name}: a comment edited at the same time on both sides keeps the incoming copy`);
+    const newer = cellOf(W.mergeCell(JSON.stringify([{ id: 'c1', body: 'stored', updated_at: STAMPS[4] }]), JSON.stringify([{ id: 'c1', body: 'mine', updated_at: T }]), T, NOW_MS));
+    ok(newer.length === 1 && newer[0].body === 'stored', `${name}: a comment stored later than the incoming copy wins`);
+    // A stored comment the save left out: dropped if this screen had seen it (stamp at or before the base), kept if it came later.
+    const seen = cellOf(W.mergeCell(JSON.stringify([{ id: 'c2', body: 'seen', created_at: T }]), '[]', T, NOW_MS));
+    ok(seen.length === 0, `${name}: a stored comment from exactly the screen's base time, left out of the save, is dropped`);
+    const later = cellOf(W.mergeCell(JSON.stringify([{ id: 'c3', body: 'later', created_at: STAMPS[4] }]), '[]', T, NOW_MS));
+    ok(later.length === 1 && later[0].body === 'later', `${name}: a stored comment newer than the screen's base survives a save that never saw it`);
+    // The stale-save check: a row stored at exactly the base time is not "changed since".
+    const atBase = W.applyGuards({ id: 'p1', updated_at: NOW, caption: 'new', _baseAt: T }, { id: 'p1', updated_at: T, caption: 'old' }, [], false, NOW_MS);
+    ok(atBase._conflict === false && atBase.caption === 'new', `${name}: a card stored at exactly the screen's base time saves`);
+    const afterBase = W.applyGuards({ id: 'p1', updated_at: NOW, caption: 'new', _baseAt: T }, { id: 'p1', updated_at: STAMPS[4], caption: 'old' }, [], false, NOW_MS);
+    ok(afterBase._conflict === true && afterBase.conflict === true, `${name}: a card changed after the screen's base time is a conflict`);
+  }
+
+  /* The duplicate-link guard ignores an archived twin and only an archived one. */
+  for (const [W, name] of [[OLD, 'calendar-upsert'], [NEW, 'calendar-card-write']]) {
+    const L = 'https://linear.app/x/issue/A-1';
+    const mine = { id: 'p1', updated_at: STAMPS[1], linear_issue_id: '' };
+    const save = { id: 'p1', updated_at: NOW, linear_issue_id: L };
+    const guarded = twin => W.applyGuards({ ...save }, mine, [twin], false, NOW_MS);
+    ok(guarded({ id: 'p2', status: 'Archived', linear_issue_id: L }).linear_issue_id === L, `${name}: a link held only by an archived card can be set`);
+    ok(guarded({ id: 'p2', status: ' ARCHIVED ', linear_issue_id: L }).linear_issue_id === L, `${name}: "archived" is read in any case and spacing`);
+    for (const st of ['In Progress', 'Approved', '', 'Archived later']) {
+      ok(guarded({ id: 'p2', status: st, linear_issue_id: L }).linear_issue_id === '', `${name}: a link a live card holds (status "${st}") is refused`);
+    }
+    ok(guarded({ id: 'p1', status: 'In Progress', linear_issue_id: L }).linear_issue_id === L, `${name}: the card itself is not its own twin`);
+    const created = W.applyGuards({ id: 'p9', updated_at: NOW, name: 'new', linear_issue_id: L }, {}, [{ id: 'p2', status: 'Archived', linear_issue_id: L }], false, NOW_MS);
+    ok(created.linear_issue_id === L, `${name}: a new card may take a link only an archived card holds`);
+    const createdLive = W.applyGuards({ id: 'p9', updated_at: NOW, name: 'new', linear_issue_id: L }, {}, [{ id: 'p2', status: 'Client Approval', linear_issue_id: L }], false, NOW_MS);
+    ok(createdLive.linear_issue_id === '', `${name}: a new card may not take a link a live card holds`);
+  }
 
   ok(same(OLD.mintThumbRev('abc', NOW), NEW.mintThumbRev('abc', NOW)) && NEW.mintThumbRev(Date.parse(NOW).toString(36), NOW) !== Date.parse(NOW).toString(36), 'thumb_rev minting agrees and never repeats');
 

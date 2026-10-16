@@ -119,7 +119,9 @@ process.on('exit', c => { if (!finished && c === 0) { console.log('FAIL  the sui
     };
     ok(await run('Not saved yet: Video to Approved.') === 'Color updated', 'Calendar: bulk colour on a card with an older unsaved status still says "Color updated"');
     ok(await run('HTTP 500') === 'Some colors were not saved', 'Calendar: a colour that really failed is still reported');
-    ok(/_saveError && !\/\^Not saved yet: \/\.test\(String\(current\._saveError\)\)/.test(lift('_calReviewComment')),
+    // Since the note outbox (2026-10-15) the review comment's save runs in
+    // _calReviewCommentSend, which keeps the same rule.
+    ok(/_saveError && !\/\^Not saved yet: \/\.test\(String\(current\._saveError\)\)/.test(lift('_calReviewCommentSend')),
       'Calendar Review: the same older-change chip is not shown as "Comment not saved yet"');
   } catch (e) { ok(false, 'this block could not run: ' + String(e && e.message || e).slice(0, 120)); }
 

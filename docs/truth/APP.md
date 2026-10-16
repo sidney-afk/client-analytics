@@ -1,6 +1,7 @@
 # App logic (`index.html`) — current truth
 
 Phone Workload implementation is prepared for review in the Thumb branch: [scope and fixture evidence](../audits/2026-10-15-thumb-workload/README.md). This is not a deployment claim.
+Phone Messages is prepared for review after the merged page rebuild: [Thumb scope and fictional evidence](../audits/2026-10-15-thumb-messages/README.md). This is not a deployment claim.
 
 
 **Pocket phone source, 2026-10-04, not deployed:** staff Samples Review and Sheet

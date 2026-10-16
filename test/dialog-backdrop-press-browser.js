@@ -68,6 +68,7 @@ CASES.push({name:'Phone Workload filters',viewport:{width:390,height:844},prepar
   calState.client='';calState.posts=[];sxrState.client='';sxrState.posts=[];
   const api=await svArea('workload');document.getElementById('content').innerHTML=api.render();
 }),overlay:'.thumb-wl-filters[open]',open:()=>document.querySelector('[data-thumb-wl-filter]').click()});
+CASES.push({name:'Phone conversation actions',viewport:{width:390,height:844},prepare:p=>p.evaluate(()=>{calState.client='';calState.posts=[];sxrState.client='';sxrState.posts=[];}),overlay:'.thumb-msg-more[open]',open:()=>{const b=document.createElement('button');b.textContent='Conversation actions';document.body.append(b);_msgPhoneMore(b);}});
 const fs = require('fs');
 const path = require('path');
 const SRC = path.join(__dirname, '..', 'src', 'index');
@@ -193,7 +194,7 @@ const SIGN_IN_GATE = { name: 'Staff sign-in (start-up gate)', overlay: '#staffId
   async function drive(page, c) {
     const label = c.name;
     if(c.prepare)await c.prepare(page);
-    await page.setViewportSize(c.viewport || {width:1280,height:900});
+    await page.setViewportSize(c.viewport||{width:1280,height:900});
     await page.waitForTimeout(100);
     await page.evaluate(c.open);
     await until(page, c.overlay, true, 10000).catch(() => { throw new Error(label + ': the dialog did not open (' + c.overlay + ')'); });

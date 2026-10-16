@@ -18,7 +18,7 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
         { page: 'sample-reviews', label: 'Samples', nav: 'navSxr', words: ['samples', 'sample', 'sxr'] },
         { page: 'templates', label: 'Templates', nav: 'navTemplates', words: ['templates', 'template', 'tpl'] },
         { page: 'filming-plans', label: 'Filming Plans', nav: 'navFilmingPlans', words: ['filming', 'plans', 'plan', 'fp'] },
-        { page: 'tiktok-upload', label: 'TikTok Upload', nav: 'navTiktokUpload', words: ['tiktok', 'upload', 'tt'] },
+        { page: 'tiktok-upload', label: 'Post', nav: 'navTiktokUpload', words: ['post', 'tiktok', 'instagram', 'upload', 'tt', 'ig'] },
         { page: 'home', label: 'Analytics', nav: 'navHome', words: ['analytics', 'stats'] },
         { page: 'workload', label: 'Workload', nav: 'navWorkload', words: ['workload', 'wl'] },
         { page: 'production', label: 'SyncLinear', nav: 'navProd', words: ['synclinear', 'linear', 'issues'] },

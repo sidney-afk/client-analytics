@@ -33,6 +33,11 @@ verify_jwt = false
 [functions.calendar-upsert]
 verify_jwt = false
 
+# Native Calendar card writer that replaces calendar-upsert (retirement plan,
+# step 1): staff role key and its own roster switch checked in code.
+[functions.calendar-card-write]
+verify_jwt = false
+
 # A2 calendar reorder port. Shares calendar_upsert_ef_clients with calendar saves.
 [functions.calendar-reorder]
 verify_jwt = false

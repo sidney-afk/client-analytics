@@ -30,7 +30,13 @@ on:
       - 'test/card-calendar-status-drift-check.js'
       - 'test/fixtures/card-calendar-status-drift.json'
       - 'migrations/2026-09-18-native-calendar-status-bridge.sql'
-      - 'index.html'
+      # index.html is built from these, not committed (since 2026-10-15):
+      - 'src/index/**'
+      - 'scripts/build-index.js'
+      - 'scripts/index-modules.js'
+      - 'scripts/index-split.js'
+      - 'scripts/index-minify.js'
+      - '.github/actions/build-index/**'
       - '.github/workflows/card-calendar-status-drift.yml'
   workflow_dispatch:
 
@@ -72,6 +78,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Build index.html and js/ from src/index/ (build output, not committed)
+        uses: ./.github/actions/build-index
 
       - name: Require the project URL and a read credential
         shell: bash

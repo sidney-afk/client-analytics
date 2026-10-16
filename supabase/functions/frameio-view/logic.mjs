@@ -191,11 +191,26 @@ export function addressExpiry(url, nowMs) {
   return new Date(at).toISOString();
 }
 
-// Smaller proxy first (plays everywhere and loads fast), then the high quality one, then the original upload.
-export function pickAddress(links) {
+const FRAME_HOST = /^https:\/\/[a-z0-9.-]+\.frame\.io\//i;
+
+// Every playable address Frame.io gave for the file, by name. "efficient" is a small 360p proxy (about 1 Mbit/s),
+// "high_quality" is the full-size H.264 (about 4 Mbit/s), "original" is the upload itself. Measured 2026-10-16
+// on one vertical 1080x1920 test file: all three start playing (the index is at the front of each file).
+export function pickRenditions(links) {
   const l = links || {};
-  const order = [l.efficient && l.efficient.download_url, l.high_quality && l.high_quality.download_url, l.original && l.original.inline_url];
-  return order.map(clean).find((u) => /^https:\/\/[a-z0-9.-]+\.frame\.io\//i.test(u)) || '';
+  const out = {};
+  const put = (name, u) => { const v = clean(u); if (FRAME_HOST.test(v)) out[name] = v; };
+  put('efficient', l.efficient && l.efficient.download_url);
+  put('high_quality', l.high_quality && l.high_quality.download_url);
+  put('original', l.original && l.original.inline_url);
+  return out;
+}
+
+// The one to start with: the full-size H.264 when there is one (the page falls back to the small one only on a slow
+// connection), else the small proxy, else the original upload (last: it can be a format a browser cannot play).
+export function pickAddress(links) {
+  const r = pickRenditions(links);
+  return r.high_quality || r.efficient || r.original || '';
 }
 
 async function playable(ctx, acct, fileId) {
@@ -204,9 +219,10 @@ async function playable(ctx, acct, fileId) {
   const f = got.data;
   if (!isVideo(f)) throw fail('not_video');
   if (f.status === 'created') throw fail('still_processing');
-  const url = pickAddress(f.media_links);
+  const renditions = pickRenditions(f.media_links);
+  const url = renditions.high_quality || renditions.efficient || renditions.original || '';
   if (!url) throw fail(f.status === 'uploaded' ? 'still_processing' : 'no_playable_address');
-  return { name: clean(f.name), url };
+  return { name: clean(f.name), url, renditions };
 }
 
 async function videoFacts(ctx, acct, fileId) {
@@ -280,8 +296,41 @@ async function commentsFor(ctx, acct, fileId, fps) {
 
 // ---------------------------------------------------------------- the whole lookup
 
-// deps: { fetchFn, getToken(), dropToken(), clientId, now() }. Returns the body to send, or throws a ViewError.
-export async function lookup(rawLink, deps) {
+// A link's file is stable for a minute: remembering it saves the redirect, the account search, the share and the
+// asset calls (five of the seven Frame.io calls of an open) for the hover-then-click and for repeat opens. Short on
+// purpose: a new version uploaded to the stack shows within a minute. Opt in with deps.cache (a Map).
+export const RESOLVE_TTL_MS = 60000;
+const RESOLVE_CACHE_MAX = 200;
+function cacheKey(link) {
+  if (link.kind === 'short') return 's:' + link.code;
+  if (link.kind === 'share') return 'sh:' + link.shareId + ':' + (link.assetId || '');
+  return 'v:' + link.projectId + ':' + link.fileId + ':' + (link.versionId || '');
+}
+async function resolveLink(ctx, link, cache) {
+  const key = cacheKey(link);
+  const hit = cache && cache.get(key);
+  if (hit && ctx.now() - hit.at < RESOLVE_TTL_MS) return hit.found;
+  const run = async () => {
+    const resolved = link.kind === 'short' ? await followShortLink(ctx, link.code) : link;
+    const accounts = await accountIds(ctx);
+    return resolved.kind === 'share' ? await resolveShare(ctx, accounts, resolved) : await resolveView(ctx, accounts, resolved);
+  };
+  if (!cache) return run();
+  // The promise is what is remembered, so the video request and the comments request that arrive together share
+  // one search; a failed search is forgotten at once.
+  const found = run();
+  if (cache.size >= RESOLVE_CACHE_MAX) cache.clear();
+  cache.set(key, { at: ctx.now(), found });
+  found.catch(() => { const cur = cache.get(key); if (cur && cur.found === found) cache.set(key, { at: 0, found }); });
+  return found;
+}
+
+// deps: { fetchFn, getToken(), dropToken(), clientId, now(), cache? }. Returns the body to send, or throws a ViewError.
+// opts.part: "all" (the default), "video" (the playable addresses only: fast, so the player can start) or "comments"
+// (the comments only, asked for in parallel so they never hold the video back).
+// opts.client === true is the client's lookup: comments are never asked for from Frame.io, so there is nothing to
+// leak, and only the playable addresses and what is needed to play them come back.
+export async function lookup(rawLink, deps, opts = {}) {
   const link = parseFrameLink(rawLink);
   if (!link) throw fail('unsupported_link');
   const started = deps.now();
@@ -293,12 +342,25 @@ export async function lookup(rawLink, deps) {
     timedOut: () => ctrl.signal.aborted,
     signal: (ms) => (typeof AbortSignal.any === 'function' ? AbortSignal.any([ctrl.signal, AbortSignal.timeout(ms)]) : ctrl.signal),
   };
+  const client = opts.client === true || opts.comments === false;
+  const part = client ? 'video' : (opts.part === 'video' || opts.part === 'comments' ? opts.part : 'all');
   try {
-    const resolved = link.kind === 'short' ? await followShortLink(ctx, link.code) : link;
-    const accounts = await accountIds(ctx);
-    const found = resolved.kind === 'share' ? await resolveShare(ctx, accounts, resolved) : await resolveView(ctx, accounts, resolved);
-    const video = await playable(ctx, found.acct, found.file.id);
-    const facts = await videoFacts(ctx, found.acct, found.file.id);
+    const found = await resolveLink(ctx, link, deps.cache);
+    const fetchedAt = new Date(deps.now()).toISOString();
+    if (part === 'comments') {
+      const facts = await videoFacts(ctx, found.acct, found.file.id);
+      let com = { comments: [], truncated: false, replyNamesPartial: false }, commentsError = '';
+      try { com = await commentsFor(ctx, found.acct, found.file.id, facts.fps); } catch (e) {
+        commentsError = e instanceof ViewError ? e.code : 'frameio_unavailable';
+      }
+      return { ok: true, comments: com.comments, comments_error: commentsError, comments_truncated: com.truncated, reply_names_partial: com.replyNamesPartial, open_url: found.openUrl, fetched_at: fetchedAt, took_ms: deps.now() - started };
+    }
+    // The address and the file's facts do not depend on each other.
+    const [video, facts] = await Promise.all([playable(ctx, found.acct, found.file.id), videoFacts(ctx, found.acct, found.file.id)]);
+    const addr = { url: video.url, renditions: video.renditions, expires_at: addressExpiry(video.url, deps.now()), duration_seconds: facts.duration, fps: facts.fps };
+    if (client) return { ok: true, video: addr, fetched_at: fetchedAt };
+    const shaped = { ...addr, name: video.name, file_id: found.file.id };
+    if (part === 'video') return { ok: true, video: shaped, open_url: found.openUrl, fetched_at: fetchedAt, took_ms: deps.now() - started };
     // Comments are a bonus: if only they fail, the video still plays.
     let com = { comments: [], truncated: false, replyNamesPartial: false }, commentsError = '';
     try { com = await commentsFor(ctx, found.acct, found.file.id, facts.fps); } catch (e) {
@@ -306,16 +368,13 @@ export async function lookup(rawLink, deps) {
     }
     return {
       ok: true,
-      video: {
-        url: video.url, expires_at: addressExpiry(video.url, deps.now()), name: video.name, file_id: found.file.id,
-        duration_seconds: facts.duration, fps: facts.fps,
-      },
+      video: shaped,
       comments: com.comments,
       comments_error: commentsError,
       comments_truncated: com.truncated,
       reply_names_partial: com.replyNamesPartial,
       open_url: found.openUrl,
-      fetched_at: new Date(deps.now()).toISOString(),
+      fetched_at: fetchedAt,
       took_ms: deps.now() - started,
     };
   } finally { clearTimeout(timer); }

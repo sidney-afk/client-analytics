@@ -386,8 +386,12 @@ ok(/revoke all on table public\.description_images from anon/.test(MIGRATION)
 ok(!/create policy/i.test(MIGRATION), 'no storage policy is created: only the service role writes, everything else keeps no access');
 ok(/\[functions\.description-image-upload\]\nverify_jwt = false/.test(CONFIG),
   'config.toml declares the function with JWT verification off, like every other browser-callable staff function');
-ok(WORKFLOW.includes("- 'supabase/functions/description-image-upload/**'") && WORKFLOW.includes('supabase functions deploy description-image-upload'),
-  'the deploy lane is path-triggered on the function source and deploys exactly this function');
+// Since 2026-10-16 a merge deploys it through deploy-edge-functions-on-merge.yml
+// (push on supabase/functions/**); this lane is its manual fallback.
+ok(fs.readFileSync(path.join(ROOT, '.github/workflows/deploy-edge-functions-on-merge.yml'), 'utf8').includes("      - 'supabase/functions/**'")
+  && !require('../scripts/ef-auto-deploy-plan').MANUAL_ONLY['description-image-upload']
+  && WORKFLOW.includes('supabase functions deploy description-image-upload'),
+  'a merge deploys the function, and the fallback lane deploys exactly this function');
 ok(!/linear-outbound|production-write|deliverable-write|batch-write/.test(WORKFLOW),
   'and touches none of the four Section 4 closures, so no sealed capture is owed');
 ok(WORKFLOW.includes('workflow_dispatch'), 'and can be dispatched by hand for the first deploy');

@@ -1,0 +1,38 @@
+[
+  {
+    "screen": "inbox",
+    "theme": "light",
+    "width": 1440,
+    "pixels": true,
+    "styles": true,
+    "attempts": 1,
+    "sha256": "3b09d7215d57e60850d0e00af734a4e1c2ea6489b924da032acd3b808498659c"
+  },
+  {
+    "screen": "thread",
+    "theme": "light",
+    "width": 1440,
+    "pixels": true,
+    "styles": true,
+    "attempts": 2,
+    "sha256": "1471b35025c4971d414fcbf08db04ae3a959124db4fd3affa8239ebdae817062"
+  },
+  {
+    "screen": "inbox",
+    "theme": "dark",
+    "width": 1440,
+    "pixels": true,
+    "styles": true,
+    "attempts": 3,
+    "sha256": "7a4266f2ff190b9709ddb6e70360299de508b5d34a4ec182106fc9cb40d9d7c9"
+  },
+  {
+    "screen": "thread",
+    "theme": "dark",
+    "width": 1440,
+    "pixels": true,
+    "styles": true,
+    "attempts": 1,
+    "sha256": "331cd77c9b766f04076d227c372bfdd8c922846be425de162316bdaca5176c7c"
+  }
+]

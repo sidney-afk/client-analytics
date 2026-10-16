@@ -105,24 +105,29 @@ status still needs the dated [State of things](docs/STATE_OF_THINGS.md). The sho
 
 ## Development
 
-Serve the repository statically to preview the current `index.html`. After editing
-any `src/index/` fragment, rebuild and commit the served output. Run
-`npm run check:index` after that commit: it compares assembled, working-tree and
-committed bytes.
+Run `npm run build:index` after editing any `src/index/` fragment, then serve the
+repository statically to preview the built `index.html`. The built page
+(`index.html`, `js/sv-*.js`, `src/index/INDEX.md`) is **not committed** (since
+2026-10-15): it is in `.gitignore`, the Pages publish builds it on every push to
+`main`, and CI builds it before any job reads it. `npm run check:index` proves the
+build succeeds, is deterministic, and that nothing built is tracked.
 
 ```bash
 npm install           # installs the development and test dependencies
-npm run build:index   # after changing src/index/ fragments
-npm test              # offline unit/wiring suite; run before every commit
-npm run check:index   # after committing source and rebuilt output
+npm run build:index   # after changing src/index/ fragments (never commit the output)
+npm test              # offline unit/wiring suite; builds the page first
+npm run check:index   # the build succeeds twice, byte-identical, and nothing built is committed
 npm run test:e2e      # live TEST-scope probes; may write test data
 npm run test:prod-polish  # Production gate for ?prod=1 UI work; includes live reads
 ```
 
 ## Deployment
 
-GitHub Pages serves `index.html` from `main` at the `CNAME` domain
-(`syncview.synchrosocial.com`). Merging to `main` ships to production immediately.
+`.github/workflows/pages-site.yml` builds `index.html` from `src/index/` and publishes
+it through GitHub Pages at the `CNAME` domain (`syncview.synchrosocial.com`).
+Merging to `main` ships to production immediately. Edge Functions deploy on merge
+too (`.github/workflows/deploy-edge-functions-on-merge.yml`,
+`docs/ops/EF_AUTO_DEPLOY.md`).
 Samples Old retains a dormant read-source selector at `?sv2=0`; it is neither a current route nor a
 writable recovery. Its old writer fans out to Sheet + Supabase, continues after a Sheet error, and
 anchors success on the Supabase branch, so a successful save can still be absent from the Sheet that

@@ -7,15 +7,15 @@
 //   - the client's caption prompt is read from caption_prompts by this function (the page's copy is the fallback);
 //   - the client's Brain voice (voice.md, its "Caption style" section when written) and one fixed set of writing
 //     rules (writing-rules.mjs) go to the model with every caption;
-//   - every answer also carries five title ideas (one marked best), 3 to 5 hashtags and the call to action used;
-//     they ride on the job row (caption_jobs.extras), never inside the caption;
+//   - the team's choices before Generate (call to action, platform, a note) and "Redo with a note". The answer is the
+//     caption and nothing else: no title ideas, no separate hashtags (hashtags only when the client's prompt asks);
 //   - a transcript a person pastes in: the only source when the card has no Frame.io link, an extra otherwise.
 //
 //   POST { client, postId, assetUrl?, transcript?, captionPrompt?, jobId, cta?, platform?, note?, redo? }
 //     cta       one keyword from the client's list (caption_cta_options); empty = the model chooses
 //     platform  instagram (default) | tiktok | youtube
 //     note      a short note from the team, sent to the model apart from the transcript
-//     redo      { caption, quick?: shorter | hook | titles, titles? }: re-run from the current caption plus the note.
+//     redo      { caption }: re-run from the current caption plus the note.
 //               A redo needs no video, never saves to the card (the page applies it if the box is unchanged) and
 //               ends with the new caption on its row.
 //     -> { ok: true, accepted: true, jobId }   the work continues in the background; the page polls caption-jobs
@@ -46,8 +46,8 @@ import { normalizeBrowserWriteClient } from "../_shared/browser-write-auth.ts";
 import { buildPatch, selectJobs } from "../caption-jobs/jobs.mjs";
 import { findClientFolder, parseBrainFacts } from "../brain/parse.mjs";
 import {
-  buildMessages, duplicateRun, extrasFrom, failureUpdate, findTells, FRAME_QUERY, MAX_TOKENS, MODEL,
-  normalizeCtaOptions, parseModelOutput, parseRequest, pickFrameMedia, revisionRequest, shareIds, textFromResponse,
+  acceptReply, assetKey, buildMessages, duplicateRun, failureUpdate, findTells, FRAME_QUERY, MAX_TOKENS, MODEL,
+  normalizeCtaOptions, parseRequest, pickFrameMedia, rawTextFromResponse, revisionRequest, shareIds, TRANSCRIPT_KEEP_MAX,
   transcriptFromPrediction, voiceGuide, WHISPER_INPUT, WHISPER_VERSION,
 } from "./logic.mjs";
 import { WRITING_RULES } from "./writing-rules.mjs";
@@ -90,8 +90,7 @@ type Job = {
   cta: string;
   platform: string;
   note: string;
-  redo: { caption: string; quick: string; titles: string[] } | null;
-  extras: Record<string, unknown> | null;
+  redo: { caption: string } | null;
   forward: Record<string, string>;
   startedAt: number;
   caption: string;
@@ -103,12 +102,7 @@ async function patchJob(job: Job, fields: Record<string, unknown>) {
   const built = buildPatch({ jobId: job.jobId, ...fields }, new Date().toISOString());
   if (!built.ok) return;
   const patch = (built.patch || {}) as Record<string, unknown>;
-  let { error } = await job.db.from("caption_jobs").upsert(patch, { onConflict: "job_id" });
-  if (error && "extras" in patch) {
-    // The extras column is not there yet (the migration has not run): the caption still matters more than its titles.
-    const { extras: _skip, ...rest } = patch;
-    ({ error } = await job.db.from("caption_jobs").upsert(rest, { onConflict: "job_id" }));
-  }
+  const { error } = await job.db.from("caption_jobs").upsert(patch, { onConflict: "job_id" });
   if (error) console.warn("[caption-generate] job row write failed", error.code || "");
 }
 
@@ -255,33 +249,33 @@ async function claude(system: string, messages: Array<{ role: string; content: s
     body: JSON.stringify({ model: env("CAPTION_MODEL") || MODEL, max_tokens: MAX_TOKENS, system, messages }),
   }, 120000);
   if (!r.ok) { await r.body?.cancel(); throw new Error(`The caption writer did not answer (${r.status}). Try again.`); }
-  return textFromResponse(await r.json());
+  return rawTextFromResponse(await r.json());
 }
 
-type Written = ReturnType<typeof parseModelOutput>;
-
-async function writeCaption(job: Job, videoTranscript: string): Promise<Written> {
+async function writeCaption(job: Job, videoTranscript: string): Promise<string> {
   const [captionPrompt, voice, ctaOptions] = await Promise.all([readCaptionPrompt(job), readVoice(job), readCtaOptions(job)]);
   const m = buildMessages({
     captionPrompt, voice, videoTranscript, pastedTranscript: job.transcript, rules: WRITING_RULES,
     note: job.note, cta: job.cta, ctaOptions, platform: job.platform, redo: job.redo,
   });
-  const firstText = await claude(m.system, [{ role: "user", content: m.user }]);
-  let out = parseModelOutput(firstText);
-  if (!out.caption) throw new Error("Claude returned an empty caption");
-  const tells = findTells([out.caption, ...out.titles].join("\n"));
+  const first = await claude(m.system, [{ role: "user", content: m.user }]);
+  // A reply that reads like talk to a person (a question, a note about a missing transcript, a preamble, a "---" line)
+  // is never a caption. Nothing is saved; the job ends in an error the box shows and the caption stays as it was.
+  const accepted = acceptReply(first, !!job.redo);
+  if (!accepted.ok) throw new Error(accepted.error);
+  let out: string = accepted.caption || "";
+  const tells = findTells(out);
   if (tells.length) {
     // One revision for the mechanical tells; if it fails or comes back empty, the first draft stands.
     try {
       checkBudget(job);
-      const revised = parseModelOutput(await claude(m.system, [
-        { role: "user", content: m.user }, { role: "assistant", content: firstText }, { role: "user", content: revisionRequest(tells) },
-      ]));
-      if (revised.caption) out = revised;
+      const revised = await claude(m.system, [
+        { role: "user", content: m.user }, { role: "assistant", content: first }, { role: "user", content: revisionRequest(tells) },
+      ]);
+      const again = acceptReply(revised, !!job.redo);
+      if (again.ok && again.caption) out = again.caption;
     } catch (_e) { /* the first draft stands */ }
   }
-  // "New titles" changes nothing but the titles: the caption is the one the person had, whatever the model returned.
-  if (job.redo && job.redo.quick === "titles") out.caption = job.redo.caption;
   return out;
 }
 
@@ -316,28 +310,66 @@ async function saveCaption(job: Job): Promise<boolean> {
   }
 }
 
+// The words of the post's video, kept on the job row so a later redo can use them. A failed write (the column is not
+// there yet) only means a later redo transcribes again; it never fails the caption.
+async function keepTranscript(job: Job, text: string) {
+  const kept = clean(text).slice(0, TRANSCRIPT_KEEP_MAX);
+  if (!kept) return;
+  const { error } = await job.db.from("caption_jobs").update({ transcript: kept, transcript_asset: assetKey(job.assetUrl) }).eq("job_id", job.jobId);
+  if (error) console.warn("[caption-generate] transcript not kept", error.code || "");
+}
+
+// The newest transcript an earlier run kept for this post AND this video ("" when there is none, it belongs to a
+// different video link (the card's video was replaced), or it cannot be read).
+async function latestTranscript(job: Job): Promise<string> {
+  const { data, error } = await job.db.from("caption_jobs").select("transcript")
+    .eq("client", job.client).eq("post_id", job.postId).eq("transcript_asset", assetKey(job.assetUrl)).neq("job_id", job.jobId)
+    .not("transcript", "is", null).neq("transcript", "").order("updated_at", { ascending: false }).limit(1);
+  if (error) {
+    console.warn("[caption-generate] kept transcript read failed", error.code || "");
+    return "";
+  }
+  const row = Array.isArray(data) ? data[0] : null;
+  return clean(row && (row as { transcript?: unknown }).transcript);
+}
+
+async function transcribeVideo(job: Job): Promise<string> {
+  const media = (await resolveFrameDirect(job.assetUrl)) || (await resolveFrameApify(job));
+  if (!media) throw new Error(NOT_READABLE);
+  checkBudget(job);
+  await patchJob(job, { stage: "transcribing" });
+  const text = await transcribe(job, media);
+  await checkCancel(job);                         // n8n "Cancel check 1": before the caption writer is ever called
+  return text;
+}
+
 async function run(job: Job) {
   active.set(job.jobId, job);
   try {
     let videoTranscript = "";
     if (job.mode === "video") {
-      const media = (await resolveFrameDirect(job.assetUrl)) || (await resolveFrameApify(job));
-      if (!media) throw new Error(NOT_READABLE);
-      checkBudget(job);
-      await patchJob(job, { stage: "transcribing" });
-      videoTranscript = await transcribe(job, media);
-      await checkCancel(job);                     // n8n "Cancel check 1": before the caption writer is ever called
+      videoTranscript = await transcribeVideo(job);
+      await keepTranscript(job, [videoTranscript, job.transcript].filter(Boolean).join("\n\n"));
+    } else if (job.mode === "transcript") {
+      await keepTranscript(job, job.transcript);
+    } else if (job.mode === "redo") {
+      // A redo works from the video's words: the ones the last Generate kept, else the card's video is transcribed now.
+      // Only a post with no video and no kept transcript goes without (the model is told so).
+      videoTranscript = await latestTranscript(job);
+      if (!videoTranscript && job.assetUrl) {
+        videoTranscript = await transcribeVideo(job);
+        await keepTranscript(job, videoTranscript);
+      }
     }
     checkBudget(job);
-    if (job.mode === "video") await patchJob(job, { stage: "writing" });   // a transcript-only row starts at writing
-    const written = await writeCaption(job, videoTranscript);
-    job.caption = written.caption;
-    job.extras = extrasFrom(written, job.platform, !!job.redo);
+    await checkCancel(job);                       // n8n "Cancel check 1": before the caption writer is ever called
+    if (job.mode !== "transcript") await patchJob(job, { stage: "writing" });   // a transcript-only row starts at writing
+    job.caption = await writeCaption(job, videoTranscript);
     await checkCancel(job);                       // n8n "Cancel check 2": a cancelled caption is never saved
     if (job.redo) {
       // A redo never touches the card. The page applies the new caption only if the box still holds the caption the
       // redo started from, so a caption typed or edited meanwhile is never overwritten.
-      await patchJob(job, { status: "done", stage: "done", caption: job.caption, extras: job.extras });
+      await patchJob(job, { status: "done", stage: "done", caption: job.caption });
       return;
     }
     // A caption already on the card wins (typed while this job waited or ran). Neither end hands the generated
@@ -346,11 +378,11 @@ async function run(job: Job) {
     if (onCard === null) { job.caption = ""; throw new Error(CARD_UNREADABLE); }
     if (onCard && onCard !== clean(job.caption)) { job.caption = ""; throw new Error(KEPT_THEIRS); }
     if (!onCard && !(await saveCaption(job))) throw new Error(SAVE_FAILED);
-    await patchJob(job, { status: "done", stage: "done", caption: job.caption, extras: job.extras || {} });
+    await patchJob(job, { status: "done", stage: "done", caption: job.caption });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     // A redo's failure never hands a caption back: the page would take an error row with a caption as a caption to save.
-    const { cancelled, update } = failureUpdate(job.jobId, msg, job.redo ? "" : job.caption, job.extras || undefined);
+    const { cancelled, update } = failureUpdate(job.jobId, msg, job.redo ? "" : job.caption);
     console.warn("[caption-generate] job ended", cancelled ? "cancelled" : "error");
     await patchJob(job, update);
   } finally {
@@ -444,7 +476,7 @@ Deno.serve(async (req) => {
     transcript: String(parsed.transcript || ""), captionPrompt: String(parsed.captionPrompt || ""),
     mode: parsed.mode === "video" ? "video" : parsed.mode === "redo" ? "redo" : "transcript", forward, startedAt: Date.now(), caption: "",
     cta: String(parsed.cta || ""), platform: String(parsed.platform || "instagram"), note: String(parsed.note || ""),
-    redo: parsed.redo || null, extras: null,
+    redo: parsed.redo || null,
   };
   // n8n "Progress scraping": the row the page's poller confirms the job by. A card with no video starts at writing.
   // An INSERT, not an upsert: a job id that already exists is refused, so a re-post can never clear a cancel or

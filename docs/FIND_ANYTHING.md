@@ -1,6 +1,7 @@
 # FIND ANYTHING — the one-hop retrieval router
 
 Thumb Workload phone build: [native screens, changed journeys and checks](audits/2026-10-15-thumb-workload/README.md).
+Thumb Messages phone build: [screens, native contracts and checks](audits/2026-10-15-thumb-messages/README.md).
 
 
 Prism's full phone review: [coverage and batch evidence](audits/2026-10-07-prism-phone/README.md),

@@ -24,6 +24,13 @@ async function shot(page,name,width,theme){
    assert.equal(await p.locator('.thumb-wl-week [data-thumb-wl-date]').count(),7);
    assert(await p.locator('.thumb-wl-week button').evaluateAll(ns=>ns.every(n=>n.getBoundingClientRect().width>=44)),'Seven dates have 44px targets');
    await shot(p,'workload-agenda',width,theme);
+   await p.getByRole('button',{name:'Tabs',exact:true}).tap();
+   const post=p.getByRole('dialog',{name:'Tabs',exact:true}).locator('[data-nav=navTiktokUpload]');
+   assert(await post.isVisible(),'Phone Tabs includes Post');
+   assert.equal((await post.textContent()).trim(),'Post','Phone Tabs retains the current Post label');
+   assert.equal(await post.locator('.ico-post').count(),1,'Phone Tabs retains the Post icon');
+   await shot(p,'workload-tabs',width,theme);
+   await p.getByRole('dialog',{name:'Tabs',exact:true}).getByRole('button',{name:'Close Tabs',exact:true}).tap();
    for(let crossing=0;crossing<2;crossing++){
     await p.setViewportSize({width:1440,height:900});
     await p.waitForFunction(()=>!document.querySelector('.workload-view[data-thumb-workload]'));

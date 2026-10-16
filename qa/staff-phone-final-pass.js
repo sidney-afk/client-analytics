@@ -347,8 +347,9 @@ async function verify(page, name, width, theme) {
   }
   if(!before && name.startsWith('calendar-transcript-')) {
     if(name.endsWith('-control')) {
-      assert.ok(await page.locator('.cal-cap-tx').first().isVisible(),'Function-route video offers the native optional Transcript button');
-      await page.locator('.cal-cap-tx').first().tap();
+      assert.equal(await page.locator('.cal-cap-tx').count(),0,'There is no separate Transcript button: Generate opens the one box');
+      assert.ok(await page.locator('.cal-cap-gen').first().isVisible(),'Function-route video offers the native Generate button');
+      await page.locator('.cal-cap-gen').first().tap();
       await page.locator('#calTxTA').waitFor();
     }
     if(name.endsWith('-discard')) {
@@ -682,8 +683,7 @@ async function prepare(page,name) {
       _calRenderBody();
     },name);await settle(page);
     if(name.endsWith('-control')) return;
-    if(name.endsWith('-required')) await page.locator('.cal-cap-gen').first().tap();
-    else await page.locator('.cal-cap-tx').first().tap();
+    await page.locator('.cal-cap-gen').first().tap();
     await page.locator('#calTxTA').waitFor();
     if(/-(filled|discard)$/.test(name)) await page.locator('#calTxTA').fill('A fictional video transcript with one opening idea and a clear ending.');
     if(name.endsWith('-discard')) {await page.locator('.cal-prompt-foot button').filter({hasText:'Cancel'}).tap();await page.locator('#confirmOverlay.active').waitFor();}
@@ -762,7 +762,7 @@ async function main(){
     if(st.name.endsWith('save-error')) await ctx.route('**/rest/v1/syncview_runtime_flags?**',route=>{
       const raw=new URL(route.request().url()).searchParams.get('key')||'';
       const keys=raw.startsWith('in.(')?raw.slice(4,-1).split(','):[raw.replace(/^eq\./,'')];
-      return route.fulfill({status:200,headers:{'access-control-allow-origin':'*'},contentType:'application/json',body:JSON.stringify(keys.map(key=>({key,value:key==='prod_authority'?{video:'syncview',graphics:'syncview'}:/_clients$/.test(key)?{clients:['sampleone','sampleclientone','sample-one']}:{enabled:false}})))});
+      return route.fulfill({status:200,headers:{'access-control-allow-origin':'*'},contentType:'application/json',body:JSON.stringify(keys.filter(key=>key!=='calendar_card_write_clients').map(key=>({key,value:key==='prod_authority'?{video:'syncview',graphics:'syncview'}:/_clients$/.test(key)?{clients:['sampleone','sampleclientone','sample-one']}:{enabled:false}})))});
     });
     if(st.editor) await seedStaffIdentity(ctx,{id:'qa_editor',name:'QA Editor',role:'editor',team:'video'}); else await seedStaffGate(ctx);
     await ctx.addInitScript(t=>localStorage.setItem('syncview_theme',t),theme);

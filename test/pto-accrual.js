@@ -308,8 +308,19 @@ ok(!/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i.t
   && !/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(CANCELLATION_MIGRATION)
   && !/(?:insert|update|delete)[\s\S]{0,120}syncview_runtime_flags/i.test(CANCELLATION_MIGRATION),
   'cancellation audit delta contains no HR rows or runtime-flag write');
-ok(/push:[\s\S]*branches: \[main\]/.test(DEPLOY_WORKFLOW),
-  'function-only PTO changes retain automatic main deployment');
+// Since 2026-10-16 the automatic deploy is deploy-edge-functions-on-merge.yml;
+// it keeps this lane's rules (PTO SQL in the merge holds pto; the schema
+// contract must match the one this lane names).
+{
+  const MERGE_LANE = fs.readFileSync(path.join(ROOT, '.github/workflows/deploy-edge-functions-on-merge.yml'), 'utf8');
+  const PLAN = fs.readFileSync(path.join(ROOT, 'scripts/ef-auto-deploy-plan.js'), 'utf8');
+  ok(/^  push:\n    branches: \[main\]/m.test(MERGE_LANE)
+    && MERGE_LANE.includes('PTO_SCHEMA_CONTRACT: ${{ vars.PTO_SCHEMA_CONTRACT }}')
+    && PLAN.includes("pto: ['pto-schema-contract']")
+    && PLAN.includes("/^migrations\\/.*pto.*\\.sql$/i")
+    && /REQUIRED_SCHEMA_CONTRACT: member-setup-audit-v1/.test(DEPLOY_WORKFLOW),
+  'function-only PTO changes retain automatic main deployment, held while PTO SQL is pending');
+}
 ok(/git diff --name-only[\s\S]*migrations\/\.\*pto\.\*\\\.sql[\s\S]*should_deploy=false/.test(DEPLOY_WORKFLOW),
   'schema-bearing main pushes hold the dependent PTO function deploy');
 ok(/migration_readback_confirmed:[\s\S]*type: boolean/.test(DEPLOY_WORKFLOW)

@@ -189,7 +189,7 @@ async function staffTabs(browser) {
   const page = await ctx.newPage();
   await page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(SETTLE_STAFF);
-  const tabs = await page.evaluate(() => [...document.querySelectorAll('#headerNav > .header-nav-btn')]
+  const tabs = await page.evaluate(() => [...document.querySelectorAll('#headerNav > .header-nav-btn, #navMessages')]
     .filter(a => a.getClientRects().length && getComputedStyle(a).display !== 'none')
     .map(a => ({ id: a.id, href: a.getAttribute('href') })));
   await ctx.close();

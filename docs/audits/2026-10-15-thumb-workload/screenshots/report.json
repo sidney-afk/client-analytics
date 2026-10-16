@@ -5,6 +5,11 @@
     "theme": "light"
   },
   {
+    "name": "workload-tabs",
+    "width": 390,
+    "theme": "light"
+  },
+  {
     "name": "workload-queue",
     "width": 390,
     "theme": "light"
@@ -70,6 +75,11 @@
     "theme": "dark"
   },
   {
+    "name": "workload-tabs",
+    "width": 390,
+    "theme": "dark"
+  },
+  {
     "name": "workload-queue",
     "width": 390,
     "theme": "dark"
@@ -135,6 +145,11 @@
     "theme": "light"
   },
   {
+    "name": "workload-tabs",
+    "width": 430,
+    "theme": "light"
+  },
+  {
     "name": "workload-queue",
     "width": 430,
     "theme": "light"
@@ -196,6 +211,11 @@
   },
   {
     "name": "workload-agenda",
+    "width": 430,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-tabs",
     "width": 430,
     "theme": "dark"
   },

@@ -39,10 +39,15 @@ const parse = v => { try { return Array.isArray(v) ? v : JSON.parse(v || '[]'); 
 const SHOTS = process.env.SCREENSHOTS || '';
 const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
 
+async function markUnread(page){
+ const direct=page.locator('#msgPage .msg-act[title="Mark as unread"]');
+ if(await direct.isVisible())await direct.click();
+ else {await page.getByRole('button',{name:'More conversation actions'}).click();await page.locator('.thumb-msg-more').getByRole('button',{name:'Mark as unread',exact:true}).click();}
+}
 (async () => {
   const S = await createEnv();
   // The real unread rules (production-comments/inbox.mjs) decide the counts.
-  const inbox = await import(path.join(__dirname, '../../../supabase/functions/production-comments/inbox.mjs'));
+  const inbox = await import(require('node:url').pathToFileURL(path.join(__dirname, '../../../supabase/functions/production-comments/inbox.mjs')).href);
   const ME = { id: 'm1', name: 'Browser Staff', role: 'admin' };
   const NOW = Date.parse('2026-10-15T00:00:00.000Z');
   // Made-up colleague on the fictional roster.
@@ -63,6 +68,8 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     ];
     let postedGone = false;
     let oldBackend = false;
+    let inboxDelay = 0;
+    let inboxCalls = 0;
     let withWriters = false;
     let withTwin = false;
     // A client note whose author name equals the signed-in staff member's.
@@ -97,7 +104,7 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
       if (route.request().method() === 'OPTIONS' || (body.action !== 'inbox' && body.action !== 'inbox_mark')) return route.fallback();
       if (oldBackend) return route.fulfill({ status: 400, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ ok: false, error: 'invalid_deliverable_id' }) });
       const reply = obj => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(obj) });
-      if (body.action === 'inbox') return reply({ ok: true, scope: 'all', conversations: conversations() });
+      if (body.action === 'inbox') { inboxCalls++; if (inboxDelay) await sleep(inboxDelay); return reply({ ok: true, scope: 'all', conversations: conversations() }); }
       marks.push(body.post_id + ':' + body.state);
       const conv = conversations().find(c => c.post_id === body.post_id);
       if (!conv) return reply({ ok: false, error: 'forbidden' });
@@ -150,7 +157,7 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     check(await until(() => page.evaluate(() => [...document.querySelectorAll('#msgPage .msg-b-text')].some(b => b.textContent === 'Fixture reply from the inbox'))), 'D: the reply shows in the chat');
 
     // C: mark as unread
-    await page.click('#msgPage .msg-act[title="Mark as unread"]');
+    await markUnread(page);
     check(await until(() => marks.includes('p_t1:unread')), 'C: Mark as unread tells the server "unread"');
     check(await until(() => page.evaluate(() => document.querySelector('#navMessages [data-msg-count]').textContent === '3')), 'C: the count comes back to 3');
 
@@ -213,7 +220,7 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
         inboxW: Math.round(inbox.width), vw: innerWidth, listLeft: list.left <= inbox.left + 1, chatW: Math.round(chat.width) };
     });
     check(f.headerShown && f.below, 'F: the page sits under the main header, which stays visible');
-    check(!f.close && !f.dialog, 'F: a page, not a dialog: no Close button');
+    check(f.close && !f.dialog, 'F: a page with a Close button, not a dialog');
     check(f.active, 'F: the header button shows as the active tab');
     check(f.listLeft && f.inboxW >= f.vw - 80 && f.chatW >= f.inboxW - 360, 'F: full width, list on the left, conversation takes the rest ' + JSON.stringify(f));
     await shot('messages-page-desktop');
@@ -332,7 +339,7 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     await until(() => page.evaluate(() => document.querySelectorAll('#msgPage .msg-b').length === 1));
     check(await page.evaluate(() => { const b = document.querySelector('#msgPage .msg-b'); return !b.classList.contains('is-me') && b.querySelector('.msg-b-meta b').textContent === 'Browser Staff'; }), 'L: the chat shows it as the client\'s, not yours');
     // Leave one conversation unread for the phone check below.
-    await page.click('#msgPage .msg-act[title="Mark as unread"]');
+    await markUnread(page);
     await until(() => marks.includes('p_twin:unread'));
 
     // K: phone list keeps the time and badge inside the row
@@ -361,6 +368,268 @@ const T = d => `2026-10-${String(d).padStart(2, '0')}T10:00:00.000Z`;
     await theme('light');
     await page.setViewportSize({ width: 1366, height: 900 });
     check(!page.errors.length, 'J-L: no page errors ' + JSON.stringify(page.errors));
+
+    // M, N, O: the loading placeholder, the short-lived list cache and the call on pointer arrival.
+    {
+      const goHome = async (pg) => {
+        await pg.goto(S.origin + '/index.html', { waitUntil: 'domcontentloaded' });
+        await pg.waitForFunction(() => typeof _syncviewStaffCan === 'function' && typeof navTo === 'function', null, { timeout: 30000 });
+        await pg.evaluate(() => { _syncviewStaffIdentityVerified = true; _syncviewStaffRefreshChrome(); });
+        await pg.waitForFunction(() => { const b = document.getElementById('navMessages'); return b && !b.hidden && b.offsetParent !== null; }, null, { timeout: 30000 });
+      };
+      const geo = (pg) => pg.evaluate(() => {
+        const r = el => { if (!el) return null; const b = el.getBoundingClientRect(); return [b.left, b.top, b.width, b.height].map(v => Math.round(v * 10) / 10); };
+        const one = sel => r(document.querySelector('#msgPage ' + sel));
+        const rows = [...document.querySelectorAll('#msgPage .msg-conv')].slice(0, 3).map(row => ({
+          row: r(row), thumb: r(row.querySelector('.msg-thumb')), top: r(row.querySelector('.msg-conv-top')),
+          sub: r(row.querySelector('.msg-conv-sub')), last: r(row.querySelector('.msg-conv-last')),
+        }));
+        return { inbox: one('.msg-inbox'), list: one('.msg-list'), filters: one('.msg-filters'),
+          pills: [...document.querySelectorAll('#msgPage .msg-filters button')].map(r), convs: one('.msg-convs'), chat: one('.msg-chat'), empty: one('.msg-chat-empty'), rows,
+          scrollW: document.documentElement.scrollWidth };
+      });
+      const flat = (o, p = '') => Array.isArray(o) ? (o.length && typeof o[0] === 'number' ? [[p, o]] : o.flatMap((v, i) => flat(v, p + '[' + i + ']'))) : (o && typeof o === 'object' ? Object.entries(o).flatMap(([k, v]) => flat(v, p + '.' + k)) : []);
+      const sizes = [['desktop', 1366, 900], ['phone', 390, 844]];
+      for (const [name, w, h] of sizes) {
+        const pg = await S.newPage();
+        await pg.setViewportSize({ width: w, height: h });
+        inboxDelay = 2500;
+        await goHome(pg);
+        await pg.evaluate(() => _msgOpenPage());
+        check(await until(() => pg.evaluate(() => !!document.querySelector('#msgPage .msg-inbox.is-skeleton'))), 'M: ' + name + ': the grey placeholder shows while the list loads');
+        check(await pg.evaluate(() => !document.querySelector('#msgPage .kasper-empty')), 'M: ' + name + ': no "all caught up" flash before the answer');
+        const skel = {};
+        for (const t of ['light', 'dark']) {
+          await pg.evaluate(t => document.documentElement.setAttribute('data-theme', t), t);
+          skel[t] = await geo(pg);
+          if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await pg.screenshot({ path: path.join(SHOTS, `skeleton-${t}-${name}.png`) }); }
+          if (t === 'dark') {
+            const cols = await pg.evaluate(() => { const b = document.querySelector('#msgPage .msg-conv .msg-skel'); const l = document.querySelector('#msgPage .msg-list'); return [getComputedStyle(b).backgroundColor, getComputedStyle(l).backgroundColor]; });
+            check(cols[0] !== cols[1], 'M: ' + name + ': dark: the grey bars differ from the list background (' + cols.join(' vs ') + ')');
+          }
+        }
+        await pg.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+        check(await until(() => pg.evaluate(() => !!document.querySelector('#msgPage .msg-conv[data-msg-conv]')), 12000), 'M: ' + name + ': the real list replaces the placeholder');
+        const real = {};
+        for (const t of ['light', 'dark']) {
+          await pg.evaluate(t => document.documentElement.setAttribute('data-theme', t), t);
+          real[t] = await geo(pg);
+          if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, `loaded-${t}-${name}.png`) });
+        }
+        await pg.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+        // A line of text is as wide as its words and a bar as wide as it was told to be, so
+        // for the text lines (and the row's text column) only left, top and height must match.
+        const lineKey = k => /\.(sub|last|top)$/.test(k);
+        const same = (k, v, other) => other.has(k) && other.get(k).every((n, i) => (lineKey(k) && i === 2) || Math.abs(n - v[i]) <= 0.5);
+        const a = flat(skel.light), b = new Map(flat(real.light));
+        const off = a.filter(([k, v]) => !same(k, v, b));
+        check(a.length > 20 && !off.length, 'M: ' + name + ': every box of the placeholder sits where the loaded page puts it (' + a.length + ' boxes; off: ' + JSON.stringify(off.slice(0, 3)) + ')');
+        const ad = flat(skel.dark), bd = new Map(flat(real.dark));
+        check(!ad.filter(([k, v]) => !same(k, v, bd)).length, 'M: ' + name + ': same in dark');
+        check(skel.light.scrollW <= w + 1, 'M: ' + name + ': the placeholder does not scroll sideways');
+        check(!pg.errors.length, 'M: no page errors ' + JSON.stringify(pg.errors));
+        await pg.close();
+      }
+
+      // N: the list cache belongs to one signed-in member, in this tab, for ten minutes.
+      const withCache = async (cache) => {
+        const pg = await S.newPage();
+        await pg.setViewportSize({ width: 1366, height: 900 });
+        await pg.goto(S.origin + '/index.html', { waitUntil: 'domcontentloaded' });
+        await pg.evaluate(c => { sessionStorage.clear(); if (c) sessionStorage.setItem('sv_msg_inbox_v1', JSON.stringify(c)); }, cache);
+        inboxDelay = 2500;
+        await goHome(pg);
+        return pg;
+      };
+      const entry = (member, ageMs, title) => ({ v: 1, member, at: Date.now() - ageMs, scope: 'all', conversations: [
+        { post_id: 'p_cached', client_slug: 'fixtureclient', client_name: 'fixtureclient', title, thumbnail_url: '', asset_url: '', last_at: T(12), last_author: 'Client', last_author_member_id: '', last_role: 'client', last_body: 'Cached preview line', unread: 1 }] });
+      {
+        const pg = await withCache(entry('m1', 60000, 'Cached fixture title'));
+        await pg.evaluate(() => _msgOpenPage());
+        check(await until(() => pg.evaluate(() => /Cached fixture title/.test(document.querySelector('#msgPage') ? document.querySelector('#msgPage').innerText : '')), 1500), 'N: your own recent list shows at once, before the server answers');
+        check(await pg.evaluate(() => _msgState.fromCache === true), 'N: it is marked as the cached list');
+        const before = marks.length;
+        await pg.click('#msgPage [data-msg-conv="p_cached"]');
+        check(await pg.evaluate(() => !!document.querySelector('#msgPage .msg-bubbles[role="status"]')), 'N: opening it before the answer shows the chat placeholder, not an empty chat');
+        check(marks.length === before, 'N: nothing is marked read before the notes are in');
+        check(await until(() => pg.evaluate(() => !/Cached fixture title/.test(document.querySelector('#msgPage').innerText) && !!document.querySelector('#msgPage [data-msg-conv="p_t1"]')), 12000), "N: the server's list replaces the cached one");
+        check(await pg.evaluate(() => _msgState.fromCache === false), 'N: no longer marked cached');
+        await pg.close();
+      }
+      {
+        const pg = await withCache(entry('m9', 60000, 'Someone elses secret title'));
+        await pg.evaluate(() => _msgOpenPage());
+        await sleep(600);
+        check(await pg.evaluate(() => !/Someone elses secret title/.test(document.body.innerText) && !!document.querySelector('#msgPage .msg-inbox.is-skeleton')), "N: another member's cached list is never shown (placeholder instead)");
+        check(await pg.evaluate(() => !(sessionStorage.getItem('sv_msg_inbox_v1') || '').includes('Someone elses')), "N: and it is thrown away");
+        await pg.close();
+      }
+      {
+        const pg = await withCache(entry('m1', 11 * 60 * 1000, 'Stale fixture title'));
+        await pg.evaluate(() => _msgOpenPage());
+        await sleep(600);
+        check(await pg.evaluate(() => !/Stale fixture title/.test(document.body.innerText)), 'N: a list older than ten minutes is not shown');
+        await pg.close();
+      }
+      {
+        const pg = await withCache(null);
+        await pg.evaluate(() => _msgOpenPage());
+        check(await until(() => pg.evaluate(() => !!document.querySelector('#msgPage [data-msg-conv="p_t1"]')), 12000), 'N: first visit: the list arrives');
+        const raw = await pg.evaluate(() => sessionStorage.getItem('sv_msg_inbox_v1') || '');
+        check(raw.includes('"member":"m1"') && !raw.includes('"messages"') && !raw.includes('Can we add the opening hours'), 'N: the saved copy is yours and holds the list lines only, no conversation text (' + raw.length + ' bytes)');
+        await pg.evaluate(() => { _syncviewStaffIdentityVerified = false; _syncviewStaffRefreshChrome(); });
+        check(await until(() => pg.evaluate(() => !sessionStorage.getItem('sv_msg_inbox_v1'))), 'N: signing out throws the saved copy away');
+        await pg.close();
+      }
+      // An answer still on its way when the sign-in ends is dropped, never kept for whoever signs in next.
+      {
+        const pg = await withCache(null);
+        inboxDelay = 1500;
+        await pg.evaluate(() => { _msgLoad(true); });
+        await pg.evaluate(() => { _syncviewStaffIdentityVerified = false; _syncviewStaffRefreshChrome(); });
+        await sleep(2400);
+        const left = await pg.evaluate(() => ({ loaded: _msgState.loaded, n: _msgState.conversations.length, loading: _msgState.loading, saved: sessionStorage.getItem('sv_msg_inbox_v1') }));
+        check(!left.loaded && left.n === 0 && !left.loading && !left.saved, 'N: an answer that lands after sign-out is dropped and not saved (' + JSON.stringify(left) + ')');
+        await pg.close();
+      }
+      // O: nothing is asked at page load; the call starts when the pointer reaches the button.
+      {
+        inboxDelay = 0;
+        const pg = await S.newPage();
+        await pg.setViewportSize({ width: 1366, height: 900 });
+        await pg.goto(S.origin + '/index.html', { waitUntil: 'domcontentloaded' });
+        await pg.evaluate(() => sessionStorage.clear());
+        const n0 = inboxCalls;
+        await goHome(pg);
+        await sleep(2500);
+        check(inboxCalls === n0, 'O: no inbox call at page load (' + (inboxCalls - n0) + ')');
+        await pg.hover('#navMessages');
+        check(await until(() => inboxCalls > n0, 3000), 'O: the call starts when the pointer reaches the Messages button');
+        await pg.click('#navMessages');
+        check(await until(() => pg.evaluate(() => !!document.querySelector('#msgPage [data-msg-conv="p_t1"]')), 3000), 'O: opening afterwards shows the list');
+        check(inboxCalls === n0 + 1, 'O: opening did not start a second call (' + (inboxCalls - n0) + ')');
+        await pg.close();
+      }
+      inboxDelay = 0;
+    }
+
+    // P: getting out of Messages (owner, 2026-10-15): the Messages button toggles, a Close button, Escape (desktop),
+    // browser Back, all back to exactly where the person was; a link-opened page closes to the Calendar.
+    {
+      // Enough cards for the Sheet's strip to scroll sideways.
+      for (let i = 2; i <= 14; i++) S.cards.push({ ...S.card('p_t1'), id: 'p_x' + i, name: 'Extra card ' + i, order_index: i, scheduled_date: '2026-10-' + String(10 + (i % 15)).padStart(2, '0'), video_deliverable_id: null, graphic_deliverable_id: null });
+      const read = pg => pg.evaluate(() => ({ nav: currentNav, view: calState.view, client: calState.client, y: Math.round(scrollY),
+        strip: Math.round((document.querySelector('.cal-organizer-strip') || {}).scrollLeft || 0),
+        card: !!document.querySelector('.cal-card-focused[data-pid="p_t1"]'), msg: !!document.getElementById('msgPage') }));
+      const ready = async (pg) => {
+        await S.openCalendar(pg);
+        await pg.evaluate(() => { _syncviewStaffIdentityVerified = true; _syncviewStaffRefreshChrome(); });
+        await pg.waitForFunction(() => { const b = document.getElementById('navMessages'); return b && !b.hidden; }, null, { timeout: 30000 });
+      };
+      // Put the Calendar in a known place: the Sheet (organizer) view, one card open, scrolled down.
+      const arrange = async (pg, name0) => {
+        await pg.evaluate(() => onCalViewChange('organizer'));
+        await pg.waitForSelector('.cal-card[data-pid="p_t1"]', { timeout: 10000 });
+        await pg.evaluate(() => { try { WL_CLIENT_NAMES.push('fixtureclient'); } catch (e) {} history.pushState({ nav: 'calendar', client: null }, '', '#calendar/fixtureclient/p_t1'); window.dispatchEvent(new PopStateEvent('popstate', { state: null })); });
+        check(await until(() => pg.evaluate(() => !!document.querySelector('.cal-card-focused')), 8000), 'P: setup: a card is open on the Calendar');
+        await pg.evaluate(() => { window.scrollTo(0, 100); const st = document.querySelector('.cal-organizer-strip'); if (st) st.scrollLeft = 300; });
+        await pg.waitForTimeout(250);
+        const state = await read(pg);
+        if (name0 === 'desktop') check(state.strip >= 250, 'P: setup: the Sheet strip is scrolled sideways (' + state.strip + ')');
+        return state;
+      };
+      const same = (a, b) => a.nav === b.nav && a.view === b.view && a.client === b.client && Math.abs(a.y - b.y) <= 6 && Math.abs(a.strip - b.strip) <= 6 && a.card === b.card && !b.msg;
+      const openers = {
+        desktop: pg => pg.click('#navMessages'),
+        // The phone's Tabs menu copy of the button just clicks the native one.
+        phone: pg => pg.evaluate(() => document.getElementById('navMessages').click()),
+      };
+      for (const [name, w, h] of [['desktop', 1366, 900], ['phone', 390, 844]]) {
+        for (const t of ['light', 'dark']) {
+          const pg = await S.newPage();
+          await pg.setViewportSize({ width: w, height: h });
+          inboxDelay = 0;
+          await ready(pg);
+          await pg.evaluate(t => document.documentElement.setAttribute('data-theme', t), t);
+          const before = await arrange(pg, name);
+          const tag = `P: ${name} ${t}`;
+          const opened = async () => { await openers[name](pg); return until(() => pg.evaluate(() => currentNav === 'messages' && !!document.querySelector('#msgPage .msg-conv')), 8000); };
+          const back = async (label) => {
+            check(await until(() => pg.evaluate(() => !document.getElementById('msgPage') && currentNav === 'calendar'), 8000), `${tag}: ${label}: Messages closes`);
+            await until(() => pg.evaluate(() => !!document.querySelector('.cal-card-focused') && Math.abs(scrollY - 100) <= 6 && Math.abs(((document.querySelector('.cal-organizer-strip') || {}).scrollLeft || 0) - 300) <= 6), 6000);
+            const after = await read(pg);
+            check(same(before, after), `${tag}: ${label}: back where they were (${JSON.stringify(before)} -> ${JSON.stringify(after)})`);
+          };
+          // 1. the Messages button again
+          check(await opened(), `${tag}: Messages opens`);
+          if (SHOTS && name === 'desktop') await pg.screenshot({ path: path.join(SHOTS, `close-${name}-${t}.png`) });
+          if (name === 'phone') {
+            check(await pg.evaluate(() => { const b = document.querySelector('.pocket-staff-msg-close'); if (!b) return false; const r = b.getBoundingClientRect(); const bar = document.getElementById('pocketStaffBar').getBoundingClientRect(); return r.width >= 44 && r.height >= 44 && r.right <= bar.right + 0.5 && r.left >= 0 && document.documentElement.scrollWidth <= innerWidth + 1; }), `${tag}: the Close button fits the phone title bar (44px, inside it, no sideways scroll)`);
+            if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, `close-${name}-${t}.png`) });
+          } else {
+            check(await pg.evaluate(() => { const b = document.querySelector('#msgPage .msg-close'); const i = document.querySelector('#msgPage .msg-inbox').getBoundingClientRect(); if (!b) return false; const r = b.getBoundingClientRect(); return r.width > 0 && r.right >= i.right - 4 && r.top < i.top; }), `${tag}: the Close button is top right of the page`);
+          }
+          if (name === 'phone') {
+            // The Messages tile in the phone Tabs menu is the same toggle.
+            await pg.click('.pocket-staff-tabs-btn');
+            await pg.click('dialog[open] [data-nav="navMessages"]');
+          } else await openers[name](pg);
+          await back(name === 'phone' ? 'the Messages tile in the Tabs menu' : 'the Messages button again');
+          // 2. the Close button
+          check(await opened(), `${tag}: Messages opens again`);
+          await pg.click(name === 'phone' ? '.pocket-staff-msg-close' : '#msgPage .msg-close');
+          await back('the Close button');
+          // 3. Escape (desktop only)
+          if (name === 'desktop') {
+            check(await opened(), `${tag}: Messages opens a third time`);
+            await pg.keyboard.press('Escape');
+            await back('Escape');
+          }
+          // 4. browser Back
+          check(await opened(), `${tag}: Messages opens once more`);
+          await pg.goBack();
+          await back('browser Back');
+          check(!pg.errors.length, `${tag}: no page errors ` + JSON.stringify(pg.errors));
+          await pg.close();
+        }
+      }
+
+      // Escape never throws away a typed reply; the Close button keeps it for the next visit.
+      {
+        const pg = await S.newPage();
+        await pg.setViewportSize({ width: 1366, height: 900 });
+        await ready(pg);
+        await pg.click('#navMessages');
+        await until(() => pg.evaluate(() => !!document.querySelector('#msgPage [data-msg-conv="p_t1"]')), 8000);
+        await pg.click('#msgPage [data-msg-conv="p_t1"]');
+        await pg.fill('#msgReplyBox', 'A reply I am still writing');
+        await pg.keyboard.press('Escape');
+        await pg.waitForTimeout(300);
+        check(await pg.evaluate(() => !!document.getElementById('msgPage') && document.getElementById('msgReplyBox').value === 'A reply I am still writing'), 'P: Escape in a box with typed text keeps Messages open and the text');
+        await pg.click('#msgPage .msg-close');
+        check(await until(() => pg.evaluate(() => !document.getElementById('msgPage')), 6000), 'P: the Close button closes it even with a typed reply');
+        await pg.click('#navMessages');
+        check(await until(() => pg.evaluate(() => { const b = document.getElementById('msgReplyBox'); return !!b && b.value === 'A reply I am still writing'; }), 8000), 'P: the typed reply is still there on the next visit');
+        await pg.fill('#msgReplyBox', '');
+        await pg.keyboard.press('Escape');
+        check(await until(() => pg.evaluate(() => !document.getElementById('msgPage')), 6000), 'P: Escape closes it when the box is empty');
+        await pg.close();
+      }
+
+      // Opened straight from a link: nothing to go back to, so Close goes to the Calendar.
+      {
+        const pg = await S.newPage();
+        await pg.setViewportSize({ width: 1366, height: 900 });
+        await pg.goto(S.origin + '/index.html#messages', { waitUntil: 'domcontentloaded' });
+        await pg.waitForFunction(() => typeof _syncviewStaffCan === 'function' && typeof navTo === 'function', null, { timeout: 30000 });
+        await pg.evaluate(() => { _syncviewStaffIdentityVerified = true; _syncviewStaffRefreshChrome(); });
+        check(await until(() => pg.evaluate(() => currentNav === 'messages' && !!document.getElementById('msgPage')), 10000), 'P: a link straight to Messages opens it');
+        await pg.click('#msgPage .msg-close');
+        check(await until(() => pg.evaluate(() => currentNav === 'calendar' && !document.getElementById('msgPage')), 8000), 'P: opened from a link, Close goes to the Calendar');
+        await pg.close();
+      }
+      S.cards = S.cards.filter(c => !/^p_x/.test(c.id));
+    }
 
     // H: the page ships before the backend
     oldBackend = true;

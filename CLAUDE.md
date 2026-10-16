@@ -2,112 +2,80 @@
 
 **Every session: read `docs/STATE_OF_THINGS.md` first.** It is the live-verified list of what is open, dormant and done, outranks older plans, and opens with the owner's priority order.
 
-index.html is a build output; edit src/index/ fragments and run npm run build:index, never edit index.html directly
+index.html is a build output; edit src/index/ fragments and run npm run build:index, never edit index.html directly. It is NOT committed (since 2026-10-15): never `git add` index.html, js/sv-*.js or src/index/INDEX.md; the Pages publish and CI build them
 
-Single-file SPA (`index.html`) + Supabase Edge Functions + Postgres migrations,
-deployed to `syncview.synchrosocial.com` by GitHub Pages on every push to `main`.
+Single-file SPA (`index.html`, built from `src/index/`) + Supabase Edge Functions + Postgres migrations,
+built and deployed to `syncview.synchrosocial.com` by `pages-site.yml` on every push to `main`;
+Edge Functions deploy on merge too (above).
 `AGENTS.md` is the house standard and outranks this file; `REPO_MAP.md` is the
 directory map. This file exists for the things a session needs in the first
 minute and would otherwise ask the owner for — again.
 
 ---
 
-## ⛔ THE OWNER'S MACHINE ALREADY HAS THE CAPTURE SCRIPT. DO NOT MAKE THEM REBUILD IT.
+## ⛔ SIDNEY RUNS NOTHING FOR A DEPLOY. DO NOT SEND HIM A CAPTURE SCRIPT OR A DEPLOY BUTTON.
 
-Before any F27 Section 4 deploy, a sealed three-function rollback bundle (`production-write`, `deliverable-write`, `batch-write`) has to be
-captured. **It is already automated.** The script lives on the owner's Windows
-machine, carries the credentials it needs, and names the file itself — a
-content-addressed `syncview-f27-edge-source-<sha256>.sourcebundle` written
-beside the script in `%USERPROFILE%\.syncview\`, whose full path it prints on
-its last line. Read that line rather than assuming a folder; an earlier version
-of this file said `C:\F27-Bundles\`, which is not where run #37's bundle
-landed:
+Since 2026-10-16 (session Conveyor) every Edge Function goes live by itself when
+its change merges to `main`, through
+[`deploy-edge-functions-on-merge.yml`](.github/workflows/deploy-edge-functions-on-merge.yml)
+(runbook: `docs/ops/EF_AUTO_DEPLOY.md`). That includes the three F27 Section 4
+functions (`production-write`, `deliverable-write`, `batch-write`): the merge
+lane dispatches `deploy-f27-section4-closures.yml` with `capture`, and **that
+lane seals the live three into the rollback bundle itself**, stores it
+content-addressed in the `SyncView Backups/` Shared Drive root, fetches it back
+and verifies it, and only then deploys and attests. The sealed SHA-256 and byte
+length are printed in that run's summary; they are the two values a
+`restore-captured-prior-three` needs.
 
-```powershell
-& "$env:USERPROFILE\.syncview\f27-capture.ps1"
-```
+**Do NOT** tell Sidney to run `%USERPROFILE%\.syncview\f27-capture.ps1` (or the
+`f27capture` alias), drag a `.sourcebundle` into Drive, or paste bundle values.
+That was the old way, and it failed on his laptop and made him the bottleneck.
+The script still works, and a bundle captured that way is still accepted (pass
+its two values instead of `capture`), but no session should ever ask for it. Do
+NOT ask for or about his Supabase access token; the lanes hold it in the
+`production` Environment.
 
-**Hand over that line, not the alias.** `f27capture` is the same script aliased
-in the owner's `$PROFILE`, and it is shorter — but on 2026-09-05 it answered
-`CommandNotFoundException` in a fresh window (the profile had not loaded), which
-cost a round trip in the middle of a deploy. The full path always works, so lead
-with it and mention the alias only as the shorthand.
+**What still needs a person, and it is Lighthouse, not Sidney:**
 
-**RUN IT FROM ANY DIRECTORY — there is no `cd` to work out, and the owner should
-never be left wondering where to launch PowerShell from.** The script cds into
-the repo itself and loads its own `PROJECT_REF` / `SUPABASE_ACCESS_TOKEN` from a
-sibling file in `.syncview\` (see `AGENTS.md`), and every path it uses is
-absolute. A fresh PowerShell window at the default `C:\Users\<name>` prompt is
-exactly right. If a session is ever asked "where do I run this from", the answer
-is *anywhere* — do not send the owner hunting for a folder.
+- A merge that ADDS a migration file holds its functions until the migration is
+  applied (unless the file says the functions cope without it, or says how to
+  tell it is applied; see the runbook). Lighthouse applies it, then runs
+  [the merge lane](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-edge-functions-on-merge.yml)
+  by hand: `commit_sha` = that merge, `migrations_applied` = true.
+- Anything else the lane holds (a drift guard, a stale Section 4 pin, a failed
+  safeguard) is listed in the run summary with how to release it, and the owner
+  relay is paged.
+- A change to a Section 4 function still has to re-pin its fingerprint in
+  `deploy-f27-section4-closures.yml` in the same PR, or that lane refuses:
+  `node scripts/ef-fingerprint.js <sha> --slugs=<slug> --expected-only`, never by hand.
 
-**Do NOT** hand them the raw PowerShell from
-`docs/ops/F27_SECTION4_CAPTURE_PLAYBOOK.md` step by step, do NOT ask for or
-about their Supabase access token, and do NOT ask them to build a script. The
-playbook documents what the script automates — it is the reference, not the
-instruction. Asking the owner to re-derive this by hand has now happened more
-than once and it is the single most reliably annoying thing a session does here.
-
-### THE BUNDLE GOES TO DRIVE **BEFORE** THE DISPATCH, NOT AFTER
-
-The order below is load-bearing and this file used to state it backwards, which
-failed run #37 on 2026-09-05:
-
-1. Run the capture.
-2. **Drag the named `.sourcebundle` into the `SyncView Backups/` Shared Drive
-   root.** The script prints its full path on the last line.
-3. *Then* dispatch, pasting `sealed_bundle_sha256` and
-   `sealed_bundle_byte_length` from the receipt.
-
-The lane does not receive the bundle — it FETCHES it out of Drive by
-content-addressed name during the run, and verifies an independent round-trip.
-Dispatching first fails in about 20 seconds with:
-
-```
-{"status":"FAIL","code":"OBJECT_MISSING",
- "message":"The content-addressed private object was missing."}
-##[error]The sealed prior-three private fetch or independent round-trip failed
-```
-
-**That error means the upload, nothing else.** Nothing deployed, the capture is
-still valid because the live set did not move, and main is still the right SHA —
-so the recovery is: upload, then `Re-run jobs` on the same run, which keeps all
-five inputs. Do not re-capture and do not retype anything.
-
-Capture minutes before dispatching — a bundle that sealed an older live set
-restores the wrong code, and every earlier bundle is stale the moment a deploy
-succeeds.
+**DO NOT MERGE ANYTHING while a Section 4 release is running.** That lane
+requires `commit_sha` to equal main's tip at dispatch time (refused on
+2026-09-02 and 2026-08-08 because PRs merged in that window). The merge lane
+re-reads the tip just before it dispatches and retries once if a merge slipped
+in during the dispatch, but it is still cheaper not to race it.
 
 ---
 
 ## Deploy lanes, and which need what
 
-| Lane | Needs a capture? | Inputs |
+| Lane | Runs | Needs a person? |
 |---|---|---|
-| `deploy-f27-section4-closures.yml` (`production-write`, `deliverable-write`, `batch-write`) | **Yes** — run the script above | commit SHA, `deploy-reviewed-release`, `DEPLOY_REVIEWED_F27_SECTION4_CLOSURES`, bundle sha256, bundle byte length |
+| `deploy-edge-functions-on-merge.yml` | Every merge that changes a function, in order (notify, then the Section 4 three, then the comment and archive readers) | Only for a held function (see above) |
+| `deploy-f27-section4-closures.yml` (`production-write`, `deliverable-write`, `batch-write`) | Dispatched by the merge lane with `capture`; seals, stores and verifies the rollback bundle in the run | No. Manual fallback: Run workflow with `capture` as both bundle inputs. `capture-only` is a dry run that deploys nothing |
+| `deploy-single-function.yml`, `deploy-onboarding-edge-functions.yml`, `deploy-pto-edge-functions.yml`, the thumbnail, hiring, review-link and image-upload lanes | Manual fallback only | Only when a held function needs it |
+| `calendar-upsert-live-delta.yml` | Manual; `calendar-upsert` is frozen and never auto-deployed | Yes, as before |
 
-The two Linear sync functions (`linear-inbound`, `linear-outbound`) and the
-`deploy-f27-linear-inbound.yml` lane were deleted on 2026-09-24 (B2 Slices 7
-and 8). Their source stays in the repo only as a frozen reference; there is no
-deploy path for them. The capture script's slug list must read
-`--slugs=production-write,deliverable-write,batch-write`.
+The two Linear sync functions (`linear-inbound`, `linear-outbound`) were deleted
+on 2026-09-24. Their source stays in the repo only as a frozen reference; there
+is no deploy path for them.
 
-Always give the owner the **direct Actions URL**, never just the workflow name,
+Always give a person the **direct Actions URL**, never just the workflow name,
 and state which commit SHA to paste.
 
-**DO NOT MERGE ANYTHING between handing over a deploy SHA and the owner's
-dispatch.** The Section 4 lane requires `commit_sha` to equal main's tip *at
-dispatch time*. A dispatch was rejected on 2026-09-02 because a docs PR was
-merged in that window, and on 2026-08-08 because four PRs were. It fails in
-about 19 seconds and deploys nothing, so the cost is only a wasted cycle and the
-owner's patience — but it is entirely avoidable by simply not merging until they
-say it is green.
-
-The lane refuses on a fingerprint mismatch, which means they **fail closed**: a
+The lanes refuse on a fingerprint mismatch, which means they **fail closed**: a
 wrong digest cannot deploy the wrong code, it can only decline to deploy. Digests
 are **per function**, so two PRs re-pinning different functions do not conflict.
-Regenerate with `node scripts/ef-fingerprint.js <sha> --slugs=<slug> --expected-only`
-— never by hand.
 
 ---
 

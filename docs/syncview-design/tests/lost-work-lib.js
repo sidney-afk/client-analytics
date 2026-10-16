@@ -62,7 +62,7 @@ async function createEnv(opts = {}) {
   const server = await serveStatic();
   const origin = 'http://127.0.0.1:' + server.address().port;
   const browser = await chromium.launch({ headless: true, executablePath: opts.executablePath });
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+  const ctx = await browser.newContext(Object.assign({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' }, opts.context || {}));
   let tick = 0;
   const T0 = Date.parse('2026-10-01T09:00:00.000Z');
   const S = {
@@ -74,6 +74,7 @@ async function createEnv(opts = {}) {
     cards: [], deliv: [], batches: [], comments: [],
     authority: { video: 'syncview', graphics: 'syncview' },
     commentsFor: [],
+    upserts: [],       // every card write the page sent: {url, post}
   };
   const t0 = Date.now();
   S.since = () => Date.now() - t0;
@@ -161,8 +162,11 @@ async function createEnv(opts = {}) {
     if (p === '/functions/v1/filming-plans') return json(route, 200, { ok: true, plans: [] });
     if (p === '/functions/v1/production-comments') return json(route, 200, { comments: S.comments.filter(c => !body.deliverable_id || c.deliverable_id === body.deliverable_id).map(c => ({ ...c, source_created_at: c.created_at, source_updated_at: c.updated_at })), next_cursor: null, has_more: false, canonical_thread: true });
 
-    if (p === '/functions/v1/calendar-upsert') {
+    // opts.cardWrite: the test client is on calendar_card_write_clients, so staff
+    // card saves go to calendar-card-write (same payload, same answer shape).
+    if (p === '/functions/v1/calendar-upsert' || (opts.cardWrite && p === '/functions/v1/calendar-card-write')) {
       const post = body.post || {};
+      S.upserts.push({ url: p, post: { ...post } });
       return serve(route, 'cal-upsert', JSON.stringify({ id: post.id, keys: Object.keys(post).filter(k => k !== 'id').slice(0, 14), video_status: post.video_status, baseAt: String(body.comments_base_at || '') }), () => {
         let c = card(post.id);
         if (!c) { c = { id: post.id, client: SLUG, status: 'In Progress', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress', title_status: 'In Progress', comments: [], updated_at: iso(Date.now()), video_status_at: iso(Date.now()), graphic_status_at: iso(Date.now()) }; S.cards.push(c); S.log.push({ t: S.since(), key: 'DB:insert-card', summary: post.id }); }
@@ -256,8 +260,13 @@ async function createEnv(opts = {}) {
           if (body.operation === 'due') d.due_date = body.due_date || null;
           if (body.operation === 'assignee') d.assignee_id = body.assignee_id || null;
           d.updated_at = iso(Date.now());
+          // Like production-write: one comment per native_comment_id; a repeat
+          // of the same id is answered with the comment already saved.
+          const sentNative = body.operation === 'comment' && body.comment ? String(body.comment.native_comment_id || '') : '';
+          const already = sentNative && S.comments.find(c => c._sent_native === sentNative);
+          if (already) return { status: 200, body: { ok: true, native_committed: true, mirror_pending: true, row: deliverableOut(d), comment: already } };
           if (body.operation === 'comment') {
-            comment = { id: 'c' + (S.comments.length + 1), deliverable_id: d.id, round: sentRound == null ? null : sentRound, body: (body.comment || {}).body, audience: (body.comment || {}).audience, author_name: 'Browser Staff', created_at: iso(Date.now()), updated_at: iso(Date.now()), version: 1, native_comment_id: 'nc' + (S.comments.length + 1) };
+            comment = { id: 'c' + (S.comments.length + 1), _sent_native: sentNative || undefined, deliverable_id: d.id, round: sentRound == null ? null : sentRound, body: (body.comment || {}).body, audience: (body.comment || {}).audience, author_name: 'Browser Staff', created_at: iso(Date.now()), updated_at: iso(Date.now()), version: 1, native_comment_id: 'nc' + (S.comments.length + 1) };
             S.comments.push(comment);
           }
           return { status: 200, body: { ok: true, native_committed: true, mirror_pending: true, row: deliverableOut(d), ...(comment ? { comment } : {}) } };
@@ -272,7 +281,7 @@ async function createEnv(opts = {}) {
     if (p === '/rest/v1/syncview_runtime_flags') {
       const raw = sp.get('key') || '';
       const keys = /^in\.\(/.test(raw) ? raw.replace(/^in\.\(/, '').replace(/\)$/, '').split(',') : [raw.replace(/^eq\./, '')];
-      return json(route, 200, keys.filter(k => k !== 'client_comment_gateway_enabled').map(k => ({ key: k, value: k === 'prod_authority' ? { ...S.authority } : /_clients$/.test(k) ? { clients: [SLUG] } : { enabled: false } })));
+      return json(route, 200, keys.filter(k => k !== 'client_comment_gateway_enabled' && (opts.cardWrite || k !== 'calendar_card_write_clients')).map(k => ({ key: k, value: k === 'prod_authority' ? { ...S.authority } : /_clients$/.test(k) ? { clients: [SLUG] } : { enabled: false } })));
     }
     if (p === '/rest/v1/calendar_posts') {
       S.log.push({ t: S.since(), key: 'READ calendar_posts', summary: '' });

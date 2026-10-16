@@ -1,7 +1,16 @@
 {
-  "baseline": "71f684554e95f6a9b5ddc2167685fcc2979477c4",
-  "buildIndexSha256": "cd0eb9204389ed1a00bac2b9d7fcb80311f4201b767a3f50fe977e307af1f2e2",
-  "phoneStates": 13,
+  "baseline": "72062c1f737e8d88298a1b4a62374f9bca6a462b",
+  "expandedReference": {
+    "pr": 1950,
+    "commit": "e2ab30ab3f34a2afb2a2c781ebe9855acf38b625",
+    "direction": "A - Expanded"
+  },
+  "buildIndexSha256": "11bc8cc094a13bedf6bef48be7e20f1b1e143b0134f1bf25fb55d9deb2826b16",
+  "fragmentSha256": {
+    "src/index/020-styles-surfaces.css.part": "3236437882251489bc2830e1075d78db2ef22cc7a772904c427a9607b718b460",
+    "src/index/080-workload-render.js.part": "aca3ece5f049c776d2f781fa0c5b02172fb8e20be0d60822eb6067947bf4ee29",
+    "src/index/099-staff-phone-bar.js.part": "61c2bf5c9c3c66baf4dee4ad91718b1f0f949100ffe0d80354c11aeffec98bb1"
+  },
   "phoneWidths": [
     390,
     430
@@ -10,10 +19,10 @@
     "light",
     "dark"
   ],
-  "required390Screenshots": 26,
+  "required390Screenshots": 30,
   "screenshots": {
     "workload-agenda-dark-390.png": "8b780de5e7e496c55435047772338e7b3a0a648135abf9e2e09f377b399256f7",
-    "workload-agenda-light-390.png": "22e1a7554895f1924d6c3866b5ea131b5862285e35e28a3deafa89337d4fdcbe",
+    "workload-agenda-light-390.png": "78b54e76c137e83454440fb826ccfedbb7ecc0cc4836453af78cbfb9cbb4e8d4",
     "workload-empty-dark-390.png": "e458c1e5b16f38b2015f36297429e41e18412b31d7d9a858d06134b9b8b87553",
     "workload-empty-light-390.png": "0a284ee8b3883d92746dcadf4cd7d316bb175454d7dac4c464f25ba65a619b19",
     "workload-error-dark-390.png": "cada5c7241b1d7c51f3c407bfc523dfa58ec40f76b7b861bff87cd0a1774b2c3",
@@ -32,15 +41,17 @@
     "workload-loading-light-390.png": "7772f0205323d9247dfaf9bfd74d4970c41a3708b70b01ccfde63e66aa15206b",
     "workload-month-dark-390.png": "dc89dd20665c2f3064e103b58b721b835c3e3ffb6b4c7963b090bbdbb23cd173",
     "workload-month-light-390.png": "e2058b84e33d5e1ef2a3481b9c2768b4248e8099356c0279b8266c6a1ff9d388",
+    "workload-open-in-calendar-dark-390.png": "22d6c8ca362f77c7d3272533dafd728a74b6e0eda1889a77e58609b644245f6d",
+    "workload-open-in-calendar-light-390.png": "a2cdae7098dc2ce3dab4cb5377161105510cfacc45c48eeeb0cb9b0babe15b41",
     "workload-plan-and-due-dark-390.png": "3063c9a651c2dc94ac3f6c2af93a3ac46fea4e74da36d3afa3ff810262e95947",
     "workload-plan-and-due-light-390.png": "b2e004a1e1b242b74833a00f528c38f0ccef97032149b20c0fdd8175e5965fb2",
     "workload-queue-dark-390.png": "ca30e882050b20cfa8893ed029bfbfe715527ac7d4cd0589fed8961d33360cac",
     "workload-queue-light-390.png": "8b1c81588299e09c65935bfa4a5d176a0c548a08c8197c929b9c41f10dabb1e9",
+    "workload-tabs-dark-390.png": "1b8f2f55d3630857d15d7300f56dd05ce037bf100f3ba52afa9cc3437e82e619",
+    "workload-tabs-light-390.png": "1e634febe1d7e9de681f380b6c1696d9dd64fd7482935bc94f293dbb2f09ab94",
     "workload-week-dark-390.png": "287f14654fb9a766bb319ec8ff2237649f8b62b3be8c4d5a27e6c8611b5ba0aa",
     "workload-week-light-390.png": "7ef2a525183be6fa1eed3c3da2637f0e530b4272a380c89e8df2076d1b67ec9c"
   },
-  "fragmentSha256": {
-    "020-styles-surfaces.css.part": "85c0ed38790dca96e744d0ccaba6f89bc11c25758f2013e241c72343e8edca52",
-    "080-workload-render.js.part": "aca3ece5f049c776d2f781fa0c5b02172fb8e20be0d60822eb6067947bf4ee29"
-  }
+  "fonts": "Plus Jakarta Sans, five local fixture weights verified by native capture guard",
+  "buildOutputs": "Local only; index.html, js/sv-*.js and src/index/INDEX.md are ignored and not tracked"
 }

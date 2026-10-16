@@ -1799,18 +1799,15 @@
         .cal-cap-wrap.is-clamped .cal-cap-fade { opacity: 1; }
         /* The whole clamped, read-only caption is a tap-to-read-more target. */
         .cal-cap-wrap.is-clamped textarea.cal-fld-cap[readonly] { cursor: pointer; }
-        .cal-cap-toggle { position: absolute; right: 7px; bottom: 7px; height: 21px; padding: 0 8px; border-radius: 99px;
+        .cal-cap-toggle { position: absolute; right: 7px; bottom: 7px; width: 21px; height: 21px; padding: 0; justify-content: center; border-radius: 99px;
             display: inline-flex; align-items: center; gap: 4px;
             background: var(--sv-bg-rgba-255-255-255-0_96); border: 1px solid var(--border); box-shadow: 0 1px 4px var(--sv-shadow-rgba-0-0-0-0_12);
             cursor: pointer; color: var(--text-secondary); font-family: inherit; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.01em; }
         .cal-cap-toggle:hover { color: var(--text-primary); border-color: var(--sv-border-999); }
-        .cal-cap-toggle-txt { line-height: 1; white-space: nowrap; }
+        /* Arrow only: the words stay for screen readers (the label still flips to Show less) but take no room. */
+        .cal-cap-toggle-txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
         .cal-cap-toggle svg { width: 10px; height: 10px; transition: transform 0.16s; }
         .cal-cap-toggle.is-expanded svg { transform: rotate(180deg); }
-        /* Expanded: collapse the pill to just the up-chevron so it stops
-           covering the end of the caption (which is then clickable). */
-        .cal-cap-toggle.is-expanded { width: 21px; padding: 0; justify-content: center; }
-        .cal-cap-toggle.is-expanded .cal-cap-toggle-txt { display: none; }
 
         /* CTA + tweaks — clean filled fields */
         .cal-fld-cta, .cal-fld-tweaks { width: 100%; box-sizing: border-box; background: var(--field-bg); border: 1px solid transparent;
@@ -2627,6 +2624,16 @@
         .cal-cm-done-tag { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sv-fg-166534); background: var(--sv-bg-dcfce7); padding: 1px 7px; border-radius: 99px; }
         .cal-cm-row-body { font-size: 0.9rem; color: var(--text-primary); line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
         .cal-cm-row.is-reply .cal-cm-row-body { font-size: 0.86rem; }
+        /* Note outbox: a note on its way, or not sent (190, _noteOutboxStatusHtml). */
+        .is-outbox-sending .cal-cm-row-body, .is-outbox-sending .cal-review-comment-body, .is-outbox-sending .msg-b-text { opacity: 0.72; }
+        .sv-note-outbox { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 4px; font-size: 0.76rem; line-height: 1.4; color: var(--text-secondary); }
+        .sv-note-outbox.is-failed { color: var(--dn); }
+        .sv-note-outbox-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: sv-note-outbox-pulse 1s ease-in-out infinite alternate; }
+        @keyframes sv-note-outbox-pulse { from { opacity: 0.3; } to { opacity: 1; } }
+        @media (prefers-reduced-motion: reduce) { .sv-note-outbox-dot { animation: none; } }
+        .sv-note-outbox button { font: inherit; font-weight: 700; color: inherit; background: none; border: 0; padding: 8px 2px; margin: -8px 0; min-height: 40px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+        .sv-note-outbox button.sv-note-outbox-discard { font-weight: 500; color: var(--text-secondary); }
+        .is-outbox-failed.cal-cm-row, .is-outbox-failed.cal-review-comment, .msg-b.is-outbox-failed { box-shadow: inset 2px 0 0 var(--dn); }
         .cal-cm-actions { position: absolute; right: 16px; top: 4px; display: flex; gap: 2px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 2px; box-shadow: 0 2px 6px var(--sv-shadow-rgba-0-0-0-0_06); opacity: 0; pointer-events: none; transition: opacity 0.12s; }
         .cal-cm-row:hover .cal-cm-actions, .cal-cm-row:focus-within .cal-cm-actions { opacity: 1; pointer-events: auto; }
         .cal-cm-action { background: transparent; border: none; border-radius: 5px; padding: 5px 7px; cursor: pointer; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; font-family: inherit; }
@@ -2784,13 +2791,31 @@
         .msg-reply textarea { flex: 1; border: 0; background: transparent; resize: none; font: inherit; color: inherit; outline: 0; min-height: 22px; padding: 5px 0; }
         .msg-chat-empty { margin: auto; padding: 32px 20px; text-align: center; display: flex; flex-direction: column; gap: 6px; align-items: center; color: var(--text-muted); font-size: 0.82rem; }
         .msg-chat-empty b { color: var(--text-primary); font-size: 0.92rem; }
+        /* Loading placeholder: the loaded markup with see-through words and a grey bar
+           painted over each line, so no box moves when the real list arrives. The bars
+           are clipped a little top and bottom so stacked lines read as separate lines. */
+        .msg-inbox.is-skeleton { pointer-events: none; }
+        .msg-inbox.is-skeleton .sv-skeleton { --sv-skel-base: var(--border); --sv-skel-sheen: var(--border-light); }
+        html[data-theme="dark"] .msg-inbox.is-skeleton .sv-skeleton { --sv-skel-base: var(--field-bg-hover); --sv-skel-sheen: var(--border); }
+        .msg-skel { color: transparent !important; user-select: none; }
+        .msg-conv-main .msg-skel, .msg-b-meta .msg-skel, .msg-b-text.msg-skel { clip-path: inset(2px 0 2px 0 round 4px); border-radius: 4px; }
+        .msg-conv-top > .msg-skel { align-self: flex-start; }
+        .msg-conv-top > .msg-conv-client.msg-skel { font-weight: 700; }
+        .msg-filters button.msg-skel { border-color: transparent; border-radius: 99px; background: var(--sv-skel-base); }
+        .msg-conv.is-skeleton .msg-thumb { border-radius: 7px; }
+        .msg-b-text.msg-skel { border-color: transparent; }
         .msg-nav-btn { position: relative; }
         .msg-nav-btn[hidden] { display: none; }
         .msg-nav-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
         /* The Messages page uses the whole width under the header. */
         body:has(#msgPage) .main { padding: 0; }
         .msg-page { padding: 14px 16px 16px; display: flex; flex-direction: column; }
-        .msg-page-head h1 { margin: 0 0 10px; font-size: 1.3rem; color: var(--text-primary); }
+        .msg-page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 10px; min-height: 25px; }
+        .msg-page-head h1 { margin: 0; font-size: 1.3rem; color: var(--text-primary); }
+        .msg-close { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 0.74rem; font-weight: 600; line-height: 1.2; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); cursor: pointer; }
+        .msg-close svg { width: 12px; height: 12px; }
+        .msg-close:hover { background: var(--bg); }
+        .msg-close:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
         .msg-page .msg-inbox { height: calc(100vh - 150px); }
         @media (max-width: 767px) {
             /* minmax(0, 1fr): a plain 1fr track grows to the longest unwrapped
@@ -2843,14 +2868,6 @@
            cancel-X used to sit bottom-right where it overlapped that toggle when a
            long (overflowing) caption was re-generated. Top-right is the only free
            corner, and reads as the conventional "cancel" spot. */
-        /* Optional transcript pill (caption function path, card with a video): top right, clear of the bottom-right
-           "Show more" toggle; same show/hide rule as Generate. It is never drawn while a job runs, so the cancel x
-           that uses the same corner never meets it. */
-        .cal-cap-tx { position: absolute; right: 8px; top: 8px; display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_05); transition: color 0.12s, border-color 0.12s, background 0.12s, opacity 0.1s; }
-        .cal-cap-wrap textarea.cal-fld-cap:focus ~ .cal-cap-tx,
-        .cal-cap-wrap textarea.cal-fld-cap:not(:placeholder-shown) ~ .cal-cap-tx { opacity: 0; pointer-events: none; }
-        .cal-cap-tx:hover { color: var(--text-primary); border-color: var(--text-primary); background: var(--bg); }
-        .cal-cap-tx svg { width: 12px; height: 12px; }
         .cal-prompt-textarea.cal-tx-textarea { font-family: inherit; font-size: 0.86rem; min-height: 220px; }
         .cal-cap-gen-x { position: absolute; right: 8px; top: 8px; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_05); transition: color 0.12s, border-color 0.12s, background 0.12s; z-index: 2; }
         .cal-cap-gen-x:hover { color: var(--sv-fg-b91c1c); border-color: var(--sv-border-fecaca); background: var(--sv-bg-fef2f2); }
@@ -2898,35 +2915,28 @@
         .cal-gen-note:focus { border-color: var(--text-primary); background: var(--white); outline: none; }
         .cal-prompt-textarea.cal-tx-textarea.is-compact { min-height: 110px; }
 
-        /* ── Title ideas, hashtags and redo, under the caption ── */
-        .cal-cap-ai-tog { position: absolute; right: 8px; top: 8px; display: inline-flex; align-items: center; padding: 5px 9px; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
-        .cal-cap-ai-tog:hover, .cal-cap-ai-tog.is-open { color: var(--text-primary); border-color: var(--text-primary); }
-        .cal-cap-wrap textarea.cal-fld-cap:focus ~ .cal-cap-ai-tog { opacity: 0; pointer-events: none; }
-        .cal-cap-ai { margin-top: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); font-size: 0.74rem; color: var(--text-secondary); }
-        .cal-cap-ai-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
-        .cal-cap-ai-label { line-height: 1.3; font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin-top: 4px; }
-        .cal-cap-ai-titles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
-        .cal-cap-ai-t { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); }
-        .cal-cap-ai-t.is-best { border-color: var(--text-primary); }
-        .cal-cap-ai-ttxt { flex: 1 1 140px; min-width: 0; color: var(--text-primary); font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
-        .cal-cap-ai-badge { font-size: 0.64rem; font-weight: 800; padding: 1px 7px; border-radius: 99px; background: var(--text-primary); color: var(--white); }
-        .cal-cap-ai-acts { display: flex; gap: 5px; flex-wrap: wrap; }
-        .cal-cap-ai-btn, .cal-cap-ai-chip { font-family: inherit; font-size: 0.72rem; font-weight: 700; min-height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); cursor: pointer; }
-        .cal-cap-ai-chip { border-radius: 99px; }
-        .cal-cap-ai-btn:hover:not(:disabled), .cal-cap-ai-chip:hover:not(:disabled) { background: var(--bg); border-color: var(--text-primary); }
-        .cal-cap-ai-btn.is-primary { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
-        .cal-cap-ai-btn:disabled, .cal-cap-ai-chip:disabled { opacity: .5; cursor: not-allowed; }
-        .cal-cap-ai-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); }
-        .cal-cap-ai-tagtxt { flex: 1 1 140px; min-width: 0; color: var(--text-primary); font-weight: 700; overflow-wrap: anywhere; }
-        .cal-cap-ai-meta { font-size: 0.72rem; color: var(--text-muted); }
-        .cal-cap-ai-pending { padding: 8px; border: 1px dashed var(--text-primary); border-radius: 8px; background: var(--white); display: flex; flex-direction: column; gap: 6px; }
-        .cal-cap-ai-pendtxt { white-space: pre-wrap; color: var(--text-primary); line-height: 1.4; max-height: 140px; overflow-y: auto; }
-        .cal-cap-ai-redo { display: flex; gap: 6px; }
-        .cal-cap-ai-note { flex: 1; min-width: 0; min-height: 32px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; font-family: inherit; font-size: 0.78rem; color: var(--text-primary); background: var(--white); }
-        .cal-cap-ai-note:focus { border-color: var(--text-primary); outline: none; }
-        .cal-cap-ai-quick { display: flex; flex-wrap: wrap; gap: 6px; }
-        html.sv-staff-phone .cal-cap-wrap .cal-cap-ai-tog { position: static !important; inset: auto; order: 1; min-height: 44px; padding: 0 12px; }
-        html.sv-staff-phone .cal-cap-ai-btn, html.sv-staff-phone .cal-cap-ai-chip, html.sv-staff-phone .cal-cap-ai-note { min-height: 44px; }
+        /* ── Regenerate with a note: a small icon in the top right corner of the caption box ── */
+        .cal-cap-tools { position: absolute; top: 7px; right: 7px; z-index: 3; display: inline-flex; }
+        .cal-cap-wrap:has(.cal-cap-tools) textarea.cal-fld-cap { padding-right: 38px; }
+        .cal-cap-redo-open { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; }
+        .cal-cap-redo-open svg { width: 13px; height: 13px; }
+        .cal-cap-redo-open:hover, .cal-cap-redo-open:focus-visible { color: var(--text-primary); border-color: var(--sv-border-999); }
+        /* A touch screen above the phone breakpoint (a tablet, a phone in landscape) gets the same 44px target. */
+        @media (pointer: coarse) {
+            .cal-cap-redo-open { width: 44px; height: 44px; }
+            .cal-cap-redo-open svg { width: 20px; height: 20px; }
+            .cal-cap-tools { top: 4px; right: 4px; }
+            .cal-cap-wrap:has(.cal-cap-tools) textarea.cal-fld-cap { padding-right: 54px; }
+        }
+        .cal-redo-current { white-space: pre-wrap; max-height: 28vh; overflow-y: auto; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text-secondary); font-size: 0.84rem; line-height: 1.5; overflow-wrap: anywhere; }
+        .cal-redo-note { min-height: 96px; }
+        /* Staff phone: the caption's actions (Generate, show more) sit in a row under the box, and a control may not
+           sit on top of another one there (qa/staff-phone-rules-browser.js). So the icon joins that row, at its end,
+           instead of the box's corner, and the box needs no room kept free for it. */
+        html.sv-staff-phone .cal-cap-wrap .cal-cap-tools { position: static; order: 4; }
+        html.sv-staff-phone .cal-cap-redo-open { width: 44px; height: 44px; }
+        html.sv-staff-phone .cal-cap-redo-open svg { width: 20px; height: 20px; }
+        html.sv-staff-phone .cal-cap-wrap:has(.cal-cap-tools) textarea.cal-fld-cap { padding-right: 9px; }
 
         .cal-bulk-cap-bar { position: fixed; bottom: 24px; right: 24px; z-index: 320; background: var(--text-primary); color: var(--white); padding: 10px 14px; border-radius: 12px; box-shadow: 0 8px 26px var(--sv-shadow-rgba-0-0-0-0_22); font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 10px; visibility: hidden; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0.2s; }
         .cal-bulk-cap-bar.is-active { visibility: visible; opacity: 1; transform: none; pointer-events: auto; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0s; }
@@ -6792,7 +6802,6 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
         }
         @media (max-width: 767px) {
             #calView[data-pocket-staff-phone] .cal-card .cal-link-field.has-link .cal-link-edit,
-            #calView[data-pocket-staff-phone] .cal-card .cal-link-field.has-link .cal-link-watch,
             #calView[data-pocket-staff-phone] .cal-card .cal-link-field.has-link .cal-link-folder { background: transparent !important; color: var(--text-secondary) !important; border-color: var(--border) !important; }
         }
         @media (max-width: 767px) {
@@ -7241,7 +7250,6 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
         }
         @media (max-width: 767px) {
             #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link .cal-link-edit,
-            #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link .cal-link-watch,
             #sxrView[data-pocket-staff-samples] .cal-card .cal-link-field.has-link .cal-link-folder { background: transparent !important; color: var(--text-secondary) !important; border-color: var(--border) !important; }
         }
         @media (max-width: 767px) {
@@ -7764,11 +7772,8 @@ html.fph-on[data-fph="home"] .card-platform .analytics-state-badge,html.fph-on[d
     html.sv-staff-phone .cal-cap-wrap .cal-fld-cap { flex: 1 1 100%; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle, html.sv-staff-phone .cal-cap-wrap .cal-cap-gen, html.sv-staff-phone .cal-cap-wrap .cal-cap-gen-x { position: static !important; inset: auto; margin: 0; margin-block: 0 !important; opacity: 1 !important; pointer-events: auto !important; padding: 0 12px; width: auto; min-height: 44px; align-self: center !important; display: inline-flex; background: transparent; border: 0; border-radius: 10px; box-shadow: none; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-gen { order: 1; }
-    html.sv-staff-phone .cal-cap-wrap .cal-cap-tx { position: static !important; inset: auto; margin: 0; opacity: 1 !important; pointer-events: auto !important; padding: 0 12px; min-height: 44px; align-self: center !important; display: inline-flex; background: transparent; border: 0; border-radius: 10px; box-shadow: none; color: var(--text-secondary); font-size: 12px; font-weight: 600; order: 1; }
-    html.sv-staff-phone .cal-cap-wrap textarea.cal-fld-cap:not(:placeholder-shown) ~ .cal-cap-tx { display: none !important; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-gen-x { order: 2; }
     html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle { order: 3; margin-left: auto; }
-    html.sv-staff-phone .cal-cap-wrap .cal-cap-toggle-txt { display: inline; }
     html.sv-staff-phone .cal-cap-fade { bottom: 52px; }
     html.sv-staff-phone .tk-submit-bar { position: static; inset: auto; margin: 16px 0; }
     html.sv-staff-phone .ca-editbar { position: static; }
@@ -7980,7 +7985,6 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
  body:has(#calView[data-pocket-staff-phone]) :is(.cal-prompt-head-text p,.cal-prompt-hint) { font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
  body:has(#calView[data-pocket-staff-phone]) .cal-prompt-banner { font-size: 13px; line-height: 1.5; }
  body:has(#calView[data-pocket-staff-phone]) .cal-prompt-textarea::placeholder { color: var(--text-secondary); opacity: 1; }
- #calView[data-pocket-staff-phone] .cal-cap-tx { font-size: 13px; min-height: 44px; }
 }
 
 /* PRISM-COMPOSER-PHONE: readable feedback drafts without desktop shortcut hints. */
@@ -8037,24 +8041,44 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
  html.sv-staff-phone .arx-row-meta {font-size:13px;line-height:1.5;color:var(--text-secondary);}
 }
 
-/* WATCH HERE: the Frame.io viewer (staff only; src/index/187-frame-viewer.js.part).
-   One viewer, opened from the Calendar card, the SMM review panel and Kasper's review.
+/* WATCH HERE: the Frame.io viewer (src/index/187-frame-viewer.js.part), behind the frame_viewer_clients switch.
+   The pop-up (staff only) opens from the Sheet's thumbnail icon and Kasper's review; the Review tab's video
+   preview plays in place (staff and client link).
    Tokens only, so light and dark follow the page. Desktop: video left, comments right.
    Phone: the video on top and the comments below it, full screen. */
-.cal-link-watch { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; background: var(--field-bg); border: 0; border-left: 1px solid var(--sv-border-e3e3e0); color: var(--text-secondary); font-family: inherit; font-size: 0.7rem; font-weight: 700; white-space: nowrap; cursor: pointer; transition: background 0.12s, color 0.12s; }
-.cal-link-watch svg { width: 10px; height: 10px; flex-shrink: 0; }
-.cal-link-watch:hover { background: var(--field-bg-hover); color: var(--text-primary); }
-.cal-link-watch:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
-.cal-link-field.has-link.editing .cal-link-watch { display: none; }
-.cal-link-post.has-link .cal-link-watch { background: var(--sv-slot-video-bg); color: var(--sv-slot-video-fg-soft); border-left-color: var(--sv-slot-video-border); }
-.cal-link-post.has-link .cal-link-watch:hover { background: var(--sv-slot-video-bg-hover); color: var(--sv-slot-video-fg); }
-.cal-link-ro .cal-link-watch { border-radius: 0 8px 8px 0; }
-
 .fv-watch-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; margin-top: 8px; padding: 8px 14px; background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); border-radius: 10px; font-family: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
 .fv-watch-btn svg { width: 11px; height: 11px; flex-shrink: 0; }
 .fv-watch-btn:hover { background: var(--surface-hover); }
 .fv-watch-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .fv-review-video { display: flex; flex-direction: column; align-items: stretch; width: 100%; max-width: 260px; margin: 0 auto; }
+/* Review tab: label swap and the small Frame.io link. With the switch off the tile shows "Open video" as before. */
+.cal-review-video-tile .fv-lbl-on { display: none; }
+.cal-review-video-tile[data-fv-on] .fv-lbl-on { display: inline; }
+.cal-review-video-tile[data-fv-on] .fv-lbl-off { display: none; }
+html .fv-review-video .fv-frameio-link { display: inline-flex; align-self: center; align-items: center; min-height: 0; margin-top: 6px; padding: 2px 4px; color: var(--text-secondary); font-size: 0.72rem; font-weight: 600; text-decoration: none; }
+html .fv-review-video .fv-frameio-link:hover { color: var(--text-primary); text-decoration: underline; }
+.fv-frameio-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
+/* The video playing in place of the preview. Same column, as wide as the column allows. */
+.cal-review-video-tile.fv-inline { display: flex; justify-content: center; aspect-ratio: auto; width: fit-content; min-width: 140px; max-height: none; max-width: 100%; min-height: 120px; background: var(--sv-bg-000); transform: none; }
+.cal-review-video-tile.fv-inline:hover { transform: none; }
+html body .cal-review-video-tile.fv-inline { align-items: center; min-height: 0 !important; height: auto !important; width: fit-content !important; max-width: 100% !important; aspect-ratio: auto !important; }
+.fv-inline-video { display: block; align-self: center; width: auto; max-width: 100%; height: auto; max-height: min(66vh, 560px); background: var(--sv-bg-000); object-fit: contain; }
+.fv-inline-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 14px; text-align: center; background: var(--surface-subtle); color: var(--text-primary); }
+.fv-inline-state.is-loading { background: transparent; pointer-events: none; }
+.fv-inline-state[hidden] { display: none; }
+.fv-inline-state .fv-state-text { font-size: 0.78rem; }
+.fv-inline .fv-unmute { bottom: 46px; }
+.fv-inline[data-fv-small]::after { content: "Smaller version for your connection"; position: absolute; left: 8px; top: 8px; padding: 2px 8px; border-radius: 999px; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); font-size: 0.64rem; font-weight: 600; pointer-events: none; }
+/* The Sheet's thumbnail: a small play icon at the top centre, shown on hover (always on a phone). */
+html .cal-card-thumb .cal-thumb-play { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 4; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; min-width: 0 !important; min-height: 0 !important; margin: 0; padding: 0; border: 0; border-radius: 50%; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); cursor: pointer; opacity: 0; transition: opacity 0.15s, background 0.12s; }
+html .cal-card-thumb .cal-thumb-play::before { content: ""; position: absolute; inset: -7px; }
+html .cal-card-thumb .cal-thumb-play svg { width: 12px; height: 12px; margin-left: 1px; }
+html .cal-card-thumb .cal-thumb-play[hidden] { display: none !important; }
+html .cal-card-thumb:hover .cal-thumb-play, html .cal-card-thumb .cal-thumb-play:focus-visible { opacity: 1; }
+html .cal-card-thumb .cal-thumb-play:hover { transform: translateX(-50%) scale(1.1); }
+html .cal-card-thumb .cal-thumb-play:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+html .cal-card-thumb .cal-thumb-linear-warn ~ .cal-thumb-play { top: 46px; }
+@media (hover: none), (max-width: 767px) { html .cal-card-thumb .cal-thumb-play { opacity: 1; } }
 .fv-hero-video { max-width: 380px; }
 .fv-review-video .fv-watch-btn { width: 100%; }
 /* With the viewer switched off for this client the button is hidden and the page must look as it did before:
@@ -8068,92 +8092,159 @@ html.fph-on[data-fph="tiktok-upload"] .tk-help{font-size:13px;color:var(--text-s
 body.fv-lock { overflow: hidden; }
 .fv-overlay { display: none; position: fixed; inset: 0; z-index: 320; background: var(--overlay); align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
 .fv-overlay.open { display: flex; }
-.fv-panel { display: flex; flex-direction: column; width: min(1180px, 100%); max-height: min(820px, 100%); background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-lg); overflow: hidden; }
-.fv-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border-light); }
-.fv-head-text { flex: 1; min-width: 0; }
-.fv-eyebrow { font-size: 0.64rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
-.fv-title { margin: 2px 0 0; font-size: 1rem; font-weight: 800; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fv-open-link, .fv-btn { display: inline-flex; align-items: center; justify-content: center; padding: 8px 14px; background: var(--text-primary); color: var(--white); border: 0; border-radius: 10px; font-family: inherit; font-size: 0.78rem; font-weight: 700; text-decoration: none; cursor: pointer; white-space: nowrap; }
+/* The pop-up. --fv-h is the height the video may use; the player takes its width from the video's own shape, so
+   there are no black bars: a vertical video uses the height and the comments sit beside it, a wide one keeps the
+   wide layout with the comments on the right. */
+.fv-panel { --fv-h: calc(min(780px, 100vh - 48px) - 118px); display: flex; flex-direction: column; width: min(1120px, 100%); max-height: min(780px, 100%); background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-lg); overflow: hidden; }
+.fv-panel[data-orient="portrait"] { --fv-h: calc(min(860px, 100vh - 48px) - 118px); width: min(960px, 100%); max-height: min(860px, 100%); }
+.fv-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px 12px 20px; border-bottom: 1px solid var(--border-light); }
+.fv-title { flex: 1; min-width: 0; margin: 0; font-size: 1rem; font-weight: 800; line-height: 1.25; letter-spacing: -0.005em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fv-open-link, .fv-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 14px; background: var(--text-primary); color: var(--white); border: 0; border-radius: 10px; font-family: inherit; font-size: 0.78rem; font-weight: 700; text-decoration: none; cursor: pointer; white-space: nowrap; }
 .fv-open-link { background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); }
+.fv-open-link svg { width: 12px; height: 12px; flex-shrink: 0; color: var(--text-secondary); }
 .fv-open-link:hover, .fv-btn-ghost:hover { background: var(--surface-hover); }
 .fv-btn-ghost { background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); }
 .fv-btn-small { padding: 6px 11px; margin-top: 8px; }
 .fv-close { flex-shrink: 0; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-subtle); color: var(--text-secondary); border: 0; border-radius: 50%; cursor: pointer; }
 .fv-close svg { width: 12px; height: 12px; }
 .fv-close:hover { background: var(--surface-hover); color: var(--text-primary); }
-.fv-open-link:focus-visible, .fv-btn:focus-visible, .fv-close:focus-visible, .fv-refresh:focus-visible, .fv-reply-main:focus-visible, .fv-c-reply:focus-visible, .fv-c-main:focus-visible, .fv-mark:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.fv-open-link:focus-visible, .fv-btn:focus-visible, .fv-close:focus-visible, .fv-c-main:focus-visible, .fv-mark:focus-visible, .fv-unmute:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
-.fv-body { display: grid; grid-template-columns: minmax(0, 1fr) 360px; flex: 1; min-height: 0; }
-.fv-stage { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 16px 18px; overflow-y: auto; }
-.fv-player { position: relative; background: var(--sv-bg-000); border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 9; max-height: 62vh; display: flex; align-items: center; justify-content: center; }
-.fv-video { width: 100%; height: 100%; display: block; background: var(--sv-bg-000); object-fit: contain; }
+.fv-body { display: grid; grid-template-columns: minmax(0, 1fr) 340px; flex: 1; min-height: 0; }
+.fv-panel[data-orient="portrait"] .fv-body { grid-template-columns: auto minmax(280px, 1fr); }
+.fv-stage { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; padding: 16px 20px; overflow: hidden; }
+.fv-player { position: relative; flex: none; width: min(100%, calc(var(--fv-h) * var(--fv-ar, 1.7778))); aspect-ratio: var(--fv-ar, 16 / 9); background-color: var(--sv-bg-000); background-size: contain; background-position: center; background-repeat: no-repeat; border-radius: 12px; overflow: hidden; }
+.fv-panel[data-orient="portrait"] .fv-player { width: calc(var(--fv-h) * var(--fv-ar, 0.5625)); max-width: 100%; }
+.fv-video { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: transparent; object-fit: contain; }
 .fv-player:not([data-state="ready"]) .fv-video { visibility: hidden; }
 .fv-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center; background: var(--surface-subtle); color: var(--text-primary); }
+.fv-player[data-state="loading"] .fv-state { background: transparent; pointer-events: none; }
 .fv-player[data-state="ready"] .fv-state { display: none; }
 .fv-state-text { font-size: 0.86rem; font-weight: 600; color: var(--text-secondary); max-width: 360px; }
 .fv-state-bad { color: var(--text-primary); }
 .fv-state-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.fv-spin { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--text-primary); animation: fvSpin 0.8s linear infinite; }
+.fv-spin { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--sv-bg-rgba-255-255-255-0_18); border-top-color: var(--sv-fg-fff); animation: fvSpin 0.8s linear infinite; }
+.fv-player[data-state="error"] .fv-spin, .fv-inline-state:not(.is-loading) .fv-spin { border-color: var(--border); border-top-color: var(--text-primary); }
 @keyframes fvSpin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .fv-spin { animation-duration: 2.4s; } .fv-skel { animation: none; } }
-.fv-markers { position: relative; height: 14px; margin: 0 2px; border-radius: 7px; background: var(--surface-subtle); }
+.fv-unmute { position: absolute; left: 12px; bottom: 56px; z-index: 2; display: inline-flex; align-items: center; min-height: 0 !important; min-width: 0 !important; padding: 7px 12px; border: 0; border-radius: 999px; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); font-family: inherit; font-size: 0.74rem; font-weight: 700; cursor: pointer; backdrop-filter: blur(6px); }
+.fv-unmute[hidden] { display: none; }
+.fv-player[data-small]::after { content: "Smaller version for your connection"; position: absolute; left: 10px; top: 10px; padding: 2px 8px; border-radius: 999px; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); font-size: 0.64rem; font-weight: 600; pointer-events: none; }
+.fv-markers { position: relative; flex: none; align-self: stretch; height: 14px; margin: 0 2px; border-radius: 7px; background: var(--surface-subtle); }
 .fv-markers:empty { display: none; }
 html .fv-overlay .fv-markers .fv-mark { position: absolute; top: 1px; width: 12px; height: 12px; min-width: 0 !important; min-height: 0 !important; margin: 0 0 0 -6px; padding: 0; border: 2px solid var(--surface-raised); border-radius: 50%; background: var(--focus-ring); cursor: pointer; }
 html .fv-overlay .fv-markers .fv-mark::before { content: ""; position: absolute; inset: -9px; }
 html .fv-overlay .fv-markers .fv-mark:hover { transform: scale(1.25); }
-.fv-r-top { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 2px; }
-.fv-meta { font-size: 0.74rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* The comments: one list, oldest first. A purple edge and a timecode mark a Frame.io comment (click to jump);
+   a grey edge marks a SyncView note. The source is named small and quiet at the end of each line. */
 .fv-side { display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--border-light); background: var(--surface-subtle); }
-.fv-side-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border-light); }
+.fv-side-head { display: flex; align-items: baseline; gap: 8px; padding: 14px 18px 10px; }
 .fv-side-title { font-size: 0.8rem; font-weight: 800; }
-.fv-count { margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: var(--border-light); color: var(--text-secondary); font-size: 0.7rem; font-weight: 700; }
-.fv-count:empty { display: none; }
-.fv-refresh { background: none; border: 0; color: var(--text-secondary); font-family: inherit; font-size: 0.74rem; font-weight: 700; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
-.fv-refresh:hover { color: var(--text-primary); background: var(--surface-hover); }
-.fv-list { flex: 1; min-height: 120px; overflow-y: auto; padding: 10px 12px; }
-.fv-c-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.fv-c { background: var(--surface-raised); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-.fv-c.is-now { border-color: var(--focus-ring); }
+.fv-count { color: var(--text-secondary); font-size: 0.74rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fv-list { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 12px 16px; overscroll-behavior: contain; }
+.fv-c-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.fv-c { border-left: 2px solid var(--border); border-radius: 4px 10px 10px 4px; background: var(--surface-raised); transition: background 0.15s; }
+.fv-c.fv-src-frameio { border-left-color: color-mix(in srgb, var(--focus-ring) 60%, transparent); }
+.fv-c.is-now { background: color-mix(in srgb, var(--focus-ring) 9%, var(--surface-raised)); }
 .fv-c.is-done .fv-c-text { color: var(--text-secondary); }
-.fv-c-main { display: block; width: 100%; padding: 10px 12px 6px; background: none; border: 0; text-align: left; font-family: inherit; color: inherit; cursor: pointer; }
-.fv-c-main:hover { background: var(--surface-hover); }
-.fv-c-main:disabled { cursor: default; background: none; }
-.fv-c-top { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-bottom: 4px; }
-.fv-time { padding: 2px 7px; border-radius: 6px; background: var(--text-primary); color: var(--white); font-size: 0.7rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.fv-time-none { background: var(--border-light); color: var(--text-secondary); }
+.fv-c-main { display: block; width: 100%; padding: 10px 12px 10px 12px; margin: 0; background: transparent; border: 0; border-radius: inherit; font: inherit; color: inherit; text-align: left; }
+button.fv-c-main { cursor: pointer; }
+button.fv-c-main:hover { background: color-mix(in srgb, var(--focus-ring) 6%, transparent); }
+.fv-c-top { display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px 8px; margin-bottom: 3px; }
+.fv-time { padding: 1px 7px; border-radius: 6px; background: color-mix(in srgb, var(--focus-ring) 15%, transparent); color: var(--focus-ring); font-size: 0.7rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .fv-c-by { font-size: 0.76rem; font-weight: 800; }
 .fv-guest { color: var(--text-secondary); font-weight: 700; }
 .fv-c-when { font-size: 0.7rem; color: var(--text-secondary); }
+.fv-src { margin-left: auto; font-size: 0.64rem; font-weight: 600; color: var(--text-muted); }
 .fv-done { padding: 1px 6px; border-radius: 6px; background: var(--up-bg); color: var(--up); font-size: 0.66rem; font-weight: 800; }
 .fv-c-text { font-size: 0.82rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
-.fv-replies { margin: 0 12px 4px 24px; padding-left: 10px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
-.fv-reply { padding: 4px 0; }
-.fv-c-reply { display: inline-block; margin: 2px 12px 10px; font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); text-decoration: underline; text-underline-offset: 2px; }
-.fv-c-reply:hover { color: var(--text-primary); }
+.fv-replies { margin: 0 12px 8px 24px; padding-left: 10px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.fv-reply { padding: 2px 0; }
+.fv-r-top { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 2px; }
 .fv-note { padding: 12px; font-size: 0.8rem; color: var(--text-secondary); text-align: center; }
 .fv-note-bad { color: var(--text-primary); }
-.fv-skel { height: 66px; margin-bottom: 8px; border-radius: 12px; background: linear-gradient(90deg, var(--border-light), var(--surface-hover), var(--border-light)); background-size: 200% 100%; animation: fvShimmer 1.4s ease-in-out infinite; }
+.fv-skel { height: 66px; margin-bottom: 8px; border-radius: 12px; background: linear-gradient(90deg, var(--border-light), var(--surface-hover), var(--border-light)); background-size: 200% 100%; animation: fvShimmer 1.4s linear infinite; }
 .fv-skel-short { height: 44px; }
 @keyframes fvShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
-.fv-side-foot { padding: 12px 16px; border-top: 1px solid var(--border-light); }
-.fv-reply-main { display: flex; align-items: center; justify-content: center; padding: 9px 14px; background: var(--text-primary); color: var(--white); border-radius: 10px; font-size: 0.8rem; font-weight: 700; text-decoration: none; }
-.fv-foot-note { margin-top: 6px; text-align: center; font-size: 0.68rem; color: var(--text-secondary); }
 
 @media (max-width: 767px) {
  .fv-overlay { padding: 0; align-items: stretch; }
- .fv-panel { width: 100%; max-height: none; height: 100%; border: 0; border-radius: 0; }
- .fv-head { padding: 10px 12px; gap: 8px; }
+ .fv-panel, .fv-panel[data-orient="portrait"] { --fv-h: min(54dvh, 100vw * 1.3); width: 100%; max-height: none; height: 100%; border: 0; border-radius: 0; }
+ .fv-head { padding: 10px 10px 10px 14px; gap: 8px; }
  .fv-open-link { padding: 7px 10px; font-size: 0.74rem; }
- .fv-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
- .fv-stage { padding: 10px 12px 8px; overflow: visible; }
- .fv-player { max-height: 34vh; border-radius: 10px; }
+ .fv-body, .fv-panel[data-orient="portrait"] .fv-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+ .fv-stage { padding: 10px 12px 8px; }
+ .fv-panel[data-orient="landscape"] { --fv-h: 42dvh; }
+ .fv-panel[data-orient="landscape"] .fv-player { width: 100%; }
  .fv-side { border-left: 0; border-top: 1px solid var(--border-light); }
- .fv-list { padding: 8px 10px; }
+ .fv-list { padding: 2px 10px calc(14px + env(safe-area-inset-bottom, 0px)); }
  .fv-c-text { font-size: 0.86rem; }
- .fv-c-reply { padding: 6px 0; }
- .fv-side-foot { padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); }
- .fv-foot-note { display: none; }
+ .fv-unmute { bottom: 52px; }
+}
+
+/* Thumb Messages: one phone conversation at a time, in the native page. */
+@media(max-width:767px){
+ html.sv-staff-phone body:has(#msgPage[data-thumb-messages]) {height:100dvh;overflow:hidden;}
+ html.sv-staff-phone body:has(#msgPage[data-thumb-messages]) .main {padding:0;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] {height:var(--thumb-msg-height,calc(100dvh - 76px));min-height:0;box-sizing:border-box;padding:0 16px;overflow:hidden;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-page-head {display:none;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-page-body {flex:1;min-height:0;height:100%;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-inbox {height:100%!important;min-height:0;border:0;border-radius:0;background:var(--bg);grid-template-rows:minmax(0,1fr);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-list {min-height:0;border:0;background:none;}
+ html.sv-staff-phone #msgPage .thumb-msg-search {display:flex;align-items:center;gap:10px;margin:12px 0;min-height:48px;padding:0 12px;border:1px solid var(--border);border-radius:14px;background:var(--white);color:var(--text-secondary);}
+ html.sv-staff-phone #msgPage .thumb-msg-search svg {flex:none;width:20px;height:20px;}
+ html.sv-staff-phone #msgPage .thumb-msg-search input {min-width:0;width:100%;min-height:46px;border:0;background:none;color:var(--text-primary);font:inherit;font-size:16px;outline:none;}
+ html.sv-staff-phone #msgPage .thumb-msg-search:focus-within {outline:2px solid var(--focus-ring);outline-offset:2px;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-filters {display:flex;gap:4px;flex-shrink:0;padding:4px;border:0;border-radius:15px;background:var(--surface-raised);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-filters button {flex:1;min-height:44px;border:0;border-radius:11px;background:none;color:var(--text-secondary);font-size:14px;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-filters button.is-active {background:var(--white);color:var(--text-primary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-convs {flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:8px 0 16px;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-conv {grid-template-columns:56px minmax(0,1fr) 24px;gap:12px;min-height:100px;margin:0;padding:14px 0;border:0;border-bottom:1px solid var(--border);border-radius:0;background:none;text-align:left;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-thumb {width:56px;height:56px;border-radius:12px;object-fit:cover;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-conv-client {font-size:13px;color:var(--text-secondary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-conv-time {font-size:11px;color:var(--text-secondary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-conv-sub {font-size:15px;font-weight:700;line-height:1.5;color:var(--text-primary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-conv-last {font-size:13px;line-height:1.5;color:var(--text-secondary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-unread {min-width:22px;min-height:22px;display:grid;place-items:center;font-size:12px;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-chat {min-height:0;height:100%;background:none;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-chat-head {display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:8px;padding:8px 0;flex-shrink:0;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-chat-title {font-size:15px;line-height:1.4;white-space:normal;overflow-wrap:anywhere;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-chat-sub {display:block;font-size:12px;color:var(--text-secondary);margin-top:3px;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-chat-actions {margin:0;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] :is(.msg-back,.thumb-msg-options) {min-width:44px;min-height:44px;padding:0;background:none;border:0;color:var(--text-primary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-back {font-size:30px;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-bubbles {flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:16px 0;gap:16px;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-b {max-width:88%;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-b-text {padding:10px 13px;font-size:15px;line-height:1.5;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-b-meta,
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-b-meta b {font-size:12px;line-height:1.5;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-b-reply {font-size:13px;min-height:44px;padding:0 4px;color:var(--text-secondary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-day {font-size:12px;color:var(--text-secondary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .thumb-msg-new {display:flex;align-items:center;gap:12px;width:100%;font-size:12px;font-weight:700;color:var(--text-primary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .thumb-msg-new::before,
+ html.sv-staff-phone #msgPage[data-thumb-messages] .thumb-msg-new::after {content:'';height:1px;flex:1;background:var(--border);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-reply {flex-shrink:0;margin:0 -16px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:var(--bg);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-reply-cap {padding:0 2px 8px;font-size:12px;color:var(--text-secondary);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-reply .cal-cm-composer {align-items:flex-end;border-radius:18px;background:var(--white);}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-reply textarea {min-height:44px;max-height:120px;overflow:auto;font-size:16px;line-height:1.5;box-sizing:border-box;padding:10px 4px;}
+ html.sv-staff-phone .thumb-msg-more {position:fixed;inset:auto 0 0;width:100%;max-width:none;max-height:80dvh;margin:0;padding:16px 16px calc(24px + env(safe-area-inset-bottom));border:1px solid var(--border);border-radius:24px 24px 0 0;background:var(--white);color:var(--text-primary);}
+ html.sv-staff-phone .thumb-msg-more header {display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+ html.sv-staff-phone .thumb-msg-more h2 {font-size:21px;margin:0;}
+ html.sv-staff-phone .thumb-msg-more button {min-height:48px;border:0;border-radius:12px;background:none;color:var(--text-primary);font:inherit;font-size:15px;}
+ html.sv-staff-phone .thumb-msg-more header button {padding:0 12px;background:var(--surface-raised);font-size:13px;}
+ html.sv-staff-phone .thumb-msg-more section {display:flex;flex-direction:column;}
+ html.sv-staff-phone .thumb-msg-more section button {text-align:left;padding:0 12px;}
+}
+
+@media(max-width:767px){html.sv-staff-phone .thumb-msg-more::backdrop {background:var(--overlay);}}
+
+@media(max-width:767px){html.sv-staff-phone #msgPage[data-thumb-messages] .msg-conv .msg-thumb.is-empty {display:grid;place-items:center;background:var(--surface-raised);color:var(--text-secondary);font-size:16px;font-weight:700;}}
+
+@media(max-width:767px){
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-b {position:relative;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-b-meta {min-height:28px;padding-right:52px;}
+ html.sv-staff-phone #msgPage[data-thumb-messages] .msg-b-reply {position:absolute;right:0;top:-8px;min-width:48px;min-height:44px;}
 }
 
 /* Thumb Workload: a phone agenda and push queue; native planning stays intact. */

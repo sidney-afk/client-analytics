@@ -17,10 +17,12 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
-import { SERVER_INFO, TEAM_START_NOTE, authorFor, isTeamLink } from "./who.mjs";
+import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, cleanWho, isTeamLink, logActivity, outcomeOf } from "./who.mjs";
 import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
+import { guideIndex, guideReply, latestGuides } from "./guides.mjs";
+import { STUDIO_BUCKET, studioLatest } from "./studio.mjs";
 import { brainChange, clientBrain, clientStyle, filmingPlan, listClients } from "./clientinfo.ts";
-import { DIRECT_MODELS, directEstimate, isDirect, runDirect, type Fetched } from "./direct.ts";
+import { answeredFromLog, asksSwitchedOff, DIRECT_MODELS, directEstimate, GOOGLE_IMAGE_ENABLED, GOOGLE_IMAGE_IDS, gptImageInputs, isDirect, runDirect, SWITCHED_OFF_TEXT, type Fetched } from "./direct.ts";
 
 const HF_API = "https://api.higgsfield.ai";
 const CAP_RAW = (Deno.env.get("HF_MONTHLY_CAP_USD") || "200").trim();
@@ -57,7 +59,7 @@ const GO_TO: Pick[] = [
   { task: "Copy the movement from one video onto a person in a photo", picks: ["higgsfield/genjutsu/motion-transfer/v1.0", "kling-video/v3/motion-control/pro"] },
   { task: "Swap an object in a video for another", picks: ["higgsfield/genjutsu/object-swap/v1.0"] },
   { task: "Photorealistic image of people or scenes", picks: ["higgsfield-ai/soul/v2/standard"] },
-  { task: "Edit a photo (change a person, outfit, background, add or remove things)", picks: ["openai/gpt-image", "openai/gpt-image-fast", "google/nano-banana", "xai/grok-imagine-image-2.0"] },
+  { task: "Edit a photo (change a person, outfit, background, add or remove things)", picks: ["openai/gpt-image", "openai/gpt-image-fast", ...(GOOGLE_IMAGE_ENABLED ? ["google/nano-banana"] : []), "xai/grok-imagine-image-2.0"] },
   { task: "Image with readable text: thumbnails, posters, quotes", picks: ["ideogram/v4.0"] },
   { task: "Logos, icons, illustrations, design assets", picks: ["recraft/v4.1/pro/text-to-image", "recraft/v4.1/utility/pro/text-to-image"] },
   { task: "Quick, cheap image drafts", picks: ["z-image/turbo"] },
@@ -121,9 +123,11 @@ Ask: "Do you have the titles, or should I write them?"
 
 const INSTRUCTIONS = [
   "You help non-technical teammates of a social media agency make AI videos and images with Higgsfield. Talk in plain English, no jargon.",
-  "Start with start_here. Work out what they want (ask one short question if unclear), pick a model from the shortlist and say why in one sentence.",
+  "Start with start_here. Before any task, call guide with that task's topic and follow it: it is the team's current playbook and wins over these notes and anything you remember.",
+  "Work out what they want (ask one short question if unclear), pick a model from the shortlist and say why in one sentence.",
   "Call model_details before the first create with a model, write a rich prompt for them (subject, action, setting, camera, lighting, mood) and show it.",
-  "For photo edits, thumbnails and new photos prefer GPT Image (openai/gpt-image; openai/gpt-image-fast for quick drafts), since it runs directly and never waits in Higgsfield's queue, then Nano Banana; they change only what is asked. ",
+  "For photo edits, thumbnails and new photos prefer GPT Image (openai/gpt-image; openai/gpt-image-fast for quick drafts), since it runs directly and never waits in Higgsfield's queue; it changes only what is asked. ",
+  "Nano Banana (Google) is switched off for the team. If someone asks for it, say so and offer GPT Image instead: the connector answers with GPT Image's price card. Never switch models without saying so.",
   "Choose sensible settings yourself: vertical 9:16 for social media unless they say otherwise, and a sharp but not wasteful quality (1080p or 2K when offered).",
   "Before EVERY create, run price_check and show its plan card to the person exactly as returned: model, what it will make, every setting (shape, quality, length, sound, inputs), the exact price, and the other quality and shape options. End with: \"Say go, or tell me what to change.\"",
   "Only call create after they say go (or yes). If they change anything, run price_check again and show the updated card. Never make anything without showing its price first. Mention the cost again when it is done.",
@@ -133,8 +137,9 @@ const INSTRUCTIONS = [
   "Whenever a client is named, call client_brain before answering, without being asked. When someone states something new and lasting about a client, save it with brain_change and confirm in one line; never for notes about one video.",
   "For thumbnail titles, read the client's voice with client_style and the videos with client_filming_plan instead of asking the person to paste them.",
   "Input media must be public links. If they have a file in Google Drive or Dropbox, pass its share link to import_file and use the link it returns.",
-  "After create, call wait_for_job and keep calling it in the same reply until the job is done, giving a one-line progress update between calls; never ask the person to check back or to say \"check again\". Wait up to 30 minutes (GPT Image and Nano Banana take under a minute; Higgsfield images wait in Higgsfield's queue and can take several minutes when it is busy; videos 1 to 5 minutes, sometimes 15 or more when Higgsfield is busy), then give them the download link. Finished images come back as pictures too, so look at them and tell the person honestly whether they match the request before offering the next step.",
+  "After create, call wait_for_job and keep calling it in the same reply until the job is done, giving a one-line progress update between calls; never ask the person to check back or to say \"check again\". Wait up to 30 minutes (GPT Image takes under a minute; Higgsfield images wait in Higgsfield's queue and can take several minutes when it is busy; videos 1 to 5 minutes, sometimes 15 or more when Higgsfield is busy), then give them the download link. Finished images come back as pictures too, so look at them and tell the person honestly whether they match the request before offering the next step.",
   "Never go around the monthly budget. If create refuses for budget, tell them to ask the account owner.",
+  SUMMARY_NOTE,
 ].join(" ");
 
 const EMPTY = { type: "object", properties: {}, additionalProperties: false };
@@ -145,6 +150,7 @@ const MAX_QUOTED_USD = 40;
 const QUOTED_ARG = { type: "number", description: `Only when price_check said Higgsfield's price description cannot be read: your own price in dollars worked out from that description, rounded up (at most ${MAX_QUOTED_USD}). Pass the same number to price_check and create.` };
 const MODEL_ARG = { type: "string", description: "Model id, e.g. bytedance/seedance-2.5/text-to-video" };
 const WHO_ARG = { type: "string", description: "Optional. The person's first name, only when start_here asked you to pass it; otherwise leave it out." };
+const SUMMARY_ARG = { type: "string", description: "Optional. One line, in the person's own words, saying what they asked for (at most 200 characters)." };
 const INPUTS_ARG = { type: "object", description: "The model's settings, as listed by model_details (prompt, duration, aspect_ratio, image_url, ...)." };
 
 // Job-check tools point at the in-chat viewer (MCP Apps); hosts without MCP
@@ -183,7 +189,7 @@ const TOOLS = [
     name: "create",
     _meta: VIEWER_META,
     description: "Make a video or image. Only call after the person agreed to the model, settings and price. Returns a job_id for wait_for_job.",
-    inputSchema: { type: "object", required: ["model", "inputs"], additionalProperties: false, properties: { model: MODEL_ARG, inputs: INPUTS_ARG, quoted_usd: QUOTED_ARG, who: WHO_ARG } },
+    inputSchema: { type: "object", required: ["model", "inputs"], additionalProperties: false, properties: { model: MODEL_ARG, inputs: INPUTS_ARG, quoted_usd: QUOTED_ARG } },
   },
   {
     name: "check_job",
@@ -231,7 +237,6 @@ const TOOLS = [
         model: { type: "string" },
         notes: { type: "string" },
         aspect_ratio: { type: "string" },
-        who: WHO_ARG,
       },
     },
   },
@@ -267,7 +272,6 @@ const TOOLS = [
         client: { type: "string", description: "The client's name as SyncView shows it." },
         what_changed: { type: "string", description: "The new or corrected information, in plain words, as complete as the person said it." },
         fact_id: { type: "string", description: "Optional: the fact id from client_brain that this changes." },
-        who: WHO_ARG,
       },
     },
   },
@@ -285,8 +289,28 @@ const TOOLS = [
       properties: { content_type: { type: "string", enum: ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "audio/wav"] } },
     },
   },
+  {
+    name: "guide",
+    description: "The team's current playbook for a kind of task (client knowledge, thumbnails, b-roll, images and videos, and more). Call it before the task and follow it; it always holds the latest version, which wins over anything you remember. Without a topic it lists the guides.",
+    inputSchema: { type: "object", properties: { topic: { type: "string", description: "The guide to read, e.g. brain or thumbnails. Leave out to list them." } }, additionalProperties: false },
+  },
   { name: "team_usage", description: "This month's team spending against the budget, and the most recent jobs with who made them.", inputSchema: EMPTY },
+  {
+    name: "studio_latest",
+    description: "The newest version of the Synchro video studio: its version, a private download link (valid about 10 minutes) and what changed. Use it when someone wants to install or update the studio, or asks which version is current. Read only.",
+    inputSchema: EMPTY,
+  },
 ];
+
+// Every tool takes the two optional activity-log arguments: "who" (the first
+// name, only when start_here asked for it) and "summary" (what the person
+// asked). Added here so no tool can miss them; each schema gets its own copy.
+for (const tool of TOOLS) {
+  const schema = tool.inputSchema as { properties?: Record<string, unknown> };
+  // A fresh object per tool: several tools share the EMPTY schema.
+  const withWho = { ...schema, properties: { ...(schema.properties || {}), who: WHO_ARG, summary: SUMMARY_ARG } };
+  tool.inputSchema = withWho as unknown as typeof tool.inputSchema;
+}
 
 // ---- Input validation (light; Higgsfield validates fully too) -------------
 
@@ -748,7 +772,7 @@ const RECIPES: Recipe[] = [
     name: "Thumbnail expression fix",
     forWho: "graphic designers making thumbnails",
     summary: "Fixes an awkward mid-word face in a client screenshot with the smallest possible change, keeping everything else identical. Works on one screenshot or a batch.",
-    models: ["openai/gpt-image", "google/nano-banana", "google/nano-banana-pro", "xai/grok-imagine-image-2.0", "alibaba/qwen-image-3/edit"],
+    models: ["openai/gpt-image", ...(GOOGLE_IMAGE_ENABLED ? GOOGLE_IMAGE_IDS : []), "xai/grok-imagine-image-2.0", "alibaba/qwen-image-3/edit"],
     build: (model, image, notes, aspect) => {
       const prompt = EXPRESSION_FIX_PROMPT + (notes ? `\n\nAdditional instruction for this image: ${notes}` : "");
       if (model === "openai/gpt-image") return { prompt, image_urls: [image], size: "auto", quality: "medium" };
@@ -885,7 +909,7 @@ async function submitJob(member: string, id: string, inputs: JsonMap, usd: numbe
 async function checkJob(jobId: string): Promise<string> {
   if (!/^[0-9a-f-]{36}$/i.test(jobId)) return "That job_id does not look right.";
   const { data: row } = await db().from("hf_generations").select("model,status,video_url,error,est_cost_usd").eq("request_id", jobId).maybeSingle();
-  if (row && isDirect(String(row.model))) {
+  if (row && answeredFromLog(String(row.model))) {
     if (row.status === "completed" && row.video_url) return `Done. It cost ${money(Number(row.est_cost_usd))}. Download:\n${row.video_url}\n(Save the file; stored results are kept for a limited time.)`;
     if (row.status === "failed") return "It failed: " + (row.error || "no reason given") + ". The provider did not make an image, so it was not charged; try again or adjust the prompt.";
     if (row.status === "delivery_failed") return `The image was made (and charged, ${money(Number(row.est_cost_usd))}) but could not be saved: ${row.error || "storage error"}. Tell the account owner before retrying.`;
@@ -945,6 +969,15 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   // A malformed cap stops new spending only; job checks, details and imports keep working.
   const BAD_CAP = "The monthly budget setting (HF_MONTHLY_CAP_USD) is not a valid dollar amount, so nothing new can be made. Ask the account owner.";
   const cap = CAP_USD ?? 0;
+  // The guide list for start_here; a failed read leaves it out, never fails start_here.
+  const guideList = async (): Promise<string> => {
+    try {
+      const index = guideIndex(latestGuides(await readGuides()));
+      return index ? `\n\nTeam guides (call guide with the topic before that kind of task, and follow it):\n${index}` : "";
+    } catch (_e) {
+      return "";
+    }
+  };
   const budget = async (): Promise<string> => {
     if (CAP_USD === null) return BAD_CAP;
     const spent = await monthSpend();
@@ -961,7 +994,15 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
 
   if (name === "start_here") {
     const list = GO_TO.map((g) => `- ${g.task}: ${g.picks.map((id) => `${BY_ID.get(id)?.name} [${id}]`).join(" or ")}`).join("\n");
-    return `This connector can make videos and images with ${ALL_MODELS.length} models (Higgsfield, plus GPT Image and Nano Banana), plus saved team recipes (use recipes). Go-to picks:\n${list}\n\nThere are more options per task: use find_models.\nPrices vary by model, length and resolution; price_check gives the exact figure.\nInput photos, videos and audio must be public links; import_file converts Drive and Dropbox links.\n\nClient knowledge (the Synchro Brain): whenever a client is named, or someone asks \"what does X want\", call client_brain first, without being asked. When someone says something new and lasting about a client (a preference, a decision, a date, a change of direction) or says \"add this to X's brain\", call brain_change and confirm in one line. Not for notes about one video.${isTeamLink(member) ? `\n\n${TEAM_START_NOTE}` : ""}\n\n${await budget()}`;
+    return `This connector can make videos and images with ${ALL_MODELS.length} models (Higgsfield, plus GPT Image), plus saved team recipes (use recipes). Go-to picks:\n${list}\n\nThere are more options per task: use find_models.\nPrices vary by model, length and resolution; price_check gives the exact figure.\nInput photos, videos and audio must be public links; import_file converts Drive and Dropbox links.\n\nClient knowledge (the Synchro Brain): whenever a client is named, or someone asks \"what does X want\", call client_brain first, without being asked. When someone says something new and lasting about a client (a preference, a decision, a date, a change of direction) or says \"add this to X's brain\", call brain_change and confirm in one line. Not for notes about one video.${isTeamLink(member) ? `\n\n${TEAM_START_NOTE}` : ""}${await guideList()}\n\n${await budget()}`;
+  }
+
+  if (name === "guide") {
+    try {
+      return guideReply(await readGuides(), args.topic);
+    } catch (e) {
+      return "Could not read the team guides (" + (e as Error).message + "). Carry on with start_here and the connector's own instructions.";
+    }
   }
 
   if (name === "find_models") {
@@ -972,8 +1013,21 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   }
 
   if (name === "model_details") {
+    if (asksSwitchedOff(args.model)) return SWITCHED_OFF_TEXT.replace("; here is its price.", ".") + "\n\n" + describeModel("openai/gpt-image");
     const id = needModel();
     return id ? describeModel(id) : "Unknown model. Use find_models for the exact ids.";
+  }
+
+  if ((name === "price_check" || name === "create") && asksSwitchedOff(args.model)) {
+    // Never a silent switch: the GPT Image card is shown and nothing is made
+    // until the person says go to it.
+    const gpt = gptImageInputs(inputsOf());
+    const problems = validate(BY_ID.get("openai/gpt-image")!.schema as Schema, gpt);
+    if (problems.length) return SWITCHED_OFF_TEXT + "\n\nFix these settings first:\n- " + problems.join("\n- ") + "\n\n" + describeModel("openai/gpt-image");
+    const est = await estimate("openai/gpt-image", gpt);
+    if ("error" in est) return SWITCHED_OFF_TEXT + "\n\nGPT Image could not be priced: " + est.error;
+    return SWITCHED_OFF_TEXT + (name === "create" ? " Nothing was made." : "") + "\n\n" + planCard("openai/gpt-image", gpt, est.usd) + "\n" + await budget()
+      + "\n\nSay go, or tell me what to change. (After go, call create with model openai/gpt-image and these settings: " + JSON.stringify(gpt) + ".)";
   }
 
   if (name === "price_check" || name === "create") {
@@ -1043,7 +1097,11 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
     const recipe = RECIPE_BY_KEY.get(String(args.recipe || ""));
     if (!recipe) return "Unknown recipe. Use recipes to see them.";
     if (!recipe.build) return `${recipe.name}\n\n${recipe.guide}`;
-    const model = String(args.model || recipe.models[0]);
+    // Nano Banana asked for by name: plan the recipe on GPT Image instead, say
+    // so, and run nothing until the person says go to that plan.
+    const off = asksSwitchedOff(args.model);
+    if (off && !recipe.models.includes("openai/gpt-image")) return SWITCHED_OFF_TEXT.replace("; here is its price.", ".") + ` This recipe runs on: ${recipe.models.join(", ")}.`;
+    const model = off ? "openai/gpt-image" : String(args.model || recipe.models[0]);
     if (!recipe.models.includes(model)) return `This recipe runs on: ${recipe.models.join(", ")}.`;
     const images = (Array.isArray(args.images) ? args.images : []).map((x) => String(x).trim()).filter(Boolean);
     if (!images.length) return "Give one or more image links (Drive, Dropbox or any public link).";
@@ -1056,8 +1114,9 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
     const est = await estimate(model, sample);
     if ("error" in est) return "Higgsfield could not price this: " + est.error;
     const total = est.usd * images.length;
-    if (name === "recipe_plan") {
+    if (name === "recipe_plan" || off) {
       return [
+        ...(off ? [SWITCHED_OFF_TEXT + (name === "run_recipe" ? " Nothing was run." : ""), ""] : []),
         `Plan: ${recipe.name}`,
         `- Model: ${BY_ID.get(model)!.name}${recipe.models.length > 1 ? `  [other options: ${recipe.models.filter((m) => m !== model).map((m) => BY_ID.get(m)?.name).join(", ")}]` : ""}`,
         `- Images: ${images.length}`,
@@ -1066,7 +1125,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
         `- Price: ${money(est.usd)} each, ${money(total)} total`,
         await budget(),
         "",
-        "Say go, or tell me what to change.",
+        "Say go, or tell me what to change." + (off ? " (After go, call run_recipe with model openai/gpt-image.)" : ""),
       ].join("\n");
     }
     if (CAP_USD === null) return BAD_CAP;
@@ -1094,6 +1153,10 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   if (name === "brain_change") return await brainChange(db(), String(args.client || ""), String(args.what_changed || ""), String(args.fact_id || ""), author);
 
   if (name === "import_file") return await importFile(String(args.link || "").trim());
+
+  if (name === "studio_latest") {
+    return await studioLatest(studioStore(), { member, who: isTeamLink(member) ? cleanWho(args.who) : "" });
+  }
 
   if (name === "get_upload_link") {
     const type = String(args.content_type || "");
@@ -1126,6 +1189,48 @@ function reply(body: unknown, status = 200): Response {
 
 function rpcError(id: unknown, code: number, message: string): Response {
   return reply({ jsonrpc: "2.0", id: id ?? null, error: { code, message } });
+}
+
+// The activity log (hf_activity): service role only, one row per tools/call.
+// Every version of every guide; the newest per topic is live (guides.mjs).
+async function readGuides(): Promise<JsonMap[]> {
+  const { data, error } = await db().from("hf_guides").select("topic,body,created_at").order("created_at", { ascending: false }).limit(1000);
+  if (error) throw new Error(error.message);
+  return (data || []) as JsonMap[];
+}
+
+// The studio bucket (private, read only here) and its download log
+// (hf_studio_downloads: service role only, one row per studio_latest call).
+function studioStore() {
+  const bucket = () => db().storage.from(STUDIO_BUCKET);
+  return {
+    exists: async (name: string): Promise<boolean> => {
+      const { data, error } = await bucket().list("", { search: name, limit: 100 });
+      if (error) throw new Error(error.message);
+      return (data || []).some((o) => o.name === name);
+    },
+    readText: async (name: string): Promise<string> => {
+      const { data, error } = await bucket().download(name);
+      if (error || !data) throw new Error(error?.message || "empty file");
+      return await data.text();
+    },
+    sign: async (name: string, seconds: number): Promise<string> => {
+      const { data, error } = await bucket().createSignedUrl(name, seconds, { download: true });
+      if (error || !data?.signedUrl) throw new Error(error?.message || "no link returned");
+      return data.signedUrl;
+    },
+    log: (row: JsonMap) => {
+      background(logActivity(async (r: JsonMap) => {
+        const { error } = await db().from("hf_studio_downloads").insert(r);
+        if (error) throw new Error(error.message);
+      }, row));
+    },
+  };
+}
+
+async function writeActivity(row: JsonMap): Promise<void> {
+  const { error } = await db().from("hf_activity").insert(row);
+  if (error) throw new Error(error.message);
 }
 
 async function memberFor(req: Request): Promise<string | null> {
@@ -1176,10 +1281,22 @@ Deno.serve(async (req) => {
   }
   if (method === "tools/call") {
     const params = (msg.params || {}) as JsonMap;
+    const toolName = String(params.name || "");
+    const callArgs = (params.arguments && typeof params.arguments === "object" ? params.arguments : {}) as JsonMap;
+    // One activity row per call, written after the reply is on its way; a row
+    // that cannot be written never fails or slows the tool.
+    let logged = false;
+    const log = (ok: boolean, error?: string) => {
+      if (logged) return;
+      logged = true;
+      background(logActivity(writeActivity, activityRow({ member, tool: toolName, args: callArgs, ok, error })));
+    };
     try {
-      const toolName = String(params.name || "");
-      const text = await callTool(toolName, (params.arguments || {}) as JsonMap, member);
-      const args = (params.arguments || {}) as JsonMap;
+      const text = await callTool(toolName, callArgs, member);
+      // A refusal returned as text is logged as a failure, not a success.
+      const outcome = outcomeOf(toolName, text);
+      log(outcome.ok, outcome.error);
+      const args = callArgs;
       if (!VIEWER_TOOLS.has(toolName)) return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }] } });
       // Job checks: the result files (plus small previews the model can look
       // at). Plans, creates, recipes and imports: the input and imported media,
@@ -1193,6 +1310,7 @@ Deno.serve(async (req) => {
       const structuredContent = { result: text, images: media.filter((l) => !isVideoLink(l)), videos: media.filter(isVideoLink), status: isCheck ? text.split("\n")[0] : "" };
       return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }, ...previews.map(({ url: _url, ...block }) => block)], structuredContent } });
     } catch (e) {
+      log(false, (e as Error).message);
       return reply({ jsonrpc: "2.0", id, result: { isError: true, content: [{ type: "text", text: "Something went wrong: " + (e as Error).message }] } });
     }
   }

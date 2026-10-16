@@ -38,6 +38,13 @@ the sections below, delete it from this block in the same PR.
   video and notes; reviewed, merging when green, then `frame_viewer_clients` to all), #2121 (Post tab), #2122 (labelled
   Open in Calendar button). Card saver watcher: 1 clean run, test client only.
 
+**In review (session Cinema, 2026-10-16): Watch here, one view for the video and its notes.** Every door (the Notes
+button, the Sheet's play icon, the Review tab's video preview, Kasper's "Watch here") opens the card's Notes dialog with
+the player on the left (on a phone, on top). Nothing plays until play is pressed (bottom centre of the player). Staff
+see the Frame.io comments as rows in the notes list, in time order, marked "Frame.io", with clickable video times; a
+client link never does. The old pop-up and the in-place player on the Review tab are gone. No function or switch
+change: `frame_viewer_clients` is untouched, Lighthouse turns it on for everyone after this merges.
+
 **Later on 2026-10-16 (Lighthouse, checked live):**
 - **Merged means live (#2101, Conveyor) is on main:** the page builds at publish (index.html is no longer committed) and
   Edge Functions deploy on merge through `deploy-edge-functions-on-merge.yml`; the Section 4 capture runs in GitHub.
@@ -63,7 +70,7 @@ the sections below, delete it from this block in the same PR.
 **Synchro video studio (session Atelier, 2026-10-16).** Step 1, `studio_latest`, merged (#2112): the newest studio zip
 from the private `studio` bucket as a signed link valid about 10 minutes, each call logged in `hf_studio_downloads`. Live
 since about 17:09 UTC; a real call at 17:32 UTC returned version 0.2 and was logged.
-Step 2 in review: `studio_profile` reads a client's video look from the brain file `clients/<folder>/video-profile.json`
+Step 2, merged (#2115): `studio_profile` reads a client's video look from the brain file `clients/<folder>/video-profile.json`
 (or, with none yet, the brief's Look lines and exact spec values to draft from), and `studio_profile_save` files a profile
 through the same change path as `brain_change`. The brain writes the file only once the "Video profile updates" section
 is in its `POLICY/syncview-changes.md` (synchro-brain #83, merged by the owner at 20:19 UTC). Step 3 (`studio_transcribe`) is a design only.
@@ -483,17 +490,6 @@ hiring senders when the editor hire closes.
   applied from the LF copy (both routine bodies match the preflight pins, OPEN_REPAIRS 381), the test-client repair ran,
   and the pins are re-pointed (today's Section 4 run passed its preflight). Left: the `SYNCVIEW_STAFF_KEY` repository
   secret holds a role key (p96); a secret cannot be read, so the next Calendar and Samples nightly runs show it.
-
-  retired addresses or rules). The drift check now lists N/A slots apart (owner: N/A wins). Owner steps left:
-  apply `migrations/2026-10-08-native-calendar-na-wins-one-client.sql` and run its one-client repair for the
-  test client; set the `SYNCVIEW_STAFF_KEY` repository secret to a role key (p96). Then re-point the deploy
-  preflight's two pins at that migration before the next Section 4 dispatch.
-  **2026-10-09 (OPEN_REPAIRS 392, session Gatekeeper, in PR):** Calendar run 112 (first with 373's fixes) was 21 of 67
-  red. Fixed: probe cards now carry fixture work items with a faked gateway that holds its status (13 probes), p85, p92,
-  p94; p89, p90, p91 retired (they drive the staff blank-card funnel production no longer reaches). Samples: Kasper Undo
-  was a real bug (fixed); Finish expectation follows the owner's 2026-09-27 rule; robot servers answer like Pages. p28,
-  p29, p30, p36 stay (they test native routing). The robots now read the SMM role key from the repository secret `ROBOT_ROLE_KEY_SMM` (owner decision; the
-  `production` environment keeps its approval rule). Owner check: `SYNCVIEW_STAFF_ACTOR` names an active SMM.
 - **Workload plan `list` deadline** is only budget-raised, not fixed
   (OPEN_REPAIRS 210).
 - **Dialog press-and-release (OPEN_REPAIRS 215) is DONE.** Fixed on main since

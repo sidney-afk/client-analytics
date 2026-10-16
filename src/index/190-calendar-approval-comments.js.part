@@ -1,6 +1,6 @@
 import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
-import { svFrameIoLinkHtml, svFrameAddNotesProvider, svFrameTileAttrs, svFrameTileLabelHtml } from './187-frame-viewer.js';
+import { svFrameFeed, svFrameIoLinkHtml, svFrameStageMount, svFrameStageUnmount, svFrameTileAttrs, svFrameTileLabelHtml, svFrameTime } from './187-frame-viewer.js';
 import { _svPhoneNotesPresentation } from './095-shared-client.js';
 import {
   CAL_COMPONENTS, CAL_REVIEW_COMPONENTS, _calClearStaleApprovals, _calComponentsFor, _prodCrosswalkInFlight,
@@ -565,9 +565,9 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
         if (comp === 'video') {
             const url = String(p.asset_url || '').trim();
             if (!url) return `<div class="cal-review-preview-empty">No video yet.</div>`;
-            // With the viewer switched on for this card's client (frame_viewer_clients) the preview plays the video in
-            // place and a small "Watch in Frame.io" link sits under it; staff and client link alike, no pop-up and
-            // no comments. Switched off, or not a Frame.io link: the tile opens the link exactly as it always did.
+            // With the viewer switched on for this card's client (frame_viewer_clients) the preview opens the card's
+            // Notes view with the player, and a small "Watch in Frame.io" link sits under it; staff and client link
+            // alike. Switched off, or not a Frame.io link: the tile opens the link exactly as it always did.
             const thumbUrl = _calDeriveThumb(p);
             const tileAttrs = svFrameTileAttrs(url, p.client, p.id, thumbUrl);
             const frameLink = svFrameIoLinkHtml(url, p.client);
@@ -1997,15 +1997,6 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
     window.addEventListener('sv-staff-names', () => {
         try { if (_calOpenCommentsPid) _calRenderCommentsModal(); } catch (e) {}
     });
-    // The Watch here pop-up lists the card's SyncView notes on the video beside the Frame.io comments.
-    svFrameAddNotesProvider((postId) => {
-        const post = (calState.posts || []).find(x => x.id === postId);
-        if (!post) return null;
-        return _calCommentsForView(post, 'video').map(c => ({
-            id: String(c.id || ''), parent_id: String(c.parent_id || ''), done: !!c.done, created_at: String(c.created_at || ''),
-            text: String(c.body || ''), author: _calNoteAuthorName(c, c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM'),
-        }));
-    });
     function _calMintCommentId() { return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
 
     /* NOTE OUTBOX: a note shows the moment it is sent, and is never lost
@@ -2568,10 +2559,11 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
         _calShowResolved = false;           // start on the live feed, not history
         _notesMarkSeen(pid);                // opening = caught up; clears the unread dot
         _prodProjectCanonicalCardComments('calendar', pid);
-        const ovl = document.getElementById('calCommentsOverlay');
+        const ovl = _calEnsureCommentsOverlay();
         if (!ovl) return;
         ovl.classList.add('open');
         document.body.classList.add('cal-modal-open');
+        _calNotesStageSync(post);
         _calCommentsLayerOpen(pid);
         _calRenderCommentsModal();
         // Auto-scroll the feed to the latest message and focus the composer.
@@ -2579,9 +2571,64 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
             const feed = document.getElementById('calCommentsFeed');
             if (feed) feed.scrollTop = feed.scrollHeight;
             const ta = document.getElementById('calCommentComposer');
-            if (ta) ta.focus();
+            if (ta && !_calNotesPhoneWithVideo()) ta.focus();
         }, 30);
     }
+    /* ONE VIEW FOR THE VIDEO AND ITS NOTES (owner, 2026-10-16). When the card's video is a Frame.io link and the
+       frame_viewer_clients switch allows its client, the Notes dialog grows a player on its left (on a phone, on top):
+       the stage, owned by 187. Every door opens this same view: the Notes button, the Sheet's play icon, the Review
+       tab's video preview and Kasper's "Watch here" (svOpenCardNotes, 326). Nothing plays until the person presses
+       play. Without such a video, or with the switch off, the dialog is exactly the Notes dialog it always was: the
+       shell around it takes no room (display: contents). */
+    function _calEnsureCommentsOverlay() {
+        let ovl = document.getElementById('calCommentsOverlay');
+        if (ovl) return ovl;
+        // A page that never drew the Calendar (Kasper's board) gets the same dialog, once, on the body.
+        const wrap = document.createElement('div');
+        wrap.innerHTML = _calCommentsOverlayHtml();
+        ovl = wrap.firstElementChild;
+        document.body.appendChild(ovl);
+        return ovl;
+    }
+    function _calCommentsOverlayHtml() {
+        return `<div class="cal-comments-overlay" id="calCommentsOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeCalComments()">
+                <div class="cal-notes-shell" id="calNotesShell">
+                    <div class="cal-notes-stage" id="calNotesStage" role="region" aria-label="Video" hidden></div>
+                    <div class="cal-comments-modal" id="calCommentsModal" role="dialog" aria-modal="true" aria-labelledby="calCommentsTitle"></div>
+                </div>
+            </div>`;
+    }
+    function _calNotesStageSync(post) {
+        const shell = document.getElementById('calNotesShell');
+        const stage = document.getElementById('calNotesStage');
+        if (!shell || !stage) return false;
+        const on = !!post && svFrameStageMount(stage, post, _calDeriveThumb(post));
+        if (!on) { svFrameStageUnmount(); stage.hidden = true; }
+        shell.toggleAttribute('data-video', on);
+        return on;
+    }
+    function _calNotesPhoneWithVideo() {
+        const shell = document.getElementById('calNotesShell');
+        return !!(shell && shell.hasAttribute('data-video') && window.matchMedia && window.matchMedia('(max-width: 767px)').matches);
+    }
+    // The Frame.io comments arrived (or failed), or the switch changed: the open card's view is drawn again, keeping
+    // whatever is being typed.
+    window.addEventListener('sv-frame-feed', (e) => {
+        const pid = _calOpenCommentsPid;
+        if (!pid || (e && e.detail && e.detail.pid && e.detail.pid !== pid)) return;
+        _calCaptureModalDrafts();
+        _calRenderCommentsModal({ keepFocus: true });
+    });
+    window.addEventListener('sv-frame-switch', () => {
+        const pid = _calOpenCommentsPid;
+        if (!pid) return;
+        const post = calState.posts.find(p => p.id === pid);
+        const shell = document.getElementById('calNotesShell');
+        const had = !!(shell && shell.hasAttribute('data-video'));
+        if (_calNotesStageSync(post) === had && !had) return;
+        _calCaptureModalDrafts();
+        _calRenderCommentsModal({ keepFocus: true });
+    });
     /* The Notes panel is a layer: Escape and a click on the backdrop close it
        (closeCalComments keeps the typed note as a draft, as before), and focus
        goes back to the card's Notes button. While a reply or an edit is being
@@ -2592,7 +2639,7 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
         svLayerOpen({
             key: 'cal-notes',
             holdRefresh: false,   // lives outside the redrawn card list
-            region: '#calCommentsModal',
+            region: '#calNotesShell',
             opener: () => document.querySelector('[data-comments-btn="' + (window.CSS && CSS.escape ? CSS.escape(pid) : pid) + '"]'),
             isOpen: () => !!document.querySelector('#calCommentsOverlay.open'),
             escape: () => {
@@ -2611,6 +2658,7 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
         const ovl = document.getElementById('calCommentsOverlay');
         if (ovl) ovl.classList.remove('open');
         document.body.classList.remove('cal-modal-open');
+        _calNotesStageSync(null);
         const pid = _calOpenCommentsPid;
         _calOpenCommentsPid = null;
         _calReplyTarget = null;
@@ -2633,7 +2681,7 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
         }
     }
 
-    function _calRenderCommentsModal() {
+    function _calRenderCommentsModal(opts) {
         const pid = _calOpenCommentsPid;
         const modal = document.getElementById('calCommentsModal');
         if (!modal || !pid) return;
@@ -2668,6 +2716,15 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
             if (!outboxReplies.has(e.parent_id)) outboxReplies.set(e.parent_id, []);
             outboxReplies.get(e.parent_id).push(c);
         });
+        // The Frame.io comments on the card's video (staff, with the player open): one conversation with the notes,
+        // in time order, each row marked "Frame.io". Read only: they are answered in Frame.io.
+        const fio = svFrameFeed(pid);
+        if (fio && fio.state === 'ok') fio.comments.forEach(c => {
+            const id = 'fio_' + String(c.id).replace(/[^A-Za-z0-9_-]/g, '');
+            const root = { id, _fio: true, author: c.author, body: c.text, created_at: c.created_at, done: c.done, time: c.time };
+            const list = [root].concat(c.replies.map((r, i) => ({ id: id + '_' + i, _fio: true, parent_id: id, author: r.author, body: r.text, created_at: r.created_at })));
+            compThreads.push({ comp: 'frameio', list, root });
+        });
         // Sort all roots chronologically across components.
         compThreads.sort((a, b) => String(a.root.created_at || '').localeCompare(String(b.root.created_at || '')));
         // Resolved threads (done change-requests) are history — hidden from the
@@ -2676,7 +2733,25 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
         const visibleThreads = _calShowResolved ? compThreads : compThreads.filter(e => !e.root.done);
         const postName = _calEsc(post.name || 'Untitled post');
 
+        const renderFioRow = (c, isReply) => {
+            const t = (!isReply && c.time != null && isFinite(c.time)) ? Math.max(0, Number(c.time)) : null;
+            const tc = t == null ? '' : `<button type="button" class="cal-cm-tc" onclick="svFrameSeek(${t})" title="Show this moment in the video">${svFrameTime(t)}</button>`;
+            const doneTag = (!isReply && c.done) ? `<span class="cal-cm-done-tag">Resolved</span>` : '';
+            return `<div class="cal-cm-row is-frameio${isReply ? ' is-reply' : ''}" data-cm-row="${c.id}"${t == null ? '' : ` data-fio-t="${t}"`}>
+                <div class="cal-cm-avatar is-frameio">${c.author ? _calEsc(_calAvatarInitial(c.author)) : '?'}</div>
+                <div class="cal-cm-body-col">
+                    <div class="cal-cm-head-line">
+                        <span class="cal-cm-author${c.author ? '' : ' is-guest'}">${_calEsc(c.author || 'Guest reviewer')}</span>
+                        <span class="cal-cm-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
+                        ${doneTag}
+                        ${isReply ? '' : '<span class="cal-cm-src-label" title="A comment left in Frame.io. Reply to it there.">Frame.io</span>'}
+                    </div>
+                    <div class="cal-cm-row-body">${tc}${_calEsc(c.body || '')}</div>
+                </div>
+            </div>`;
+        };
         const renderRow = (c, isReply, comp) => {
+            if (c._fio) return renderFioRow(c, isReply);
             if (!c._outbox && outboxMarks.has(c.id)) {
                 const mark = outboxMarks.get(c.id);
                 c = Object.assign({}, c, { _outbox: mark._outbox, _outboxError: mark._outboxError });
@@ -2747,11 +2822,22 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
         const roots = visibleThreads;
         const comments = videoComments;
 
-        const emptyMsg = _calShowResolved
+        let emptyMsg = _calShowResolved
             ? `<div class="cal-comments-empty"><div class="cal-comments-empty-title">Nothing here</div>No resolved items.</div>`
             : (resolvedCount
                 ? `<div class="cal-comments-empty"><div class="cal-comments-empty-title">All clear</div>No open notes — resolved items are in history (top right).</div>`
                 : `<div class="cal-comments-empty"><div class="cal-comments-empty-title">No notes yet</div>Start the conversation — type below.</div>`);
+        // While the Frame.io comments are on their way, rows shaped like the final ones stand in for them; no box.
+        let fioTail = '';
+        if (fio && fio.state === 'loading') fioTail = _calFioSkeletonHtml();
+        else if (fio && fio.state === 'error') fioTail = '<div class="cal-cm-fio-note">The Frame.io comments could not be loaded. <button type="button" class="cal-cm-fio-retry" onclick="svFrameFeedRetry()">Try again</button></div>';
+        else if (fio) {
+            if (fio.partial) fioTail += '<div class="cal-cm-fio-note">Some Frame.io comments could not be loaded just now.</div>';
+            if (fio.truncated) fioTail += '<div class="cal-cm-fio-note">Showing the first Frame.io comments only. The rest are in Frame.io.</div>';
+            if (fio.namesPartial) fioTail += '<div class="cal-cm-fio-note">Some Frame.io reply names are not shown.</div>';
+        }
+        // No notes yet and the Frame.io comments still loading: their stand-in rows say enough, no empty message.
+        if (fio && fio.state === 'loading') emptyMsg = '';
         const threadsHtml = roots.map(renderThread).join('');
         // A reply whose thread is not on screen (resolved, or history hidden)
         // still shows, on its own, so it is never out of sight while waiting.
@@ -2769,6 +2855,11 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
             )
             : '';
 
+        const prevFeed = document.getElementById('calCommentsFeed');
+        const keep = !!(opts && opts.keepFocus);
+        const hadFocus = !!(document.activeElement && document.activeElement.id === 'calCommentComposer');
+        const atBottom = !prevFeed || prevFeed.scrollHeight - prevFeed.scrollTop - prevFeed.clientHeight < 40;
+        const prevTop = prevFeed ? prevFeed.scrollTop : 0;
         modal.innerHTML = `
             <div class="cal-comments-head">
                 <div class="cal-comments-head-text">
@@ -2780,16 +2871,28 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
             </div>
             ${actionFailure}
             <div class="cal-comments-feed" id="calCommentsFeed">
-                <div class="cal-comments-feed-inner">${feedHtml}</div>
+                <div class="cal-comments-feed-inner">${feedHtml}${fioTail}</div>
             </div>
             ${_calComposerHtml(post, comments)}`;
         _svPhoneNotesPresentation();
+        if (keep) {
+            const feed = document.getElementById('calCommentsFeed');
+            if (feed) feed.scrollTop = atBottom ? feed.scrollHeight : prevTop;
+        }
         const ta = document.getElementById('calCommentComposer');
         if (ta) {
             _calAutosizeComposer(ta);
-            ta.focus();
-            const v = ta.value; ta.value = ''; ta.value = v;
+            // A redraw for the Frame.io comments leaves the focus where it was; on a phone with the video on top the
+            // keyboard is not opened by itself.
+            if (keep ? hadFocus : !_calNotesPhoneWithVideo()) {
+                ta.focus();
+                const v = ta.value; ta.value = ''; ta.value = v;
+            }
         }
+    }
+    function _calFioSkeletonHtml() {
+        const row = (long) => '<div class="cal-cm-skel-row"><span class="cal-cm-skel cal-cm-skel-avatar"></span><span class="cal-cm-skel-col"><span class="cal-cm-skel cal-cm-skel-line is-short"></span><span class="cal-cm-skel cal-cm-skel-line' + (long ? ' is-long' : '') + '"></span></span></div>';
+        return '<div class="cal-cm-skeleton cal-cm-fio-skeleton" role="status" aria-busy="true" aria-label="Loading the Frame.io comments">' + row(true) + row(false) + '</div>';
     }
 
     function _calCanDeleteComment(c) {

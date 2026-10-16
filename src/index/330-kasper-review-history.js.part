@@ -53,7 +53,7 @@ import {
 import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
 import { _kasperRenderReplies } from './323-kasper-dashboard-tail.js';
 import { _kedPaint } from './340-kasper-editors-board.js';
-import { svFrameAddNotesProvider, svFrameWatchBtnHtml } from './187-frame-viewer.js';
+import { svFrameWatchBtnHtml } from './187-frame-viewer.js';
     async function _kasperRenderReview() {
         const root = document.getElementById('kasperContent');
         if (!root) return;
@@ -1479,17 +1479,6 @@ import { svFrameAddNotesProvider, svFrameWatchBtnHtml } from './187-frame-viewer
     /* Render a Kasper review thread, collapsed to the most recent few with a
        Show more / Show less toggle so a long history doesn't dominate the panel.
        Expand state lives on the item, per component. */
-    // The Watch here pop-up lists a card's SyncView notes beside its Frame.io comments. Kasper's cards live in his own
-    // queue (the Calendar only holds the client it has loaded), so this answers for them.
-    svFrameAddNotesProvider((postId) => {
-        const all = [].concat(_kasperState.items || [], _kasperState.replies || [], _kasperState.history || []);
-        const hit = all.find(x => x && x.post && x.post.id === postId);
-        if (!hit) return null;
-        return _calCommentsFor(hit.post, 'video').filter(c => c && !c.deleted && !c.hidden).map(c => ({
-            id: String(c.id || ''), parent_id: String(c.parent_id || ''), done: !!c.done, created_at: String(c.created_at || ''),
-            text: String(c.body || ''), author: String(c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM')),
-        }));
-    });
     function _kasperRenderThread(item, comp, comments) {
         if (!comments || !comments.length) return `<div class="cal-review-comment-empty">No comments yet.</div>`;
         const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;

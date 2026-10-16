@@ -4,13 +4,17 @@
  * "OPEN IN CALENDAR" BESIDE A WORK ITEM'S TITLE.
  *
  * 1. A work item made from a Calendar card (origin calendar, with a card id)
- *    shows one icon button right after its title in the top bar, with the
- *    tooltip "Open in Calendar", the same size as its icon-button neighbours.
+ *    shows one labelled button, the calendar icon and the words "Open in
+ *    Calendar", right after its title in the top bar. It is drawn as the
+ *    Calendar's Notify client button: same class, so the same pill shape,
+ *    colour, size and hover, in light and dark.
  * 2. It opens a NEW tab on that card's address (#calendar/<client>/<card>),
  *    and that tab lands on the Calendar with exactly that card outlined.
  * 3. A Samples work item, or one with no card, shows no button.
- * 4. On a phone (390px) the button is 44px like its neighbours, sits on the
- *    one header row, and nothing scrolls sideways.
+ * 4. On a phone (390px and 430px) the header row has no room for it, so it
+ *    drops to its own line under that row (44px tall, full label), the row
+ *    above stays on one line with the id unsquashed, and nothing scrolls
+ *    sideways.
  *
  * Fixture names only; every outside request is answered by the mock below.
  * Set OPENCAL_SHOTS=<dir> to also save desktop and phone screenshots.
@@ -118,6 +122,8 @@ function pagesServer() {
     const desk = await open('del_cal');
     const btn = desk.locator('.prod-detail-top [data-prod-open-card]');
     expect(await btn.count() === 1, 'a Calendar work item shows one Open in Calendar button');
+    expect((await btn.innerText()).trim() === 'Open in Calendar' && await btn.locator('svg').count() === 1, 'it shows the words "Open in Calendar" with the calendar icon');
+    expect(/\bnotify-client-btn\b/.test(await btn.getAttribute('class') || ''), 'it uses the Notify client button class');
     expect(await btn.getAttribute('data-prod-tip') === 'Open in Calendar' && await btn.getAttribute('aria-label') === 'Open in Calendar', 'its tooltip and label say "Open in Calendar"');
     expect(await btn.getAttribute('target') === '_blank' && /noopener/.test(await btn.getAttribute('rel') || ''), 'it opens a new tab');
     const href = await btn.getAttribute('href');
@@ -132,8 +138,26 @@ function pagesServer() {
     });
     expect(spot.prev === 'prod-detail-crumb', 'it sits right after the title in the top bar');
     expect(spot.b.x >= spot.title.right - 1 && spot.b.x - spot.title.right < 16, 'it is next to the title (' + Math.round(spot.b.x - spot.title.right) + 'px gap)');
-    expect(Math.abs(spot.b.w - spot.dots.w) < 0.5 && Math.abs(spot.b.h - spot.dots.h) < 0.5, 'same size as the More options button (' + spot.b.w + 'x' + spot.b.h + ')');
     expect(Math.abs((spot.b.y + spot.b.h / 2) - (spot.dots.y + spot.dots.h / 2)) < 1.5, 'on the same line as its neighbours');
+    /* the same look as a real Notify client button, drawn on this page for comparison */
+    const LOOK = ['backgroundColor', 'color', 'borderRadius', 'height', 'paddingLeft', 'paddingRight', 'fontSize', 'fontWeight', 'borderTopWidth', 'gap'];
+    const look = tab => tab.evaluate(keys => {
+        const pick = el => { const c = getComputedStyle(el); const o = {}; keys.forEach(k => { o[k] = c[k]; }); return o; };
+        const ref = document.createElement('button');
+        ref.className = 'notify-client-btn'; ref.type = 'button'; ref.innerHTML = '<span>Notify client</span>';
+        document.querySelector('.prod-detail-top').appendChild(ref);
+        const want = pick(ref); ref.remove();
+        return { got: pick(document.querySelector('[data-prod-open-card]')), want };
+      }, LOOK);
+    const same = (a, b, keys) => keys.every(k => a[k] === b[k]);
+    const light = await look(desk);
+    expect(same(light.got, light.want, LOOK), 'light: same pill shape, colour, size and font as Notify client (' + light.got.backgroundColor + ', ' + light.got.borderRadius + ', ' + light.got.height + ')');
+    const hoverBg = await desk.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--notify-bg-hover').trim());
+    await desk.locator('[data-prod-open-card]').hover();
+    await desk.waitForTimeout(250);
+    const hov = await desk.evaluate(() => getComputedStyle(document.querySelector('[data-prod-open-card]')).backgroundColor);
+    const hexRgb = h => { const m = /^#([0-9a-f]{6})$/i.exec(h); if (!m) return h; const n = parseInt(m[1], 16); return 'rgb(' + (n >> 16) + ', ' + ((n >> 8) & 255) + ', ' + (n & 255) + ')'; };
+    expect(hov === hexRgb(hoverBg) && hov !== light.got.backgroundColor, 'hover takes the Notify client hover colour (' + hov + ')');
     await desk.locator('[data-prod-open-card]').hover();
     await desk.waitForTimeout(700);
     const tip = await desk.evaluate(() => Array.from(document.querySelectorAll('.prod-tooltip, [class*="prod-tip"]')).filter(el => el.getClientRects().length && /Open in Calendar/.test(el.textContent)).length);
@@ -177,36 +201,47 @@ function pagesServer() {
       const b = document.querySelector('[data-prod-open-card]').getBoundingClientRect();
       const t = document.querySelector('.prod-detail-top .prod-crumb-title');
       const top = document.querySelector('.prod-detail-top').getBoundingClientRect();
-      return { w: b.width, right: b.right, topRight: top.right, cut: t.scrollWidth > t.clientWidth, topH: top.height };
+      const a = document.querySelector('[data-prod-open-card]');
+      return { w: b.width, natural: a.scrollWidth, right: b.right, topRight: top.right, cut: t.scrollWidth > t.clientWidth, topH: top.height, oneLine: a.getClientRects().length === 1 && b.height < 40 };
     });
-    expect(nw.w === 25 && nw.right <= nw.topRight && nw.cut, 'at 820px the title is cut short and the button keeps its full size (' + nw.w + 'px)');
+    expect(nw.cut && nw.right <= nw.topRight && Math.abs(nw.w - nw.natural) < 1 && nw.oneLine && nw.topH <= 49, 'at 820px the title is cut short and the button keeps its full label on one line (' + Math.round(nw.w) + 'px)');
     await narrow.close();
 
-    /* ---- phone ---- */
-    for (const theme of ['light', 'dark']) {
-      const phone = await open('del_cal', 390, theme);
+    /* ---- phone: the header row is full, so the button drops under it ---- */
+    for (const [width, theme] of [[390, 'light'], [390, 'dark'], [430, 'light']]) {
+      const phone = await open('del_cal', width, theme);
       await phone.waitForTimeout(400);
       const ph = await phone.evaluate(() => {
         const b = document.querySelector('[data-prod-open-card]');
         const top = document.querySelector('.prod-detail-top');
-        const dots = document.querySelector('.prod-detail-top > .prod-icon-btn:last-child');
+        const back = top.querySelector(':scope > .prod-icon-btn:first-child');
+        const crumb = top.querySelector('.prod-detail-crumb');
+        const dots = top.querySelector(':scope > .prod-icon-btn:last-child');
         const q = b && b.getBoundingClientRect(); const t = top.getBoundingClientRect(); const d = dots.getBoundingClientRect();
-        return { shown: !!q && b.getClientRects().length > 0, w: q && q.width, h: q && q.height, x: q && q.x, right: q && q.right, cy: q && q.y + q.height / 2,
-          dw: d.width, dh: d.height, dcy: d.y + d.height / 2, topH: t.height, vw: window.innerWidth, scroll: document.documentElement.scrollWidth };
+        const k = back.getBoundingClientRect(); const c = crumb.getBoundingClientRect();
+        const kid = window.getComputedStyle(crumb, '::after').content;
+        return { shown: !!q && b.getClientRects().length > 0, text: b.innerText.trim(), h: q && q.height, x: q && q.x, y: q && q.y, right: q && q.right, bottom: q && q.bottom,
+          rowBottom: Math.max(k.bottom, c.bottom, d.bottom), rowSame: Math.abs((k.y + k.height / 2) - (d.y + d.height / 2)) < 1.5 && Math.abs((c.y + c.height / 2) - (d.y + d.height / 2)) < 1.5,
+          crumbFits: crumb.scrollWidth <= crumb.clientWidth + 1, crumbLabel: kid, left: k.x,
+          topBottom: t.bottom, vw: window.innerWidth, scroll: document.documentElement.scrollWidth };
       });
-      expect(ph.shown, `phone ${theme}: the button shows`);
-      expect(Math.abs(ph.w - ph.dw) < 0.5 && Math.abs(ph.h - ph.dh) < 0.5 && ph.h >= 44, `phone ${theme}: same 44px size as its neighbours (${ph.w}x${ph.h})`);
-      expect(Math.abs(ph.cy - ph.dcy) < 1.5 && ph.topH < 80, `phone ${theme}: on the one header row, no wrap (header ${Math.round(ph.topH)}px)`);
-      expect(ph.x >= 0 && ph.right <= ph.vw && ph.scroll <= ph.vw + 1, `phone ${theme}: inside the screen, no sideways scroll`);
-      if (shots) await phone.screenshot({ path: path.join(shots, `open-in-calendar-phone-${theme}.png`) });
+      const tag = `phone ${width}px ${theme}`;
+      expect(ph.shown && ph.text === 'Open in Calendar', `${tag}: the labelled button shows`);
+      expect(ph.h >= 44, `${tag}: 44px tall like the Notify client button on a phone (${ph.h}px)`);
+      expect(ph.rowSame && ph.crumbFits, `${tag}: Back, the id, Refresh and More options stay on one line, the id not squashed (${ph.crumbLabel})`);
+      expect(ph.y >= ph.rowBottom && ph.bottom <= ph.topBottom, `${tag}: the button sits on its own line under the header row, inside the header`);
+      expect(ph.x >= 0 && ph.right <= ph.vw && ph.scroll <= ph.vw + 1, `${tag}: inside the screen, no sideways scroll`);
+      if (shots && width === 390) await phone.screenshot({ path: path.join(shots, `open-in-calendar-phone-${theme}.png`) });
+      if (shots && width === 430) await phone.screenshot({ path: path.join(shots, 'open-in-calendar-phone-430.png') });
       await phone.close();
     }
-    if (shots) {
-      const dark = await open('del_cal', 1280, 'dark');
-      await dark.waitForTimeout(300);
-      await dark.screenshot({ path: path.join(shots, 'open-in-calendar-desktop-dark.png') });
-      await dark.close();
-    }
+    /* ---- dark desktop: the Notify client button's dark colours ---- */
+    const dark = await open('del_cal', 1280, 'dark');
+    await dark.waitForTimeout(300);
+    const dk = await look(dark);
+    expect(same(dk.got, dk.want, LOOK) && dk.got.backgroundColor !== light.got.backgroundColor, 'dark: same look as Notify client in dark (' + dk.got.backgroundColor + ' on ' + dk.got.color + ')');
+    if (shots) await dark.screenshot({ path: path.join(shots, 'open-in-calendar-desktop-dark.png') });
+    await dark.close();
     expect(pageErrors.length === 0, 'no page errors' + (pageErrors.length ? ': ' + pageErrors.slice(0, 3).join(' | ') : ''));
   } finally {
     await browser.close();

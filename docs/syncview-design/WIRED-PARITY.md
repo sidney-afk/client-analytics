@@ -1406,3 +1406,15 @@ links accept exactly what they did before. Hidden for Samples work items, items
 with no card, and on client links. Read-only navigation; no write or authority
 changed. Proof: `docs/syncview-design/tests/open-in-calendar-browser.js`.
 Rollback: revert the PR.
+
+## 2026-10-16 - "Open in Calendar" becomes a labelled button (Signpost)
+
+The icon from the entry above was too easy to miss. It is now a labelled button,
+the calendar icon and the words "Open in Calendar", drawn with the Calendar's
+Notify client class (`.notify-client-btn`), so it has that button's pill shape,
+purple fill, size and hover in light and dark; no new colour. Same place right
+after the title, same link, same rules for when it shows. On a phone the
+header row (Back, the id, Refresh, More options) has no room for it, so it drops
+to its own line under that row at 44px. Proof:
+`docs/syncview-design/tests/open-in-calendar-browser.js` (compares its computed
+look to a real Notify client button; checks 390px and 430px). Rollback: revert the PR.

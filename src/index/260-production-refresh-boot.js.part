@@ -934,7 +934,9 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
            that card. A new tab, on the card's own address
            (#calendar/<client>/<card>), which opens the Calendar on that client
            with the card outlined, the same link Today's "Open card" opens.
-           Staff only, and nothing when the work item has no Calendar card. */
+           Staff only, and nothing when the work item has no Calendar card.
+           Drawn as the Calendar's Notify client button (same class), so it
+           reads as a button; on a phone it drops under the header row. */
         function _prodCalendarCardHref(d) {
             const raw = d && d.raw;
             if (!raw || _isClientLink) return '';
@@ -947,7 +949,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         function _prodOpenInCalendarHTML(d) {
             const href = _prodCalendarCardHref(d);
             if (!href) return '';
-            return '<a class="prod-icon-btn prod-open-card" href="' + _calEscAttr(href) + '" target="_blank" rel="noopener" data-prod-open-card="' + _calEscAttr(String(d.raw.card_id)) + '" aria-label="Open in Calendar" data-prod-tip="Open in Calendar">' + _prodIcon('cal') + '</a>';
+            return '<a class="notify-client-btn prod-open-card" href="' + _calEscAttr(href) + '" target="_blank" rel="noopener" data-prod-open-card="' + _calEscAttr(String(d.raw.card_id)) + '" aria-label="Open in Calendar" data-prod-tip="Open in Calendar">' + _prodIcon('cal') + '<span>Open in Calendar</span></a>';
         }
         function _prodProjectTopbar() {
             const c = _prodClient(_prodState.openProjectId);

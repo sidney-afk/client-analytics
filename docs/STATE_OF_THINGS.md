@@ -18,6 +18,66 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (Lighthouse, 2026-10-16)
+
+Newest first. Checked against main and the live database on 2026-10-16. When an item here is finished or moved into
+the sections below, delete it from this block in the same PR.
+
+**Live since the last update (2026-10-11 to 2026-10-15):**
+- **Notify client** (#2080, #2084, #2088): one Slack alert to the client's private channel, short box that closes by
+  itself, and the "Review now" link opens the Review view. On for every client.
+- **Messages** (#2079, #2083, #2090, #2092): a page under the header, the reviewer view follows the reviewer's threads,
+  a hidden client message shows once staff answered it, and the phone version has native conversations with a docked reply.
+- **Watch here, Frame.io inline viewer** (#2091): the Review tab plays the video in place. Switch `frame_viewer_clients`
+  is on for the test client only; everyone else waits on the owner's word.
+- **Caption helper** (#2077, #2086, #2095): call to action, platform, note, title ideas, hashtags; Redo as a pop-up that
+  uses the video's own words (new `caption_jobs` columns `transcript` and `transcript_asset`, applied) and never saves a
+  chat reply as the caption. `caption-generate` runs every caption (`caption_generate_ef_clients` = all, since 2026-10-09).
+- **One client's caption prompt replaced** at the owner's go (2026-10-15); the old prompt is kept as a backup row in
+  `caption_prompts` (name starts `_backup_`).
+- **Synchro connector** (#2093): every tool call is logged to `hf_activity` with who and a one-line summary (refusals are
+  logged as failures), and a `guide` tool reads `hf_guides` (5 topics live; the newest row per topic wins, so a guide
+  changes with no reinstall). The team skill `synchro` is managed in the Claude organization settings; its master copy is
+  in the synchro-brain repo (`team-skills/synchro/SKILL.md`).
+- **Pop-ups part 2** (#2081) and SyncLinear "Back to card" (#2078).
+
+**Owner decisions, 2026-10-15 and 16:**
+- **Staff use only the Synchro Social organization Claude accounts.** The skill and connector live in the org settings.
+- **Every Edge Function deploys itself on merge** (session Conveyor, building). The owner's single "yes" is at the start of
+  a request, not per deploy. **The F27 Section 4 capture moves off the owner's computer into GitHub** (Conveyor follow-up),
+  so the three core save functions stop depending on a script on one machine.
+- **`calendar-upsert` gets retired, carefully** (session Sunset; the measured caller map is #2097: 14 callers, about
+  1,200 real saves a day). Plan: a new, small, separate function; move the test client first, then staff, then client
+  review links last; the old route stays as an automatic fallback for about 14 days; then delete the old function.
+  Nothing a client sees changes until the staff move has run clean. Until then `calendar-upsert` stays frozen.
+- **Old n8n "SyncView Calendar, Generate Caption" workflow: switch off, not delete.** Zero runs since 2026-10-09. First the
+  page's fallback to it (`GENERATE_CAPTION_URL`) is removed (Sunset); once that is live, Lighthouse deactivates the
+  workflow (owner's go given 2026-10-16 on that condition) and logs it in `docs/ops/N8N_EDIT_LOG.md`.
+- **Messages:** clicking Messages again closes it and returns to where you were, and it gets a Close button (reverses the
+  earlier "no Close button"). In #2089 (Swift).
+- **Caption box:** a small regenerate icon replaces "Redo with a note" (#2098, Quill).
+- **Frame.io pop-up polish** (session Lens): faster, autoplay, a vertical layout for phone videos, one comment list
+  (Frame.io and SyncView notes together), less text, one Open/Reply button, no "FRAME.IO" label, full quality on the Review tab.
+- **After Vista: a lifecycle review session** that walks every dependency end to end and tests everything, so nothing
+  from the moves off Sheets, n8n and Linear is forgotten. Lighthouse writes its prompt once Vista and the review-sheet
+  changes settle.
+
+**Open sessions and where they stand (2026-10-16):**
+- Swift #2089 (Messages opens fast, Close button): in review; needs a `production-comments` deploy after merge.
+- Anchor #2094 (production-polish gate waits for the app instead of guessing): fixing its own boot-budget runs.
+- Scribe #2096 (a note shows the moment it is sent): in review.
+- Sunset #2097 (calendar-upsert map, docs only): in review; next is the fallback removal, then the new function.
+- Quill #2098 (regenerate icon): in review.
+- Lens: Frame.io pop-up polish, PR to come.
+- Conveyor: auto-deploy on merge and the capture in GitHub; merges last.
+- Thumb #2085 and #2087 (phone Calendar, Samples, Workload): waiting for Thumb to merge main.
+- Vista: review sheet polish, running.
+
+**Waiting on the owner:** the five doctor-funnel changes from Rewind; the branding session; the Frame.io viewer for every
+client; the follow-up Slack message asking who still uses a personal Claude account.
+
+---
+
 ## The owner's priority order (set 2026-09-29, keep this current)
 
 The owner asked for this list to live here so no session loses it. Work top down.
@@ -150,7 +210,7 @@ here with where it stopped, so it can be restarted.
    about $13; and the live site publishes the whole repo (docs, scripts,
    migrations), so the Pages deploy must become an allowlist before any switch.
 6b. **n8n exit, phase 2 (plan #1874, owner decisions recorded 2026-09-30; status 2026-10-01).** Order: D, B, A, E, F, C, K.
-   Generate caption's AI job itself: BUILT 2026-10-09, not deployed, switch off (`caption-generate` function, transcript box, fixed writing rules; OPEN_REPAIRS 388). Until the owner sets `caption_generate_ef_clients`, every caption still runs on n8n.
+   Generate caption's AI job itself: LIVE for every client (`caption-generate` function, transcript box, fixed writing rules; OPEN_REPAIRS 388; `caption_generate_ef_clients` = all since 2026-10-09, checked 2026-10-16). The old n8n Generate Caption workflow has had zero runs since 2026-10-09; it is switched off once the page's fallback to it is removed (Latest block above).
    D (TikTok poll trim) DONE #1878. B (caption progress in Supabase) DONE: `caption-jobs` live, Generate Caption edited and
    published, Calendar page switched (#1889). A (Slack Creative Channel Finalizer): trigger webhook and daily safety check are
    live next to the 15 minute timer (#1892); the timer is removed in a small follow-up only after the next real client's

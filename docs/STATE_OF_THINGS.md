@@ -29,7 +29,11 @@ the sections below, delete it from this block in the same PR.
   client and every client review link stay on `calendar-upsert`. An unsigned save is refused (401). Step 2 of the
   retirement plan (two working days of real test-client use, watching the function log, the ledger and the refusal log)
   starts now. Way back: take the test client off the switch.
-- **`frameio-view` v3** (Lens #2100's polish) deployed about 13:34 UTC. `frame_viewer_clients` is unchanged.
+- **`frameio-view` v3** (Lens #2100's polish) deployed about 13:34 UTC. The owner judged it ready for everyone; at the
+  owner's word `frame_viewer_clients` now lists the test client plus two of the owner's own clients (13:47 UTC) for a
+  short real-use test before `{"all": true}`.
+- **Session Vigil** (started 13:48 UTC) tries every staff save path on the test client now instead of waiting two
+  working days (owner's call), and closes the two step-2 test gaps.
 
 **Live since the last update (2026-10-11 to 2026-10-15):**
 - **Notify client** (#2080, #2084, #2088): one Slack alert to the client's private channel, short box that closes by

@@ -72,7 +72,7 @@ async function open(browser, origin, behave) {
     if (p === '/rest/v1/syncview_runtime_flags') {
       const raw = sp.get('key') || '';
       const keys = /^in\.\(/.test(raw) ? raw.replace(/^in\.\(/, '').replace(/\)$/, '').split(',') : [raw.replace(/^eq\./, '')];
-      return json(keys.map(k => ({ key: k, value: k === 'prod_authority' ? { video: 'syncview', graphics: 'syncview' } : (/_clients$/.test(k) ? { clients: [A.slug, B.slug] } : { enabled: false }) })));
+      return json(keys.filter(k => k !== 'calendar_card_write_clients').map(k => ({ key: k, value: k === 'prod_authority' ? { video: 'syncview', graphics: 'syncview' } : (/_clients$/.test(k) ? { clients: [A.slug, B.slug] } : { enabled: false }) })));
     }
     if (p === '/rest/v1/calendar_posts') {
       const slug = String(sp.get('client') || '').replace(/^eq\./, '');

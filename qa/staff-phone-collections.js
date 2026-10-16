@@ -64,6 +64,13 @@ async function main(){
      if(type==='calendar') { clientMap[state.client]={...(clientMap[state.client]||{}),instagram_handle:'demo.profile'}; _calRenderBody(); } else _sxrRenderBody();
     },type);
     const root=page.locator(type==='calendar'?'#calView':'#sxrView');
+    await page.getByRole('button',{name:'Tabs',exact:true}).tap();
+    const post=page.getByRole('dialog',{name:'Tabs',exact:true}).locator('[data-nav=navTiktokUpload]');
+    assert(await post.isVisible(),'Phone Tabs includes Post');
+   assert.equal((await post.textContent()).trim(),'Post','Phone Tabs retains the current Post label');
+    assert.equal(await post.locator('.ico-post').count(),1,'Phone Tabs retains the Post icon');
+    await shot(page,type+'-tabs',width,theme);
+    await page.getByRole('dialog',{name:'Tabs',exact:true}).getByRole('button',{name:'Close Tabs',exact:true}).tap();
     if(await root.getByRole('button',{name:'Grid view',exact:true}).getAttribute('aria-pressed')!=='true')await root.getByRole('button',{name:'Grid view',exact:true}).tap();
     await root.locator('.thumb-tile').first().waitFor();
     assert.equal(await root.locator('.thumb-tile').count(),12,'Grid must keep all filtered cards');

@@ -44,6 +44,7 @@ import {
 } from './190-calendar-approval-comments.js';
 import { _linearIntakeBatchTitle } from './200-intake-data-startup.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
+import { svFramePlayIconHtml } from './187-frame-viewer.js';
 import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _writeUiReconcileReplayStatus, _writeUiSourceRepairSuperseded } from './290-samples-writes-review.js';
     function _calMoveLinkConfirm(pid) {
         const mv = _calPendingLinkMove[pid];
@@ -244,7 +245,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             ${isBlank ? '' : `<span class="cal-card-grip${autoSorted ? ' is-locked' : ''}" title="${autoSorted ? 'Cards are sorted by date. Switch Order to Manual to drag them.' : 'Drag to reorder'}"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>`}
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-link" type="button" data-card-link="${pid}" onclick="_calCopyCardLink(event,'${pid}')" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>`}
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
-            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this card to its sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : (parentComp ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}'${parentComp === 'graphic' ? ",'graphic'" : ''})" title="This card is linked to the parent issue, so its statuses never reach the editor’s Workload. Paste the ${parentComp === 'graphic' ? 'GRA (graphic)' : 'VID (video)'} sub-issue link instead."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Parent issue linked — link the sub-issue</button>` : (linearMissing ? `<a class="cal-thumb-linear-warn" href="${_calEscAttr(/^https?:\/\//i.test(linearMissing.url) ? linearMissing.url : 'https://' + linearMissing.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="The ${linearMissing.comp === 'graphic' ? 'graphic' : 'video'} sub-issue is missing ${linearMissing.missing.join(', ')}. Open it in Linear to fix."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Sub-issue has no ${linearMissing.missing.join(', no ')}</a>` : ''))}${_calThumbContent(p)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}${_isClientLink ? '' : _calSmmWarnOverlayHtml(p)}${(_isClientLink || ro) ? '' : _calLinearPileHtml(pid, p)}</div>
+            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this card to its sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : (parentComp ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}'${parentComp === 'graphic' ? ",'graphic'" : ''})" title="This card is linked to the parent issue, so its statuses never reach the editor’s Workload. Paste the ${parentComp === 'graphic' ? 'GRA (graphic)' : 'VID (video)'} sub-issue link instead."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Parent issue linked — link the sub-issue</button>` : (linearMissing ? `<a class="cal-thumb-linear-warn" href="${_calEscAttr(/^https?:\/\//i.test(linearMissing.url) ? linearMissing.url : 'https://' + linearMissing.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="The ${linearMissing.comp === 'graphic' ? 'graphic' : 'video'} sub-issue is missing ${linearMissing.missing.join(', ')}. Open it in Linear to fix."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Sub-issue has no ${linearMissing.missing.join(', no ')}</a>` : ''))}${_calThumbContent(p)}${_isClientLink ? '' : svFramePlayIconHtml(p.asset_url, p.name, p.client, p.id)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}${_isClientLink ? '' : _calSmmWarnOverlayHtml(p)}${(_isClientLink || ro) ? '' : _calLinearPileHtml(pid, p)}</div>
             <div class="cal-card-body">
                 ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_calEscAttr(_calDupeWarnText(dupePeers))}. Two cards can’t share a sub-issue. Archive one.">⚠ ${_calEsc(_calDupeWarnText(dupePeers))} — archive one of them</div>` : ''}
                 <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro, editableText)}</div>
@@ -1485,6 +1486,14 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             post = Object.assign({}, calState.posts[idx], edits);
             calState.posts[idx] = post;
         }
+        /* `post` is the card on screen, so a status picked while this save
+           waits on the gateway lands on it too (and queues as the next save).
+           Statuses this save sends are taken from this snapshot and `edits`,
+           never from `post` after an await: a card write carrying the newer
+           pick made the next save look unchanged, and that pick never reached
+           the gateway (OPEN_REPAIRS 424). */
+        const statusAtSaveStart = {};
+        CAL_WHOLE_CARD_STATUS_FIELDS.forEach(k => { statusAtSaveStart[k] = post[k]; });
         // Local updated_at stamp so a background poll racing this write
         // (sheet hasn't reflected the change yet) keeps our optimistic
         // state instead of snapping the card back to its pre-mutation
@@ -1578,8 +1587,8 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 };
                 // Each component pushes ONLY its own issue and its own sub-status.
                 const acknowledgement = component === 'graphic'
-                    ? await _calPushStatusToLinear(post.graphic_linear_issue_id, post.graphic_status, pushMeta)
-                    : await _calPushStatusToLinear(post.linear_issue_id, post.video_status, pushMeta);
+                    ? await _calPushStatusToLinear(post.graphic_linear_issue_id, edits.graphic_status, pushMeta)
+                    : await _calPushStatusToLinear(post.linear_issue_id, edits.video_status, pushMeta);
                 return { component, acknowledgement };
             })());
             const statusResults = await Promise.allSettled(statusPushes);
@@ -1624,6 +1633,14 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             // Derive the source shadow overall status from those current
             // component values before constructing the field patch.
             _writeUiApplyOverallStatus('calendar', post, edits, wasNewRow, true);
+            // The statuses this save means: its snapshot, then its own edits
+            // (a replay adoption above updates `edits`). The overall is
+            // recomputed from those, not from `post`, which may already show a
+            // newer pick that the queued save will send.
+            const ownStatus = Object.assign({}, statusAtSaveStart);
+            CAL_WHOLE_CARD_STATUS_FIELDS.forEach(k => { if (k in edits) ownStatus[k] = edits[k]; });
+            const ownView = Object.assign({}, post, ownStatus);
+            if (_writeUiApplyOverallStatus('calendar', ownView, edits, wasNewRow, true)) ownStatus.status = ownView.status;
             // Build the payload. v1 (and any brand-new row, regardless of
             // flag) sends the whole card. v2 sends a FIELD-LEVEL PATCH — only
             // the columns this edit touched — which is exactly what the upsert
@@ -1639,7 +1656,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 wirePost = { id: post.id };
                 for (const k of Object.keys(edits)) {
                     if (k === 'comments' || k === 'tweaks' || /_tweaks$/.test(k)) continue;
-                    wirePost[k] = post[k];
+                    wirePost[k] = CAL_WHOLE_CARD_STATUS_FIELDS.indexOf(k) >= 0 ? ownStatus[k] : post[k];
                 }
                 // Per-component comment threads: send only the component(s)
                 // whose thread changed, re-derived from the live arrays so
@@ -1654,7 +1671,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 });
                 // Overall status only moves when a sub-status changes, and
                 // those edits always carry it; send the recomputed value then.
-                if ('video_status' in edits || 'graphic_status' in edits || 'caption_status' in edits) wirePost.status = post.status;
+                if ('video_status' in edits || 'graphic_status' in edits || 'caption_status' in edits) wirePost.status = ownStatus.status;
                 // Patch through the persisted cache-bust token so the echo +
                 // realtime carry the fresh thumbnail URL to every viewer.
                 if (bumpThumbRev) wirePost.thumb_rev = post.thumb_rev;
@@ -1702,6 +1719,9 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                     for (const k of CAL_WHOLE_CARD_STATUS_FIELDS) {
                         if (!(k in edits)) delete wirePost[k];
                     }
+                }
+                for (const k of CAL_WHOLE_CARD_STATUS_FIELDS) {
+                    if (k in wirePost) wirePost[k] = ownStatus[k];
                 }
             }
             // comments_base_at = the sheet's updated_at this browser last saw.

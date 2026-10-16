@@ -2,9 +2,8 @@
 /*
  * Generate caption off n8n: the Calendar page in a real browser, fully offline (every backend answer is local).
  *
- *   SWITCH OFF (no caption_generate_ef_clients row, the default): Generate behaves exactly as before. A card with a
- *     Frame.io link calls the n8n generate-caption webhook with the same five keys; the caption-generate function is
- *     never called; a card with no video keeps a disabled Generate and no transcript box exists.
+ *   NO SWITCH ROW: the page no longer reads caption_generate_ef_clients and has no n8n fallback (removed 2026-10-16),
+ *     so Generate still runs on the function and the n8n generate-caption webhook is never called.
  *   SWITCH ON for the client: a card with a video opens the Generate box and its Generate starts the job on the function, with the staff
  *     headers and zero n8n calls. A card with no video: Generate opens the transcript box, its button stays disabled
  *     until text is pasted, and the caption is written from it. A card with a video also offers an optional
@@ -99,6 +98,7 @@ async function open(browser, origin, opts) {
       const keys = /^in\.\(/.test(raw) ? raw.replace(/^in\.\(/, '').replace(/\)$/, '').split(',') : [raw.replace(/^eq\./, '')];
       const rows = [];
       for (const k of keys) {
+        if (k === 'calendar_card_write_clients') continue;   // no row in production yet (retirement plan step 1)
         if (k === 'caption_generate_ef_clients') { if (state.flag) rows.push({ key: k, value: state.flag }); continue; }
         rows.push({ key: k, value: k === 'prod_authority' ? { video: 'syncview', graphics: 'syncview' } : (/_clients$/.test(k) ? { clients: [SLUG] } : { enabled: false }) });
       }
@@ -140,33 +140,27 @@ const modalOpen = page => page.evaluate(() => !!document.querySelector('#calProm
 async function runDesktopOrPhone(browser, origin, label, device) {
   const prefix = label === 'phone' ? 'iphone' : 'desktop';
 
-  // ---------- BEFORE: switch off (the default) ----------
-  console.log(`--- ${label}: switch off (default, n8n) ---`);
+  // ---------- NO SWITCH ROW: still the function, never n8n (fallback removed 2026-10-16) ----------
+  console.log(`--- ${label}: no switch row (function, the n8n fallback is gone) ---`);
   let t = await open(browser, origin, { flag: null, device });
-  expect(await t.page.locator(sel('n1', '.cal-cap-gen')).isDisabled(), `${label} off: a card with no video keeps a disabled Generate`);
-  expect(await t.page.locator(sel('v1', '.cal-cap-tx')).count() === 0, `${label} off: no Transcript pill`);
+  expect(!(await t.page.locator(sel('n1', '.cal-cap-gen')).isDisabled()), `${label} no switch: Generate is enabled on a card with no video`);
   await shot(t.page, `before-${prefix}`, 'v1');
   await t.page.locator(sel('v1', '.cal-cap-gen')).click();
+  await t.page.waitForSelector('#calPromptOverlay.open #calTxGo', { timeout: 5000 });
+  await t.page.locator('#calTxGo').click();
   const offCaption = await waitCaption(t.page, 'v1');
-  expect(offCaption === 'Caption from n8n', `${label} off: Generate writes the caption through n8n (${offCaption})`);
-  expect(t.state.n8n.length === 1 && t.state.ef.length === 0, `${label} off: one n8n call, zero function calls`);
-  expect(t.state.n8n[0] && Object.keys(t.state.n8n[0]).sort().join(',') === 'assetUrl,captionPrompt,client,jobId,postId'
-    && t.state.n8n[0].client === SLUG && t.state.n8n[0].assetUrl === FRAME && t.state.n8n[0].captionPrompt === 'Fixture caption prompt',
-    `${label} off: the n8n body is the same five keys as before`);
-  await t.page.evaluate(() => _calGenerateCaption('n1'));
-  await sleep(300);
-  expect(!(await modalOpen(t.page)), `${label} off: no transcript box`);
-  expect(t.state.n8n.length === 1 && t.state.ef.length === 0, `${label} off: a card with no video sends nothing`);
+  expect(offCaption === 'Caption written by the function', `${label} no switch: Generate writes the caption through the function (${offCaption})`);
+  expect(t.state.n8n.length === 0 && t.state.ef.length === 1, `${label} no switch: zero n8n calls, one function call`);
   await shot(t.page, `before-${prefix}-done`, 'v1');
-  expect(t.pageErrors.length === 0, `${label} off: no page errors (${t.pageErrors.join(' | ')})`);
+  expect(t.pageErrors.length === 0, `${label} no switch: no page errors (${t.pageErrors.join(' | ')})`);
   await t.ctx.close();
 
   // ---------- AFTER: switch on for this client ----------
   console.log(`--- ${label}: switch on for the client (function) ---`);
   t = await open(browser, origin, { flag: { clients: [SLUG] }, device });
   expect(!(await t.page.locator(sel('n1', '.cal-cap-gen')).isDisabled()), `${label} on: Generate is enabled on a card with no video`);
-  expect(await t.page.locator(sel('v2', '.cal-cap-tx')).count() === 1 && await t.page.locator(sel('n1', '.cal-cap-tx')).count() === 0,
-    `${label} on: the optional Transcript pill shows on video cards only`);
+  expect(await t.page.locator('.cal-cap-tx').count() === 0,
+    `${label} on: there is no separate Transcript button on any card (Generate opens the one box)`);
   await shot(t.page, `after-${prefix}`, 'v2');
 
   // 1. Video card: Generate opens the box (platform, call to action, note), whose Generate starts the job on the function.
@@ -199,8 +193,8 @@ async function runDesktopOrPhone(browser, origin, label, device) {
   const e2 = t.state.ef[1] || { body: {} };
   expect(e2.body.postId === 'n1' && e2.body.assetUrl === '' && /rest is part of the work/.test(e2.body.transcript || ''), `${label} on: the function got the transcript and no video link`);
 
-  // 3. Video + optional transcript.
-  await t.page.locator(sel('v2', '.cal-cap-tx')).click();
+  // 3. Video + optional transcript, pasted inside the Generate box.
+  await t.page.locator(sel('v2', '.cal-cap-gen')).click();
   await t.page.waitForSelector('#calPromptOverlay.open #calTxTA', { timeout: 5000 });
   expect(!(await t.page.locator('#calTxGo').isDisabled()), `${label} on: with a video the transcript is optional (button enabled while empty)`);
   await t.page.fill('#calTxTA', 'Notes: keep the line about Sunday walks.');
@@ -234,24 +228,13 @@ async function runDesktopOrPhone(browser, origin, label, device) {
   await sleep(200);
   expect(!(await modalOpen(t.page)), `${label} on: an empty box closes without asking`);
 
-  // 6. The Transcript pill never sits on the "Show more" toggle (desktop), and on a phone it hides once a caption exists.
-  if (label === 'desktop') {
-    const overlap = await t.page.evaluate(sel => {
-      const wrap = document.querySelector(sel);
-      const toggle = wrap.querySelector('.cal-cap-toggle'); const tx = wrap.querySelector('.cal-cap-tx');
-      toggle.hidden = false;
-      const a = toggle.getBoundingClientRect(), b = tx.getBoundingClientRect();
-      return !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top);
-    }, '.cal-card[data-pid="v1"] .cal-cap-wrap[data-capwrap="main"]'.replace('v1', 'v2'));
-    expect(!overlap, `${label} on: the Transcript pill and the Show more toggle do not overlap`);
-  } else {
-    // v2 got a caption from step 3; the pill must be hidden next to it.
-    const shown = await t.page.evaluate(() => {
-      const tx = document.querySelector('.cal-card[data-pid="v2"] .cal-cap-tx');
-      return tx ? getComputedStyle(tx).display !== 'none' : 'missing';
-    });
-    expect(shown === false, `${label} on: with a caption in the box the Transcript pill is hidden (${shown})`);
-  }
+  // 6. The "Show more" toggle is just the arrow (its words take no room), whatever the width.
+  const tog = await t.page.evaluate(() => {
+    const b = document.querySelector('.cal-card[data-pid="v2"] .cal-cap-toggle'); b.hidden = false;
+    const r = b.getBoundingClientRect(), tx = b.querySelector('.cal-cap-toggle-txt').getBoundingClientRect();
+    return { w: Math.round(r.width), txw: Math.round(tx.width) };
+  });
+  expect(tog.w <= (label === 'phone' ? 48 : 24) && tog.txw <= 1, `${label} on: the Show more toggle is just an arrow (${tog.w}px wide, a 44px touch target on a phone, label ${tog.txw}px)`);
   expect(t.pageErrors.length === 0, `${label} on: no page errors (${t.pageErrors.join(' | ')})`);
   await t.ctx.close();
 }

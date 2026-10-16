@@ -80,11 +80,10 @@ inventory, which is compared for SET EQUALITY against the paths index.html actua
 (F91); do not confuse `prod_authority` with principal verification.
 
 AI generation (briefs, captions, summaries):
-- `webhook/generate-caption`, `webhook/generate-content-summary`,
-  `webhook/generate-tab-summary`
+- `webhook/generate-content-summary`, `webhook/generate-tab-summary`
 - `webhook/caption-prompts-get`
-- `functions/v1/caption-generate` (the Generate caption AI job off n8n, staff key; used only for clients listed in the runtime flag `caption_generate_ef_clients`, otherwise the page still calls the n8n `generate-caption` webhook; OPEN_REPAIRS 388)
-- `functions/v1/frameio-view` (Watch here: a card's Frame.io link in, a fresh playable video address and the comments out, staff key only, read only; OPEN_REPAIRS 418)
+- `functions/v1/caption-generate` (the Generate caption AI job off n8n, staff key, for every client; the page's `caption_generate_ef_clients` switch and its n8n `generate-caption` fallback were removed 2026-10-16; OPEN_REPAIRS 388)
+- `functions/v1/frameio-view` (Watch here: a staff key and a card's Frame.io link in, a fresh playable video address and the comments out; or a client review token and a card id in, the playable address only for that client's own card; read only; OPEN_REPAIRS 418, 419)
 - Not called by the page: the timer-only Edge Function `calendar-auto-posted` (a database timer every 15 minutes turns Scheduled posts Posted once their day has ended in US Eastern time, through `production-write` and `calendar-upsert` like a click; switch `calendar_auto_posted`, default off; OPEN_REPAIRS 402)
 - `functions/v1/thumbnail-title-prompts` (read and save one client's thumbnail title prompt from the Calendar "..." menu; staff key only, client tokens refused; the save waits on `settings_ef_clients` like the caption prompt save. The titles are written by `thumbnail-titles`, called only by a database timer, never by the page; OPEN_REPAIRS 391)
 - `functions/v1/caption-jobs` (caption job progress and cancel, staff key; it replaced the two n8n caption job status and update webhooks, which the page no longer calls)
@@ -173,6 +172,9 @@ Other:
 
 - `functions/v1/calendar-upsert`, `functions/v1/calendar-reorder` — Track A ports of the
   calendar write path
+- `functions/v1/calendar-card-write` — the native card writer replacing calendar-upsert
+  (retirement plan step 1, 2026-10-16): same request and answers, staff key required, used only
+  for clients on the `calendar_card_write_clients` switch; not deployed yet
 - `functions/v1/sample-review-upsert`, `functions/v1/sample-review-reorder` — SXR write ports
 - `functions/v1/brain` — Templates page: reads one client's Synchro Brain facts and records "Send a change" text into the private brain repo's syncview-changes inputs folder (staff key only).
 - `functions/v1/templates-save`, `functions/v1/caption-prompts-save` — save-path ports. Candidate

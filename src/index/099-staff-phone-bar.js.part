@@ -83,7 +83,7 @@
                 });
             },
             label(el) {
-                const labels = { navFilmingPlans: 'Filming Plans', navTiktokUpload: 'Upload', navProd: 'Linear' };
+                const labels = { navFilmingPlans: 'Filming Plans', navProd: 'Linear' };
                 return labels[el.id] || tabLabel(el);
             },
             tabs(body, dialog, cls) {
@@ -110,6 +110,10 @@
                     const b = native.cloneNode(true);
                     b.removeAttribute('id'); b.removeAttribute('onclick'); b.removeAttribute('style'); b.removeAttribute('aria-current');
                     b.classList.add('sv-phone-tabs-link'); b.dataset.nav = native.id;
+                    if (native.id === 'navMessages') {
+                        b.classList.remove('theme-toggle', 'msg-nav-btn');
+                        b.querySelector('.msg-nav-label')?.classList.replace('msg-nav-label', 'sv-phone-tab-label');
+                    }
                     if (native.id === 'navKasper') {
                         // Keep any native notification badge alongside the role label.
                         for (const node of b.childNodes) if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) node.textContent = 'Reviewer';
@@ -287,6 +291,18 @@
             }
             const h1 = bar.querySelector('.pocket-staff-title');
             if (h1.textContent !== title) h1.textContent = title;
+            // On Messages the title bar carries a Close that does what the header Messages button does.
+            const actions = bar.querySelector('.pocket-staff-actions');
+            let closeMsg = actions.querySelector('.pocket-staff-msg-close');
+            if (title === 'Messages') {
+                if (!closeMsg) {
+                    closeMsg = document.createElement('button');
+                    closeMsg.type = 'button'; closeMsg.className = 'pocket-staff-msg-close';
+                    closeMsg.textContent = 'Close'; closeMsg.setAttribute('aria-label', 'Close Messages');
+                    closeMsg.addEventListener('click', () => window._msgClose?.());
+                    actions.insertBefore(closeMsg, actions.firstChild);
+                }
+            } else if (closeMsg) closeMsg.remove();
         }
         function start() {
             const nav = document.getElementById('headerNav');

@@ -1145,6 +1145,8 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
 
     window.addEventListener('popstate',(e)=>{
         if (window.svThumbCollections?.consumeHistory(e)) return;
+        if (window.svThumbMessagesConsumeHistory?.(e)) return;
+        if (window.svMessagesConsumeReturn?.(e)) return;
         // Several branches below route without navTo; keep the client bar in step.
         setTimeout(()=>{ if (typeof svClientBarSync === 'function') svClientBarSync(currentNav); },0);
         const state=e.state;

@@ -1,6 +1,11 @@
 {
   "receipt": [
     {
+      "name": "calendar-tabs",
+      "width": 390,
+      "theme": "light"
+    },
+    {
       "name": "calendar-grid",
       "width": 390,
       "theme": "light"
@@ -72,6 +77,11 @@
     },
     {
       "name": "calendar-empty",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "samples-tabs",
       "width": 390,
       "theme": "light"
     },
@@ -141,6 +151,11 @@
       "theme": "light"
     },
     {
+      "name": "calendar-tabs",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
       "name": "calendar-grid",
       "width": 390,
       "theme": "dark"
@@ -212,6 +227,11 @@
     },
     {
       "name": "calendar-empty",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-tabs",
       "width": 390,
       "theme": "dark"
     },
@@ -281,6 +301,11 @@
       "theme": "dark"
     },
     {
+      "name": "calendar-tabs",
+      "width": 430,
+      "theme": "light"
+    },
+    {
       "name": "calendar-grid",
       "width": 430,
       "theme": "light"
@@ -352,6 +377,11 @@
     },
     {
       "name": "calendar-empty",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "samples-tabs",
       "width": 430,
       "theme": "light"
     },
@@ -421,6 +451,11 @@
       "theme": "light"
     },
     {
+      "name": "calendar-tabs",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
       "name": "calendar-grid",
       "width": 430,
       "theme": "dark"
@@ -492,6 +527,11 @@
     },
     {
       "name": "calendar-empty",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-tabs",
       "width": 430,
       "theme": "dark"
     },

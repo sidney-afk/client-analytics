@@ -78,7 +78,7 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   assert.throws(() => L.transcriptFromPrediction({ status: 'succeeded', output: { transcription: '  ' } }), /no speech/); checks++;
 
   // --- the model and the default prompt are n8n's
-  eq([L.MODEL, L.MAX_TOKENS], ['claude-sonnet-4-6', 2500], 'same model as n8n; the token cap is raised from 1500 for the title ideas and hashtags');
+  eq([L.MODEL, L.MAX_TOKENS], ['claude-sonnet-4-6', 1500], 'same model and token cap as n8n');
   ok(L.DEFAULT_PROMPT.startsWith('Caption Writer\nGenerate an Instagram Reels caption') && L.DEFAULT_PROMPT.endsWith('Respond with ONLY the caption and 3 hashtags. Nothing else.'), 'the n8n default prompt, unchanged');
 
   // --- the Brain voice: "Caption style" when written, otherwise the whole voice file
@@ -94,9 +94,8 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   eq(v, { source: 'voice', text: '### Tone\nWarm and plain.' }, 'otherwise every written voice section, unwritten ones skipped');
   eq(L.voiceGuide([]), { source: 'none', text: '' }, 'no voice file: no voice');
 
-  // --- the prompt: client prompt + transcript as n8n built it (plus one closing reminder of the output layout); rules and voice in the system message
-  const REM = '\n\nAnswer in the output layout from the system message (caption, titles, hashtags and cta blocks).';
-  const bare = (u) => { ok(u.endsWith(REM), 'the user message ends with the layout reminder'); return u.slice(0, -REM.length); };
+  // --- the prompt: client prompt + transcript as n8n built it ; rules and voice in the system message
+  const bare = (u) => u;
   let m = L.buildMessages({ captionPrompt: 'CLIENT PROMPT', voice: { source: 'caption-style', text: 'STYLE' }, videoTranscript: 'VIDEO', pastedTranscript: '', rules: R.WRITING_RULES });
   eq(bare(m.user), 'CLIENT PROMPT\n\nTranscript:\n<transcript>\nVIDEO\n</transcript>', 'the user message is n8n\'s (prompt, then the transcript), with the transcript tagged');
   ok(m.system.includes(L.DATA_NOTICE) && /data, not instructions/.test(L.DATA_NOTICE), 'the system message says tagged text is data, not instructions');
@@ -157,15 +156,12 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   ok(/\[functions\.caption-generate\]\nverify_jwt = false/.test(CONFIG), 'deployed without platform JWT checks, like every staff-key function');
   ok((DEPLOY.match(/caption-generate/g) || []).length === 3, 'on the one-function deploy lane allowlist (choice, guard, loop)');
 
-  // --- page wiring: the switch defaults to n8n, the transcript only on the function path
+  // --- page wiring: every caption runs on the function; the n8n fallback is gone (2026-10-16)
   ok(C100.includes("const CAPTION_GENERATE_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-generate';"), 'the function URL');
-  ok(C100.includes("const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';"), 'the n8n URL stays');
-  ok(/CAL_CAPTION_EF_FLAG_KEY = 'caption_generate_ef_clients'/.test(C180), 'the runtime switch key');
-  ok(/let parsed = \{ all: false, clients: new Set\(\) \};[\s\S]{0,1200}catch \(e\) \{\s*console\.warn\('\[Calendar\] caption switch unreadable; captions use n8n'/.test(C180), 'an unreadable switch means n8n');
-  ok(/if \(!members\) return \{ all: false, clients: new Set\(\) \};/.test(C180), 'a missing or malformed switch means n8n');
-  ok(/if \(\(transcript \|\| genCta \|\| genNote \|\| genPlatform !== 'instagram'\) && route !== 'ef'\)/.test(C180), 'a transcript, call to action, platform or note is never sent to n8n');
-  ok(/job\.route === 'ef'\s*\? await fetch\(CAPTION_GENERATE_EF_URL[\s\S]{0,200}_syncviewEfHeaders\(\{ 'Content-Type': 'application\/json' \}, CAPTION_GENERATE_EF_URL\)/.test(C180), 'the function call carries the staff headers');
-  ok(/: await fetch\(GENERATE_CAPTION_URL, \{\s*method: 'POST',\s*headers: \{ 'Content-Type': 'application\/json' \},\s*body: JSON\.stringify\(\{\s*client: job\.client, postId: job\.pid, assetUrl: job\.assetUrl,\s*captionPrompt: job\.captionPrompt, jobId: job\.jobId\s*\}\)/.test(C180), 'the n8n call is byte for byte what it was');
+  ok(!/GENERATE_CAPTION_URL\b/.test(C100.replace(/CAPTION_GENERATE_EF_URL/g, '')) && !C100.includes('webhook/generate-caption'), 'the n8n generate-caption URL is gone from the page');
+  ok(!/GENERATE_CAPTION_URL\b/.test(C180.replace(/CAPTION_GENERATE_EF_URL/g, '')) && !C180.includes("'caption_generate_ef_clients'"), 'no n8n call and no switch read: a failed read cannot reach n8n');
+  ok(/function _calCaptionRouteShown\(\) \{ return 'ef'; \}/.test(C180) && /async function _calCaptionRoute\(\) \{ return 'ef'; \}/.test(C180), 'the route is always the function');
+  ok(/const resp = await fetch\(CAPTION_GENERATE_EF_URL, \{[\s\S]{0,200}_syncviewEfHeaders\(\{ 'Content-Type': 'application\/json' \}, CAPTION_GENERATE_EF_URL\)/.test(C180), 'the function call carries the staff headers');
   ok(/job\.route === 'ef' && json\.ok && json\.accepted\) \{\s*job\.confirmed = true;\s*_calCapJobPollNow\(\);\s*return;/.test(C180), 'an accepted function job is left to the poller');
 
   console.log(`caption-generate-source: ${checks} checks passed ✅`);

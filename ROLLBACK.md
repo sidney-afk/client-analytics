@@ -1494,3 +1494,26 @@ Revert this PR and rebuild from source to restore the previous phone menus. No b
 ### 2026-10-13 — owner phone round 2
 
 Revert this bounded UI/evidence PR and rebuild from reverted `src/index/` fragments. No database, Edge Function or n8n rollback is involved. Keep the hosted live-read deferral until a safe test-client/fictional boundary exists. Existing phone/desktop gates and frozen client writers remain authoritative.
+
+## 2026-10-15/16 — Committed build output, Edge Functions on merge, Section 4 capture in GitHub (session Conveyor)
+
+**Committed build output (the page).** Since this change `index.html`, `js/sv-*.js` and
+`src/index/INDEX.md` are built (by `pages-site.yml` on every push to `main`, and by every CI job
+that reads them) and are no longer committed. Measured before the switch: the publish built from
+`src/index/` produced the same 616 files, byte for byte, as today's committed tree (dry run in the
+PR). **Way back, one PR:** `git revert -m 1 <merge commit of this PR>` (or `git revert <squash
+commit>`), then `npm run build:index` and `git add -f index.html js/sv-*.js src/index/INDEX.md`
+in a second commit of the same PR (the reverted files are as old as this PR's base, and the
+restored `check:index` refuses a stale page, so CI forces that rebuild). The revert restores the
+old `check-index.js`, `.gitignore`, `pages-site.yml` and the `index.html` path filters.
+
+**Edge Functions on merge.** `deploy-edge-functions-on-merge.yml` deploys changed functions on
+merge. **One step to stop it:** Actions, that workflow, "...", Disable workflow (every manual lane
+still works). **Undo:** revert this PR, which also gives the onboarding, PTO, thumbnail and
+description-image lanes their `push:` triggers back. A function this lane deployed is undone like
+any deploy: the manual lane at the previous commit.
+
+**Section 4 capture in the lane.** The lane captures, seals and stores the prior three itself when
+both bundle inputs are `capture`; a bundle captured on a machine is still accepted with its two
+values, so the old flow is the way back with no code change. A release is undone with
+`restore-captured-prior-three` and the two values printed in that run's summary.

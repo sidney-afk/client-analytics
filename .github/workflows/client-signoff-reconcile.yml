@@ -42,10 +42,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4        # needs index.html for the canonical rules
+      - uses: actions/checkout@v4        # needs index.html for the canonical rules (built below)
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Build index.html and js/ from src/index/ (build output, not committed)
+        uses: ./.github/actions/build-index
       - name: Reconcile
         env:
           # FAIL CLOSED. Only an explicit dry_run=false writes; a missing or

@@ -1,16 +1,32 @@
 {
-  "baseline": "71f684554e95f6a9b5ddc2167685fcc2979477c4",
-  "buildIndexSha256": "4bd788131baf1289ae370f2d512f5c9a78cb75476938746d80fd2a4a72f0d929",
-  "fragmentSha256": {
-    "020-styles-surfaces.css.part": "d79161815bb3561cd3a3090e7a9eb6aed17eb440475e4c9e68105366c46a9e7c",
-    "099-staff-phone-bar.js.part": "19e9b5b3e67d260da3aee51decb9f3748e30ff890e0c466b1547f95a2515e925",
-    "160-calendar-organize-ui.js.part": "6f6f48631a2c13560541e6fef75072ee12cce19c154664b921c105dcc8f89b57",
-    "180-calendar-native-post-media.js.part": "892f9ab269d50084113caa0062ea4cd4f08a19ec1215a33e14bc4654c594199d",
-    "270-samples-model.js.part": "b940c641d91a784be965bfee9259d45e919d7708ba47d2ced185d8e31d635d24"
+  "baseline": "72062c1f737e8d88298a1b4a62374f9bca6a462b",
+  "expandedReference": {
+    "pr": 1950,
+    "commit": "e2ab30ab3f34a2afb2a2c781ebe9855acf38b625",
+    "direction": "A - Expanded"
   },
+  "buildIndexSha256": "201da39de82f6370d4478e952dc139d95a66f8b3a091ae200fa7760c1871a293",
+  "fragmentSha256": {
+    "src/index/020-styles-surfaces.css.part": "2ea7935e8efab9146fc7d01592927715a1b77e0daa6343eac50c3a4c8c83a424",
+    "src/index/050-market-briefs.js.part": "441a3b56345971e60d3d41b12c04c7c84fbe488322586eeacc44b02e64782daf",
+    "src/index/099-phone-staff-shell.js.part": "1039d54cb4e08e96b4a65711b39a8ea802bc290db1b1ce3abaf1e13625f82947",
+    "src/index/099-staff-phone-bar.js.part": "0dd261eee8021142770bd988eaa3d079a900ea5719abd24842b094b1a1df89d1",
+    "src/index/160-calendar-organize-ui.js.part": "4e7fc99919ee5e9fb3d431da129de338e34757299f9310e82bfd115741231b41",
+    "src/index/180-calendar-native-post-media.js.part": "790ba3e0aaab806ef48d6e0d32ba8074fc454f0ff9a6f95a409ad2fbdee6b750",
+    "src/index/270-samples-model.js.part": "82821247803fcaad550bab08a11a8760b32c4a1f1336591b323bda8d4caec5c1"
+  },
+  "phoneWidths": [
+    390,
+    430
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "required390Screenshots": 66,
   "screenshots": {
-    "calendar-card-dark-390.png": "acb3e6e49e3ba9c93c44d3a0a06b8337a734e567c60eafda75fe8927cb3fc6a1",
-    "calendar-card-light-390.png": "7177e399b1e86f0d1e213742e9eda1227877a7e069e32a4bb92a738cb14f184c",
+    "calendar-card-dark-390.png": "56c41d69495a3af180e429fa5dd59a7b5e553319402597f57989722ff8c95d01",
+    "calendar-card-light-390.png": "0156c62e305bc40f1d9a24275c911b9d59b69dc195fb56a8d8fb15837ec38ddc",
     "calendar-empty-dark-390.png": "17dbcf09f984afc6d9907fd4be5fa546ba6abdaee5952df2fccb75013d44e7f9",
     "calendar-empty-light-390.png": "bf58cd9b6e87f8f88d9b2733160d1533847dcbad7e6a7622a816cc867d4adeb8",
     "calendar-error-dark-390.png": "f4c021eb88fd9fd96ad7bdb3e8cda614f008a236f6c19abbb3c7ff04667fc015",
@@ -23,7 +39,7 @@
     "calendar-list-light-390.png": "0d5b61981e48fc4dbbaa4694e52ad479357b58d39879bfe13fb24b4fb19fb170",
     "calendar-loading-dark-390.png": "2d4f13a7aa1057b869380225b69ba213e403e2703f39bb8a63629b9f205e3108",
     "calendar-loading-light-390.png": "c5ef0a41ecbaa7186d9306194d7a2610b497721d3afaced53b5187bc8b6b5583",
-    "calendar-month-dark-390.png": "d41325251bda7d9e0a8aac94bc70846216fb14f2d0f850958827df9d54a536b8",
+    "calendar-month-dark-390.png": "493948b1c4df7b21e0c4090b4e12a4b8619dc886205fef845a45166fcc1bd503",
     "calendar-month-light-390.png": "066a35dc9246773abb61b53cd2158f10b156438348f8319b77b2711d15ecac2a",
     "calendar-more-account-dark-390.png": "4114dccb393b1f0f6c2c5ce276ab600f036fb4074a406ae89023476d77711db8",
     "calendar-more-account-light-390.png": "94dc72160a04da7a1b8fcad85b37efb3338a9d99a3c2a1ddc3d98f03b8bc7c78",
@@ -33,22 +49,30 @@
     "calendar-no-posts-light-390.png": "e329f6d22f9ff21cc04001c57aa280bae9230fce223d99b5a37286b194f4fe9e",
     "calendar-review-dark-390.png": "4967cf418ff923ffeecd764eef794f5a2d9aaa5f8a08b6ab88e40eae0a8ab053",
     "calendar-review-light-390.png": "3400ce13f5742d1baaa0a4a498336921088a17fb79fad14395a36efcb040a16f",
+    "calendar-review-playing-dark-390.png": "b45921c3c98cb0c3c924cbcb1c609326ca10ea1ab38706242f0e25155e32147c",
+    "calendar-review-playing-light-390.png": "5bed7b20c3ec75f9b38b433bc19d4c989f7d0999318e26b3ddf8647dd284fdd4",
     "calendar-selection-dark-390.png": "abf8f9df8efeb43a314e78474ac553baaed8fd6a429c7382da0c78cdc89de3c9",
     "calendar-selection-light-390.png": "e4c3aeb2e11a15a8b4d20b48481e6f16b561723da5c0a0218974180a312a3fb5",
+    "calendar-tabs-dark-390.png": "a712cb1d8d05913400406c8da670ef9e432dbc3d80971e6edc3968209674ac57",
+    "calendar-tabs-light-390.png": "8b162a5a35c705730206d6be9c494861a32b4cbe8610829adc448c3d97ece98a",
+    "calendar-vertical-video-and-notes-dark-390.png": "22fe7f6caa6d44d760000a1736863836c8b86c1627006492155035119ed53e16",
+    "calendar-vertical-video-and-notes-light-390.png": "1fd2f5d11b93b4a66bad5fb0bdf5e96cf95773c15d77b509046cd2b17d4e2c6d",
+    "calendar-video-and-notes-dark-390.png": "6b5dcdabb64c19290e515332cda2128c23f2c847d8e63cd282a060020e0f5fb1",
+    "calendar-video-and-notes-light-390.png": "73fad47570cffdac2be2f156929fdf3ab8d714fd9020d4044fc13ff9d2a7b82f",
     "calendar-view-picker-dark-390.png": "97d7f68215f6f9e5431fee264e5e761333d4ad986ead20e7e8b24155d55c1399",
     "calendar-view-picker-light-390.png": "fbfeb775c3fe20f9fd127dac7296d50ec161c7732ec5e92da343be844f6a4c18",
-    "calendar-week-dark-390.png": "0c27780ab92716eda116796072e2e80f9ed762397ab2484592ecf68fd1136f5b",
-    "calendar-week-light-390.png": "a336068a7ebf20c1810bcdd267651d931709a20f523dd33eb5eb23b8a20b1bca",
-    "samples-card-dark-390.png": "6e93f6dc31d96a2a6c43ca4deb16fe3f8b2c2fb6d6385cb5d5de2d0f5b17b39c",
-    "samples-card-light-390.png": "e6a610e9e31b74812d0ca751b7729dbce2fbd9746250d02bd1e9ceff0c555145",
-    "samples-created-dark-390.png": "cdd1efdb0ea546d91540ed592e1271c8f499add34e3e6715995d5ea546f8155d",
-    "samples-created-light-390.png": "f3d1b3c50ad6e16a0f4b80c5b81d27b599c27feb147e0cc617cf1f8beb979267",
+    "calendar-week-dark-390.png": "bf96f645d48b20bbf3aef0abc0087292f16adef4f513d3bd61c7c6215f4776c3",
+    "calendar-week-light-390.png": "9f0a832f3c5827bb719b8cfe6d92754476fd9c2207240a24dd8444a3e19b1676",
+    "samples-card-dark-390.png": "b1dddfab2a3f845bf1f3fd779ac34b591fcfc087c2a3546b36069e0323166759",
+    "samples-card-light-390.png": "64a5f3c9a573fd15c076e4b994dde004e05ef882f6900ab9ef420bcb95994674",
+    "samples-created-dark-390.png": "a4624737934869a3cfb80234fba46d8480af4f1cad4d7c2823aa104ea9e0e161",
+    "samples-created-light-390.png": "2304c7190cd3ff4aa466b76248d0b5dfa3f753543004e84e7ba4ea14198e34ee",
     "samples-empty-dark-390.png": "087b51cf2ec120581eb6c5c3a2c832b7098aefe142c63156a59a1014290570c5",
     "samples-empty-light-390.png": "1ed2ea2ef57b3de5b34e4b72e502e57c0e3d9a984c470fc981e73f18df6a2e80",
     "samples-error-dark-390.png": "0b98491bf0314bdc2c8429011fc71d9f3d3a53efdc505633db83d9d183965fd7",
     "samples-error-light-390.png": "8dcabd6e3e3990f53599dd435d8ae1765dd5e12bae73c33f8881714d53f5f583",
     "samples-grid-dark-390.png": "4a1b257a4f32f82f54a6d49995b75094151c6231351d7c862425beeaf9c0b783",
-    "samples-grid-drive-error-dark-390.png": "b0342299a17f94013bfdeaf8f158770f48bf5d215be339315af27ed163a0425f",
+    "samples-grid-drive-error-dark-390.png": "f103a0cec563a0f10f0a015bae5efee0744b7793e653fc4bd79bae9b41156d13",
     "samples-grid-drive-error-light-390.png": "b49ea1b6f5f1d7d288e360bc2ead23faeb77f67a52d5748d2915644f72814147",
     "samples-grid-light-390.png": "8a8a7253965f9b17ca344cac35c6c874cc6ba2cfe93a30f41f7c223bf4131d31",
     "samples-list-dark-390.png": "40afd89d09dda5fbbf759ea6c47cb97bb298386dfa92dc0951624d3364249ff2",
@@ -63,8 +87,11 @@
     "samples-no-posts-light-390.png": "84eeeb73c9b6bbc9dbd75e770f276599a409a871611cedcff14f80b08599616e",
     "samples-review-dark-390.png": "187bafe3050615c9030b3d384b1fd9463766cdbb9019a0ec51a7af36e8e71309",
     "samples-review-light-390.png": "6a509b3fa594192eaa0b7195b80ada897b066aeb55f567aba2cd00d58d0c207a",
-    "samples-selection-dark-390.png": "2bd9eb835c934a58915c3f6ec560bd7e66258954b7ada4f8ddc9698b46bc960f",
-    "samples-selection-light-390.png": "3d2363fe558a2c896ec8b911d0ede5f9cfec3df158aa4aa51a55bdc112c489ed"
+    "samples-selection-dark-390.png": "69c7d730f23cc859063377703d99f48aff5ee3040cb8f025200d89493df5195c",
+    "samples-selection-light-390.png": "3d2363fe558a2c896ec8b911d0ede5f9cfec3df158aa4aa51a55bdc112c489ed",
+    "samples-tabs-dark-390.png": "3a3e5280ff927962542a8996a9a30e9a6113ef8a91271b9a55abaa6a544453a4",
+    "samples-tabs-light-390.png": "dd9b181d8bd968286bfaafa8b6cce61e9f8682eda1d93d1aa94803b2cd7894de"
   },
-  "fonts": "Plus Jakarta Sans, five local fixture weights verified by native capture guard"
+  "fonts": "Plus Jakarta Sans, five local fixture weights verified by native capture guard",
+  "buildOutputs": "Local only; index.html, js/sv-*.js and src/index/INDEX.md are ignored and not tracked"
 }

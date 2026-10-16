@@ -25,7 +25,8 @@ function grab(name) {
   }
   throw new Error('unbalanced ' + name);
 }
-const ctx = { Object, String, SXR_COMPONENTS: ['video', 'thumbnail'], _calComponentsFor: () => ['video', 'thumbnail', 'caption'], _writeUiNativeId: (post, c) => (post.ids || {})[c] || '' };
+// The in-flight question is asked per card (120, _prodCrosswalkInFlight); this stand-in reads the old mark.
+const ctx = { Object, String, _prodCrosswalkInFlight: p => !!(p && p._canonicalCrosswalkInFlight), SXR_COMPONENTS: ['video', 'thumbnail'], _calComponentsFor: () => ['video', 'thumbnail', 'caption'], _writeUiNativeId: (post, c) => (post.ids || {})[c] || '' };
 vm.createContext(ctx);
 vm.runInContext(grab('_prodCardCommentsPending') + '\n' + grab('_prodCommentsSkeletonHtml') + '\nthis.p = _prodCardCommentsPending; this.h = _prodCommentsSkeletonHtml;', ctx);
 
@@ -43,7 +44,8 @@ ok(/aria-busy="true"/.test(html) && /role="status"/.test(html) && /cal-cm-skel-r
 ok(!/All clear|No notes yet/.test(html), 'and says nothing about the card');
 ok((INDEX.match(/\(_prodCardCommentsPending\(post, '(?:calendar|sxr)'\) \? _prodCommentsSkeletonHtml\(\) : emptyMsg\)/g) || []).length === 2,
   'both the Calendar and the Samples Notes dialogs show it in place of the empty message');
-ok(/const feedHtml = roots\.length \? roots\.map\(renderThread\)\.join\(''\) : \(_prodCardCommentsPending\(post, 'calendar'\)/.test(INDEX),
+// (Since the note outbox, a note waiting to be sent counts as a row too.)
+ok(/const threadsHtml = roots\.map\(renderThread\)\.join\(''\);[\s\S]{0,600}const feedHtml = \(roots\.length \|\| strayReplies\) \? threadsHtml \+ strayReplies : \(_prodCardCommentsPending\(post, 'calendar'\)/.test(INDEX),
   'rows already held are still shown at once; only the empty state waits');
 ok(/\.cal-cm-skel \{[^}]*sv-shimmer/.test(INDEX) && /prefers-reduced-motion: reduce\) \{ \.cal-cm-skel \{ animation: none/.test(INDEX), 'the shimmer is styled and respects reduced motion');
 console.log('\nnotes-loading-skeleton: ' + passed + ' checks passed');

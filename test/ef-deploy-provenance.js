@@ -156,13 +156,16 @@ const slugRows = manifest.split(/\r?\n/).filter(line => /^\| `[a-z0-9-]+` \|/.te
 const writeDiagnosticsRow = slugRows.find(line => line.startsWith('| `write-diagnostics` |')) || '';
 // 2026-09-23: its manual release now runs through the one-function exact-SHA
 // lane, dispatch-only, and the deliberate-manual note stays on its row.
-ok(manifestCheck.status === 0 && slugRows.length === 63
+ok(manifestCheck.status === 0 && slugRows.length === 64
   && writeDiagnosticsRow.includes('[deploy-single-function]')
-  && writeDiagnosticsRow.includes('| workflow_dispatch only (pinned SHA guard)<br>**Manual release note:**')
-  && !writeDiagnosticsRow.includes('main push')
+  && writeDiagnosticsRow.includes('| main push (auto, in order)<br>workflow_dispatch only (pinned SHA guard)<br>**Manual release note:**')
+  // 2026-10-16: it deploys on merge too (its first operator release is long
+  // done, live v41); the merge lane deploys it --no-verify-jwt and attests it,
+  // which is what its release note asks, and the note stays on its row.
+  && writeDiagnosticsRow.includes('[deploy-on-merge]')
   && writeDiagnosticsRow.includes('--no-verify-jwt')
   && writeDiagnosticsRow.includes('WRITE_DIAGNOSTICS_ENABLED=true'),
-`generated deploy manifest is current and contains all 63 slugs (client-review-alert added 2026-10-14, frameio-view added 2026-10-14, frameio-token added 2026-10-13, calendar-auto-posted added 2026-10-10, thumbnail-title-prompts and thumbnail-titles added 2026-10-09, monitoring-watchdog-tick added 2026-10-09, caption-generate added 2026-10-09, tiktok-upload added 2026-10-07, tiktok-upload-cancel added 2026-10-07, analytics-market-research-collect 2026-10-02, analytics-top-videos-collect 2026-10-02, client-hubspot-sync added 2026-10-02, higgsfield-mcp added 2026-09-28, filming-plan-tabs 2026-09-29, caption-jobs 2026-09-30, instagram-upload 2026-09-30, roster-read and roster-write 2026-10-02, analytics-metrics-collect 2026-10-01, client-onboarding 2026-10-01) including dormant write-diagnostics on the dispatch-only one-function lane (${(manifestCheck.stderr || '').trim()})`);
+`generated deploy manifest is current and contains all 64 slugs (calendar-card-write added 2026-10-16, client-review-alert added 2026-10-14, frameio-view added 2026-10-14, frameio-token added 2026-10-13, calendar-auto-posted added 2026-10-10, thumbnail-title-prompts and thumbnail-titles added 2026-10-09, monitoring-watchdog-tick added 2026-10-09, caption-generate added 2026-10-09, tiktok-upload added 2026-10-07, tiktok-upload-cancel added 2026-10-07, analytics-market-research-collect 2026-10-02, analytics-top-videos-collect 2026-10-02, client-hubspot-sync added 2026-10-02, higgsfield-mcp added 2026-09-28, filming-plan-tabs 2026-09-29, caption-jobs 2026-09-30, instagram-upload 2026-09-30, roster-read and roster-write 2026-10-02, analytics-metrics-collect 2026-10-01, client-onboarding 2026-10-01) including dormant write-diagnostics on the dispatch-only one-function lane (${(manifestCheck.stderr || '').trim()})`);
 /*
  * 2026-08-08: client-review-link left the deliberate-manual set. The manual
  * lane is WHY the #1016 mint-on-demand fix sat merged-but-undeployed for five
@@ -172,7 +175,7 @@ ok(manifestCheck.status === 0 && slugRows.length === 63
  * gate proves deployed == reviewed. These pins assert the new ownership so a
  * regression back to NONE — or a second owner claiming the slug — fails CI.
  */
-ok(/\| `client-review-link` \| \[deploy-client-review-link\]\([^)]*deploy-client-review-link\.yml\) \| workflow_dispatch \|/.test(manifest),
+ok(/\| `client-review-link` \| \[deploy-on-merge\]\([^)]*\)<br>\[deploy-client-review-link\]\([^)]*deploy-client-review-link\.yml\) \| main push \(auto, in order\)<br>workflow_dispatch \|/.test(manifest),
 'client-review-link is owned by its dispatch-only CI lane, not by an operator laptop');
 ok(!/\| `client-review-link` \| NONE \|/.test(manifest),
   'client-review-link is no longer a NO-CI-DEPLOY-PATH exception');
@@ -184,7 +187,7 @@ ok(/^on:\n  workflow_dispatch:/m.test(hiringWorkflow)
   && /--no-verify-jwt --yes/.test(hiringWorkflow)
   && /--slugs=hiring-applications --format=json/.test(hiringWorkflow),
   'hiring-applications has an exact-SHA, production-gated manual deploy and readback lane');
-ok(/\| `hiring-applications` \| \[deploy-hiring-applications\]\([^)]*deploy-hiring-applications\.yml\) \| workflow_dispatch \| `_shared\/staff-role-auth\.ts` \|/.test(manifest),
+ok(/\| `hiring-applications` \| \[deploy-on-merge\]\([^)]*\)<br>\[deploy-hiring-applications\]\([^)]*deploy-hiring-applications\.yml\) \| main push \(auto, in order\)<br>workflow_dispatch \| `_shared\/staff-role-auth\.ts` \|/.test(manifest),
   'the manifest records the dedicated hiring API deploy owner and its auth dependency');
 ok(/^on:\n  workflow_dispatch:/m.test(hiringAutomationWorkflow)
   && !/^  push:/m.test(hiringAutomationWorkflow)
@@ -195,23 +198,23 @@ ok(/^on:\n  workflow_dispatch:/m.test(hiringAutomationWorkflow)
   && /--no-verify-jwt --yes/.test(hiringAutomationWorkflow)
   && /--slugs=hiring-automation --format=json/.test(hiringAutomationWorkflow),
   'hiring-automation has a tested, exact-SHA, production-gated manual deploy and readback lane');
-ok(/\| `hiring-automation` \| \[deploy-hiring-automation\]\([^)]*deploy-hiring-automation\.yml\) \| workflow_dispatch \| - \|/.test(manifest),
+ok(/\| `hiring-automation` \| \[deploy-on-merge\]\([^)]*\)<br>\[deploy-hiring-automation\]\([^)]*deploy-hiring-automation\.yml\) \| main push \(auto, in order\)<br>workflow_dispatch \| - \|/.test(manifest),
   'the manifest records the server-to-server hiring bridge and its no-shared-import closure');
 ok(/\| `client-review-link` \|[^|]*\|[^|]*\| `_shared\/browser-write-auth-policy\.mjs`<br>`_shared\/browser-write-auth\.ts`<br>`_shared\/client-review-token-policy\.mjs`<br>`_shared\/staff-role-auth\.ts` \|/.test(manifest),
 'the manifest records the shared review-token policy in the client-review-link deploy closure');
 ok(/\| `client-token-verify` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Strict client-entry v1 is deliberate-manual: deploy and read back the exact reviewed function source before serving its matching browser caller; no runtime-flag change is part of this release\./.test(manifest),
 'client-token-verify pins the fail-closed provider-before-browser manual release order');
-ok(/\| `production-archive` \| \[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
-  && /\| `production-comments` \| \[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
-'production-comments and production-archive deploy via the pinned-SHA dispatch-only lane, not local credentials');
-ok(/\| `notify` \| \[deploy-onboarding\]\([^)]*\)<br>\[deploy-single-function\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
-'notify is owned only by pinned-SHA dispatch-only lanes (onboarding and the one-function lane), never a push or laptop deploy');
+ok(/\| `production-archive` \| \[deploy-on-merge\]\([^)]*\)<br>\[deploy-onboarding\]\([^)]*\) \| main push \(auto, in order\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
+  && /\| `production-comments` \| \[deploy-on-merge\]\([^)]*\)<br>\[deploy-onboarding\]\([^)]*\) \| main push \(auto, in order\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
+'production-comments and production-archive deploy on merge after the write gateway (or by the pinned-SHA lane), never from local credentials');
+ok(/\| `notify` \| \[deploy-on-merge\]\([^)]*\)<br>\[deploy-onboarding\]\([^)]*\)<br>\[deploy-single-function\]\([^)]*\) \| main push \(auto, in order\)<br>workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
+'notify deploys on merge through the planned lane (Linear-exit preflight, before the gateway) or by the pinned-SHA lanes, never from a laptop');
 ok(/\| `linear-inbound` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* RETIRED 2026-09-24 \(B2 Slice 7\)/.test(manifest),
 'linear-inbound is recorded as retired, with no deploy path (B2 Slice 7)');
 ok(/\| `linear-outbound` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* RETIRED \(B2 Slice 8/.test(manifest)
-  && /\| `production-write` \| \[deploy-f27-section4\]\([^)]*\)<br>\[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
-  && /\| `deliverable-write` \| \[deploy-f27-section4\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
-  && /\| `batch-write` \| \[deploy-f27-section4\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
+  && /\| `production-write` \| \[deploy-f27-section4\]\([^)]*\)<br>\[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\)<br>dispatched on merge by deploy-on-merge \(the lane captures the rollback bundle itself\) \|/.test(manifest)
+  && /\| `deliverable-write` \| \[deploy-f27-section4\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>dispatched on merge by deploy-on-merge \(the lane captures the rollback bundle itself\) \|/.test(manifest)
+  && /\| `batch-write` \| \[deploy-f27-section4\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>dispatched on merge by deploy-on-merge \(the lane captures the rollback bundle itself\) \|/.test(manifest),
 'the manifest records the exact reviewed Section 4 ownership, with production-write as the one deliberate onboarding overlap and linear-outbound retired (B2 Slice 8)');
 ok(/for fn in notify production-write production-comments production-archive/.test(workflow)
   && !/for fn in[^\n]*linear-outbound/.test(workflow),

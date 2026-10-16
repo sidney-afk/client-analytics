@@ -55,9 +55,18 @@
 > be re-gated: STOP and ASK THE OWNER FIRST — do not proceed until they say yes.** Full incident
 > in `EXECUTION_LOG.md` (2026-07-15) and the F35 row of `ROLLBACK.md`.
 
-This repo is a single-file SyncView app served by GitHub Pages from `index.html`.
+This repo is a single-file SyncView app served by GitHub Pages from `index.html`, which
+`.github/workflows/pages-site.yml` builds from `src/index/` on every push to `main`.
 
-index.html is a build output; edit src/index/ fragments and run npm run build:index, never edit index.html directly
+index.html is a build output; edit src/index/ fragments and run npm run build:index, never edit index.html directly.
+It is NOT committed (since 2026-10-15): never `git add` index.html, js/sv-*.js or src/index/INDEX.md (they are in
+.gitignore and `npm run check:index` fails if one is tracked). Build before testing by hand; `node test/run-all.js`,
+`qa/master.js` and `qa/run-probes.js` build first by themselves, and every CI job that reads the page builds it
+through `.github/actions/build-index`.
+
+Edge Functions go live on merge (`.github/workflows/deploy-edge-functions-on-merge.yml`, runbook
+`docs/ops/EF_AUTO_DEPLOY.md`), in order and with the manual lanes' checks; a merge that adds a migration holds its
+functions until the migration is applied.
 
 **When telling the owner to run a GitHub Actions workflow, always give the
 direct link to it** (owner directive, 2026-09-01, after being asked twice in
@@ -141,39 +150,32 @@ For the visible **SyncLinear** mirror (internal key/module `production`) polish:
 - Preserve URL/deep-link behavior for `?prod=1`, `team`, `view`, `client`, and `d` query params.
 - Keep docs current: `docs/syncview-design/WIRED-PARITY.md`, `docs/audits/2026-07-09-production-foundation-audit.md`, `EXECUTION_LOG.md`, and `ROLLBACK.md`.
 
-## F27 Section 4 sealed capture — Sidney's local flow
+## F27 Section 4 sealed capture — runs in GitHub, not on Sidney's machine
 
-The dispatch itself is
+Since 2026-10-16 nobody runs a capture by hand. A merge that changes
+`production-write`, `deliverable-write` or `batch-write` makes
+`.github/workflows/deploy-edge-functions-on-merge.yml` dispatch
 `https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-section4-closures.yml`
-(`Run workflow` → `commit_sha` = current `main`, `operation` = `deploy-reviewed-release`,
-`confirm` = `DEPLOY_REVIEWED_F27_SECTION4_CLOSURES`, plus the two
-`rollback_bundle_*` values from his capture). Since 2026-09-24 the lane
-deploys and seals exactly three functions: `production-write`,
-`deliverable-write`, `batch-write` (`linear-outbound` and `linear-inbound`
-are deleted and have no deploy path). It is owner-only — the sealed
-capture needs a private Management token and Google service-account
-credential neither this session nor any future one holds — so hand him this
-exact link rather than describing the workflow.
+with `capture` as both `rollback_bundle_*` inputs. That lane then seals the live
+three itself (`scripts/f27-edge-source-rollback.js capture`, the same script and
+format as before, cross-checked against an independent live fingerprint read),
+stores the bundle content-addressed in the `SyncView Backups/` Shared Drive root
+with an independent readback (`scripts/f27-private-snapshot-store.js`), fetches
+and inspects it with the unchanged steps, and only then deploys and attests. The
+sealed SHA-256 and byte length are in that run's summary: they are what
+`restore-captured-prior-three` needs.
 
-His sealed-capture/upload step (current commands: `docs/ops/F27_SECTION4_CAPTURE_PLAYBOOK.md`; the
-four-slug commands in `docs/ops/F27_INSTALL_RUNBOOK.md` Section 1 are the 2026-08-02 install record, not today's capture)
-runs from a saved script on his own machine, not typed by hand each time:
-`$env:USERPROFILE\.syncview\f27-capture.ps1` (Windows PowerShell, aliased
-`f27capture` in his `$PROFILE`). It cds into the repo, loads his saved
-`PROJECT_REF` / `SUPABASE_ACCESS_TOKEN` from a sibling file in that same
-`.syncview\` folder, runs the capture
-(`--slugs=production-write,deliverable-write,batch-write`), and drops a Drive-ready copy already
-named `syncview-f27-edge-source-<source_bundle_sha256>.sourcebundle` — the
-exact content-addressed name `scripts/f27-private-snapshot-store.js` would
-give it (`ARTIFACT_KINDS['edge-source']`) — so it can go straight into the
-`SyncView Backups/` Shared Drive root by drag-and-drop, no rename step.
+Manual fallback, for Lighthouse (never Sidney): Run workflow on that link with
+`commit_sha` = current `main`, `operation` = `deploy-reviewed-release`,
+`confirm` = `DEPLOY_REVIEWED_F27_SECTION4_CLOSURES`, both bundle inputs
+`capture`. `operation` = `capture-only` (confirm `CAPTURE_F27_SECTION4_PRIOR_THREE`)
+is the dry run: capture, seal, store, fetch back, inspect, deploy nothing.
 
-**Do not ask him to paste `PROJECT_REF` or `SUPABASE_ACCESS_TOKEN` again** —
-both live only in that local script, off-repo. When he reports a capture, he
-is reading straight from its JSON output (`sealed_bundle_sha256`,
-`sealed_bundle_byte_length`); use those directly as `rollback_bundle_sha256` /
-`rollback_bundle_byte_length` for the Section 4 dispatch — no re-derivation,
-no re-explaining the naming convention.
+The old Windows script (`$env:USERPROFILE\.syncview\f27-capture.ps1`) still
+works and a bundle it produced is still accepted (pass its two values instead of
+`capture`), but **never ask Sidney to run it, drag a bundle, or paste values, and
+never ask for or about his Supabase access token.** Playbook:
+`docs/ops/F27_SECTION4_CAPTURE_PLAYBOOK.md`.
 
 ## NEVER WRITE A HASH YOU DID NOT JUST READ IN FULL FROM A COMMAND'S OUTPUT
 

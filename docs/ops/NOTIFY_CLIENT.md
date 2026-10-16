@@ -1,6 +1,6 @@
 # Notify client (Calendar and Samples)
 
-Built by session Herald, 2026-10-14. Source only: nothing here is deployed, applied or switched on yet.
+Built by session Herald, 2026-10-14. **Live since 2026-10-15** (checked 2026-10-16: `client-review-alert` v4 deployed, the migration applied, 3 alerts recorded so far, all for one client). The steps under "To turn it on" below are done and kept as the record.
 
 ## What it is
 

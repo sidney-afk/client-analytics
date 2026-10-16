@@ -33147,3 +33147,189 @@ matches; a teammate's change while typing waited for blur → drawn at once, the
 **Who sees it (owner, 2026-10-14: test client first).** Every entry point (Calendar card, SMM review panel, Kasper review) is behind one `syncview_runtime_flags` row, key `frame_viewer_clients`, value `{"all": false, "clients": ["<slug>", ...]}`. Read like the other per-client flags (a bounded read with the public key, then a realtime channel); fails closed: no row, a value of the wrong shape (`all` must be the boolean `true`), a failed read or a deleted row all mean hidden. The list lives only in the database. With the row missing the buttons carry the `hidden` attribute and take no room, so the page looks as it did before. Lighthouse adds the row; this change does not write it.
 
 **Release.** Two steps, in this order: (1) run the `deploy-single-function` workflow with function `frameio-view` and the merge commit's SHA (needs no new secret: it uses the same `FRAMEIO_BROKER_KEY` and `FRAMEIO_CLIENT_ID` as `frameio-token`, and the key keeper must already be signed in); (2) the page ships with the next Pages deploy of main. Until step 1 is done the button shows "could not load" and the normal Frame.io link keeps working. **Way back:** revert the pull request; the function can stay deployed, nothing calls it.
+
+## 419. [2026-10-15, BUILT, NOT MERGED, NOT DEPLOYED] Watch here, owner feedback: the Review tab plays the video in place, the Sheet gets a play icon (session Lens)
+
+**Owner feedback on #418 (merged, on for the test client only).** (1) Review tab, staff and client link: no pop-up and no comments. Clicking the video preview plays the video where the preview was; the label says "Play video" (was "Open video"); the "Watch here" button under it becomes a small "Watch in Frame.io" link that opens Frame.io in a new tab. (2) A client link has to get the playable address too. (3) Sheet: keep the pop-up with comments, but replace the "Watch here" text button with a small play icon at the top centre of the thumbnail (on hover; always visible on a phone). (4) All of it stays behind `frame_viewer_clients`; with the row off, every page looks as it did before #418.
+
+**What changed.**
+- Review tab: `_calReviewComponentPreview` marks the video tile (`data-fv-tile`, switched on by the flag) and the click plays the video in the tile's place (`svFrameInlinePlay`). A failed load says so in the tile with "Try again" and the normal Frame.io link; an expired address is asked for once more. Switched off, the tile is the same link with the same "Open video" label (a second label is in the markup but not shown), and no "Watch in Frame.io" link is shown. Kasper's board uses the same preview, so its opened card plays in place too; his card-row "Watch here" button (the pop-up) is unchanged.
+- Client link: `frameio-view` now also answers a client review token, with the card's id in the body (`{ card_id }`). The server (`client-card.mjs`) requires: the token belongs to exactly one client; the `frame_viewer_clients` row lists that client or says `all: true` (a missing row, wrong shape or failed read means no); the client is active; the card exists and belongs to that same client (another client's card answers `not_found`, exactly like a missing card); the Frame.io link comes from the card, never from the request (a link sent along must be the card's own). The answer is only `{ ok, video:{ url, expires_at, duration_seconds, fps }, fetched_at }`: Frame.io is never asked for comments, and the file name, ids and Frame.io page address are left out. A request carrying both a staff key and a client token is refused. Staff behaviour is unchanged. The function now reads `client_access`, `syncview_runtime_flags`, `clients` and `calendar_posts` with the service role key (reads only).
+- Sheet: a small play icon (`.cal-thumb-play`) is an overlay on the card's thumbnail, kept across thumbnail refreshes and updated when the card's video link changes. The "Watch here" text button is gone from the link row.
+- Client link pages now read the `frame_viewer_clients` row too (a bounded public read, like the other flags). They still get no pop-up and no Sheet icon.
+
+**Release.** (1) Run `deploy-single-function` for `frameio-view` with the merge commit's SHA. The function needs `SUPABASE_SERVICE_ROLE_KEY`, which every function already has. (2) The page ships with the next Pages deploy. Until step 1, a client's inline player says "could not load" and "Open in Frame.io" works; staff are unaffected. **Way back:** revert the pull request; the redeployed function can stay (the old page only sends a staff key).
+
+**Tests.** `test/frameio-view-source.js` (107 checks: the wrong client is refused, no token is refused, a client gets no comments, the flag fails closed, only reads), `test/frameio-viewer-browser.js` (Sheet icon, staff and client Review tab, desktop and 390px, switch off and live changes).
+
+## 421. [2026-10-15, BUILT, NOT MERGED, NOT DEPLOYED] Writing a note: it shows the moment it is sent, and is never lost (session Scribe)
+
+**Owner, 2026-10-15.** A note with Request changes worked but took a long time to send. Goal: every note, by everyone (client link, Calendar Sheet Notes, Review, Messages; desktop and phone), feels instant and never fails silently.
+
+**Measured first (live backend, test client only, real Chromium, median of 5; `scripts/note-send-timing.js`).** The Notes dialog waited for two server calls in a row (the write gateway, then the card save) before it drew the note: about 2.2 to 2.5 s. Messages drew a reply only after the save, the read mark and a full inbox reload: about 5.2 s. A client's Request changes never showed the note at all (the part left the screen; only a "Sending..." toast for 0.6 s on a caption, about 4 s on a video, which goes gateway comment, then gateway status, then card). The live function logs showed every gateway comment and status write also waiting about 0.3 s for the Slack sender to be woken.
+
+**What changed.**
+- **Note outbox (190).** Every note gets its id at the click; the id is what the gateway keeps one comment per (`native_comment_id`) and what the card save merges by, so a retry, a double click or a re-send after a refresh can never make a second note. The note and its words are kept in this browser until the server confirms it, drawn in the thread as "Sending...", and on failure (or a refresh mid-send) as "Not sent" with Tap to retry and Discard. Sends for one card run one after another, in click order, behind the screen.
+- Notes dialog (staff and client) and Messages replies send through it; the box is free at once. Messages' read mark and inbox refresh run after the save, never before the reply shows.
+- Review Comment (client and staff) is marked "Sending..." and, if refused, "Not sent" with Retry, also after a refresh; the refusal goes to the write-refusal log.
+- Request changes keeps the note in sight, "Sending...", while the request is on its way (client and staff; a client request held for no connection says so and offers Tap to retry). The requests themselves are byte-identical to main (`test/client-review-requests-unchanged-browser.js`; only the `_calReviewRequestTweak` source hash re-pinned).
+- **Found while measuring, fixed (120/190/230):** a card refreshed while its work-item link was being looked up kept a stale "lookup running" mark, so Send stayed locked on "Notes are still loading" until a reload. Main can hit it too; the background send made it common. The mark is now kept per card id.
+- **Server (`production-write`):** the Slack sender wake after an ordinary comment or status write runs after the answer (`EdgeRuntime.waitUntil`) instead of before it. Needs the Section 4 deploy; the page works the same without it.
+
+**Release.** Pages ships the page with the merge. `production-write` needs the F27 Section 4 deploy lane (capture, upload, dispatch) with the merge commit; until then the server saving is not live. No migration. **Way back:** revert the pull request (and redeploy the previous `production-write` if it was deployed).
+
+**Tests.** `docs/syncview-design/tests/note-send-outbox-browser.js` (fast path, slow server, error then retry, double click, refresh mid-send with the server's answer lost, Messages, client comment and request, the stuck-lookup case; desktop and 390 px; screenshots light and dark in `docs/audits/note-send-speed/`).
+
+## 423. [2026-10-16, BUILT, NOT MERGED, NOT DEPLOYED] Watch here polish: fast start, autoplay, vertical videos, one comment list, full quality on the Review tab (session Lens)
+
+**Owner feedback (2026-10-15).** The Sheet's pop-up should start the video as fast as possible and play by itself; vertical (phone-shaped) videos should use the height with the comments beside them; the Frame.io comments and the card's SyncView notes should be one list in time order, each marked with its source; less text (no "FRAME.IO" label, no Refresh, no "Comments stay in Frame.io" line, one "Open in Frame.io" button); and the Review tab's inline video played at low resolution.
+
+**What was measured first (2026-10-16, against the test client's real Frame.io links, through the `frameio-token` key keeper).**
+- The old answer took 750 to 1,370 ms (median about 855) over 7 sequential Frame.io calls (find the link, search the accounts, the share, its assets, the file with its addresses, its metadata, its comments). With the comments and the video address now separate requests, and the file behind a link remembered for 60 seconds, the video-only answer takes about 610 to 680 ms the first time (6 calls, the address and the metadata asked for side by side) and about 85 to 95 ms (2 calls) once the link is known, which is what the hover before a click now does. The comments answer separately in about 170 ms once the link is known.
+- Why the Review tab looked low resolution: the page started on Frame.io's "efficient" proxy, which on the one 1080x1920 test file is 360x640 at about 1 Mbit/s (6.8 MB). The "high_quality" file is the full 1080x1920 at about 4 Mbit/s (23.5 MB), the original is 1080x1920 at about 2.9 Mbit/s. All three have their index at the front, so they start playing without downloading the whole file; the first 1 MB took about 330 ms (efficient) and 460 ms (full size).
+- The API gives no width or height for a file, so the page learns the video's shape from the thumbnail (before the video loads) and then from the video itself.
+
+**What was built.**
+- `frameio-view`: takes `part` ("video", "comments", or both as before); the video part returns every address by name (`video.renditions`: efficient, high_quality, original) with `video.url` now the full-size file first; a minute's memory of what a link points at (the video and comments requests that arrive together share one search); the client path is unchanged in what it may see (the addresses only, no comments, only for its own card), and now also gets the renditions. No new secret. `frameio-token` is not touched.
+- Pop-up: opens with the card's thumbnail on the stage and the SyncView notes already in the list; asks for the video and the comments side by side; pointing at the icon (hover for 120 ms, focus, press, touch) fetches the address and starts loading the video so the click mostly finds it ready; plays by itself with sound, or muted with a "Tap for sound" control if the browser refuses; vertical videos get a narrower panel with the video using the height and the comments beside it (stacked on a phone), wide ones keep today's layout; the player is exactly the video's shape, so no black bars; one list, oldest first, a purple edge and a timecode on Frame.io comments (click to jump), a grey edge on SyncView notes, the source named small at the end of each line; one "Open in Frame.io" button; the label, Refresh, the footnote and the per-comment reply links are gone.
+- Quality: the pop-up and the Review tab's inline player both start on the full-size file; they use the small proxy only when the browser reports data saver, 2g or 3g, or under 3 Mbit/s, and fall back to it (from the same second, with a quiet "Smaller version for your connection" note) if the first frame has not come in 4 seconds or playback stalls for 2.5 seconds.
+- Still behind `frame_viewer_clients` (test client only until the owner says everyone); a hover on anything that is switched off asks for nothing.
+
+**Release.** `frameio-view` needs a redeploy ([deploy-single-function](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml), function `frameio-view`, the merge commit's SHA): the page sends `part`, and the new rendition list comes from the function. Until it is deployed, the old function ignores `part` and answers with everything in one go, so the page still plays (on the small file, with the comments arriving with the video); nothing breaks. **Way back:** revert the pull request.
+
+**One decision for the owner.** The merged list is in time order by when each entry was written (the only order a Frame.io comment and a SyncView note share; a note has no spot in the video). Frame.io comments with a time still show it and still jump the video, and the markers under the video are in video order.
+## 420. [2026-10-15, BUILT, NOT MERGED, NOT DEPLOYED] Messages page opens fast; its loading placeholder is the real layout (session Swift)
+
+**Measured first.** `scripts/messages-inbox-timing.js` (real browser, fully mocked, inbox answer held for the live
+median). Click on Messages to list visible, ms, median of 3, on `origin/main`: cold click at once 1921, click after 1.5 s 1922,
+after 6 s 1921, reopened in the same tab 1927, second visit inside the page 13. Where the time goes: script loading 0 (the Messages
+code is in core: DOMContentLoaded 250 ms, button usable 300 ms after navigation start); the inbox call 1910 of 1921; rendering 8 to
+12 ms for 60 conversations. The call only started on the click (the first background call waited a full minute), and the loading
+state was the generic Kasper skeleton, preceded by a flash of "You're all caught up" because the empty-list branch ran before the
+loading flag was set. Live: `production-comments` median 1870 ms, p90 2950 ms over 1220 calls (all actions of the function). The
+database work itself is small (read-only EXPLAIN ANALYZE: open posts 7.6 ms for 634 of 17168 rows, notes 14 ms), so no index and
+no migration. The cost is requests waiting for each other: for an admin (634 open posts, 948 linked deliverables) `inbox` made
+17 sequential round trips (member, budget, audit, roster, posts, 5 deliverable chunks, 5 note chunks, 2 read-mark chunks).
+
+**Fix.** Page: the call starts when the pointer or finger reaches the Messages button (no timer or background tick starts it: the repo's hermetic gates (`prod-structure-subset.js`, `pto-ui-polish.js`, the TikTok queue first-read test) treat any POST the page was not asked to
+make as a bug, so only a real intent on the Messages button, or opening Messages, starts it; the live refresh runs only while Messages is open); the last list is kept 10 minutes in this tab's own storage (sessionStorage), tagged with the member id, list lines only
+(no conversation text beyond the one preview line), shown at once and replaced by the fresh answer; it is discarded on sign-out,
+on a different member, when expired, on any mismatch. A conversation opened from the cached list shows a chat placeholder and is
+marked read only after its notes arrive. The loading placeholder is the loaded markup with see-through words and grey bars, so
+every box matches (asserted: 23 boxes, desktop and 390 px, light and dark). Server (`production-comments`, `inbox` and
+`inbox_mark`): the deliverable chunks, the note chunks and the read marks are fetched in parallel instead of one after another:
+17 sequential round trips down to 7 (the audit still answers before any post or note is read, as before). Who sees what (`inbox.mjs`, scope,
+visibility, audit) is untouched.
+
+**After** (same script): cold click at once 1909 (it is the server answer), pointer resting on the button 0.5 s 1376,
+1.5 s 376, reopened in the same tab 14, second visit 16; first grey placeholder 15 to 17 ms after the click.
+
+**Getting out (owner, 2026-10-15; replaces "no Close button").** The Messages button toggles: pressed while Messages is open it
+closes and puts the person back on the same tab, client, open card, Sheet or window scroll. A Close button sits top right on desktop and
+in the phone title bar (44 px) and does the same; Escape closes on desktop unless a text box holds typed text (drafts are kept); browser
+Back returns the same way; a page opened straight from a link closes to the Calendar. Tests: block P of `messages-inbox-browser.js`
+(desktop and 390 px, light and dark); screenshots `docs/audits/messages-speed/close-*.png`.
+
+**Release.** The page ships with the next Pages deploy of main. The server part needs a `production-comments` deploy; the page
+works with the old function too (the saving is then only the early start and the cache). No migration. **Way back:** revert the
+pull request (and redeploy the previous `production-comments`).
+
+## 422. [2026-10-16, BUILT, NOT MERGED, NOT LIVE] Merged means live: no committed build output, Edge Functions deploy on merge, the Section 4 capture runs in GitHub (session Conveyor)
+
+**Why.** Every session committed `index.html` and `js/sv-*.js`, so each merge made every other
+open pull request conflict and re-run all of CI (over and over on 2026-10-15). Most Edge Functions
+went live only when the owner pressed Run workflow, and the three Section 4 functions also needed a
+capture script on one Windows machine plus a drag-and-drop into Drive.
+
+**What changed.**
+- The page is built, not committed. `index.html`, `js/sv-*.js`, `src/index/INDEX.md` are in
+  `.gitignore`; `pages-site.yml` builds them, puts back the older content-hashed bundles a tab left
+  open may ask for (`scripts/pages-retained-bundles.js`), then publishes. Every CI job that reads the
+  page builds it first (`.github/actions/build-index`); `test/run-all.js`, `qa/master.js`,
+  `qa/run-probes.js` build first by themselves. `check:index` now proves the build is deterministic
+  and nothing built is tracked (the alias name is kept: `package.json` is pinned by the F27
+  reconciler closure and the PTO evidence fingerprint). The two checks that compared against a base
+  commit's committed `index.html` (`check-modules.js --against`, the identity check's moved-line
+  rule) read the base's own fragments when the base has none; the identity check can only be
+  stricter for it.
+- `deploy-edge-functions-on-merge.yml` deploys every changed function on merge, in order, with
+  the manual lanes' checks (runbook `docs/ops/EF_AUTO_DEPLOY.md`). Held: a merge that adds a
+  migration (until applied, then a manual run with `migrations_applied`), drift, a failed safeguard,
+  a held predecessor. Manual only: `calendar-upsert`, `sample-review-upsert`, `linear-*`,
+  `client-token-verify`. The four lanes that deployed on push are manual fallbacks now.
+- `deploy-f27-section4-closures.yml` accepts `capture` as both bundle inputs: it captures with the
+  same script, cross-checks an independent live read, stores in the same Drive root with an
+  independent readback, and only then runs its unchanged fetch, inspect, deploy and attest steps.
+  `capture-only` is the dry run. The merge lane dispatches it and waits.
+
+**Measured before merge (offline, this sandbox has no production token).**
+- Publish dry run at `407c5cb`: the folder built from `src/index/` (plus the retained bundles) and
+  the folder built from the committed files: 616 files each, `diff -r` identical, 1,187,093,533 bytes.
+- Plan dry run over the 25 newest merges that touched functions or migrations, plus the 4 newest
+  that touched `production-write`/`notify`: listed in the PR.
+- Section 4 capture: the owner's command (main's script) and the lane's step, fed the same
+  provider answers (live metadata from the Supabase connector, main's source bytes) and the same
+  clock, wrote byte-identical bundles (SHA-256 `5971a4a6cdc54c6ae6f394fc6f2fa9ceea0c4e8165f1cd2613d21048f6e85992`,
+  515,791 bytes); each captured closure equals the lane's pin; the lane's receipt check and
+  `inspect` pass on it.
+
+**Not yet proven live:** the first real run of each lane. After merge: one `capture-only` dispatch of
+the Section 4 lane (deploys nothing), and the first merge that changes a function.
+
+**Review round 1 (Lighthouse, 2026-10-16), fixed on the same branch:** (1) `dawn-check.yml` now builds the page,
+and `test/pages-build-inputs.js` fails for any workflow that serves or tests the page without the build step;
+(2) the order rule holds across runs (a follower is deployed only if its predecessor is live at the head's
+source, in the plan or read live); (3) a run starts from the last fully successful run, so held and failed
+functions are planned again, a failed runs lookup fails the run, and a migration holds only the functions its
+own merge changed; (4) Section 4 is dispatched only at the planned commit (or a tip with no function, migration
+or lane change since), else handed to the tip's own run. Also: the attestation covers what went live even when
+a later deploy fails, a manual run's summary says it skipped the drift guard and marks drift per function, and
+the publish keeps the bundles of the last 30 builds (was 10).
+
+## 424. [2026-10-16, BUILT, NOT MERGED] A second status pick while the first is still saving never reached production-write (session Relay)
+
+**Found by Lighthouse (2026-10-16, read only), confirmed and reproduced by Relay.** One real card was red on the card-vs-work-item drift check from the morning of 2026-10-16: the card said Posted, its work items said Scheduled. The same pattern shows 4 times since 2026-10-01. Any two status picks on one card inside the gateway wait can cause it.
+
+**Root cause (in `_calFlushCardSave`, `src/index/170-calendar-links-status.js.part`).**
+- Save A (for example "Set all" to Scheduled) puts its merged card object into `calState.posts`, so that object IS the card on screen, then waits about 2.5 s on the production-write status push.
+- A second pick in that wait ("Set all" to Posted) changes that same object and queues save B.
+- Save A then built its card write from the object (`wirePost[k] = post[k]`, and the overall from `post.status`), so the write meant to say Scheduled said Posted.
+- Its echo moved the conflict check's base to Posted (`_calBaseAfterSave`), so save B's check (`_calConflictGate`, #1915) saw "unchanged" and dropped both statuses. Posted was never pushed to production-write.
+
+**Fix.** Save A takes a snapshot of the card's statuses when it starts, and every status it sends (the production-write push value, the card write's `*_status` and the overall `status`, in both the field patch and the whole-card send) comes from that snapshot plus its own edits, never from the card on screen after an await. The overall is recomputed from those. Save B then sees its Posted as a real change and pushes it to production-write first, as the callers table in `docs/ops/CALENDAR_UPSERT_RETIREMENT_PLAN.md` requires. The page builds the same payload for `calendar-upsert` and `calendar-card-write`, so both writers are covered by the one change.
+
+**Other fields checked.** A text field (caption, name, dates, links) typed during the wait can still ride along early in save A's card write. That does no harm: nothing about those has to reach production-write first, the value written is the newer one, and save B simply has nothing left to send. Comment threads are already rebuilt from the live lists on purpose. No server-side backstop was added; the page fix closes the path, and the drift robot already catches anything else.
+
+**Proof.** `docs/syncview-design/tests/cal-status-pick-during-save-browser.js` (mocked, with the first production-write push held 2.5 s) runs the race once per writer. On the old code it fails 6 checks (the first card write says Posted, the graphic and video work items stay Scheduled); with the fix all pass. Added to `calendar-unit-tests.yml`.
+
+**Not done here.** The one real card already drifted is not repaired by this change (moving its work items to Posted is a data fix for the owner or Lighthouse). **Way back:** revert the pull request.
+## 425. [2026-10-16, BUILT, NOT MERGED] The first Section 4 release through the new lanes failed closed in 1.6 s with no reason; the lane now names the reason and pulls its bundler image itself (session Mechanic)
+
+**What happened.** Run 38933979961 (dispatched by the merge lane, run 38933820318, at `bb5bf40`) passed
+the in-run capture, the store, every gate, and then `supabase functions deploy production-write
+--use-docker` exited non-zero in about 1.6 s. Its output went to the private log, deleted at cleanup,
+so the public log said only "failed or was ambiguous". Nothing changed live (checked by Lighthouse).
+
+**Cause, as far as public evidence goes.** Everything else the step needs was proven seconds before
+or reproduced: the same CLI (2.109.0, version-checked), Docker (preflight passed), the token (the
+notify prerequisite read live with it), `supabase/config.toml` and the function tree at `bb5bf40`
+(CLI 2.109.0 run locally from that tree with a fake token parses the config, resolves all 10 files
+and reaches the upload). What differs from the 2026-10-09 success (run 37945305081, same step 24 s
+including the pull): a newer runner image (20261004.327.1 then, 20261012.334.1 now), so a fresh pull.
+CLI 2.109.0's Docker path runs `docker run public.ecr.aws/supabase/edge-runtime:v1.73.13`, one
+registry, no retry, no mirror; a refused pull fails in about a second. public.ecr.aws answered
+13 of 15 anonymous manifest reads of exactly that image with 429 `TOOMANYREQUESTS: Data limit
+exceeded` on 2026-10-16. Most likely cause: a throttled bundler image pull. Not proven, because the
+one line that would prove it was deleted; the change below makes the next failure name itself.
+
+**What changed.** (1) Each of the three deploy steps prints the CLI's own reason
+(`scripts/ef-deploy-public-reason.js`, run from the trusted operator checkout: allowlisted lines,
+redacted, at most four, 200 characters each, a line count only when nothing matches). (2) A new step
+before any deploy or restore pulls the bundler image by its pinned linux/amd64 digest (identical on
+public.ecr.aws and ghcr.io), retried, ECR first then ghcr.io, and tags it as the name the CLI runs,
+so docker never pulls during a deploy; it fails closed if the installed CLI names another Edge
+Runtime tag. Tests: `test/f27-section4-deploy-lane.js`.
+
+**After merge:** the same manual run of the merge lane at main's tip, `functions` =
+`production-write,production-comments`.
+

@@ -3,11 +3,11 @@ import { WL_CLIENT_NAMES } from './070-core-client-names.js';
 import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
 import { CAL_SUPABASE_URL, _svDateHtml, _svSelectHtml } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders, _writeUiRecordFailure, _writeUiTrackSave, computeOverallStatus } from './120-calendar-flags-write-repair.js';
-import { calClientSlug, calState } from './130-calendar-model-cache.js';
-import { _calCacheRead } from './150-calendar-hydration-import.js';
+import { CAL_PLATFORM_BY_KEY, calClientSlug, calState } from './130-calendar-model-cache.js';
+import { _calCacheRead, _calV2FetchPosts } from './150-calendar-hydration-import.js';
 import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     /* ============================================================
-       INSTAGRAM UPLOAD (the Instagram side of the TikTok Upload tab)
+       INSTAGRAM UPLOAD (the Instagram side of the Post tab, once called TikTok Upload)
        Posts a video to a client's Instagram through Post For Me. Unlike TikTok, which
        runs through n8n webhooks, everything here talks to ONE Supabase function,
        `instagram-upload`, which holds the Post For Me key and keeps the queue in the
@@ -38,6 +38,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         objectUrl: null,
         title: '',
         titleFromCard: '',           // the caption a Calendar card filled in, while unedited
+        captionFill: null,           // { name, text }: the caption the chosen video's file name filled in, while it can be undone
         // The Reel cover: an image (uploaded, or copied from a Calendar card) or a frame of the video. Optional.
         cover: { mode: 'image', blob: null, url: '', name: '', source: '', note: '', dims: '', frameMs: 0, frameUrl: '', duration: 0, cardId: '' },
         schedule: { postNow: true, date: '', hour: '', minute: '', ampm: 'AM', tz: 'America/New_York' },
@@ -151,6 +152,87 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         const undated = cards.filter(c => !c.date).sort(byManual);
         return dated.concat(undated).slice(0, 80).map(c => Object.assign(c, { label: c.name }));
     }
+    /* ---- Caption from the Calendar (both sides of the Post tab) --------------------------------
+       When the chosen video's file name names one of the client's Calendar cards, that card's caption
+       fills an EMPTY caption box. The file name without its extension is compared, ignoring case, spaces
+       and punctuation, with the card's name and with the last part of the card's video link. Only when
+       exactly one card matches does anything fill; two or more fill nothing. A card's second caption
+       wins when it was written for the platform being posted to.
+       The cards come from where the Calendar keeps them: the live Calendar when it shows this client,
+       otherwise its saved copy on this device, otherwise one read of the same rows the Calendar reads
+       (no new access of any kind). That read is kept two minutes per client. */
+    const SV_CAP_FETCH_TTL_MS = 2 * 60 * 1000;
+    const _svCapFetched = new Map();   // slug -> { at, promise }
+    function _svCapKey(s) {
+        return String(s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+    }
+    function _svFileStem(name) { return String(name || '').trim().replace(/\.[a-z0-9]{1,5}$/i, ''); }
+    function _svLinkStem(url) {
+        try {
+            const seg = new URL(String(url)).pathname.split('/').filter(Boolean).pop() || '';
+            return _svFileStem(decodeURIComponent(seg));
+        } catch (e) { return ''; }
+    }
+    function _svCalendarPostsFor(client) {
+        const slug = calClientSlug(client);
+        try {
+            if (calState && calState.client && calClientSlug(calState.client) === slug && Array.isArray(calState.posts) && calState.posts.length) return Promise.resolve(calState.posts);
+            const cached = _calCacheRead(slug);
+            if (cached && Array.isArray(cached.posts) && cached.posts.length) return Promise.resolve(cached.posts);
+        } catch (e) {}
+        const kept = _svCapFetched.get(slug);
+        if (kept && Date.now() - kept.at < SV_CAP_FETCH_TTL_MS) return kept.promise;
+        const promise = _calV2FetchPosts(slug, null).then(j => (j && j.posts) || []);
+        _svCapFetched.set(slug, { at: Date.now(), promise });
+        promise.catch(() => { if (_svCapFetched.get(slug)?.promise === promise) _svCapFetched.delete(slug); });
+        return promise;
+    }
+    // { id, name, caption } for the one card the file name names, or null (no match, two or more, no caption, a failed read).
+    async function svCalendarCaptionFor(client, fileName, platform) {
+        const key = _svCapKey(_svFileStem(fileName));
+        if (!client || !key) return null;
+        let posts = [];
+        try { posts = await _svCalendarPostsFor(client); } catch (e) { return null; }
+        const hits = (posts || [])
+            .filter(p => p && p.id && !p.archived && String(p.id).indexOf('p_cal_settings') !== 0 && String(p.status || '').toLowerCase() !== 'archived')
+            .filter(p => _svCapKey(p.name) === key || (!!p.asset_url && _svCapKey(_svLinkStem(p.asset_url)) === key));
+        if (hits.length !== 1) return null;
+        const p = hits[0];
+        const alt = String(p.caption_alt || '').trim();
+        const caption = (alt && String(p.caption_alt_platform || '').trim().toLowerCase() === platform) ? alt : String(p.caption || '').trim();
+        if (!caption) return null;
+        return { id: String(p.id), name: String(p.name || '').replace(/\s+/g, ' ').trim() || 'Untitled card', caption };
+    }
+    // The line under a caption the Calendar filled, with its Undo.
+    function svCaptionFillHtml(id, name) {
+        return `<div class="tk-cap-fill" id="${id}" role="status">Caption filled from Calendar: <strong>${_igEsc(name)}</strong> <button type="button" class="tk-cap-undo" id="${id}Undo">Undo</button></div>`;
+    }
+    // The platform's name and logo, for the header badge, the switch and the post button.
+    function svPlatformLogo(platform) {
+        const p = CAL_PLATFORM_BY_KEY[platform === 'instagram' ? 'instagram' : 'tiktok'];
+        return `<span class="tk-plat-logo" aria-hidden="true">${p ? p.icon : ''}</span>`;
+    }
+    function svPostButtonLabel(platform, postNow) {
+        const name = platform === 'instagram' ? 'Instagram' : 'TikTok';
+        return svPlatformLogo(platform) + '<span>' + (postNow ? 'Post to ' : 'Schedule on ') + name + '</span>';
+    }
+    async function _igTryCaptionFill(file) {
+        if (!file || !igState.client || igState.title.trim()) return;
+        const client = igState.client;
+        const hit = await svCalendarCaptionFor(client, file.name, 'instagram');
+        if (!hit || igState.file !== file || igState.client !== client || igState.title.trim() || igState.submitting) return;
+        igState.title = hit.caption.slice(0, IG_MAX_CAPTION);
+        igState.titleFromCard = igState.title;
+        igState.captionFill = { name: hit.name, text: igState.title };
+        if (_igMounted) _igRenderForm();
+    }
+    // A caption the file name filled, still as it was filled, leaves with the video (or the client) it came from.
+    function _igDropCaptionFill() {
+        const f = igState.captionFill;
+        if (f && igState.title === f.text) { igState.title = ''; if (igState.titleFromCard === f.text) igState.titleFromCard = ''; }
+        igState.captionFill = null;
+    }
+
     function _igImageSize(url) {
         return new Promise(resolve => {
             const img = new Image();
@@ -199,6 +281,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         igState.cover.cardId = ''; igState.cover.note = '';
         if (igState.titleFromCard && igState.title === igState.titleFromCard) igState.title = '';
         igState.titleFromCard = '';
+        igState.captionFill = null;
     }
     async function _igUseCalendarCard(cardId) {
         const c = _igCover();
@@ -401,6 +484,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             <div class="tk-card">
                 <h3>Caption <span class="tk-card-hint" id="igCount">${igState.title.length} / ${IG_MAX_CAPTION}</span></h3>
                 <textarea class="tpl-input" id="igTitle" rows="5" placeholder="Write the caption…" ${igState.submitting ? 'disabled' : ''}>${_igEsc(igState.title)}</textarea>
+                ${igState.captionFill ? svCaptionFillHtml('igCapFill', igState.captionFill.name) : ''}
 
             </div>
             <div class="tk-card">
@@ -411,7 +495,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
                         Post immediately
                     </label>
                 </div>
-                ${igState.schedule.postNow ? '<div class="tk-step-note">Posts as soon as you press Post now. Switch off to pick a date and time.</div>' : ''}
+                ${igState.schedule.postNow ? '<div class="tk-step-note">Posts to Instagram as soon as you press Post to Instagram. Switch off to pick a date and time.</div>' : ''}
                 <div id="igScheduleFields" ${igState.schedule.postNow ? 'hidden' : ''}>
                     ${_svDateHtml('igDate', igState.schedule.date, { min: _igTodayIso(), placeholder: 'Choose date', disabled: igState.submitting })}
                     <div style="display:flex;gap:8px;margin-top:10px">
@@ -423,7 +507,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
                 </div>
             </div>
             <div class="tk-submit-bar">
-                <button type="button" class="tk-submit-btn" id="igSubmit" ${can ? '' : 'disabled'}>${igState.submitting ? 'Uploading…' : (igState.schedule.postNow ? 'Post now' : 'Schedule post')}</button>
+                <button type="button" class="tk-submit-btn" id="igSubmit" ${can ? '' : 'disabled'}>${igState.submitting ? 'Uploading…' : svPostButtonLabel('instagram', igState.schedule.postNow)}</button>
                 ${igState.submitting
                     ? `<div class="tk-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="tk-progress-bar" id="igProgress" style="width:${igState.progress}%"></div></div>${igState.phase === 'creating' ? '<span class="tk-step-note">Finishing…</span>' : '<button type="button" class="tk-mini-btn" id="igAbort">Cancel</button>'}`
                     : ''}
@@ -438,9 +522,10 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         const $ = (id) => document.getElementById(id);
         // Only the parts that change the submit button re-render the whole form; typing never does.
         const syncSubmit = () => { const b = $('igSubmit'); if (b) b.disabled = !!_igValidateSoft(); };
-        $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; if (igState.client) { try { svSharedClientNote(igState.client); } catch (err) {} } _igLeaveClient(); _igRenderForm(); });
+        $('igClient')?.addEventListener('change', (e) => { igState.client = e.target.value || null; if (igState.client) { try { svSharedClientNote(igState.client); } catch (err) {} } _igLeaveClient(); _igRenderForm(); if (igState.file) _igTryCaptionFill(igState.file); });
         $('igTitle')?.addEventListener('input', (e) => {
             igState.title = e.target.value;
+            if (igState.captionFill && igState.title !== igState.captionFill.text) { igState.captionFill = null; $('igCapFill')?.remove(); }
             const c = $('igCount'); if (c) c.textContent = igState.title.length + ' / ' + IG_MAX_CAPTION;
             syncSubmit();
             _igRenderPreview();
@@ -464,6 +549,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             coverDrop.addEventListener('drop', (e) => { e.preventDefault(); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) _igSetCoverImage(f, f.name, 'upload'); });
         }
         $('igRemoveFile')?.addEventListener('click', _igClearFile);
+        $('igCapFillUndo')?.addEventListener('click', () => { _igDropCaptionFill(); _igRenderForm(); $('igTitle')?.focus(); });
         $('igSubmit')?.addEventListener('click', _igSubmit);
         $('igAbort')?.addEventListener('click', () => { if (_igAbort) _igAbort.abort(); if (_igActiveXhr) _igActiveXhr.abort(); });
         const drop = $('igDrop');
@@ -485,11 +571,13 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
         if (!file) return;
         if (!/^video\//.test(file.type || '')) { igState.error = 'That file is not a video.'; _igRenderForm(); return; }
         if (igState.objectUrl) URL.revokeObjectURL(igState.objectUrl);
+        _igDropCaptionFill();
         igState.file = file;
         igState.objectUrl = URL.createObjectURL(file);
         igState.error = null;
         igState.cover.frameMs = 0; igState.cover.frameUrl = ''; igState.cover.duration = 0;
         _igRenderForm();
+        _igTryCaptionFill(file);
         // The length of the video sets the range of the frame picker.
         const probe = document.createElement('video');
         probe.preload = 'metadata';
@@ -501,6 +589,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     }
     function _igClearFile() {
         if (igState.objectUrl) URL.revokeObjectURL(igState.objectUrl);
+        _igDropCaptionFill();
         igState.file = null; igState.objectUrl = null; igState.error = null;
         igState.cover.frameMs = 0; igState.cover.frameUrl = ''; igState.cover.duration = 0;
         _igRenderForm(); _igRenderPreview();
@@ -592,7 +681,7 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
             if (row) igState.uploads = [row].concat(igState.uploads.filter(r => r.id !== row.id));
             igState.submitting = false; igState.progress = 0; igState.phase = ''; _igAbort = null;
             igState.file = null; if (igState.objectUrl) URL.revokeObjectURL(igState.objectUrl); igState.objectUrl = null;
-            igState.title = ''; igState.titleFromCard = '';
+            igState.title = ''; igState.titleFromCard = ''; igState.captionFill = null;
             _igCoverClear(false); igState.cover.frameMs = 0; igState.cover.duration = 0;
             igState.notice = utc ? 'Scheduled. It will appear in the queue.' : 'Sent to Instagram. It will show as Posted here once Instagram confirms.';
             igState.queueTab = 'upcoming';
@@ -758,5 +847,6 @@ import { _calDeriveThumb } from './160-calendar-organize-ui.js';
     function instagramResumePolling() { if (_igMounted) { Promise.resolve(_igFetchQueue()).finally(_igSchedulePoll); } }
 
 export {
-  instagramResumePolling, mountInstagramPanel, refreshInstagramForm, renderInstagramPanel, teardownInstagramPanel
+  instagramResumePolling, mountInstagramPanel, refreshInstagramForm, renderInstagramPanel, svCalendarCaptionFor,
+  svCaptionFillHtml, svPlatformLogo, svPostButtonLabel, teardownInstagramPanel
 };

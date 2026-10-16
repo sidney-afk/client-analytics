@@ -1393,3 +1393,28 @@ Read-only presentation; nothing about writes or authority changed.
 Shared phone segments and overlay behavior were checked with fictional transports. No writer authority or business decision changed. Exact desktop and populated phone-to-desktop comparisons, timing limits and blocked live-observation lanes are recorded in [the dated proof](../audits/2026-10-12-phone-responsiveness/README.md). Not merged or deployed.
 
 Staff phone Tabs grid follow-up: native actions and permissions preserved; phone-only styling and exact desktop comparison. See `docs/audits/2026-10-12-staff-tabs-grid/README.md`; Production live fast lane is explicitly deferred for the branch.
+
+## 2026-10-16 - "Open in Calendar" beside a work item's title (Doorway)
+
+A work item made from a Calendar card (`origin` calendar with a `card_id`) shows
+one icon button right after its title in the detail top bar, tooltip "Open in
+Calendar", the same size as its icon-button neighbours (25px desktop, 44px
+phone). It is a plain link that opens a new tab on the card's existing address
+(`#calendar/<client>/<card>`, the one Today's "Open card" uses), which lands on
+the Calendar with that card outlined. No new URL parameter, so client review
+links accept exactly what they did before. Hidden for Samples work items, items
+with no card, and on client links. Read-only navigation; no write or authority
+changed. Proof: `docs/syncview-design/tests/open-in-calendar-browser.js`.
+Rollback: revert the PR.
+
+## 2026-10-16 - "Open in Calendar" becomes a labelled button (Signpost)
+
+The icon from the entry above was too easy to miss. It is now a labelled button,
+the calendar icon and the words "Open in Calendar", drawn with the Calendar's
+Notify client class (`.notify-client-btn`), so it has that button's pill shape,
+purple fill, size and hover in light and dark; no new colour. Same place right
+after the title, same link, same rules for when it shows. On a phone the
+header row (Back, the id, Refresh, More options) has no room for it, so it drops
+to its own line under that row at 44px. Proof:
+`docs/syncview-design/tests/open-in-calendar-browser.js` (compares its computed
+look to a real Notify client button; checks 390px and 430px). Rollback: revert the PR.

@@ -78,7 +78,7 @@ function makeState(extra) {
     calls: [], view: (n, body) => ({ status: 200, body: answerFor(body) }), delay: 0, mediaHits: 0, mediaFail: 0,
     // orient: which clip the media answers with. mediaDelay: how long the FIRST request for each rendition takes (ms).
     // serverModel: the function takes as long as the real one measured (resolve 520 the first time in 60 s, then the part).
-    orient: 'landscape', mediaDelay: { small: 0, full: 0 }, hqStall: 0, mediaLog: [], mediaSeen: {}, commentsDelay: 0, serverModel: false, resolveStartedAt: 0, resolveReadyAt: 0,
+    orient: 'landscape', hqFail: false, mediaDelay: { small: 0, full: 0 }, hqStall: 0, mediaLog: [], mediaSeen: {}, commentsDelay: 0, serverModel: false, resolveStartedAt: 0, resolveReadyAt: 0,
     // The switch row the page reads. null = no row, flagFail = the read itself fails.
     frameFlag: { all: false, clients: [SLUG] }, flagFail: false, flagReads: 0,
   }, extra || {});
@@ -96,6 +96,7 @@ async function installRoutes(ctx, origin, state) {
       const hq = sp.get('q') === 'hq';
       state.mediaLog.push(hq ? 'full' : 'small');
       if (state.mediaFail > 0) { state.mediaFail--; return route.fulfill({ status: 403, headers: CORS, body: 'expired' }); }
+      if (hq && state.hqFail) return route.fulfill({ status: 403, headers: CORS, body: 'this rendition fails' });
       const first = !state.mediaSeen[hq ? 'full' : 'small'];
       state.mediaSeen[hq ? 'full' : 'small'] = true;
       if (first) { const wait = hq ? (state.hqStall || state.mediaDelay.full) : state.mediaDelay.small; if (wait) await sleep(wait); }
@@ -203,7 +204,7 @@ async function calendarRun(browser, origin, name, device, orient) {
     { id: 'n1', role: 'smm', author: 'Fixture SMM', body: 'Note from the team: cut the first second.', created_at: iso(200), done: false },
     { id: 'n2', role: 'client', author: 'Fixture Client', body: 'Agreed.', created_at: iso(150), parent_id: 'n1' },
   ];
-  const state = makeState({ orient: portrait ? 'portrait' : 'landscape', cards: [card('v1', 'Video card', FRAME, 1, { video_tweaks: JSON.stringify(notes), thumbnail_url: POSTER_URL }), card('v2', 'Second video', FRAME + '-2', 4), card('v3', 'Third video', FRAME + '-3', 5, { video_tweaks: JSON.stringify(notes) }), card('v4', 'Fourth video', FRAME + '-4', 6, { video_tweaks: JSON.stringify(notes) }), card('v5', 'Fifth video', FRAME + '-5', 7), card('v6', 'Sixth video', FRAME + '-6', 8), card('d1', 'Drive link card', 'https://drive.google.com/file/d/fixture/view', 2), card('n1', 'No video card', '', 3)] });
+  const state = makeState({ orient: portrait ? 'portrait' : 'landscape', cards: [card('v1', 'Video card', FRAME, 1, { video_tweaks: JSON.stringify(notes), thumbnail_url: POSTER_URL }), card('v2', 'Second video', FRAME + '-2', 4), card('v3', 'Third video', FRAME + '-3', 5, { video_tweaks: JSON.stringify(notes) }), card('v4', 'Fourth video', FRAME + '-4', 6, { video_tweaks: JSON.stringify(notes) }), card('v5', 'Fifth video', FRAME + '-5', 7), card('v6', 'Sixth video', FRAME + '-6', 8), card('v7', 'Seventh video', FRAME + '-7', 9), card('d1', 'Drive link card', 'https://drive.google.com/file/d/fixture/view', 2), card('n1', 'No video card', '', 3)] });
   const { page, ctx, pageErrors } = await openCalendar(browser, origin, state, device);
   if (process.env.FV_DEBUG) console.log('DEBUG', JSON.stringify(await page.evaluate(() => { const p = calState.posts.find(x => x.id === 'v1'); return { n: calState.posts.length, keys: p && Object.keys(p).filter(k => /comment/.test(k)), c: p && p.comments, vc: p && p.video_comments }; })));
   const ICON = '.cal-card[data-pid="v1"] .cal-thumb-play';
@@ -382,6 +383,15 @@ async function calendarRun(browser, origin, name, device, orient) {
   expect(state.calls.filter(c => c.part === 'video').length === 2, `${label}: an address that stopped working is asked for once more (${state.calls.filter(c => c.part === 'video').length} video requests)`);
   await page.keyboard.press('Escape');
 
+  // The full-size file fails for good: the small one takes over in the pop-up too.
+  state.calls.length = 0; state.hqFail = true;
+  await openCard(7);
+  await page.waitForFunction(() => { const v = document.getElementById('fvVideo'); return v && v.getAttribute('src') && v.getAttribute('src').indexOf('q=hq') === -1 && v.readyState >= 2; }, null, { timeout: 20000 });
+  expect(state.calls.filter(c => c.part === 'video').length === 1, `${label}: when the full-size file fails for good the pop-up falls back to the small one without asking the function again`);
+  await waitReady(page);
+  await page.keyboard.press('Escape');
+  state.hqFail = false;
+
   expect(pageErrors.length === 0, `${label}: no page errors (${pageErrors.join(' | ')})`);
   await ctx.close();
 }
@@ -472,6 +482,18 @@ async function reviewQualityRun(browser, origin) {
     expect(errs.length === 0, `quality: fallback: no page errors (${errs.join(' | ')})`);
     await ctx.close();
   }
+  // 3a. the full-size file fails for good (an encoding the browser cannot play, or that file alone is refused): the small one takes over
+  {
+    const state = mk(); state.hqFail = true;
+    const { page, ctx, errs } = await open(state);
+    await page.locator(tile).click();
+    await page.waitForFunction(() => { const v = document.querySelector('.fv-inline-video'); return v && v.getAttribute('src') && v.getAttribute('src').indexOf('q=hq') === -1 && v.readyState >= 2; }, null, { timeout: 20000 });
+    expect(state.calls.length === 1 && state.mediaLog.includes('small'), `quality: when the full-size file fails the small one is tried before the address is refreshed (${state.calls.length} request to the function, media ${state.mediaLog.join(',')})`);
+    await page.waitForFunction(() => { const v = document.querySelector('.fv-inline-video'); return !v.paused && v.currentTime > 0.1; }, null, { timeout: 8000 });
+    expect(await page.locator('.fv-inline .fv-inline-state:not([hidden])').count() === 0, 'quality: and it plays, with no error shown');
+    expect(errs.length === 0, `quality: full-size failure: no page errors (${errs.join(' | ')})`);
+    await ctx.close();
+  }
   // 3. a browser that refuses sound: it plays muted and one tap turns the sound on
   {
     const state = mk();
@@ -512,6 +534,7 @@ async function kasperRun(browser, origin, label, device) {
   console.log(`--- ${label}: Kasper review ---`);
   const state = makeState({ fakeSupabase: true });
   const rows = [card('k1', 'Kasper fixture card', FRAME, 1, {
+    video_tweaks: JSON.stringify([{ id: 'kn1', role: 'smm', author: 'Fixture SMM', body: 'Kasper queue note.', created_at: iso(120), done: false }]),
     status: 'Kasper Approval', video_status: 'Kasper Approval', graphic_status: 'Client Approval', caption_status: 'Kasper Approval',
     thumbnail_url: 'https://example.invalid/t.jpg', video_deliverable_id: 'del_v_k1', graphic_deliverable_id: 'del_g_k1',
     video_status_at: '2026-09-30 19:38:51.555501+00', caption_status_at: '2026-09-30 19:38:52+00', kasper_finished_at: null, kasper_closed_at: null,
@@ -539,7 +562,7 @@ async function kasperRun(browser, origin, label, device) {
   const dot = await page.locator('.fv-mark').first().evaluate(e => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height), getComputedStyle(e).minWidth]; });
   expect(dot[0] <= 16 && dot[1] <= 16, `${label}: the comment markers stay small (${dot.join('x')})`);
   await page.waitForFunction(() => document.querySelectorAll('.fv-c').length >= 3, null, { timeout: 8000 });
-  expect(await page.locator('.fv-c').count() === 3, `${label}: Kasper sees the comments`);
+  expect(await page.locator('.fv-c').count() === 4 && await page.locator('.fv-c.fv-src-syncview').count() === 1, `${label}: Kasper sees the Frame.io comments and the card's SyncView note, though the card is in his queue and not in the Calendar`);
   await shot(page, `kasper-${label}-2-viewer-light`);
   await theme(page, 'dark'); await shot(page, `kasper-${label}-2-viewer-dark`);
   await page.keyboard.press('Escape');

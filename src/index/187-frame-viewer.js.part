@@ -187,13 +187,18 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return `<a class="fv-frameio-link fv-gated" data-fv-client="${_calEscAttr(who)}" href="${_calEscAttr(link)}" target="_blank" rel="noopener noreferrer"${hidden}>Watch in Frame.io ↗</a>`;
     }
 
-    /* THE NOTES: the card's own SyncView notes on the video, shown in the same list as the Frame.io comments. The
-       Review code (which knows how to name an author) registers the provider; this file never reads notes itself. */
-    let _fvNotesProvider = null;
-    function svFrameSetNotesProvider(fn) { _fvNotesProvider = typeof fn === 'function' ? fn : null; }
+    /* THE NOTES: the card's own SyncView notes on the video, shown in the same list as the Frame.io comments. The code
+       that owns the cards (the Calendar, and Kasper's queue, which holds cards the Calendar has not loaded) registers a
+       provider each: it answers with the card's notes, or null when the card is not one of its own. This file never
+       reads notes itself. */
+    const _fvNotesProviders = [];
+    function svFrameAddNotesProvider(fn) { if (typeof fn === 'function') _fvNotesProviders.push(fn); }
     function _fvNotesFor(cardId) {
-        if (!cardId || !_fvNotesProvider) return [];
-        try { const out = _fvNotesProvider(cardId); return Array.isArray(out) ? out : []; } catch (e) { return []; }
+        if (!cardId) return [];
+        for (const fn of _fvNotesProviders) {
+            try { const out = fn(cardId); if (Array.isArray(out)) return out; } catch (e) { /* try the next */ }
+        }
+        return [];
     }
 
     /* THE PLAYER, shared by the pop-up and the Review tab's in-place player.
@@ -226,6 +231,14 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         video.addEventListener('loadedmetadata', () => { try { if (at > 0) video.currentTime = at; } catch (e) {} if (was) { const p = video.play(); if (p && p.catch) p.catch(() => {}); } }, { once: true });
         video.src = ctl.small;
         video.dispatchEvent(new Event('fv-smaller'));
+    }
+    // A media error on the full-size file (an encoding the browser cannot play, or a failure of that file alone): the small
+    // proxy is tried before the address is refreshed or the video given up on. True when it took over.
+    function _fvTryEfficient(video) {
+        const ctl = video && video._fvCtl;
+        if (!ctl || !ctl.small || ctl.level === 'small') return false;
+        _fvDowngrade(video);
+        return true;
     }
     function _fvWire(video) {
         if (video._fvWired) return video;
@@ -403,6 +416,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             video.addEventListener('volumechange', () => { const b = box.querySelector('.fv-unmute'); if (b && !video.muted) b.hidden = true; });
             video.addEventListener('error', () => {
                 if (!video.getAttribute('src')) return;
+                if (_fvTryEfficient(video)) return;
                 // The address is signed and expires: ask once for a new one and carry on from the same second.
                 if ((box._fvRetries || 0) < FV_INLINE_RETRY_LIMIT) { box._fvRetries = (box._fvRetries || 0) + 1; _fvInlineLoad(box, video.currentTime || 0, true); return; }
                 _fvInlineState(box, 'error', 'This video could not be played here. It may need a different format.', true);
@@ -661,6 +675,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _fvVideoFailed() {
         const v = _fvPart('#fvVideo');
         if (!FV_STATE.open || !v || !v.getAttribute('src')) return;
+        if (_fvTryEfficient(v)) return;
         if (!FV_STATE.retried) {
             FV_STATE.retried = true;
             FV_STATE.resumeAt = v.currentTime || 0;
@@ -740,5 +755,5 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svFrameViewerOpen, svFrameViewerReload, svFrameViewerSeek
     });
 export {
-  svFrameIoLinkHtml, svFramePlayIconHtml, svFrameSetNotesProvider, svFrameSyncPlayIcon, svFrameTileAttrs, svFrameTileLabelHtml, svFrameWatchBtnHtml
+  svFrameIoLinkHtml, svFramePlayIconHtml, svFrameAddNotesProvider, svFrameSyncPlayIcon, svFrameTileAttrs, svFrameTileLabelHtml, svFrameWatchBtnHtml
 };

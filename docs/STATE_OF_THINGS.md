@@ -23,6 +23,14 @@ line is older than a week, re-check it before relying on it.
 Newest first. Checked against main and the live database on 2026-10-16. When an item here is finished or moved into
 the sections below, delete it from this block in the same PR.
 
+**Live on 2026-10-16 (Sidney's one-function runs, checked by Lighthouse):**
+- **`calendar-card-write` v1** deployed about 13:23 UTC. Lighthouse put the test client on `calendar_card_write_clients`
+  (`{"clients": [test client]}`) at 13:33 UTC, so staff saves on the test client now go to the new writer; every other
+  client and every client review link stay on `calendar-upsert`. An unsigned save is refused (401). Step 2 of the
+  retirement plan (two working days of real test-client use, watching the function log, the ledger and the refusal log)
+  starts now. Way back: take the test client off the switch.
+- **`frameio-view` v3** (Lens #2100's polish) deployed about 13:34 UTC. `frame_viewer_clients` is unchanged.
+
 **Live since the last update (2026-10-11 to 2026-10-15):**
 - **Notify client** (#2080, #2084, #2088): one Slack alert to the client's private channel, short box that closes by
   itself, and the "Review now" link opens the Review view. The button is there for every client; 3 alerts recorded so far
@@ -327,7 +335,7 @@ hiring senders when the editor hire closes.
 
 ## Needs the owner
 
-- **Retiring calendar-upsert, step 1 (session Sunset, `docs/ops/CALENDAR_UPSERT_RETIREMENT_PLAN.md`): merged 2026-10-16 (#2104, `e0652a7a`), not deployed, switch off.** The new `calendar-card-write` function writes a card's own fields with calendar-upsert's guards (proven equal on generated saves by `test/calendar-card-write-parity.js`). Staff saves go there only for clients on `calendar_card_write_clients`; client review links stay on calendar-upsert. Needs, in order: deploy the function on the one-function lane (owner), then Lighthouse puts the test client on the switch.
+- **Retiring calendar-upsert, step 1 (session Sunset, `docs/ops/CALENDAR_UPSERT_RETIREMENT_PLAN.md`): merged 2026-10-16 (#2104, `e0652a7a`), live v1 since 2026-10-16, switch on for the test client only.** The new `calendar-card-write` function writes a card's own fields with calendar-upsert's guards (proven equal on generated saves by `test/calendar-card-write-parity.js`). Staff saves go there only for clients on `calendar_card_write_clients`; client review links stay on calendar-upsert. Needs, in order: deploy the function on the one-function lane (owner), then Lighthouse puts the test client on the switch.
   Lighthouse review 2026-10-16: the function's logic was diffed against live calendar-upsert v90 and the parity test re-run
   against live (21,205 checks pass). Intended differences only. Notes: a rejected staff key fails the save instead of
   saving; switch entries must be exact slugs; never list a client before the function is deployed (a 404 does not fall

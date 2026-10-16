@@ -178,7 +178,7 @@ supervisor manual's "Writing it down"):**
   the only lane for it (deploy-onboarding-edge-functions) also redeploys `production-write`, which now differs from live
   (Scribe #2096) and should go through the Section 4 path with its rollback capture. It ships with Conveyor's deploy on
   merge (#2101). The page works with the old function meanwhile.
-- Anchor #2094 (production-polish gate waits for the app instead of guessing): fixing its own boot-budget runs.
+- Anchor #2094 (production-polish gate waits for the app instead of guessing): merged 2026-10-16 21:56 UTC.
 - Scribe #2096 (a note shows the moment it is sent): merged 2026-10-16; the page part is live with the next Pages publish.
   Its small `production-write` change (the Slack sender wakes after the answer, not before) waits for the next F27
   Section 4 deploy; nothing breaks meanwhile. The fingerprint is re-pinned, so the next Section 4 deploy must use a main
@@ -189,7 +189,8 @@ supervisor manual's "Writing it down"):**
   publish (still test client only). Needs a `frameio-view` deploy (deploy-single-function, merge SHA above); until then the
   old function answers with everything at once and the video still plays.
 - Conveyor: auto-deploy on merge and the capture in GitHub; merges last.
-- Thumb #2085 and #2087 (phone Calendar, Samples, Workload): waiting for Thumb to merge main.
+- Thumb #2087 (phone Workload): merged 2026-10-16 21:57 UTC. Thumb #2085 (phone Calendar and Samples): red on the
+  staff-phone-rules source-copy check, waiting on Thumb to fix it and merge main again.
 - Vista: review sheet polish, running.
 
 **Waiting on the owner:** the five doctor-funnel changes from Rewind; the branding session; the Frame.io viewer for every

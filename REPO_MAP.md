@@ -1,5 +1,6 @@
 # Repo map
 
+Thumb Workload phone: `qa/staff-phone-workload.js` verifies agenda, creative queues, sheets and native planning; evidence is in `docs/audits/2026-10-15-thumb-workload/`.
 Thumb Messages phone: `qa/staff-phone-messages.js` verifies inbox/thread/draft/composer journeys; `qa/messages-desktop-parity.js` proves populated desktop parity; evidence lives in `docs/audits/2026-10-15-thumb-messages/`.
 
 

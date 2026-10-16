@@ -83,7 +83,7 @@
                 });
             },
             label(el) {
-                const labels = { navFilmingPlans: 'Filming Plans', navTiktokUpload: 'Upload', navProd: 'Linear' };
+                const labels = { navFilmingPlans: 'Filming Plans', navProd: 'Linear' };
                 return labels[el.id] || tabLabel(el);
             },
             tabs(body, dialog, cls) {

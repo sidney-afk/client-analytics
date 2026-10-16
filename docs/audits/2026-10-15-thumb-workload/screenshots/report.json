@@ -1,0 +1,282 @@
+[
+  {
+    "name": "workload-agenda",
+    "width": 390,
+    "theme": "light"
+  },
+  {
+    "name": "workload-tabs",
+    "width": 390,
+    "theme": "light"
+  },
+  {
+    "name": "workload-queue",
+    "width": 390,
+    "theme": "light"
+  },
+  {
+    "name": "workload-item",
+    "width": 390,
+    "theme": "light"
+  },
+  {
+    "name": "workload-filters",
+    "width": 390,
+    "theme": "light"
+  },
+  {
+    "name": "workload-filter-editors",
+    "width": 390,
+    "theme": "light"
+  },
+  {
+    "name": "workload-filter-client",
+    "width": 390,
+    "theme": "light"
+  },
+  {
+    "name": "workload-week",
+    "width": 390,
+    "theme": "light"
+  },
+  {
+    "name": "workload-month",
+    "width": 390,
+    "theme": "light"
+  },
+  {
+    "name": "workload-plan-and-due",
+    "width": 390,
+    "theme": "light"
+  },
+  {
+    "name": "workload-filtered-refresh-error",
+    "width": 390,
+    "theme": "light"
+  },
+  {
+    "name": "workload-empty",
+    "width": 390,
+    "theme": "light"
+  },
+  {
+    "name": "workload-loading",
+    "width": 390,
+    "theme": "light"
+  },
+  {
+    "name": "workload-error",
+    "width": 390,
+    "theme": "light"
+  },
+  {
+    "name": "workload-agenda",
+    "width": 390,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-tabs",
+    "width": 390,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-queue",
+    "width": 390,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-item",
+    "width": 390,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-filters",
+    "width": 390,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-filter-editors",
+    "width": 390,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-filter-client",
+    "width": 390,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-week",
+    "width": 390,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-month",
+    "width": 390,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-plan-and-due",
+    "width": 390,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-filtered-refresh-error",
+    "width": 390,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-empty",
+    "width": 390,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-loading",
+    "width": 390,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-error",
+    "width": 390,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-agenda",
+    "width": 430,
+    "theme": "light"
+  },
+  {
+    "name": "workload-tabs",
+    "width": 430,
+    "theme": "light"
+  },
+  {
+    "name": "workload-queue",
+    "width": 430,
+    "theme": "light"
+  },
+  {
+    "name": "workload-item",
+    "width": 430,
+    "theme": "light"
+  },
+  {
+    "name": "workload-filters",
+    "width": 430,
+    "theme": "light"
+  },
+  {
+    "name": "workload-filter-editors",
+    "width": 430,
+    "theme": "light"
+  },
+  {
+    "name": "workload-filter-client",
+    "width": 430,
+    "theme": "light"
+  },
+  {
+    "name": "workload-week",
+    "width": 430,
+    "theme": "light"
+  },
+  {
+    "name": "workload-month",
+    "width": 430,
+    "theme": "light"
+  },
+  {
+    "name": "workload-plan-and-due",
+    "width": 430,
+    "theme": "light"
+  },
+  {
+    "name": "workload-filtered-refresh-error",
+    "width": 430,
+    "theme": "light"
+  },
+  {
+    "name": "workload-empty",
+    "width": 430,
+    "theme": "light"
+  },
+  {
+    "name": "workload-loading",
+    "width": 430,
+    "theme": "light"
+  },
+  {
+    "name": "workload-error",
+    "width": 430,
+    "theme": "light"
+  },
+  {
+    "name": "workload-agenda",
+    "width": 430,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-tabs",
+    "width": 430,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-queue",
+    "width": 430,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-item",
+    "width": 430,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-filters",
+    "width": 430,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-filter-editors",
+    "width": 430,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-filter-client",
+    "width": 430,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-week",
+    "width": 430,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-month",
+    "width": 430,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-plan-and-due",
+    "width": 430,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-filtered-refresh-error",
+    "width": 430,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-empty",
+    "width": 430,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-loading",
+    "width": 430,
+    "theme": "dark"
+  },
+  {
+    "name": "workload-error",
+    "width": 430,
+    "theme": "dark"
+  }
+]

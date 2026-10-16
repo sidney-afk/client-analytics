@@ -58,6 +58,8 @@ const GOOD = () => ({
 // What the function answers for each part (the page asks for the video and the comments side by side).
 function answerFor(body, g) {
   g = g || GOOD();
+  // FRAMEIO_VIEWER_BUILD=before: how the function answered before this change (no parts, the small file first), to time the old page.
+  if (process.env.FRAMEIO_VIEWER_BUILD === 'before' && !(body && body.part)) g = Object.assign({}, g, { video: Object.assign({}, g.video, { url: MEDIA }) });
   if (body && body.part === 'video') return { ok: true, video: g.video, open_url: g.open_url, fetched_at: g.fetched_at };
   if (body && body.part === 'comments') return { ok: true, comments: g.comments, comments_error: g.comments_error, comments_truncated: g.comments_truncated, reply_names_partial: g.reply_names_partial, open_url: g.open_url, fetched_at: g.fetched_at };
   return g;

@@ -196,14 +196,7 @@
       "within": [
         "_calCapJobSettle"
       ],
-      "note": "Starts a caption generation on the caption-generate function (switch caption_generate_ef_clients). A job that ends in error is recorded once as caption_generate, where the job settles."
-    },
-    "180-calendar-native-post-media.js.part|_calCapJobStart|GENERATE_CAPTION_URL|POST": {
-      "status": "reports",
-      "within": [
-        "_calCapJobSettle"
-      ],
-      "note": "Starts a caption generation (n8n). A job that ends in error is recorded once as caption_generate, where the job settles."
+      "note": "Starts a caption generation on the caption-generate function (every client; the n8n fallback was removed 2026-10-16). A job that ends in error is recorded once as caption_generate, where the job settles."
     },
     "180-calendar-native-post-media.js.part|_calCapJobsPoll|CAPTION_JOB_UPDATE_URL|POST": {
       "status": "background",

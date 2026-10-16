@@ -434,7 +434,7 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/calendar-status-row-urgent-height-browser.js
-      - name: Generate caption off n8n (switch off unchanged, function path, transcript box, desktop and phone)
+      - name: Generate caption off n8n (no n8n fallback, function path, transcript box, desktop and phone)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/caption-generate-browser.js

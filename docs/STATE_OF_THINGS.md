@@ -34,16 +34,17 @@ the sections below, delete it from this block in the same PR.
   Image price), #2116 (Open in Calendar button in Production), #2119 (Calendar and Samples card buttons: play icon for
   the video, picture icon for the thumbnail).
 - **Studio:** version 0.3 in the `studio` bucket; a real Chelsey cut was made through it on the owner's computer.
-- **In review:** #2115 (video profiles; waits on synchro-brain #83 and the owner's go), #2120 (Cinema: one view for
-  video and notes; reviewed, merging when green, then `frame_viewer_clients` to all), #2121 (Post tab), #2122 (labelled
-  Open in Calendar button). Card saver watcher: 1 clean run, test client only.
+- **Live by merge, later that evening:** #2121 (Post tab), #2122 (labelled Open in Calendar button), #2120 (Cinema: one
+  view for video and notes; merged 20:37 UTC, and Lighthouse set `frame_viewer_clients` to `all: true` at 20:40 UTC once
+  Pages had published), #2115 (video profiles; merged 21:22 UTC, on-merge deploy green; the first client video profile is
+  to be saved through `studio_profile_save` by the connector supervisor). Card saver watcher: 1 clean run, test client only.
 
-**In review (session Cinema, 2026-10-16): Watch here, one view for the video and its notes.** Every door (the Notes
+**Live (session Cinema, 2026-10-16, #2120): Watch here, one view for the video and its notes.** Every door (the Notes
 button, the Sheet's play icon, the Review tab's video preview, Kasper's "Watch here") opens the card's Notes dialog with
 the player on the left (on a phone, on top). Nothing plays until play is pressed (bottom centre of the player). Staff
 see the Frame.io comments as rows in the notes list, in time order, marked "Frame.io", with clickable video times; a
-client link never does. The old pop-up and the in-place player on the Review tab are gone. No function or switch
-change: `frame_viewer_clients` is untouched, Lighthouse turns it on for everyone after this merges.
+client link never does. The old pop-up and the in-place player on the Review tab are gone. No function
+change; `frame_viewer_clients` is on for every client since 20:40 UTC.
 
 **Later on 2026-10-16 (Lighthouse, checked live):**
 - **Merged means live (#2101, Conveyor) is on main:** the page builds at publish (index.html is no longer committed) and

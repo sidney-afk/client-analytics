@@ -1,0 +1,29 @@
+name: Build the page
+description: >-
+  Builds index.html, js/sv-*.js and src/index/INDEX.md from src/index/
+  (npm run build:index). These files are build output and are not committed, so
+  every job that reads them runs this step first. One shared step, so no job
+  reads a stale or missing page.
+inputs:
+  working-directory:
+    description: The checkout to build in (default the workspace root).
+    required: false
+    default: '.'
+runs:
+  using: composite
+  steps:
+    # The build's one tool, esbuild at the version pinned in
+    # scripts/index-minify.js, is installed into this cache folder on first use.
+    - name: Restore the pinned build tool
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/syncview-build
+        key: syncview-build-${{ runner.os }}-${{ hashFiles(format('{0}/scripts/index-minify.js', inputs.working-directory)) }}
+    - name: Build index.html and js/ from src/index/
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -euo pipefail
+        node scripts/build-index.js | tail -n 2
+        test -s index.html
+        echo "Built index.html ($(wc -c < index.html) bytes) and $(ls js/sv-*.js | wc -l) js file(s) from $(git rev-parse --short HEAD)"

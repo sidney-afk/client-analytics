@@ -14,6 +14,13 @@ const CREDENTIALS = read('supabase/functions/client-credentials/index.ts');
 const ONBOARDING_FULL = read('supabase/functions/onboarding-full/index.ts');
 const FILMING_PLANS = read('supabase/functions/filming-plans/index.ts');
 const DEPLOY_WORKFLOW = read('.github/workflows/deploy-onboarding-edge-functions.yml');
+// Since 2026-10-16 merges deploy through deploy-edge-functions-on-merge.yml: a
+// push to main that touches any function runs it, and the plan deploys every
+// function it does not keep manual (scripts/ef-auto-deploy-plan.js).
+const MERGE_LANE = read('.github/workflows/deploy-edge-functions-on-merge.yml');
+const { MANUAL_ONLY: AUTO_MANUAL, F27_LANE: AUTO_F27 } = require('../scripts/ef-auto-deploy-plan');
+const autoDeploys = slug => /^  push:\n    branches: \[main\]\n    paths:\n(?:      - '[^']+'\n)*      - 'supabase\/functions\/\*\*'/m.test(MERGE_LANE)
+  && !AUTO_MANUAL[slug] && !AUTO_F27.includes(slug);
 
 function ok(value, message) {
   if (!value) {
@@ -31,35 +38,28 @@ function ok(value, message) {
   'authorizeStaffKey',
   'staffAuthFailureStatus',
 ].forEach(token => ok(SHARED.includes(token), `shared role-key helper missing ${token}`));
-ok(DEPLOY_WORKFLOW.includes("supabase/functions/_shared/staff-role-auth.ts"),
+// The merge lane counts a change to any imported file (scripts/ef-deploy-manifest.js
+// import walk), so a change to this helper deploys every function that imports it.
+ok(autoDeploys('onboarding-list') && require('../scripts/ef-deploy-manifest').functionDependencies('onboarding-list').shared.includes('_shared/staff-role-auth.ts'),
   'changes to the shared role-key helper must trigger the dependent Edge Function deploy workflow');
-ok(DEPLOY_WORKFLOW.includes("supabase/functions/key-verify/**"),
-  'changes to key-verify must trigger its Edge Function deploy workflow');
-
-const pushBlock = (DEPLOY_WORKFLOW.match(/  push:\r?\n([\s\S]*?)  workflow_dispatch:/) || [])[1] || '';
-const pushPaths = Array.from(pushBlock.matchAll(/^\s+- '([^']+)'\s*$/gm), match => match[1]);
-const expectedPushPaths = [
-  'supabase/functions/onboarding-list/**',
-  'supabase/functions/ai-onboarding-list/**',
-  'supabase/functions/legacy-onboarding-list/**',
-  'supabase/functions/onboarding-full/**',
-  'supabase/functions/client-credentials/**',
-  'supabase/functions/filming-plans/**',
-  'supabase/functions/smm-weekly-reports/**',
-  'supabase/functions/key-verify/**',
-  'supabase/functions/_shared/staff-role-auth.ts',
-  '.github/workflows/deploy-onboarding-edge-functions.yml',
-];
-ok(JSON.stringify(pushPaths) === JSON.stringify(expectedPushPaths),
-  'push paths must retain the current main allowlist exactly');
-for (const forbidden of [
-  'supabase/functions/client-review-link/**',
-  'supabase/functions/linear-outbound/**',
-  'supabase/functions/notify/**',
-  'supabase/functions/production-write/**',
-  'supabase/functions/_shared/**',
-]) {
-  ok(!pushPaths.includes(forbidden), `${forbidden} must never trigger a push deploy`);
+ok(autoDeploys('key-verify'),
+  'changes to key-verify must trigger its Edge Function deploy on merge');
+// Since 2026-10-16 this lane is the manual fallback: it has no push trigger, so
+// nothing it deploys (above all production-write) can ship on a merge from here.
+ok(!/^  push:/m.test(DEPLOY_WORKFLOW) && /^  workflow_dispatch:/m.test(DEPLOY_WORKFLOW),
+  'the staff-sensitive lane is dispatch-only');
+// Owner request 2026-10-16 (session Conveyor): every function deploys on merge
+// except the Section 4 three (their own lane, with the sealed capture) and the
+// frozen and retired ones. notify and client-review-link therefore deploy on
+// merge now, through the plan's safeguards: notify only after the Linear-exit
+// SQL preflight and before production-write.
+{
+  const plan = require('../scripts/ef-auto-deploy-plan');
+  ok(plan.F27_LANE.includes('production-write') && plan.MANUAL_ONLY['linear-outbound'],
+    'production-write and linear-outbound are never deployed by the merge lane');
+  ok((plan.PRECONDITIONS.notify || []).includes('linear-exit-sql-preflight')
+    && plan.ORDER.some(([a, b]) => a === 'notify' && b === 'production-write'),
+    'notify deploys on merge only after the Linear-exit preflight, and before the write gateway');
 }
 
 const deployLoops = Array.from(DEPLOY_WORKFLOW.matchAll(/for fn in ([^;]+); do/g), match => match[1]);

@@ -1,172 +1,130 @@
 'use strict';
 /*
- * check-index.js — proves index.html is exactly the assembly of src/index/
- * fragments, without writing anything.
+ * check-index.js (npm run check:index) -- proves the page build succeeds and
+ * is deterministic, and that its output is not committed.
  *
- * Reads src/index/manifest.txt, reads each listed fragment as a raw Buffer,
- * concatenates them in memory with no separators (never decoding, trimming
- * or re-encoding), and requires that result to be byte-for-byte identical to
- * BOTH:
- *   - the working-tree index.html, and
- *   - the committed blob at `git show HEAD:index.html`.
+ * Since 2026-10-15 index.html, js/sv-*.js and src/index/INDEX.md are build
+ * output only: .gitignore lists them, the Pages publish builds them from
+ * src/index/ on every push to main (.github/workflows/pages-site.yml), and
+ * every CI job that reads them builds them first (.github/actions/build-index).
+ * Committing them made every merge conflict every other open pull request.
+ * This used to compare a committed index.html with the build; there is no
+ * committed copy any more, so it checks instead that:
  *
- * Fails (and prints why) on: a manifest entry naming a missing fragment, a
- * duplicate manifest entry, a `.part` file present in src/index/ but not
- * listed in the manifest, or a manifest entry that points outside
- * src/index/. manifest.txt and INDEX.md are metadata — never part of the
- * assembled output and never subject to fragment coverage checks.
+ *   1. none of the build outputs is tracked by git (a session that commits
+ *      one by habit is told so here, not by the next merge clash);
+ *   2. .gitignore ignores each of them;
+ *   3. the build succeeds twice, each time into a fresh empty folder;
+ *   4. the two builds are byte-for-byte identical, file for file;
+ *   5. if a working-tree index.html exists (a local build), it says whether it
+ *      is current. That is information only: the file is never published from
+ *      here, and the publish builds its own.
  *
- * On success, prints the full SHA-256 and byte length of each of the three
- * compared values (assembled, working tree, committed) as evidence. These
- * hashes are diagnostic output only — never a frozen baseline and never an
- * additional constraint beyond the three-way equality above.
+ * On success it prints the SHA-256 and byte length of index.html and a digest
+ * of the whole output set, as evidence.
  *
  * Usage: node scripts/check-index.js
+ *
+ * The package.json alias keeps its old name on purpose: package.json is
+ * content-pinned by the F27 reconciler closure and the PTO evidence
+ * fingerprint, so renaming the alias would stale both.
  */
 
 const fs = require('fs');
-const { readModuleList, servedBytes } = require('./index-modules');
-const { buildOutputs } = require('./index-split');
+const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
-const { execFileSync } = require('child_process');
+const { spawnSync, execFileSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const SRC_DIR = path.join(ROOT, 'src', 'index');
-const MANIFEST_PATH = path.join(SRC_DIR, 'manifest.txt');
-const WORKING_TREE_PATH = path.join(ROOT, 'index.html');
+const OUTPUTS_GLOB_HINT = ['index.html', 'js/sv-*.js', 'src/index/INDEX.md'];
 
 let failed = false;
 function fail(message) {
-  console.error('check-index: FAIL — ' + message);
+  console.error('check-index: FAIL - ' + message);
   failed = true;
 }
 
-function readManifest() {
-  if (!fs.existsSync(MANIFEST_PATH)) {
-    fail('manifest not found at src/index/manifest.txt');
-    return [];
-  }
-  const raw = fs.readFileSync(MANIFEST_PATH, 'utf8');
-  return raw.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
+const sha256 = buf => crypto.createHash('sha256').update(buf).digest('hex');
+
+function git(args) {
+  return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 }
 
-function validateManifest(entries) {
-  const seen = new Set();
-  const readable = new Set();
-  for (const entry of entries) {
-    const isOutOfFolder =
-      entry.includes('/') || entry.includes('\\') || entry.includes('..') ||
-      path.dirname(path.join(SRC_DIR, entry)) !== SRC_DIR;
-    if (isOutOfFolder) {
-      fail('out-of-folder fragment path in manifest: ' + entry);
-      continue;
-    }
-    if (seen.has(entry)) {
-      fail('duplicate fragment in manifest: ' + entry);
-      continue;
-    }
-    seen.add(entry);
-    if (!fs.existsSync(path.join(SRC_DIR, entry))) {
-      fail('missing fragment listed in manifest: ' + entry);
-      continue;
-    }
-    readable.add(entry);
-  }
-
-  let onDisk = [];
-  try {
-    onDisk = fs.readdirSync(SRC_DIR).filter((f) => f.endsWith('.part'));
-  } catch (e) {
-    fail('could not read src/index/: ' + e.message);
-  }
-  for (const f of onDisk) {
-    if (!seen.has(f)) fail('unlisted fragment present in src/index/ but not in manifest.txt: ' + f);
-  }
-
-  return readable;
+function isOutputPath(rel) {
+  return rel === 'index.html' || rel === 'src/index/INDEX.md' || /^js\/sv-[^/]+\.js$/.test(rel);
 }
 
-function assembleFromManifest(entries, readable) {
-  const bufs = [];
-  // Module fragments (src/index/modules.txt) are served without their import
-  // header and export footer, exactly as build-index.js assembles them.
-  const modules = readModuleList(SRC_DIR);
-  for (const m of modules) if (!entries.includes(m)) fail('modules.txt lists a fragment that is not in the manifest: ' + m);
-  if (entries.some(entry => !readable.has(entry))) {
-    // already failed for these entries above; check what can be assembled
-    for (const entry of entries) if (readable.has(entry)) bufs.push(servedBytes(entry, fs.readFileSync(path.join(SRC_DIR, entry)), modules));
-    return new Map([['index.html', Buffer.concat(bufs)]]);
+function listFiles(dir, base = dir, out = []) {
+  if (!fs.existsSync(dir)) return out;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) listFiles(full, base, out);
+    else out.push(path.relative(base, full).split(path.sep).join('/'));
   }
-  // src/index/split.json may serve the main script from js/ files instead
-  // (scripts/index-split.js); those must exist, committed, with the same bytes.
-  try {
-    return buildOutputs(SRC_DIR, entries, entries.map(e => fs.readFileSync(path.join(SRC_DIR, e))), modules, null);
-  } catch (e) {
-    fail(e.message);
-    return new Map([['index.html', Buffer.alloc(0)]]);
-  }
+  return out.sort();
 }
 
-function checkSplitFiles(outputs) {
-  for (const [rel, buf] of outputs) {
-    if (rel === 'index.html') continue;
-    const full = path.join(ROOT, rel);
-    if (!fs.existsSync(full) || !fs.readFileSync(full).equals(buf)) { fail(`${rel} is missing or differs from the build; run npm run build:index`); continue; }
-    let committed = null;
-    try { committed = execFileSync('git', ['show', 'HEAD:' + rel], { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 }); } catch (e) {}
-    if (!committed || !committed.equals(buf)) fail(`${rel} is not committed with the same bytes`);
+function buildInto(dir) {
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build-index.js'), '--out=' + dir], { cwd: ROOT, encoding: 'utf8' });
+  if (r.status !== 0) {
+    fail('the build failed (exit ' + r.status + '):\n' + (r.stderr || r.stdout || '').trim());
+    return null;
   }
-}
-
-function sha256(buf) {
-  return crypto.createHash('sha256').update(buf).digest('hex');
-}
-
-function report(label, buf) {
-  console.log(`check-index: ${label} — sha256=${sha256(buf)} bytes=${buf.length}`);
+  const files = new Map();
+  for (const rel of listFiles(dir)) files.set(rel, fs.readFileSync(path.join(dir, rel)));
+  return files;
 }
 
 function main() {
-  const entries = readManifest();
-  const knownGood = validateManifest(entries);
-
-  const outputs = assembleFromManifest(entries, knownGood);
-  const assembled = outputs.get('index.html');
-  checkSplitFiles(outputs);
-
-  if (!fs.existsSync(WORKING_TREE_PATH)) {
-    fail('working-tree index.html not found at repository root');
+  // 1. Nothing built is tracked.
+  const tracked = git(['ls-files', '--', 'index.html', 'js', 'src/index/INDEX.md']).split('\n').filter(Boolean).filter(isOutputPath);
+  if (tracked.length) {
+    fail(`${tracked.length} build output file(s) are tracked by git (first: ${tracked[0]}). They are built, never committed: git rm --cached them.`);
   }
-  const workingTree = fs.existsSync(WORKING_TREE_PATH) ? fs.readFileSync(WORKING_TREE_PATH) : Buffer.alloc(0);
 
-  let committed;
+  // 2. .gitignore covers every output.
+  for (const probe of ['index.html', 'js/sv-01-core-000000000000.js', 'src/index/INDEX.md']) {
+    const r = spawnSync('git', ['check-ignore', '-q', '--no-index', probe], { cwd: ROOT });
+    if (r.status !== 0) fail(`.gitignore does not ignore ${probe}`);
+  }
+
+  // 3 and 4. Two clean builds, identical.
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'check-index-'));
   try {
-    committed = execFileSync('git', ['show', 'HEAD:index.html'], { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 });
-  } catch (e) {
-    fail('could not read committed index.html via `git show HEAD:index.html`: ' + e.message);
-    committed = Buffer.alloc(0);
-  }
+    const a = buildInto(path.join(tmp, 'a'));
+    const b = buildInto(path.join(tmp, 'b'));
+    if (a && b) {
+      const names = [...new Set([...a.keys(), ...b.keys()])].sort();
+      for (const rel of names) {
+        if (!a.has(rel) || !b.has(rel)) fail(`${rel} came out of only one of the two builds`);
+        else if (!a.get(rel).equals(b.get(rel))) fail(`${rel} differs between two builds of the same source: the build is not deterministic`);
+      }
+      if (!a.has('index.html')) fail('the build wrote no index.html');
+      const set = crypto.createHash('sha256');
+      for (const rel of names) if (a.has(rel)) set.update(rel + '\0' + sha256(a.get(rel)) + '\n');
+      const page = a.get('index.html') || Buffer.alloc(0);
+      const js = names.filter(n => n.startsWith('js/'));
+      console.log(`check-index: index.html sha256=${sha256(page)} bytes=${page.length}`);
+      console.log(`check-index: ${js.length} js file(s), ${names.length} output file(s) in all, output-set sha256=${set.digest('hex')}`);
 
-  report('assembled bytes', assembled);
-  report('working-tree index.html', workingTree);
-  report('committed index.html (HEAD)', committed);
-
-  if (!assembled.equals(workingTree)) {
-    fail('assembled bytes do not equal working-tree index.html');
-  }
-  if (!assembled.equals(committed)) {
-    fail('assembled bytes do not equal committed index.html (HEAD)');
-  }
-  if (!workingTree.equals(committed)) {
-    fail('working-tree index.html does not equal committed index.html (HEAD)');
+      // 5. Information only: is a local build current?
+      const local = path.join(ROOT, 'index.html');
+      if (fs.existsSync(local)) {
+        console.log(fs.readFileSync(local).equals(page)
+          ? 'check-index: the working-tree index.html is current'
+          : 'check-index: note - the working-tree index.html is older than src/index/ (run npm run build:index before testing by hand)');
+      }
+    }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
   }
 
   if (failed) {
     console.error('\ncheck-index: FAILED');
     process.exit(1);
   }
-  console.log('\ncheck-index: OK — assembled == working tree == committed (HEAD)');
+  console.log(`\ncheck-index: OK - the build succeeds, two builds are byte-identical, and no output (${OUTPUTS_GLOB_HINT.join(', ')}) is committed`);
 }
 
 main();

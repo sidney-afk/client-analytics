@@ -2,6 +2,8 @@
   "format": "explicit-test-suite-routing-v1",
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
+    "ef-auto-deploy.js",
+    "pages-build-inputs.js",
     "messages-inbox-scope.js",
     "fixture-desktop-exact-replay.js",
     "browser-guards-wired.js",

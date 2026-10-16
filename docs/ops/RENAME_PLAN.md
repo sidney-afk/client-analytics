@@ -368,10 +368,7 @@ cards. If they do, change them to compare the name part.
   - uses `assertCas`;
   - has its own reconcile-replay branch comparing the **name**, not the full title (`index.ts:2048`).
 - Re-pin the `production-write` digest with `node scripts/ef-fingerprint.js <sha> --slugs=production-write --expected-only`.
-- Then the owner's standard ceremony (CLAUDE.md):
-  1. Run `& "$env:USERPROFILE\.syncview\f27-capture.ps1"`.
-  2. Drag the `.sourcebundle` into `SyncView Backups/` **before** dispatching.
-  3. Dispatch `deploy-f27-section4-closures.yml` with main's tip SHA and the bundle sha256 and length.
+- Then merge: since 2026-10-16 the merge deploys it (`deploy-edge-functions-on-merge.yml` dispatches the Section 4 lane, which captures and seals the rollback bundle itself; `docs/ops/EF_AUTO_DEPLOY.md`). Nobody runs a capture script.
 - **DO-NOT-MERGE window:** from handing over the SHA until the owner reports green.
 - After deploy: update `ROLLBACK.md:124` (enforced by `scripts/rollback-row-freshness-check.js`), then turn on `rename_from_subissue` and ship the SyncLinear title input.
 - **Rollback:** turn off the flag, which stops propagation immediately. If the op itself misbehaves, run `restore-captured-prior-three` with the fresh bundle.

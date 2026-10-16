@@ -11,6 +11,13 @@ const SHARED_PATH = path.join(ROOT, 'supabase/functions/_shared/staff-role-auth.
 const WEEKLY = read('supabase/functions/smm-weekly-reports/index.ts');
 const INDEX = read('index.html');
 const DEPLOY = read('.github/workflows/deploy-onboarding-edge-functions.yml');
+// Since 2026-10-16 merges deploy through deploy-edge-functions-on-merge.yml: a
+// push to main that touches any function runs it, and the plan deploys every
+// function it does not keep manual (scripts/ef-auto-deploy-plan.js).
+const MERGE_LANE = read('.github/workflows/deploy-edge-functions-on-merge.yml');
+const { MANUAL_ONLY: AUTO_MANUAL, F27_LANE: AUTO_F27 } = require('../scripts/ef-auto-deploy-plan');
+const autoDeploys = slug => /^  push:\n    branches: \[main\]\n    paths:\n(?:      - '[^']+'\n)*      - 'supabase\/functions\/\*\*'/m.test(MERGE_LANE)
+  && !AUTO_MANUAL[slug] && !AUTO_F27.includes(slug);
 
 function ok(value, message) {
   if (!value) {
@@ -64,7 +71,7 @@ const eligible = grabFunc('_syncviewStaffEligible');
 ok(!eligible.includes('_isSmmWeeklyEntry') && !eligible.includes('_isOnboardingView'),
   'isolated weekly/onboarding staff routes must be able to open verified staff sign-in');
 
-ok(DEPLOY.includes("supabase/functions/smm-weekly-reports/**"),
+ok(autoDeploys('smm-weekly-reports'),
   'weekly gateway changes must trigger the Edge Function deploy workflow');
 const deployLoop = (DEPLOY.match(/for fn in ([^;]+); do/) || [])[1] || '';
 ok(/(?:^|\s)smm-weekly-reports(?:\s|$)/.test(deployLoop),

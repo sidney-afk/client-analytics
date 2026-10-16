@@ -613,13 +613,29 @@ if (ast) {
 }
 
 // ---- 5. byte identity against a base commit ---------------------------------
+function assembleAt(ref) {
+  const os = require('os');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'check-modules-base-'));
+  try {
+    const tar = execFileSync('git', ['archive', '--format=tar', ref, 'src/index'], { cwd: ROOT, maxBuffer: 256 * 1024 * 1024 });
+    execFileSync('tar', ['-x', '-C', tmp], { input: tar });
+    const dir = path.join(tmp, 'src', 'index');
+    const list = fs.readFileSync(path.join(dir, 'manifest.txt'), 'utf8').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const mods = readModuleList(dir);
+    return Buffer.concat(list.map(f => servedBytes(f, fs.readFileSync(path.join(dir, f)), mods)));
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
 if (against) {
   const built = Buffer.concat(manifest.map(f => servedBytes(f, fs.readFileSync(path.join(SRC_DIR, f)), modules)));
   let base;
   try {
-    base = execFileSync('git', ['show', `${against}:index.html`], { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 });
+    base = execFileSync('git', ['show', `${against}:index.html`], { cwd: ROOT, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
   } catch (e) {
-    fail(`--against=${against}: could not read index.html at that ref`);
+    // Since 2026-10-15 index.html is build output and is not committed, so a
+    // newer base has none: assemble the base's own fragments the same way.
+    try { base = assembleAt(against); } catch (e2) { fail(`--against=${against}: could not read or assemble index.html at that ref (${e2.message})`); }
   }
   if (base) {
     if (Buffer.compare(built, base) === 0) {

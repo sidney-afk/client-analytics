@@ -31,6 +31,8 @@ const {
 } = require('./nightly-input.js');
 
 const ROOT = path.resolve(__dirname, '..');
+// index.html and js/ are build output (not committed): build before serving them.
+if (require.main === module) require('../scripts/ensure-built').ensureBuilt();
 const PROBES = path.join(__dirname, 'probes');
 const MAX_ATTEMPTS = Number(process.env.PROBE_ATTEMPTS || 3);
 const PROBE_TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS || 240000);

@@ -1,4 +1,5 @@
 name: Deploy F27 Section 4 closures
+run-name: ${{ github.workflow }} (${{ inputs.operation }}${{ inputs.request_id && format(' {0}', inputs.request_id) || '' }})
 
 # This is the reviewed F27 Section 4 forward/restore lane. It never runs on a
 # push or pull request and it never deploys linear-inbound, either frozen
@@ -6,6 +7,21 @@ name: Deploy F27 Section 4 closures
 # provider-source/JWT captures remain the separate Section 1 pre-DDL step; both
 # operations below require that sealed bundle to be present and independently
 # verified before any function deployment starts.
+#
+# THE CAPTURE RUNS HERE (since 2026-10-16). Pass `capture` as both bundle
+# inputs and the lane seals the live three into the rollback bundle itself, in
+# this run, minutes before it deploys: the same script and format the owner's
+# Windows capture used (scripts/f27-edge-source-rollback.js capture), cross-
+# checked against an independent live fingerprint read, stored content-
+# addressed in the same F27 Shared Drive root with an independent readback
+# (scripts/f27-private-snapshot-store.js), and then fetched back and verified
+# by exactly the steps below that always verified the owner's upload. The
+# sealed SHA-256 and byte length are printed in the run summary: they are the
+# two values a later `restore-captured-prior-three` needs. A merge that changes
+# these functions dispatches this lane that way from
+# deploy-edge-functions-on-merge.yml. A bundle captured elsewhere still works:
+# pass its two values instead of `capture`. `capture-only` is the dry run:
+# capture, seal, store, fetch back, inspect, and deploy nothing.
 #
 # B2 Slice 8 (2026-09-24): both the RELEASE set and the PRIOR set are three
 # functions (production-write, deliverable-write, batch-write). linear-outbound
@@ -25,18 +41,26 @@ on:
         options:
           - deploy-reviewed-release
           - restore-captured-prior-three
+          - capture-only
       confirm:
         description: Exact operation-specific confirmation from the F27 runbook
         required: true
         type: string
       rollback_bundle_sha256:
-        description: SHA-256 from the sealed pre-DDL three-function capture
+        description: '`capture` = this run seals the live three itself (deploy and capture-only); or the SHA-256 of a sealed capture (required for restore)'
         required: true
         type: string
+        default: capture
       rollback_bundle_byte_length:
-        description: Byte length from the sealed pre-DDL three-function capture
+        description: '`capture`, or the byte length of that sealed capture'
         required: true
         type: string
+        default: capture
+      request_id:
+        description: 'Optional label shown in the run name (the merge lane uses it to find this run)'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -394,8 +418,11 @@ jobs:
       # entrypoint and file count (10) unchanged.
       # (Previous pin: 692b5c473b... -- production-write, files=10, 2026-10-08.)
       PRODUCTION_WRITE_SOURCE_SHA256: 07677a1f0b62271710df7b63aff8a7eb7c732473f00c796d5e34c384c56387d2
-      ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
-      ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
+      # The two bundle values are exported to GITHUB_ENV as ROLLBACK_BUNDLE_SHA256
+      # and ROLLBACK_BUNDLE_BYTE_LENGTH by the validation step (given) or the
+      # capture step (sealed in this run); a job-level value would shadow those.
+      INPUT_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
+      INPUT_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:
       # Validate only with trusted default-branch workflow bytes. No production
       # secret or script from the requested release is available before this.
@@ -443,6 +470,13 @@ jobs:
               fi
               expected_confirmation='DEPLOY_REVIEWED_F27_SECTION4_CLOSURES'
               ;;
+            capture-only)
+              if [ "$DEPLOY_COMMIT" != "$GITHUB_SHA" ]; then
+                echo "::error::capture-only commit_sha must equal the current-main workflow SHA"
+                exit 1
+              fi
+              expected_confirmation='CAPTURE_F27_SECTION4_PRIOR_THREE'
+              ;;
             restore-captured-prior-three)
               if ! git -C operator cat-file -e "$DEPLOY_COMMIT^{commit}" 2>/dev/null \
                 || ! git -C operator merge-base --is-ancestor "$DEPLOY_COMMIT" "$GITHUB_SHA"; then
@@ -466,6 +500,7 @@ jobs:
             scripts/f27-edge-source-rollback.js \
             scripts/f27-edge-source-rollback-lib.js \
             scripts/f27-edge-source-rollback-supabase-adapter.js \
+            scripts/f27-private-snapshot-store.js \
             scripts/f27-private-snapshot-fetch.js; do
             if ! git -C operator cat-file -e "$DEPLOY_COMMIT:$required" 2>/dev/null; then
               echo "::error::The reviewed release is missing a required Section 4 source or attestor"
@@ -486,14 +521,37 @@ jobs:
             echo "::error::The operation-specific confirmation does not match"
             exit 1
           fi
-          if ! [[ "$ROLLBACK_BUNDLE_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
-            echo "::error::rollback_bundle_sha256 must be exactly 64 lowercase hexadecimal characters"
-            exit 1
-          fi
-          if ! [[ "$ROLLBACK_BUNDLE_BYTE_LENGTH" =~ ^[1-9][0-9]{0,8}$ ]] \
-            || [ "$ROLLBACK_BUNDLE_BYTE_LENGTH" -gt 134217728 ]; then
-            echo "::error::rollback_bundle_byte_length is outside the private source-bundle limit"
-            exit 1
+          # `capture` (both inputs): this run seals the live three itself in the
+          # next steps. A restore never captures: it needs the recorded values.
+          if [ "$INPUT_BUNDLE_SHA256" = "capture" ] || [ "$INPUT_BUNDLE_BYTE_LENGTH" = "capture" ]; then
+            if [ "$INPUT_BUNDLE_SHA256" != "capture" ] || [ "$INPUT_BUNDLE_BYTE_LENGTH" != "capture" ]; then
+              echo "::error::Pass capture as BOTH bundle inputs, or two sealed values"
+              exit 1
+            fi
+            if [ "$OPERATION" = "restore-captured-prior-three" ]; then
+              echo "::error::A restore needs the recorded sealed bundle values, never a new capture"
+              exit 1
+            fi
+            echo "F27_CAPTURE_IN_RUN=true" >> "$GITHUB_ENV"
+            bundle_summary="sealed in this run (next steps)"
+          else
+            if [ "$OPERATION" = "capture-only" ]; then
+              echo "::error::capture-only seals a new bundle; pass capture as both bundle inputs"
+              exit 1
+            fi
+            if ! [[ "$INPUT_BUNDLE_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "::error::rollback_bundle_sha256 must be exactly 64 lowercase hexadecimal characters"
+              exit 1
+            fi
+            if ! [[ "$INPUT_BUNDLE_BYTE_LENGTH" =~ ^[1-9][0-9]{0,8}$ ]] \
+              || [ "$INPUT_BUNDLE_BYTE_LENGTH" -gt 134217728 ]; then
+              echo "::error::rollback_bundle_byte_length is outside the private source-bundle limit"
+              exit 1
+            fi
+            echo "F27_CAPTURE_IN_RUN=false" >> "$GITHUB_ENV"
+            echo "ROLLBACK_BUNDLE_SHA256=$INPUT_BUNDLE_SHA256" >> "$GITHUB_ENV"
+            echo "ROLLBACK_BUNDLE_BYTE_LENGTH=$INPUT_BUNDLE_BYTE_LENGTH" >> "$GITHUB_ENV"
+            bundle_summary="\`$INPUT_BUNDLE_SHA256\` / \`$INPUT_BUNDLE_BYTE_LENGTH\` bytes (given)"
           fi
           {
             echo "## F27 Section 4 closure lane"
@@ -501,9 +559,147 @@ jobs:
             echo "- Dispatch-only gate: PASS"
             echo "- Reviewed release SHA: \`$DEPLOY_COMMIT\`"
             echo "- Operation: \`$OPERATION\`"
-            echo "- Prior source bundle SHA-256: \`$ROLLBACK_BUNDLE_SHA256\`"
-            echo "- Prior source bundle bytes: \`$ROLLBACK_BUNDLE_BYTE_LENGTH\`"
+            echo "- Prior source bundle: $bundle_summary"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # IN-RUN CAPTURE (replaces the owner's Windows capture and drag-and-drop).
+      # Same script, same format, same seal: the receipt's sealed_bundle_sha256
+      # and sealed_bundle_byte_length are exactly the two values the owner used
+      # to paste, and every check after this block is unchanged.
+      - name: Install exact Supabase CLI for the capture
+        if: env.F27_CAPTURE_IN_RUN == 'true'
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.0
+
+      - name: Capture and seal the live prior three (read only)
+        if: env.F27_CAPTURE_IN_RUN == 'true'
+        shell: bash
+        working-directory: operator
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::The protected production Supabase access token is not configured"
+            exit 1
+          fi
+          public_failure() {
+            [ -f "$1" ] || return 0
+            grep -aoE '^(f27-edge-source-rollback|ef-fingerprint): .{0,200}' "$1" | head -3 || true
+          }
+          private_dir="$(mktemp -d "$RUNNER_TEMP/f27-section4.XXXXXX")"
+          chmod 700 "$private_dir"
+          echo "F27_PRIVATE_DIR=$private_dir" >> "$GITHUB_ENV"
+          mkdir -m 700 "$private_dir/capture"
+          bundle="$private_dir/capture/prior-three-$(date -u +%Y%m%d-%H%M%S).sourcebundle"
+          echo "F27_CAPTURED_BUNDLE=$bundle" >> "$GITHUB_ENV"
+          export PROJECT_REF="$F27_PROJECT_REF"
+          if ! node scripts/f27-edge-source-rollback.js capture \
+            --slugs=production-write,deliverable-write,batch-write \
+            --bundle="$bundle" \
+            > "$private_dir/capture-receipt.json" \
+            2> "$private_dir/capture.error"; then
+            public_failure "$private_dir/capture.error"
+            echo "::error::The live prior-three capture failed; nothing was stored or deployed"
+            exit 1
+          fi
+          # An independent second read of the live set: the attestor's own live
+          # fingerprints must equal the closures the capture sealed.
+          node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" \
+            --slugs=production-write,deliverable-write,batch-write --format=json --report-only \
+            > "$private_dir/capture-live.json" 2> "$private_dir/capture-live.error" || true
+          node - "$private_dir/capture-receipt.json" "$private_dir/capture-live.json" "$bundle" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          let live = {};
+          try { live = JSON.parse(fs.readFileSync(process.argv[3], 'utf8')); } catch (_) { throw new Error('independent live fingerprint read failed'); }
+          const expected = ['batch-write', 'deliverable-write', 'production-write'];
+          const rows = Array.isArray(receipt.functions) ? receipt.functions : [];
+          if (receipt.result !== 'PASS'
+            || receipt.operation !== 'capture'
+            || receipt.provider_contract !== 'PASS'
+            || receipt.provider_source_exactness !== 'PASS'
+            || receipt.rollback_standard !== 'source-exact-readback'
+            || receipt.function_count !== 3
+            || !/^[0-9a-f]{64}$/.test(String(receipt.sealed_bundle_sha256))
+            || !Number.isSafeInteger(receipt.sealed_bundle_byte_length)
+            || receipt.sealed_bundle_byte_length < 1
+            || receipt.sealed_bundle_byte_length > 134217728
+            || receipt.sealed_bundle_byte_length !== fs.statSync(process.argv[4]).size
+            || rows.length !== 3) {
+            throw new Error('live prior-three capture receipt mismatch');
+          }
+          const liveBySlug = new Map((live.results || []).map(row => [row.slug, row]));
+          for (let index = 0; index < expected.length; index += 1) {
+            const row = rows[index] || {};
+            const independent = liveBySlug.get(expected[index]) || {};
+            if (row.slug !== expected[index]
+              || typeof row.verify_jwt !== 'boolean'
+              || !/^[0-9a-f]{64}$/.test(String(row.source_closure_sha256))
+              || independent.live_fingerprint !== row.source_closure_sha256
+              || String(independent.version) !== String(row.captured_version)) {
+              throw new Error(`live prior-three capture disagrees with the independent live read for ${expected[index]}`);
+            }
+          }
+          fs.appendFileSync(process.env.GITHUB_ENV, [
+            `ROLLBACK_BUNDLE_SHA256=${receipt.sealed_bundle_sha256}`,
+            `ROLLBACK_BUNDLE_BYTE_LENGTH=${receipt.sealed_bundle_byte_length}`,
+            '',
+          ].join('\n'));
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '- Live prior-three capture in this run: PASS (provider contract, source exactness, independent live read agree)',
+            `- **Sealed bundle SHA-256: \`${receipt.sealed_bundle_sha256}\`**`,
+            `- **Sealed bundle bytes: \`${receipt.sealed_bundle_byte_length}\`**`,
+            '- Those two values restore this exact live set with `restore-captured-prior-three`.',
+            ...rows.map(row => `- Captured \`${row.slug}\`: version \`${row.captured_version}\`, source \`${row.source_closure_sha256}\``),
+            '',
+          ].join('\n'));
+          NODE
+
+      # F27 artifacts live at the root of the "SyncView Backups" Shared Drive.
+      - name: Store the sealed bundle in the F27 Shared Drive root (independent readback)
+        if: env.F27_CAPTURE_IN_RUN == 'true'
+        shell: bash
+        env:
+          F27_CONFIRM_PRIVATE_SNAPSHOT_UPLOAD: "1"
+          TRACK_B_BACKUP_DRIVE_FOLDER_ID: ${{ secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID }}
+          TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TRACK_B_BACKUP_DRIVE_FOLDER_ID" ] \
+            || [ -z "$TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON" ]; then
+            echo "::error::The protected F27 Shared Drive root and credential secrets are not both configured"
+            exit 1
+          fi
+          root_hash="$(node -e "process.stdout.write(require('node:crypto').createHash('sha256').update(process.env.TRACK_B_BACKUP_DRIVE_FOLDER_ID, 'utf8').digest('hex'))")"
+          if [ "$root_hash" != "$EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256" ]; then
+            echo "::error::The F27 Shared Drive root secret is not the reviewed root"
+            exit 1
+          fi
+          if ! node operator/scripts/f27-private-snapshot-store.js \
+            --artifact-kind edge-source \
+            --source "$F27_CAPTURED_BUNDLE" \
+            --expected-sha256 "$ROLLBACK_BUNDLE_SHA256" \
+            > "$F27_PRIVATE_DIR/store-receipt.json"; then
+            echo "::error::Storing the sealed prior-three bundle in the F27 Shared Drive root failed; nothing was deployed"
+            exit 1
+          fi
+          node - "$F27_PRIVATE_DIR/store-receipt.json" <<'NODE'
+          const fs = require('fs');
+          const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (receipt.status !== 'PASS'
+            || receipt.artifact_kind !== 'edge-source'
+            || receipt.source_bundle_sha256 !== process.env.ROLLBACK_BUNDLE_SHA256
+            || String(receipt.byte_length) !== process.env.ROLLBACK_BUNDLE_BYTE_LENGTH
+            || receipt.independent_private_readback !== 'PASS') {
+            throw new Error('private prior-three store receipt mismatch');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, '- Sealed bundle stored content-addressed in the F27 Shared Drive root: PASS (independent readback)\n');
+          NODE
+          # The fetch below must read it back from Drive, not from this runner.
+          rm -f -- "$F27_CAPTURED_BUNDLE"
+          rmdir -- "$F27_PRIVATE_DIR/capture"
 
       # F27 artifacts live at the root of the "SyncView Backups" Shared Drive,
       # not in its "track-b-backups" weekly-snapshot child.
@@ -512,17 +708,22 @@ jobs:
         env:
           F27_PRIVATE_SHARED_DRIVE_ROOT_ID: ${{ secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID }}
           TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
-          F27_CONFIRM_PRIVATE_SNAPSHOT_FETCH: FETCH_PRIVATE_EDGE_SOURCE:${{ inputs.rollback_bundle_sha256 }}
         run: |
           set -euo pipefail
+          # The confirmation names the exact bundle this run will deploy against:
+          # the given one, or the one sealed above.
+          export F27_CONFIRM_PRIVATE_SNAPSHOT_FETCH="FETCH_PRIVATE_EDGE_SOURCE:$ROLLBACK_BUNDLE_SHA256"
           if [ -z "$F27_PRIVATE_SHARED_DRIVE_ROOT_ID" ] \
             || [ -z "$TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON" ]; then
             echo "::error::The protected F27 Shared Drive root and credential secrets are not both configured"
             exit 1
           fi
-          private_dir="$(mktemp -d "$RUNNER_TEMP/f27-section4.XXXXXX")"
-          chmod 700 "$private_dir"
-          echo "F27_PRIVATE_DIR=$private_dir" >> "$GITHUB_ENV"
+          private_dir="${F27_PRIVATE_DIR:-}"
+          if [ -z "$private_dir" ]; then
+            private_dir="$(mktemp -d "$RUNNER_TEMP/f27-section4.XXXXXX")"
+            chmod 700 "$private_dir"
+            echo "F27_PRIVATE_DIR=$private_dir" >> "$GITHUB_ENV"
+          fi
           bundle="$private_dir/prior-three.sourcebundle"
           echo "F27_PRIOR_THREE_BUNDLE=$bundle" >> "$GITHUB_ENV"
           if ! node operator/scripts/f27-private-snapshot-fetch.js \

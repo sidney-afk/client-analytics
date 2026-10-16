@@ -33233,3 +33233,55 @@ Back returns the same way; a page opened straight from a link closes to the Cale
 **Release.** The page ships with the next Pages deploy of main. The server part needs a `production-comments` deploy; the page
 works with the old function too (the saving is then only the early start and the cache). No migration. **Way back:** revert the
 pull request (and redeploy the previous `production-comments`).
+
+## 422. [2026-10-16, BUILT, NOT MERGED, NOT LIVE] Merged means live: no committed build output, Edge Functions deploy on merge, the Section 4 capture runs in GitHub (session Conveyor)
+
+**Why.** Every session committed `index.html` and `js/sv-*.js`, so each merge made every other
+open pull request conflict and re-run all of CI (over and over on 2026-10-15). Most Edge Functions
+went live only when the owner pressed Run workflow, and the three Section 4 functions also needed a
+capture script on one Windows machine plus a drag-and-drop into Drive.
+
+**What changed.**
+- The page is built, not committed. `index.html`, `js/sv-*.js`, `src/index/INDEX.md` are in
+  `.gitignore`; `pages-site.yml` builds them, puts back the older content-hashed bundles a tab left
+  open may ask for (`scripts/pages-retained-bundles.js`), then publishes. Every CI job that reads the
+  page builds it first (`.github/actions/build-index`); `test/run-all.js`, `qa/master.js`,
+  `qa/run-probes.js` build first by themselves. `check:index` now proves the build is deterministic
+  and nothing built is tracked (the alias name is kept: `package.json` is pinned by the F27
+  reconciler closure and the PTO evidence fingerprint). The two checks that compared against a base
+  commit's committed `index.html` (`check-modules.js --against`, the identity check's moved-line
+  rule) read the base's own fragments when the base has none; the identity check can only be
+  stricter for it.
+- `deploy-edge-functions-on-merge.yml` deploys every changed function on merge, in order, with
+  the manual lanes' checks (runbook `docs/ops/EF_AUTO_DEPLOY.md`). Held: a merge that adds a
+  migration (until applied, then a manual run with `migrations_applied`), drift, a failed safeguard,
+  a held predecessor. Manual only: `calendar-upsert`, `sample-review-upsert`, `linear-*`,
+  `client-token-verify`. The four lanes that deployed on push are manual fallbacks now.
+- `deploy-f27-section4-closures.yml` accepts `capture` as both bundle inputs: it captures with the
+  same script, cross-checks an independent live read, stores in the same Drive root with an
+  independent readback, and only then runs its unchanged fetch, inspect, deploy and attest steps.
+  `capture-only` is the dry run. The merge lane dispatches it and waits.
+
+**Measured before merge (offline, this sandbox has no production token).**
+- Publish dry run at `407c5cb`: the folder built from `src/index/` (plus the retained bundles) and
+  the folder built from the committed files: 616 files each, `diff -r` identical, 1,187,093,533 bytes.
+- Plan dry run over the 25 newest merges that touched functions or migrations, plus the 4 newest
+  that touched `production-write`/`notify`: listed in the PR.
+- Section 4 capture: the owner's command (main's script) and the lane's step, fed the same
+  provider answers (live metadata from the Supabase connector, main's source bytes) and the same
+  clock, wrote byte-identical bundles (SHA-256 `5971a4a6cdc54c6ae6f394fc6f2fa9ceea0c4e8165f1cd2613d21048f6e85992`,
+  515,791 bytes); each captured closure equals the lane's pin; the lane's receipt check and
+  `inspect` pass on it.
+
+**Not yet proven live:** the first real run of each lane. After merge: one `capture-only` dispatch of
+the Section 4 lane (deploys nothing), and the first merge that changes a function.
+
+**Review round 1 (Lighthouse, 2026-10-16), fixed on the same branch:** (1) `dawn-check.yml` now builds the page,
+and `test/pages-build-inputs.js` fails for any workflow that serves or tests the page without the build step;
+(2) the order rule holds across runs (a follower is deployed only if its predecessor is live at the head's
+source, in the plan or read live); (3) a run starts from the last fully successful run, so held and failed
+functions are planned again, a failed runs lookup fails the run, and a migration holds only the functions its
+own merge changed; (4) Section 4 is dispatched only at the planned commit (or a tip with no function, migration
+or lane change since), else handed to the tip's own run. Also: the attestation covers what went live even when
+a later deploy fails, a manual run's summary says it skipped the drift guard and marks drift per function, and
+the publish keeps the bundles of the last 30 builds (was 10).

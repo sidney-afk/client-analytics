@@ -58,6 +58,8 @@ const {
 } = require('./nightly-input.js');
 
 const ROOT = path.resolve(__dirname, '..');
+// index.html and js/ are build output (not committed): build before any lane reads them.
+if (require.main === module) require('../scripts/ensure-built').ensureBuilt();
 const QA = __dirname;
 const PROBES = path.join(QA, 'probes');
 const TEST = path.join(ROOT, 'test');

@@ -575,6 +575,11 @@ hiring senders when the editor hire closes.
   also contains exactly `--slugs=production-write,deliverable-write,batch-write`
   and no Linear slug. This confirms the saved script text, not a fresh capture,
   bundle readback, or deployment; follow the fresh-capture gate before dispatch.
+  **Superseded 2026-10-16 (session Conveyor):** the Section 4 lane captures,
+  seals and stores the prior three itself (`capture` as both bundle inputs) and
+  is dispatched on merge by `deploy-edge-functions-on-merge.yml`; nobody runs the
+  saved script any more. Not yet run live: the first `capture-only` dispatch after
+  merge is its live proof (see `docs/ops/EF_AUTO_DEPLOY.md`).
 - **Linear is fully off.** No `linear-*` Edge Function is deployed
   (`linear-inbound`, `linear-outbound`, `workload-linear` all gone); all Linear
   API keys revoked 2026-09-23 (the runbook's STEP 7, which some docs still call

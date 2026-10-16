@@ -1,16 +1,14 @@
 name: Deploy PTO edge function
 
-# Auto-deploys function-only PTO changes on main. A push that also changes PTO
-# SQL is intentionally held so the private migration can be applied/read back
-# first; the operator then uses the confirmed manual dispatch.
+# Manual fallback (since 2026-10-16): merges deploy pto through
+# deploy-edge-functions-on-merge.yml, which keeps this lane's rule (a merge that
+# changes PTO SQL is held until the migration is applied and read back, and
+# PTO_SCHEMA_CONTRACT must name the contract below).
 # The Actions token and role keys stay in managed secret stores, never here.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'supabase/functions/pto/**'
-      - 'supabase/functions/_shared/staff-role-auth.ts'
-      - '.github/workflows/deploy-pto-edge-functions.yml'
+  # Automatic deploys on merge moved to deploy-edge-functions-on-merge.yml
+  # (2026-10-16), which deploys every changed function in order, with the
+  # same checks. This lane stays as the manual fallback.
   workflow_dispatch:
     inputs:
       migration_readback_confirmed:

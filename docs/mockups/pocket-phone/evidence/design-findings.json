@@ -1,0 +1,700 @@
+[
+  {
+    "key": "tiktok",
+    "theme": "light",
+    "overflow": true,
+    "sw": 397,
+    "w": 390,
+    "bad": []
+  },
+  {
+    "key": "tiktok",
+    "theme": "dark",
+    "overflow": true,
+    "sw": 397,
+    "w": 390,
+    "bad": []
+  },
+  {
+    "key": "instagram",
+    "theme": "light",
+    "overflow": true,
+    "sw": 397,
+    "w": 390,
+    "bad": [
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 294,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 294,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 294,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 294,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 294,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 294,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 294,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 294,
+        "h": 43,
+        "font": "12.48px"
+      }
+    ]
+  },
+  {
+    "key": "instagram",
+    "theme": "dark",
+    "overflow": true,
+    "sw": 397,
+    "w": 390,
+    "bad": [
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 290,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 290,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 290,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 290,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 290,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 290,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 290,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 290,
+        "h": 43,
+        "font": "12.48px"
+      }
+    ]
+  },
+  {
+    "key": "timeOff",
+    "theme": "light",
+    "overflow": true,
+    "sw": 646,
+    "w": 390,
+    "bad": [
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 292,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 292,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 292,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 292,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 292,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 292,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 292,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 292,
+        "h": 43,
+        "font": "12.48px"
+      }
+    ]
+  },
+  {
+    "key": "timeOff",
+    "theme": "dark",
+    "overflow": true,
+    "sw": 646,
+    "w": 390,
+    "bad": [
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 288,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 288,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 288,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 288,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 288,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 288,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 288,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 288,
+        "h": 43,
+        "font": "12.48px"
+      }
+    ]
+  },
+  {
+    "key": "salesIntake",
+    "theme": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [
+      {
+        "cls": "",
+        "t": "A",
+        "w": 105,
+        "h": 15,
+        "font": "12.8px"
+      }
+    ]
+  },
+  {
+    "key": "salesIntake",
+    "theme": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [
+      {
+        "cls": "",
+        "t": "A",
+        "w": 105,
+        "h": 15,
+        "font": "12.8px"
+      }
+    ]
+  },
+  {
+    "key": "credentials",
+    "theme": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [
+      {
+        "cls": "cc-select-option active",
+        "t": "BUTTON",
+        "w": 197,
+        "h": 43,
+        "font": "13.12px"
+      },
+      {
+        "cls": "cc-select-option",
+        "t": "BUTTON",
+        "w": 197,
+        "h": 43,
+        "font": "13.12px"
+      },
+      {
+        "cls": "cc-select-option",
+        "t": "BUTTON",
+        "w": 197,
+        "h": 43,
+        "font": "13.12px"
+      },
+      {
+        "cls": "cc-select-option",
+        "t": "BUTTON",
+        "w": 197,
+        "h": 43,
+        "font": "13.12px"
+      },
+      {
+        "cls": "cc-select-option",
+        "t": "BUTTON",
+        "w": 197,
+        "h": 43,
+        "font": "13.12px"
+      },
+      {
+        "cls": "cc-select-option",
+        "t": "BUTTON",
+        "w": 197,
+        "h": 43,
+        "font": "13.12px"
+      },
+      {
+        "cls": "cc-select-option",
+        "t": "BUTTON",
+        "w": 197,
+        "h": 43,
+        "font": "13.12px"
+      },
+      {
+        "cls": "cc-select-option",
+        "t": "BUTTON",
+        "w": 197,
+        "h": 43,
+        "font": "13.12px"
+      }
+    ]
+  },
+  {
+    "key": "credentials",
+    "theme": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [
+      {
+        "cls": "cc-select-option active",
+        "t": "BUTTON",
+        "w": 193,
+        "h": 43,
+        "font": "13.12px"
+      },
+      {
+        "cls": "cc-select-option",
+        "t": "BUTTON",
+        "w": 193,
+        "h": 43,
+        "font": "13.12px"
+      },
+      {
+        "cls": "cc-select-option",
+        "t": "BUTTON",
+        "w": 193,
+        "h": 43,
+        "font": "13.12px"
+      },
+      {
+        "cls": "cc-select-option",
+        "t": "BUTTON",
+        "w": 193,
+        "h": 43,
+        "font": "13.12px"
+      },
+      {
+        "cls": "cc-select-option",
+        "t": "BUTTON",
+        "w": 193,
+        "h": 43,
+        "font": "13.12px"
+      },
+      {
+        "cls": "cc-select-option",
+        "t": "BUTTON",
+        "w": 193,
+        "h": 43,
+        "font": "13.12px"
+      },
+      {
+        "cls": "cc-select-option",
+        "t": "BUTTON",
+        "w": 193,
+        "h": 43,
+        "font": "13.12px"
+      },
+      {
+        "cls": "cc-select-option",
+        "t": "BUTTON",
+        "w": 193,
+        "h": 43,
+        "font": "13.12px"
+      }
+    ]
+  },
+  {
+    "key": "saveProblems",
+    "theme": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 134,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option active",
+        "t": "BUTTON",
+        "w": 134,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 134,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option active",
+        "t": "BUTTON",
+        "w": 134,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 134,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 134,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 134,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 134,
+        "h": 43,
+        "font": "12.48px"
+      }
+    ]
+  },
+  {
+    "key": "saveProblems",
+    "theme": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 134,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option active",
+        "t": "BUTTON",
+        "w": 134,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 134,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option active",
+        "t": "BUTTON",
+        "w": 134,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 134,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 134,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 134,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 134,
+        "h": 43,
+        "font": "12.48px"
+      }
+    ]
+  },
+  {
+    "key": "adPerformance",
+    "theme": "light",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [
+      {
+        "cls": "sv-select-option active",
+        "t": "BUTTON",
+        "w": 329,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 329,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 329,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 329,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 329,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 329,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 329,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "",
+        "t": "A",
+        "w": 40,
+        "h": 26,
+        "font": "11.04px"
+      }
+    ]
+  },
+  {
+    "key": "adPerformance",
+    "theme": "dark",
+    "overflow": false,
+    "sw": 390,
+    "w": 390,
+    "bad": [
+      {
+        "cls": "sv-select-option active",
+        "t": "BUTTON",
+        "w": 325,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 325,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 325,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 325,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 325,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 325,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "sv-select-option",
+        "t": "BUTTON",
+        "w": 325,
+        "h": 43,
+        "font": "12.48px"
+      },
+      {
+        "cls": "",
+        "t": "A",
+        "w": 40,
+        "h": 26,
+        "font": "11.04px"
+      }
+    ]
+  }
+]

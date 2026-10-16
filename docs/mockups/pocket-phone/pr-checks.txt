@@ -1,0 +1,55 @@
+Pocket review PR — recorded check results, 2026-10-02
+Scope: documentation and curated images only. No product code, generated output,
+app asset, route, writer or OPEN_REPAIRS change. No merge or deployment.
+
+Source equality against the fresh main checkout:
+SOURCE_EQUALITY: 2891 existing files compared byte for byte; 0 differences outside the two documentation index edits.
+
+npm run check:index (exit 0):
+check-index: OK — assembled == working tree == committed (HEAD)
+
+node test/repo-map-sync.js (exit 0):
+repo-map-sync: 1065 passed, 0 failed
+
+node test/atlas-sync.js (exit 0):
+atlas-sync: 295 passed, 0 failed
+
+node test/truth-sync.js, candidate and unchanged base (both exit 1):
+truth-sync: 360 passed, 93 failed
+TRUTH_BASELINE: 93 candidate failures; 93 base failures; 0 added; 0 removed.
+
+Existing qa/client-phone/desktop-parity.js, full invocation (exit 2):
+SYNCVIEW_STAFF_KEY is required to resolve the current TEST-client token
+UNPROVEN: all-width live client desktop parity and its before/after screenshots.
+
+Existing desktop gate, staff Analytics smoke at 1024 px (exit 1):
+0/1 desktop shots identical to origin/main
+The images have identical pixels, but the computed-style comparison differs.
+The gate made its four built-in attempts; this failure has not been cleared.
+Both gate invocations used a private adapter that launches visible Chrome and
+foregrounds screenshots. Gate assertions, retries and timing were unchanged.
+Private before/after screenshots are retained with the original logs.
+
+npm test (exit 1):
+16 of 673 unit suite(s) failed ❌
+failed suites: test/client-onboarding-handler.js, test/clean-urls-routes.js, test/b2-brief-link-rewrite.mjs, test/client-reconcile-after-posted.js, test/alert-digest.js, test/overnight-runner-output-path.js, test/overnight-runner-singleton-lock.js, test/production-write-card-link.js, test/brain-parse.js, test/urgent-ping-fresh-round.js, test/write-refusal-browser-codes.js, test/analytics-metrics-collect-function.js, test/analytics-top-videos-collect-function.js, test/client-profile-edit.js, test/filming-plan-tabs-source.js, test/key-verify-behavior.js
+UNIT_BASELINE: 16 candidate failing suites rerun on unchanged main; 16 fail there too; 0 pass there.
+Required isolated/private-input profiles are NOT_RUN in the unit lane.
+
+git diff --cached --check (exit 0): no output.
+The staged paths were reviewed: two documentation indexes and five packet files.
+
+node scripts/repo-identity-exposure-check.js --diff=origin/main, after committing (exit 0):
+This change adds no client slug and no colleague's name ✅
+The live roster check examined 53 terms and found zero added identities.
+Binary screenshot content is covered by the manual visual review, not this text scanner.
+
+node scripts/byte-pinned-line-ending-check.js --diff=origin/main, after committing (exit 0):
+byte-pinned line endings vs origin/main: 106 pinned, 0 touched by this change
+  OK    no byte-pinned file changed its line-ending composition
+
+git diff origin/main...HEAD --check (exit 0): no output.
+
+Hosted CI is separate from these local results. Inspect its status on the PR;
+no pending, failing or unrun lane is represented as green by this packet.
+Token usage is not exposed by this session; no count has been invented.

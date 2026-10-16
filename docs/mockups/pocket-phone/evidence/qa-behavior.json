@@ -1,0 +1,202 @@
+[
+  {
+    "name": "Client review has three separate component panels",
+    "ok": true
+  },
+  {
+    "name": "Draft blocks approval and enables comment/change choices",
+    "ok": true
+  },
+  {
+    "name": "Enabled review actions fit and stay at least 44 pixels",
+    "ok": true
+  },
+  {
+    "name": "Clearing draft restores approval gate",
+    "ok": true
+  },
+  {
+    "name": "Client tabs contain only Analytics and Content Calendar",
+    "ok": true
+  },
+  {
+    "name": "Samples client link has only Samples",
+    "ok": true
+  },
+  {
+    "name": "Client Sheet hides staff status/archive/copy and alternate-caption controls",
+    "ok": true
+  },
+  {
+    "name": "Samples review retains exactly two components",
+    "ok": true
+  },
+  {
+    "name": "Kasper retains three component decisions and disabled finish gate",
+    "ok": true
+  },
+  {
+    "name": "Kasper More retains all ten secondary sections",
+    "ok": true
+  },
+  {
+    "name": "Staff tabs retain all eleven main tabs",
+    "ok": true
+  },
+  {
+    "name": "Main caption survives alternate-draft switching",
+    "ok": true
+  },
+  {
+    "name": "Alternate draft survives switching back",
+    "ok": true
+  },
+  {
+    "name": "Caption text removal asks for original confirmation",
+    "ok": true
+  },
+  {
+    "name": "Cancel keeps the alternate draft",
+    "ok": true
+  },
+  {
+    "name": "Client Notes enables Send for a draft",
+    "ok": true
+  },
+  {
+    "name": "Client Notes draft controls fit at 360 pixels",
+    "ok": true
+  },
+  {
+    "name": "Client Notes retains the request-change choice",
+    "ok": true
+  },
+  {
+    "name": "Clearing Notes disables Send again",
+    "ok": true
+  },
+  {
+    "name": "Collaborative client Sheet keeps editable caption, CTA and Suggest a post",
+    "ok": true
+  },
+  {
+    "name": "Client Sheet keeps existing names locked and staff-only actions hidden",
+    "ok": true
+  },
+  {
+    "name": "Collaborative client date opens the date picker",
+    "ok": true
+  },
+  {
+    "name": "Instagram keeps only its video form a light",
+    "ok": true
+  },
+  {
+    "name": "Upload has one visible Post now action a light",
+    "ok": true
+  },
+  {
+    "name": "Instagram frame cover keeps the attach-video guidance a light",
+    "ok": true
+  },
+  {
+    "name": "Instagram returns to image cover a light",
+    "ok": true
+  },
+  {
+    "name": "TikTok carousel shows image limits and hides the Instagram form a light",
+    "ok": true
+  },
+  {
+    "name": "Upload choice labels meet the 44 pixel size a light",
+    "ok": true
+  },
+  {
+    "name": "TikTok returns to video and keeps one Post now action a light",
+    "ok": true
+  },
+  {
+    "name": "Instagram keeps only its video form b light",
+    "ok": true
+  },
+  {
+    "name": "Upload has one visible Post now action b light",
+    "ok": true
+  },
+  {
+    "name": "Instagram frame cover keeps the attach-video guidance b light",
+    "ok": true
+  },
+  {
+    "name": "Instagram returns to image cover b light",
+    "ok": true
+  },
+  {
+    "name": "TikTok carousel shows image limits and hides the Instagram form b light",
+    "ok": true
+  },
+  {
+    "name": "Upload choice labels meet the 44 pixel size b light",
+    "ok": true
+  },
+  {
+    "name": "TikTok returns to video and keeps one Post now action b light",
+    "ok": true
+  },
+  {
+    "name": "Instagram keeps only its video form a dark",
+    "ok": true
+  },
+  {
+    "name": "Upload has one visible Post now action a dark",
+    "ok": true
+  },
+  {
+    "name": "Instagram frame cover keeps the attach-video guidance a dark",
+    "ok": true
+  },
+  {
+    "name": "Instagram returns to image cover a dark",
+    "ok": true
+  },
+  {
+    "name": "TikTok carousel shows image limits and hides the Instagram form a dark",
+    "ok": true
+  },
+  {
+    "name": "Upload choice labels meet the 44 pixel size a dark",
+    "ok": true
+  },
+  {
+    "name": "TikTok returns to video and keeps one Post now action a dark",
+    "ok": true
+  },
+  {
+    "name": "Instagram keeps only its video form b dark",
+    "ok": true
+  },
+  {
+    "name": "Upload has one visible Post now action b dark",
+    "ok": true
+  },
+  {
+    "name": "Instagram frame cover keeps the attach-video guidance b dark",
+    "ok": true
+  },
+  {
+    "name": "Instagram returns to image cover b dark",
+    "ok": true
+  },
+  {
+    "name": "TikTok carousel shows image limits and hides the Instagram form b dark",
+    "ok": true
+  },
+  {
+    "name": "Upload choice labels meet the 44 pixel size b dark",
+    "ok": true
+  },
+  {
+    "name": "TikTok returns to video and keeps one Post now action b dark",
+    "ok": true
+  }
+]

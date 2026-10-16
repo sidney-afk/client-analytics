@@ -1,0 +1,7 @@
+PHONE_LAYOUT: 1080 cases; 0 failures; 0 browser errors.
+PHONE_MENUS: 152 cases; 0 failures.
+PREVIEW_INTERACTIONS: 50 checks; 0 failures.
+LOWER_SECTIONS: 90 cases; 0 failures.
+GALLERY: 180 phone previews; 0 failures.
+PRIVACY: 79 scanned text artifacts; known identities=0; share tokens=0; JWTs=0; private keys=0.
+SNAPSHOT_HANDLERS: 0 original inline handlers; 0 external media/link attributes; executable network calls=false.

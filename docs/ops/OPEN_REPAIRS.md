@@ -33161,3 +33161,21 @@ matches; a teammate's change while typing waited for blur → drawn at once, the
 **Release.** (1) Run `deploy-single-function` for `frameio-view` with the merge commit's SHA. The function needs `SUPABASE_SERVICE_ROLE_KEY`, which every function already has. (2) The page ships with the next Pages deploy. Until step 1, a client's inline player says "could not load" and "Open in Frame.io" works; staff are unaffected. **Way back:** revert the pull request; the redeployed function can stay (the old page only sends a staff key).
 
 **Tests.** `test/frameio-view-source.js` (107 checks: the wrong client is refused, no token is refused, a client gets no comments, the flag fails closed, only reads), `test/frameio-viewer-browser.js` (Sheet icon, staff and client Review tab, desktop and 390px, switch off and live changes).
+
+## 421. [2026-10-15, BUILT, NOT MERGED, NOT DEPLOYED] Writing a note: it shows the moment it is sent, and is never lost (session Scribe)
+
+**Owner, 2026-10-15.** A note with Request changes worked but took a long time to send. Goal: every note, by everyone (client link, Calendar Sheet Notes, Review, Messages; desktop and phone), feels instant and never fails silently.
+
+**Measured first (live backend, test client only, real Chromium, median of 5; `scripts/note-send-timing.js`).** The Notes dialog waited for two server calls in a row (the write gateway, then the card save) before it drew the note: about 2.2 to 2.5 s. Messages drew a reply only after the save, the read mark and a full inbox reload: about 5.2 s. A client's Request changes never showed the note at all (the part left the screen; only a "Sending..." toast for 0.6 s on a caption, about 4 s on a video, which goes gateway comment, then gateway status, then card). The live function logs showed every gateway comment and status write also waiting about 0.3 s for the Slack sender to be woken.
+
+**What changed.**
+- **Note outbox (190).** Every note gets its id at the click; the id is what the gateway keeps one comment per (`native_comment_id`) and what the card save merges by, so a retry, a double click or a re-send after a refresh can never make a second note. The note and its words are kept in this browser until the server confirms it, drawn in the thread as "Sending...", and on failure (or a refresh mid-send) as "Not sent" with Tap to retry and Discard. Sends for one card run one after another, in click order, behind the screen.
+- Notes dialog (staff and client) and Messages replies send through it; the box is free at once. Messages' read mark and inbox refresh run after the save, never before the reply shows.
+- Review Comment (client and staff) is marked "Sending..." and, if refused, "Not sent" with Retry, also after a refresh; the refusal goes to the write-refusal log.
+- Request changes keeps the note in sight, "Sending...", while the request is on its way (client and staff; a client request held for no connection says so and offers Tap to retry). The requests themselves are byte-identical to main (`test/client-review-requests-unchanged-browser.js`; only the `_calReviewRequestTweak` source hash re-pinned).
+- **Found while measuring, fixed (120/190/230):** a card refreshed while its work-item link was being looked up kept a stale "lookup running" mark, so Send stayed locked on "Notes are still loading" until a reload. Main can hit it too; the background send made it common. The mark is now kept per card id.
+- **Server (`production-write`):** the Slack sender wake after an ordinary comment or status write runs after the answer (`EdgeRuntime.waitUntil`) instead of before it. Needs the Section 4 deploy; the page works the same without it.
+
+**Release.** Pages ships the page with the merge. `production-write` needs the F27 Section 4 deploy lane (capture, upload, dispatch) with the merge commit; until then the server saving is not live. No migration. **Way back:** revert the pull request (and redeploy the previous `production-write` if it was deployed).
+
+**Tests.** `docs/syncview-design/tests/note-send-outbox-browser.js` (fast path, slow server, error then retry, double click, refresh mid-send with the server's answer lost, Messages, client comment and request, the stuck-lookup case; desktop and 390 px; screenshots light and dark in `docs/audits/note-send-speed/`).

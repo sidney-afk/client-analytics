@@ -56,8 +56,9 @@ async function main(){
    assert.equal(await box.inputValue(),'A retained fictional reply.','Forward after a cross-page return restores the thread and draft');
    const more=p.getByRole('button',{name:'More conversation actions'});await more.tap();
    await shot(p,'messages-more',width,theme);await rules.scrollLock(p,'.thumb-msg-more');await p.keyboard.press('Escape');assert(await more.evaluate(n=>n===document.activeElement),'More returns focus');
-   await p.getByRole('button',{name:'Send reply',exact:true}).tap();await p.getByText('Your reply was not sent. It is still in the box; try again.',{exact:true}).waitFor({timeout:30000});assert.equal(await box.inputValue(),'A retained fictional reply.');await shot(p,'messages-refused',width,theme);
-   assert(!await p.getByRole('button',{name:'Send reply',exact:true}).isDisabled(),'A refused reply can be retried');
+   // Since the note outbox (2026-10-15) a refused reply stays in the chat as "Not sent" with Tap to retry, its words kept; the box is free.
+   await p.getByRole('button',{name:'Send reply',exact:true}).tap();const refused=p.locator('.msg-b.is-outbox-failed').filter({hasText:'A retained fictional reply.'});await refused.locator('.sv-note-outbox-retry').waitFor({timeout:30000});assert.equal(await box.inputValue(),'');await shot(p,'messages-refused',width,theme);
+   assert(await refused.locator('.sv-note-outbox-retry').isEnabled(),'A refused reply can be retried');
    await p.locator('.sv-toast').waitFor({state:'hidden',timeout:10000});
    await p.evaluate(()=>{_msgState.openId='';_msgState.conversations=[];_msgState.loaded=true;_msgState.loading=false;_msgState.error='';_msgPaint();});await shot(p,'messages-empty',width,theme);
    await p.evaluate(()=>{_msgState.loaded=false;_msgState.loading=true;_msgPaint();});await shot(p,'messages-loading',width,theme);

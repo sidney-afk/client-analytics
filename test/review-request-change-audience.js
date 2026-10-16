@@ -45,8 +45,12 @@ const _calReviewState = {
   saving: Object.create(null),
   errors: Object.create(null),
   draftActionIds: Object.create(null),
-  errorActionIds: Object.create(null)
+  errorActionIds: Object.create(null),
+  sendingNotes: Object.create(null)
 };
+// The note outbox (2026-10-15): the review Comment hands its note to it.
+function _noteOutboxPut(e){ return e; }
+function _noteOutboxSend(){ return Promise.resolve(true); }
 const _calPendingEdits = Object.create(null);
 let _mintN = 0;
 function _calMintCommentId(){ return 'c_' + (++_mintN); }
@@ -103,6 +107,7 @@ const REAL = [
   grabFunc('_calCommentsForView'),
   grabFunc('_calCommentRole'),
   grabFunc('_calReviewComment'),
+  grabFunc('_calReviewAddOutboxComment'),
   grabFunc('_calReviewRequestTweak'),
 ].join('\n\n');
 

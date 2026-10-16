@@ -140,9 +140,19 @@ async function openProd(S, page) {
     for (let i = 0; i < 40 && !S.log.some(l => l.key === 'gw:comment'); i++) await sleep(100);
     await leave(A); delete S.behave['gw:comment'];
     const B = await S.newPage(); await openNotes(S, B);
-    const val = await B.evaluate(() => document.getElementById('calCommentComposer').value);
-    const n = await noteText(B, '#calCommentsOverlay');
-    check(val === 'Unknown whether it arrived' && /check the thread/.test(n || ''), 'N3: when the thread does not show it, the text comes back with a "check the thread" hint (' + n + ')');
+    // Since the note outbox (2026-10-15) a sent note leaves the box at the
+    // click and waits in the thread: a note the thread does not show comes
+    // back THERE, with its words, as "Not sent" with Tap to retry (the retry
+    // reuses its id, so a note that did arrive is not doubled).
+    await sleep(600);
+    const n3 = await B.evaluate(() => {
+      const row = [...document.querySelectorAll('#calCommentsOverlay .cal-cm-row')].find(r => r.textContent.includes('Unknown whether it arrived'));
+      return { box: document.getElementById('calCommentComposer').value, failed: !!(row && row.classList.contains('is-outbox-failed')), retry: !!(row && row.querySelector('.sv-note-outbox-retry')) };
+    });
+    check(n3.failed && n3.retry && n3.box === '', 'N3: when the thread does not show it, the note comes back in the thread as "Not sent" with Tap to retry (' + JSON.stringify(n3) + ')');
+    await B.click('#calCommentsOverlay .cal-cm-row.is-outbox-failed .sv-note-outbox-retry');
+    for (let i = 0; i < 60 && !S.comments.some(c => c.body === 'Unknown whether it arrived'); i++) await sleep(100);
+    check(S.comments.filter(c => c.body === 'Unknown whether it arrived').length === 1, 'N3: Retry sends it, once');
     await S.close();
   });
   // ================= P: Production comment and reply =================

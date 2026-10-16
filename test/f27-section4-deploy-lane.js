@@ -518,7 +518,9 @@ const CANDIDATES = new Map([
     // itself after a native create and imports ./card-link.mjs (9 -> 10 files);
     // re-pinned with ef-fingerprint. Comment round 0 (2026-10-08, OPEN_REPAIRS
     // 382): round 0 is saved as no round, never a 500; re-pinned with ef-fingerprint.
-    source: '692b5c473be2d404ee05da0eb2fb87dca64e94cb4654cc0daa931d8c4f544502',
+    // Note outbox (2026-10-15, OPEN_REPAIRS 421): the Slack sender wake runs
+    // after the answer (waitUntil); re-pinned with ef-fingerprint.
+    source: '07677a1f0b62271710df7b63aff8a7eb7c732473f00c796d5e34c384c56387d2',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 10,
   }],

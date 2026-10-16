@@ -3521,6 +3521,15 @@ async function urgentSnapshot(supabase: SupabaseClient, req: Request, body: Json
   }
   return { clientSlug, id, cardId, surface, round, roundExact: urgentText(card.video_status_at, 40), actorMemberId: urgentText(principal.memberId), intendedMemberId: urgentText(editor.id) };
 }
+// Work that must not hold the answer up: kept alive past the response by the
+// Edge runtime when it offers waitUntil, otherwise left to finish on its own.
+function afterResponse(p: Promise<unknown>): void {
+  const edge = (globalThis as unknown as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+  const settled = p.catch(() => null);
+  try {
+    if (edge && typeof edge.waitUntil === "function") edge.waitUntil(settled);
+  } catch { /* the promise above already runs and cannot reject */ }
+}
 async function wakeNotificationSender(): Promise<void> {
   // Deliberately post-commit and best-effort: the durable SQL intent remains
   // pending if the sender is absent, unhealthy, or intentionally unconfigured.
@@ -5900,8 +5909,10 @@ async function handleEntityOperation(
   // The SQL event/comment observer has committed before this point. Wake the
   // manual sender best-effort for ordinary native status/comment writes too;
   // failure cannot roll back this accepted production mutation.
+  // Not awaited (2026-10-15, measured 270 to 330 ms per note): the wake runs
+  // after the answer is sent, so an alert never holds a save up.
   if ((operation === "status" || operation === "comment") && authority === "syncview"
-      && !principal.testOnly && !legacyParity) await wakeNotificationSender();
+      && !principal.testOnly && !legacyParity) afterResponse(wakeNotificationSender());
   return json({
     ok: true,
     native_committed: true,

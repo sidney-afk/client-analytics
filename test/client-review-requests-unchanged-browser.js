@@ -22,6 +22,10 @@
  * OPEN_REPAIRS 414 (2026-10-13): only the _calReviewApprove hash was re-pinned. The change is in its
  * staff-only (smm) branch; the client requests above are unchanged.
  *
+ * Note outbox (2026-10-15): only the _calReviewRequestTweak hash was re-pinned. It now keeps the note
+ * on screen, marked "Sending…", while the request is on its way (UI state only); the requests above
+ * are unchanged.
+ *
  * No request leaves the machine; every backend answer is local.
  */
 require('./helpers/single-file-index.js'); // split switch on: reads of index.html get the single-file page

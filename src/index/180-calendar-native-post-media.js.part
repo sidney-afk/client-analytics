@@ -14,7 +14,7 @@ import {
   DEFAULT_CAPTION_PROMPT, _calCapJobBatch, _calCapJobPollBusy, _calCapJobPollTimer,
   _calCapJobTicker, _calCapJobsRestored, _calCaptionJobs, _calCaptionPrompts,
   _calCaptionPromptsInFlight, _calCaptionPromptsLoaded, _calComponentsFor, _calNormStatus,
-  _calAssertSavingOn, _calRuntimeFlagRawMembers, _calRuntimeFlagSlug, _calSetCapJobBatch, _calSetCapJobPollBusy, _calSetCapJobPollTimer,
+  _calAssertSavingOn, _calSetCapJobBatch, _calSetCapJobPollBusy, _calSetCapJobPollTimer,
   _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
   _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calUpsertFetch, _calUpsertHeaders,
   _settingsAssertSavingOn, _settingsWriteHeaders, _syncviewEfHeaders,

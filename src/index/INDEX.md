@@ -10,7 +10,7 @@
 | 2 | `003-sv-route.html.part` | 222 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 401 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3965 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 8220 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 8227 | Templates view |
 | 6 | `030-body-shell.html.part` | 566 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2158 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `041-core-layers.js.part` | 397 | LAYERS: ONE RULE FOR EVERY POP-UP (owner request, ). |
@@ -50,8 +50,8 @@
 | 42 | `180-calendar-native-post-media.js.part` | 3620 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 43 | `185-client-review-queue.js.part` | 384 | Client review send queue: a client's Approve or Request changes is |
 | 44 | `186-archived-restore.js.part` | 484 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
-| 45 | `187-frame-viewer.js.part` | 538 | WATCH HERE: a card's Frame.io video, inside SyncView. Three ways in, all behind the frame_viewer_clients switch: |
-| 46 | `190-calendar-approval-comments.js.part` | 3831 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 45 | `187-frame-viewer.js.part` | 763 | WATCH HERE: a card's Frame.io video, inside SyncView. Three ways in, all behind the frame_viewer_clients switch: |
+| 46 | `190-calendar-approval-comments.js.part` | 3840 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 47 | `200-intake-data-startup.js.part` | 1883 | Video-only and Thumbnail-only were already built, but sat |
 | 48 | `210-production-state-writes.js.part` | 3321 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 49 | `220-production-attribution-views.js.part` | 2933 | An ABSENT persisted slug is missing evidence, not |
@@ -72,7 +72,7 @@
 | 64 | `323-kasper-dashboard-tail.js.part` | 984 | Messages tab = the shared Messages inbox (326-core-messages-inbox), or |
 | 65 | `324-client-onboarding-panel.js.part` | 800 | talking to the functions (admin only; the server checks the key and the member again) |
 | 66 | `326-core-messages-inbox.js.part` | 618 | Messages inbox (Notes Step 2) |
-| 67 | `330-kasper-review-history.js.part` | 2669 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
+| 67 | `330-kasper-review-history.js.part` | 2680 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 68 | `340-kasper-editors-board.js.part` | 734 | Editor work model |
 | 69 | `345-core-tooltip-date-picker.js.part` | 671 | Global styled tooltip — replaces every browser-native title popup |
 | 70 | `350-footer.html.part` | 398 | Transcript preview modal |

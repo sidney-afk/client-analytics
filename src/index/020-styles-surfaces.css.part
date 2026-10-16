@@ -8038,12 +8038,16 @@ html .fv-review-video .fv-frameio-link { display: inline-flex; align-self: cente
 html .fv-review-video .fv-frameio-link:hover { color: var(--text-primary); text-decoration: underline; }
 .fv-frameio-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
 /* The video playing in place of the preview. Same column, as wide as the column allows. */
-.cal-review-video-tile.fv-inline { aspect-ratio: auto; max-height: none; max-width: 100%; min-height: 120px; background: var(--sv-bg-000); transform: none; }
+.cal-review-video-tile.fv-inline { display: flex; justify-content: center; aspect-ratio: auto; width: fit-content; min-width: 140px; max-height: none; max-width: 100%; min-height: 120px; background: var(--sv-bg-000); transform: none; }
 .cal-review-video-tile.fv-inline:hover { transform: none; }
-.fv-inline-video { display: block; width: 100%; height: auto; max-height: min(62vh, 520px); background: var(--sv-bg-000); object-fit: contain; }
+html body .cal-review-video-tile.fv-inline { align-items: center; min-height: 0 !important; height: auto !important; width: fit-content !important; max-width: 100% !important; aspect-ratio: auto !important; }
+.fv-inline-video { display: block; align-self: center; width: auto; max-width: 100%; height: auto; max-height: min(66vh, 560px); background: var(--sv-bg-000); object-fit: contain; }
 .fv-inline-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 14px; text-align: center; background: var(--surface-subtle); color: var(--text-primary); }
+.fv-inline-state.is-loading { background: transparent; pointer-events: none; }
 .fv-inline-state[hidden] { display: none; }
 .fv-inline-state .fv-state-text { font-size: 0.78rem; }
+.fv-inline .fv-unmute { bottom: 46px; }
+.fv-inline[data-fv-small]::after { content: "Smaller version for your connection"; position: absolute; left: 8px; top: 8px; padding: 2px 8px; border-radius: 999px; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); font-size: 0.64rem; font-weight: 600; pointer-events: none; }
 /* The Sheet's thumbnail: a small play icon at the top centre, shown on hover (always on a phone). */
 html .cal-card-thumb .cal-thumb-play { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 4; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; min-width: 0 !important; min-height: 0 !important; margin: 0; padding: 0; border: 0; border-radius: 50%; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); cursor: pointer; opacity: 0; transition: opacity 0.15s, background 0.12s; }
 html .cal-card-thumb .cal-thumb-play::before { content: ""; position: absolute; inset: -7px; }
@@ -8067,92 +8071,95 @@ html .cal-card-thumb .cal-thumb-linear-warn ~ .cal-thumb-play { top: 46px; }
 body.fv-lock { overflow: hidden; }
 .fv-overlay { display: none; position: fixed; inset: 0; z-index: 320; background: var(--overlay); align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
 .fv-overlay.open { display: flex; }
-.fv-panel { display: flex; flex-direction: column; width: min(1180px, 100%); max-height: min(820px, 100%); background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-lg); overflow: hidden; }
-.fv-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border-light); }
-.fv-head-text { flex: 1; min-width: 0; }
-.fv-eyebrow { font-size: 0.64rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
-.fv-title { margin: 2px 0 0; font-size: 1rem; font-weight: 800; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fv-open-link, .fv-btn { display: inline-flex; align-items: center; justify-content: center; padding: 8px 14px; background: var(--text-primary); color: var(--white); border: 0; border-radius: 10px; font-family: inherit; font-size: 0.78rem; font-weight: 700; text-decoration: none; cursor: pointer; white-space: nowrap; }
+/* The pop-up. --fv-h is the height the video may use; the player takes its width from the video's own shape, so
+   there are no black bars: a vertical video uses the height and the comments sit beside it, a wide one keeps the
+   wide layout with the comments on the right. */
+.fv-panel { --fv-h: calc(min(780px, 100vh - 48px) - 118px); display: flex; flex-direction: column; width: min(1120px, 100%); max-height: min(780px, 100%); background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-lg); overflow: hidden; }
+.fv-panel[data-orient="portrait"] { --fv-h: calc(min(860px, 100vh - 48px) - 118px); width: min(960px, 100%); max-height: min(860px, 100%); }
+.fv-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px 12px 20px; border-bottom: 1px solid var(--border-light); }
+.fv-title { flex: 1; min-width: 0; margin: 0; font-size: 1rem; font-weight: 800; line-height: 1.25; letter-spacing: -0.005em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fv-open-link, .fv-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 14px; background: var(--text-primary); color: var(--white); border: 0; border-radius: 10px; font-family: inherit; font-size: 0.78rem; font-weight: 700; text-decoration: none; cursor: pointer; white-space: nowrap; }
 .fv-open-link { background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); }
+.fv-open-link svg { width: 12px; height: 12px; flex-shrink: 0; color: var(--text-secondary); }
 .fv-open-link:hover, .fv-btn-ghost:hover { background: var(--surface-hover); }
 .fv-btn-ghost { background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); }
 .fv-btn-small { padding: 6px 11px; margin-top: 8px; }
 .fv-close { flex-shrink: 0; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-subtle); color: var(--text-secondary); border: 0; border-radius: 50%; cursor: pointer; }
 .fv-close svg { width: 12px; height: 12px; }
 .fv-close:hover { background: var(--surface-hover); color: var(--text-primary); }
-.fv-open-link:focus-visible, .fv-btn:focus-visible, .fv-close:focus-visible, .fv-refresh:focus-visible, .fv-reply-main:focus-visible, .fv-c-reply:focus-visible, .fv-c-main:focus-visible, .fv-mark:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.fv-open-link:focus-visible, .fv-btn:focus-visible, .fv-close:focus-visible, .fv-c-main:focus-visible, .fv-mark:focus-visible, .fv-unmute:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
-.fv-body { display: grid; grid-template-columns: minmax(0, 1fr) 360px; flex: 1; min-height: 0; }
-.fv-stage { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 16px 18px; overflow-y: auto; }
-.fv-player { position: relative; background: var(--sv-bg-000); border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 9; max-height: 62vh; display: flex; align-items: center; justify-content: center; }
-.fv-video { width: 100%; height: 100%; display: block; background: var(--sv-bg-000); object-fit: contain; }
+.fv-body { display: grid; grid-template-columns: minmax(0, 1fr) 340px; flex: 1; min-height: 0; }
+.fv-panel[data-orient="portrait"] .fv-body { grid-template-columns: auto minmax(280px, 1fr); }
+.fv-stage { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; padding: 16px 20px; overflow: hidden; }
+.fv-player { position: relative; flex: none; width: min(100%, calc(var(--fv-h) * var(--fv-ar, 1.7778))); aspect-ratio: var(--fv-ar, 16 / 9); background-color: var(--sv-bg-000); background-size: contain; background-position: center; background-repeat: no-repeat; border-radius: 12px; overflow: hidden; }
+.fv-panel[data-orient="portrait"] .fv-player { width: calc(var(--fv-h) * var(--fv-ar, 0.5625)); max-width: 100%; }
+.fv-video { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: transparent; object-fit: contain; }
 .fv-player:not([data-state="ready"]) .fv-video { visibility: hidden; }
 .fv-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center; background: var(--surface-subtle); color: var(--text-primary); }
+.fv-player[data-state="loading"] .fv-state { background: transparent; pointer-events: none; }
 .fv-player[data-state="ready"] .fv-state { display: none; }
 .fv-state-text { font-size: 0.86rem; font-weight: 600; color: var(--text-secondary); max-width: 360px; }
 .fv-state-bad { color: var(--text-primary); }
 .fv-state-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.fv-spin { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--text-primary); animation: fvSpin 0.8s linear infinite; }
+.fv-spin { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--sv-bg-rgba-255-255-255-0_18); border-top-color: var(--sv-fg-fff); animation: fvSpin 0.8s linear infinite; }
+.fv-player[data-state="error"] .fv-spin, .fv-inline-state:not(.is-loading) .fv-spin { border-color: var(--border); border-top-color: var(--text-primary); }
 @keyframes fvSpin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .fv-spin { animation-duration: 2.4s; } .fv-skel { animation: none; } }
-.fv-markers { position: relative; height: 14px; margin: 0 2px; border-radius: 7px; background: var(--surface-subtle); }
+.fv-unmute { position: absolute; left: 12px; bottom: 56px; z-index: 2; display: inline-flex; align-items: center; min-height: 0 !important; min-width: 0 !important; padding: 7px 12px; border: 0; border-radius: 999px; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); font-family: inherit; font-size: 0.74rem; font-weight: 700; cursor: pointer; backdrop-filter: blur(6px); }
+.fv-unmute[hidden] { display: none; }
+.fv-player[data-small]::after { content: "Smaller version for your connection"; position: absolute; left: 10px; top: 10px; padding: 2px 8px; border-radius: 999px; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); font-size: 0.64rem; font-weight: 600; pointer-events: none; }
+.fv-markers { position: relative; flex: none; align-self: stretch; height: 14px; margin: 0 2px; border-radius: 7px; background: var(--surface-subtle); }
 .fv-markers:empty { display: none; }
 html .fv-overlay .fv-markers .fv-mark { position: absolute; top: 1px; width: 12px; height: 12px; min-width: 0 !important; min-height: 0 !important; margin: 0 0 0 -6px; padding: 0; border: 2px solid var(--surface-raised); border-radius: 50%; background: var(--focus-ring); cursor: pointer; }
 html .fv-overlay .fv-markers .fv-mark::before { content: ""; position: absolute; inset: -9px; }
 html .fv-overlay .fv-markers .fv-mark:hover { transform: scale(1.25); }
-.fv-r-top { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 2px; }
-.fv-meta { font-size: 0.74rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* The comments: one list, oldest first. A purple edge and a timecode mark a Frame.io comment (click to jump);
+   a grey edge marks a SyncView note. The source is named small and quiet at the end of each line. */
 .fv-side { display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--border-light); background: var(--surface-subtle); }
-.fv-side-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border-light); }
+.fv-side-head { display: flex; align-items: baseline; gap: 8px; padding: 14px 18px 10px; }
 .fv-side-title { font-size: 0.8rem; font-weight: 800; }
-.fv-count { margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: var(--border-light); color: var(--text-secondary); font-size: 0.7rem; font-weight: 700; }
-.fv-count:empty { display: none; }
-.fv-refresh { background: none; border: 0; color: var(--text-secondary); font-family: inherit; font-size: 0.74rem; font-weight: 700; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
-.fv-refresh:hover { color: var(--text-primary); background: var(--surface-hover); }
-.fv-list { flex: 1; min-height: 120px; overflow-y: auto; padding: 10px 12px; }
-.fv-c-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.fv-c { background: var(--surface-raised); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-.fv-c.is-now { border-color: var(--focus-ring); }
+.fv-count { color: var(--text-secondary); font-size: 0.74rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fv-list { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 12px 16px; overscroll-behavior: contain; }
+.fv-c-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.fv-c { border-left: 2px solid var(--border); border-radius: 4px 10px 10px 4px; background: var(--surface-raised); transition: background 0.15s; }
+.fv-c.fv-src-frameio { border-left-color: color-mix(in srgb, var(--focus-ring) 60%, transparent); }
+.fv-c.is-now { background: color-mix(in srgb, var(--focus-ring) 9%, var(--surface-raised)); }
 .fv-c.is-done .fv-c-text { color: var(--text-secondary); }
-.fv-c-main { display: block; width: 100%; padding: 10px 12px 6px; background: none; border: 0; text-align: left; font-family: inherit; color: inherit; cursor: pointer; }
-.fv-c-main:hover { background: var(--surface-hover); }
-.fv-c-main:disabled { cursor: default; background: none; }
-.fv-c-top { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-bottom: 4px; }
-.fv-time { padding: 2px 7px; border-radius: 6px; background: var(--text-primary); color: var(--white); font-size: 0.7rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.fv-time-none { background: var(--border-light); color: var(--text-secondary); }
+.fv-c-main { display: block; width: 100%; padding: 10px 12px 10px 12px; margin: 0; background: transparent; border: 0; border-radius: inherit; font: inherit; color: inherit; text-align: left; }
+button.fv-c-main { cursor: pointer; }
+button.fv-c-main:hover { background: color-mix(in srgb, var(--focus-ring) 6%, transparent); }
+.fv-c-top { display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px 8px; margin-bottom: 3px; }
+.fv-time { padding: 1px 7px; border-radius: 6px; background: color-mix(in srgb, var(--focus-ring) 15%, transparent); color: var(--focus-ring); font-size: 0.7rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .fv-c-by { font-size: 0.76rem; font-weight: 800; }
 .fv-guest { color: var(--text-secondary); font-weight: 700; }
 .fv-c-when { font-size: 0.7rem; color: var(--text-secondary); }
+.fv-src { margin-left: auto; font-size: 0.64rem; font-weight: 600; color: var(--text-muted); }
 .fv-done { padding: 1px 6px; border-radius: 6px; background: var(--up-bg); color: var(--up); font-size: 0.66rem; font-weight: 800; }
 .fv-c-text { font-size: 0.82rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
-.fv-replies { margin: 0 12px 4px 24px; padding-left: 10px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
-.fv-reply { padding: 4px 0; }
-.fv-c-reply { display: inline-block; margin: 2px 12px 10px; font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); text-decoration: underline; text-underline-offset: 2px; }
-.fv-c-reply:hover { color: var(--text-primary); }
+.fv-replies { margin: 0 12px 8px 24px; padding-left: 10px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.fv-reply { padding: 2px 0; }
+.fv-r-top { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 2px; }
 .fv-note { padding: 12px; font-size: 0.8rem; color: var(--text-secondary); text-align: center; }
 .fv-note-bad { color: var(--text-primary); }
-.fv-skel { height: 66px; margin-bottom: 8px; border-radius: 12px; background: linear-gradient(90deg, var(--border-light), var(--surface-hover), var(--border-light)); background-size: 200% 100%; animation: fvShimmer 1.4s ease-in-out infinite; }
+.fv-skel { height: 66px; margin-bottom: 8px; border-radius: 12px; background: linear-gradient(90deg, var(--border-light), var(--surface-hover), var(--border-light)); background-size: 200% 100%; animation: fvShimmer 1.4s linear infinite; }
 .fv-skel-short { height: 44px; }
 @keyframes fvShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
-.fv-side-foot { padding: 12px 16px; border-top: 1px solid var(--border-light); }
-.fv-reply-main { display: flex; align-items: center; justify-content: center; padding: 9px 14px; background: var(--text-primary); color: var(--white); border-radius: 10px; font-size: 0.8rem; font-weight: 700; text-decoration: none; }
-.fv-foot-note { margin-top: 6px; text-align: center; font-size: 0.68rem; color: var(--text-secondary); }
 
 @media (max-width: 767px) {
  .fv-overlay { padding: 0; align-items: stretch; }
- .fv-panel { width: 100%; max-height: none; height: 100%; border: 0; border-radius: 0; }
- .fv-head { padding: 10px 12px; gap: 8px; }
+ .fv-panel, .fv-panel[data-orient="portrait"] { --fv-h: min(54dvh, 100vw * 1.3); width: 100%; max-height: none; height: 100%; border: 0; border-radius: 0; }
+ .fv-head { padding: 10px 10px 10px 14px; gap: 8px; }
  .fv-open-link { padding: 7px 10px; font-size: 0.74rem; }
- .fv-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
- .fv-stage { padding: 10px 12px 8px; overflow: visible; }
- .fv-player { max-height: 34vh; border-radius: 10px; }
+ .fv-body, .fv-panel[data-orient="portrait"] .fv-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+ .fv-stage { padding: 10px 12px 8px; }
+ .fv-panel[data-orient="landscape"] { --fv-h: 42dvh; }
+ .fv-panel[data-orient="landscape"] .fv-player { width: 100%; }
  .fv-side { border-left: 0; border-top: 1px solid var(--border-light); }
- .fv-list { padding: 8px 10px; }
+ .fv-list { padding: 2px 10px calc(14px + env(safe-area-inset-bottom, 0px)); }
  .fv-c-text { font-size: 0.86rem; }
- .fv-c-reply { padding: 6px 0; }
- .fv-side-foot { padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); }
- .fv-foot-note { display: none; }
+ .fv-unmute { bottom: 52px; }
 }
 
 /* Thumb Messages: one phone conversation at a time, in the native page. */

@@ -8018,7 +8018,8 @@ html .fv-review-video .fv-frameio-link:hover { color: var(--text-primary); text-
 /* The video playing in place of the preview. Same column, as wide as the column allows. */
 .cal-review-video-tile.fv-inline { display: flex; justify-content: center; aspect-ratio: auto; width: fit-content; min-width: 140px; max-height: none; max-width: 100%; min-height: 120px; background: var(--sv-bg-000); transform: none; }
 .cal-review-video-tile.fv-inline:hover { transform: none; }
-.fv-inline-video { display: block; width: auto; max-width: 100%; height: auto; max-height: min(66vh, 560px); background: var(--sv-bg-000); object-fit: contain; }
+html body .cal-review-video-tile.fv-inline { align-items: center; min-height: 0 !important; height: auto !important; width: fit-content !important; max-width: 100% !important; aspect-ratio: auto !important; }
+.fv-inline-video { display: block; align-self: center; width: auto; max-width: 100%; height: auto; max-height: min(66vh, 560px); background: var(--sv-bg-000); object-fit: contain; }
 .fv-inline-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 14px; text-align: center; background: var(--surface-subtle); color: var(--text-primary); }
 .fv-inline-state.is-loading { background: transparent; pointer-events: none; }
 .fv-inline-state[hidden] { display: none; }

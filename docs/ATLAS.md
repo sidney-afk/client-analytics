@@ -364,7 +364,7 @@ There are 46 entrypoint folders and one shared helper folder here. The live proj
 
 | Live function | Owner and purpose | Deployment finding |
 | --- | --- | --- |
-| `pipeline-google` | [Source](../supabase/functions/pipeline-google/index.ts) (moved from synchro-pipelines 2026-10-16). Pipeline key authenticates Docs, Sheets and Drive operations. | Deployed on merge by `deploy-edge-functions-on-merge.yml`; manual fallback `deploy-single-function.yml`. |
+| <!-- atlas:edge pipeline-google -->[`pipeline-google`](../supabase/functions/pipeline-google/index.ts) | The filming-plan pipeline reads and writes Docs, Sheets and Drive with the pipeline key (moved from synchro-pipelines 2026-10-16). | Live v25. [deploy-edge-functions-on-merge.yml](../.github/workflows/deploy-edge-functions-on-merge.yml); fallback [deploy-single-function.yml](../.github/workflows/deploy-single-function.yml) |
 | `fp-tab-test` | [Retired test stub](https://github.com/sidney-afk/synchro-pipelines/blob/main/supabase/functions/fp-tab-test/index.ts). Returns a retired test result and no longer creates Doc tabs. | Live v5; source and live read confirm the retired stub. |
 | `doctors-partial-capture` | [Capture workflow](#n8n). Marketing doctors form relays qualified partial leads into email-only recovery. | Live v1; source read through Supabase. No source file in any of the four repo trees checked, so deploy provenance is unverified. |
 

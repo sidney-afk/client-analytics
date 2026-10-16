@@ -359,3 +359,32 @@ Evidence, checked immediately before: the live page and every bundle it loads no
 workflow's last run was 2026-10-09 14:03 UTC; on main only backups, tests and mocked probes mention the address.
 Read back after: workflow details show `active: false`.
 Undo: in n8n open the workflow and publish it again (the page no longer calls it, so it would also need #2102 reverted).
+
+## 2026-10-11 /doctors early follow-up: partial capture and recovery sender edited and published (owner's go, website session briefed from the Ads lane; recorded late on 2026-10-16 by Billboard)
+
+Written down five days late, from the Ads lane's campaign tracker and n8n's own version history. Edits made through the n8n
+connector; the page half is synchrosocial PR #181 (merge `de8da99`, live 2026-10-12 about 15:08 UTC).
+- Sales, Doctors Partial Lead Capture (`8nq6jGbpmCDZxnQz`): before `0aa042b8-9e5f-4a19-b9dd-6a92045959d9`, after
+  `d45a36a5-04f8-4ae3-b7a6-32ecddd8a31d` (save as soon as the email is valid; one row per lead; "Not right now" cancels),
+  `668af30d-5c78-4995-94ed-cbe0b72378f3` (update and cancel match the row by email only) and
+  `b7f8eb47-b786-41bc-847f-8790ad103ae4` (first follow-up due 20 minutes after the visitor's last change), published 2026-10-11.
+- Sales, Booking Recovery Dispatch (`nQ4vnZ8bmG3E3Lor`): before `2a92756f-b635-4a72-9f71-70f797552acd`, after
+  `5bdeec03-4376-4a07-bd3b-4a14c0eecde7` (2026-10-11 20:02 UTC: "finish your application" wording for /doctors leads who
+  never pressed Submit; everyone else unchanged).
+Why: visitors who typed name, email and phone but left before the $3,000 question got no follow-up (owner's decision 2026-10-11).
+Tested: five cases with test addresses and `utm_source=test`; one real text to the owner's own phone (2026-10-12 14:22 UTC);
+live test row emailed 2026-10-12 15:29 UTC; nothing reached Meta; test rows cancelled or closed.
+Undo: restore `0aa042b8-9e5f-4a19-b9dd-6a92045959d9` (capture) and `2a92756f-b635-4a72-9f71-70f797552acd` (sender) and
+publish, then revert synchrosocial `de8da99`.
+
+## 2026-10-15 Booking Recovery Heartbeat digest counts only the ads (owner's go, session Tally, Ads lane; recorded on 2026-10-16 by Billboard)
+
+Workflow: Sales, Booking Recovery Heartbeat (`a2sJJ3oZMefASPl2`)
+Version before: `d5310994-fd1e-4ef5-9afc-d7819c1859f8`      Version after: `f25786e8-ff6f-41d1-aac6-3d389cdf4fb3` (2026-10-15 15:16 UTC, published)
+Changed: the "Summarise 24h" code step only. The digest numbers now count only rows with `utm_source=facebook` and
+`utm_medium=paid`, broken down by ad (`utm_content`), with one line for everything not from the ads. The four alarms and the
+whole-table "nothing captured" alarm are unchanged and still cover every row.
+Why: the daily Slack message mixed every iClosed calendar into one total (owner's request 2026-10-15).
+Tested: one manual run 2026-10-15 15:16 UTC (execution 670165, success); first scheduled run 2026-10-16 13:00 UTC
+(execution 670891, success). Session Tally has not sent its own report yet; this entry is from n8n's history.
+Undo: restore version `d5310994-fd1e-4ef5-9afc-d7819c1859f8` in n8n and publish.

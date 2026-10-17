@@ -79,7 +79,7 @@ import {
 import { SXR_CACHE_PREFIX, _sxrAbortActiveLoad, _sxrNextLoadSeq, sxrState } from './270-samples-model.js';
 import { _sxrFlushAllPending, _sxrLinearOutboxTimer, _sxrSetLinearOutboxTimer, mountSxrClientView } from './280-samples-cards-notes.js';
 import { _sxrV2Teardown, _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
-import { svRsClientNoAnalytics, svRsFlagsReady } from './188-review-stage-switch.js';
+import { svAnalyticsSeenShown, svRsClientNoAnalytics, svRsFlagsReady } from './188-review-stage-switch.js';
 import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js';
         function _prodManualRefresh() {
             // The press must be visibly acknowledged: the refresh itself is a
@@ -1986,6 +1986,8 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                 }
             }
             _syncviewAppBooted = true;
+            // The switches (188) are read at boot: one of them, analytics_hidden, decides the staff bar's Analytics tab.
+            try { svRsFlagsReady(); } catch (e) {}
             const _ptoFlagReady = _isClientLink ? Promise.resolve(null) : _ptoPrimeFlag();
             // Resume any calendar-card write job a previous session left
             // unfinished (tab closed during the post-submit write window).
@@ -2737,12 +2739,15 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                         else localStorage.removeItem(seenKey);
                     } catch (e) {}
                 };
-                if (seenOn) {
+                // Analytics is hidden for every client link unless analytics_hidden says otherwise (188, session
+                // Curtain Seven), decided at once: a browser that last saw Analytics shown keeps today's flow.
+                if (seenOn && svAnalyticsSeenShown()) {
                     await rsReady;
                     if (generation !== _syncviewClientEntryGeneration || href !== location.href) return;
                     remember();
                     if (svRsClientNoAnalytics(entry.client)) entry = Object.assign({}, entry, { view: 'calendar' });
                 } else {
+                    if (svRsClientNoAnalytics(entry.client)) entry = Object.assign({}, entry, { view: 'calendar' });
                     Promise.resolve(rsReady).then(remember, () => {});
                 }
             }

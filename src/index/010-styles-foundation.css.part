@@ -1843,6 +1843,12 @@
         .error-state { background: var(--white); border: 1px solid var(--sv-border-fecaca); border-radius: 12px; padding: 32px; text-align: center; color: var(--dn); font-size: 0.88rem; }
         @media (max-width: 700px) { .video-card-tt { flex: 0 0 200px; } }
 
+        /* Analytics is hidden for everyone unless the analytics_hidden switch reads { "hidden": false } (188 adds
+           html.sv-analytics-on then; owner, 2026-10-17, session Curtain Seven): the staff bar's Analytics tab and a
+           client link's Analytics / Content Calendar toggle (desktop and the phone menus) are not drawn. */
+        html:not(.sv-analytics-on) #navHome { display: none !important; }
+        html.boot-client:not(.sv-analytics-on) .view-tab-toggle:has(> .view-tab-btn[onclick*="'analytics'"]) { display: none !important; }
+
         .view-tab-toggle {
             display: inline-flex; align-items: center;
             background: var(--bg); border: 1px solid var(--border);

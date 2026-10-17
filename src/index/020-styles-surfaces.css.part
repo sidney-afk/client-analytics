@@ -8113,6 +8113,12 @@ html .cal-card-thumb .cal-thumb-play:focus-visible { outline: 2px solid var(--fo
 /* A stall that does not recover: a message in the middle of the video, in place (absolute), gone when it plays again. */
 .fv-trouble { position: absolute; top: 42%; left: 50%; z-index: 3; display: none; align-items: center; gap: 10px; width: max-content; max-width: calc(100% - 20px); box-sizing: border-box; padding: 6px 6px 6px 12px; transform: translate(-50%, -50%); border-radius: 10px; text-align: center; background: var(--sv-bg-rgba-0-0-0-0_78); color: var(--sv-fg-fff); font-size: 0.76rem; font-weight: 700; line-height: 1.3; }
 .fv-player[data-trouble]:not([data-state="error"]) .fv-trouble { display: flex; }
+/* A video started from a play button that the browser would only start muted (session Curtain Seven): a clear button
+   over the picture turns the sound on. */
+.fv-unmute { position: absolute; top: 12px; left: 50%; z-index: 3; display: none; align-items: center; gap: 8px; height: 34px; padding: 0 14px 0 11px; transform: translateX(-50%); border: 0; border-radius: 99px; background: var(--sv-bg-rgba-0-0-0-0_78); color: var(--sv-fg-fff); font: inherit; font-size: 0.78rem; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.fv-unmute svg { width: 16px; height: 16px; flex: none; }
+.fv-unmute:hover { background: var(--sv-bg-000); }
+.fv-player[data-automuted]:not([data-state="error"]) .fv-unmute { display: inline-flex; }
 .fv-trouble-text { min-width: 0; }
 html .fv-player .fv-trouble-open { flex: none; padding: 6px 10px; background: var(--sv-fg-fff); color: var(--sv-bg-000); font-size: 0.72rem; }
 @container (max-width: 440px) { .fv-trouble { flex-direction: column; gap: 6px; padding: 8px 10px; } }

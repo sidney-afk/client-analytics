@@ -670,6 +670,46 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .rs.client .hdr-r{grid-column:1/-1;grid-row:2}
 .app.bar{min-height:0}
 }
+/* Kasper (owner feedback 2026-10-17 23:20, session Curtain Seven): the strip opens with a small list button (the
+   count as a badge) whose panel lists his sections; the post's heading is one row; the round sits beside the date. */
+.strip{position:relative}
+.qbtn{position:relative;width:40px;height:40px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;background:var(--fill);color:var(--text-secondary);transition:background .14s,color .14s}
+.qbtn:hover,.qbtn[aria-expanded="true"]{background:var(--fill-hover);color:var(--text-primary)}
+.qbtn svg{width:18px;height:18px}
+.qbtn .qb{position:absolute;top:-5px;right:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:var(--white);font-size:.64rem;font-weight:800;box-shadow:0 0 0 2px var(--bg)}
+.sk-head.k{flex-direction:row;align-items:center;padding-left:0}
+.qp{position:absolute;left:0;top:calc(100% + 6px);z-index:30;width:360px;max-width:calc(100vw - 32px);max-height:min(560px,calc(100vh - var(--rs-top,0px) - 120px));overflow-y:auto;scrollbar-width:thin;background:var(--surface-raised);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-md);padding:6px;animation:rise .16s var(--ease)}
+.qp-sec+.qp-sec{margin-top:4px;padding-top:4px;border-top:1px solid var(--hair)}
+.qp-h{display:flex;align-items:center;gap:6px;padding:8px 10px 6px;font-size:.74rem;font-weight:800;color:var(--text-secondary)}
+.qp-h svg{width:12px;height:12px}
+.qp-h .c{margin-left:auto;font-weight:600;color:var(--label)}
+.qp-h.urg,.qp-h.urg .c{color:var(--urgent)}
+.qp-r{display:flex;align-items:center;gap:6px;border-radius:10px}
+.qp-r:hover{background:var(--fill)}
+.qp-r.cur{background:var(--fill)}
+.qp-row{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:6px 8px 6px 4px;text-align:left}
+.qp-row .sl{height:40px;width:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.qp-row .si{height:40px;width:23px;border-radius:5px;overflow:hidden;background:var(--media-bg);box-shadow:0 0 0 1px var(--border-light)}
+.qp-row .si.l{width:40px;height:23px}
+.qp-row .si img{width:100%;height:100%;object-fit:cover;max-width:none}
+.qp-row .cx{display:flex;flex-direction:column;gap:3px;min-width:0}
+.qp-row .cn{font-size:.82rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qp-row .cm{display:flex;align-items:center;gap:6px;min-width:0;font-size:.7rem;color:var(--text-secondary);white-space:nowrap;overflow:hidden}
+.qp-row .cm>span{overflow:hidden;text-overflow:ellipsis}
+.qp-row .cm svg{width:11px;height:11px;flex-shrink:0}
+.qp-row .cm.urg{color:var(--urgent);font-weight:600}
+.qp-row .cm.edc{color:var(--chg-fg)}
+.qp-ping{flex-shrink:0;margin-right:6px;height:30px;padding:0 10px;border-radius:8px;font-size:.74rem}
+.qp-empty{padding:4px 10px 10px;font-size:.78rem;color:var(--text-secondary)}
+.sd-t h2 .sep{color:var(--text-secondary);font-weight:600}
+.sd-t h2 .tag{vertical-align:3px;margin-left:8px}
+.sdate .sdn{display:inline-flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sdate .sdn::before{content:'·';opacity:.7}
+.sdate .sdn.flag{color:var(--urgent)}
+.sdate .sdn.flag svg{width:12px;height:12px;opacity:1}
+.rs.in-kasper .sdate{max-width:34%;overflow:hidden}
+.rs.in-kasper .stage .sd-t{width:100%;min-width:0}
+.rs.in-kasper .stage .sd-t h2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 @media (min-width:861px){
 .rs.client .sk-list{margin-right:2px}
 .rs.client .sk-list.more-r{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 40px),transparent)}
@@ -716,6 +756,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         cal: _rsSv('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>', 2),
         moon: _rsSv('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>', 2),
         sun: _rsSv('<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>', 2),
+        list: _rsSv('<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".6"/><circle cx="4.5" cy="12" r=".6"/><circle cx="4.5" cy="18" r=".6"/>', 2.2),
         play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>'
     };
     const _re = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -746,7 +787,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     };
     function _rsFreshState() {
         return { curId: null, step: '', note: _rsBlankNote(), editing: '', editText: '', fold: false, saved: null,
-            menu: '', exp: {}, edOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {} };
+            menu: '', exp: {}, edOpen: false, qOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {} };
     }
 
     /* ---------- the model: one shape for every person ---------- */
@@ -942,7 +983,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsShellHtml() {
         return '<div class="rs' + (R.mode === 'kasper' ? ' in-kasper' : R.mode === 'client' ? ' client' : ' smm') + '"><div class="app" id="rsApp">' + _rsHeaderHtml()
-            + '<nav class="strip" id="strip" aria-label="Posts waiting for review"><div class="sk-head" id="skHead"></div><div class="sk-list" id="skList"></div></nav>'
+            + '<nav class="strip" id="strip" aria-label="Posts waiting for review"><div class="sk-head" id="skHead"></div><div class="sk-list" id="skList"></div>'
+            + (R.mode === 'kasper' ? '<div class="qp" id="qPanel" role="dialog" aria-label="Your review list" hidden></div>' : '') + '</nav>'
             + '<main class="stage" id="stage">'
             + '<aside class="side" id="side" aria-label="This post"></aside>'
             + '<section class="theatre" id="theatre" aria-label="Review this post"><div class="card">'
@@ -1050,11 +1092,25 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (typeof ResizeObserver !== 'undefined') new ResizeObserver(_rsStripEdge).observe(sl);
         R.root.addEventListener('keydown', _rsKeys);
         R.root.addEventListener('focusout', () => { if (R.pending) setTimeout(() => { if (R.pending && !_rsTyping()) { R.pending = false; _rsRender(); } }, 0); });
-        R.root.addEventListener('click', (e) => { if (R.S.menu && !e.target.closest('.split')) { R.S.menu = ''; _rsDecide(); } });
+        R.root.addEventListener('click', (e) => {
+            if (R.S.menu && !e.target.closest('.split')) { R.S.menu = ''; _rsDecide(); }
+            if (R.S.qOpen && !e.target.closest('#qPanel,#qBtn')) _rsQueueClose();
+        });
+        // A video on the stage goes full screen on a double click, as in an ordinary player (owner feedback 2026-10-17
+        // 23:20): the player's own full screen button does it, and a second double click comes back out.
+        const fvh = _rsQ('fvHost');
+        if (fvh) fvh.addEventListener('dblclick', (e) => {
+            if (e.target.closest('.fv-controls,.fv-stage-foot,button,a,input,.fv-trouble,.fv-state')) return;
+            const fb = fvh.querySelector('.fv-full');
+            if (!fb) return;
+            e.preventDefault();
+            fb.click();
+        });
         if (R.ro) R.ro.disconnect();
         R.ro = new ResizeObserver(() => _rsFit());
         R.ro.observe(_rsQ('view'));
         if (!R.mo) {
+            document.addEventListener('pointerdown', (e) => { if (R.S && R.S.qOpen && R.host && !e.composedPath().includes(R.host)) _rsQueueClose(); }, true);
             R.mo = new MutationObserver(_rsSyncTheme);
             R.mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
             window.addEventListener('resize', _rsSizeTop);
@@ -1128,16 +1184,22 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         } else {
             const k = _rsKasperModels();
             const open = k.urgent.length + k.waiting.length;
-            sh.innerHTML = '<b class="num">' + (open ? open + ' to review' : 'All caught up') + '</b><span class="num">' + (k.urgent.length ? k.urgent.length + ' urgent' : open ? 'Oldest first' : 'Nothing waiting on you') + '</span>';
+            // No "9 to review" and no section labels on the strip (owner feedback 2026-10-17 23:20): a small list button
+            // with the count opens his sections as a list (_rsQueuePanel).
+            sh.className = 'sk-head k';
+            sh.innerHTML = '<button class="qbtn" type="button" id="qBtn" aria-haspopup="dialog" aria-expanded="' + !!R.S.qOpen + '" aria-controls="qPanel" aria-label="Your review list, ' + open + ' to review" title="Your review list">' + RI.list + (open ? '<b class="qb num">' + open + '</b>' : '') + '</button>';
+            const qb = _rsQ('qBtn');
+            if (qb) qb.addEventListener('click', (e) => { e.stopPropagation(); R.S.qOpen = !R.S.qOpen; _rsQueuePanel(); });
             const h = [];
-            if (k.urgent.length) h.push('<div class="sk-grp"><span class="sk-lab urg"><span class="r">' + RI.bell + 'Urgent</span><span class="c num">' + k.urgent.length + '</span></span>' + k.urgent.map(m => _rsChip(m, cur)).join('') + '</div>');
-            if (k.waiting.length) h.push('<div class="sk-grp"><span class="sk-lab"><span class="r">Waiting for your review</span><span class="c num">' + k.waiting.length + '</span></span>' + k.waiting.map(m => _rsChip(m, cur)).join('') + '</div>');
+            if (k.urgent.length) h.push('<div class="sk-grp">' + k.urgent.map(m => _rsChip(m, cur)).join('') + '</div>');
+            if (k.waiting.length) h.push('<div class="sk-grp">' + k.waiting.map(m => _rsChip(m, cur)).join('') + '</div>');
             if (k.tweaks.length) h.push('<div class="sk-grp"><button class="sk-lab" type="button" id="edTog" aria-expanded="' + !!R.S.edOpen + '"><span class="r">With the editors <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg></span><span class="c num">' + k.tweaks.length + ' tweaks pending</span></button>' + (R.S.edOpen || (cur && cur.sec === 'tweaks') ? k.tweaks.map(m => _rsChip(m, cur)).join('') : '') + '</div>');
             sl.innerHTML = h.join('<span class="sk-sep" aria-hidden="true"></span>');
             const t = _rsQ('edTog');
             if (t) t.addEventListener('click', () => { R.S.edOpen = !R.S.edOpen; _rsStrip(); });
         }
         sl.querySelectorAll('[data-id]').forEach(b => b.addEventListener('click', () => _rsGo(b.dataset.id)));
+        if (R.mode === 'kasper') _rsQueuePanel();
         sl.querySelectorAll('[data-reopen]').forEach(b => b.addEventListener('click', () => { R.S.finished.delete(b.dataset.reopen); _rsGo(b.dataset.reopen); }));
         sl.scrollLeft = keep;
         const c = sl.querySelector('.cur');
@@ -1148,13 +1210,65 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const sl = _rsQ('skList');
         if (sl) sl.classList.toggle('more-r', sl.scrollWidth - sl.clientWidth - sl.scrollLeft > 1);
     }
+    /* Kasper's list (owner feedback 2026-10-17 23:20, session Curtain Seven): the strip's list button opens his
+       sections as they are today, top to bottom: Urgent, Waiting for your review, With the editors (tweaks pending,
+       with Ping editor). A row opens that post on the stage and closes the list; Escape or a click outside closes it. */
+    function _rsQueuePanel() {
+        const p = _rsQ('qPanel'), b = _rsQ('qBtn');
+        if (!p) return;
+        const on = R.mode === 'kasper' && !!R.S.qOpen;
+        if (b) b.setAttribute('aria-expanded', String(on));
+        p.hidden = !on;
+        if (!on) { p.innerHTML = ''; return; }
+        const k = _rsKasperModels(), cur = _rsCur();
+        const row = (m) => {
+            const meta = m.sec === 'urgent' ? '<span class="cm urg">' + RI.bell + '<span>' + _re(m.flag) + '</span></span>'
+                : m.sec === 'tweaks' ? '<span class="cm edc"><span>' + _re(m.client) + ', ' + _re(m.note.replace(/^With /, 'with ')) + '</span></span>'
+                : '<span class="cm"><span>' + _re(m.client) + '</span>' + (m.sample ? '<b class="tag">Sample</b>' : '') + _rsDots(m) + '</span>';
+            let ping = '';
+            if (m.sec === 'tweaks') {
+                const canPing = (() => { try { return _calShowUrgent(m.post, 'video'); } catch (e) { return false; } })();
+                if (canPing) ping = R.S.pinged[m.id] ? '<span class="b-soft sent qp-ping">' + RI.check + 'Editor pinged</span>' : '<button class="b-soft qp-ping" type="button" data-qping="' + _re(m.id) + '">' + RI.bell + 'Ping editor</button>';
+            }
+            const on = cur && cur.id === m.id;
+            return '<div class="qp-r' + (on ? ' cur' : '') + '"><button class="qp-row" type="button" data-qid="' + _re(m.id) + '"' + (on ? ' aria-current="true"' : '') + '>' + _rsChipImg(m) + '<span class="cx"><span class="cn">' + _re(m.title) + '</span>' + meta + '</span></button>' + ping + '</div>';
+        };
+        const sec = (cls, icon, label, count, list, empty) => '<div class="qp-sec"><div class="qp-h' + cls + '">' + icon + '<span>' + label + '</span><span class="c num">' + count + '</span></div>' + (list.length ? list.map(row).join('') : '<div class="qp-empty">' + empty + '</div>') + '</div>';
+        let h = '';
+        if (k.urgent.length) h += sec(' urg', RI.bell, 'Urgent', k.urgent.length, k.urgent, '');
+        h += sec('', '', 'Waiting for your review', k.waiting.length, k.waiting, 'Nothing waiting on you.');
+        if (k.tweaks.length) h += sec('', '', 'With the editors', k.tweaks.length + ' tweaks pending', k.tweaks, '');
+        p.innerHTML = h;
+        p.querySelectorAll('[data-qid]').forEach(x => x.addEventListener('click', () => {
+            const id = x.dataset.qid;
+            R.S.qOpen = false;
+            if (k.tweaks.some(m => m.id === id)) R.S.edOpen = true;
+            _rsGo(id);
+            const bb = _rsQ('qBtn'); if (bb) bb.focus({ preventScroll: true });
+        }));
+        p.querySelectorAll('[data-qping]').forEach(x => x.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const m = k.tweaks.find(t => t.id === x.dataset.qping);
+            if (!m) return;
+            R.S.pinged[m.id] = true;
+            if (m.sample) window._sxrKasperSendUrgentSlack(e, m.id); else window._kasperSendUrgentSlack(e, m.id);
+            _rsQueuePanel();
+            if (cur && cur.id === m.id) _rsDecide();
+        }));
+    }
+    function _rsQueueClose() { if (R.S && R.S.qOpen) { R.S.qOpen = false; _rsQueuePanel(); } }
     function _rsSide(m) {
-        const who = R.mode === 'kasper' ? '<span class="sd-cl"><span class="avatar">' + _re(String(m.client || '?').split(/\s+/).map(w => w.charAt(0)).join('').slice(0, 2).toUpperCase()) + '</span>' + _re(m.client) + (m.sample ? '<b class="tag">Sample</b>' : '') + '</span>' : '';
-        const meta = R.mode === 'kasper'
-            ? '<span class="tm">' + (m.flag ? '<span class="flag">' + RI.bell + _re(m.flag) + '</span>' : '') + '<span>' + _re(m.note) + '</span></span>'
-            : '';
-        _rsQ('side').innerHTML = '<div class="sd-t">' + who + '<h2>' + _re(m.title) + '</h2>' + meta + '</div>';
         const d = _rsQ('sdate');
+        if (R.mode === 'kasper') {
+            // One row (owner feedback 2026-10-17 23:20, session Curtain Seven): "Client · Title", no initials badge; the
+            // round ("Back after tweaks, round 3") and an urgent ping sit beside the date at the stage's top left.
+            _rsQ('side').innerHTML = '<div class="sd-t"><h2>' + (m.client ? _re(m.client) + '<span class="sep"> · </span>' : '') + _re(m.title) + (m.sample ? '<b class="tag">Sample</b>' : '') + '</h2></div>';
+            const extra = (m.flag ? '<span class="sdn flag">' + RI.bell + _re(m.flag) + '</span>' : '') + (m.note ? '<span class="sdn">' + _re(m.note) + '</span>' : '');
+            d.innerHTML = (m.date ? RI.cal + _re(m.date) : '') + extra;
+            d.hidden = !m.date && !extra;
+            return;
+        }
+        _rsQ('side').innerHTML = '<div class="sd-t"><h2>' + _re(m.title) + '</h2></div>';
         d.innerHTML = m.date ? RI.cal + _re(m.date) : '';
         d.hidden = !m.date;
     }
@@ -1621,6 +1735,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsKeys(e) {
         const tag = (e.target && e.target.tagName || '').toLowerCase();
         if (e.key === 'Escape') {
+            if (R.S.qOpen) { _rsQueueClose(); const bb = _rsQ('qBtn'); if (bb) bb.focus({ preventScroll: true }); return; }
             if (R.S.menu) { R.S.menu = ''; _rsDecide(); }
             else if (R.S.note.part) _rsClearChange(false, R.S.note.where === 'stage');
             else if (R.S.editing) { R.S.editing = ''; _rsRender({ force: true }); }

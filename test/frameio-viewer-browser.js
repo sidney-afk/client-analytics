@@ -265,7 +265,15 @@ async function checkOneView(page, tag, device, opts) {
   if (!(opts && opts.skipPlayCheck)) {
     await sleep(1200);
     const vi = await videoInfo(page);
-    expect(!vi.has || (vi.paused && vi.t === 0), `${tag}: opening it does not play the video (paused ${vi.paused}, at ${vi.t})`);
+    if (opts && opts.autoplay) {
+      // A play button (the play icon, a "Watch video" preview, Kasper's "Watch here") starts the video at once (owner,
+      // 2026-10-17 23:20, session Curtain Seven); it is then paused and rewound so the checks after this start as before.
+      let pv = vi;
+      for (let i = 0; i < 40 && !(pv.has && !pv.paused && pv.t > 0); i++) { await sleep(150); pv = await videoInfo(page); }
+      expect(pv.has && !pv.paused && pv.t > 0, `${tag}: a play button opens it playing (paused ${pv.paused}, at ${pv.t})`);
+      await page.evaluate(() => { const v = document.querySelector('#calNotesStage video'); if (v) { v.pause(); try { v.currentTime = 0; } catch (e) {} } });
+      await sleep(300);
+    } else expect(!vi.has || (vi.paused && vi.t === 0), `${tag}: opening it does not play the video (paused ${vi.paused}, at ${vi.t})`);
   }
   return v;
 }
@@ -319,7 +327,7 @@ async function calendarRun(browser, origin, name, device, orient) {
   await waitReady(page);
   await waitFio(page);
   state.delay = 0;
-  const shape1 = await checkOneView(page, `${label}: from the play icon`, device);
+  const shape1 = await checkOneView(page, `${label}: from the play icon`, device, { autoplay: true });
   await checkControlsFit(page, tag);
   expect(state.calls.some(c => c.part === 'video' && c.body.link === FRAME && !!c.key && !c.clientToken) && state.calls.some(c => c.part === 'comments'), `${label}: the video and the comments were asked for with the staff key`);
   await checkPlayButton(page, label);
@@ -486,7 +494,7 @@ async function smmReviewRun(browser, origin, label, device, orient) {
   await page.locator(panel + ' .cal-review-video-tile').click();
   await waitReady(page);
   await waitFio(page);
-  await checkOneView(page, `${tag}: from the Review tab`, device);
+  await checkOneView(page, `${tag}: from the Review tab`, device, { autoplay: true });
   expect(await page.locator('#calCommentsFeed .cal-cm-row:not(.is-frameio)', { hasText: 'Trim the end.' }).count() === 1 && await page.locator('#calCommentsFeed .cal-cm-row.is-frameio').count() >= 2, `${tag}: the card's notes and its Frame.io comments, together`);
   expect(state.mediaLog[0] === 'full' && !state.mediaLog.includes('small'), `${tag}: the full-size file on a normal connection (${state.mediaLog.join(',')})`);
   await shot(page, `review-staff-${tag}-2-view-light`);
@@ -521,7 +529,7 @@ async function kasperRun(browser, origin, label, device) {
   await row.click();
   await waitReady(page);
   await waitFio(page);
-  await checkOneView(page, `${label}: Kasper's "Watch here"`, device);
+  await checkOneView(page, `${label}: Kasper's "Watch here"`, device, { autoplay: true });
   expect(await page.locator('#calCommentsFeed .cal-cm-row:not(.is-frameio)', { hasText: 'Kasper queue note.' }).count() === 1 && await page.locator('#calCommentsFeed .cal-cm-row.is-frameio').count() >= 2, `${label}: Kasper sees the card's notes and its Frame.io comments, though the card is in his queue and not in the Calendar`);
   expect(state.calls.some(c => c.part === 'video' && !!c.key), `${label}: asked with the staff key`);
   await shot(page, `kasper-${label}-2-view-light`);
@@ -536,7 +544,7 @@ async function kasperRun(browser, origin, label, device) {
   expect((await kTile.innerText()).trim() === 'Watch video', `${label}: the opened card's preview says "Watch video"`);
   await kTile.click();
   await waitReady(page);
-  await checkOneView(page, `${label}: Kasper's preview`, device);
+  await checkOneView(page, `${label}: Kasper's preview`, device, { autoplay: true });
   expect(pageErrors.length === 0, `${label}: Kasper: no page errors (${pageErrors.join(' | ')})`);
   await ctx.close();
 }
@@ -581,7 +589,7 @@ async function clientLinkRun(browser, origin, label, device, over) {
   await shot(page, `review-client-${tag}-1-light`);
   await tile.click();
   await waitReady(page);
-  await checkOneView(page, `${label}: from the Review tab`, device);
+  await checkOneView(page, `${label}: from the Review tab`, device, { autoplay: true });
   await sleep(600);
   expect(state.calls.length >= 1 && state.calls.every(c => !!c.clientToken && !c.key), `${label}: asked with the client's token, never a staff key`);
   expect(state.calls.every(c => Object.keys(c.body).join() === 'card_id' && c.body.card_id === 'c1'), `${label}: every request carries only the card's id, never asks for comments (${state.calls.map(c => JSON.stringify(c.body)).join(' ')})`);

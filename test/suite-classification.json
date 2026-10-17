@@ -1748,6 +1748,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-curtain-seven-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and token, the frame viewer's generated clip), no hosted credentials and no live data. Checks the owner's feedback of 2026-10-17 23:20: on the new review page Kasper's tab has no title or Updated line, only Review Session and Messages (Filming Plans in More), a list button with his sections instead of the strip's texts, a one-row heading with the round beside the date, and full screen on a double click; Notify client beside the menu on the SMM Review tab; for everyone, a video opened from a play button starts playing (muted with a sound button when the browser refuses sound) while one opened from the notes does not, and Analytics hidden unless analytics_hidden reads { hidden: false }.",
+      "reproduce": "node test/review-stage-curtain-seven-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "frameio-viewer-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

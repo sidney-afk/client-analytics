@@ -848,6 +848,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-one-system-browser.js
+      - name: Review page owner feedback round 7 (Kasper list button and one-row heading, Notify client by the menu, play buttons autoplay, Analytics hidden behind analytics_hidden)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-curtain-seven-browser.js
 
 
   split-preview:

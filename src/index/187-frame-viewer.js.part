@@ -159,10 +159,19 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (cur) cur.remove();
         if (want) thumbDiv.insertAdjacentHTML('beforeend', svFramePlayIconHtml(post.asset_url, post.name, post.client, post.id));
     }
+    /* AUTOPLAY FROM A PLAY BUTTON (owner, 2026-10-17 23:20, session Curtain Seven). A video opened from a play button
+       (a card's play icon on Sheet, Month and Week, the Review tab's preview, Kasper's "Watch here") starts playing
+       at once; one opened from the notes (the Notes button, a note's link, Messages) waits for its play button, as
+       before. The door leaves this mark for the card; the Notes view's player takes it when it mounts for that card
+       (svFrameStageMount), and any other mount clears it. */
+    let _fvAutoIntent = null;
+    const FV_AUTO_MS = 20000;
+    function _fvMarkAutoplay(pid) { _fvAutoIntent = pid ? { pid, at: Date.now() } : null; }
     async function svFrameOpen(btn) {
         if (_isClientLink || !btn || !btn.getAttribute) return;
         const pid = btn.getAttribute('data-fv-card') || '';
         if (!pid || !_fvLinkOf(btn.getAttribute('data-fv-link'))) return;
+        _fvMarkAutoplay(pid);
         // A click can land before the switch has been read: wait for that one read (bounded), then decide.
         _fvPrimeFlag();
         if (_fvFlagPromise) { try { await _fvFlagPromise; } catch (e) {} }
@@ -194,6 +203,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!pid || !_fvLinkOf(tile.getAttribute('data-fv-link')) || typeof window.svOpenCardNotes !== 'function') return true;
         if (ev && ev.preventDefault) ev.preventDefault();
         if (ev && ev.stopPropagation) ev.stopPropagation();
+        _fvMarkAutoplay(pid);
         window.svOpenCardNotes(tile.getAttribute('data-fv-client') || '', pid);
         return false;
     }
@@ -452,7 +462,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* THE STAGE: the player on the left of the Notes view (on top on a phone). The Notes view (190) gives it a host
        element and the card; one stage at a time. Before the address arrives the poster shows with a thin moving line
        along the bottom, no spinner and no empty box; the controls are drawn from the first frame so nothing moves when
-       the video is ready. The play button sits at the bottom centre; it never presses itself. */
+       the video is ready. The play button sits at the bottom centre; it never presses itself, except that a view opened
+       from a play button starts playing at once (_fvAutoIntent, session Curtain Seven). */
     // rate: the playback speed, kept for as long as the dialog is open (across a smaller file or a fresh address).
     const FV_STAGE = { host: null, pid: '', link: '', client: '', seq: 0, rec: null, frio: null, video: null, retried: false, wantPlay: false, resumeAt: 0, seekTo: null, scrubbing: false, rate: 1 };
 
@@ -470,10 +481,16 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function svFrameStageMount(host, post, poster) {
         if (!host) return false;
         const link = svFrameStageFor(post);
+        const intent = _fvAutoIntent;
+        _fvAutoIntent = null;
+        const auto = !!intent && intent.pid === (post && post.id) && Date.now() - intent.at < FV_AUTO_MS;
         if (!link) { if (FV_STAGE.host === host) svFrameStageUnmount(); return false; }
-        if (FV_STAGE.host === host && FV_STAGE.pid === post.id && FV_STAGE.link === link && host.firstElementChild) return true;
+        if (FV_STAGE.host === host && FV_STAGE.pid === post.id && FV_STAGE.link === link && host.firstElementChild) {
+            if (auto && !(FV_STAGE.video && !FV_STAGE.video.paused)) { FV_STAGE.autoplay = true; svFrameTogglePlay(); }
+            return true;
+        }
         svFrameStageUnmount();
-        Object.assign(FV_STAGE, { host, pid: post.id, link, client: post.client || (calState && calState.client) || '', rec: null, frio: null, video: null, retried: false, wantPlay: false, resumeAt: 0, seekTo: null, scrubbing: false, rate: 1 });
+        Object.assign(FV_STAGE, { host, pid: post.id, link, client: post.client || (calState && calState.client) || '', rec: null, frio: null, video: null, retried: false, wantPlay: auto, autoplay: auto, resumeAt: 0, seekTo: null, scrubbing: false, rate: 1 });
         const posterSafe = String(poster || '');
         host.hidden = false;
         host.setAttribute('data-orient', 'landscape');
@@ -499,6 +516,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                     </div>
                 </div>
                 <div class="fv-loadline" aria-hidden="true"></div>
+                <button type="button" class="fv-unmute" aria-label="Turn the sound on">${FV_MUTED_ICO}<span>Sound is off. Click for sound</span></button>
                 <div class="fv-trouble" role="status" aria-live="polite"><span class="fv-trouble-text">${FV_TROUBLE_TEXT}</span><a class="fv-btn fv-trouble-open" href="${_calEscAttr(link)}" target="_blank" rel="noopener noreferrer">Open in Frame.io</a></div>
             </div>
             <div class="fv-stage-foot"><span class="fv-small-note" hidden>Smaller version for your connection</span><a class="fv-open-link" href="${_calEscAttr(link)}" target="_blank" rel="noopener noreferrer"><span>Open in Frame.io</span>${FV_EXT_ICO}</a></div>`;
@@ -509,6 +527,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }
         _fvSp('.fv-play').addEventListener('click', svFrameTogglePlay);
         _fvSp('.fv-mute').addEventListener('click', () => { const v = FV_STAGE.video; if (v) v.muted = !v.muted; else _fvMuteIcon(); });
+        _fvSp('.fv-unmute').addEventListener('click', (e) => { e.stopPropagation(); const v = FV_STAGE.video; if (v) v.muted = false; _fvAutoMuted(false); });
+        if (auto) { const b = _fvSp('.fv-play'); if (b) b.setAttribute('data-pending', ''); }
         _fvSp('.fv-full').addEventListener('click', _fvFullscreen);
         _fvSp('.fv-back').addEventListener('click', () => svFrameSkip(-FV_SKIP_S));
         _fvSp('.fv-fwd').addEventListener('click', () => svFrameSkip(FV_SKIP_S));
@@ -538,7 +558,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (FV_STAGE.video) _fvStop(FV_STAGE.video);
         const host = FV_STAGE.host;
         if (host) { host.innerHTML = ''; host.hidden = true; host.removeAttribute('data-orient'); host.style.removeProperty('--fv-ar'); }
-        Object.assign(FV_STAGE, { host: null, pid: '', link: '', client: '', rec: null, frio: null, video: null, wantPlay: false, resumeAt: 0, seekTo: null, scrubbing: false, rate: 1 });
+        Object.assign(FV_STAGE, { host: null, pid: '', link: '', client: '', rec: null, frio: null, video: null, wantPlay: false, autoplay: false, resumeAt: 0, seekTo: null, scrubbing: false, rate: 1 });
         if (document.fullscreenElement && host && host.contains(document.fullscreenElement)) { try { document.exitFullscreen(); } catch (e) {} }
     }
 
@@ -599,10 +619,31 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         b.setAttribute('aria-label', playing ? 'Pause' : 'Play');
         if (player) player.toggleAttribute('data-playing', playing);
     }
+    // The browser refused to start the video with sound (its autoplay rules): it plays muted, with a clear button to
+    // turn the sound on over the picture. Turning the sound on any way (that button or the player's own) clears it.
+    function _fvAutoMuted(on) {
+        const p = _fvSp('.fv-player');
+        if (p) p.toggleAttribute('data-automuted', !!on);
+    }
+    function _fvAutoStart(v) {
+        const p = v.play();
+        if (!p || !p.catch) return;
+        p.catch((err) => {
+            if (FV_STAGE.video !== v) return;
+            if (FV_STAGE.autoplay && err && err.name === 'NotAllowedError' && !v.muted) {
+                v.muted = true;
+                const q = v.play();
+                if (q && q.then) q.then(() => { if (FV_STAGE.video === v) _fvAutoMuted(true); }, () => { v.muted = false; _fvPlayIcon(); });
+                return;
+            }
+            _fvPlayIcon();
+        });
+    }
     function _fvMuteIcon() {
         const v = FV_STAGE.video, b = _fvSp('.fv-mute');
         if (!b) return;
         const muted = !!(v && v.muted);
+        if (!muted) _fvAutoMuted(false);
         b.innerHTML = muted ? FV_MUTED_ICO : FV_SOUND_ICO;
         b.setAttribute('aria-label', muted ? 'Sound on' : 'Mute');
     }
@@ -614,12 +655,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             if (v && v.webkitEnterFullscreen) v.webkitEnterFullscreen();
         } catch (e) {}
     }
-    // The one way the video starts: the person pressed play (or the video itself). Before the address has arrived the
-    // press is remembered and the video starts as soon as it can.
+    // The one way the video starts: the person pressed play (or the video itself, or the play button that opened the
+    // view). Before the address has arrived the press is remembered and the video starts as soon as it can.
     function svFrameTogglePlay() {
         const v = FV_STAGE.video;
         if (!v) { FV_STAGE.wantPlay = true; const b = _fvSp('.fv-play'); if (b) b.setAttribute('data-pending', ''); return; }
-        if (v.paused || v.ended) { const p = v.play(); if (p && p.catch) p.catch(() => _fvPlayIcon()); }
+        if (v.paused || v.ended) _fvAutoStart(v);
         else v.pause();
     }
     // A comment's video time: the player goes there and stays paused or playing as it was.
@@ -748,7 +789,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (FV_STAGE.wantPlay) {
             FV_STAGE.wantPlay = false;
             const b = _fvSp('.fv-play'); if (b) b.removeAttribute('data-pending');
-            const p = v.play(); if (p && p.catch) p.catch(() => _fvPlayIcon());
+            _fvAutoStart(v);
         }
     }
     /* The video address is signed and expires. If the player stops with an error, the small file is tried, then a

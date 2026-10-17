@@ -114,10 +114,24 @@ the sections below, delete it from this block in the same PR.
   question_id; the live hf_guides brain row has the new section), #2153 (client review page: one header on every tab,
   toggle fixed, Sheet shows only the sheet, no Analytics for clients, full screen; the Frame.io player was already on
   the video step), #2154 (its live screenshots).
-- **Sent back:** #2150 (studio_transcribe): ElevenLabs fetched the user's link itself after pricing, so a swapped
-  longer file would be billed in full; fix requested (price and send our own stored copy).
-- **In progress:** Sheet cards centred vertically and four design fixes on the client page (session Curtain Three);
-  Meta tracking on the website's /doctors page (session Pixelfix, synchrosocial; any n8n change is a proposal only).
+- **Merged and live (afternoon and evening):** #2150 (studio_transcribe: ElevenLabs transcription priced and sent
+  from our own stored copy; migration 20261017160000 applied, private buckets transcripts 50 MB and
+  transcribe-sources 400 MB; live check passed), #2156 (WAV length read only for plain PCM or float, so a compressed
+  WAV can no longer be priced short), #2157 (a client slug with "&" gets a store name), #2160 (the caption writer also
+  reads a written "Banned openings" fact), #2163 (a paid-for GPT Image is stored with three tries before
+  delivery_failed), #2158 (client review page round 2: Sheet cards centred, even margins, visible pills, strip margin,
+  no Analytics skeleton on a bare link), #2162 (also carrying #2161: the staff Review tab sits under the Calendar's own
+  bar so the toggle never moves; one Kasper header on Review Session, Messages and Filming Plans; no page scroll on a
+  review stage that fits; one colour system), #2164 (unit tests get one runner seat per part, 14 seats, after #2148's
+  single seat made every PR wait about an hour). Live read-only check of the test client's link after #2162: one
+  header and a fixed toggle on all four tabs, no Analytics, no scroll on Review and Sheet.
+- **Outside this repo:** n8n "Sales, Booked Call to Meta CAPI" now sends the real page per booking calendar and skips
+  referral and outbound_dm bookings (owner's go; N8N_EDIT_LOG); synchrosocial #182 (pixel: fbc/fbp on first events,
+  DoctorEmailEntered, event ids, no events for test, referral or outbound_dm traffic).
+- **Connector:** after a new tool deploys, people click "Refresh tool list" in the connector settings (then a new
+  chat); removing and re-adding is never needed (lessons rule 4).
+- **In progress:** the client tutorial video for the review page's "?" button (session Premiere; the owner approves
+  the script, then the video; then `review_help_video_url` is set).
 - **Supervisors:** inboxes, a shared board and daily history in synchro-pipelines `supervisor/`, and an Overseer
   session that audits them (owner's decision).
 

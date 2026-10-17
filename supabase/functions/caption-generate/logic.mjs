@@ -137,9 +137,11 @@ export function transcriptFromPrediction(pred) {
 // <!-- brain ... --> block (brain/parse.mjs); a bare heading is folded into the section above it, so whoever writes
 // "## Caption style" in voice.md must give it that block. When voice.md has such a section with text, only that is
 // used. Otherwise every written section of voice.md is used, each under its heading. `facts` is parseBrainFacts()
-// output for voice.md (brain/parse.mjs); sections not yet written have an empty body and are skipped.
+// output for voice.md (brain/parse.mjs). Only facts marked "status: written" with text are used, the same rule as the
+// connector's Brain readers: a fact marked not-written can still carry draft or template text and must not reach the
+// prompt.
 export function voiceGuide(facts) {
-  const written = (facts || []).filter((f) => f && clean(f.body));
+  const written = (facts || []).filter((f) => f && f.status === 'written' && clean(f.body));
   const style = written.find((f) => /^caption\s+style\b/i.test(clean(f.heading)));
   if (style) return { source: 'caption-style', text: clean(style.body).slice(0, VOICE_MAX) };
   if (!written.length) return { source: 'none', text: '' };

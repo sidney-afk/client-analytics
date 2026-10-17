@@ -21,6 +21,18 @@
 //   drive.folder      { parentId, name }                 find or create a subfolder
 //   whoami            {}                                 which account, is it set up
 //
+// With a pass only (store.mjs; no Google call, no client config needed):
+//   files.get         { name? }                          one file, or all of the client's files
+//   files.save        { name, expected_version, body }   a stale version answers saved:false
+//   batch.take        {}                                 the client's next idea batch number
+//   notes.add         { title, body, source, follows? }  a feedback note (chat or sheet)
+//   brain.snapshot    { have_commit? }                   the Synchro Brain at main as a signed zip link, inputs/ only inputs/drive/
+//
+// Every pass action (store and Google alike) first re-checks that the pass's
+// member is still on the filming plan list (users.mjs, fp_settings
+// "pipeline_users"), so removing a name stops a pass already handed out. A
+// pass from the shared team link is always refused.
+//
 // The password is PIPELINE_GOOGLE_KEY in Supabase; the pipeline keeps the same
 // value in google_relay_key.txt in the private repo (setup_google_relay.py makes
 // both). Without it set, every request is refused.
@@ -39,6 +51,8 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { PASS_HEADER, isPassToken, passHash } from "./pass.mjs";
+import { SNAPSHOT_BUCKET, STORE_ACTIONS, snapshotName, storeAction } from "./store.mjs";
+import { pipelineGate } from "./users.mjs";
 import { WRITE_ACTIONS, allowedFiles, checkDocsBatch, checkFile, checkSheetsBatch, checkValuesRange, clientFiles, createdTabIds } from "./rules.mjs";
 
 const SCOPES = [
@@ -243,11 +257,22 @@ async function withPass(req: Request, raw: string): Promise<Response> {
     return refused(`That pipeline pass ran out at ${String(pass.expires_at)}. Ask the connector for a new one (pipeline_pass).`, 401);
   }
 
+  // Only the people on the filming plan list, read now, never the team link.
+  const gate = await pipelineGate(readSetting(sb), { member: String(pass.member ?? ""), teamLink: pass.via !== "personal" });
+  if (gate) return refused(gate.text, gate.status);
+
   // deno-lint-ignore no-explicit-any
   const b = await req.json().catch(() => ({})) as Record<string, any>;
   const action = clean(b.action);
   const client = String(pass.client_slug);
   const target = String(pass.target);
+
+  // The pipeline's own data (file store, batch numbers, notes, brain snapshot):
+  // the pass's member and client decide everything; no Google file is involved.
+  if (STORE_ACTIONS.has(action)) {
+    const out = await storeAction(action, b, pass, storeDeps(sb));
+    return json(out.body, out.status);
+  }
 
   // The client's own files come from its config.json in the file store; the
   // TEST Sheet from fp_settings. Nothing is hardcoded here.
@@ -306,4 +331,99 @@ async function withPass(req: Request, raw: string): Promise<Response> {
     return json({ ...out, warning: "The tab was made, but it could not be recorded, so this pass cannot write in it. Tell the Connector supervisor." }, resp.status);
   }
   return resp;
+}
+
+// ---- The pipeline's own data, for store.mjs -----------------------------------
+
+// One fp_settings value, or null when the key is not set.
+function readSetting(sb: NonNullable<ReturnType<typeof db>>) {
+  return async (key: string) => {
+    const { data, error } = await sb.from("fp_settings").select("value").eq("key", key).maybeSingle();
+    if (error) throw new Error(`the settings: ${error.message || "no answer"}`);
+    return data ? data.value : null;
+  };
+}
+
+// The Synchro Brain repository, read with the same token and settings the
+// connector's client_brain uses. The token never leaves this function.
+function brainGh(path: string, accept: string): Promise<Response> {
+  const repo = clean(Deno.env.get("BRAIN_REPO")) || "sidney-afk/synchro-brain";
+  return fetch(`https://api.github.com/repos/${repo}/${path}`, {
+    headers: {
+      Authorization: `Bearer ${clean(Deno.env.get("BRAIN_GITHUB_TOKEN"))}`,
+      Accept: accept,
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "syncview-pipeline-google",
+    },
+  });
+}
+
+function storeDeps(sb: NonNullable<ReturnType<typeof db>>) {
+  const fail = (what: string, e: { message?: string } | null) => new Error(`${what}: ${e?.message || "no answer"}`);
+  const snapshots = () => sb.storage.from(SNAPSHOT_BUCKET);
+  const zipName = (commit: string) => snapshotName(commit);
+  return {
+    getFiles: async (client: string, name: string | null) => {
+      let q = sb.from("fp_files").select("name,version,body,updated_by,updated_at").eq("client_slug", client);
+      if (name) q = q.eq("name", name);
+      const { data, error } = await q.order("name");
+      if (error) throw fail("the file store", error);
+      return data || [];
+    },
+    saveFile: async (client: string, name: string, v: number, body: string, member: string) => {
+      const { data, error } = await sb.rpc("fp_file_save", { p_client: client, p_name: name, p_expected_version: v, p_body: body, p_member: member });
+      if (error) throw fail("the file store", error);
+      return Array.isArray(data) ? data[0] : data;
+    },
+    isPublisher: async (member: string) => {
+      const { data, error } = await sb.from("fp_publishers").select("member").eq("member", member).maybeSingle();
+      if (error) throw fail("the publish list", error);
+      return !!data;
+    },
+    setting: readSetting(sb),
+    takeBatch: async (client: string) => {
+      const { data, error } = await sb.rpc("fp_take_batch", { p_client: client });
+      if (error) throw fail("the batch counter", error);
+      return Number(data);
+    },
+    noteExists: async (id: string) => {
+      const { data, error } = await sb.from("fp_feedback_notes").select("id").eq("id", id).maybeSingle();
+      if (error) throw fail("the notes", error);
+      return !!data;
+    },
+    addNote: async (row: Record<string, unknown>) => {
+      const { data, error } = await sb.from("fp_feedback_notes").insert(row).select("id,created_at").single();
+      if (error || !data) throw fail("the notes", error);
+      return data;
+    },
+    brainHead: async () => {
+      if (!clean(Deno.env.get("BRAIN_GITHUB_TOKEN"))) throw new Error("the Synchro Brain is not connected on the server");
+      const branch = encodeURIComponent(clean(Deno.env.get("BRAIN_BRANCH")) || "main");
+      const r = await brainGh(`commits/${branch}`, "application/vnd.github.sha");
+      if (!r.ok) throw new Error(`the Synchro Brain answered ${r.status}`);
+      return (await r.text()).trim();
+    },
+    snapshotSize: async (commit: string) => {
+      const { data, error } = await snapshots().list("", { search: zipName(commit), limit: 10 });
+      if (error) throw fail("the brain-snapshots bucket", error);
+      const hit = (data || []).find((o) => o.name === zipName(commit));
+      return hit ? Number((hit.metadata || {}).size) || 0 : null;
+    },
+    snapshotFetch: async (commit: string) => {
+      // GitHub answers with a redirect to a short-lived download address.
+      const r = await brainGh(`zipball/${commit}`, "application/vnd.github+json");
+      if (!r.ok) throw new Error(`the Synchro Brain zip answered ${r.status}`);
+      return new Uint8Array(await r.arrayBuffer());
+    },
+    snapshotStore: async (commit: string, bytes: Uint8Array) => {
+      // upsert: two pipelines asking at once store the same bytes twice, harmlessly.
+      const { error } = await snapshots().upload(zipName(commit), bytes, { contentType: "application/zip", upsert: true });
+      if (error) throw fail("the brain-snapshots bucket", error);
+    },
+    snapshotSign: async (commit: string, seconds: number) => {
+      const { data, error } = await snapshots().createSignedUrl(zipName(commit), seconds, { download: `synchro-brain-${commit.slice(0, 12)}.zip` });
+      if (error || !data?.signedUrl) throw fail("the brain-snapshots bucket", error);
+      return data.signedUrl;
+    },
+  };
 }

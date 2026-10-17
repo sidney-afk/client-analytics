@@ -267,6 +267,13 @@ async function shot(t, name) { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursi
     expect(await inS(t.page, '.help-ovl video').count() === 1, 'help: the "?" opens the video');
     await t.page.keyboard.press('Escape');
     expect(await inS(t.page, '.help-ovl').count() === 0, 'help: Escape closes it');
+    await inS(t.page, '#rsHelp').click();
+    const vb = await inS(t.page, '.help-ovl video').boundingBox();
+    await t.page.mouse.move(vb.x + vb.width / 2, vb.y + vb.height / 2);
+    await t.page.mouse.down(); await t.page.mouse.move(8, 8); await t.page.mouse.up();
+    expect(await inS(t.page, '.help-ovl').count() === 1, 'help: a press that starts on the video and ends on the backdrop does not close it');
+    await t.page.mouse.click(8, 8);
+    expect(await inS(t.page, '.help-ovl').count() === 0, 'help: a click on the backdrop closes it');
     await inS(t.page, '#rsTheme').click();
     await sleep(300);
     expect(await host(t.page).getAttribute('data-theme') === 'light', 'theme: the sun/moon switches back to light');

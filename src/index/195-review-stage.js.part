@@ -1589,7 +1589,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         o.innerHTML = '<div class="help-box"><button class="help-x" type="button" aria-label="Close">' + RI.x + '</button>' + media + '</div>';
         const close = () => { o.remove(); document.removeEventListener('keydown', esc, true); const hb = _rsQ('rsHelp'); if (hb) hb.focus(); };
         const esc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
-        o.addEventListener('click', (e) => { if (e.target === o) close(); });
+        // Only a press that began on the backdrop closes it (OPEN_REPAIRS 215). The page's shared listener cannot
+        // see inside this page's shadow root, so the overlay keeps its own press mark.
+        o.addEventListener('mousedown', (e) => { o._backdropPressBegan = (e.target === o); });
+        o.addEventListener('click', (e) => { if (e.target === o && o._backdropPressBegan) close(); o._backdropPressBegan = false; });
         o.querySelector('.help-x').addEventListener('click', close);
         document.addEventListener('keydown', esc, true);
         R.root.querySelector('.rs').appendChild(o);

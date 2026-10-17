@@ -89,9 +89,15 @@ the sections below, delete it from this block in the same PR.
   a linked part now always reaches its work item; OPEN_REPAIRS 429), #2131 (new review page, see its section above),
   #2130 (Encore: Watch here picture plays, 1x/1.5x/2x and skip, no "Syncing" line, faster notes, centred play button,
   "Open it in Frame.io" on a playback error).
-- **Card saver:** stage B unchanged (test client plus the owner's two clients); 5 clean watcher runs, no real saves on
-  the two clients yet overnight. The 06:00 Samples nightly failed because its robot saved unsigned on the test client,
-  which calendar-card-write correctly refuses; #2142 (Twin) signs robot saves with the runner's staff key (merging).
+- **Merged later the same morning:** #2142 (Twin: test robots sign their card saves with the runner's staff key, so
+  calendar-card-write accepts them), #2144 (connector: private addresses written in IPv6 form are refused; live check
+  passed), #2139 (connector voice_cleanup through Auphonic; migration `20261017040000` applied, private `voice` bucket;
+  answers "not switched on yet" until the owner adds `AUPHONIC_KEY`, and the project's global Storage upload limit
+  must be raised to 400 MB before the first long file), #2145 (Probe: #2130 started the notes read one tick late, so
+  for a moment after opening the Notes dialog Send looked ready and a note sent then was refused as "still loading";
+  this turned three Calendar nightly probes red at 12:01; no real client affected; OPEN_REPAIRS 431).
+- **Card saver:** stage B unchanged (test client plus the owner's two clients); 7 clean watcher runs, no real saves on
+  the two clients yet (weekend), so stage C's count has not started.
 - **Needs the owner:** one real card (`p_native_0565...f3_1`, video) holds the client's Tweaks Needed while its work item
   is still at client approval (the bug #2140 fixes). Move the work item to tweak in the Production status picker; never
   the drift check's backfill, which would erase the client's request. Until then the hourly drift check stays red.

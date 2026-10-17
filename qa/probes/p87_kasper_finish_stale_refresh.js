@@ -110,6 +110,10 @@ const refresh = (page) => page.evaluate(async () => { try { await _kasperLoadRev
   // (2026-10-07). Answering only the webhook let Finish's save reach the LIVE
   // function, where it did not land, so Finish was undone and steps 1-2 failed
   // (OPEN_REPAIRS 392). Both addresses get the same echo; nothing is written.
+  // Since 2026-10-16 the test client is on calendar_card_write_clients, so a
+  // staff save goes to calendar-card-write first; it gets the same echo, or the
+  // scripted card's save reaches the live function and is refused as a
+  // phantom row (OPEN_REPAIRS 430).
   const echoUpsert = route => {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
     let post = {}; try { post = (JSON.parse(route.request().postData() || '{}').post) || {}; } catch (e) {}
@@ -117,6 +121,7 @@ const refresh = (page) => page.evaluate(async () => { try { await _kasperLoadRev
   };
   await ctx.route('**/webhook/calendar-upsert-post', echoUpsert);
   await ctx.route('**/functions/v1/calendar-upsert', echoUpsert);
+  await ctx.route('**/functions/v1/calendar-card-write', echoUpsert);
   await ctx.route('**/rest/v1/calendar_posts**', route => jsonFulfill(route, serverRows));
 
   const page = await ctx.newPage();

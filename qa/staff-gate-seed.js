@@ -296,6 +296,39 @@ async function seedStaffGate(target, options) {
     contentType: 'application/json',
     body: JSON.stringify({ ok: true, role: STAFF_GATE_MEMBER.role, member: STAFF_GATE_MEMBER })
   }));
+  // Card saves on a client switched to calendar-card-write carry the runner's
+  // real staff key, as a signed-in staff tab's would (OPEN_REPAIRS 430).
+  await signCalendarCardWrites(target);
 }
 
-module.exports = { seedStaffGate, refuseStubKeyProductionWrite, markProductionWriteMocked, answerStubKeyStaffReads, STAFF_READ_FUNCTIONS, answerStubKeyAnalyticsRead, hideAnalyticsMirrorFlag, isStubKeyProductionWrite, isFakeStaffKey, seedStaffIdentity, dropVerificationAfterBoot, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };
+// SIGN THE HARNESS'S CARD SAVES WITH THE REAL STAFF KEY (2026-10-17, OPEN_REPAIRS 430).
+//
+// A staff Calendar save for a client on `calendar_card_write_clients` goes to
+// the calendar-card-write Edge Function, which accepts only a configured staff
+// role key (a real person's signed-in key). The test client joined that switch
+// on 2026-10-16, and from then every harness card save carried the invented
+// key this file seeds and was refused 401, where the old calendar-upsert path
+// had ignored the key. A real staff tab holds a real key; this gives the
+// harness tab the runner's real key (SYNCVIEW_STAFF_KEY, the SMM or admin role
+// key the nightlies already carry) on that one function, the way dawn-check
+// swaps it for its read-only pages. Only an invented key is replaced: a request
+// that already carries a real key, or a client link's review token, is left
+// exactly as sent. With no key in the environment nothing changes, so the
+// save is refused as before and the probe says so; nothing is loosened on the
+// server side.
+// Only this exact address gets the key: a page posting to any other host with
+// the same path must never be handed the runner's real credential.
+const CALENDAR_CARD_WRITE_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-card-write';
+async function signCalendarCardWrites(target, staffKey) {
+  const key = String(staffKey === undefined ? (process.env.SYNCVIEW_STAFF_KEY || '') : staffKey).trim();
+  if (!key || isFakeStaffKey(key)) return false;
+  await target.route(url => url.origin + url.pathname === CALENDAR_CARD_WRITE_URL, route => {
+    const request = route.request();
+    const headers = request.headers();
+    if (request.method() !== 'POST' || !isFakeStaffKey(headers['x-syncview-key'])) return route.fallback();
+    return route.fallback({ headers: Object.assign({}, headers, { 'x-syncview-key': key }) });
+  });
+  return true;
+}
+
+module.exports = { seedStaffGate, signCalendarCardWrites, refuseStubKeyProductionWrite, markProductionWriteMocked, answerStubKeyStaffReads, STAFF_READ_FUNCTIONS, answerStubKeyAnalyticsRead, hideAnalyticsMirrorFlag, isStubKeyProductionWrite, isFakeStaffKey, seedStaffIdentity, dropVerificationAfterBoot, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };

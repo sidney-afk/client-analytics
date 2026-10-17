@@ -41,7 +41,7 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
 import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
 import { _caRender, _kasperEnsureAllTabCounts, _kasperRenderReplies } from './323-kasper-dashboard-tail.js';
 import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './330-kasper-review-history.js';
-import { svRsKasperLeave } from './188-review-stage-switch.js';
+import { svRsKasperHeadSync, svRsKasperLeave } from './188-review-stage-switch.js';
     /* The Samples subtab was folded into Review (samples are listed in the
        Review queue) and then removed. Links that still name it, including
        urgent pings already sent, open Review instead of failing. */
@@ -657,6 +657,8 @@ import { svRsKasperLeave } from './188-review-stage-switch.js';
             _kasperDenySubtab('clients-admin');
         }
         _kasperSyncTabNav();
+        // One header on every section while the new review page is on for this person (188).
+        svRsKasperHeadSync();
         // Only the review queue holds the analytics extras back (see _analyticsHoldExtras).
         if (_kasperState.tab !== 'review' && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
         if (_kasperState.tab !== 'review') svRsKasperLeave();

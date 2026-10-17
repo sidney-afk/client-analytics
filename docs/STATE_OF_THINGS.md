@@ -82,6 +82,21 @@ for you" strip ends at the header's right margin and fades out when more posts a
 `v=`) reads the switch beside the link check, so a switched-on client sees the neutral check screen and then the
 Content Calendar, never the Analytics skeleton. Same test file.
 
+**Staff Review tab under the staff bar (session Curtain Four, owner feedback 2026-10-17):** for a switched-on client the
+SMM's Calendar Review tab keeps the Calendar's own bar (the Review | Sheet | Month | Week toggle on the left, Notify
+client, the menu), so the toggle sits in exactly the same place on all four tabs, and the new page draws no
+"<client> Content calendar" heading of its own (the client switcher already names the client). The client link and
+Kasper's tab are unchanged; with the switch off the staff page is today's. Test:
+`node test/review-stage-staff-layout-browser.js`.
+
+**Owner feedback of 2026-10-17 18:10 UTC (session Curtain Five):** with the switch on, the Kasper tab has one header
+(title, Review Session / Messages / Filming Plans, More) at the same place on every section, and Messages opens inside
+the tab with no Close button (the header's own Messages button and everyone else still get the Messages page); no
+review stage (Kasper, SMM, client) scrolls the page when it fits the window (the page's 80px bottom padding goes while
+a stage shows); and the stage reads the app's own colour tokens (one page background, one surface for the stage card
+and the notes panel, one border, radius and shadow) in light and dark. Switch off or unreadable: pixel-identical to
+main. Test: `node test/review-stage-one-system-browser.js`.
+
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone
 layout follows the desktop one and has not been polished on its own (as the handoff said).

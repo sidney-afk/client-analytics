@@ -185,7 +185,7 @@ async function shot(t, name) { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursi
       } else {
         await waitNew(t2);
         await sleep(800);
-        expect(await inS(t2.page, '#rsNotify').isVisible(), 'SMM: Notify client sits in the header');
+        expect(await t2.page.locator('#calView > .cal-toolbar #calNotifyClientBtn').isVisible() && !(await inS(t2.page, '.hdr').count()), 'SMM: Notify client sits in the Calendar\'s own bar, and the new page draws no second header');
         expect(/Approve to Kasper/.test(await inS(t2.page, '[data-ok="video"]').textContent()), 'SMM: the green button reads Approve to Kasper');
         await shot(t2, 'after-smm-1440-light');
         let n0 = t2.state.upserts.length;

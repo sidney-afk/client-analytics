@@ -185,6 +185,15 @@ async function callFrom(page, key) {
     await cardSave({ 'X-Syncview-Key': 'probe-staff-key' });
     await cardSave({ 'X-Syncview-Key': 'a-real-looking-value' });
     await cardSave({ 'X-Syncview-Client-Token': 'review-token-value' });
+    // Another host with the same path never receives the runner key.
+    const foreign = [];
+    await cardCtx.route('https://elsewhere.example/**', route => {
+      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'POST, OPTIONS', 'access-control-allow-headers': '*' } });
+      foreign.push(route.request().headers()['x-syncview-key'] || null);
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{}' });
+    });
+    await p8.evaluate(async () => (await fetch('https://elsewhere.example/functions/v1/calendar-card-write', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': 'qa-staff-gate-key' }, body: '{}' })).status);
+    assert.deepEqual(foreign, ['qa-staff-gate-key'], 'a foreign host with the same path keeps the invented key');
     assert.equal(seen[0].key, RUNNER, 'the gate stub key is replaced by the runner key');
     assert.equal(seen[1].key, RUNNER, 'a probe-seeded invented key is replaced too');
     assert.equal(seen[2].key, 'a-real-looking-value', 'a real key is sent exactly as it was');
@@ -193,7 +202,7 @@ async function callFrom(page, key) {
     await seedStaffGate(cardCtx);
     assert.equal((await callFrom(p8, STAFF_GATE_KEY)).diag, 'headless-stub', 'other functions keep the local refusal');
     await cardCtx.close();
-    console.log('staff-gate-stub-refusal-local: 29 checks passed ✅');
+    console.log('staff-gate-stub-refusal-local: 30 checks passed ✅');
   } finally {
     await browser.close();
     server.close();

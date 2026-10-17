@@ -316,10 +316,13 @@ async function seedStaffGate(target, options) {
 // exactly as sent. With no key in the environment nothing changes, so the
 // save is refused as before and the probe says so; nothing is loosened on the
 // server side.
+// Only this exact address gets the key: a page posting to any other host with
+// the same path must never be handed the runner's real credential.
+const CALENDAR_CARD_WRITE_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-card-write';
 async function signCalendarCardWrites(target, staffKey) {
   const key = String(staffKey === undefined ? (process.env.SYNCVIEW_STAFF_KEY || '') : staffKey).trim();
   if (!key || isFakeStaffKey(key)) return false;
-  await target.route('**/functions/v1/calendar-card-write', route => {
+  await target.route(url => url.origin + url.pathname === CALENDAR_CARD_WRITE_URL, route => {
     const request = route.request();
     const headers = request.headers();
     if (request.method() !== 'POST' || !isFakeStaffKey(headers['x-syncview-key'])) return route.fallback();

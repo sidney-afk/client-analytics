@@ -18,6 +18,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
+const { openEditableSheet } = require('../docs/syncview-design/tests/staff-phone-browser');
 const { serveStatic } = require('../docs/syncview-design/tests/prod-test-utils.js');
 const { seedStaffGate } = require('../qa/staff-gate-seed.js');
 
@@ -116,6 +117,9 @@ async function open(browser, origin, opts) {
   await page.goto(`${origin}/index.html?v=calendar`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof _syncviewStaffCan === 'function' && typeof _calSavePins === 'function', null, { timeout: 30000 });
   await page.evaluate(names => { _syncviewStaffIdentityVerified = true; _calSavePins(names); calState.client = names[0]; navTo('calendar'); }, [NAME]);
+  // Since #2085 a phone opens on the picture grid; the editable cards live in the List view.
+  await page.waitForSelector('.cal-card[data-pid="n1"], .thumb-tile[data-thumb-card="n1"]', { timeout: 20000 });
+  await openEditableSheet(page);
   await page.waitForSelector('.cal-card[data-pid="n1"]', { timeout: 20000 });
   await sleep(1500);   // the switch read and the button repaint
   return { page, ctx, state, pageErrors };

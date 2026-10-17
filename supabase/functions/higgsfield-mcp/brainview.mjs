@@ -93,6 +93,10 @@ function footer(left) {
 
 // The one place the reply text is built. focus and facts: written facts
 // only, each { file, heading, id, body, sure? }, in reading order.
+/**
+ * @param {{ name: string, brief: string, focus?: any[], facts: any[], topic?: string }} args
+ * @returns {string}
+ */
 export function brainView({ name, brief, focus = [], facts, topic = "" }) {
   const sections = briefSections(brief);
   const briefText = sections.map((s) => s.text).join("\n\n");

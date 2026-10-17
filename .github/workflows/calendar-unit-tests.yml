@@ -470,6 +470,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/caption-generate-browser.js
+      - name: New review page behind its switches (client link, SMM Review tab, Kasper Review Session; old page when off)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-browser.js
       - name: Watch here viewer (Calendar card, SMM and Kasper review, desktop and phone, no button for clients)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

@@ -54,6 +54,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
 import { _kasperRenderReplies } from './323-kasper-dashboard-tail.js';
 import { _kedPaint } from './340-kasper-editors-board.js';
 import { svFrameWatchBtnHtml } from './187-frame-viewer.js';
+import { svRsKasperOn, svRsKasperPaint } from './188-review-stage-switch.js';
     async function _kasperRenderReview() {
         const root = document.getElementById('kasperContent');
         if (!root) return;
@@ -782,6 +783,13 @@ import { svFrameWatchBtnHtml } from './187-frame-viewer.js';
         if (count) count.textContent = String(openCount);
         const tabCount = document.querySelector('[data-kasper-count="review"]');
         if (tabCount) tabCount.textContent = String(openCount);
+        // The new review page (188/195), when its switch names the signed-in staff member: it takes the queue,
+        // and this body keeps only the notices above it (save alerts, freshness, what could not be read).
+        if (svRsKasperPaint({ urgent, waiting, tweaks })) {
+            if (_kasperState.lastLoaded && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
+            body.innerHTML = _kasperRenderFreshnessNote() + _kasperRenderSaveAlerts() + _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + _kasperRenderUnlistedNotice() + _kasperRenderQueueErrorNotice();
+            return;
+        }
         // Waiting section uses the same collapsible-style head as Tweaks
         // pending and Approved history so the three buckets feel like
         // siblings rather than "the main queue plus two add-ons". Waiting
@@ -1629,6 +1637,7 @@ import { svFrameWatchBtnHtml } from './187-frame-viewer.js';
     }
 
     function _kasperRepaintCard(pid) {
+        if (svRsKasperOn()) { _kasperPaintReview(); return; }   // the new review page draws it (188/195)
         const item = _kasperState.items.find(x => x.post.id === pid);
         const el = document.querySelector('.kcard[data-kasper-pid="' + (window.CSS && CSS.escape ? CSS.escape(pid) : pid) + '"]');
         if (!item || !el) return;

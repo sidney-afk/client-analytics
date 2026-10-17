@@ -47,6 +47,7 @@ import { _calCrqBegin, _calCrqDone, _calCrqFailed, _calCrqHeld, _calCrqResend, _
 import { _prodCanonicalCommentGate, _prodCardCommentsPending, _prodComments, _prodCommentsSkeletonHtml, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-onboarding-staff-controls.js';
+import { svRsCalOn, svRsCalSync } from './188-review-stage-switch.js';
     function _calHasMedia(p) {
         return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim());
     }
@@ -232,6 +233,8 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
             + names + more + '.</div>';
     }
     function renderCalReview() {
+        // The new review page (188/195) draws beside #calView when its switch is on for this client.
+        if (svRsCalOn()) { svRsCalSync(); return '<div class="sv-rs-slot" hidden></div>'; }
         const items = _calReviewItems();
         /* The notice sits ABOVE the queue in both states. An empty queue with
            stranded work is the case that made this necessary; a non-empty queue
@@ -638,6 +641,7 @@ import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-on
     }
 
     function _calReviewRepaintCard(pid) {
+        if (svRsCalOn()) { svRsCalSync(); return; }   // the new review page draws it (188/195)
         const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
         const el = document.querySelector('.cal-review-card[data-cal-review-pid="' + sel + '"]');
         const post = calState.posts.find(p => p.id === pid);
@@ -3930,7 +3934,7 @@ export {
   _CAL_LOCK_ICO, _calCommentSendPending, _calFindCompForCommentId,
   CAL_REPLY_DRAFT_MAX, REVIEW_APPROVE_DRAFT_TITLE, _calApplyAutoStatus, _calApprovalBadgeCount,
   _calCommentRole, _calCommentsBtnHtml, _calCompHasUnresolvedKasperTweak, _calCompKasperVisible,
-  _calCurrentAuthor, _calCurrentAuthorId, _calNoteAuthorName, _calDeleteComment, _calFmtCommentTime, _calLatestMsgAt, _calSmmMediaGap,
+  _calCurrentAuthor, _calCurrentAuthorId, _calHasMedia, _calNoteAuthorName, _calDeleteComment, _calFmtCommentTime, _calLatestMsgAt, _calSmmMediaGap,
   _calLatestMsgCreatedAt, _calLoadComments, _calMergeCommentLists, _calMergePostComments,
   _calMintCommentId, _calOpenCommentsPid, _calPostHasUnresolvedKasperTweak, _calPostKasperVisible,
   _calRefreshCommentsBtn, _calRenderCommentsModal, _calRetryCommentEdit,

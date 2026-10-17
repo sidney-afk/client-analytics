@@ -1,6 +1,6 @@
 // client_request_linked_live.js -- ON DEMAND, not nightly: it creates a real work item on the TEST client.
 //
-// Live proof for OPEN_REPAIRS 427: does a client's "Request changes" on a card LINKED to a
+// Live proof for OPEN_REPAIRS 429: does a client's "Request changes" on a card LINKED to a
 // Production work item move that work item, even when the client page could not read the
 // client-comment front-door switch?
 //   1. make a card with a video work item through the real Create Post (staff page);

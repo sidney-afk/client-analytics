@@ -25,7 +25,7 @@ the sections below, delete it from this block in the same PR.
 
 **2026-10-17 (session Echo, open PR, not merged):** the red card-vs-work-item drift row is a page bug. A client's
 Request changes on a linked part skipped its status push whenever the client-comment front door was unavailable, so the
-card said Tweaks Needed and the work item never moved (1 real card, 2026-10-16). Fixed in the page (OPEN_REPAIRS 427);
+card said Tweaks Needed and the work item never moved (1 real card, 2026-10-16). Fixed in the page (OPEN_REPAIRS 429);
 reproduced and fix proven on the test client. The one real card needs the owner's go for a Production status move to
 tweak (never the backfill, which would erase the client's request).
 

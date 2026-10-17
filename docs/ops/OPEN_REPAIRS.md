@@ -33365,7 +33365,7 @@ The slow-network misses after the change (boot budget and heavy lane, 1 run in 5
 
 **Release.** Test files only; nothing ships to users. **Way back:** revert the pull request.
 
-## 427. [2026-10-17, BUILT, NOT MERGED] A client's Request changes on a linked part could change the card and never reach the work item (session Echo)
+## 429. [2026-10-17, BUILT, NOT MERGED] A client's Request changes on a linked part could change the card and never reach the work item (session Echo)
 
 **Found by** the hourly card-vs-work-item drift check, red every hour since 2026-10-16 19:27 UTC on one row: card `p_native_0565af154313ad1dcb13179164f3_1`, video work item `del_cadb11fe-a1b5-4fd7-b293-896f5ec3d99c`. At 19:25:47 UTC a client, on a review link, requested changes on the video. The card's ledger has the client's status change and comment (written by `calendar-upsert`), the card says Tweaks Needed, and the work item still says client_approval with no event since 2026-10-08. No Production comment row exists for that request, and the refusal log has nothing from the client's page.
 

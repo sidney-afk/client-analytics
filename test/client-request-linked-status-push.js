@@ -1,7 +1,7 @@
 'use strict';
 /*
  * A CLIENT'S "REQUEST CHANGES" ON A LINKED PART MUST REACH ITS WORK ITEM.
- * OPEN_REPAIRS 427.
+ * OPEN_REPAIRS 429.
  *
  * Live 2026-10-16 19:25 UTC: a client pressed Request changes on a video whose
  * card is linked to a Production work item. The card moved to Tweaks Needed;

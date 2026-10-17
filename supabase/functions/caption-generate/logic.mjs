@@ -140,10 +140,16 @@ export function transcriptFromPrediction(pred) {
 // output for voice.md (brain/parse.mjs). Only facts marked "status: written" with text are used, the same rule as the
 // connector's Brain readers: a fact marked not-written can still carry draft or template text and must not reach the
 // prompt.
+// "Banned openings" is a caption rule too (how a caption must never start; Kasper keeps caption notes there for some
+// clients), so it rides along with "Caption style" when both are written (Brain lane, 2026-10-17).
 export function voiceGuide(facts) {
   const written = (facts || []).filter((f) => f && f.status === 'written' && clean(f.body));
   const style = written.find((f) => /^caption\s+style\b/i.test(clean(f.heading)));
-  if (style) return { source: 'caption-style', text: clean(style.body).slice(0, VOICE_MAX) };
+  const banned = written.find((f) => /^banned[\s-]+openings?\b/i.test(clean(f.heading)));
+  if (style) {
+    const text = clean(style.body) + (banned ? '\n\n### ' + clean(banned.heading) + '\n' + clean(banned.body) : '');
+    return { source: 'caption-style', text: text.slice(0, VOICE_MAX) };
+  }
   if (!written.length) return { source: 'none', text: '' };
   const text = written.map((f) => '### ' + clean(f.heading) + '\n' + clean(f.body)).join('\n\n');
   return { source: 'voice', text: text.slice(0, VOICE_MAX) };

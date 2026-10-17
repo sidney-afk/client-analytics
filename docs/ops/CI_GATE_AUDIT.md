@@ -11,6 +11,9 @@ Everything below is measured from run history and workflow source on
 
 ---
 
+> **2026-10-17:** pull request speed (which suites a PR runs, the parallel parts, the one
+> summing check `calendar-ci-result`) is described in [`CI_SPEED.md`](CI_SPEED.md).
+
 ## Short answer
 
 The gates are not the problem. **Four structural defects** are, and three of

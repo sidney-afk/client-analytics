@@ -50,8 +50,9 @@ loading labels, metadata, link targets and native disconnected-account guidance.
 Staff phone design follow-up: `qa/staff-phone-design-browser.js` checks the
 native Calendar/Samples cards, deliberate Archive access, chained focus return,
 media-refresh node preservation and restoration on desktop resize.
-`scripts/staff-phone-changed.js` classifies relevant changes for the scoped CI
-matrix. The visual decisions and state inventory are in
+`scripts/staff-phone-changed.js` lists the staff phone files, and
+`scripts/ci-changes.js` uses it to decide which Calendar unit test jobs a pull
+request needs (`docs/ops/CI_SPEED.md`). The visual decisions and state inventory are in
 `docs/audits/2026-10-07-staff-phone-design-review.md` and
 `docs/audits/2026-10-07-staff-phone-design-states.md`; exact check endings are in
 `docs/audits/2026-10-07-staff-phone-design-checks.md`. Fictional native before/after

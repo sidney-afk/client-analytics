@@ -1191,6 +1191,24 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         _calFlushCardSave(pid);
     }
 
+    /* A client's caption edit on the new review page (195, owner 2026-10-17): the caption itself changes through the
+       same card save as an edit on the Sheet, also when Collaborative mode is off (that switch guards the Sheet's
+       fields, not this one edit the review page offers). Caption only: a client link still never renames a card. */
+    function _calClientReviewCaptionEdit(pid, val) {
+        if (!_isClientLink) return false;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return false;
+        _calNoteEditBase(pid, 'caption', post.caption);
+        _calCaptionDraftWrite(pid, val);
+        if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+        _calPendingEdits[pid].caption = val;
+        post.caption = val;
+        if (_calSaveTimers[pid]) { clearTimeout(_calSaveTimers[pid]); _calSaveTimers[pid] = null; }
+        _calFlushCardSave(pid);
+        return true;
+    }
+    window._calClientReviewCaptionEdit = _calClientReviewCaptionEdit;
+
     /* Fields that get rolled back to their pre-edit values when the upsert
        fails. These are STRUCTURAL — status/order/links/approval-stamps —
        and would silently de-sync from the sheet if left in their optimistic

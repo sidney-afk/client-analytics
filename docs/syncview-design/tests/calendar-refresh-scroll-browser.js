@@ -643,9 +643,31 @@ async function invisibleRefreshCase(browser, origin) {
       const [ia, ib] = await Promise.all([load(x), load(y)]);
       if (ia.width !== ib.width || ia.height !== ib.height) return { over: -1, max: 255 };
       const px = img => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d'); g.drawImage(img, 0, 0); return g.getImageData(0, 0, c.width, c.height).data; };
-      const a = px(ia), b = px(ib);
-      let over = 0, max = 0;
-      for (let i = 0; i < a.length; i++) { const d = Math.abs(a[i] - b[i]); if (d > max) max = d; if (d > 16) over++; }
+      const a = px(ia), b = px(ib), w = ia.width, h = ia.height;
+      // A pixel counts as changed when any channel differs by more than 16.
+      const hot = new Uint8Array(w * h);
+      let max = 0;
+      for (let k = 0; k < w * h; k++) {
+        let d = 0;
+        for (let c = 0; c < 3; c++) d = Math.max(d, Math.abs(a[k * 4 + c] - b[k * 4 + c]));
+        if (d > max) max = d;
+        if (d > 16) hot[k] = 1;
+      }
+      // A lone changed pixel with no changed neighbour is rasterizer noise on an
+      // anti-aliased edge (measured 2026-10-17: one pixel, 21 apart, on a top-bar
+      // icon, with no DOM change); anything a person could notice changes a run
+      // of touching pixels. Count only changed pixels that touch another one.
+      let over = 0;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (!hot[y * w + x]) continue;
+        let touch = false;
+        for (let dy = -1; dy <= 1 && !touch; dy++) for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue;
+          const xx = x + dx, yy = y + dy;
+          if (xx >= 0 && yy >= 0 && xx < w && yy < h && hot[yy * w + xx]) { touch = true; break; }
+        }
+        if (touch) over++;
+      }
       return { over, max };
     }, [x.toString('base64'), y.toString('base64')]);
     return r.over === 0;

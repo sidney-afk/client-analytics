@@ -237,6 +237,11 @@ function harness({ env = { ELEVENLABS_KEY: KEY }, file = wav(), whole, cap = 200
     assert.deepStrictEqual(h.calls.sourceUpload, [{ p: `${JOB}.wav`, size: wav().length }]);
     const statuses = h.calls.update.filter((u) => u.id === 100).map((u) => u.fields.status);
     assert.deepStrictEqual(statuses, ['copying', 'copied', 'in_progress', 'completed']);
+    // Every read of the person's link has a time limit: 30 s for a range read, 330 s for the whole copy.
+    const linkReads = h.calls.fetch.filter((c) => c.url === FILE);
+    assert.ok(linkReads.every((c) => c.init.signal && c.init.signal.ms > 0), 'no read of the link without a time limit');
+    assert.deepStrictEqual(linkReads.filter((c) => !c.init.headers.Range).map((c) => c.init.signal.ms), [330000], 'the copy download gets 330 s');
+    assert.ok(linkReads.filter((c) => c.init.headers.Range).every((c) => c.init.signal.ms === 30000));
     assert.deepStrictEqual(h.calls.removed, [`${JOB}.wav`], 'the audio copy is deleted when the job ends');
     // The exact request.
     assert.strictEqual(h.calls.stt.length, 1);
@@ -375,6 +380,7 @@ function harness({ env = { ELEVENLABS_KEY: KEY }, file = wav(), whole, cap = 200
     const m = await t.transcribeCheck(JOB, s2.d);
     assert.ok(m.startsWith('It failed: copying the file did not finish'), m);
     assert.strictEqual(s2.rows.get(8).status, 'failed');
+    assert.deepStrictEqual(s2.calls.removed, [`${JOB}.wav`], 'a half-made copy is deleted too (SyncView supervisor on #2150)');
   }
 
   // ---- Budget and duplicates ----

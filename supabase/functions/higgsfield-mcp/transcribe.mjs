@@ -57,6 +57,11 @@ export const SOURCE_LINK_SECONDS = 15 * 60;
 // When the copy took less than this, the same run goes on to ElevenLabs
 // (it still has the 300 s request and the storing inside the 400 s limit).
 export const INLINE_START_MS = 60 * 1000;
+// Time limits on reading the person's link: a range read for the price card,
+// and the whole copy (inside the 400 s background limit, with time left to
+// mark the job failed if the link stalls).
+export const RANGE_TIMEOUT_MS = 30 * 1000;
+export const COPY_TIMEOUT_MS = 330 * 1000;
 // Dollars per hour of audio. ElevenLabs' API price for Scribe v2 is $0.22 an
 // hour (https://elevenlabs.io/pricing/api, checked 2026-10-17), but a
 // subscription account pays in credits instead: 330 credits a minute, and the
@@ -213,14 +218,16 @@ export const STT_TOOL = {
 // Opens a link, following redirects by hand so every hop passes the
 // public-address check (skipped only for our own signed Storage links).
 // Returns the response, or a sentence for the person.
-async function openLink(link, headers, d, trusted) {
+async function openLink(link, headers, d, trusted, timeoutMs = RANGE_TIMEOUT_MS) {
+  // One limit for every hop and for reading the body.
+  const signal = d.timeout ? d.timeout(timeoutMs) : undefined;
   let url;
   try { url = new URL(link); } catch { return "The link must start with https://"; }
   for (let hop = 0; hop < 6; hop++) {
     if (!trusted && !(await d.publicHost(url))) return "That link points somewhere that is not a public https address.";
     let res;
     try {
-      res = await d.fetch(url.toString(), { redirect: "manual", headers });
+      res = await d.fetch(url.toString(), { redirect: "manual", headers, signal });
     } catch {
       return "Could not open that link.";
     }
@@ -424,7 +431,7 @@ export async function copyThenTranscribe(d, key, rowId, jobId, link, params, rat
     await d.removeSource(path).catch(() => {});
     await d.update(rowId, { status: "failed", error: why, updated_at: nowIso(d) }).catch(() => 0);
   };
-  const res = await openLink(link, {}, d, false);
+  const res = await openLink(link, {}, d, false, COPY_TIMEOUT_MS);
   if (typeof res === "string") return await fail("could not copy the file: " + res);
   try {
     await d.uploadSource(path, capped(res.body, copyLimit(params)));
@@ -558,6 +565,7 @@ export async function transcribeCheck(jobId, d) {
   if (row.status === "copying" && age > STALE_RUNNING_MS) {
     const why = "copying the file did not finish (the server stopped it); nothing was sent to ElevenLabs";
     await d.update(row.id, { status: "failed", error: why, updated_at: nowIso(d) }, { status: "copying" }).catch(() => 0);
+    await d.removeSource(`${jobId}.wav`).catch(() => {});
     return "It failed: " + why + ". Nothing was spent; try again.";
   }
   if (row.status === "copying") return "Still working (copying the file before it is sent). Check again in about 20 to 30 seconds.";

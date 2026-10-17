@@ -114,6 +114,12 @@ import { svRsKasperOn, svRsKasperPaint } from './188-review-stage-switch.js';
             // sheet re-decorates it when it lands (speed map 2026-09-23 §5).
             // forceRefresh propagates so the Refresh button bypasses the 5-min cache.
             const smmPromise = _kasperLoadSMMMap();
+            // The skipped-part notes need nothing from the calendars (a fixed
+            // 14-day window of events): read them beside the calendars, not
+            // after the sent-at read (speed sweep 2026-10-17: two reads in a
+            // row, ~0.3 s, in front of the first card). Failure as before:
+            // the notes keep what they had and the queue still paints.
+            const skipsPromise = _kasperFetchSkips().then(skips => ({ skips }), () => null);
             const fetched = await _kasperFetchAllRelevantPosts(forceRefresh);
             const smmMap = _kasperState.smmByClient instanceof Map ? _kasperState.smmByClient : new Map();
             // If the user clicked approve / submit tweak / dismiss while we
@@ -221,7 +227,8 @@ import { svRsKasperOn, svRsKasperPaint } from './188-review-stage-switch.js';
             // are not in the queue; saying so beats an empty "all caught up".
             _kasperState.unlisted = Array.isArray(fetched.unlisted) ? fetched.unlisted : [];
             // Parts moved past Kasper Approval without his decision, for the history.
-            try { _kasperState.skips = await _kasperFetchSkips(); } catch (_) { /* notes are an extra; the queue must still paint */ }
+            const skipsRead = await skipsPromise;   // notes are an extra; the queue must still paint
+            if (skipsRead) _kasperState.skips = skipsRead.skips;
             if (myGen !== _kasperLoadGen) return;
             _kasperState.history = _kasperApplySkipsToHistory(_kasperState.history, _kasperState.skips, fetched.postIndex);
             _kasperState.lastLoaded = Date.now();

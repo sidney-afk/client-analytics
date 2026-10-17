@@ -97,6 +97,15 @@ a stage shows); and the stage reads the app's own colour tokens (one page backgr
 and the notes panel, one border, radius and shadow) in light and dark. Switch off or unreadable: pixel-identical to
 main. Test: `node test/review-stage-one-system-browser.js`.
 
+**Stuck "Saving..." fixed (session Curtain Nine, owner feedback 2026-10-17 23:40 UTC):** the owner's "Approve to Kasper"
+on the SMM's Review tab saved (every card save in that window returned 200 in under 2 s; nothing in the refusal log) but
+the stage read "Saving..." for good. An approval that answered the card's last waiting part took the old page's
+"remove the card" branch, which found no old card and never told the new page to draw again. That branch now hands
+over to the new page (shared code, but the change only acts while the new page is on), and the stage also watches each
+save itself: it draws again the moment the save ends, says in words after 8 s that the server has not answered, and a
+refused save shows its reason with Try again (and the stage no longer moves on past a refused part). Test:
+`node test/review-stage-save-browser.js`.
+
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone
 layout follows the desktop one and has not been polished on its own (as the handoff said).

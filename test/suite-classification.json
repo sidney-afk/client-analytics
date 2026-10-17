@@ -1748,6 +1748,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-save-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member, with a slow or refusing card save switched at run time), no hosted credentials and no live data. Checks that every save on the new review stage ends on screen: an SMM approval that clears the card shows Approved to Kasper within three seconds (it used to stay on Saving), a slow server says it is still waiting, and a refused save shows its reason with Try again, which saves.",
+      "reproduce": "node test/review-stage-save-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "frameio-viewer-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

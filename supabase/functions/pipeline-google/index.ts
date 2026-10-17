@@ -26,7 +26,7 @@
 //   files.save        { name, expected_version, body }   a stale version answers saved:false
 //   batch.take        {}                                 the client's next idea batch number
 //   notes.add         { title, body, source, follows? }  a feedback note (chat or sheet)
-//   brain.snapshot    { have_commit? }                   the Synchro Brain at main as a signed zip link, no money.md
+//   brain.snapshot    { have_commit? }                   the Synchro Brain at main as a signed zip link, inputs/ only inputs/drive/
 //
 // Every pass action (store and Google alike) first re-checks that the pass's
 // member is still on the filming plan list (users.mjs, fp_settings

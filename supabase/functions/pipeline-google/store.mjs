@@ -8,7 +8,7 @@
 //   batch.take     {}                                fp_take_batch for the pass's client
 //   notes.add      { title, body, source, follows? } a note in fp_feedback_notes
 //   brain.snapshot { have_commit? }                  the Synchro Brain at main, as a signed zip link,
-//                                                    with every money.md left out (see repackZip)
+//                                                    inputs/ cut to inputs/drive/ (see dropFromSnapshot)
 //
 // Who may save what. Any pass saves the files in OPEN_FILES (and
 // filming_plans/*.md). The files in ADMIN_FILES need a pass made on a personal
@@ -36,16 +36,24 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 export const COMMIT_RE = /^[0-9a-f]{40}$/;
 export const SNAPSHOT_BUCKET = "brain-snapshots";
 export const SNAPSHOT_LINK_SECONDS = 600;
-// The cached object's name carries what was left out, so a zip built under
-// another rule is never handed out by mistake.
-export const SNAPSHOT_FORMAT = "no-money-1";
+// The cached object's name carries the rule it was built under, so a zip built
+// under another rule (the earlier no-money-1 build) is never handed out.
+export const SNAPSHOT_FORMAT = "inputs-drive-only-1";
 export const snapshotName = (commit) => `${commit}.${SNAPSHOT_FORMAT}.zip`;
-// Money files never leave the brain through a pass (any pass gets a snapshot,
-// including a test pass from the shared team link, whose name is
-// self-declared; client_brain never reads money.md either). The pipeline
-// reads none of them. Matched by file name anywhere in the repository:
-// clients/*/money.md, past-clients/*/money.md and company/money.md.
-export const MONEY_RE = /(^|\/)money\.md$/i;
+// What the snapshot holds (owner's decisions, 2026-10-17): the whole brain,
+// money.md and history.md included (the pipeline's money guard reads each
+// client's figures from money.md to keep them out of every Sheet and Doc; only
+// the people on the filming plan list get a pass), but under any folder named
+// inputs/ (at any depth) only inputs/drive/ is kept: the rest is raw
+// transcripts and chat text the pipeline never reads.
+export function dropFromSnapshot(name) {
+  const parts = String(name).split("/");
+  const at = parts.findIndex((p) => p.toLowerCase() === "inputs");
+  if (at < 0) return false;
+  const next = parts[at + 1];
+  if (next === undefined || next === "") return false;
+  return next.toLowerCase() !== "drive";
+}
 
 const str = (v) => (typeof v === "string" ? v.trim() : "");
 const answer = (body, status = 200) => ({ status, body });
@@ -204,13 +212,13 @@ export async function storeAction(action, b, pass, deps) {
   }
 }
 
-// A copy of a zip without the entries drop(name) picks (money.md by default).
+// A copy of a zip without the entries drop(name) picks (dropFromSnapshot by default).
 // Nothing is unpacked: each kept entry's bytes (local header, compressed data
 // and any data descriptor) are copied as they are, and the central directory
 // is rebuilt with the new offsets. Refuses Zip64 and anything it cannot read,
 // so a zip it does not understand is never handed out half-filtered.
 // Answers { zip: Uint8Array, kept, dropped } (counts of entries).
-export function repackZip(input, drop = (name) => MONEY_RE.test(name)) {
+export function repackZip(input, drop = dropFromSnapshot) {
   const u8 = input instanceof Uint8Array ? input : new Uint8Array(input);
   const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
   const bad = (why) => new Error("the brain zip could not be read (" + why + ")");

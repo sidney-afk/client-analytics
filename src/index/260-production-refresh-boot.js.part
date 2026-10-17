@@ -936,7 +936,10 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
            with the card outlined, the same link Today's "Open card" opens.
            Staff only, and nothing when the work item has no Calendar card.
            Drawn as the Calendar's Notify client button (same class), so it
-           reads as a button; on a phone it drops under the header row. */
+           reads as a button; on a phone it drops under the header row.
+           Hidden when SyncLinear was opened from this same Calendar card:
+           "Back to card" (svRoute.fromCard()) already goes there. A work item
+           from any other card keeps it, since that is somewhere new. */
         function _prodCalendarCardHref(d) {
             const raw = d && d.raw;
             if (!raw || _isClientLink) return '';
@@ -944,6 +947,8 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             const card = String(raw.card_id || '').trim();
             const slug = wlNormalizeClient(String(raw.client_slug || '').trim());
             if (!card || !slug) return '';
+            const came = svRoute.fromCard();
+            if (came && came.from === 'calendar' && came.card === card && wlNormalizeClient(came.slug) === slug) return '';
             return svRoute.fast('/#calendar/' + slug + '/' + encodeURIComponent(card));
         }
         function _prodOpenInCalendarHTML(d) {

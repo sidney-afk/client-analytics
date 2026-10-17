@@ -1,17 +1,20 @@
 // The database and storage parts of studio_transcribe (the logic is in
 // transcribe.mjs). hf_generations rows are reserved through
-// hf_reserve_generation like every other job; the transcript goes to the
-// private bucket "transcripts" (created by
+// hf_reserve_generation like every other job; the audio is copied into the
+// private bucket "transcribe-sources" (ElevenLabs reads only that copy, which
+// is deleted when the job ends) and the transcript goes to the private bucket
+// "transcripts" (both created by
 // supabase/migrations/20261017160000_hf_transcripts_bucket.sql, service role only).
 
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
-import { STT_BUCKET, STT_MODEL } from "./transcribe.mjs";
+import { STT_BUCKET, STT_MODEL, STT_SOURCE_BUCKET } from "./transcribe.mjs";
 
 type JsonMap = Record<string, unknown>;
 type Reserve = { member: string; model: string; prompt: string; params: JsonMap; cost: number; cap: number; idemKey: string };
 
 export function transcribeStore(client: SupabaseClient) {
   const bucket = () => client.storage.from(STT_BUCKET);
+  const sources = () => client.storage.from(STT_SOURCE_BUCKET);
   return {
     reserve: async (p: Reserve): Promise<JsonMap | null> => {
       const { data, error } = await client.rpc("hf_reserve_generation", {
@@ -54,6 +57,19 @@ export function transcribeStore(client: SupabaseClient) {
     exists: async (path: string): Promise<boolean> => {
       const { data, error } = await bucket().createSignedUrl(path, 60);
       return !error && Boolean(data?.signedUrl);
+    },
+    // The audio copy, streamed (never held in memory whole).
+    uploadSource: async (path: string, body: ReadableStream<Uint8Array>): Promise<void> => {
+      const { error } = await sources().upload(path, body, { contentType: "audio/wav", upsert: true, duplex: "half" });
+      if (error) throw new Error(error.message);
+    },
+    signSource: async (path: string, seconds: number): Promise<string> => {
+      const { data, error } = await sources().createSignedUrl(path, seconds);
+      if (error || !data?.signedUrl) throw new Error(error?.message || "no link returned");
+      return data.signedUrl;
+    },
+    removeSource: async (path: string): Promise<void> => {
+      if (path) await sources().remove([path]);
     },
     sign: async (path: string, seconds: number): Promise<string> => {
       const { data, error } = await bucket().createSignedUrl(path, seconds, { download: true });

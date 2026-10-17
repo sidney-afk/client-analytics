@@ -55,10 +55,12 @@ const FILE = 'https://example-cdn.test/uploads/take.wav';
 const JOB = '11111111-2222-3333-4444-555555555555';
 const TRANSCRIPT = '{"language_code":"eng","language_probability":0.99,"text":"Hello there.","words":[{"text":"Hello","start":0.1,"end":0.5,"type":"word","speaker_id":"speaker_0"},{"text":" ","start":0.5,"end":0.6,"type":"spacing","speaker_id":"speaker_0"},{"text":"there.","start":0.6,"end":1.0,"type":"word","speaker_id":"speaker_0"}],"audio_duration_secs":120.0}';
 
-function harness({ env = { ELEVENLABS_KEY: KEY }, file = wav(), cap = 200, reserve, stt, ignoreRange = false, uploadFails = false, rows: preset } = {}) {
-  const calls = { fetch: [], reserve: [], update: [], upload: [], background: [], stt: [] };
+function harness({ env = { ELEVENLABS_KEY: KEY }, file = wav(), whole, cap = 200, reserve, stt, ignoreRange = false, uploadFails = false, rows: preset, clockStep = 0 } = {}) {
+  const calls = { fetch: [], reserve: [], update: [], upload: [], background: [], stt: [], sourceUpload: [], removed: [] };
   const rows = preset || new Map();
   const store = new Map();
+  const sources = new Map();
+  let tick = 0;
   let nextId = 100;
   const d = {
     env: (k) => env[k],
@@ -72,7 +74,7 @@ function harness({ env = { ELEVENLABS_KEY: KEY }, file = wav(), cap = 200, reser
     idemKey: async (m, model, input) => JSON.stringify([m, model, input]),
     background: (p) => { calls.background.push(p); },
     timeout: (ms) => ({ ms }),
-    now: () => new Date('2026-10-17T16:00:00Z'),
+    now: () => new Date(Date.parse('2026-10-17T16:00:00Z') + (tick++) * clockStep),
     reserve: async (p) => {
       calls.reserve.push(p);
       if (reserve) return reserve(p);
@@ -93,13 +95,26 @@ function harness({ env = { ELEVENLABS_KEY: KEY }, file = wav(), cap = 200, reser
     upload: async (p, text) => { if (uploadFails) throw new Error('Bucket not found'); calls.upload.push({ p, text }); store.set(p, text); },
     exists: async (p) => store.has(p),
     sign: async (p, s) => { if (!store.has(p)) throw new Error('Object not found'); return `https://storage.test/sign/transcripts/${p}?expires=${s}`; },
+    uploadSource: async (p, body) => {
+      const bytes = new Uint8Array(await new Response(body).arrayBuffer());
+      calls.sourceUpload.push({ p, size: bytes.length });
+      sources.set(p, bytes);
+    },
+    signSource: async (p, s) => { if (!sources.has(p)) throw new Error('Object not found'); return `https://storage.test/sign/transcribe-sources/${p}?expires=${s}`; },
+    removeSource: async (p) => { calls.removed.push(p); sources.delete(p); },
     fetch: async (url, init = {}) => {
       calls.fetch.push({ url, init });
       if (url === 'https://api.elevenlabs.io/v1/speech-to-text') {
         calls.stt.push(init);
         return stt ? stt(init) : resp(200, { text: TRANSCRIPT, headers: { 'content-type': 'application/json' } });
       }
-      if (url === FILE) return serve(file, (init.headers || {}).Range, { ignoreRange });
+      if (url === FILE) {
+        const range = (init.headers || {}).Range;
+        // whole: what the link serves to a plain download (a swap after pricing).
+        return serve(!range && whole ? whole : file, range, { ignoreRange });
+      }
+      const m = /^https:\/\/storage\.test\/sign\/transcribe-sources\/([^?]+)\?/.exec(url);
+      if (m && sources.has(m[1])) return serve(sources.get(m[1]), (init.headers || {}).Range);
       return resp(404);
     },
   };
@@ -214,17 +229,21 @@ function harness({ env = { ELEVENLABS_KEY: KEY }, file = wav(), cap = 200, reser
     assert.strictEqual(r.member, 'Tester');
     assert.ok(/^[0-9a-f]{64}$/.test(r.params.source_hash), 'the cache key is a SHA-256');
     assert.strictEqual(r.params.cache_ok, false, 'not cacheable until the transcript is stored');
-    assert.strictEqual(h.rows.get(100).status, 'in_progress');
     assert.strictEqual(h.rows.get(100).request_id, JOB);
     // While the job runs, check_job says still working (wait_for_job keeps waiting on that wording).
     assert.ok((await t.transcribeCheck(JOB, h.d)).startsWith('Still working'));
     await h.calls.background[0];
+    // The file was copied into the private bucket first, and ElevenLabs read only the copy.
+    assert.deepStrictEqual(h.calls.sourceUpload, [{ p: `${JOB}.wav`, size: wav().length }]);
+    const statuses = h.calls.update.filter((u) => u.id === 100).map((u) => u.fields.status);
+    assert.deepStrictEqual(statuses, ['copying', 'copied', 'in_progress', 'completed']);
+    assert.deepStrictEqual(h.calls.removed, [`${JOB}.wav`], 'the audio copy is deleted when the job ends');
     // The exact request.
     assert.strictEqual(h.calls.stt.length, 1);
     const init = h.calls.stt[0];
     assert.strictEqual(init.method, 'POST');
     assert.strictEqual(init.headers['xi-api-key'], KEY);
-    assert.deepStrictEqual([...init.body.entries()], [['model_id', 'scribe_v2'], ['diarize', 'true'], ['timestamps_granularity', 'word'], ['source_url', FILE]]);
+    assert.deepStrictEqual([...init.body.entries()], [['model_id', 'scribe_v2'], ['diarize', 'true'], ['timestamps_granularity', 'word'], ['source_url', `https://storage.test/sign/transcribe-sources/${JOB}.wav?expires=900`]], 'ElevenLabs gets a 15 minute link to our copy, never the person\'s link');
     assert.deepStrictEqual(init.signal, { ms: 300000 }, 'the request is given a time limit that leaves room before the 400 s background limit');
     // Stored byte for byte.
     assert.deepStrictEqual(h.calls.upload, [{ p: `${JOB}.json`, text: TRANSCRIPT }]);
@@ -270,14 +289,19 @@ function harness({ env = { ELEVENLABS_KEY: KEY }, file = wav(), cap = 200, reser
     assert.ok((await t.studioTranscribe({ file: FILE }, gone.d)).startsWith('Plan: transcribe a take'));
   }
 
-  // A server that ignores Range: priced from the header, never cached.
+  // A server that ignores Range: priced from the header with no cache key; the
+  // key then comes from our own copy (the bytes ElevenLabs reads), so a later
+  // link to the same file can still be served free.
   {
     const h = harness({ ignoreRange: true });
     const card = await t.studioTranscribe({ file: FILE, go: true }, h.d);
     assert.ok(card.startsWith('Started:'), card);
     assert.strictEqual(h.calls.reserve[0].params.source_hash, null);
     await h.calls.background[0];
-    assert.strictEqual(h.rows.get(100).params.cache_ok, false);
+    assert.strictEqual(h.rows.get(100).params.cache_ok, true);
+    const ranged = harness({ rows: h.rows });
+    ranged.d.exists = h.d.exists;
+    assert.ok((await t.studioTranscribe({ file: FILE }, ranged.d)).startsWith('This take was transcribed before'), 'the copy\'s key matches the same file read with ranges');
     // A different file at the same link (no cache key) is not taken for the one already started.
     const other = harness({ ignoreRange: true, file: wav({ seconds: 90 }) });
     await t.studioTranscribe({ file: FILE, go: true }, other.d);
@@ -285,6 +309,72 @@ function harness({ env = { ELEVENLABS_KEY: KEY }, file = wav(), cap = 200, reser
     const same = harness({ ignoreRange: true });
     await t.studioTranscribe({ file: FILE, go: true }, same.d);
     assert.strictEqual(same.calls.reserve[0].idemKey, h.calls.reserve[0].idemKey, 'the same file at the same link is still a duplicate');
+  }
+
+  // ---- The file behind the link changes after pricing (SyncView supervisor on #2150) ----
+  {
+    // The price check sees 2 minutes; a plain download gets 10 minutes.
+    const h = harness({ whole: wav({ seconds: 600 }) });
+    const started = await t.studioTranscribe({ file: FILE, go: true }, h.d);
+    assert.ok(started.startsWith('Started:'), started);
+    await h.calls.background[0];
+    assert.strictEqual(h.calls.stt.length, 0, 'ElevenLabs is never asked');
+    const row = h.rows.get(100);
+    assert.strictEqual(row.status, 'failed', 'failed leaves the monthly budget: nothing was spent');
+    assert.ok(row.error.startsWith('the file at the link is bigger than the one that was priced'), row.error);
+    assert.deepStrictEqual(h.calls.removed, [`${JOB}.wav`]);
+    const msg = await t.transcribeCheck(JOB, h.d);
+    assert.ok(msg.startsWith('It failed: the file at the link is bigger') && msg.includes('nothing was spent'), msg);
+    assert.strictEqual(who.outcomeOf('wait_for_job', msg).ok, false);
+  }
+  {
+    // A server that gives no size: the copy stops at the header's audio plus 1 MB.
+    const h = harness({ ignoreRange: true, whole: wav({ seconds: 600 }) });
+    h.d.fetch = ((orig) => async (url, init = {}) => {
+      const r = await orig(url, init);
+      if (url === FILE) r.headers.delete('content-length');
+      return r;
+    })(h.d.fetch);
+    await t.studioTranscribe({ file: FILE, go: true }, h.d);
+    assert.strictEqual(h.calls.reserve[0].params.total_bytes, null);
+    await h.calls.background[0];
+    assert.strictEqual(h.calls.stt.length, 0);
+    assert.strictEqual(h.rows.get(100).status, 'failed');
+    assert.strictEqual(t.copyLimit({ total_bytes: null, audio_bytes: 1000 }), 1000 + 1024 * 1024);
+    assert.strictEqual(t.copyLimit({ total_bytes: 5000, audio_bytes: 1000 }), 5000);
+    assert.strictEqual(t.copyLimit({ total_bytes: 10 * 1024 * 1024 * 1024 }), 400 * 1024 * 1024);
+  }
+  {
+    // A header that claims 10 seconds of audio in a 2 minute file.
+    const f = wav();
+    Buffer.from(f.buffer).writeUInt32LE(10 * 96000, 40);
+    const h = harness({ file: f });
+    const card = await t.studioTranscribe({ file: FILE }, h.d);
+    assert.ok(card.includes('0.2 minutes'), card);
+    await t.studioTranscribe({ file: FILE, go: true }, h.d);
+    await h.calls.background[0];
+    assert.strictEqual(h.calls.stt.length, 0);
+    assert.ok(h.rows.get(100).error.startsWith('the file holds more than the audio its header describes'), h.rows.get(100).error);
+  }
+  {
+    // A slow copy: the request is started by the next check_job, once.
+    const h = harness({ clockStep: 61 * 1000 });
+    await t.studioTranscribe({ file: FILE, go: true }, h.d);
+    await h.calls.background[0];
+    assert.strictEqual(h.rows.get(100).status, 'copied');
+    assert.strictEqual(h.calls.stt.length, 0);
+    const w = await t.transcribeCheck(JOB, h.d);
+    assert.ok(w.startsWith('Still working'), w);
+    assert.strictEqual(h.calls.background.length, 2);
+    await h.calls.background[1];
+    assert.strictEqual(h.calls.stt.length, 1);
+    assert.strictEqual(h.rows.get(100).status, 'completed');
+    // A copy that never finished is failed (nothing spent), not left running.
+    const s2 = harness();
+    s2.rows.set(8, { id: 8, model: 'elevenlabs/scribe_v2', request_id: JOB, status: 'copying', est_cost_usd: 0.2, params: {}, updated_at: '2026-10-17T15:30:00Z' });
+    const m = await t.transcribeCheck(JOB, s2.d);
+    assert.ok(m.startsWith('It failed: copying the file did not finish'), m);
+    assert.strictEqual(s2.rows.get(8).status, 'failed');
   }
 
   // ---- Budget and duplicates ----
@@ -378,7 +468,8 @@ function harness({ env = { ELEVENLABS_KEY: KEY }, file = wav(), cap = 200, reser
   assert.ok(!/ELEVENLABS/.test(src.replace(/\/\/[^\n]*/g, '')), 'index.ts reads no ElevenLabs secret itself');
   // The transcript bucket is private, JSON only, and created by a migration with an applied-when probe.
   const sql = fs.readFileSync(path.join(ROOT, 'supabase/migrations/20261017160000_hf_transcripts_bucket.sql'), 'utf8');
-  assert.ok(/^-- ef-auto-deploy-applied-when: select exists \(select 1 from storage\.buckets where id = 'transcripts' and public = false\)$/m.test(sql));
+  assert.ok(/^-- ef-auto-deploy-applied-when: select \(select count\(\*\) from storage\.buckets where id in \('transcripts', 'transcribe-sources'\) and public = false\) = 2$/m.test(sql));
+  assert.ok(/values \('transcribe-sources', 'transcribe-sources', false, 419430400, array\['audio\/wav', 'audio\/x-wav', 'audio\/wave'\]\)/.test(sql), 'the audio copies: private, WAV only, 400 MB');
   assert.ok(/values \('transcripts', 'transcripts', false, 52428800, array\['application\/json'\]\)/.test(sql));
   assert.ok(!/create policy/i.test(sql), 'no storage policy: only the service role reaches the bucket');
 

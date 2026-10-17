@@ -11,23 +11,33 @@
 // The request is the studio's own (synchro-pipelines editor-ai/scripts/
 // pipeline.py transcribe()): POST /v1/speech-to-text, model_id scribe_v2,
 // diarize=true, timestamps_granularity=word. The one difference: the studio
-// uploads the WAV, the server passes its link as source_url and ElevenLabs
+// uploads the WAV, the server passes a link as source_url and ElevenLabs
 // downloads it itself (checked 2026-10-17 against
 // https://elevenlabs.io/docs/api-reference/speech-to-text/convert: source_url
-// takes any https audio link, under 2 GB; cloud_storage_url is deprecated in
-// its favour). So the file never passes through the connector.
+// takes any https audio link; cloud_storage_url is deprecated in its favour).
 //
 // The flow matches voice_cleanup: the first call shows a price card and
 // changes nothing; only a second call with go: true reserves the price
-// against the monthly cap and starts the job. ElevenLabs answers in one long
-// request, so the job runs in the background; check_job and wait_for_job read
-// its row and hand back a signed link (1 hour) to ElevenLabs' JSON, stored
-// unchanged in the private Storage bucket "transcripts".
+// against the monthly cap and starts the job, in the background:
+// 1. "copying": the file is streamed from the person's link into the private
+//    bucket "transcribe-sources", stopped the moment it passes the size that
+//    was priced; the copy is measured again and refused if it is longer than
+//    priced. Nothing has been sent to ElevenLabs yet, so a refusal costs
+//    nothing. ElevenLabs only ever reads this copy (a signed link valid 15
+//    minutes), so the bytes it bills are the bytes that were priced, and a
+//    link that serves one file to the price check and another to ElevenLabs
+//    gains nothing (SyncView supervisor's review on #2150).
+// 2. "in_progress": the request to ElevenLabs (started by the same run when
+//    the copy was quick, otherwise by the next check_job / wait_for_job).
+// 3. ElevenLabs' JSON is stored unchanged in the private bucket
+//    "transcripts"; check_job and wait_for_job hand back a signed link (1
+//    hour). The copy of the audio is deleted when the job ends.
 
 import { money, parseWavHeader, totalBytesOf } from "./voice.mjs";
 
 export const STT_MODEL = "elevenlabs/scribe_v2";
 export const STT_BUCKET = "transcripts";
+export const STT_SOURCE_BUCKET = "transcribe-sources";
 export const ELEVENLABS_STT_URL = "https://api.elevenlabs.io/v1/speech-to-text";
 export const SECRET_NAMES = ["ELEVENLABS_KEY", "ELEVENLABS_API_KEY"];
 
@@ -36,8 +46,17 @@ export const NO_KEY_TEXT = "Transcription is not switched on yet: the account ow
 // Up to 30 minutes (a few seconds over is let through). The server waits for
 // ElevenLabs' answer in one request, and a background job has a few minutes.
 export const MAX_STT_SECONDS = 30 * 60 + 5;
-// ElevenLabs' own limit for a linked file is under 2 GB.
-export const MAX_STT_BYTES = 2 * 1000 * 1000 * 1000;
+// The copy goes through the project's Storage upload limit (400 MB), the
+// same as the transcribe-sources bucket's own limit.
+export const MAX_STT_BYTES = 400 * 1024 * 1024;
+// When the link does not say how big the file is, the copy may be this much
+// bigger than the WAV header's audio (other chunks, padding).
+export const HEADER_SLACK_BYTES = 1024 * 1024;
+// ElevenLabs reads the copy through a signed link valid this long.
+export const SOURCE_LINK_SECONDS = 15 * 60;
+// When the copy took less than this, the same run goes on to ElevenLabs
+// (it still has the 300 s request and the storing inside the 400 s limit).
+export const INLINE_START_MS = 60 * 1000;
 // Dollars per hour of audio. ElevenLabs' API price for Scribe v2 is $0.22 an
 // hour (https://elevenlabs.io/pricing/api, checked 2026-10-17), but a
 // subscription account pays in credits instead: 330 credits a minute, and the
@@ -51,11 +70,11 @@ export const LINK_SECONDS = 3600;
 // already read the file's ends and reserved, and still has to store the
 // transcript and write the job's state, so a minute and a half is left over.
 export const REQUEST_TIMEOUT_MS = 300 * 1000;
-// A job that has said "in_progress" this long never got its answer stored.
+// A job that has said "copying" or "in_progress" this long was stopped.
 export const STALE_RUNNING_MS = 15 * 60 * 1000;
-// The length guard: ElevenLabs' reported length may pass the priced length by
-// this much (rounding, a header a little off); more means the linked file is
-// not the one that was priced.
+// The length guard: the copy's length (and ElevenLabs' reported length) may
+// pass the priced length by this much (rounding, a header a little off); more
+// means the file is not the one that was priced.
 export const LENGTH_SLACK_SECONDS = 5;
 export const LENGTH_SLACK_SHARE = 0.02;
 // The transcript is JSON text; a 30 minute take is a few MB.
@@ -191,16 +210,17 @@ export const STT_TOOL = {
   },
 };
 
-// Follows redirects by hand so every hop passes the public-address check,
-// then reads up to max bytes. range is the Range header value.
-async function rangedRead(link, range, max, d) {
+// Opens a link, following redirects by hand so every hop passes the
+// public-address check (skipped only for our own signed Storage links).
+// Returns the response, or a sentence for the person.
+async function openLink(link, headers, d, trusted) {
   let url;
   try { url = new URL(link); } catch { return "The link must start with https://"; }
   for (let hop = 0; hop < 6; hop++) {
-    if (!(await d.publicHost(url))) return "That link points somewhere that is not a public https address.";
+    if (!trusted && !(await d.publicHost(url))) return "That link points somewhere that is not a public https address.";
     let res;
     try {
-      res = await d.fetch(url.toString(), { redirect: "manual", headers: { Range: range } });
+      res = await d.fetch(url.toString(), { redirect: "manual", headers });
     } catch {
       return "Could not open that link.";
     }
@@ -213,21 +233,28 @@ async function rangedRead(link, range, max, d) {
       await res.body?.cancel?.();
       return `Could not download that link (${res.status}). Make sure it is shared as "anyone with the link".`;
     }
-    const type = String(res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
-    const total = totalBytesOf(res.status, res.headers);
-    const bytes = await readUpTo(res.body, max);
-    return { status: res.status, type, total, bytes };
+    return res;
   }
   return "That link redirects too many times.";
 }
 
+// Reads up to max bytes of a range. range is the Range header value.
+async function rangedRead(link, range, max, d, trusted) {
+  const res = await openLink(link, { Range: range }, d, trusted);
+  if (typeof res === "string") return res;
+  const type = String(res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+  const total = totalBytesOf(res.status, res.headers);
+  const bytes = await readUpTo(res.body, max);
+  return { status: res.status, type, total, bytes };
+}
+
 // Reads the WAV header and the cache key. Returns the facts, or a sentence
-// for the person.
-async function readSource(link, d) {
-  const head = await rangedRead(link, `bytes=0-${FINGERPRINT_BYTES - 1}`, FINGERPRINT_BYTES, d);
+// for the person. trusted is set for our own copy.
+async function readSource(link, d, trusted = false) {
+  const head = await rangedRead(link, `bytes=0-${FINGERPRINT_BYTES - 1}`, FINGERPRINT_BYTES, d, trusted);
   if (typeof head === "string") return head;
   if (head.type === "text/html") return "That link opened a web page, not the file. Check the sharing setting, or upload the WAV with get_upload_link.";
-  if (head.total !== null && head.total > MAX_STT_BYTES) return "That file is over 2 GB, too big to transcribe.";
+  if (head.total !== null && head.total > MAX_STT_BYTES) return TOO_BIG;
   const wav = parseWavHeader(head.bytes, head.total);
   if (wav.error === "not-wav") return "That file is not a WAV recording. Transcription takes WAV files only.";
   if (wav.error) return "Could not read the recording's length from the file. Upload it with get_upload_link (audio/wav) and try again.";
@@ -236,8 +263,8 @@ async function readSource(link, d) {
   if (head.status === 206 && head.total) {
     const total = head.total;
     const reads = total <= FINGERPRINT_BYTES ? [] : [
-      ...samplePoints(total).map((at) => rangedRead(link, `bytes=${at}-${at + SAMPLE_BYTES - 1}`, SAMPLE_BYTES, d)),
-      rangedRead(link, `bytes=-${FINGERPRINT_BYTES}`, FINGERPRINT_BYTES, d),
+      ...samplePoints(total).map((at) => rangedRead(link, `bytes=${at}-${at + SAMPLE_BYTES - 1}`, SAMPLE_BYTES, d, trusted)),
+      rangedRead(link, `bytes=-${FINGERPRINT_BYTES}`, FINGERPRINT_BYTES, d, trusted),
     ];
     const got = await Promise.all(reads);
     if (got.every((r) => typeof r !== "string" && r.status === 206 && r.total === total)) {
@@ -247,8 +274,34 @@ async function readSource(link, d) {
   // Facts that tell two files at the same link apart even without a key
   // (used for the duplicate check only).
   const headHash = toHex(await d.digest(head.bytes));
-  return { ...wav, totalBytes: head.total, key, headHash };
+  const audioBytes = Math.ceil(wav.seconds * (wav.sampleRate * wav.channels * wav.bits) / 8);
+  return { ...wav, totalBytes: head.total, key, headHash, audioBytes };
 }
+
+const TOO_BIG = "That file is over 400 MB, too big to transcribe. Export it as mono 16-bit, or split it into parts.";
+
+// The most the copy may hold: the size the link gave when priced, or (when it
+// gave none) the header's audio plus a little; never over MAX_STT_BYTES.
+export function copyLimit(params) {
+  const total = Number(params.total_bytes);
+  if (total > 0) return Math.min(total, MAX_STT_BYTES);
+  const audio = Number(params.audio_bytes);
+  return Math.min(MAX_STT_BYTES, (audio > 0 ? audio : 0) + HEADER_SLACK_BYTES);
+}
+
+// A stream that passes bytes through and fails the moment there are more
+// than max of them.
+export function capped(body, max) {
+  let seen = 0;
+  return body.pipeThrough(new TransformStream({
+    transform(chunk, ctrl) {
+      seen += chunk.length;
+      if (seen > max) ctrl.error(new Error(OVER_PRICED_SIZE));
+      else ctrl.enqueue(chunk);
+    },
+  }));
+}
+const OVER_PRICED_SIZE = "the file at the link is bigger than the one that was priced";
 
 async function readUpTo(body, max) {
   const reader = body.getReader();
@@ -287,7 +340,9 @@ const cachedText = (jobId) =>
 //      digest(bytes): Promise<ArrayBuffer>, idemKey(member, model, input),
 //      reserve(p), update(id, fields, only), byRequest(jobId),
 //      cached(key): Promise<{request_id, video_url} | null>,
-//      upload(path, text), exists(path): Promise<boolean>, sign(path, seconds) }
+//      upload(path, text), exists(path): Promise<boolean>, sign(path, seconds),
+//      uploadSource(path, stream), signSource(path, seconds), removeSource(path),
+//      timeout(ms), now() }
 export async function studioTranscribe(args, d) {
   const key = elevenKey(d.env);
   if (!key) return NO_KEY_TEXT;
@@ -321,6 +376,7 @@ export async function studioTranscribe(args, d) {
     seconds: Math.round(src.seconds * 10) / 10,
     sample_rate: src.sampleRate,
     total_bytes: src.totalBytes,
+    audio_bytes: src.audioBytes,
     source_hash: src.key,
     cache_ok: false,
   };
@@ -345,20 +401,73 @@ export async function studioTranscribe(args, d) {
   const rowId = Number(rsv.id);
   const jobId = d.uuid();
   try {
-    const n = await d.update(rowId, { request_id: jobId, status: "in_progress", updated_at: nowIso(d) });
+    const n = await d.update(rowId, { request_id: jobId, status: "copying", updated_at: nowIso(d) });
     if (!n) throw new Error("no row");
   } catch {
     await d.update(rowId, { status: "submit_failed", error: "could not record the job id", updated_at: nowIso(d) }).catch(() => {});
     return "Could not start: the log is unavailable, so nothing was spent.";
   }
-  d.background(runTranscription(d, key, rowId, jobId, link, params, rate));
+  d.background(copyThenTranscribe(d, key, rowId, jobId, link, params, rate));
   return `Started: transcription of a ${(src.seconds / 60).toFixed(1)} minute take, about ${money(usd)}.\njob_id: ${jobId}\nNow call wait_for_job with this job_id. It usually takes under a minute.`;
 }
 
-// The background job: one request to ElevenLabs, the length guard, the
-// transcript stored unchanged, the real cost written back.
-export async function runTranscription(d, key, rowId, jobId, link, params, rate) {
-  const done = (fields) => d.update(rowId, { ...fields, updated_at: nowIso(d) }).catch(() => 0);
+const clock = (d) => (d.now ? d.now() : new Date()).getTime();
+
+// Step 1 of the background job: copy the file into our private bucket,
+// stopping at the priced size, and measure the copy again. Every refusal
+// here happens before ElevenLabs is asked, so nothing is spent ("failed"
+// leaves the monthly budget).
+export async function copyThenTranscribe(d, key, rowId, jobId, link, params, rate) {
+  const started = clock(d);
+  const path = `${jobId}.wav`;
+  const fail = async (why) => {
+    await d.removeSource(path).catch(() => {});
+    await d.update(rowId, { status: "failed", error: why, updated_at: nowIso(d) }).catch(() => 0);
+  };
+  const res = await openLink(link, {}, d, false);
+  if (typeof res === "string") return await fail("could not copy the file: " + res);
+  try {
+    await d.uploadSource(path, capped(res.body, copyLimit(params)));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    return await fail(msg.includes(OVER_PRICED_SIZE) ? OVER_PRICED_SIZE + ", so it was not sent. Price it again" : "could not copy the file: " + msg.replace(/https?:\/\/\S+/g, "(link)").slice(0, 200));
+  }
+  let copyUrl;
+  try { copyUrl = await d.signSource(path, SOURCE_LINK_SECONDS); } catch (e) {
+    return await fail("could not read the copy back: " + String(e?.message || e).slice(0, 200));
+  }
+  const copy = await readSource(copyUrl, d, true);
+  if (typeof copy === "string") return await fail("the copied file could not be read: " + copy);
+  if (tooLong(copy.seconds, params.seconds)) {
+    return await fail(`the file at the link is ${(copy.seconds / 60).toFixed(1)} minutes long, more than the ${(params.seconds / 60).toFixed(1)} minutes priced, so it was not sent. Price it again`);
+  }
+  // A header that claims less audio than the file holds would be priced low.
+  if (Number(copy.totalBytes) > copy.audioBytes + HEADER_SLACK_BYTES) {
+    return await fail("the file holds more than the audio its header describes, so it was not sent. Export it again as a plain WAV");
+  }
+  // The cache key is the copy's own: the transcript will be of these bytes.
+  const next = { ...params, copy_path: path, copy_seconds: Math.round(copy.seconds * 10) / 10, source_hash: copy.key };
+  const n = await d.update(rowId, { status: "copied", params: next, updated_at: nowIso(d) }, { status: "copying" }).catch(() => 0);
+  if (!n) return;
+  if (clock(d) - started > INLINE_START_MS) return; // the next check_job starts it
+  const claimed = await d.update(rowId, { status: "in_progress", updated_at: nowIso(d) }, { status: "copied" }).catch(() => 0);
+  if (claimed) await runTranscription(d, key, rowId, jobId, next, rate);
+}
+
+// Step 2: one request to ElevenLabs on the copy, the length guard, the
+// transcript stored unchanged, the real cost written back, the copy deleted.
+export async function runTranscription(d, key, rowId, jobId, params, rate) {
+  const finish = (fields) => d.update(rowId, { ...fields, updated_at: nowIso(d) }).catch(() => 0);
+  const copyPath = String(params.copy_path || "");
+  const done = async (fields) => {
+    await finish(fields);
+    await d.removeSource(copyPath).catch(() => {});
+  };
+  let link;
+  try { link = await d.signSource(copyPath, SOURCE_LINK_SECONDS); } catch (e) {
+    await done({ status: "failed", error: "could not open the copy for ElevenLabs: " + String(e?.message || e).slice(0, 200) });
+    return;
+  }
   const form = new FormData();
   for (const [k, v] of sttForm(link)) form.append(k, v);
   let res;
@@ -395,6 +504,7 @@ export async function runTranscription(d, key, rowId, jobId, link, params, rate)
   }
   const reported = Number(data.audio_duration_secs);
   const actual = reported > 0 ? priceFor(reported, rate) : priceFor(params.seconds, rate);
+  // Should not happen now ElevenLabs reads our measured copy; kept as a guard.
   if (tooLong(reported, params.seconds)) {
     // Charged by ElevenLabs, so it stays in the budget (not "failed"); the
     // transcript is not handed out or kept, since it is not of the file priced.
@@ -402,7 +512,7 @@ export async function runTranscription(d, key, rowId, jobId, link, params, rate)
       status: "refused_length",
       est_cost_usd: actual,
       params: { ...params, audio_seconds: reported },
-      error: `ElevenLabs read ${(reported / 60).toFixed(1)} minutes of audio, more than the ${(params.seconds / 60).toFixed(1)} minutes priced, so the file behind the link changed after pricing`,
+      error: `ElevenLabs read ${(reported / 60).toFixed(1)} minutes of audio, more than the ${(params.seconds / 60).toFixed(1)} minutes priced`,
     });
     return;
   }
@@ -444,9 +554,26 @@ export async function transcribeCheck(jobId, d) {
   if (row.status === "delivery_failed") return `Could not save the transcript: ${row.error || "storage error"}. It was made and charged (${cost}). Tell the account owner before trying again.`;
   if (row.status === "submit_unknown") return `Could not confirm the transcription with ElevenLabs (${row.error || "no answer"}). It may have been charged (${cost}), so do not send it again straight away: tell the account owner.`;
   if (row.status === "canceled") return "This job was canceled.";
-  const age = (d.now ? d.now() : new Date()).getTime() - Date.parse(String(row.updated_at || ""));
+  const age = clock(d) - Date.parse(String(row.updated_at || ""));
+  if (row.status === "copying" && age > STALE_RUNNING_MS) {
+    const why = "copying the file did not finish (the server stopped it); nothing was sent to ElevenLabs";
+    await d.update(row.id, { status: "failed", error: why, updated_at: nowIso(d) }, { status: "copying" }).catch(() => 0);
+    return "It failed: " + why + ". Nothing was spent; try again.";
+  }
+  if (row.status === "copying") return "Still working (copying the file before it is sent). Check again in about 20 to 30 seconds.";
+  if (row.status === "copied") {
+    const key = elevenKey(d.env);
+    const rate = usdPerHour(d.env("ELEVENLABS_USD_PER_HOUR"));
+    if (!key) return "Could not start: " + NO_KEY_TEXT;
+    if (rate === null) return BAD_RATE;
+    // Only the check that moves the row on starts the request.
+    const claimed = await d.update(row.id, { status: "in_progress", updated_at: nowIso(d) }, { status: "copied" }).catch(() => 0);
+    if (claimed) d.background(runTranscription(d, key, Number(row.id), jobId, row.params || {}, rate));
+    return "Still working (ElevenLabs is transcribing). Check again in about 20 to 30 seconds.";
+  }
   if (age > STALE_RUNNING_MS) {
     const why = "no answer from ElevenLabs was stored (the server stopped waiting)";
+    if (row.params?.copy_path) await d.removeSource(String(row.params.copy_path)).catch(() => {});
     await d.update(row.id, { status: "submit_unknown", error: why, updated_at: nowIso(d) }, { status: String(row.status) }).catch(() => 0);
     return `Could not confirm the transcription with ElevenLabs (${why}). It may have been charged (${cost}), so do not send it again straight away: tell the account owner.`;
   }

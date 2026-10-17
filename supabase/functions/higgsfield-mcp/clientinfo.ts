@@ -176,7 +176,9 @@ export async function brainFolder(slug: string, name: string): Promise<{ folder?
 }
 
 // Everything written about one client: brief.md, then the written facts of
-// identity, voice, editing, relationship and audience, each with its fact id.
+// focus (what their content is focused on right now; only when focus.md
+// exists), identity, voice, editing, relationship and audience, each with its
+// fact id. Focus comes first so the size cap never cuts it.
 export async function clientBrain(db: SupabaseClient, client: string): Promise<string> {
   if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return "The Synchro Brain is not connected on the server (BRAIN_GITHUB_TOKEN missing).";
   const found = await findClient(db, client);
@@ -193,13 +195,14 @@ export async function clientBrain(db: SupabaseClient, client: string): Promise<s
     if (!r.ok) throw new Error(String(r.status));
     return await r.text();
   };
-  let brief: string, audience: string, texts: string[];
+  let brief: string, audience: string, focus: string, texts: string[];
   try {
-    [brief, audience, ...texts] = await Promise.all([read("brief"), read("audience"), ...BRAIN_FILES.map(read)]);
+    [brief, audience, focus, ...texts] = await Promise.all([read("brief"), read("audience"), read("focus"), ...BRAIN_FILES.map(read)]);
   } catch (e) {
     return `Could not read the Synchro Brain (${(e as Error).message}). Try again in a minute; do not answer as if ${p.client_name} had no brain facts.`;
   }
   const facts = [
+    ...parseBrainFacts(focus, "focus"),
     ...BRAIN_FILES.flatMap((f, i) => parseBrainFacts(texts[i], f)),
     ...parseAudience(audience),
   ].filter((f: { status: string; body: string }) => f.status === "written" && f.body);

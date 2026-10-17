@@ -1,7 +1,9 @@
 // The connector's filming pipeline tools for Claude (item 1, PR 2):
 //   client_record(client)                              a short summary of a client's file store
 //   feedback_note(client?, title, body, follows?)      save a note from the chat (source "chat")
-//   feedback_notes(since, client?)                     read notes, for supervisors
+//   feedback_notes(since, client?)                     read notes, for supervisors only: a personal
+//                                                      connector link whose member is on the publish
+//                                                      list (fp_publishers), checked here, server side
 // Plain JavaScript with no Deno parts, so a unit test can run it; index.ts
 // passes in the database reads and writes as deps. The note rules are the
 // same ones pipeline-google uses for notes.add (../pipeline-google/store.mjs).
@@ -73,8 +75,12 @@ export function sinceOf(raw) {
 // Oldest first, so a long range is read in pages: each answer that stops
 // early names the since to ask with next.
 // deps: findClient, notes({ since, slug|null, limit }) -> rows oldest first (created_at >= since),
-//       clientNames() -> Map slug -> name
-export async function feedbackNotes(deps, args) {
+//       clientNames() -> Map slug -> name, isPublisher(member) -> boolean
+// who: { member, teamLink } of the caller's connector link.
+export const NOTES_REFUSED = "Refused: feedback_notes is for supervisors (a personal connector link on the publish list). Ask the account owner if you need to read the notes.";
+export async function feedbackNotes(deps, args, who) {
+  if (!who || who.teamLink || !String(who.member || "").trim()) return NOTES_REFUSED;
+  if (!(await deps.isPublisher(String(who.member)))) return NOTES_REFUSED;
   const since = sinceOf(args.since);
   if (!since) return 'Give since as a date, for example "2026-10-10" (UTC), or a date and time.';
   let slug = null, label = "all clients";

@@ -176,9 +176,9 @@ export async function brainFolder(slug: string, name: string): Promise<{ folder?
 }
 
 // Everything written about one client: brief.md, then the written facts of
-// focus (what their content is focused on right now; only when focus.md
-// exists), identity, voice, editing, relationship and audience, each with its
-// fact id. Focus comes first so the size cap never cuts it.
+// identity, voice, editing, relationship and audience, each with its fact id.
+// When focus.md exists, its written facts (what the content is focused on
+// right now) come first, before the brief, so the size cap never cuts them.
 export async function clientBrain(db: SupabaseClient, client: string): Promise<string> {
   if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return "The Synchro Brain is not connected on the server (BRAIN_GITHUB_TOKEN missing).";
   const found = await findClient(db, client);
@@ -201,17 +201,20 @@ export async function clientBrain(db: SupabaseClient, client: string): Promise<s
   } catch (e) {
     return `Could not read the Synchro Brain (${(e as Error).message}). Try again in a minute; do not answer as if ${p.client_name} had no brain facts.`;
   }
+  const written = (f: { status: string; body: string }) => f.status === "written" && !!f.body;
+  const focusFacts = parseBrainFacts(focus, "focus").filter(written);
   const facts = [
-    ...parseBrainFacts(focus, "focus"),
     ...BRAIN_FILES.flatMap((f, i) => parseBrainFacts(texts[i], f)),
     ...parseAudience(audience),
   ].filter((f: { status: string; body: string }) => f.status === "written" && f.body);
   const briefText = parseBrief(brief).map((s: { heading: string; bullets: Array<{ text: string }> }) =>
     `## ${s.heading}\n${s.bullets.map((b) => `- ${b.text}`).join("\n")}`).join("\n\n");
-  if (!briefText && !facts.length) return `${p.client_name}: the Synchro Brain has no written brief or facts yet.`;
-  const factText = facts.map((f: { file: string; heading: string; id: string; body: string; sure?: string }) =>
+  if (!briefText && !facts.length && !focusFacts.length) return `${p.client_name}: the Synchro Brain has no written brief or facts yet.`;
+  const asText = (list: Array<{ file: string; heading: string; id: string; body: string; sure?: string }>) => list.map((f) =>
     `### ${f.heading} (${f.file}; fact id: ${f.id || "none"})\n${f.body}${f.sure ? `\nHow sure we are: ${f.sure}` : ""}`).join("\n\n");
-  const text = `${p.client_name}, from the Synchro Brain.\n\n# Brief\n\n${briefText || "(no brief written yet)"}\n\n# Facts\n\n${factText || "(no written facts yet)"}`;
+  const factText = asText(facts);
+  const focusText = focusFacts.length ? `# Current focus\n\n${asText(focusFacts)}\n\n` : "";
+  const text = `${p.client_name}, from the Synchro Brain.\n\n${focusText}# Brief\n\n${briefText || "(no brief written yet)"}\n\n# Facts\n\n${factText || "(no written facts yet)"}`;
   return text.length > BRAIN_MAX_CHARS ? text.slice(0, BRAIN_MAX_CHARS) + "\n\n[cut here]" : text;
 }
 

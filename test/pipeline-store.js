@@ -274,6 +274,7 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
     addNote: async (row) => { const n = { id: NOTE_ID, created_at: '2026-01-03T00:00:00Z', ...row }; noteRows.push(n); return { id: n.id, created_at: n.created_at }; },
     notes: async ({ since, slug, limit }) => noteRows.filter((n) => n.created_at >= since && (!slug || n.client_slug === slug)).slice(0, limit),
     clientNames: async () => new Map([['clienta', 'Client A']]),
+    isPublisher: async (m) => m === OWNER,
   };
   const record = await rec.clientRecord(rdeps, 'Client A');
   ok(record.startsWith('Client A: filming pipeline record'), 'client_record names the client');
@@ -295,18 +296,24 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
   ok((await rec.feedbackNote(rdeps, { client: 'nobody', title: 't', body: 'b' }, OTHER)).startsWith('Which client?'), 'an unknown client asks which');
   eq(who.outcomeOf('feedback_note', saidNote).ok, true, 'a saved note is logged as a success');
 
-  const list = await rec.feedbackNotes(rdeps, { since: '2026-01-01' });
+  const SUP = { member: OWNER, teamLink: false };
+  for (const [whoCalls, label] of [[{ member: OWNER, teamLink: true }, 'the shared team link'], [{ member: OTHER, teamLink: false }, 'a personal link not on the publish list'], [null, 'no caller']]) {
+    const refused = await rec.feedbackNotes(rdeps, { since: '2026-01-01' }, whoCalls);
+    ok(refused === rec.NOTES_REFUSED && !refused.includes('Hooks'), `feedback_notes refuses ${label}, before reading any note`);
+  }
+  eq(who.outcomeOf('feedback_notes', rec.NOTES_REFUSED).ok, false, 'a refusal is logged as a failure');
+  const list = await rec.feedbackNotes(rdeps, { since: '2026-01-01' }, SUP);
   ok(list.startsWith('Feedback notes since 2026-01-01 00:00 UTC (all clients), oldest first: 2.'), 'feedback_notes reads every client by default');
   ok(list.includes('## Hooks') && list.includes(`id ${NOTE_ID}`) && list.includes('client Client A') && list.includes('no client') && list.includes(`follows ${NOTE_ID}`), 'each note with its id, client, source and follow-up');
   ok(!list.includes('Not all notes'), 'all shown: no paging line');
-  ok((await rec.feedbackNotes(rdeps, { since: '2026-01-01', client: 'Client A' })).includes('(Client A), oldest first: 1.'), 'filtered by client: the note with no client is left out');
-  ok((await rec.feedbackNotes(rdeps, { since: '2027-01-01' })).startsWith('No feedback notes since'), 'nothing since then');
-  ok((await rec.feedbackNotes(rdeps, { since: 'last week' })).startsWith('Give since'), 'a bad since asks for a date');
+  ok((await rec.feedbackNotes(rdeps, { since: '2026-01-01', client: 'Client A' }, SUP)).includes('(Client A), oldest first: 1.'), 'filtered by client: the note with no client is left out');
+  ok((await rec.feedbackNotes(rdeps, { since: '2027-01-01' }, SUP)).startsWith('No feedback notes since'), 'nothing since then');
+  ok((await rec.feedbackNotes(rdeps, { since: 'last week' }, SUP)).startsWith('Give since'), 'a bad since asks for a date');
   const many = Array.from({ length: 60 }, (_, i) => ({ id: NOTE_ID, created_at: `2026-02-01T00:${String(i).padStart(2, '0')}:00Z`, client_slug: null, title: 'n' + i, body: 'x', source: 'chat', follows: null, member: OTHER }));
-  const paged = await rec.feedbackNotes({ ...rdeps, notes: async ({ limit }) => many.slice(0, limit) }, { since: '2026-02-01' });
+  const paged = await rec.feedbackNotes({ ...rdeps, notes: async ({ limit }) => many.slice(0, limit) }, { since: '2026-02-01' }, SUP);
   ok(paged.includes('oldest first: 50 shown, and there are more.') && paged.includes('Read the rest with since "2026-02-01T00:49:00Z"'), 'more than 50: says so and where to continue, never a silent cut');
   const big = Array.from({ length: 5 }, (_, i) => ({ ...many[i], body: 'y'.repeat(19000) }));
-  const capped = await rec.feedbackNotes({ ...rdeps, notes: async () => big }, { since: '2026-02-01' });
+  const capped = await rec.feedbackNotes({ ...rdeps, notes: async () => big }, { since: '2026-02-01' }, SUP);
   ok(capped.length <= rec.NOTES_MAX_CHARS + 200 && /Not all notes are shown\. Read the rest with since "2026-02-01T00:02:00Z"/.test(capped), 'the size cap pages too, from the last note shown');
   eq(rec.sinceOf('2026-10-17T02:50:12.123456+00:00'), '2026-10-17T02:50:12.123Z', 'a database time is a valid since');
 
@@ -319,6 +326,8 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
   ok(/required: \["title", "body"\]/.test(def('feedback_note')) && /enum: \["chat"\]/.test(def('feedback_note')), 'feedback_note takes title and body; source can only be chat');
   ok(/required: \["since"\]/.test(def('feedback_notes')), 'feedback_notes takes since');
   ok(/if \(name === "toolkit_latest"\) \{\n\s*return await toolkitLatest\(studioStore\(\), String\(args\.name \|\| ""\), \{ member, who: isTeamLink\(member\) \? cleanWho\(args\.who\) : "" \}\);/.test(idx), 'toolkit_latest uses the same bucket and log as studio_latest');
+  ok(/if \(name === "feedback_notes"\) return await feedbackNotes\(recordDeps\(\), args, \{ member, teamLink: isTeamLink\(member\) \}\);/.test(idx), 'feedback_notes is told the caller\'s link kind, server side');
+  ok(/isPublisher: async \(m: string\) => \{\n\s*const \{ data, error \} = await db\(\)\.from\("fp_publishers"\)/.test(idx), 'and checks the publish list');
   ok(/if \(name === "feedback_note"\) return await feedbackNote\(recordDeps\(\), args, author\);/.test(idx), 'a chat note is filed under the caller (the team link\'s "<name> (team)")');
   ok(/const folder = cut < 0 \? "" : name\.slice\(0, cut\);/.test(idx), 'the bucket check looks inside a toolkit\'s folder');
   ok(!/VIEWER_TOOLS = new Set\([^)]*(toolkit_latest|client_record|feedback_note)/.test(idx), 'none of them shows the media viewer');
@@ -328,7 +337,8 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
   const cb = ci.slice(ci.indexOf('export async function clientBrain('), ci.indexOf('export async function brainChange('));
   ok(cb.includes('read("focus")') && cb.includes('read("audience")'), 'client_brain reads focus.md and audience.md');
   ok(/if \(r\.status === 404\) return "";/.test(cb), 'a missing focus.md reads as nothing, not a failure');
-  ok(cb.indexOf('parseBrainFacts(focus, "focus")') < cb.indexOf('BRAIN_FILES.flatMap'), 'focus facts come first, so the cap never cuts them');
+  ok(/\$\{p\.client_name\}, from the Synchro Brain\.\\n\\n\$\{focusText\}# Brief/.test(cb), 'focus comes before the brief, so the cap never cuts it');
+  ok(/const focusText = focusFacts\.length \?/.test(cb), 'and only when focus.md has written facts');
   ok(cb.includes('...parseAudience(audience)'), 'audience facts are still there');
   ok(/text\.length > BRAIN_MAX_CHARS/.test(cb) && /const BRAIN_MAX_CHARS = 60_000;/.test(ci), 'the size cap is kept');
   const parse = await import(path.join(fnDir, 'brain', 'parse.mjs'));

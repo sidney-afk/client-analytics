@@ -370,7 +370,7 @@ const TOOLS = [
   },
   {
     name: "feedback_notes",
-    description: "For supervisors: read the filming plan pipeline's feedback notes (from chats and from the ideas Sheets) saved since a date, oldest first, optionally for one client. Read only.",
+    description: "For supervisors only (a personal connector link on the publish list; others are refused): read the filming plan pipeline's feedback notes (from chats and from the ideas Sheets) saved since a date, oldest first, optionally for one client. Read only.",
     inputSchema: {
       type: "object",
       required: ["since"],
@@ -1250,7 +1250,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
 
   if (name === "client_record") return await clientRecord(recordDeps(), String(args.client || ""));
   if (name === "feedback_note") return await feedbackNote(recordDeps(), args, author);
-  if (name === "feedback_notes") return await feedbackNotes(recordDeps(), args);
+  if (name === "feedback_notes") return await feedbackNotes(recordDeps(), args, { member, teamLink: isTeamLink(member) });
 
   if (name === "get_upload_link") {
     const type = String(args.content_type || "");
@@ -1358,6 +1358,11 @@ function recordDeps() {
       const { data, error } = await q.order("created_at", { ascending: true }).limit(limit);
       if (error) throw fail("the notes", error);
       return data || [];
+    },
+    isPublisher: async (m: string) => {
+      const { data, error } = await db().from("fp_publishers").select("member").eq("member", m).maybeSingle();
+      if (error) throw fail("the publish list", error);
+      return !!data;
     },
     clientNames: async () => {
       const { data, error } = await db().from("filming_plans").select("client_slug,client_name");

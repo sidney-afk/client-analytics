@@ -84,6 +84,21 @@ layout follows the desktop one and has not been polished on its own (as the hand
 Newest first. Checked against main and the live database on 2026-10-16. When an item here is finished or moved into
 the sections below, delete it from this block in the same PR.
 
+**Day 2026-10-17 (Lighthouse, after the owner's morning answers):**
+- **Merged and live:** #2147 (Team-link brain saves need a first name; the guide finds "broll"), #2149 (voice_cleanup
+  stops an Auphonic production over 5 minutes; status 13 and 10), #2151 (studio toolkit reads the studio/ folder, top
+  of the bucket as fallback), #2152 (client_brain offers a named non-owner caller at most one open client question from
+  the brain's questions.md, Kasper both kinds, others team only, never the same one twice in 7 days; brain_change takes
+  question_id; the live hf_guides brain row has the new section), #2153 (client review page: one header on every tab,
+  toggle fixed, Sheet shows only the sheet, no Analytics for clients, full screen; the Frame.io player was already on
+  the video step), #2154 (its live screenshots).
+- **Sent back:** #2150 (studio_transcribe): ElevenLabs fetched the user's link itself after pricing, so a swapped
+  longer file would be billed in full; fix requested (price and send our own stored copy).
+- **In progress:** Sheet cards centred vertically and four design fixes on the client page (session Curtain Three);
+  Meta tracking on the website's /doctors page (session Pixelfix, synchrosocial; any n8n change is a proposal only).
+- **Supervisors:** inboxes, a shared board and daily history in synchro-pipelines `supervisor/`, and an Overseer
+  session that audits them (owner's decision).
+
 **Night 2026-10-16 to 17 (Lighthouse; the owner asked for full autonomy until his 8am report, decisions noted):**
 - **Merged and live:** #2129 (filming pipeline passes; migration applied), #2132 and #2133 (entry-links-boot was red on
   every PR since #2085: three phone tests opened on the new picture grid, and #2121's Post tab made the header tab row
@@ -105,14 +120,15 @@ the sections below, delete it from this block in the same PR.
   must be raised to 400 MB before the first long file), #2145 (Probe: #2130 started the notes read one tick late, so
   for a moment after opening the Notes dialog Send looked ready and a note sent then was refused as "still loading";
   this turned three Calendar nightly probes red at 12:01; no real client affected; OPEN_REPAIRS 431).
-- **Card saver:** stage B unchanged (test client plus the owner's two clients); 7 clean watcher runs, no real saves on
+- **Card saver:** stage B unchanged (test client plus the owner's two clients); 8 clean watcher runs, no real saves on
   the two clients yet (weekend), so stage C's count has not started.
-- **Needs the owner:** one real card (`p_native_0565...f3_1`, video) holds the client's Tweaks Needed while its work item
-  is still at client approval (the bug #2140 fixes). Move the work item to tweak in the Production status picker; never
-  the drift check's backfill, which would erase the client's request. Until then the hourly drift check stays red.
-- **Watch item:** with several PR runs at once (about 24 jobs each since #2136), the 5-minute production lanes (the
-  notification sender among them) queue and some runs are cancelled; harmless at night, a delay risk in the day.
-- The Codex review bot is out of usage credits (said so on #2141).
+- **Done by the owner (morning):** the one stuck card's work item moved to Tweaks Needed (the drift check is green
+  again); `AUPHONIC_KEY` added and the global Storage upload limit set to 400 MB (voice_cleanup is on); Codex credits
+  reset; GitHub production environment confirmed "main only".
+- **Runner capacity (fixed):** #2148 (session Throttle, owner's go) gives pull-request jobs 12 shared runner seats with
+  `queue: max`, so the 5-minute production lanes no longer queue behind PR tests (the sender had 90 of 589 runs
+  cancelled over 48 hours); the schedule guard runs only on timer runs and still fails closed (Lighthouse's fix on top).
+  An uncontended calendar PR run now takes about 20 minutes instead of 12.
 
 **Evening 2026-10-16 (Lighthouse, checked live):**
 - **First Section 4 release through the new lanes SUCCEEDED** (manual merge-lane run 38953309940 at `27ce2100`, 19:13 UTC):

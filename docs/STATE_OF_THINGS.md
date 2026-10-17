@@ -101,6 +101,21 @@ main. Test: `node test/review-stage-one-system-browser.js`.
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone
 layout follows the desktop one and has not been polished on its own (as the handoff said).
 
+## Loading skeletons match what loads (session Mould, owner feedback 2026-10-17 23:40 UTC)
+
+The owner: "Every skeleton should match the actual shape of what is loading." Each page fixed gets a browser test that
+measures the skeleton's boxes against the loaded page's (fixture data, 1px tolerance) and fails on the old skeleton;
+before and after screenshots live in `docs/audits/skeleton-shape/<page>/`.
+- **Staff Calendar, Sheet:** done. While cards load, no second made-up toolbar any more; the cards sit exactly where the
+  real cards land, row for row (title, date, two links, caption, call to action, notes, Set all, three status rows),
+  at the view's card size; phone shows the posts bar and the three-column tile grid; the first paint (before the app
+  starts) has the real toolbar's items at their sizes and the same cards. Test:
+  `node test/calendar-sheet-skeleton-shape-browser.js`. Not yet matched: the phone first paint (the whole phone header
+  is drawn by the app, so the first paint still shows the desktop shell there), a saved small or large card size on the
+  first paint (it draws the default size), and the staff client profile's Calendar tab, which shares the first-paint copy.
+- **Not reached yet:** Calendar Review, Month and Week; Today, Samples, Templates, Filming, Post, Workload, Linear,
+  Submit, Messages, the old client page. The review page and Kasper's tab belong to sessions Curtain Nine and Seven.
+
 ## Latest (Lighthouse, 2026-10-17)
 
 Newest first. Checked against main and the live database on 2026-10-16. When an item here is finished or moved into

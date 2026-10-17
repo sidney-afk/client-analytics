@@ -64,6 +64,47 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
             </div>
         </div>`;
     }
+    /* Staff Calendar Sheet, while its cards load (owner, 2026-10-17: "every
+       skeleton should match the actual shape of what is loading"). The real
+       toolbar is already on screen above #calBody, so this draws only the strip
+       of cards, inside the real strip's own classes, and each card's rows at the
+       real rows' heights (title, date, two links, caption, call to action,
+       notes, Set all and three status rows). Card width and thumb height come
+       from the view's zoom (--cal-card-w, --cal-thumb-h), as the real cards'
+       do. The boot copy in 030-body-shell.html.part is the same markup plus the
+       toolbar. test/calendar-sheet-skeleton-shape-browser.js holds it to the
+       loaded page's boxes. */
+    function _svCalendarSheetCardSkeletonHtml(i) {
+        const status = '<div class="sv-skeleton cal-sk-status"></div>';
+        return `<div class="cal-skeleton-card cal-sk-card">
+            ${_svSkel('cal-skeleton-thumb')}
+            <div class="cal-sk-body">
+                <div class="cal-sk-title">${_svSkel('sv-skeleton-line', 'width:' + (i % 3 === 1 ? '46%' : '58%') + ';')}</div>
+                ${_svSkel('cal-sk-field is-date')}
+                ${_svSkel('cal-sk-field')}
+                ${_svSkel('cal-sk-field')}
+                <div class="cal-sk-cap">${_svSkel('sv-skeleton-pill cal-sk-chip')}${_svSkel('cal-sk-copy')}</div>
+                ${_svSkel('cal-sk-field')}
+                <div class="cal-sk-foot">${_svSkel('sv-skeleton-line', 'width:56px;height:12px;')}</div>
+                <div class="cal-sk-status-row">${_svSkel('cal-sk-setall')}${status}${status}${status}</div>
+            </div>
+        </div>`;
+    }
+    /* Phone staff Sheet (#calView[data-pocket-staff-phone]): the loaded page is
+       the "N posts" bar with its grid/list switch, then a three-column grid of
+       3:4 tiles (099 svThumbCollections). CSS shows this copy only there. */
+    function _svCalendarPhoneSheetSkeletonHtml() {
+        return `<div class="cal-sk-phone" aria-hidden="true">
+            <div class="cal-sk-phone-bar">${_svSkel('sv-skeleton-line', 'width:56px;height:16px;')}${_svSkel('cal-sk-phone-display')}</div>
+            <div class="cal-sk-phone-grid">${Array.from({ length: 9 }, () => _svSkel('cal-sk-phone-tile')).join('')}</div>
+        </div>`;
+    }
+    function _svCalendarSheetSkeletonHtml(label) {
+        return `<div class="cal-loader cal-skeleton-loader cal-sheet-skeleton" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="cal-organizer-wrap cal-sk-desktop"><div class="cal-organizer-strip cal-sk-strip" aria-hidden="true">${[0, 1, 2, 3, 4, 5].map(_svCalendarSheetCardSkeletonHtml).join('')}</div></div>
+            ${_svCalendarPhoneSheetSkeletonHtml()}
+        </div>`;
+    }
     function _svCalendarPhoneTimelineSkeletonHtml(label) {
         return `<div class="cal-loader cal-skeleton-loader pocket-cal-timeline-loading" role="status" aria-label="${_calEscAttr(label || 'Loading your calendar')}">
             <span class="pocket-cal-timeline-loading-label">${_calEsc(label || 'Loading your calendar')}</span>
@@ -128,6 +169,9 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
         if (view === 'month') return _svCalendarMonthSkeletonHtml(label);
         if (view === 'week') return _svCalendarWeekSkeletonHtml(label);
         if (view === 'review' || view === 'smmreview') return _svReviewSkeletonHtml(label);
+        // The Calendar's own loader passes no label. Other tabs that borrow
+        // this loader with their own label keep the older generic picture.
+        if (!label) return _svCalendarSheetSkeletonHtml('Loading your calendar');
         return _svCalendarOrganizerSkeletonHtml(label);
     }
     function _svReviewSkeletonHtml(label) {
@@ -373,6 +417,6 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
         if (t.includes('credential') || t.includes('history')) return _svLoadingSkeletonHtml('table', { label: raw });
         if (t.includes('sample') || t.includes('review')) return _svLoadingSkeletonHtml('review', { label: raw });
         if (t.includes('kasper') || t.includes('filming') || t.includes('linear') || t.includes('message')) return _svLoadingSkeletonHtml('kasper', { label: raw });
-        return _svLoadingSkeletonHtml('calendar', { label: raw });
+        return _svLoadingSkeletonHtml('calendar', { label: label ? raw : '' });
     }
 export { _calLoaderHtml, _svLoadingSkeletonHtml, _svSkel };

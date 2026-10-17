@@ -304,7 +304,9 @@ function harness({ env = { AUPHONIC_KEY: KEY }, file = wav(), cap = 200, reserve
   // ---- Wiring in index.ts (kept small: Toolkit 2 edits the same file) ----
   const src = read('index.ts');
   assert.ok(/import \{ VOICE_MODEL, VOICE_TOOL, voiceCheck, voiceCleanup \} from "\.\/voice\.mjs";/.test(src));
-  assert.ok(/\n  VOICE_TOOL,\n\];/.test(src), 'the tool is in the tool list (so it also gets who and summary)');
+  const toolsAt = src.indexOf('const TOOLS = [');
+  const voiceAt = src.indexOf('\n  VOICE_TOOL,\n');
+  assert.ok(toolsAt > 0 && voiceAt > toolsAt && voiceAt < src.indexOf('\n];', toolsAt), 'the tool is in the tool list (so it also gets who and summary)');
   assert.ok(/if \(name === "voice_cleanup"\) return await voiceCleanup\(args, voiceDeps\(author\)\);/.test(src));
   assert.ok(/if \(row && row\.model === VOICE_MODEL\) return await voiceCheck\(jobId, voiceDeps\(""\)\);/.test(src), 'check_job and wait_for_job route voice jobs');
   assert.ok(src.indexOf('row.model === VOICE_MODEL') < src.indexOf('answeredFromLog(String(row.model))'));

@@ -24,10 +24,10 @@ import { STUDIO_BUCKET, studioLatest } from "./studio.mjs";
 import { brainChange, clientBrain, clientStyle, filmingPlan, listClients } from "./clientinfo.ts";
 import { studioProfile, studioProfileSave } from "./studioprofile.ts";
 import { pipelinePass } from "./pipelinepass.ts";
-import { VOICE_MODEL, VOICE_TOOL, voiceCheck, voiceCleanup } from "./voice.mjs";
-import { voiceStore } from "./voice.ts";
 import { PROFILE_FIELDS } from "./profile.mjs";
 import { answeredFromLog, asksSwitchedOff, DIRECT_MODELS, directEstimate, GOOGLE_IMAGE_ENABLED, GOOGLE_IMAGE_IDS, gptImageInputs, isDirect, runDirect, SWITCHED_OFF_TEXT, type Fetched } from "./direct.ts";
+import { VOICE_MODEL, VOICE_TOOL, voiceCheck, voiceCleanup } from "./voice.mjs";
+import { voiceStore } from "./voice.ts";
 
 const HF_API = "https://api.higgsfield.ai";
 const CAP_RAW = (Deno.env.get("HF_MONTHLY_CAP_USD") || "200").trim();
@@ -251,6 +251,7 @@ const TOOLS = [
     inputSchema: EMPTY,
   },
   { name: "clients", description: "List the agency's clients (names as SyncView has them).", inputSchema: EMPTY },
+  VOICE_TOOL,
   {
     name: "client_filming_plan",
     description: "Read a client's filming plan (the Google Doc linked in SyncView), optionally starting at a month, e.g. \"October\". Use it to find which videos a thumbnail is for and to write titles.",
@@ -337,7 +338,6 @@ const TOOLS = [
       },
     },
   },
-  VOICE_TOOL,
 ];
 
 // Every tool takes the two optional activity-log arguments: "who" (the first

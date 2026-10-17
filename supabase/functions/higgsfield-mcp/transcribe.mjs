@@ -264,6 +264,9 @@ async function readSource(link, d, trusted = false) {
   if (head.total !== null && head.total > MAX_STT_BYTES) return TOO_BIG;
   const wav = parseWavHeader(head.bytes, head.total);
   if (wav.error === "not-wav") return "That file is not a WAV recording. Transcription takes WAV files only.";
+  // A compressed stream inside a WAV (MP3 is format 0x55) has a header that
+  // can claim any length, so only plain PCM or float is measured (#2156).
+  if (wav.error === "not-pcm") return "That WAV is compressed, not a plain recording. Export it again as an uncompressed WAV (PCM) and try again.";
   if (wav.error) return "Could not read the recording's length from the file. Upload it with get_upload_link (audio/wav) and try again.";
   let key = null;
   // Only a server that honoured the range gives a trustworthy size and tail.

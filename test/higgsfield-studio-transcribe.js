@@ -383,6 +383,26 @@ function harness({ env = { ELEVENLABS_KEY: KEY }, file = wav(), whole, cap = 200
     assert.deepStrictEqual(s2.calls.removed, [`${JOB}.wav`], 'a half-made copy is deleted too (SyncView supervisor on #2150)');
   }
 
+  // ---- A compressed stream inside a WAV is never priced or sent (SyncView supervisor on #2150, #2156) ----
+  {
+    const mp3 = wav();
+    Buffer.from(mp3.buffer).writeUInt16LE(0x55, 20);
+    const h = harness({ file: mp3 });
+    const card = await t.studioTranscribe({ file: FILE }, h.d);
+    assert.ok(card.startsWith('That WAV is compressed, not a plain recording.'), card);
+    assert.ok((await t.studioTranscribe({ file: FILE, go: true }, h.d)).startsWith('That WAV is compressed'));
+    assert.strictEqual(h.calls.reserve.length, 0, 'nothing reserved');
+    assert.strictEqual(who.outcomeOf('studio_transcribe', card).ok, false, 'logged as a failure in hf_activity');
+    // Priced as plain PCM, but the link then serves a compressed file of the same size: the copy is refused.
+    const swapped = harness({ whole: mp3 });
+    await t.studioTranscribe({ file: FILE, go: true }, swapped.d);
+    await swapped.calls.background[0];
+    assert.strictEqual(swapped.calls.stt.length, 0, 'ElevenLabs is never asked');
+    assert.strictEqual(swapped.rows.get(100).status, 'failed');
+    assert.ok(swapped.rows.get(100).error.startsWith('the copied file could not be read: That WAV is compressed'), swapped.rows.get(100).error);
+    assert.deepStrictEqual(swapped.calls.removed, [`${JOB}.wav`]);
+  }
+
   // ---- Budget and duplicates ----
   {
     const over = harness({ reserve: () => ({ outcome: 'over_cap', spent: 199.95 }) });

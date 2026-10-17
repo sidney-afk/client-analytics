@@ -111,7 +111,7 @@ export const FAILURE_OPENINGS = [
   "This job was canceled", "A worked-out price", "Give ", "Unsupported",
   "No models in", "This recipe runs on", "At most ", "Which client?",
   "The Synchro Brain is not connected", "Skipped:", "Stopped:", "Something went wrong",
-  "Transcription is not switched on",
+  "Transcription is not switched on", "That WAV is compressed",
   "No guide called", "The filming plan is only", "Tell me your first name first",
 ];
 const LINE_TOOLS = new Set(["check_job", "check_video", "check_jobs", "wait_for_job", "run_recipe"]);

@@ -183,12 +183,14 @@ async function review(browser, origin, width, theme) {
     await page.keyboard.press('Escape');
     ok(await note.inputValue() === 'Please shorten the opening line.', 'Tabs lost the draft');
     await page.locator('[data-staff-menu=more]').click();
+    await require('./staff-phone-browser').openCollectionTools(page);
     const credentialRows = await page.locator('dialog[open] button').evaluateAll(nodes => nodes.filter(node => node.checkVisibility() && /^client credentials$/i.test(node.textContent.trim())).length);
     ok(credentialRows === 1, 'More lists Client credentials ' + credentialRows + ' times');
     await measure(page, 'more-' + suffix);
     await shot(page, 'more-' + suffix);
     await page.keyboard.press('Escape');
     await page.locator('[data-staff-menu=more]').click();
+    await require('./staff-phone-browser').openCollectionTools(page);
     await page.locator('dialog[open] .cal-kebab-item', { hasText: /^Platform$/ }).click();
     ok(await page.locator('dialog[open]').count() === 0, 'More trapped the Platform dialog');
     await page.locator('.cal-import-overlay.open').waitFor();
@@ -196,6 +198,7 @@ async function review(browser, origin, width, theme) {
     await shot(page, 'platform-' + suffix);
     await page.evaluate(() => closeCalImport());
     await page.locator('[data-staff-menu=more]').click();
+    await require('./staff-phone-browser').openCollectionTools(page);
     await page.locator('dialog[open] .cal-kebab-import-toggle').click();
     await page.locator('dialog[open] .cal-kebab-subitem').click();
     ok(await page.locator('dialog[open]').count() === 0, 'More trapped the Import dialog');
@@ -297,7 +300,8 @@ async function review(browser, origin, width, theme) {
     await page.locator('[data-pocket-staff-phone=calendar]').waitFor();
     await page.evaluate(row => { delete _calReviewState.saving[row.id + '|caption']; calState.posts = [{ ...row }]; _calRenderBody(); }, row);
     for (const view of ['smmreview', 'organizer', 'month', 'week']) {
-      await page.locator('[data-cal-view="' + view + '"]').click();
+      await require('./staff-phone-browser').chooseCalendarView(page,view);
+      if(view==='organizer') await require('./staff-phone-browser').openEditableSheet(page);
       const name = view === 'smmreview' ? 'review' : view === 'organizer' ? 'sheet' : view;
       await measure(page, name + '-loaded-' + suffix);
       if (view !== 'smmreview') await shot(page, name + '-' + suffix);

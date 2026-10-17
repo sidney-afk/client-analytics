@@ -441,4 +441,20 @@ if (require.main === module) (async () => {
 })().catch(e => { console.error(e); process.exit(1); });
 
 // The final-pass proof reuses these native journeys and the same refused-write transport.
-module.exports = { serve, installBackend, resetScenario, S, NAMES, measure, judge };
+// Legacy editable-card journeys now enter the retained List via its visible
+// control. The Thumb suite separately verifies the default thumbnail grid.
+async function openEditableSheet(page) {
+  const button=page.getByRole('button',{name:'List view',exact:true}).filter({visible:true}).first();
+  if(await button.count() && await button.getAttribute('aria-pressed')!=='true') await button.click();
+}
+async function chooseCalendarView(page,view) {
+  const chooser=page.locator('.thumb-calendar-view').filter({visible:true});
+  if(['month','week'].includes(view) && await chooser.count()) {
+    await chooser.click();await page.locator('.thumb-view-sheet').getByRole('button',{name:view==='month'?'Month':'Week',exact:true}).click();
+  } else await page.locator('[data-cal-view="'+view+'"]').click();
+}
+async function openCollectionTools(page) {
+  const details=page.locator('dialog[open] .thumb-menu-content');
+  if(await details.count() && await details.getAttribute('open')===null) await details.locator('summary').click();
+}
+module.exports = { serve, installBackend, resetScenario, S, NAMES, measure, judge, openEditableSheet, chooseCalendarView, openCollectionTools };

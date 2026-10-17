@@ -105,11 +105,14 @@ async function gotoCalendar(page, origin) {
   await page.goto(`${origin}/index.html?v=calendar`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof _calSavePins === 'function' && typeof svLayerOpen === 'function', null, { timeout: 30000 });
   await page.evaluate(c => { _syncviewStaffIdentityVerified = true; _calSavePins([c]); navTo('calendar'); }, CLIENT);
+  await require('./staff-phone-browser').openEditableSheet(page);
   await page.waitForSelector('.cal-card[data-pid="pb1"]', { timeout: 30000 });
   await page.waitForTimeout(600);
 }
 async function gotoSamples(page, origin) {
   await page.goto(`${origin}/index.html?sxr=1#sample-reviews/${SLUG}`, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(()=>typeof sxrState!=='undefined' && sxrState.posts.length);
+  await require('./staff-phone-browser').openEditableSheet(page);
   await page.waitForSelector('.cal-card[data-pid="sx1"]', { timeout: 30000 });
   await page.waitForTimeout(600);
 }
@@ -347,6 +350,7 @@ const PHONE_SURFACES = ['tabs', 'more'].map(which => ({
   open: async p => { await p.click(`[data-staff-menu="${which}"]`); },
   isOpen: p => p.evaluate(() => !!document.querySelector('dialog[open]')), inside: 'dialog[open] > *',
 }));
+PHONE_SURFACES.push({only:'phone',area:'Calendar',name:'Calendar view sheet',opener:'.thumb-calendar-view',open:async p=>{await p.click('.thumb-calendar-view');},isOpen:p=>p.locator('.thumb-view-sheet[open]').count().then(Boolean),inside:'.thumb-view-head',refresh:p=>p.evaluate(()=>_calRenderBody())});
 const SHELL_SURFACES = [
   { only: 'desktop', area: 'Main bar', name: 'Client dropdown', opener: '#svClientBadge',
     open: async p => { await p.click('#svClientBadge'); },

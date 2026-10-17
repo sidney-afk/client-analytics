@@ -145,6 +145,7 @@
                 const head = dialog.querySelector(':scope > [class$="-head"]');
                 head.classList.add('sv-phone-menu-head'); head.querySelector('button').textContent = 'Close';
                 body.classList.add('sv-phone-more-body');
+                window.svThumbCollections?.restoreMenu(body);
                 // Restore native tools before replacing proxies on a second opening.
                 // Their original listeners and eventual desktop return positions survive.
                 const priorNative = body.querySelector('.sv-phone-more-native');
@@ -204,6 +205,7 @@
                 }
                 proxy('Sign out', control('staffIdentitySignOut'), accountRows, 'signout');
                 body.append(group);
+                window.svThumbCollections?.organizeMenu(body, dialog);
             }
         };
         window.svPhoneOpenClientPicker = function () {
@@ -360,7 +362,7 @@
             return leaves.sort((a, b) => (parseInt(getComputedStyle(b).zIndex) || 0) - (parseInt(getComputedStyle(a).zIndex) || 0))[0];
         }
         function cards() {
-            document.querySelectorAll('#calView .cal-card, #sxrView .cal-card').forEach(card => {
+            document.querySelectorAll('#calView .cal-card:not(.thumb-grid-card), #sxrView .cal-card:not(.thumb-grid-card)').forEach(card => {
                 const thumb = card.querySelector('.cal-card-thumb');
                 if (!thumb) return;
                 let tools = thumb.querySelector('.sv-phone-card-tools');
@@ -668,3 +670,297 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
 })();
 /* STAFF-PHONE-RULES:END */
+
+/* Thumb: phone collection navigation. Native cards, writers and role controls
+ * are reused verbatim. No markup or preference changes at desktop widths. */
+(function () {
+    const records = new Map(), mounts = new Map();
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const paths = {
+        grid:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+        list:'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
+        back:'m14 5-7 7 7 7', down:'m6 9 6 6 6-6', close:'m6 6 12 12M18 6 6 18',
+        select:'M4 4h16v16H4zM7 12l3 3 7-7', caption:'m4 17-1 4 4-1L20 7l-3-3z',
+        share:'M12 16V3m-4 4 4-4 4 4M7 10H4v11h16V10h-3',
+        archive:'M3 3h18v5H3zM5 8v13h14V8M10 12h4',
+        profile:'M20 21a8 8 0 0 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10'
+    };
+    const icon = n => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + paths[n] + '"/></svg>';
+    function active(state) { return window.svIsStaffPhone?.() && !state.embedded && !document.documentElement.classList.contains('boot-client'); }
+    function record(type, state) {
+        let r = records.get(type);
+        if (!r) {
+            let mode = 'grid';
+            try { if (localStorage.getItem('sv-thumb-' + type + '-display') === 'list') mode = 'list'; } catch {}
+            records.set(type, r = { client:state.client, mode, detail:null, scroll:{grid:0,list:0} });
+        }
+        if (r.client !== state.client) { r.client = state.client; r.detail = null; r.scroll = {grid:0,list:0}; }
+        return r;
+    }
+    function restoreMenu(body) {
+        if (!body?.classList.contains('thumb-more-body')) return;
+        // Restore whole native wrappers before the standard menu regenerates
+        // its proxies. Each surface still owns their eventual desktop parents.
+        body.querySelectorAll('.cal-organize,.cal-status-filter,.cal-zoom,.cal-kebab-wrap,.cal-client-links,.notify-client-btn').forEach(n => body.append(n));
+        body.querySelectorAll('.thumb-menu-secondary').forEach(n => n.classList.remove('thumb-menu-secondary'));
+        body.querySelector('.thumb-menu-content')?.remove();
+    }
+    function organizeMenu(body, dialog) {
+        const root = dialog.closest('[data-thumb-collection]');
+        const m = root && mounts.get(root);
+        if (!m) return;
+        body.classList.add('thumb-more-body'); dialog.classList.add('thumb-more');
+        const proxies = body.querySelector('.sv-phone-proxies');
+        const appearance = proxies.querySelector('.sv-phone-more-group');
+        const toolProxies = [...proxies.querySelectorAll('.sv-phone-more-group:nth-child(2) > .sv-phone-more-grid > button')];
+        const signout = proxies.querySelector('[data-proxy=staffIdentitySignOut]');
+        const native = [...body.querySelectorAll('.cal-organize,.cal-status-filter,.cal-zoom,.cal-kebab-wrap,.cal-client-links,.notify-client-btn')];
+        const nativeRows = [...body.querySelectorAll('.cal-kebab-item')];
+        const create = label => {
+            const group = document.createElement('section'); group.className = 'sv-phone-more-group';
+            const h = document.createElement('h3'); h.textContent = label;
+            const rows = document.createElement('div'); rows.className = 'sv-phone-more-grid';
+            group.append(h, rows); return {group, rows};
+        };
+        const content = create('Work on content'), view = create('View & organize'), prefs = create('Preferences'), tools = create('Tools & account');
+        view.rows.classList.add('thumb-more-view-rows');
+        const proxy = (label, source, art, rows) => {
+            if (!source || source.hidden || source.closest('[data-staff-capability][hidden]')) return;
+            const b = document.createElement('button'); b.type = 'button'; b.className = 'thumb-menu-row';
+            b.innerHTML = icon(art) + '<span>' + esc(label) + '</span>';
+            b.disabled = source.disabled;
+            b.addEventListener('click', () => { dialog.close(); setTimeout(() => source.click(), 0); });
+            rows.append(b);
+        };
+        if (m.state.view === 'organizer') {
+            proxy('Select cards', root.querySelector('.cal-select-btn[data-select-action=archive]'), 'select', content.rows);
+            // Samples deliberately has no caption writer. Preserve its native
+            // video/graphic boundary instead of inventing a new write lane.
+            proxy('Write captions', root.querySelector('.cal-select-btn[data-select-action=caption]'), 'caption', content.rows);
+        }
+        const share = nativeRows.find(n => /Share with client/.test(n.textContent));
+        const archive = nativeRows.find(n => /Archived (cards|samples)/.test(n.textContent));
+        // These two proxies survive their native wrappers becoming a details
+        // submenu; their handlers re-check permissions exactly as before.
+        proxy('Share with client', share, 'share', content.rows);
+        if (share) share.classList.add('thumb-menu-secondary');
+        const notify = native.find(n => n.matches('.notify-client-btn'));
+        if (notify) content.rows.append(notify);
+        native.filter(n => !n.matches('.cal-kebab-wrap,.cal-client-links,.notify-client-btn')).forEach(n => view.rows.append(n));
+        proxy(m.type === 'samples' ? 'Archived samples' : 'Archived cards', archive, 'archive', view.rows);
+        if (archive) archive.classList.add('thumb-menu-secondary');
+        const profile = native.find(n => n.matches('.cal-client-links'));
+        if (profile) {
+            const trigger = profile.querySelector('button');
+            if (!trigger.querySelector('.thumb-profile-label')) trigger.insertAdjacentHTML('beforeend','<span class="thumb-profile-label">Open profile</span>');
+            view.rows.append(profile);
+        }
+        prefs.rows.append(...appearance.querySelector('.sv-phone-more-grid').children);
+        const kebab = native.find(n => n.matches('.cal-kebab-wrap'));
+        if (kebab && [...kebab.querySelectorAll('.cal-kebab-item')].some(n => !n.closest('[hidden]') && !n.classList.contains('thumb-menu-secondary'))) {
+            const details = document.createElement('details'); details.className = 'thumb-menu-content';
+            const summary = document.createElement('summary'); summary.textContent = 'Content tools & setup';
+            details.append(summary, kebab); tools.rows.append(details);
+        } else if (kebab) tools.rows.append(kebab);
+        tools.rows.append(...toolProxies);
+        if (signout) tools.rows.append(signout);
+        // Detach the reused nodes above before replacing only the containers.
+        proxies.replaceChildren(content.group, view.group, prefs.group, tools.group);
+    }
+    function paint(m) {
+        m.repaint();
+        queueMicrotask(() => sync(m));
+    }
+    function openCard(m, id, navigate = true) {
+        if (m.state.view !== 'organizer') m.root.querySelector('[data-cal-view=organizer]')?.click();
+        const r = record(m.type,m.state);
+        if (navigate) r.scroll[r.mode] = m.root.querySelector('.cal-body').scrollTop;
+        r.detail = String(id); m.state.focusPid = r.detail;
+        if (navigate) {
+            m.syncCardUrl?.(null);
+            history.replaceState({...history.state,thumbCollectionParent:m.type,thumbCollection:null,thumbCollectionCard:null},'',location.href);
+            const selected = {thumbCollectionParent:false,thumbCollection:m.type,thumbCollectionCard:r.detail,thumbCollectionClient:m.state.client};
+            history.pushState({...history.state,...selected},'',location.href);
+            m.syncCardUrl?.(r.detail);
+            history.replaceState({...history.state,...selected},'',location.href);
+        }
+        paint(m); m.root.querySelector('.cal-body').scrollTop = 0; m.detailHead.firstElementChild.focus({preventScroll:true});
+    }
+    function back(m, historyBack = true) {
+        const r = record(m.type, m.state), id = r.detail;
+        r.detail = null; m.state.focusPid = null; paint(m);
+        requestAnimationFrame(() => {
+            m.root.querySelector('.cal-body').scrollTop = r.scroll[r.mode] || 0;
+            m.root.querySelector('[data-thumb-card="' + CSS.escape(String(id)) + '"]')?.focus({preventScroll:true});
+        });
+        if (historyBack && history.state?.thumbCollection === m.type) { m.returningFromCard = true; history.back(); }
+    }
+    function openViews(m, trigger) {
+        const dialog = document.createElement('dialog'); dialog.className = 'thumb-view-sheet sv-phone-sheet';
+        dialog.setAttribute('aria-label','Calendar view'); dialog.setAttribute('data-backdrop-dismiss','');
+        dialog.innerHTML = '<div class="thumb-view-head"><h2>Calendar view</h2><button type="button" aria-label="Close calendar view">' + icon('close') + '</button></div><div class="thumb-view-rows"></div>';
+        ['month','week'].forEach(view => {
+            const b = document.createElement('button'); b.type = 'button'; b.textContent = view === 'month' ? 'Month' : 'Week';
+            b.addEventListener('click', () => { dialog.close(); m.root.querySelector('[data-cal-view=' + view + ']')?.click(); });
+            dialog.lastElementChild.append(b);
+        });
+        dialog.firstElementChild.querySelector('button').onclick = () => dialog.close();
+        dialog.addEventListener('click', e => { if (e.target === dialog && dialog._backdropPressBegan) dialog.close(); });
+        dialog.addEventListener('close', () => { window.svLayerRelease('thumb-calendar-view'); dialog.remove(); if (trigger.isConnected) trigger.focus(); });
+        m.root.append(dialog); dialog.showModal();
+        window.svLayerOpen({key:'thumb-calendar-view',region:dialog,opener:trigger,close:() => dialog.close(),isOpen:() => dialog.open});
+    }
+    function sync(m) {
+        if (!m.root.isConnected) return;
+        const {root,state,type} = m, r = record(type,state);
+        const detail = state.view === 'organizer' && r.detail && !state.selectMode;
+        const mode = detail ? 'detail' : state.selectMode ? 'select' : state.view === 'organizer' ? r.mode : state.view;
+        if (root.dataset.thumbMode !== mode) root.dataset.thumbMode = mode;
+        const name = state.client || 'Choose client';
+        if (m.workspace.firstElementChild.textContent !== name) m.workspace.firstElementChild.textContent = name;
+        if (m.workspace.hidden !== !!detail) m.workspace.hidden = !!detail;
+        if (m.detailHead.hidden !== !detail) m.detailHead.hidden = !detail;
+        if (detail) {
+            const post = state.posts.find(p => String(p.id) === String(r.detail));
+            const title = post?.name || (state.loading ? 'Loading card' : 'Content card');
+            if (m.detailHead.querySelector('strong').textContent !== title) m.detailHead.querySelector('strong').textContent = title;
+        }
+        const review = root.querySelector('[data-cal-view=smmreview]');
+        const count = Number(review?.querySelector('.cal-view-badge')?.textContent || 0);
+        const dockVisible = state.view === 'organizer' && !detail && !state.selectMode && !!state.client && !state.loading && !state.error;
+        if (m.dock.hidden !== !dockVisible) m.dock.hidden = !dockVisible;
+        const text = count ? count + ' ready for you' : 'Review content';
+        if (m.dock.querySelector('strong').textContent !== text) m.dock.querySelector('strong').textContent = text;
+        if (m.calendarButton) {
+            const on = ['month','week'].includes(state.view);
+            m.calendarButton.classList.toggle('active',on);
+            if (m.calendarButton.getAttribute('aria-pressed') !== String(on)) m.calendarButton.setAttribute('aria-pressed', String(on));
+        }
+    }
+    window.svThumbCollections = {
+        restoreMenu, organizeMenu,
+        open(type,id) {
+            const m = [...mounts.values()].find(m => m.type === type && m.root.isConnected && active(m.state));
+            if (!m || !m.state.posts.some(p => String(p.id) === String(id))) return false;
+            openCard(m,id); return true;
+        },
+        consumeHistory(event) {
+            for (const m of mounts.values()) {
+                if (!m.root.isConnected || !active(m.state)) continue;
+                const r = record(m.type,m.state);
+                if (event.state?.thumbCollection === m.type && event.state.thumbCollectionClient === m.state.client && event.state.thumbCollectionCard) {
+                    openCard(m,event.state.thumbCollectionCard,false);
+                    return true;
+                }
+                if ((m.returningFromCard || r.detail) && event.state?.thumbCollectionParent === m.type
+                    && event.state?.nav === (m.type === 'calendar' ? 'calendar' : 'sample-reviews')) {
+                    m.returningFromCard = false;
+                    if (r.detail) back(m,false);
+                    return true;
+                }
+            }
+            return false;
+        },
+        mount(root, state, type, repaint, syncCardUrl) {
+            root.dataset.thumbCollection = type;
+            root.style.setProperty('--thumb-top',Math.max(0,root.getBoundingClientRect().top+scrollY)+'px');
+            const heading = root.querySelector('[class$="-heading"]');
+            const workspace = document.createElement('button'); workspace.type = 'button'; workspace.className = 'thumb-workspace';
+            workspace.setAttribute('aria-label','Change client');
+            workspace.innerHTML = '<span></span>' + icon('down'); workspace.onclick = () => window.svPhoneOpenClientPicker();
+            heading.append(workspace);
+            const detailHead = document.createElement('div'); detailHead.className = 'thumb-detail-head'; detailHead.hidden = true;
+            detailHead.innerHTML = '<button type="button" aria-label="Back to collection">' + icon('back') + '</button><strong></strong><button type="button" aria-label="More card options">' + icon('list') + '</button>';
+            heading.after(detailHead);
+            const dock = document.createElement('div'); dock.className = 'thumb-review-dock';
+            dock.innerHTML = '<div><strong></strong><small>' + (type === 'samples' ? 'Video & graphic' : 'Video, graphic & caption') + '</small></div><button type="button">Review ' + (type === 'samples' ? 'samples' : 'posts') + '</button>';
+            root.append(dock);
+            const m = { root,state,type,repaint,syncCardUrl,workspace,detailHead,dock,calendarButton:null };
+            mounts.set(root,m);
+            detailHead.firstElementChild.onclick = () => back(m);
+            detailHead.lastElementChild.onclick = () => root.querySelector('.cal-card .sv-phone-card-more')?.click();
+            dock.querySelector('button').onclick = () => root.querySelector('[data-cal-view=smmreview]')?.click();
+            const toggle = root.querySelector('.cal-view-toggle');
+            if (type === 'calendar') {
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'cal-view-btn thumb-calendar-view';
+                b.textContent = 'Calendar'; b.setAttribute('aria-haspopup','dialog'); b.onclick = () => openViews(m,b); toggle.append(b); m.calendarButton = b;
+            }
+            const handle = event => {
+                const display = event.target.closest('[data-thumb-display]');
+                const tile = event.target.closest('[data-thumb-card]');
+                const r = record(type,state);
+                if (display) {
+                    r.scroll[r.mode] = root.querySelector('.cal-body').scrollTop; r.mode = display.dataset.thumbDisplay; r.detail = null;
+                    try { localStorage.setItem('sv-thumb-' + type + '-display',r.mode); } catch {}
+                    paint(m); requestAnimationFrame(() => { root.querySelector('.cal-body').scrollTop = r.scroll[r.mode] || 0; root.querySelector('[data-thumb-display=' + r.mode + ']')?.focus({preventScroll:true}); });
+                } else if (tile) {
+                    openCard(m,tile.dataset.thumbCard);
+                }
+            };
+            const onMediaError = event => {
+                const image = event.target;
+                if (!image.matches('.thumb-tile-media img') || image.dataset.drive !== '1') return;
+                const tile = image.closest('.thumb-tile');
+                // Let the unchanged native handler produce its Drive warning,
+                // then keep those instructions in the tile's accessible name.
+                queueMicrotask(() => {
+                    if (!tile.isConnected) return;
+                    const warning = tile.querySelector('.cal-thumb-drive-warn');
+                    if (!warning) return;
+                    tile.dataset.thumbMediaError = 'drive';
+                    tile.setAttribute('aria-label',tile.getAttribute('aria-label') + '. ' + warning.textContent.replace(/\s+/g,' ').trim());
+                    tile.querySelector('.thumb-tile-fallback').innerHTML = warning.querySelector('svg').outerHTML + '<strong>Drive access needed</strong><span>Open for sharing steps</span>';
+                });
+            };
+            root.addEventListener('error',onMediaError,true);
+            root.addEventListener('click',handle);
+            const onPop = event => {
+                if ((m.returningFromCard || record(type,state).detail) && history.state?.thumbCollectionParent === type) {
+                    event.stopImmediatePropagation(); m.returningFromCard = false;
+                    if (record(type,state).detail) back(m,false);
+                }
+            };
+            addEventListener('popstate',onPop,true);
+            let queued = false;
+            const observer = new MutationObserver(() => { if (!queued) { queued = true; queueMicrotask(() => { queued = false; sync(m); }); } });
+            observer.observe(root,{childList:true,subtree:true}); sync(m);
+            return () => {
+                observer.disconnect(); root.removeEventListener('error',onMediaError,true); root.removeEventListener('click',handle); removeEventListener('popstate',onPop,true);
+                root.querySelectorAll('.thumb-more-body').forEach(restoreMenu);
+                root.querySelectorAll('.thumb-profile-label').forEach(n => n.remove());
+                [workspace,detailHead,dock,m.calendarButton].forEach(n => n?.remove());
+                root.querySelectorAll('.thumb-view-sheet').forEach(n => { n.close(); n.remove(); });
+                root.style.removeProperty('--thumb-top'); delete root.dataset.thumbCollection; delete root.dataset.thumbMode; mounts.delete(root);
+            };
+        },
+        render(type, state, posts, nativeHtml, renderCard) {
+            if (!active(state)) return nativeHtml;
+            const r = record(type,state);
+            // Bulk modes retain the native selection strip and its write guards.
+            if (state.selectMode) return nativeHtml;
+            if (state.focusPid && posts.some(p => String(p.id) === String(state.focusPid))) r.detail = String(state.focusPid);
+            if (r.detail) {
+                const post = posts.find(p => String(p.id) === String(r.detail));
+                return post ? '<div class="cal-organizer-wrap"><div class="cal-organizer-strip" id="' + (type === 'samples' ? 'sxrStrip' : 'calStrip') + '">' + renderCard(post) + '</div></div>'
+                    : '<div class="cal-empty">This card is no longer in this collection. Use Back to return.</div>';
+            }
+            const viewbar = '<div class="thumb-collection-bar"><strong>' + posts.length + ' ' + (type === 'samples' ? 'samples' : 'posts') + '</strong><div class="thumb-display" role="group" aria-label="Sheet display">' + ['grid','list'].map(mode => '<button type="button" aria-label="' + (mode === 'grid' ? 'Grid view' : 'List view') + '" aria-pressed="' + (r.mode === mode) + '" data-thumb-display="' + mode + '">' + icon(mode) + '</button>').join('') + '</div></div>';
+            if (r.mode === 'list' || !posts.length) return viewbar + nativeHtml;
+            const html = posts.map((post,i) => {
+                // The native renderer resolves final-host thumbnail URLs,
+                // server revisions, Drive warnings and fallback semantics.
+                const card = document.createElement('template'); card.innerHTML = renderCard(post);
+                const media = card.content.querySelector('.cal-card-thumb img');
+                const image = media?.cloneNode(true);
+                if (image) { image.removeAttribute('onclick'); image.alt = ''; image.loading = 'lazy'; }
+                const title = post.name || 'Untitled card';
+                const status = post.status || 'In progress';
+                const date = type === 'calendar' && post.scheduled_date ? window.svPhoneDate(post.scheduled_date) : '';
+                // Grid is another presentation of the native card collection.
+                // Keep its strip and card identities for filters and refreshes.
+                return '<div class="cal-card thumb-grid-card" data-pid="' + esc(post.id) + '"><button type="button" class="thumb-tile" id="thumb-' + type + '-card-' + esc(post.id) + '" data-thumb-card="' + esc(post.id) + '" aria-label="Open ' + esc(title) + '"><span class="thumb-tile-media cal-card-thumb" aria-hidden="true">' + (image?.outerHTML || '') + '</span><span class="thumb-tile-fallback">' + icon('grid') + '</span>' + '<span class="thumb-tile-number">' + (i+1) + '</span><span class="thumb-tile-info"><strong>' + esc(title) + '</strong><span>' + esc(status) + '</span>' + (date ? '<span>' + esc(date) + '</span>' : '') + '</span></button></div>';
+            }).join('');
+            return viewbar + '<div class="thumb-collection-grid" id="' + (type === 'samples' ? 'sxrStrip' : 'calStrip') + '">' + html + '</div><button type="button" class="thumb-create" onclick="' + (type === 'samples' ? 'addSxrBlankCard()' : 'addCalBlankCard()') + '">Create ' + (type === 'samples' ? 'sample' : 'post') + '</button>';
+        }
+    };
+})();

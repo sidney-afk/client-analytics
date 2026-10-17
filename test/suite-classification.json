@@ -1710,6 +1710,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, fictional client, cards, people and token, the frame viewer's generated clip and posters, no hosted credentials and no live data. Checks the new review page behind its two switches: off, missing or unreadable shows the old page; on, the client link, the SMM's Review tab and Kasper's Review Session draw layout C, and every button saves through the old page's own path.",
+      "reproduce": "node test/review-stage-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "frameio-viewer-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

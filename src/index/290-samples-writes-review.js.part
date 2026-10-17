@@ -65,6 +65,7 @@ import {
   _kasperLocalFlagLive, _kasperResumeSourceRepairs, _kasperSamplesMerged, _kasperSetSaveAlert, _kasperState, _kasperUrgentSupersedes
 } from './305-core-kasper-shared.js';
 import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
+import { svRsKasperOn } from './188-review-stage-switch.js';
     /* RETIRED 2026-09-22 (B1 order row 5, OPEN_REPAIRS 239):
        `_sxrLegacyPushStatusToLinear` and `_sxrLegacyPostLinearComment` used to
        POST every legacy-routed Samples status and comment to the n8n webhooks
@@ -1477,6 +1478,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     }
     function _sxrKasperToggleCard(pid) { _sxrKasperState.expanded[pid] = !_sxrKasperState.expanded[pid]; _sxrKasperRepaint(pid); }
     function _sxrKasperRepaint(pid) {
+        if (svRsKasperOn()) { _kasperPaintReview(); return; }   // the new review page draws it (188/195)
         const it = _sxrKasperFindItem(pid); if (!it) return;
         const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
         const el = document.querySelector(`[data-sxr-kasper-pid="${sel}"]`); if (!el) return;

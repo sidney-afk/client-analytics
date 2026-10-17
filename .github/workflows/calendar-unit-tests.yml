@@ -788,6 +788,13 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/post-tab-browser.js
+      # Moved here from entry-links-boot: that job runs about 39 of its 40
+      # minutes on main, so one more step timed it out.
+      - name: New review page behind its switches (client link, SMM Review tab, Kasper Review Session; old page when off)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-browser.js
 
 
   split-preview:

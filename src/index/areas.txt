@@ -47,7 +47,9 @@
 185-client-review-queue.js.part            core!
 186-archived-restore.js.part              core
 187-frame-viewer.js.part                    core
+188-review-stage-switch.js.part            core
 190-calendar-approval-comments.js.part     core!
+195-review-stage.js.part                   reviewstage
 200-intake-data-startup.js.part            core
 210-production-state-writes.js.part        synclinear
 220-production-attribution-views.js.part   synclinear

@@ -47,6 +47,7 @@ import { PROD_WRITE_EF_URL } from './210-production-state-writes.js';
 import { svFrameSyncPlayIcon } from './187-frame-viewer.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } from './270-samples-model.js';
+import { svRsCalSync } from './188-review-stage-switch.js';
     // Staff Calendar phone chrome delegates every action to its native control.
     // Nothing is mounted at desktop widths or on another staff surface.
     let _calStaffPhoneState = null;
@@ -1738,6 +1739,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     function _calRenderBody(opts) {
         const body = document.getElementById('calBody');
         if (!body) return;
+        svRsCalSync();   // the new review page (188) shows or steps aside with every paint
         const lastPaint = _calLastBodyPaint;
         _calLastBodyPaint = { el: null, view: null, html: null };   // early returns below repaint without it
         const preserveScroll = !!(opts && opts.preserveScroll);

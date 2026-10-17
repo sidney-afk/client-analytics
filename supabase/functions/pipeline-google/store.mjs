@@ -7,7 +7,8 @@
 //   files.save     { name, expected_version, body }  through fp_file_save; a stale version is refused
 //   batch.take     {}                                fp_take_batch for the pass's client
 //   notes.add      { title, body, source, follows? } a note in fp_feedback_notes
-//   brain.snapshot { have_commit? }                  the whole Synchro Brain at main, as a signed zip link
+//   brain.snapshot { have_commit? }                  the Synchro Brain at main, as a signed zip link,
+//                                                    with every money.md left out (see repackZip)
 //
 // Who may save what. Any pass saves the files in OPEN_FILES (and
 // filming_plans/*.md). The files in ADMIN_FILES need a pass made on a personal
@@ -35,6 +36,16 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 export const COMMIT_RE = /^[0-9a-f]{40}$/;
 export const SNAPSHOT_BUCKET = "brain-snapshots";
 export const SNAPSHOT_LINK_SECONDS = 600;
+// The cached object's name carries what was left out, so a zip built under
+// another rule is never handed out by mistake.
+export const SNAPSHOT_FORMAT = "no-money-1";
+export const snapshotName = (commit) => `${commit}.${SNAPSHOT_FORMAT}.zip`;
+// Money files never leave the brain through a pass (any pass gets a snapshot,
+// including a test pass from the shared team link, whose name is
+// self-declared; client_brain never reads money.md either). The pipeline
+// reads none of them. Matched by file name anywhere in the repository:
+// clients/*/money.md, past-clients/*/money.md and company/money.md.
+export const MONEY_RE = /(^|\/)money\.md$/i;
 
 const str = (v) => (typeof v === "string" ? v.trim() : "");
 const answer = (body, status = 200) => ({ status, body });
@@ -176,7 +187,7 @@ export async function storeAction(action, b, pass, deps) {
         if (have && have === commit) return answer({ ok: true, unchanged: true, commit });
         let bytes = await deps.snapshotSize(commit);
         if (bytes === null || bytes === undefined) {
-          const zip = await deps.snapshotFetch(commit);
+          const zip = repackZip(await deps.snapshotFetch(commit)).zip;
           await deps.snapshotStore(commit, zip);
           bytes = zip.byteLength;
         }
@@ -191,4 +202,70 @@ export async function storeAction(action, b, pass, deps) {
     const why = String((e && e.message) || e || "unknown error").replace(/\s+/g, " ").slice(0, 200);
     return no(`Could not do ${action} (${why}). Try again in a minute; if it keeps failing, tell the Connector supervisor.`, 503);
   }
+}
+
+// A copy of a zip without the entries drop(name) picks (money.md by default).
+// Nothing is unpacked: each kept entry's bytes (local header, compressed data
+// and any data descriptor) are copied as they are, and the central directory
+// is rebuilt with the new offsets. Refuses Zip64 and anything it cannot read,
+// so a zip it does not understand is never handed out half-filtered.
+// Answers { zip: Uint8Array, kept, dropped } (counts of entries).
+export function repackZip(input, drop = (name) => MONEY_RE.test(name)) {
+  const u8 = input instanceof Uint8Array ? input : new Uint8Array(input);
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  const bad = (why) => new Error("the brain zip could not be read (" + why + ")");
+  let eocd = -1;
+  for (let i = u8.length - 22; i >= Math.max(0, u8.length - 22 - 65535); i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw bad("no end record");
+  if (eocd >= 20 && dv.getUint32(eocd - 20, true) === 0x07064b50) throw bad("Zip64 is not supported");
+  const count = dv.getUint16(eocd + 10, true);
+  const cdSize = dv.getUint32(eocd + 12, true);
+  const cdOff = dv.getUint32(eocd + 16, true);
+  const commentLen = dv.getUint16(eocd + 20, true);
+  if (eocd + 22 + commentLen > u8.length) throw bad("cut off");
+  if (dv.getUint16(eocd + 4, true) !== 0 || dv.getUint16(eocd + 8, true) !== count) throw bad("split archives are not supported");
+  if (count === 0xffff || cdOff === 0xffffffff || cdSize === 0xffffffff) throw bad("Zip64 is not supported");
+  if (cdOff + cdSize > eocd) throw bad("central directory out of range");
+  const names = new TextDecoder();
+  const entries = [];
+  let p = cdOff;
+  for (let i = 0; i < count; i++) {
+    if (p + 46 > eocd || dv.getUint32(p, true) !== 0x02014b50) throw bad("central entry " + i);
+    const nameLen = dv.getUint16(p + 28, true), extraLen = dv.getUint16(p + 30, true), noteLen = dv.getUint16(p + 32, true);
+    const localOff = dv.getUint32(p + 42, true);
+    if (dv.getUint32(p + 20, true) === 0xffffffff || localOff === 0xffffffff) throw bad("Zip64 is not supported");
+    if (localOff + 30 > cdOff || dv.getUint32(localOff, true) !== 0x04034b50) throw bad("local entry " + i);
+    const len = 46 + nameLen + extraLen + noteLen;
+    entries.push({ at: p, len, localOff, name: names.decode(u8.subarray(p + 46, p + 46 + nameLen)) });
+    p += len;
+  }
+  if (p !== cdOff + cdSize) throw bad("central directory size");
+  const byOffset = [...entries].sort((a, b) => a.localOff - b.localOff);
+  byOffset.forEach((e, i) => { e.end = i + 1 < byOffset.length ? byOffset[i + 1].localOff : cdOff; });
+  const kept = entries.filter((e) => !drop(e.name));
+  const keptByOffset = byOffset.filter((e) => kept.includes(e));
+  const bodySize = keptByOffset.reduce((n, e) => n + (e.end - e.localOff), 0);
+  const centralSize = kept.reduce((n, e) => n + e.len, 0);
+  const out = new Uint8Array(bodySize + centralSize + 22 + commentLen);
+  const ov = new DataView(out.buffer);
+  let w = 0;
+  for (const e of keptByOffset) {
+    e.newOff = w;
+    out.set(u8.subarray(e.localOff, e.end), w);
+    w += e.end - e.localOff;
+  }
+  const newCd = w;
+  for (const e of kept) {
+    out.set(u8.subarray(e.at, e.at + e.len), w);
+    ov.setUint32(w + 42, e.newOff, true);
+    w += e.len;
+  }
+  out.set(u8.subarray(eocd, eocd + 22 + commentLen), w);
+  ov.setUint16(w + 8, kept.length, true);
+  ov.setUint16(w + 10, kept.length, true);
+  ov.setUint32(w + 12, centralSize, true);
+  ov.setUint32(w + 16, newCd, true);
+  return { zip: out, kept: kept.length, dropped: entries.length - kept.length };
 }

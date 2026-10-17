@@ -26,7 +26,7 @@
 //   files.save        { name, expected_version, body }   a stale version answers saved:false
 //   batch.take        {}                                 the client's next idea batch number
 //   notes.add         { title, body, source, follows? }  a feedback note (chat or sheet)
-//   brain.snapshot    { have_commit? }                   the whole Synchro Brain at main as a signed zip link
+//   brain.snapshot    { have_commit? }                   the Synchro Brain at main as a signed zip link, no money.md
 //
 // The password is PIPELINE_GOOGLE_KEY in Supabase; the pipeline keeps the same
 // value in google_relay_key.txt in the private repo (setup_google_relay.py makes
@@ -46,7 +46,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { PASS_HEADER, isPassToken, passHash } from "./pass.mjs";
-import { SNAPSHOT_BUCKET, STORE_ACTIONS, storeAction } from "./store.mjs";
+import { SNAPSHOT_BUCKET, STORE_ACTIONS, snapshotName, storeAction } from "./store.mjs";
 import { WRITE_ACTIONS, allowedFiles, checkDocsBatch, checkFile, checkSheetsBatch, checkValuesRange, clientFiles, createdTabIds } from "./rules.mjs";
 
 const SCOPES = [
@@ -342,7 +342,7 @@ function brainGh(path: string, accept: string): Promise<Response> {
 function storeDeps(sb: NonNullable<ReturnType<typeof db>>) {
   const fail = (what: string, e: { message?: string } | null) => new Error(`${what}: ${e?.message || "no answer"}`);
   const snapshots = () => sb.storage.from(SNAPSHOT_BUCKET);
-  const zipName = (commit: string) => `${commit}.zip`;
+  const zipName = (commit: string) => snapshotName(commit);
   return {
     getFiles: async (client: string, name: string | null) => {
       let q = sb.from("fp_files").select("name,version,body,updated_by,updated_at").eq("client_slug", client);

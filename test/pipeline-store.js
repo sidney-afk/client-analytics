@@ -60,13 +60,73 @@ function world(opts = {}) {
     },
     brainHead: async () => { calls.heads++; if (opts.headFails) throw new Error('GitHub down'); return opts.head || COMMIT; },
     snapshotSize: async (c) => (snapshots.has(c) ? snapshots.get(c) : null),
-    snapshotFetch: async (c) => { calls.fetched.push(c); return new Uint8Array(1234); },
+    snapshotFetch: async (c) => { calls.fetched.push(c); return TINY_ZIP; },
     snapshotStore: async (c, bytes) => { calls.stored.push([c, bytes.byteLength]); snapshots.set(c, bytes.byteLength); },
     snapshotSign: async (c, s) => { calls.signed.push([c, s]); return `https://example.invalid/storage/v1/object/sign/brain-snapshots/${c}.zip?token=t`; },
   };
   return { files, counter, notes, deps, calls, settings };
 }
 
+
+// A small zip writer and reader for the snapshot tests: deflated and stored
+// entries, some with a data descriptor after the data (as streamed zips have).
+const zlib = require('zlib');
+function makeZip(files, comment = '') {
+  const parts = [], central = [];
+  let off = 0;
+  files.forEach(([name, text, how], i) => {
+    const data = Buffer.from(text);
+    const deflate = how !== 'stored';
+    const packed = deflate ? zlib.deflateRawSync(data) : data;
+    const crc = zlib.crc32(data);
+    const descriptor = i % 2 === 1;
+    const n = Buffer.from(name);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(descriptor ? 8 : 0, 6);
+    local.writeUInt16LE(deflate ? 8 : 0, 8);
+    local.writeUInt32LE(descriptor ? 0 : crc, 14); local.writeUInt32LE(descriptor ? 0 : packed.length, 18); local.writeUInt32LE(descriptor ? 0 : data.length, 22);
+    local.writeUInt16LE(n.length, 26);
+    const desc = Buffer.alloc(descriptor ? 16 : 0);
+    if (descriptor) { desc.writeUInt32LE(0x08074b50, 0); desc.writeUInt32LE(crc, 4); desc.writeUInt32LE(packed.length, 8); desc.writeUInt32LE(data.length, 12); }
+    parts.push(local, n, packed, desc);
+    const c = Buffer.alloc(46);
+    c.writeUInt32LE(0x02014b50, 0); c.writeUInt16LE(20, 4); c.writeUInt16LE(20, 6); c.writeUInt16LE(descriptor ? 8 : 0, 8); c.writeUInt16LE(deflate ? 8 : 0, 10);
+    c.writeUInt32LE(crc, 16); c.writeUInt32LE(packed.length, 20); c.writeUInt32LE(data.length, 24); c.writeUInt16LE(n.length, 28); c.writeUInt32LE(off, 42);
+    central.push(c, n);
+    off += 30 + n.length + packed.length + desc.length;
+  });
+  const cd = Buffer.concat(central);
+  const end = Buffer.alloc(22);
+  const cm = Buffer.from(comment);
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(files.length, 8); end.writeUInt16LE(files.length, 10);
+  end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(off, 16); end.writeUInt16LE(cm.length, 20);
+  return new Uint8Array(Buffer.concat([...parts, cd, end, cm]));
+}
+function readZip(u8) {
+  const b = Buffer.from(u8.buffer, u8.byteOffset, u8.byteLength);
+  let e = b.length - 22;
+  while (e >= 0 && b.readUInt32LE(e) !== 0x06054b50) e--;
+  const count = b.readUInt16LE(e + 10), cdOff = b.readUInt32LE(e + 16);
+  const comment = b.subarray(e + 22, e + 22 + b.readUInt16LE(e + 20)).toString();
+  const out = {};
+  let p = cdOff;
+  for (let i = 0; i < count; i++) {
+    assert.strictEqual(b.readUInt32LE(p), 0x02014b50);
+    const method = b.readUInt16LE(p + 10), crc = b.readUInt32LE(p + 16), size = b.readUInt32LE(p + 20);
+    const nl = b.readUInt16LE(p + 28), xl = b.readUInt16LE(p + 30), cl = b.readUInt16LE(p + 32), lo = b.readUInt32LE(p + 42);
+    const name = b.subarray(p + 46, p + 46 + nl).toString();
+    assert.strictEqual(b.readUInt32LE(lo), 0x04034b50, 'local header where the central directory says');
+    const start = lo + 30 + b.readUInt16LE(lo + 26) + b.readUInt16LE(lo + 28);
+    const packed = b.subarray(start, start + size);
+    const data = method === 8 ? zlib.inflateRawSync(packed) : packed;
+    assert.strictEqual(zlib.crc32(data), crc, 'crc of ' + name);
+    out[name] = data.toString();
+    p += 46 + nl + xl + cl;
+  }
+  return { files: out, comment };
+}
+
+const TINY_ZIP = makeZip([['brain/README.md', '# Brain']]);
 const personal = (member) => ({ member, via: 'personal', client_slug: 'clienta', target: 'client' });
 const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test' };
 
@@ -185,9 +245,9 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
   eq(r, { status: 200, body: { ok: true, unchanged: true, commit: COMMIT } }, 'the same commit answers unchanged, no download');
   eq([w.calls.fetched, w.calls.signed], [[], []], 'nothing was fetched or signed');
   r = await run(w, 'brain.snapshot', {});
-  eq([r.body.unchanged, r.body.commit, r.body.bytes, r.body.expires], [false, COMMIT, 1234, 'in about 10 minutes'], 'no commit held: the zip link');
+  eq([r.body.unchanged, r.body.commit, r.body.bytes, r.body.expires], [false, COMMIT, TINY_ZIP.length, 'in about 10 minutes'], 'no commit held: the zip link');
   ok(/^https:\/\//.test(r.body.download_url), 'a signed https link');
-  eq([w.calls.fetched, w.calls.stored, w.calls.signed], [[COMMIT], [[COMMIT, 1234]], [[COMMIT, 600]]], 'fetched once from GitHub, cached, signed for 10 minutes');
+  eq([w.calls.fetched, w.calls.stored, w.calls.signed], [[COMMIT], [[COMMIT, TINY_ZIP.length]], [[COMMIT, 600]]], 'fetched once from GitHub, cached, signed for 10 minutes');
   r = await run(w, 'brain.snapshot', { have_commit: NEWER });
   eq([r.body.unchanged, w.calls.fetched.length], [false, 1], 'a cached commit is not fetched again');
   w = world({ snapshots: { [COMMIT]: 999 } });
@@ -198,6 +258,64 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
   ok(r.status === 503 && r.body.ok === false && /^Could not do brain\.snapshot/.test(r.body.error), 'GitHub down: a plain-English failure');
   w = world({ head: 'not-a-commit' });
   eq((await run(w, 'brain.snapshot', {})).status, 502, 'an odd commit id is refused');
+
+
+  // ---- The snapshot leaves out every money.md -------------------------------------
+  const TOP = 'example-brain-0000000/';
+  const BRAIN = [
+    [TOP, '', 'stored'],
+    [TOP + 'README.md', '# Brain'],
+    [TOP + 'clients/client-a/brief.md', 'brief a'],
+    [TOP + 'clients/client-a/money.md', 'MONEY A'],
+    [TOP + 'clients/client-a/inputs/calls/call-1.md', 'transcript'],
+    [TOP + 'clients/client-a/moneyplan.md', 'not a money file'],
+    [TOP + 'clients/client-b/Money.md', 'MONEY B', 'stored'],
+    [TOP + 'clients/client-b/voice.md', 'voice b'],
+    [TOP + 'past-clients/client-c/money.md', 'MONEY C'],
+    [TOP + 'company/money.md', 'MONEY CO'],
+    [TOP + 'company/notmoney.md', 'kept'],
+  ];
+  const src = makeZip(BRAIN, COMMIT);
+  const before = readZip(src);
+  eq(Object.keys(before.files).length, BRAIN.length, 'the test zip reads back whole');
+  const re = store.repackZip(src);
+  const after = readZip(re.zip);
+  eq([re.kept, re.dropped], [BRAIN.length - 4, 4], 'four money files left out, everything else kept');
+  ok(!Object.keys(after.files).some((n) => /(^|\/)money\.md$/i.test(n)) && !Object.values(after.files).some((t) => /^MONEY/.test(t)), 'no money.md entry survives, under clients, past-clients or company, in any letter case');
+  for (const [name, text] of BRAIN) {
+    if (/(^|\/)money\.md$/i.test(name)) continue;
+    eq(after.files[name], text, 'kept byte for byte: ' + name.slice(TOP.length || 0));
+  }
+  ok('inputs' && after.files[TOP + 'clients/client-a/inputs/calls/call-1.md'] === 'transcript', 'inputs/ stays (the pipeline needs it)');
+  eq(after.comment, COMMIT, 'the zip comment (GitHub puts the commit there) is kept');
+  eq(readZip(store.repackZip(re.zip).zip).files, after.files, 'repacking again changes nothing');
+  const plain = makeZip([['a.md', 'x'], ['b.md', 'y']]);
+  eq(Array.from(store.repackZip(plain).zip), Array.from(plain), 'a zip with nothing to drop comes back identical');
+  for (const [label, bytes] of [
+    ['not a zip', new Uint8Array(100)],
+    ['a Zip64 zip', (() => { const z = makeZip([['a.md', 'x']]); const pad = new Uint8Array(z.length + 20); const at = z.length - 22; pad.set(z.subarray(0, at)); new DataView(pad.buffer).setUint32(at, 0x07064b50, true); pad.set(z.subarray(at), at + 20); return pad; })()],
+    ['a cut-off zip', src.subarray(0, src.length - 40)],
+    ['a zip cut in its end record', src.subarray(0, src.length - 50)],
+    ['a zip cut in its data', src.subarray(200)],
+  ]) {
+    let threw = '';
+    try { store.repackZip(bytes); } catch (e) { threw = e.message; }
+    ok(/^the brain zip could not be read/.test(threw), `${label} is refused, never handed out half-filtered`);
+  }
+  // Through the action: what is stored and handed out is the repacked zip.
+  w = world();
+  w.deps.snapshotFetch = async (c) => { w.calls.fetched.push(c); return src; };
+  let storedBytes = null;
+  w.deps.snapshotStore = async (c, bytes) => { storedBytes = bytes; w.calls.stored.push([c, bytes.byteLength]); };
+  r = await run(w, 'brain.snapshot', {});
+  ok(storedBytes && !Object.keys(readZip(storedBytes).files).some((n) => /(^|\/)money\.md$/i.test(n)), 'the cached snapshot has no money.md');
+  eq(r.body.bytes, storedBytes.byteLength, 'and its size is the one answered');
+  w = world({ headFails: false });
+  w.deps.snapshotFetch = async () => new Uint8Array(10);
+  r = await run(w, 'brain.snapshot', {});
+  ok(r.status === 503 && /could not be read/.test(r.body.error) && !w.calls.stored.length && !w.calls.signed.length, 'an unreadable zip is never stored or handed out');
+  eq(store.snapshotName(COMMIT), COMMIT + '.no-money-1.zip', 'the cache name says what was left out, so an older build is never served');
+  ok(/zipName = \(commit: string\) => snapshotName\(commit\)/.test(read(fnDir, 'pipeline-google', 'index.ts')), 'pipeline-google caches under that name');
 
   ok((await run(world(), 'files.delete', {})).status === 400, 'an unknown store action is refused');
   eq([...store.STORE_ACTIONS].sort(), ['batch.take', 'brain.snapshot', 'files.get', 'files.save', 'notes.add'], 'the five pass actions');

@@ -28,6 +28,7 @@ import { studioProfile, studioProfileSave } from "./studioprofile.ts";
 import { pipelinePass } from "./pipelinepass.ts";
 import { pipelineGate } from "../pipeline-google/users.mjs";
 import { PROFILE_FIELDS } from "./profile.mjs";
+import { privateIp } from "./netcheck.mjs";
 import { answeredFromLog, asksSwitchedOff, DIRECT_MODELS, directEstimate, GOOGLE_IMAGE_ENABLED, GOOGLE_IMAGE_IDS, gptImageInputs, isDirect, runDirect, SWITCHED_OFF_TEXT, type Fetched } from "./direct.ts";
 import { VOICE_MODEL, VOICE_TOOL, voiceCheck, voiceCleanup } from "./voice.mjs";
 import { voiceStore } from "./voice.ts";
@@ -267,8 +268,14 @@ const TOOLS = [
   },
   {
     name: "client_brain",
-    description: "Everything the Synchro Brain has written about a client: the editor brief, then the written facts (what their content is focused on right now, who they are, voice, editing, relationship, audience), each with its heading and fact id. Call this automatically, without being asked, whenever a client is named in the conversation, before answering anything about them (for example \"what does X want\"). Read only.",
-    inputSchema: { type: "object", required: ["client"], additionalProperties: false, properties: { client: { type: "string", description: "The client's name as SyncView shows it." } } },
+    description: "What the Synchro Brain has written about a client: the editor brief, then each written fact (what their content is focused on right now, who they are, voice, editing, relationship, audience) with its heading and fact id, all in full when the whole brain fits in one answer. The current focus always comes first and in full. When the rest does not fit, the brief stays in full and each fact shows its first paragraph; facts marked \"more\" have more detail. Call this automatically, without being asked, whenever a client is named in the conversation, before answering anything about them (for example \"what does X want\"). When you need more on a topic (a fact marked \"more\", or one listed under \"Left out for length\"), call it again with topic set to that fact id, a heading word (for example \"Caption style\" or \"music\") or a file name (focus, identity, voice, editing, relationship, audience, brief) to get those facts in full. Read only.",
+    inputSchema: {
+      type: "object", required: ["client"], additionalProperties: false,
+      properties: {
+        client: { type: "string", description: "The client's name as SyncView shows it." },
+        topic: { type: "string", description: "Optional: a fact id, heading words or a file name. Returns the matching facts in full instead of the overview." },
+      },
+    },
   },
   {
     name: "brain_change",
@@ -718,21 +725,8 @@ async function uploadLink(contentType: string) {
 // import_file fetches a caller-supplied link, so every hop (including each
 // redirect) must be public https: no IP literals in private ranges, no
 // internal names, and every resolved address public. The body is read in
-// chunks and abandoned the moment it passes the size limit.
-function privateIp(ip: string): boolean {
-  const v4 = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-  if (v4) {
-    const [a, b] = [Number(v4[1]), Number(v4[2])];
-    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254)
-      || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224;
-  }
-  const v6 = ip.toLowerCase().replace(/^\[|\]$/g, "");
-  if (!v6.includes(":")) return false;
-  const mapped = v6.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) return privateIp(mapped[1]);
-  return v6 === "::" || v6 === "::1" || /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6) || /^ff/.test(v6);
-}
-
+// chunks and abandoned the moment it passes the size limit. privateIp is in
+// netcheck.mjs (every IPv6 form an IPv4 address can hide in is checked).
 async function publicHost(url: URL): Promise<boolean> {
   if (url.protocol !== "https:" || url.username || url.password) return false;
   const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
@@ -1245,7 +1239,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   if (name === "clients") return await listClients(db());
   if (name === "client_filming_plan") return await filmingPlan(db(), String(args.client || ""), String(args.month || ""));
   if (name === "client_style") return await clientStyle(db(), String(args.client || ""));
-  if (name === "client_brain") return await clientBrain(db(), String(args.client || ""));
+  if (name === "client_brain") return await clientBrain(db(), String(args.client || ""), String(args.topic || ""));
   if (name === "brain_change") return await brainChange(db(), String(args.client || ""), String(args.what_changed || ""), String(args.fact_id || ""), author);
 
   if (name === "import_file") return await importFile(String(args.link || "").trim());

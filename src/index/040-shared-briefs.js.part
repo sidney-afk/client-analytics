@@ -99,7 +99,9 @@ import {
     function _svPrefetchAreas() {
         const lazy = self.__svLoad && self.__svLoad.lazy;
         if (!lazy || self.__svLoad.client) return;
-        for (const name of Object.keys(lazy)) svArea(name).catch(() => {});
+        // The new review page (188/195) is not a tab: it loads only when its switch says yes, so nobody else
+        // downloads it.
+        for (const name of Object.keys(lazy)) if (name !== 'reviewstage') svArea(name).catch(() => {});
     }
     window.addEventListener('load', () => {
         const idle = window.requestIdleCallback || (fn => setTimeout(fn, 1500));
@@ -144,7 +146,9 @@ import {
     function _syncviewThemeAllowed() {
         try {
             const q = new URLSearchParams(svRoute.search());
-            return !q.get('c');
+            // A client link stays light, except on the new review page, which has its own sun/moon button
+            // (188 sets this only when that page's switch is on for the client).
+            return !q.get('c') || window.__svRsThemeOk === true;
         } catch (e) { return false; }
     }
     function _syncviewStoredTheme() {

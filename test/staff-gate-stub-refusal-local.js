@@ -159,7 +159,50 @@ async function callFrom(page, key) {
     await p7.goto(`http://127.0.0.1:${server.address().port}/`);
     assert.equal((await callFrom(p7, 'probe-staff-key')).diag, 'headless-stub', 'without a gateway stub the probe key is still refused locally');
     await unstubbed.close();
-    console.log('staff-gate-stub-refusal-local: 21 checks passed ✅');
+
+    // Case 7 (OPEN_REPAIRS 430): calendar-card-write accepts only a real staff
+    // key. The harness tab's invented key is swapped for the runner's key on
+    // that one function; a real key, a client token and other methods pass
+    // through untouched; no runner key (or an invented one) changes nothing.
+    const { signCalendarCardWrites } = require('../qa/staff-gate-seed.js');
+    const CCW = EF.replace('production-write', 'calendar-card-write');
+    const RUNNER = 'runner-supplied-value';
+    const seen = [];
+    const cardCtx = await browser.newContext();
+    await cardCtx.route('**/functions/v1/calendar-card-write', route => {
+      const req = route.request();
+      if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'POST, OPTIONS', 'access-control-allow-headers': '*' } });
+      seen.push({ key: req.headers()['x-syncview-key'] || null, token: req.headers()['x-syncview-client-token'] || null });
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{"ok":true}' });
+    });
+    assert.equal(await signCalendarCardWrites(cardCtx, ''), false, 'no runner key: nothing is registered');
+    assert.equal(await signCalendarCardWrites(cardCtx, 'probe-staff-key'), false, 'an invented runner key is never used');
+    assert.equal(await signCalendarCardWrites(cardCtx, RUNNER), true);
+    const p8 = await cardCtx.newPage();
+    await p8.goto(`http://127.0.0.1:${server.address().port}/`);
+    const cardSave = (headers) => p8.evaluate(async ({ url, headers }) => (await fetch(url, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, headers), body: '{}' })).status, { url: CCW, headers });
+    await cardSave({ 'X-Syncview-Key': STAFF_GATE_KEY });
+    await cardSave({ 'X-Syncview-Key': 'probe-staff-key' });
+    await cardSave({ 'X-Syncview-Key': 'a-real-looking-value' });
+    await cardSave({ 'X-Syncview-Client-Token': 'review-token-value' });
+    // Another host with the same path never receives the runner key.
+    const foreign = [];
+    await cardCtx.route('https://elsewhere.example/**', route => {
+      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'POST, OPTIONS', 'access-control-allow-headers': '*' } });
+      foreign.push(route.request().headers()['x-syncview-key'] || null);
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{}' });
+    });
+    await p8.evaluate(async () => (await fetch('https://elsewhere.example/functions/v1/calendar-card-write', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': 'qa-staff-gate-key' }, body: '{}' })).status);
+    assert.deepEqual(foreign, ['qa-staff-gate-key'], 'a foreign host with the same path keeps the invented key');
+    assert.equal(seen[0].key, RUNNER, 'the gate stub key is replaced by the runner key');
+    assert.equal(seen[1].key, RUNNER, 'a probe-seeded invented key is replaced too');
+    assert.equal(seen[2].key, 'a-real-looking-value', 'a real key is sent exactly as it was');
+    assert.deepEqual(seen[3], { key: null, token: 'review-token-value' }, 'a client link save gains no staff key');
+    // Only calendar-card-write: production-write with the stub key is still refused locally.
+    await seedStaffGate(cardCtx);
+    assert.equal((await callFrom(p8, STAFF_GATE_KEY)).diag, 'headless-stub', 'other functions keep the local refusal');
+    await cardCtx.close();
+    console.log('staff-gate-stub-refusal-local: 30 checks passed ✅');
   } finally {
     await browser.close();
     server.close();

@@ -420,8 +420,8 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
   const viaAlias = await studio.studioLatest(a, { member: 'm', who: '' });
   const viaName = await studio.toolkitLatest(b2, 'studio', { member: 'm', who: '' });
   eq(viaAlias, viaName, 'studio_latest answers exactly what toolkit_latest("studio") answers');
-  eq([a.asked, a.signed, a.logged], [['latest.json'], [['synchro-video-studio-v0.3.zip', 600]], [{ member_name: 'm', who: null, version: '0.3', file: 'synchro-video-studio-v0.3.zip' }]],
-    'studio reads the top of the bucket, as before, and its log row has no toolkit field (the column default)');
+  eq([a.asked, a.signed, a.logged], [['studio/latest.json', 'latest.json'], [['synchro-video-studio-v0.3.zip', 600]], [{ member_name: 'm', who: null, version: '0.3', file: 'synchro-video-studio-v0.3.zip' }]],
+    'studio reads studio/ first, then the top of the bucket, and its log row has no toolkit field (the column default)');
   const fp = bucket(both);
   const fpOut = JSON.parse(await studio.toolkitLatest(fp, ' Filming-Plan ', { member: 'm', who: 'Sam' }));
   eq([fpOut.version, fpOut.notes], ['1.0', 'Plans'], 'filming-plan has its own latest.json');

@@ -388,3 +388,18 @@ Why: the daily Slack message mixed every iClosed calendar into one total (owner'
 Tested: one manual run 2026-10-15 15:16 UTC (execution 670165, success); first scheduled run 2026-10-16 13:00 UTC
 (execution 670891, success). Session Tally has not sent its own report yet; this entry is from n8n's history.
 Undo: restore version `d5310994-fd1e-4ef5-9afc-d7819c1859f8` in n8n and publish.
+
+## 2026-10-17 Booked Call to Meta CAPI: real page per calendar, referral and DM links skipped (owner's go, session Lighthouse)
+
+Workflow: Sales, Booked Call to Meta CAPI (`s8lsPpKqWYhscLPV`), Code node "Authenticate + Evaluate" only.
+Version before: `f120ace1-5d63-4396-8c7a-48207ec2660a`      Version after: `69044008-85e0-4c20-9e97-a4bec7fa187c` (2026-10-17 17:56 UTC, published)
+Changed: (1) `event_source_url` follows the booking calendar (`doctor-strategy-call` to /doctors,
+`social-media-consultation` to /apply, `ai-intro-call` to /ai, anything else the home page) instead of always /apply;
+(2) `utm_source` exactly `referral` or `outbound_dm` (any case, trimmed) is skipped like test traffic, the same rule as
+`MetaPixel.astro` on synchrosocial.com since synchrosocial #182; (3) the skip label reads `excluded_traffic`. Nothing else.
+Why: Meta could not tell which page a booking came from, and our own referral and DM links taught Meta the wrong people
+(Ads lane, Pixelfix proposal in synchrosocial #182; owner's go 2026-10-17).
+Tested: version diff checked (only these lines). Two manual runs with simulated bookings, with the Meta call and the
+`meta_capi_sent` table pinned so nothing was sent or written: execution 671857 (doctors calendar, facebook source: fires,
+URL /doctors) and 671858 (`utm_source=Referral `: skipped, `excluded_traffic`).
+Undo: restore version `f120ace1-5d63-4396-8c7a-48207ec2660a` in n8n and publish.

@@ -112,6 +112,25 @@ for (const file of fs.readdirSync(WORKFLOW_DIR).filter(f => /\.ya?ml$/.test(f)))
   ok(dispatchesTimed.length === 0, `${file} does not dispatch a workflow the timer already dispatches${dispatchesTimed.length ? ` (${dispatchesTimed.map(r => r.workflow).join(', ')})` : ''}`);
 }
 
+// Only a GitHub schedule copy runs the guard job (2026-10-17, session Throttle):
+// for the timer's and every other run it answered "run" without looking, yet
+// still waited for one of the account's 20 runners first, so every 5-minute
+// lane queued twice. Skipped, it costs no runner; the jobs behind it then need
+// `!cancelled()` (GitHub skips a job whose need was skipped unless its
+// condition names a status) and still stand down when a schedule copy's guard
+// said 'false' or failed.
+const GUARD_JOB = [
+  '  schedule-guard:',
+  '    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 403).',
+  '    # Only a schedule copy asks; any other run skips this job and needs no runner for it (Throttle, 2026-10-17).',
+  "    if: github.event_name == 'schedule'",
+  '    uses: ./.github/workflows/schedule-fallback-guard.yml',
+  '    permissions:',
+  '      actions: read',
+  '      contents: read',
+].join('\n');
+const GATE = "!cancelled() && (needs.schedule-guard.result == 'skipped' || (needs.schedule-guard.result == 'success' && needs.schedule-guard.outputs.run == 'true'))";
+
 // 2 and 3. Each dispatch matches its workflow.
 for (const row of rows) {
   const source = fs.readFileSync(path.join(WORKFLOW_DIR, row.workflow), 'utf8');
@@ -122,7 +141,9 @@ for (const row of rows) {
   for (const key of Object.keys(row.inputs)) {
     ok(declared && declared.includes(key), `${row.workflow} declares the input '${key}' the timer sends (GitHub refuses undeclared inputs)`);
   }
-  const live = source.split('\n').filter(line => !/^\s*#/.test(line));
+  // The guard job's own switch is the one schedule-only line that must NOT also
+  // run for the timer (a timer run needs no guard); it is checked byte for byte below.
+  const live = source.replace(GUARD_JOB, '').split('\n').filter(line => !/^\s*#/.test(line));
   const scheduleGates = live.filter(line => /github\.event_name == 'schedule'/.test(line));
   const manualGates = live.filter(line => /github\.event_name == 'workflow_dispatch' && inputs\./.test(line));
   const usesSource = row.inputs.source === 'db-timer';
@@ -156,7 +177,8 @@ for (const row of rows) {
 {
   const t = read('.github/workflows/track-b-backup.yml');
   ok(/restore_rehearsal:[\s\S]{0,200}?default: false/.test(t)
-    && /if: github\.event_name == 'workflow_dispatch' && inputs\.source != 'db-timer' && inputs\.restore_rehearsal == true/.test(t),
+    // `!cancelled() && needs.backup.result == 'success'` because a manual run skips the guard (Throttle).
+    && /if: \$\{\{ !cancelled\(\) && needs\.backup\.result == 'success' && github\.event_name == 'workflow_dispatch' && inputs\.source != 'db-timer' && inputs\.restore_rehearsal == true \}\}/.test(t),
     'track-b-backup: the destructive restore rehearsal can only be asked for by hand, never by the timer');
   ok(/backup_corpus:[\s\S]{0,400}?default: configured/.test(t),
     'track-b-backup: the timer\'s run uses the configured corpus, like the schedule');
@@ -218,15 +240,6 @@ const guard = require('../scripts/schedule-fallback-guard.js');
 // `inputs.source` to read, and actionlint rightly refuses an undeclared input).
 const RUN_NAME_SOURCE = 'run-name: ${{ github.workflow }} (${{ inputs.source || github.event_name }})';
 const RUN_NAME_PLAIN = 'run-name: ${{ github.workflow }} (${{ github.event_name }})';
-const GUARD_JOB = [
-  '  schedule-guard:',
-  '    # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 403).',
-  '    uses: ./.github/workflows/schedule-fallback-guard.yml',
-  '    permissions:',
-  '      actions: read',
-  '      contents: read',
-].join('\n');
-const GATE = "needs.schedule-guard.outputs.run == 'true'";
 const E2E_GROUP = /^ {4}concurrency:\n {6}group: test-client-e2e\n {6}cancel-in-progress: false$/m;
 
 function jobsOf(source) {
@@ -282,11 +295,18 @@ for (const row of rows) {
     if (gated.has(id)) return gated.get(id);
     gated.set(id, false);
     const job = jobs.get(id);
-    // The gate must be one of the job condition's top-level AND terms.
-    const terms = /\|\|/.test(job ? job.if : '') ? [] : String(job ? job.if : '').split(' && ').map(term => term.trim());
-    const direct = Boolean(job) && job.needs.includes('schedule-guard') && terms.includes(GATE);
-    const indirect = Boolean(job) && job.needs.length > 0 && job.needs.every(n => n !== 'schedule-guard' && isGated(n))
-      && !/always\(\)|cancelled\(\)|failure\(\)/.test(job.if);
+    const cond = String(job ? job.if : '').replace(/^\$\{\{\s*/, '').replace(/\s*\}\}$/, '');
+    // The gate must be the condition's last top-level AND term, and nothing else
+    // in the condition may OR around it or name another status.
+    const rest = cond === GATE ? '' : cond.endsWith(' && ' + GATE) ? cond.slice(0, -(' && ' + GATE).length) : null;
+    const direct = Boolean(job) && job.needs.includes('schedule-guard') && rest !== null
+      && !/\|\||always\(\)|cancelled\(\)|failure\(\)|success\(\)/.test(rest);
+    // A job further down names its needs' success outright, for the same reason.
+    const ownStatus = job ? job.needs.map(n => `needs.${n}.result == 'success'`) : [];
+    const statusFree = !/always\(\)|cancelled\(\)|failure\(\)/.test(cond)
+      || (cond.startsWith('!cancelled() && ') && ownStatus.every(t => cond.includes(' && ' + t + ' && ') || cond.endsWith(' && ' + t))
+        && !/always\(\)|failure\(\)|\|\|/.test(cond) && (cond.match(/cancelled\(\)/g) || []).length === 1);
+    const indirect = Boolean(job) && job.needs.length > 0 && job.needs.every(n => n !== 'schedule-guard' && isGated(n)) && statusFree;
     gated.set(id, direct || indirect);
     return direct || indirect;
   };
@@ -294,7 +314,7 @@ for (const row of rows) {
     if (id === 'schedule-guard') continue;
     // The one allowed exception is a notice job that runs ONLY when the timer already ran,
     // so a green scheduled run says "backup skipped here" instead of looking like a saved copy.
-    const notice = jobs.get(id) && jobs.get(id).if === GATE.replace("== 'true'", "== 'false'") && jobs.get(id).needs.includes('schedule-guard');
+    const notice = jobs.get(id) && jobs.get(id).if === "needs.schedule-guard.outputs.run == 'false'" && jobs.get(id).needs.includes('schedule-guard');
     ok(isGated(id) || notice, `${row.workflow}: job '${id}' waits for the guard and is skipped when the timer already ran`);
   }
   const declared = dispatchInputs(source) || [];

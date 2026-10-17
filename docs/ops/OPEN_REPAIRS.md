@@ -33448,3 +33448,19 @@ The slow-network misses after the change (boot budget and heavy lane, 1 run in 5
 **Proof.** `docs/syncview-design/tests/note-send-outbox-browser.js` lane M (offline, desktop and phone): straight after `openCalComments` the lookup is running and Send is drawn waiting; it fails on main (in flight false) and passes with the change (90 of 90). Live, test client only, with the change: p60 14/14, p61 12/12, p76 12/12, and p62, p64, p75 pass.
 
 **Way back:** revert the pull request.
+
+## 432. [2026-10-17, BUILT, NOT MERGED] Pull-request test runs filled all 20 runners, so the 5-minute production lanes queued and were cancelled (session Throttle)
+
+**Symptom.** On the night of 2026-10-16/17, with five to seven pull-request runs at once, the production lanes on main waited for a runner and several were cancelled (the notification sender: 4 of its 6 runs from 06:05 to 06:30 UTC). In the day this delays staff notifications by 15 minutes or more.
+
+**Measured (Actions API, 48 hours to 2026-10-17 15:20 UTC, 4173 runs, 10363 jobs).** The account's ceiling is 20 jobs at once (never more observed) and it sat at 20 for 936 minutes. When full, a median of 17 of the 20 were pull-request jobs; calendar-unit-tests.yml held 85% of the slots (68% pull requests, 17% main). Notification sender (589 runs, started by the database timer): 90 cancelled, timer dispatch to `send` starting p50 11 s, p90 352 s, p99 1616 s, max 2900 s. The rename drain (89 of 589 cancelled) and the notification monitor (89 of 589) look the same. Pull-request workload peaked at 2079 runner-minutes in one hour, against 1200 available.
+
+**Cause.** GitHub hands runners out first come, first served, with no priority. Since #2136 one calendar-unit-tests pull-request push starts about 19 browser jobs at once, so two or three open pull requests fill the pool and a 5-minute lane waits behind all of them. Each lane run also needed two runners in a row: the schedule-fallback guard job (which, for a timer run, only answers "run") and then the real job. The cancellations are GitHub's concurrency rule (one running, one waiting; a newer waiting run cancels the older one), so a cancelled lane run lost no work, but it shows the lane was stuck.
+
+**Change.** (1) On a pull request every slow calendar-unit-tests job takes one of 12 named seats (job-level concurrency `pr-runner-seat-*`, `queue: max`, never cancelling), so pull requests hold at most 12 heavy runners together; main and manual runs never wait for a seat. (2) The schedule-fallback guard job runs only for a GitHub schedule copy; the timer's runs (and pull-request runs of the polish gate) skip it and need one runner, not two. Every job behind it keeps its stand-down rule. Tests: new `test/ci-runner-seats.js`; `test/github-dispatch-timer.js` updated.
+
+**Expected (replay of the same 48 hours with every calendar run in today's split shape).** Sender runs starting more than 5 minutes late: 98 to 38; p90 delay 526 s to 222 s; p99 1462 s to 684 s. Calendar pull-request run time p50 18.6 to 27.9 minutes, p90 52 to 61. Main unchanged.
+
+**Not a guarantee.** The pool is still shared and first come, first served, so a lane can still wait when main merges and other pull-request workflows pile up. The full fix is to have the database timer call the sender's Edge Function directly, with no runner at all; that touches the delivery path and needs Lighthouse, so it is proposed, not built.
+
+**Way back:** revert the pull request.

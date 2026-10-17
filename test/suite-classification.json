@@ -562,6 +562,7 @@
     "prod-row-cell-overflow-pin.js",
     "prod-silent-refresh-honesty.js",
     "prod-smm-line.js",
+    "prod-subissue-count-from-cache.js",
     "prod-subissue-order.js",
     "prod-subissue-parent-name.js",
     "prod-tail-prefetch.js",

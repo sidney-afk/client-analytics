@@ -24,6 +24,7 @@
     "higgsfield-studio-latest.js",
     "higgsfield-studio-profile.js",
     "higgsfield-voice-cleanup.js",
+    "higgsfield-client-questions.js",
     "higgsfield-client-brain.js",
     "higgsfield-private-ip.js",
     "pipeline-pass.js",

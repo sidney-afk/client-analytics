@@ -17,6 +17,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
+import { QUESTION_TOOL, offerKey } from "./questions.mjs";
 import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, cleanWho, isTeamLink, logActivity, outcomeOf, teamTools, whoRefusal } from "./who.mjs";
 import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
 import { guideIndex, guideReply, latestGuides } from "./guides.mjs";
@@ -24,6 +25,7 @@ import { STUDIO_BUCKET, studioLatest } from "./studio.mjs";
 import { TOOLKIT_NAMES, toolkitLatest } from "./studio.mjs";
 import { clientRecord, feedbackNote, feedbackNotes } from "./filmingrecord.mjs";
 import { brainChange, clientBrain, clientStyle, filmingPlan, findClient, listClients } from "./clientinfo.ts";
+import type { Asker } from "./clientinfo.ts";
 import { studioProfile, studioProfileSave } from "./studioprofile.ts";
 import { pipelinePass } from "./pipelinepass.ts";
 import { pipelineGate } from "../pipeline-google/users.mjs";
@@ -268,7 +270,7 @@ const TOOLS = [
   },
   {
     name: "client_brain",
-    description: "What the Synchro Brain has written about a client: the editor brief, then each written fact (what their content is focused on right now, who they are, voice, editing, relationship, audience) with its heading and fact id, all in full when the whole brain fits in one answer. The current focus always comes first and in full. When the rest does not fit, the brief stays in full and each fact shows its first paragraph; facts marked \"more\" have more detail. Call this automatically, without being asked, whenever a client is named in the conversation, before answering anything about them (for example \"what does X want\"). When you need more on a topic (a fact marked \"more\", or one listed under \"Left out for length\"), call it again with topic set to that fact id, a heading word (for example \"Caption style\" or \"music\") or a file name (focus, identity, voice, editing, relationship, audience, brief) to get those facts in full. Read only.",
+    description: "What the Synchro Brain has written about a client: the editor brief, then each written fact (what their content is focused on right now, who they are, voice, editing, relationship, audience) with its heading and fact id, all in full when the whole brain fits in one answer. The current focus always comes first and in full. When the rest does not fit, the brief stays in full and each fact shows its first paragraph; facts marked \"more\" have more detail. Call this automatically, without being asked, whenever a client is named in the conversation, before answering anything about them (for example \"what does X want\"). When you need more on a topic (a fact marked \"more\", or one listed under \"Left out for length\"), call it again with topic set to that fact id, a heading word (for example \"Caption style\" or \"music\") or a file name (focus, identity, voice, editing, relationship, audience, brief) to get those facts in full. The overview may end with one open question about the client that this person can answer: do not ask it straight away; finish the person's task, then ask that one question in one plain sentence at the end, and if they answer, save it with brain_change passing its question_id. Never ask Sidney client questions. Read only apart from noting which question was offered.",
     inputSchema: {
       type: "object", required: ["client"], additionalProperties: false,
       properties: {
@@ -279,7 +281,7 @@ const TOOLS = [
   },
   {
     name: "brain_change",
-    description: "Save something new and lasting about a client to their Synchro Brain, the same way SyncView's \"Send a change\" button does. Call this on your own, without being asked, whenever the person states something new and lasting about a client (a preference, a decision, a date, a change of direction), or when they say \"add this to X's brain\"; then confirm in one line: \"Saved to <client>'s brain: <what>\". Never use it for notes about one video. If the person says a saved item is wrong, call brain_change again with a correction that names the earlier change (what it said) and what is right instead.",
+    description: "Save something new and lasting about a client to their Synchro Brain, the same way SyncView's \"Send a change\" button does. Call this on your own, without being asked, whenever the person states something new and lasting about a client (a preference, a decision, a date, a change of direction), or when they say \"add this to X's brain\"; then confirm in one line: \"Saved to <client>'s brain: <what>\". Never use it for notes about one video. If the person says a saved item is wrong, call brain_change again with a correction that names the earlier change (what it said) and what is right instead. When the person answers an open question that client_brain gave you, pass its question_id too: the answer is filed the same way and the question is marked answered.",
     inputSchema: {
       type: "object",
       required: ["client", "what_changed"],
@@ -288,6 +290,7 @@ const TOOLS = [
         client: { type: "string", description: "The client's name as SyncView shows it." },
         what_changed: { type: "string", description: "The new or corrected information, in plain words, as complete as the person said it." },
         fact_id: { type: "string", description: "Optional: the fact id from client_brain that this changes." },
+        question_id: { type: "string", description: "Optional: the question id (q.<client>.<name>) of the open question client_brain asked you to put to the person, when what_changed is their answer. Refused if it is not an open question of this client." },
       },
     },
   },
@@ -1243,8 +1246,8 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   if (name === "clients") return await listClients(db());
   if (name === "client_filming_plan") return await filmingPlan(db(), String(args.client || ""), String(args.month || ""));
   if (name === "client_style") return await clientStyle(db(), String(args.client || ""));
-  if (name === "client_brain") return await clientBrain(db(), String(args.client || ""), String(args.topic || ""));
-  if (name === "brain_change") return await brainChange(db(), String(args.client || ""), String(args.what_changed || ""), String(args.fact_id || ""), author);
+  if (name === "client_brain") return await clientBrain(db(), String(args.client || ""), String(args.topic || ""), askerFor(member, args.who));
+  if (name === "brain_change") return await brainChange(db(), String(args.client || ""), String(args.what_changed || ""), String(args.fact_id || ""), author, String(args.question_id || ""));
 
   if (name === "import_file") return await importFile(String(args.link || "").trim());
   if (name === "voice_cleanup") return await voiceCleanup(args, voiceDeps(author));
@@ -1400,6 +1403,27 @@ async function fpSetting(key: string): Promise<unknown> {
   const { data, error } = await db().from("fp_settings").select("value").eq("key", key).maybeSingle();
   if (error) throw new Error(error.message);
   return data ? data.value : null;
+}
+
+// Who client_brain may ask an open question, and the offer log behind the
+// one-a-week limit: hf_activity rows with tool "question_offered", the
+// question id in summary (questions.mjs).
+function askerFor(member: string, who: unknown): Asker {
+  const teamLink = isTeamLink(member);
+  const name = teamLink ? cleanWho(who) : "";
+  return {
+    member,
+    who: name,
+    teamLink,
+    offeredSince: async (since: string) => {
+      let q = db().from("hf_activity").select("summary").eq("tool", QUESTION_TOOL).eq("member_name", member).gte("created_at", since);
+      q = teamLink ? q.eq("who", offerKey(name)) : q.is("who", null);
+      const { data, error } = await q.limit(1000);
+      if (error) throw new Error(error.message);
+      return (data || []).map((r) => String(r.summary || ""));
+    },
+    recordOffer: async (row: JsonMap) => writeActivity(row),
+  };
 }
 
 async function writeActivity(row: JsonMap): Promise<void> {

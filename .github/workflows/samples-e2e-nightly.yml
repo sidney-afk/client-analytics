@@ -29,6 +29,8 @@ on:
 jobs:
   schedule-guard:
     # The GitHub schedule copy runs only when the database timer missed this slot (OPEN_REPAIRS 403).
+    # Only a schedule copy asks; any other run skips this job and needs no runner for it (Throttle, 2026-10-17).
+    if: github.event_name == 'schedule'
     uses: ./.github/workflows/schedule-fallback-guard.yml
     permissions:
       actions: read
@@ -36,7 +38,7 @@ jobs:
 
   samples-e2e:
     needs: schedule-guard
-    if: needs.schedule-guard.outputs.run == 'true'
+    if: ${{ !cancelled() && (needs.schedule-guard.result == 'skipped' || needs.schedule-guard.outputs.run == 'true') }}
     # One browser run on the test client at a time: the Samples and Calendar
     # nightlies and the dawn check share this queue (OPEN_REPAIRS 403).
     concurrency:
@@ -132,7 +134,7 @@ jobs:
 
   production-preview-smoke:
     needs: schedule-guard
-    if: needs.schedule-guard.outputs.run == 'true'
+    if: ${{ !cancelled() && (needs.schedule-guard.result == 'skipped' || needs.schedule-guard.outputs.run == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

@@ -3,6 +3,7 @@
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
     "ci-changes.js",
+    "ci-runner-seats.js",
     "ci-shards-wired.js",
     "ef-auto-deploy.js",
     "pages-build-inputs.js",

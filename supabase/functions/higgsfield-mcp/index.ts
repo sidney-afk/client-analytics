@@ -28,6 +28,7 @@ import { studioProfile, studioProfileSave } from "./studioprofile.ts";
 import { pipelinePass } from "./pipelinepass.ts";
 import { pipelineGate } from "../pipeline-google/users.mjs";
 import { PROFILE_FIELDS } from "./profile.mjs";
+import { privateIp } from "./netcheck.mjs";
 import { answeredFromLog, asksSwitchedOff, DIRECT_MODELS, directEstimate, GOOGLE_IMAGE_ENABLED, GOOGLE_IMAGE_IDS, gptImageInputs, isDirect, runDirect, SWITCHED_OFF_TEXT, type Fetched } from "./direct.ts";
 
 const HF_API = "https://api.higgsfield.ai";
@@ -721,21 +722,8 @@ async function uploadLink(contentType: string) {
 // import_file fetches a caller-supplied link, so every hop (including each
 // redirect) must be public https: no IP literals in private ranges, no
 // internal names, and every resolved address public. The body is read in
-// chunks and abandoned the moment it passes the size limit.
-function privateIp(ip: string): boolean {
-  const v4 = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-  if (v4) {
-    const [a, b] = [Number(v4[1]), Number(v4[2])];
-    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254)
-      || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224;
-  }
-  const v6 = ip.toLowerCase().replace(/^\[|\]$/g, "");
-  if (!v6.includes(":")) return false;
-  const mapped = v6.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) return privateIp(mapped[1]);
-  return v6 === "::" || v6 === "::1" || /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6) || /^ff/.test(v6);
-}
-
+// chunks and abandoned the moment it passes the size limit. privateIp is in
+// netcheck.mjs (every IPv6 form an IPv4 address can hide in is checked).
 async function publicHost(url: URL): Promise<boolean> {
   if (url.protocol !== "https:" || url.username || url.password) return false;
   const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");

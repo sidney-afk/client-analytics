@@ -125,5 +125,24 @@ function store(files, opts = {}) {
   assert.ok(/^-- ef-auto-deploy-applied-when: select to_regclass\('public\.hf_studio_downloads'\) is not null$/m.test(mig.split('\n').slice(0, 40).join('\n')),
     'the on-merge lane can tell when it is applied');
 
+  // The studio/ folder (2026-10-17): read first; the top of the bucket only when studio/ has no latest.json.
+  {
+    const z = 'synchro-video-studio-0.9.zip';
+    const both = store({ 'studio/latest.json': '{"version":"0.9","file":"' + z + '"}', ['studio/' + z]: 'zip',
+      'latest.json': '{"version":"0.8","file":"synchro-video-studio-0.8.zip"}', 'synchro-video-studio-0.8.zip': 'old' });
+    const a = JSON.parse(await s.studioLatest(both, { member: 'Sidney', who: '' }));
+    assert.strictEqual(a.version, '0.9', 'studio/ wins over the top');
+    assert.strictEqual(both.signed[0].name, 'studio/' + z);
+    const top = store({ 'latest.json': '{"version":"0.8","file":"synchro-video-studio-0.8.zip"}', 'synchro-video-studio-0.8.zip': 'old' });
+    assert.strictEqual(JSON.parse(await s.studioLatest(top, { member: 'Sidney', who: '' })).version, '0.8', 'falls back to the top');
+    assert.strictEqual(top.signed[0].name, 'synchro-video-studio-0.8.zip');
+    const half = store({ 'studio/latest.json': '{"version":"0.9","file":"' + z + '"}', [z]: 'zip' });
+    assert.ok(/studio\/ folder of the studio bucket/.test(await s.studioLatest(half, { member: 'Sidney', who: '' })), 'a zip left at the top while latest.json moved is named');
+    const none = await s.studioLatest(store({}), { member: 'Sidney', who: '' });
+    assert.strictEqual(none, s.NO_VERSION);
+    const fp = store({ 'latest.json': '{"version":"0.8"}', 'synchro-filming-plan-0.8.zip': 'x' });
+    assert.ok(/No filming-plan toolkit/.test(await s.toolkitLatest(fp, 'filming-plan', { member: 'Sidney', who: '' })), 'filming-plan never falls back to the top');
+  }
+
   console.log('higgsfield-studio-latest: version, signed link, notes, missing-version answer, failures, log, read-only wiring ✅');
 })().catch((e) => { console.error(e); process.exit(1); });

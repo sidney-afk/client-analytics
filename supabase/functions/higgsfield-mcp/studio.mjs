@@ -12,8 +12,10 @@
 //
 // Toolkits (since 2026-10-17, item 1 PR 2). Each toolkit has its own place in
 // the same bucket and its own latest.json:
-//   studio        the top of the bucket, exactly as before (nothing moved);
-//                 zips named synchro-video-studio-<version>.zip
+//   studio        the folder studio/ (since 2026-10-17); while studio/ has no
+//                 latest.json the top of the bucket is read, as before, so
+//                 the files can be moved at any time. Zips named
+//                 synchro-video-studio-<version>.zip
 //   filming-plan  the folder filming-plan/; zips named
 //                 synchro-filming-plan-<version>.zip
 // A studio log row is exactly the row it was before toolkits existed (the
@@ -31,7 +33,7 @@ export const NOTES_MAX = 2000;
 export const STUDIO_FILE_RE = /^synchro-video-studio-[0-9A-Za-z._-]{1,40}\.zip$/;
 
 export const NO_VERSION =
-  "No studio version uploaded yet. Ask the account owner to upload the studio zip and latest.json to the studio bucket.";
+  "No studio version uploaded yet. Ask the account owner to upload the studio zip and latest.json to the studio/ folder of the studio bucket.";
 
 // The file name used when latest.json gives none.
 export function studioFileFor(version) {
@@ -40,7 +42,9 @@ export function studioFileFor(version) {
 
 export const TOOLKITS = {
   studio: {
-    prefix: "",
+    prefix: "studio/",
+    // Read when studio/latest.json is missing: the old place, the top of the bucket.
+    fallbackPrefix: "",
     fileRe: STUDIO_FILE_RE,
     fileFor: studioFileFor,
     pattern: "synchro-video-studio-<version>.zip",
@@ -112,7 +116,8 @@ export async function toolkitLatest(deps, name, { member, who }) {
   const kitName = typeof name === "string" ? name.trim().toLowerCase() : "";
   const kit = Object.prototype.hasOwnProperty.call(TOOLKITS, kitName) ? TOOLKITS[kitName] : null;
   if (!kit) return `Give name: ${TOOLKIT_NAMES.map((n) => `"${n}"`).join(" or ")}.`;
-  const at = (f) => kit.prefix + f;
+  let prefix = kit.prefix;
+  const at = (f) => prefix + f;
   const say = (text, version, file) => {
     try {
       deps.log(downloadRow({ member, who, version, file, toolkit: kitName }));
@@ -127,10 +132,18 @@ export async function toolkitLatest(deps, name, { member, who }) {
   } catch (e) {
     return say(`Could not read the studio bucket (${errText(e)}). Try again in a minute; if it keeps failing, tell the account owner.`);
   }
+  if (!present && typeof kit.fallbackPrefix === "string") {
+    prefix = kit.fallbackPrefix;
+    try {
+      present = await deps.exists(at(LATEST_FILE));
+    } catch (e) {
+      return say(`Could not read the studio bucket (${errText(e)}). Try again in a minute; if it keeps failing, tell the account owner.`);
+    }
+  }
   if (!present) return say(kit.noVersion);
   let latest;
   try {
-    latest = parseLatest(await deps.readText(at(LATEST_FILE)), kit);
+    latest = parseLatest(await deps.readText(at(LATEST_FILE)), { ...kit, prefix });
   } catch (e) {
     return say(`Could not read latest.json (${errText(e)}). Tell the account owner.`);
   }
@@ -139,7 +152,7 @@ export async function toolkitLatest(deps, name, { member, who }) {
   try {
     url = await deps.sign(at(latest.file), LINK_SECONDS);
   } catch (e) {
-    return say(`Could not make a download link for ${latest.file} (${errText(e)}). Tell the account owner the file may be missing from the ${kit.prefix ? kit.prefix + " folder of the " : ""}studio bucket.`);
+    return say(`Could not make a download link for ${latest.file} (${errText(e)}). Tell the account owner the file may be missing from the ${prefix ? prefix + " folder of the " : ""}studio bucket.`);
   }
   if (typeof url !== "string" || !/^https:\/\//.test(url)) {
     return say(`Could not make a download link for ${latest.file}. Tell the account owner.`);

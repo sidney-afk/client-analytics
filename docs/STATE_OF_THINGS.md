@@ -39,7 +39,7 @@ To try it: the test client in the first list and the owner in the second. Nobody
 (1) the arrow on Approve is faint at rest and firm on hover; (2) SMM caption edits save at once, as today; (3) Kasper's
 "With the editors" folds at the end of the strip, and a card there opens read only with Ping editor; (4) Kasper's
 conversation is team only, with no Client can see switch; (5) the stage uses the Notes view player (#2120), not a copy,
-so session Encore's speed buttons and "Open in Frame.io" message (#2130) arrive with it when they merge.
+so session Encore's speed buttons and "Open in Frame.io" message (#2130) come with it (both merged 2026-10-17).
 His review of the mock-ups, on all three versions: the strip scrolls sideways with the ordinary mouse wheel (trackpad
 swipes still work, no scrollbar); no "parts to look at" list on the left (the step bar shows each part's state: green
 check approved, orange change asked); steps look clickable (hand cursor, a soft fill on hover, one gentle glow on the
@@ -124,7 +124,7 @@ the sections below, delete it from this block in the same PR.
   include real saves on those two. A component status change also writes a card-level ledger row; that is the old
   saver's behaviour too (130 of 368 status changes in 7 days), not a new-saver regression.
 
-**Built, waiting for merge (session Encore, 2026-10-16, OPEN_REPAIRS 427): the owner's five points on Watch here.**
+**Live (session Encore, #2130 merged 2026-10-17, OPEN_REPAIRS 427): the owner's five points on Watch here.**
 The frozen picture with sound was the card's thumbnail left on top of the playing video (now hidden once the video has
 a frame); a file that plays sound but no picture switches to the small H.264 copy. Speed 1x/1.5x/2x and 5 s back and
 forward in the player; the "Syncing this thread" line is gone (Send is just disabled while the thread loads); the notes

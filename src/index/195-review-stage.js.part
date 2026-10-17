@@ -11,7 +11,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        Designs: the approved client page and the SMM and Kasper versions of it (Sidney, 2026-10-16), with his review
        of 2026-10-16: no part list on the left (the step bar shows each part's state), the date at the stage's top
        left, a bigger stage, steps that look clickable (one soft glow on the next step, once), the strip of waiting
-       posts scrolls sideways with the mouse wheel, and the video player is the Notes view's (#2120).
+       posts scrolls sideways with the mouse wheel, and the video player is the Notes view's (PR 2120).
 
        Three people, one page. Only these differ: the header, the buttons on each part, Kasper's sections, and who is
        who in the conversation. It is drawn inside its own shadow root, so the site's styles cannot reach in and its
@@ -39,6 +39,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                  Ping editor        _kasperSendUrgentSlack
                  Samples use the _sxrKasper* twins of each. */
     /* The page's look: the approved mock-up's stylesheet, unchanged but for the owner's review (see the end). */
+    // no-hardcoded-colors: allow-start (the approved mock-up's stylesheet, artifact-locked, dual-theme, scoped to this page's shadow root)
     const RS_CSS = `:host{
 --white:#ffffff; --bg:#f4f4f2; --border:#e4e4e0; --border-light:#ededea;
 --surface-raised:#ffffff; --surface-hover:#f8f8f6; --surface-subtle:#f3f3f1;
@@ -653,6 +654,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .rs-fv{width:min(100%,calc(46vh * var(--fv-ar,.5625)))}
 }
 @media (prefers-reduced-motion:reduce){.stp.hint{animation:none}}`;
+    // no-hardcoded-colors: allow-end
     const RS_PART = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'YouTube title' };
     const RS_CSSKEY = { video: 'video', graphic: 'thumbnail', caption: 'caption', title: 'youtube' };
     const RS_FRAME_NOTE = 'Tweaks are on Frame.';

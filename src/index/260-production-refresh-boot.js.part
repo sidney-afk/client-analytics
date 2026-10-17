@@ -79,6 +79,7 @@ import {
 import { SXR_CACHE_PREFIX, _sxrAbortActiveLoad, _sxrNextLoadSeq, sxrState } from './270-samples-model.js';
 import { _sxrFlushAllPending, _sxrLinearOutboxTimer, _sxrSetLinearOutboxTimer, mountSxrClientView } from './280-samples-cards-notes.js';
 import { _sxrV2Teardown, _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
+import { svRsClientNoAnalytics, svRsFlagsReady } from './188-review-stage-switch.js';
 import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js';
         function _prodManualRefresh() {
             // The press must be visibly acknowledged: the refresh itself is a
@@ -2710,6 +2711,11 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         const generation = ++_syncviewClientEntryGeneration;
         const href = location.href;
         if (isRetry) _syncviewClientEntryValidationSurface();
+        // A bare link (no v=) opens on Analytics, unless the new review page is switched on for the client: that
+        // client has no Analytics. The switch is read beside the link check, and the neutral check screen stays until
+        // both answers are in, so a switched-on client never sees the Analytics skeleton (session Curtain Three).
+        const envelope = _syncviewClientEntryEnvelope();
+        const rsReady = envelope.ok && envelope.view === 'analytics' ? svRsFlagsReady() : null;
         Promise.resolve().then(async () => {
             const verdict = await _syncviewPreflightClientEntry(generation, href);
             if (!verdict || verdict.kind === 'stale') return;
@@ -2717,7 +2723,13 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                 _syncviewInvalidClientLinkScreen({ retryable: verdict.kind === 'retry' });
                 return;
             }
-            _syncviewClientEntryCapability = _syncviewCanonicalizeClientEntry(verdict.entry);
+            let entry = verdict.entry;
+            if (rsReady && entry.view === 'analytics') {
+                await rsReady;
+                if (generation !== _syncviewClientEntryGeneration || href !== location.href) return;
+                if (svRsClientNoAnalytics(entry.client)) entry = Object.assign({}, entry, { view: 'calendar' });
+            }
+            _syncviewClientEntryCapability = _syncviewCanonicalizeClientEntry(entry);
             _syncviewClientEntryLoader(_syncviewClientEntryCapability);
             const dataRun = _syncviewCreateClientEntryDataRun(generation, _syncviewClientEntryCapability.slug);
             Promise.resolve(init(dataRun)).catch(() => {});

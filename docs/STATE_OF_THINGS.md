@@ -75,6 +75,13 @@ video with its notes" hover tooltip is gone from the player doors (staff Sheet a
 used the Frame.io player wherever `frame_viewer_clients` allows the client (live for the test client). Test:
 `node test/review-stage-client-layout-browser.js`.
 
+**Owner feedback of 2026-10-17, second round (session Curtain Three):** on that client page, desktop only, the Sheet's
+row of cards sits in the middle of the space under the header (both ways) when it fits, and starts at the top and
+scrolls when zoomed in past it; Organize and the card size have the header's pill fill in light mode; the "waiting
+for you" strip ends at the header's right margin and fades out when more posts are to the right; a bare link (no
+`v=`) reads the switch beside the link check, so a switched-on client sees the neutral check screen and then the
+Content Calendar, never the Analytics skeleton. Same test file.
+
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone
 layout follows the desktop one and has not been polished on its own (as the handoff said).

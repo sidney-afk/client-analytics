@@ -75,6 +75,14 @@ video with its notes" hover tooltip is gone from the player doors (staff Sheet a
 used the Frame.io player wherever `frame_viewer_clients` allows the client (live for the test client). Test:
 `node test/review-stage-client-layout-browser.js`.
 
+**Owner feedback of 2026-10-17 18:10 UTC (session Curtain Five):** with the switch on, the Kasper tab has one header
+(title, Review Session / Messages / Filming Plans, More) at the same place on every section, and Messages opens inside
+the tab with no Close button (the header's own Messages button and everyone else still get the Messages page); no
+review stage (Kasper, SMM, client) scrolls the page when it fits the window (the page's 80px bottom padding goes while
+a stage shows); and the stage reads the app's own colour tokens (one page background, one surface for the stage card
+and the notes panel, one border, radius and shadow) in light and dark. Switch off or unreadable: pixel-identical to
+main. Test: `node test/review-stage-one-system-browser.js`.
+
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone
 layout follows the desktop one and has not been polished on its own (as the handoff said).

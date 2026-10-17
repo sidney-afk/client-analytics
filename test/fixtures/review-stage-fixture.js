@@ -80,6 +80,12 @@ async function open(browser, origin, opt) {
       const b = JSON.parse(r.postData() || '{}');
       return json(b.slug === SLUG && b.token === TOKEN ? { ok: true, valid: true, allowed: true, slug: SLUG, display_name: CLIENT, view: b.view, strict: true, active: true, protocol: 'syncview-client-entry-v1' } : { ok: true, valid: false, allowed: false, error: 'invalid_client_link' });
     }
+    // The Messages inbox (opt.inbox: a list of fictional conversations); without it the inbox is empty.
+    if (p === '/functions/v1/production-comments' && r.method() === 'POST' && opt.inbox) {
+      let b = {}; try { b = JSON.parse(r.postData() || '{}'); } catch (e) {}
+      if (b.action === 'inbox') return json({ ok: true, scope: 'all', conversations: opt.inbox });
+      return json({ ok: true });
+    }
     if (p === '/functions/v1/frameio-view') return json({ ok: true, video: { url: MEDIA, renditions: { efficient: MEDIA, high_quality: MEDIA, original: MEDIA }, expires_at: new Date(Date.now() + 3600000).toISOString(), name: 'Fixture clip.mp4', file_id: 'f1', duration_seconds: 12, fps: 24 }, comments: [], comments_error: '', open_url: 'https://next.frame.io/share/00000000-0000-4000-8000-000000000001', fetched_at: new Date().toISOString() });
     if (/\/functions\/v1\/(calendar-upsert|calendar-card-write)$/.test(p) && r.method() === 'POST') {
       let body = {}; try { body = JSON.parse(r.postData() || '{}'); } catch (e) {}

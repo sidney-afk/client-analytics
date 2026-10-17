@@ -169,16 +169,22 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     let _rsChromeStyle = null;
     function _rsChrome(on, full) {
         const de = document.documentElement;
-        if ((on || full || de.classList.contains('sv-rs-kasper')) && !_rsChromeStyle) {
+        if ((on || full || de.classList.contains('sv-rs-kasper') || de.classList.contains('sv-rs-khead')) && !_rsChromeStyle) {
             _rsChromeStyle = document.createElement('style');
             _rsChromeStyle.id = 'svReviewStageChrome';
             _rsChromeStyle.textContent = 'html.sv-rs-cal #calView{display:none!important}'
                 + 'html.sv-rs-cal.sv-rs-client .client-view.cal-tab-view>.view-tab-toggle,html.sv-rs-cal.sv-rs-client #pageTitle,html.sv-rs-cal.sv-rs-client #pageSub{display:none!important}'
-                // Kasper (the approved design): his title and tabs on one row, the page at full width.
-                + 'html.sv-rs-kasper .kasper-wrap{max-width:none;display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:22px;align-items:center}'
-                + 'html.sv-rs-kasper .kasper-wrap>.kasper-head{margin:0}html.sv-rs-kasper .kasper-wrap .kasper-sub{display:none}'
-                + 'html.sv-rs-kasper .kasper-wrap>.kasper-subtabs{margin:0;border:0;box-shadow:none;background:transparent;padding:0}'
-                + 'html.sv-rs-kasper #kasperContent{grid-column:1/-1;margin-top:12px}'
+                // Kasper (the approved design): his title and tabs on one row, the page at full width. The same header on
+                // every Kasper section while his switch is on (owner feedback 2026-10-17, Curtain Five), not only Review.
+                + 'html.sv-rs-khead .kasper-wrap{max-width:none;display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:22px;align-items:center}'
+                + 'html.sv-rs-khead .kasper-wrap>.kasper-head{margin:0}html.sv-rs-khead .kasper-wrap .kasper-sub{display:none}'
+                + 'html.sv-rs-khead .kasper-wrap>.kasper-subtabs{margin:0;border:0;box-shadow:none;background:transparent;padding:0}'
+                + 'html.sv-rs-khead #kasperContent{grid-column:1/-1;margin-top:12px}'
+                // Messages inside the Kasper tab (no Close, the tab bar is the way out): the inbox fills the window.
+                + '@media (min-width:861px){html.sv-rs-khead #kasperContent .msg-embed .msg-inbox{height:calc(100vh - var(--sv-k-top,220px) - 24px);height:calc(100dvh - var(--sv-k-top,220px) - 24px);min-height:420px}'
+                // No page scroll under a review page that fits the window: the page's own bottom padding (80px of
+                // empty band under the SMM and Kasper stage) goes while the stage or the Kasper inbox shows.
+                + '#mainWrap:has(#svReviewStage:not([hidden])),html.sv-rs-khead #mainWrap:has(.msg-embed){padding-bottom:0!important}}'
                 // The client link, whole page: no frame, no second header, no Analytics toggle on any of the four tabs.
                 + 'html.sv-rs-full .client-view.cal-tab-view>.view-tab-toggle,html.sv-rs-full #pageTitle,html.sv-rs-full #pageSub,html.sv-rs-full #calView>.pocket-client-calendar{display:none!important}'
                 + 'html.sv-rs-full #mainWrap{padding:0!important}'
@@ -233,15 +239,25 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     }
     // Kasper's queue, from his own repaint (330). Answers true when the new page took the queue.
     function svRsKasperPaint(parts) {
-        if (!svRsKasperOn()) { svRsKasperLeave(); return false; }
+        if (!svRsKasperHeadSync()) { svRsKasperLeave(); return false; }
         document.documentElement.classList.add('sv-rs-kasper');
-        _rsChrome(document.documentElement.classList.contains('sv-rs-cal'));
+        _rsChrome(document.documentElement.classList.contains('sv-rs-cal'), document.documentElement.classList.contains('sv-rs-full'));
         svArea('reviewstage').then(api => { if (svRsKasperOn()) api.kasper(parts); }, () => {
-            document.documentElement.classList.remove('sv-rs-kasper');
+            document.documentElement.classList.remove('sv-rs-kasper', 'sv-rs-khead');
             _rsFlags = Object.assign({}, _rsFlags, { staff: new Set() });
             _kasperPaintReview();
         });
         return true;
+    }
+    /* The Kasper tab's one header (owner feedback 2026-10-17, session Curtain Five): while his switch is on, every
+       Kasper section (Review Session, Messages, Filming Plans and the More menu's) sits under the same title-and-tabs
+       row, in the same place. Called by each section's render (321). Answers whether the switch is on. */
+    function svRsKasperHeadSync() {
+        const de = document.documentElement;
+        const on = svRsKasperOn();
+        de.classList.toggle('sv-rs-khead', on);
+        if (on) _rsChrome(de.classList.contains('sv-rs-cal'), de.classList.contains('sv-rs-full'));
+        return on;
     }
     function svRsKasperLeave() {
         document.documentElement.classList.remove('sv-rs-kasper');
@@ -255,6 +271,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             if (cap && cap.verified && cap.client && (clientViewTab[cap.client] || 'analytics') === 'analytics' && svRsClientNoAnalytics(cap.client)) render(cap.client, true);
         }
         if (document.getElementById('calView') && calState && calState.client) _calRenderBody({ preserveScroll: true });
+        if (document.getElementById('kasperContent')) svRsKasperHeadSync();
         if (document.getElementById('kasperReviewBody')) _kasperPaintReview();
     });
-export { svRsCalOn, svRsCalSync, svRsClientNoAnalytics, svRsHelpUrl, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl };
+export { svRsCalOn, svRsCalSync, svRsClientNoAnalytics, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl };

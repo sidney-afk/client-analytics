@@ -863,7 +863,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _msgStartLive() {
         if (_msgTimer) return;
         _msgTimer = setInterval(() => {
-            if (!document.getElementById('msgPage')) { clearInterval(_msgTimer); _msgTimer = null; return; }
+            if (!document.getElementById('msgPage') && !document.querySelector('[data-msg-embed]')) { clearInterval(_msgTimer); _msgTimer = null; return; }
             if (!document.hidden && !_msgState.unavailable) _msgLoad(true);
         }, MSG_REFRESH_MS);
     }
@@ -874,6 +874,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _msgStartLive();
     }
     window._msgMountPage = _msgMountPage;
+    /* The same inbox inside the Kasper tab, under its one header (323, while the new review page is on for this
+       person): no page head and no Close button, the tab bar is the way out. A repaint keeps a reply being typed. */
+    function _msgMountEmbedded(root) {
+        if (!root) return;
+        if (root.querySelector(':scope > .msg-embed[data-msg-root]')) { _msgPaint(); _msgLoad(false); _msgStartLive(); return; }
+        root.innerHTML = '<div class="msg-embed" data-msg-embed></div>';
+        _msgRenderInto(root.firstChild);
+        _msgStartLive();
+    }
     // Signed out, or the inbox backend is gone: leave the Messages page.
     function _msgLeavePage() { if (document.getElementById('msgPage')) navTo('home'); }
 
@@ -882,4 +891,4 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _msgBack, _msgClose, _msgLoad, _msgMarkUnread, _msgOnDraft, _msgOnKey, _msgOpen, _msgOpenCard,
         _msgOpenPage, _msgPhoneMore, _msgPhoneSearch, _msgReply, _msgSetFilter, _msgSetReplyTo
     });
-export { _msgInboxLive, _msgOnFallback, _msgOnIdentity, _msgPaintCounts };
+export { _msgInboxLive, _msgMountEmbedded, _msgOnFallback, _msgOnIdentity, _msgPaintCounts };

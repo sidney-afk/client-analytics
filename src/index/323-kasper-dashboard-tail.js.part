@@ -1,5 +1,6 @@
 import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
-import { _msgInboxLive, _msgOnFallback } from './326-core-messages-inbox.js';
+import { _msgInboxLive, _msgMountEmbedded, _msgOnFallback } from './326-core-messages-inbox.js';
+import { svRsKasperOn } from './188-review-stage-switch.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showToast, svArea, svAreaApi } from './040-shared-briefs.js';
 import {
@@ -79,6 +80,17 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
             });
         }
         if (!_msgInboxLive()) { _kasperRenderRepliesLegacy(); return; }
+        // With the new review page on for this person (188), Messages opens inside the Kasper tab, under its one
+        // header, with no Close button (owner feedback 2026-10-17, Curtain Five). The Messages page stays as it is
+        // for everyone else, and for the header's own Messages button.
+        if (svRsKasperOn()) {
+            const root = document.getElementById('kasperContent');
+            if (!root) return;
+            _msgMountEmbedded(root);
+            const box = root.querySelector('.msg-embed');
+            if (box) root.style.setProperty('--sv-k-top', Math.max(0, Math.round(box.getBoundingClientRect().top + window.scrollY)) + 'px');
+            return;
+        }
         // The inbox is its own page now: the Kasper Messages tab opens it, and
         // the Kasper page itself goes back to Review for the next visit.
         _kasperFallbackToReviewNow();

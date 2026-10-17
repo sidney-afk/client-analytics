@@ -670,6 +670,25 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .app.bar{min-height:0}
 }`;
     // no-hardcoded-colors: allow-end
+    /* ONE COLOUR SYSTEM (owner feedback 2026-10-17, session Curtain Five: "glued together"). The stylesheet above
+       carried its own copy of the app's colours, a shade off in dark mode (a darker page behind the stage than around
+       it), plus a grey notes panel beside a white stage. Here the stage takes the app's own tokens from the page it
+       sits in (custom properties pass into this shadow root): one page background (the page's, the stage draws
+       none), one surface for the stage card, the notes panel and the strip's current post, one border and one
+       shadow for both panels, in light and dark. No colour literal here: only the app's tokens. */
+    const RS_CSS_TOKENS = `
+:host,:host([data-theme="dark"]){
+--white:inherit;--bg:inherit;--border:inherit;--border-light:inherit;
+--surface-raised:inherit;--surface-hover:inherit;--surface-subtle:inherit;
+--text-primary:inherit;--text-secondary:inherit;--text-muted:inherit;--focus-ring:inherit;--shadow-sm:inherit;--shadow-md:inherit;
+--field-bg:inherit;--field-bg-hover:inherit;--field-bg-focus:inherit;--field-border-focus:inherit;--field-placeholder:inherit;
+--ok-solid-bg:inherit;--ok-solid-fg:inherit;--warn-solid-bg:inherit;--warn-solid-bg-hover:inherit;--warn-solid-fg:inherit;
+--toast-bg:inherit;--toast-fg:var(--toast-color);
+--deck:var(--surface-raised);--deck-line:var(--border);--well:var(--surface-raised);--well-line:var(--border);--hair:var(--border);
+}
+.rs,.rs.client{background:transparent}
+.card,.chat{background:var(--surface-raised);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow-stage)}
+`;
     const RS_PART = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'YouTube title' };
     const RS_CSSKEY = { video: 'video', graphic: 'thumbnail', caption: 'caption', title: 'youtube' };
     const RS_FRAME_NOTE = 'Tweaks are on Frame.';
@@ -979,7 +998,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (above && tools.parentNode !== R.host) R.host.appendChild(tools);
         else if (!above && tools.parentNode === R.host) tools.remove();
         if (fresh || !R.root.getElementById('rsApp') || R.root.getElementById('rsApp').getAttribute('data-mode') !== mode) {
-            R.root.innerHTML = '<style>' + RS_CSS + '</style><style id="rsFvCss">' + _rsPlayerCss() + '</style>' + _rsShellHtml();
+            R.root.innerHTML = '<style>' + RS_CSS + RS_CSS_TOKENS + '</style><style id="rsFvCss">' + _rsPlayerCss() + '</style>' + _rsShellHtml();
             _rsQ('rsApp').setAttribute('data-mode', mode);
             _rsWire();
         }

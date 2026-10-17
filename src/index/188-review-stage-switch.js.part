@@ -177,7 +177,9 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             // exactly where it sits on Sheet, Month and Week, and only the old list under it steps aside, so the
             // toggle never moves and there is no second header (owner feedback 2026-10-17, session Curtain Four).
             _rsChromeStyle.textContent = 'html.sv-rs-cal.sv-rs-client #calView{display:none!important}'
-                + 'html.sv-rs-cal:not(.sv-rs-client) #calView>:not(.cal-toolbar){display:none!important}'
+                // Hide the old list only: the Calendar's dialogs (caption prompt, import, preview, lightbox, notes)
+                // also live in #calView and must still open on the Review tab.
+                + 'html.sv-rs-cal:not(.sv-rs-client) #calView>:not(.cal-toolbar):not(.cal-preview-overlay):not(.cal-import-overlay):not(.cal-lightbox):not(.cal-comments-overlay):not(.cal-prompt-overlay){display:none!important}'
                 + 'html.sv-rs-cal:not(.sv-rs-client) #calView{padding-bottom:0!important}'
                 + 'html.sv-rs-cal.sv-rs-client .client-view.cal-tab-view>.view-tab-toggle,html.sv-rs-cal.sv-rs-client #pageTitle,html.sv-rs-cal.sv-rs-client #pageSub{display:none!important}'
                 // Kasper (the approved design): his title and tabs on one row, the page at full width.

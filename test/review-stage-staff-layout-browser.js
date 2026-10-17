@@ -108,6 +108,17 @@ function look(page, client) {
               expect(!L.stageHeader && L.contentCalendarText === 0, name + ': the new page draws no header of its own (no second "Content calendar" heading)');
               expect(L.hostTop === L.barBottom + 8, name + ': the new page sits straight under the bar (bar ends ' + L.barBottom + ', page starts ' + L.hostTop + ')');
               expect(L.rsBg === 'rgba(0, 0, 0, 0)', name + ': the new page has no background of its own, no frame (' + L.rsBg + ')');
+              // The Calendar's dialogs live inside #calView too: the menu's Caption prompt, Thumbnail title prompt,
+              // Platform and Import open them, so they must still show on the Review tab.
+              const hidden = await t.page.evaluate(() => ['calPromptOverlay', 'calImportOverlay', 'calPreviewOverlay', 'calLightbox', 'calCommentsOverlay'].filter((id) => {
+                const el = document.getElementById(id);
+                if (!el) return false;
+                el.classList.add('open');
+                const none = getComputedStyle(el).display === 'none';
+                el.classList.remove('open');
+                return none;
+              }));
+              expect(hidden.length === 0, name + ': the Calendar dialogs can still open on Review (hidden: ' + hidden.join(', ') + ')');
             } else if (flags === 'off') {
               expect(!L.newPage && !L.rsCls, name + ': no new page and no switch classes (' + L.rsCls + ')');
               if (v === 'smmreview') expect(L.oldList, name + ': the old review list shows');

@@ -11,7 +11,6 @@
     "linear-outbound": { "hold": "deleted on purpose 2026-09-24; source kept as a frozen reference" }
   },
   "owned_elsewhere": {
-    "pipeline-google": "synchro-pipelines",
     "fp-tab-test": "synchro-pipelines",
     "doctors-partial-capture": "synchrosocial"
   },

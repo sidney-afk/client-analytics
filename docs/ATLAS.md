@@ -28,7 +28,7 @@ Staff and client pages in client-analytics use Supabase and n8n. The Brain holds
 | Repo | Owner | Purpose and connection |
 | --- | --- | --- |
 | client-analytics | [Source map](../REPO_MAP.md) and [Pages publishing](../.github/workflows/pages-site.yml) | SyncView, its Supabase source, operational docs and monitoring. Pages publishes an allowlisted site from main; Edge Functions have separate lanes below. |
-| synchro-pipelines | [Pipeline entry](https://github.com/sidney-afk/synchro-pipelines/blob/main/README.md) and [Google bridge](https://github.com/sidney-afk/synchro-pipelines/blob/main/supabase/functions/pipeline-google/index.ts) | Research and concept review tools read a sibling Brain checkout. Local runs publish Sheets and Docs through n8n or pipeline-google; this repo has no GitHub workflow files. |
+| synchro-pipelines | [Pipeline entry](https://github.com/sidney-afk/synchro-pipelines/blob/main/README.md) and Google bridge client (`google_relay.py`; the `pipeline-google` function itself lives in this repo since 2026-10-16) | Research and concept review tools read a sibling Brain checkout. Local runs publish Sheets and Docs through n8n or pipeline-google; this repo has no GitHub workflow files. |
 | synchro-brain | [Knowledge layout](https://github.com/sidney-afk/synchro-brain/blob/main/README.md) and [Change processor](https://github.com/sidney-afk/synchro-brain/blob/main/.github/workflows/process-syncview-change.yml) | Private editorial knowledge. SyncView brain reads files and adds change inputs; the Brain workflow files those changes into facts on main. Its README still contains an older disconnected state description, superseded by this code path. |
 | synchrosocial | [Marketing map](https://github.com/sidney-afk/synchrosocial/blob/main/docs/ECOSYSTEM_MAP.md) and [Site deploy](https://github.com/sidney-afk/synchrosocial/blob/main/.github/workflows/deploy.yml) | Marketing and acquisition site. Its build publishes dist to GitHub Pages from main; sales, onboarding and quiz flows feed n8n and Supabase. Its Enterprise Atlas remains the company map. |
 
@@ -364,7 +364,7 @@ There are 46 entrypoint folders and one shared helper folder here. The live proj
 
 | Live function | Owner and purpose | Deployment finding |
 | --- | --- | --- |
-| `pipeline-google` | [Source](https://github.com/sidney-afk/synchro-pipelines/blob/main/supabase/functions/pipeline-google/index.ts). Pipeline key authenticates Docs, Sheets and Drive operations. | Live v5; operator deployment from synchro-pipelines, no workflow there. |
+| <!-- atlas:edge pipeline-google -->[`pipeline-google`](../supabase/functions/pipeline-google/index.ts) | The filming-plan pipeline reads and writes Docs, Sheets and Drive with the pipeline key (moved from synchro-pipelines 2026-10-16). | Live v26 (2026-10-16, first deploy from this repo, #2126). [deploy-edge-functions-on-merge.yml](../.github/workflows/deploy-edge-functions-on-merge.yml); fallback [deploy-single-function.yml](../.github/workflows/deploy-single-function.yml) |
 | `fp-tab-test` | [Retired test stub](https://github.com/sidney-afk/synchro-pipelines/blob/main/supabase/functions/fp-tab-test/index.ts). Returns a retired test result and no longer creates Doc tabs. | Live v5; source and live read confirm the retired stub. |
 | `doctors-partial-capture` | [Capture workflow](#n8n). Marketing doctors form relays qualified partial leads into email-only recovery. | Live v1; source read through Supabase. No source file in any of the four repo trees checked, so deploy provenance is unverified. |
 

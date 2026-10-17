@@ -1,0 +1,604 @@
+{
+  "receipt": [
+    {
+      "name": "calendar-tabs",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-grid",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-list",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-card",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-grid-drive-error",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-more",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-more-account",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-selection",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-review",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-view-picker",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-month",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-week",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-no-posts",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-loading",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-error",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-empty",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "samples-tabs",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "samples-grid",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "samples-list",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "samples-card",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "samples-grid-drive-error",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "samples-more",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "samples-more-account",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "samples-selection",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "samples-review",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "samples-created",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "samples-no-posts",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "samples-loading",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "samples-error",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "samples-empty",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-tabs",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-grid",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-list",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-card",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-grid-drive-error",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-more",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-more-account",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-selection",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-review",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-view-picker",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-month",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-week",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-no-posts",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-loading",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-error",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-empty",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-tabs",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-grid",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-list",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-card",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-grid-drive-error",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-more",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-more-account",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-selection",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-review",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-created",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-no-posts",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-loading",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-error",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-empty",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-tabs",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-grid",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-list",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-card",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-grid-drive-error",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-more",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-more-account",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-selection",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-review",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-view-picker",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-month",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-week",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-no-posts",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-loading",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-error",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-empty",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "samples-tabs",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "samples-grid",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "samples-list",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "samples-card",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "samples-grid-drive-error",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "samples-more",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "samples-more-account",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "samples-selection",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "samples-review",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "samples-created",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "samples-no-posts",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "samples-loading",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "samples-error",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "samples-empty",
+      "width": 430,
+      "theme": "light"
+    },
+    {
+      "name": "calendar-tabs",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-grid",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-list",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-card",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-grid-drive-error",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-more",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-more-account",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-selection",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-review",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-view-picker",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-month",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-week",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-no-posts",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-loading",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-error",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "calendar-empty",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-tabs",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-grid",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-list",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-card",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-grid-drive-error",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-more",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-more-account",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-selection",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-review",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-created",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-no-posts",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-loading",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-error",
+      "width": 430,
+      "theme": "dark"
+    },
+    {
+      "name": "samples-empty",
+      "width": 430,
+      "theme": "dark"
+    }
+  ]
+}

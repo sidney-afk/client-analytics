@@ -895,12 +895,18 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
             _calNativeDraftClear(state);   // created: the names are no longer unsaved
             _calCloseNativePost(true);
             if (first && first.card_id) {
-                // Both tabs render .cal-card rows, but only the calendar tracks
-                // a focus id in its own state; the samples view is re-rendered
-                // by the materializer and just needs the caret put in place.
+                // Calendar retains its native focus handoff. The phone Samples
+                // collection must push its new card before the caret handoff;
+                // desktop keeps the existing materialized-list behavior.
                 if (surface !== 'sxr') {
                     calState.focusPid = String(first.card_id);
                     try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+                } else if (_sxrStaffPhoneActive() && window.svThumbCollections?.open('samples',String(first.card_id))) {
+                    // Let phone title decoration finish before the native saved
+                    // notice captures its return-focus target.
+                    await new Promise(requestAnimationFrame);
+                    const fields = document.querySelectorAll('#sxrView .cal-card [data-pocket-title], #sxrView .cal-card .cal-fld-name');
+                    [...fields].find(field => field.getClientRects().length)?.focus({preventScroll:true});
                 }
                 setTimeout(() => document.querySelector(`.cal-card[data-pid="${CSS.escape(String(first.card_id))}"] .cal-fld-name`)?.focus(), 80);
             }

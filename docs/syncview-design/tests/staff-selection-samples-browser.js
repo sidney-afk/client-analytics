@@ -144,6 +144,7 @@ async function runPhone(browser, origin, width, theme) {
       await page.evaluate(row => { delete _sxrReviewState.saving[row.id + '|graphic']; sxrState.posts = [{ ...row }]; _sxrRenderBody(); }, row);
     }
     await page.locator('[data-cal-view=organizer]').click();
+    await require('./staff-phone-browser').openEditableSheet(page);
     if (!before) await measure(page, 'samples-sheet-' + suffix);
     await shot(page, 'samples-sheet-' + suffix);
     if (!before) {
@@ -160,7 +161,8 @@ async function runPhone(browser, origin, width, theme) {
       await page.locator('.cal-fld-status-menu').waitFor();
       await measure(page, 'samples-setall-' + suffix); await shot(page, 'samples-setall-' + suffix);
       await page.keyboard.press('Escape');
-      await page.locator('#sxrView .cal-select-btn').click();
+      await page.locator('#sxrView [data-staff-menu=more]').click();
+      await page.locator('dialog[open]').getByRole('button',{name:'Select cards',exact:true}).click();
       await measure(page, 'samples-select-' + suffix); await shot(page, 'samples-select-' + suffix);
       await page.locator('#sxrStrip .cal-card-select-overlay').click({ position: { x: 30, y: 30 } });
       ok((await page.locator('#sxrSelectCount').innerText()).includes('1'), 'Sample tap did not select its card');

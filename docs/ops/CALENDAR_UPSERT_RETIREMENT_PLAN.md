@@ -147,6 +147,14 @@ deploy.
 (`fn: calendar-card-write`), the ledger and the write-refusal log for two
 working days of real use on the test client, covering the eleven page callers.
 Way back: the switch.
+**Owner decision, 2026-10-16 (overrides the two-working-day wait for steps 1
+and 2 only):** the owner asked not to wait two days and to prove the test
+client with a dedicated session instead. Session Vigil Round made one full round
+of real staff saves on the test client (23:14 to 23:19 UTC, every save landed
+through `calendar-card-write`, no refusals), and Lighthouse then added the
+owner's two own clients (23:34 UTC). Everyone else follows only after eight
+clean three-hourly watcher runs that include real saves on those two clients.
+The way back is unchanged: the switch.
 
 **Step 3. Server callers and harnesses.** `caption-generate` and
 `calendar-auto-posted` read the same switch and call `calendar-card-write`

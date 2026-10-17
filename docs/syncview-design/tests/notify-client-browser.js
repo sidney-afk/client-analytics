@@ -86,7 +86,7 @@ async function openSamples(page, origin) {
   await page.waitForFunction(() => typeof navTo === 'function' && typeof _sxrSavePins === 'function');
   await page.evaluate(() => { _sxrSavePins(['Fixture Client']); sxrState.client = 'Fixture Client'; navTo('sample-reviews'); });
   await page.locator('#sxrView').waitFor();
-  await page.waitForSelector('#sxrNotifyClientBtn', { timeout: 20000 });
+  await page.waitForSelector('#sxrNotifyClientBtn', { state:'attached', timeout: 20000 });
 }
 
 async function scenario(browser, origin, label, viewport, phone, surface) {
@@ -103,6 +103,9 @@ async function scenario(browser, origin, label, viewport, phone, surface) {
     const page = await ctx.newPage();
     page.on('pageerror', error => errors.push(error.message));
     if (surface === 'samples') await openSamples(page, origin); else await openCalendar(page, origin);
+    const exposeNotify = async () => { if(phone && !await page.locator(btn).isVisible()) await page.locator('#'+(surface==='samples'?'sxrView':'calView')+' [data-staff-menu=more]').click(); };
+    const openNotify = async () => { await exposeNotify(); await page.locator(btn).click(); };
+    await exposeNotify();
     await page.locator(btn).waitFor({ state: 'visible' });
 
     // ── The button: where it is, what it says, its colour, its size.
@@ -118,12 +121,12 @@ async function scenario(browser, origin, label, viewport, phone, surface) {
     ok(geo.overflowX <= 0, L + ': nothing scrolls sideways (' + geo.overflowX + ')');
     if (phone) ok(geo.h >= 44, L + ': tap target is at least 44px (' + geo.h + ')');
     if (surface === 'calendar' && !phone) eq(geo.prevId, 'calOrganizeWrap', L + ': sits directly after Organize');
-    if (surface === 'samples') ok(/cal-view-toggle/.test(geo.prevClass), L + ': sits right after the Review / Sheet switch (' + geo.prevClass + ')');
+    if (surface === 'samples' && !phone) ok(/cal-view-toggle/.test(geo.prevClass), L + ': sits right after the Review / Sheet switch (' + geo.prevClass + ')');
     await shot(page, `${label}-${surface}-1-toolbar`);
 
     // ── Opening it: the server is asked for the client and surface and nothing else.
     mock.status = { status: 200, body: statusBody(surface) };
-    await page.locator(btn).click();
+    await openNotify();
     await page.locator('#notifyClientDialog[open] .nc-msg').waitFor();
     eq(calls.length, 1, L + ': one request on open');
     eq(calls[0].body, { action: 'status', client: CLIENT, surface }, L + ': the page sends only action, client and surface');
@@ -156,7 +159,7 @@ async function scenario(browser, origin, label, viewport, phone, surface) {
     // ── Staggered rollout: the page ships on merge, the function later. An older function answers with
     //    `button` and no `link_label`; the link must still read Review now.
     mock.status = { status: 200, body: (() => { const b = statusBody(surface); delete b.link_label; b.button = 'Review now'; return b; })() };
-    await page.locator(btn).click();
+    await openNotify();
     await page.locator('#notifyClientDialog .nc-msg-link').waitFor();
     eq((await page.locator('#notifyClientDialog .nc-msg-link').innerText()).trim(), 'Review now', L + ': an older status answer (button, no link_label) still shows Review now');
     await page.keyboard.press('Escape');
@@ -164,7 +167,7 @@ async function scenario(browser, origin, label, viewport, phone, surface) {
     // ── A last alert older than six hours is one plain short line.
     calls.length = 0;
     mock.status = { status: 200, body: statusBody(surface, { last: { at: new Date(Date.now() - 7 * 3600000).toISOString(), by: 'Earlier SMM', status: 'sent' } }) };
-    await page.locator(btn).click();
+    await openNotify();
     await page.locator('#notifyClientDialog .nc-last').waitFor();
     eq((await page.locator('#notifyClientDialog .nc-last').innerText()).trim(), 'Last sent 7h ago by Earlier SMM', L + ': the last-sent line is short');
     ok(await page.locator('#notifyClientDialog .nc-warn').count() === 0, L + ': and it is not a warning');
@@ -173,7 +176,7 @@ async function scenario(browser, origin, label, viewport, phone, surface) {
     // ── Inside six hours: the same single short line is the warning; sending is still allowed.
     calls.length = 0;
     mock.status = { status: 200, body: statusBody(surface, { recent: true, last: { at: new Date(Date.now() - 2 * 3600000).toISOString(), by: 'Earlier SMM', status: 'sent' } }) };
-    await page.locator(btn).click();
+    await openNotify();
     await page.locator('#notifyClientDialog .nc-warn').waitFor();
     eq((await page.locator('#notifyClientDialog .nc-warn').innerText()).trim(), 'Last sent 2h ago by Earlier SMM', L + ': the warning is the one short line: when and who');
     ok(await page.locator('#notifyClientDialog .nc-last').count() === 0, L + ': there is only that one line');
@@ -185,7 +188,7 @@ async function scenario(browser, origin, label, viewport, phone, surface) {
     eq(calls[1].body.confirm_recent, true, L + ': the recent send carries confirm_recent');
     // An alert from a long time ago, or none, never shows a warning.
     mock.status = { status: 200, body: statusBody(surface) };
-    await page.locator(btn).click();
+    await openNotify();
     await page.locator('#notifyClientDialog .nc-msg').waitFor();
     ok(await page.locator('#notifyClientDialog .nc-warn, #notifyClientDialog .nc-last').count() === 0, L + ': nothing sent before means no last-sent line at all');
     await page.keyboard.press('Escape');
@@ -202,7 +205,7 @@ async function scenario(browser, origin, label, viewport, phone, surface) {
     for (const [code, status, pattern] of failures) {
       mock.status = { status: 200, body: statusBody(surface) };
       mock.send = { status, body: { ok: false, error: code } };
-      await page.locator(btn).click();
+      await openNotify();
       await page.locator('#notifyClientDialog .nc-send:not([disabled])').waitFor();
       await page.locator('#notifyClientDialog .nc-send').click();
       await page.locator('#notifyClientDialog .nc-alert').waitFor();
@@ -214,7 +217,7 @@ async function scenario(browser, origin, label, viewport, phone, surface) {
     }
     // The bot is already known to be missing: warned up front, still allowed to try.
     mock.status = { status: 200, body: statusBody(surface, { channel: { name: 'fixture-private', bot_member: false } }) };
-    await page.locator(btn).click();
+    await openNotify();
     await page.locator('#notifyClientDialog .nc-alert').waitFor();
     ok(/Slack bot is not in this client's channel/.test(await page.locator('#notifyClientDialog').innerText()), L + ': known missing bot is warned about up front');
     ok(!(await page.locator('#notifyClientDialog .nc-send').isDisabled()), L + ': and Send stays available (the server decides)');
@@ -226,7 +229,7 @@ async function scenario(browser, origin, label, viewport, phone, surface) {
       [{ sending_enabled: false }, /not switched on yet/],
     ]) {
       mock.status = { status: 200, body: statusBody(surface, over) };
-      await page.locator(btn).click();
+      await openNotify();
       await page.locator('#notifyClientDialog .nc-alert').waitFor();
       ok(pattern.test(await page.locator('#notifyClientDialog .nc-alert').innerText()), L + ': ' + pattern + ' explained');
       ok(await page.locator('#notifyClientDialog .nc-send').isDisabled(), L + ': Send is disabled for ' + pattern);
@@ -234,16 +237,17 @@ async function scenario(browser, origin, label, viewport, phone, surface) {
     }
     // Signed out / offline while opening.
     mock.status = { status: 401, body: { ok: false, error: 'unauthorized' } };
-    await page.locator(btn).click();
+    await openNotify();
     await page.locator('#notifyClientDialog .nc-alert').waitFor();
     ok(/staff sign-in is no longer valid/.test(await page.locator('#notifyClientDialog').innerText()) && await page.locator('#notifyClientDialog .nc-send').isDisabled(), L + ': a refused status read is explained and cannot send');
     await page.keyboard.press('Escape');
     mock.offline = true;
-    await page.locator(btn).click();
+    await openNotify();
     await page.locator('#notifyClientDialog .nc-alert').waitFor();
     ok(/Could not reach the server/.test(await page.locator('#notifyClientDialog').innerText()), L + ': offline is explained');
     await page.keyboard.press('Escape');
     mock.offline = false;
+
 
     ok(errors.length === 0, L + ': no page errors: ' + errors.join(' | '));
   } finally { await ctx.close(); }

@@ -1,5 +1,7 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+Thumb's approved Calendar/Samples phone build and its actual screen gallery:
+[implementation and evidence](audits/2026-10-14-thumb-calendar-samples/README.md).
 Thumb Workload phone build: [native screens, changed journeys and checks](audits/2026-10-15-thumb-workload/README.md).
 Thumb Messages phone build: [screens, native contracts and checks](audits/2026-10-15-thumb-messages/README.md).
 

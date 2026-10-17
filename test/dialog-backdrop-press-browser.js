@@ -63,12 +63,16 @@ const CASES = [
 //      case here (the sign-in backdrop is one site exercised in two modes);
 //   2. no event-target comparison may go without reading the press mark,
 //      unless it is listed below as not being a backdrop click.
+CASES.push({name:'Phone Calendar view',prepare:p=>p.evaluate(()=>{calState.client='';calState.posts=[];}),viewport:{width:390,height:844},overlay:'.thumb-view-sheet[open]',open:new Function(`${mountViews}; calState.embedded=false; calState.client=''; calState.posts=[]; calState.view='organizer'; _calRenderShell(); _calRenderBody(); document.querySelector('.thumb-calendar-view').click();`)});
 CASES.push({name:'Phone Workload filters',viewport:{width:390,height:844},prepare:p=>p.evaluate(async()=>{
   // Earlier cases leave their Calendar/Samples roots outside #content. Clear
   // those fictional clients before resizing, so their phone resize handlers
   // cannot start an unrelated folder read during this dialog-only journey.
   calState.client='';calState.posts=[];sxrState.client='';sxrState.posts=[];
   const api=await svArea('workload');document.getElementById('content').innerHTML=api.render();
+  // The previous dialog can already be phone-sized, so do not rely on a
+  // breakpoint change to mount the native Filters button.
+  wlPhoneRender();
 }),overlay:'.thumb-wl-filters[open]',open:()=>document.querySelector('[data-thumb-wl-filter]').click()});
 CASES.push({name:'Phone conversation actions',viewport:{width:390,height:844},prepare:p=>p.evaluate(()=>{calState.client='';calState.posts=[];sxrState.client='';sxrState.posts=[];}),overlay:'.thumb-msg-more[open]',open:()=>{const b=document.createElement('button');b.textContent='Conversation actions';document.body.append(b);_msgPhoneMore(b);}});
 const fs = require('fs');
@@ -281,7 +285,7 @@ const SIGN_IN_GATE = { name: 'Staff sign-in (start-up gate)', overlay: '#staffId
     await page.evaluate(() => { const g = document.getElementById('staffGateOverlay'); if (g) g.remove(); });
     for (const c of CASES) {
       if (process.env.ONLY && !c.name.includes(process.env.ONLY)) continue;
-      try { await drive(page, c); } catch (e) { failures.push(e.message); }
+      try { await drive(page, c); } catch (e) { failures.push(c.name + ': ' + e.message); }
       // Leave nothing behind for the next dialog to sit under.
       await page.evaluate(() => document.querySelectorAll('[data-backdrop-dismiss]').forEach(el => { if (!/^(confirm|resolveDest|transcript)/.test(el.id || '')) el.remove(); }));
     }

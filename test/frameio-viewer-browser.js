@@ -205,10 +205,12 @@ async function openCalendar(browser, origin, state, device, opts) {
   await page.waitForFunction(() => typeof _syncviewStaffCan === 'function' && typeof _calSavePins === 'function', null, { timeout: 30000 });
   await page.evaluate(names => { _syncviewStaffIdentityVerified = true; _calSavePins(names); calState.client = names[0]; navTo('calendar'); }, [NAME]);
   if (opts && opts.view === 'smmreview') {
-    await page.waitForSelector('.cal-card[data-pid], .kcard[data-cal-review-pid]', { timeout: 20000 }).catch(() => {});
+    await page.waitForSelector('.cal-card[data-pid], .kcard[data-cal-review-pid], .thumb-tile[data-thumb-card]', { timeout: 20000 }).catch(() => {});
     await page.evaluate(() => onCalViewChange('smmreview'));
     await page.waitForSelector('.kcard[data-cal-review-pid]', { timeout: 20000 });
   } else {
+    await page.waitForSelector('.cal-card[data-pid="v1"], .thumb-tile[data-thumb-card="v1"]', { timeout: 20000 });
+    await require('../docs/syncview-design/tests/staff-phone-browser').openEditableSheet(page);
     await page.waitForSelector('.cal-card[data-pid="v1"]', { timeout: 20000 }).catch((e) => { console.error('page errors:', pageErrors.join(' | ')); throw e; });
   }
   await sleep(600);

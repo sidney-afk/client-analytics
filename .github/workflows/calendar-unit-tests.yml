@@ -473,6 +473,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/calendar-refresh-scroll-browser.js
+      - name: Phone picture grid reaches the Review bar (no empty band, last row not cut off)
+        if: ${{ !cancelled() && matrix.part == 3 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/phone-collection-bottom-gap-browser.js
       - name: Calendar status filter (Show only / Hide) on desktop and phone
         if: ${{ !cancelled() && matrix.part == 3 }}
         env:

@@ -8107,7 +8107,15 @@ html .cal-card-thumb .cal-thumb-play:focus-visible { outline: 2px solid var(--fo
 .fv-state { display: none; }
 .fv-player[data-state="error"] .fv-state { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center; background: var(--surface-subtle); color: var(--text-primary); }
 .fv-player[data-state="error"] .fv-controls, .fv-player[data-state="error"] .fv-poster { display: none; }
+.fv-state-title { max-width: 360px; font-size: 0.95rem; font-weight: 800; }
 .fv-state-text { max-width: 340px; font-size: 0.86rem; font-weight: 600; }
+.fv-player[data-state="error"] .fv-state-text { font-size: 0.78rem; font-weight: 500; color: var(--text-secondary); }
+/* A stall that does not recover: a message in the middle of the video, in place (absolute), gone when it plays again. */
+.fv-trouble { position: absolute; top: 42%; left: 50%; z-index: 3; display: none; align-items: center; gap: 10px; width: max-content; max-width: calc(100% - 20px); box-sizing: border-box; padding: 6px 6px 6px 12px; transform: translate(-50%, -50%); border-radius: 10px; text-align: center; background: var(--sv-bg-rgba-0-0-0-0_78); color: var(--sv-fg-fff); font-size: 0.76rem; font-weight: 700; line-height: 1.3; }
+.fv-player[data-trouble]:not([data-state="error"]) .fv-trouble { display: flex; }
+.fv-trouble-text { min-width: 0; }
+html .fv-player .fv-trouble-open { flex: none; padding: 6px 10px; background: var(--sv-fg-fff); color: var(--sv-bg-000); font-size: 0.72rem; }
+@container (max-width: 440px) { .fv-trouble { flex-direction: column; gap: 6px; padding: 8px 10px; } }
 .fv-state-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .fv-btn, .fv-open-link { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 14px; background: var(--text-primary); color: var(--white); border: 0; border-radius: 10px; font-family: inherit; font-size: 0.78rem; font-weight: 700; text-decoration: none; cursor: pointer; white-space: nowrap; }
 .fv-btn-ghost, .fv-open-link { background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--border); }

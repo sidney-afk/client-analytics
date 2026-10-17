@@ -327,7 +327,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     function _fvStop(video) {
         if (!video) return;
-        clearTimeout(video._fvStartT); clearTimeout(video._fvStallT); clearTimeout(video._fvPicT); video._fvPicT = 0;
+        clearTimeout(video._fvStartT); clearTimeout(video._fvStallT); clearTimeout(video._fvPicT); clearTimeout(video._fvTroubleT); video._fvPicT = 0;
         try { video.pause(); } catch (e) {}
         video.removeAttribute('src');
         try { video.load(); } catch (e) {}
@@ -437,6 +437,14 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     const FV_FWD_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3.5v3h-3"/><path d="M12.7 6.5A5 5 0 1 0 12.6 10"/></svg>';
     const FV_RATES = [1, 1.5, 2];
     const FV_SKIP_S = 5;
+    /* TROUBLE (owner, 2026-10-17, point 6). Whenever the video cannot play properly, the player says so over the
+       picture: "Having trouble playing this? Open it in Frame.io", with a button to the same Frame.io link as the
+       "Open in Frame.io" link. A failure that ends playback (load error, unsupported format, sound with no picture and
+       no other file) shows it in the error panel; a stall that does not recover within FV_TROUBLE_MS while playing
+       shows it in the middle of the video, drawn in place (nothing moves), and it goes as soon as the video plays
+       again. */
+    const FV_TROUBLE_MS = 7000;
+    const FV_TROUBLE_TEXT = 'Having trouble playing this? Open it in Frame.io';
     const FV_FULL_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/></svg>';
 
     /* THE STAGE: the player on the left of the Notes view (on top on a phone). The Notes view (190) gives it a host
@@ -489,6 +497,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                     </div>
                 </div>
                 <div class="fv-loadline" aria-hidden="true"></div>
+                <div class="fv-trouble" role="status" aria-live="polite"><span class="fv-trouble-text">${FV_TROUBLE_TEXT}</span><a class="fv-btn fv-trouble-open" href="${_calEscAttr(link)}" target="_blank" rel="noopener noreferrer">Open in Frame.io</a></div>
             </div>
             <div class="fv-stage-foot"><span class="fv-small-note" hidden>Smaller version for your connection</span><a class="fv-open-link" href="${_calEscAttr(link)}" target="_blank" rel="noopener noreferrer"><span>Open in Frame.io</span>${FV_EXT_ICO}</a></div>`;
         const img = _fvSp('.fv-poster');
@@ -536,8 +545,25 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!player || !box) return;
         player.setAttribute('data-state', kind);
         if (kind !== 'error') { box.innerHTML = ''; return; }
-        box.innerHTML = `<div class="fv-state-text">${_calEsc(text || 'The video could not be loaded.')}</div>
-            <div class="fv-state-actions">${withRetry ? '<button type="button" class="fv-btn" onclick="svFrameStageRetry()">Try again</button>' : ''}<a class="fv-btn fv-btn-ghost" href="${_calEscAttr(FV_STAGE.link)}" target="_blank" rel="noopener noreferrer">Open in Frame.io</a></div>`;
+        _fvTrouble(false);
+        const open = _fvSp('.fv-open-link');
+        const href = (open && open.getAttribute('href')) || FV_STAGE.link;
+        box.innerHTML = `<div class="fv-state-title">${FV_TROUBLE_TEXT}</div>
+            <div class="fv-state-text">${_calEsc(text || 'The video could not be loaded.')}</div>
+            <div class="fv-state-actions"><a class="fv-btn" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer">Open in Frame.io</a>${withRetry ? '<button type="button" class="fv-btn fv-btn-ghost" onclick="svFrameStageRetry()">Try again</button>' : ''}</div>`;
+    }
+    // The message over the video for a stall that does not recover. Shown in place; gone when the video plays again.
+    function _fvTrouble(on) {
+        const p = _fvSp('.fv-player');
+        if (!p) return;
+        p.toggleAttribute('data-trouble', !!on);
+    }
+    function _fvWatchStall(v) {
+        clearTimeout(v._fvTroubleT);
+        v._fvTroubleT = setTimeout(() => {
+            if (FV_STAGE.video !== v || v.paused || v.readyState >= 3) return;
+            _fvTrouble(true);
+        }, FV_TROUBLE_MS);
     }
     // Vertical videos are drawn tall and narrow, wide ones wide; the player takes the video's own shape, so there are
     // no black bars. The poster gives the shape before the video does.
@@ -660,8 +686,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const res = await rec.video;
         if (seq !== FV_STAGE.seq || FV_STAGE.host !== host) return;
         if (!res.ok) { _fvStageState('error', res.message, true); return; }
-        const open = _fvSp('.fv-open-link');
-        if (open && res.open_url) open.setAttribute('href', res.open_url);
+        if (res.open_url) ['.fv-open-link', '.fv-trouble-open'].forEach((sel) => { const a = _fvSp(sel); if (a) a.setAttribute('href', res.open_url); });
         _fvStageAttach(res, rec);
     }
     function _fvStageAttach(res, rec) {
@@ -694,14 +719,17 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             });
             v.addEventListener('loadeddata', () => { if (mine()) _fvStageState('ready'); });
             ['play', 'pause', 'ended', 'playing'].forEach(ev => v.addEventListener(ev, () => { if (mine()) _fvPlayIcon(); }));
-            v.addEventListener('waiting', () => { const p = mine() && _fvSp('.fv-player'); if (p) p.setAttribute('data-buffering', ''); });
+            v.addEventListener('waiting', () => { const p = mine() && _fvSp('.fv-player'); if (p) p.setAttribute('data-buffering', ''); if (mine() && !v.paused) _fvWatchStall(v); });
+            // Playing again (or paused by the person): the stall strip goes.
+            ['playing', 'pause', 'ended'].forEach(ev => v.addEventListener(ev, () => { clearTimeout(v._fvTroubleT); if (mine()) _fvTrouble(false); }));
+            v.addEventListener('timeupdate', () => { if (mine() && !v.paused && v.readyState >= 3) { clearTimeout(v._fvTroubleT); _fvTrouble(false); } });
             ['playing', 'pause', 'seeked', 'canplay'].forEach(ev => v.addEventListener(ev, () => { const p = mine() && _fvSp('.fv-player'); if (p) p.removeAttribute('data-buffering'); }));
             v.addEventListener('volumechange', () => { if (mine()) _fvMuteIcon(); });
             v.addEventListener('fv-smaller', () => { const n = mine() && _fvSp('.fv-small-note'); if (n) n.hidden = false; });
             v.addEventListener('error', () => { if (mine()) _fvStageFailed(); });
             // A new file (smaller copy, fresh address) starts at the default speed: give it the chosen one back.
             v.addEventListener('loadedmetadata', () => { if (mine()) _fvApplyRate(); });
-            v.addEventListener('fv-nopicture', () => { if (mine()) _fvStageState('error', 'This video plays sound but no picture in this browser (its format is not supported here). Open it in Frame.io to watch it.', false); });
+            v.addEventListener('fv-nopicture', () => { if (mine()) { try { v.pause(); } catch (e) {} _fvStageState('error', 'This video plays sound but no picture in this browser (its format is not supported here).', false); } });
         }
         if (fresh) _fvStart(v, res.video, FV_STAGE.resumeAt);
         else if (FV_STAGE.resumeAt > 0) FV_STAGE.seekTo = FV_STAGE.resumeAt;
@@ -734,7 +762,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             _fvStageLoad(true);
             return;
         }
-        _fvStageState('error', 'This video could not be played here. It may need a different format.', true);
+        _fvStageState('error', 'This video could not be played here. It may be in a format this browser does not play.', true);
     }
     function svFrameStageRetry() {
         if (!FV_STAGE.host) return;

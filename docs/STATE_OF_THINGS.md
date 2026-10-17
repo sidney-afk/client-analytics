@@ -47,7 +47,8 @@ The frozen picture with sound was the card's thumbnail left on top of the playin
 a frame); a file that plays sound but no picture switches to the small H.264 copy. Speed 1x/1.5x/2x and 5 s back and
 forward in the player; the "Syncing this thread" line is gone (Send is just disabled while the thread loads); the notes
 read starts when a door is pointed at and beside the link check; the card's play button sits in the middle of the
-thumbnail. Page only, no function change.
+thumbnail; when the video cannot play properly the player says "Having trouble playing this? Open it in Frame.io"
+with the link (point 6). Page only, no function change.
 
 **Live (session Cinema, 2026-10-16, #2120): Watch here, one view for the video and its notes.** Every door (the Notes
 button, the Sheet's play icon, the Review tab's video preview, Kasper's "Watch here") opens the card's Notes dialog with

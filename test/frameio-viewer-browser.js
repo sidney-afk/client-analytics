@@ -112,6 +112,17 @@ async function installRoutes(ctx, origin, state) {
       if (first) { const wait = hq ? (state.hqStall || state.mediaDelay.full) : state.mediaDelay.small; if (wait) await sleep(wait); }
       const clip = (state.soundOnly || []).includes(file) ? SOUND_ONLY : (state.orient === 'portrait' ? CLIP_V : CLIP);
       const range = /bytes=(\d+)-(\d*)/.exec(r.headers().range || '');
+      // holdTail: the first answer carries only the first 35% of the file; the rest waits until state.releaseTail,
+      // so the video plays a few seconds and then stalls (a slow or broken connection mid-playback).
+      if (state.holdTail && file === state.holdTail) {
+        const total = clip.length, cut = Math.floor(total * 0.35);
+        const a = range ? Number(range[1]) : 0;
+        if (a < cut) return route.fulfill({ status: 206, headers: Object.assign({ 'content-range': `bytes ${a}-${cut - 1}/${total}`, 'accept-ranges': 'bytes' }, CORS), contentType: 'video/webm', body: clip.subarray(a, cut) });
+        state.tailAsked = (state.tailAsked || 0) + 1;
+        while (!state.releaseTail) await sleep(100);
+        const b = range && range[2] ? Math.min(Number(range[2]), total - 1) : total - 1;
+        return route.fulfill({ status: 206, headers: Object.assign({ 'content-range': `bytes ${a}-${b}/${total}`, 'accept-ranges': 'bytes' }, CORS), contentType: 'video/webm', body: clip.subarray(a, b + 1) });
+      }
       if (range) {
         const a = Number(range[1]), b = range[2] ? Math.min(Number(range[2]), clip.length - 1) : clip.length - 1;
         return route.fulfill({ status: 206, headers: Object.assign({ 'content-range': `bytes ${a}-${b}/${clip.length}`, 'accept-ranges': 'bytes' }, CORS), contentType: 'video/webm', body: clip.subarray(a, b + 1) });
@@ -882,6 +893,57 @@ async function encoreRun(browser, origin, label, device) {
   }
 }
 
+
+/* 6 (owner, 2026-10-17): whenever the video cannot play properly, "Having trouble playing this? Open it in Frame.io"
+   over the player, with the same Frame.io link; in place, nothing moves; gone when playback recovers. */
+async function troubleRun(browser, origin, label, device) {
+  console.log(`--- ${label}: having trouble playing ---`);
+  const geo = page => page.evaluate(() => { const r = (s) => { const e = document.querySelector(s); if (!e) return ''; const b = e.getBoundingClientRect(); return [b.left, b.top, b.width, b.height].map(Math.round).join(','); };
+    return r('#calNotesStage .fv-player') + '|' + r('#calCommentsModal .cal-cm-composer') + '|' + r('#calNotesStage .fv-stage-foot'); });
+  // The error case: every file refuses (an address that keeps failing): the error panel says it, with the link.
+  {
+    const state = makeState({ mediaFail: 999, cards: [card('v1', 'Video card', FRAME, 1, { thumbnail_url: POSTER_URL })] });
+    const { page, ctx, pageErrors } = await openCalendar(browser, origin, state, device);
+    await page.evaluate(() => openCalComments('v1'));
+    await waitState(page, 'error');
+    const e = await page.evaluate(() => { const st = document.querySelector('#calNotesStage .fv-state'); const a = st.querySelector('a.fv-btn'); const b = st.getBoundingClientRect(), p = document.querySelector('#calNotesStage .fv-player').getBoundingClientRect();
+      return { title: (st.querySelector('.fv-state-title') || {}).textContent || '', href: a ? a.getAttribute('href') : '', label: a ? a.textContent.trim() : '', over: Math.abs(b.left - p.left) < 2 && Math.abs(b.top - p.top) < 2 && Math.abs(b.width - p.width) < 2, open: document.querySelector('#calNotesStage .fv-open-link').getAttribute('href') }; });
+    expect(e.title === 'Having trouble playing this? Open it in Frame.io', `${label}: a video that cannot be loaded says "${e.title}"`);
+    expect(e.href === e.open && e.href === OPEN_URL && e.label === 'Open in Frame.io', `${label}: its button opens the same Frame.io link as "Open in Frame.io" (${e.href})`);
+    expect(e.over, `${label}: the message sits over the player, in its place`);
+    await shot(page, `trouble-${label}-error-light`);
+    await theme(page, 'dark'); await shot(page, `trouble-${label}-error-dark`); await theme(page, 'light');
+    expect(pageErrors.length === 0, `${label}: no page errors (${pageErrors.join(' | ')})`);
+    await ctx.close();
+  }
+  // A stall that does not recover for a while, then does: the strip comes, nothing moves, and it goes again.
+  {
+    const g = GOOD(); g.video = Object.assign({}, g.video, { url: MEDIA_HQ, renditions: { high_quality: MEDIA_HQ } });
+    const state = makeState({ holdTail: 'high_quality', view: (n, body) => ({ status: 200, body: answerFor(body, g) }), cards: [card('v1', 'Video card', FRAME, 1, { thumbnail_url: POSTER_URL })] });
+    const { page, ctx, pageErrors } = await openCalendar(browser, origin, state, device);
+    await page.evaluate(() => openCalComments('v1'));
+    await waitReady(page);
+    const g0 = await geo(page);
+    const strip = () => page.evaluate(() => { const t = document.querySelector('#calNotesStage .fv-trouble'); const cs = getComputedStyle(t); const a = t.querySelector('a');
+      return { shown: cs.display !== 'none', text: (t.querySelector('.fv-trouble-text') || {}).textContent || '', href: a.getAttribute('href'), pos: cs.position }; });
+    expect(!(await strip()).shown, `${label}: no message while the video is fine`);
+    await page.locator('#calNotesStage .fv-play').click();
+    await page.waitForFunction(() => { const t = document.querySelector('#calNotesStage .fv-trouble'); return t && getComputedStyle(t).display !== 'none'; }, null, { timeout: 25000 }).catch(() => {});
+    const s1 = await strip(), g1 = await geo(page);
+    expect(s1.shown && s1.text === 'Having trouble playing this? Open it in Frame.io' && s1.href === OPEN_URL && s1.pos === 'absolute', `${label}: a stall that does not recover shows the message over the video with the Frame.io button (${JSON.stringify(s1)}; tail asked ${state.tailAsked || 0})`);
+    expect(g1 === g0, `${label}: and nothing moves (${g0} -> ${g1})`);
+    await shot(page, `trouble-${label}-stall-light`);
+    await theme(page, 'dark'); await shot(page, `trouble-${label}-stall-dark`); await theme(page, 'light');
+    state.releaseTail = true;
+    await page.waitForFunction(() => { const t = document.querySelector('#calNotesStage .fv-trouble'); return t && getComputedStyle(t).display === 'none'; }, null, { timeout: 15000 }).catch(() => {});
+    const s2 = await strip(), v = await videoInfo(page);
+    expect(!s2.shown && !v.paused, `${label}: when playback recovers the message goes (shown ${s2.shown}, playing ${!v.paused}, at ${v.t.toFixed(1)})`);
+    expect(await geo(page) === g0, `${label}: still nothing moved`);
+    expect(pageErrors.length === 0, `${label}: no page errors (${pageErrors.join(' | ')})`);
+    await ctx.close();
+  }
+}
+
 /* 3 and 4: the notes of a card with a deliverable. The link check and the thread take as long as the live ones
    (deliverables read about 0.2 s; production-comments p50 1.78 s on the server, measured from the function logs on
    2026-10-16, so 1.9 s with the network). Measured: press (after a 400 ms hover, and with no hover) to the first note
@@ -985,6 +1047,8 @@ async function notesRun(browser, origin, label, device) {
     if (want('flags')) await flagRun(browser, origin);
     if (want('encore')) await encoreRun(browser, origin, 'desktop', DESK);
     if (want('encore')) await encoreRun(browser, origin, 'phone', PHONE);
+    if (want('trouble')) await troubleRun(browser, origin, 'desktop', DESK);
+    if (want('trouble')) await troubleRun(browser, origin, 'phone', PHONE);
     if (want('notes')) await notesRun(browser, origin, 'desktop', DESK);
     if (want('notes')) await notesRun(browser, origin, 'phone', PHONE);
   } finally { await browser.close(); server.close(); }

@@ -33379,6 +33379,10 @@ The slow-network misses after the change (boot budget and heavy lane, 1 run in 5
    - `docs/syncview-design/tests/calendar-refresh-scroll-browser.js` "quiet tab switch: the screen before and after the refresh differ" (5 of 6 on GitHub runners): **a page bug.** The header tab row's observer reacted to the min-width each fit writes on the row, so on desktop the row re-fitted itself every frame forever (about 500 attribute changes a second on an idle page); a screenshot that caught a fit differed by one pixel. The observer ignores the row's own style now (`src/index/092-core-submit-form-navigation.js.part`), and the test checks the row is quiet for one idle second (old code: 540 changes).
    - `docs/syncview-design/tests/shared-client-browser.js`: red on every run since #2085 (two "Change client" buttons). Session #2133's fix is ported unchanged.
 
+   - Also fixed on the way (each red on this PR's full run, none loosened): four more suites that #2085 broke on phones because the phone now opens Calendar as a grid (`caption-helper`, `calendar-status-row-urgent-height`, `caption-generate` open the List view first, as #2085 did for Watch here); `test/test-suite-routing.js` inherited the unit part number and now also proves the three parts cover the lane once; the TikTok carousel journey confirms its photo choice the way it already confirmed the client pick (the form redraws after the pick).
+
+**After (measured on GitHub, queue included).** Docs only 39 → 11.4 min, one Edge Function 40 → 16.1 min (11 of it waiting for a runner), page code 41 → 16.4 min with all 23 jobs green; longest job 37 → 11.2 min. Table in `docs/ops/CI_SPEED.md`.
+
 **Not done.** `test/tiktok-poll-backoff-browser.js` was not measured (the hunt job ran out of time). Queue time is now the largest part of the wait at busy moments: the account runs about 20 jobs at once and a page PR now uses about 25 short jobs instead of about 20 long ones.
 
 **Release.** CI and test files, plus the one-line header fix (ships with the next Pages publish). **Way back:** revert the pull request.

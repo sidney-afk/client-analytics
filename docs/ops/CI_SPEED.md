@@ -70,9 +70,25 @@ Larger runners: not used. GitHub's larger runners need an organisation on the Te
 belongs to a personal account), and they cost money per minute even on public repositories (about $0.032 a minute for
 8 cores). The browser suites run one browser at a time, so more cores would not shorten them; more runners do.
 
-## After
+## After (measured on GitHub, 2026-10-17)
 
-See the table in OPEN_REPAIRS 428 (filled from the runs on PR #2136 and the first merges after it).
+Wall time from push to the last check finished, queue included, on PR #2136 and its measurement PR #2138 (closed):
+
+| Pull request | Before (median) | After | Browser jobs | Notes |
+|---|---|---|---|---|
+| Docs only | 39 min | **11.4 min** | skipped, check green | unit parts 2.5 to 6.7 min |
+| One Edge Function | 40 min | **16.1 min** | skipped, check green | 11 of the 16 minutes were waiting for a free runner |
+| Page code (`src/index/`) | 41 min | **16.4 min** | all 23 jobs green | longest job 11.2 min (was 37) |
+
+Per part on the page-code run: phone parts 9.7 to 10.5 min, entry-links parts 9.1 to 11.2, split-preview 5.2 and 8.0,
+browser-guards 6.4, unit parts 3.2 to 4.6. Runner minutes for that workflow rose about 12% (about 155 against about 138),
+mostly the per-job setup (checkout, build, browser install, about a minute each).
+
+**The limit now is runner slots, not test time.** With no queue, the three kinds of PR finish in about 7, 7 and
+12 minutes. At busy moments jobs wait 5 to 15 minutes for a slot, because the account runs about 20 jobs at once and
+a page PR uses about 25 short jobs. If that wait becomes the problem, the options are: fewer phone parts (3 per width),
+folding the four sub-minute jobs into one, or moving the scheduled monitors (which take a slot every few minutes) to
+the database timer. None of them is needed to keep the gains above.
 
 ## Running everything by hand
 

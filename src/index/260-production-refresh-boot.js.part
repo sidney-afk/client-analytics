@@ -2725,9 +2725,26 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             }
             let entry = verdict.entry;
             if (rsReady && entry.view === 'analytics') {
-                await rsReady;
-                if (generation !== _syncviewClientEntryGeneration || href !== location.href) return;
-                if (svRsClientNoAnalytics(entry.client)) entry = Object.assign({}, entry, { view: 'calendar' });
+                // Wait for the switch only when this browser last saw this client switched on: every other client
+                // opens Analytics as fast as before. A switched-on client's first bare-link visit in a browser is
+                // still moved off Analytics by the sv-review-stage-switch handler once the switch is read.
+                const seenKey = 'sv-rs-no-analytics:' + String(entry.client || '');
+                let seenOn = false;
+                try { seenOn = localStorage.getItem(seenKey) === '1'; } catch (e) {}
+                const remember = () => {
+                    try {
+                        if (svRsClientNoAnalytics(entry.client)) localStorage.setItem(seenKey, '1');
+                        else localStorage.removeItem(seenKey);
+                    } catch (e) {}
+                };
+                if (seenOn) {
+                    await rsReady;
+                    if (generation !== _syncviewClientEntryGeneration || href !== location.href) return;
+                    remember();
+                    if (svRsClientNoAnalytics(entry.client)) entry = Object.assign({}, entry, { view: 'calendar' });
+                } else {
+                    Promise.resolve(rsReady).then(remember, () => {});
+                }
             }
             _syncviewClientEntryCapability = _syncviewCanonicalizeClientEntry(entry);
             _syncviewClientEntryLoader(_syncviewClientEntryCapability);

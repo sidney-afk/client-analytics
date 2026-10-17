@@ -25,7 +25,8 @@
  *   - light mode: Organize and the card size wear the header's pill fill, not the page background;
  *   - the "waiting for you" strip ends where the header ends (its right margin) and fades out when more posts
  *     are to the right; scrolled to the end the last post ends inside that margin;
- *   - a bare link (no v=) with a slow switch read never shows the Analytics skeleton; switch off, it still opens
+ *   - a bare link (no v=) with a slow switch read: a switched-on client never sees the Analytics skeleton once this
+ *     browser has seen it switched on; switch off, Analytics starts without waiting for the switch, and it still opens
  *     on Analytics.
  * CLIENT_LAYOUT_SHOTS=<dir> also writes the screenshots used in the PR.
  */
@@ -264,12 +265,27 @@ function look(page) {
       const { TOKEN } = require('./fixtures/review-stage-fixture.js');
       await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, t: TOKEN }), { waitUntil: 'domcontentloaded' });
       if (flags === 'on') {
+        // First visit in this browser: the switch is not known yet, so the page does not wait for it (other clients
+        // must not); it lands on the Content Calendar once the switch is read.
         await t.page.waitForFunction(() => { const h = document.getElementById('svReviewStage'); return !!h && !h.hidden; }, null, { timeout: 30000 }).catch(() => null);
         await sleep(800);
-        const r = await t.page.evaluate(() => ({ saw: window.__svSawAnalytics, url: location.search, page: !!document.getElementById('svReviewStage') }));
-        expect(r.page && !r.saw, 'bare link, slow switch: the Analytics skeleton never shows (saw it ' + r.saw + ')');
-        expect(/[?&]v=calendar\b/.test(r.url), 'bare link, slow switch: it opens on the Content Calendar (' + r.url + ')');
+        let r = await t.page.evaluate(() => ({ url: location.search, page: !!document.getElementById('svReviewStage'), seen: localStorage.getItem('sv-rs-no-analytics:' + new URLSearchParams(location.search).get('c')) }));
+        expect(r.page && /[?&]v=calendar\b/.test(r.url), 'bare link, slow switch, first visit: it ends on the Content Calendar (' + r.url + ')');
+        expect(r.seen === '1', 'bare link, slow switch, first visit: the browser remembers this client is switched on (' + r.seen + ')');
+        // Every later visit in this browser: the Analytics skeleton never shows.
+        await t.page.evaluate(() => { window.__svSawAnalytics = false; });
+        await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, t: TOKEN }), { waitUntil: 'domcontentloaded' });
+        await t.page.waitForFunction(() => { const h = document.getElementById('svReviewStage'); return !!h && !h.hidden; }, null, { timeout: 30000 }).catch(() => null);
+        await sleep(800);
+        r = await t.page.evaluate(() => ({ saw: window.__svSawAnalytics, url: location.search, page: !!document.getElementById('svReviewStage') }));
+        expect(r.page && !r.saw, 'bare link, slow switch, later visit: the Analytics skeleton never shows (saw it ' + r.saw + ')');
+        expect(/[?&]v=calendar\b/.test(r.url), 'bare link, slow switch, later visit: it opens on the Content Calendar (' + r.url + ')');
       } else {
+        // Switch off: Analytics starts without waiting for the slow switch read (1.5 s here), as on main.
+        const t0 = Date.now();
+        await t.page.waitForFunction(() => window.__svSawAnalytics === true, null, { timeout: 8000 }).catch(() => null);
+        const firstPaint = Date.now() - t0;
+        expect(firstPaint < 1200, 'bare link, switch off: Analytics shows without waiting for the switch read (' + firstPaint + ' ms, read takes 1500)');
         await sleep(4000);
         const r = await t.page.evaluate(() => ({ saw: window.__svSawAnalytics, url: location.search, cal: !!document.getElementById('calView'), rs: !!document.getElementById('svReviewStage') }));
         expect(r.saw && !r.cal && !r.rs && !/[?&]v=/.test(r.url), 'bare link, switch off: still opens on Analytics, as before (Analytics ' + r.saw + ', calendar ' + r.cal + ', ' + r.url + ')');

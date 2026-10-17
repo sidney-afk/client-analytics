@@ -16,6 +16,24 @@ name: Calendar unit tests
 # parallel parts, a pull request runs only the suites its files can reach
 # (the `changes` job), and a new push to a pull request cancels the run it
 # replaces. Pushes to main are never cancelled and always run everything.
+#
+# Runner seats (2026-10-17, session Throttle). The account runs at most 20 jobs
+# at once, shared with the production lanes on main that run every 5 minutes
+# (the notification sender, the rename drain, the scans). After the split above
+# one pull-request push started about 19 browser jobs at once, so a few open
+# pull requests filled every runner and the production lanes queued behind them:
+# over the 48 hours to 2026-10-17 15:20 UTC the account sat at 20 jobs for 936
+# minutes, and a sender run waited up to 48 minutes for a runner.
+# So on a pull request each slow job takes one of TWELVE named seats (phone
+# parts 1-4, the two widths of a part share a seat; entry-links parts 1-4;
+# split-preview parts 1-2; browser-guards; unit, its three parts share a seat),
+# and a seat runs one job at a time across every open pull request. `queue: max`
+# makes later jobs wait in line (up to 100 per seat) instead of GitHub's default,
+# which cancels an older waiting job: nothing here is ever cancelled for a seat,
+# and a job's timeout counts only from when it starts. Pull-request work can
+# therefore hold at most 12 heavy runners, leaving the rest for main and the
+# production lanes. Pushes to main and manual runs get a group of their own per
+# job, so they never wait for a seat. test/ci-runner-seats.js pins all of this.
 on:
   push:
     branches: [main]
@@ -61,6 +79,11 @@ jobs:
     needs: changes
     if: needs.changes.outputs.phone == 'true'
     runs-on: ubuntu-latest
+    # One of the twelve pull-request runner seats (see the top of this file).
+    concurrency:
+      group: ${{ github.event_name == 'pull_request' && format('pr-runner-seat-phone-{0}', matrix.part) || format('calendar-unit-tests-{0}-staff-phone-rules-{1}', github.run_id, strategy.job-index) }}
+      cancel-in-progress: false
+      queue: max
     timeout-minutes: 25
     strategy:
       fail-fast: false
@@ -131,6 +154,11 @@ jobs:
 
   unit:
     runs-on: ubuntu-latest
+    # One of the twelve pull-request runner seats (see the top of this file).
+    concurrency:
+      group: ${{ github.event_name == 'pull_request' && 'pr-runner-seat-unit' || format('calendar-unit-tests-{0}-unit-{1}', github.run_id, strategy.job-index) }}
+      cancel-in-progress: false
+      queue: max
     # The expanded classified suite completed close to the ten-minute limit.
     # Keep a bounded margin for runner variance without changing any assertions.
     timeout-minutes: 15
@@ -319,6 +347,11 @@ jobs:
     needs: changes
     if: needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
+    # One of the twelve pull-request runner seats (see the top of this file).
+    concurrency:
+      group: ${{ github.event_name == 'pull_request' && format('pr-runner-seat-entry-{0}', matrix.part) || format('calendar-unit-tests-{0}-entry-links-boot-{1}', github.run_id, strategy.job-index) }}
+      cancel-in-progress: false
+      queue: max
     timeout-minutes: 25
     strategy:
       fail-fast: false
@@ -621,6 +654,11 @@ jobs:
     needs: changes
     if: needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
+    # One of the twelve pull-request runner seats (see the top of this file).
+    concurrency:
+      group: ${{ github.event_name == 'pull_request' && 'pr-runner-seat-guards' || format('calendar-unit-tests-{0}-browser-guards-{1}', github.run_id, strategy.job-index) }}
+      cancel-in-progress: false
+      queue: max
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -809,6 +847,11 @@ jobs:
     needs: changes
     if: needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
+    # One of the twelve pull-request runner seats (see the top of this file).
+    concurrency:
+      group: ${{ github.event_name == 'pull_request' && format('pr-runner-seat-split-{0}', matrix.part) || format('calendar-unit-tests-{0}-split-preview-{1}', github.run_id, strategy.job-index) }}
+      cancel-in-progress: false
+      queue: max
     timeout-minutes: 20
     strategy:
       fail-fast: false

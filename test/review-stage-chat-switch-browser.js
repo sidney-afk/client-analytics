@@ -14,7 +14,8 @@
  *    bubble colour that stands apart from the panel, no coloured side bar, each tagged with its part, "Done" on a
  *    handled request, older notes folded, the message box at the bottom; a whole caption pasted as a change keeps its
  *    paragraphs and folds behind "Show all". Opening it saves nothing.
- * 3. The "new version of SyncView" bar never covers the stage's Approve or Finish reviewing buttons.
+ * 3. The "new version of SyncView" bar keeps its place at the bottom and never covers the stage's buttons or the
+ *    client page's header: the stage makes room for it (desktop, phone, and the client's Sheet).
  * CHAT_SHOTS=<dir> also writes the screenshots used in the PR.
  */
 const fs = require('node:fs');
@@ -149,11 +150,34 @@ async function staffOnSheet(browser, origin, o) {
         if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await t.page.screenshot({ path: path.join(SHOTS, 'after-' + who + '-' + (dark ? 'dark' : 'light') + '-1440.png') }); }
         if (!dark) {
           const B = await updateBar(t.page);
-          expect(B.shown && !B.covers.length, name + ': the new-version bar covers none of the stage\'s buttons (' + (B.covers.join(', ') || 'none') + ', bar ' + B.bar + ')');
+          expect(B.shown && B.bottom && !B.covers.length, name + ': the new-version bar keeps its place and covers none of the stage\'s buttons (' + (B.covers.join(', ') || 'none') + ', bar ' + B.bar + ')');
         }
         expect(!t.errors.length, name + ': no page errors (' + t.errors.join(' | ') + ')');
         await t.ctx.close();
       }
+    }
+    console.log('--- the update bar on a phone, and on the client\'s Sheet ---');
+    for (const [label, o] of [['client phone', { width: 390, height: 844 }], ['smm phone', { width: 390, height: 844, staff: true }]]) {
+      const t = o.staff ? await (async () => { const x = await open(browser, origin, { stage: 'smm', staff: STAFF, flags: 'on', width: o.width, height: o.height });
+        await x.page.goto(origin + '/index.html?v=calendar', { waitUntil: 'domcontentloaded' });
+        await x.page.waitForFunction(() => typeof _calSavePins === 'function' && typeof navTo === 'function', null, { timeout: 30000 });
+        await x.page.evaluate(name => { try { _syncviewStaffIdentityVerified = true; } catch (e) {} _calSavePins([name]); calState.client = name; navTo('calendar'); }, CLIENT);
+        await x.page.waitForFunction(() => typeof calState === 'object' && !calState.loading && (calState.posts || []).length > 0, null, { timeout: 30000 });
+        await x.page.evaluate(() => onCalViewChange('smmreview')); await waitNew(x); await sleep(1200); return x; })()
+        : await (async () => { const x = await open(browser, origin, { stage: 'client', flags: 'on', width: o.width, height: o.height });
+        await x.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, v: 'calendar', tab: 'review', t: TOKEN }), { waitUntil: 'domcontentloaded' });
+        await waitNew(x); await sleep(1200); return x; })();
+      const B = await updateBar(t.page);
+      expect(B.shown && !B.covers.length, label + ': the new-version bar covers none of the page\'s buttons once scrolled to the bottom (' + (B.covers.join(', ') || 'none') + ', bar ' + B.bar + ')');
+      await t.ctx.close();
+    }
+    {
+      const t = await clientOnSheet(browser, origin);
+      await t.page.waitForFunction(() => { const h = document.getElementById('svReviewStage'); return typeof calState === 'object' && calState.view === 'organizer' && !calState.loading && !!(h && !h.hidden); }, null, { timeout: 30000 });
+      await sleep(1200);
+      const B = await updateBar(t.page);
+      expect(B.shown && !B.covers.length && B.bottom, 'client Sheet: the bar stays at the bottom and covers no header control (' + (B.covers.join(', ') || 'none') + ', bar ' + B.bar + ')');
+      await t.ctx.close();
     }
     console.log('--- switch off: the update bar keeps its place ---');
     {
@@ -239,19 +263,23 @@ function updateBar(page) {
     if (!document.getElementById('svUpBarProbeStyle')) {
       const st = document.createElement('style');
       st.id = 'svUpBarProbeStyle';
-      st.textContent = '#svUpdateBar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:2147483000;display:flex;align-items:center;gap:12px;padding:10px 12px 10px 18px;width:560px;height:48px;box-sizing:border-box}';
+      // The bar's own look (350's injectStyle), with its real text and buttons.
+      st.textContent = '#svUpdateBar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:2147483000;display:flex;align-items:center;gap:14px;max-width:calc(100vw - 32px);padding:11px 12px 11px 18px;border-radius:12px;font-size:0.84rem;font-weight:500}'
+        + '#svUpdateBar .sv-up-txt{line-height:1.3}#svUpdateBar button{border:none;border-radius:8px}#svUpdateBar .sv-up-reload{font-weight:700;font-size:0.8rem;padding:7px 15px;white-space:nowrap}#svUpdateBar .sv-up-x{font-size:1.15rem;line-height:1;padding:2px 8px}';
       document.head.appendChild(st);
     }
     const bar = document.createElement('div');
     bar.id = 'svUpdateBar';
-    bar.textContent = 'A new version of SyncView is available';
+    bar.innerHTML = '<span class="sv-up-txt">A new version of SyncView is available \u2014 reload to get the latest.</span><button class="sv-up-reload">Reload</button><button class="sv-up-x">\u00d7</button>';
     document.body.appendChild(bar);
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await new Promise(r => setTimeout(r, 400));
+    // On a phone the page scrolls: look with the bottom of the page in view, where Finish reviewing is.
+    if (innerWidth <= 860) { scrollTo(0, document.scrollingElement.scrollHeight); await new Promise(r => setTimeout(r, 300)); }
     const b = bar.getBoundingClientRect();
     const h = document.getElementById('svReviewStage');
     const r = h && h.shadowRoot;
-    const btns = r ? Array.from(r.querySelectorAll('#drow button, .finish, .b-ok, .b-ask, .b-frame, .b-soft, .send, #sendBtn')).filter(e => e.getClientRects().length) : [];
-    const covers = btns.filter(e => { const x = e.getBoundingClientRect(); return x.right > b.left && x.left < b.right && x.bottom > b.top && x.top < b.bottom; }).map(e => (e.textContent || e.getAttribute('aria-label') || e.className).trim().slice(0, 30));
+    const btns = r ? Array.from(r.querySelectorAll('#drow button, .finish, .b-ok, .b-ask, .b-frame, .b-soft, .send, #sendBtn, .hdr button, .hdr-tools button, #rsTabs button')).filter(e => e.getClientRects().length) : [];
+    const covers = btns.filter(e => { const x = e.getBoundingClientRect(); return x.width > 0 && x.right > b.left && x.left < b.right && x.bottom > b.top && x.top < b.bottom; }).map(e => (e.textContent || e.getAttribute('aria-label') || e.className).trim().slice(0, 30));
     const out = { shown: b.width > 0, bar: [b.x, b.y, b.width, b.height].map(Math.round).join(','), covers, bottom: Math.abs(innerHeight - 22 - b.bottom) < 2 };
     bar.remove();
     return out;

@@ -108,8 +108,9 @@ app's accent, everyone else's on the left on the page's own background (the pane
 Curtain Five), the part tag and "Change asked" in the bubble's top line, Team only / Client can see under the note,
 "Done" on handled requests, line breaks kept, and a very long note (a whole caption pasted as a change) folds after
 seven lines behind "Show all". Only the look changed: what is saved, who sees it and the Team only / Client can see
-switch are untouched. (3) While a review stage shows, the "new version of SyncView" bar sits at the top of the window
-instead of over the stage's Approve and Finish reviewing buttons. Switch off: every page as on main. Test:
+switch are untouched. (3) The "new version of SyncView" bar keeps its place at the bottom of the window; while it shows, the review stage
+makes room for it (shorter on a desktop, extra room under the page on a phone), so it covers neither the stage's Approve
+and Finish reviewing buttons nor the client page's header. Switch off: every page as on main. Test:
 `node test/review-stage-chat-switch-browser.js`.
 
 **Still to do:** run `/dawn-check` and

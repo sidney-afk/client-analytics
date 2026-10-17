@@ -226,9 +226,10 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
                 + 'html.sv-rs-full #calView>#calBody>.cal-organizer-wrap>.cal-organizer-strip:not(.is-empty){justify-content:safe center;padding:8px 4px;min-height:0;scroll-padding-right:0}'
                 + 'html.sv-rs-full #calView>#calBody>.cal-organizer-wrap>.cal-organizer-strip::after{content:none}'
                 + '}'
-                // The "new version of SyncView" bar (350) sits at the bottom centre, over the stage's Approve and Finish
-                // reviewing buttons: while a review stage shows it sits at the top instead (session Curtain Six).
-                + 'html:has(#svReviewStage:not([hidden])) #svUpdateBar{top:calc(12px + env(safe-area-inset-top,0px));bottom:auto}';
+                // The "new version of SyncView" bar (350) keeps its place at the bottom centre; while it shows, the review
+                // stage makes room for it (195 reads --rs-bar), so it covers neither the stage's buttons nor the client
+                // page's header (session Curtain Six).
+                + 'html:has(#svUpdateBar) #svReviewStage{--rs-bar:84px}';
             document.head.appendChild(_rsChromeStyle);
         }
         de.classList.toggle('sv-rs-cal', !!on);

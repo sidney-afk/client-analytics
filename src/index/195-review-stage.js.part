@@ -723,6 +723,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .bfoot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px}
 .bfoot .donec{margin-left:auto}
 .bfoot .vis{font-size:.66rem}
+`
+    /* The "new version of SyncView" bar (350) sits at the bottom of the window; while it shows, --rs-bar (188) makes
+       the stage that much shorter on a desktop, and leaves that much room under the page on a phone, so the bar never
+       covers Approve or Finish reviewing (session Curtain Six). */
+    + `
+@media (min-width:861px){.app:not(.bar){height:calc(100vh - var(--rs-top,0px) - var(--rs-bar,0px));height:calc(100dvh - var(--rs-top,0px) - var(--rs-bar,0px))}}
+@media (max-width:860px){.app:not(.bar){padding-bottom:calc(20px + var(--rs-bar,0px) + var(--rs-bar,0px) / 3)}}
 `;
     const RS_PART = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'YouTube title' };
     const RS_CSSKEY = { video: 'video', graphic: 'thumbnail', caption: 'caption', title: 'youtube' };

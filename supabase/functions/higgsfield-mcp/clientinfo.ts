@@ -8,8 +8,9 @@
 
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { findClientFolder, parseAudience, parseBrainFacts } from "../brain/parse.mjs";
-import { recordChange } from "../brain/change.mjs";
+import { b64, recordChange } from "../brain/change.mjs";
 import { brainView } from "./brainview.mjs";
+import { checkQuestionId, markAnswered, questionFor } from "./questions.mjs";
 
 type Plan = { client_slug: string; client_name: string; doc_id: string; plan_months: string };
 
@@ -183,7 +184,31 @@ export async function brainFolder(slug: string, name: string): Promise<{ folder?
 // paragraph. With a topic (a fact id, heading words or a file name) the
 // matching facts come in full. Nothing is cut silently: what does not fit is
 // named (brainview.mjs).
-export async function clientBrain(db: SupabaseClient, client: string, topic = ""): Promise<string> {
+// asker (optional): who this call is for and how to read and write the offer
+// log; when given, the overview ends with at most one open question that
+// person may answer (questions.mjs, POLICY/questions.md in the brain).
+export type Asker = {
+  member: string;
+  who: string;
+  teamLink: boolean;
+  offeredSince: (sinceIso: string) => Promise<string[]>;
+  recordOffer: (row: Record<string, unknown>) => Promise<void>;
+};
+
+// The client's questions.md, through the same repository and branch as the
+// fact files. A missing file reads as empty; any other failure throws.
+async function readQuestionsFile(folder: string): Promise<{ text: string; sha: string }> {
+  const ref = encodeURIComponent(Deno.env.get("BRAIN_BRANCH") || "main");
+  const r = await gh(`contents/clients/${folder}/questions.md?ref=${ref}`);
+  if (r.status === 404) return { text: "", sha: "" };
+  if (!r.ok) throw new Error(`questions_${r.status}`);
+  const j = await r.json() as { content?: string; sha?: string };
+  const bin = atob(String(j.content || "").replace(/\s+/g, ""));
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  return { text: new TextDecoder().decode(bytes), sha: String(j.sha || "") };
+}
+
+export async function clientBrain(db: SupabaseClient, client: string, topic = "", asker?: Asker): Promise<string> {
   if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return "The Synchro Brain is not connected on the server (BRAIN_GITHUB_TOKEN missing).";
   const found = await findClient(db, client);
   if (!found.plan) return `Which client? ${found.choices?.length ? "Options: " + found.choices.join(", ") : "No match."}`;
@@ -211,23 +236,55 @@ export async function clientBrain(db: SupabaseClient, client: string, topic = ""
     ...BRAIN_FILES.flatMap((f, i) => parseBrainFacts(texts[i], f)),
     ...parseAudience(audience),
   ].filter((f: { status: string; body: string }) => f.status === "written" && f.body);
-  return brainView({ name: p.client_name, brief, focus: focusFacts, facts, topic });
+  const view = brainView({ name: p.client_name, brief, focus: focusFacts, facts, topic });
+  // A question rides only on the overview (no topic), at most one per call.
+  if (!asker || String(topic || "").trim()) return view;
+  const note = await questionFor(
+    { member: asker.member, who: asker.who, teamLink: asker.teamLink, folder: where.folder, clientName: p.client_name },
+    {
+      readQuestions: async () => (await readQuestionsFile(where.folder as string)).text,
+      offeredSince: asker.offeredSince,
+      recordOffer: asker.recordOffer,
+    },
+  );
+  return note ? `${view}\n${note}` : view;
 }
 
 // Files a change exactly like SyncView's "Send a change" button. The
 // brain-side workflow and POLICY/syncview-changes.md decide where it goes.
-export async function brainChange(db: SupabaseClient, client: string, whatChanged: string, factId: string, member: string): Promise<string> {
+// With questionId, the change answers that open question: it is checked
+// first (refused in plain words when it is not an open question of this
+// client), filed the same way, and then the question block in questions.md is
+// marked answered with the date, who, and the input file.
+export async function brainChange(db: SupabaseClient, client: string, whatChanged: string, factId: string, member: string, questionId = ""): Promise<string> {
   if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return "The Synchro Brain is not connected on the server (BRAIN_GITHUB_TOKEN missing).";
   const found = await findClient(db, client);
   if (!found.plan) return `Which client? ${found.choices?.length ? "Options: " + found.choices.join(", ") : "No match."}`;
   const p = found.plan;
   const where = await brainFolder(p.client_slug, p.client_name);
   if (where.error) return where.error;
+  const qid = String(questionId || "").trim();
+  let question: { id: string; heading: string; fact: string } | null = null;
+  if (qid) {
+    if (!String(whatChanged || "").trim()) return "Say what changed first.";
+    if (!where.folder) return `Could not use question "${qid}": ${p.client_name} has no Synchro Brain folder, so it has no open questions. Nothing was saved.`;
+    let file;
+    try {
+      file = await readQuestionsFile(where.folder);
+    } catch (e) {
+      return `Could not read ${p.client_name}'s open questions (${(e as Error).message}). Nothing was saved; try again in a minute.`;
+    }
+    const checked = checkQuestionId(file.text, qid, where.folder, p.client_name);
+    if (!checked.ok) return checked.message as string;
+    question = checked.question || null;
+  }
   // Same slug and folder match as SyncView's button, so the file is identical.
   const result = await recordChange({
     slug: p.client_slug,
     text: whatChanged,
-    factId,
+    factId: factId || question?.fact || "",
+    questionId: question?.id || "",
+    question: question?.heading || "",
     heading: "",
     from: `${member} via Claude connector`,
     role: "Claude connector",
@@ -236,6 +293,34 @@ export async function brainChange(db: SupabaseClient, client: string, whatChange
     branch: Deno.env.get("BRAIN_BRANCH") || "main",
   });
   if (!result.ok) return result.error === "text_too_long" ? "That is too long to send in one change; split it up." : "Say what changed first.";
+  if (question && where.folder) {
+    const marked = await markQuestionAnswered(where.folder, question.id, `${new Date().toISOString().slice(0, 10)}, ${member}, ${result.path}`);
+    if (!marked) return `Sent. It will be filed in ${p.client_name}'s brain within a few minutes, but question ${question.id} could not be marked answered; tell the person a teammate may ask it again.`;
+    return `Sent, and question ${question.id} is marked answered. It will be filed in ${p.client_name}'s brain within a few minutes.`;
+  }
   if (!findClientFolder(where.folders, p.client_slug)) return `Sent, but ${p.client_name} has no Synchro Brain folder yet, so a person has to place it by hand. It will not show in client_brain until then; say that instead of "Saved".`;
   return `Sent. It will be filed in ${p.client_name}'s brain within a few minutes.`;
+}
+
+// Marks one question answered in questions.md (status and answered line).
+// Re-reads and retries once when the file changed in between. True when written.
+async function markQuestionAnswered(folder: string, id: string, line: string): Promise<boolean> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let file;
+    try {
+      file = await readQuestionsFile(folder);
+    } catch (_e) {
+      return false;
+    }
+    const next = markAnswered(file.text, id, line);
+    if (next === null || !file.sha) return false;
+    const r = await gh(`contents/clients/${folder}/questions.md`, false, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: `Question ${id} answered (Synchro connector)`, content: b64(next), sha: file.sha, branch: Deno.env.get("BRAIN_BRANCH") || "main" }),
+    });
+    if (r.ok) return true;
+    if (r.status !== 409 && r.status !== 422) return false;
+  }
+  return false;
 }

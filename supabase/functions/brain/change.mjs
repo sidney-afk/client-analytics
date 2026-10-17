@@ -23,7 +23,9 @@ export function oneLine(v, max = 200) {
 // gh(path, init) calls the GitHub contents API for the brain repository.
 // Returns { ok: true, received, path } or { ok: false, error } for bad input;
 // throws brain_write_<status> when GitHub refuses the write.
-export async function recordChange({ slug, text: rawText, factId: rawFactId, heading: rawHeading, from, role, folders, gh, branch }) {
+// questionId (optional) names the open question in the client's questions.md
+// this change answers (POLICY/questions.md); the file then says so.
+export async function recordChange({ slug, text: rawText, factId: rawFactId, heading: rawHeading, from, role, folders, gh, branch, questionId: rawQuestionId = "", question: rawQuestion = "" }) {
   const text = String(rawText == null ? "" : rawText).replace(/\r\n/g, "\n").trim();
   if (!text) return { ok: false, error: "text_required" };
   if (text.length > MAX_CHANGE_CHARS) return { ok: false, error: "text_too_long" };
@@ -36,6 +38,8 @@ export async function recordChange({ slug, text: rawText, factId: rawFactId, hea
   const factId = oneLine(rawFactId, 160);
   const heading = oneLine(rawHeading, 160);
   const sender = oneLine(from, 80);
+  const questionId = oneLine(rawQuestionId, 160);
+  const question = oneLine(rawQuestion, 300);
   const md = [
     `# SyncView change for ${target}`,
     "",
@@ -46,6 +50,7 @@ export async function recordChange({ slug, text: rawText, factId: rawFactId, hea
     `- fact heading: ${heading || "none"}`,
     `- sent by (as typed): ${sender || "not given"}`,
     `- SyncView role: ${role}`,
+    ...(questionId ? [`- answers question: ${questionId}${question ? ` (${question})` : ""}`] : []),
     "",
     "## What they sent, word for word",
     "",
@@ -56,7 +61,7 @@ export async function recordChange({ slug, text: rawText, factId: rawFactId, hea
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      message: `SyncView change for ${target}${factId ? ` (${factId})` : ""}`,
+      message: `SyncView change for ${target}${factId ? ` (${factId})` : ""}${questionId ? `, answers ${questionId}` : ""}`,
       content: b64(md),
       branch: branch || "main",
     }),

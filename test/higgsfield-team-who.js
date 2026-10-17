@@ -70,7 +70,7 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
   assert.ok(/submitJob\(author, id, inputs, est\.usd, cap\)/.test(idx), 'create records the author');
   assert.ok(/submitJob\(author, model, recipe\.build\(/.test(idx), 'run_recipe records the author');
   assert.ok(!/submitJob\(member,/.test(idx), 'no job is recorded under the bare link name');
-  assert.ok(/name === "brain_change"\) return await brainChange\(.*, author\);/.test(idx), 'brain_change records the author');
+  assert.ok(/name === "brain_change"\) return await brainChange\(.*, author(, String\(args\.question_id \|\| ""\))?\);/.test(idx), 'brain_change records the author');
 
   // start_here: the ask-for-a-name note appears on the team link only.
   const start = idx.slice(idx.indexOf('if (name === "start_here")'), idx.indexOf('if (name === "find_models")'));

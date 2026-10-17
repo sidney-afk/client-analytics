@@ -18,7 +18,7 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
-## New review page, layout C (session Marquee, 2026-10-17): built behind two switches, both off until set
+## New review page, layout C (session Marquee, 2026-10-17): merged, on for the test client and the owner only
 
 The owner approved the client page (layout C, "Guided stage") and the SMM and Kasper versions of it on 2026-10-16.
 It is a new view beside the old one (`src/index/188-review-stage-switch.js.part` reads the switches;
@@ -64,20 +64,40 @@ theme button on the client page opens a tutorial video in an overlay.
 - The old page's own confirmations and refusals still show (for example "Approve to client" before Kasper has seen a
   part, or a Linear-linked part with no work item behind it).
 
-**Still to do:** set the two switches for the test client and the owner after merge, then run `/dawn-check` and
+**Switches set 2026-10-17 about 09:05 UTC (Lighthouse, after #2131 merged as 06a59fe9):** `review_stage_client_pages` lists the test client only; `review_stage_kasper_staff` lists the owner's two staff accounts (by roster id); `review_help_video_url` is unset, so the "?" stays hidden. Deleting either row brings the old page back on the next load.
+
+**Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone
 layout follows the desktop one and has not been polished on its own (as the handoff said).
 
-## Latest (Lighthouse, 2026-10-16)
+## Latest (Lighthouse, 2026-10-17)
 
 Newest first. Checked against main and the live database on 2026-10-16. When an item here is finished or moved into
 the sections below, delete it from this block in the same PR.
 
-**2026-10-17 (session Echo, open PR, not merged):** the red card-vs-work-item drift row is a page bug. A client's
-Request changes on a linked part skipped its status push whenever the client-comment front door was unavailable, so the
-card said Tweaks Needed and the work item never moved (1 real card, 2026-10-16). Fixed in the page (OPEN_REPAIRS 429);
-reproduced and fix proven on the test client. The one real card needs the owner's go for a Production status move to
-tweak (never the backfill, which would erase the client's request).
+**Night 2026-10-16 to 17 (Lighthouse; the owner asked for full autonomy until his 8am report, decisions noted):**
+- **Merged and live:** #2129 (filming pipeline passes; migration applied), #2132 and #2133 (entry-links-boot was red on
+  every PR since #2085: three phone tests opened on the new picture grid, and #2121's Post tab made the header tab row
+  re-fit itself every frame forever, an idle CPU loop for staff; fixed with a guard), #2134 (captions skip not-written
+  voice facts; title banner matches; caption-generate, thumbnail-title-prompts, thumbnail-titles deployed), #2137
+  (Connector PR 2: filming plan limited to the people on `fp_settings.pipeline_users`, file store and notes over the
+  pass, brain snapshot; migration `20261017090000` applied, assert passed; higgsfield-mcp and pipeline-google deployed),
+  #2141 (phone visual guards judge the settled page; the "Phone title must wrap" failure hit three unrelated PRs),
+  #2136 (Turbo: PR checks run only what a change can break and split the slow jobs; main still runs everything),
+  #2135 (client_brain: the whole brain when it fits 60,000 characters, first paragraphs and a named left-out list
+  when not, a topic or fact id for one fact in full; focus.md always first), #2140 (Echo: a client's Request changes on
+  a linked part now always reaches its work item; OPEN_REPAIRS 429), #2131 (new review page, see its section above),
+  #2130 (Encore: Watch here picture plays, 1x/1.5x/2x and skip, no "Syncing" line, faster notes, centred play button,
+  "Open it in Frame.io" on a playback error).
+- **Card saver:** stage B unchanged (test client plus the owner's two clients); 5 clean watcher runs, no real saves on
+  the two clients yet overnight. The 06:00 Samples nightly failed because its robot saved unsigned on the test client,
+  which calendar-card-write correctly refuses; #2142 (Twin) signs robot saves with the runner's staff key (merging).
+- **Needs the owner:** one real card (`p_native_0565...f3_1`, video) holds the client's Tweaks Needed while its work item
+  is still at client approval (the bug #2140 fixes). Move the work item to tweak in the Production status picker; never
+  the drift check's backfill, which would erase the client's request. Until then the hourly drift check stays red.
+- **Watch item:** with several PR runs at once (about 24 jobs each since #2136), the 5-minute production lanes (the
+  notification sender among them) queue and some runs are cancelled; harmless at night, a delay risk in the day.
+- The Codex review bot is out of usage credits (said so on #2141).
 
 **Evening 2026-10-16 (Lighthouse, checked live):**
 - **First Section 4 release through the new lanes SUCCEEDED** (manual merge-lane run 38953309940 at `27ce2100`, 19:13 UTC):

@@ -82,6 +82,7 @@ export function activityRow({ member, tool, args, ok, error }) {
 export const FAILURE_OPENINGS = [
   "Could not", "Refused", "Unknown ", "Fix these", "That link", "That file",
   "That job_id", "The link must", "The upload failed", "The monthly budget setting",
+  "Voice clean-up is not switched on",
   "Higgsfield could not", "Higgsfield blocked", "It failed", "The image was made",
   "This job was canceled", "A worked-out price", "Give ", "Unsupported",
   "No models in", "This recipe runs on", "At most ", "Which client?",

@@ -277,3 +277,13 @@ export function repackZip(input, drop = dropFromSnapshot) {
   ov.setUint32(w + 16, newCd, true);
   return { zip: out, kept: kept.length, dropped: entries.length - kept.length };
 }
+
+// A client's name in the file store and on a pass. SyncView's client_slug is
+// used as it is when it is already letters, digits and hyphens (every client
+// so far, so nothing moves); anything else is lowercased, "&" read as "and",
+// and every other character dropped ("a&b" -> "aandb").
+export function storeSlug(slug) {
+  const s = String(slug ?? "");
+  if (/^[a-z0-9][a-z0-9-]{0,79}$/.test(s)) return s;
+  return s.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9-]/g, "").replace(/^-+/, "").slice(0, 80);
+}

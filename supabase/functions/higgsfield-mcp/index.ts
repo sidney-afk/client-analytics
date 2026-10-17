@@ -261,8 +261,14 @@ const TOOLS = [
   },
   {
     name: "client_brain",
-    description: "Everything the Synchro Brain has written about a client: the editor brief, then the written facts (who they are, voice, editing, relationship, audience), each with its heading and fact id. Call this automatically, without being asked, whenever a client is named in the conversation, before answering anything about them (for example \"what does X want\"). Read only.",
-    inputSchema: { type: "object", required: ["client"], additionalProperties: false, properties: { client: { type: "string", description: "The client's name as SyncView shows it." } } },
+    description: "What the Synchro Brain has written about a client: the editor brief in full, then each written fact (who they are, voice, editing, relationship, audience) with its heading, fact id and current answer (its first paragraph). Facts marked \"more\" have more detail. Call this automatically, without being asked, whenever a client is named in the conversation, before answering anything about them (for example \"what does X want\"). When you need more on a topic (a fact marked \"more\", or one listed under \"Left out for length\"), call it again with topic set to that fact id, a heading word (for example \"Caption style\" or \"music\") or a file name (identity, voice, editing, relationship, audience, brief) to get those facts in full. Read only.",
+    inputSchema: {
+      type: "object", required: ["client"], additionalProperties: false,
+      properties: {
+        client: { type: "string", description: "The client's name as SyncView shows it." },
+        topic: { type: "string", description: "Optional: a fact id, heading words or a file name. Returns the matching facts in full instead of the overview." },
+      },
+    },
   },
   {
     name: "brain_change",
@@ -1184,7 +1190,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   if (name === "clients") return await listClients(db());
   if (name === "client_filming_plan") return await filmingPlan(db(), String(args.client || ""), String(args.month || ""));
   if (name === "client_style") return await clientStyle(db(), String(args.client || ""));
-  if (name === "client_brain") return await clientBrain(db(), String(args.client || ""));
+  if (name === "client_brain") return await clientBrain(db(), String(args.client || ""), String(args.topic || ""));
   if (name === "brain_change") return await brainChange(db(), String(args.client || ""), String(args.what_changed || ""), String(args.fact_id || ""), author);
 
   if (name === "import_file") return await importFile(String(args.link || "").trim());

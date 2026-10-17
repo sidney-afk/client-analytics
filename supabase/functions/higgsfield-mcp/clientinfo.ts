@@ -7,8 +7,9 @@
 // ../brain/change.mjs); it never edits a fact file.
 
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
-import { findClientFolder, parseAudience, parseBrainFacts, parseBrief } from "../brain/parse.mjs";
+import { findClientFolder, parseAudience, parseBrainFacts } from "../brain/parse.mjs";
 import { recordChange } from "../brain/change.mjs";
+import { brainView } from "./brainview.mjs";
 
 type Plan = { client_slug: string; client_name: string; doc_id: string; plan_months: string };
 
@@ -162,10 +163,10 @@ export async function clientStyle(db: SupabaseClient, client: string): Promise<s
   return `${found.plan.client_name}, voice and title guidance from the Synchro Brain (written facts only; fonts and colours come from the latest Canva thumbnail, not from here):\n\n${style.text}`;
 }
 
-// The client files client_brain reads, in this order after brief.md. money.md
-// and everything under inputs/ are never read here.
+// The client files client_brain reads, in this order after brief.md. money.md,
+// history.md (old notes moved out of the live facts) and everything under
+// inputs/ are never read here: this fixed list is the only way in.
 const BRAIN_FILES = ["identity", "voice", "editing", "relationship"];
-const BRAIN_MAX_CHARS = 60_000;
 
 export async function brainFolder(slug: string, name: string): Promise<{ folder?: string; folders: string[]; error?: string }> {
   const ref = encodeURIComponent(Deno.env.get("BRAIN_BRANCH") || "main");
@@ -175,9 +176,12 @@ export async function brainFolder(slug: string, name: string): Promise<{ folder?
   return { folders, folder: findClientFolder(folders, slug) || findClientFolder(folders, name) || undefined };
 }
 
-// Everything written about one client: brief.md, then the written facts of
-// identity, voice, editing, relationship and audience, each with its fact id.
-export async function clientBrain(db: SupabaseClient, client: string): Promise<string> {
+// One client's brain: brief.md in full, then the current answer (first
+// paragraph) of each written fact of identity, voice, editing, relationship
+// and audience, each with its fact id. With a topic (a fact id, heading words
+// or a file name) the matching facts come in full. Nothing is cut silently:
+// what does not fit is named (brainview.mjs).
+export async function clientBrain(db: SupabaseClient, client: string, topic = ""): Promise<string> {
   if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return "The Synchro Brain is not connected on the server (BRAIN_GITHUB_TOKEN missing).";
   const found = await findClient(db, client);
   if (!found.plan) return `Which client? ${found.choices?.length ? "Options: " + found.choices.join(", ") : "No match."}`;
@@ -203,13 +207,7 @@ export async function clientBrain(db: SupabaseClient, client: string): Promise<s
     ...BRAIN_FILES.flatMap((f, i) => parseBrainFacts(texts[i], f)),
     ...parseAudience(audience),
   ].filter((f: { status: string; body: string }) => f.status === "written" && f.body);
-  const briefText = parseBrief(brief).map((s: { heading: string; bullets: Array<{ text: string }> }) =>
-    `## ${s.heading}\n${s.bullets.map((b) => `- ${b.text}`).join("\n")}`).join("\n\n");
-  if (!briefText && !facts.length) return `${p.client_name}: the Synchro Brain has no written brief or facts yet.`;
-  const factText = facts.map((f: { file: string; heading: string; id: string; body: string; sure?: string }) =>
-    `### ${f.heading} (${f.file}; fact id: ${f.id || "none"})\n${f.body}${f.sure ? `\nHow sure we are: ${f.sure}` : ""}`).join("\n\n");
-  const text = `${p.client_name}, from the Synchro Brain.\n\n# Brief\n\n${briefText || "(no brief written yet)"}\n\n# Facts\n\n${factText || "(no written facts yet)"}`;
-  return text.length > BRAIN_MAX_CHARS ? text.slice(0, BRAIN_MAX_CHARS) + "\n\n[cut here]" : text;
+  return brainView({ name: p.client_name, brief, facts, topic });
 }
 
 // Files a change exactly like SyncView's "Send a change" button. The

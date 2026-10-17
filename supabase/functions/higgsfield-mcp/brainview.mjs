@@ -1,0 +1,136 @@
+// What client_brain sends, as pure text building (no network), shared with the
+// unit test and the size measurement. By default: the whole brief, then each
+// written fact's current answer (its first paragraph). With a topic: the facts
+// it names, in full. Whatever does not fit is named, never silently cut.
+//
+// The facts come only from the fixed file list in clientinfo.ts (brief,
+// identity, voice, editing, relationship, audience). history.md holds old
+// notes and is never read or served here.
+
+import { parseBrief } from "../brain/parse.mjs";
+
+export const BRAIN_MAX_CHARS = 60_000;
+// A first paragraph longer than this is shortened too (rare; keeps one huge
+// opening paragraph from crowding out the rest).
+export const FIRST_PARAGRAPH_MAX = 1_500;
+export const BRAIN_FILE_NAMES = ["brief", "identity", "voice", "editing", "relationship", "audience"];
+
+const ASK = "call client_brain again with topic set to its fact id (or a heading word such as \"Caption style\", or a file name such as editing)";
+
+function norm(s) {
+  return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+// The current answer: the body up to its first blank line, capped.
+export function firstParagraph(body) {
+  const text = String(body || "").trim();
+  const paras = text.split(/\n[ \t]*\n/);
+  // A paragraph ending in ":" introduces what follows, so the next one comes along.
+  let n = 1;
+  while (n < paras.length && /:\**\s*$/.test(paras[n - 1])) n++;
+  const first = paras.slice(0, n).join("\n\n").trim();
+  const cut = first.length > FIRST_PARAGRAPH_MAX ? first.slice(0, FIRST_PARAGRAPH_MAX).replace(/\s+\S*$/, "") + " …" : first;
+  return { text: cut, more: n < paras.length || cut !== first };
+}
+
+export function briefSections(brief) {
+  return parseBrief(brief).map((s) => ({ heading: s.heading, text: `## ${s.heading}\n${s.bullets.map((b) => `- ${b.text}`).join("\n")}` }));
+}
+
+function label(f, more) {
+  return `### ${f.heading} (${f.file}; fact id: ${f.id || "none"}${more ? "; more" : ""})`;
+}
+
+function fullFact(f) {
+  return `${label(f, false)}\n${f.body}${f.sure ? `\nHow sure we are: ${f.sure}` : ""}`;
+}
+
+function shortFact(f) {
+  const p = firstParagraph(f.body);
+  return `${label(f, p.more)}\n${p.text}${f.sure ? `\nHow sure we are: ${f.sure}` : ""}`;
+}
+
+// "editing.md: id, id; audience.md: id" for the facts that did not fit.
+function leftOutLine(facts) {
+  const byFile = new Map();
+  for (const f of facts) {
+    if (!byFile.has(f.file)) byFile.set(f.file, []);
+    byFile.get(f.file).push(f.id || `"${f.heading}" (no id)`);
+  }
+  return [...byFile].map(([file, ids]) => `${file}.md (${ids.length}): ${ids.join(", ")}`).join("\n");
+}
+
+// Add blocks in order while they fit; name every one that does not.
+function fit(head, blocks, facts) {
+  let out = head;
+  const left = [];
+  for (let i = 0; i < blocks.length; i++) {
+    if (left.length) { left.push(facts[i]); continue; }
+    const rest = facts.slice(i + 1);
+    const room = BRAIN_MAX_CHARS - (rest.length ? footer(rest).length : 0);
+    if (out.length + 2 + blocks[i].length <= room) out += (out ? "\n\n" : "") + blocks[i];
+    else left.push(facts[i]);
+  }
+  return left.length ? out + footer(left) : out;
+}
+
+function footer(left) {
+  return `\n\n# Left out for length\n\nThese facts did not fit in this answer and were not sent. To read one, ${ASK}:\n${leftOutLine(left)}`;
+}
+
+// The one place the reply text is built. facts: written facts only, each
+// { file, heading, id, body, sure? }, in reading order.
+export function brainView({ name, brief, facts, topic = "" }) {
+  const sections = briefSections(brief);
+  const briefText = sections.map((s) => s.text).join("\n\n");
+  const t = String(topic || "").trim();
+  if (!briefText && !facts.length) return `${name}: the Synchro Brain has no written brief or facts yet.`;
+
+  if (!t) {
+    const head = `${name}, from the Synchro Brain. The brief is in full. Each fact shows its current answer (its first paragraph); a fact marked "more" has more detail. When you need more on a topic, ${ASK}.\n\n# Brief\n\n${briefText || "(no brief written yet)"}\n\n# Facts`;
+    if (!facts.length) return `${head}\n\n(no written facts yet)`;
+    return fit(head, facts.map(shortFact), facts);
+  }
+
+  const want = norm(t.replace(/\.md$/i, ""));
+  if (want === "history") return `${name}: earlier notes kept in history.md are not served by client_brain. Ask for a fact by its id or topic instead.`;
+
+  // A file name: that whole file, in full.
+  const file = BRAIN_FILE_NAMES.find((f) => f === want);
+  if (file === "brief") return `${name}, brief from the Synchro Brain, in full.\n\n${briefText || "(no brief written yet)"}`;
+  let hits = file ? facts.filter((f) => f.file === file) : [];
+  let how = file ? `every written fact in ${file}.md` : "";
+  // A fact id, whole or by a dotted ending ("editing.subtitle-spec").
+  if (!file) {
+    const id = t.toLowerCase();
+    hits = facts.filter((f) => f.id && (f.id.toLowerCase() === id || (id.includes(".") && f.id.toLowerCase().endsWith("." + id))));
+    how = "the fact with that id";
+  }
+  // Heading words: every fact whose heading (or id) holds them, exact headings first.
+  if (!hits.length && !file && want) {
+    const exact = facts.filter((f) => norm(f.heading) === want);
+    hits = [...exact, ...facts.filter((f) => !exact.includes(f) && (norm(f.heading).includes(want) || norm(f.id).includes(want)))];
+    how = `the facts whose heading matches "${t}"`;
+  }
+  const briefHits = file ? [] : sections.filter((s) => norm(s.heading) === want || norm(s.heading).includes(want));
+  if (!hits.length && !briefHits.length) {
+    const list = facts.map((f) => `- ${f.heading} (${f.file}; fact id: ${f.id || "none"})`);
+    let out = `${name}: no fact matches "${t}" in the Synchro Brain. These are the written facts; ask again with one of their ids or headings:`;
+    for (const line of list) {
+      if (out.length + line.length + 40 > BRAIN_MAX_CHARS) { out += "\n(and more)"; break; }
+      out += "\n" + line;
+    }
+    return out;
+  }
+  if (!hits.length) return `${name}, brief from the Synchro Brain, sections matching "${t}":\n\n${briefHits.map((s) => s.text).join("\n\n")}`;
+
+  const briefPart = briefHits.length ? `\n\n# Brief sections matching "${t}"\n\n${briefHits.map((s) => s.text).join("\n\n")}` : "";
+  const head = `${name}, from the Synchro Brain: ${how}, in full.${briefPart}\n\n# Facts`;
+  // One fact longer than the whole budget is cut, and says so with its id.
+  const blocks = hits.map((f) => {
+    const b = fullFact(f);
+    const room = BRAIN_MAX_CHARS - head.length - 400;
+    return b.length > room ? b.slice(0, room) + `\n\n[This fact is longer than this answer can hold; the rest of ${f.id || f.heading} was not sent.]` : b;
+  });
+  return fit(head, blocks, hits);
+}

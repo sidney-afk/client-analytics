@@ -102,6 +102,19 @@ export function money(n) {
 
 const ascii = (b, at) => String.fromCharCode(b[at], b[at + 1], b[at + 2], b[at + 3]);
 
+const PCM_BITS = new Set([8, 16, 24, 32, 64]);
+
+// Plain PCM (1) or float (3), directly or inside WAVE_FORMAT_EXTENSIBLE (0xFFFE),
+// with a byte rate and block size that match the sample rate, channels and bits.
+export function pcmFormat(fmt) {
+  if (!fmt) return false;
+  const code = fmt.format === 0xFFFE ? fmt.subFormat : fmt.format;
+  if (code !== 1 && code !== 3) return false;
+  if (!(fmt.channels > 0) || !(fmt.sampleRate > 0) || !PCM_BITS.has(fmt.bits)) return false;
+  const frame = (fmt.channels * fmt.bits) / 8;
+  return fmt.blockAlign === frame && fmt.byteRate === fmt.sampleRate * frame;
+}
+
 // The length of a WAV from its first bytes: the "fmt " chunk gives the bytes
 // per second, the "data" chunk its size. RF64 (WAV over 4 GB, also written by
 // some recorders for any length) keeps the real size in "ds64". A size of 0
@@ -128,10 +141,17 @@ export function parseWavHeader(bytes, totalBytes) {
         channels: view.getUint16(body + 2, true),
         sampleRate: view.getUint32(body + 4, true),
         byteRate: view.getUint32(body + 8, true),
+        blockAlign: view.getUint16(body + 12, true),
         bits: view.getUint16(body + 14, true),
+        // WAVE_FORMAT_EXTENSIBLE keeps the real format in the first two bytes of its sub-format.
+        subFormat: size >= 40 && body + 26 <= b.length ? view.getUint16(body + 24, true) : null,
       };
     } else if (id === "data") {
       if (!fmt) return { error: "no-length" };
+      // Only plain PCM or float audio has a length that follows from its size. A compressed
+      // stream (MP3 and others) can sit in a RIFF/WAVE file with any byte rate written in the
+      // header, so its length would be priced from a number the file chooses (2026-10-17).
+      if (!pcmFormat(fmt)) return { error: "not-pcm" };
       let dataBytes = size;
       if (riff === "RF64" && size === 0xFFFFFFFF && ds64Data) dataBytes = ds64Data;
       const total = Number(totalBytes) > 0 ? Number(totalBytes) : null;
@@ -139,7 +159,7 @@ export function parseWavHeader(bytes, totalBytes) {
         if (total === null) return { error: "no-length" };
         dataBytes = total - body;
       }
-      const rate = fmt.byteRate || (fmt.sampleRate * fmt.channels * fmt.bits) / 8;
+      const rate = fmt.byteRate;
       if (!(rate > 0) || !(fmt.sampleRate > 0)) return { error: "no-length" };
       return { seconds: dataBytes / rate, sampleRate: fmt.sampleRate, channels: fmt.channels, bits: fmt.bits };
     }
@@ -292,6 +312,7 @@ async function readWavHead(link, d) {
     if (total !== null && total > MAX_VOICE_BYTES) return "That file is over 200 MB, too big for voice clean-up.";
     const wav = parseWavHeader(head, total);
     if (wav.error === "not-wav") return "That file is not a WAV recording. Voice clean-up takes WAV files only.";
+    if (wav.error === "not-pcm") return "That WAV is compressed, not a plain recording. Export it again as an uncompressed WAV (PCM) and try again.";
     if (wav.error) return "Could not read the recording's length from the file. Upload it with get_upload_link (audio/wav) and try again.";
     return wav;
   }

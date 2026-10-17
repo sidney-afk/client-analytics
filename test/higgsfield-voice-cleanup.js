@@ -125,6 +125,24 @@ function harness({ env = { AUPHONIC_KEY: KEY }, file = wav(), cap = 200, reserve
   assert.strictEqual(Math.round(v.parseWavHeader(unfilled.bytes, 44 + 90 * 192000).seconds), 90, 'a size the recorder never filled in falls back to the file size');
   assert.strictEqual(v.parseWavHeader(unfilled.bytes, null).error, 'no-length');
   assert.strictEqual(v.parseWavHeader(new Uint8Array([0x49, 0x44, 0x33, 4, 0, 0, 0, 0, 0, 0, 0, 0]), 100).error, 'not-wav', 'an MP3 is not taken');
+  // A compressed stream in a RIFF/WAVE file (format 0x55, MP3) with a PCM-looking byte rate written in
+  // the header would be priced far shorter than it plays (2026-10-17): only PCM or float is measured.
+  {
+    const mp3 = wav({ seconds: 600, rate: 44100, channels: 2, bits: 16 });
+    new DataView(mp3.bytes.buffer).setUint16(20, 0x55, true);
+    assert.strictEqual(v.parseWavHeader(mp3.bytes, mp3.total).error, 'not-pcm', 'a compressed WAV (format 0x55) is refused');
+    const lying = wav({ seconds: 60, rate: 48000, channels: 2, bits: 16 });
+    new DataView(lying.bytes.buffer).setUint32(28, 48000 * 2 * 2 * 8, true);
+    assert.strictEqual(v.parseWavHeader(lying.bytes, lying.total).error, 'not-pcm', 'a byte rate that does not match rate x channels x bits is refused');
+    const noAlign = wav({ seconds: 60 });
+    new DataView(noAlign.bytes.buffer).setUint16(32, 1, true);
+    assert.strictEqual(v.parseWavHeader(noAlign.bytes, noAlign.total).error, 'not-pcm', 'a wrong block size is refused');
+    const float = wav({ seconds: 30, rate: 48000, channels: 1, bits: 32 });
+    new DataView(float.bytes.buffer).setUint16(20, 3, true);
+    assert.strictEqual(Math.round(v.parseWavHeader(float.bytes, float.total).seconds), 30, 'float WAV is measured');
+    assert.strictEqual(v.pcmFormat({ format: 0xFFFE, subFormat: 1, channels: 2, sampleRate: 48000, bits: 24, blockAlign: 6, byteRate: 288000 }), true, 'extensible PCM is measured');
+    assert.strictEqual(v.pcmFormat({ format: 0xFFFE, subFormat: 0x55, channels: 2, sampleRate: 48000, bits: 16, blockAlign: 4, byteRate: 192000 }), false, 'extensible with a compressed sub-format is refused');
+  }
   assert.strictEqual(v.totalBytesOf(206, new Headers({ 'content-range': 'bytes 0-131071/52428844' })), 52428844);
   assert.strictEqual(v.totalBytesOf(200, new Headers({ 'content-length': '1234' })), 1234);
 

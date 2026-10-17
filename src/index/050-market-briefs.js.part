@@ -1,5 +1,6 @@
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { calClientSlug } from './130-calendar-model-cache.js';
+import { svRsClientNoAnalytics } from './188-review-stage-switch.js';
 import {
   CONTENT_SUMMARY_WEBHOOK, ICON, WEEKLY_SLACK_WEBHOOK, _analyticsExtrasApplied,
   _analyticsExtrasArrival, _analyticsFlushPendingExtras, _analyticsHasTrustedMetrics,
@@ -1030,6 +1031,13 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             sel=cap.client;
             // A stale Brief tab (old history entry) lands on the Content Calendar.
             if(clientViewTab[sel]==='brief')clientViewTab[sel]='calendar';
+            // No Analytics for a client the new review page is switched on for (188): its link, an old history
+            // entry or a bare ?c= address all land on the Content Calendar, and the address says so.
+            if((clientViewTab[sel]||'analytics')==='analytics'&&svRsClientNoAnalytics(sel)){
+                clientViewTab[sel]='calendar';
+                _syncviewSetClientEntryCapability(Object.freeze({client:cap.client,slug:cap.slug,view:'calendar',verified:true}));
+                try{const q=new URLSearchParams(svRoute.search());q.set('v','calendar');history.replaceState(Object.assign({},history.state||{},{client:sel,clientTab:'calendar'}),'','/?'+q.toString());_syncviewSyncClientEntryRunHref();}catch(e){}
+            }
         }
         _syncviewNextNavEpoch(); // Phase D: a client profile is a route too.
         // Boot-gate belt-and-braces: today's render()-first boot paths

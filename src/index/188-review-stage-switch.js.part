@@ -1,9 +1,10 @@
-import { _syncviewApplyTheme, svArea, svAreaApi } from './040-shared-briefs.js';
+import { _syncviewApplyTheme, clientViewTab, svArea, svAreaApi } from './040-shared-briefs.js';
+import { render } from './050-market-briefs.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _calRuntimeFlagRawMembers, _calRuntimeFlagSlug } from './120-calendar-flags-write-repair.js';
 import { calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calRenderBody } from './160-calendar-organize-ui.js';
-import { _isClientLink } from './260-production-refresh-boot.js';
+import { _isClientLink, _syncviewClientEntryCapability } from './260-production-refresh-boot.js';
 import { _kasperPaintReview } from './305-core-kasper-shared.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), behind two switches. Session Marquee, 2026-10-17.
 
@@ -89,6 +90,66 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         if (!document.getElementById('calView')) return false;
         return _rsClientOn(calState.client);
     }
+    /* THE CLIENT LINK, WHOLE PAGE (owner feedback, 2026-10-17, session Curtain Two). For a switched-on client the
+       new page's header is the client link's only header on all four tabs (Review, Sheet, Month, Week): the old
+       Analytics / Content Calendar toggle and the old calendar bar step aside, the pill toggle and the sun/moon
+       button stay in one place, and the old bar's own tools (Organize and the card size) move into a fixed slot of
+       that header on Sheet, Month and Week. The page has no frame around it, and there is no Analytics at all. */
+    const RS_CLIENT_TABS = ['review', 'organizer', 'month', 'week'];
+    function svRsClientFull() {
+        if (!_isClientLink || !calState || !calState.client || calState.error) return false;
+        if (!RS_CLIENT_TABS.includes(calState.view)) return false;
+        if (!document.getElementById('calView')) return false;
+        return _rsClientOn(calState.client);
+    }
+    // No Analytics for a switched-on client (the company dropped client analytics): render() asks this before it
+    // draws a client link, and sends an Analytics route to the Content Calendar instead.
+    function svRsClientNoAnalytics(client) {
+        return !!_isClientLink && _rsClientOn(client);
+    }
+    // The old bar's tools ride in the new header through a slot: this holder is a plain child of the page's host,
+    // so the site's own styles and handlers still apply to them. Only the client link with the switch on uses it.
+    let _rsToolsEl = null;
+    function svRsToolsEl() {
+        if (!_rsToolsEl) {
+            _rsToolsEl = document.createElement('div');
+            _rsToolsEl.className = 'sv-rs-tools';
+            _rsToolsEl.setAttribute('slot', 'tools');
+        }
+        return _rsToolsEl;
+    }
+    // A fresh calendar shell is about to be drawn: the old bar in the holder is stale (the shell draws a new one).
+    function svRsToolsDrop() {
+        if (_rsToolsEl) _rsToolsEl.replaceChildren();
+    }
+    // The calendar shell has just been drawn: on a switched-on client link its new bar goes straight to the header.
+    function svRsToolsAdopt() {
+        if (svRsClientFull()) _rsToolsSync(true);
+    }
+    // Takes the calendar's own bar (and, on a phone, its "More" button) into the holder, or gives it back.
+    function _rsToolsSync(full) {
+        const cv = document.getElementById('calView');
+        const el = svRsToolsEl();
+        if (full) {
+            if (!cv) return;
+            const bar = cv.querySelector(':scope > .cal-toolbar');
+            const more = cv.querySelector(':scope > .pocket-client-calendar > .pocket-cal-heading-actions');
+            if (!bar && !more) return;
+            el.replaceChildren();
+            if (bar) el.appendChild(bar);
+            if (more) el.appendChild(more);
+            return;
+        }
+        if (!el.firstChild) return;
+        const bar = el.querySelector(':scope > .cal-toolbar');
+        const more = el.querySelector(':scope > .pocket-cal-heading-actions');
+        if (cv && bar && !cv.querySelector(':scope > .cal-toolbar')) {
+            const pocket = cv.querySelector(':scope > .pocket-client-calendar');
+            if (pocket) pocket.after(bar); else cv.prepend(bar);
+        }
+        if (cv && more) { const pocket = cv.querySelector(':scope > .pocket-client-calendar'); if (pocket) pocket.appendChild(more); }
+        el.replaceChildren();
+    }
     // Kasper's Review Session, only for the staff member the switch names. Until the server has confirmed who is
     // signed in the answer is no.
     function svRsKasperOn() {
@@ -105,9 +166,9 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
 
     // The page's own chrome steps aside while the new page shows (it draws its own header).
     let _rsChromeStyle = null;
-    function _rsChrome(on) {
+    function _rsChrome(on, full) {
         const de = document.documentElement;
-        if ((on || de.classList.contains('sv-rs-kasper')) && !_rsChromeStyle) {
+        if ((on || full || de.classList.contains('sv-rs-kasper')) && !_rsChromeStyle) {
             _rsChromeStyle = document.createElement('style');
             _rsChromeStyle.id = 'svReviewStageChrome';
             _rsChromeStyle.textContent = 'html.sv-rs-cal #calView{display:none!important}'
@@ -116,37 +177,55 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
                 + 'html.sv-rs-kasper .kasper-wrap{max-width:none;display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:22px;align-items:center}'
                 + 'html.sv-rs-kasper .kasper-wrap>.kasper-head{margin:0}html.sv-rs-kasper .kasper-wrap .kasper-sub{display:none}'
                 + 'html.sv-rs-kasper .kasper-wrap>.kasper-subtabs{margin:0;border:0;box-shadow:none;background:transparent;padding:0}'
-                + 'html.sv-rs-kasper #kasperContent{grid-column:1/-1;margin-top:12px}';
+                + 'html.sv-rs-kasper #kasperContent{grid-column:1/-1;margin-top:12px}'
+                // The client link, whole page: no frame, no second header, no Analytics toggle on any of the four tabs.
+                + 'html.sv-rs-full .client-view.cal-tab-view>.view-tab-toggle,html.sv-rs-full #pageTitle,html.sv-rs-full #pageSub,html.sv-rs-full #calView>.pocket-client-calendar{display:none!important}'
+                + 'html.sv-rs-full #mainWrap{padding:0!important}'
+                + 'html.sv-rs-full #calView{padding:4px max(16px,env(safe-area-inset-right,0px)) 32px max(16px,env(safe-area-inset-left,0px))}'
+                // The old bar's tools, in the new header's slot: just the tools, no bar around them.
+                + 'html.sv-rs-full #svReviewStage .cal-toolbar{display:flex;align-items:center;gap:8px;margin:0!important;padding:0!important;min-height:0;background:transparent!important;border:0!important;box-shadow:none!important;position:static;width:auto;flex-wrap:nowrap}'
+                + 'html.sv-rs-full #svReviewStage .cal-toolbar-left,html.sv-rs-full #svReviewStage .cal-view-toggle{display:none!important}'
+                + 'html.sv-rs-full #svReviewStage .cal-toolbar-mid,html.sv-rs-full #svReviewStage .cal-toolbar-right{display:flex;align-items:center;gap:8px;width:auto!important;flex-wrap:nowrap;margin:0;padding:0}'
+                + 'html.sv-rs-full #svReviewStage .cal-toolbar-right:not(:has(>:not([hidden]))){display:none}'
+                + 'html.sv-rs-full #svReviewStage .pocket-cal-heading-actions>:not(:last-child){display:none!important}'
+                + 'html.sv-rs-full #svReviewStage .pocket-cal-heading-actions{display:flex;margin:0}'
+                + 'html.sv-rs-full #svReviewStage .pocket-cal-heading-actions>button{height:38px;min-height:0;width:38px;padding:0;border-radius:99px}';
             document.head.appendChild(_rsChromeStyle);
         }
         de.classList.toggle('sv-rs-cal', !!on);
         de.classList.toggle('sv-rs-client', !!on && !!_isClientLink);
+        de.classList.toggle('sv-rs-full', !!full);
     }
     let _rsCalQueued = false;
     // Called at the start of every Calendar body paint, and by the Review tab's renderer. Draws (or removes) the
     // new page beside #calView on the next frame, so the Calendar's own paint finishes first.
     function svRsCalSync() {
         const on = svRsCalOn();
-        if (on && _isClientLink) {
+        const full = svRsClientFull();
+        if ((on || full) && _isClientLink) {
             // The client page has a sun/moon button (the rest of a client link stays light).
             if (!window.__svRsThemeOk) {
                 window.__svRsThemeOk = true;
                 try { _syncviewApplyTheme(localStorage.getItem('syncview_theme') === 'dark' ? 'dark' : 'light', false); } catch (e) {}
             }
         }
-        _rsChrome(on);
+        _rsChrome(on, full);
+        _rsToolsSync(full);
         if (_rsCalQueued) return;
         _rsCalQueued = true;
         requestAnimationFrame(() => {
             _rsCalQueued = false;
             const still = svRsCalOn();
-            _rsChrome(still);
-            if (!still) { const api = svAreaApi('reviewstage'); if (api) api.calHide(); return; }
-            svArea('reviewstage').then(api => { if (svRsCalOn()) api.cal(); }, (e) => {
+            const stillFull = svRsClientFull();
+            _rsChrome(still, stillFull);
+            _rsToolsSync(stillFull);
+            if (!still && !stillFull) { const api = svAreaApi('reviewstage'); if (api) api.calHide(); return; }
+            svArea('reviewstage').then(api => { if (svRsCalOn() || svRsClientFull()) api.cal(); }, (e) => {
                 // The page could not be fetched: the old page comes back.
                 console.warn('[Review page] could not load; the old page stays', e && e.message);
                 _rsFlags = Object.assign({}, _rsFlags, { all: false, clients: new Set() });
-                _rsChrome(false);
+                _rsChrome(false, false);
+                _rsToolsSync(false);
                 _calRenderBody();
             });
         });
@@ -169,7 +248,12 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         if (api) api.kasperHide();
     }
     window.addEventListener('sv-review-stage-switch', () => {
+        // A switched-on client link that opened on Analytics: that route is gone, the Content Calendar takes its place.
+        if (_isClientLink && !document.getElementById('calView')) {
+            const cap = _syncviewClientEntryCapability;
+            if (cap && cap.verified && cap.client && (clientViewTab[cap.client] || 'analytics') === 'analytics' && svRsClientNoAnalytics(cap.client)) render(cap.client, true);
+        }
         if (document.getElementById('calView') && calState && calState.client) _calRenderBody({ preserveScroll: true });
         if (document.getElementById('kasperReviewBody')) _kasperPaintReview();
     });
-export { svRsCalOn, svRsCalSync, svRsHelpUrl, svRsKasperLeave, svRsKasperOn, svRsKasperPaint };
+export { svRsCalOn, svRsCalSync, svRsClientNoAnalytics, svRsHelpUrl, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl };

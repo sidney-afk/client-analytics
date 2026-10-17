@@ -795,6 +795,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-browser.js
+      - name: Client link as one page under the new review header (one header on every tab, no Analytics, no frame, Frame.io player on the video step)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-client-layout-browser.js
 
 
   split-preview:

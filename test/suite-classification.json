@@ -20,6 +20,7 @@
     "higgsfield-studio-latest.js",
     "higgsfield-studio-profile.js",
     "pipeline-pass.js",
+    "pipeline-store.js",
     "pages-deploy-source-unreadable.js",
     "production-write-comment-round.js",
     "staff-phone-rules-source.js",

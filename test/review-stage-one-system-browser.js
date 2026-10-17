@@ -186,6 +186,19 @@ function scrollOf(page) { return page.evaluate(() => ({ sh: document.scrollingEl
       expect(sig(C.kasper) === sig(C.smm) && sig(C.smm) === sig(C.client), theme + ': the three surfaces compute the same colours (kasper ' + sig(C.kasper) + ' | smm ' + sig(C.smm) + ' | client ' + sig(C.client) + ')');
     }
 
+    // ---------- a phone keeps the Messages page and its phone layout (embedding is desktop only) ----------
+    {
+      console.log('--- Kasper tab, switch on, phone 390x844 ---');
+      const t = await openKasper(browser, origin, { flags: 'on', staff: STAFF, width: 390, height: 844, expectNew: true });
+      await kTab(t, 'replies');
+      const M = await kHead(t.page);
+      expect(M.msgPage && !M.embed, 'phone: Messages opens its own page with its phone layout, not embedded (page ' + M.msgPage + ', embedded ' + M.embed + ')');
+      const sw = await t.page.evaluate(() => ({ sw: document.scrollingElement.scrollWidth, cw: document.scrollingElement.clientWidth }));
+      expect(sw.sw <= sw.cw, 'phone: no sideways scroll (' + sw.sw + ' > ' + sw.cw + ')');
+      expect(t.errors.length === 0, 'phone: no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    }
+
     // ---------- the switch off for this person, or unreadable: today's Kasper tab ----------
     for (const [label, o] of [['someone else signed in', { flags: 'on', staff: OTHER }], ['switch unreadable', { flags: 'unreadable', staff: STAFF }]]) {
       console.log('--- Kasper tab, ' + label + ' ---');

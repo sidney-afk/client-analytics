@@ -83,7 +83,10 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         // With the new review page on for this person (188), Messages opens inside the Kasper tab, under its one
         // header, with no Close button (owner feedback 2026-10-17, Curtain Five). The Messages page stays as it is
         // for everyone else, and for the header's own Messages button.
-        if (svRsKasperOn()) {
+        // Desktop only: the Messages page carries its own phone layout, so a phone keeps opening that page.
+        let wide = true;
+        try { wide = !window.matchMedia || window.matchMedia('(min-width: 861px)').matches; } catch (e) {}
+        if (svRsKasperOn() && wide) {
             const root = document.getElementById('kasperContent');
             if (!root) return;
             _msgMountEmbedded(root);

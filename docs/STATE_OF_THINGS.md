@@ -18,10 +18,66 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## New review page, layout C (session Marquee, 2026-10-17): built behind two switches, both off until set
+
+The owner approved the client page (layout C, "Guided stage") and the SMM and Kasper versions of it on 2026-10-16.
+It is a new view beside the old one (`src/index/188-review-stage-switch.js.part` reads the switches;
+`src/index/195-review-stage.js.part` is the page, its own on-demand area `reviewstage`, downloaded only when a switch
+says yes). Turning a switch off brings the old page back on the next load. Test: `node test/review-stage-browser.js`.
+
+**The switches** (rows in `syncview_runtime_flags`, read once per page, fail closed: missing, unreadable or the wrong
+shape is the old page; the lists live only in the database):
+- `review_stage_client_pages` `{ "clients": [...] }`: the client's review link and the SMM's Calendar Review tab for those
+  clients. (Not named `..._clients`: several browser tests answer every `_clients` key with "on".)
+- `review_stage_kasper_staff` `{ "staff": [...] }`: Kasper's Review Session, only for the signed-in staff member whose
+  roster id or full name is listed.
+- `review_help_video_url` `{ "url": "https://..." }`: the tutorial video behind the client page's "?". Empty or missing
+  hides the button. The video is made later by another session.
+To try it: the test client in the first list and the owner in the second. Nobody else sees anything new.
+
+**The owner's decisions, 2026-10-16:** yes to the SMM and Kasper mock-ups, and to the five open choices:
+(1) the arrow on Approve is faint at rest and firm on hover; (2) SMM caption edits save at once, as today; (3) Kasper's
+"With the editors" folds at the end of the strip, and a card there opens read only with Ping editor; (4) Kasper's
+conversation is team only, with no Client can see switch; (5) the stage uses the Notes view player (#2120), not a copy,
+so session Encore's speed buttons and "Open in Frame.io" message (#2130) arrive with it when they merge.
+His review of the mock-ups, on all three versions: the strip scrolls sideways with the ordinary mouse wheel (trackpad
+swipes still work, no scrollbar); no "parts to look at" list on the left (the step bar shows each part's state: green
+check approved, orange change asked); steps look clickable (hand cursor, a soft fill on hover, one gentle glow on the
+next step the first time the page shows, never repeated); the date sits at the stage's top left ("Fri 23 Oct") and
+Kasper's "Back after tweaks, round 2" line stays under the title; the freed width goes to the stage; a "?" beside the
+theme button on the client page opens a tutorial video in an overlay.
+
+**Decisions made in the build (every save is the old page's own; no new write path):**
+- Client "Finish reviewing" saves nothing: each answer is already saved when given; it opens the next waiting post.
+- A client's caption (or YouTube title) edit is sent as a change request on that part carrying the new text, so the
+  SMM applies it; there is no client caption save, and it never approves.
+- A client's "Change my mind" on an approved part sends a note to the team on that part (a client link cannot reopen
+  an approved part); the SMM's and Kasper's reopen it as a change request, as their old pages do.
+- A client's "Take it back" on a sent change request is not offered (nothing on the old page undoes one).
+- A plain note goes on the part on stage (every note belongs to a part of a card). The SMM's "Client can see" note uses
+  the same outbox and card save as the Review panel's note, with the audience the Notes dialog gives it.
+- "Tweaks are on Frame" is Kasper's ordinary change request with that message. "Approve after tweaks" asks for his note
+  first (the old function needs one).
+- A client link stays light everywhere except where this page is on: there the sun/moon button works (and the rest of
+  that client link follows the chosen theme).
+- Samples in Kasper's list carry the "Sample" tag and open a "Watch the video" link instead of the player.
+- The old page's own confirmations and refusals still show (for example "Approve to client" before Kasper has seen a
+  part, or a Linear-linked part with no work item behind it).
+
+**Still to do:** set the two switches for the test client and the owner after merge, then run `/dawn-check` and
+`/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone
+layout follows the desktop one and has not been polished on its own (as the handoff said).
+
 ## Latest (Lighthouse, 2026-10-16)
 
 Newest first. Checked against main and the live database on 2026-10-16. When an item here is finished or moved into
 the sections below, delete it from this block in the same PR.
+
+**2026-10-17 (session Echo, open PR, not merged):** the red card-vs-work-item drift row is a page bug. A client's
+Request changes on a linked part skipped its status push whenever the client-comment front door was unavailable, so the
+card said Tweaks Needed and the work item never moved (1 real card, 2026-10-16). Fixed in the page (OPEN_REPAIRS 429);
+reproduced and fix proven on the test client. The one real card needs the owner's go for a Production status move to
+tweak (never the backfill, which would erase the client's request).
 
 **Evening 2026-10-16 (Lighthouse, checked live):**
 - **First Section 4 release through the new lanes SUCCEEDED** (manual merge-lane run 38953309940 at `27ce2100`, 19:13 UTC):
@@ -47,6 +103,14 @@ the sections below, delete it from this block in the same PR.
   now holds the test client and the owner's two own clients. Everyone else follows after 8 clean watcher runs that
   include real saves on those two. A component status change also writes a card-level ledger row; that is the old
   saver's behaviour too (130 of 368 status changes in 7 days), not a new-saver regression.
+
+**Built, waiting for merge (session Encore, 2026-10-16, OPEN_REPAIRS 427): the owner's five points on Watch here.**
+The frozen picture with sound was the card's thumbnail left on top of the playing video (now hidden once the video has
+a frame); a file that plays sound but no picture switches to the small H.264 copy. Speed 1x/1.5x/2x and 5 s back and
+forward in the player; the "Syncing this thread" line is gone (Send is just disabled while the thread loads); the notes
+read starts when a door is pointed at and beside the link check; the card's play button sits in the middle of the
+thumbnail; when the video cannot play properly the player says "Having trouble playing this? Open it in Frame.io"
+with the link (point 6). Page only, no function change.
 
 **Live (session Cinema, 2026-10-16, #2120): Watch here, one view for the video and its notes.** Every door (the Notes
 button, the Sheet's play icon, the Review tab's video preview, Kasper's "Watch here") opens the card's Notes dialog with

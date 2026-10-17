@@ -1,0 +1,175 @@
+import { _syncviewApplyTheme, svArea, svAreaApi } from './040-shared-briefs.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
+import { _calRuntimeFlagRawMembers, _calRuntimeFlagSlug } from './120-calendar-flags-write-repair.js';
+import { calClientSlug, calState } from './130-calendar-model-cache.js';
+import { _calRenderBody } from './160-calendar-organize-ui.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
+import { _kasperPaintReview } from './305-core-kasper-shared.js';
+    /* THE NEW REVIEW PAGE (layout C, "Guided stage"), behind two switches. Session Marquee, 2026-10-17.
+
+       This file is the small, always-loaded half: it reads the switches and answers "show the new page here?".
+       The page itself (195-review-stage.js.part) is its own on-demand area, "reviewstage", fetched only when a
+       switch says yes, so nobody else downloads it.
+
+       The switches are rows in syncview_runtime_flags, read once per page with the public key (a bounded read that
+       fails closed, the way frame_viewer_clients is read in 187). Missing, unreadable or the wrong shape all mean the
+       old page, exactly as before this file existed:
+         review_stage_client_pages       { "clients": [...] } or { "all": true }: the client's review link and the SMM's
+                                    Calendar Review tab for those clients.
+         review_stage_kasper_staff  { "staff": [...] }: the Kasper tab's Review Session, only for the signed-in staff
+                                    member whose id or full name is listed.
+         review_help_video_url      { "url": "..." }: the tutorial video behind the "?" on the client page. Empty or
+                                    missing hides the button.
+       The lists live only in the database, never in this repository. */
+    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url'];
+    const RS_FLAG_TIMEOUT_MS = 4000;
+    const RS_FLAG_RETRY_MS = 30000;
+    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), help: '' };
+    let _rsFlagPromise = null;
+    let _rsFlagTriedAt = 0;
+
+    function _rsParse(rows) {
+        const by = {};
+        (Array.isArray(rows) ? rows : []).forEach(r => { if (r && typeof r.key === 'string') by[r.key] = r.value; });
+        const c = by.review_stage_client_pages;
+        const okObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+        const members = okObj(c) ? (_calRuntimeFlagRawMembers(c) || []) : [];
+        const s = by.review_stage_kasper_staff;
+        const staff = okObj(s) && Array.isArray(s.staff) ? s.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
+        const h = by.review_help_video_url;
+        const help = okObj(h) && typeof h.url === 'string' && /^https:\/\//i.test(h.url.trim()) ? h.url.trim() : '';
+        return {
+            loaded: true,
+            all: okObj(c) && c.all === true,
+            clients: new Set(members.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
+            staff: new Set(staff),
+            help,
+        };
+    }
+    async function _rsFetch() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return;
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, RS_FLAG_TIMEOUT_MS) : null;
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=key,value&key=in.(' + RS_FLAG_KEYS.join(',') + ')';
+            const resp = await fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined, headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            if (!Array.isArray(rows)) throw new Error('shape');
+            const next = _rsParse(rows);
+            const changed = next.all || next.clients.size || next.staff.size;
+            _rsFlags = next;
+            // Something switched on: the open page draws again, now as the new page.
+            if (changed) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
+        } catch (e) {
+            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), help: '' };
+            _rsFlagPromise = null;
+            console.warn('[Review page] switch unreadable; the old page stays', e && e.message);
+        } finally { if (timer) clearTimeout(timer); }
+    }
+    function _rsPrime() {
+        if (_rsFlagPromise) return;
+        if (_rsFlagTriedAt && Date.now() - _rsFlagTriedAt < RS_FLAG_RETRY_MS) return;
+        _rsFlagTriedAt = Date.now();
+        _rsFlagPromise = _rsFetch();
+    }
+    function _rsClientOn(client) {
+        _rsPrime();
+        if (!_rsFlags.loaded) return false;
+        if (_rsFlags.all) return true;
+        let slug = '';
+        try { slug = calClientSlug(String(client || '')); } catch (e) { slug = ''; }
+        return !!slug && _rsFlags.clients.has(slug);
+    }
+    // The Calendar's Review tab (a client link, or the SMM's Review tab) for a switched-on client, once its cards
+    // are loaded. Anything else is the old page.
+    function svRsCalOn() {
+        if (!calState || !calState.client || calState.loading || calState.error) return false;
+        if (calState.view !== 'review' && calState.view !== 'smmreview') return false;
+        if (!document.getElementById('calView')) return false;
+        return _rsClientOn(calState.client);
+    }
+    // Kasper's Review Session, only for the staff member the switch names. Until the server has confirmed who is
+    // signed in the answer is no.
+    function svRsKasperOn() {
+        _rsPrime();
+        if (!_rsFlags.loaded || !_rsFlags.staff.size || _isClientLink) return false;
+        let who = null;
+        try { who = _syncviewStaffIdentityForHeaders(); } catch (e) { who = null; }
+        const m = who && who.member;
+        if (!m) return false;
+        const id = String(m.id || '').trim().toLowerCase(), name = String(m.name || '').trim().toLowerCase();
+        return (!!id && _rsFlags.staff.has(id)) || (!!name && _rsFlags.staff.has(name));
+    }
+    function svRsHelpUrl() { return _rsFlags.help || ''; }
+
+    // The page's own chrome steps aside while the new page shows (it draws its own header).
+    let _rsChromeStyle = null;
+    function _rsChrome(on) {
+        const de = document.documentElement;
+        if ((on || de.classList.contains('sv-rs-kasper')) && !_rsChromeStyle) {
+            _rsChromeStyle = document.createElement('style');
+            _rsChromeStyle.id = 'svReviewStageChrome';
+            _rsChromeStyle.textContent = 'html.sv-rs-cal #calView{display:none!important}'
+                + 'html.sv-rs-cal.sv-rs-client .client-view.cal-tab-view>.view-tab-toggle,html.sv-rs-cal.sv-rs-client #pageTitle,html.sv-rs-cal.sv-rs-client #pageSub{display:none!important}'
+                // Kasper (the approved design): his title and tabs on one row, the page at full width.
+                + 'html.sv-rs-kasper .kasper-wrap{max-width:none;display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:22px;align-items:center}'
+                + 'html.sv-rs-kasper .kasper-wrap>.kasper-head{margin:0}html.sv-rs-kasper .kasper-wrap .kasper-sub{display:none}'
+                + 'html.sv-rs-kasper .kasper-wrap>.kasper-subtabs{margin:0;border:0;box-shadow:none;background:transparent;padding:0}'
+                + 'html.sv-rs-kasper #kasperContent{grid-column:1/-1;margin-top:12px}';
+            document.head.appendChild(_rsChromeStyle);
+        }
+        de.classList.toggle('sv-rs-cal', !!on);
+        de.classList.toggle('sv-rs-client', !!on && !!_isClientLink);
+    }
+    let _rsCalQueued = false;
+    // Called at the start of every Calendar body paint, and by the Review tab's renderer. Draws (or removes) the
+    // new page beside #calView on the next frame, so the Calendar's own paint finishes first.
+    function svRsCalSync() {
+        const on = svRsCalOn();
+        if (on && _isClientLink) {
+            // The client page has a sun/moon button (the rest of a client link stays light).
+            if (!window.__svRsThemeOk) {
+                window.__svRsThemeOk = true;
+                try { _syncviewApplyTheme(localStorage.getItem('syncview_theme') === 'dark' ? 'dark' : 'light', false); } catch (e) {}
+            }
+        }
+        _rsChrome(on);
+        if (_rsCalQueued) return;
+        _rsCalQueued = true;
+        requestAnimationFrame(() => {
+            _rsCalQueued = false;
+            const still = svRsCalOn();
+            _rsChrome(still);
+            if (!still) { const api = svAreaApi('reviewstage'); if (api) api.calHide(); return; }
+            svArea('reviewstage').then(api => { if (svRsCalOn()) api.cal(); }, (e) => {
+                // The page could not be fetched: the old page comes back.
+                console.warn('[Review page] could not load; the old page stays', e && e.message);
+                _rsFlags = Object.assign({}, _rsFlags, { all: false, clients: new Set() });
+                _rsChrome(false);
+                _calRenderBody();
+            });
+        });
+    }
+    // Kasper's queue, from his own repaint (330). Answers true when the new page took the queue.
+    function svRsKasperPaint(parts) {
+        if (!svRsKasperOn()) { svRsKasperLeave(); return false; }
+        document.documentElement.classList.add('sv-rs-kasper');
+        _rsChrome(document.documentElement.classList.contains('sv-rs-cal'));
+        svArea('reviewstage').then(api => { if (svRsKasperOn()) api.kasper(parts); }, () => {
+            document.documentElement.classList.remove('sv-rs-kasper');
+            _rsFlags = Object.assign({}, _rsFlags, { staff: new Set() });
+            _kasperPaintReview();
+        });
+        return true;
+    }
+    function svRsKasperLeave() {
+        document.documentElement.classList.remove('sv-rs-kasper');
+        const api = svAreaApi('reviewstage');
+        if (api) api.kasperHide();
+    }
+    window.addEventListener('sv-review-stage-switch', () => {
+        if (document.getElementById('calView') && calState && calState.client) _calRenderBody({ preserveScroll: true });
+        if (document.getElementById('kasperReviewBody')) _kasperPaintReview();
+    });
+export { svRsCalOn, svRsCalSync, svRsHelpUrl, svRsKasperLeave, svRsKasperOn, svRsKasperPaint };

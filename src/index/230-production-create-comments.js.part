@@ -2125,6 +2125,24 @@ import {
             // Send also waits on this lookup specifically: a kept 'ready' verdict
             // may only be reused once the CURRENT crosswalk confirms the card is
             // still bound to the same deliverable.
+            /* Staff: the thread read starts beside the link check instead of after it (Encore, 2026-10-16). It
+               is only a read, with the same options the read below would use, and its answer is used only for a
+               deliverable the check then finds valid (and only when those options still match); a deliverable an
+               earlier check already found not valid is not asked for at all. A client link keeps the old order:
+               its read depends on a verified client surface. */
+            const earlyReads = new Map();
+            if (!_isClientLink) {
+                allComponents.forEach(component => {
+                    const deliverableId = _writeUiNativeId(post, component);
+                    if (!deliverableId || earlyReads.has(deliverableId)) return;
+                    const known = _prodCrosswalkVerdict(post, deliverableId, component);
+                    if (known && known.state && known.state !== 'valid') return;
+                    const clientSurface = _prodVerifiedClientCommentSurfaceContext(surface, post, component, deliverableId);
+                    const read = _prodComments.readCanonical(deliverableId, { clientSurface });
+                    read.catch(() => null);
+                    earlyReads.set(deliverableId, { read, key: JSON.stringify(clientSurface || null) });
+                });
+            }
             _prodCrosswalkRunStart(post);
             const validComponents = await _prodResolveCardCrosswalk(surface, post, allComponents)
                 .finally(() => { _prodCrosswalkRunEnd(post); });
@@ -2186,9 +2204,12 @@ import {
                 const clientSurface = _prodVerifiedClientCommentSurfaceContext(
                     surface, post, component, deliverableId
                 );
-                const thread = await _prodComments.readCanonical(deliverableId, {
-                    clientSurface
-                });
+                const early = earlyReads.get(deliverableId);
+                const thread = (early && early.key === JSON.stringify(clientSurface || null))
+                    ? await early.read.catch(() => null)
+                    : await _prodComments.readCanonical(deliverableId, {
+                        clientSurface
+                    });
                 if (!thread || thread.status !== 'ready') {
                     post._canonicalCommentReads[deliverableId] = {
                         status: 'error',

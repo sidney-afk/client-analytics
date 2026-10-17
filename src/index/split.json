@@ -1,6 +1,6 @@
 {
   "enabled": true,
-  "lazy": ["tiktok", "templates", "workload", "kasper"],
+  "lazy": ["tiktok", "templates", "workload", "kasper", "reviewstage"],
   "clients": true,
   "minify": true
 }

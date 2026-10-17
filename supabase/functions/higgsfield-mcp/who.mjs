@@ -56,7 +56,8 @@ export function teamTools(tools, member) {
 // links never need "who": they already name the person.
 export function whoRefusal(member, tool, who) {
   if (!isTeamLink(member) || !WHO_REQUIRED_TOOLS.has(tool)) return "";
-  return cleanWho(who) ? "" : WHO_REQUIRED_REPLY;
+  // A name needs at least one letter: "-" or "." is not a person.
+  return /\p{L}/u.test(cleanWho(who)) ? "" : WHO_REQUIRED_REPLY;
 }
 
 // ---- Activity log (hf_activity) ------------------------------------------

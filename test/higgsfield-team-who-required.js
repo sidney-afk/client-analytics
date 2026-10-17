@@ -24,7 +24,7 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
 
   // Team link, a save tool, no usable name: refused with the plain ask.
   for (const tool of ['brain_change', 'studio_profile_save']) {
-    for (const missing of [undefined, null, '', '   ', 42, '1234', '<>']) {
+    for (const missing of [undefined, null, '', '   ', 42, '1234', '<>', '-', '.', "'", '123-456', ' . - ']) {
       const r = who.whoRefusal('Team', tool, missing);
       assert.ok(r.startsWith('Tell me your first name first, so the team knows who saved this. Then I\'ll save it.'), `${tool} without who (${JSON.stringify(missing)}) is refused`);
       assert.ok(/Nothing was saved/.test(r));

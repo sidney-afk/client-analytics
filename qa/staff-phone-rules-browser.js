@@ -103,6 +103,7 @@ async function screen(browser,origin,width,theme,route) {
       state.settings={enabled_platforms:['instagram','tiktok','youtube','linkedin','facebook']};
       if(route==='calendar'){_calInvalidateActiveLoad();_calRenderShell();_calRenderBody();}else{_sxrRenderShell();_sxrRenderBody();}
     },route);
+    await staff.openEditableSheet(page);
     await settle(page);await layout(page,prefix);
     // Every screen's Tabs and More, including menu-only personal Time Off.
     for(const kind of ['tabs','more']) {

@@ -81,6 +81,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node qa/staff-phone-design-browser.js --widths=${{ matrix.width }}
+      - name: Thumb collection grid, detail, menus and native List continuity
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node qa/staff-phone-collections.js --widths=${{ matrix.width }}
       - name: Thumb phone Workload agenda, queues, filters and native planning
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

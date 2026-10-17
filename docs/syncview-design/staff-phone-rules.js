@@ -41,7 +41,7 @@
             return leaves.sort((a, b) => (parseInt(getComputedStyle(b).zIndex) || 0) - (parseInt(getComputedStyle(a).zIndex) || 0))[0];
         }
         function cards() {
-            document.querySelectorAll('#calView .cal-card, #sxrView .cal-card').forEach(card => {
+            document.querySelectorAll('#calView .cal-card:not(.thumb-grid-card), #sxrView .cal-card:not(.thumb-grid-card)').forEach(card => {
                 const thumb = card.querySelector('.cal-card-thumb');
                 if (!thumb) return;
                 let tools = thumb.querySelector('.sv-phone-card-tools');

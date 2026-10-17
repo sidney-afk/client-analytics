@@ -83,15 +83,20 @@ async function screen(browser, origin, [label, viewport, mobile]) {
       _calRenderShell();
       await loadCalendarPosts({ skipCache: true });
       await new Promise(r => setTimeout(r, 400));
+    }, { view, client: CLIENT });
+    if(view==='organizer')await require('./staff-phone-browser').openEditableSheet(page);
+    await page.evaluate(async () => {
       const strip = document.getElementById('calStrip');
       if (strip && strip.scrollWidth > strip.clientWidth) strip.scrollLeft = 2000;
-      window.scrollTo(0, 900);
+      const body=document.getElementById('calBody');
+      if(body.closest('[data-thumb-collection]'))body.scrollTop=900;else window.scrollTo(0,900);
       await new Promise(r => setTimeout(r, 250));
-    }, { view, client: CLIENT });
+    });
     const before = await page.evaluate(sel => {
       const strip = document.getElementById('calStrip');
       const sideways = !!(strip && strip.scrollWidth > strip.clientWidth);
-      const box = sideways ? strip.getBoundingClientRect() : { left: 0, top: 0 };
+      const body=document.getElementById('calBody');
+      const box = sideways ? strip.getBoundingClientRect() : body.closest('[data-thumb-collection]')?body.getBoundingClientRect():{left:0,top:0};
       const el = [...document.querySelectorAll(sel)].find(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > box.left + 1 && r.bottom > box.top + 1 && r.top < innerHeight; });
       if (!el) return null;
       const r = el.getBoundingClientRect();
@@ -184,8 +189,9 @@ function inView(page, strip) {
     const body = document.getElementById('calBody');
     const s = strip ? document.getElementById('calStrip') : null;
     const r0 = s ? s.getBoundingClientRect() : null;
+    const inner=body.closest('[data-thumb-collection]')?body.getBoundingClientRect():null;
     const box = s ? { left: r0.left, top: r0.top, right: r0.left + s.clientWidth, bottom: Math.min(r0.top + s.clientHeight, innerHeight) }
-                  : { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
+                  : inner?{left:inner.left,top:inner.top,right:inner.right,bottom:inner.bottom}:{left:0,top:0,right:innerWidth,bottom:innerHeight};
     const keyOf = e => { for (const a of ['data-pid', 'data-cal-review-pid', 'data-iso', 'data-cal-move']) if (e.hasAttribute(a)) return a + '=' + e.getAttribute(a); return ''; };
     const items = [];
     for (const e of body.querySelectorAll(ANY)) {
@@ -330,7 +336,9 @@ const MOVED_CASES = [
     const fold = day(FOLD);
     await page.evaluate(fold => {
       const t = document.querySelector('#calBody [data-iso="' + fold + '"]');
-      window.scrollTo(0, window.scrollY + t.getBoundingClientRect().top + 30);   // its top 30px above the screen
+      const body=document.getElementById('calBody');
+      if(body.closest('[data-thumb-collection]'))body.scrollTop+=t.getBoundingClientRect().top-body.getBoundingClientRect().top+30;
+      else window.scrollTo(0,window.scrollY+t.getBoundingClientRect().top+30);   // its top 30px above the screen
     }, fold);
     await page.waitForTimeout(250);
     const before = await inView(page, false);

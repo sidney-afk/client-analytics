@@ -108,6 +108,8 @@ async function openStaff(page, origin, theme) {
   await page.goto(`${origin}/index.html?v=calendar`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof _calSavePins === 'function', null, { timeout: 30000 });
   await page.evaluate(([c, t]) => { document.documentElement.setAttribute('data-theme', t); _syncviewStaffIdentityVerified = true; _calSavePins([c]); navTo('calendar'); }, [CLIENT, theme]);
+  await page.waitForSelector('.cal-card[data-pid="gl1"], .thumb-tile[data-thumb-card="gl1"]', { timeout: 20000 });
+  await require('./staff-phone-browser').openEditableSheet(page);
   await page.waitForSelector('.cal-prod-btn', { timeout: 20000 });
   await page.waitForTimeout(800);
   await page.evaluate(() => document.fonts.ready);

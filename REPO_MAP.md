@@ -1,5 +1,9 @@
 # Repo map
 
+`qa/staff-phone-collections.js` verifies Thumb's phone collection grid, retained
+native List, card/back navigation, More sections, bulk selection, review and
+truthful empty/loading/error states at 390 and 430. Its approved design and
+actual screen/check evidence live in `docs/audits/2026-10-14-thumb-calendar-samples/`.
 Thumb Workload phone: `qa/staff-phone-workload.js` verifies agenda, creative queues, sheets and native planning; evidence is in `docs/audits/2026-10-15-thumb-workload/`.
 Thumb Messages phone: `qa/staff-phone-messages.js` verifies inbox/thread/draft/composer journeys; `qa/messages-desktop-parity.js` proves populated desktop parity; evidence lives in `docs/audits/2026-10-15-thumb-messages/`.
 

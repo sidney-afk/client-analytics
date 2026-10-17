@@ -1731,6 +1731,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-staff-layout-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Checks the staff Calendar for a client with the new review page switched on, at 1440 and 1920 wide, light and dark: the Review | Sheet | Month | Week toggle keeps one bounding box on all four tabs, Review draws no second client heading or toggle and sits straight under the staff bar with no frame, and the old page with the switch off.",
+      "reproduce": "node test/review-stage-staff-layout-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-one-system-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

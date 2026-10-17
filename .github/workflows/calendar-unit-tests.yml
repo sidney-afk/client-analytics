@@ -838,6 +838,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-client-layout-browser.js
+      - name: Staff Calendar Review tab under the staff bar (toggle never moves, no second heading, old page when off)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-staff-layout-browser.js
       - name: New review page as one system (one Kasper header on every section, Messages inside the tab, no page scroll, the app's colour tokens)
         if: ${{ !cancelled() }}
         env:

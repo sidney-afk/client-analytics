@@ -75,6 +75,20 @@ video with its notes" hover tooltip is gone from the player doors (staff Sheet a
 used the Frame.io player wherever `frame_viewer_clients` allows the client (live for the test client). Test:
 `node test/review-stage-client-layout-browser.js`.
 
+**Owner feedback of 2026-10-17, second round (session Curtain Three):** on that client page, desktop only, the Sheet's
+row of cards sits in the middle of the space under the header (both ways) when it fits, and starts at the top and
+scrolls when zoomed in past it; Organize and the card size have the header's pill fill in light mode; the "waiting
+for you" strip ends at the header's right margin and fades out when more posts are to the right; a bare link (no
+`v=`) reads the switch beside the link check, so a switched-on client sees the neutral check screen and then the
+Content Calendar, never the Analytics skeleton. Same test file.
+
+**Staff Review tab under the staff bar (session Curtain Four, owner feedback 2026-10-17):** for a switched-on client the
+SMM's Calendar Review tab keeps the Calendar's own bar (the Review | Sheet | Month | Week toggle on the left, Notify
+client, the menu), so the toggle sits in exactly the same place on all four tabs, and the new page draws no
+"<client> Content calendar" heading of its own (the client switcher already names the client). The client link and
+Kasper's tab are unchanged; with the switch off the staff page is today's. Test:
+`node test/review-stage-staff-layout-browser.js`.
+
 **Owner feedback of 2026-10-17 18:10 UTC (session Curtain Five):** with the switch on, the Kasper tab has one header
 (title, Review Session / Messages / Filming Plans, More) at the same place on every section, and Messages opens inside
 the tab with no Close button (the header's own Messages button and everyone else still get the Messages page); no

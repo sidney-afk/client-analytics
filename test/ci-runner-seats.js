@@ -58,7 +58,10 @@ function legs(mx) {
   for (const [k, vals] of Object.entries(mx)) out = out.flatMap(o => vals.map(v => ({ ...o, [k]: v })));
   return out;
 }
-const PR_SIDE = /^\$\{\{ github\.event_name == 'pull_request' && (.+) \|\| format\('calendar-unit-tests-\{0\}-\{1\}-\{2\}', github\.run_id, github\.job, strategy\.job-index\) \}\}$/;
+// The job id is written out: github.job is only set inside a job's steps and is
+// null when the concurrency group is worked out, which would make leg 0 of every
+// job share one group on main (Codex review on #2148).
+const prSide = id => new RegExp("^\\$\\{\\{ github\\.event_name == 'pull_request' && (.+) \\|\\| format\\('calendar-unit-tests-\\{0\\}-" + id + "-\\{1\\}', github\\.run_id, strategy\\.job-index\\) \\}\\}$");
 
 const seats = new Map();
 for (const id of jobIds) {
@@ -72,8 +75,9 @@ for (const id of jobIds) {
   }
   ok(conc, `${id} holds a pull-request runner seat (job-level concurrency with cancel-in-progress and queue)`);
   ok(conc[2] === 'false' && conc[3] === 'max', `${id}: its seat queues later jobs and never cancels one (cancel-in-progress: false, queue: max)`);
-  const pr = PR_SIDE.exec(conc[1]);
-  ok(pr, `${id}: on a pull request it takes a seat; anywhere else its group is unique to the run, job and leg`);
+  const pr = prSide(id).exec(conc[1]);
+  ok(pr, `${id}: on a pull request it takes a seat; anywhere else its group names this job outright and is unique to the run and leg`);
+  ok(!conc[1].includes('github.job'), `${id}: its group does not use github.job (null outside steps)`);
   const expr = pr[1];
   for (const leg of legs(matrix(block))) {
     let name;

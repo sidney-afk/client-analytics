@@ -28,6 +28,11 @@
 //   notes.add         { title, body, source, follows? }  a feedback note (chat or sheet)
 //   brain.snapshot    { have_commit? }                   the Synchro Brain at main as a signed zip link, no money.md
 //
+// Every pass action (store and Google alike) first re-checks that the pass's
+// member is still on the filming plan list (users.mjs, fp_settings
+// "pipeline_users"), so removing a name stops a pass already handed out. A
+// pass from the shared team link is always refused.
+//
 // The password is PIPELINE_GOOGLE_KEY in Supabase; the pipeline keeps the same
 // value in google_relay_key.txt in the private repo (setup_google_relay.py makes
 // both). Without it set, every request is refused.
@@ -47,6 +52,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { PASS_HEADER, isPassToken, passHash } from "./pass.mjs";
 import { SNAPSHOT_BUCKET, STORE_ACTIONS, snapshotName, storeAction } from "./store.mjs";
+import { pipelineGate } from "./users.mjs";
 import { WRITE_ACTIONS, allowedFiles, checkDocsBatch, checkFile, checkSheetsBatch, checkValuesRange, clientFiles, createdTabIds } from "./rules.mjs";
 
 const SCOPES = [
@@ -251,6 +257,10 @@ async function withPass(req: Request, raw: string): Promise<Response> {
     return refused(`That pipeline pass ran out at ${String(pass.expires_at)}. Ask the connector for a new one (pipeline_pass).`, 401);
   }
 
+  // Only the people on the filming plan list, read now, never the team link.
+  const gate = await pipelineGate(readSetting(sb), { member: String(pass.member ?? ""), teamLink: pass.via !== "personal" });
+  if (gate) return refused(gate.text, gate.status);
+
   // deno-lint-ignore no-explicit-any
   const b = await req.json().catch(() => ({})) as Record<string, any>;
   const action = clean(b.action);
@@ -325,6 +335,15 @@ async function withPass(req: Request, raw: string): Promise<Response> {
 
 // ---- The pipeline's own data, for store.mjs -----------------------------------
 
+// One fp_settings value, or null when the key is not set.
+function readSetting(sb: NonNullable<ReturnType<typeof db>>) {
+  return async (key: string) => {
+    const { data, error } = await sb.from("fp_settings").select("value").eq("key", key).maybeSingle();
+    if (error) throw new Error(`the settings: ${error.message || "no answer"}`);
+    return data ? data.value : null;
+  };
+}
+
 // The Synchro Brain repository, read with the same token and settings the
 // connector's client_brain uses. The token never leaves this function.
 function brainGh(path: string, accept: string): Promise<Response> {
@@ -361,11 +380,7 @@ function storeDeps(sb: NonNullable<ReturnType<typeof db>>) {
       if (error) throw fail("the publish list", error);
       return !!data;
     },
-    setting: async (key: string) => {
-      const { data, error } = await sb.from("fp_settings").select("value").eq("key", key).maybeSingle();
-      if (error) throw fail("the settings", error);
-      return data ? data.value : null;
-    },
+    setting: readSetting(sb),
     takeBatch: async (client: string) => {
       const { data, error } = await sb.rpc("fp_take_batch", { p_client: client });
       if (error) throw fail("the batch counter", error);

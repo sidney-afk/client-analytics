@@ -26,6 +26,7 @@ import { clientRecord, feedbackNote, feedbackNotes } from "./filmingrecord.mjs";
 import { brainChange, clientBrain, clientStyle, filmingPlan, findClient, listClients } from "./clientinfo.ts";
 import { studioProfile, studioProfileSave } from "./studioprofile.ts";
 import { pipelinePass } from "./pipelinepass.ts";
+import { pipelineGate } from "../pipeline-google/users.mjs";
 import { PROFILE_FIELDS } from "./profile.mjs";
 import { answeredFromLog, asksSwitchedOff, DIRECT_MODELS, directEstimate, GOOGLE_IMAGE_ENABLED, GOOGLE_IMAGE_IDS, gptImageInputs, isDirect, runDirect, SWITCHED_OFF_TEXT, type Fetched } from "./direct.ts";
 
@@ -1237,6 +1238,15 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
 
   if (name === "studio_profile") return await studioProfile(db(), String(args.client || ""));
   if (name === "studio_profile_save") return await studioProfileSave(db(), String(args.client || ""), args.profile, args.replace === true, author);
+  // The filming plan pipeline is only for the people on fp_settings
+  // "pipeline_users" (read now), never the shared team link (users.mjs).
+  // studio and studio_latest stay open to everyone.
+  const filmingPlanTool = name === "pipeline_pass" ||
+    (name === "toolkit_latest" && String(args.name || "").trim().toLowerCase() === "filming-plan");
+  if (filmingPlanTool) {
+    const gate = await pipelineGate(fpSetting, { member, teamLink: isTeamLink(member) });
+    if (gate) return gate.text;
+  }
   if (name === "pipeline_pass") {
     return await pipelinePass(db(), { member, author, teamLink: isTeamLink(member), client: String(args.client || ""), target: args.target });
   }
@@ -1370,6 +1380,13 @@ function recordDeps() {
       return new Map((data || []).map((r) => [String(r.client_slug), String(r.client_name)]));
     },
   };
+}
+
+// One fp_settings value (service role only), or null when the key is not set.
+async function fpSetting(key: string): Promise<unknown> {
+  const { data, error } = await db().from("fp_settings").select("value").eq("key", key).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? data.value : null;
 }
 
 async function writeActivity(row: JsonMap): Promise<void> {

@@ -317,6 +317,59 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
   eq(store.snapshotName(COMMIT), COMMIT + '.no-money-1.zip', 'the cache name says what was left out, so an older build is never served');
   ok(/zipName = \(commit: string\) => snapshotName\(commit\)/.test(read(fnDir, 'pipeline-google', 'index.ts')), 'pipeline-google caches under that name');
 
+  // ---- Who may use the filming plan pipeline (fp_settings "pipeline_users") --------
+  const users = await import(path.join(fnDir, 'pipeline-google', 'users.mjs'));
+  const LISTED = 'Listed Example';
+  const UNLISTED = 'Unlisted Example';
+  const NAMED_TEXT = 'The filming plan is only for Example People. Ask Example Owner.';
+  const userSettings = (init) => {
+    const m = new Map(Object.entries(init));
+    return { m, setting: async (k) => (m.has(k) ? m.get(k) : null) };
+  };
+  let us = userSettings({ pipeline_users: [LISTED] });
+  eq(await users.pipelineGate(us.setting, { member: LISTED, teamLink: false }), null, 'a personal link on the list is let in');
+  let gate = await users.pipelineGate(us.setting, { member: UNLISTED, teamLink: false });
+  eq(gate, { text: users.REFUSAL_FALLBACK, status: 403 }, 'a personal link not on the list is refused, with the fallback text when none is set');
+  gate = await users.pipelineGate(us.setting, { member: LISTED, teamLink: true });
+  eq(gate && gate.status, 403, 'the shared team link is refused even when its typed name is on the list');
+  us.m.set('pipeline_users_refusal', NAMED_TEXT);
+  eq((await users.pipelineGate(us.setting, { member: UNLISTED, teamLink: false })).text, NAMED_TEXT, 'the refusal text comes from pipeline_users_refusal when set');
+  eq(users.refusalText(JSON.stringify(NAMED_TEXT)), NAMED_TEXT, 'a JSON string setting is read as its text');
+  eq(users.refusalText({ text: NAMED_TEXT }), NAMED_TEXT, 'and so is { text }');
+  for (const v of [null, '', '   ', 42, [], {}]) eq(users.refusalText(v), users.REFUSAL_FALLBACK, 'an unusable refusal setting falls back: ' + JSON.stringify(v));
+  for (const v of [null, 'not json', '{"x":1}', 7, [' ', 3]]) {
+    ok(!users.mayUsePipeline({ member: LISTED, teamLink: false, users: v }), 'an unusable list lets nobody in: ' + JSON.stringify(v));
+  }
+  ok(users.mayUsePipeline({ member: LISTED, teamLink: false, users: JSON.stringify([LISTED]) }), 'a list stored as JSON text works');
+  ok(users.mayUsePipeline({ member: LISTED, teamLink: false, users: { members: [LISTED] } }), 'and { members: [...] }');
+  ok(!users.mayUsePipeline({ member: '', teamLink: false, users: [''] }) && !users.mayUsePipeline({ member: 'listed example', teamLink: false, users: [LISTED] }), 'an empty name or another spelling is refused');
+  const broken = async () => { throw new Error('db down'); };
+  eq((await users.pipelineGate(broken, { member: LISTED, teamLink: false })).status, 503, 'a list that cannot be read refuses, never lets in');
+  // Removal takes effect on a pass already handed out: the list is read on every call.
+  const passOf = (p) => ({ member: p.member, teamLink: p.via !== 'personal' });
+  us = userSettings({ pipeline_users: [LISTED, OTHER] });
+  const existing = personal(OTHER);
+  eq(await users.pipelineGate(us.setting, passOf(existing)), null, 'a pass whose member is listed works');
+  us.m.set('pipeline_users', [LISTED]);
+  eq((await users.pipelineGate(us.setting, passOf(existing))).status, 403, 'the same pass is refused once its member is removed');
+  eq((await users.pipelineGate(us.setting, passOf({ ...team, member: LISTED }))).status, 403, 'a team-link pass is refused whatever name it carries');
+  eq((await users.pipelineGate(us.setting, passOf({ member: LISTED, via: 'odd' }))).status, 403, 'a pass with an unknown link kind is refused');
+
+  // Wiring: pipeline-google checks every pass action; the connector gates only the filming plan tools.
+  const pgw = read(fnDir, 'pipeline-google', 'index.ts');
+  const wpw = pgw.slice(pgw.indexOf('async function withPass('), pgw.indexOf('// ---- The pipeline\'s own data'));
+  const gAt = wpw.indexOf('await pipelineGate(readSetting(sb), { member: String(pass.member ?? ""), teamLink: pass.via !== "personal" })');
+  ok(gAt > wpw.indexOf('if (pass.expired)') && gAt < wpw.indexOf('STORE_ACTIONS.has(action)') && gAt < wpw.indexOf('readCreds()'), 'pipeline-google re-checks the list on every pass action, store and Google alike, after the pass is found');
+  ok(/if \(gate\) return refused\(gate\.text, gate\.status\);/.test(wpw), 'and refuses with the gate\'s text');
+  const hm = read(fnDir, 'higgsfield-mcp', 'index.ts');
+  const call = hm.slice(hm.indexOf('async function callTool('));
+  const gHm = call.indexOf('const gate = await pipelineGate(fpSetting, { member, teamLink: isTeamLink(member) });');
+  ok(gHm > 0 && gHm < call.indexOf('return await pipelinePass(') && gHm < call.indexOf('return await toolkitLatest('), 'the connector checks the list before pipeline_pass and toolkit_latest');
+  ok(/const filmingPlanTool = name === "pipeline_pass" \|\|\n\s*\(name === "toolkit_latest" && String\(args\.name \|\| ""\)\.trim\(\)\.toLowerCase\(\) === "filming-plan"\);/.test(call), 'only pipeline_pass and toolkit_latest "filming-plan" are gated; studio and studio_latest stay open');
+  ok(call.indexOf('if (name === "studio_latest")') > gHm && !/studio_latest[^\n]*pipelineGate/.test(call), 'studio_latest is not gated');
+  eq(who.outcomeOf('pipeline_pass', users.REFUSAL_FALLBACK).ok, false, 'a refusal is logged as a failure');
+  eq(who.outcomeOf('toolkit_latest', NAMED_TEXT).ok, false, 'the named refusal text too');
+
   ok((await run(world(), 'files.delete', {})).status === 400, 'an unknown store action is refused');
   eq([...store.STORE_ACTIONS].sort(), ['batch.take', 'brain.snapshot', 'files.get', 'files.save', 'notes.add'], 'the five pass actions');
 

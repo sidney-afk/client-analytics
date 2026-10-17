@@ -1,7 +1,9 @@
 // What client_brain sends, as pure text building (no network), shared with the
-// unit test and the size measurement. By default: the whole brief, then each
-// written fact's current answer (its first paragraph). With a topic: the facts
-// it names, in full. Whatever does not fit is named, never silently cut.
+// unit test and the size measurement. By default: the whole brain (brief and
+// every written fact in full) when it fits the budget; only when it does not,
+// the brief plus each fact's first paragraph, then the named list of facts that
+// still did not fit. With a topic: the facts it names, in full. Whatever does
+// not fit is named, never silently cut.
 //
 // The facts come only from the fixed file list in clientinfo.ts (brief,
 // identity, voice, editing, relationship, audience). history.md holds old
@@ -21,7 +23,7 @@ function norm(s) {
   return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-// The current answer: the body up to its first blank line, capped.
+// The first paragraph: the body up to its first blank line, capped.
 export function firstParagraph(body) {
   const text = String(body || "").trim();
   const paras = text.split(/\n[ \t]*\n/);
@@ -96,13 +98,15 @@ export function brainView({ name, brief, facts, topic = "" }) {
   if (!briefText && !facts.length) return `${name}: the Synchro Brain has no written brief or facts yet.`;
 
   if (!t) {
-    const head = `${name}, from the Synchro Brain. The brief is in full. Each fact shows its current answer (its first paragraph); a fact marked "more" has more detail. When you need more on a topic, ${ASK}.\n\n# Brief\n\n${briefText || "(no brief written yet)"}\n\n# Facts`;
-    if (!facts.length) return `${head}\n\n(no written facts yet)`;
+    const briefBlock = `# Brief\n\n${briefText || "(no brief written yet)"}\n\n# Facts`;
+    // The whole brain first; sent as is when it fits.
+    const whole = `${name}, from the Synchro Brain: the brief and every written fact, in full.\n\n${briefBlock}\n\n${facts.length ? facts.map(fullFact).join("\n\n") : "(no written facts yet)"}`;
+    if (whole.length <= BRAIN_MAX_CHARS) return whole;
+    const head = `${name}, from the Synchro Brain. The whole brain is too long for one answer, so the brief is in full and each fact shows its first paragraph; a fact marked "more" has more detail. When you need more on a topic, ${ASK}.\n\n${briefBlock}`;
     return fit(head, facts.map(shortFact), facts);
   }
 
   const want = norm(t.replace(/\.md$/i, ""));
-  if (want === "history") return `${name}: earlier notes kept in history.md are not served by client_brain. Ask for a fact by its id or topic instead.`;
 
   // A file name: that whole file, in full.
   const file = BRAIN_FILE_NAMES.find((f) => f === want);
@@ -115,10 +119,13 @@ export function brainView({ name, brief, facts, topic = "" }) {
     hits = facts.filter((f) => f.id && (f.id.toLowerCase() === id || (id.includes(".") && f.id.toLowerCase().endsWith("." + id))));
     how = "the fact with that id";
   }
-  // Heading words: every fact whose heading (or id) holds them, exact headings first.
+  // Heading words: every fact whose heading (or own name) holds them, exact
+  // headings first. Only the file and the fact's own name in the id count:
+  // "client.<folder>." is in every id, so matching it would hit every fact.
   if (!hits.length && !file && want) {
+    const own = (f) => norm(String(f.id || "").split(".").slice(2).join(" "));
     const exact = facts.filter((f) => norm(f.heading) === want);
-    hits = [...exact, ...facts.filter((f) => !exact.includes(f) && (norm(f.heading).includes(want) || norm(f.id).includes(want)))];
+    hits = [...exact, ...facts.filter((f) => !exact.includes(f) && (norm(f.heading).includes(want) || own(f).includes(want)))];
     how = `the facts whose heading matches "${t}"`;
   }
   const briefHits = file ? [] : sections.filter((s) => norm(s.heading) === want || norm(s.heading).includes(want));

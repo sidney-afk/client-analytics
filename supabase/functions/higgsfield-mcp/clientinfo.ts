@@ -176,9 +176,10 @@ export async function brainFolder(slug: string, name: string): Promise<{ folder?
   return { folders, folder: findClientFolder(folders, slug) || findClientFolder(folders, name) || undefined };
 }
 
-// One client's brain: brief.md in full, then the current answer (first
-// paragraph) of each written fact of identity, voice, editing, relationship
-// and audience, each with its fact id. With a topic (a fact id, heading words
+// One client's brain: brief.md and every written fact of identity, voice,
+// editing, relationship and audience in full, each with its fact id, when it
+// all fits; when it does not, the brief in full and each fact's first
+// paragraph. With a topic (a fact id, heading words
 // or a file name) the matching facts come in full. Nothing is cut silently:
 // what does not fit is named (brainview.mjs).
 export async function clientBrain(db: SupabaseClient, client: string, topic = ""): Promise<string> {

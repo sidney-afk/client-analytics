@@ -160,22 +160,53 @@ export function totalBytesOf(status, headers) {
   return n > 0 ? n : null;
 }
 
-// Auphonic's production status codes (https://auphonic.com/api/info/production_status.json).
+// Auphonic's production status codes, as listed at
+// https://auphonic.com/api/info/production_status.json (checked 2026-10-17):
+// 0 File Upload, 1 Waiting, 2 Error, 3 Done, 4 Audio Processing, 5 Audio
+// Encoding, 6 Outgoing File Transfer, 7 Audio Mono Mixdown, 8 Split Audio On
+// Chapter Marks, 9 Incomplete, 10 Production Not Started Yet, 11 Production
+// Outdated, 12 Incoming File Transfer, 13 Stopping the Production, 14 Speech
+// Recognition, 15 Production Changed, 98 Empty Production.
 const FAILED_STATES = {
   2: null, // Error: Auphonic's own message is used
   9: "Auphonic could not finish it (the production is incomplete)",
   11: "Auphonic marked the production as outdated",
   98: "Auphonic received an empty production (no audio)",
 };
-export function statusOf(details) {
+// 13, "Stopping the Production": the production is being stopped (from
+// Auphonic's site or through its stop call), so it will never finish.
+export const STOPPING_TEXT = "Auphonic is stopping this clean-up (it was stopped at Auphonic), so it will not finish. Auphonic charges only for a clean-up that finishes, so nothing was spent.";
+// 10, "Production Not Started Yet": the production exists but is not running.
+// voice_cleanup always asks Auphonic to start it, so this is normal only for
+// a moment; after NOT_STARTED_GIVE_UP_MS the job is called failed.
+export const NOT_STARTED_GIVE_UP_MS = 10 * 60 * 1000;
+export const NOT_STARTED_TEXT = "Auphonic never started the clean-up (it may have been stopped at Auphonic)";
+
+// ageMs is how long ago the job was started (for status 10). Anything the
+// code does not know stays "still working" with Auphonic's own status text.
+export function statusOf(details, ageMs) {
   const d = details && typeof details === "object" ? details : {};
   const code = Number(d.status);
   if (code === 3) return { state: "done" };
   if (code === 13) return { state: "canceled" };
-  if (code in FAILED_STATES) return { state: "failed", error: FAILED_STATES[code] ?? productionErrorText(d.error_message) };
-  const label = String(d.status_string || "in progress").toLowerCase();
+  if (code === 10) {
+    if (Number(ageMs) > NOT_STARTED_GIVE_UP_MS) return { state: "failed", error: NOT_STARTED_TEXT };
+    return { state: "working", label: "waiting for Auphonic to start it" };
+  }
+  if (Object.prototype.hasOwnProperty.call(FAILED_STATES, code)) return { state: "failed", error: FAILED_STATES[code] ?? productionErrorText(d.error_message) };
+  const label = String(d.status_string || "in progress").replace(/\s+/g, " ").trim().slice(0, 80).toLowerCase() || "in progress";
   return { state: "working", label };
 }
+
+// The length Auphonic reports for the production (seconds), or null while it
+// has not said yet. The price was set from the WAV header read before go, but
+// Auphonic downloads the link itself afterwards, so the file it got can be a
+// different, longer one: this is the length that counts.
+export function auphonicSeconds(details) {
+  const n = Number(details?.length);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+export const TOO_LONG_TEXT = "The file Auphonic received is longer than 5 minutes, so the clean-up was stopped.";
 
 // Plain English for a production that Auphonic stopped with an error.
 export function productionErrorText(raw) {
@@ -393,9 +424,10 @@ export async function voiceCheck(jobId, d) {
       return "Could not make the download link: " + String(e?.message || e).slice(0, 200) + ". Try check_job again in a minute.";
     }
   }
-  if (row.status === "failed") return "It failed: " + (row.error || "no reason given") + ". Auphonic does not charge for a clean-up that fails, so nothing was spent.";
+  if (row.status === "failed") return "It failed: " + String(row.error || "no reason given").replace(/\.$/, "") + ". Auphonic does not charge for a clean-up that fails, so nothing was spent.";
+  if (row.status === "failed_charged") return "It failed: " + (row.error || "no reason given") + `. Auphonic charged for it (${cost}, counted in the team budget).`;
   if (row.status === "canceled") return "This job was canceled.";
-  const age = Date.now() - Date.parse(String(row.updated_at || ""));
+  const age = (d.now ? d.now() : new Date()).getTime() - Date.parse(String(row.updated_at || ""));
   if (row.status === "storing" && !(age > STALE_STORING_MS)) return STILL_SAVING;
   const uuid = String(row.params?.auphonic_uuid || "");
   if (!uuid) return "Could not check: this job has no Auphonic production recorded. Tell the account owner.";
@@ -406,21 +438,24 @@ export async function voiceCheck(jobId, d) {
   try { res = await auphonic(d, key, "GET", `production/${encodeURIComponent(uuid)}.json`); } catch { return "Could not check: Auphonic did not answer. Try again in a minute."; }
   if (!res.ok) return "Could not check: " + auphonicErrorText(res.status, res.data) + ".";
   const details = res.data?.data || {};
-  const st = statusOf(details);
-  if (st.state === "working") return `Still working (${st.label}). Check again in about 20 to 30 seconds.`;
+  const st = statusOf(details, age);
   if (st.state === "failed") {
     await d.update(row.id, { status: "failed", error: st.error, updated_at: nowIso(d) });
     return "It failed: " + st.error + ". Auphonic does not charge for a clean-up that fails, so nothing was spent.";
   }
   if (st.state === "canceled") {
     await d.update(row.id, { status: "canceled", error: "stopped at Auphonic", updated_at: nowIso(d) });
-    return "This job was canceled.";
+    return STOPPING_TEXT;
   }
+  const rate = usdPerHour(d.env("AUPHONIC_USD_PER_HOUR"));
+  const seconds = auphonicSeconds(details);
+  const priced = (s) => (rate !== null ? priceFor(s, rate) : Number(row.est_cost_usd || 0));
+  if (seconds !== null && seconds > MAX_VOICE_SECONDS) return await stopTooLong(d, key, row, uuid, st.state, priced(seconds));
+  if (st.state === "working") return `Still working (${st.label}). Check again in about 20 to 30 seconds.`;
 
   // Done at Auphonic, so it is charged: the real price (from the length
   // Auphonic processed) replaces the estimate before the copy starts.
-  const rate = usdPerHour(d.env("AUPHONIC_USD_PER_HOUR"));
-  const actual = rate !== null && Number(details.length) > 0 ? priceFor(Number(details.length), rate) : Number(row.est_cost_usd || 0);
+  const actual = seconds !== null ? priced(seconds) : Number(row.est_cost_usd || 0);
   const out = (Array.isArray(details.output_files) ? details.output_files : []).find((f) => f && /^wav/.test(String(f.format)) && f.download_url);
   if (!out || !/^https:\/\/auphonic\.com\//.test(String(out.download_url))) {
     await d.update(row.id, { status: "delivery_failed", est_cost_usd: actual, error: "Auphonic finished but listed no WAV to download", updated_at: nowIso(d) });
@@ -437,6 +472,35 @@ export async function voiceCheck(jobId, d) {
     return `Could not save the cleaned voice yet: ${lastError || "storage error"}. It was made and charged (${money(actual)}); saving it again now, so call check_job with this job_id in a minute.`;
   }
   return STILL_SAVING;
+}
+
+// The file Auphonic downloaded is over the 5 minute limit (the price was set
+// from a shorter file). A running production is stopped with Auphonic's stop
+// call (POST /api/production/{uuid}/stop.json, from
+// https://auphonic.com/help/api/update.html). Auphonic charges "only if your
+// production was successful" (its pricing FAQ, checked 2026-10-17), so a
+// stopped one costs 0 and the row is "failed", which the budget does not
+// count. If the stop is not confirmed, the price from Auphonic's length is
+// written and the row stays running (so it still counts), and the next check
+// tries again. If Auphonic had already finished, it was charged: the row is
+// "failed_charged" at that price, which the budget does count, and the
+// result is not handed out.
+async function stopTooLong(d, key, row, uuid, state, usd) {
+  if (state === "done") {
+    const why = "the file Auphonic received is longer than 5 minutes; Auphonic finished it before it could be stopped, so the result is not handed out";
+    await d.update(row.id, { status: "failed_charged", est_cost_usd: usd, error: why, updated_at: nowIso(d) });
+    return `The file Auphonic received is longer than 5 minutes, so the result is not handed out. Auphonic had already finished it, so it was charged (${money(usd)}, counted in the team budget).`;
+  }
+  let res = null;
+  try { res = await auphonic(d, key, "POST", `production/${encodeURIComponent(uuid)}/stop.json`); } catch { res = null; }
+  if (!res || !res.ok) {
+    // Updating est_cost_usd only: the row keeps its state and its start time.
+    await d.update(row.id, { est_cost_usd: usd });
+    const why = res ? auphonicErrorText(res.status, res.data) : "Auphonic did not answer";
+    return `The file Auphonic received is longer than 5 minutes, but stopping it did not go through (${why}). It may be charged (${money(usd)}, counted in the team budget until it is stopped). Check again in about 20 to 30 seconds to try the stop again.`;
+  }
+  await d.update(row.id, { status: "failed", est_cost_usd: 0, error: TOO_LONG_TEXT, updated_at: nowIso(d) });
+  return TOO_LONG_TEXT + " Auphonic charges only for a clean-up that finishes, so nothing was spent.";
 }
 
 // Streams Auphonic's WAV into the private bucket (never held in memory whole).

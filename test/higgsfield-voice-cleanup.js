@@ -295,6 +295,112 @@ function harness({ env = { AUPHONIC_KEY: KEY }, file = wav(), cap = 200, reserve
     assert.strictEqual(h2.rows.get(1).status, 'completed');
   }
 
+  // ---- Length check at Auphonic: the file it downloaded can be a longer one ----
+  {
+    const prod = (data) => () => resp(200, { json: { data } });
+    const stops = (h) => h.calls.fetch.filter((c) => /\/api\/production\/[^/]+\/stop\.json$/.test(c.url));
+    const withStop = (h, answer) => {
+      h.d.fetch = ((orig) => async (url, init) => {
+        if (!/\/stop\.json$/.test(url)) return orig(url, init);
+        h.calls.fetch.push({ url, init });
+        return answer(init);
+      })(h.d.fetch);
+    };
+    // Over 305 s while it runs: stopped through Auphonic's stop call, failed, nothing charged.
+    const h = harness({ file: wav({ seconds: 60 }), auphonicGet: prod({ status: 4, status_string: 'Audio Processing', length: 305.5 }) });
+    withStop(h, () => resp(200, { json: { status_code: 200, data: {} } }));
+    await v.voiceCleanup({ file: FILE, strength: 'gentle', go: true }, h.d);
+    const t = await v.voiceCheck(JOB, h.d);
+    assert.strictEqual(t, 'The file Auphonic received is longer than 5 minutes, so the clean-up was stopped. Auphonic charges only for a clean-up that finishes, so nothing was spent.');
+    assert.strictEqual(stops(h).length, 1, 'one stop call');
+    assert.strictEqual(stops(h)[0].url, 'https://auphonic.com/api/production/AuphUuid22charsXXXXXXX/stop.json');
+    assert.strictEqual(stops(h)[0].init.method, 'POST');
+    assert.strictEqual(stops(h)[0].init.headers.Authorization, 'bearer ' + KEY);
+    const row = h.rows.get(1);
+    assert.deepStrictEqual([row.status, row.est_cost_usd, row.error], ['failed', 0, v.TOO_LONG_TEXT], 'failed, cost 0 (Auphonic charges only finished productions)');
+    assert.strictEqual(h.calls.background.length, 0, 'nothing is copied');
+    const again = await v.voiceCheck(JOB, h.d);
+    assert.ok(again.startsWith('It failed: The file Auphonic received is longer than 5 minutes, so the clean-up was stopped. Auphonic does not charge'), again);
+    assert.strictEqual(stops(h).length, 1, 'a later check does not call Auphonic again');
+    assert.strictEqual(who.outcomeOf('check_job', t).ok, false, 'logged as a failure');
+
+    // Exactly 305 s passes: still working, then delivered at the 305 s price.
+    const ok = harness({ file: wav({ seconds: 60 }), auphonicGet: prod({ status: 4, status_string: 'Audio Processing', length: 305 }) });
+    await v.voiceCleanup({ file: FILE, strength: 'gentle', go: true }, ok.d);
+    assert.ok((await v.voiceCheck(JOB, ok.d)).startsWith('Still working (audio processing).'));
+    assert.strictEqual(stops(ok).length, 0, 'no stop at exactly 305 s');
+    assert.strictEqual(ok.rows.get(1).status, 'in_progress');
+    const okDone = harness({ file: wav({ seconds: 60 }), auphonicGet: prod({ status: 3, length: 305, output_files: [{ format: 'wav', download_url: 'https://auphonic.com/api/download/audio-result/X/v.wav' }] }) });
+    await v.voiceCleanup({ file: FILE, strength: 'gentle', go: true }, okDone.d);
+    await v.voiceCheck(JOB, okDone.d);
+    await okDone.calls.background[0];
+    assert.deepStrictEqual([okDone.rows.get(1).status, okDone.rows.get(1).est_cost_usd], ['completed', 0.21], '305 s is delivered and priced from Auphonic\'s length');
+
+    // No length reported yet: no stop.
+    const early = harness({ auphonicGet: prod({ status: 12, status_string: 'Incoming File Transfer' }) });
+    await v.voiceCleanup({ file: FILE, strength: 'gentle', go: true }, early.d);
+    assert.ok((await v.voiceCheck(JOB, early.d)).startsWith('Still working (incoming file transfer).'));
+    assert.strictEqual(stops(early).length, 0);
+
+    // The stop does not go through: the real price is counted and the next check tries again.
+    const fails = harness({ file: wav({ seconds: 60 }), auphonicGet: prod({ status: 4, length: 900 }) });
+    let stopAnswer = () => resp(500, { json: {} });
+    withStop(fails, (init) => stopAnswer(init));
+    await v.voiceCleanup({ file: FILE, strength: 'gentle', go: true }, fails.d);
+    const f1 = await v.voiceCheck(JOB, fails.d);
+    assert.ok(f1.startsWith('The file Auphonic received is longer than 5 minutes, but stopping it did not go through'), f1);
+    assert.deepStrictEqual([fails.rows.get(1).status, fails.rows.get(1).est_cost_usd], ['in_progress', 0.6], 'still counted, at the 15 minute price');
+    stopAnswer = () => resp(200, { json: { data: {} } });
+    assert.ok((await v.voiceCheck(JOB, fails.d)).startsWith('The file Auphonic received is longer than 5 minutes, so the clean-up was stopped.'));
+    assert.strictEqual(stops(fails).length, 2);
+    assert.deepStrictEqual([fails.rows.get(1).status, fails.rows.get(1).est_cost_usd], ['failed', 0]);
+
+    // Already finished at Auphonic: charged, counted, not handed out, no stop call.
+    const late = harness({ file: wav({ seconds: 60 }), auphonicGet: prod({ status: 3, length: 600, output_files: [{ format: 'wav', download_url: 'https://auphonic.com/api/download/audio-result/X/v.wav' }] }) });
+    await v.voiceCleanup({ file: FILE, strength: 'gentle', go: true }, late.d);
+    const l1 = await v.voiceCheck(JOB, late.d);
+    assert.ok(l1.startsWith('The file Auphonic received is longer than 5 minutes, so the result is not handed out.') && l1.includes('$0.40'), l1);
+    assert.deepStrictEqual([late.rows.get(1).status, late.rows.get(1).est_cost_usd], ['failed_charged', 0.4]);
+    assert.strictEqual(stops(late).length + late.calls.background.length, 0);
+    assert.ok((await v.voiceCheck(JOB, late.d)).includes('Auphonic charged for it ($0.40, counted in the team budget)'));
+    assert.strictEqual(who.outcomeOf('check_job', l1).ok, false);
+  }
+
+  // ---- Status 13 (Stopping the Production) and 10 (Production Not Started Yet) ----
+  {
+    assert.deepStrictEqual(v.statusOf({ status: 13, status_string: 'Stopping the Production' }), { state: 'canceled' });
+    const h = harness({ auphonicGet: () => resp(200, { json: { data: { status: 13, status_string: 'Stopping the Production' } } }) });
+    await v.voiceCleanup({ file: FILE, strength: 'gentle', go: true }, h.d);
+    const t = await v.voiceCheck(JOB, h.d);
+    assert.strictEqual(t, v.STOPPING_TEXT);
+    assert.ok(/stopping this clean-up.*nothing was spent/.test(t));
+    assert.strictEqual(h.rows.get(1).status, 'canceled', 'canceled: not counted in the budget');
+    assert.strictEqual(who.outcomeOf('check_job', t).ok, false, 'logged as a failure');
+
+    assert.deepStrictEqual(v.statusOf({ status: 10, status_string: 'Production Not Started Yet' }, 60 * 1000), { state: 'working', label: 'waiting for Auphonic to start it' });
+    assert.deepStrictEqual(v.statusOf({ status: 10 }, 11 * 60 * 1000), { state: 'failed', error: v.NOT_STARTED_TEXT });
+    const n = harness({ auphonicGet: () => resp(200, { json: { data: { status: 10, status_string: 'Production Not Started Yet' } } }) });
+    await v.voiceCleanup({ file: FILE, strength: 'gentle', go: true }, n.d);
+    assert.ok((await v.voiceCheck(JOB, n.d)).startsWith('Still working (waiting for Auphonic to start it).'));
+    assert.strictEqual(n.rows.get(1).status, 'in_progress');
+    n.d.now = () => new Date('2026-10-17T05:11:00Z');
+    const nt = await v.voiceCheck(JOB, n.d);
+    assert.strictEqual(nt, 'It failed: Auphonic never started the clean-up (it may have been stopped at Auphonic). Auphonic does not charge for a clean-up that fails, so nothing was spent.');
+    assert.strictEqual(n.rows.get(1).status, 'failed');
+  }
+
+  // ---- A status the code does not know stays "still working", never a crash ----
+  {
+    assert.deepStrictEqual(v.statusOf({ status: 77, status_string: 'Brand New Step' }), { state: 'working', label: 'brand new step' });
+    assert.deepStrictEqual(v.statusOf({ status: 'weird' }), { state: 'working', label: 'in progress' });
+    assert.deepStrictEqual(v.statusOf(null), { state: 'working', label: 'in progress' });
+    assert.deepStrictEqual(v.statusOf({ status: 15, status_string: '   ' }), { state: 'working', label: 'in progress' });
+    const h = harness({ auphonicGet: () => resp(200, { json: { data: { status: 77, status_string: 'Brand New Step' } } }) });
+    await v.voiceCleanup({ file: FILE, strength: 'gentle', go: true }, h.d);
+    assert.strictEqual(await v.voiceCheck(JOB, h.d), 'Still working (brand new step). Check again in about 20 to 30 seconds.');
+    assert.strictEqual(h.rows.get(1).status, 'in_progress');
+  }
+
   // Unknown job id.
   {
     const h = harness();

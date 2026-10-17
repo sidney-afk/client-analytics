@@ -178,7 +178,9 @@ const FAILED_STATES = {
 export const STOPPING_TEXT = "Auphonic is stopping this clean-up (it was stopped at Auphonic), so it will not finish. Auphonic charges only for a clean-up that finishes, so nothing was spent.";
 // 10, "Production Not Started Yet": the production exists but is not running.
 // voice_cleanup always asks Auphonic to start it, so this is normal only for
-// a moment; after NOT_STARTED_GIVE_UP_MS the job is called failed.
+// a moment; after NOT_STARTED_GIVE_UP_MS the production is deleted at
+// Auphonic (so it can never start and charge later) and only then is the job
+// called failed.
 export const NOT_STARTED_GIVE_UP_MS = 10 * 60 * 1000;
 export const NOT_STARTED_TEXT = "Auphonic never started the clean-up (it may have been stopped at Auphonic)";
 
@@ -190,7 +192,7 @@ export function statusOf(details, ageMs) {
   if (code === 3) return { state: "done" };
   if (code === 13) return { state: "canceled" };
   if (code === 10) {
-    if (Number(ageMs) > NOT_STARTED_GIVE_UP_MS) return { state: "failed", error: NOT_STARTED_TEXT };
+    if (Number(ageMs) > NOT_STARTED_GIVE_UP_MS) return { state: "failed", error: NOT_STARTED_TEXT, remove: true };
     return { state: "working", label: "waiting for Auphonic to start it" };
   }
   if (Object.prototype.hasOwnProperty.call(FAILED_STATES, code)) return { state: "failed", error: FAILED_STATES[code] ?? productionErrorText(d.error_message) };
@@ -439,6 +441,13 @@ export async function voiceCheck(jobId, d) {
   if (!res.ok) return "Could not check: " + auphonicErrorText(res.status, res.data) + ".";
   const details = res.data?.data || {};
   const st = statusOf(details, age);
+  if (st.remove) {
+    // DELETE /api/production/{uuid}.json (https://auphonic.com/help/api/update.html).
+    // Not confirmed: keep polling, never a failed row Auphonic could still charge.
+    let del = null;
+    try { del = await auphonic(d, key, "DELETE", `production/${encodeURIComponent(uuid)}.json`); } catch { del = null; }
+    if (!del || !(del.ok || del.status === 404)) return "Still working (waiting for Auphonic to start it). Check again in about 20 to 30 seconds.";
+  }
   if (st.state === "failed") {
     await d.update(row.id, { status: "failed", error: st.error, updated_at: nowIso(d) });
     return "It failed: " + st.error + ". Auphonic does not charge for a clean-up that fails, so nothing was spent.";

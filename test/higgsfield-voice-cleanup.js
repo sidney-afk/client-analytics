@@ -378,13 +378,25 @@ function harness({ env = { AUPHONIC_KEY: KEY }, file = wav(), cap = 200, reserve
     assert.strictEqual(who.outcomeOf('check_job', t).ok, false, 'logged as a failure');
 
     assert.deepStrictEqual(v.statusOf({ status: 10, status_string: 'Production Not Started Yet' }, 60 * 1000), { state: 'working', label: 'waiting for Auphonic to start it' });
-    assert.deepStrictEqual(v.statusOf({ status: 10 }, 11 * 60 * 1000), { state: 'failed', error: v.NOT_STARTED_TEXT });
+    assert.deepStrictEqual(v.statusOf({ status: 10 }, 11 * 60 * 1000), { state: 'failed', error: v.NOT_STARTED_TEXT, remove: true });
     const n = harness({ auphonicGet: () => resp(200, { json: { data: { status: 10, status_string: 'Production Not Started Yet' } } }) });
     await v.voiceCleanup({ file: FILE, strength: 'gentle', go: true }, n.d);
     assert.ok((await v.voiceCheck(JOB, n.d)).startsWith('Still working (waiting for Auphonic to start it).'));
     assert.strictEqual(n.rows.get(1).status, 'in_progress');
     n.d.now = () => new Date('2026-10-17T05:11:00Z');
+    // Past 10 minutes the production is deleted at Auphonic before the job is failed;
+    // a delete that does not go through keeps the job running (and counted).
+    let delAnswer = () => resp(500, { json: {} });
+    const dels = [];
+    n.d.fetch = ((orig) => async (url, init = {}) => {
+      if (init.method === 'DELETE') { dels.push(url); return delAnswer(); }
+      return orig(url, init);
+    })(n.d.fetch);
+    assert.ok((await v.voiceCheck(JOB, n.d)).startsWith('Still working (waiting for Auphonic to start it).'));
+    assert.strictEqual(n.rows.get(1).status, 'in_progress', 'not failed while the delete is unconfirmed');
+    delAnswer = () => resp(204);
     const nt = await v.voiceCheck(JOB, n.d);
+    assert.deepStrictEqual(dels, ['https://auphonic.com/api/production/AuphUuid22charsXXXXXXX.json', 'https://auphonic.com/api/production/AuphUuid22charsXXXXXXX.json']);
     assert.strictEqual(nt, 'It failed: Auphonic never started the clean-up (it may have been stopped at Auphonic). Auphonic does not charge for a clean-up that fails, so nothing was spent.');
     assert.strictEqual(n.rows.get(1).status, 'failed');
   }

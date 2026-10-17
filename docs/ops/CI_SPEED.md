@@ -78,3 +78,5 @@ See the table in OPEN_REPAIRS 427 (filled from the runs on PR #2136 and the firs
 
 [Calendar unit tests](https://github.com/sidney-afk/client-analytics/actions/workflows/calendar-unit-tests.yml), Run
 workflow, pick the branch: a manual run always runs every suite.
+
+<!-- measurement edit, session Turbo; this branch is never merged -->

@@ -10,6 +10,7 @@
 
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { findClient } from "./clientinfo.ts";
+import { storeSlug } from "../pipeline-google/store.mjs";
 import { newPassToken, passDecision, passHash, passReply, passTarget } from "../pipeline-google/pass.mjs";
 
 export async function pipelinePass(
@@ -35,7 +36,7 @@ export async function pipelinePass(
 
   const token = newPassToken();
   const { data: row, error } = await db.from("fp_passes")
-    .insert({ token_hash: await passHash(token), member: opts.author, via: decision.via, client_slug: p.client_slug, target })
+    .insert({ token_hash: await passHash(token), member: opts.author, via: decision.via, client_slug: storeSlug(p.client_slug), target })
     .select("expires_at")
     .single();
   if (error || !row) return "Could not make a pass (the pass tables may not be set up yet). Ask the account owner.";

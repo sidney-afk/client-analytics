@@ -256,7 +256,7 @@ const eq = (a, b, label) => { assert.deepStrictEqual(a, b, label); passed++; };
   ok(!/VIEWER_TOOLS = new Set\([^)]*pipeline_pass/.test(idx), 'the pass is not sent to the media viewer');
   const pp = read(fnDir, 'higgsfield-mcp', 'pipelinepass.ts');
   ok(pp.includes('from "../pipeline-google/pass.mjs"'), 'the connector uses the same token and hash code as pipeline-google');
-  ok(pp.includes('findClient(db, opts.client)') && pp.includes('client_slug: p.client_slug'), 'the client slug is resolved like the other client tools');
+  ok(pp.includes('findClient(db, opts.client)') && pp.includes('client_slug: storeSlug(p.client_slug)'), 'the client slug is resolved like the other client tools');
   ok(/if \(target === "client" && !opts\.teamLink\) \{\s*const \{ data, error \} = await db\.from\("fp_publishers"\)/.test(pp), 'the publish list is read only for a personal link asking for a client pass');
   ok(/token_hash: await passHash\(token\)/.test(pp) && !/token:\s*token[,\s]*\}\)\s*\n?\s*\.select/.test(pp) && !/insert\(\{[^}]*\btoken\b[,}]/.test(pp), 'only the hash is stored');
 

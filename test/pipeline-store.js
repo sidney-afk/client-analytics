@@ -547,5 +547,8 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
   const added = [read(fnDir, 'pipeline-google', 'store.mjs'), read(fnDir, 'higgsfield-mcp', 'filmingrecord.mjs'), mig].join('\n');
   ok(!/@[a-z0-9-]+\.[a-z]{2,}/i.test(added.replace(/sidney-afk\/synchro-brain/g, '')) && !/fpp_[0-9a-f]{8}/.test(added), 'no email or pass token in the new files');
 
-  console.log(`pipeline-store: ${passed} checks passed`);
+    // storeSlug: a SyncView slug with "&" still gets a pass and a file store name.
+  eq([store.storeSlug('janedoe'), store.storeSlug('tom&jerry'), store.storeSlug('A b&C'), store.storeSlug('sidney-x')],
+    ['janedoe', 'tomandjerry', 'abandc', 'sidney-x'], 'storeSlug keeps valid slugs and turns & into and');
+console.log(`pipeline-store: ${passed} checks passed`);
 })().catch((e) => { console.error(e); process.exit(1); });

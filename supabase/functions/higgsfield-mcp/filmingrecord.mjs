@@ -8,7 +8,7 @@
 // passes in the database reads and writes as deps. The note rules are the
 // same ones pipeline-google uses for notes.add (../pipeline-google/store.mjs).
 
-import { UUID_RE, noteRow } from "../pipeline-google/store.mjs";
+import { UUID_RE, noteRow, storeSlug } from "../pipeline-google/store.mjs";
 
 export const NOTES_LIMIT = 50;
 export const NOTES_MAX_CHARS = 60_000;
@@ -27,7 +27,7 @@ export async function clientRecord(deps, client) {
   const found = await deps.findClient(String(client || ""));
   if (!found.plan) return which(found);
   const p = found.plan;
-  const [files, next] = await Promise.all([deps.files(p.client_slug), deps.nextBatch(p.client_slug)]);
+  const [files, next] = await Promise.all([deps.files(storeSlug(p.client_slug)), deps.nextBatch(storeSlug(p.client_slug))]);
   const latest = Number.isInteger(next) && next > 1 ? next - 1 : 0;
   const lines = [
     `${p.client_name}: filming pipeline record (file names and versions only, no contents).`,
@@ -51,7 +51,7 @@ export async function feedbackNote(deps, args, member) {
   if (asked) {
     const found = await deps.findClient(asked);
     if (!found.plan) return which(found);
-    slug = found.plan.client_slug;
+    slug = storeSlug(found.plan.client_slug);
     name = found.plan.client_name;
   }
   const made = noteRow({ title: args.title, body: args.body, source: "chat", follows: args.follows }, { member, client: slug });
@@ -88,14 +88,14 @@ export async function feedbackNotes(deps, args, who) {
   if (asked) {
     const found = await deps.findClient(asked);
     if (!found.plan) return which(found);
-    slug = found.plan.client_slug;
+    slug = storeSlug(found.plan.client_slug);
     label = found.plan.client_name;
   }
   const rows = await deps.notes({ since, slug, limit: NOTES_LIMIT + 1 });
   const more = rows.length > NOTES_LIMIT;
   const shown = rows.slice(0, NOTES_LIMIT);
   if (!shown.length) return `No feedback notes since ${when(since)} (${label}).`;
-  const names = await deps.clientNames();
+  const names = new Map([...(await deps.clientNames())].map(([k, v]) => [storeSlug(k), v]));
   const head = `Feedback notes since ${when(since)} (${label}), oldest first: ${shown.length}${more ? " shown, and there are more" : ""}.`;
   const parts = [];
   let used = head.length, last = null;

@@ -117,9 +117,11 @@ const OFF = 'Nano Banana is switched off for the team. GPT Image does the same j
     const fakeHf = async (...a) => { hfCalls.push(a); return { ok: true, status: 200, data: { status: 'completed', images: [{ url: 'https://higgsfield.example/out.png' }] } }; };
     // Voice clean-up jobs (Auphonic) are routed first; these rows are never voice jobs.
     const notVoice = () => { throw new Error('a non-voice job reached voiceCheck'); };
-    const checkJob = new Function('db', 'hf', 'answeredFromLog', 'isDirect', 'money', 'outputs', 'hfError', 'VOICE_MODEL', 'voiceCheck', 'voiceDeps', cjSrc + '\nreturn checkJob;')(
+    // Transcription jobs (ElevenLabs) are routed too; these rows are never those either.
+    const notStt = () => { throw new Error('a non-transcription job reached transcribeCheck'); };
+    const checkJob = new Function('db', 'hf', 'answeredFromLog', 'isDirect', 'money', 'outputs', 'hfError', 'VOICE_MODEL', 'voiceCheck', 'voiceDeps', 'STT_MODEL', 'transcribeCheck', 'transcribeDeps', cjSrc + '\nreturn checkJob;')(
       fakeDb, fakeHf, d.answeredFromLog, d.isDirect, (n) => '$' + Number(n).toFixed(2), (data) => (data.images || []).map((x) => x.url), () => 'refused',
-      'auphonic/voice-cleanup', notVoice, notVoice);
+      'auphonic/voice-cleanup', notVoice, notVoice, 'elevenlabs/scribe_v2', notStt, notStt);
     const text = await checkJob(JOB);
     return { text, hfCalls, logWrites };
   };

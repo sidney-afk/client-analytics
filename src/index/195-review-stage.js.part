@@ -693,6 +693,36 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 }
 .rs,.rs.client{background:transparent}
 .card,.chat{background:var(--surface-raised);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow-stage)}
+`
+    /* THE CONVERSATION AS A PHONE CHAT (owner feedback 2026-10-17 23:00 UTC, session Curtain Six: it read as a column
+       of full-width cards). The approved mock-up puts light bubbles on a grey panel; the panel is now the stage's one
+       surface (above), so the contrast flips: everyone else's bubbles take the page's own background, the viewer's own
+       a soft tint of the app's accent, no outlines, no coloured side bar. An open change request keeps a thin orange
+       edge and its "Change asked" label; a handled one shows "Done". Line breaks in a note are kept, and a very long
+       note (a whole caption pasted as a change) folds after a few lines behind "Show all". Only the look changes:
+       what is saved, who sees it and Team only / Client can see are untouched. App tokens only. */
+    + `
+.chat{--team-bub:var(--bg);--team-bub-line:transparent;--you-bub:color-mix(in srgb,var(--focus-ring) 13%,var(--surface-raised));--you-bub-line:transparent}
+:host([data-theme="dark"]) .chat{--you-bub:color-mix(in srgb,var(--focus-ring) 24%,var(--surface-raised))}
+.ch-scroll{gap:8px;padding:14px 12px 10px}
+.bub{max-width:84%;gap:7px}
+.bub.you{max-width:84%}
+.bub+.bub.you,.bub.you+.bub.team{margin-top:4px}
+.bb{gap:3px;padding:8px 12px 9px;border-radius:18px}
+.team .bb{background:var(--team-bub);box-shadow:none;border-bottom-left-radius:6px}
+.you .bb{background:var(--you-bub);box-shadow:none;border-bottom-right-radius:6px}
+.bub .av{width:26px;height:26px;font-size:.62rem}
+.bh{gap:2px 7px;font-size:.68rem;line-height:1.3}
+.bh .tag{background:none;padding:0;height:auto;color:inherit;font-weight:600;gap:5px;display:inline-flex;align-items:center;border-radius:0;font-size:inherit}
+.bt{font-size:.86rem;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.bt.clamp{display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden}
+.bmore{align-self:flex-start;font-size:.74rem;font-weight:700;color:var(--text-primary);padding:2px 0;text-decoration:underline;text-decoration-color:var(--border);text-underline-offset:3px}
+.bmore:hover{text-decoration-color:currentColor}
+.bub.is-chg .bb,.bub.you.is-chg .bb{box-shadow:inset 0 0 0 1px var(--chgrow-line)}
+.bub.is-chg.handled .bb,.bub.you.is-chg.handled .bb{box-shadow:none}
+.bfoot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px}
+.bfoot .donec{margin-left:auto}
+.bfoot .vis{font-size:.66rem}
 `;
     const RS_PART = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'YouTube title' };
     const RS_CSSKEY = { video: 'video', graphic: 'thumbnail', caption: 'caption', title: 'youtube' };
@@ -820,7 +850,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             let who;
             try { who = _calNoteAuthorName(c) || c.author || ''; } catch (e) { who = c.author || ''; }
             return {
-                you: _rsIsMine(c, mode), who: who || (c.role === 'client' ? 'Client' : 'Team'), role: c.role || '',
+                id: String(c.id || ''), you: _rsIsMine(c, mode), who: who || (c.role === 'client' ? 'Client' : 'Team'), role: c.role || '',
                 part: comp, time: c.sending ? 'Sending…' : _rsWhen(c.created_at), text: String(c.body || ''),
                 change: !!c.is_tweak, done: !!c.done, aud: c.audience || '', sending: !!c.sending,
                 frame: !!c.is_tweak && String(c.body || '').trim() === RS_FRAME_NOTE
@@ -1370,14 +1400,19 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const send = chg || R.mode === 'smm' ? '' : '<button class="send" type="button" id="sendBtn" aria-label="Send as a note"' + (typed ? '' : ' disabled') + '>' + RI.send + '</button>';
         return '<div class="compose' + (R.mode === 'smm' ? ' smm' : '') + (chg ? ' chg' : '') + (typed ? ' typed' : '') + '" id="compose"><div class="cbox">' + top + '<div class="ta-wrap"><textarea class="cta" id="ta" rows="1" placeholder="' + _re(ph) + '" aria-label="' + _re(ph) + '"' + (paused ? ' disabled' : '') + '>' + _re(nt.text) + '</textarea>' + send + '</div>' + foot + '</div></div>';
     }
+    // A note longer than this folds after a few lines behind "Show all" (a whole caption pasted as a change request).
+    function _rsLongNote(text) { const t = String(text || ''); return t.length > 320 || t.split('\n').length > 7; }
     function _rsBubble(t, old) {
         const isChg = t.change && t.part;
-        const tag = t.part ? '<span class="tag" style="background:none;padding:0;height:auto;color:inherit;font-weight:600;gap:5px;display:inline-flex;align-items:center">' + _rsDot(t.part) + RS_PART[t.part] + '</span>' : '';
+        const tag = t.part ? '<span class="tag">' + _rsDot(t.part) + RS_PART[t.part] + '</span>' : '';
         const kind = isChg ? '<span class="kchg">' + (t.frame ? RI.frame + 'Tweaks on Frame' : RI.back + 'Change asked') + '</span>' : '';
         const role = R.mode === 'smm' && !t.you && t.role ? ' <span class="role">' + (t.role === 'client' ? 'client' : t.role === 'kasper' ? 'review' : '') + '</span>' : '';
         const vis = R.mode === 'smm' && !t.change && t.aud ? '<span class="vis' + (t.aud === 'client' ? ' cl' : '') + '">' + (t.aud === 'client' ? RI.eye + 'Client can see' : RI.lock + 'Team only') + '</span>' : '';
+        const done = t.done ? '<span class="donec">' + RI.check + 'Done</span>' : '';
         const av = t.you ? '' : '<span class="av' + (t.role === 'client' ? ' cl' : t.role === 'kasper' ? ' kp' : '') + '">' + _re(String(t.who || '?').charAt(0).toUpperCase()) + '</span>';
-        return '<div class="bub ' + (t.you ? 'you' : 'team') + (old ? ' old' : '') + (isChg ? ' is-chg' : '') + (isChg && t.done ? ' handled' : '') + '">' + av + '<div class="bb"><div class="bh"><b>' + (t.you ? 'You' : _re(t.who)) + role + '</b>' + tag + kind + '<span>' + _re(t.time) + '</span>' + vis + '</div><div class="bt' + (t.sending ? ' sending' : '') + '">' + _re(t.text) + '</div>' + (t.done ? '<span class="donec">' + RI.check + 'Done</span>' : '') + '</div></div>';
+        const long = _rsLongNote(t.text), open = long && !!(t.id && R.S.exp['note:' + t.id]);
+        const more = long && t.id ? '<button class="bmore" type="button" data-more="' + _re(t.id) + '" aria-expanded="' + open + '">' + (open ? 'Show less' : 'Show all') + '</button>' : '';
+        return '<div class="bub ' + (t.you ? 'you' : 'team') + (old ? ' old' : '') + (isChg ? ' is-chg' : '') + (isChg && t.done ? ' handled' : '') + '">' + av + '<div class="bb"><div class="bh"><b>' + (t.you ? 'You' : _re(t.who)) + role + '</b>' + tag + kind + '<span>' + _re(t.time) + '</span></div><div class="bt' + (t.sending ? ' sending' : '') + (long && t.id && !open ? ' clamp' : '') + '">' + _re(t.text) + '</div>' + more + (vis || done ? '<div class="bfoot">' + vis + done + '</div>' : '') + '</div></div>';
     }
     function _rsChat(m) {
         const S = R.S, c = _rsQ('chat');
@@ -1398,6 +1433,16 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 : '<span class="avs"><span class="av">' + _re(String(m.client || '?').charAt(0)) + '</span><span class="av l">E</span></span><span class="who"><b>The team</b><span>' + _re(m.client) + '’s SMM and editors. The client does not see this.</span></span>';
         c.innerHTML = '<div class="ch-head">' + head + '</div><div class="ch-scroll" id="tscroll">' + th + '</div><div class="ch-foot">' + foot + '</div>';
         const fb = _rsQ('foldBtn'); if (fb) fb.addEventListener('click', () => { S.fold = !S.fold; _rsChat(m); });
+        // "Show all" on a long note: only this bubble opens, the thread keeps its place.
+        c.querySelectorAll('[data-more]').forEach(b => b.addEventListener('click', () => {
+            const k = 'note:' + b.dataset.more, ts0 = _rsQ('tscroll'), top = ts0 ? ts0.scrollTop : 0;
+            S.exp[k] = !S.exp[k];
+            const bt = b.previousElementSibling;
+            if (bt) bt.classList.toggle('clamp', !S.exp[k]);
+            b.textContent = S.exp[k] ? 'Show less' : 'Show all';
+            b.setAttribute('aria-expanded', String(!!S.exp[k]));
+            if (ts0) ts0.scrollTop = top;
+        }));
         if (!dk) _rsBindComposer(c);
         const ts = _rsQ('tscroll'); if (ts) ts.scrollTop = ts.scrollHeight;
     }

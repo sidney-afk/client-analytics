@@ -225,7 +225,10 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
                 + 'html.sv-rs-full #calView>#calBody>.cal-organizer-wrap{display:flex;flex-direction:column;justify-content:safe center;box-sizing:border-box;min-height:calc(100vh - var(--sv-rs-head,54px) - 8px);min-height:calc(100dvh - var(--sv-rs-head,54px) - 8px)}'
                 + 'html.sv-rs-full #calView>#calBody>.cal-organizer-wrap>.cal-organizer-strip:not(.is-empty){justify-content:safe center;padding:8px 4px;min-height:0;scroll-padding-right:0}'
                 + 'html.sv-rs-full #calView>#calBody>.cal-organizer-wrap>.cal-organizer-strip::after{content:none}'
-                + '}';
+                + '}'
+                // The "new version of SyncView" bar (350) sits at the bottom centre, over the stage's Approve and Finish
+                // reviewing buttons: while a review stage shows it sits at the top instead (session Curtain Six).
+                + 'html:has(#svReviewStage:not([hidden])) #svUpdateBar{top:calc(12px + env(safe-area-inset-top,0px));bottom:auto}';
             document.head.appendChild(_rsChromeStyle);
         }
         de.classList.toggle('sv-rs-cal', !!on);
@@ -248,6 +251,10 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     // Called at the start of every Calendar body paint, and by the Review tab's renderer. Draws (or removes) the
     // new page beside #calView on the next frame, so the Calendar's own paint finishes first.
     function svRsCalSync() {
+        // Ask for the switch as soon as the Calendar paints any tab for a client, not first on Review: an SMM who
+        // opened on Sheet would otherwise get the old list painted for the first Review click while the answer was
+        // still on its way (owner feedback 2026-10-17 23:00 UTC, session Curtain Six). Read only; nothing is drawn.
+        if (calState && calState.client) _rsPrime();
         const on = svRsCalOn();
         const full = svRsClientFull();
         if ((on || full) && _isClientLink) {
@@ -267,7 +274,14 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             const stillFull = svRsClientFull();
             _rsChrome(still, stillFull);
             _rsToolsSync(stillFull);
-            if (!still && !stillFull) { const api = svAreaApi('reviewstage'); if (api) api.calHide(); return; }
+            if (!still && !stillFull) {
+                const api = svAreaApi('reviewstage');
+                if (api) api.calHide();
+                // A switched-on client on Sheet, Month or Week: fetch the new page's code now, so the first Review
+                // click draws it at once instead of waiting on the download (nothing is drawn here).
+                else if (calState && calState.client && !_isClientLink && _rsClientOn(calState.client)) svArea('reviewstage').catch(() => {});
+                return;
+            }
             svArea('reviewstage').then(api => { if (svRsCalOn() || svRsClientFull()) { api.cal(); if (svRsClientFull()) _rsHeadWatch(); } }, (e) => {
                 // The page could not be fetched: the old page comes back.
                 console.warn('[Review page] could not load; the old page stays', e && e.message);

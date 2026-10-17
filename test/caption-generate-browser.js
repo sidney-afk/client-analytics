@@ -20,6 +20,7 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 const { serveStatic } = require('../docs/syncview-design/tests/prod-test-utils.js');
 const { seedStaffGate } = require('../qa/staff-gate-seed.js');
+const { openEditableSheet } = require('../docs/syncview-design/tests/staff-phone-browser.js');
 
 const SLUG = process.env.CAPTION_SHOT_SLUG || 'fixtureclient';
 const NAME = process.env.CAPTION_SHOT_NAME || 'Fixture Client';
@@ -116,6 +117,9 @@ async function open(browser, origin, opts) {
   await page.goto(`${origin}/index.html?v=calendar`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof _syncviewStaffCan === 'function' && typeof _calSavePins === 'function', null, { timeout: 30000 });
   await page.evaluate(names => { _syncviewStaffIdentityVerified = true; _calSavePins(names); calState.client = names[0]; navTo('calendar'); }, [NAME]);
+  // Since #2085 a staff phone opens Calendar as a grid of tiles; the cards and Generate live in the List view.
+  await page.waitForSelector('.cal-card[data-pid="n1"], .thumb-tile[data-thumb-card="n1"]', { timeout: 20000 });
+  await openEditableSheet(page);
   await page.waitForSelector('.cal-card[data-pid="n1"]', { timeout: 20000 });
   await sleep(1500);   // the switch read and the button repaint
   return { page, ctx, state, pageErrors };

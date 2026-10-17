@@ -661,6 +661,9 @@ import { svRsCalOn, svRsCalSync } from './188-review-stage-switch.js';
        the last card in the list, re-renders the body so the empty state
        shows in its place. No intermediate "nothing left to review" stub. */
     function _calReviewRemoveCard(pid) {
+        // The new review page has no old card to remove: redraw it, or it keeps saying "Saving…" until some
+        // later reload (4 to 14 s on the live client link, session Gauntlet Client, 2026-10-17).
+        if (svRsCalOn()) { svRsCalSync(); return; }
         const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
         const el = document.querySelector('.cal-review-card[data-cal-review-pid="' + sel + '"]');
         if (!el) return;

@@ -1748,6 +1748,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-saving-clears-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token), no hosted credentials and no live data. Checks that the client review page stops showing Saving within 1.5 s of the save answering, for an approve that is not the last part, an approve of the last part a post owes and a change request on that last part.",
+      "reproduce": "node test/review-stage-saving-clears-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "frameio-viewer-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

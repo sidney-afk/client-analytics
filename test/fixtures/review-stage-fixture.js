@@ -49,6 +49,7 @@ function finished() {
 
 async function open(browser, origin, opt) {
   const state = { cards: cards(opt.stage).concat(opt.finished ? finished() : []), upserts: [], gateway: [], flagReads: 0, orient: 'p' };
+  if (typeof opt.editCards === 'function') opt.editCards(state.cards);   // a test's own starting statuses
   const ctx = await browser.newContext({ viewport: { width: opt.width || 1440, height: opt.height || 900 }, serviceWorkers: 'block', colorScheme: 'light' });
   await ctx.routeWebSocket('**/*', s => s.close());
   const page = await ctx.newPage();

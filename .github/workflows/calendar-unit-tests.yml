@@ -853,6 +853,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-one-system-browser.js
+      - name: Client review page stops saying Saving as soon as the save answers (also on the last part of a post)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-saving-clears-browser.js
 
 
   split-preview:

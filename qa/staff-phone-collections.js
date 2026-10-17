@@ -90,6 +90,14 @@ async function main(){
      tile.focus({preventScroll:true});return {id:tile.id,y:tile.getBoundingClientRect().top,scroll:body.scrollTop};
     });
     assert(anchor.scroll>0,'Grid refresh fixture must scroll away from the start');
+    // What the scroll box did around the refresh, reported only when the tile moved.
+    await page.evaluate(id=>{
+     const body=document.querySelector('#calView .cal-body,#sxrView .cal-body'),t0=performance.now(),log=window.__thumbMoveLog=[];
+     const at=()=>{const tile=document.getElementById(id);return Math.round(performance.now()-t0)+'ms y='+(tile?Math.round(tile.getBoundingClientRect().top):'gone')+' scroll='+body.scrollTop+' tiles='+body.querySelectorAll('.thumb-tile').length;};
+     new MutationObserver(m=>log.push('repaint('+m.length+') '+at())).observe(body,{childList:true});
+     body.addEventListener('scroll',()=>log.push('scroll '+at()),{passive:true});
+     const tick=()=>{log.push('frame '+at());if(performance.now()-t0<400)requestAnimationFrame(tick);};requestAnimationFrame(tick);
+    },anchor.id);
     await page.evaluate(type=>{
      const state=type==='calendar'?calState:sxrState;window.__thumbOriginalPosts=state.posts;
      state.posts=[...state.posts.slice(0,3).map((p,i)=>({...p,id:'thumb_refresh_'+i,order_index:i-3,video_deliverable_id:null,graphic_deliverable_id:null})),...state.posts];
@@ -97,6 +105,7 @@ async function main(){
     },type);
     await page.waitForTimeout(150);
     const held=await page.evaluate(id=>{const tile=document.getElementById(id);return {y:tile.getBoundingClientRect().top,focus:tile===document.activeElement};},anchor.id);
+    if(Math.abs(held.y-anchor.y)>2)console.log('tile move detail ('+type+' '+width+' '+theme+'): anchor '+JSON.stringify(anchor)+' held '+JSON.stringify(held)+'\n  '+(await page.evaluate(()=>window.__thumbMoveLog||[])).join('\n  '));
     assert(Math.abs(held.y-anchor.y)<=2,type+': a new grid row moved the tile in view');
     assert(held.focus,type+': background grid repaint lost tile focus');
     await page.evaluate(type=>{

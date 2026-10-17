@@ -33364,3 +33364,25 @@ Runtime tag. Tests: `test/f27-section4-deploy-lane.js`.
 The slow-network misses after the change (boot budget and heavy lane, 1 run in 5 each, under delays on half of all live reads) are the simulator being harsher than CI: the finished-cards load (or, in the heavy lane, the reset step's existing 30 s wait for idle) ran out of time while the page was still re-reading. They are not new. On normal network all five suites passed 5/5.
 
 **Release.** Test files only; nothing ships to users. **Way back:** revert the pull request.
+
+## 428. [2026-10-17, BUILT, NOT MERGED] Pull request checks took about 40 minutes for any change, and four browser checks failed at random (session Turbo)
+
+**Symptom.** From 2026-10-14 to 2026-10-17 a pull request waited a median of 39 minutes for its checks whether it changed only docs, one Edge Function, or page code (worst 69, 127 and 101 minutes). The staff phone matrix took 37 minutes per width, entry-links-boot 31 and hit its 40-minute limit on 4 of 5 main pushes on 2026-10-16. Main went red on most pushes from flaky browser checks. Measurements and method: `docs/ops/CI_SPEED.md`.
+
+**Causes, and what changed (PR #2136).**
+1. **Every PR ran every browser suite.** The new `changes` job (`scripts/ci-changes.js`) skips the browser jobs and the phone matrix only when no changed file can reach them (it follows each suite's requires and named paths, including the Edge Function code three suites load); unknown files and every push to main run everything. `test/ci-changes.js` guards it.
+2. **Long jobs ran one suite after another.** entry-links-boot runs in 4 parts, the phone matrix in 4 parts per width (the 28-minute state inventory now splits itself, `--shard=k/n`), split-preview in 2, unit in 3 (`UNIT_SHARD`). `test/ci-shards-wired.js` and `test/test-suite-routing.js` prove every step and suite runs exactly once.
+3. **Superseded pushes kept running** and held runner slots; a new push to a PR now cancels its old run (never on main). `calendar-ci-result` is the one check that sums the run up.
+4. **Flakes, each fixed at its cause, no check loosened:**
+   - `test/caption-helper-browser.js` "editor: the choices go one per line": the test typed while the dialog's own 30 ms focus move was due, so text could land in the prompt box. It waits for that focus (old: 1 failure in 40 under CPU load; new: 0 in 40). Its phone runs also timed out since #2085 (the phone Calendar opens as a grid); it opens the List view first, as #2085 did for the Watch here test.
+   - `qa/staff-phone-collections.js` "samples: a new grid row moved the tile in view": caught on a GitHub runner with the new move detail (scroll 159 where 309 was expected, i.e. reset to 0 before the refresh). The Grid view tap restores its remembered scroll one frame later; session Keystone's fix (#2132, wait one frame) is ported unchanged.
+   - `docs/syncview-design/tests/calendar-refresh-scroll-browser.js` "quiet tab switch: the screen before and after the refresh differ" (5 of 6 on GitHub runners): **a page bug.** The header tab row's observer reacted to the min-width each fit writes on the row, so on desktop the row re-fitted itself every frame forever (about 500 attribute changes a second on an idle page); a screenshot that caught a fit differed by one pixel. The observer ignores the row's own style now (`src/index/092-core-submit-form-navigation.js.part`), and the test checks the row is quiet for one idle second (old code: 540 changes).
+   - `docs/syncview-design/tests/shared-client-browser.js`: red on every run since #2085 (two "Change client" buttons). Session #2133's fix is ported unchanged.
+
+   - Also fixed on the way (each red on this PR's full run, none loosened): four more suites that #2085 broke on phones because the phone now opens Calendar as a grid (`caption-helper`, `calendar-status-row-urgent-height`, `caption-generate` open the List view first, as #2085 did for Watch here); `test/test-suite-routing.js` inherited the unit part number and now also proves the three parts cover the lane once; the TikTok carousel journey confirms its photo choice the way it already confirmed the client pick (the form redraws after the pick).
+
+**After (measured on GitHub, queue included).** Docs only 39 → 11.4 min, one Edge Function 40 → 16.1 min (11 of it waiting for a runner), page code 41 → 16.4 min with all 23 jobs green; longest job 37 → 11.2 min. Table in `docs/ops/CI_SPEED.md`.
+
+**Not done.** `test/tiktok-poll-backoff-browser.js` was not measured (the hunt job ran out of time). Queue time is now the largest part of the wait at busy moments: the account runs about 20 jobs at once and a page PR now uses about 25 short jobs instead of about 20 long ones.
+
+**Release.** CI and test files, plus the one-line header fix (ships with the next Pages publish). **Way back:** revert the pull request.

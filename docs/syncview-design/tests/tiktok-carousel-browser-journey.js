@@ -238,10 +238,17 @@ async function bootToTiktokUpload(browser, port, mockOpts) {
   }
   if (!picked) throw new Error('could not pick the synthetic client in the TikTok client search');
   // The form can redraw right after the client pick; wait for the choice to be on screen.
+  // The same redraw can replace the choice between finding it and pressing it
+  // ("Element is not visible" on CI, 2026-10-17), so like the client pick above
+  // it re-reads the current input and is confirmed by the photo picker showing.
   const photoType = page.locator('input[name=tkMediaType][value=photo]');
-  await photoType.waitFor({ state: 'visible', timeout: 10000 });
-  await photoType.check({ force: true });
-  await page.waitForSelector('#tkPhotoFile');
+  let photo = false;
+  for (let attempt = 0; attempt < 4 && !photo; attempt++) {
+    await photoType.waitFor({ state: 'visible', timeout: 10000 });
+    await photoType.check({ force: true, timeout: 5000 }).catch(() => {});
+    photo = await page.waitForSelector('#tkPhotoFile', { timeout: 5000 }).then(() => true).catch(() => false);
+  }
+  if (!photo) throw new Error('could not switch the TikTok form to photos');
   return { page, calls, pageErrors, clientName: picked };
 }
 

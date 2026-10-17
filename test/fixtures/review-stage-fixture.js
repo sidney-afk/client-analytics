@@ -109,6 +109,7 @@ async function open(browser, origin, opt) {
       return json(keys.filter(k => Object.hasOwn(values, k)).map(k => ({ key: k, value: values[k] })));
     }
     if (p === '/rest/v1/calendar_posts') {
+      if (opt.postsFail) return json({ message: 'fixture' }, 503);
       const slug = String(sp.get('client') || '').replace(/^eq\./, '');
       const one = String(sp.get('id') || '').replace(/^eq\./, '');
       return json(state.cards.filter(c => (!slug || c.client === slug) && (!one || c.id === one)));

@@ -97,7 +97,8 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
        that header on Sheet, Month and Week. The page has no frame around it, and there is no Analytics at all. */
     const RS_CLIENT_TABS = ['review', 'organizer', 'month', 'week'];
     function svRsClientFull() {
-        if (!_isClientLink || !calState || !calState.client || calState.error) return false;
+        // A failed card read keeps the page: the header stays and the calendar's own error and retry show under it.
+        if (!_isClientLink || !calState || !calState.client) return false;
         if (!RS_CLIENT_TABS.includes(calState.view)) return false;
         if (!document.getElementById('calView')) return false;
         return _rsClientOn(calState.client);

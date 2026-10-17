@@ -139,6 +139,20 @@ function look(page) {
       await t.ctx.close();
     }
 
+    // The cards cannot be read: the new header stays (no old bar, no Analytics), the calendar's own error under it.
+    console.log('--- client link, switch on, card read fails ---');
+    {
+      const t = await openClient(browser, origin, { flags: 'on', tab: 'review', postsFail: true });
+      await t.page.waitForFunction(() => typeof calState === 'object' && !!calState.error, null, { timeout: 45000 }).catch(() => null);
+      await t.page.waitForFunction(() => { const h = document.getElementById('svReviewStage'); return !!h && !h.hidden; }, null, { timeout: 30000 }).catch(() => null);
+      await sleep(1200);
+      const L = await look(t.page);
+      const err = await t.page.evaluate(() => !!(typeof calState === 'object' && calState.error));
+      expect(err, 'read fails: the calendar is in its error state');
+      expect(L.newHeader && !L.oldClientToggle && !L.oldBarTitle && L.analytics.length === 0, 'read fails: still one header, the new one, and no Analytics (old toggle ' + L.oldClientToggle + ', old bar ' + L.oldBarTitle + ', ' + L.analytics.join('|') + ')');
+      await t.ctx.close();
+    }
+
     // The video step: the Frame.io player with frame_viewer_clients on, the plain stage with it off.
     for (const frame of ['on', 'off']) {
       console.log('--- video step, frame_viewer_clients ' + frame + ' ---');

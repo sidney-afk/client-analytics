@@ -34,7 +34,30 @@ export function authorFor(member, who) {
 }
 
 export const TEAM_START_NOTE =
-  'This is the shared team link, so at the start of this conversation ask the person for their first name once (say it is only so the activity log shows who did what), remember it, and pass it as "who" on every tool call, together with "summary".';
+  'This is the shared team link, so at the start of this conversation ask the person for their first name once (say it is only so the activity log shows who did what), remember it, and pass it as "who" on every tool call, together with "summary". brain_change and studio_profile_save refuse to save without it.';
+
+// On the team link, the tools that save to a client's brain need a person's
+// name, or the save is signed only "Team". Every other tool works without it.
+export const WHO_REQUIRED_TOOLS = new Set(["brain_change", "studio_profile_save"]);
+export const WHO_REQUIRED_REPLY =
+  "Tell me your first name first, so the team knows who saved this. Then I'll save it. (Nothing was saved: on the shared team link, pass the person's first name as \"who\" and call this again.)";
+
+// What the team link's copy of those tools' descriptions adds, so Claude passes
+// "who" before saving. Personal links see the descriptions unchanged.
+export const TEAM_SAVE_NOTE =
+  ' This is the shared team link: always pass "who" (the person\'s first name; ask for it first if you do not know it). Without it nothing is saved and the person is asked for their name.';
+
+export function teamTools(tools, member) {
+  if (!isTeamLink(member)) return tools;
+  return tools.map((t) => (WHO_REQUIRED_TOOLS.has(t.name) ? { ...t, description: t.description + TEAM_SAVE_NOTE } : t));
+}
+
+// The refusal text when this call must not run, or "" when it may. Personal
+// links never need "who": they already name the person.
+export function whoRefusal(member, tool, who) {
+  if (!isTeamLink(member) || !WHO_REQUIRED_TOOLS.has(tool)) return "";
+  return cleanWho(who) ? "" : WHO_REQUIRED_REPLY;
+}
 
 // ---- Activity log (hf_activity) ------------------------------------------
 // One row per tools/call, success or failure. Written fire and forget: a log
@@ -87,7 +110,7 @@ export const FAILURE_OPENINGS = [
   "This job was canceled", "A worked-out price", "Give ", "Unsupported",
   "No models in", "This recipe runs on", "At most ", "Which client?",
   "The Synchro Brain is not connected", "Skipped:", "Stopped:", "Something went wrong",
-  "No guide called", "The filming plan is only",
+  "No guide called", "The filming plan is only", "Tell me your first name first",
 ];
 const LINE_TOOLS = new Set(["check_job", "check_video", "check_jobs", "wait_for_job", "run_recipe"]);
 

@@ -10,7 +10,7 @@ export const START_TOPIC = "start";
 
 export function cleanTopic(raw) {
   if (typeof raw !== "string") return "";
-  const t = raw.trim().toLowerCase().replace(/[\s_]+/g, "-");
+  const t = raw.trim().toLowerCase().replace(/[\s_-]+/g, "-");
   return TOPIC_RE.test(t) ? t : "";
 }
 
@@ -36,6 +36,18 @@ function dated(g) {
   return g.at ? `\n\n(Guide "${g.topic}", updated ${new Date(g.at).toISOString().slice(0, 10)}.)` : "";
 }
 
+// The guide for a topic: the exact topic, else the one that matches with the
+// dashes left out, so "broll" finds "b-roll" (and "videostudio" finds
+// "video-studio"). The squashed match is used only when exactly one fits.
+export function findGuide(latest, topic) {
+  if (!topic) return undefined;
+  if (latest.has(topic)) return latest.get(topic);
+  const squash = (t) => t.replace(/-/g, "");
+  const want = squash(topic);
+  const hits = [...latest.values()].filter((g) => squash(g.topic) === want);
+  return hits.length === 1 ? hits[0] : undefined;
+}
+
 // The list of guides, one line each, for start_here and an unknown topic.
 export function guideIndex(latest) {
   return [...latest.values()]
@@ -55,7 +67,7 @@ export function guideReply(rows, rawTopic) {
     const start = latest.get(START_TOPIC);
     return `${start ? start.body + "\n\n" : ""}Guides (call guide with one of these topics before that kind of task):\n${index || "none yet"}`;
   }
-  const g = latest.get(topic);
+  const g = findGuide(latest, topic);
   if (!g) return `No guide called "${topic}". Guides:\n${index || "none yet"}`;
   return g.body + dated(g);
 }

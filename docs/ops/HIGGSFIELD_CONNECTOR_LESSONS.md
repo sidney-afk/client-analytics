@@ -30,6 +30,11 @@ every time a bug reaches the team; never rewrite old rows.
 8. **Never cut a reply silently.** When a tool's answer must be shortened,
    name what was left out and say how to ask for it (as `client_brain` does
    with its `topic`). A bare "[cut here]" reads to Claude as "that is all".
+9. **When a save must say who made it, refuse without the name instead of
+   falling back to the link's name.** An optional argument is one Claude
+   often leaves out; a plain refusal that asks for the name gets it every time.
+10. **Match what people type, not only the exact key.** Topic names are typed
+    from memory ("broll", "b roll"), so lookups ignore case, spaces and dashes.
 
 ## Log
 
@@ -46,3 +51,5 @@ every time a bug reaches the team; never rewrite old rows.
 | 2026-10-10 | `client_style` said the one client whose short name has "&" had no Synchro Brain folder, so its voice never reached thumbnail titles (or the caption writer) | Brain folders spell "&" as "and"; the folder match dropped the "&" instead, so the two names never met (found in a site check, OPEN_REPAIRS 400) | 6 |
 | 2026-10-16 | Every Nano Banana (Google) image ever asked for failed: 7 calls from 2026-10-09 to 2026-10-16, and the team saw Google's raw English error "You exceeded your current quota" | The `GOOGLE_AI_KEY` account never had quota, so the model never worked once, and no live call was made after it was added. Owner's decision: the team uses GPT Image instead. Both Google models are switched off behind `GOOGLE_IMAGE_ENABLED` in `direct.ts` (not offered anywhere, never called); an ask by name gets a plain English "switched off" line and a GPT Image price card, never a silent switch | 1 |
 | 2026-10-17 | `client_brain` hid the end of 11 of 32 clients' brains behind a bare "[cut here]": 188 facts whole and 11 in part, the audience facts always first to go | One 60,000 character cut on the whole text, with no list of what fell off. Now it sends the whole brain when it fits in 60,000 characters, otherwise the brief plus each fact's first paragraph (largest client about 40,000), any fact in full by `topic`, and names anything left out | 8 |
+| 2026-10-17 | 4 brain saves from the shared Team link were signed only "Team", with no person | `who` was optional, and Claude often left it out. Now `brain_change` and `studio_profile_save` on the Team link refuse without `who` ("Tell me your first name first...") and nothing is written; the Team link's copy of those two descriptions says so (remove and re-add the connector to see it, rule 4) | 9, 4 |
+| 2026-10-16 | `guide("broll")` answered "No guide called" | The live topic is `b-roll`; the lookup only folded case and spaces. Now a topic that matches with the dashes left out (exactly one) is found too | 10 |

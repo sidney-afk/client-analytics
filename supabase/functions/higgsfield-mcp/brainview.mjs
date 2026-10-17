@@ -74,8 +74,17 @@ function fit(head, blocks, facts) {
   return left.length ? out + footer(left) : out;
 }
 
+// The list of left-out facts is itself bounded: past this size it names only
+// the files and how many facts each lost, so the reply stays within budget.
+const FOOTER_MAX = 12_000;
+
 function footer(left) {
-  return `\n\n# Left out for length\n\nThese facts did not fit in this answer and were not sent. To read one, ${ASK}:\n${leftOutLine(left)}`;
+  const head = `\n\n# Left out for length\n\nThese facts did not fit in this answer and were not sent. To read one, ${ASK}:\n`;
+  const ids = leftOutLine(left);
+  if (head.length + ids.length <= FOOTER_MAX) return head + ids;
+  const counts = new Map();
+  for (const f of left) counts.set(f.file, (counts.get(f.file) || 0) + 1);
+  return head + [...counts].map(([file, n]) => `${file}.md: ${n} facts (too many to list; ask with the file name, or a heading word)`).join("\n");
 }
 
 // The one place the reply text is built. facts: written facts only, each

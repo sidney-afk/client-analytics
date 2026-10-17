@@ -67,6 +67,14 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   assert.ok(/topic set to its fact id/.test(tail), 'says how to ask for a left-out fact');
   assert.ok(/audience\.md \(\d+\): [^\n]*client\.fixture\.x\.t79/.test(tail), 'names the file, count and fact ids');
   for (const f of big) assert.ok(long.includes(`fact id: ${f.id}`) || tail.includes(f.id), `${f.id} is either sent or named`);
+  // Even a thousand left-out facts keep the reply within budget: the list falls back to per-file counts.
+  const many = [];
+  for (let i = 0; i < 1000; i++) many.push({ file: 'editing', heading: `Topic ${i}`, id: `client.fixture.editing.a-rather-long-fact-id-number-${i}`, body: 'word '.repeat(300).trim(), sure: '' });
+  for (const topic of ['', 'topic']) {
+    const o = brainView({ name: 'F', brief, facts: many, topic });
+    assert.ok(o.length <= BRAIN_MAX_CHARS, `a thousand facts (topic "${topic}") stay within budget (${o.length})`);
+    assert.ok(/editing\.md: \d+ facts \(too many to list; ask with the file name/.test(o), 'an over-long left-out list becomes per-file counts');
+  }
   const huge = brainView({ name: 'F', brief, facts: [{ file: 'voice', heading: 'Huge', id: 'client.fixture.voice.huge', body: 'x '.repeat(40000) }], topic: 'huge' });
   assert.ok(huge.length <= BRAIN_MAX_CHARS && /the rest of client\.fixture\.voice\.huge was not sent/.test(huge), 'a single fact too long for one answer says so by id');
   assert.strictEqual(firstParagraph('a'.repeat(5000)).more, true, 'a giant first paragraph is shortened and marked');

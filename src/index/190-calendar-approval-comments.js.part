@@ -1,6 +1,6 @@
 import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
-import { svFrameFeed, svFrameIoLinkHtml, svFrameStageMount, svFrameStageUnmount, svFrameTileAttrs, svFrameTileLabelHtml, svFrameTime } from './187-frame-viewer.js';
+import { svFrameFeed, svFrameIoLinkHtml, svFrameStageMount, svFrameWarm, svFrameStageUnmount, svFrameTileAttrs, svFrameTileLabelHtml, svFrameTime } from './187-frame-viewer.js';
 import { _svPhoneNotesPresentation } from './095-shared-client.js';
 import {
   CAL_COMPONENTS, CAL_REVIEW_COMPONENTS, _calClearStaleApprovals, _calComponentsFor, _prodCrosswalkInFlight,
@@ -2530,7 +2530,7 @@ import { svRsCalOn, svRsCalSync } from './188-review-stage-switch.js';
         // Tweaks pill + "Approved after tweaks" badge are kept in one left-
         // aligned group so the badge sits right next to the pill (the footer is
         // space-between, which would otherwise fling the badge to the far right).
-        return `<span class="cal-foot-tweaks" data-comments-wrap="${pid}"><button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="${_calEscAttr(tip)}">${ico}<span class="cal-comments-label">Notes</span>${unread ? '<span class="cal-comments-dot" aria-label="New replies"></span>' : ''}<span class="cal-comments-count">${open} open</span></button>${_calAatBadgeHtml(post)}</span>`;
+        return `<span class="cal-foot-tweaks" data-comments-wrap="${pid}"><button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" onpointerenter="svCardNotesIntent('${pid}',120)" onfocus="svCardNotesIntent('${pid}',0)" onpointerdown="svCardNotesIntent('${pid}',0)" title="${_calEscAttr(tip)}">${ico}<span class="cal-comments-label">Notes</span>${unread ? '<span class="cal-comments-dot" aria-label="New replies"></span>' : ''}<span class="cal-comments-count">${open} open</span></button>${_calAatBadgeHtml(post)}</span>`;
     }
     function _calRefreshCommentsBtn(pid) {
         const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
@@ -2571,7 +2571,7 @@ import { svRsCalOn, svRsCalSync } from './188-review-stage-switch.js';
         _calComposeComp = 'video';          // Part B: picker defaults to Video
         _calShowResolved = false;           // start on the live feed, not history
         _notesMarkSeen(pid);                // opening = caught up; clears the unread dot
-        _prodProjectCanonicalCardComments('calendar', pid);
+        _calNotesWarm(pid, true);           // the read the pointer already started, or a new one
         const ovl = _calEnsureCommentsOverlay();
         if (!ovl) return;
         ovl.classList.add('open');
@@ -2587,6 +2587,44 @@ import { svRsCalOn, svRsCalSync } from './188-review-stage-switch.js';
             if (ta && !_calNotesPhoneWithVideo()) ta.focus();
         }, 30);
     }
+    /* NOTES AS FAST AS POSSIBLE (Encore, 2026-10-16). Opening the dialog used to start the notes read: the card's
+       link check, then the thread itself, one after the other (about 0.2 s and then about 1.8 s on the server). Now
+       pointing at a door (the Notes button, the play button, hover after 120 ms, focus or press at once) starts the
+       same read, so most of it is done before the click lands; the open reuses a read that is running or finished in
+       the last few seconds instead of asking twice; and the link check and the thread are asked for side by side
+       (_prodProjectCanonicalCardComments). Rows already held are drawn at once, as before. */
+    const CAL_NOTES_REUSE_MS = 5000;
+    const _calNotesWarmRuns = new Map();
+    let _calNotesIntentTimer = 0;
+    // fromOpen: the dialog is opening. A read the pointer started (running, or finished in the last few seconds and not
+    // yet used by an open) is reused once; every other open reads again, so a reopen still picks up new notes.
+    function _calNotesWarm(pid, fromOpen) {
+        const key = String(pid || '');
+        if (!key || !calState || !Array.isArray(calState.posts) || !calState.posts.some(p => p.id === key)) return null;
+        const prev = _calNotesWarmRuns.get(key);
+        const fresh = prev && (prev.running || (!prev.used && Date.now() - prev.at < CAL_NOTES_REUSE_MS));
+        if (fresh && (fromOpen ? !prev.used : true)) { if (fromOpen) prev.used = true; return prev.done; }
+        if (!fromOpen && prev && prev.running) return prev.done;
+        const run = { at: Date.now(), running: true, done: null, used: !!fromOpen };
+        run.done = Promise.resolve()
+            .then(() => _prodProjectCanonicalCardComments('calendar', key))
+            .catch(() => false)
+            .finally(() => { run.running = false; run.at = Date.now(); });
+        _calNotesWarmRuns.set(key, run);
+        return run.done;
+    }
+    // A door is being pointed at: start the notes (and, for a card with a playable video, the video) now.
+    function svCardNotesIntent(pid, delay) {
+        clearTimeout(_calNotesIntentTimer);
+        const go = () => {
+            _calNotesWarm(pid);
+            const post = calState && Array.isArray(calState.posts) ? calState.posts.find(p => p.id === pid) : null;
+            if (post) svFrameWarm(post);
+        };
+        if (delay > 0) _calNotesIntentTimer = setTimeout(go, delay); else go();
+    }
+    // 187 (the play doors) starts the notes read through this, without importing this file.
+    window.svCardNotesWarm = _calNotesWarm;
     /* ONE VIEW FOR THE VIDEO AND ITS NOTES (owner, 2026-10-16). When the card's video is a Frame.io link and the
        frame_viewer_clients switch allows its client, the Notes dialog grows a player on its left (on a phone, on top):
        the stage, owned by 187. Every door opens this same view: the Notes button, the Sheet's play icon, the Review
@@ -3002,8 +3040,10 @@ import { svRsCalOn, svRsCalSync } from './188-review-stage-switch.js';
         }
         /* While this exact deliverable's canonical read is still in flight the
            composer is drawn in full, so the first paint is the final layout,
-           and only sending waits: the send button stays disabled, a quiet line
-           says why, and _calAppendComment refuses on the same gate. */
+           and only sending waits: the send button stays disabled (its tooltip
+           says why) and _calAppendComment refuses on the same gate. No line of
+           text is added under the box: it came and went and moved the layout
+           (owner, 2026-10-16). */
         const sendPending = _calCommentSendPending(post, canonicalGate);
         // Staff starting a new thread: the audience lives INSIDE the box as one
         // icon (lock = team, eye = client) and "Request change" sits behind the
@@ -3065,7 +3105,6 @@ import { svRsCalOn, svRsCalSync } from './188-review-stage-switch.js';
                 </div>
             </div>
             ${staffRoot ? `<div class="cal-cm-quiet" data-cm-quiet>${_calEsc(_calComposeQuietLine())}</div>` : ''}
-            ${sendPending ? '<div class="cal-cm-pending-hint" data-cm-send-pending="1">Syncing this thread. Sending unlocks in a moment.</div>' : ''}
         </div>`;
     }
 
@@ -3936,7 +3975,7 @@ import { svRsCalOn, svRsCalSync } from './188-review-stage-switch.js';
         _calSetComposeIsTweak, _calSubmitComposer, _calSubmitComposerAsTweak, _calToggleCommentDone,
         _calToggleComposeAudience, _calToggleSendMenu, _calToggleShowResolved, _calToggleThreadCollapse,
         _noteOutboxDiscard, _noteOutboxRetry, _noteOutboxRetryRequest, closeCalComments, closeCalPreview,
-        editInOrganizerFromPreview, openCalComments, openCalPreview
+        editInOrganizerFromPreview, openCalComments, openCalPreview, svCardNotesIntent
     });
 export {
   openCalComments,

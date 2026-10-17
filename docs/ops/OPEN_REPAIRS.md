@@ -33365,6 +33365,18 @@ The slow-network misses after the change (boot budget and heavy lane, 1 run in 5
 
 **Release.** Test files only; nothing ships to users. **Way back:** revert the pull request.
 
+## 427. [2026-10-16, BUILT, NOT MERGED] Watch here: the picture froze while the sound played (session Encore)
+
+**What the owner saw.** On a real client's card (a Video 8, recorded by card id in the PR, read only), pressing play in the Notes view started the sound but the picture did not move.
+
+**Cause (found, not guessed).** The card's thumbnail is drawn over the player while the video loads (`.fv-poster`). Nothing removed it once the video was ready, and it comes after the video in the page, so it sat on top of the playing video: the sound played under a still picture. Every card with a thumbnail had it; the owner's card has one (all the matching cards found in a live read do). Shown in the browser test on the old code: while playing, the element on top of the player is the thumbnail, with 20 video frames drawn behind it.
+
+**The file format was checked too.** The server already asks Frame.io for its full-size H.264 copy first and uses the original upload last. The card's actual file type could not be read from a session: Frame.io is reachable only through the server's stored sign-in, and using that from a session could rotate it and break the live connection, so it was not done. The page now records which file is playing on the video element (`data-fv-file`: high_quality, efficient or original), so one look in the browser's inspector on that card answers it.
+
+**What changed (page only, no function or database change).** The thumbnail is hidden once the video has its first frame. The page decides the file order itself as well (H.264 copy, small copy, original last). A file that plays sound but draws no picture (an HEVC upload on Windows Chrome) is noticed after about a second of playing and the small H.264 copy takes over from the same second; if the original is all there is, the player says so and offers Frame.io. Same PR: speed 1x/1.5x/2x and 5 s back/forward, the "Syncing this thread" line removed, notes read started on hover and side by side with the link check, the card's play button centred. Point 6 (owner, 2026-10-17): whenever the video cannot play properly (a load error, a format the browser cannot play, sound with no picture and no other file, or a stall that does not recover within 7 s while playing), the player says "Having trouble playing this? Open it in Frame.io" over the video, with a button to the same Frame.io link; it is drawn in place and goes when playback recovers.
+
+**Way back:** revert the pull request.
+
 ## 428. [2026-10-17, BUILT, NOT MERGED] Pull request checks took about 40 minutes for any change, and four browser checks failed at random (session Turbo)
 
 **Symptom.** From 2026-10-14 to 2026-10-17 a pull request waited a median of 39 minutes for its checks whether it changed only docs, one Edge Function, or page code (worst 69, 127 and 101 minutes). The staff phone matrix took 37 minutes per width, entry-links-boot 31 and hit its 40-minute limit on 4 of 5 main pushes on 2026-10-16. Main went red on most pushes from flaky browser checks. Measurements and method: `docs/ops/CI_SPEED.md`.

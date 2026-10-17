@@ -227,15 +227,57 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             return typeof c.downlink === 'number' && c.downlink > 0 && c.downlink < 3;
         } catch (e) { return false; }
     }
+    /* WHICH FILE (Encore, 2026-10-16). Frame.io gives up to three: "high_quality" (its full-size H.264 copy),
+       "efficient" (a small H.264 copy) and "original" (the upload itself). A phone's upload is often HEVC (H.265),
+       which Chrome on Windows usually plays as sound only, so the original is used only when Frame.io has no H.264
+       copy at all. The order is decided here as well as on the server, so a card never starts on the original while a
+       copy exists. */
+    function svFramePickRendition(vdata) {
+        const r = (vdata && vdata.renditions) || {};
+        const hq = r.high_quality || '', small = r.efficient || '', orig = r.original || '';
+        const full = hq || (vdata && vdata.url && vdata.url !== orig && vdata.url !== small ? vdata.url : '') || small || (vdata && vdata.url) || orig;
+        const name = full === hq && hq ? 'high_quality' : (full === small && small ? 'efficient' : (full === orig && orig ? 'original' : 'address'));
+        return { full, small: small && small !== full ? small : '', original: orig && orig !== full ? orig : '', name };
+    }
     function _fvDowngrade(video) {
         const ctl = video._fvCtl;
         if (!ctl || !ctl.small || ctl.level === 'small') return;
         const at = video.currentTime || 0, was = !video.paused;
-        ctl.level = 'small'; ctl.gen++;
-        clearTimeout(video._fvStartT); clearTimeout(video._fvStallT);
+        ctl.level = 'small'; ctl.gen++; ctl.pictureOk = false;
+        clearTimeout(video._fvStartT); clearTimeout(video._fvStallT); clearTimeout(video._fvPicT); video._fvPicT = 0;
         video.addEventListener('loadedmetadata', () => { try { if (at > 0) video.currentTime = at; } catch (e) {} if (was) { const p = video.play(); if (p && p.catch) p.catch(() => {}); } }, { once: true });
         video.src = ctl.small;
+        video.setAttribute('data-fv-file', 'efficient');
         video.dispatchEvent(new Event('fv-smaller'));
+    }
+    /* SOUND BUT NO PICTURE. A file whose video the browser cannot decode (HEVC on most Windows Chrome) still plays its
+       sound: no error is raised, the time moves, and not one frame is drawn. While playing, once the time has moved a
+       second and no frame has been decoded, the next file is used from the same second: the small H.264 copy, or, when
+       the original was all there was, nothing better exists and the player says so. */
+    function _fvDecodedFrames(video) {
+        try {
+            if (typeof video.getVideoPlaybackQuality === 'function') return video.getVideoPlaybackQuality().totalVideoFrames;
+            if (typeof video.webkitDecodedFrameCount === 'number') return video.webkitDecodedFrameCount;
+        } catch (e) {}
+        return -1;
+    }
+    function _fvNoPicture(video) {
+        if (!video || video.paused || video.currentTime < 1) return false;
+        if (video.readyState >= 1 && video.videoWidth === 0) return true;
+        return _fvDecodedFrames(video) === 0;
+    }
+    function _fvWatchPicture(video) {
+        clearTimeout(video._fvPicT);
+        const ctl = video._fvCtl;
+        if (!ctl || ctl.pictureOk) return;
+        const gen = ctl.gen;
+        video._fvPicT = setTimeout(() => {
+            const c = video._fvCtl;
+            if (!c || c.gen !== gen || c.pictureOk || video.paused) return;
+            if (!_fvNoPicture(video)) { if (video.currentTime >= 1) c.pictureOk = true; else _fvWatchPicture(video); return; }
+            if (c.small && c.level !== 'small') { _fvDowngrade(video); return; }
+            video.dispatchEvent(new Event('fv-nopicture'));
+        }, 1200);
     }
     // A media error on the full-size file (an encoding the browser cannot play, or a failure of that file alone): the small
     // proxy is tried before the address is refreshed or the video given up on. True when it took over.
@@ -256,6 +298,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             video._fvStallT = setTimeout(() => { if (video.readyState < 3) _fvDowngrade(video); }, FV_STALL_MS);
         });
         ['playing', 'canplay', 'pause', 'seeked'].forEach((ev) => video.addEventListener(ev, () => clearTimeout(video._fvStallT)));
+        video.addEventListener('playing', () => _fvWatchPicture(video));
+        video.addEventListener('timeupdate', () => { if (!video._fvPicT && video._fvCtl && !video._fvCtl.pictureOk) _fvWatchPicture(video); });
         return video;
     }
     function _fvNewVideo() {
@@ -265,14 +309,16 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     // Start (or restart after a new address) a video element: the small file first only on a slow connection.
     function _fvStart(video, vdata, resumeAt) {
-        const r = (vdata && vdata.renditions) || {};
-        const small = r.efficient && r.efficient !== vdata.url ? r.efficient : '';
-        const first = (_fvSlowLine() && small) ? small : vdata.url;
+        const pick = svFramePickRendition(vdata);
+        const small = pick.small;
+        const first = (_fvSlowLine() && small) ? small : pick.full;
         const prev = video._fvCtl;
-        const ctl = video._fvCtl = { small, level: first === small && small ? 'small' : 'full', got: false, gen: prev ? prev.gen + 1 : 1 };
-        clearTimeout(video._fvStartT); clearTimeout(video._fvStallT);
+        const ctl = video._fvCtl = { small, level: first === small && small ? 'small' : 'full', got: false, gen: prev ? prev.gen + 1 : 1, pictureOk: false };
+        clearTimeout(video._fvStartT); clearTimeout(video._fvStallT); clearTimeout(video._fvPicT); video._fvPicT = 0;
         if (resumeAt > 0) video.addEventListener('loadedmetadata', () => { try { video.currentTime = resumeAt; } catch (e) {} }, { once: true });
         video.src = first;
+        // Which file is playing, readable in the page (data-fv-file): high_quality, efficient or original.
+        video.setAttribute('data-fv-file', first === small && small ? 'efficient' : pick.name);
         if (ctl.level === 'full' && small) {
             const gen = ctl.gen;
             video._fvStartT = setTimeout(() => { if (video._fvCtl && video._fvCtl.gen === gen && !video._fvCtl.got) _fvDowngrade(video); }, FV_START_MS);
@@ -281,7 +327,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     function _fvStop(video) {
         if (!video) return;
-        clearTimeout(video._fvStartT); clearTimeout(video._fvStallT);
+        clearTimeout(video._fvStartT); clearTimeout(video._fvStallT); clearTimeout(video._fvPicT); clearTimeout(video._fvTroubleT); video._fvPicT = 0;
         try { video.pause(); } catch (e) {}
         video.removeAttribute('src');
         try { video.load(); } catch (e) {}
@@ -364,11 +410,20 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const go = () => {
             const rec = _fvGetVideo(link, cardId, false);
             if (!_isClientLink && !rec.comments) rec.comments = _fvFetchComments(link);
+            if (!_isClientLink && cardId && typeof window.svCardNotesWarm === 'function') window.svCardNotesWarm(cardId);
         };
         clearTimeout(_fvIntentTimer);
         if (delay > 0) _fvIntentTimer = setTimeout(go, delay); else go();
     }
 
+    // The Notes button of a card whose Notes will hold the player: warm the video and its comments like the play doors.
+    function svFrameWarm(post) {
+        if (_isClientLink) return;
+        const link = svFrameStageFor(post);
+        if (!link) return;
+        const rec = _fvGetVideo(link, post.id, false);
+        if (!rec.comments) rec.comments = _fvFetchComments(link);
+    }
     function svFrameTime(sec) {
         const s = Math.max(0, Math.floor(Number(sec) || 0));
         const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
@@ -378,13 +433,26 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     const FV_PAUSE_ICO = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3.5" y="2.5" width="3.2" height="11" rx="1"/><rect x="9.3" y="2.5" width="3.2" height="11" rx="1"/></svg>';
     const FV_SOUND_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6h2.5l3.5-3v10L5 10H2.5z" fill="currentColor"/><path d="M11 5.5a3.5 3.5 0 0 1 0 5M12.8 3.6a6 6 0 0 1 0 8.8"/></svg>';
     const FV_MUTED_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6h2.5l3.5-3v10L5 10H2.5z" fill="currentColor"/><path d="M11 6l3.5 4M14.5 6 11 10"/></svg>';
+    const FV_BACK_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3.5v3h3"/><path d="M3.3 6.5A5 5 0 1 1 3.4 10"/></svg>';
+    const FV_FWD_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3.5v3h-3"/><path d="M12.7 6.5A5 5 0 1 0 12.6 10"/></svg>';
+    const FV_RATES = [1, 1.5, 2];
+    const FV_SKIP_S = 5;
+    /* TROUBLE (owner, 2026-10-17, point 6). Whenever the video cannot play properly, the player says so over the
+       picture: "Having trouble playing this? Open it in Frame.io", with a button to the same Frame.io link as the
+       "Open in Frame.io" link. A failure that ends playback (load error, unsupported format, sound with no picture and
+       no other file) shows it in the error panel; a stall that does not recover within FV_TROUBLE_MS while playing
+       shows it in the middle of the video, drawn in place (nothing moves), and it goes as soon as the video plays
+       again. */
+    const FV_TROUBLE_MS = 7000;
+    const FV_TROUBLE_TEXT = 'Having trouble playing this? Open it in Frame.io';
     const FV_FULL_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/></svg>';
 
     /* THE STAGE: the player on the left of the Notes view (on top on a phone). The Notes view (190) gives it a host
        element and the card; one stage at a time. Before the address arrives the poster shows with a thin moving line
        along the bottom, no spinner and no empty box; the controls are drawn from the first frame so nothing moves when
        the video is ready. The play button sits at the bottom centre; it never presses itself. */
-    const FV_STAGE = { host: null, pid: '', link: '', client: '', seq: 0, rec: null, frio: null, video: null, retried: false, wantPlay: false, resumeAt: 0, seekTo: null, scrubbing: false };
+    // rate: the playback speed, kept for as long as the dialog is open (across a smaller file or a fresh address).
+    const FV_STAGE = { host: null, pid: '', link: '', client: '', seq: 0, rec: null, frio: null, video: null, retried: false, wantPlay: false, resumeAt: 0, seekTo: null, scrubbing: false, rate: 1 };
 
     // The Frame.io link the card's player would play, or '' when this card gets no player (no Frame.io link, or the
     // switch is off for its client).
@@ -403,7 +471,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!link) { if (FV_STAGE.host === host) svFrameStageUnmount(); return false; }
         if (FV_STAGE.host === host && FV_STAGE.pid === post.id && FV_STAGE.link === link && host.firstElementChild) return true;
         svFrameStageUnmount();
-        Object.assign(FV_STAGE, { host, pid: post.id, link, client: post.client || (calState && calState.client) || '', rec: null, frio: null, video: null, retried: false, wantPlay: false, resumeAt: 0, seekTo: null, scrubbing: false });
+        Object.assign(FV_STAGE, { host, pid: post.id, link, client: post.client || (calState && calState.client) || '', rec: null, frio: null, video: null, retried: false, wantPlay: false, resumeAt: 0, seekTo: null, scrubbing: false, rate: 1 });
         const posterSafe = String(poster || '');
         host.hidden = false;
         host.setAttribute('data-orient', 'landscape');
@@ -413,8 +481,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 <div class="fv-controls">
                     <div class="fv-track"><input type="range" class="fv-scrub" min="0" max="1000" step="1" value="0" aria-label="Video position" disabled><div class="fv-markers" aria-hidden="true"></div></div>
                     <div class="fv-bar">
-                        <span class="fv-clock"><span class="fv-now">0:00</span><span class="fv-dur"></span></span>
-                        <button type="button" class="fv-play" aria-label="Play">${FV_PLAY_ICO}</button>
+                        <span class="fv-bar-left">
+                            <span class="fv-clock"><span class="fv-now">0:00</span><span class="fv-dur"></span></span>
+                            <button type="button" class="fv-icon-btn fv-rate" aria-label="Playback speed 1x" title="Playback speed">1x</button>
+                        </span>
+                        <span class="fv-bar-mid">
+                            <button type="button" class="fv-icon-btn fv-skip fv-back" aria-label="Back ${FV_SKIP_S} seconds" title="Back ${FV_SKIP_S} seconds (J or ←)">${FV_BACK_ICO}<span class="fv-skip-n">${FV_SKIP_S}</span></button>
+                            <button type="button" class="fv-play" aria-label="Play">${FV_PLAY_ICO}</button>
+                            <button type="button" class="fv-icon-btn fv-skip fv-fwd" aria-label="Forward ${FV_SKIP_S} seconds" title="Forward ${FV_SKIP_S} seconds (L or →)">${FV_FWD_ICO}<span class="fv-skip-n">${FV_SKIP_S}</span></button>
+                        </span>
                         <span class="fv-bar-right">
                             <button type="button" class="fv-icon-btn fv-mute" aria-label="Mute">${FV_SOUND_ICO}</button>
                             <button type="button" class="fv-icon-btn fv-full" aria-label="Full screen">${FV_FULL_ICO}</button>
@@ -422,6 +497,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                     </div>
                 </div>
                 <div class="fv-loadline" aria-hidden="true"></div>
+                <div class="fv-trouble" role="status" aria-live="polite"><span class="fv-trouble-text">${FV_TROUBLE_TEXT}</span><a class="fv-btn fv-trouble-open" href="${_calEscAttr(link)}" target="_blank" rel="noopener noreferrer">Open in Frame.io</a></div>
             </div>
             <div class="fv-stage-foot"><span class="fv-small-note" hidden>Smaller version for your connection</span><a class="fv-open-link" href="${_calEscAttr(link)}" target="_blank" rel="noopener noreferrer"><span>Open in Frame.io</span>${FV_EXT_ICO}</a></div>`;
         const img = _fvSp('.fv-poster');
@@ -432,6 +508,19 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _fvSp('.fv-play').addEventListener('click', svFrameTogglePlay);
         _fvSp('.fv-mute').addEventListener('click', () => { const v = FV_STAGE.video; if (v) v.muted = !v.muted; else _fvMuteIcon(); });
         _fvSp('.fv-full').addEventListener('click', _fvFullscreen);
+        _fvSp('.fv-back').addEventListener('click', () => svFrameSkip(-FV_SKIP_S));
+        _fvSp('.fv-fwd').addEventListener('click', () => svFrameSkip(FV_SKIP_S));
+        _fvSp('.fv-rate').addEventListener('click', svFrameNextRate);
+        // Keys while the player has focus: space or K plays and pauses, J or ← goes back, L or → forward.
+        _fvSp('.fv-player').addEventListener('keydown', (e) => {
+            if (e.altKey || e.ctrlKey || e.metaKey) return;
+            const t = e.target;
+            if (t && t.classList && t.classList.contains('fv-scrub') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
+            const k = e.key;
+            if (k === 'j' || k === 'J' || k === 'ArrowLeft') { e.preventDefault(); svFrameSkip(-FV_SKIP_S); }
+            else if (k === 'l' || k === 'L' || k === 'ArrowRight') { e.preventDefault(); svFrameSkip(FV_SKIP_S); }
+            else if ((k === 'k' || k === 'K' || (k === ' ' && !(t && t.tagName === 'BUTTON')))) { e.preventDefault(); svFrameTogglePlay(); }
+        });
         const scrub = _fvSp('.fv-scrub');
         scrub.addEventListener('pointerdown', () => { FV_STAGE.scrubbing = true; });
         ['pointerup', 'pointercancel', 'change'].forEach(ev => scrub.addEventListener(ev, () => { FV_STAGE.scrubbing = false; }));
@@ -447,7 +536,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (FV_STAGE.video) _fvStop(FV_STAGE.video);
         const host = FV_STAGE.host;
         if (host) { host.innerHTML = ''; host.hidden = true; host.removeAttribute('data-orient'); host.style.removeProperty('--fv-ar'); }
-        Object.assign(FV_STAGE, { host: null, pid: '', link: '', client: '', rec: null, frio: null, video: null, wantPlay: false, resumeAt: 0, seekTo: null, scrubbing: false });
+        Object.assign(FV_STAGE, { host: null, pid: '', link: '', client: '', rec: null, frio: null, video: null, wantPlay: false, resumeAt: 0, seekTo: null, scrubbing: false, rate: 1 });
         if (document.fullscreenElement && host && host.contains(document.fullscreenElement)) { try { document.exitFullscreen(); } catch (e) {} }
     }
 
@@ -456,8 +545,25 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!player || !box) return;
         player.setAttribute('data-state', kind);
         if (kind !== 'error') { box.innerHTML = ''; return; }
-        box.innerHTML = `<div class="fv-state-text">${_calEsc(text || 'The video could not be loaded.')}</div>
-            <div class="fv-state-actions">${withRetry ? '<button type="button" class="fv-btn" onclick="svFrameStageRetry()">Try again</button>' : ''}<a class="fv-btn fv-btn-ghost" href="${_calEscAttr(FV_STAGE.link)}" target="_blank" rel="noopener noreferrer">Open in Frame.io</a></div>`;
+        _fvTrouble(false);
+        const open = _fvSp('.fv-open-link');
+        const href = (open && open.getAttribute('href')) || FV_STAGE.link;
+        box.innerHTML = `<div class="fv-state-title">${FV_TROUBLE_TEXT}</div>
+            <div class="fv-state-text">${_calEsc(text || 'The video could not be loaded.')}</div>
+            <div class="fv-state-actions"><a class="fv-btn" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer">Open in Frame.io</a>${withRetry ? '<button type="button" class="fv-btn fv-btn-ghost" onclick="svFrameStageRetry()">Try again</button>' : ''}</div>`;
+    }
+    // The message over the video for a stall that does not recover. Shown in place; gone when the video plays again.
+    function _fvTrouble(on) {
+        const p = _fvSp('.fv-player');
+        if (!p) return;
+        p.toggleAttribute('data-trouble', !!on);
+    }
+    function _fvWatchStall(v) {
+        clearTimeout(v._fvTroubleT);
+        v._fvTroubleT = setTimeout(() => {
+            if (FV_STAGE.video !== v || v.paused || v.readyState >= 3) return;
+            _fvTrouble(true);
+        }, FV_TROUBLE_MS);
     }
     // Vertical videos are drawn tall and narrow, wide ones wide; the player takes the video's own shape, so there are
     // no black bars. The poster gives the shape before the video does.
@@ -522,6 +628,27 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (v && v.readyState >= 1) { v.currentTime = t; _fvClock(); }
         else FV_STAGE.seekTo = t;
     }
+    // Back or forward a few seconds, paused or playing as it was. Before the video is there, it waits like a seek.
+    function svFrameSkip(delta) {
+        const v = FV_STAGE.video;
+        if (!FV_STAGE.host) return;
+        if (!v || v.readyState < 1) { FV_STAGE.seekTo = Math.max(0, (FV_STAGE.seekTo || 0) + delta); return; }
+        const d = _fvDuration();
+        v.currentTime = Math.max(0, Math.min(d ? d - 0.05 : v.currentTime + delta, v.currentTime + delta));
+        _fvClock();
+    }
+    // 1x, 1.5x, 2x, then 1x again. Kept while the dialog is open.
+    function svFrameNextRate() {
+        const i = FV_RATES.indexOf(FV_STAGE.rate);
+        FV_STAGE.rate = FV_RATES[(i + 1) % FV_RATES.length];
+        _fvApplyRate();
+    }
+    function _fvApplyRate() {
+        const v = FV_STAGE.video, r = FV_STAGE.rate || 1;
+        if (v) { try { v.defaultPlaybackRate = r; v.playbackRate = r; } catch (e) {} }
+        const b = _fvSp('.fv-rate');
+        if (b) { b.textContent = r + 'x'; b.setAttribute('aria-label', 'Playback speed ' + r + 'x'); b.toggleAttribute('data-on', r !== 1); }
+    }
     function _fvNowRow() {
         const v = FV_STAGE.video;
         const rows = document.querySelectorAll('.cal-cm-row[data-fio-t]');
@@ -559,8 +686,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const res = await rec.video;
         if (seq !== FV_STAGE.seq || FV_STAGE.host !== host) return;
         if (!res.ok) { _fvStageState('error', res.message, true); return; }
-        const open = _fvSp('.fv-open-link');
-        if (open && res.open_url) open.setAttribute('href', res.open_url);
+        if (res.open_url) ['.fv-open-link', '.fv-trouble-open'].forEach((sel) => { const a = _fvSp(sel); if (a) a.setAttribute('href', res.open_url); });
         _fvStageAttach(res, rec);
     }
     function _fvStageAttach(res, rec) {
@@ -593,11 +719,17 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             });
             v.addEventListener('loadeddata', () => { if (mine()) _fvStageState('ready'); });
             ['play', 'pause', 'ended', 'playing'].forEach(ev => v.addEventListener(ev, () => { if (mine()) _fvPlayIcon(); }));
-            v.addEventListener('waiting', () => { const p = mine() && _fvSp('.fv-player'); if (p) p.setAttribute('data-buffering', ''); });
+            v.addEventListener('waiting', () => { const p = mine() && _fvSp('.fv-player'); if (p) p.setAttribute('data-buffering', ''); if (mine() && !v.paused) _fvWatchStall(v); });
+            // Playing again (or paused by the person): the stall strip goes.
+            ['playing', 'pause', 'ended'].forEach(ev => v.addEventListener(ev, () => { clearTimeout(v._fvTroubleT); if (mine()) _fvTrouble(false); }));
+            v.addEventListener('timeupdate', () => { if (mine() && !v.paused && v.readyState >= 3) { clearTimeout(v._fvTroubleT); _fvTrouble(false); } });
             ['playing', 'pause', 'seeked', 'canplay'].forEach(ev => v.addEventListener(ev, () => { const p = mine() && _fvSp('.fv-player'); if (p) p.removeAttribute('data-buffering'); }));
             v.addEventListener('volumechange', () => { if (mine()) _fvMuteIcon(); });
             v.addEventListener('fv-smaller', () => { const n = mine() && _fvSp('.fv-small-note'); if (n) n.hidden = false; });
             v.addEventListener('error', () => { if (mine()) _fvStageFailed(); });
+            // A new file (smaller copy, fresh address) starts at the default speed: give it the chosen one back.
+            v.addEventListener('loadedmetadata', () => { if (mine()) _fvApplyRate(); });
+            v.addEventListener('fv-nopicture', () => { if (mine()) { try { v.pause(); } catch (e) {} _fvStageState('error', 'This video plays sound but no picture in this browser (its format is not supported here).', false); } });
         }
         if (fresh) _fvStart(v, res.video, FV_STAGE.resumeAt);
         else if (FV_STAGE.resumeAt > 0) FV_STAGE.seekTo = FV_STAGE.resumeAt;
@@ -608,7 +740,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const s = _fvSp('.fv-scrub'); if (s) s.disabled = false;
         }
         if (v.readyState >= 2) _fvStageState('ready');
-        _fvClock(); _fvPlayIcon(); _fvMuteIcon(); _fvStageMarkers();
+        _fvClock(); _fvPlayIcon(); _fvMuteIcon(); _fvStageMarkers(); _fvApplyRate();
         // A warmed video can have failed before it was handed over: treat that as the error it is.
         if (v.error) setTimeout(() => { if (FV_STAGE.video === v && v.error) _fvStageFailed(); }, 0);
         if (FV_STAGE.wantPlay) {
@@ -630,7 +762,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             _fvStageLoad(true);
             return;
         }
-        _fvStageState('error', 'This video could not be played here. It may need a different format.', true);
+        _fvStageState('error', 'This video could not be played here. It may be in a format this browser does not play.', true);
     }
     function svFrameStageRetry() {
         if (!FV_STAGE.host) return;
@@ -676,5 +808,5 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svFrameFeedRetry, svFrameIntent, svFrameOpen, svFrameSeek, svFrameStageRetry, svFrameTileOpen
     });
 export {
-  svFrameFeed, svFrameIoLinkHtml, svFramePlayIconHtml, svFrameStageMount, svFrameStageUnmount, svFrameSyncPlayIcon, svFrameTileAttrs, svFrameTileLabelHtml, svFrameWatchBtnHtml, svFrameTime
+  svFrameFeed, svFrameIoLinkHtml, svFramePlayIconHtml, svFrameStageMount, svFrameStageUnmount, svFrameSyncPlayIcon, svFrameTileAttrs, svFrameTileLabelHtml, svFrameWarm, svFrameWatchBtnHtml, svFrameTime
 };

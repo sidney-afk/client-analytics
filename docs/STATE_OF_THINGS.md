@@ -104,6 +104,14 @@ tweak (never the backfill, which would erase the client's request).
   include real saves on those two. A component status change also writes a card-level ledger row; that is the old
   saver's behaviour too (130 of 368 status changes in 7 days), not a new-saver regression.
 
+**Built, waiting for merge (session Encore, 2026-10-16, OPEN_REPAIRS 427): the owner's five points on Watch here.**
+The frozen picture with sound was the card's thumbnail left on top of the playing video (now hidden once the video has
+a frame); a file that plays sound but no picture switches to the small H.264 copy. Speed 1x/1.5x/2x and 5 s back and
+forward in the player; the "Syncing this thread" line is gone (Send is just disabled while the thread loads); the notes
+read starts when a door is pointed at and beside the link check; the card's play button sits in the middle of the
+thumbnail; when the video cannot play properly the player says "Having trouble playing this? Open it in Frame.io"
+with the link (point 6). Page only, no function change.
+
 **Live (session Cinema, 2026-10-16, #2120): Watch here, one view for the video and its notes.** Every door (the Notes
 button, the Sheet's play icon, the Review tab's video preview, Kasper's "Watch here") opens the card's Notes dialog with
 the player on the left (on a phone, on top). Nothing plays until play is pressed (bottom centre of the player). Staff

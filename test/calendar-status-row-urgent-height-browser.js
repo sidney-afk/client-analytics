@@ -96,9 +96,11 @@ async function run(browser, origin, surface, [screen, viewport, mobile, zooms], 
     await page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => typeof navTo === 'function' && typeof _calSavePins === 'function' && typeof _sxrSavePins === 'function');
     await s.open(page, zooms[0]);
-    // Since #2085 a staff phone opens Calendar and Samples as a grid of tiles; the status rows live in the List view.
-    await page.waitForSelector(`.cal-card[data-pid="${s.urgent}"], .thumb-tile[data-thumb-card="${s.urgent}"]`, { timeout: 20000 });
-    await openEditableSheet(page);
+    // Since #2085 a phone opens on the picture grid; the status rows live in the List view.
+    if (mobile) {
+      await page.waitForSelector(`.cal-card[data-pid="${s.urgent}"], .thumb-tile[data-thumb-card="${s.urgent}"]`, { timeout: 20000 });
+      await openEditableSheet(page);
+    }
     await page.waitForSelector(`${s.strip} .cal-card[data-pid="${s.urgent}"] .cal-urgent-btn`, { timeout: 20000 });
     await page.waitForTimeout(600);
     for (const zoom of zooms) {

@@ -23,6 +23,7 @@ import { guideIndex, guideReply, latestGuides } from "./guides.mjs";
 import { STUDIO_BUCKET, studioLatest } from "./studio.mjs";
 import { brainChange, clientBrain, clientStyle, filmingPlan, listClients } from "./clientinfo.ts";
 import { studioProfile, studioProfileSave } from "./studioprofile.ts";
+import { pipelinePass } from "./pipelinepass.ts";
 import { PROFILE_FIELDS } from "./profile.mjs";
 import { answeredFromLog, asksSwitchedOff, DIRECT_MODELS, directEstimate, GOOGLE_IMAGE_ENABLED, GOOGLE_IMAGE_IDS, gptImageInputs, isDirect, runDirect, SWITCHED_OFF_TEXT, type Fetched } from "./direct.ts";
 
@@ -318,6 +319,19 @@ const TOOLS = [
         client: { type: "string", description: "The client's name as SyncView shows it." },
         profile: { type: "object", description: "The profile fields to save (all of them, or only the ones that change).", additionalProperties: true },
         replace: { type: "boolean", description: "true: save exactly this as the whole profile. Default false: merge into the current one." },
+      },
+    },
+  },
+  {
+    name: "pipeline_pass",
+    description: "A 6-hour pass for the filming pipeline on this person's computer, for one client: it lets the pipeline read that client's own Google files and add and fill new tabs, with no shared password. target \"test\" writes only to the TEST Sheet and the client's test Doc (anyone may have one); target \"client\" writes to the client's real ideas Sheet and filming plan Doc and needs a personal connector link on the publish list. A pass never deletes or renames a tab or touches a tab it did not create. The pass is shown once: tell the person to set it as the environment variable PIPELINE_PASS for that run only, never save it in a file, and never repeat it back afterwards.",
+    inputSchema: {
+      type: "object",
+      required: ["client", "target"],
+      additionalProperties: false,
+      properties: {
+        client: { type: "string", description: "The client's name as SyncView shows it." },
+        target: { type: "string", enum: ["test", "client"], description: "test: the TEST Sheet and the client's test Doc. client: the client's real ideas Sheet and filming plan Doc." },
       },
     },
   },
@@ -1177,6 +1191,9 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
 
   if (name === "studio_profile") return await studioProfile(db(), String(args.client || ""));
   if (name === "studio_profile_save") return await studioProfileSave(db(), String(args.client || ""), args.profile, args.replace === true, author);
+  if (name === "pipeline_pass") {
+    return await pipelinePass(db(), { member, author, teamLink: isTeamLink(member), client: String(args.client || ""), target: args.target });
+  }
 
   if (name === "studio_latest") {
     return await studioLatest(studioStore(), { member, who: isTeamLink(member) ? cleanWho(args.who) : "" });

@@ -139,5 +139,12 @@ const OFF = 'Nano Banana is switched off for the team. GPT Image does the same j
   const control = await runCheck({ model: 'higgsfield-ai/soul/v2/standard', status: 'queued', est_cost_usd: 0.05 });
   assert.deepStrictEqual(control.hfCalls, [['GET', 'requests/' + JOB + '/status']], 'a Higgsfield job does reach the Higgsfield mock (the control)');
 
+  // A paid-for GPT Image is stored with retries before it is given up as delivery_failed (2026-10-17).
+  {
+    const src = read('index.ts');
+    const job = src.slice(src.indexOf('async function runDirectJob('), src.indexOf('async function runDirectJob(') + 3000);
+    assert.ok(/const STORE_RETRY_WAITS_MS = \[0, \d+, \d+\];/.test(src), 'three tries to store a paid image');
+    assert.ok(/for \(const wait of STORE_RETRY_WAITS_MS\)/.test(job) && /status: "delivery_failed"/.test(job), 'retries, then delivery_failed');
+  }
   console.log('higgsfield-nano-banana-off: Nano Banana is switched off, never called, an ask for it gets a GPT Image price card, and old Nano Banana jobs are answered from the log ✅');
 })().catch((e) => { console.error(e); process.exit(1); });

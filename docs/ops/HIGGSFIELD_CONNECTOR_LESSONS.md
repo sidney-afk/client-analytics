@@ -16,7 +16,9 @@ every time a bug reaches the team; never rewrite old rows.
    input images, and every recipe that uses the model. A fix to one path has
    broken another more than once.
 4. **Claude caches tool definitions.** Any change to tool names, descriptions
-   or viewer metadata needs the connector removed and re-added before testing.
+   or viewer metadata needs "Refresh tool list" in the connector's settings
+   (then a new chat) before testing; removing and re-adding also works but is
+   never needed (2026-10-17). The `start` guide tells the team the same.
 5. **When a price estimate comes back as text instead of a number, treat it
    as unsupported until measured**; never show a guessed price.
 6. **For anything the connector picks on its own (a Canva file, a model),
@@ -54,3 +56,4 @@ every time a bug reaches the team; never rewrite old rows.
 | 2026-10-17 | 4 brain saves from the shared Team link were signed only "Team", with no person | `who` was optional, and Claude often left it out. Now `brain_change` and `studio_profile_save` on the Team link refuse without `who` ("Tell me your first name first...") and nothing is written; the Team link's copy of those two descriptions says so (remove and re-add the connector to see it, rule 4) | 9, 4 |
 | 2026-10-16 | `guide("broll")` answered "No guide called" | The live topic is `b-roll`; the lookup only folded case and spaces. Now a topic that matches with the dashes left out (exactly one) is found too | 10 |
 | 2026-10-17 | Found in review, not reached by the team: a compressed audio stream (MP3, format 0x55) inside a RIFF/WAVE file, with a PCM-looking byte rate written in the header, was measured by `parseWavHeader` as whatever length the header claimed, so `voice_cleanup` (and the coming `studio_transcribe`) would price it far shorter than the provider bills | The parser took the header's byte rate on trust and never read the format code. Now only PCM (1) or float (3), directly or in WAVE_FORMAT_EXTENSIBLE, with a byte rate and block size that match rate x channels x bits, is measured; anything else is refused in plain words | 1 |
+| 2026-10-17 | A GPT Image result was charged ($0.01) but not saved: the person got "made and charged but could not be saved" | OpenAI returned the image, then the upload to the file host got a one-off Cloudflare 5xx and the job went straight to delivery_failed. Now the store step is tried three times, 0, 2 and 6 seconds apart (#2163). The charge stays, since OpenAI bills on generation | 1 |

@@ -93,6 +93,10 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   v = L.voiceGuide(B.parseBrainFacts(voiceMd(false), 'voice'));
   eq(v, { source: 'voice', text: '### Tone\nWarm and plain.' }, 'otherwise every written voice section, unwritten ones skipped');
   eq(L.voiceGuide([]), { source: 'none', text: '' }, 'no voice file: no voice');
+  const draftMd = voiceMd(false) + '\n' + ['## Hooks', '<!-- brain', 'id: client.fixture.voice.hooks', 'status: not-written', '-->', '', 'DRAFT TEXT NOT YET WRITTEN', ''].join('\n');
+  v = L.voiceGuide(B.parseBrainFacts(draftMd, 'voice'));
+  eq(v, { source: 'voice', text: '### Tone\nWarm and plain.' }, 'a not-written fact with text is skipped by the fallback');
+  ok(!L.buildMessages({ captionPrompt: 'P', voice: v, videoTranscript: 'VIDEO', pastedTranscript: '', rules: R.WRITING_RULES }).system.includes('DRAFT TEXT'), 'a not-written fact never reaches the prompt');
 
   // --- the prompt: client prompt + transcript as n8n built it ; rules and voice in the system message
   const bare = (u) => u;

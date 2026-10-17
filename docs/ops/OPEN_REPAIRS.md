@@ -33364,3 +33364,19 @@ Runtime tag. Tests: `test/f27-section4-deploy-lane.js`.
 The slow-network misses after the change (boot budget and heavy lane, 1 run in 5 each, under delays on half of all live reads) are the simulator being harsher than CI: the finished-cards load (or, in the heavy lane, the reset step's existing 30 s wait for idle) ran out of time while the page was still re-reading. They are not new. On normal network all five suites passed 5/5.
 
 **Release.** Test files only; nothing ships to users. **Way back:** revert the pull request.
+
+## 430. [2026-10-17, BUILT, NOT MERGED] The test robots' card saves were refused once the test client moved to calendar-card-write (session Twin)
+
+**Symptom.** Samples E2E nightly run 39008266769 (2026-10-17 06:32 UTC) failed for the first time, on `cal_realtime_twin`, check "A's fresh edit persisted to the backend". Three 401s from `calendar-card-write` for its card `p_rttwin_1792218747` on the test client.
+
+**Cause.** Since 2026-10-16 13:33 UTC the test client is on `calendar_card_write_clients`. A staff tab with a signed-in identity then saves through `calendar-card-write`, which accepts only a real staff role key. The headless harness signs its tabs in with an invented key (`qa/staff-gate-seed.js`, plus `probe-staff-key` from `seedVerifiedProbeStaff`), so the page sent that key and was refused. The old `calendar-upsert` ignored the key, which is why this never showed before. The courier's existing staff-key injection did not help: it steps aside when a request already carries a key.
+
+**Change (test code only).** `seedStaffGate` now also calls a new `signCalendarCardWrites`: on a POST to `calendar-card-write` that carries an invented key, it puts the runner's `SYNCVIEW_STAFF_KEY` (the SMM or admin role key the nightlies and dawn-check already carry) in its place, the way dawn-check already does for its pages. A real key, a client link's token and every other function are untouched; with no runner key nothing changes. Because every harness and every probe that builds its own context calls `seedStaffGate`, this covers both harnesses (`qa/sxr_courier_lib.js`, `qa/probes/lib.js`) and probes such as p60 that build their own. Second, separate breakage: `p87_kasper_finish_stale_refresh` fakes the card saver and only faked `calendar-upsert`, so its pretend card's save reached the live `calendar-card-write` and was refused as a phantom row (400); it now fakes both addresses. Nothing changed in `calendar-card-write`, the switch, or any assertion.
+
+**Live proof (test client only, 2026-10-17).** `cal_realtime_twin` without the change: fail at "A's fresh edit persisted", 9 refusals (401) in the function log over 3 attempts; with it: 12 of 12 on the first attempt and `calendar-card-write` answered 200. Full Calendar nightly list (63 probes, one attempt each) with the change: 62 passed, p87 failed (the phantom-row case above); p87 after its fix: 8 of 8. p60 failed 5 checks without the change and passed 14 of 14 with it. Every card the runs touched (95) is archived.
+
+**Other robots.** Calendar E2E nightly (08:00 UTC, every probe in `qa/probes/nightly-manifest.txt`) would have failed the same way on its first run since the switch; dawn-check (weekdays, uses the courier's `smmCal` for its staff-save step) likewise on Monday. Both are covered by the same change. Not scheduled and still faking only `calendar-upsert` (left alone): `cal_fill_server_link`, `cal_refresh_count_live`, `kasper_phone_touch`, `kasper_samples_in_review`, `ot4_t0_client_edge_conditions`.
+
+**Test.** `test/staff-gate-stub-refusal-local.js` case 7 (offline): invented keys are replaced, a real key and a client token are sent as they were, no or an invented runner key registers nothing, production-write keeps its local refusal.
+
+**Way back:** revert the pull request.

@@ -101,7 +101,7 @@ export function questionNote(q, clientName) {
 export function offerRow({ member, who, teamLink, folder, id }) {
   return {
     member_name: String(member || "").slice(0, 80),
-    who: teamLink ? (String(who || "").slice(0, 40) || null) : null,
+    who: teamLink ? (offerKey(who) || null) : null,
     tool: QUESTION_TOOL,
     client: String(folder || "").slice(0, 120) || null,
     summary: String(id || "").slice(0, 200),
@@ -188,4 +188,36 @@ export function checkQuestionId(text, id, folder, clientName) {
     return { ok: false, message: `Could not use question "${want}": it does not belong to ${clientName}. Nothing was saved.` };
   }
   return { ok: true, question: q };
+}
+
+// Undoes markAnswered for one block, only when its answered line names this
+// input file (used when filing the answer failed after the question was
+// claimed). Returns the new text, or null when there is nothing to undo.
+export function reopenQuestion(text, id, inputPath) {
+  const src = String(text || "");
+  const nl = src.includes("\r\n") ? "\r\n" : "\n";
+  const lines = src.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^## /.test(lines[i]) || !/^<!--\s*question\s*$/.test((lines[i + 1] || "").trim())) continue;
+    let end = i + 2;
+    while (end < lines.length && !/^\s*-->\s*$/.test(lines[end])) end++;
+    const block = lines.slice(i + 2, end);
+    const idLine = block.find((b) => /^\s*id:/i.test(b)) || "";
+    if (idLine.replace(/^\s*id:\s*/i, "").trim() !== id) continue;
+    const ans = block.findIndex((b) => /^\s*answered:/i.test(b) && b.trim().endsWith(inputPath));
+    const st = block.findIndex((b) => /^\s*status:\s*answered\s*$/i.test(b));
+    if (ans < 0 || st < 0) return null;
+    const nb = block.slice();
+    nb[st] = "status: open";
+    nb.splice(ans, 1);
+    return [...lines.slice(0, i + 2), ...nb, ...lines.slice(end)].join(nl);
+  }
+  return null;
+}
+
+// The key a person's offers are logged under on the Team link: the first
+// word of the name, lowercased, the same way questionPerson recognises them,
+// so "Robin", "robin" and "Robin Smith" share one weekly limit.
+export function offerKey(who) {
+  return String(who || "").trim().split(/\s+/)[0].toLowerCase().slice(0, 40);
 }

@@ -8,9 +8,9 @@
 
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { findClientFolder, parseAudience, parseBrainFacts } from "../brain/parse.mjs";
-import { b64, recordChange } from "../brain/change.mjs";
+import { b64, changePath, MAX_CHANGE_CHARS, recordChange } from "../brain/change.mjs";
 import { brainView } from "./brainview.mjs";
-import { checkQuestionId, markAnswered, questionFor } from "./questions.mjs";
+import { checkQuestionId, markAnswered, questionFor, reopenQuestion } from "./questions.mjs";
 
 type Plan = { client_slug: string; client_name: string; doc_id: string; plan_months: string };
 
@@ -252,10 +252,13 @@ export async function clientBrain(db: SupabaseClient, client: string, topic = ""
 
 // Files a change exactly like SyncView's "Send a change" button. The
 // brain-side workflow and POLICY/syncview-changes.md decide where it goes.
-// With questionId, the change answers that open question: it is checked
-// first (refused in plain words when it is not an open question of this
-// client), filed the same way, and then the question block in questions.md is
-// marked answered with the date, who, and the input file.
+// With questionId, the change answers that open question. The question is
+// checked (refused in plain words when it is not an open question of this
+// client), then CLAIMED first: questions.md is rewritten with status:
+// answered and the answered line (date, who, the input file the answer is
+// about to be saved as), conditional on the file not having changed. Only the
+// caller whose claim lands files the answer, so two people answering at once
+// never both file one. If filing then fails, the claim is undone.
 export async function brainChange(db: SupabaseClient, client: string, whatChanged: string, factId: string, member: string, questionId = ""): Promise<string> {
   if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return "The Synchro Brain is not connected on the server (BRAIN_GITHUB_TOKEN missing).";
   const found = await findClient(db, client);
@@ -264,63 +267,96 @@ export async function brainChange(db: SupabaseClient, client: string, whatChange
   const where = await brainFolder(p.client_slug, p.client_name);
   if (where.error) return where.error;
   const qid = String(questionId || "").trim();
-  let question: { id: string; heading: string; fact: string } | null = null;
-  if (qid) {
-    if (!String(whatChanged || "").trim()) return "Say what changed first.";
-    if (!where.folder) return `Could not use question "${qid}": ${p.client_name} has no Synchro Brain folder, so it has no open questions. Nothing was saved.`;
-    let file;
-    try {
-      file = await readQuestionsFile(where.folder);
-    } catch (e) {
-      return `Could not read ${p.client_name}'s open questions (${(e as Error).message}). Nothing was saved; try again in a minute.`;
-    }
-    const checked = checkQuestionId(file.text, qid, where.folder, p.client_name);
-    if (!checked.ok) return checked.message as string;
-    question = checked.question || null;
-  }
-  // Same slug and folder match as SyncView's button, so the file is identical.
-  const result = await recordChange({
+  const branch = Deno.env.get("BRAIN_BRANCH") || "main";
+  const file = {
     slug: p.client_slug,
     text: whatChanged,
-    factId: factId || question?.fact || "",
-    questionId: question?.id || "",
-    question: question?.heading || "",
     heading: "",
     from: `${member} via Claude connector`,
     role: "Claude connector",
     folders: where.folders,
     gh: (path: string, init: RequestInit) => gh(path, false, init),
-    branch: Deno.env.get("BRAIN_BRANCH") || "main",
-  });
-  if (!result.ok) return result.error === "text_too_long" ? "That is too long to send in one change; split it up." : "Say what changed first.";
-  if (question && where.folder) {
-    const marked = await markQuestionAnswered(where.folder, question.id, `${new Date().toISOString().slice(0, 10)}, ${member}, ${result.path}`);
-    if (!marked) return `Sent. It will be filed in ${p.client_name}'s brain within a few minutes, but question ${question.id} could not be marked answered; tell the person a teammate may ask it again.`;
+    branch,
+  };
+  if (qid) {
+    const text = String(whatChanged || "").trim();
+    if (!text) return "Say what changed first.";
+    if (text.length > MAX_CHANGE_CHARS) return "That is too long to send in one change; split it up.";
+    if (!where.folder) return `Could not use question "${qid}": ${p.client_name} has no Synchro Brain folder, so it has no open questions. Nothing was saved.`;
+    let current;
+    try {
+      current = await readQuestionsFile(where.folder);
+    } catch (e) {
+      return `Could not read ${p.client_name}'s open questions (${(e as Error).message}). Nothing was saved; try again in a minute.`;
+    }
+    const checked = checkQuestionId(current.text, qid, where.folder, p.client_name);
+    if (!checked.ok || !checked.question) return checked.message as string;
+    const question = checked.question;
+    const path = changePath(p.client_slug, where.folders);
+    const claim = await markQuestionAnswered(where.folder, question.id, `${new Date().toISOString().slice(0, 10)}, ${member}, ${path}`);
+    if (claim === "closed") return `Could not use question "${question.id}": someone else answered it a moment ago. Nothing was saved. If what the person said is still new, save it without question_id.`;
+    if (claim !== "ok") return `Could not mark question "${question.id}" answered, so nothing was saved. Try again in a minute.`;
+    let result;
+    try {
+      result = await recordChange({ ...file, factId: factId || question.fact || "", questionId: question.id, question: question.heading, path });
+    } catch (e) {
+      await reopenClaim(where.folder, question.id, path);
+      return `Could not save the answer (${(e as Error).message}). Nothing was saved and the question is open again; try again in a minute.`;
+    }
+    if (!result.ok) {
+      await reopenClaim(where.folder, question.id, path);
+      return result.error === "text_too_long" ? "That is too long to send in one change; split it up." : "Say what changed first.";
+    }
     return `Sent, and question ${question.id} is marked answered. It will be filed in ${p.client_name}'s brain within a few minutes.`;
   }
+  // Same slug and folder match as SyncView's button, so the file is identical.
+  const result = await recordChange({ ...file, factId });
+  if (!result.ok) return result.error === "text_too_long" ? "That is too long to send in one change; split it up." : "Say what changed first.";
   if (!findClientFolder(where.folders, p.client_slug)) return `Sent, but ${p.client_name} has no Synchro Brain folder yet, so a person has to place it by hand. It will not show in client_brain until then; say that instead of "Saved".`;
   return `Sent. It will be filed in ${p.client_name}'s brain within a few minutes.`;
 }
 
-// Marks one question answered in questions.md (status and answered line).
-// Re-reads and retries once when the file changed in between. True when written.
-async function markQuestionAnswered(folder: string, id: string, line: string): Promise<boolean> {
+// Marks one question answered in questions.md (status and answered line),
+// conditional on the file's sha. "ok" when written; "closed" when it is no
+// longer open (someone else's claim landed first); "failed" otherwise. Re-reads
+// and retries once when the file changed in between.
+async function markQuestionAnswered(folder: string, id: string, line: string): Promise<"ok" | "closed" | "failed"> {
   for (let attempt = 0; attempt < 2; attempt++) {
     let file;
     try {
       file = await readQuestionsFile(folder);
     } catch (_e) {
-      return false;
+      return "failed";
     }
     const next = markAnswered(file.text, id, line);
-    if (next === null || !file.sha) return false;
-    const r = await gh(`contents/clients/${folder}/questions.md`, false, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: `Question ${id} answered (Synchro connector)`, content: b64(next), sha: file.sha, branch: Deno.env.get("BRAIN_BRANCH") || "main" }),
-    });
-    if (r.ok) return true;
-    if (r.status !== 409 && r.status !== 422) return false;
+    if (next === null) return "closed";
+    if (!file.sha) return "failed";
+    const r = await putQuestions(folder, next, file.sha, `Question ${id} answered (Synchro connector)`);
+    if (r.ok) return "ok";
+    if (r.status !== 409 && r.status !== 422) return "failed";
   }
-  return false;
+  return "failed";
+}
+
+// Undoes this call's claim when filing the answer failed (best effort).
+async function reopenClaim(folder: string, id: string, inputPath: string): Promise<void> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const file = await readQuestionsFile(folder);
+      const next = reopenQuestion(file.text, id, inputPath);
+      if (next === null || !file.sha) return;
+      const r = await putQuestions(folder, next, file.sha, `Question ${id} reopened: the answer could not be saved (Synchro connector)`);
+      if (r.ok || (r.status !== 409 && r.status !== 422)) return;
+    } catch (_e) {
+      return;
+    }
+  }
+}
+
+function putQuestions(folder: string, text: string, sha: string, message: string): Promise<Response> {
+  return gh(`contents/clients/${folder}/questions.md`, false, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, content: b64(text), sha, branch: Deno.env.get("BRAIN_BRANCH") || "main" }),
+  });
 }

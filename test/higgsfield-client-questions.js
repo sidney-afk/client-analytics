@@ -109,7 +109,7 @@ Stock b-roll or only their own footage?
   let now = Date.parse('2026-10-17T12:00:00Z');
   const asker = (member, who = '', teamLink = false) => ({
     member, who, teamLink,
-    offeredSince: async (since) => log.filter((r) => r.tool === 'question_offered' && r.member_name === member && (teamLink ? r.who === who : r.who === null) && r.at >= since).map((r) => r.summary),
+    offeredSince: async (since) => log.filter((r) => r.tool === 'question_offered' && r.member_name === member && (teamLink ? r.who === q.offerKey(who) : r.who === null) && r.at >= since).map((r) => r.summary),
     recordOffer: async (row) => { log.push({ ...row, at: new Date(now).toISOString() }); },
   });
   const realNow = Date.now;
@@ -166,6 +166,13 @@ Stock b-roll or only their own footage?
   const p1 = await ci.clientBrain(db, 'Fixture Client', '', asker('Robin'));
   assert.strictEqual(offeredId(p1), `q.${FOLDER}.subtitle-colour`, 'Robin on a personal link is a different log key from Robin on the Team link');
 
+  // Typed differently, still the same person: "robin" and "Robin Smith" share Robin's week.
+  for (const variant of ['robin', 'ROBIN', 'Robin Smith']) {
+    const v = await ci.clientBrain(db, 'Fixture Client', '', asker('Team', variant, true));
+    assert.strictEqual(offeredId(v), null, `"${variant}" shares Robin's weekly limit`);
+  }
+  assert.ok(log.filter((r) => r.who !== null).every((r) => r.who === r.who.toLowerCase() && !/\s/.test(r.who)), 'Team-link offers are logged under the lowercased first name');
+
   // 3. After 7 days the same person may be offered it again.
   now += 7 * 86400_000 + 1000;
   const t4 = await ci.clientBrain(db, 'Fixture Client', '', asker('Team', 'Robin', true));
@@ -196,15 +203,16 @@ Stock b-roll or only their own footage?
   puts.length = 0;
   const saved = await ci.brainChange(db, 'Fixture Client', 'White, always. The yellow was a mistake.', '', 'Robin (team)', `q.${FOLDER}.subtitle-colour`);
   assert.ok(saved.startsWith(`Sent, and question q.${FOLDER}.subtitle-colour is marked answered.`), saved);
-  assert.strictEqual(puts.length, 2, 'two writes: the change file, then questions.md');
-  const change = puts[0];
+  assert.strictEqual(puts.length, 2, 'two writes: the claim on questions.md first, then the change file');
+  assert.strictEqual(puts[0].file, `clients/${FOLDER}/questions.md`, 'the question is claimed before the answer is filed');
+  assert.ok(puts[0].body.sha, 'the claim is conditional on the file not having changed');
+  const change = puts[1];
   assert.ok(/^inputs\/syncview-changes\/\d{4}-\d{2}-\d{2}-fixture-client-[0-9a-f]{8}\.md$/.test(change.file), 'the answer is filed under inputs/ like any change');
   const md = Buffer.from(change.body.content, 'base64').toString('utf8');
   assert.ok(md.includes('White, always. The yellow was a mistake.'), 'their words, word for word');
   assert.ok(md.includes(`- fact id: client.${FOLDER}.editing.subtitles`), 'the fact the question settles');
   assert.ok(md.includes(`- answers question: q.${FOLDER}.subtitle-colour (Subtitle colour: white or yellow?)`), 'the change file names the question');
   assert.ok(md.includes('- sent by (as typed): Robin (team) via Claude connector'));
-  assert.strictEqual(puts[1].file, `clients/${FOLDER}/questions.md`);
   const after = files[`clients/${FOLDER}/questions.md`];
   const block = after.split('## Subtitle colour: white or yellow?')[1].split('-->')[0];
   assert.ok(block.includes('status: answered'), 'status set to answered');
@@ -214,6 +222,45 @@ Stock b-roll or only their own footage?
   // Once answered it is never offered again.
   const t5 = await ci.clientBrain(db, 'Fixture Client', '', asker('Team', 'Jo', true));
   assert.strictEqual(offeredId(t5), `q.${FOLDER}.b-roll`, 'the answered question is gone from the offers');
+
+  // 7b. Two people answer at once: the one whose claim lands second files nothing.
+  {
+    const realFetch = globalThis.fetch;
+    const qFile = `clients/${FOLDER}/questions.md`;
+    let raced = false;
+    puts.length = 0;
+    globalThis.fetch = async (url, init = {}) => {
+      // Just before this caller's claim, someone else's claim on the same question lands.
+      if ((init.method || 'GET') === 'PUT' && String(url).includes('questions.md') && !raced) {
+        raced = true;
+        files[qFile] = q.markAnswered(files[qFile], `q.${FOLDER}.b-roll`, '2026-10-17, Kasper, inputs/syncview-changes/other.md');
+        shas[qFile] = 'sha-other';
+      }
+      return realFetch(url, init);
+    };
+    const lost = await ci.brainChange(db, 'Fixture Client', 'Only their own footage.', '', 'Jo (team)', `q.${FOLDER}.b-roll`);
+    globalThis.fetch = realFetch;
+    assert.ok(/^Could not use question "q\.fixture-client\.b-roll": someone else answered it a moment ago\. Nothing was saved\./.test(lost), lost);
+    assert.ok(!puts.some((x) => x.file.startsWith('inputs/')), 'the losing answer is never filed');
+    assert.ok(files[qFile].includes('answered: 2026-10-17, Kasper, inputs/syncview-changes/other.md'), "the winner's answered line stays");
+  }
+
+  // 7c. Filing fails after the claim: the claim is undone, the question is open again.
+  {
+    const realFetch = globalThis.fetch;
+    const qFile = `clients/${FOLDER}/questions.md`;
+    const kept = files[qFile];
+    files[qFile] = QUESTIONS; shas[qFile] = 'sha-reset';
+    globalThis.fetch = async (url, init = {}) => {
+      if ((init.method || 'GET') === 'PUT' && String(url).includes('/contents/inputs/')) return { ok: false, status: 500, json: async () => ({}), text: async () => '' };
+      return realFetch(url, init);
+    };
+    const failed = await ci.brainChange(db, 'Fixture Client', 'Only their own footage.', '', 'Jo (team)', `q.${FOLDER}.b-roll`);
+    globalThis.fetch = realFetch;
+    assert.ok(/^Could not save the answer \(brain_write_500\)\. Nothing was saved and the question is open again/.test(failed), failed);
+    assert.strictEqual(files[qFile], QUESTIONS, 'questions.md is back exactly as it was');
+    files[qFile] = kept; shas[qFile] = 'sha-kept';
+  }
 
   // 8. Bad ids are refused in plain words, and nothing is written.
   puts.length = 0;
@@ -242,7 +289,7 @@ Stock b-roll or only their own footage?
   assert.ok(index.includes('clientBrain(db(), String(args.client || ""), String(args.topic || ""), askerFor(member, args.who))'), 'client_brain passes the caller');
   assert.ok(index.includes('String(args.fact_id || ""), author, String(args.question_id || ""))'), 'brain_change passes question_id');
   assert.ok(/question_id: \{ type: "string"/.test(index), 'brain_change declares question_id');
-  assert.ok(/eq\("tool", QUESTION_TOOL\)/.test(index) && /teamLink \? q\.eq\("who", name\) : q\.is\("who", null\)/.test(index), 'the 7-day filter reads hf_activity by person');
+  assert.ok(/eq\("tool", QUESTION_TOOL\)/.test(index) && /teamLink \? q\.eq\("who", offerKey\(name\)\) : q\.is\("who", null\)/.test(index), 'the 7-day filter reads hf_activity by person');
   assert.ok(/ask that one question in one plain sentence at the end/.test(index), 'client_brain description explains the flow');
   assert.strictEqual(q.QUESTION_TOOL, 'question_offered');
 

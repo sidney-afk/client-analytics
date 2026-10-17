@@ -20,21 +20,29 @@ export function oneLine(v, max = 200) {
   return String(v == null ? "" : v).replace(/[\r\n]+/g, " ").trim().slice(0, max);
 }
 
+// The file a change is saved as: inputs/syncview-changes/<date>-<folder>-<id>.md.
+export function changePath(slug, folders, now = new Date()) {
+  const target = findClientFolder(folders, slug) || `unmatched-${slug}`;
+  const stamp = now.toISOString().replace(/[:.]/g, "-");
+  return `inputs/syncview-changes/${stamp.slice(0, 10)}-${target}-${crypto.randomUUID().slice(0, 8)}.md`;
+}
+
 // gh(path, init) calls the GitHub contents API for the brain repository.
 // Returns { ok: true, received, path } or { ok: false, error } for bad input;
 // throws brain_write_<status> when GitHub refuses the write.
 // questionId (optional) names the open question in the client's questions.md
 // this change answers (POLICY/questions.md); the file then says so.
-export async function recordChange({ slug, text: rawText, factId: rawFactId, heading: rawHeading, from, role, folders, gh, branch, questionId: rawQuestionId = "", question: rawQuestion = "" }) {
+// path (optional) is a file name made earlier by changePath, so a caller can
+// name the file before it is written (the connector marks a question answered
+// with it first).
+export async function recordChange({ slug, text: rawText, factId: rawFactId, heading: rawHeading, from, role, folders, gh, branch, questionId: rawQuestionId = "", question: rawQuestion = "", path: presetPath = "" }) {
   const text = String(rawText == null ? "" : rawText).replace(/\r\n/g, "\n").trim();
   if (!text) return { ok: false, error: "text_required" };
   if (text.length > MAX_CHANGE_CHARS) return { ok: false, error: "text_too_long" };
   const folder = findClientFolder(folders, slug);
   const now = new Date();
-  const stamp = now.toISOString().replace(/[:.]/g, "-");
-  const id = crypto.randomUUID().slice(0, 8);
   const target = folder || `unmatched-${slug}`;
-  const path = `inputs/syncview-changes/${stamp.slice(0, 10)}-${target}-${id}.md`;
+  const path = presetPath || changePath(slug, folders, now);
   const factId = oneLine(rawFactId, 160);
   const heading = oneLine(rawHeading, 160);
   const sender = oneLine(from, 80);

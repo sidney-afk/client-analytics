@@ -17,7 +17,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
-import { QUESTION_TOOL } from "./questions.mjs";
+import { QUESTION_TOOL, offerKey } from "./questions.mjs";
 import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, cleanWho, isTeamLink, logActivity, outcomeOf } from "./who.mjs";
 import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
 import { guideIndex, guideReply, latestGuides } from "./guides.mjs";
@@ -1413,7 +1413,7 @@ function askerFor(member: string, who: unknown): Asker {
     teamLink,
     offeredSince: async (since: string) => {
       let q = db().from("hf_activity").select("summary").eq("tool", QUESTION_TOOL).eq("member_name", member).gte("created_at", since);
-      q = teamLink ? q.eq("who", name) : q.is("who", null);
+      q = teamLink ? q.eq("who", offerKey(name)) : q.is("who", null);
       const { data, error } = await q.limit(1000);
       if (error) throw new Error(error.message);
       return (data || []).map((r) => String(r.summary || ""));

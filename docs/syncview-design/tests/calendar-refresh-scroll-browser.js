@@ -644,10 +644,14 @@ async function invisibleRefreshCase(browser, origin) {
       if (ia.width !== ib.width || ia.height !== ib.height) return { over: -1, max: 255 };
       const px = img => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d'); g.drawImage(img, 0, 0); return g.getImageData(0, 0, c.width, c.height).data; };
       const a = px(ia), b = px(ib);
-      let over = 0, max = 0;
-      for (let i = 0; i < a.length; i++) { const d = Math.abs(a[i] - b[i]); if (d > max) max = d; if (d > 16) over++; }
-      return { over, max };
+      let over = 0, max = 0, x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+      for (let i = 0; i < a.length; i++) {
+        const d = Math.abs(a[i] - b[i]); if (d > max) max = d;
+        if (d > 16) { over++; const p = i >> 2, px = p % ia.width, py = (p / ia.width) | 0; x0 = Math.min(x0, px); y0 = Math.min(y0, py); x1 = Math.max(x1, px); y1 = Math.max(y1, py); }
+      }
+      return { over, max, box: over ? [x0, y0, x1, y1] : null };
     }, [x.toString('base64'), y.toString('base64')]);
+    looksSame.last = r;
     return r.over === 0;
   };
   const lines = [];
@@ -720,6 +724,15 @@ async function invisibleRefreshCase(browser, origin) {
     await page.waitForTimeout(4500);
     // Shot first: the screenshot hides the caret by touching every field's
     // style, which the counters below must not include.
+    // The header's tab row is quiet when nothing happens. It used to re-fit
+    // itself every frame, which also made the quiet screenshots below differ
+    // by one pixel at the active tab's edge whenever a shot caught a fit.
+    const navChanges = await page.evaluate(() => new Promise(done => {
+      const nav = document.getElementById('headerNav'); let n = 0;
+      const o = new MutationObserver(m => { n += m.length; }); o.observe(nav, { attributes: true, subtree: true });
+      setTimeout(() => { o.disconnect(); done(n); }, 1000);
+    }));
+    assert.equal(navChanges, 0, 'idle: the header tab row changed ' + navChanges + ' times in one second with nothing happening');
     const quiet0 = await shoot('quiet-before');
     const b0 = await counters(), gb = server.gets;
     await hide();
@@ -730,7 +743,7 @@ async function invisibleRefreshCase(browser, origin) {
     assert.equal(server.gets - gb, 1, 'quiet tab switch: expected exactly one read, saw ' + (server.gets - gb));
     assert.equal(b1.mutations - b0.mutations, 0, 'quiet tab switch: a refresh that found nothing new changed the screen (' + (b1.mutations - b0.mutations) + ' DOM changes)');
     const quiet1 = await shoot('quiet-after');
-    assert(await looksSame(quiet0, quiet1), 'quiet tab switch: the screen before and after the refresh differ');
+    assert(await looksSame(quiet0, quiet1), 'quiet tab switch: the screen before and after the refresh differ (' + JSON.stringify(looksSame.last) + ')');
     lines.push('tab switch that finds nothing new: 1 read, 0 changes on screen, before and after screenshots match');
 
     // (c) Screenshots during a refresh: the read is held in flight, the screen

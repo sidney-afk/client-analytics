@@ -478,7 +478,10 @@ import { _kasperState } from './305-core-kasper-shared.js';
             const watch = () => {
                 const nav = document.getElementById('headerNav');
                 if (!nav) return;
-                new MutationObserver(records => { if (records.some(r => !r.target.classList || !r.target.classList.contains('header-nav-pill'))) resync(); }).observe(nav, { subtree: true, attributes: true, attributeFilter: ['style', 'hidden'] });
+                // The pill's moves and the row's own min-width (written by every fit) are
+                // the fit's output, not a reason to fit again: reacting to them re-fit the
+                // row every frame, forever, on desktop (2026-10-17, session Turbo).
+                new MutationObserver(records => { if (records.some(r => r.target !== nav && (!r.target.classList || !r.target.classList.contains('header-nav-pill')))) resync(); }).observe(nav, { subtree: true, attributes: true, attributeFilter: ['style', 'hidden'] });
                 // The row's own width changes when a neighbour in the bar does
                 // (the client picker's label). Compact toggling changes the tab
                 // widths, not the row's, so re-fitting only on a real width

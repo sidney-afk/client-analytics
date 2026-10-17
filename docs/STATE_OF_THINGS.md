@@ -113,7 +113,11 @@ before and after screenshots live in `docs/audits/skeleton-shape/<page>/`.
   `node test/calendar-sheet-skeleton-shape-browser.js`. Not yet matched: the phone first paint (the whole phone header
   is drawn by the app, so the first paint still shows the desktop shell there), a saved small or large card size on the
   first paint (it draws the default size), and the staff client profile's Calendar tab, which shares the first-paint copy.
-- **Not reached yet:** Calendar Review, Month and Week; Today, Samples, Templates, Filming, Post, Workload, Linear,
+- **Staff Calendar, Month and Week (desktop):** done. While posts load, the view's own header, day labels and grid are
+  drawn with no posts and shimmer (it was a narrow unlabelled grid for Month, other-sized pills for Week); a Month row
+  that gets a post grows at most a few pixels. Test: `node test/calendar-month-week-skeleton-shape-browser.js`. The phone
+  keeps its own timeline skeleton (not yet measured).
+- **Not reached yet:** Calendar Review; Today, Samples, Templates, Filming, Post, Workload, Linear,
   Submit, Messages, the old client page. The review page and Kasper's tab belong to sessions Curtain Nine and Seven.
 
 ## Latest (Lighthouse, 2026-10-17)

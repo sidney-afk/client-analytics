@@ -1708,6 +1708,14 @@
       "ci": "representative"
     },
     {
+      "file": "calendar-month-week-skeleton-shape-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, fictional test client and cards, no hosted credentials. Checks the staff Calendar Month and Week loading skeleton has the loaded view's shape: header items, day-name row and day cells (Month), visible day columns (Week), desktop light and dark, within 1px (a Month row with a post may grow up to 4px).",
+      "reproduce": "node test/calendar-month-week-skeleton-shape-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "calendar-sheet-skeleton-shape-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

@@ -21,6 +21,7 @@
     "higgsfield-nano-banana-off.js",
     "higgsfield-studio-latest.js",
     "higgsfield-studio-profile.js",
+    "higgsfield-client-brain.js",
     "pipeline-pass.js",
     "pipeline-store.js",
     "pages-deploy-source-unreadable.js",

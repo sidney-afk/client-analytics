@@ -516,10 +516,16 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
   const cb = ci.slice(ci.indexOf('export async function clientBrain('), ci.indexOf('export async function brainChange('));
   ok(cb.includes('read("focus")') && cb.includes('read("audience")'), 'client_brain reads focus.md and audience.md');
   ok(/if \(r\.status === 404\) return "";/.test(cb), 'a missing focus.md reads as nothing, not a failure');
-  ok(/\$\{p\.client_name\}, from the Synchro Brain\.\\n\\n\$\{focusText\}# Brief/.test(cb), 'focus comes before the brief, so the cap never cuts it');
-  ok(/const focusText = focusFacts\.length \?/.test(cb), 'and only when focus.md has written facts');
+  // The reply is built in brainview.mjs (#2135): focus is its own head section, before the brief.
+  ok(/brainView\(\{ name: p\.client_name, brief, focus: focusFacts, facts, topic \}\)/.test(cb), 'focus facts go to brainView on their own');
+  const bv = await import(path.join(fnDir, 'higgsfield-mcp', 'brainview.mjs'));
+  const fFact = { file: 'focus', heading: 'Current focus', id: 'client.example.focus.current', body: 'Current focus: sleep.' };
+  const longFacts = Array.from({ length: 80 }, (_, i) => ({ file: 'editing', heading: 'T' + i, id: 'client.example.editing.t' + i, body: 'word '.repeat(300) }));
+  const withFocus = bv.brainView({ name: 'C', brief: '', focus: [fFact], facts: longFacts });
+  ok(withFocus.indexOf('# Current focus') >= 0 && withFocus.indexOf('# Current focus') < withFocus.indexOf('# Brief') && withFocus.includes('Current focus: sleep.'), 'focus comes before the brief, so the cap never cuts it');
+  ok(!bv.brainView({ name: 'C', brief: '', focus: [], facts: longFacts }).includes('# Current focus'), 'and only when focus.md has written facts');
   ok(cb.includes('...parseAudience(audience)'), 'audience facts are still there');
-  ok(/text\.length > BRAIN_MAX_CHARS/.test(cb) && /const BRAIN_MAX_CHARS = 60_000;/.test(ci), 'the size cap is kept');
+  ok(withFocus.length <= bv.BRAIN_MAX_CHARS && bv.BRAIN_MAX_CHARS === 60000, 'the size cap is kept');
   const parse = await import(path.join(fnDir, 'brain', 'parse.mjs'));
   const focusMd = '# Focus\n\n## Current focus\n<!-- brain\nid:      client.example.focus.current\nowner:   someone\nstatus:  written\n-->\nCurrent focus: sleep.\n';
   const ff = parse.parseBrainFacts(focusMd, 'focus').filter((f) => f.status === 'written');

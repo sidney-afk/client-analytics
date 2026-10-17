@@ -1708,12 +1708,18 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             // The client's caption edit changes the caption itself (owner, 2026-10-17), and a plain note on the
             // caption tells the team, with the old caption, so the SMM can see it and put it back. It never approves
             // and never asks for a change: the caption stays waiting for the client's own Approve.
+            // The note goes only once the caption is stored, so it never tells of a change that did not save.
             const old = String(m.caption || '');
-            if (!window._calClientReviewCaptionEdit || !window._calClientReviewCaptionEdit(m.id, t)) { _rsFlash('Not saved, please try again', k); _rsRender({ force: true }); return; }
-            _calReviewState.drafts[m.id + '|' + k] = _rsEditNote(t, old);
-            window._calReviewComment(m.id, k);
-            _rsFlash('Caption changed, your team can see it', k);
+            const save = window._calClientReviewCaptionEdit ? window._calClientReviewCaptionEdit(m.id, t) : Promise.resolve(false);
+            _rsFlash('Saving the caption…', k);
             _rsRender({ force: true });
+            save.then(ok => {
+                if (!ok) { _rsFlash('The caption did not save. Please try again.', k); _rsRender({ force: true }); return; }
+                _calReviewState.drafts[m.id + '|' + k] = _rsEditNote(t, old);
+                window._calReviewComment(m.id, k);
+                _rsFlash('Caption changed, your team can see it', k);
+                _rsRender({ force: true });
+            });
             return;
         }
         window._calOnFieldBlur({ dataset: { pid: m.id, fld: k === 'title' ? 'name' : 'caption' }, value: t });

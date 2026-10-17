@@ -195,6 +195,28 @@ async function shots(browser, origin) {
       await t.ctx.close();
     }
 
+    console.log('--- client: a caption that does not save posts no note ---');
+    {
+      const t = await openClientReview(browser, origin, {});
+      const tried = [];
+      // Every card save that carries the new caption fails; anything else answers as usual.
+      await t.ctx.route(/\/functions\/v1\/(calendar-upsert|calendar-card-write)$/, async route => {
+        const r = route.request();
+        let b = {}; try { b = JSON.parse(r.postData() || '{}'); } catch (e) {}
+        if (r.method() === 'POST' && b.post && b.post.caption === NEW_CAPTION) { tried.push(1); return route.fulfill({ status: 500, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ ok: false, error: 'fixture failure' }) }); }
+        return route.fallback();
+      });
+      const n0 = t.state.upserts.length;
+      await editCaption(t, NEW_CAPTION);
+      for (let i = 0; i < 60 && !tried.length; i++) await sleep(100);
+      await sleep(3000);
+      const noted = t.state.upserts.slice(n0).some(u => notes(u, 'caption_tweaks').some(n => /^Changed the caption to:/.test(n.body)));
+      const bubble = await R(t.page, (r) => !!r.querySelector('#tscroll .bub .diff'));
+      expect(tried.length > 0, 'the caption save was tried (' + tried.length + ')');
+      expect(!noted && !bubble, 'when it fails, no "changed the caption" note is saved or shown');
+      await t.ctx.close();
+    }
+
     console.log('--- SMM: sees the client\'s caption edit and can change it back ---');
     {
       const t = await open(browser, origin, { stage: 'smm', staff: STAFF, flags: 'on' });

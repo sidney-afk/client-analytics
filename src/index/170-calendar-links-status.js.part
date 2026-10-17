@@ -1195,17 +1195,26 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
        same card save as an edit on the Sheet, also when Collaborative mode is off (that switch guards the Sheet's
        fields, not this one edit the review page offers). Caption only: a client link still never renames a card. */
     function _calClientReviewCaptionEdit(pid, val) {
-        if (!_isClientLink) return false;
+        if (!_isClientLink) return Promise.resolve(false);
         const post = calState.posts.find(p => p.id === pid);
-        if (!post) return false;
+        if (!post) return Promise.resolve(false);
         _calNoteEditBase(pid, 'caption', post.caption);
         _calCaptionDraftWrite(pid, val);
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
         _calPendingEdits[pid].caption = val;
         post.caption = val;
         if (_calSaveTimers[pid]) { clearTimeout(_calSaveTimers[pid]); _calSaveTimers[pid] = null; }
-        _calFlushCardSave(pid);
-        return true;
+        // Resolves true only when the caption is stored (the caller tells the team only then).
+        // A save already running on this card leaves the caption queued behind it: flush once more for it.
+        const queued = () => !!(_calPendingEdits[pid] && 'caption' in _calPendingEdits[pid]);
+        return Promise.resolve(_calFlushCardSave(pid))
+            .then(() => (queued() ? _calFlushCardSave(pid) : null))
+            .then(() => {
+                const cur = calState.posts.find(p => p.id === pid);
+                // "Not saved yet: ..." is an older intent's chip put back after a save that worked (as in _calReviewCommentSend).
+                const err = cur && cur._saveError && !/^Not saved yet: /.test(String(cur._saveError));
+                return !!cur && !err && !queued() && cur.caption === val;
+            }, () => false);
     }
     window._calClientReviewCaptionEdit = _calClientReviewCaptionEdit;
 

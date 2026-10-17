@@ -37,6 +37,10 @@ async function open(browser, server, rowsRef, counts) {
   await page.waitForSelector('#tkQueueCol', { timeout: 20000 });
   for (let i = 0; i < 200 && !counts.list; i++) await real(50);
   assert.ok(counts.list > 0, 'the first read happened');
+  // An idle page must be idle: 10 clock seconds take a few ms. Since #2121 the tab row re-fit itself every
+  // frame (its own min-width write woke its watcher), which made each 10 s here cost about 6 real seconds.
+  const t0 = Date.now(); await page.clock.runFor(10000); const busy = Date.now() - t0;
+  assert.ok(busy < 2500, 'the idle page does work every frame (10 clock seconds took ' + busy + ' ms); look for a render loop');
   return { context, page };
 }
 async function run(page, seconds) { for (let i = 0; i < seconds / 10; i++) { await page.clock.runFor(10000); await real(15); } await real(60); }

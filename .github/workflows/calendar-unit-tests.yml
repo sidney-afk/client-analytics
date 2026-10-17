@@ -493,6 +493,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/calendar-hover-files-browser.js
+      - name: Calendar card "No video linked" warning stays clear of the button pile
+        if: ${{ !cancelled() && matrix.part == 2 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/calendar-warn-pile-overlap-browser.js
       - name: Calendar card video and thumbnail buttons each have their own icon and tooltip
         if: ${{ !cancelled() && matrix.part == 1 }}
         env:

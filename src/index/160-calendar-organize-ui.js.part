@@ -47,7 +47,7 @@ import { PROD_WRITE_EF_URL } from './210-production-state-writes.js';
 import { svFrameSyncPlayIcon } from './187-frame-viewer.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } from './270-samples-model.js';
-import { svRsCalSync } from './188-review-stage-switch.js';
+import { svRsCalSync, svRsToolsAdopt, svRsToolsDrop } from './188-review-stage-switch.js';
     // Staff Calendar phone chrome delegates every action to its native control.
     // Nothing is mounted at desktop widths or on another staff surface.
     let _calStaffPhoneState = null;
@@ -683,6 +683,7 @@ import { svRsCalSync } from './188-review-stage-switch.js';
         _calStaffPhoneRestore();
         const view = document.getElementById('calView');
         if (!view) return;
+        svRsToolsDrop();   // the client link's new header holds the old bar's tools (188); this shell draws fresh ones
         if (_calPhoneShells.has(view)) {
             const nativeTabs = view.querySelector('.view-tab-toggle');
             if (nativeTabs) view.before(nativeTabs);
@@ -796,6 +797,7 @@ import { svRsCalSync } from './188-review-stage-switch.js';
             _calPhoneArrangeShell();
             _calPhoneShells.add(view);
         }
+        svRsToolsAdopt();
     }
 
     /* ── Notify client ────────────────────────────────────────────────────────

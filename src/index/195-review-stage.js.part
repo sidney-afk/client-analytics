@@ -4,7 +4,7 @@ import { _calCommentsFor, _calCommentsForView, _calSetCommentsFor, calState } fr
 import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui.js';
 import { _calReviewState } from './180-calendar-native-post-media.js';
 import { svFrameStageMount, svFrameStageUnmount } from './187-frame-viewer.js';
-import { svRsHelpUrl } from './188-review-stage-switch.js';
+import { svRsCalOn, svRsHelpUrl, svRsToolsEl } from './188-review-stage-switch.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), the on-demand half. Session Marquee, 2026-10-17.
@@ -653,7 +653,22 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .sk-lab{height:auto;flex-direction:row;gap:6px;padding:4px 6px}
 .rs-fv{width:min(100%,calc(46vh * var(--fv-ar,.5625)))}
 }
-@media (prefers-reduced-motion:reduce){.stp.hint{animation:none}}`;
+@media (prefers-reduced-motion:reduce){.stp.hint{animation:none}}
+:host([hidden]){display:none!important}
+.rs.client{background:transparent}
+.hdr-tools{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0;height:38px;margin-left:auto}
+.hdr-tools[hidden]{display:none!important}
+.hdr-tools+.hdr-r{margin-left:0}
+.app.bar{height:auto;min-height:0;padding-bottom:8px}
+.app.bar>.strip,.app.bar>.stage{display:none!important}
+@media (max-width:860px){
+.rs.client .hdr{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:10px;row-gap:12px}
+.rs.client .hdr-who{grid-column:1;grid-row:1;min-height:38px;align-items:center;overflow:hidden}
+.rs.client .hdr-who h1{overflow:hidden;text-overflow:ellipsis}
+.rs.client .hdr-tools{grid-column:2;grid-row:1;margin:0}
+.rs.client .hdr-r{grid-column:1/-1;grid-row:2}
+.app.bar{min-height:0}
+}`;
     // no-hardcoded-colors: allow-end
     const RS_PART = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'YouTube title' };
     const RS_CSSKEY = { video: 'video', graphic: 'thumbnail', caption: 'caption', title: 'youtube' };
@@ -896,12 +911,15 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             ? '<button class="help-btn" id="rsHelp" type="button" aria-label="How this page works" title="How this page works" hidden>?</button>'
               + '<button class="theme-btn" id="rsTheme" type="button" aria-label="Switch to dark mode" title="Switch to dark mode"></button>'
             : '<button class="notify" id="rsNotify" type="button">' + RI.bell + 'Notify client</button>';
-        return '<header class="hdr"><div class="hdr-who"><h1 id="rsName"></h1><span class="sub">Content calendar</span></div><div class="hdr-r">'
+        // The client link's header is its only one on all four tabs (188): a fixed slot holds the old bar's tools on
+        // Sheet, Month and Week, left of the pill toggle, so neither the toggle nor the sun/moon button ever moves.
+        const tools = R.mode === 'client' ? '<div class="hdr-tools" id="rsTools" hidden><slot name="tools"></slot></div>' : '';
+        return '<header class="hdr"><div class="hdr-who"><h1 id="rsName"></h1><span class="sub">Content calendar</span></div>' + tools + '<div class="hdr-r">'
             + '<nav class="tabs" id="rsTabs" aria-label="Calendar views">' + tabs.map((t, i) => '<button class="cal-view-btn' + (i ? '' : ' active') + '" type="button" data-tab="' + t[0] + '">' + t[1] + (i ? '' : ' <b class="badge num" id="rsBadge"></b>') + '</button>').join('') + '</nav>'
             + right + '</div></header>';
     }
     function _rsShellHtml() {
-        return '<div class="rs' + (R.mode === 'kasper' ? ' in-kasper' : '') + '"><div class="app" id="rsApp">' + _rsHeaderHtml()
+        return '<div class="rs' + (R.mode === 'kasper' ? ' in-kasper' : R.mode === 'client' ? ' client' : '') + '"><div class="app" id="rsApp">' + _rsHeaderHtml()
             + '<nav class="strip" id="strip" aria-label="Posts waiting for review"><div class="sk-head" id="skHead"></div><div class="sk-list" id="skList"></div></nav>'
             + '<main class="stage" id="stage">'
             + '<aside class="side" id="side" aria-label="This post"></aside>'
@@ -946,15 +964,20 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const fresh = !R.host || !R.host.isConnected || R.mode !== mode || R.key !== key;
         if (R.mode !== mode || R.key !== key) { R.S = _rsFreshState(); }
         R.mode = mode; R.key = key;
-        if (!R.host || R.host.parentNode !== container.parentNode || R.host.previousElementSibling !== container) {
+        // The client link's page sits above the calendar (its header heads every tab); the others below it.
+        const above = mode === 'client';
+        if (!R.host || R.host.parentNode !== container.parentNode || (above ? R.host.nextElementSibling : R.host.previousElementSibling) !== container) {
             if (!R.host) {
                 R.host = document.createElement('div');
                 R.host.id = 'svReviewStage';
                 R.host.className = 'sv-review-stage';
                 R.root = R.host.attachShadow({ mode: 'open' });
             }
-            container.after(R.host);
+            if (above) container.before(R.host); else container.after(R.host);
         }
+        const tools = svRsToolsEl();
+        if (above && tools.parentNode !== R.host) R.host.appendChild(tools);
+        else if (!above && tools.parentNode === R.host) tools.remove();
         if (fresh || !R.root.getElementById('rsApp') || R.root.getElementById('rsApp').getAttribute('data-mode') !== mode) {
             R.root.innerHTML = '<style>' + RS_CSS + '</style><style id="rsFvCss">' + _rsPlayerCss() + '</style>' + _rsShellHtml();
             _rsQ('rsApp').setAttribute('data-mode', mode);
@@ -1026,6 +1049,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     /* ---------- drawing ---------- */
     function _rsRender(opts) {
         if (!R.root || !R.S) return;
+        if (R.bar) { _rsHeader(); return; }   // Sheet, Month or Week under the client link's header: no stage
         if (!(opts && opts.force) && _rsTyping()) { R.pending = true; _rsHeader(); _rsStrip(); return; }
         R.pending = false;
         const m = _rsCur();
@@ -1042,6 +1066,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsHeader() {
         const n = _rsQ('rsName');
         if (n) n.textContent = calState.client || '';
+        const tabs = _rsQ('rsTabs');
+        if (tabs) tabs.querySelectorAll('[data-tab]').forEach(t => { const on = t.dataset.tab === calState.view; t.classList.toggle('active', on); if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current'); });
+        const tl = _rsQ('rsTools');
+        if (tl) tl.hidden = !R.bar;
         const b = _rsQ('rsBadge');
         if (b) { const c = _rsQueue().filter(x => !_rsAnswered(x)).length; b.textContent = String(c); b.hidden = !c; }
         const hp = _rsQ('rsHelp');
@@ -1605,15 +1633,20 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!cv) return;
         const mode = _isClientLink ? 'client' : 'smm';
         _rsMount(cv, mode, mode + '|' + (calState.client || ''));
+        // The client link on Sheet, Month or Week (or while its cards load): the header only, the calendar below it.
+        R.bar = mode === 'client' && !svRsCalOn();
+        _rsQ('rsApp').classList.toggle('bar', R.bar);
+        if (R.bar) _rsStageOff();
         _rsRender();
     }
     function _rsCalHide() {
-        if (R.host && (R.mode === 'client' || R.mode === 'smm')) { R.host.hidden = true; _rsStageOff(); }
+        if (R.host && (R.mode === 'client' || R.mode === 'smm')) { R.host.hidden = true; R.bar = false; _rsStageOff(); }
     }
     function _rsKasperDraw(parts) {
         const body = document.getElementById('kasperReviewBody');
         if (!body) return;
         R.kparts = parts || { urgent: [], waiting: [], tweaks: [] };
+        R.bar = false;
         _rsMount(body, 'kasper', 'kasper');
         _rsRender();
     }

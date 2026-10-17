@@ -132,6 +132,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        one opens the card's Notes view with the player (svOpenCardNotes, 326). Pointing at one (hover, focus, press,
        touch) starts the slow part at once: the function's answer and the first bytes of the video are fetched while
        the click is still on its way (svFrameIntent). */
+    // No hover tooltip on a door (owner, 2026-10-17: no "Watch the video with its notes" over the player); the play
+    // icon keeps that sentence as its spoken name, and "Watch here" says what it does on its face.
     function _fvOpenerHtml(rawLink, title, cls, client, inner, label, cardId) {
         if (_isClientLink) return '';
         const link = _fvLinkOf(rawLink);
@@ -139,7 +141,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _fvPrimeFlag();
         const who = _fvFlagSlugOf(client || (calState && calState.client) || '');
         const hidden = _fvEnabledFor(who) ? '' : ' hidden';
-        return `<button type="button" class="${_calEscAttr(cls)} fv-gated" data-fv-client="${_calEscAttr(who)}" data-fv-link="${_calEscAttr(link)}" data-fv-title="${_calEscAttr(title || '')}" data-fv-card="${_calEscAttr(cardId || '')}"${hidden}${label ? ` aria-label="${_calEscAttr(label)}"` : ''} onpointerenter="svFrameIntent(this,120)" onfocus="svFrameIntent(this,0)" onpointerdown="svFrameIntent(this,0)" ontouchstart="svFrameIntent(this,0)" onclick="event.stopPropagation();svFrameOpen(this)" title="Watch the video with its notes">${inner}</button>`;
+        return `<button type="button" class="${_calEscAttr(cls)} fv-gated" data-fv-client="${_calEscAttr(who)}" data-fv-link="${_calEscAttr(link)}" data-fv-title="${_calEscAttr(title || '')}" data-fv-card="${_calEscAttr(cardId || '')}"${hidden}${label ? ` aria-label="${_calEscAttr(label)}"` : ''} onpointerenter="svFrameIntent(this,120)" onfocus="svFrameIntent(this,0)" onpointerdown="svFrameIntent(this,0)" ontouchstart="svFrameIntent(this,0)" onclick="event.stopPropagation();svFrameOpen(this)">${inner}</button>`;
     }
     function svFrameWatchBtnHtml(rawLink, title, cls, client, cardId) {
         return _fvOpenerHtml(rawLink, title, cls || 'fv-watch-btn', client, `${FV_PLAY_ICO}<span>Watch here</span>`, '', cardId);

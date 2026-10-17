@@ -137,7 +137,7 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   const idx = read('supabase/functions/higgsfield-mcp/index.ts');
   const def = idx.slice(idx.indexOf('name: "client_brain"'), idx.indexOf('name: "brain_change"'));
   assert.ok(/When you need more on a topic/.test(def) && /topic: \{ type: "string"/.test(def), 'description and schema offer topic');
-  assert.ok(/clientBrain\(db\(\), String\(args\.client \|\| ""\), String\(args\.topic \|\| ""\)\)/.test(idx), 'topic is passed to clientBrain');
+  assert.ok(/clientBrain\(db\(\), String\(args\.client \|\| ""\), String\(args\.topic \|\| ""\)(, askerFor\(member, args\.who\))?\)/.test(idx), 'topic is passed to clientBrain');
 
   console.log('higgsfield-client-brain: whole brain when it fits, else first paragraphs, one fact in full, named left-outs, history.md never read ✅');
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -30,6 +30,11 @@
  * It is the staff save path (a client link goes to _calUpsertFetchClientLink and never reaches it); it now sends a
  * staff save to calendar-card-write when calendar_card_write_clients lists the client. The requests above are unchanged.
  *
+ * OPEN_REPAIRS 427 (2026-10-17): only the _calReviewRequestTweak and _sxrReviewRequestTweak hashes were re-pinned.
+ * A request-changes on a LINKED part now keeps its status push when the client-comment front door is unavailable
+ * (it used to skip it, so the work item never moved). The fixture cards here take the front door or have no work
+ * item, so the requests above are unchanged.
+ *
  * No request leaves the machine; every backend answer is local.
  */
 require('./helpers/single-file-index.js'); // split switch on: reads of index.html get the single-file page

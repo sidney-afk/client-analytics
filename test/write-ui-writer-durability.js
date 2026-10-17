@@ -260,7 +260,8 @@ for (const name of ['_writeUiComponentHasWorkItem', '_writeUiCommentRound', '_ca
       clearApprovals: '_calClearStaleApprovals(post, repairEdits)',
       pending: '_calPendingEdits[pid]',
       sourceSave: 'await _calFlushCardSave(pid)',
-      noLinear: "_calNoLinearPush.add(pid + '|' + comp)",
+      // OPEN_REPAIRS 427: the status push is skipped only for a part with no work item.
+      noLinear: "if (deferredLegacyOutboxIds.length && !_writeUiNativeId(post, comp)) _calNoLinearPush.add(pid + '|' + comp)",
       state: '_calReviewState',
       render: '_calRenderBody({ preserveScroll: true })',
       sourceError: "_calReviewState.errors[key] = current._saveError || 'Save failed';",
@@ -280,7 +281,8 @@ for (const name of ['_writeUiComponentHasWorkItem', '_writeUiCommentRound', '_ca
       clearApprovals: '_sxrClearStaleApprovals(post, repairEdits)',
       pending: '_sxrPendingEdits[pid]',
       sourceSave: 'await _sxrFlushCardSave(pid)',
-      noLinear: "_sxrNoLinearPush.add(pid + '|' + comp)",
+      // OPEN_REPAIRS 427: the status push is skipped only for a part with no work item.
+      noLinear: "if (deferredLegacyOutboxIds.length && !_writeUiNativeId(post, comp)) _sxrNoLinearPush.add(pid + '|' + comp)",
       state: '_sxrReviewState',
       render: '_sxrRenderBody({ preserveScroll: true })',
       sourceError: "_sxrReviewState.errors[key] = current._saveError || 'Save failed';",

@@ -66,6 +66,15 @@ theme button on the client page opens a tutorial video in an overlay.
 
 **Switches set 2026-10-17 about 09:05 UTC (Lighthouse, after #2131 merged as 06a59fe9):** `review_stage_client_pages` lists the test client only; `review_stage_kasper_staff` lists the owner's two staff accounts (by roster id); `review_help_video_url` is unset, so the "?" stays hidden. Deleting either row brings the old page back on the next load.
 
+**Owner feedback of 2026-10-17 (session Curtain Two):** on a switched-on client link the new header is now the page's
+only header on Review, Sheet, Month and Week (the old Analytics / Content Calendar toggle and the old calendar bar are
+gone there; Organize and the card size sit in the header on Sheet, Month and Week; the pill toggle and the sun/moon
+button never move), the page has no frame and does not scroll at 1440x900 on Review, Sheet shows only the sheet, and
+there is no Analytics route for that client (an Analytics address lands on the Content Calendar). The "Watch the
+video with its notes" hover tooltip is gone from the player doors (staff Sheet and Kasper too). The video step already
+used the Frame.io player wherever `frame_viewer_clients` allows the client (live for the test client). Test:
+`node test/review-stage-client-layout-browser.js`.
+
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone
 layout follows the desktop one and has not been polished on its own (as the handoff said).

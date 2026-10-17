@@ -1722,6 +1722,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-client-layout-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token, the frame viewer's generated clip and posters), no hosted credentials and no live data. Checks the client link with the new review page switched on: one header on Review, Sheet, Month and Week, the toggle never moving, no Analytics, no frame or scroll on Review, the Frame.io player on the video step, and the old page with the switch off.",
+      "reproduce": "node test/review-stage-client-layout-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "frameio-viewer-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

@@ -26,6 +26,8 @@ import { clientRecord, feedbackNote, feedbackNotes } from "./filmingrecord.mjs";
 import { brainChange, clientBrain, clientStyle, filmingPlan, findClient, listClients } from "./clientinfo.ts";
 import { studioProfile, studioProfileSave } from "./studioprofile.ts";
 import { pipelinePass } from "./pipelinepass.ts";
+import { STT_MODEL, STT_TOOL, studioTranscribe, transcribeCheck } from "./transcribe.mjs";
+import { transcribeStore } from "./transcribe.ts";
 import { pipelineGate } from "../pipeline-google/users.mjs";
 import { PROFILE_FIELDS } from "./profile.mjs";
 import { privateIp } from "./netcheck.mjs";
@@ -311,6 +313,7 @@ const TOOLS = [
     inputSchema: { type: "object", properties: { topic: { type: "string", description: "The guide to read, e.g. brain or thumbnails. Leave out to list them." } }, additionalProperties: false },
   },
   { name: "team_usage", description: "This month's team spending against the budget, and the most recent jobs with who made them.", inputSchema: EMPTY },
+  STT_TOOL,
   {
     name: "studio_latest",
     description: "The newest version of the Synchro video studio: its version, a private download link (valid about 10 minutes) and what changed. Use it when someone wants to install or update the studio, or asks which version is current. Read only.",
@@ -985,6 +988,18 @@ async function submitJob(member: string, id: string, inputs: JsonMap, usd: numbe
   return { text: `Started: ${BY_ID.get(id)!.name}, ${money(usd)}.\njob_id: ${requestId}\nNow call wait_for_job with this job_id.`, jobId: requestId };
 }
 
+// studio_transcribe (ElevenLabs): the logic is in transcribe.mjs, the
+// database and storage parts in transcribe.ts. The key is read from
+// ELEVENLABS_KEY, then ELEVENLABS_API_KEY.
+function transcribeDeps(author: string) {
+  return {
+    ...transcribeStore(db()), env: (k: string) => Deno.env.get(k), fetch, publicHost, directLink, background, author, cap: CAP_USD,
+    uuid: () => crypto.randomUUID(), idemKey, timeout: (ms: number) => AbortSignal.timeout(ms),
+    digest: (b: Uint8Array) => crypto.subtle.digest("SHA-256", b as Uint8Array<ArrayBuffer>),
+    budget: async () => CAP_USD === null ? "" : `Team budget this month: ${money(await monthSpend())} of ${money(CAP_USD)} used.`,
+  };
+}
+
 async function checkJob(jobId: string): Promise<string> {
   if (!/^[0-9a-f-]{36}$/i.test(jobId)) return "That job_id does not look right.";
   const { data: row } = await db().from("hf_generations").select("model,status,video_url,error,est_cost_usd").eq("request_id", jobId).maybeSingle();
@@ -995,6 +1010,7 @@ async function checkJob(jobId: string): Promise<string> {
     if (row.status === "delivery_failed") return `The image was made (and charged, ${money(Number(row.est_cost_usd))}) but could not be saved: ${row.error || "storage error"}. Tell the account owner before retrying.`;
     return "Still working. Check again in about 20 to 30 seconds.";
   }
+  if (row && row.model === STT_MODEL) return await transcribeCheck(jobId, transcribeDeps(""));
   const res = await hf("GET", `requests/${jobId}/status`);
   if (!res.ok) return "Could not check: " + hfError(res);
   const status = String(res.data.status || "unknown");
@@ -1247,6 +1263,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
 
   if (name === "studio_profile") return await studioProfile(db(), String(args.client || ""));
   if (name === "studio_profile_save") return await studioProfileSave(db(), String(args.client || ""), args.profile, args.replace === true, author);
+  if (name === "studio_transcribe") return await studioTranscribe(args, transcribeDeps(author));
   // The filming plan pipeline is only for the people on fp_settings
   // "pipeline_users" (read now), never the shared team link (users.mjs).
   // studio and studio_latest stay open to everyone.

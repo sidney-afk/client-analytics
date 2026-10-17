@@ -115,8 +115,11 @@ const OFF = 'Nano Banana is switched off for the team. GPT Image does the same j
       update: (patch) => { logWrites.push(patch); return { eq: () => ({ select: async () => ({ data: [{ est_cost_usd: 0.05 }] }) }) }; },
     }) });
     const fakeHf = async (...a) => { hfCalls.push(a); return { ok: true, status: 200, data: { status: 'completed', images: [{ url: 'https://higgsfield.example/out.png' }] } }; };
-    const checkJob = new Function('db', 'hf', 'answeredFromLog', 'isDirect', 'money', 'outputs', 'hfError', cjSrc + '\nreturn checkJob;')(
-      fakeDb, fakeHf, d.answeredFromLog, d.isDirect, (n) => '$' + Number(n).toFixed(2), (data) => (data.images || []).map((x) => x.url), () => 'refused');
+    // Voice clean-up jobs (Auphonic) are routed first; these rows are never voice jobs.
+    const notVoice = () => { throw new Error('a non-voice job reached voiceCheck'); };
+    const checkJob = new Function('db', 'hf', 'answeredFromLog', 'isDirect', 'money', 'outputs', 'hfError', 'VOICE_MODEL', 'voiceCheck', 'voiceDeps', cjSrc + '\nreturn checkJob;')(
+      fakeDb, fakeHf, d.answeredFromLog, d.isDirect, (n) => '$' + Number(n).toFixed(2), (data) => (data.images || []).map((x) => x.url), () => 'refused',
+      'auphonic/voice-cleanup', notVoice, notVoice);
     const text = await checkJob(JOB);
     return { text, hfCalls, logWrites };
   };

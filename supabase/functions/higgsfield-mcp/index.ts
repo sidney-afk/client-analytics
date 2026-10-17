@@ -24,6 +24,8 @@ import { STUDIO_BUCKET, studioLatest } from "./studio.mjs";
 import { brainChange, clientBrain, clientStyle, filmingPlan, listClients } from "./clientinfo.ts";
 import { studioProfile, studioProfileSave } from "./studioprofile.ts";
 import { pipelinePass } from "./pipelinepass.ts";
+import { VOICE_MODEL, VOICE_TOOL, voiceCheck, voiceCleanup } from "./voice.mjs";
+import { voiceStore } from "./voice.ts";
 import { PROFILE_FIELDS } from "./profile.mjs";
 import { answeredFromLog, asksSwitchedOff, DIRECT_MODELS, directEstimate, GOOGLE_IMAGE_ENABLED, GOOGLE_IMAGE_IDS, gptImageInputs, isDirect, runDirect, SWITCHED_OFF_TEXT, type Fetched } from "./direct.ts";
 
@@ -335,6 +337,7 @@ const TOOLS = [
       },
     },
   },
+  VOICE_TOOL,
 ];
 
 // Every tool takes the two optional activity-log arguments: "who" (the first
@@ -944,6 +947,7 @@ async function submitJob(member: string, id: string, inputs: JsonMap, usd: numbe
 async function checkJob(jobId: string): Promise<string> {
   if (!/^[0-9a-f-]{36}$/i.test(jobId)) return "That job_id does not look right.";
   const { data: row } = await db().from("hf_generations").select("model,status,video_url,error,est_cost_usd").eq("request_id", jobId).maybeSingle();
+  if (row && row.model === VOICE_MODEL) return await voiceCheck(jobId, voiceDeps(""));
   if (row && answeredFromLog(String(row.model))) {
     if (row.status === "completed" && row.video_url) return `Done. It cost ${money(Number(row.est_cost_usd))}. Download:\n${row.video_url}\n(Save the file; stored results are kept for a limited time.)`;
     if (row.status === "failed") return "It failed: " + (row.error || "no reason given") + ". The provider did not make an image, so it was not charged; try again or adjust the prompt.";
@@ -996,6 +1000,16 @@ function toBase64(bytes: Uint8Array): string {
   let bin = "";
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(bin);
+}
+
+// voice_cleanup (Auphonic): the logic is in voice.mjs, the database and
+// storage parts in voice.ts; this hands them in.
+function voiceDeps(author: string) {
+  return {
+    ...voiceStore(db()), env: (k: string) => Deno.env.get(k), fetch, publicHost, directLink, background, author, cap: CAP_USD,
+    uuid: () => crypto.randomUUID(), idemKey,
+    budget: async () => CAP_USD === null ? "" : `Team budget this month: ${money(await monthSpend())} of ${money(CAP_USD)} used.`,
+  };
 }
 
 // ---- Tool handlers -------------------------------------------------------
@@ -1188,6 +1202,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   if (name === "brain_change") return await brainChange(db(), String(args.client || ""), String(args.what_changed || ""), String(args.fact_id || ""), author);
 
   if (name === "import_file") return await importFile(String(args.link || "").trim());
+  if (name === "voice_cleanup") return await voiceCleanup(args, voiceDeps(author));
 
   if (name === "studio_profile") return await studioProfile(db(), String(args.client || ""));
   if (name === "studio_profile_save") return await studioProfileSave(db(), String(args.client || ""), args.profile, args.replace === true, author);

@@ -19,6 +19,7 @@
     "higgsfield-nano-banana-off.js",
     "higgsfield-studio-latest.js",
     "higgsfield-studio-profile.js",
+    "higgsfield-voice-cleanup.js",
     "pipeline-pass.js",
     "pages-deploy-source-unreadable.js",
     "production-write-comment-round.js",

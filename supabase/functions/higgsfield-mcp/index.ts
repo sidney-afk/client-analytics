@@ -909,6 +909,9 @@ async function fetchInputImage(url: string): Promise<Fetched> {
 // the result then fails the row becomes "delivery_failed", which still counts
 // toward the monthly spend. Every terminal update re-sets request_id so
 // check_job can always find the row.
+// Waits before each try to store a paid-for image (first try at once).
+const STORE_RETRY_WAITS_MS = [0, 2000, 6000];
+
 async function runDirectJob(rowId: number, requestId: string, id: string, inputs: JsonMap): Promise<void> {
   const client = db();
   const now = () => new Date().toISOString();
@@ -922,11 +925,25 @@ async function runDirectJob(rowId: number, requestId: string, id: string, inputs
   const cost: JsonMap = out.usd !== null && Number.isFinite(out.usd) ? { est_cost_usd: Math.round(out.usd * 10000) / 10000 } : {};
   await client.from("hf_generations").update({ request_id: requestId, status: "storing", ...cost, updated_at: now() }).eq("id", rowId);
   try {
-    const up = await uploadLink(out.type === "image/jpeg" ? "image/jpeg" : out.type === "image/webp" ? "image/webp" : "image/png");
-    if ("error" in up) throw new Error("Could not store the result: " + up.error);
-    const put = await fetch(up.upload_url, { method: "PUT", headers: up.upload_headers, body: out.bytes });
-    if (!put.ok) throw new Error(`Could not store the result (${put.status}).`);
-    await client.from("hf_generations").update({ request_id: requestId, status: "completed", video_url: up.public_url, error: null, updated_at: now() }).eq("id", rowId);
+    // The image is already paid for, so a passing storage hiccup (a 5xx from
+    // the upload host) is retried before the row is given up as delivery_failed.
+    let stored = "";
+    let lastErr: unknown = null;
+    for (const wait of STORE_RETRY_WAITS_MS) {
+      if (wait) await new Promise((r) => setTimeout(r, wait));
+      try {
+        const up = await uploadLink(out.type === "image/jpeg" ? "image/jpeg" : out.type === "image/webp" ? "image/webp" : "image/png");
+        if ("error" in up) throw new Error("Could not store the result: " + up.error);
+        const put = await fetch(up.upload_url, { method: "PUT", headers: up.upload_headers, body: out.bytes });
+        if (!put.ok) throw new Error(`Could not store the result (${put.status}).`);
+        stored = up.public_url;
+        break;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    if (!stored) throw lastErr ?? new Error("Could not store the result.");
+    await client.from("hf_generations").update({ request_id: requestId, status: "completed", video_url: stored, error: null, updated_at: now() }).eq("id", rowId);
   } catch (e) {
     await client.from("hf_generations").update({ request_id: requestId, status: "delivery_failed", error: String((e as Error).message || e).slice(0, 500), updated_at: now() }).eq("id", rowId);
   }

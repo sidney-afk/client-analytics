@@ -47,7 +47,10 @@ export const MAX_STT_BYTES = 2 * 1000 * 1000 * 1000;
 export const DEFAULT_USD_PER_HOUR = 6;
 export const LINK_SECONDS = 3600;
 // The longest the background request is given; past it the job is unknown.
-export const REQUEST_TIMEOUT_MS = 380 * 1000;
+// Supabase stops a background task at 400 s (paid plan), and the same run has
+// already read the file's ends and reserved, and still has to store the
+// transcript and write the job's state, so a minute and a half is left over.
+export const REQUEST_TIMEOUT_MS = 300 * 1000;
 // A job that has said "in_progress" this long never got its answer stored.
 export const STALE_RUNNING_MS = 15 * 60 * 1000;
 // The length guard: ElevenLabs' reported length may pass the priced length by
@@ -57,9 +60,12 @@ export const LENGTH_SLACK_SECONDS = 5;
 export const LENGTH_SLACK_SHARE = 0.02;
 // The transcript is JSON text; a 30 minute take is a few MB.
 export const MAX_RESULT_BYTES = 50 * 1024 * 1024;
-// The cache key reads this much from each end of the file.
+// The cache key reads this much from each end of the file, and SAMPLE_BYTES
+// at each of SAMPLE_COUNT evenly spaced points in between.
 export const FINGERPRINT_BYTES = 256 * 1024;
-const FINGERPRINT_TAG = "stt-fp-1";
+export const SAMPLE_BYTES = 64 * 1024;
+export const SAMPLE_COUNT = 8;
+const FINGERPRINT_TAG = "stt-fp-2";
 
 // The fields of the multipart form, exactly the studio's, with the link in
 // place of the uploaded file.
@@ -103,22 +109,39 @@ export function tooLong(reportedSeconds, pricedSeconds) {
   return r > p + Math.max(LENGTH_SLACK_SECONDS, p * LENGTH_SLACK_SHARE);
 }
 
-// The cache key, without downloading the file: SHA-256 over the file's total
-// size and its first and last 256 KB (two range requests; the first is the
-// one that already reads the WAV header). Two different takes share the same
-// size and the same opening and closing quarter megabyte of audio only by
-// copying. A file whose size is unknown (no range support) gets no key and is
-// never cached.
-export async function fingerprint(head, tail, totalBytes, digest) {
-  if (!(Number(totalBytes) > 0) || !head || !tail) return null;
-  const tag = new TextEncoder().encode(`${FINGERPRINT_TAG}\n${Number(totalBytes)}\n`);
-  const all = new Uint8Array(tag.length + head.length + tail.length);
-  all.set(tag, 0);
-  all.set(head, tag.length);
-  all.set(tail, tag.length + head.length);
-  const hash = new Uint8Array(await digest(all));
-  return Array.from(hash, (b) => b.toString(16).padStart(2, "0")).join("");
+// Where the in-between samples start: SAMPLE_COUNT evenly spaced points
+// strictly inside the file (none for a file the two ends already cover).
+export function samplePoints(totalBytes) {
+  const total = Number(totalBytes);
+  if (!(total > 2 * FINGERPRINT_BYTES)) return [];
+  const out = [];
+  for (let i = 1; i <= SAMPLE_COUNT; i++) out.push(Math.floor((total * i) / (SAMPLE_COUNT + 1)));
+  return out;
 }
+
+// The cache key, without downloading the file: SHA-256 over the file's total
+// size, its first and last 256 KB and 64 KB at eight evenly spaced points in
+// between (range requests; the first is the one that already reads the WAV
+// header), so about 1 MB is read whatever the file's length. Ends alone were
+// not enough: two edited takes of the same length padded with the same
+// silence would share them (Codex on #2150). A file whose size is unknown (no
+// range support) gets no key and is never cached.
+export async function fingerprint(parts, totalBytes, digest) {
+  if (!(Number(totalBytes) > 0) || !Array.isArray(parts) || !parts.length || parts.some((p) => !p)) return null;
+  const tag = new TextEncoder().encode(`${FINGERPRINT_TAG}\n${Number(totalBytes)}\n`);
+  const size = parts.reduce((n, p) => n + 4 + p.length, tag.length);
+  const all = new Uint8Array(size);
+  all.set(tag, 0);
+  let at = tag.length;
+  for (const p of parts) {
+    new DataView(all.buffer).setUint32(at, p.length);
+    all.set(p, at + 4);
+    at += 4 + p.length;
+  }
+  return toHex(await digest(all));
+}
+
+const toHex = (buf) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
 
 // Plain English for an ElevenLabs answer that was not a success.
 export function elevenErrorText(status, body) {
@@ -211,14 +234,20 @@ async function readSource(link, d) {
   let key = null;
   // Only a server that honoured the range gives a trustworthy size and tail.
   if (head.status === 206 && head.total) {
-    const tail = head.total <= FINGERPRINT_BYTES
-      ? { status: 206, bytes: head.bytes, total: head.total }
-      : await rangedRead(link, `bytes=-${FINGERPRINT_BYTES}`, FINGERPRINT_BYTES, d);
-    if (typeof tail !== "string" && tail.status === 206 && tail.total === head.total) {
-      key = await fingerprint(head.bytes, tail.bytes, head.total, d.digest);
+    const total = head.total;
+    const reads = total <= FINGERPRINT_BYTES ? [] : [
+      ...samplePoints(total).map((at) => rangedRead(link, `bytes=${at}-${at + SAMPLE_BYTES - 1}`, SAMPLE_BYTES, d)),
+      rangedRead(link, `bytes=-${FINGERPRINT_BYTES}`, FINGERPRINT_BYTES, d),
+    ];
+    const got = await Promise.all(reads);
+    if (got.every((r) => typeof r !== "string" && r.status === 206 && r.total === total)) {
+      key = await fingerprint([head.bytes, ...got.map((r) => r.bytes)], total, d.digest);
     }
   }
-  return { ...wav, totalBytes: head.total, key };
+  // Facts that tell two files at the same link apart even without a key
+  // (used for the duplicate check only).
+  const headHash = toHex(await d.digest(head.bytes));
+  return { ...wav, totalBytes: head.total, key, headHash };
 }
 
 async function readUpTo(body, max) {
@@ -302,7 +331,9 @@ export async function studioTranscribe(args, d) {
     params,
     cost: usd,
     cap: d.cap,
-    idemKey: await d.idemKey(d.author, STT_MODEL, { file: link, key: src.key }),
+    // Without a cache key (no range support) the header facts still tell a
+    // replaced file at the same link from the one already started.
+    idemKey: await d.idemKey(d.author, STT_MODEL, { file: link, key: src.key, bytes: src.totalBytes, seconds: params.seconds, head: src.headHash }),
   });
   if (!rsv) return "Could not start: the log is unavailable, so nothing was spent.";
   if (rsv.outcome === "over_cap") return `Refused: this (${money(usd)}) would pass the team's monthly budget of ${money(d.cap)} (${money(Number(rsv.spent))} already used). Ask the account owner.`;

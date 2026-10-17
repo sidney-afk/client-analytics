@@ -171,7 +171,12 @@ function harness({ env = { ELEVENLABS_KEY: KEY }, file = wav(), cap = 200, reser
     assert.strictEqual(h.calls.reserve.length, 0);
     assert.strictEqual(h.calls.stt.length, 0);
     const ranges = h.calls.fetch.map((c) => c.init.headers.Range);
-    assert.deepStrictEqual(ranges, ['bytes=0-262143', 'bytes=-262144'], 'two range reads (head and tail), never the whole file');
+    assert.strictEqual(ranges[0], 'bytes=0-262143', 'the header read comes first');
+    assert.strictEqual(ranges.length, 10, 'head, eight samples in between and tail');
+    assert.ok(ranges.includes('bytes=-262144'));
+    assert.strictEqual(ranges.filter((r) => /^bytes=\d+-\d+$/.test(r) && r !== 'bytes=0-262143').length, 8);
+    assert.deepStrictEqual(t.samplePoints(11520044), [1280004, 2560009, 3840014, 5120019, 6400024, 7680029, 8960034, 10240039]);
+    assert.deepStrictEqual(t.samplePoints(400000), [], 'a file the two ends cover needs no samples');
     assert.strictEqual(who.outcomeOf('studio_transcribe', card).ok, true);
     // The rate setting is used, and a bad one stops pricing.
     const h2 = harness({ env: { ELEVENLABS_KEY: KEY, ELEVENLABS_USD_PER_HOUR: '0.22' } });
@@ -220,7 +225,7 @@ function harness({ env = { ELEVENLABS_KEY: KEY }, file = wav(), cap = 200, reser
     assert.strictEqual(init.method, 'POST');
     assert.strictEqual(init.headers['xi-api-key'], KEY);
     assert.deepStrictEqual([...init.body.entries()], [['model_id', 'scribe_v2'], ['diarize', 'true'], ['timestamps_granularity', 'word'], ['source_url', FILE]]);
-    assert.deepStrictEqual(init.signal, { ms: 380000 }, 'the request is given a time limit');
+    assert.deepStrictEqual(init.signal, { ms: 300000 }, 'the request is given a time limit that leaves room before the 400 s background limit');
     // Stored byte for byte.
     assert.deepStrictEqual(h.calls.upload, [{ p: `${JOB}.json`, text: TRANSCRIPT }]);
     const row = h.rows.get(100);
@@ -254,6 +259,12 @@ function harness({ env = { ELEVENLABS_KEY: KEY }, file = wav(), cap = 200, reser
     other.d.exists = h.d.exists;
     const card = await t.studioTranscribe({ file: FILE }, other.d);
     assert.ok(card.startsWith('Plan: transcribe a take'), card);
+    // Same size, same first and last 256 KB, different audio in the middle: not a hit (Codex on #2150).
+    const mid = wav();
+    mid.fill(3, 3000000, 9000000);
+    const middle = harness({ file: mid, rows: h.rows });
+    middle.d.exists = h.d.exists;
+    assert.ok((await t.studioTranscribe({ file: FILE }, middle.d)).startsWith('Plan: transcribe a take'), 'a take that differs only in the middle is priced, not served from the cache');
     // A cached row whose file is gone from the bucket is not served.
     const gone = harness({ rows: h.rows });
     assert.ok((await t.studioTranscribe({ file: FILE }, gone.d)).startsWith('Plan: transcribe a take'));
@@ -267,6 +278,13 @@ function harness({ env = { ELEVENLABS_KEY: KEY }, file = wav(), cap = 200, reser
     assert.strictEqual(h.calls.reserve[0].params.source_hash, null);
     await h.calls.background[0];
     assert.strictEqual(h.rows.get(100).params.cache_ok, false);
+    // A different file at the same link (no cache key) is not taken for the one already started.
+    const other = harness({ ignoreRange: true, file: wav({ seconds: 90 }) });
+    await t.studioTranscribe({ file: FILE, go: true }, other.d);
+    assert.notStrictEqual(other.calls.reserve[0].idemKey, h.calls.reserve[0].idemKey, 'the duplicate check sees the file changed');
+    const same = harness({ ignoreRange: true });
+    await t.studioTranscribe({ file: FILE, go: true }, same.d);
+    assert.strictEqual(same.calls.reserve[0].idemKey, h.calls.reserve[0].idemKey, 'the same file at the same link is still a duplicate');
   }
 
   // ---- Budget and duplicates ----

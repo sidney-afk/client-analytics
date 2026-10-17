@@ -18,7 +18,17 @@ const dir = __dirname;
 // missing page (the same build CI runs through .github/actions/build-index).
 require('../scripts/ensure-built').ensureBuilt();
 const plan = require('../scripts/test-suite-routing').unitPlan();
-const files = plan.files;
+// UNIT_SHARD=k/n (CI runs the lane as parallel parts): every n-th suite from the
+// k-th, so the n parts together run the whole classified list exactly once.
+const shard = unitShard(process.env.UNIT_SHARD);
+const files = plan.files.filter((f, i) => i % shard.n === shard.k - 1);
+if (shard.n > 1) console.log(`unit part ${shard.k} of ${shard.n}: ${files.length} of ${plan.files.length} suites`);
+function unitShard(raw) {
+  if (!raw) return { k: 1, n: 1 };
+  const m = /^(\d+)\/(\d+)$/.exec(raw);
+  if (!m || +m[1] < 1 || +m[1] > +m[2]) throw new Error('UNIT_SHARD must be k/n with 1 <= k <= n, got ' + raw);
+  return { k: +m[1], n: +m[2] };
+}
 for (const proof of plan.deferred) console.log(JSON.stringify({required_test:proof.file,status:proof.status,reason:proof.required_inputs,reproduce:proof.reproduce}));
 
 const failures = [];

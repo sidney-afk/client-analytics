@@ -1,0 +1,55 @@
+name: TEMPORARY flake hunt (session Turbo, removed before merge)
+
+# Runs the browser suites that failed at random on 2026-10-14..17 many times on
+# GitHub's own runners, to see the failure with its detail. Scratch only: this
+# file is deleted from the branch before the pull request is ready.
+on:
+  push:
+    branches: [turbo/faster-pr-checks]
+
+concurrency:
+  group: zz-turbo-flake-hunt
+  cancel-in-progress: true
+
+jobs:
+  hunt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - qa/staff-phone-collections.js --widths=390
+          - qa/staff-phone-collections.js --widths=430
+          - qa/staff-phone-collections.js --widths=390
+          - qa/staff-phone-collections.js --widths=430
+          - qa/staff-phone-collections.js --widths=390
+          - qa/staff-phone-collections.js --widths=390
+          - test/caption-helper-browser.js
+          - test/caption-helper-browser.js
+          - docs/syncview-design/tests/shared-client-browser.js
+          - docs/syncview-design/tests/calendar-refresh-scroll-browser.js
+          - docs/syncview-design/tests/lost-work-drafts-browser.js
+          - test/tiktok-poll-backoff-browser.js
+          - test/tiktok-queue-first-read-browser.js
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build index.html and js/ from src/index/ (build output, not committed)
+        uses: ./.github/actions/build-index
+      - name: Install Playwright into a temp prefix (package.json untouched)
+        run: |
+          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Run the suite repeatedly and count failures
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          SUITE: ${{ matrix.suite }}
+        run: |
+          pass=0; fail=0
+          for i in 1 2 3 4 5 6; do
+            if node $SUITE > out.txt 2>&1; then pass=$((pass+1)); else fail=$((fail+1)); echo "=== run $i FAILED"; grep -E "FAIL|Error|tile move detail|^  [0-9]+ms|^  (repaint|scroll|frame)" out.txt | head -60; fi
+          done
+          echo "RESULT $SUITE pass=$pass fail=$fail" | tee -a "$GITHUB_STEP_SUMMARY"

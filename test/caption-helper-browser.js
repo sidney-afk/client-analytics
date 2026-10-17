@@ -299,6 +299,10 @@ async function runEditor(browser, origin) {
   await t.page.waitForFunction(() => document.getElementById('calCtaTA') && document.getElementById('calCtaTA').getAttribute('data-loaded') === '1', null, { timeout: 5000 });
   expect(await t.page.inputValue('#calCtaTA') === CTAS.join('\n'), 'editor: the saved choices are loaded, one per line');
   await shot(t.page, 'editor-desktop-light');
+  // The dialog puts the caret in the prompt box 30 ms after it opens. The choices usually load sooner than that, so
+  // typing right away could start in the choices box and land in the prompt box when that focus moves (the CI flake
+  // "the choices go one per line"). Wait for the dialog's own focus first, as a person typing always does.
+  await t.page.waitForFunction(() => document.activeElement && document.activeElement.id === 'calPromptTA', null, { timeout: 5000 });
   await t.page.fill('#calCtaTA', 'ALPHA\nBETA\n\nALPHA');
   await t.page.fill('#calPromptTA', 'A tailored prompt for the fixture client.');
   await t.page.locator('#calPromptSaveBtn').click();

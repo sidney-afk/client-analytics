@@ -340,6 +340,13 @@ export function defaultPromptFor(facts) {
   return style ? `${N8N_TITLE_PROMPT}\n\n${STYLE_HEADER}\n\n${style}` : N8N_TITLE_PROMPT;
 }
 
+// True when a default prompt carries the client's Brain title style. It matches on
+// STYLE_HEADER, the same constant defaultPromptFor writes, so the prompt editor's
+// banner (told by thumbnail-title-prompts) can never drift from the prompt again.
+export function hasBrainStyle(prompt) {
+  return String(prompt || "").includes(`\n\n${STYLE_HEADER}\n\n`);
+}
+
 // The prompt actually used: what staff saved, else the seeded default, else
 // the plain n8n instruction.
 export function effectivePrompt(row) {

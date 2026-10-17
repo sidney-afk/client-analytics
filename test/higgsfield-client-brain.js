@@ -107,11 +107,28 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   assert.ok(huge.length <= BRAIN_MAX_CHARS && /the rest of client\.fixture\.voice\.huge was not sent/.test(huge), 'a single fact too long for one answer says so by id');
   assert.strictEqual(firstParagraph('a'.repeat(5000)).more, true, 'a giant first paragraph is shortened and marked');
 
+  // 3b. focus.md: in the head, before the brief, always whole (even when the rest is shortened), and searchable by topic.
+  const focusMd = '# Fixture: focus\n\n' + fact('focus', 'current', 'Current focus', 'Sleep series this month.\n\nDetail: three videos, then a recap.');
+  const focus = parseBrainFacts(focusMd, 'focus').filter((f) => f.status === 'written' && f.body);
+  const fOut = brainView({ name: 'F', brief, focus, facts });
+  assert.ok(fOut.indexOf('# Current focus') > 0 && fOut.indexOf('# Current focus') < fOut.indexOf('# Brief'), 'focus comes before the brief');
+  assert.ok(fOut.includes('Sleep series this month.\n\nDetail: three videos, then a recap.'), 'focus is whole when the brain fits');
+  const fOver = brainView({ name: 'F', brief, focus, facts: [...facts, ...filler] });
+  assert.ok(fOver.length <= BRAIN_MAX_CHARS && /too long for one answer/.test(fOver), 'with the brain over budget the shortened shape is used');
+  assert.ok(fOver.indexOf('# Current focus') < fOver.indexOf('# Brief') && fOver.includes('Detail: three videos, then a recap.') && !fOver.includes('; more)\nSleep'), 'focus stays whole and first, never shortened');
+  const fLong = brainView({ name: 'F', brief, focus, facts: big });
+  assert.ok(fLong.includes('Detail: three videos, then a recap.') && !fLong.split('# Left out for length')[1].includes('focus.current'), 'focus is never left out, even when facts are');
+  assert.ok(!brainView({ name: 'F', brief, facts }).includes('# Current focus'), 'no focus.md, no focus section');
+  assert.ok(brainView({ name: 'F', brief, focus, facts, topic: 'focus' }).includes('Detail: three videos') && brainView({ name: 'F', brief, focus, facts, topic: 'focus' }).includes('every written fact in focus.md'), 'topic "focus" gives focus.md in full');
+  assert.ok(brainView({ name: 'F', brief, focus, facts, topic: 'client.fixture.focus.current' }).includes('Detail: three videos'), 'a focus fact by id');
+  assert.ok(/no written brief or facts/.test(brainView({ name: 'F', brief: '', facts: [] })) && !/no written brief or facts/.test(brainView({ name: 'F', brief: '', focus, facts: [] })), 'focus alone counts as a written brain');
+
   // 4. history.md is never read: the read list is fixed.
   const info = read('supabase/functions/higgsfield-mcp/clientinfo.ts');
   const code = (s) => s.replace(/\/\/.*$/gm, '');
   const brainPart = code(info.slice(info.indexOf('export async function clientBrain'), info.indexOf('export async function brainChange')));
-  assert.ok(/Promise\.all\(\[read\("brief"\), read\("audience"\), \.\.\.BRAIN_FILES\.map\(read\)\]\)/.test(brainPart), 'client_brain reads brief, audience and the fixed list only');
+  assert.ok(/Promise\.all\(\[read\("brief"\), read\("audience"\), read\("focus"\), \.\.\.BRAIN_FILES\.map\(read\)\]\)/.test(brainPart), 'client_brain reads brief, audience, focus and the fixed list only');
+  assert.ok(/brainView\(\{ name: p\.client_name, brief, focus: focusFacts, facts, topic \}\)/.test(brainPart), 'focus facts are passed to brainView on their own');
   assert.ok(!/history/i.test(code(info)), 'clientinfo.ts code never names history.md');
   assert.ok(!/history/i.test(code(read('supabase/functions/higgsfield-mcp/brainview.mjs'))), 'brainview.mjs never reads history');
   assert.ok(!/contents\/clients\/\$\{where\.folder\}\/\$\{file\}/.test(brainPart.replace(/read = async \(file: string\) => \{[\s\S]*?\};/, '')), 'no other file read in client_brain');

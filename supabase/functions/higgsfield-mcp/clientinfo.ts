@@ -176,12 +176,13 @@ export async function brainFolder(slug: string, name: string): Promise<{ folder?
   return { folders, folder: findClientFolder(folders, slug) || findClientFolder(folders, name) || undefined };
 }
 
-// One client's brain: brief.md and every written fact of identity, voice,
-// editing, relationship and audience in full, each with its fact id, when it
-// all fits; when it does not, the brief in full and each fact's first
-// paragraph. With a topic (a fact id, heading words
-// or a file name) the matching facts come in full. Nothing is cut silently:
-// what does not fit is named (brainview.mjs).
+// One client's brain: focus.md first (what the content is focused on right
+// now; always sent whole), then brief.md and every written fact of identity,
+// voice, editing, relationship and audience in full, each with its fact id,
+// when it all fits; when it does not, the brief in full and each fact's first
+// paragraph. With a topic (a fact id, heading words or a file name) the
+// matching facts come in full. Nothing is cut silently: what does not fit is
+// named (brainview.mjs).
 export async function clientBrain(db: SupabaseClient, client: string, topic = ""): Promise<string> {
   if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return "The Synchro Brain is not connected on the server (BRAIN_GITHUB_TOKEN missing).";
   const found = await findClient(db, client);
@@ -198,17 +199,19 @@ export async function clientBrain(db: SupabaseClient, client: string, topic = ""
     if (!r.ok) throw new Error(String(r.status));
     return await r.text();
   };
-  let brief: string, audience: string, texts: string[];
+  let brief: string, audience: string, focus: string, texts: string[];
   try {
-    [brief, audience, ...texts] = await Promise.all([read("brief"), read("audience"), ...BRAIN_FILES.map(read)]);
+    [brief, audience, focus, ...texts] = await Promise.all([read("brief"), read("audience"), read("focus"), ...BRAIN_FILES.map(read)]);
   } catch (e) {
     return `Could not read the Synchro Brain (${(e as Error).message}). Try again in a minute; do not answer as if ${p.client_name} had no brain facts.`;
   }
+  const written = (f: { status: string; body: string }) => f.status === "written" && !!f.body;
+  const focusFacts = parseBrainFacts(focus, "focus").filter(written);
   const facts = [
     ...BRAIN_FILES.flatMap((f, i) => parseBrainFacts(texts[i], f)),
     ...parseAudience(audience),
   ].filter((f: { status: string; body: string }) => f.status === "written" && f.body);
-  return brainView({ name: p.client_name, brief, facts, topic });
+  return brainView({ name: p.client_name, brief, focus: focusFacts, facts, topic });
 }
 
 // Files a change exactly like SyncView's "Send a change" button. The

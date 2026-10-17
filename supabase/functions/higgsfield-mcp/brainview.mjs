@@ -5,8 +5,10 @@
 // still did not fit. With a topic: the facts it names, in full. Whatever does
 // not fit is named, never silently cut.
 //
-// The facts come only from the fixed file list in clientinfo.ts (brief,
-// identity, voice, editing, relationship, audience). history.md holds old
+// The facts come only from the fixed file list in clientinfo.ts (focus,
+// brief, identity, voice, editing, relationship, audience). focus.md (what the
+// content is focused on right now) is part of the head: always sent whole,
+// before the brief, never left out. history.md holds old
 // notes and is never read or served here.
 
 import { parseBrief } from "../brain/parse.mjs";
@@ -15,7 +17,7 @@ export const BRAIN_MAX_CHARS = 60_000;
 // A first paragraph longer than this is shortened too (rare; keeps one huge
 // opening paragraph from crowding out the rest).
 export const FIRST_PARAGRAPH_MAX = 1_500;
-export const BRAIN_FILE_NAMES = ["brief", "identity", "voice", "editing", "relationship", "audience"];
+export const BRAIN_FILE_NAMES = ["focus", "brief", "identity", "voice", "editing", "relationship", "audience"];
 
 const ASK = "call client_brain again with topic set to its fact id (or a heading word such as \"Caption style\", or a file name such as editing)";
 
@@ -89,24 +91,27 @@ function footer(left) {
   return head + [...counts].map(([file, n]) => `${file}.md: ${n} facts (too many to list; ask with the file name, or a heading word)`).join("\n");
 }
 
-// The one place the reply text is built. facts: written facts only, each
-// { file, heading, id, body, sure? }, in reading order.
-export function brainView({ name, brief, facts, topic = "" }) {
+// The one place the reply text is built. focus and facts: written facts
+// only, each { file, heading, id, body, sure? }, in reading order.
+export function brainView({ name, brief, focus = [], facts, topic = "" }) {
   const sections = briefSections(brief);
   const briefText = sections.map((s) => s.text).join("\n\n");
   const t = String(topic || "").trim();
-  if (!briefText && !facts.length) return `${name}: the Synchro Brain has no written brief or facts yet.`;
+  if (!briefText && !facts.length && !focus.length) return `${name}: the Synchro Brain has no written brief or facts yet.`;
 
   if (!t) {
-    const briefBlock = `# Brief\n\n${briefText || "(no brief written yet)"}\n\n# Facts`;
+    const focusBlock = focus.length ? `# Current focus\n\n${focus.map(fullFact).join("\n\n")}\n\n` : "";
+    const briefBlock = `${focusBlock}# Brief\n\n${briefText || "(no brief written yet)"}\n\n# Facts`;
     // The whole brain first; sent as is when it fits.
     const whole = `${name}, from the Synchro Brain: the brief and every written fact, in full.\n\n${briefBlock}\n\n${facts.length ? facts.map(fullFact).join("\n\n") : "(no written facts yet)"}`;
     if (whole.length <= BRAIN_MAX_CHARS) return whole;
-    const head = `${name}, from the Synchro Brain. The whole brain is too long for one answer, so the brief is in full and each fact shows its first paragraph; a fact marked "more" has more detail. When you need more on a topic, ${ASK}.\n\n${briefBlock}`;
+    const head = `${name}, from the Synchro Brain. The whole brain is too long for one answer, so the current focus and the brief are in full and each fact shows its first paragraph; a fact marked "more" has more detail. When you need more on a topic, ${ASK}.\n\n${briefBlock}`;
     return fit(head, facts.map(shortFact), facts);
   }
 
   const want = norm(t.replace(/\.md$/i, ""));
+  // With a topic, focus facts are searched like any other.
+  facts = [...focus, ...facts];
 
   // A file name: that whole file, in full.
   const file = BRAIN_FILE_NAMES.find((f) => f === want);

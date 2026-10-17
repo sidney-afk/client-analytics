@@ -71,7 +71,14 @@ async function main(){
     assert.equal(await post.locator('.ico-post').count(),1,'Phone Tabs retains the Post icon');
     await shot(page,type+'-tabs',width,theme);
     await page.getByRole('dialog',{name:'Tabs',exact:true}).getByRole('button',{name:'Close Tabs',exact:true}).tap();
-    if(await root.getByRole('button',{name:'Grid view',exact:true}).getAttribute('aria-pressed')!=='true')await root.getByRole('button',{name:'Grid view',exact:true}).tap();
+    if(await root.getByRole('button',{name:'Grid view',exact:true}).getAttribute('aria-pressed')!=='true'){
+     await root.getByRole('button',{name:'Grid view',exact:true}).tap();
+     // Switching display puts back that display's remembered scroll in the
+     // next animation frame. On a fast runner the scroll set below can land
+     // first and be reset to 0, which reads as the tile moving. Frame
+     // callbacks run in order, so one queued now runs after the page's.
+     await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>r())));
+    }
     await root.locator('.thumb-tile').first().waitFor();
     assert.equal(await root.locator('.thumb-tile').count(),12,'Grid must keep all filtered cards');
     assert.equal(await root.locator('.thumb-collection-grid').evaluate(n=>getComputedStyle(n).gridTemplateColumns.split(' ').length),3,'Exactly three columns');

@@ -52,7 +52,7 @@ jobs:
 
   production-polish:
     needs: schedule-guard
-    if: ${{ !cancelled() && (needs.schedule-guard.result == 'skipped' || needs.schedule-guard.outputs.run == 'true') }}
+    if: ${{ !cancelled() && (needs.schedule-guard.result == 'skipped' || (needs.schedule-guard.result == 'success' && needs.schedule-guard.outputs.run == 'true')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -99,7 +99,7 @@ jobs:
 
   production-polish-interaction:
     needs: schedule-guard
-    if: ${{ github.event_name != 'pull_request' && !cancelled() && (needs.schedule-guard.result == 'skipped' || needs.schedule-guard.outputs.run == 'true') }}
+    if: ${{ github.event_name != 'pull_request' && !cancelled() && (needs.schedule-guard.result == 'skipped' || (needs.schedule-guard.result == 'success' && needs.schedule-guard.outputs.run == 'true')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -144,7 +144,7 @@ jobs:
 
   production-polish-heavy:
     needs: schedule-guard
-    if: ${{ github.event_name != 'pull_request' && !cancelled() && (needs.schedule-guard.result == 'skipped' || needs.schedule-guard.outputs.run == 'true') }}
+    if: ${{ github.event_name != 'pull_request' && !cancelled() && (needs.schedule-guard.result == 'skipped' || (needs.schedule-guard.result == 'success' && needs.schedule-guard.outputs.run == 'true')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

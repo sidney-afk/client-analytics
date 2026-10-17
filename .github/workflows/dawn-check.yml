@@ -33,7 +33,7 @@ jobs:
 
   dawn:
     needs: schedule-guard
-    if: ${{ !cancelled() && (needs.schedule-guard.result == 'skipped' || needs.schedule-guard.outputs.run == 'true') }}
+    if: ${{ !cancelled() && (needs.schedule-guard.result == 'skipped' || (needs.schedule-guard.result == 'success' && needs.schedule-guard.outputs.run == 'true')) }}
     # One browser run on the test client at a time: the Samples and Calendar
     # nightlies and the dawn check share this queue (OPEN_REPAIRS 403).
     concurrency:

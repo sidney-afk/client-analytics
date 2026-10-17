@@ -47,7 +47,7 @@ jobs:
 
   sync:
     needs: schedule-guard
-    if: ${{ !cancelled() && (needs.schedule-guard.result == 'skipped' || needs.schedule-guard.outputs.run == 'true') }}
+    if: ${{ !cancelled() && (needs.schedule-guard.result == 'skipped' || (needs.schedule-guard.result == 'success' && needs.schedule-guard.outputs.run == 'true')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:

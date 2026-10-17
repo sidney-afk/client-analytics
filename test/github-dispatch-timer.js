@@ -129,7 +129,7 @@ const GUARD_JOB = [
   '      actions: read',
   '      contents: read',
 ].join('\n');
-const GATE = "!cancelled() && (needs.schedule-guard.result == 'skipped' || needs.schedule-guard.outputs.run == 'true')";
+const GATE = "!cancelled() && (needs.schedule-guard.result == 'skipped' || (needs.schedule-guard.result == 'success' && needs.schedule-guard.outputs.run == 'true'))";
 
 // 2 and 3. Each dispatch matches its workflow.
 for (const row of rows) {

@@ -54,6 +54,7 @@ export function privateIp(ip) {
   if (zeros(0, 5) && g[5] === 0xffff) return embedded(g[6], g[7]);             // ::ffff:a.b.c.d (mapped)
   if (zeros(0, 6)) return true;                                                // ::a.b.c.d (deprecated compat): never public
   if (g[0] === 0x64 && g[1] === 0xff9b && zeros(2, 6)) return embedded(g[6], g[7]); // NAT64
+  if (g[0] === 0x64 && g[1] === 0xff9b && g[2] === 1) return true;              // 64:ff9b:1::/48 local-use NAT64 (RFC 8215)
   if (g[0] === 0x2002) return embedded(g[1], g[2]);                            // 6to4
   if ((g[0] & 0xfe00) === 0xfc00) return true;                                 // fc00::/7 unique local
   if ((g[0] & 0xffc0) === 0xfe80) return true;                                 // fe80::/10 link local

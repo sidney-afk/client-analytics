@@ -33432,3 +33432,19 @@ The slow-network misses after the change (boot budget and heavy lane, 1 run in 5
 **Test.** `test/staff-gate-stub-refusal-local.js` case 7 (offline): invented keys are replaced, a real key and a client token are sent as they were, no or an invented runner key registers nothing, production-write keeps its local refusal.
 
 **Way back:** revert the pull request.
+
+## 431. [2026-10-17, BUILT, NOT MERGED] Opening the Notes dialog said "nothing is loading" for a moment, so a note sent right then was refused (session Probe)
+
+**Symptom.** Calendar E2E nightly run 39030882205 (2026-10-17 12:01 UTC, main) failed 3 of 63 probes, all on the first note sent from the Notes dialog: p60 "internal note: role smm / audience internal / not a tweak", p61 "comment: role client / audience client / not a tweak (got undefined)" and "SMM sees the client comment + change-request + reply", p76 "caption note is in caption_tweaks" and "_calCommentsFor(caption) returns only the caption note". The note was never saved, so the checks found nothing (the later notes in the same probes saved normally). Session Twin's run of the same 63 at about 07:00 UTC passed.
+
+**Cause.** #2130 (session Encore, merged 09:14 UTC) changed how opening the dialog starts the notes read: `openCalComments` used to call `_prodProjectCanonicalCardComments` directly, which marks the card's link lookup as running before its first wait; it now goes through `_calNotesWarm`, which started it with `Promise.resolve().then(...)`, one tick later. In that moment the Send gate (`_calCommentSendPending`) said nothing was loading: the dialog's first paint drew Send ready, and the probes' `waitForNoteThread` (which checks the app's own Send condition) returned at once. The lookup then started and `_calAppendComment` refused the note as "Notes are still loading". The refusal is safe (it happens before the box is cleared, so the words stay), but the gate was wrong for that moment.
+
+**Bisect (the three probes run directly against the live backend, page built at each commit, current harness).** 06a59fe (#2131, the new review page, with its switches on for the test client): 14/14, 12/12, 12/12. fbafa7d (#2130): exactly the nightly's failures. Current main: same failures. The review page is ruled out by the first result. Note for anyone bisecting: `qa/run-probes.js` rebuilds `index.html` from the current `src/index/` before serving (`ensureBuilt`), so to test an older page serve it yourself and run the probe files directly.
+
+**Real users.** None affected. Since 09:20 UTC no note was written on any real client (calendar card threads: 0; `production_comments`: 0, last real one 2026-10-16 22:22 UTC). The 31 test-client note entries saved in that window (card thread columns, roots) all carry role, audience and the change-request flag; the 109 real `production_comments` of the last 7 days all carry role and audience. A person cannot normally press Send within the few milliseconds the gap lasted, and a refused note keeps its text.
+
+**Change.** `_calNotesWarm` starts the read at once, inside an async wrapper (so a thrown error is still a rejection): the lookup is marked as running before `openCalComments` returns, as before #2130. Encore's gains stay (the read still starts on pointing at a door, is reused by the open, and runs beside the link check). No probe was changed.
+
+**Proof.** `docs/syncview-design/tests/note-send-outbox-browser.js` lane M (offline, desktop and phone): straight after `openCalComments` the lookup is running and Send is drawn waiting; it fails on main (in flight false) and passes with the change (90 of 90). Live, test client only, with the change: p60 14/14, p61 12/12, p76 12/12, and p62, p64, p75 pass.
+
+**Way back:** revert the pull request.

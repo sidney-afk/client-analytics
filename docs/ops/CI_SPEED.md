@@ -1,6 +1,6 @@
 # CI speed: from "PR opened" to green
 
-Session Turbo, 2026-10-17 (PR #2136, OPEN_REPAIRS 427). Owner's goal: much faster pull request checks, no test
+Session Turbo, 2026-10-17 (PR #2136, OPEN_REPAIRS 428). Owner's goal: much faster pull request checks, no test
 weakened, runner minutes are fine to spend.
 
 ## What was slow (measured on the Actions history, 2026-10-14 to 2026-10-17)
@@ -72,7 +72,7 @@ belongs to a personal account), and they cost money per minute even on public re
 
 ## After
 
-See the table in OPEN_REPAIRS 427 (filled from the runs on PR #2136 and the first merges after it).
+See the table in OPEN_REPAIRS 428 (filled from the runs on PR #2136 and the first merges after it).
 
 ## Running everything by hand
 

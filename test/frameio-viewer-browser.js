@@ -956,7 +956,7 @@ async function notesTimes(browser, origin, label, device, checks) {
     const state = makeState({ crosswalkDelay: 200, notesDelay: 1900, serverModel: true, mediaDelay: { small: 230, full: 330 }, notesRows: { 'del-v1': NOTE_ROWS(3) },
       cards: [card('v1', 'Video card', FRAME, 1, { thumbnail_url: POSTER_URL, video_deliverable_id: 'del-v1' })] });
     const { page, ctx, pageErrors } = await openCalendar(browser, origin, state, device);
-    await sleep(2500); // the page's own first reads settle
+    await sleep(1200); // the page's own first reads settle
     state.notesCalls = []; state.crosswalkCalls = [];
     const BTN = '[data-comments-btn="v1"]';
     await page.locator(BTN).scrollIntoViewIfNeeded();
@@ -986,7 +986,9 @@ async function notesTimes(browser, origin, label, device, checks) {
     await page.locator(BTN).click();
     await page.waitForFunction(() => window.__noteAt > 0, null, { polling: 16, timeout: 15000 });
     const noteMs = await page.evaluate(() => Math.round(window.__noteAt));
-    await sleep(2600);
+    // Keep watching a moment after the notes land (and the Frame.io rows, which arrive on their own), for any late shift.
+    await page.waitForFunction(() => document.querySelectorAll('#calCommentsFeed .cal-cm-row:not(.is-frameio)').length >= 3 && !document.querySelector('#calCommentsFeed .cal-cm-skeleton'), null, { timeout: 8000 }).catch(() => {});
+    await sleep(500);
     const w = await page.evaluate(() => ({ moves: window.__moves, sync: window.__syncText, skel: window.__skelSeen, pending: window.__sendPendingSeen, notes: document.querySelectorAll('#calCommentsFeed .cal-cm-row:not(.is-frameio)').length }));
     out[scenario] = { noteMs, notesReadStartMs: state.notesCalls.length ? state.notesCalls[0].at - t0 : null, crosswalkStartMs: state.crosswalkCalls.length ? state.crosswalkCalls[0] - t0 : null, watch: w };
     if (checks) {

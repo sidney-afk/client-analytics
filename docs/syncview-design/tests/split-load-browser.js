@@ -76,9 +76,31 @@ const LAZY_VIEWS = {
     { route: 'client-credentials', drawn: '.sv-staff-page' },
   ],
 };
+// On-demand areas that are not tabs: something on a page loads them when a switch says yes, and nobody else ever
+// downloads them (no background fetch). Each names the test that opens it.
+const SWITCH_ONLY = {
+  reviewstage: 'test/review-stage-browser.js (the new review page, loaded by 188 only when its switch is on)',
+};
 async function lazyChecks(browser, origin, failures) {
   const lazyNames = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'index', 'split.json'), 'utf8')).lazy || [];
   for (const name of lazyNames) {
+    if (SWITCH_ONLY[name]) {
+      const context = await browser.newContext();
+      await context.route(u => !/^http:\/\/127\.0\.0\.1/.test(u.toString()), empty);
+      const fetched = [];
+      await context.route(new RegExp(`/js/sv-\\d\\d-${name}-[0-9a-f]+\\.js$`), r => { fetched.push(r.request().url()); return r.continue(); });
+      await seedStaffGate(context);
+      const page = await context.newPage();
+      await page.goto(origin + '/', { waitUntil: 'load' });
+      await page.waitForFunction(() => typeof window.navTo === 'function', null, { timeout: 20000 });
+      await page.waitForTimeout(6500);   // past the background fetch of the other areas
+      const st = await page.evaluate(n => ({ lazy: !!(self.__svLoad && self.__svLoad.lazy && self.__svLoad.lazy[n]), ran: (self.__svParts || []).some(f => f.includes('-' + n + '-')) }), name);
+      if (!st.lazy) failures.push(`${name}: not listed as on demand in the parts page`);
+      if (st.ran || fetched.length) failures.push(`${name}: downloaded with nothing asking for it (${fetched.length} download(s))`);
+      console.log(`split-load: ${name} (switch only, opened by ${SWITCH_ONLY[name]}): ${st.lazy ? 'listed' : 'NOT listed'}, ${fetched.length} download(s) with the switch off`);
+      await context.close();
+      continue;
+    }
     const views = LAZY_VIEWS[name];
     const view = views && views[0];
     if (!view) { failures.push(`lazy area "${name}" has no view in LAZY_VIEWS; add how to open it`); continue; }
@@ -252,7 +274,7 @@ async function lazyChecks(browser, origin, failures) {
           const state = await page.evaluate(() => ({ mode: self.__svLoad && self.__svLoad.mode, client: self.__svLoad && self.__svLoad.client, lazyKnown: Object.keys((self.__svLoad && self.__svLoad.lazy) || {}).sort(), ran: self.__svParts || [], files: (self.__svLoad && self.__svLoad.files) || [] }));
           if (state.mode !== 'parts' || state.client !== true) failures.push(`client link (${surface}): expected parts with client=true, got ${JSON.stringify({ mode: state.mode, client: state.client })}`);
           if (state.files.some(f => !state.ran.includes(f))) failures.push(`client link (${surface}): a code file did not run`);
-          if (state.lazyKnown.join() !== 'kasper,templates,tiktok,workload') failures.push(`client link (${surface}): on-demand areas are not registered for a later load: ${state.lazyKnown.join()}`);
+          if (state.lazyKnown.join() !== 'kasper,reviewstage,templates,tiktok,workload') failures.push(`client link (${surface}): on-demand areas are not registered for a later load: ${state.lazyKnown.join()}`);
           if (fetchedLazy.length) failures.push(`client link (${surface}): fetched staff-only code it does not use: ${fetchedLazy.join(', ')}`);
           if (!drew) failures.push(`client link (${surface}): the review card did not draw on the parts`);
           if (errors.length) failures.push(`client link (${surface}): page errors: ${errors.slice(0, 2).join(' | ')}`);

@@ -566,6 +566,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/shared-client-browser.js
+      - name: Top bar keeps flat tabs on a page with no tab of its own (Messages)
+        if: ${{ !cancelled() && matrix.part == 4 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/header-nav-no-active-tab-browser.js
       # n8n exit (PRs 2 and 3): the Calendar write guard, the caption prompt read
       # and save, and the proof that the client approve and request-changes
       # requests are byte-identical to main. Fully mocked, no backend.

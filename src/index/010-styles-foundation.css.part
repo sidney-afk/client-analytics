@@ -2687,6 +2687,9 @@
         html:not([data-boot-nav]) #headerNav.pill-ready .header-nav-btn:hover { background: var(--bg); border-color: var(--sv-border-aaa); color: var(--text-primary); }
         html:not([data-boot-nav]) #headerNav.pill-ready .header-nav-btn.active { background: transparent; border-color: transparent; color: var(--white); }
         html:not([data-boot-nav]) #headerNav.pill-ready .header-nav-btn.active:hover { background: transparent; border-color: transparent; color: var(--white); }
+        /* No tab of this page in the bar (Messages): same flat tabs, no pill. */
+        html:not([data-boot-nav]) #headerNav.pill-idle .header-nav-btn { background: transparent; border-color: transparent; }
+        html:not([data-boot-nav]) #headerNav.pill-idle .header-nav-btn:hover { background: var(--bg); border-color: var(--sv-border-aaa); color: var(--text-primary); }
         @media (prefers-reduced-motion: reduce) { .header-nav-pill { transition: none; } }
 
         /* Linear form */

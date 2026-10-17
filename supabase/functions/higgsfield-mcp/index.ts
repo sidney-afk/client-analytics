@@ -17,7 +17,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
-import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, cleanWho, isTeamLink, logActivity, outcomeOf } from "./who.mjs";
+import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, cleanWho, isTeamLink, logActivity, outcomeOf, teamTools, whoRefusal } from "./who.mjs";
 import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
 import { guideIndex, guideReply, latestGuides } from "./guides.mjs";
 import { STUDIO_BUCKET, studioLatest } from "./studio.mjs";
@@ -1096,6 +1096,10 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   // Who is recorded as the maker: the person's own name on a personal link; on
   // the shared team link, "<first name> (team)" when "who" is given.
   const author = authorFor(member, args.who);
+  // On the shared team link a brain save must name the person; refused before
+  // anything is read or written.
+  const refusal = whoRefusal(member, name, args.who);
+  if (refusal) return refusal;
   const inputsOf = (): JsonMap => (args.inputs && typeof args.inputs === "object" && !Array.isArray(args.inputs) ? args.inputs as JsonMap : {});
 
   if (name === "start_here") {
@@ -1457,7 +1461,7 @@ Deno.serve(async (req) => {
     });
   }
   if (method === "ping") return reply({ jsonrpc: "2.0", id, result: {} });
-  if (method === "tools/list") return reply({ jsonrpc: "2.0", id, result: { tools: TOOLS } });
+  if (method === "tools/list") return reply({ jsonrpc: "2.0", id, result: { tools: teamTools(TOOLS, member) } });
   if (method === "resources/list") {
     return reply({ jsonrpc: "2.0", id, result: { resources: [{ uri: VIEWER_URI, name: "Result viewer", description: "Shows finished images and videos in the chat.", mimeType: VIEWER_MIME }] } });
   }

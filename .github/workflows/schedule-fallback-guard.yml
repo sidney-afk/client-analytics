@@ -11,7 +11,10 @@ name: Schedule fallback guard
 # newest slot that was due (scripts/schedule-fallback-guard.js). If it did,
 # `run` is 'false' and the caller's other jobs are skipped. If it did not (the
 # timer is down), or the question cannot be answered, `run` is 'true' and the
-# copy runs exactly as before. Every other event gets 'true' without a checkout.
+# copy runs exactly as before. Callers run this job only for a schedule copy
+# (their own condition, 2026-10-17, session Throttle), so the
+# timer's own runs no longer wait for a runner just to hear 'true'; called for
+# any other event it still answers 'true' without a checkout.
 on:
   workflow_call:
     outputs:

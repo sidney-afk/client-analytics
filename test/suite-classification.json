@@ -3,6 +3,7 @@
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
     "ci-changes.js",
+    "ci-runner-seats.js",
     "ci-shards-wired.js",
     "ef-auto-deploy.js",
     "pages-build-inputs.js",
@@ -16,6 +17,7 @@
     "date-only-team-zone.js",
     "higgsfield-create-unconfirmed.js",
     "higgsfield-team-who.js",
+    "higgsfield-team-who-required.js",
     "higgsfield-activity-log.js",
     "higgsfield-guides.js",
     "higgsfield-nano-banana-off.js",

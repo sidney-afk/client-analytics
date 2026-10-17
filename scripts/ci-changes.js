@@ -73,7 +73,10 @@ function closureOf(starts) {
     const rel = stack.pop();
     if (seen.has(rel)) continue;
     const abs = path.join(ROOT, rel);
-    if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) continue;
+    // A file a suite starts or names that is gone stays in the closure: a pull
+    // request that deletes it must still run the jobs that would now fail.
+    if (!fs.existsSync(abs)) { seen.add(rel); continue; }
+    if (!fs.statSync(abs).isFile()) continue;
     seen.add(rel);
     if (!/\.(js|mjs|cjs)$/.test(rel)) continue;
     const src = fs.readFileSync(abs, 'utf8');
@@ -129,8 +132,12 @@ function decide(files, opts) {
   let browserSrc = null, phoneSrc = null;
   const browserReadsFn = f => fnOf(f) && namesFunction(browserSrc || (browserSrc = read(new Set([...c.browser, ...c.phone]))), fnOf(f));
   const phoneReadsFn = f => fnOf(f) && namesFunction(phoneSrc || (phoneSrc = read(c.phone)), fnOf(f));
-  const browserBy = files.find(f => isPageFile(f) || !isOutsideBrowser(f) || c.browser.has(f) || c.phone.has(f) || browserReadsFn(f));
-  const phoneBy = files.find(f => isPageFile(f) || isStaffPhoneFile(f) || c.phone.has(f) || phoneReadsFn(f));
+  // A deleted or renamed-away file is checked against nothing that still names
+  // it, so only docs may go without the browser suites.
+  const deleted = new Set(opts.deleted || []);
+  const goneCode = f => deleted.has(f) && !(/^docs\/(?!syncview-design\/)/.test(f) || (/\.md$/i.test(f) && !/^src\//.test(f)));
+  const browserBy = files.find(f => isPageFile(f) || !isOutsideBrowser(f) || c.browser.has(f) || c.phone.has(f) || browserReadsFn(f) || goneCode(f));
+  const phoneBy = files.find(f => isPageFile(f) || isStaffPhoneFile(f) || c.phone.has(f) || phoneReadsFn(f) || (goneCode(f) && /^(qa|docs\/syncview-design)\//.test(f)));
   return {
     browser: !!browserBy,
     phone: !!phoneBy,
@@ -148,18 +155,26 @@ function changedFiles(base, head) {
   catch (e) { out = git(['diff', '--name-only', '--no-renames', '-z', base, head]); }
   return out.split('\0').filter(Boolean);
 }
+function deletedFiles(base, head) {
+  const git = args => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' });
+  let out;
+  try { out = git(['diff', '--name-only', '--no-renames', '--diff-filter=D', '-z', base + '...' + head]); }
+  catch (e) { out = git(['diff', '--name-only', '--no-renames', '--diff-filter=D', '-z', base, head]); }
+  return out.split('\0').filter(Boolean);
+}
 
-module.exports = { isPageFile, isOutsideBrowser, suiteFiles, closureOf, closures, namesFunction, decide, changedFiles, jobBlock };
+module.exports = { isPageFile, isOutsideBrowser, suiteFiles, closureOf, closures, namesFunction, decide, changedFiles, deletedFiles, jobBlock };
 
 if (require.main === module) {
   const [event, base, head] = process.argv.slice(2);
   if (!event) throw new Error('Usage: node scripts/ci-changes.js <event> <base> <head>');
-  let files = [];
+  let files = [], deleted = [];
   if (event === 'pull_request') {
     if (!base || !head) throw new Error('A pull request needs its base and head commits');
     files = changedFiles(base, head);
+    deleted = deletedFiles(base, head);
   }
-  const d = decide(files, { event });
+  const d = decide(files, { event, deleted });
   if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, 'browser=' + d.browser + '\nphone=' + d.phone + '\n');
   console.log('CHANGED FILES: ' + (event === 'pull_request' ? files.length : 'not a pull request'));
   console.log('BROWSER SUITES: ' + (d.browser ? 'run' : 'skip') + ' (' + d.why.browser + ')');

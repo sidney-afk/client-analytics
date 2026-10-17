@@ -65,6 +65,17 @@ for (const f of ['qa/staff-phone-collections.js', 'qa/staff-phone-final-pass.js'
 // A mix is as strong as its strongest file.
 expectRun(['docs/ops/OPEN_REPAIRS.md', 'src/index/160-calendar-organize-ui.js.part'], ['browser', 'phone'], 'one page file is enough');
 
+// A deleted suite, or any deleted code, still runs the browser suites; a deleted doc does not.
+for (const f of ['test/caption-helper-browser.js', 'test/some-unit-test.js', 'qa/staff-phone-collections.js']) {
+  assert(c.decide([f], { event: 'pull_request', closures, deleted: [f] }).browser, 'deleting ' + f + ' must run the browser suites');
+  checks++;
+}
+assert(c.decide(['qa/staff-phone-collections.js'], { event: 'pull_request', closures, deleted: ['qa/staff-phone-collections.js'] }).phone, 'deleting a phone suite runs the phone matrix');
+assert(!c.decide(['docs/ops/OLD.md'], { event: 'pull_request', closures, deleted: ['docs/ops/OLD.md'] }).browser, 'deleting a doc needs no browser suite');
+// A file the workflow starts that no longer exists stays in the closure.
+assert(c.closureOf(['test/no-such-browser-suite.js']).has('test/no-such-browser-suite.js'), 'a missing started suite must stay in the closure');
+checks += 3;
+
 // What may skip: docs, one Edge Function no browser suite loads, its tests, migrations.
 expectSkip(['docs/ops/OPEN_REPAIRS.md', 'docs/STATE_OF_THINGS.md', 'README.md', 'AGENTS.md', 'REPO_MAP.md'], ['browser', 'phone'], 'docs only');
 expectSkip(['supabase/functions/production-write/index.ts', 'test/production-write-edge-function.js'], ['browser', 'phone'], 'one Edge Function and its unit test');

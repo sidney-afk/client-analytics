@@ -30,7 +30,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                  Ask for a change   _calReviewRequestTweak; a note: _calReviewComment (team only) or the same
                                     outbox with audience client (Client can see), as the Notes dialog does
                  Edit               _calOnFieldBlur on caption / name, the Sheet's own save
-                 Notify client      notifyClientOpen('calendar')
+                 Notify client      the Calendar's own bar above the page (the same button as on Sheet)
          Kasper  Approve            _kasperApproveComp(pid, comp, 'client')
                  Approve after tweaks  _kasperApproveAfterTweaksComp (with his note)
                  Ask for a change   _kasperRequestTweakComp; Tweaks are on Frame is the same with that message
@@ -519,6 +519,10 @@ svg{display:block;flex-shrink:0}
 .rs{background:var(--bg);color:var(--text-primary);font-family:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.45}
 .app{height:calc(100vh - var(--rs-top,0px));height:calc(100dvh - var(--rs-top,0px));min-height:560px;padding-block:6px 14px}
 .rs.in-kasper .app{padding-left:0;padding-right:0}
+/* The staff Review tab sits straight under the Calendar's own bar, the same gap as Sheet's cards, on the page's
+   own background: no frame of its own (188). */
+.rs.smm{background:transparent}
+.rs.smm .app{padding-top:0}
 .stage,.stage.land{grid-template-columns:minmax(0,1fr) 360px;grid-template-rows:auto minmax(0,1fr);row-gap:12px}
 .stage .side{grid-column:1;grid-row:1;flex-direction:column;align-items:flex-start;gap:4px;padding:0 4px}
 .stage .theatre{grid-column:1;grid-row:2}.stage .chat{grid-column:2;grid-row:1/3}
@@ -560,9 +564,6 @@ svg{display:block;flex-shrink:0}
 .player.rs-novid .nv a{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;background:#fff;color:#111110;font-weight:700}
 .bigthumb .tframe{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-size:.84rem;font-weight:600;color:var(--text-secondary)}
 .bigthumb .tframe a{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;background:var(--deck);box-shadow:inset 0 0 0 1px var(--border);color:var(--text-primary);font-weight:700}
-.notify{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 15px;border-radius:10px;background:var(--accent);color:#fff;font-size:.8rem;font-weight:700;white-space:nowrap;transition:background .14s,transform .08s}
-.notify:hover{background:var(--accent-hover)}
-.notify svg{width:14px;height:14px}
 .help-btn{width:38px;height:38px;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-secondary);background:var(--fill);font-size:.95rem;font-weight:800;transition:background .14s,color .14s}
 .help-btn:hover{background:var(--fill-hover);color:var(--text-primary)}
 .help-ovl{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.6);animation:rise .18s var(--ease)}
@@ -903,23 +904,21 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 
     /* ---------- the shell ---------- */
     function _rsHeaderHtml() {
-        if (R.mode === 'kasper') return '';
-        const tabs = R.mode === 'client'
-            ? [['review', 'Review'], ['organizer', 'Sheet'], ['month', 'Month'], ['week', 'Week']]
-            : [['smmreview', 'Review'], ['organizer', 'Sheet'], ['month', 'Month'], ['week', 'Week']];
-        const right = R.mode === 'client'
-            ? '<button class="help-btn" id="rsHelp" type="button" aria-label="How this page works" title="How this page works" hidden>?</button>'
-              + '<button class="theme-btn" id="rsTheme" type="button" aria-label="Switch to dark mode" title="Switch to dark mode"></button>'
-            : '<button class="notify" id="rsNotify" type="button">' + RI.bell + 'Notify client</button>';
+        // Kasper's tab and the staff Calendar draw no header of their own: the staff Review tab sits under the
+        // Calendar's own bar, the same one Sheet, Month and Week show (188), so nothing moves between the tabs.
+        if (R.mode !== 'client') return '';
+        const tabs = [['review', 'Review'], ['organizer', 'Sheet'], ['month', 'Month'], ['week', 'Week']];
+        const right = '<button class="help-btn" id="rsHelp" type="button" aria-label="How this page works" title="How this page works" hidden>?</button>'
+            + '<button class="theme-btn" id="rsTheme" type="button" aria-label="Switch to dark mode" title="Switch to dark mode"></button>';
         // The client link's header is its only one on all four tabs (188): a fixed slot holds the old bar's tools on
         // Sheet, Month and Week, left of the pill toggle, so neither the toggle nor the sun/moon button ever moves.
-        const tools = R.mode === 'client' ? '<div class="hdr-tools" id="rsTools" hidden><slot name="tools"></slot></div>' : '';
+        const tools = '<div class="hdr-tools" id="rsTools" hidden><slot name="tools"></slot></div>';
         return '<header class="hdr"><div class="hdr-who"><h1 id="rsName"></h1><span class="sub">Content calendar</span></div>' + tools + '<div class="hdr-r">'
             + '<nav class="tabs" id="rsTabs" aria-label="Calendar views">' + tabs.map((t, i) => '<button class="cal-view-btn' + (i ? '' : ' active') + '" type="button" data-tab="' + t[0] + '">' + t[1] + (i ? '' : ' <b class="badge num" id="rsBadge"></b>') + '</button>').join('') + '</nav>'
             + right + '</div></header>';
     }
     function _rsShellHtml() {
-        return '<div class="rs' + (R.mode === 'kasper' ? ' in-kasper' : R.mode === 'client' ? ' client' : '') + '"><div class="app" id="rsApp">' + _rsHeaderHtml()
+        return '<div class="rs' + (R.mode === 'kasper' ? ' in-kasper' : R.mode === 'client' ? ' client' : ' smm') + '"><div class="app" id="rsApp">' + _rsHeaderHtml()
             + '<nav class="strip" id="strip" aria-label="Posts waiting for review"><div class="sk-head" id="skHead"></div><div class="sk-list" id="skList"></div></nav>'
             + '<main class="stage" id="stage">'
             + '<aside class="side" id="side" aria-label="This post"></aside>'
@@ -1010,8 +1009,6 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (th) th.addEventListener('click', () => { window.toggleSyncViewTheme(); _rsSyncTheme(); });
         const hp = _rsQ('rsHelp');
         if (hp) hp.addEventListener('click', _rsHelpOpen);
-        const nt = _rsQ('rsNotify');
-        if (nt) nt.addEventListener('click', () => window.notifyClientOpen('calendar'));
         // The strip: the ordinary mouse wheel moves it sideways while the pointer is over it (owner, 2026-10-16).
         // A trackpad's sideways swipe already scrolls it; the page scrolls on when the strip has nowhere to go.
         const sl = _rsQ('skList');

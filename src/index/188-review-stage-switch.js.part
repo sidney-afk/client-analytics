@@ -172,7 +172,13 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         if ((on || full || de.classList.contains('sv-rs-kasper')) && !_rsChromeStyle) {
             _rsChromeStyle = document.createElement('style');
             _rsChromeStyle.id = 'svReviewStageChrome';
-            _rsChromeStyle.textContent = 'html.sv-rs-cal #calView{display:none!important}'
+            // The client link's Review hides the whole calendar (the new page's header heads it). The staff Review
+            // tab keeps the calendar's own bar (client tabs, the Review | Sheet | Month | Week toggle, Notify client)
+            // exactly where it sits on Sheet, Month and Week, and only the old list under it steps aside, so the
+            // toggle never moves and there is no second header (owner feedback 2026-10-17, session Curtain Four).
+            _rsChromeStyle.textContent = 'html.sv-rs-cal.sv-rs-client #calView{display:none!important}'
+                + 'html.sv-rs-cal:not(.sv-rs-client) #calView>:not(.cal-toolbar){display:none!important}'
+                + 'html.sv-rs-cal:not(.sv-rs-client) #calView{padding-bottom:0!important}'
                 + 'html.sv-rs-cal.sv-rs-client .client-view.cal-tab-view>.view-tab-toggle,html.sv-rs-cal.sv-rs-client #pageTitle,html.sv-rs-cal.sv-rs-client #pageSub{display:none!important}'
                 // Kasper (the approved design): his title and tabs on one row, the page at full width.
                 + 'html.sv-rs-kasper .kasper-wrap{max-width:none;display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:22px;align-items:center}'

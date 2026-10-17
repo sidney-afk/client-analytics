@@ -75,6 +75,13 @@ video with its notes" hover tooltip is gone from the player doors (staff Sheet a
 used the Frame.io player wherever `frame_viewer_clients` allows the client (live for the test client). Test:
 `node test/review-stage-client-layout-browser.js`.
 
+**Staff Review tab under the staff bar (session Curtain Four, owner feedback 2026-10-17):** for a switched-on client the
+SMM's Calendar Review tab keeps the Calendar's own bar (the Review | Sheet | Month | Week toggle on the left, Notify
+client, the menu), so the toggle sits in exactly the same place on all four tabs, and the new page draws no
+"<client> Content calendar" heading of its own (the client switcher already names the client). The client link and
+Kasper's tab are unchanged; with the switch off the staff page is today's. Test:
+`node test/review-stage-staff-layout-browser.js`.
+
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone
 layout follows the desktop one and has not been polished on its own (as the handoff said).

@@ -364,7 +364,7 @@ There are 46 entrypoint folders and one shared helper folder here. The live proj
 
 | Live function | Owner and purpose | Deployment finding |
 | --- | --- | --- |
-| <!-- atlas:edge pipeline-google -->[`pipeline-google`](../supabase/functions/pipeline-google/index.ts) | The filming-plan pipeline reads and writes Docs, Sheets and Drive with the pipeline key (moved from synchro-pipelines 2026-10-16). | Live v26 (2026-10-16, first deploy from this repo, #2126). [deploy-edge-functions-on-merge.yml](../.github/workflows/deploy-edge-functions-on-merge.yml); fallback [deploy-single-function.yml](../.github/workflows/deploy-single-function.yml) |
+| <!-- atlas:edge pipeline-google -->[`pipeline-google`](../supabase/functions/pipeline-google/index.ts) | The filming-plan pipeline reads and writes Docs, Sheets and Drive with the pipeline key (moved from synchro-pipelines 2026-10-16), or with a 6-hour filming pipeline pass from the connector's `pipeline_pass` tool, limited to one client's files and to tabs created through a pass ([rules](../supabase/functions/pipeline-google/rules.mjs)). | Live v26 (2026-10-16, first deploy from this repo, #2126). [deploy-edge-functions-on-merge.yml](../.github/workflows/deploy-edge-functions-on-merge.yml); fallback [deploy-single-function.yml](../.github/workflows/deploy-single-function.yml) |
 | `fp-tab-test` | [Retired test stub](https://github.com/sidney-afk/synchro-pipelines/blob/main/supabase/functions/fp-tab-test/index.ts). Returns a retired test result and no longer creates Doc tabs. | Live v5; source and live read confirm the retired stub. |
 | `doctors-partial-capture` | [Capture workflow](#n8n). Marketing doctors form relays qualified partial leads into email-only recovery. | Live v1; source read through Supabase. No source file in any of the four repo trees checked, so deploy provenance is unverified. |
 
@@ -892,6 +892,7 @@ Each linked file contains table-creating DDL, including retained backup and temp
 | <!-- atlas:migration supabase/migrations/20261015180000_hf_activity.sql -->[`supabase/migrations/20261015180000_hf_activity.sql`](../supabase/migrations/20261015180000_hf_activity.sql) | `public.hf_activity` |
 | <!-- atlas:migration supabase/migrations/20261015200000_hf_guides.sql -->[`supabase/migrations/20261015200000_hf_guides.sql`](../supabase/migrations/20261015200000_hf_guides.sql) | `public.hf_guides` |
 | <!-- atlas:migration supabase/migrations/20261016180000_hf_studio_downloads.sql -->[`supabase/migrations/20261016180000_hf_studio_downloads.sql`](../supabase/migrations/20261016180000_hf_studio_downloads.sql) | `public.hf_studio_downloads` |
+| <!-- atlas:migration supabase/migrations/20261016230000_filming_pipeline_passes.sql -->[`supabase/migrations/20261016230000_filming_pipeline_passes.sql`](../supabase/migrations/20261016230000_filming_pipeline_passes.sql) | `public.fp_publishers`, `public.fp_settings`, `public.fp_passes`, `public.fp_pass_tabs`, `public.fp_files`, `public.fp_file_history`, `public.fp_batch_counter`, `public.fp_feedback_notes` |
 
 
 ## Verification limits and keeping this map true

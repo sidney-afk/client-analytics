@@ -16,6 +16,18 @@
  *   - the video step plays in the Frame.io player when frame_viewer_clients allows the client, and shows the plain
  *     "opens in a new tab" stage when it does not.
  * With the switch off the client link keeps today's page (old header, Analytics toggle, no new page).
+ *
+ * The Sheet and the strip on a desktop (owner feedback 2026-10-17, session Curtain Three), with the switch on:
+ *   - at 1440x900 and 1920x1080, small and medium cards: the row of cards sits in the middle of the space under
+ *     the header (top gap = bottom gap) and has the same margin left and right;
+ *   - zoomed in on a short window (taller than the space): the cards start at the top and the page scrolls; back on
+ *     a tall window the same cards are centred again (re-checked on zoom and resize);
+ *   - light mode: Organize and the card size wear the header's pill fill, not the page background;
+ *   - the "waiting for you" strip ends where the header ends (its right margin) and fades out when more posts
+ *     are to the right; scrolled to the end the last post ends inside that margin;
+ *   - a bare link (no v=) with a slow switch read: a switched-on client never sees the Analytics skeleton once this
+ *     browser has seen it switched on; switch off, Analytics starts without waiting for the switch, and it still opens
+ *     on Analytics.
  * CLIENT_LAYOUT_SHOTS=<dir> also writes the screenshots used in the PR.
  */
 const fs = require('node:fs');
@@ -136,6 +148,149 @@ function look(page) {
       expect(L.newHeader && L.analytics.length === 0, 'bare link: the new page shows, no Analytics (' + L.analytics.join('|') + ')');
       expect(/[?&]v=calendar\b/.test(L.url), 'bare link: the address now says v=calendar (' + L.url + ')');
       expect(t.errors.length === 0, 'bare link: no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    }
+
+    // THE SHEET ON A DESKTOP (session Curtain Three): centred both ways when the cards fit, top and scrolling when not.
+    const sheet = page => page.evaluate(() => {
+      const host = document.getElementById('svReviewStage');
+      const strip = document.getElementById('calStrip');
+      const cards = Array.from(document.querySelectorAll('#calStrip > .cal-card')).filter(c => c.getClientRects().length);
+      const r = cards.map(c => c.getBoundingClientRect());
+      const bg = el => el ? getComputedStyle(el).backgroundColor : '';
+      const sr = host && host.shadowRoot;
+      return {
+        head: Math.round(host.getBoundingClientRect().bottom), vh: innerHeight, vw: document.documentElement.clientWidth,
+        top: Math.round(Math.min(...r.map(x => x.top))), bottom: Math.round(Math.max(...r.map(x => x.bottom))),
+        left: Math.round(r[0].left), right: Math.round(r[r.length - 1].right), n: cards.length,
+        sideScroll: strip.scrollWidth > strip.clientWidth + 1,
+        pageScroll: document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight,
+        pageBg: bg(document.body), tabsBg: bg(sr && sr.getElementById('rsTabs')),
+        orgBg: bg(document.getElementById('calOrganizeBtn')), zoomBg: bg(document.getElementById('calZoomCtl')),
+        zoom: (document.getElementById('calView') || {}).dataset ? document.getElementById('calView').dataset.zoom : '',
+      };
+    });
+    const sheetEnd = page => page.evaluate(() => { const s = document.getElementById('calStrip'); s.scrollLeft = s.scrollWidth; const c = Array.from(s.querySelectorAll(':scope > .cal-card')); const x = c[c.length - 1].getBoundingClientRect().right; s.scrollLeft = 0; return Math.round(x); });
+    async function zoomTo(t, z) {
+      for (let i = 0; i < 3; i++) {
+        const cur = await t.page.evaluate(() => document.getElementById('calView').dataset.zoom || 'm');
+        if (cur === z) break;
+        await t.page.locator('#svReviewStage ' + ('sml'.indexOf(z) > 'sml'.indexOf(cur) ? '#calZoomIn' : '#calZoomOut')).click();
+        await sleep(400);
+      }
+    }
+    function centred(S, name) {
+      const topGap = S.top - S.head, bottomGap = S.vh - S.bottom;
+      expect(S.n > 0 && Math.abs(topGap - bottomGap) <= 6, name + ': the cards sit in the middle of the space under the header (top gap ' + topGap + ', bottom gap ' + bottomGap + ')');
+    }
+    async function evenSides(t, S, name) {
+      const rightGap = (S.sideScroll ? S.vw - await sheetEnd(t.page) : S.vw - S.right);
+      expect(Math.abs(S.left - rightGap) <= 2, name + ': the same margin left and right (left ' + S.left + ', right ' + rightGap + (S.sideScroll ? ', scrolled to the end' : '') + ')');
+    }
+    for (const [w, h, dark] of [[1440, 900, false], [1920, 1080, false], [1440, 900, true]]) {
+      const theme = dark ? 'dark' : 'light';
+      console.log('--- Sheet, switch on, ' + w + 'x' + h + ' ' + theme + ' ---');
+      const t = await openClient(browser, origin, { flags: 'on', width: w, height: h, tab: 'review', finished: true, dark });
+      await waitNew(t);
+      await sleep(1000);
+      await tab(t, 'organizer');
+      for (const z of ['s', 'm']) {
+        await zoomTo(t, z);
+        const S = await sheet(t.page);
+        const name = 'Sheet ' + w + 'x' + h + ' ' + theme + ' ' + S.zoom;
+        expect(S.zoom === z, name + ': the card size is ' + z);
+        centred(S, name);
+        await evenSides(t, S, name);
+        if (!dark) {
+          expect(S.orgBg !== S.pageBg && S.orgBg === S.tabsBg, name + ': Organize has a visible pill, the header\'s (' + S.orgBg + ' on ' + S.pageBg + ', header pill ' + S.tabsBg + ')');
+          expect(S.zoomBg !== S.pageBg && S.zoomBg === S.tabsBg, name + ': the card size has a visible pill, the header\'s (' + S.zoomBg + ' on ' + S.pageBg + ', header pill ' + S.tabsBg + ')');
+        }
+      }
+      if (w === 1440 && !dark) {
+        // Zoomed in on a short window: taller than the space, so the top of the cards stays under the header and the page scrolls.
+        await t.page.setViewportSize({ width: 1440, height: 520 });
+        await zoomTo(t, 'l');
+        await sleep(500);
+        let S = await sheet(t.page);
+        expect(S.zoom === 'l' && S.bottom - S.top > S.vh - S.head, 'Sheet 1440x520 large: the cards are taller than the space under the header (' + (S.bottom - S.top) + ' > ' + (S.vh - S.head) + ')');
+        expect(S.top - S.head <= 24 && S.pageScroll, 'Sheet 1440x520 large: the cards start at the top and the page scrolls (top gap ' + (S.top - S.head) + ', scrolls ' + S.pageScroll + ')');
+        await evenSides(t, S, 'Sheet 1440x520 large');
+        // A taller window: the same cards are centred again, with no reload.
+        await t.page.setViewportSize({ width: 1440, height: 1000 });
+        await sleep(500);
+        S = await sheet(t.page);
+        centred(S, 'Sheet resized to 1440x1000 large');
+        // Back to small: centred again.
+        await zoomTo(t, 's');
+        S = await sheet(t.page);
+        centred(S, 'Sheet 1440x1000 zoomed back to small');
+        await t.page.setViewportSize({ width: 1440, height: 900 });
+        await sleep(300);
+      }
+      if (w === 1440) {
+        // The strip of waiting posts: the header's right margin, a fade when more are to the right.
+        await tab(t, 'review');
+        const edge = () => t.page.evaluate(() => {
+          const r = document.getElementById('svReviewStage').shadowRoot;
+          const sl = r.getElementById('skList'), th = r.getElementById('rsTheme');
+          const chips = Array.from(sl.querySelectorAll('.chipp'));
+          const cs = getComputedStyle(sl);
+          return { list: Math.round(sl.getBoundingClientRect().right), theme: Math.round(th.getBoundingClientRect().right), more: sl.scrollWidth > sl.clientWidth + 1 && sl.scrollLeft < sl.scrollWidth - sl.clientWidth - 1,
+            mask: cs.maskImage || cs.webkitMaskImage || 'none', last: Math.round(chips[chips.length - 1].getBoundingClientRect().right) };
+        });
+        let E = await edge();
+        expect(E.list <= E.theme, 'strip ' + theme + ': it ends where the header ends (strip ' + E.list + ', header ' + E.theme + ' of ' + w + ')');
+        expect(E.more && /gradient/.test(E.mask), 'strip ' + theme + ': more posts to the right, so it fades out before the edge (' + E.mask.slice(0, 40) + ')');
+        await t.page.evaluate(() => { const sl = document.getElementById('svReviewStage').shadowRoot.getElementById('skList'); sl.scrollLeft = sl.scrollWidth; });
+        await sleep(300);
+        E = await edge();
+        expect(!E.more && !/gradient/.test(E.mask) && E.last <= E.theme, 'strip ' + theme + ': scrolled to the end, no fade and the last post ends inside the margin (' + E.last + ' <= ' + E.theme + ', ' + E.mask.slice(0, 20) + ')');
+      }
+      if (SHOTS) { await tab(t, 'organizer'); await shot(t, 'after-client-sheet-' + theme + '-' + w); }
+      expect(t.errors.length === 0, 'Sheet ' + w + ' ' + theme + ': no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    }
+
+    // A bare link while the switch is slow to read (1.5 s, as live): no Analytics skeleton, ever, for a switched-on
+    // client. Switch off: the same link still opens on Analytics.
+    for (const flags of ['on', 'off']) {
+      console.log('--- bare client link, slow switch read, switch ' + flags + ' ---');
+      const t = await open(browser, origin, { stage: 'client', flags, flagDelay: 1500, finished: true });
+      await t.page.addInitScript(() => {
+        window.__svSawAnalytics = false;
+        // What a person would see: an Analytics loader or skeleton on screen (the page carries hidden copies).
+        const look = () => { for (const e of document.querySelectorAll('[data-client-entry-loading="analytics"], .analytics-skel-metric')) if (e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden') { window.__svSawAnalytics = true; return; } };
+        setInterval(look, 25);
+      });
+      const { TOKEN } = require('./fixtures/review-stage-fixture.js');
+      await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, t: TOKEN }), { waitUntil: 'domcontentloaded' });
+      if (flags === 'on') {
+        // First visit in this browser: the switch is not known yet, so the page does not wait for it (other clients
+        // must not); it lands on the Content Calendar once the switch is read.
+        await t.page.waitForFunction(() => { const h = document.getElementById('svReviewStage'); return !!h && !h.hidden; }, null, { timeout: 30000 }).catch(() => null);
+        await sleep(800);
+        let r = await t.page.evaluate(() => ({ url: location.search, page: !!document.getElementById('svReviewStage'), seen: localStorage.getItem('sv-rs-no-analytics:' + new URLSearchParams(location.search).get('c')) }));
+        expect(r.page && /[?&]v=calendar\b/.test(r.url), 'bare link, slow switch, first visit: it ends on the Content Calendar (' + r.url + ')');
+        expect(r.seen === '1', 'bare link, slow switch, first visit: the browser remembers this client is switched on (' + r.seen + ')');
+        // Every later visit in this browser: the Analytics skeleton never shows.
+        await t.page.evaluate(() => { window.__svSawAnalytics = false; });
+        await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, t: TOKEN }), { waitUntil: 'domcontentloaded' });
+        await t.page.waitForFunction(() => { const h = document.getElementById('svReviewStage'); return !!h && !h.hidden; }, null, { timeout: 30000 }).catch(() => null);
+        await sleep(800);
+        r = await t.page.evaluate(() => ({ saw: window.__svSawAnalytics, url: location.search, page: !!document.getElementById('svReviewStage') }));
+        expect(r.page && !r.saw, 'bare link, slow switch, later visit: the Analytics skeleton never shows (saw it ' + r.saw + ')');
+        expect(/[?&]v=calendar\b/.test(r.url), 'bare link, slow switch, later visit: it opens on the Content Calendar (' + r.url + ')');
+      } else {
+        // Switch off: Analytics starts without waiting for the slow switch read (1.5 s here), as on main.
+        const t0 = Date.now();
+        await t.page.waitForFunction(() => window.__svSawAnalytics === true, null, { timeout: 8000 }).catch(() => null);
+        const firstPaint = Date.now() - t0;
+        expect(firstPaint < 1200, 'bare link, switch off: Analytics shows without waiting for the switch read (' + firstPaint + ' ms, read takes 1500)');
+        await sleep(4000);
+        const r = await t.page.evaluate(() => ({ saw: window.__svSawAnalytics, url: location.search, cal: !!document.getElementById('calView'), rs: !!document.getElementById('svReviewStage') }));
+        expect(r.saw && !r.cal && !r.rs && !/[?&]v=/.test(r.url), 'bare link, switch off: still opens on Analytics, as before (Analytics ' + r.saw + ', calendar ' + r.cal + ', ' + r.url + ')');
+      }
+      expect(t.errors.length === 0, 'bare link, switch ' + flags + ': no page errors (' + t.errors.join(' | ') + ')');
       await t.ctx.close();
     }
 

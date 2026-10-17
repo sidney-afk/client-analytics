@@ -19,7 +19,7 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 const { serveStatic } = require('../docs/syncview-design/tests/prod-test-utils.js');
 
-const { CLIENT, SLUG, TOKEN, STAFF, OTHER, open, openClient, host, inS, waitNew, answerConfirm, sleep } = require('./review-stage-fixture.js');
+const { CLIENT, SLUG, TOKEN, STAFF, OTHER, open, openClient, host, inS, waitNew, answerConfirm, sleep } = require('./fixtures/review-stage-fixture.js');
 const SHOTS = process.env.REVIEW_STAGE_SHOTS || '';
 const failures = [];
 function expect(value, message) { if (!value) { failures.push(message); console.error('FAIL  ' + message); } else console.log('  ok  ' + message); }

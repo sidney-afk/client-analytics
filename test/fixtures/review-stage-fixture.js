@@ -12,8 +12,8 @@ const OTHER = { id: 'qa_other', name: 'Fixture Reviewer', role: 'admin', team: n
 const FRAME = 'https://f.io/FixtureClip1';
 const MEDIA = 'https://media.fixture.test/clip.webm';
 const POSTER = { l: 'https://media.fixture.test/poster-l.png', p: 'https://media.fixture.test/poster-p.png' };
-const CLIP = { l: fs.readFileSync(path.join(__dirname, 'fixtures', 'frameio-viewer-clip.webm')), p: fs.readFileSync(path.join(__dirname, 'fixtures', 'frameio-viewer-clip-vertical.webm')) };
-const PNG = { l: fs.readFileSync(path.join(__dirname, 'fixtures', 'frameio-viewer-poster-landscape.png')), p: fs.readFileSync(path.join(__dirname, 'fixtures', 'frameio-viewer-poster-vertical.png')) };
+const CLIP = { l: fs.readFileSync(path.join(__dirname, 'frameio-viewer-clip.webm')), p: fs.readFileSync(path.join(__dirname, 'frameio-viewer-clip-vertical.webm')) };
+const PNG = { l: fs.readFileSync(path.join(__dirname, 'frameio-viewer-poster-landscape.png')), p: fs.readFileSync(path.join(__dirname, 'frameio-viewer-poster-vertical.png')) };
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS' };
 const FAKE_SUPABASE = "window.supabase={createClient:function(){return{channel:function(){var ch={on:function(){return ch;},subscribe:function(){return ch;}};return ch;},removeChannel:function(){}};}};";
 const sleep = ms => new Promise(r => setTimeout(r, ms));

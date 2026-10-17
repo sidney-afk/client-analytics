@@ -22,7 +22,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
 const { serveStatic } = require('../docs/syncview-design/tests/prod-test-utils.js');
-const { CLIENT, STAFF, open, openClient, waitNew, sleep } = require('./review-stage-fixture.js');
+const { CLIENT, STAFF, open, openClient, waitNew, sleep } = require('./fixtures/review-stage-fixture.js');
 
 const SHOTS = process.env.CLIENT_LAYOUT_SHOTS || '';
 const TABS = ['review', 'organizer', 'month', 'week'];
@@ -128,7 +128,7 @@ function look(page) {
     console.log('--- bare client link (no view in the address), switch on ---');
     {
       const t = await open(browser, origin, { stage: 'client', flags: 'on' });
-      const { TOKEN } = require('./review-stage-fixture.js');
+      const { TOKEN } = require('./fixtures/review-stage-fixture.js');
       await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, t: TOKEN }), { waitUntil: 'domcontentloaded' });
       await t.page.waitForFunction(() => !!document.getElementById('svReviewStage') && !document.getElementById('svReviewStage').hidden, null, { timeout: 30000 }).catch(() => null);
       await sleep(1500);

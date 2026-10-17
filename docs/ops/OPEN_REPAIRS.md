@@ -33364,3 +33364,15 @@ Runtime tag. Tests: `test/f27-section4-deploy-lane.js`.
 The slow-network misses after the change (boot budget and heavy lane, 1 run in 5 each, under delays on half of all live reads) are the simulator being harsher than CI: the finished-cards load (or, in the heavy lane, the reset step's existing 30 s wait for idle) ran out of time while the page was still re-reading. They are not new. On normal network all five suites passed 5/5.
 
 **Release.** Test files only; nothing ships to users. **Way back:** revert the pull request.
+
+## 427. [2026-10-16, BUILT, NOT MERGED] Watch here: the picture froze while the sound played (session Encore)
+
+**What the owner saw.** On a real client's card (a Video 8, recorded by card id in the PR, read only), pressing play in the Notes view started the sound but the picture did not move.
+
+**Cause (found, not guessed).** The card's thumbnail is drawn over the player while the video loads (`.fv-poster`). Nothing removed it once the video was ready, and it comes after the video in the page, so it sat on top of the playing video: the sound played under a still picture. Every card with a thumbnail had it; the owner's card has one (all the matching cards found in a live read do). Shown in the browser test on the old code: while playing, the element on top of the player is the thumbnail, with 20 video frames drawn behind it.
+
+**The file format was checked too.** The server already asks Frame.io for its full-size H.264 copy first and uses the original upload last. The card's actual file type could not be read from a session: Frame.io is reachable only through the server's stored sign-in, and using that from a session could rotate it and break the live connection, so it was not done. The page now records which file is playing on the video element (`data-fv-file`: high_quality, efficient or original), so one look in the browser's inspector on that card answers it.
+
+**What changed (page only, no function or database change).** The thumbnail is hidden once the video has its first frame. The page decides the file order itself as well (H.264 copy, small copy, original last). A file that plays sound but draws no picture (an HEVC upload on Windows Chrome) is noticed after about a second of playing and the small H.264 copy takes over from the same second; if the original is all there is, the player says so and offers Frame.io. Same PR: speed 1x/1.5x/2x and 5 s back/forward, the "Syncing this thread" line removed, notes read started on hover and side by side with the link check, the card's play button centred.
+
+**Way back:** revert the pull request.

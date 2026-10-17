@@ -42,6 +42,13 @@ the sections below, delete it from this block in the same PR.
   agenda with per-person queues, Week and Month keep the native planners, filters in a bottom sheet; phone-scoped only).
   Thumb's #2085 (phone Calendar and Samples) is red on a source-copy check and waits on Thumb. Card saver watcher: 2 clean runs (21:41 UTC), test client only, no real save on it yet.
 
+**Built, waiting for merge (session Encore, 2026-10-16, OPEN_REPAIRS 427): the owner's five points on Watch here.**
+The frozen picture with sound was the card's thumbnail left on top of the playing video (now hidden once the video has
+a frame); a file that plays sound but no picture switches to the small H.264 copy. Speed 1x/1.5x/2x and 5 s back and
+forward in the player; the "Syncing this thread" line is gone (Send is just disabled while the thread loads); the notes
+read starts when a door is pointed at and beside the link check; the card's play button sits in the middle of the
+thumbnail. Page only, no function change.
+
 **Live (session Cinema, 2026-10-16, #2120): Watch here, one view for the video and its notes.** Every door (the Notes
 button, the Sheet's play icon, the Review tab's video preview, Kasper's "Watch here") opens the card's Notes dialog with
 the player on the left (on a phone, on top). Nothing plays until play is pressed (bottom centre of the player). Staff

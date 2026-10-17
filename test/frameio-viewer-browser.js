@@ -38,6 +38,8 @@ const MEDIA = 'https://media.fixture.test/clip.webm';
 const MEDIA_HQ = MEDIA + '?q=hq';
 const CLIP = fs.readFileSync(path.join(__dirname, 'fixtures', 'frameio-viewer-clip.webm'));
 const CLIP_V = fs.readFileSync(path.join(__dirname, 'fixtures', 'frameio-viewer-clip-vertical.webm'));
+// Sound and no picture: what Chrome on Windows makes of an HEVC (H.265) upload. Here a 12 second audio-only file.
+const SOUND_ONLY = fs.readFileSync(path.join(__dirname, 'fixtures', 'frameio-viewer-sound-only.webm'));
 const POSTER = { landscape: fs.readFileSync(path.join(__dirname, 'fixtures', 'frameio-viewer-poster-landscape.png')), portrait: fs.readFileSync(path.join(__dirname, 'fixtures', 'frameio-viewer-poster-vertical.png')) };
 const POSTER_URL = 'https://media.fixture.test/poster.png';
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS' };
@@ -101,12 +103,14 @@ async function installRoutes(ctx, origin, state) {
       state.mediaHits++;
       const hq = sp.get('q') === 'hq';
       state.mediaLog.push(hq ? 'full' : 'small');
+      const file = sp.get('o') === '1' ? 'original' : (hq ? 'high_quality' : 'efficient');
+      (state.fileLog = state.fileLog || []).push(file);
       if (state.mediaFail > 0) { state.mediaFail--; return route.fulfill({ status: 403, headers: CORS, body: 'expired' }); }
       if (hq && state.hqFail) return route.fulfill({ status: 403, headers: CORS, body: 'this rendition fails' });
       const first = !state.mediaSeen[hq ? 'full' : 'small'];
       state.mediaSeen[hq ? 'full' : 'small'] = true;
       if (first) { const wait = hq ? (state.hqStall || state.mediaDelay.full) : state.mediaDelay.small; if (wait) await sleep(wait); }
-      const clip = state.orient === 'portrait' ? CLIP_V : CLIP;
+      const clip = (state.soundOnly || []).includes(file) ? SOUND_ONLY : (state.orient === 'portrait' ? CLIP_V : CLIP);
       const range = /bytes=(\d+)-(\d*)/.exec(r.headers().range || '');
       if (range) {
         const a = Number(range[1]), b = range[2] ? Math.min(Number(range[2]), clip.length - 1) : clip.length - 1;
@@ -137,6 +141,13 @@ async function installRoutes(ctx, origin, state) {
       }
       return json(out.body, out.status);
     }
+    // The notes thread of a card with a deliverable (Encore). notesDelay models the live read (about 1.8 s on the server).
+    if (p === '/functions/v1/production-comments') {
+      let body = {}; try { body = JSON.parse(r.postData() || '{}'); } catch (_) {}
+      (state.notesCalls = state.notesCalls || []).push({ at: Date.now(), id: body.deliverable_id || '' });
+      if (state.notesDelay) await sleep(state.notesDelay);
+      return json({ ok: true, canonical_thread: true, comments: (state.notesRows || {})[body.deliverable_id] || [], has_more: false });
+    }
     if (p === '/functions/v1/key-verify') return json({ ok: true, role: 'admin', member: ADMIN });
     if (p === '/functions/v1/client-token-verify') {
       let b = {}; try { b = JSON.parse(r.postData() || '{}'); } catch (_) {}
@@ -161,6 +172,8 @@ async function installRoutes(ctx, origin, state) {
       return json(state.cards.filter(c => !one || c.id === one));
     }
     if (p === '/rest/v1/deliverables' || p === '/rest/v1/production_deliverables_browser_v1') {
+      (state.crosswalkCalls = state.crosswalkCalls || []).push(Date.now());
+      if (state.crosswalkDelay) await sleep(state.crosswalkDelay);
       return json(state.cards.filter(c => c.video_deliverable_id).map(c => ({ id: c.video_deliverable_id, card_id: c.id, client_slug: SLUG, team: 'video', origin: 'calendar', status: 'client_approval', updated_at: '2026-10-08T12:00:00.000Z' })));
     }
     if (/\/rest\/v1\//.test(p)) return json([]);
@@ -270,7 +283,7 @@ async function calendarRun(browser, origin, name, device, orient) {
   expect(await page.locator(ICON + ':not([hidden])').count() === 1, `${label}: a card with a Frame.io link has the play icon on its thumbnail`);
   expect(await page.locator('.cal-card[data-pid="d1"] .cal-thumb-play').count() === 0, `${label}: a Drive link has none`);
   await page.locator('.cal-card[data-pid="v1"]').scrollIntoViewIfNeeded();
-  if (!device.isMobile) await page.locator('.cal-card[data-pid="v1"] .cal-card-thumb').hover();
+  if (!device.isMobile) await page.locator('.cal-card[data-pid="v1"] .cal-card-thumb').hover({ position: { x: 6, y: 6 } });
   await sleep(200);
   await shot(page, `${tag}-1-sheet-light`);
 
@@ -294,6 +307,7 @@ async function calendarRun(browser, origin, name, device, orient) {
   await waitFio(page);
   state.delay = 0;
   const shape1 = await checkOneView(page, `${label}: from the play icon`, device);
+  await checkControlsFit(page, tag);
   expect(state.calls.some(c => c.part === 'video' && c.body.link === FRAME && !!c.key && !c.clientToken) && state.calls.some(c => c.part === 'comments'), `${label}: the video and the comments were asked for with the staff key`);
   await checkPlayButton(page, label);
 
@@ -690,7 +704,7 @@ async function startTimes(browser, origin, label) {
     const { page, ctx } = await openCalendar(browser, origin, state, { viewport: { width: 1440, height: 900 } });
     const ICON = '.cal-card[data-pid="v1"] .cal-thumb-play';
     await page.locator('.cal-card[data-pid="v1"]').scrollIntoViewIfNeeded();
-    await page.locator('.cal-card[data-pid="v1"] .cal-card-thumb').hover();
+    await page.locator('.cal-card[data-pid="v1"] .cal-card-thumb').hover({ position: { x: 6, y: 6 } });
     await page.locator(ICON).waitFor({ state: 'attached', timeout: 8000 });
     await sleep(300);
     if (scenario !== 'click only') { await page.locator(ICON).hover(); await sleep(400); }
@@ -718,12 +732,237 @@ async function fastStartRun(browser, origin) {
   expect(a.src === MEDIA_HQ, 'fast start: and it is the full-size file');
 }
 
+
+/* ENCORE (2026-10-16): the owner's five points after using the view on a real card.
+     1  the picture froze while the sound played: the card's thumbnail sat on top of the playing video. And the file
+        choice: a full-size H.264 copy before the original upload, and a file that plays sound but no picture gives
+        way to the small copy.
+     2  speed (1x, 1.5x, 2x, kept while the dialog is open) and 5 seconds back and forward.
+     3  no "Syncing this thread" line: while the notes load only skeleton rows, and nothing moves when they arrive.
+     4  notes as fast as possible (timed in notesTimes).
+     5  the card's play button in the middle of the thumbnail, round, like the player's own. */
+// The player's controls fit inside it and none covers another, at whatever width the player has.
+async function checkControlsFit(page, label) {
+  const bar = await page.evaluate(() => { const r = (s) => { const e = document.querySelector('#calNotesStage ' + s); if (!e) return null; const b = e.getBoundingClientRect(); return b.width ? { s, x: Math.round(b.left), r: Math.round(b.right), y: Math.round(b.top), b: Math.round(b.bottom) } : null; };
+    const p = document.querySelector('#calNotesStage .fv-player').getBoundingClientRect(); return { p: { x: p.left, r: p.right, w: Math.round(p.width) }, items: ['.fv-clock', '.fv-rate', '.fv-back', '.fv-play', '.fv-fwd', '.fv-mute', '.fv-full'].map(r) }; });
+  const shown = bar.items.filter(Boolean);
+  const overlap = shown.some((a, i) => shown.some((b, j) => j > i && a.x < b.r - 1 && b.x < a.r - 1 && a.y < b.b - 1 && b.y < a.b - 1));
+  expect(!overlap && shown.every(b => b.x >= bar.p.x - 1 && b.r <= bar.p.r + 1) && shown.some(b => b.s === '.fv-rate') && shown.some(b => b.s === '.fv-play'), `${label}: on a ${bar.p.w} px player the controls (speed included) fit without overlapping (${shown.map(b => b.s.slice(4)).join(',')}${overlap ? ': ' + JSON.stringify(shown) : ''})`);
+}
+const NOTE_ROWS = (n) => Array.from({ length: n }, (_, i) => ({ id: 'pc' + (i + 1), body: 'Thread note ' + (i + 1) + ': tighten the cut.', author: 'Fixture SMM', role: 'smm', audience: 'internal', component: 'video', created_at: iso(400 - i * 30), source_created_at: iso(400 - i * 30), version: 1 }));
+const playerTop = page => page.evaluate(() => {
+  const p = document.querySelector('#calNotesStage .fv-player'); const b = p.getBoundingClientRect();
+  const el = document.elementFromPoint(b.left + b.width / 2, b.top + b.height * 0.35);
+  const poster = p.querySelector('.fv-poster');
+  return { top: el ? (el.className || el.tagName) : '', posterShown: !!poster && getComputedStyle(poster).display !== 'none' };
+});
+async function encoreRun(browser, origin, label, device) {
+  console.log(`--- ${label}: Encore ---`);
+  const phone = device.viewport.width < 768;
+  // 1. The picture moves: once playing, the video is on top, not the card's thumbnail.
+  {
+    const state = makeState({ cards: [card('v1', 'Video card', FRAME, 1, { thumbnail_url: POSTER_URL })] });
+    const { page, ctx, pageErrors } = await openCalendar(browser, origin, state, device);
+    await page.evaluate(() => openCalComments('v1'));
+    await waitReady(page);
+    const before = await playerTop(page);
+    await page.locator('#calNotesStage .fv-play').click();
+    await page.waitForFunction(() => { const v = document.querySelector('#calNotesStage .fv-video'); return v && !v.paused && v.currentTime > 0.6; }, null, { timeout: 8000 });
+    const playing = await playerTop(page);
+    const frames = await page.evaluate(() => document.querySelector('#calNotesStage .fv-video').getVideoPlaybackQuality().totalVideoFrames);
+    expect(/fv-video/.test(playing.top) && !playing.posterShown, `${label}: playing, the video itself is on top and the card's thumbnail is gone (top: ${playing.top}, thumbnail shown: ${playing.posterShown}; ${frames} frames drawn)`);
+    expect(!before.posterShown || /fv-video/.test(before.top), `${label}: once the first frame is there the thumbnail no longer covers it (top: ${before.top})`);
+    expect(await page.evaluate(() => document.querySelector('#calNotesStage .fv-video').getAttribute('data-fv-file')) === 'high_quality', `${label}: the full-size H.264 copy is the file playing`);
+
+    // 2. Speed and skips.
+    await page.locator('#calNotesStage .fv-play').click(); await sleep(200);
+    const rate = () => page.evaluate(() => ({ r: document.querySelector('#calNotesStage .fv-video').playbackRate, label: document.querySelector('#calNotesStage .fv-rate').textContent }));
+    expect((await rate()).label === '1x', `${label}: the speed button starts at 1x`);
+    await page.locator(PLAYER).hover().catch(() => {});
+    await page.locator('#calNotesStage .fv-rate').click();
+    let rr = await rate();
+    expect(rr.r === 1.5 && rr.label === '1.5x', `${label}: one press: 1.5x (${rr.r}, "${rr.label}")`);
+    await page.locator('#calNotesStage .fv-rate').click();
+    rr = await rate();
+    expect(rr.r === 2 && rr.label === '2x', `${label}: two presses: 2x (${rr.r})`);
+    await page.evaluate(() => svFrameStageRetry());
+    await waitReady(page); await sleep(300);
+    rr = await rate();
+    expect(rr.r === 2 && rr.label === '2x', `${label}: the speed is kept when the player loads the video again (${rr.r})`);
+    await page.evaluate(() => svFrameSeek(6)); await sleep(300);
+    await page.locator(PLAYER).hover().catch(() => {});
+    await page.locator('#calNotesStage .fv-back').click(); await sleep(250);
+    let t = (await videoInfo(page)).t;
+    expect(Math.abs(t - 1) < 0.4, `${label}: back 5 seconds from 0:06 lands on 0:01 (${t.toFixed(2)})`);
+    await page.locator('#calNotesStage .fv-back').click(); await sleep(250);
+    t = (await videoInfo(page)).t;
+    expect(t < 0.2, `${label}: and never before the start (${t.toFixed(2)})`);
+    await page.locator('#calNotesStage .fv-fwd').click(); await sleep(250);
+    t = (await videoInfo(page)).t;
+    expect(Math.abs(t - 5) < 0.4 && (await videoInfo(page)).paused, `${label}: forward 5 seconds, still paused (${t.toFixed(2)})`);
+    await page.locator('#calNotesStage .fv-fwd').focus();
+    await page.keyboard.press('j'); await sleep(250);
+    t = (await videoInfo(page)).t;
+    expect(Math.abs(t - 0) < 0.4, `${label}: J goes back 5 seconds too (${t.toFixed(2)})`);
+    await checkControlsFit(page, label);
+    await shot(page, `encore-${label}-controls-light`);
+    await theme(page, 'dark'); await shot(page, `encore-${label}-controls-dark`); await theme(page, 'light');
+    await closeView(page);
+    await page.evaluate(() => openCalComments('v1'));
+    await waitReady(page);
+    expect((await rate()).label === '1x', `${label}: a new opening starts at 1x again`);
+    await closeView(page);
+
+    // 5. The card's play button: in the middle of the thumbnail, round, white with a dark triangle, in both themes.
+    await page.locator('.cal-card[data-pid="v1"]').scrollIntoViewIfNeeded();
+    if (!device.isMobile) await page.locator('.cal-card[data-pid="v1"] .cal-card-thumb').hover({ position: { x: 6, y: 6 } });
+    await sleep(250);
+    for (const mode of ['light', 'dark']) {
+      await theme(page, mode);
+      const g = await page.evaluate(() => {
+        const th = document.querySelector('.cal-card[data-pid="v1"] .cal-card-thumb').getBoundingClientRect();
+        const btn = document.querySelector('.cal-card[data-pid="v1"] .cal-thumb-play'); const b = btn.getBoundingClientRect(); const cs = getComputedStyle(btn);
+        const pb = getComputedStyle(document.createElement('div'));
+        return { dx: (b.left + b.width / 2) - (th.left + th.width / 2), dy: (b.top + b.height / 2) - (th.top + th.height / 2), w: b.width, h: b.height, radius: cs.borderRadius, bg: cs.backgroundColor, fg: cs.color, op: cs.opacity, shadow: cs.boxShadow };
+      });
+      expect(Math.abs(g.dx) <= 1.5 && Math.abs(g.dy) <= 1.5, `${label} ${mode}: the card's play button is in the middle of the thumbnail (${g.dx.toFixed(1)}, ${g.dy.toFixed(1)})`);
+      expect(g.w === g.h && g.w >= 36 && g.w <= 44 && /50%|21px|19px/.test(g.radius) && g.bg === 'rgb(255, 255, 255)' && /rgb\((0, 0, 0|7, 8, 9)\)/.test(g.fg) && g.shadow !== 'none' && Number(g.op) === 1, `${label} ${mode}: a ${g.w} px round white button with a dark triangle and a shadow, readable on light and dark thumbnails (${g.bg}, ${g.fg})`);
+      await shot(page, `encore-${label}-card-button-${mode}`);
+    }
+    await theme(page, 'light');
+    // The player's own play button looks the same.
+    await page.evaluate(() => openCalComments('v1')); await waitReady(page);
+    const pp = await page.evaluate(() => { const cs = getComputedStyle(document.querySelector('#calNotesStage .fv-play')); return { bg: cs.backgroundColor, fg: cs.color }; });
+    expect(pp.bg === 'rgb(255, 255, 255)' && /rgb\((0, 0, 0|7, 8, 9)\)/.test(pp.fg), `${label}: the player's own play button is the same white round button (${pp.bg})`);
+    await closeView(page);
+    expect(pageErrors.length === 0, `${label}: Encore: no page errors (${pageErrors.join(' | ')})`);
+    await ctx.close();
+  }
+  if (phone) return;
+  // 1. Which file: the original upload only when Frame.io has no H.264 copy.
+  for (const sc of [
+    { name: 'the function names the original first', video: { url: MEDIA_HQ + '&o=1', renditions: RENDITIONS }, want: 'high_quality' },
+    { name: 'only the small copy and the original', video: { url: MEDIA_HQ + '&o=1', renditions: { efficient: MEDIA, original: MEDIA_HQ + '&o=1' } }, want: 'efficient' },
+    { name: 'only the original', video: { url: MEDIA_HQ + '&o=1', renditions: { original: MEDIA_HQ + '&o=1' } }, want: 'original' },
+  ]) {
+    const g = GOOD(); g.video = Object.assign({}, g.video, sc.video);
+    const state = makeState({ cards: [card('v1', 'Video card', FRAME, 1, { thumbnail_url: POSTER_URL })], view: (n, body) => ({ status: 200, body: answerFor(body, g) }) });
+    const { page, ctx } = await openCalendar(browser, origin, state, device);
+    await page.evaluate(() => openCalComments('v1'));
+    await waitReady(page);
+    const f = await page.evaluate(() => document.querySelector('#calNotesStage .fv-video').getAttribute('data-fv-file'));
+    expect(f === sc.want && (state.fileLog || [])[0] === sc.want, `${label}: ${sc.name}: plays ${sc.want} (${f}; fetched ${(state.fileLog || []).join(',')})`);
+    await ctx.close();
+  }
+  // 1. Sound but no picture (an HEVC file on Windows Chrome): the small H.264 copy takes over from the same second.
+  {
+    const state = makeState({ soundOnly: ['high_quality'], cards: [card('v1', 'Video card', FRAME, 1, { thumbnail_url: POSTER_URL })] });
+    const { page, ctx, pageErrors } = await openCalendar(browser, origin, state, device);
+    await page.evaluate(() => openCalComments('v1'));
+    await waitReady(page);
+    await page.locator('#calNotesStage .fv-play').click();
+    await page.waitForFunction(() => { const v = document.querySelector('#calNotesStage .fv-video'); return v && v.getAttribute('data-fv-file') === 'efficient' && v.videoWidth > 0 && !v.paused && v.currentTime > 1.2; }, null, { timeout: 12000 }).catch(() => {});
+    const v = await page.evaluate(() => { const e = document.querySelector('#calNotesStage .fv-video'); return { f: e.getAttribute('data-fv-file'), w: e.videoWidth, t: e.currentTime, paused: e.paused }; });
+    expect(v.f === 'efficient' && v.w > 0 && !v.paused && v.t > 1, `${label}: sound but no picture: the small copy takes over and keeps playing with a picture (${JSON.stringify(v)})`);
+    expect(pageErrors.length === 0, `${label}: no page errors (${pageErrors.join(' | ')})`);
+    await ctx.close();
+  }
+  {
+    const g = GOOD(); g.video = Object.assign({}, g.video, { url: MEDIA_HQ + '&o=1', renditions: { original: MEDIA_HQ + '&o=1' } });
+    const state = makeState({ soundOnly: ['original'], view: (n, body) => ({ status: 200, body: answerFor(body, g) }), cards: [card('v1', 'Video card', FRAME, 1, { thumbnail_url: POSTER_URL })] });
+    const { page, ctx } = await openCalendar(browser, origin, state, device);
+    await page.evaluate(() => openCalComments('v1'));
+    await waitReady(page);
+    await page.locator('#calNotesStage .fv-play').click();
+    await waitState(page, 'error').catch(() => {});
+    const txt = await page.evaluate(() => (document.querySelector('#calNotesStage .fv-state-text') || {}).textContent || '');
+    expect(/sound but no picture/i.test(txt) && await page.locator('#calNotesStage .fv-state a[href]').count() === 1, `${label}: with only the original and no picture, the player says so and offers Frame.io ("${txt.slice(0, 60)}")`);
+    await shot(page, `encore-${label}-no-picture-light`);
+    await ctx.close();
+  }
+}
+
+/* 3 and 4: the notes of a card with a deliverable. The link check and the thread take as long as the live ones
+   (deliverables read about 0.2 s; production-comments p50 1.78 s on the server, measured from the function logs on
+   2026-10-16, so 1.9 s with the network). Measured: press (after a 400 ms hover, and with no hover) to the first note
+   on screen. FRAMEIO_VIEWER_BUILD names the build in the TIMING line. */
+async function notesTimes(browser, origin, label, device, checks) {
+  const out = {};
+  for (const scenario of ['click only', 'after a 400 ms hover']) {
+    const state = makeState({ crosswalkDelay: 200, notesDelay: 1900, serverModel: true, mediaDelay: { small: 230, full: 330 }, notesRows: { 'del-v1': NOTE_ROWS(3) },
+      cards: [card('v1', 'Video card', FRAME, 1, { thumbnail_url: POSTER_URL, video_deliverable_id: 'del-v1' })] });
+    const { page, ctx, pageErrors } = await openCalendar(browser, origin, state, device);
+    await sleep(2500); // the page's own first reads settle
+    state.notesCalls = []; state.crosswalkCalls = [];
+    const BTN = '[data-comments-btn="v1"]';
+    await page.locator(BTN).scrollIntoViewIfNeeded();
+    if (scenario !== 'click only' && !device.isMobile) { await page.locator(BTN).hover(); await sleep(400); }
+    // Watch the composer and the feed for movement from the press on.
+    await page.evaluate(() => {
+      window.__moves = []; window.__noteAt = 0; window.__syncText = false; window.__skelSeen = false; window.__sendPendingSeen = false;
+      const t0 = performance.now(); let last = null;
+      const tick = () => {
+        const c = document.querySelector('#calCommentsModal .cal-cm-composer'), f = document.getElementById('calCommentsFeed');
+        if (c && f) {
+          const cr = c.getBoundingClientRect(), fr = f.getBoundingClientRect();
+          const now = [Math.round(cr.top), Math.round(cr.height), Math.round(fr.top), Math.round(fr.height)].join(',');
+          if (last && now !== last) window.__moves.push(Math.round(performance.now() - t0) + ':' + last + '->' + now);
+          last = now;
+          if (/Syncing this thread|Sending unlocks/.test(document.getElementById('calCommentsModal').innerText)) window.__syncText = true;
+          if (f.querySelector('.cal-cm-skeleton .cal-cm-skel-row')) window.__skelSeen = true;
+          const send = document.querySelector('#calCommentsModal .cal-cm-send');
+          if (send && send.disabled && /finish loading/.test(send.title || '')) window.__sendPendingSeen = true;
+          if (!window.__noteAt && f.querySelector('.cal-cm-row:not(.is-frameio)')) window.__noteAt = performance.now() - t0;
+        }
+        if (performance.now() - t0 < 8000) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    const t0 = Date.now();
+    await page.locator(BTN).click();
+    await page.waitForFunction(() => window.__noteAt > 0, null, { polling: 16, timeout: 15000 });
+    const noteMs = await page.evaluate(() => Math.round(window.__noteAt));
+    await sleep(2600);
+    const w = await page.evaluate(() => ({ moves: window.__moves, sync: window.__syncText, skel: window.__skelSeen, pending: window.__sendPendingSeen, notes: document.querySelectorAll('#calCommentsFeed .cal-cm-row:not(.is-frameio)').length }));
+    out[scenario] = { noteMs, notesReadStartMs: state.notesCalls.length ? state.notesCalls[0].at - t0 : null, crosswalkStartMs: state.crosswalkCalls.length ? state.crosswalkCalls[0] - t0 : null, watch: w };
+    if (checks) {
+      expect(w.notes === 3, `${label} (${scenario}): the card's 3 notes arrive (${w.notes})`);
+      expect(!w.sync, `${label} (${scenario}): no "Syncing this thread" line at any point`);
+      expect(w.moves.length === 0, `${label} (${scenario}): nothing moves while the notes load and arrive (composer and list stay put: ${w.moves.slice(0, 3).join(' ; ') || 'no moves'})`);
+      expect(w.skel || noteMs < 150, `${label} (${scenario}): while loading, only skeleton rows`);
+      // A reopen still reads the thread again (new notes from others), even right after the first open.
+      const readsBefore = state.notesCalls.length;
+      await page.evaluate(() => closeCalComments()); await sleep(200);
+      await page.locator(BTN).click(); await sleep(300);
+      expect(state.notesCalls.length === readsBefore + 1, `${label} (${scenario}): reopening reads the thread again (${state.notesCalls.length - readsBefore} new read)`);
+      expect(state.notesCalls.length === readsBefore + 1 && readsBefore === 1, `${label} (${scenario}): and the hover and the press shared one read (${readsBefore} before the reopen)`);
+      expect(pageErrors.length === 0, `${label} (${scenario}): no page errors (${pageErrors.join(' | ')})`);
+    }
+    if (scenario === 'click only' && SHOTS && checks) { /* the loading look is covered by encore screenshots below */ }
+    await ctx.close();
+  }
+  console.log('NOTES_TIMING ' + JSON.stringify({ build: process.env.FRAMEIO_VIEWER_BUILD || 'this change', device: label, press_to_first_note_ms: { click_only: out['click only'].noteMs, after_400ms_hover: out['after a 400 ms hover'].noteMs }, detail: out }));
+  return out;
+}
+async function notesRun(browser, origin, label, device) {
+  console.log(`--- ${label}: notes speed and steadiness ---`);
+  const r = await notesTimes(browser, origin, label, device, true);
+  const a = r['click only'], b = r['after a 400 ms hover'];
+  expect(a.notesReadStartMs != null && a.crosswalkStartMs != null && Math.abs(a.notesReadStartMs - a.crosswalkStartMs) < 150, `${label}: the thread is asked for beside the link check, not after it (thread at ${a.notesReadStartMs} ms, check at ${a.crosswalkStartMs} ms)`);
+  expect(a.noteMs < 2400, `${label}: with no hover the first note is on screen in ${a.noteMs} ms (the read alone takes 1900)`);
+  if (!device.isMobile) {
+    expect(b.notesReadStartMs != null && b.notesReadStartMs < 0, `${label}: pointing at Notes starts the read before the press (${b.notesReadStartMs} ms)`);
+    expect(b.noteMs < a.noteMs - 250, `${label}: after a short hover the first note is sooner (${b.noteMs} ms against ${a.noteMs} ms)`);
+  }
+}
+
 (async () => {
   const server = await serveStatic();
   const origin = `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch();
   try {
     if (process.env.FRAMEIO_VIEWER_TIMING_ONLY) { await startTimes(browser, origin, process.env.FRAMEIO_VIEWER_BUILD || 'this build'); return; }
+    if (process.env.FRAMEIO_VIEWER_NOTES_TIMING_ONLY) { await notesTimes(browser, origin, 'desktop', { viewport: { width: 1440, height: 900 } }, false); await notesTimes(browser, origin, 'phone', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, false); return; }
     const DESK = { viewport: { width: 1440, height: 900 } }, PHONE = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
     const only = process.env.FRAMEIO_VIEWER_ONLY || '';
     const want = (n) => !only || only === n;
@@ -744,6 +983,10 @@ async function fastStartRun(browser, origin) {
     if (want('client')) await clientLinkRun(browser, origin, 'client, switched off', PHONE, { off: true, state: { frameFlag: null } });
     if (want('client')) await clientLinkRun(browser, origin, 'client, another client listed', PHONE, { off: true, state: { frameFlag: { all: false, clients: ['someotherclient'] } } });
     if (want('flags')) await flagRun(browser, origin);
+    if (want('encore')) await encoreRun(browser, origin, 'desktop', DESK);
+    if (want('encore')) await encoreRun(browser, origin, 'phone', PHONE);
+    if (want('notes')) await notesRun(browser, origin, 'desktop', DESK);
+    if (want('notes')) await notesRun(browser, origin, 'phone', PHONE);
   } finally { await browser.close(); server.close(); }
   if (failures.length) { console.error(`\n${failures.length} check(s) failed`); process.exit(1); }
   console.log('\nframeio-viewer-browser: all checks passed');

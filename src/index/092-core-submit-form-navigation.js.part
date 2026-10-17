@@ -596,7 +596,7 @@ import { _kasperState } from './305-core-kasper-shared.js';
         }
     }
     function navTo(page, push = true) {
-        if (page !== 'kasper' && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
+        if (typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras(page);
         if (_isClientLink) {
             const cap = _syncviewClientEntryCapability;
             if (cap && cap.verified && cap.view === 'sample-reviews' && _resolveRetiredSamplesRoute(page) === 'sample-reviews') {

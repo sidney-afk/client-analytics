@@ -151,9 +151,41 @@ const h = new Function(`
   ok(/_kasperHashLanding[\s\S]*_analyticsHoldExtras\(8000\)/.test(boot), 'the boot holds the extras only for a Kasper landing, with a safety timeout');
   ok(/_kasperState\.lastLoaded && typeof _analyticsReleaseExtras === 'function'/.test(grabFunc('_kasperPaintReviewNow')),
     'the review releases them only after the queue has loaded and painted');
-  ok(/page !== 'kasper' && typeof _analyticsReleaseExtras/.test(navTo), 'leaving Kasper releases them');
-  ok(/if \(_analyticsExtrasHold\) \{ _analyticsReleaseExtras\(\); fetchExtras\(null\); \}/.test(grabFunc('_analyticsExtrasArrival')),
+  ok(/typeof _analyticsReleaseExtras === 'function'\) _analyticsReleaseExtras\(page\)/.test(navTo), 'every navTo tells the hold which page opens');
+  ok(/if \(_analyticsExtrasHold\) \{ _analyticsReleaseExtras\(true\); fetchExtras\(null\); \}/.test(grabFunc('_analyticsExtrasArrival')),
     'a client page reached without navTo (search, Back) releases and starts them itself');
+
+  // Kasper's hold: opening Kasper keeps it, any other page or its first paint releases it.
+  h.hold(60000);
+  h.fetchAll(null);
+  h.release('kasper');
+  await new Promise(r => setTimeout(r, 10));
+  ok(h.started() === 2, 'Kasper hold: opening Kasper keeps them held');
+  h.release('calendar');
+  await new Promise(r => setTimeout(r, 10));
+  ok(h.started() === 3, 'leaving Kasper releases them');
+
+  /* Speed sweep 2026-10-17: every other staff landing holds them, with no
+     timer, until Analytics opens or a client page asks. Nothing else (another
+     tab, Kasper's first paint) starts the ~2.3 MB download. */
+  ok(/else if \(skipAwait && !_isClientLink\) _analyticsHoldExtras\(0, 'analytics'\)/.test(
+    INDEX.slice(INDEX.indexOf('const dataLoad = fetchAll(') - 700, INDEX.indexOf('const dataLoad = fetchAll('))),
+    'the boot holds the extras on every other staff fast-tab landing, with no timer');
+  h.hold(0, 'analytics');
+  h.fetchAll(null);
+  for (const p of ['today', 'calendar', 'workload', 'kasper', undefined]) h.release(p);
+  await new Promise(r => setTimeout(r, 30));
+  ok(h.started() === 3, 'analytics hold: other tabs and Kasper\'s paint never start them');
+  h.release('home');
+  await new Promise(r => setTimeout(r, 10));
+  ok(h.started() === 4, 'analytics hold: opening Analytics starts them once');
+  h.hold(0, 'analytics');
+  h.fetchAll(null);
+  h.release(true);
+  await new Promise(r => setTimeout(r, 10));
+  ok(h.started() === 5, 'analytics hold: a client page asking for them starts them');
+  ok(/dataLoad\.essentials\.then\(\(\) => \{\s*\/\/ Only re-route Templates/.test(INDEX),
+    'a Templates deep link waits on the client list only, not on the held extras');
 
   if (failures) { console.error('\n' + failures + ' check(s) failed'); process.exit(1); }
   console.log('\nKasper subtab reload + extras hold checks passed');

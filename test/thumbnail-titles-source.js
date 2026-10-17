@@ -25,6 +25,16 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
   eq(L.defaultPromptFor(''), L.N8N_TITLE_PROMPT, 'no style: plain n8n prompt');
   const withStyle = L.defaultPromptFor([{ file: 'voice', heading: 'Hooks', body: 'Never use the word "quietly".' }]);
   ok(withStyle.startsWith(L.N8N_TITLE_PROMPT + '\n\n' + L.STYLE_HEADER) && withStyle.includes('Never use the word "quietly".'), 'style section appended after the n8n instruction');
+  // The editor banner says whether the Brain style is in the default. The server decides
+  // it from STYLE_HEADER (hasBrainStyle); the browser keeps no copy of the header text.
+  ok(L.hasBrainStyle(withStyle) && !L.hasBrainStyle(L.defaultPromptFor('')) && !L.hasBrainStyle(''), 'hasBrainStyle matches the header defaultPromptFor writes');
+  {
+    const editor = read('src/index/180-calendar-native-post-media.js.part');
+    const prompts = read('supabase/functions/thumbnail-title-prompts/index.ts');
+    ok(/has_brain_style: hasBrainStyle\(defaultPrompt\)/.test(prompts), 'thumbnail-title-prompts reports has_brain_style from the shared constant');
+    ok(/j\.has_brain_style === true/.test(editor), 'the banner reads has_brain_style');
+    ok(!/This client's (title )?style/.test(editor), 'the editor keeps no copy of the style header text');
+  }
   ok(L.STYLE_EXCLUDE.test('Communication') && L.STYLE_EXCLUDE.test('How she talks to us') && !L.STYLE_EXCLUDE.test('Banned-Openings'), 'agency-communication facts left out');
 
   // Saved prompt wins, then the seeded default, then the plain instruction.

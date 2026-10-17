@@ -1,7 +1,7 @@
 'use strict';
 // Native generated app, invented data, headless browser by default.
 // --before-root=<checkout> captures the identical journeys against main.
-// --shots=<directory> --widths=360,390,430 --only=<regexp> --report=<json>
+// --shots=<directory> --widths=360,390,430 --only=<regexp> --report=<json> --shard=k/n
 // CI: run the complete --all-states inventory separately at 390 and 430.
 // Design-device runs at 393/412 cover a different viewport matrix.
 const fs = require('fs'), path = require('path'), assert = require('assert/strict');
@@ -21,6 +21,13 @@ assert(themes.every(theme=>['light','dark'].includes(theme)), 'Invalid themes');
 const only = new RegExp(arg('only', '.*'));
 const shots = arg('shots', ''), receipts = [], failures = [];
 const allStates = process.argv.includes('--all-states');
+// --shard=k/n runs every n-th render starting at the k-th (1-based), so CI can
+// split the inventory across parallel jobs. The n shards together run exactly
+// the full list once (renders are counted in the same order in every shard).
+const shard = arg('shard', '1/1').split('/').map(Number);
+assert(shard.length === 2 && Number.isInteger(shard[0]) && Number.isInteger(shard[1]) && shard[0] >= 1 && shard[0] <= shard[1], 'Invalid --shard (expected k/n)');
+let renderSlot = -1;
+const inShard = () => (++renderSlot) % shard[1] === shard[0] - 1;
 const settle = p => p.waitForTimeout(850);
 async function analyticsAxes(page) {
   return page.evaluate(()=>{
@@ -739,6 +746,7 @@ async function main(){
   const chartSource = core.some(s=>only.test(s.name)&&s.name.startsWith('analytics-detail'))
     ? await require('../docs/syncview-design/tests/kasper-admin-expanded-browser').loadChartSource() : null;
   for (const s of core.filter(s=>only.test(s.name))) for(const width of widths) for(const theme of themes) {
+    if (!inShard()) continue;
     const h=await open({...s.open,chartSource:s.name.startsWith('analytics-detail')?chartSource:null,width,height:heightFor(width,arg('height')),theme,dsf:1});
     try { await h.page.waitForTimeout(s.settle||3000);
       await h.page.evaluate(names=>{WL_CLIENT_NAMES.splice(0,WL_CLIENT_NAMES.length,...names);WL_CLIENT_CANONICAL.clear();names.forEach(n=>WL_CLIENT_CANONICAL.set(wlNormalizeClient(n),n));if(typeof wlState!=='undefined')wlState.clientOptions=names.slice();},require('./finch-phone/fixtures').CLIENTS);
@@ -753,6 +761,7 @@ async function main(){
   const server=await staff.serve(), origin='http://127.0.0.1:'+server.address().port;
   const browser=await chromium.launch();
   try {for(const st of [...states,...cases.map(name=>({name,setup:p=>prepare(p,name)}))].filter(s=>only.test(s.name))) for(const width of widths) for(const theme of themes) {
+    if (!inShard()) continue;
     staff.resetScenario();if(st.beforeBoot)st.beforeBoot();const ctx=await browser.newContext({viewport:{width,height:heightFor(width,arg('height'))},isMobile:true,hasTouch:true,reducedMotion:'reduce'});
     await staff.installBackend(ctx,st.editor);
     if(st.name.startsWith('calendar-transcript-')) await ctx.route('**/rest/v1/syncview_runtime_flags?**',route=>{
@@ -778,7 +787,7 @@ async function main(){
     }catch(e){failures.push(st.name+' '+width+' '+theme+': '+e.message.split('\n')[0]);console.log('FAIL '+failures.at(-1));}finally{await ctx.close();}
   }}finally{await browser.close();server.close();}
   if(arg('report',''))fs.writeFileSync(arg('report',''),JSON.stringify({receipts,failures},null,2)+'\n');
-  console.log(`staff-phone-final-pass: ${receipts.length} renders, ${failures.length} problems${before?' (baseline capture)':''}`);
+  console.log(`staff-phone-final-pass: ${receipts.length} renders, ${failures.length} problems${shard[1]>1?` (shard ${shard[0]}/${shard[1]} of ${renderSlot+1} slots)`:''}${before?' (baseline capture)':''}`);
   if(failures.length&&!before)process.exitCode=1;
 }
 if (require.main === module) main().catch(e=>{console.error(e);process.exitCode=1;});

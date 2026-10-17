@@ -11,16 +11,34 @@ name: Calendar unit tests
 # the code at all. Two runs of identical source doubled the cost and doubled the
 # exposure to that. The pull_request trigger covers every branch under review;
 # the push trigger covers what actually lands. See docs/ops/CI_GATE_AUDIT.md.
+#
+# Speed (2026-10-17, session Turbo): the slow browser jobs are split into
+# parallel parts, a pull request runs only the suites its files can reach
+# (the `changes` job), and a new push to a pull request cancels the run it
+# replaces. Pushes to main are never cancelled and always run everything.
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: calendar-unit-tests-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  staff-phone-files:
+  changes:
+    # What this change can break (scripts/ci-changes.js). A pull request that
+    # only touches docs, or Edge Functions no browser suite loads, skips the
+    # browser jobs; page code, the build or the shared browser helpers run
+    # everything. A push to main or a manual run always runs everything. A
+    # skipped job reports success, and `calendar-ci-result` at the bottom is the
+    # one check that sums the run up.
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
-      changed: ${{ steps.files.outputs.changed }}
+      browser: ${{ steps.files.outputs.browser }}
+      phone: ${{ steps.files.outputs.phone }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,28 +46,27 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Build index.html and js/ from src/index/ (build output, not committed)
-        uses: ./.github/actions/build-index
       - id: files
         env:
-          BEFORE: ${{ github.event.before }}
+          EVENT: ${{ github.event_name }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          base="$BEFORE"
-          if [[ -z "$base" || "$base" =~ ^0+$ ]]; then base="$PR_BASE"; fi
-          if [[ -z "$base" ]]; then base="$(git rev-parse "$HEAD^")"; fi
-          node scripts/staff-phone-changed.js "$base" "$HEAD"
+        run: node scripts/ci-changes.js "$EVENT" "$PR_BASE" "$HEAD"
 
   staff-phone-rules:
-    needs: staff-phone-files
-    if: needs.staff-phone-files.outputs.changed == 'true'
+    # Split into four parts per width (2026-10-17, session Turbo): one job per
+    # width took 37 minutes, 28 of them in the state inventory, which now runs a
+    # quarter of its renders in each part (--shard). Every other step runs in
+    # exactly one part; test/ci-shards-wired.js checks that nothing is dropped.
+    needs: changes
+    if: needs.changes.outputs.phone == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
         width: [390, 430]
+        part: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -62,42 +79,52 @@ jobs:
           npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
       - name: Phone rules on every staff screen and menu
+        if: ${{ !cancelled() && matrix.part == 1 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node qa/staff-phone-rules-browser.js --widths=${{ matrix.width }}
       - name: The same native-icon Tabs grid on every staff phone screen
+        if: ${{ !cancelled() && matrix.part == 3 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node qa/staff-phone-tabs-grid.js --widths=${{ matrix.width }}
       - name: Phone client selection, status colours and sheet dismissal
+        if: ${{ !cancelled() && matrix.part == 3 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node qa/staff-phone-round-two.js --matrix --widths=${{ matrix.width }}
       - name: Phone responsiveness, refresh continuity and shared segments
+        if: ${{ !cancelled() && matrix.part == 4 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node qa/staff-phone-responsiveness.js --widths=${{ matrix.width }}
       - name: Native card design, safe actions and media refresh
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node qa/staff-phone-design-browser.js --widths=${{ matrix.width }}
       - name: Thumb collection grid, detail, menus and native List continuity
+        if: ${{ !cancelled() && matrix.part == 4 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node qa/staff-phone-collections.js --widths=${{ matrix.width }}
       - name: Thumb phone Workload agenda, queues, filters and native planning
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node qa/staff-phone-workload.js --widths=${{ matrix.width }}
       - name: Thumb phone Messages list, threads, drafts, composer and unread markers
+        if: ${{ !cancelled() && matrix.part == 1 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node qa/staff-phone-messages.js --widths=${{ matrix.width }}
-      - name: Existing staff phone state inventory with overlap and scroll checks
+      - name: Existing staff phone state inventory with overlap and scroll checks (a quarter of it per part)
+        if: ${{ !cancelled() }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
-        run: node qa/staff-phone-final-pass.js --all-states --widths=${{ matrix.width }}
+        run: node qa/staff-phone-final-pass.js --all-states --widths=${{ matrix.width }} --shard=${{ matrix.part }}/4
       - name: Every reviewer and admin state with overlap and scroll checks
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/kasper-admin-expanded-browser.js --width=${{ matrix.width }}
@@ -107,6 +134,13 @@ jobs:
     # The expanded classified suite completed close to the ten-minute limit.
     # Keep a bounded margin for runner variance without changing any assertions.
     timeout-minutes: 15
+    # Three parts with their own disposable PostgreSQL (2026-10-17, session
+    # Turbo): test/run-all.js runs every third suite per part (UNIT_SHARD), so
+    # the three together run the whole classified list exactly once.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     services:
       postgres:
         image: postgres:16
@@ -141,7 +175,9 @@ jobs:
         uses: ./.github/actions/build-index
       - name: Check index.html is exactly the assembled src/index/ fragments
         run: npm run check:index
-      - name: Run unit suite (test/*.js)
+      - name: Run unit suite (test/*.js), one third per part
+        env:
+          UNIT_SHARD: ${{ matrix.shard }}/3
         run: node test/run-all.js
 
   identity-exposure:
@@ -272,8 +308,22 @@ jobs:
     # 40, not 25: the job grew to about 20 minutes on main by 2026-10-08 as
     # suites were added, so an ordinary slow runner crossed 25 and was cancelled
     # mid-suite with nothing failing (three times that day).
+    #
+    # Split into four parallel parts (2026-10-17, session Turbo): as one job it
+    # took 31 minutes on a pull request and hit its 40-minute limit on main
+    # (cancelled four times on 2026-10-16). Every step below runs in exactly one
+    # part, chosen from measured step times so the parts finish together;
+    # test/ci-shards-wired.js fails if a step has no part or a part is missing.
+    # A step runs even after an earlier one in its part failed, so one red run
+    # names every broken suite.
+    needs: changes
+    if: needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -286,160 +336,200 @@ jobs:
           npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
       - name: Entry links reach their screens
+        if: ${{ !cancelled() && matrix.part == 4 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/entry-links-boot-browser.js
       - name: Every button's code exists (staff tabs, entry links, client link)
+        if: ${{ !cancelled() && matrix.part == 4 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/inline-handlers-browser.js
       - name: Templates client page shows the client's social links
+        if: ${{ !cancelled() && matrix.part == 1 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/templates-social-links-browser.js
       - name: Templates client page shows Audience and copies the brief
+        if: ${{ !cancelled() && matrix.part == 3 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/templates-audience-copy-browser.js
       - name: Saves outside the gateway report their refusals to the failed-saves log
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/failed-saves-beacon-browser.js
       - name: A Calendar Retry sends the status the person chose (mocked)
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/lost-work-retry-intent-browser.js
       - name: Two people on one Calendar card get a notice, not an overwrite (mocked)
+        if: ${{ !cancelled() && matrix.part == 3 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/lost-work-conflict-browser.js
       - name: A second status pick while the first is still saving reaches production-write (mocked)
+        if: ${{ !cancelled() && matrix.part == 3 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/cal-status-pick-during-save-browser.js
       - name: Typed captions, notes, comments and descriptions survive a closed tab or a failed save (mocked)
+        if: ${{ !cancelled() && matrix.part == 4 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/lost-work-drafts-browser.js
       - name: A reply under an old round-0 comment saves with no round, never a 500 (mocked)
+        if: ${{ !cancelled() && matrix.part == 4 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/comment-round-zero-browser.js
       - name: Notes composer (comment / client / request change) and folding threads (mocked)
+        if: ${{ !cancelled() && matrix.part == 1 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/notes-composer-threads-browser.js
       - name: Messages inbox (list, read and unread, reply through Notes, posted drops out, phone) (mocked)
+        if: ${{ !cancelled() && matrix.part == 4 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/messages-inbox-browser.js
       - name: A note shows the moment it is sent and is never lost (slow server, error then retry, double click, refresh mid-send; desktop and phone) (mocked)
+        if: ${{ !cancelled() && matrix.part == 3 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/note-send-outbox-browser.js
       - name: The client link shows staff notes as the team and never receives a staff name (mocked)
+        if: ${{ !cancelled() && matrix.part == 1 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/note-author-client-browser.js
       - name: Urgent ping uses the stamp the database holds, and a refused ping can be refreshed
+        if: ${{ !cancelled() && matrix.part == 4 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/urgent-ping-fresh-round-browser.js
       - name: Client approve and request-changes requests are unchanged
+        if: ${{ !cancelled() && matrix.part == 1 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/client-review-requests-unchanged-browser.js
       - name: Split load, opt-out and on-demand areas (browser)
+        if: ${{ !cancelled() && matrix.part == 3 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/split-load-browser.js
       - name: Client link accepts the split way-back key and still refuses every other key
+        if: ${{ !cancelled() && matrix.part == 4 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/client-link-split-key-browser.js
       - name: Expanded staff Selection and Samples phone states
+        if: ${{ !cancelled() && matrix.part == 3 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/staff-selection-samples-browser.js
       - name: Expanded staff Calendar phone states in both themes
+        if: ${{ !cancelled() && matrix.part == 4 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/staff-calendar-expanded-browser.js
       - name: A background Calendar refresh keeps the card in view in place on every view
+        if: ${{ !cancelled() && matrix.part == 3 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/calendar-refresh-scroll-browser.js
       - name: Calendar status filter (Show only / Hide) on desktop and phone
+        if: ${{ !cancelled() && matrix.part == 3 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/calendar-card-status-filter-browser.js
       - name: A client link made with tab=review opens on the Review view (Calendar and Samples)
+        if: ${{ !cancelled() && matrix.part == 4 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/client-link-review-tab-browser.js
       - name: Notify client button and confirm box (Calendar and Samples, desktop and phone)
+        if: ${{ !cancelled() && matrix.part == 3 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/notify-client-browser.js
       - name: Calendar work item hover card and per-card files menu
+        if: ${{ !cancelled() && matrix.part == 4 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/calendar-hover-files-browser.js
       - name: Calendar card video and thumbnail buttons each have their own icon and tooltip
+        if: ${{ !cancelled() && matrix.part == 1 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/calendar-prod-button-icons-browser.js
       - name: Client review link works on phones (approve + request change)
+        if: ${{ !cancelled() && matrix.part == 1 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/client-phone-review-browser.js
       - name: Expanded client Samples and Analytics phone states
+        if: ${{ !cancelled() && matrix.part == 1 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/client-links-expanded-browser.js
       - name: Client Calendar Expanded layout, sections and dialogs
+        if: ${{ !cancelled() && matrix.part == 3 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/client-calendar-expanded-browser.js
       - name: Desktop parity read snapshots retain the write refusal
+        if: ${{ !cancelled() && matrix.part == 2 }}
         run: node docs/syncview-design/tests/desktop-parity-relay.js
       - name: Client link Analytics reads the database behind its flag, Sheets as fallback
+        if: ${{ !cancelled() && matrix.part == 4 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/analytics-mirror-read-browser.js
       - name: Kasper Clients tab is admin-only and read-only
+        if: ${{ !cancelled() && matrix.part == 1 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/clients-admin-browser.js
       - name: Kasper Clients profile shows onboarding checklist, resources and HubSpot state to admins only
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/clients-onboarding-browser.js
       - name: Kasper Clients "New client" previews, creates and stays admin-only
+        if: ${{ !cancelled() && matrix.part == 3 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/clients-create-browser.js
       - name: Quick jump opens a client on a tab from the keyboard
+        if: ${{ !cancelled() && matrix.part == 4 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/quick-jump-browser.js
       - name: Every pop-up closes the same way (Escape, outside click, focus return, kept text, refresh)
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/popup-behaviour-browser.js
       - name: Every pop-up closes the same way, part two (SyncLinear, Kasper, Workload, Analytics)
+        if: ${{ !cancelled() && matrix.part == 1 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/popup-behaviour-areas-browser.js
       - name: Creatives open on their own work in Workload and SyncLinear
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/smart-defaults-browser.js
       - name: Samples keeps the caret in the same box across a hide and return
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/sxr-focus-return-browser.js
       - name: One shared client follows the client tabs; team tabs and client links ignore it
+        if: ${{ !cancelled() && matrix.part == 4 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/shared-client-browser.js
@@ -447,60 +537,74 @@ jobs:
       # and save, and the proof that the client approve and request-changes
       # requests are byte-identical to main. Fully mocked, no backend.
       - name: Calendar write guard (fresh flag read, hold, pause, zero n8n)
+        if: ${{ !cancelled() && matrix.part == 1 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/calendar-write-guard-browser.js
       - name: Caption prompts read and save guard (table read, fallback, pause switch)
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/caption-prompts-guard-browser.js
       - name: Sheet strip wheel reads a long open caption (scrolls it, stops at its end, slides between cards)
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/calendar-sheet-caption-wheel-browser.js
       - name: Status rows stay one line and the same height with Urgent on (Calendar and Samples, desktop and phone, both themes and palettes)
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/calendar-status-row-urgent-height-browser.js
       - name: Calendar card writes route to calendar-card-write only for clients on its switch (calendar-upsert otherwise)
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/calendar-card-write-routing-browser.js
       - name: Generate caption off n8n (no n8n fallback, function path, transcript box, desktop and phone)
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/caption-generate-browser.js
       - name: Watch here viewer (Calendar card, SMM and Kasper review, desktop and phone, no button for clients)
+        if: ${{ !cancelled() && matrix.part == 1 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/frameio-viewer-browser.js
       - name: Caption helper (call to action, platform, note, title ideas, hashtags, redo; desktop and phone, light and dark)
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/caption-helper-browser.js
       - name: Client approve and request-changes always save through the function
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/calendar-client-approve-function-browser.js
       - name: Samples write guard (fresh flag read, hold, pause, zero n8n)
+        if: ${{ !cancelled() && matrix.part == 1 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/samples-write-guard-browser.js
       - name: Samples client approve and request-changes always save through the function
+        if: ${{ !cancelled() && matrix.part == 1 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/samples-client-approve-function-browser.js
       # n8n exit phase 2, step D: the TikTok queue poll backs off when nothing changes.
       - name: TikTok queue poll backs off when quiet and resumes on a change
+        if: ${{ !cancelled() && matrix.part == 3 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/tiktok-poll-backoff-browser.js
       # Wrong client and lost work (OPEN_REPAIRS 404): a result decided its client after an await.
       - name: Client credentials dialog shows and edits only its own client
+        if: ${{ !cancelled() && matrix.part == 4 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/credentials-modal-client-switch-browser.js
       - name: Instagram Calendar cover stays with the client it was picked for
+        if: ${{ !cancelled() && matrix.part == 3 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/instagram-cover-client-switch-browser.js
@@ -514,8 +618,10 @@ jobs:
     # credentials. Every step runs even after an earlier one fails, so one red
     # run names every broken guard. test/browser-guards-wired.js (unit job)
     # fails when a browser test is added that no workflow runs.
+    needs: changes
+    if: needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -698,8 +804,16 @@ jobs:
     # and runs the browser gates against it: once as it would ship (staff get
     # the parts, everyone else the one full file) and once with everyone on the
     # parts. Nothing is committed from here.
+    # Part 1 checks the split build as it would ship, part 2 with everyone on
+    # the parts; they ran one after the other in one 13-minute job.
+    needs: changes
+    if: needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -712,8 +826,10 @@ jobs:
           npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
       - name: Build the split version (runner checkout only)
+        if: ${{ !cancelled() && matrix.part == 1 }}
         run: node scripts/build-index.js --force-split
       - name: Gates on the split version
+        if: ${{ !cancelled() && matrix.part == 1 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: |
@@ -728,8 +844,10 @@ jobs:
           node docs/syncview-design/tests/prod-write-gateway-browser.js
           node qa/boot/client-entry-sequence.js
       - name: Build with everyone on the parts (runner checkout only)
+        if: ${{ !cancelled() && matrix.part == 2 }}
         run: node scripts/build-index.js --force-split=parts
       - name: Gates with everyone on the parts
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: |
@@ -798,3 +916,24 @@ jobs:
           name: f27-team-rollback-proof
           path: f27-proof/
           retention-days: 30
+
+  calendar-ci-result:
+    # The one check that sums this workflow up: red when any job failed or was
+    # cancelled, green when every job passed or was not needed by this change.
+    # Make this the required check, not the individual parts: a part a change
+    # does not need is skipped, and its matrix names never appear.
+    if: always()
+    needs: [changes, unit, identity-exposure, module-check, entry-links-boot, browser-guards, split-preview, staff-phone-rules, f27-team-rollback-proof]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every job passed, or was not needed by this change
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          bad=$(echo "$RESULTS" | jq -r '[to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | .key] | join(", ")')
+          if [[ -n "$bad" ]]; then
+            echo "::error::Not green: $bad"
+            exit 1
+          fi

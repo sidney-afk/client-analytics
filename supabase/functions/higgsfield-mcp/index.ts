@@ -21,9 +21,12 @@ import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, cle
 import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
 import { guideIndex, guideReply, latestGuides } from "./guides.mjs";
 import { STUDIO_BUCKET, studioLatest } from "./studio.mjs";
-import { brainChange, clientBrain, clientStyle, filmingPlan, listClients } from "./clientinfo.ts";
+import { TOOLKIT_NAMES, toolkitLatest } from "./studio.mjs";
+import { clientRecord, feedbackNote, feedbackNotes } from "./filmingrecord.mjs";
+import { brainChange, clientBrain, clientStyle, filmingPlan, findClient, listClients } from "./clientinfo.ts";
 import { studioProfile, studioProfileSave } from "./studioprofile.ts";
 import { pipelinePass } from "./pipelinepass.ts";
+import { pipelineGate } from "../pipeline-google/users.mjs";
 import { PROFILE_FIELDS } from "./profile.mjs";
 import { answeredFromLog, asksSwitchedOff, DIRECT_MODELS, directEstimate, GOOGLE_IMAGE_ENABLED, GOOGLE_IMAGE_IDS, gptImageInputs, isDirect, runDirect, SWITCHED_OFF_TEXT, type Fetched } from "./direct.ts";
 
@@ -261,7 +264,7 @@ const TOOLS = [
   },
   {
     name: "client_brain",
-    description: "Everything the Synchro Brain has written about a client: the editor brief, then the written facts (who they are, voice, editing, relationship, audience), each with its heading and fact id. Call this automatically, without being asked, whenever a client is named in the conversation, before answering anything about them (for example \"what does X want\"). Read only.",
+    description: "Everything the Synchro Brain has written about a client: the editor brief, then the written facts (what their content is focused on right now, who they are, voice, editing, relationship, audience), each with its heading and fact id. Call this automatically, without being asked, whenever a client is named in the conversation, before answering anything about them (for example \"what does X want\"). Read only.",
     inputSchema: { type: "object", required: ["client"], additionalProperties: false, properties: { client: { type: "string", description: "The client's name as SyncView shows it." } } },
   },
   {
@@ -304,6 +307,16 @@ const TOOLS = [
     inputSchema: EMPTY,
   },
   {
+    name: "toolkit_latest",
+    description: "The newest version of one of the team's toolkits: \"studio\" (the Synchro video studio, same as studio_latest) or \"filming-plan\" (the filming plan pipeline toolkit). Answers its version, a private download link (valid about 10 minutes) and what changed. Use it when someone wants to install or update a toolkit, or asks which version is current. Read only.",
+    inputSchema: {
+      type: "object",
+      required: ["name"],
+      additionalProperties: false,
+      properties: { name: { type: "string", enum: TOOLKIT_NAMES, description: "Which toolkit: studio or filming-plan." } },
+    },
+  },
+  {
     name: "studio_profile",
     description: "A client's video look for the Synchro video studio, as one JSON (colours, fonts, subtitle style, hook style, music rule, things to avoid, handle, platform, call to action, camera, notes). If the client has no profile yet, it returns what the Synchro Brain knows about their look so a first profile can be drafted. Read only.",
     inputSchema: { type: "object", required: ["client"], additionalProperties: false, properties: { client: { type: "string", description: "The client's name as SyncView shows it." } } },
@@ -332,6 +345,40 @@ const TOOLS = [
       properties: {
         client: { type: "string", description: "The client's name as SyncView shows it." },
         target: { type: "string", enum: ["test", "client"], description: "test: the TEST Sheet and the client's test Doc. client: the client's real ideas Sheet and filming plan Doc." },
+      },
+    },
+  },
+  {
+    name: "client_record",
+    description: "A short summary of a client's filming pipeline record: the latest idea batch number, and each saved pipeline file (config.json, ideas.json, filming_plans/... and the rest) with its version and when and by whom it was last saved. No file contents. Read only.",
+    inputSchema: { type: "object", required: ["client"], additionalProperties: false, properties: { client: { type: "string", description: "The client's name as SyncView shows it." } } },
+  },
+  {
+    name: "feedback_note",
+    description: "Save a feedback note about the filming plan pipeline from this chat (what worked, what to change), for the supervisors to read with feedback_notes. Use it when the person gives feedback on ideas, a filming plan or the pipeline and wants it passed on. Then confirm in one line with the note's id. Not for lasting facts about a client: those go to brain_change.",
+    inputSchema: {
+      type: "object",
+      required: ["title", "body"],
+      additionalProperties: false,
+      properties: {
+        client: { type: "string", description: "Optional: the client's name as SyncView shows it. Leave out for a note about the pipeline in general." },
+        title: { type: "string", description: "A short title, at most 200 characters." },
+        body: { type: "string", description: "The note in markdown, as complete as the person said it (at most 20000 characters)." },
+        source: { type: "string", enum: ["chat"], description: "Always chat (notes from the ideas Sheet come in through the pipeline)." },
+        follows: { type: "string", description: "Optional: the id of an earlier note this one follows up on." },
+      },
+    },
+  },
+  {
+    name: "feedback_notes",
+    description: "For supervisors only (a personal connector link on the publish list; others are refused): read the filming plan pipeline's feedback notes (from chats and from the ideas Sheets) saved since a date, oldest first, optionally for one client. Read only.",
+    inputSchema: {
+      type: "object",
+      required: ["since"],
+      additionalProperties: false,
+      properties: {
+        since: { type: "string", description: "A date like 2026-10-10 (UTC), or a date and time." },
+        client: { type: "string", description: "Optional: the client's name as SyncView shows it." },
       },
     },
   },
@@ -1191,6 +1238,15 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
 
   if (name === "studio_profile") return await studioProfile(db(), String(args.client || ""));
   if (name === "studio_profile_save") return await studioProfileSave(db(), String(args.client || ""), args.profile, args.replace === true, author);
+  // The filming plan pipeline is only for the people on fp_settings
+  // "pipeline_users" (read now), never the shared team link (users.mjs).
+  // studio and studio_latest stay open to everyone.
+  const filmingPlanTool = name === "pipeline_pass" ||
+    (name === "toolkit_latest" && String(args.name || "").trim().toLowerCase() === "filming-plan");
+  if (filmingPlanTool) {
+    const gate = await pipelineGate(fpSetting, { member, teamLink: isTeamLink(member) });
+    if (gate) return gate.text;
+  }
   if (name === "pipeline_pass") {
     return await pipelinePass(db(), { member, author, teamLink: isTeamLink(member), client: String(args.client || ""), target: args.target });
   }
@@ -1198,6 +1254,13 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   if (name === "studio_latest") {
     return await studioLatest(studioStore(), { member, who: isTeamLink(member) ? cleanWho(args.who) : "" });
   }
+  if (name === "toolkit_latest") {
+    return await toolkitLatest(studioStore(), String(args.name || ""), { member, who: isTeamLink(member) ? cleanWho(args.who) : "" });
+  }
+
+  if (name === "client_record") return await clientRecord(recordDeps(), String(args.client || ""));
+  if (name === "feedback_note") return await feedbackNote(recordDeps(), args, author);
+  if (name === "feedback_notes") return await feedbackNotes(recordDeps(), args, { member, teamLink: isTeamLink(member) });
 
   if (name === "get_upload_link") {
     const type = String(args.content_type || "");
@@ -1246,9 +1309,13 @@ function studioStore() {
   const bucket = () => db().storage.from(STUDIO_BUCKET);
   return {
     exists: async (name: string): Promise<boolean> => {
-      const { data, error } = await bucket().list("", { search: name, limit: 100 });
+      // A toolkit's files sit in its folder ("filming-plan/latest.json"); the studio's at the top.
+      const cut = name.lastIndexOf("/");
+      const folder = cut < 0 ? "" : name.slice(0, cut);
+      const base = name.slice(cut + 1);
+      const { data, error } = await bucket().list(folder, { search: base, limit: 100 });
       if (error) throw new Error(error.message);
-      return (data || []).some((o) => o.name === name);
+      return (data || []).some((o) => o.name === base);
     },
     readText: async (name: string): Promise<string> => {
       const { data, error } = await bucket().download(name);
@@ -1267,6 +1334,59 @@ function studioStore() {
       }, row));
     },
   };
+}
+
+// The filming pipeline record and notes (fp_files, fp_batch_counter,
+// fp_feedback_notes: service role only). client_record never reads a body.
+function recordDeps() {
+  const fail = (what: string, e: { message?: string } | null) => new Error(`Could not read ${what}: ${e?.message || "no answer"}`);
+  return {
+    findClient: (q: string) => findClient(db(), q),
+    files: async (slug: string) => {
+      const { data, error } = await db().from("fp_files").select("name,version,updated_by,updated_at").eq("client_slug", slug);
+      if (error) throw fail("the file store", error);
+      return data || [];
+    },
+    nextBatch: async (slug: string) => {
+      const { data, error } = await db().from("fp_batch_counter").select("next").eq("client_slug", slug).maybeSingle();
+      if (error) throw fail("the batch counter", error);
+      return data ? Number(data.next) : null;
+    },
+    noteExists: async (id: string) => {
+      const { data, error } = await db().from("fp_feedback_notes").select("id").eq("id", id).maybeSingle();
+      if (error) throw fail("the notes", error);
+      return !!data;
+    },
+    addNote: async (row: JsonMap) => {
+      const { data, error } = await db().from("fp_feedback_notes").insert(row).select("id,created_at").single();
+      if (error || !data) throw new Error(`Could not save the note: ${error?.message || "no answer"}`);
+      return data;
+    },
+    notes: async ({ since, slug, limit }: { since: string; slug: string | null; limit: number }) => {
+      let q = db().from("fp_feedback_notes").select("id,client_slug,title,body,source,follows,member,created_at").gte("created_at", since);
+      if (slug) q = q.eq("client_slug", slug);
+      const { data, error } = await q.order("created_at", { ascending: true }).limit(limit);
+      if (error) throw fail("the notes", error);
+      return data || [];
+    },
+    isPublisher: async (m: string) => {
+      const { data, error } = await db().from("fp_publishers").select("member").eq("member", m).maybeSingle();
+      if (error) throw fail("the publish list", error);
+      return !!data;
+    },
+    clientNames: async () => {
+      const { data, error } = await db().from("filming_plans").select("client_slug,client_name");
+      if (error) throw fail("the client list", error);
+      return new Map((data || []).map((r) => [String(r.client_slug), String(r.client_name)]));
+    },
+  };
+}
+
+// One fp_settings value (service role only), or null when the key is not set.
+async function fpSetting(key: string): Promise<unknown> {
+  const { data, error } = await db().from("fp_settings").select("value").eq("key", key).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? data.value : null;
 }
 
 async function writeActivity(row: JsonMap): Promise<void> {

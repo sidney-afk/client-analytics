@@ -112,7 +112,7 @@ function store(files, opts = {}) {
   assert.ok(/from\("hf_studio_downloads"\)\.insert\(/.test(idx), 'logs each call');
   assert.strictEqual(s.STUDIO_BUCKET, 'studio');
   // Every tool name that existed before is still offered.
-  for (const t of ['start_here', 'find_models', 'model_details', 'price_check', 'create', 'check_job', 'wait_for_job', 'check_jobs', 'recipes', 'recipe_plan', 'run_recipe', 'thumbnail_workflow', 'clients', 'client_filming_plan', 'client_style', 'client_brain', 'brain_change', 'import_file', 'get_upload_link', 'guide', 'team_usage']) {
+  for (const t of ['start_here', 'find_models', 'model_details', 'price_check', 'create', 'check_job', 'wait_for_job', 'check_jobs', 'recipes', 'recipe_plan', 'run_recipe', 'thumbnail_workflow', 'clients', 'client_filming_plan', 'client_style', 'client_brain', 'brain_change', 'import_file', 'get_upload_link', 'guide', 'team_usage', 'studio_latest', 'studio_profile', 'studio_profile_save', 'pipeline_pass', 'toolkit_latest', 'client_record', 'feedback_note', 'feedback_notes']) {
     assert.ok(idx.includes(`name: "${t}"`), `${t} is still offered`);
   }
 

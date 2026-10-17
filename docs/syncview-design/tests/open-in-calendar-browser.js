@@ -15,6 +15,13 @@
  *    drops to its own line under that row (44px tall, full label), the row
  *    above stays on one line with the id unsquashed, and nothing scrolls
  *    sideways.
+ * 5. Opened from a Calendar card (from=, card=, cslug= in the address),
+ *    SyncLinear shows "Back to card", and on a work item from that SAME card
+ *    Open in Calendar is hidden: it would only lead back to where the person
+ *    came from. A work item from any OTHER card keeps Open in Calendar (to
+ *    that card), and so does a Samples origin (its Back to card goes to the
+ *    sample). Checked on desktop and on a phone, when moving between work
+ *    items inside SyncLinear, and after pressing Back to card and coming back.
  *
  * Fixture names only; every outside request is answered by the mock below.
  * Set OPENCAL_SHOTS=<dir> to also save desktop and phone screenshots.
@@ -67,6 +74,7 @@ function pagesServer() {
   const deliverables = [
     row('del_cal', 'VID-9001', 'video', 'Video 1 · Calendar fixture title that is long enough to need cutting short on a narrow screen', { origin: 'calendar', card_id: CARD }),
     row('del_gra', 'GRA-9002', 'graphics', 'Thumbnail 1 · Calendar fixture', { origin: 'calendar', card_id: CARD }),
+    row('del_other', 'VID-9006', 'video', 'Video 2 · Another card fixture', { origin: 'calendar', card_id: 'p_card_a' }),
     row('del_samples', 'VID-9003', 'video', 'Sample fixture', { origin: 'samples', card_id: 'sample-card-1' }),
     row('del_none', 'VID-9004', 'video', 'No card fixture', { origin: 'production', card_id: null }),
     row('del_nocard', 'VID-9005', 'video', 'Calendar origin, card missing', { origin: 'calendar', card_id: null }),
@@ -107,11 +115,11 @@ function pagesServer() {
     });
     await seedStaffIdentity(context, ADMIN);
 
-    const open = async (id, width, theme) => {
+    const open = async (id, width, theme, query) => {
       const tab = await context.newPage();
       tab.on('pageerror', e => pageErrors.push(e.message));
       if (width) await tab.setViewportSize({ width, height: width < 600 ? 844 : 900 });
-      await tab.goto(base + '/?prod=1&d=' + id + '#production', { waitUntil: 'domcontentloaded' });
+      await tab.goto(base + '/?prod=1&d=' + id + (query || '') + '#production', { waitUntil: 'domcontentloaded' });
       await tab.waitForSelector('[data-prod-detail="' + id + '"]', { timeout: 20000 });
       await tab.waitForSelector('.prod-detail-top', { timeout: 20000 });
       if (theme) await tab.evaluate(t => document.documentElement.setAttribute('data-theme', t), theme);
@@ -193,6 +201,93 @@ function pagesServer() {
       const tab = await open(id);
       expect(await tab.locator('[data-prod-open-card]').count() === 0, why + ' shows no button');
       await tab.close();
+    }
+
+    /* ---- opened from a card: Back to card shows; Open in Calendar only for another card ---- */
+    const ORIGIN = '&from=calendar&card=' + CARD + '&cslug=' + SLUG;
+    const buttons = tab => tab.evaluate(() => {
+      const seen = el => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+      const detail = document.querySelector('[data-prod-detail]');
+      return {
+        detail: detail && detail.getAttribute('data-prod-detail'),
+        back: Array.from(document.querySelectorAll('.prod-back-card')).filter(seen).length,
+        open: Array.from(document.querySelectorAll('[data-prod-open-card]')).filter(seen).length,
+        href: (Array.from(document.querySelectorAll('[data-prod-open-card]')).filter(seen)[0] || { getAttribute: () => '' }).getAttribute('href') || '',
+        scroll: document.documentElement.scrollWidth, vw: window.innerWidth,
+      };
+    });
+    const showDetail = async (tab, id) => {
+      await tab.evaluate(i => _prodOpenDeliverable(i), id);
+      await tab.waitForSelector('[data-prod-detail="' + id + '"]', { timeout: 20000 });
+      await tab.waitForTimeout(200);
+    };
+    const fromCard = await open('del_cal', 1280, null, ORIGIN);
+    await fromCard.waitForSelector('.prod-back-card:visible', { timeout: 20000 });
+    let fc = await buttons(fromCard);
+    if (shots) await fromCard.screenshot({ path: path.join(shots, 'from-card-desktop.png') });
+    expect(fc.back === 1, 'opened from a card: Back to card shows (' + fc.back + ')');
+    expect(fc.open === 0, 'opened from a card, on a work item from that card: Open in Calendar is hidden (' + fc.open + ' shown)');
+    await showDetail(fromCard, 'del_gra');
+    fc = await buttons(fromCard);
+    expect(fc.detail === 'del_gra' && fc.back === 1 && fc.open === 0, 'moving to another work item from the same card keeps Back to card and keeps Open in Calendar hidden');
+    await showDetail(fromCard, 'del_other');
+    fc = await buttons(fromCard);
+    if (shots) await fromCard.screenshot({ path: path.join(shots, 'from-card-other-card-desktop.png') });
+    expect(fc.detail === 'del_other' && fc.back === 1 && fc.open === 1 && /#calendar\/cardlinkfixture\/p_card_a$/.test(fc.href), 'moving to a work item from a different card shows Open in Calendar to that card (' + fc.href + '), with Back to card still there');
+    await fromCard.evaluate(() => _prodSetView('list'));
+    await fromCard.waitForTimeout(300);
+    await showDetail(fromCard, 'del_cal');
+    fc = await buttons(fromCard);
+    expect(fc.detail === 'del_cal' && fc.back === 1 && fc.open === 0, 'back on the first work item via the list, still only Back to card');
+    await Promise.all([fromCard.waitForURL(/\/calendar\//, { timeout: 20000 }), fromCard.locator('.prod-back-card:visible').click()]);
+    expect(/\/calendar\/cardlinkfixture\/p_card_b$/.test(new URL(fromCard.url()).pathname), 'Back to card goes to the card: ' + new URL(fromCard.url()).pathname);
+    await fromCard.goBack({ waitUntil: 'domcontentloaded' });
+    await fromCard.waitForSelector('[data-prod-detail="del_cal"]', { timeout: 20000 });
+    await fromCard.waitForSelector('.prod-detail-top', { timeout: 20000 });
+    await fromCard.waitForTimeout(300);
+    fc = await buttons(fromCard);
+    expect(fc.back === 1 && fc.open === 0, 'after Back to card and the browser Back button, still only Back to card (' + fc.back + '/' + fc.open + ')');
+    await fromCard.close();
+
+    /* a Samples origin: Back to card goes to the sample, so the Calendar card is somewhere new */
+    const fromSample = await open('del_cal', 1280, null, '&from=samples&card=sample-card-1&cslug=' + SLUG);
+    await fromSample.waitForSelector('.prod-back-card:visible', { timeout: 20000 });
+    fc = await buttons(fromSample);
+    expect(fc.back === 1 && fc.open === 1, 'opened from a sample card: Back to card (to the sample) and Open in Calendar both show');
+    await fromSample.close();
+
+    /* opened directly: Open in Calendar stays, and stays when moving between work items */
+    const direct = await open('del_cal');
+    let dc = await buttons(direct);
+    expect(dc.back === 0 && dc.open === 1, 'opened directly: Open in Calendar shows and Back to card does not');
+    await showDetail(direct, 'del_gra');
+    dc = await buttons(direct);
+    expect(dc.detail === 'del_gra' && dc.back === 0 && dc.open === 1, 'opened directly, moving to another work item keeps Open in Calendar');
+    await showDetail(direct, 'del_none');
+    dc = await buttons(direct);
+    expect(dc.back === 0 && dc.open === 0, 'and a work item with no card still shows neither');
+    await showDetail(direct, 'del_cal');
+    dc = await buttons(direct);
+    expect(dc.back === 0 && dc.open === 1, 'and coming back to a Calendar work item shows Open in Calendar again');
+    await direct.close();
+
+    /* phone: from a card, only the Back to card strip; nothing scrolls sideways */
+    for (const theme of ['light', 'dark']) {
+      const phoneCard = await open('del_cal', 390, theme, ORIGIN);
+      await phoneCard.waitForSelector('.prod-back-card:visible', { timeout: 20000 });
+      await phoneCard.waitForTimeout(400);
+      const pc = await buttons(phoneCard);
+      if (shots) await phoneCard.screenshot({ path: path.join(shots, 'from-card-phone-' + theme + '.png') });
+      expect(pc.back === 1 && pc.open === 0, `phone 390px ${theme}, opened from a card: one Back to card and no Open in Calendar (${pc.back}/${pc.open})`);
+      expect(pc.scroll <= pc.vw + 1, `phone 390px ${theme}, opened from a card: no sideways scroll`);
+      await showDetail(phoneCard, 'del_gra');
+      const pg = await buttons(phoneCard);
+      expect(pg.back === 1 && pg.open === 0, `phone 390px ${theme}: still only Back to card after moving to another work item from the same card`);
+      await showDetail(phoneCard, 'del_other');
+      const po = await buttons(phoneCard);
+      if (shots && theme === 'light') await phoneCard.screenshot({ path: path.join(shots, 'from-card-other-card-phone.png') });
+      expect(po.back === 1 && po.open === 1 && po.scroll <= po.vw + 1, `phone 390px ${theme}: a work item from a different card shows Open in Calendar, no sideways scroll`);
+      await phoneCard.close();
     }
 
     /* ---- a narrow desktop window: the long title shortens, the button keeps its place ---- */

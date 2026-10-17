@@ -74,6 +74,13 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         _rsFlagTriedAt = Date.now();
         _rsFlagPromise = _rsFetch();
     }
+    // A bare client link (no v=) asks this beside its link check (260): the answer decides whether the link opens on
+    // Analytics or on the Content Calendar, so the page shows its neutral check screen until it is in. Never rejects;
+    // bounded by RS_FLAG_TIMEOUT_MS, and an unreadable switch reads as off.
+    function svRsFlagsReady() {
+        _rsPrime();
+        return _rsFlagPromise || Promise.resolve();
+    }
     function _rsClientOn(client) {
         _rsPrime();
         if (!_rsFlags.loaded) return false;
@@ -198,12 +205,38 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
                 + 'html.sv-rs-full #svReviewStage .cal-toolbar-right:not(:has(>:not([hidden]))){display:none}'
                 + 'html.sv-rs-full #svReviewStage .pocket-cal-heading-actions>:not(:last-child){display:none!important}'
                 + 'html.sv-rs-full #svReviewStage .pocket-cal-heading-actions{display:flex;margin:0}'
-                + 'html.sv-rs-full #svReviewStage .pocket-cal-heading-actions>button{height:38px;min-height:0;width:38px;padding:0;border-radius:99px}';
+                + 'html.sv-rs-full #svReviewStage .pocket-cal-heading-actions>button{height:38px;min-height:0;width:38px;padding:0;border-radius:99px}'
+                // Organize and the card size wear the header's own pill fill (--fill comes from the header, the same as
+                // the Review | Sheet | Month | Week pill), so they read as buttons in light mode too (session Curtain Three).
+                + 'html.sv-rs-full #svReviewStage .cal-zoom,html.sv-rs-full #svReviewStage .cal-organize .dropdown-trigger{background:var(--fill)}'
+                + 'html.sv-rs-full #svReviewStage .cal-organize .dropdown-trigger:hover{background:var(--fill-hover)}'
+                // The Sheet on a desktop (session Curtain Three): the row of cards sits in the middle of the space under the
+                // header, both ways, when it fits; taller than that space (zoomed in) it starts at the top and the page
+                // scrolls, as before. Wider than the window it scrolls sideways with the same margin at both ends. A client
+                // cannot add cards, so the empty runway after the last card (for a new card) is not drawn here.
+                + '@media (min-width:768px){'
+                + 'html.sv-rs-full #calView:has(>#calBody>.cal-organizer-wrap){padding-bottom:4px}'
+                + 'html.sv-rs-full #calView>#calBody>.cal-organizer-wrap{display:flex;flex-direction:column;justify-content:safe center;box-sizing:border-box;min-height:calc(100vh - var(--sv-rs-head,54px) - 8px);min-height:calc(100dvh - var(--sv-rs-head,54px) - 8px)}'
+                + 'html.sv-rs-full #calView>#calBody>.cal-organizer-wrap>.cal-organizer-strip:not(.is-empty){justify-content:safe center;padding:8px 4px;min-height:0;scroll-padding-right:0}'
+                + 'html.sv-rs-full #calView>#calBody>.cal-organizer-wrap>.cal-organizer-strip::after{content:none}'
+                + '}';
             document.head.appendChild(_rsChromeStyle);
         }
         de.classList.toggle('sv-rs-cal', !!on);
         de.classList.toggle('sv-rs-client', !!on && !!_isClientLink);
         de.classList.toggle('sv-rs-full', !!full);
+    }
+    // The Sheet centres its cards in the space under the header (above), so the page needs the header's height.
+    let _rsHeadRo = null;
+    function _rsHeadWatch() {
+        const h = document.getElementById('svReviewStage');
+        if (!h || (_rsHeadRo && _rsHeadRo.el === h) || typeof ResizeObserver === 'undefined') return;
+        if (_rsHeadRo) _rsHeadRo.disconnect();
+        const set = () => { if (h.isConnected && !h.hidden && h.offsetHeight) document.documentElement.style.setProperty('--sv-rs-head', h.offsetHeight + 'px'); };
+        _rsHeadRo = new ResizeObserver(set);
+        _rsHeadRo.el = h;
+        _rsHeadRo.observe(h);
+        set();
     }
     let _rsCalQueued = false;
     // Called at the start of every Calendar body paint, and by the Review tab's renderer. Draws (or removes) the
@@ -229,7 +262,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             _rsChrome(still, stillFull);
             _rsToolsSync(stillFull);
             if (!still && !stillFull) { const api = svAreaApi('reviewstage'); if (api) api.calHide(); return; }
-            svArea('reviewstage').then(api => { if (svRsCalOn() || svRsClientFull()) api.cal(); }, (e) => {
+            svArea('reviewstage').then(api => { if (svRsCalOn() || svRsClientFull()) { api.cal(); if (svRsClientFull()) _rsHeadWatch(); } }, (e) => {
                 // The page could not be fetched: the old page comes back.
                 console.warn('[Review page] could not load; the old page stays', e && e.message);
                 _rsFlags = Object.assign({}, _rsFlags, { all: false, clients: new Set() });
@@ -265,4 +298,4 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         if (document.getElementById('calView') && calState && calState.client) _calRenderBody({ preserveScroll: true });
         if (document.getElementById('kasperReviewBody')) _kasperPaintReview();
     });
-export { svRsCalOn, svRsCalSync, svRsClientNoAnalytics, svRsHelpUrl, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl };
+export { svRsCalOn, svRsCalSync, svRsClientNoAnalytics, svRsFlagsReady, svRsHelpUrl, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl };

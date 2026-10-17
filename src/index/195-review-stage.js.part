@@ -669,6 +669,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .rs.client .hdr-tools{grid-column:2;grid-row:1;margin:0}
 .rs.client .hdr-r{grid-column:1/-1;grid-row:2}
 .app.bar{min-height:0}
+}
+@media (min-width:861px){
+.rs.client .sk-list{margin-right:2px}
+.rs.client .sk-list.more-r{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 40px),transparent)}
 }`;
     // no-hardcoded-colors: allow-end
     const RS_PART = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'YouTube title' };
@@ -1021,6 +1025,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             e.preventDefault();
             sl.scrollLeft = Math.max(0, Math.min(max, sl.scrollLeft + step));
         }, { passive: false });
+        // More posts to the right: the strip fades out before the header's right margin instead of cutting a post at
+        // the edge (client page, session Curtain Three).
+        sl.addEventListener('scroll', _rsStripEdge, { passive: true });
+        if (typeof ResizeObserver !== 'undefined') new ResizeObserver(_rsStripEdge).observe(sl);
         R.root.addEventListener('keydown', _rsKeys);
         R.root.addEventListener('focusout', () => { if (R.pending) setTimeout(() => { if (R.pending && !_rsTyping()) { R.pending = false; _rsRender(); } }, 0); });
         R.root.addEventListener('click', (e) => { if (R.S.menu && !e.target.closest('.split')) { R.S.menu = ''; _rsDecide(); } });
@@ -1115,6 +1123,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         sl.scrollLeft = keep;
         const c = sl.querySelector('.cur');
         if (c) { const l = c.offsetLeft, r = l + c.offsetWidth; if (l < sl.scrollLeft || r > sl.scrollLeft + sl.clientWidth) sl.scrollLeft = Math.max(0, l - 40); }
+        _rsStripEdge();
+    }
+    function _rsStripEdge() {
+        const sl = _rsQ('skList');
+        if (sl) sl.classList.toggle('more-r', sl.scrollWidth - sl.clientWidth - sl.scrollLeft > 1);
     }
     function _rsSide(m) {
         const who = R.mode === 'kasper' ? '<span class="sd-cl"><span class="avatar">' + _re(String(m.client || '?').split(/\s+/).map(w => w.charAt(0)).join('').slice(0, 2).toUpperCase()) + '</span>' + _re(m.client) + (m.sample ? '<b class="tag">Sample</b>' : '') + '</span>' : '';

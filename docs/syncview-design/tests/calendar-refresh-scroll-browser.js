@@ -670,6 +670,7 @@ async function invisibleRefreshCase(browser, origin) {
       }
       return { over, max };
     }, [x.toString('base64'), y.toString('base64')]);
+    looksSame.last = r;
     return r.over === 0;
   };
   const lines = [];
@@ -742,6 +743,15 @@ async function invisibleRefreshCase(browser, origin) {
     await page.waitForTimeout(4500);
     // Shot first: the screenshot hides the caret by touching every field's
     // style, which the counters below must not include.
+    // The header's tab row is quiet when nothing happens. It used to re-fit
+    // itself every frame, which also made the quiet screenshots below differ
+    // by one pixel at the active tab's edge whenever a shot caught a fit.
+    const navChanges = await page.evaluate(() => new Promise(done => {
+      const nav = document.getElementById('headerNav'); let n = 0;
+      const o = new MutationObserver(m => { n += m.length; }); o.observe(nav, { attributes: true, subtree: true });
+      setTimeout(() => { o.disconnect(); done(n); }, 1000);
+    }));
+    assert.equal(navChanges, 0, 'idle: the header tab row changed ' + navChanges + ' times in one second with nothing happening');
     const quiet0 = await shoot('quiet-before');
     const b0 = await counters(), gb = server.gets;
     await hide();
@@ -752,7 +762,7 @@ async function invisibleRefreshCase(browser, origin) {
     assert.equal(server.gets - gb, 1, 'quiet tab switch: expected exactly one read, saw ' + (server.gets - gb));
     assert.equal(b1.mutations - b0.mutations, 0, 'quiet tab switch: a refresh that found nothing new changed the screen (' + (b1.mutations - b0.mutations) + ' DOM changes)');
     const quiet1 = await shoot('quiet-after');
-    assert(await looksSame(quiet0, quiet1), 'quiet tab switch: the screen before and after the refresh differ');
+    assert(await looksSame(quiet0, quiet1), 'quiet tab switch: the screen before and after the refresh differ (' + JSON.stringify(looksSame.last) + ')');
     lines.push('tab switch that finds nothing new: 1 read, 0 changes on screen, before and after screenshots match');
 
     // (c) Screenshots during a refresh: the read is held in flight, the screen

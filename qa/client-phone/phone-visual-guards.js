@@ -4,6 +4,10 @@
 const assert = require('node:assert/strict');
 async function check(page) {
   if (page.viewportSize()?.width >= 768 || process.argv.some(a => /^--(before-root|capture-before)/.test(a)) || process.env.PRISM_MOCKUP === '1') return;
+  // The phone shell swaps each Sheet title input for its wrapping textarea on the next animation frame
+  // (099-phone-staff-shell, _fphSync). Judge the settled page: let that frame, and one after it, run first.
+  // Without this a busy runner could measure the one-frame-old input (split-preview, 2026-10-17, twice).
+  await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
   const failures = await page.evaluate(() => {
     const failures = [];
     const visible = node => node.checkVisibility({checkVisibilityCSS:true}) && node.getBoundingClientRect().height > 0;
@@ -53,7 +57,8 @@ async function check(page) {
     minimum('html.sv-staff-phone :is(.cal-altcap-add,.cal-cap-tab,.cal-cap-tab-x)','height',44);
     minimum('html.sv-staff-phone .cal-cap-tab-x','width',44);
     nodes('#calView[data-pocket-staff-phone] .cal-fld-name, #sxrView[data-pocket-staff-samples] .cal-fld-name').forEach(node => {
-      if (node.tagName !== 'TEXTAREA' || !node.hasAttribute('data-pocket-title') || node.scrollHeight > node.clientHeight + 1) failures.push('Phone title must wrap without hiding its final line');
+      const why = node.tagName !== 'TEXTAREA' ? 'still a one-line ' + node.tagName.toLowerCase() : !node.hasAttribute('data-pocket-title') ? 'no data-pocket-title' : node.scrollHeight > node.clientHeight + 1 ? 'text ' + node.scrollHeight + 'px in a ' + node.clientHeight + 'px box' : '';
+      if (why) failures.push('Phone title must wrap without hiding its final line (' + why + ')');
     });
     minimum('html.sv-staff-phone .tdy-cl-lab, html.fph-on[data-fph="workload"] :is(.wl-loose-client-name,.wl-loose-parent-ident,.wl-loose-parent-title), html.fph-on[data-fph="production"] :is(.prod-assets-label,.prod-assets-state), html.boot-client [data-analytics-pending]','fontSize',13);
     if (document.querySelector('#calView[data-pocket-staff-phone],#sxrView[data-pocket-staff-samples],.pocket-client-calendar,#sxrView[data-pocket-client-phone="samples"]')) {

@@ -5,7 +5,7 @@
 // only: a client review token is refused, and the table is closed to the
 // browser because the default carries private Synchro Brain text.
 //
-//   POST {action:"get",  client}          -> { ok, client, prompt, default_prompt, is_custom }
+//   POST {action:"get",  client}          -> { ok, client, prompt, default_prompt, is_custom, has_brain_style }
 //   POST {action:"save", client, prompt}  -> { ok, client, prompt }   ('' = use the default)
 //
 // A client with no row yet is seeded on first read (see ../thumbnail-titles/seed.ts).
@@ -20,6 +20,7 @@ import {
   normalizeBrowserWriteClient,
 } from "../_shared/browser-write-auth.ts";
 import { seedDefault } from "../thumbnail-titles/seed.ts";
+import { hasBrainStyle } from "../thumbnail-titles/logic.mjs";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -65,7 +66,8 @@ Deno.serve(async (req) => {
 
     if (action === "get") {
       const prompt = String(row.prompt || "");
-      return json({ ok: true, client: clientSlug, prompt, default_prompt: String(row.default_prompt || ""), is_custom: !!prompt.trim() });
+      const defaultPrompt = String(row.default_prompt || "");
+      return json({ ok: true, client: clientSlug, prompt, default_prompt: defaultPrompt, is_custom: !!prompt.trim(), has_brain_style: hasBrainStyle(defaultPrompt) });
     }
 
     const prompt = String(body.prompt == null ? "" : body.prompt);

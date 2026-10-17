@@ -7,7 +7,15 @@ const {stripBlockComments}=require('./helpers/strip-comments');
 for(const file of ['src/index/020-styles-surfaces.css.part','qa/staff-phone-design-browser.js','docs/syncview-design/staff-phone-rules.css','docs/syncview-design/tests/staff-calendar-expanded-browser.js','index.html'])assert(isStaffPhoneFile(file),'phone change skipped: '+file);
 for(const file of ['docs/ops/OPEN_REPAIRS.md','docs/audits/report.md','supabase/functions/example/index.ts','src/indexer.js'])assert(!isStaffPhoneFile(file),'unrelated change runs phone matrix: '+file);
 const workflow=fs.readFileSync(path.join(root,'.github/workflows/calendar-unit-tests.yml'),'utf8');
-assert(workflow.includes('needs: staff-phone-files')&&workflow.includes("if: needs.staff-phone-files.outputs.changed == 'true'"),'phone job missing file gate');
+// The phone matrix is gated by the `changes` job (scripts/ci-changes.js), which keeps every
+// file above in the phone set and widens it to page code, the build and the shared helpers.
+const {jobBlock,decide}=require('../scripts/ci-changes');
+const phoneJob=jobBlock(workflow,'staff-phone-rules');
+assert(phoneJob.includes('needs: changes')&&phoneJob.includes("if: needs.changes.outputs.phone == 'true'"),'phone job missing file gate');
+assert(/phone: \$\{\{ steps\.files\.outputs\.phone \}\}/.test(jobBlock(workflow,'changes'))&&/node scripts\/ci-changes\.js/.test(jobBlock(workflow,'changes')),'changes job no longer computes the phone gate');
+for(const file of ['src/index/020-styles-surfaces.css.part','qa/staff-phone-design-browser.js','docs/syncview-design/staff-phone-rules.css','docs/syncview-design/tests/staff-calendar-expanded-browser.js','index.html'])assert(decide([file],{event:'pull_request'}).phone,'phone change skips the phone matrix: '+file);
+for(const file of ['docs/ops/OPEN_REPAIRS.md','docs/audits/report.md','supabase/functions/example/index.ts'])assert(!decide([file],{event:'pull_request'}).phone,'unrelated change runs phone matrix: '+file);
+assert(decide([],{event:'push'}).phone,'a push to main must run the phone matrix');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 const marker=/\/\* STAFF-PHONE-RULES:BEGIN[\s\S]*?\/\* STAFF-PHONE-RULES:END \*\//g;
 for(const [artifact,target] of [['docs/syncview-design/staff-phone-rules.css','src/index/020-styles-surfaces.css.part'],['docs/syncview-design/staff-phone-rules.js','src/index/099-staff-phone-bar.js.part']]) {

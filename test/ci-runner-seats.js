@@ -33,7 +33,9 @@ const { jobBlock } = require('../scripts/ci-changes');
 const ROOT = path.join(__dirname, '..');
 const WF_DIR = path.join(ROOT, '.github/workflows');
 const WF = fs.readFileSync(path.join(WF_DIR, 'calendar-unit-tests.yml'), 'utf8');
-const MAX_SEATS = 12;
+// 14 since 2026-10-17 19:30 UTC (Lighthouse): the three unit parts got a seat each. With one shared unit seat,
+// every pull request's three unit parts ran one after another across all PRs, and PRs waited about an hour.
+const MAX_SEATS = 14;
 // Jobs that may run without a seat: each finishes in about a minute.
 const QUICK = new Set(['changes', 'identity-exposure', 'module-check', 'f27-team-rollback-proof', 'calendar-ci-result']);
 let checks = 0;

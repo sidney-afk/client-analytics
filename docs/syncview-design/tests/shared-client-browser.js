@@ -367,7 +367,8 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       // Staff phones choose a client from Tabs, which opens the same picker sheet.
       if (await page.locator('[data-pocket-staff-phone]').count()) {
         await page.locator('[data-staff-menu=tabs]').click();
-        await page.getByRole('button',{name:'Change client',exact:true}).tap();
+        // Since #2085 the phone header has its own Change client button too; this step is about the Tabs sheet's.
+        await page.getByRole('dialog',{name:'Tabs',exact:true}).getByRole('button',{name:'Change client',exact:true}).tap();
         await page.locator('.sv-phone-client-sheet[open] #svClientResults').waitFor({ state: 'visible' });
       } else {
         await page.evaluate(() => svClientPopToggle());

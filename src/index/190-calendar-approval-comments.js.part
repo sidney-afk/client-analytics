@@ -2606,8 +2606,11 @@ import { svRsCalOn, svRsCalSync } from './188-review-stage-switch.js';
         if (fresh && (fromOpen ? !prev.used : true)) { if (fromOpen) prev.used = true; return prev.done; }
         if (!fromOpen && prev && prev.running) return prev.done;
         const run = { at: Date.now(), running: true, done: null, used: !!fromOpen };
-        run.done = Promise.resolve()
-            .then(() => _prodProjectCanonicalCardComments('calendar', key))
+        // Started NOW, not on the next tick: the projection marks the card's link check as running before its first
+        // wait, and Send reads that mark. Deferred, the dialog opened (and Send could be pressed) in a moment that
+        // said "nothing is loading", then the check started and the note was refused as "still loading"
+        // (Probe, 2026-10-17, OPEN_REPAIRS 431). The async wrapper still turns a thrown error into a rejection.
+        run.done = (async () => _prodProjectCanonicalCardComments('calendar', key))()
             .catch(() => false)
             .finally(() => { run.running = false; run.at = Date.now(); });
         _calNotesWarmRuns.set(key, run);

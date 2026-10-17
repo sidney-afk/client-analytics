@@ -19,6 +19,8 @@
  *     L a caption note refused by the card save stays "Not sent" across a
  *       reopen and a refresh, and Retry saves it once
  *     K a card refreshed during its link lookup does not keep Send locked
+ *     M the link lookup counts as running from the moment the dialog opens:
+ *       Send is drawn disabled, never ready and then refused (OPEN_REPAIRS 431)
  *     F a reply from the Messages page shows in the chat at once, then is saved
  *   Client, review link (own fixture; the caption part, saved on the card):
  *     G a plain comment shows "Sending…" at once and clears when saved
@@ -207,6 +209,29 @@ async function staffLanes(view) {
       const p = calState.posts.find(x => x.id === 'p_t1');
       return !_calCommentSendPending(p, _prodCanonicalCommentGate(p, 'video'));
     }), 6000), tag('K: a card refreshed during its link lookup does not keep Send locked'));
+    await page.evaluate(() => closeCalComments());
+
+    // M the link lookup counts as running from the moment the dialog opens
+    // (Probe, 2026-10-17, OPEN_REPAIRS 431). #2130 started it on the next
+    // tick, so in the same moment as the open Send was drawn ready and the
+    // check said "nothing loading"; a note sent right then was refused as
+    // "Notes are still loading" (three Calendar nightly probes went red).
+    crosswalkDelay = 900;
+    await sleep(5200); // past the 5 s reuse window, so this open asks again
+    const atOpen = await page.evaluate(() => {
+      openCalComments('p_t1');
+      const p = calState.posts.find(x => x.id === 'p_t1');
+      const btn = document.querySelector('#calCommentsModal .cal-cm-send');
+      return { inFlight: _prodCrosswalkInFlight(p), pending: _calCommentSendPending(p, _prodCanonicalCommentGate(p, 'video')),
+        sendPendingDrawn: !!(btn && btn.disabled && btn.getAttribute('data-send-pending') === '1') };
+    });
+    check(atOpen.inFlight && atOpen.pending, tag('M: the link lookup is already running when the dialog has opened (' + JSON.stringify(atOpen) + ')'));
+    check(atOpen.sendPendingDrawn, tag('M: Send is drawn waiting for the notes at the first paint, not ready and then refused'));
+    crosswalkDelay = 0;
+    check(await until(() => page.evaluate(() => {
+      const p = calState.posts.find(x => x.id === 'p_t1');
+      return !_calCommentSendPending(p, _prodCanonicalCommentGate(p, 'video'));
+    }), 6000), tag('M: Send unlocks once the lookup is done'));
     await page.evaluate(() => closeCalComments());
 
     // F Messages page reply

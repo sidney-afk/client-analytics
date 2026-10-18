@@ -1743,6 +1743,14 @@
       "ci": "representative"
     },
     {
+      "file": "start-page-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; the repository served the way GitHub Pages serves it, the two tutorial MP4 addresses answered locally with the frame viewer's generated clip, every other outside request refused, no hosted credentials and no live data. Checks the public start-here page at /start: no console errors, both players carry the right MP4 and play and pause, the videographer view hides the client-only video, and start/ is published.",
+      "reproduce": "node test/start-page-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

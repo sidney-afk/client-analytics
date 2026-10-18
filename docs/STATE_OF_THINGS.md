@@ -18,6 +18,19 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Public "start here" page at /start (session Foyer, 2026-10-18 about 01:05 UTC): PR open, live once merged
+
+`syncview.synchrosocial.com/start` is the page Synchro Social's social media managers send to clients and
+videographers instead of the Google Drive folder of guides. It is standalone (`start/index.html`, `start.css`,
+`start.js`, images in `start/assets/`), not part of the app build: no login, no app scripts, no backend calls, no
+analytics, the font self-hosted. It says what SyncView is, shows the review page through an "eye" that opens as you
+scroll, walks through watch / approve or ask for a change / talk to the team / see what is coming, then plays the two
+tutorials (review 1:19, upload 1:18) in a copy of the review page's player, straight from the Wistia MP4 files (no
+Wistia script, never autoplays), with the five folder rules beside a drawn folder tree. "I am a videographer" (or
+`/start/#videographer`) hides the client-only review video. Screenshots are demo data only (client "Alex Morgan",
+four demo posts). Published because `start` is in `PUBLISHED_DIRS` (`scripts/pages-site.js`). Test:
+`node test/start-page-browser.js`. To change the wording or a video, edit `start/index.html`.
+
 ## New review page, layout C (session Marquee, 2026-10-17): merged, on for the test client and the owner only
 
 The owner approved the client page (layout C, "Guided stage") and the SMM and Kasper versions of it on 2026-10-16.

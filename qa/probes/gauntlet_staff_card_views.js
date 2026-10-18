@@ -7,9 +7,12 @@
 //   X. Archive pressed twice fast: one confirm, one archive, no error
 //   N. browser Back and Forward between Sheet and Month keep the card's date
 //   V. the card renders at 1440 and 390 wide, light and dark, with no JS error
-//      (screenshots go to qa/out/, never committed)
+//      (screenshots go to the temp folder, never the repo)
 //
 // Throwaway unlinked seeds only, archived and verified at the end.
+// Serve with qa/pages_static_server.py, not plain http.server: the page rewrites
+// its address to /calendar/<slug>, and a reload there is a 404 on a plain server.
+//   python3 qa/pages_static_server.py 8000 & node qa/probes/gauntlet_staff_card_views.js
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -18,7 +21,7 @@ const { launch, smmCal, clientCal, archiveCalSafe, appErrs } = H;
 
 const C = H.counter(); const t = C.t;
 const TS = Date.now();
-const OUT = path.join(__dirname, '..', 'out', 'gauntlet');
+const OUT = process.env.GAUNTLET_SHOTS || path.join(require('os').tmpdir(), 'gauntlet-shots'); // outside the repo: staff views are never committed
 fs.mkdirSync(OUT, { recursive: true });
 const ids = [];
 const timings = [];
@@ -44,14 +47,24 @@ async function view(p, v) {
   await p.evaluate((x) => onCalViewChange(x), v);
   await H.sleep(1500);
 }
+// Headless Chromium does not start a native HTML5 drag from mouse events
+// (page.dragAndDrop timed out and a mouse drag moved nothing, measured
+// 2026-10-18), so the same dragstart, dragover, drop and dragend a browser fires
+// are dispatched on the real pill and the real day cell.
 async function dragPill(p, id, iso) {
-  const pill = `[data-cal-move="${id}"]`;
-  const cell = `[data-iso="${iso}"]`;
-  const ok = await p.waitForSelector(pill, { timeout: 20000 }).then(() => true).catch(() => false);
+  const ok = await p.waitForSelector(`[data-iso] [data-cal-move="${id}"]`, { timeout: 20000 }).then(() => true).catch(() => false);
   if (!ok) return 'no-pill';
-  if (!await p.$(cell)) return 'no-cell';
-  await p.dragAndDrop(pill, cell).catch(e => { throw new Error('drag: ' + e.message.slice(0, 80)); });
-  return 'ok';
+  return p.evaluate(([pid, d]) => {
+    const el = document.querySelector(`[data-iso] [data-cal-move="${pid}"]`);
+    const cell = document.querySelector(`[data-iso="${d}"]`);
+    if (!cell) return 'no-cell';
+    const dt = new DataTransfer();
+    el.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+    cell.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    cell.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    el.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: dt }));
+    return 'ok';
+  }, [id, iso]);
 }
 const inCell = (p, id, iso) => p.evaluate(([pid, d]) => !!document.querySelector(`[data-iso="${d}"] [data-cal-move="${pid}"]`), [id, iso]);
 
@@ -67,7 +80,7 @@ const inCell = (p, id, iso) => p.evaluate(([pid, d]) => !!document.querySelector
     t(await inCell(p, M, D1), 'M: the card sits on its day in Month');
     let t0 = Date.now();
     const m1 = await dragPill(p, M, D2);
-    t(m1 === 'ok', 'M: dragged the pill to another day with the mouse', m1);
+    t(m1 === 'ok', 'M: dragged the pill to another day', m1);
     let r = await until(M, 'scheduled_date', x => x.scheduled_date === D2);
     timings.push({ label: 'Month drag to a new day', ms: r ? Date.now() - t0 : null });
     t(!!r, 'M: the row has the new date');
@@ -95,9 +108,14 @@ const inCell = (p, id, iso) => p.evaluate(([pid, d]) => !!document.querySelector
     await view(p, 'month');
     await p.goBack({ waitUntil: 'domcontentloaded' }).catch(() => {});
     await H.sleep(1500);
+    const backUrl = p.url();
     await p.goForward({ waitUntil: 'domcontentloaded' }).catch(() => {});
+    // Switching views adds no history entry, so Back can leave the page; after
+    // Forward the app boots again. Wait for it before reading.
+    await p.waitForFunction(() => typeof calState === 'object' && Array.isArray(calState.posts) && calState.posts.length > 0, null, { timeout: 45000 }).catch(() => {});
     await H.sleep(2000);
-    const afterNav = await p.evaluate((pid) => { const x = (calState.posts || []).find(q => q && q.id === pid); return x ? x.scheduled_date : null; }, M);
+    t(true, 'N: Back went to ' + (/#calendar/.test(backUrl) ? 'the calendar' : 'the page before the app') + ' (view switches add no history entry)');
+    const afterNav = await p.evaluate((pid) => { if (typeof calState !== 'object') return 'no app'; const x = (calState.posts || []).find(q => q && q.id === pid); return x ? x.scheduled_date : null; }, M);
     t(afterNav === D2, 'N: after Back and Forward the card still has its new date', String(afterNav === D2));
     t(appErrs(p).length === 0, 'M/W/N: 0 app JS errors', appErrs(p)[0] || '');
     await p.context().close();

@@ -18,6 +18,9 @@
 // verified at the end. Function calls carry the robot ROLE key when the runner
 // has one (SYNCVIEW_ROLE_KEY), as the dawn check does. Output is check names and
 // numbers only.
+// Serve with qa/pages_static_server.py, not plain http.server: the page rewrites
+// its address to /calendar/<slug>, and a reload there is a 404 on a plain server.
+//   python3 qa/pages_static_server.py 8000 & node qa/probes/gauntlet_staff_card_hard_cases.js
 'use strict';
 const H = require('./ot4_lib.js');
 const { launch, smmCal, clientCal, archiveCalSafe, appErrs, SUPA } = H;

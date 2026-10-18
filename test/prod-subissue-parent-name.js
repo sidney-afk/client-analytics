@@ -73,7 +73,7 @@ function makeWorld(reads) {
     _calEscAttr: v => String(v).replace(/"/g, '&quot;'),
     _jsAttrArg: v => JSON.stringify(String(v)),
     _prodStatusIcon: () => '', _prodStatusSVG: () => '',
-    _prodSubProgress: () => null, _prodDisplayClient: () => 'Test client',
+    _prodSubProgress: () => null, _prodSubChipHTML: () => '', _prodDisplayClient: () => 'Test client',
     _prodAttributionResolved: () => false, _prodIssueProjectChipHTML: () => '',
     _prodProjectGlyph: () => '', _prodOpenProject: () => {},
     _prodRestRows: (table, select, params) => reads.batch(params),

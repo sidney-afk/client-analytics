@@ -97,6 +97,14 @@ a stage shows); and the stage reads the app's own colour tokens (one page backgr
 and the notes panel, one border, radius and shadow) in light and dark. Switch off or unreadable: pixel-identical to
 main. Test: `node test/review-stage-one-system-browser.js`.
 
+**One loading family (session Lantern, 2026-10-18 02:10 UTC):** every spinner in the shared styles turns at one
+speed (`--sv-spin-dur`, 0.75 s; it was six speeds from 0.7 to 1 s) and every grey placeholder shimmers at one speed
+and easing (`--sv-sheen-dur` 1.35 s, ease-in-out; it was four). Reduced motion stops every shimmer, slows spinners to
+1.5 s and drops fades. Wherever a grey placeholder inside the page is replaced by content, the content fades in over
+0.18 s instead of appearing in one frame. Tests: `node test/loading-family.js` (no spinner or shimmer with its own
+number) and `node test/loading-fade-browser.js` (both fail on main). Not covered: the review page and frame viewer's
+own sealed styles (other sessions'), and the small "updating" pulse dots.
+
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone
 layout follows the desktop one and has not been polished on its own (as the handoff said).

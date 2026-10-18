@@ -6,6 +6,7 @@
     "ci-runner-seats.js",
     "ci-shards-wired.js",
     "ef-auto-deploy.js",
+    "loading-family.js",
     "pages-build-inputs.js",
     "messages-inbox-scope.js",
     "fixture-desktop-exact-replay.js",
@@ -1721,6 +1722,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, fictional client, cards, people and token, the frame viewer's generated clip and posters, no hosted credentials and no live data. Checks the new review page behind its two switches: off, missing or unreadable shows the old page; on, the client link, the SMM's Review tab and Kasper's Review Session draw layout C, and every button saves through the old page's own path.",
       "reproduce": "node test/review-stage-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "loading-fade-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: a fictional staff member and client), no hosted credentials and no live data. Refreshes Kasper and Today and logs every frame: the content that replaces a grey placeholder fades in over several frames, and with reduced motion it appears at once.",
+      "reproduce": "node test/loading-fade-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

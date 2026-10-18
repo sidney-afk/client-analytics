@@ -33550,3 +33550,9 @@ claiming a native write was safe and would retry automatically. Only an explicit
 the saved-note message; other failures say the note change was not saved and ask the person to refresh/check it.
 Reply and delete are exercised separately under the dialog fault conditions. The legacy fixture has no Edit control;
 the corresponding cases assert unavailability and zero writes, and make no canonical note-edit save claim.
+
+Repeated WebKit overnight approval stress reproduced an unhandled repair_checkpoint_missing in 6/60 cases after
+the approval had landed. A hydration-triggered replay could compete with an active foreground checkpoint and left
+its rejecting promise unobserved. Source repair now defers the actively saving Calendar card, continues other cards,
+and observes background rejection without consuming the original promise. The durability test executes deferral,
+later eligibility and rejection propagation; an offline browser regression overlaps approval and recovery.

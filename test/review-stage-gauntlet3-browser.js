@@ -20,7 +20,7 @@ async function setup(browser, origin, role, width, state) {
   const t = role === 'client' ? await openClient(browser, origin, opt) : await open(browser, origin, { ...opt, staff: STAFF });
   try {
   t.browser = browser; t.origin = origin;
-  t.page.setDefaultTimeout(6000);
+  t.page.setDefaultTimeout(15000);
   t.page.setDefaultNavigationTimeout(30000);
   if (role === 'kasper') {
     await t.page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
@@ -42,6 +42,10 @@ async function post(t, id) {
   await until(async () => !!await inS(t.page, '.chipp.cur[data-id="' + id + '"]').count(), 'post did not switch');
   await sleep(350);
 }
+async function saveError(t) {
+  // Player errors also offer Try again; only a save's own alert establishes a refused write.
+  return await inS(t.page, '[data-err]:visible, .bub .err[role="alert"]:visible').count() > 0;
+}
 async function enterWords(t, selector, text, long, outside = false) {
   const box = outside ? t.page.locator(selector) : inS(t.page, selector);
   if (!long) return box.fill(text);
@@ -60,9 +64,9 @@ async function runCase(browser, origin, role, width, label, fn) {
     t = await setup(browser, origin, role, width);
     await fn(t);
     assert.deepEqual(t.errors, [], 'page errors');
-    if (process.env.G3_SHOTS && /refused plain|refused caption|caption editor|refused change|Finish|Undo/.test(label)) {
+    if (process.env.G3_SHOTS && /refused|caption editor|Finish|Undo/.test(label)) {
       fs.mkdirSync(process.env.G3_SHOTS, { recursive: true });
-      await t.page.screenshot({ path: path.join(process.env.G3_SHOTS, (process.env.G3_ENGINES || 'browser') + '-' + role + '-' + width + '-' + label.replace(/[^a-z0-9]+/gi, '-') + '.png') });
+      await t.page.screenshot({ path: path.join(process.env.G3_SHOTS, browser.browserType().name() + '-' + role + '-' + width + '-' + label.replace(/[^a-z0-9]+/gi, '-') + '.png') });
     }
     passed++;
     console.log('PASS ' + role + ' ' + width + ' ' + label);
@@ -73,6 +77,20 @@ async function runCase(browser, origin, role, width, label, fn) {
   } finally { if (t) await t.ctx.close(); }
 }
 async function regressions(browser, origin, role, width) {
+  if (role === 'client') await runCase(browser, origin, role, width, 'background repair waits for active approval', async t => {
+    t.state.writeDelay = 1000;
+    await inS(t.page, '[data-ok="video"]').click();
+    await until(() => t.state.attempts.some(a => a.endpoint === 'production-write' && a.body.operation === 'status'), 'native approval did not start');
+    const n = t.state.attempts.length;
+    await t.page.evaluate(async () => {
+      if (!_calSaveInFlight.rs1) throw Error('foreground save must still be active');
+      await _writeUiResumeSourceRepairs();
+    });
+    assert.equal(t.state.attempts.length, n, 'background repair competed with the foreground native write');
+    await until(() => t.state.cards[0].video_status === 'Approved', 'foreground approval did not finish');
+    await sleep(700);
+    assert.equal(t.state.upserts.filter(p => p.video_status === 'Approved').length, 1);
+  });
   await runCase(browser, origin, role, width, 'unsent note survives post switch', async t => {
     await inS(t.page, '#ta').fill('Unsent 日本語 café 👩🏽‍💻');
     await post(t, 'rs2');
@@ -213,7 +231,7 @@ async function exercise(t, role, action, condition) {
     const landed = kind === 'approve' ? row[part + '_status'] === (role === 'client' ? 'Approved' : 'Client Approval')
       : kind === 'caption-edit' ? row.caption === text
       : JSON.parse(row[part + '_tweaks'] || '[]').some(n => n.body === (kind === 'frame' ? 'Tweaks are on Frame.' : kind === 'title-edit' ? 'Please use this title:\n\n' + text : text));
-    return landed || /not (saved|sent)|refused|try again/i.test(ui);
+    return landed || await saveError(t);
   }, 'save neither landed nor showed a failure', 18000);
   await sleep(condition === 'drop-before' || condition === 'drop-after' ? 7000 : 700);
   const ui = await inS(t.page, '#rsApp').textContent();
@@ -227,8 +245,19 @@ async function exercise(t, role, action, condition) {
     }
     return;
   }
-  if (!t.state.upserts.length) {
+  const ownLanded = kind === 'approve' ? row[part + '_status'] === (role === 'client' ? 'Approved' : 'Client Approval')
+    : kind === 'caption-edit' ? row.caption === text
+    : JSON.parse(row[part + '_tweaks'] || '[]').some(n => n.body === (kind === 'frame' ? 'Tweaks are on Frame.' : kind === 'title-edit' ? 'Please use this title:\n\n' + text : text));
+  for (const [other, status] of Object.entries(untouched)) assert.equal(row[other + '_status'], status, 'changed another part status');
+  if (condition === 'two-tabs') assert.equal(JSON.parse(row.caption_tweaks || '[]').filter(n => n.body === 'Other tab words').length, 1, 'peer note lost');
+  if (!ownLanded) {
+    assert.ok(await saveError(t), 'transport failure must have its own visible save alert');
     assert.match(ui, /not (saved|sent)|refused|try again/i, 'silent transport failure');
+    if (!['approve', 'frame'].includes(kind)) {
+      const kept = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; return [...r.querySelectorAll('textarea')].map(x => x.value).join('\n') + r.textContent; });
+      assert.ok(kept.includes(text), 'typed words lost after transport failure');
+    }
+    console.log('  Own save refused visibly; typed words and peer outcome checked');
     return;
   }
   if (kind === 'approve') assert.equal(row[part + '_status'], role === 'client' ? 'Approved' : 'Client Approval');
@@ -246,13 +275,11 @@ async function exercise(t, role, action, condition) {
     if (kind === 'after-tweaks') assert.ok(String(row.kasper_approved_after_tweaks || '').split(',').includes(part), 'missing pre-approval marker');
     if (kind === 'title-edit') assert.equal(row.name, 'Why the first second matters', 'client renamed a card');
   }
-  for (const [other, status] of Object.entries(untouched)) assert.equal(row[other + '_status'], status, 'changed another part status');
   if (condition === 'double-click') {
     const committed = t.state.gateway.map(body => JSON.parse(body)).filter(b => !b.reconcile_only && t.state.nativeReceipts[b.request_id]);
     for (const op of ['status', 'comment']) assert.ok(new Set(committed.filter(b => b.operation === op).map(b => b.request_id)).size <= 1, 'double click committed two native ' + op + ' intents');
     if (kind === 'approve') assert.equal(t.state.upserts.filter(p => Object.hasOwn(p, part + '_status')).length, 1, 'double click persisted approval twice');
   }
-  if (condition === 'two-tabs') assert.equal(JSON.parse(row.caption_tweaks || '[]').filter(n => n.body === 'Other tab words').length, 1, 'peer note lost');
 }
 async function matrix(browser, origin, role, width) {
   const list = process.env.G3_CONDITIONS ? process.env.G3_CONDITIONS.split(',') : conditions;
@@ -292,13 +319,19 @@ async function auxiliary(browser, origin, role, width) {
       await step(t, part); await inS(t.page, '[data-ok="' + part + '"]').click();
       await until(() => t.state.cards[0][part + '_status'] === (role === 'client' ? 'Approved' : 'Client Approval'), 'part approval missing');
     }
-    await until(async () => await inS(t.page, '#moveOn').count() || (await inS(t.page, '#finishBtn').count() && await inS(t.page, '#finishBtn').isEnabled()), 'Finish never enabled');
-    const next = inS(t.page, await inS(t.page, '#moveOn').count() ? '#moveOn' : '#finishBtn');
+    // The last native acknowledgement can replace Finish with Next post between two locator reads.
+    const next = inS(t.page, '#moveOn:visible, #finishBtn:visible:not(:disabled)').first();
+    await next.waitFor({ state: 'visible' });
     if (role === 'kasper') {
       const toast = t.page.locator('.sv-toast.show');
       await toast.waitFor({ state: 'visible' });
-      const a = await next.boundingBox(), b = await toast.boundingBox();
-      assert.ok(a && b && (a.y + a.height <= b.y || b.y + b.height <= a.y || a.x + a.width <= b.x || b.x + b.width <= a.x), 'approval toast covers Next post');
+      const geometry = await next.evaluate(el => {
+        const a = el.getBoundingClientRect(), b = document.querySelector('.sv-toast.show').getBoundingClientRect();
+        return { clear: a.bottom <= b.top || b.bottom <= a.top || a.right <= b.left || b.right <= a.left,
+          reserve: getComputedStyle(document.getElementById('svReviewStage')).getPropertyValue('--rs-toast').trim(), button: a.toJSON(), toast: b.toJSON() };
+      });
+      assert.equal(geometry.reserve, '96px', 'toast space must exist before header chrome mounts');
+      assert.ok(geometry.clear, 'approval toast covers Next post: ' + JSON.stringify(geometry));
     }
     await next.click();
     await until(async () => !await inS(t.page, '.chipp.cur[data-id="rs1"]').count(), 'Finish stayed on answered post');
@@ -397,10 +430,10 @@ async function dialogMatrix(browser, origin, role, width) {
         return kind === 'delete' ? !!notes.find(n => n.id === rootId && n.deleted) : notes.some(n => n.body === text && (kind === 'reply' || n.id === rootId));
       };
       const errorVisible = async () => {
-        const text = await t.page.locator('#calCommentsOverlay').innerText();
+        const failed = await t.page.locator('#calCommentsModal .sv-note-outbox.is-failed:visible').count();
         const overlay = t.page.locator('#confirmOverlay.active');
         const notice = await overlay.count() ? await overlay.innerText() : '';
-        return /not (saved|sent)|could(n.t| not) (save|send)|try again|refused|failed/i.test(text + notice);
+        return failed > 0 || /not (saved|sent)|could(n.t| not) (save|send)|try again|refused|failed/i.test(notice);
       };
       try {
         if (condition === 'drop-before' || condition === 'drop-after') {

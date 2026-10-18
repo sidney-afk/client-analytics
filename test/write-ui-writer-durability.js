@@ -3712,6 +3712,24 @@ for (const name of ['_writeUiComponentHasWorkItem', '_writeUiCommentRound', '_ca
       && diagnostics.includes('calendar:cache_only_repair_held')
       && !diagnostics.includes('calendar:cache_only_repair_superseded'),
     'an unreadable journal blocks the heal — the consumed-receipt signature is a READABLE journal with zero rows');
+    // A foreground commit owns its checkpoint until it settles; a simultaneous refresh must not consume it.
+    const replayed = [];
+    resumeContext.calState.posts = [];
+    resumeContext._writeUiRepairGroups = () => ({ groups: [
+      { surface: 'calendar', lane: 'card', post_id: 'active' },
+      { surface: 'calendar', lane: 'card', post_id: 'waiting' },
+    ], unknown: 0 });
+    resumeContext._calSaveInFlight.active = true;
+    resumeContext._writeUiReplayJournalGroup = async group => replayed.push(group.post_id);
+    await resumeContext._writeUiResumeSourceRepairs();
+    assert(replayed.join(',') === 'waiting', 'background repair leaves an active foreground checkpoint alone and still drains other cards');
+    delete resumeContext._calSaveInFlight.active;
+    replayed.length = 0;
+    await resumeContext._writeUiResumeSourceRepairs();
+    assert(replayed.join(',') === 'active,waiting', 'the deferred card is eligible again when its foreground writer settles');
+    resumeContext._writeUiReplayJournalGroup = async () => { throw new Error('fixture repair refusal'); };
+    await assert.rejects(resumeContext._writeUiResumeSourceRepairs(), /fixture repair refusal/);
+    assert(diagnostics.includes('lifecycle:source_resume_failed'), 'background refusal is observed without consuming the original rejection');
   }
   assert(extract('_kasperPersistPostWrite').includes('_kasperPersistCache()'), 'Calendar Kasper repair is checkpointed in the existing Kasper cache');
   assert(extract('_sxrKasperApplyAndPersist').includes('_writeUiKasperRepair'), 'Samples Kasper repair is checkpointed for reload recovery');

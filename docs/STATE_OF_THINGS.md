@@ -48,7 +48,8 @@ The owner reports the new review page is live for every client as of 2026-10-18;
 is the earlier rollout record. Offline browser reproductions found concurrent/stale caption edits, lost caption and
 staff drafts, hidden refused change-request words, plain notes that looked sent after refusal, false Saved badges,
 a refresh/click race, an unhandled recovery rejection, an approval toast covering Kasper's Next post button, and
-a refused Notes deletion claiming a native save had succeeded.
+a refused Notes deletion claiming a native save had succeeded. Overnight stress also reproduced hydration recovery
+racing an active approval's checkpoint; source repair now waits for that foreground card save and observes its errors.
 Candidate repairs and the action/engine/width matrix are in
 [`2026-10-18-review-stage-gauntlet-three.md`](audits/2026-10-18-review-stage-gauntlet-three.md), run by
 `node test/review-stage-gauntlet3-browser.js`. Cached old code and the full action/error cross-product remain unproven;

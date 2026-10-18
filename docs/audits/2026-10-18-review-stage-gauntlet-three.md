@@ -4,6 +4,10 @@ The owner reports that the new review page is live for every client as of 2026-1
 offline browser fixture. It makes no live write, deployment, production-frequency or universal reliability claim.
 Gauntlet Two's report and browser tests were read first; its five repairs are retained.
 
+The initial overnight checkpoint observation reproduced in 6/60 WebKit approval stress cases, then 0/60 after repair. The candidate
+defers source repair while the foreground card save owns its checkpoint and observes background-trigger failures
+without consuming the original rejection. This is mocked browser evidence, not a live-backend guarantee.
+
 ## Most serious confirmed problems, first
 
 | Problem | One-line cause | Repair and regression |
@@ -19,6 +23,7 @@ Gauntlet Two's report and browser tests were read first; its five repairs are re
 | In Firefox and WebKit, Save can disappear between pressing and releasing it after a background refresh. | Focus-out applied a deferred redraw before click reached the control. | A pointer hold keeps the stage control until its click runs; the pending redraw settles afterward. The concurrent-caption regression reproduces the lost click. |
 | Kasper cannot click Next post after the last approval at 1024 pixels. | The approval toast covers the button and intercepts the click. | Reserve space for the toast in the stage; the Finish test checks their rectangles do not overlap and clicks while the toast is visible. A separate Undo test verifies that Undo still works. This also reproduced in hosted Chromium. |
 | Returning online after a refused write can raise an unhandled browser error. | Lifecycle listeners started a rejecting recovery promise without a rejection observer. | Record the rejection without consuming the original promise or dropping journal work. Interrupted-change stress reproduced 14/30 failures before, 0/30 after. |
+| An overnight approval can save, then raise an unhandled checkpoint error in the background. | A hydration-triggered source replay can race the foreground save's checkpoint; its promise was also left unobserved. | Defer repair of an actively saving card, still drain other cards, and observe background rejection without changing explicit callers' rejection. The durability test executes active/waiting/settled/refused cases; the browser regression overlaps an actual approval with recovery. |
 
 The first two caption fixes, the two message-loss cases and the concurrent-caption case also reproduce against the
 baseline page source with `G3_CACHE_REF=origin/main`. The refusal-copy/outbox status display is shared with the stage's
@@ -67,7 +72,7 @@ The fixture models native receipts by request id and the card endpoint's comment
 were extended because the old fixture could not exercise native recovery. That is **mocked contract evidence**, not an
 independent test of database transactions, live permissions, provider notifications or deployed functions.
 
-All 237 distinct codes enumerated from the page's refusal tables are rendered through the real copy functions and
+All 238 distinct codes enumerated from the page's refusal tables are rendered through the real copy functions and
 notification overlay, with the draft checked after every code. This is **message/draft evidence**: it is not the full
 Cartesian product of every action with every backend code. The action matrix injects a real mocked refusal separately.
 Likewise the overnight test advances browser clocks/timers; it is not a physical overnight soak or an expired real login.
@@ -81,6 +86,14 @@ No input/serialization assertion or browser case is skipped.
 The old-cache control substitutes the baseline stage source while retaining the current shared writers. It reproduces
 the old UI bugs and remains red by design. A frontend PR cannot repair code already executing in an old tab; the fixed
 page must be loaded. It does not represent every historical bundle/core combination.
+
+Some exploratory failures were test problems, and remain in the original red logs: a peer tab's save was mistaken
+for the action's outcome; the player's Try again message was mistaken for a save error; Finish could be replaced by
+Next post between two locator reads. The new checks wait for the action's own stored result or visible save alert,
+require retained words after refusal, check the peer independently, and locate either continuation button. Native
+intent ids and approval writes are also counted for double clicks. Geometry is read in one browser frame, with the
+toast reserve required before header setup. Browser interaction calls have a 15-second driver bound; no persistence,
+text, audience, part-status or duplicate assertion was removed.
 
 Not established: a literal no-failure guarantee; every error code through every save handler; every dialog action under
 every fault; a real asset revision/CAS race before the next read; sample-card fault parity; expired real credentials;

@@ -19,11 +19,12 @@ Patrol had glitches and bugs.
   downloaded about 2.3 MB of Analytics data nobody on that page sees, and froze
   the page for 0.25 to 1.6 s while processing it, 3 to 5 s after it was ready,
   when staff are already typing. Fixed in #2168.
-- **Five fixes, one per PR**, each measured before and after on the live site
+- **Six fixes, one per PR**, each measured before and after on the live site
   (section 4): Analytics extras on demand (#2168), Workload's two reads in
   parallel (#2169), Kasper's skip notes read in parallel (#2172), the client
-  review link's check started in the page head (#2184), and Calendar's card
-  read started in the page head (#2185).
+  review link's check started in the page head (#2184), Calendar's card read
+  started in the page head (#2185), and the Kasper-seen ledger saved once per
+  batch instead of once per post (#2189).
 - **Still slow on a first visit:** the first switch to SyncLinear (~2.0 s), to
   Kasper (~1.6 s after #2172), and to Workload (~1.0 s after #2169). Section 5
   lists what I found and did not fix.
@@ -98,6 +99,7 @@ mocked SyncLinear boot.
 | #2172 | Kasper's review queue reads its skip notes (a fixed 14-day window) beside the calendars instead of after the sent-at read. | Kasper load 2,732 → **2,223 ms**; switch 1,817 → **1,639 ms**. |
 | #2184 | The client review link starts its link check in the page head, with the app's own validity rules, and the app uses that answer only for a byte-identical request on the same address. | Client Calendar link: content ready 1,305 → **927 ms**, first paint 1,216 → **860 ms**. |
 | #2185 | A `/calendar/<slug>` load starts that client's first card page in the page head once the staff check passes (the Today/SyncLinear pattern), taken once by exact URL within 10 s. | Calendar cards visible 922 → **717 ms**. |
+| #2189 | `_calMarkKasperSeen` rewrote the whole "seen by Kasper" ledger to localStorage on every new mark (hundreds per Kasper load in a fresh browser); now one write per batch. | CPU profile of the Kasper switch: ledger work ~200 → ~0 ms, queue processing ~410 → ~220 ms, switch ~1,900 → ~1,680 ms. |
 
 Each PR carries a guard: a behavioural test that fails on the old code where
 that was possible, and the measurements in its body.
@@ -141,9 +143,10 @@ In rough order of how many people they cost time.
    deliverables view, one after another. Parallel paging was tried and rejected
    on 2026-10-01 (offset paging timed the database out). A reload paints from
    the saved copy in ~1.05 s.
-7. **Kasper**: a 400 to 460 ms freeze right after the calendars arrive
-   (processing every client's posts), before the queue paints. Not
-   investigated.
+7. **Kasper**: the 400 to 460 ms freeze right after the calendars arrive was
+   mostly the ledger writes fixed in #2189. What is left is about 200 ms of
+   shaping every client's posts plus Kasper's own queue cache write
+   (`_kasperCalCacheWrite`, ~50 ms of `setItem`).
 8. **Messages** could not be measured with the robot: the page stayed blank for
    10 s while three `team_members` lookups for the robot's invented id answered
    400. Probably the robot, but a blank page instead of an error message when

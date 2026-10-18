@@ -272,10 +272,15 @@
         function sync() {
             const title = wanted();
             // The page's first markup may carry an inert copy of this bar (030, drawn before any script so a phone
-            // never sees the desktop header first); the real bar takes its place.
-            document.getElementById('svBootPhoneBar')?.remove();
+            // never sees the desktop header first); the real bar takes its place. Until routing has decided the page
+            // (navTo removes data-boot-nav), the header's default active tab is Analytics, which has no bar: keep the
+            // copy then, or a phone shows the desktop header between this first run and the route (staff-first-paint
+            // at 390, red on CI for #2210 and #2214).
+            const bootBar = document.getElementById('svBootPhoneBar');
             let bar = document.getElementById('pocketStaffBar');
             if (!title) {
+                if (bootBar && document.documentElement.hasAttribute('data-boot-nav')) return;
+                bootBar?.remove();
                 if (bar) bar.remove();
                 return;
             }
@@ -292,6 +297,7 @@
                 main.parentNode.insertBefore(bar, main);
                 wireBar(bar);
             }
+            bootBar?.remove();
             const h1 = bar.querySelector('.pocket-staff-title');
             if (h1.textContent !== title) h1.textContent = title;
             // On Messages the title bar carries a Close that does what the header Messages button does.
@@ -311,6 +317,8 @@
             const nav = document.getElementById('headerNav');
             if (!nav) return;
             new MutationObserver(sync).observe(nav, { subtree: true, attributes: true, attributeFilter: ['class'] });
+            // Routing deciding the page (data-boot-nav removed) settles the boot copy even when no tab changes.
+            new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-boot-nav'] });
             // Menu-only routes have no active header tab. Observe route mounts,
             // including a delayed module load, without watching form repainting.
             const content = document.getElementById('content');

@@ -87,6 +87,19 @@ async function refresh(browser, origin, hash, opt) {
       expect(t.errors.length === 0, name + ': no page errors (' + t.errors.join(' | ') + ')');
       await t.ctx.close();
     }
+    // A slow sign-in check holds routing back while the phone bar's own script has already run once: the inert boot
+    // copy of the title bar must stay until the route is decided (the desktop header showed for a frame on CI, #2214).
+    for (const hash of ['today', 'templates']) {
+      const name = hash + ' 390, slow sign-in check';
+      console.log('--- refresh ' + name + ' ---');
+      const { t, log } = await refresh(browser, origin, hash, { dark: true, width: 390, height: 844, keyVerifyDelay: 1200 });
+      expect(log.length > 5, name + ': frames were logged (' + log.length + ')');
+      expect(!log.some(f => f.desktopHeader), name + ': the desktop header never shows (' + log.filter(f => f.desktopHeader).length + ' frame(s))');
+      expect(log.every(f => f.phoneBar), name + ': the phone title bar shows on every frame (' + log.filter(f => !f.phoneBar).length + ' without)');
+      expect(await t.page.locator('.pocket-staff-bar').count() === 1 && await t.page.locator('#svBootPhoneBar').count() === 0, name + ': one bar at the end, the real one');
+      expect(t.errors.length === 0, name + ': no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    }
     for (const [hash, title] of [['today', 'Today'], ['templates', 'Templates']]) {
       const name = hash + ' 390';
       console.log('--- refresh ' + name + ' ---');

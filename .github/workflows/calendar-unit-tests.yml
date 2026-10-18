@@ -948,7 +948,7 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-first-frame-browser.js
-      - name: Client link small fixes: Full screen on narrow vertical players, Back goes back a tab, Escape closes Notes
+      - name: 'Client link small fixes: Full screen on narrow vertical players, Back goes back a tab, Escape closes Notes'
         if: ${{ !cancelled() }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

@@ -4,6 +4,7 @@
   "unit": [
     "ci-changes.js",
     "ci-runner-seats.js",
+    "workflow-plain-scalars.js",
     "ci-shards-wired.js",
     "ef-auto-deploy.js",
     "loading-family.js",

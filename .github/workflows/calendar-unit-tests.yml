@@ -561,6 +561,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/popup-behaviour-browser.js
+      - name: A click on a pop-up's backdrop never falls through to the page underneath
+        if: ${{ !cancelled() && matrix.part == 2 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/backdrop-press-fallthrough-browser.js
       - name: Every pop-up closes the same way, part two (SyncLinear, Kasper, Workload, Analytics)
         if: ${{ !cancelled() && matrix.part == 1 }}
         env:

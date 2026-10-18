@@ -352,6 +352,21 @@
             if (layer.outside) svLayerClose(layer.key, 'outside');
         }
     }
+    /* Swallow the mousedown and click that follow a press which just closed a
+       pop-up from its backdrop, so they never reach the page underneath. Ends
+       at that click, at the next press, or after a moment if no click comes. */
+    function _svLayerSwallowRestOfClick() {
+        const opts = { capture: true };
+        const swallow = ev => { ev.preventDefault(); ev.stopImmediatePropagation(); if (ev.type === 'click') done(); };
+        const done = () => {
+            clearTimeout(timer);
+            document.removeEventListener('mousedown', swallow, opts);
+            document.removeEventListener('click', swallow, opts);
+        };
+        const timer = setTimeout(done, 800);
+        document.addEventListener('mousedown', swallow, opts);
+        document.addEventListener('click', swallow, opts);
+    }
     function _svLayersWire() {
         if (_svLayersWired) return;
         _svLayersWired = true;
@@ -372,7 +387,26 @@
             _svLayerPointerType = e.pointerType || '';
             if (e.pointerType === 'touch') return;
             if (e.button != null && e.button > 0 && e.pointerType === 'mouse') return;
+            /* A press on a marked dimmed backdrop itself (dataset.backdropDismiss)
+               still closes here, through the shared close, so focus and any
+               pop-up stacked inside are cleaned up as usual. But closing on
+               the press removes the backdrop mid-click, and the rest of that
+               click (mousedown, click) then lands on whatever sat underneath:
+               a card's name field took focus behind the Archived list. When a
+               backdrop press closed the top pop-up, focus goes back to its
+               opener and the rest of that one click is swallowed. */
+            const t = e.target;
+            const onBackdrop = !!(t && t.dataset && 'backdropDismiss' in t.dataset);
+            if (onBackdrop) _svLayerPrune();
+            const top = onBackdrop ? _svLayers[_svLayers.length - 1] : null;
             _svLayerOutside(e);
+            if (top && !_svLayers.includes(top)) {
+                /* Focus goes back to the opener, as the backdrop's own click
+                   handler would have done, never left on a control inside the
+                   pop-up that just closed. */
+                _svLayerGiveFocus(top);
+                _svLayerSwallowRestOfClick();
+            }
         }, true);
         document.addEventListener('click', e => {
             if (_svLayerPointerType !== 'touch') return;

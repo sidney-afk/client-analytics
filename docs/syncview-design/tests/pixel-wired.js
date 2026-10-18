@@ -864,9 +864,9 @@ async function runTheme(port, browser, theme) {
     if (!refreshRestored) gaps.push({ rank: 1, state: 'browser refresh', message: 'wired detail deep link did not restore after refresh' });
     await shot(wired, 'wired-history-refresh-detail');
 
+    const consoleAudit = await wiredAudit.settle();
     const writeRequests = wiredRequests.filter(isNonReadRequest);
     if (writeRequests.length) gaps.push({ rank: 1, state: 'write silence', message: `wired fixture sent ${writeRequests.length} write-like request(s)` });
-    const consoleAudit = await wiredAudit.settle();
     if (!consoleAudit.ok) gaps.push({ rank: 1, state: 'console silence', message: consoleAudit.error });
 
     gaps.sort((a, b) => a.rank - b.rank || a.state.localeCompare(b.state));

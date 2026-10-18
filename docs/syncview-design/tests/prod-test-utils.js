@@ -177,6 +177,9 @@ async function openProduction(page, port, pathSuffix = '/?prod=1', opts = {}) {
  * from starting new ones) and the channel. The first load and everything it
  * starts must already be finished: call this after quiesce(). */
 async function holdBackgroundRefresh(page) {
+  /* The realtime flag read restarts the channel when it lands, so let one that
+     is still in flight finish first or it would undo the stop below. */
+  await page.waitForFunction(() => typeof _prodRtFlagBusy === 'undefined' || !_prodRtFlagBusy, null, { timeout: 10000, polling: 50 }).catch(() => {});
   await page.evaluate(() => {
     try { clearInterval(_prodOperationalTimer); } catch (_) {}
     try { clearInterval(_prodAuthorityTimer); } catch (_) {}

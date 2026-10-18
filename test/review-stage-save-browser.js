@@ -20,10 +20,11 @@ const { CLIENT, STAFF, open, inS, waitNew, answerConfirm, sleep } = require('./f
 const failures = [];
 function expect(value, message) { if (!value) { failures.push(message); console.error('FAIL  ' + message); } else console.log('  ok  ' + message); }
 
-async function openSmm(browser, origin, only) {
+async function openSmm(browser, origin, only, edit) {
   const t = await open(browser, origin, { stage: 'smm', flags: 'on', staff: STAFF });
   // the first card: only the parts named in `only` still wait on the SMM
   for (const k of ['video', 'graphic', 'caption']) if (!only.includes(k)) t.state.cards[0][k + '_status'] = 'Approved';
+  if (edit) edit(t.state.cards[0]);
   await t.page.goto(origin + '/index.html?v=calendar', { waitUntil: 'domcontentloaded' });
   await t.page.waitForFunction(() => typeof _calSavePins === 'function' && typeof navTo === 'function', null, { timeout: 30000 });
   await t.page.evaluate(name => { try { _syncviewStaffIdentityVerified = true; } catch (e) {} _calSavePins([name]); calState.client = name; navTo('calendar'); }, CLIENT);
@@ -86,6 +87,22 @@ async function until(t, fn, ms) { const t0 = Date.now(); while (Date.now() - t0 
     expect(took >= 0 && /Approved to Kasper/.test(await drow(t)) && t.state.upserts.slice(n0).some(u => u.id === 'rs1' && u.video_status === 'Kasper Approval'), '3: Try again saves and the part shows approved (' + (await drow(t)) + ')');
     expect(!(await inS(t.page, '.err').count()), '3: the error line goes away');
     expect(t.errors.length === 0, '3: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+
+    // 4. an approve that first asks which open change requests to resolve (the chooser), then a refused save
+    console.log('--- SMM: approve with an open change request (the chooser), then a refused save ---');
+    t = await openSmm(browser, origin, ['video', 'caption'], c => {
+      c.video_tweaks = JSON.stringify([{ id: 'tw1', parent_id: null, author: 'Team Member', role: 'smm', is_tweak: true, audience: 'internal', body: 'Tighten the intro.', created_at: '2026-10-12T16:12:00.000Z', updated_at: '2026-10-12T16:12:00.000Z', done: false, done_at: '', done_by: '' }]);
+    });
+    await inS(t.page, '[data-ok="video"]').click();
+    const chooser = await until(t, async () => t.page.evaluate(() => { const o = document.getElementById('resolveDestOverlay'); return !!(o && o.classList.contains('active')); }), 3000);
+    expect(chooser >= 0, '4: the chooser for the open change request opens');
+    await sleep(1500);   // the person reads the chooser; the save has not started
+    t.state.writeFail = 1;
+    await t.page.locator('#resolveDestKasper').click();
+    took = await until(t, async () => await inS(t.page, '[data-retry="video"]').count() > 0, 6000);
+    expect(took >= 0, '4: a refused save after the chooser still shows its reason and Try again (' + took + ' ms)');
+    expect(t.errors.length === 0, '4: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
   } finally {
     await browser.close();

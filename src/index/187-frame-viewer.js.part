@@ -46,6 +46,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     let _fvFlagPromise = null;
     let _fvFlagChannel = null;
     let _fvFlagTriedAt = 0;
+    let _fvFlagRead = false;   // the switch has been read once (on or off); until then nobody knows whether a card gets the player
 
     // The flag row's value to the answer. Only exact shapes open anything: all must be literally true, and the
     // clients must be a list of strings.
@@ -76,6 +77,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         });
     }
     function _fvFlagSet(value) {
+        _fvFlagRead = true;
         _fvFlag = _fvFlagParse(value);
         _fvSyncButtons();
         // The Notes view re-checks its player: the switch turning on or off for its card shows or removes it.
@@ -118,6 +120,14 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     // Once per page (again after a failed read, at most every 30 seconds). Client link pages read it too, because
     // the Review tab's video preview opens the same view for them; the server checks the same switch before it answers.
+    /* Before a view that may hold the player paints (session Curtain Nine, owner feedback 2026-10-17): starts reading
+       the switch, and answers null when it is already read, or a promise that settles when it is (or after `ms`).
+       The Notes view on a switched-on client link waits on it, so it never paints the old dialog first. */
+    function svFrameFlagWait(ms) {
+        _fvPrimeFlag();
+        if (_fvFlagRead || !_fvFlagPromise) return null;
+        return Promise.race([_fvFlagPromise.catch(() => null), new Promise(r => setTimeout(r, Math.max(0, ms || 0)))]);
+    }
     function _fvPrimeFlag() {
         if (_fvFlagPromise) return;
         if (Date.now() - _fvFlagTriedAt < FV_FLAG_RETRY_MS && _fvFlagTriedAt) return;
@@ -197,8 +207,22 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return '<span class="cal-review-video-label fv-lbl-off">Open video ↗</span><span class="cal-review-video-label fv-lbl-on">Watch video</span>';
     }
     function svFrameTileOpen(ev, tile) {
-        if (!tile || !tile.hasAttribute('data-fv-on')) return true;
+        if (!tile) return true;
         if (ev && (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey || ev.button === 1)) return true;
+        // A click before the switch has been read must not be lost to the old link: hold it for the one bounded read,
+        // then open the viewer or the link, whichever the switch says (the Sheet's door on a client link can be
+        // clicked straight after the page paints).
+        if (!tile.hasAttribute('data-fv-on') && !_fvFlagRead && _fvFlagPromise && tile.hasAttribute('data-fv-tile')) {
+            if (ev && ev.preventDefault) ev.preventDefault();
+            if (ev && ev.stopPropagation) ev.stopPropagation();
+            const href = tile.getAttribute('href') || '';
+            _fvFlagPromise.catch(() => null).then(() => {
+                if (_fvEnabledFor(tile.getAttribute('data-fv-client'))) { tile.setAttribute('data-fv-on', ''); svFrameTileOpen(null, tile); }
+                else if (href) window.open(href, '_blank', 'noopener');
+            });
+            return false;
+        }
+        if (!tile.hasAttribute('data-fv-on')) return true;
         const pid = tile.getAttribute('data-fv-card') || '';
         if (!pid || !_fvLinkOf(tile.getAttribute('data-fv-link')) || typeof window.svOpenCardNotes !== 'function') return true;
         if (ev && ev.preventDefault) ev.preventDefault();
@@ -476,6 +500,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _fvPrimeFlag();
         return _fvEnabledFor(post.client || (calState && calState.client) || '') ? link : '';
     }
+    // A card with a Frame.io link whose player switch has not been read yet: nobody knows yet whether it plays here,
+    // so the stage shows only the poster until it does (never the "opens in a new tab" fallback for a second).
+    function svFrameStagePending(post) {
+        if (_fvFlagRead || !post || !_fvLinkOf(post.asset_url)) return false;
+        _fvPrimeFlag();
+        return !_fvFlagRead;
+    }
     function _fvSp(sel) { return FV_STAGE.host ? FV_STAGE.host.querySelector(sel) : null; }
 
     function svFrameStageMount(host, post, poster) {
@@ -494,6 +525,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const posterSafe = String(poster || '');
         host.hidden = false;
         host.setAttribute('data-orient', 'landscape');
+        host.style.removeProperty('--fv-ar');
+        // The shape on the first frame: the same picture is usually already decoded on the page (the card's
+        // thumbnail) or was seen before; a new <img> only knows its size a frame later, and the view jumped.
+        const known = _fvPosterSize(posterSafe);
+        if (known) { FV_STAGE.host = host; _fvOrient(known[0], known[1]); }
         host.innerHTML = `<div class="fv-player" data-state="loading">
                 ${posterSafe ? `<img class="fv-poster" src="${_calEscAttr(posterSafe)}" alt="" onerror="this.remove()">` : ''}
                 <div class="fv-state" role="status" aria-live="polite"></div>
@@ -522,7 +558,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             <div class="fv-stage-foot"><span class="fv-small-note" hidden>Smaller version for your connection</span><a class="fv-open-link" href="${_calEscAttr(link)}" target="_blank" rel="noopener noreferrer"><span>Open in Frame.io</span>${FV_EXT_ICO}</a></div>`;
         const img = _fvSp('.fv-poster');
         if (img) {
-            const fit = () => { if (img.naturalWidth && FV_STAGE.host === host && !(FV_STAGE.video && FV_STAGE.video.videoWidth)) _fvOrient(img.naturalWidth, img.naturalHeight); };
+            const fit = () => { if (img.naturalWidth) _fvPosterSizes.set(posterSafe, [img.naturalWidth, img.naturalHeight]); if (img.naturalWidth && FV_STAGE.host === host && !(FV_STAGE.video && FV_STAGE.video.videoWidth)) _fvOrient(img.naturalWidth, img.naturalHeight); };
             if (img.complete) fit(); else img.addEventListener('load', fit, { once: true });
         }
         _fvSp('.fv-play').addEventListener('click', svFrameTogglePlay);
@@ -552,6 +588,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         });
         _fvStageLoad(false);
         return true;
+    }
+    const _fvPosterSizes = new Map();
+    function _fvPosterSize(src) {
+        if (!src) return null;
+        if (_fvPosterSizes.has(src)) return _fvPosterSizes.get(src);
+        try {
+            for (const i of document.images) if (i.naturalWidth && i.getAttribute('src') === src) { const d = [i.naturalWidth, i.naturalHeight]; _fvPosterSizes.set(src, d); return d; }
+        } catch (e) {}
+        return null;
     }
     function svFrameStageUnmount() {
         FV_STAGE.seq++;
@@ -851,5 +896,5 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svFrameFeedRetry, svFrameIntent, svFrameOpen, svFrameSeek, svFrameStageRetry, svFrameTileOpen
     });
 export {
-  svFrameFeed, svFrameIoLinkHtml, svFramePlayIconHtml, svFrameStageMount, svFrameStageUnmount, svFrameSyncPlayIcon, svFrameTileAttrs, svFrameTileLabelHtml, svFrameWarm, svFrameWatchBtnHtml, svFrameTime
+  svFrameFeed, svFrameFlagWait, svFrameIoLinkHtml, svFramePlayIconHtml, svFrameStageMount, svFrameStagePending, svFrameStageUnmount, svFrameSyncPlayIcon, svFrameTileAttrs, svFrameTileLabelHtml, svFrameWarm, svFrameWatchBtnHtml, svFrameTime
 };

@@ -275,7 +275,7 @@
         .tpl-view-links { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 
         /* Skeleton (loading) */
-        .tpl-skeleton { --sv-skel-base: var(--bg); --sv-skel-sheen: var(--border-light); background: linear-gradient(90deg, var(--sv-skel-base) 0%, var(--sv-skel-sheen) 48%, var(--sv-skel-base) 100%); background-size: 220% 100%; border-radius: 8px; animation: sv-shimmer 1.35s ease-in-out infinite; }
+        .tpl-skeleton { --sv-skel-base: var(--bg); --sv-skel-sheen: var(--border-light); background: linear-gradient(90deg, var(--sv-skel-base) 0%, var(--sv-skel-sheen) 48%, var(--sv-skel-base) 100%); background-size: 220% 100%; border-radius: 8px; animation: sv-shimmer var(--sv-sheen-dur) var(--sv-sheen-ease) infinite; }
         .tpl-skeleton-pill { border-radius: 99px; }
         .tpl-skeleton-line { height: 14px; border-radius: 6px; }
         .tpl-skeleton-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 22px; margin-bottom: 14px; }
@@ -945,8 +945,6 @@
         .cc-select.open .cc-select-trigger svg { transform: rotate(180deg); color: var(--text-primary); }
         .cc-select-menu { position: absolute; z-index: 620; top: calc(100% + 7px); left: 0; right: 0; max-height: 240px; overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: 14px; background: var(--sv-bg-rgba-255-255-255-0_98); box-shadow: 0 18px 48px var(--sv-shadow-rgba-17-17-16-0_16); opacity: 0; transform: translateY(-4px) scale(0.985); pointer-events: none; visibility: hidden; transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s linear 0.13s; }
         .cc-select.open .cc-select-menu { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; visibility: visible; transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s; }
-        .cc-select-menu::-webkit-scrollbar { width: 6px; }
-        .cc-select-menu::-webkit-scrollbar-thumb { background: var(--sv-bg-d8d8d4); border-radius: 99px; }
         .cc-select-option { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 0.82rem; font-weight: 650; text-align: left; cursor: pointer; }
         .cc-select-option:hover { background: var(--bg); color: var(--text-primary); }
         .cc-select-option.active { background: var(--sv-bg-111110); color: var(--sv-fg-fff); }
@@ -1009,7 +1007,7 @@
         /* Modern loader — single clean rotating ring with a subtle label.
            Used everywhere the calendar shows a loading state. */
         .cal-loader { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 70px 20px; color: var(--text-primary); }
-        .cal-loader-svg { animation: cal-loader-spin 1s linear infinite; color: var(--text-primary); display: block; }
+        .cal-loader-svg { animation: cal-loader-spin var(--sv-spin-dur) linear infinite; color: var(--text-primary); display: block; }
         .cal-loader-svg circle.track { opacity: 0.18; }
         .cal-loader-text { font-size: 0.86rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0.01em; }
         @keyframes cal-loader-spin { to { transform: rotate(360deg); } }
@@ -1018,7 +1016,6 @@
         /* Organizer — inline-editable cards */
         .cal-organizer-wrap { padding: 4px 0; }
         .cal-organizer-strip { display: flex; gap: 14px; overflow-x: auto; padding: 10px 4px 6px; align-items: flex-start; min-height: 320px;
-            scrollbar-width: thin; scrollbar-color: var(--sv-fg-cdcdc8) transparent;
             /* Generous right runway so the user can scroll past the last
                card into empty canvas — and so a newly added card can be
                scrolled into the centre of the viewport instead of pinning
@@ -1026,26 +1023,6 @@
                space stays sensible on tiny and wide screens. */
             scroll-padding-right: clamp(120px, 40vw, 800px); }
         .cal-organizer-strip::after { content: ''; flex: 0 0 clamp(120px, 40vw, 800px); align-self: stretch; }
-        /* Subtle scrollbar — track blends into the page; thumb is solid and
-           pill-shaped. The arrow buttons (start / end / single-button) are
-           all zero-sized so they can't render even on platforms where
-           `display: none` is ignored for scrollbar buttons. */
-        .cal-organizer-strip::-webkit-scrollbar { height: 10px; background: transparent; }
-        .cal-organizer-strip::-webkit-scrollbar-track,
-        .cal-organizer-strip::-webkit-scrollbar-track-piece { background: transparent; }
-        .cal-organizer-strip::-webkit-scrollbar-thumb { background: var(--sv-bg-cdcdc8); border-radius: 99px; border: 2px solid transparent; background-clip: padding-box; }
-        .cal-organizer-strip::-webkit-scrollbar-thumb:hover { background: var(--sv-bg-b1b1aa); background-clip: padding-box; }
-        .cal-organizer-strip::-webkit-scrollbar-button,
-        .cal-organizer-strip::-webkit-scrollbar-button:single-button,
-        .cal-organizer-strip::-webkit-scrollbar-button:start:decrement,
-        .cal-organizer-strip::-webkit-scrollbar-button:end:increment,
-        .cal-organizer-strip::-webkit-scrollbar-button:horizontal:start,
-        .cal-organizer-strip::-webkit-scrollbar-button:horizontal:end,
-        .cal-organizer-strip::-webkit-scrollbar-button:vertical:start,
-        .cal-organizer-strip::-webkit-scrollbar-button:vertical:end {
-            display: block; width: 0 !important; height: 0 !important; background: transparent;
-        }
-        .cal-organizer-strip::-webkit-scrollbar-corner { background: transparent; }
         .cal-card { position: relative; flex: 0 0 var(--cal-card-w, 420px); background: var(--white); border: 1px solid var(--border); border-radius: 14px; transition: box-shadow 0.12s, border-color 0.12s; overflow: hidden; display: flex; flex-direction: column; }
         .cal-card:hover { box-shadow: 0 4px 14px var(--sv-shadow-rgba-0-0-0-0_07); }
         .cal-card.is-blank { background: var(--sv-bg-fcfcfb); border-style: dashed; border-color: var(--sv-border-d4d4d2); }
@@ -1622,9 +1599,9 @@
         .cal-refreshing:not([hidden]), .app-refresh-pill:not([hidden]) { opacity: 1; transform: translate(-50%, 0); }
         .cal-refreshing[hidden], .app-refresh-pill[hidden] { display: inline-flex; }
         .app-refresh-pill .cal-refresh-spin { width: 11px; height: 11px; border: 2px solid var(--border);
-            border-top-color: var(--text-muted); border-radius: 50%; animation: cal-spin 0.7s linear infinite; }
+            border-top-color: var(--text-muted); border-radius: 50%; animation: cal-spin var(--sv-spin-dur) linear infinite; }
         .cal-refresh-spin { width: 11px; height: 11px; border: 2px solid var(--border);
-            border-top-color: var(--text-muted); border-radius: 50%; animation: cal-spin 0.7s linear infinite; }
+            border-top-color: var(--text-muted); border-radius: 50%; animation: cal-spin var(--sv-spin-dur) linear infinite; }
         @keyframes cal-spin { to { transform: rotate(360deg); } }
         .cal-stale-notice { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem;
             font-weight: 600; color: var(--sv-fg-b45309); background: var(--sv-bg-fef3c7); border: 1px solid var(--sv-border-fde68a);
@@ -1789,14 +1766,9 @@
         .cal-cap-wrap { position: relative; display: flex; flex-direction: column; }
         .cal-fld-cap { width: 100%; box-sizing: border-box; background: var(--field-bg); border: 1px solid transparent;
             border-radius: 8px; padding: 8px 9px; font-family: inherit; font-size: 0.74rem; line-height: 1.5;
-            color: var(--text-primary); resize: none; outline: 0;
-            scrollbar-width: thin; scrollbar-color: var(--sv-fg-c8c8c3) transparent; }
+            color: var(--text-primary); resize: none; outline: 0; }
         .cal-fld-cap::placeholder { color: var(--field-placeholder); }
         .cal-fld-cap:focus { background: var(--field-bg-focus); border-color: var(--field-border-focus); }
-        .cal-fld-cap::-webkit-scrollbar, .cal-fld-tweaks::-webkit-scrollbar { width: 9px; }
-        .cal-fld-cap::-webkit-scrollbar-thumb, .cal-fld-tweaks::-webkit-scrollbar-thumb { background: var(--sv-bg-cdcdc8); border-radius: 99px; border: 3px solid transparent; background-clip: padding-box; }
-        .cal-fld-cap::-webkit-scrollbar-thumb:hover, .cal-fld-tweaks::-webkit-scrollbar-thumb:hover { background: var(--sv-bg-b1b1aa); background-clip: padding-box; }
-        .cal-fld-cap::-webkit-scrollbar-track, .cal-fld-tweaks::-webkit-scrollbar-track { background: transparent; }
         /* Bottom fade over a collapsed caption that has more text below — the
            passive "there's more" cue. Blends to the collapsed textarea bg
            (var(--sv-misc-f3f3f1)); pointer-events:none so clicks fall through to the box. */
@@ -1821,7 +1793,13 @@
             border-radius: 8px; padding: 8px 9px; font-family: inherit; font-size: 0.72rem; color: var(--text-primary); outline: 0; }
         .cal-fld-cta::placeholder, .cal-fld-tweaks::placeholder { color: var(--field-placeholder); }
         .cal-fld-cta:focus, .cal-fld-tweaks:focus { background: var(--field-bg-focus); border-color: var(--field-border-focus); }
-        .cal-fld-tweaks { line-height: 1.5; resize: none; scrollbar-width: thin; }
+        .cal-fld-tweaks { line-height: 1.5; resize: none; }
+        /* A client link's caption and call to action are read only (owner, 2026-10-18): they read as finished text, not
+           as a field. The arrow cursor, and no focus fill or border that would hint at typing. A clamped caption
+           keeps its pointer (tap to read more). Blank "suggest a post" cards are not read only, so they are unchanged. */
+        html.boot-client .cal-card-edit textarea.cal-fld-cap[readonly], html.boot-client .cal-card-edit .cal-fld-cta[readonly] { cursor: default; }
+        html.boot-client .cal-card-edit textarea.cal-fld-cap[readonly]:focus, html.boot-client .cal-card-edit .cal-fld-cta[readonly]:focus { background: var(--field-bg); border-color: transparent; }
+        html.boot-client .cal-cap-wrap.is-clamped textarea.cal-fld-cap[readonly] { cursor: pointer; }
 
         /* Alt caption — optional second platform-specific caption on a card.
            Rides inside the same caption component (one caption_status, one
@@ -1903,7 +1881,7 @@
         .sv-save-ind-check { stroke: var(--text-inverse); stroke-dasharray: 16; stroke-dashoffset: 16; opacity: 0; }
         .sv-save-ind-bang { stroke: var(--text-inverse); opacity: 0; }
         /* saving — a subtle partial arc rotating around the ring */
-        .sv-save-ind.is-saving .sv-save-ind-svg { animation: spin 0.75s linear infinite; }
+        .sv-save-ind.is-saving .sv-save-ind-svg { animation: spin var(--sv-spin-dur) linear infinite; }
         .sv-save-ind.is-saving .sv-save-ind-arc { opacity: 1; }
         /* saved — a SOLID green disc with a white check that draws in */
         .sv-save-ind.is-saved .sv-save-ind-track { fill: var(--up); stroke: var(--up); }
@@ -2596,7 +2574,7 @@
         .cal-cm-skeleton { padding: 14px 20px; display: flex; flex-direction: column; gap: 18px; }
         .cal-cm-skel-row { display: flex; gap: 12px; align-items: flex-start; }
         .cal-cm-skel-col { display: flex; flex-direction: column; gap: 8px; flex: 1; padding-top: 3px; }
-        .cal-cm-skel { display: block; border-radius: 6px; background: linear-gradient(90deg, color-mix(in srgb, var(--text-muted) 14%, transparent) 0%, color-mix(in srgb, var(--text-muted) 26%, transparent) 48%, color-mix(in srgb, var(--text-muted) 14%, transparent) 100%); background-size: 220% 100%; animation: sv-shimmer 1.35s ease-in-out infinite; }
+        .cal-cm-skel { display: block; border-radius: 6px; background: linear-gradient(90deg, color-mix(in srgb, var(--text-muted) 14%, transparent) 0%, color-mix(in srgb, var(--text-muted) 26%, transparent) 48%, color-mix(in srgb, var(--text-muted) 14%, transparent) 100%); background-size: 220% 100%; animation: sv-shimmer var(--sv-sheen-dur) var(--sv-sheen-ease) infinite; }
         .cal-cm-skel-avatar { width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; }
         .cal-cm-skel-line { height: 11px; width: 70%; }
         .cal-cm-skel-line.is-short { width: 28%; }
@@ -2865,7 +2843,7 @@
         .cal-cap-gen svg { width: 12px; height: 12px; }
         .cal-cap-gen.is-busy { color: var(--text-primary); border-color: var(--text-primary); }
         .cal-cap-gen.is-busy:disabled { opacity: 1; cursor: default; }
-        .cal-cap-gen.is-busy .cal-cap-gen-spin { animation: cal-cap-spin 0.9s linear infinite; }
+        .cal-cap-gen.is-busy .cal-cap-gen-spin { animation: cal-cap-spin var(--sv-spin-dur) linear infinite; }
         .cal-cap-gen-spin { display: inline-block; width: 11px; height: 11px; border: 1.6px solid var(--border); border-top-color: var(--text-primary); border-radius: 50%; }
         @keyframes cal-cap-spin { to { transform: rotate(360deg); } }
         /* Per-card cancel for an in-flight generation. Anchored TOP-right: the
@@ -2953,7 +2931,7 @@
         .cal-bulk-cap-bar [data-bulk-cap-text] { display: inline-flex; align-items: center; gap: 8px; }
         .cal-bulk-cap-bar .cal-bulk-cap-cancel { background: var(--sv-bg-rgba-255-255-255-0_15); color: var(--white); border: none; border-radius: 7px; padding: 4px 9px; font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
         .cal-bulk-cap-bar .cal-bulk-cap-cancel:hover { background: var(--sv-bg-rgba-255-255-255-0_25); }
-        .cal-bulk-cap-bar .cal-bulk-cap-spin { display: inline-block; width: 12px; height: 12px; border: 1.8px solid var(--sv-border-rgba-255-255-255-0_3); border-top-color: var(--sv-border-fff); border-radius: 50%; animation: cal-cap-spin 0.9s linear infinite; }
+        .cal-bulk-cap-bar .cal-bulk-cap-spin { display: inline-block; width: 12px; height: 12px; border: 1.8px solid var(--sv-border-rgba-255-255-255-0_3); border-top-color: var(--sv-border-fff); border-radius: 50%; animation: cal-cap-spin var(--sv-spin-dur) linear infinite; }
 
         /* ── Kasper review tab (hidden, unlocked via ?Kasper=1) ───────── */
         .kasper-wrap { max-width: 1100px; margin: 0 auto; position: relative; }
@@ -3028,7 +3006,7 @@
         .kasper-refresh-btn:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
         .kasper-refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .kasper-refresh-btn svg { width: 12px; height: 12px; }
-        .kasper-refresh-btn.spinning svg { animation: spin 0.8s linear infinite; }
+        .kasper-refresh-btn.spinning svg { animation: spin var(--sv-spin-dur) linear infinite; }
         .kasper-loading { display: flex; align-items: center; justify-content: center; padding: 80px 20px; gap: 14px; color: var(--text-secondary); font-size: 0.86rem; }
         .kasper-loading .spinner { width: 22px; height: 22px; }
         .kasper-empty { text-align: center; padding: 80px 20px; color: var(--text-secondary); }
@@ -3650,8 +3628,6 @@
         .sv-select.open .sv-select-menu { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; visibility: visible; transition: transform 0.13s ease, visibility 0s; }
         .sv-select.open-up .sv-select-menu { top: auto; bottom: calc(100% + 7px); transform: translateY(4px) scale(0.985); }
         .sv-select.open.open-up .sv-select-menu { transform: translateY(0) scale(1); }
-        .sv-select-menu::-webkit-scrollbar { width: 6px; }
-        .sv-select-menu::-webkit-scrollbar-thumb { background: var(--sv-bg-d8d8d4); border-radius: 99px; }
         .sv-select-option { width: 100%; min-height: 42px; display: flex; align-items: center; gap: 9px; border: 0; border-radius: 10px; padding: 9px 10px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 0.78rem; font-weight: 700; text-align: left; cursor: pointer; outline: 0; }
         .sv-select-option > span:not(.sv-option-dot):not(.sv-option-check) { min-width: 0; flex: 1; }
         .sv-select-option:hover, .sv-select-option:focus-visible { background: var(--bg); color: var(--text-primary); }
@@ -4190,8 +4166,6 @@
         .srp-select-wrap.open .srp-select-trigger svg { transform: rotate(180deg); color: var(--text-primary); }
         .srp-select-menu { position: absolute; z-index: 620; top: calc(100% + 7px); left: 0; right: 0; max-height: 260px; overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: 14px; background: var(--white); box-shadow: 0 18px 48px var(--sv-shadow-rgba-17-17-16-0_16); opacity: 0; transform: translateY(-4px) scale(0.985); pointer-events: none; visibility: hidden; transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s linear 0.13s; }
         .srp-select-wrap.open .srp-select-menu { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; visibility: visible; transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s; }
-        .srp-select-menu::-webkit-scrollbar, .srp-search-results::-webkit-scrollbar { width: 6px; }
-        .srp-select-menu::-webkit-scrollbar-thumb, .srp-search-results::-webkit-scrollbar-thumb { background: var(--sv-bg-d8d8d4); border-radius: 99px; }
         .srp-select-option { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 0.82rem; font-weight: 650; text-align: left; cursor: pointer; }
         .srp-select-option:hover { background: var(--bg); color: var(--text-primary); }
         .srp-select-option.active { background: var(--sv-bg-111110); color: var(--sv-fg-fff); }
@@ -4226,7 +4200,7 @@
         .srp-skeleton { display: grid; gap: 15px; }
         .srp-skel-head { display: flex; gap: 12px; align-items: center; }
         .srp-skel-circle { width: 42px; height: 42px; border-radius: 50%; flex: 0 0 auto; }
-        .srp-skel-line, .srp-skel-pill, .srp-skel-box, .srp-skel-circle { display: block; background: linear-gradient(90deg, var(--bg) 0%, var(--border-light) 42%, var(--bg) 78%); background-size: 220% 100%; animation: srpSkeleton 1.25s ease-in-out infinite; }
+        .srp-skel-line, .srp-skel-pill, .srp-skel-box, .srp-skel-circle { display: block; background: linear-gradient(90deg, var(--bg) 0%, var(--border-light) 42%, var(--bg) 78%); background-size: 220% 100%; animation: srpSkeleton var(--sv-sheen-dur) var(--sv-sheen-ease) infinite; }
         .srp-skel-line { height: 12px; border-radius: 999px; }
         .srp-skel-line.short { width: 36%; }
         .srp-skel-line.medium { width: 62%; }
@@ -5617,7 +5591,7 @@
             body:has(.pocket-staff-bar) .linear-view { max-width: none; margin: 0; padding: 0 0 28px; }
             body:has(.pocket-staff-bar) .linear-form-title { font-size: 25px; letter-spacing: -0.8px; margin-bottom: 8px; }
             body:has(.pocket-staff-bar) .linear-form-sub { font-size: 14px; line-height: 1.6; margin-bottom: 22px; }
-            body:has(.pocket-staff-bar) .linear-form { box-sizing: border-box; padding: 20px 18px; border: 1px solid var(--border); border-radius: 22px; background: var(--white); gap: 18px; }
+            body:has(.pocket-staff-bar) .linear-form { box-sizing: border-box; padding: 0; gap: 36px; }
             body:has(.pocket-staff-bar) .linear-field { gap: 8px; }
             body:has(.pocket-staff-bar) .linear-label { font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--text-secondary); }
             body:has(.pocket-staff-bar) .linear-search-wrap, body:has(.pocket-staff-bar) .linear-search-pill { width: 100%; max-width: 100%; box-sizing: border-box; box-shadow: none; }
@@ -5625,20 +5599,13 @@
             body:has(.pocket-staff-bar) .linear-search-dropdown { border-radius: 16px; max-height: 50dvh; overflow-y: auto; }
             body:has(.pocket-staff-bar) .linear-input, body:has(.pocket-staff-bar) .linear-textarea, body:has(.pocket-staff-bar) .linear-search-input { box-sizing: border-box; width: 100%; min-height: 48px; padding: 11px 12px; border-radius: 12px; font-size: 16px; line-height: 1.6; }
             body:has(.pocket-staff-bar) .linear-textarea { min-height: 100px; }
-            body:has(.pocket-staff-bar) .linear-form > .linear-field .linear-input, body:has(.pocket-staff-bar) .linear-form > .linear-field .linear-textarea, body:has(.pocket-staff-bar) .linear-search-pill { background: var(--field-bg); border: 1px solid var(--border); }
-            body:has(.pocket-staff-bar) .linear-video-card .linear-input, body:has(.pocket-staff-bar) .linear-video-card .linear-textarea { background: var(--white); }
+            body:has(.pocket-staff-bar) .linear-search-pill { border-width: 1.5px; }
             body:has(.pocket-staff-bar) .linear-search-input { background: transparent; border: 0; min-height: 44px; padding: 0; }
             body:has(.pocket-staff-bar) .linear-search-ghost { font-size: 16px; }
-            body:has(.pocket-staff-bar) .linear-title-display { min-height: 48px; box-sizing: border-box; display: flex; align-items: center; padding: 11px 12px; border-radius: 12px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
-            body:has(.pocket-staff-bar) .linear-title-display.empty { font-style: normal; color: var(--text-secondary); border: 1px dashed var(--border); }
-            body:has(.pocket-staff-bar) .linear-video-card { padding: 16px; border-radius: 18px; margin: 0 0 12px; background: var(--surface-subtle); }
-            body:has(.pocket-staff-bar) .linear-video-header { min-height: 44px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
-            body:has(.pocket-staff-bar) .linear-video-num { font-size: 14px; font-weight: 750; }
-            body:has(.pocket-staff-bar) .linear-video-remove { position: static; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 12px; background: var(--white); }
-            body:has(.pocket-staff-bar) .linear-video-fields { display: flex; flex-direction: column; gap: 10px; }
-            body:has(.pocket-staff-bar) .linear-video-notes { min-height: 110px; }
-            body:has(.pocket-staff-bar) .video-link-hint { display: none; }
-            body:has(.pocket-staff-bar) .linear-add-video-btn { width: 100%; min-height: 50px; border: 1px dashed var(--border); border-radius: 16px; background: var(--white); font-size: 13px; }
+            body:has(.pocket-staff-bar) .linear-title-display { box-sizing: border-box; display: flex; align-items: center; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+            body:has(.pocket-staff-bar) .linear-title-display.empty { font-style: normal; color: var(--text-secondary); }
+            body:has(.pocket-staff-bar) .linear-video-card { padding: 0; margin: 0; }
+                                                body:has(.pocket-staff-bar) .linear-video-notes { min-height: 72px; }
             body:has(.pocket-staff-bar) .linear-submit-btns { display: flex; gap: 8px; width: 100%; margin: 0; }
             body:has(.pocket-staff-bar) .linear-submit-btn { flex: 1; min-height: 50px; font-size: 13px; border-radius: 14px; padding: 10px 14px; box-shadow: none; }
             body:has(.pocket-staff-bar) .linear-submit-btn.linear-submit-primary { font-size: 14px; }
@@ -8473,3 +8440,19 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
 
 /* Keep the native caption field inside a reduced keyboard viewport. */
 @media(max-width:767px){html.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] textarea.cal-fld-cap {max-height:min(336px,calc(100dvh - 260px))!important;overflow-y:auto;}}
+
+/* ONE SCROLLBAR FOR THE WHOLE APP (owner feedback 2026-10-17, session Curtain Nine): every scrollbar (text boxes,
+   lists, panels, dialogs, the page) looks like the review conversation panel's: 6px, fully rounded, no track, a soft
+   thumb that darkens on hover, from the theme's --scrollbar-thumb tokens (light and dark). No place styles its own; a
+   place that hides its scrollbar (scrollbar-width: none, or display: none on ::-webkit-scrollbar) still hides it.
+   Chromium and Safari draw the ::-webkit-scrollbar rules; Firefox, which has none, gets the standard properties. The
+   standard ones are kept away from Chromium on purpose: there they would replace the rounded thumb with its own. */
+::-webkit-scrollbar, *::-webkit-scrollbar { width: 6px; height: 6px; background: transparent; }
+::-webkit-scrollbar-track, *::-webkit-scrollbar-track, ::-webkit-scrollbar-track-piece, *::-webkit-scrollbar-track-piece,
+::-webkit-scrollbar-corner, *::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb, *::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover, *::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+::-webkit-scrollbar-button, *::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+@supports not selector(::-webkit-scrollbar) {
+    * { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+}

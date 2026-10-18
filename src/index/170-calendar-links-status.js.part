@@ -13,7 +13,7 @@ import {
 import { _calNameSyncAfterSave } from './125-title-name-rule.js';
 import {
   CAL_SAVE_DEBOUNCE_MS, _calBumpThumbRev, _calCapBlockHtml, _calColorTagHtml, _calCommentsFor,
-  _calCompLinked, _calFailedNewCards, _calIsAutoSortOn, _calIsCollabOn, _calLocalRecentSaves,
+  _calCompLinked, _calFailedNewCards, _calIsAutoSortOn, _calLocalRecentSaves,
   _calMigratePostShape, _calNoLinearPush, _calNormMonthFilter, _calPendingEdits,
   _calPillDisplayStatus, _calPlatformsStripHtml, _calRecentSaveFields, _calSaveInFlight,
   _calSaveTimers, _calShouldBumpThumbRevForGraphicStatus, calClientSlug, calState
@@ -124,7 +124,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         // been client-editable (the Suggest-a-post flow). SMM is never
         // locked. This is the only flag that diverges from `ro` when collab
         // is on, so it stays scoped to the four text inputs and nowhere else.
-        const editableText = !_isClientLink || isBlank || _calIsCollabOn();
+        const editableText = _calClientMayEditText(p.id) || isBlank;
         const selectable = calState.selectMode && !ro && !isBlank;
         // Drag-to-reorder works for the SMM and clients alike (desktop native
         // DnD). The `ro` flag keeps the client's media/status surface read-only
@@ -1048,7 +1048,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
     }
 
     function _calOnDateChange(el) {
-        if (_calClientFieldEditBlocked()) return;
+        if (_calClientFieldEditBlocked(el)) return;
         const pid = el.dataset.pid;
         const card = el.closest('.cal-card');
         const chip = card ? card.querySelector(`[data-date-display="${pid}"]`) : null;
@@ -1143,18 +1143,26 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         if (html) thumbDiv.insertAdjacentHTML('beforeend', html);
     }
 
-    // Editing card text (name / caption / CTA / alt-caption) and the date is allowed for
-    // the SMM always, and for a client only in Collaborative mode (mirrors the editableText
-    // gate that sets the readonly attribute). These handler-level checks stop a read-only
-    // client persisting an edit by bypassing the UI gate (e.g. a direct handler call).
-    function _calClientFieldEditBlocked() { return _isClientLink && !_calIsCollabOn(); }
+    // Editing card text (caption / CTA / alt-caption) and the date is allowed for the SMM always, and for a client
+    // only on a blank "suggest a post" card they are creating (owner, 2026-10-18: a client's caption and CTA are read
+    // only on the Sheet, Collaborative mode or not; the review page's caption edit goes through
+    // _calClientReviewCaptionEdit instead). Mirrors the editableText gate that sets the readonly attribute. These
+    // handler-level checks stop a client persisting an edit by bypassing the UI gate (e.g. a direct handler call).
+    // A post the client began in this visit stays theirs to finish: the first save turns the blank card into a real one
+    // in place (_calPromoteBlankCard), and a caption typed after the name must still save (review of #2208).
+    const _calClientOwnNew = new Set();
+    function _calClientMayEditText(pid) { return !_isClientLink || _calIsBlankId(pid) || _calClientOwnNew.has(pid); }
+    function _calClientFieldEditBlocked(el) {
+        if (!_isClientLink) return false;
+        return !(el && el.dataset && _calClientMayEditText(el.dataset.pid));
+    }
     // Clients may not rename a card (see _calTitleRowHtml). Handler-level twin
     // of the readonly attribute, like _calClientFieldEditBlocked.
     function _calClientRenameBlocked(el) {
         return _isClientLink && el && el.dataset.fld === 'name' && !_calIsBlankId(el.dataset.pid);
     }
     function _calOnFieldInput(el) {
-        if (_calClientFieldEditBlocked()) return;
+        if (_calClientFieldEditBlocked(el)) return;
         if (_calClientRenameBlocked(el)) return;
         const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
@@ -1175,7 +1183,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, CAL_SAVE_DEBOUNCE_MS);
     }
     function _calOnFieldBlur(el) {
-        if (_calClientFieldEditBlocked()) return;
+        if (_calClientFieldEditBlocked(el)) return;
         if (_calClientRenameBlocked(el)) return;
         const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
@@ -1482,6 +1490,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         if (isBlank) {
             realId = _calMintId();
             _calPromoteBlankCard(pid, realId);
+            if (_isClientLink) _calClientOwnNew.add(realId);
             // Edits made during this save land under the new real id, so the
             // lock must cover it too or the re-flush would race this request.
             _calSaveInFlight[realId] = _calSaveInFlight[pid];
@@ -1794,6 +1803,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const json = await resp.json();
             if (!json.ok) throw new Error(json.error || 'save failed');
+            _calForgetUnsent(realId, pid, edits);
             // A staff rename is now recorded by the database; nudge the drain
             // so the linked sub-issues follow at once. Fire-and-forget: it can
             // never delay or fail this save.
@@ -2000,6 +2010,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 // merge doesn't see a phantom "we wrote newer" stamp.
                 cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
                 cur._saveError = _writeUiFailureSentence(e, 'save failed');
+                _calNoteUnsent(realId, edits);
                 if (gatewayCommitted) {
                     cur._writeUiRetryEdits = Object.assign({}, edits);
                     cur._writeUiRetrySourceAt = writeUiSourceAt;
@@ -2083,6 +2094,51 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         _calSetCardStatus(pid, 'saving');
         _calFlushCardSave(pid);
     }
+    /* Back online: press Retry for every card whose save failed only because
+       the network was down, including the saving-switch check that runs
+       first (session Gauntlet, 2026-10-18). Before this, the card
+       stayed on "Save failed · Retry" after the connection came back, and the
+       edit stayed unsaved until the person noticed and clicked. A save the
+       server answered and refused is left for the person, as before. Staff
+       pages only: a client link's answers have their own resend (185). */
+    const CAL_NETWORK_FAILURE_RE = /failed to fetch|networkerror|network request failed|load failed|network connection was lost|internet connection|server has not answered|timed out|checking whether saving is on (failed|took too long)/i;
+    /* The fields each card's failed saves were carrying, so the automatic resend
+       sends THOSE and nothing else. A bare Retry re-sends this tab's whole copy of
+       the card, which would put back anything a teammate changed while this
+       browser was offline (their rename, date or video link). Rolled-back fields
+       (status, date, order, links) travel as the kept intent instead. */
+    const _calUnsentKeys = Object.create(null);
+    function _calNoteUnsent(id, edits) {
+        const keys = _calUnsentKeys[id] || (_calUnsentKeys[id] = new Set());
+        Object.keys(edits || {}).forEach(k => { if (k.charAt(0) !== '_' && _CAL_ROLLBACK_FIELDS.indexOf(k) < 0) keys.add(k); });
+    }
+    function _calForgetUnsent(id, pid, edits) {
+        [id, pid].forEach(key => {
+            const keys = _calUnsentKeys[key];
+            if (!keys) return;
+            const sent = Object.keys(edits || {});
+            if (!sent.length) delete _calUnsentKeys[key];
+            else { sent.forEach(k => keys.delete(k)); if (!keys.size) delete _calUnsentKeys[key]; }
+        });
+    }
+    function _calRetryNetworkFailedSaves() {
+        if (_isClientLink || !calState || !Array.isArray(calState.posts)) return 0;
+        let n = 0;
+        calState.posts.slice().forEach(p => {
+            if (!p || !p.id || _calSaveInFlight[p.id]) return;
+            if (!p._saveError || !CAL_NETWORK_FAILURE_RE.test(String(p._saveError))) return;
+            if (!_calFailedNewCards.has(p.id)) {
+                const keys = _calUnsentKeys[p.id];
+                // Nothing known to resend but the whole card: leave that Retry to the person.
+                if ((!keys || !keys.size) && !p._calFailedIntentLabel) return;
+                const bucket = _calPendingEdits[p.id] || (_calPendingEdits[p.id] = {});
+                (keys || []).forEach(k => { if (!(k in bucket)) bucket[k] = p[k]; });
+            }
+            try { _calRetrySave(p.id); n++; } catch (e) {}
+        });
+        return n;
+    }
+    try { window.addEventListener('online', () => { setTimeout(_calRetryNetworkFailedSaves, 800); }); } catch (e) {}
     /* ── Caption text that outlives the tab (OPEN_REPAIRS 314, item 3) ───────
        Every keystroke is mirrored to a draft (shared helper in 131). The draft is
        dropped only when a save of that same text is confirmed. On the next load
@@ -3575,7 +3631,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
 export {
   CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS, CAL_NATIVE_BATCH_FILTER_MIN,
   CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS, CAL_NATIVE_NAME_MAX, CAL_NATIVE_TITLE_SEPARATOR,
-  _calAutoResolveDestStatus, _calAutosizeTextareas, _calAwaitCardSave, _calClientFieldEditBlocked,
+  _calAutoResolveDestStatus, _calAutosizeTextareas, _calAwaitCardSave, _calClientFieldEditBlocked, _calClientMayEditText,
   _calCloseNativePost, _calCloseStatusMenu, _calFlushCardSave, _calForceThumbRefresh,
   _calInsertLocalBlankCard, _calLivePreviewThumb, _calNativeBatchCompatible,
   _calNativeBatchDisplayName, _calNativeBatchLists, _calNativeBatchMatches, _calNativeBatchNameFor,

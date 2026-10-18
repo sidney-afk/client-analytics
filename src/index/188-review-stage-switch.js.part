@@ -6,6 +6,7 @@ import { calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calRenderBody } from './160-calendar-organize-ui.js';
 import { _isClientLink, _syncviewClientEntryCapability } from './260-production-refresh-boot.js';
 import { _kasperPaintReview } from './305-core-kasper-shared.js';
+import { svFrameFlagWait } from './187-frame-viewer.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), behind two switches. Session Marquee, 2026-10-17.
 
        This file is the small, always-loaded half: it reads the switches and answers "show the new page here?".
@@ -165,6 +166,11 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     // No Analytics for a switched-on client (the company dropped client analytics): render() asks this before it
     // draws a client link, and sends an Analytics route to the Content Calendar instead. Since 2026-10-17 (session
     // Curtain Seven) that is every client link while analytics_hidden hides Analytics (its default).
+    /* Is the new review page on for this client link? Not the same question as svRsClientNoAnalytics, which is also
+       true for every link while Analytics is hidden for everyone. */
+    function svRsClientReviewOn(client) {
+        return !!_isClientLink && _rsClientOn(client);
+    }
     function svRsClientNoAnalytics(client) {
         return !!_isClientLink && (svAnalyticsHidden() || _rsClientOn(client));
     }
@@ -304,6 +310,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
                 // The client link, whole page: no frame, no second header, no Analytics toggle on any of the four tabs.
                 + 'html.sv-rs-full .client-view.cal-tab-view>.view-tab-toggle,html.sv-rs-full #pageTitle,html.sv-rs-full #pageSub,html.sv-rs-full #calView>.pocket-client-calendar{display:none!important}'
                 + 'html.sv-rs-full #mainWrap{padding:0!important}'
+                + 'html.sv-rs-skel #calView{display:none!important}'
                 + 'html.sv-rs-full #calView{padding:4px max(16px,env(safe-area-inset-right,0px)) 32px max(16px,env(safe-area-inset-left,0px))}'
                 // The old bar's tools, in the new header's slot: just the tools, no bar around them.
                 + 'html.sv-rs-full #svReviewStage .cal-toolbar{display:flex;align-items:center;gap:8px;margin:0!important;padding:0!important;min-height:0;background:transparent!important;border:0!important;box-shadow:none!important;position:static;width:auto;flex-wrap:nowrap}'
@@ -336,6 +343,8 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         de.classList.toggle('sv-rs-cal', !!on);
         de.classList.toggle('sv-rs-client', !!on && !!_isClientLink);
         de.classList.toggle('sv-rs-full', !!full);
+        // The client page's Review while its cards load: the new page draws its skeleton, the old loader steps aside.
+        de.classList.toggle('sv-rs-skel', !!full && !!_isClientLink && calState && calState.view === 'review' && !!calState.loading && !calState.error);
     }
     // The Sheet centres its cards in the space under the header (above), so the page needs the header's height.
     let _rsHeadRo = null;
@@ -368,6 +377,8 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         }
         _rsChrome(on, full);
         _rsToolsSync(full);
+        // The client page's Notes view holds the player: read its switch now, not on the first Notes click.
+        if (full) { try { svFrameFlagWait(0); } catch (e) {} }
         if (_rsCalQueued) return;
         _rsCalQueued = true;
         requestAnimationFrame(() => {
@@ -432,4 +443,4 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         if (document.getElementById('kasperContent')) svRsKasperHeadSync();
         if (document.getElementById('kasperReviewBody')) _kasperPaintReview();
     });
-export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl };
+export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl };

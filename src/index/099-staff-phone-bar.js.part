@@ -271,6 +271,9 @@
         }
         function sync() {
             const title = wanted();
+            // The page's first markup may carry an inert copy of this bar (030, drawn before any script so a phone
+            // never sees the desktop header first); the real bar takes its place.
+            document.getElementById('svBootPhoneBar')?.remove();
             let bar = document.getElementById('pocketStaffBar');
             if (!title) {
                 if (bar) bar.remove();

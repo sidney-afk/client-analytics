@@ -186,6 +186,58 @@
         </div>
     </div>
 </header>
+<script>
+    // First paint of the staff header (session Lantern, 2026-10-18). The client
+    // picker, the Samples tab and the Kasper tab are revealed by the app script
+    // a moment after the first paint, and each reveal pushed the tab row
+    // sideways. Show them now with the app's own rules, read from this
+    // browser's storage; the app script re-checks every one of them and hides
+    // what it must (a paint decision only, it grants nothing).
+    //   picker: every staff page (095 svClientBarSync); never a client link,
+    //           an intake or an onboarding form.
+    //   Samples: on unless this browser opted out (270 _sxrEnabled).
+    //   Kasper: an admin identity, or the last one seen here was (200
+    //           _kasperAdminAllowed).
+    //   Messages: an admin or SMM identity (100 _syncviewStaffCan).
+    (function () {
+        try {
+            var de = document.documentElement;
+            if (de.classList.contains('boot-client') || de.classList.contains('boot-onboarding') || de.classList.contains('boot-onboarding-view')
+                || de.classList.contains('boot-intake') || de.classList.contains('boot-gate')) return;
+            var id = JSON.parse(localStorage.getItem('syncview_staff_identity_v1') || 'null');
+            if (!id || !id.key) return;
+            var bar = document.getElementById('svClientBar');
+            if (bar) bar.hidden = false;
+            var sxrQ = new URLSearchParams(typeof svRoute !== 'undefined' ? svRoute.search() : location.search).get('sxr');
+            var sxrOn = sxrQ === '1' || sxrQ === 'true' ? true : (sxrQ === '0' || sxrQ === 'false') ? false : localStorage.getItem('syncview_sxr_off') !== '1';
+            var sxr = document.getElementById('navSxr');
+            if (sxr && sxrOn) sxr.style.display = '';
+            var admin = String(id.role || '').trim().toLowerCase() === 'admin' || localStorage.getItem('syncview_kasper_admin_seen') === '1';
+            var kas = document.getElementById('navKasper');
+            if (kas && admin) kas.style.display = '';
+            var role = String(id.role || '').trim().toLowerCase();
+            var msg = document.getElementById('navMessages');
+            if (msg && (role === 'admin' || role === 'smm')) msg.hidden = false;
+            // Phone: the screens that wear the phone title bar (099 POCKET_STAFF_PAGES) get an inert copy of it
+            // from the first frame, so the wide desktop header never shows first. The phone bar script removes
+            // this copy when it draws the real bar (099 sync), or on any screen that has no bar.
+            var pocket = { today: 'Today', templates: 'Templates', 'filming-plans': 'Filming Plans', linear: 'Submit' }[de.getAttribute('data-boot-nav') || ''];
+            if (pocket && window.matchMedia && window.matchMedia('(max-width: 767px)').matches) {
+                de.classList.add('sv-staff-phone');
+                var pb = document.createElement('div');
+                pb.id = 'svBootPhoneBar';
+                pb.className = 'pocket-staff-bar';
+                pb.setAttribute('aria-hidden', 'true');
+                pb.innerHTML = '<h1 class="pocket-staff-title"></h1><div class="pocket-staff-actions">'
+                    + '<button type="button" class="pocket-staff-tabs-btn" tabindex="-1">Tabs <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg></button>'
+                    + '<button type="button" class="pocket-staff-more-btn" tabindex="-1"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg></button></div>';
+                pb.querySelector('h1').textContent = pocket;
+                var cs = document.currentScript;
+                if (cs && cs.parentNode) cs.parentNode.insertBefore(pb, cs);
+            }
+        } catch (e) {}
+    })();
+</script>
 <main class="main" id="mainWrap">
     <div class="page-top overview-mode" id="pageTop">
         <div>
@@ -314,6 +366,11 @@
                     <div class="client-link-verify-mark" aria-hidden="true"><div class="sv-skeleton sv-skeleton-dot"></div></div>
                     <div class="sv-skeleton sv-skeleton-line" style="width:210px;height:16px;"></div>
                     <div class="sv-skeleton sv-skeleton-line" style="width:286px;max-width:86%;"></div>
+                </div>
+                <div class="sv-rs-boot" aria-hidden="true">
+                <div class="sv-rs-boot-hdr"><div class="sv-rs-boot-who"><div class="sv-skeleton sv-skeleton-line" style="width:152px;height:24px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:104px;height:12px;"></div></div><div class="sv-rs-boot-r"><div class="sv-rs-boot-tabs"><span></span></div><div class="sv-rs-boot-round"></div></div></div>
+                <div class="sv-rs-boot-strip"><div class="sv-skeleton sv-skeleton-line sv-rs-boot-count" style="width:113px;height:14px;"></div><div class="sv-rs-boot-chips"><div class="sv-rs-boot-chip is-cur"><div class="sv-skeleton sv-rs-boot-thumb"></div><div class="sv-rs-boot-chiptext"><div class="sv-skeleton sv-skeleton-line" style="width:78%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:34px;height:8px;"></div></div></div><div class="sv-rs-boot-chip"><div class="sv-skeleton sv-rs-boot-thumb"></div><div class="sv-rs-boot-chiptext"><div class="sv-skeleton sv-skeleton-line" style="width:64%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:34px;height:8px;"></div></div></div><div class="sv-rs-boot-chip"><div class="sv-skeleton sv-rs-boot-thumb"></div><div class="sv-rs-boot-chiptext"><div class="sv-skeleton sv-skeleton-line" style="width:64%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:34px;height:8px;"></div></div></div><div class="sv-rs-boot-chip"><div class="sv-skeleton sv-rs-boot-thumb"></div><div class="sv-rs-boot-chiptext"><div class="sv-skeleton sv-skeleton-line" style="width:64%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:34px;height:8px;"></div></div></div><div class="sv-rs-boot-chip"><div class="sv-skeleton sv-rs-boot-thumb"></div><div class="sv-rs-boot-chiptext"><div class="sv-skeleton sv-skeleton-line" style="width:64%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:34px;height:8px;"></div></div></div><div class="sv-rs-boot-chip"><div class="sv-skeleton sv-rs-boot-thumb"></div><div class="sv-rs-boot-chiptext"><div class="sv-skeleton sv-skeleton-line" style="width:64%;height:12px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:34px;height:8px;"></div></div></div></div></div>
+                <div class="sv-rs-boot-stage"><div class="sv-rs-boot-main"><div class="sv-skeleton sv-skeleton-line" style="width:286px;max-width:70%;height:22px;"></div><div class="sv-rs-boot-card"><div class="sv-rs-boot-top"><div class="sv-skeleton sv-skeleton-line" style="width:78px;height:12px;"></div><div class="sv-rs-boot-steps"><div class="sv-skeleton sv-skeleton-pill" style="width:86px;height:34px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:116px;height:34px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:98px;height:34px;"></div></div></div><div class="sv-rs-boot-media"><div class="sv-skeleton sv-rs-boot-video"></div></div><div class="sv-rs-boot-acts"><div class="sv-skeleton sv-skeleton-pill" style="width:186px;height:42px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:112px;height:12px;"></div></div></div></div><div class="sv-rs-boot-chat"><div class="sv-rs-boot-chathead"><div class="sv-skeleton sv-skeleton-dot" style="width:28px;height:28px;"></div><div class="sv-rs-boot-chiptext"><div class="sv-skeleton sv-skeleton-line" style="width:84px;height:13px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:140px;height:10px;"></div></div></div><div class="sv-rs-boot-chatfoot"><div class="sv-skeleton sv-skeleton-pill" style="width:100%;height:46px;"></div></div></div></div>
                 </div>
             </div>
         </div>

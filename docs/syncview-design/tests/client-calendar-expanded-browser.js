@@ -255,11 +255,13 @@ async function run(browser, origin, width) {
       await page.evaluate(() => {calState.posts=window._phoneTodayPosts;delete window._phoneTodayPosts;_calRenderBody();});
     }
     if (!before && view === 'organizer') {
+      // A client's dates on an existing post are read only (owner, 2026-10-18): the chip opens no date picker.
+      // A blank "suggest a post" card still has one (checked below, after that card is added).
       await page.locator('.cal-date-chip').first().click();
-      await page.locator('.dp-popup').waitFor({ state: 'visible' });
+      await page.waitForTimeout(300);
+      ok(await page.locator('.dp-popup').count() === 0 || !(await page.locator('.dp-popup').first().isVisible()), 'an existing client post must not offer a date picker');
       await measure(page, 'date-picker-' + width);
       await shot(page, 'date-picker-' + width);
-      await page.keyboard.press('Escape');
       await page.locator('.cal-comments-btn').first().click();
       await page.locator('#calCommentsModal').waitFor({ state: 'visible' });
       const labels = page.locator('#calCommentsModal [data-cm-toggle=comp] .cal-cm-audience-cap, #calCommentsModal [data-cm-toggle=tweak] .cal-cm-audience-cap');
@@ -308,6 +310,9 @@ async function run(browser, origin, width) {
       ok(await page.locator('.cal-fld-name:not([readonly])').count() === 1, 'native suggestion must keep an editable name');
       await measure(page, 'suggest-post-' + width);
       await shot(page, 'suggest-post-' + width);
+      await page.locator('.cal-card.is-blank .cal-date-chip').first().click();
+      await page.locator('.dp-popup').waitFor({ state: 'visible' });
+      await page.keyboard.press('Escape');
     }
   }
   if (!before) {

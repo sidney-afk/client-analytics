@@ -44,7 +44,7 @@ import {
 } from './180-calendar-native-post-media.js';
 import { _calApprovalBadgeCount, _calUpdateReviewBadge, _calWireReviewExpand, renderCalReview } from './190-calendar-approval-comments.js';
 import { PROD_WRITE_EF_URL } from './210-production-state-writes.js';
-import { svFrameSyncPlayIcon } from './187-frame-viewer.js';
+import { svFrameSyncPlayIcon, svFrameTileAttrs } from './187-frame-viewer.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } from './270-samples-model.js';
 import { svRsCalSync, svRsToolsAdopt, svRsToolsDrop } from './188-review-stage-switch.js';
@@ -3185,8 +3185,12 @@ import { svRsCalSync, svRsToolsAdopt, svRsToolsDrop } from './188-review-stage-s
             }
             if (isThumb) return '';
             const href = /^https?:\/\//i.test(v) ? v : 'https://' + v;
+            // The client's video door (owner, 2026-10-18): with the in-app viewer switched on for this client
+            // (frame_viewer_clients) it opens the card's Notes view with the video on the left and the notes on the
+            // right, the way the SMM's Calendar does; switched off, or a link the viewer cannot play, it stays a link.
+            const door = (!isThumb && post && post.id) ? svFrameTileAttrs(v, post.client, post.id, '') : '';
             return `<div class="cal-link-field has-link cal-link-ro cal-link-${kind}">
-                <a class="cal-link-pill-open" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer">${extIco}<span class="cal-link-label">${label}</span></a>
+                <a class="cal-link-pill-open" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer"${door}>${extIco}<span class="cal-link-label">${label}</span></a>
             </div>`;
         }
         const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_calEsc(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnLinkInput(this)" onblur="_calOnLinkBlur(this)" onkeydown="_calOnLinkKey(event,this)">`;

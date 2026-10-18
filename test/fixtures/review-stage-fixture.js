@@ -74,6 +74,10 @@ function thread(row) {
 async function open(browser, origin, opt) {
   const state = { cards: cards(opt.stage).concat(opt.finished ? finished() : []), upserts: [], gateway: [], flagReads: 0, orient: 'p', writeDelay: 0, writeFail: 0 };
   if (opt.thread) thread(state.cards[0]);
+  // opt.collab: the calendar's Collaborative mode is on (a settings row, as the live calendar keeps it).
+  if (opt.collab) state.cards.push({ id: 'p_cal_settings', client: SLUG, caption: JSON.stringify({ collab_mode: true }) });
+  // opt.unscheduled: one card with no date, so Month and Week show their "Unscheduled" list where it is offered.
+  if (opt.unscheduled) state.cards.push({ id: 'ru1', client: SLUG, name: 'An undated idea', status: 'Client Approval', order_index: 30, updated_at: '2026-10-10T12:00:00.000Z', scheduled_date: '', video_status: 'Client Approval', graphic_status: 'Client Approval', caption_status: 'Client Approval', asset_url: FRAME, thumbnail_url: POSTER.p, caption: 'No date yet.', cta: 'Link in bio', video_tweaks: '[]', graphic_tweaks: '[]', caption_tweaks: '[]', comments: [], graphic_comments: [], caption_comments: [] });
   const ctx = await browser.newContext({ viewport: { width: opt.width || 1440, height: opt.height || 900 }, serviceWorkers: 'block', colorScheme: 'light' });
   await ctx.routeWebSocket('**/*', s => s.close());
   const page = await ctx.newPage();
@@ -118,6 +122,7 @@ async function open(browser, origin, opt) {
     if (/\/functions\/v1\/(calendar-upsert|calendar-card-write)$/.test(p) && r.method() === 'POST') {
       let body = {}; try { body = JSON.parse(r.postData() || '{}'); } catch (e) {}
       // A slow or failing card save, switched at run time by a test (state.writeDelay ms, state.writeFail count).
+      if (state.writeHang) return new Promise(() => {});   // a server that never answers
       if (state.writeDelay) await sleep(state.writeDelay);
       if (state.writeFail > 0) { state.writeFail--; return json({ ok: false, error: 'fixture_unavailable', message: 'The fixture refused this save.' }, 503); }
       const post = body.post || {};
@@ -138,6 +143,8 @@ async function open(browser, origin, opt) {
       if (opt.flags === 'unreadable' && keys.includes('review_stage_client_pages')) return json({ message: 'fixture' }, 500);
       // A slow switch read (opt.flagDelay ms), as on the live site, where it took 1.5 to 3.7 s (session Curtain Three).
       if (opt.flagDelay && keys.includes('review_stage_client_pages')) await sleep(opt.flagDelay);
+      // A slow read of the player's switch (opt.frameDelay ms).
+      if (opt.frameDelay && keys.includes('frame_viewer_clients')) await sleep(opt.frameDelay);
       const values = {
         calendar_upsert_ef_clients: { clients: [SLUG] }, write_ui_reroute_clients: { clients: [SLUG] },
         client_comment_gateway_enabled: { enabled: true }, prod_authority: { video: 'syncview', graphics: 'syncview' },
@@ -152,6 +159,8 @@ async function open(browser, origin, opt) {
     }
     if (p === '/rest/v1/calendar_posts') {
       if (opt.postsFail) return json({ message: 'fixture' }, 503);
+      // A slow card read (opt.postsDelay ms, or state.postsDelay set at run time).
+      if (opt.postsDelay || state.postsDelay) await sleep(state.postsDelay || opt.postsDelay);
       const slug = String(sp.get('client') || '').replace(/^eq\./, '');
       const one = String(sp.get('id') || '').replace(/^eq\./, '');
       return json(state.cards.filter(c => (!slug || c.client === slug) && (!one || c.id === one)));

@@ -86,7 +86,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        the server refused (not worth re-sending). */
     function _crqIsConnectionFailure(text) {
         if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
-        return /failed to fetch|networkerror|network error|load failed|internet|err_|timed? ?out|aborted|offline|\b50[234]\b/i
+        return /failed to fetch|networkerror|network error|load failed|internet|err_|timed? ?out|aborted|offline|server has not answered|\b50[234]\b/i
             .test(String(text || ''));
     }
 

@@ -2673,10 +2673,10 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         if (strip.dataset.dropWired === '1') return;
         strip.dataset.dropWired = '1';
         strip.addEventListener('drop', () => {
-            // Reordering is SMM-always / client-only-in-collab (same gate as the
-            // draggable attribute). Guard the handler so a read-only client can't
-            // persist a reorder by bypassing the UI.
-            if (!_calCanDragCards()) return;
+            // Reordering the Sheet is SMM-always / client-only-in-collab. It is NOT the Month and Week day drag
+            // (_calCanDragCards, staff only since 2026-10-18): the Sheet reorder is a separate, earlier decision, so
+            // it keeps its own gate (review of #2208: gating it on _calCanDragCards stopped a client's reorder saving).
+            if (_isClientLink && !_calIsCollabOn()) return;
             const ids = Array.from(strip.querySelectorAll('.cal-card[draggable="true"]')).map(c => c.dataset.pid).filter(Boolean);
             if (!ids.length) return;
             const byId = new Map(calState.posts.map(p => [p.id, p]));

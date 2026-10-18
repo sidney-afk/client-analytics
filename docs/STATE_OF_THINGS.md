@@ -31,6 +31,17 @@ Wistia script, never autoplays), with the five folder rules beside a drawn folde
 four demo posts). Published because `start` is in `PUBLISHED_DIRS` (`scripts/pages-site.js`). Test:
 `node test/start-page-browser.js`. To change the wording or a video, edit `start/index.html`.
 
+## Client link Calendar is read only, video door opens the viewer (session Pane, 2026-10-18): PR open
+
+Owner's two decisions, 2026-10-18, for the client link only (staff pages unchanged). (1) On the client Sheet the caption,
+call to action and date are read only, Collaborative mode on or off (a blank "suggest a post" card the client is writing
+stays editable); Month and Week no longer drag posts and no longer offer the "Unscheduled ... drag onto a day" list;
+Notes still work; the new review page's caption edit for a post waiting on the client is a separate path and is
+unchanged. Sheet card reordering (drag by the grip) was a separate, earlier owner decision and was not changed.
+(2) The Sheet's Video button opens the Notes view with the video on the left and the notes on the right, behind the
+same `frame_viewer_clients` switch as the staff Calendar; with the switch off, or for a link the viewer cannot play, it
+is the old Frame.io link. Test: `node test/client-calendar-read-only-browser.js`.
+
 ## New review page, layout C (session Marquee, 2026-10-17): merged, on for the test client and the owner only
 
 The owner approved the client page (layout C, "Guided stage") and the SMM and Kasper versions of it on 2026-10-16.
@@ -181,10 +192,57 @@ notes (Notes button, a note's link, Messages) it waits for play as before. Analy
 `analytics_hidden` (above). Switch off: Kasper and the SMM page are today's. Test:
 `node test/review-stage-curtain-seven-browser.js`; the older browser tests that open Analytics now answer
 `analytics_hidden` with `{ "hidden": false }` (`test/fixtures/analytics-shown.js`).
+**First paint on that client link (session Lantern, 2026-10-18 01:13 UTC; owner report: a dark page refreshed through a
+white page with a small white card):** the browser now remembers the client links it last saw with the new page
+switched on (`syncview_rs_paint_v1` in its own storage, a paint hint that grants nothing), so a refresh paints the saved
+theme from the first frame and draws the page's own shape (header, strip, stage, conversation, within 3 px of the real
+page at 1440 and 390) instead of the white check card. That shape stays on top until the page has drawn under it, then
+fades out in 0.18 s (none with reduced motion), so the old review list no longer shows while the switch is read. When
+the switch reads off, the link is forgotten and the page goes back to light and the old page. A link never seen switched
+on keeps today's light check card. Test (records every frame, fails on main): `node test/first-paint-theme-browser.js`.
+Not yet done (Lantern's next pieces): the staff pages and Kasper frame walk on the live site, one shimmer and spinner
+family across the app, and a fade from skeleton to content elsewhere.
+**Notes flash fixed (session Curtain Nine, owner feedback 2026-10-17 23:40 UTC):** on a switched-on client link the
+Sheet tab's Notes opened the old dialog for up to a few seconds and then turned into the player view: nothing on that
+page had read the player's switch (`frame_viewer_clients`) yet, so the first Notes click did. The client page now reads
+it as soon as it draws, and a Notes click that still beats the answer waits for it (at most 2.5 s) before painting.
+The shared player also takes its portrait or landscape shape on its first frame from the same picture already decoded
+on the page (for everyone with the player; before, it painted landscape and jumped a frame later). Test:
+`node test/review-stage-notes-browser.js`.
+**Review page skeleton (session Curtain Nine, owner feedback 2026-10-17):** while a switched-on client's Review cards
+load, the new page draws its own placeholders (strip chips, title, date, step bar, the media at a video's shape, the
+buttons, the conversation) where the real parts land, within a few pixels (exact on a phone), instead of its header
+over the old calendar loader. Shimmer stops with reduced motion. Skeletons elsewhere are session Mould's. Test:
+`node test/review-stage-skeleton-browser.js`.
+**One scrollbar for the whole app (session Curtain Nine, owner feedback 2026-10-17, for everyone):** every scrollbar
+(text boxes, lists, panels, dialogs, the page) now looks like the review conversation panel's: 6px, fully rounded, no
+track, the theme's soft thumb (`--scrollbar-thumb` / `--scrollbar-thumb-hover`, light and dark), darker on hover. One
+shared block at the end of `020-styles-surfaces.css.part` (and the same rule inside the review page's shadow root);
+the 31 per-place scrollbar rules are gone. A place that hides its scrollbar still does. Firefox gets
+`scrollbar-width: thin` and the same colour (only where `::-webkit-scrollbar` is unsupported, so Chromium keeps the
+rounded thumb). Test: `node test/scrollbars-browser.js`.
+**Staff pages, first paint (session Lantern, 2026-10-18 01:40 UTC):** a staff refresh no longer reshuffles the header:
+the client picker, Samples, Kasper and the Messages button show from the first frame (the app script still re-checks
+each), every tab looks the way it will once the sliding highlight is ready (no bordered chips, only the page's tab lit,
+Today included), Kasper and Workload show their own grey shape instead of a bare "Loading…" while their code downloads,
+and on a phone Today, Templates, Filming Plans and Submit draw the phone title bar from the first frame instead of the
+desktop header. Test (fails on main, 17 failures): `node test/staff-first-paint-browser.js`. Still showing late: the tab
+icons and logo (one or two frames, images), and Kasper's own phone heading.
+**One loading family (session Lantern, 2026-10-18 02:10 UTC):** every spinner in the shared styles turns at one
+speed (`--sv-spin-dur`, 0.75 s; it was six speeds from 0.7 to 1 s) and every grey placeholder shimmers at one speed
+and easing (`--sv-sheen-dur` 1.35 s, ease-in-out; it was four). Reduced motion stops every shimmer, slows spinners to
+1.5 s and drops fades. Wherever a grey placeholder inside the page is replaced by content, the content fades in over
+0.18 s instead of appearing in one frame. Tests: `node test/loading-family.js` (no spinner or shimmer with its own
+number) and `node test/loading-fade-browser.js` (both fail on main). Not covered: the review page and frame viewer's
+own sealed styles (other sessions'), and the small "updating" pulse dots.
 
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone
 layout follows the desktop one and has not been polished on its own (as the handoff said).
+
+## Card saves end after 20 s (session Tether, 2026-10-18)
+
+The Calendar card save fetches (`_calUpsertPost`, the client link's `_calUpsertFetchClientLink` and the pinned repair resend) now give up after 20 seconds and fail like any network failure ("The server has not answered. Your change is kept; try again."), so the review page's waiting line ends with Try again and the offline resend treats it like a dropped connection. What is sent is unchanged. Test: case 5 of `node test/review-stage-save-browser.js`.
 
 ## Loading skeletons match what loads (session Mould, owner feedback 2026-10-17 23:40 UTC)
 
@@ -198,6 +256,11 @@ before and after screenshots live in `docs/audits/skeleton-shape/<page>/`.
   `node test/calendar-sheet-skeleton-shape-browser.js`. Not yet matched: the phone first paint (the whole phone header
   is drawn by the app, so the first paint still shows the desktop shell there), a saved small or large card size on the
   first paint (it draws the default size), and the staff client profile's Calendar tab, which shares the first-paint copy.
+- **Client link, Sheet (session Tether, 2026-10-18):** done. The client link's Sheet drew the staff Sheet's placeholder;
+  it now draws the client card at the loaded card's boxes (thumbnail, title, date, one link row, caption, call to
+  action, Notes, the status chips; on the phone one full-width column with the Caption and Call to action headings and
+  no "Loading your calendar..." line). Test: `node test/client-sheet-skeleton-shape-browser.js`. The first paint on a
+  client link (before the app starts) is not matched.
 - **Staff Calendar, Month and Week (desktop):** done. While posts load, the view's own header, day labels and grid are
   drawn with no posts and shimmer (it was a narrow unlabelled grid for Month, other-sized pills for Week); a Month row
   that gets a post grows at most a few pixels. Test: `node test/calendar-month-week-skeleton-shape-browser.js`. The phone

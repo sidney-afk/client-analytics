@@ -4,7 +4,7 @@ import {
   LAST_LINK_KEY, LINEAR_DEFAULT_VIDEO_COUNT, LINEAR_FORM_KEY, LINEAR_INTAKE_HOLD_KEY,
   LINEAR_INTAKE_LOAD_ID, LINEAR_INTAKE_MAX_ITEMS, LINEAR_RECEIPTS_KEY, LOG_SUBMISSION_WEBHOOK,
   NATIVE_INTAKE_PENDING_KEY, _isSmmWeeklyRoute, _linearIntakeItemsPerVideo,
-  _linearIntakeTooLargeMessage, _linearNextVideoCount, _linearSetJustCreated,
+  _linearIntakeTooLargeMessage, _linearSetJustCreated,
   _linearSetSubmitInFlight, _linearSetVideoCount, currentNav, fetchLinearProjects, getLastLink,
   linearJustCreated, linearSubmitInFlight, linearVideoCount, saveLastLink
 } from './065-core-nav-intake-state.js';
@@ -16,7 +16,7 @@ import {
 } from './092-core-submit-form-navigation.js';
 import {
   CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewRequireStaffIdentity,
-  _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue
+  _svExplainLabel, _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue
 } from './100-onboarding-staff-controls.js';
 import {
   _calUpsertFetch, _syncviewEfHeaders, _writeUiQueueDiagnostic, _writeUiRecordFailure,
@@ -36,17 +36,60 @@ import {
 } from './270-samples-model.js';
 import { _sxrRenderBody } from './280-samples-cards-notes.js';
 import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
+    /* The two upload forms (owner feedback 2026-10-18). One renderer draws
+       both: the public upload link (?intake=1, clients and videographers) and
+       the team's Submit tab. What each one SENDS is unchanged; this only
+       changes how the form looks and how the videos are counted.
+       - The video/thumbnail choice is one small switch, "Make a thumbnail
+         too", right above the Create button and always on view, on by default
+         (on = the old "both" request, off = the old "video" request). The
+         owner ruled it stays visible (2026-10-18 03:45 UTC): hiding it in
+         August made every submission create a thumbnail card. The
+         "thumbnail only" request was dropped from the form: the Submit form
+         sent none in the 60 days to 2026-10-18 (read-only count).
+       - The count control replaces Add Video and the per-video Remove.
+       - On the link the Title is hidden; it is still computed and sent. */
+    const LINEAR_MAX_VIDEOS = 24;
+    // The thumbnail switch survives a reload and a "Restore it" (a saved
+    // video-only submission must come back as video only).
+    const LINEAR_THUMB_KEY = 'syncview_linear_make_thumbnail';
+    let _linearCountUndo = null;
+
+    const _LINEAR_HELP = {
+        folder: 'The Google Drive folder with everything from this shoot. The team starts here.',
+        notes: 'Anything the team should know about the whole shoot.',
+        count: 'How many videos are in this upload. Each one gets its own set of links below.',
+        main: 'Link to the main camera file for this video.',
+        side: 'A second angle, if you filmed one.',
+        audio: 'Separate sound, if you recorded it. Skip it when the main camera already has good audio.',
+        vnotes: 'What the editor and the designer should know about this video: the take to use, a thumbnail idea.',
+        thumb: 'On: the team also makes a thumbnail. Turn it off when only the video needs editing.'
+    };
+    // The house explainable label (shared tooltip: hover, keyboard focus,
+    // tap to toggle on a phone without opening the field, Escape).
+    function _linearHelpLabel(key, label) {
+        return _svExplainLabel('upload-' + key, label, _LINEAR_HELP[key]);
+    }
+    function _linearThumbStored() {
+        try { return localStorage.getItem(LINEAR_THUMB_KEY) !== '0'; } catch (e) { return true; }
+    }
+    function _linearThumbStore(on) {
+        try { if (on) localStorage.removeItem(LINEAR_THUMB_KEY); else localStorage.setItem(LINEAR_THUMB_KEY, '0'); } catch (e) {}
+    }
+    const _linearOptional = '<span class="uf-opt">optional</span>';
+
     function renderLinearView() {
         const saved = loadLinearForm();
         const heldSubmission = _linearSubmissionHoldRead();
         const savedClient = saved.client || '';
         const savedClientSlug = saved.clientSlug || '';
         const savedGeneralDrive = saved.generalDrive || '';
+        const isLink = typeof _isIntake !== 'undefined' && !!_isIntake;
 
         // Restore video count from saved data
-        // On a phone the form opens with one video block (Add Video adds more); trailing blank blocks saved earlier are not drawn.
+        // On a phone the form opens with one video block (the count control adds more); trailing blank blocks saved earlier are not drawn.
         const onPhone = !!(window.svIsStaffPhone && window.svIsStaffPhone());
-        const hasContent = v => !!(v && (v.main_cam || v.side_cam || v.audio || v.notes));
+        const hasContent = _linearVideoHasContent;
         let savedVideoCount = saved.videos?.length || (onPhone ? 1 : LINEAR_DEFAULT_VIDEO_COUNT);
         if (onPhone && saved.videos?.length) {
             let last = 0;
@@ -54,6 +97,7 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
             savedVideoCount = Math.max(last, 1);
         }
         _linearSetVideoCount(Math.max(savedVideoCount, 1));
+        _linearCountUndo = null;
 
         let videoCards = '';
         for (let i = 1; i <= linearVideoCount; i++) {
@@ -69,22 +113,37 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
             const d = new Date();
             titleDisplay = `${savedClient} · ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
         }
+        // A held "video only" submission comes back with the toggle off, so
+        // sending it again asks for the same thing it saved.
+        const makeThumbnail = heldSubmission && heldSubmission.mode
+            ? heldSubmission.mode !== 'video' : _linearThumbStored();
 
         const receivedBanner = linearJustCreated === 'received';
         const successBanner = linearJustCreated ? `<div class="linear-success-banner" id="linearSuccessBanner">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8L6 12L14 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            ${receivedBanner ? 'Production work received. Our team will complete an internal setup step; no action is needed from you.' : 'Production work created!'}
+            ${receivedBanner ? 'Production work received. Our team will complete an internal setup step; no action is needed from you.' : (isLink ? 'Upload received. Thank you!' : 'Production work created!')}
         </div>` : '';
         _linearSetJustCreated(false);
 
-        return `<div class="linear-view">
+        const head = isLink
+            ? `<header class="uf-head">
+                <img class="uf-logo" src="/synchro-social-logo.png" alt="Synchro Social" width="84" height="53">
+                <h1 class="linear-form-title">Upload your content</h1>
+                <p class="linear-form-sub">Paste your links, one set per video, and we take it from there.</p>
+            </header>`
+            : `<header class="uf-head">
+                <h1 class="linear-form-title">Create production work</h1>
+                <p class="linear-form-sub">Create native video and graphics deliverables</p>
+            </header>`;
+
+        return `<div class="linear-view uf${isLink ? ' uf-link' : ''}">
             ${successBanner}
             <div id="linearSavedSlot">${_linearSavedBoxHtml()}</div>
-            <div class="linear-form-title">Create production work</div>
-            <div class="linear-form-sub">Create native video and graphics deliverables</div>
+            ${head}
             <div class="linear-form">
+                <section class="uf-section" aria-label="About this upload">
                 <div class="linear-field">
-                    <label class="linear-label">Client</label>
+                    <label class="linear-label" for="linearClientSearch">Client</label>
                     <div class="linear-search-wrap" id="linearSearchWrap">
                         <div class="linear-search-pill">
                             <input class="linear-search-input" id="linearClientSearch" type="text"
@@ -100,7 +159,7 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
                         </div>
                     </div>
                 </div>
-                <div class="linear-field">
+                <div class="linear-field" id="linearTitleField"${isLink ? ' hidden' : ''}>
                     <label class="linear-label">Title</label>
                     <div class="linear-title-display ${savedClient ? '' : 'empty'}" id="linearTitleDisplay">${titleDisplay}</div>
                 </div>
@@ -109,109 +168,215 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
                     <div class="linear-title-display empty" id="linearFilmingPlansDisplay">${onPhone ? 'Found from the client you pick' : 'Select a client…'}</div>
                 </div>
                 <div class="linear-field">
-                    <label class="linear-label">General Drive</label>
-                    <input class="linear-input" id="linearGeneralDrive" type="url" placeholder="General drive link…" value="${savedGeneralDrive.replace(/"/g, '&quot;')}" oninput="saveLinearForm()">
+                    <label class="linear-label" for="linearGeneralDrive">${_linearHelpLabel('folder', 'Main folder')}</label>
+                    <input class="linear-input" id="linearGeneralDrive" type="url" placeholder="Link to the Google Drive folder" value="${savedGeneralDrive.replace(/"/g, '&quot;')}" oninput="saveLinearForm()">
                 </div>
                 <div class="linear-field">
-                    <label class="linear-label">Notes</label>
-                    <textarea class="linear-textarea" id="linearNotes" placeholder="Additional notes…" oninput="saveLinearForm()">${saved.notes || ''}</textarea>
+                    <label class="linear-label" for="linearNotes">${_linearHelpLabel('notes', 'Notes')} ${_linearOptional}</label>
+                    <textarea class="linear-textarea" id="linearNotes" placeholder="Anything about the whole shoot" oninput="saveLinearForm()">${saved.notes || ''}</textarea>
                 </div>
-                <div class="linear-field">
-                    <label class="linear-label">Videos</label>
+                </section>
+                <section class="uf-section uf-videos" aria-labelledby="linearVideosHeading">
+                    <div class="uf-videos-head">
+                        <h2 class="uf-videos-title" id="linearVideosHeading">${_linearHelpLabel('count', 'Videos')}</h2>
+                        <div class="uf-count" role="group" aria-label="Number of videos">
+                            <button type="button" class="uf-count-btn" id="linearCountMinus" aria-label="One video less" onclick="stepLinearVideoCount(-1)">
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><line x1="1.5" y1="6" x2="10.5" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                            </button>
+                            <input class="uf-count-input" id="linearVideoCount" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2"
+                                value="${linearVideoCount}" aria-label="Number of videos, 1 to ${LINEAR_MAX_VIDEOS}"
+                                oninput="onLinearCountInput(this)" onkeydown="onLinearCountKey(event, this)" onchange="setLinearVideoCount(this.value)">
+                            <button type="button" class="uf-count-btn" id="linearCountPlus" aria-label="One video more" onclick="stepLinearVideoCount(1)">
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><line x1="6" y1="1.5" x2="6" y2="10.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="1.5" y1="6" x2="10.5" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="uf-count-note" id="linearCountNote" role="status" aria-live="polite"></div>
                     <div class="linear-videos-section" id="linearVideos">${videoCards}</div>
-                    <button class="linear-add-video-btn" onclick="addLinearVideo()" type="button">
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><line x1="6" y1="1" x2="6" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="1" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                        Add Video
-                    </button>
-                </div>
-                <div class="linear-submit-btns">
-                    <button class="linear-submit-btn linear-submit-primary" id="linearSubmitBtnBoth" onclick="submitLinearForm('both')">
-                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                        <span class="linear-submit-primary-text">
-                            <span class="linear-submit-primary-label">Create deliverables</span>
-                            <span class="linear-submit-primary-sub">Video + graphic issue</span>
-                        </span>
-                    </button>
-                </div>
-                <!--
-                  Video-only and Thumbnail-only were already built, but sat
-                  behind an "Advanced" disclosure, so in practice every
-                  submission created BOTH. That is why 60 calendar cards carry a
-                  video deliverable and an empty "Video 1" graphics placeholder
-                  nobody asked for. The choice is not advanced -- it is the
-                  question the form is asking -- so it is on the surface now.
-                -->
-                <div class="linear-submit-btns linear-submit-scope">
-                    <button class="linear-submit-btn secondary" id="linearSubmitBtnVideo" onclick="submitLinearForm('video')">Video issue only</button>
-                    <button class="linear-submit-btn secondary" id="linearSubmitBtnThumbnail" onclick="submitLinearForm('thumbnail')">Thumbnail issue only</button>
+                    <p class="video-link-hint">Tip: press Shift in a link box to paste your last link.</p>
+                </section>
+                <div class="uf-actions">
+                    <label class="uf-switch" for="linearMakeThumbnail">
+                        <input type="checkbox" id="linearMakeThumbnail"${makeThumbnail ? ' checked' : ''} onchange="onLinearThumbChange(this)">
+                        <span class="uf-switch-track" aria-hidden="true"><span class="uf-switch-thumb"></span></span>
+                        <span class="uf-switch-label">${_linearHelpLabel('thumb', 'Make a thumbnail too')}</span>
+                    </label>
+                    <div class="linear-submit-btns">
+                        <button class="linear-submit-btn linear-submit-primary" id="linearSubmitBtn" type="button" onclick="submitLinearUpload()"><span class="linear-submit-primary-label">Create deliverables</span></button>
+                    </div>
                 </div>
                 <div class="linear-status" id="linearStatus"></div>
             </div>
         </div>`;
     }
 
-        function renderVideoCard(num, data) {
+    function renderVideoCard(num, data) {
         data = data || {};
+        const link = (kind, label, key, optional, value) => `<div class="uf-f uf-f-${kind}">
+                    <label class="uf-l" for="vid_${kind}_${num}">${_linearHelpLabel(key, label)}${optional ? ' ' + _linearOptional : ''}</label>
+                    <input class="linear-input" id="vid_${kind}_${num}" type="url" placeholder="Paste a link" value="${(value || '').replace(/"/g, '&quot;')}"
+                        oninput="onVideoLinkInput(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
+                </div>`;
         return `<div class="linear-video-card" id="videoCard_${num}">
-            <div class="linear-video-header">
-                <span class="linear-video-num">Video ${num}</span>
-                <button class="linear-video-remove" onclick="removeLinearVideo(${num})" title="Remove">
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                </button>
-            </div>
+            <div class="linear-video-header"><span class="linear-video-num">Video ${num}</span></div>
             <div class="linear-video-fields">
-                <input class="linear-input" id="vid_main_${num}" type="url" placeholder="Main camera link" value="${(data.main_cam || '').replace(/"/g, '&quot;')}"
-                    oninput="onVideoLinkInput(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
-                <input class="linear-input" id="vid_side_${num}" type="url" placeholder="Side camera link" value="${(data.side_cam || '').replace(/"/g, '&quot;')}"
-                    oninput="onVideoLinkInput(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
-                <input class="linear-input" id="vid_audio_${num}" type="url" placeholder="Audio link" value="${(data.audio || '').replace(/"/g, '&quot;')}"
-                    oninput="onVideoLinkInput(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
-                <textarea class="linear-textarea linear-video-notes" id="vid_notes_${num}" rows="3"
-                    placeholder="Notes for this video (becomes the Linear description)"
-                    oninput="saveLinearForm()">${_calEsc(data.notes || '')}</textarea>
+                ${link('main', 'Main camera', 'main', false, data.main_cam)}
+                <div class="uf-pair">
+                ${link('side', 'Side camera', 'side', true, data.side_cam)}
+                ${link('audio', 'Audio', 'audio', true, data.audio)}
+                </div>
+                <div class="uf-f uf-f-notes">
+                    <label class="uf-l" for="vid_notes_${num}">${_linearHelpLabel('vnotes', 'Notes for this video')} ${_linearOptional}</label>
+                    <textarea class="linear-textarea linear-video-notes" id="vid_notes_${num}" rows="2"
+                        oninput="saveLinearForm()">${_calEsc(data.notes || '')}</textarea>
+                </div>
             </div>
-            <span class="video-link-hint">⇧ Shift — paste last link</span>
         </div>`;
     }
 
-    function removeLinearVideo(num) {
-        const cards = document.querySelectorAll('[id^="videoCard_"]');
-        if (cards.length <= 1) return; // Keep at least 1 video
-        const card = document.getElementById('videoCard_' + num);
-        if (!card) return;
-        card.remove();
-        renumberVideoCards();
-        _linearSetVideoCount(document.querySelectorAll('[id^="videoCard_"]').length);
-        saveLinearForm();
+    function _linearVideoHasContent(v) {
+        return !!(v && (String(v.main_cam || '').trim() || String(v.side_cam || '').trim()
+            || String(v.audio || '').trim() || String(v.notes || '').trim()));
     }
 
-    function renumberVideoCards() {
-        const cards = document.querySelectorAll('[id^="videoCard_"]');
-        cards.forEach((card, idx) => {
-            const newNum = idx + 1;
-            const oldNum = card.id.replace('videoCard_', '');
-            card.id = 'videoCard_' + newNum;
-            card.querySelector('.linear-video-num').textContent = 'Video ' + newNum;
-            card.querySelector('.linear-video-remove').setAttribute('onclick', 'removeLinearVideo(' + newNum + ')');
-            // Rename input IDs
-            const main = card.querySelector('[id^="vid_main_"]');
-            const side = card.querySelector('[id^="vid_side_"]');
-            const audio = card.querySelector('[id^="vid_audio_"]');
-            const notes = card.querySelector('[id^="vid_notes_"]');
-            if (main) main.id = 'vid_main_' + newNum;
-            if (side) side.id = 'vid_side_' + newNum;
-            if (audio) audio.id = 'vid_audio_' + newNum;
-            if (notes) notes.id = 'vid_notes_' + newNum;
-        });
-    }
+    function _linearCountCards() { return document.querySelectorAll('[id^="videoCard_"]').length; }
 
-    function addLinearVideo() {
+    // Redraw the video rows from a list, then keep the count, the draft and
+    // the control in step with what is on screen.
+    function _linearDrawVideos(videos) {
         const container = document.getElementById('linearVideos');
         if (!container) return;
-        _linearNextVideoCount();
-        const html = renderVideoCard(linearVideoCount, {});
-        container.insertAdjacentHTML('beforeend', html);
+        container.innerHTML = videos.map((v, i) => renderVideoCard(i + 1, v)).join('');
+        _linearSetVideoCount(videos.length);
         saveLinearForm();
+        _linearCountSync();
+    }
+
+    function _linearCountSync() {
+        const n = _linearCountCards();
+        const input = document.getElementById('linearVideoCount');
+        if (input && document.activeElement !== input) input.value = String(n);
+        else if (input && input.value !== String(n)) input.value = String(n);
+        const minus = document.getElementById('linearCountMinus');
+        const plus = document.getElementById('linearCountPlus');
+        if (minus) minus.disabled = n <= 1;
+        if (plus) plus.disabled = n >= LINEAR_MAX_VIDEOS;
+    }
+
+    function _linearCountNote(html) {
+        const el = document.getElementById('linearCountNote');
+        if (el) el.innerHTML = html || '';
+    }
+
+    function _linearListNumbers(nums) {
+        if (nums.length === 1) return 'video ' + nums[0];
+        return 'videos ' + nums.slice(0, -1).join(', ') + ' and ' + nums[nums.length - 1];
+    }
+
+    function setLinearVideoCount(value) {
+        const current = _linearCountCards();
+        if (!document.getElementById('linearVideos')) return;
+        const typed = String(value == null ? '' : value).trim();
+        let n = /^\d+$/.test(typed) ? parseInt(typed, 10) : NaN;
+        if (!Number.isFinite(n)) { _linearCountSync(); return; }
+        let note = '';
+        if (n > LINEAR_MAX_VIDEOS) { n = LINEAR_MAX_VIDEOS; note = 'One upload holds up to ' + LINEAR_MAX_VIDEOS + ' videos. Send the rest as a second upload.'; }
+        if (n < 1) { n = 1; note = 'An upload needs at least one video.'; }
+        // Same number (also what the change event sends when the box loses
+        // focus after Enter): leave any Undo on screen.
+        if (n === current) { _linearCountSync(); if (note) _linearCountNote(note); return; }
+        const videos = (saveLinearForm().videos || []).slice();
+        // A pending Undo is the list as it stood before the first removal,
+        // with the removed videos marked. The videos on screen are its
+        // unmarked entries, in order, so read them back from the form first:
+        // anything typed since the removal is kept.
+        let entries = _linearCountUndo
+            ? (k => _linearCountUndo.map(e => e.removed ? e : { video: videos[k++] || {}, removed: false }))(0)
+            : videos.map(v => ({ video: v, removed: false }));
+        if (n > current) {
+            for (let i = current; i < n; i++) entries.push({ video: {}, removed: false });
+            while (videos.length < n) videos.push({});
+            if (_linearCountUndo) _linearCountUndo = entries;
+            _linearDrawVideos(videos);
+            if (_linearCountUndo) _linearCountUndoNote(note); else _linearCountNote(note);
+            return;
+        }
+        // Lowering: empty videos go first, from the bottom up. A video that
+        // holds a link or a note only goes when there is no empty one left,
+        // and then the person gets an Undo.
+        let excess = current - n;
+        const keep = videos.map(() => true);
+        for (let i = videos.length - 1; i >= 0 && excess > 0; i--) {
+            if (!_linearVideoHasContent(videos[i])) { keep[i] = false; excess--; }
+        }
+        for (let i = videos.length - 1; i >= 0 && excess > 0; i--) {
+            if (keep[i]) { keep[i] = false; excess--; }
+        }
+        let j = 0;
+        entries = entries.map(e => e.removed ? e : (keep[j++] ? e : { video: e.video, removed: true }));
+        _linearCountUndo = entries.some(e => e.removed && _linearVideoHasContent(e.video)) ? entries : null;
+        _linearDrawVideos(videos.filter((_, i) => keep[i]));
+        if (_linearCountUndo) _linearCountUndoNote(note);
+        else _linearCountNote(note);
+    }
+
+    // Names every filled video still waiting for Undo, by the number it had
+    // before the first removal, so a second lowering never hides the first.
+    function _linearCountUndoNote(note) {
+        const nums = [];
+        _linearCountUndo.forEach((e, i) => { if (e.removed && _linearVideoHasContent(e.video)) nums.push(i + 1); });
+        const count = nums.length === 1 ? 'a video' : nums.length + ' videos';
+        _linearCountNote(note + (note ? ' ' : '') + 'Removed ' + count + ' with links or notes (' + _linearListNumbers(nums)
+            + '). <button type="button" class="uf-undo" id="linearCountUndo" onclick="undoLinearVideoCount()">Undo</button>');
+    }
+
+    function stepLinearVideoCount(delta) {
+        setLinearVideoCount(String(_linearCountCards() + delta));
+    }
+
+    // Undo puts every removed video back in its old place and keeps what was
+    // typed into the others since. Empty boxes added after the removal give
+    // way, from the bottom, if the total would pass the cap.
+    function undoLinearVideoCount() {
+        if (!_linearCountUndo) return;
+        const current = (saveLinearForm().videos || []).slice();
+        let k = 0;
+        const entries = _linearCountUndo.map(e => e.removed ? e : { video: current[k++] || e.video, removed: false });
+        _linearCountUndo = null;
+        for (let i = entries.length - 1; i >= 0 && entries.length > LINEAR_MAX_VIDEOS; i--) {
+            if (!entries[i].removed && !_linearVideoHasContent(entries[i].video)) entries.splice(i, 1);
+        }
+        _linearDrawVideos(entries.map(e => e.video));
+        _linearCountNote('Put back.');
+    }
+
+    function onLinearCountInput(el) {
+        const digits = String(el.value || '').replace(/\D+/g, '').slice(0, 2);
+        if (digits !== el.value) el.value = digits;
+    }
+
+    function onLinearCountKey(e, el) {
+        if (e.key === 'Enter') { e.preventDefault(); setLinearVideoCount(el.value); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); stepLinearVideoCount(1); }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); stepLinearVideoCount(-1); }
+        else if (e.key === 'Escape') { el.value = String(_linearCountCards()); el.blur(); }
+    }
+
+    // The switch sits above the Create button, always on view (owner,
+    // 2026-10-18 03:45 UTC). The choice is remembered in this browser.
+    function onLinearThumbChange(box) {
+        const on = !!(box && box.checked);
+        _linearThumbStore(on);
+    }
+
+    // On = video + thumbnail (the old "both" request); off = video only.
+    function _linearChosenMode() {
+        const box = document.getElementById('linearMakeThumbnail');
+        return box && !box.checked ? 'video' : 'both';
+    }
+
+    function submitLinearUpload() {
+        return submitLinearForm(_linearChosenMode());
     }
 
     function onVideoLinkInput(el) {
@@ -713,6 +878,8 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
                 const form = _linearFormFromSavedJob(work.job);
                 await _linearIntakeWithLock(() => _linearIntakeMarkRestored(requestId));
                 localStorage.setItem(LINEAR_FORM_KEY, JSON.stringify(form));
+                const savedMode = String(work.job && work.job.context && work.job.context.mode || '');
+                if (savedMode) _linearThumbStore(savedMode !== 'video');
             }
             // A hold already shows its own draft in the form (loadLinearForm).
             _writeUiQueueDiagnostic(work.surface, 'saved_submission_restored', { kind: work.kind }, null);
@@ -1220,11 +1387,11 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
             return;
         }
 
-        const buttons = ['linearSubmitBtnVideo', 'linearSubmitBtnThumbnail', 'linearSubmitBtnBoth']
+        const buttons = ['linearSubmitBtn']
             .map(id => document.getElementById(id)).filter(Boolean);
         const buttonHtml = buttons.map(button => button.innerHTML);
         buttons.forEach(button => { button.disabled = true; });
-        const activeButton = document.getElementById(mode === 'video' ? 'linearSubmitBtnVideo' : mode === 'thumbnail' ? 'linearSubmitBtnThumbnail' : 'linearSubmitBtnBoth');
+        const activeButton = document.getElementById('linearSubmitBtn');
         const activeLabel = activeButton?.querySelector('.linear-submit-primary-label');
         if (activeLabel) activeLabel.textContent = 'Submitting…';
         else if (activeButton) activeButton.textContent = 'Submitting…';
@@ -1236,6 +1403,7 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
             nativeResult = result;
             localStorage.removeItem(LINEAR_FORM_KEY);
             localStorage.removeItem(LAST_LINK_KEY);
+            _linearThumbStore(true);
             _linearSetJustCreated(true);
             navTo('linear');
             if (result.mirror_pending === true) showNotify('Production created', 'Native work is saved; its Linear mirror is still draining.');
@@ -1868,8 +2036,9 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        addLinearVideo, onVideoLinkBlur, onVideoLinkInput, onVideoLinkKeydown, removeLinearVideo,
-        submitLinearForm
+        onLinearCountInput, onLinearCountKey, onLinearThumbChange, onVideoLinkBlur, onVideoLinkInput,
+        onVideoLinkKeydown, setLinearVideoCount, stepLinearVideoCount, submitLinearUpload,
+        undoLinearVideoCount
     });
 export {
   BARE_LANDING_OK_PARAMS, CAL_CARD_JOBS_KEY, FAST_TABS, KASPER_UNLOCK_KEY, RESTORABLE_FAST_TABS,

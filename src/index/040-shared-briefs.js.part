@@ -19,6 +19,7 @@ import {
   _syncviewSetClientEntryCapability, _syncviewStaleClientEntryError,
   _syncviewSyncClientEntryRunHref
 } from './260-production-refresh-boot.js';
+import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     const SYNCVIEW_THEME_KEY = 'syncview_theme';
     const SYNCVIEW_STATUS_PALETTE_KEY = 'syncview_status_palette';
     /*
@@ -77,11 +78,34 @@ import {
         _svAreaLoads[name] = load.catch(e => { delete _svAreaLoads[name]; throw e; });
         return _svAreaLoads[name];
     }
+    // The page's first markup carries a grey shape per tab (030-body-shell, "boot-skeleton-*"), which the first route
+    // render replaces. Kept here (read once, as this file runs) so an on-demand tab that waits for its code later
+    // shows the same shape as a refresh does.
+    const SV_AREA_SKELETON = { kasper: 'kasper', workload: 'workload' };
+    const _svBootShapes = {};
+    try {
+        ['kasper', 'workload', 'templates', 'filming', 'tiktok'].forEach(k => {
+            const el = document.querySelector('#content .boot-skeleton-' + k);
+            if (el) _svBootShapes[k] = el.innerHTML;
+        });
+    } catch (e) {}
+    function _svAreaWaitShape(name, page) {
+        const key = page === 'filming-plans' ? 'filming' : name;
+        if (_svBootShapes[key]) return _svBootShapes[key];
+        return SV_AREA_SKELETON[name] ? _svLoadingSkeletonHtml(SV_AREA_SKELETON[name]) : '';
+    }
     function svWithArea(name, content, draw, retry) {
         const seq = ++_svAreaDrawSeq;
         const api = _svAreaApis[name];
         if (api) { draw(api); return; }
-        content.innerHTML = '<div class="sv-area-loading" data-sv-area-wait="' + seq + '" role="status" aria-live="polite" style="padding:48px 24px;text-align:center;opacity:.7;">Loading…</div>';
+        // While the code downloads, the tab's own grey shape where there is one, so the page that
+        // follows grows out of it; a bare "Loading…" line flashed on every Kasper refresh (session Lantern, 2026-10-18).
+        let page = '';
+        try { page = String(svRoute.hash() || '').replace('#', '').split('/')[0]; } catch (e) {}
+        const skel = _svAreaWaitShape(name, page);
+        content.innerHTML = skel
+            ? '<div class="sv-area-loading" data-sv-area-wait="' + seq + '" role="status" aria-live="polite" aria-label="Loading">' + skel + '</div>'
+            : '<div class="sv-area-loading" data-sv-area-wait="' + seq + '" role="status" aria-live="polite" style="padding:48px 24px;text-align:center;opacity:.7;">Loading…</div>';
         const stillWaiting = () => seq === _svAreaDrawSeq && !!content.querySelector('[data-sv-area-wait="' + seq + '"]');
         svArea(name).then(loaded => { if (stillWaiting()) draw(loaded); }, () => {
             if (!stillWaiting()) return;
@@ -92,6 +116,55 @@ import {
             if (b) b.addEventListener('click', () => { if (typeof retry === 'function') retry(); else svWithArea(name, content, draw, retry); });
         });
     }
+    /* Placeholder to content is one short fade, never a hard swap (session Lantern, 2026-10-18). Wherever inside the
+       page area (#content) a grey placeholder is taken out and content put in its place, in one change, the new
+       content fades in over --sv-fade-in-dur (0 with reduced motion). The observer runs before the next paint, so the
+       content is never drawn once at full strength first. It looks only at changes that remove a placeholder, so
+       ordinary repaints cost one check of the removed nodes. */
+    const SV_SKELETON_SEL = '.sv-skeleton, .cal-skeleton-loader, .sv-area-loading, [data-client-entry-loading], .prod-skeleton, .tpl-skeleton, .boot-skeleton-variant';
+    const _svIsSkel = n => n.nodeType === 1 && (n.matches(SV_SKELETON_SEL) || !!n.querySelector(SV_SKELETON_SEL));
+    (function _svFadeAfterSkeleton() {
+        const content = document.getElementById('content');
+        if (!content || typeof MutationObserver !== 'function') return;
+        // A place whose placeholder was taken out keeps fading in what it holds for the length of one fade: a page
+        // may draw the same spot two or three times in a row, and each later draw continues the fade where it is
+        // (a negative delay) instead of showing at full strength.
+        const fading = new WeakMap();
+        const fadeMs = () => {
+            const v = getComputedStyle(document.documentElement).getPropertyValue('--sv-fade-in-dur').trim();
+            const n = parseFloat(v);
+            return isFinite(n) ? (/ms$/.test(v) ? n : n * 1000) : 180;
+        };
+        const fadeIn = (el, since) => {
+            if (el.nodeType !== 1 || _svIsSkel(el) || el.classList.contains('sv-fade-in')) return;
+            el.style.animationDelay = since ? (-since) + 'ms' : '';
+            el.classList.add('sv-fade-in');
+            const done = e => {
+                if (e.target !== el || e.animationName !== 'sv-fade-in') return;
+                el.classList.remove('sv-fade-in'); el.style.animationDelay = '';
+                el.removeEventListener('animationend', done);
+            };
+            el.addEventListener('animationend', done);
+        };
+        new MutationObserver(records => {
+            const dur = fadeMs();
+            if (!dur) return;
+            const now = performance.now();
+            const places = new Set();
+            for (const r of records) {
+                if (!r.addedNodes.length) continue;
+                const started = fading.get(r.target);
+                if (started !== undefined && now - started < dur) { places.add(r.target); continue; }
+                if (!r.removedNodes.length) continue;
+                for (const n of r.removedNodes) if (_svIsSkel(n)) { fading.set(r.target, now); places.add(r.target); break; }
+            }
+            places.forEach(place => {
+                if (!place.isConnected) return;
+                const since = now - fading.get(place);
+                Array.from(place.children).forEach(el => fadeIn(el, since));
+            });
+        }).observe(content, { childList: true, subtree: true });
+    })();
     // Staff pages served in parts fetch the remaining areas quietly once the
     // first screen is up, so switching tabs later waits on nothing. A client
     // link served in parts does not: it has none of those tabs, and an area it
@@ -148,7 +221,10 @@ import {
             const q = new URLSearchParams(svRoute.search());
             // A client link stays light, except on the new review page, which has its own sun/moon button
             // (188 sets this only when that page's switch is on for the client).
-            return !q.get('c') || window.__svRsThemeOk === true;
+            // The head script's paint hint (sv-rs-paint, a link this browser last saw switched on) counts too, so the
+            // saved theme holds from the first frame instead of flashing light until the switch is read; 260 drops
+            // the hint and re-applies the theme when the switch reads off.
+            return !q.get('c') || window.__svRsThemeOk === true || document.documentElement.classList.contains('sv-rs-paint');
         } catch (e) { return false; }
     }
     function _syncviewStoredTheme() {

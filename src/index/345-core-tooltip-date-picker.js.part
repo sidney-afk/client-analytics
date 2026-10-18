@@ -114,17 +114,34 @@ import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
             const vw = window.innerWidth;
             const vh = window.innerHeight;
             let top, placement;
-            // Prefer above; fall back to below when the trigger sits
-            // near the top of the viewport.
-            if (rect.top - tipRect.height - margin >= edge) {
-                top = rect.top - tipRect.height - margin;
-                placement = 'above';
-            } else {
-                top = Math.min(vh - tipRect.height - edge, rect.bottom + margin);
-                placement = 'below';
-            }
             let left = rect.left + rect.width / 2 - tipRect.width / 2;
             left = Math.max(edge, Math.min(vw - tipRect.width - edge, left));
+            // Prefer above; fall back to below when the trigger sits
+            // near the top of the viewport.
+            const aboveTop = rect.top - tipRect.height - margin;
+            const belowTop = Math.min(vh - tipRect.height - edge, rect.bottom + margin);
+            if (aboveTop >= edge) {
+                top = aboveTop;
+                placement = 'above';
+            } else {
+                top = belowTop;
+                placement = 'below';
+            }
+            // Never cover the text field someone is typing in (a label hovered
+            // while the field above it has focus): take the other side when
+            // that one is clear of it.
+            const typing = document.activeElement;
+            const field = typing && typing !== target && !target.contains(typing)
+                && (typing.tagName === 'INPUT' || typing.tagName === 'TEXTAREA') ? typing.getBoundingClientRect() : null;
+            const covers = t => !!field && t < field.bottom && t + tipRect.height > field.top
+                && left < field.right && left + tipRect.width > field.left;
+            if (covers(top)) {
+                const otherTop = placement === 'above' ? belowTop : aboveTop;
+                if (otherTop >= edge && !covers(otherTop)) {
+                    top = otherTop;
+                    placement = placement === 'above' ? 'below' : 'above';
+                }
+            }
             el.style.top = top + 'px';
             el.style.left = left + 'px';
             el.dataset.placement = placement;

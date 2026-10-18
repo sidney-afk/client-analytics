@@ -1,6 +1,7 @@
 import { wlState } from './066-core-workload-state.js';
 import { calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
     /* Modern animated loader — a single rotating ring with a subtle label.
        The visible arc is drawn as a short stroke-dasharray segment so the
        spinning motion stays smooth across browsers. */
@@ -138,7 +139,37 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
             <div class="cal-review-wrap"><div class="cal-sk-review-list" aria-hidden="true">${[0, 1, 2, 3, 4, 5].map(card).join('')}</div></div>
         </div>`;
     }
+    /* Client link Sheet, while its cards load. The client's card is a different
+       card from the staff one: one link row (Video, never edited), the caption and
+       the call to action with no chip or Set all, the Notes button, and the three
+       part statuses as read-only chips. On the phone the same card is a single
+       full-width column with a heading above the caption and the call to action
+       (CSS keys that on #calView:has(.pocket-client-calendar)). Rows are drawn at
+       the loaded rows' heights; test/client-sheet-skeleton-shape-browser.js. */
+    function _svClientSheetCardSkeletonHtml(i) {
+        const head = w => `<div class="cal-sk-csec-head">${_svSkel('sv-skeleton-line', 'width:' + w + 'px;height:14px;')}</div>`;
+        return `<div class="cal-skeleton-card cal-sk-card is-client">
+            ${_svSkel('cal-skeleton-thumb')}
+            <div class="cal-sk-body">
+                <div class="cal-sk-title">${_svSkel('sv-skeleton-line', 'width:' + (i % 3 === 1 ? '46%' : '58%') + ';')}</div>
+                ${_svSkel('cal-sk-field is-date')}
+                ${_svSkel('cal-sk-field is-link')}
+                <div class="cal-sk-csec is-cap">${head(56)}${_svSkel('cal-sk-copy')}</div>
+                <div class="cal-sk-csec is-cta">${head(88)}${_svSkel('cal-sk-field is-cta')}</div>
+                <div class="cal-sk-foot">${_svSkel('sv-skeleton-line', 'width:56px;height:12px;')}</div>
+                <div class="cal-sk-chips">${_svSkel('cal-sk-cpill is-a')}${_svSkel('cal-sk-cpill is-b')}${_svSkel('cal-sk-cpill is-c')}</div>
+            </div>
+        </div>`;
+    }
+    function _svClientLinkSheetSkeletonHtml(label) {
+        return `<div class="cal-loader cal-skeleton-loader cal-sheet-skeleton is-client" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="cal-organizer-wrap"><div class="cal-organizer-strip cal-sk-strip" aria-hidden="true">${[0, 1, 2, 3, 4, 5].map(_svClientSheetCardSkeletonHtml).join('')}</div></div>
+        </div>`;
+    }
     function _svCalendarSheetSkeletonHtml(label) {
+        let client = false;
+        try { client = !!_isClientLink; } catch (e) { client = false; }
+        if (client) return _svClientLinkSheetSkeletonHtml(label);
         return `<div class="cal-loader cal-skeleton-loader cal-sheet-skeleton" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
             <div class="cal-organizer-wrap cal-sk-desktop"><div class="cal-organizer-strip cal-sk-strip" aria-hidden="true">${[0, 1, 2, 3, 4, 5].map(_svCalendarSheetCardSkeletonHtml).join('')}</div></div>
             ${_svCalendarPhoneSheetSkeletonHtml()}
@@ -368,6 +399,19 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
         if (variant === 'overview') return _svAnalyticsOverviewSkeletonHtml();
         return _svAnalyticsDetailSkeletonHtml(name);
     }
+    /* The new review page's shape (header, strip of waiting posts, stage and conversation), drawn while a client link
+       this browser last saw switched on is being checked (session Lantern, 2026-10-18). CSS shows it only under
+       html.sv-rs-paint (set by the head script); everyone else keeps the small check card. The page's own first
+       markup carries the same shape (030-body-shell, "boot-skeleton-client-verify"); test/first-paint-theme-browser.js
+       holds the two copies equal. */
+    function _svRsBootSkeletonHtml() {
+        const chip = cur => `<div class="sv-rs-boot-chip${cur ? ' is-cur' : ''}">${_svSkel('sv-rs-boot-thumb')}<div class="sv-rs-boot-chiptext">${_svSkel('sv-skeleton-line', 'width:' + (cur ? '78%' : '64%') + ';height:12px;')}${_svSkel('sv-skeleton-line', 'width:34px;height:8px;')}</div></div>`;
+        return `<div class="sv-rs-boot" aria-hidden="true">
+            <div class="sv-rs-boot-hdr"><div class="sv-rs-boot-who">${_svSkel('sv-skeleton-line', 'width:152px;height:24px;')}${_svSkel('sv-skeleton-line', 'width:104px;height:12px;')}</div><div class="sv-rs-boot-r"><div class="sv-rs-boot-tabs"><span></span></div><div class="sv-rs-boot-round"></div></div></div>
+            <div class="sv-rs-boot-strip">${_svSkel('sv-skeleton-line sv-rs-boot-count', 'width:113px;height:14px;')}<div class="sv-rs-boot-chips">${chip(true)}${chip(false)}${chip(false)}${chip(false)}${chip(false)}${chip(false)}</div></div>
+            <div class="sv-rs-boot-stage"><div class="sv-rs-boot-main">${_svSkel('sv-skeleton-line', 'width:286px;max-width:70%;height:22px;')}<div class="sv-rs-boot-card"><div class="sv-rs-boot-top">${_svSkel('sv-skeleton-line', 'width:78px;height:12px;')}<div class="sv-rs-boot-steps">${_svSkel('sv-skeleton-pill', 'width:86px;height:34px;')}${_svSkel('sv-skeleton-pill', 'width:116px;height:34px;')}${_svSkel('sv-skeleton-pill', 'width:98px;height:34px;')}</div></div><div class="sv-rs-boot-media">${_svSkel('sv-rs-boot-video')}</div><div class="sv-rs-boot-acts">${_svSkel('sv-skeleton-pill', 'width:186px;height:42px;')}${_svSkel('sv-skeleton-line', 'width:112px;height:12px;')}</div></div></div><div class="sv-rs-boot-chat"><div class="sv-rs-boot-chathead">${_svSkel('sv-skeleton-dot', 'width:28px;height:28px;')}<div class="sv-rs-boot-chiptext">${_svSkel('sv-skeleton-line', 'width:84px;height:13px;')}${_svSkel('sv-skeleton-line', 'width:140px;height:10px;')}</div></div><div class="sv-rs-boot-chatfoot">${_svSkel('sv-skeleton-pill', 'width:100%;height:46px;')}</div></div></div>
+        </div>`;
+    }
     function _svClientVerifySkeletonHtml() {
         return `<div class="client-link-verify-skeleton" role="status" aria-live="polite" aria-label="Verifying secure client link" data-client-entry-loading="verify">
             <div class="client-link-verify-card">
@@ -375,6 +419,7 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
                 ${_svSkel('sv-skeleton-line', 'width:210px;height:16px;')}
                 ${_svSkel('sv-skeleton-line', 'width:286px;max-width:86%;')}
             </div>
+            ${_svRsBootSkeletonHtml()}
         </div>`;
     }
     function _svClientBriefSkeletonHtml(name) {
@@ -460,4 +505,4 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
         if (t.includes('kasper') || t.includes('filming') || t.includes('linear') || t.includes('message')) return _svLoadingSkeletonHtml('kasper', { label: raw });
         return _svLoadingSkeletonHtml('calendar', { label: label ? raw : '' });
     }
-export { _calLoaderHtml, _svLoadingSkeletonHtml, _svSkel };
+export { _calLoaderHtml, _svLoadingSkeletonHtml, _svRsBootSkeletonHtml, _svSkel };

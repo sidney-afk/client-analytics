@@ -6,7 +6,8 @@ import {
   _setCurrentClientHistory, _setFetchExtrasPromise, _setFetchExtrasState, _setGrowthChart,
   _setMrBriefs, _setTabSummaryCache, _setTopVideos, _setViewsChart, _syncviewCancelBriefWork,
   _syncviewClientAnalyticsData, _syncviewWatchClientExtras, activeBriefSection, activeBriefTab,
-  activeMRBriefTab, clientViewTab, fetchAll, fetchEssentials, growthChart, svArea, viewsChart
+  activeMRBriefTab, clientViewTab, fetchAll, fetchEssentials, growthChart, svArea, viewsChart,
+  _syncviewApplyTheme, _syncviewStoredTheme
 } from './040-shared-briefs.js';
 import {
   _autoSummaryAttempted, _templatesSelected, _templatesSetActiveTab, _templatesSetSelected,
@@ -30,7 +31,7 @@ import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
 import { _prodDetailTitleHtml } from './125-title-name-rule.js';
 import { _calSetFocusRequest, _calSetPendingDeepLink, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
-import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
+import { _svLoadingSkeletonHtml, _svRsBootSkeletonHtml } from './133-core-loading-skeletons.js';
 import {
   _calFlushAllPending, _calResolvePendingDeepLink, _calSetClient, _calSetLinearOutboxFlushTimer,
   _linearOutboxFlushTimer
@@ -79,7 +80,7 @@ import {
 import { SXR_CACHE_PREFIX, _sxrAbortActiveLoad, _sxrNextLoadSeq, sxrState } from './270-samples-model.js';
 import { _sxrFlushAllPending, _sxrLinearOutboxTimer, _sxrSetLinearOutboxTimer, mountSxrClientView } from './280-samples-cards-notes.js';
 import { _sxrV2Teardown, _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
-import { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsClientNoAnalytics, svRsFlagsReady } from './188-review-stage-switch.js';
+import { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsReady } from './188-review-stage-switch.js';
 import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js';
         function _prodManualRefresh() {
             // The press must be visibly acknowledged: the refresh itself is a
@@ -2626,6 +2627,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
     }
     function _syncviewInvalidClientLinkScreen(opts) {
         opts = opts || {};
+        _syncviewRsVeilDrop(false);
         const cacheSlug = _syncviewClientEntrySlugHint();
         ++_syncviewClientEntryGeneration;
         _syncviewAbortClientEntryDataRun();
@@ -2651,6 +2653,83 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             ${retry}
         </div>`;
     }
+    /* FIRST PAINT ON A SWITCHED-ON CLIENT LINK (session Lantern, 2026-10-18). The head script (005) paints a link
+       this browser last saw with the new review page switched on in the saved theme and in that page's shape, before
+       the switch is read. Here, once it is read, the list is brought in step: a switched-on link is remembered, a
+       switched-off one is forgotten, and if the page painted on the hint it goes back to light and the old shapes.
+       The list holds the lower-cased c= values of the last few links (this browser's own storage, never sent). */
+    const SV_RS_PAINT_KEY = 'syncview_rs_paint_v1';
+    function _syncviewRsPaintRemember(client) {
+        let c = '';
+        try { c = String(new URLSearchParams(svRoute.search()).get('c') || '').trim().toLowerCase(); } catch (e) { return; }
+        if (!c) return;
+        const on = !!svRsClientReviewOn(client);
+        try {
+            let seen = JSON.parse(localStorage.getItem(SV_RS_PAINT_KEY) || '[]');
+            if (!Array.isArray(seen)) seen = [];
+            seen = seen.filter(x => typeof x === 'string' && x !== c);
+            if (on) seen.unshift(c);
+            if (seen.length) localStorage.setItem(SV_RS_PAINT_KEY, JSON.stringify(seen.slice(0, 8)));
+            else localStorage.removeItem(SV_RS_PAINT_KEY);
+        } catch (e) {}
+        const de = document.documentElement;
+        if (!on && de.classList.contains('sv-rs-paint')) {
+            _syncviewRsVeilDrop(false);
+            de.classList.remove('sv-rs-paint', 'sv-rs-paint-stage');
+            try { _syncviewApplyTheme(_syncviewStoredTheme(), false); } catch (e) {}
+        }
+    }
+    /* The review page's shape stays on top, as one layer outside #content, from the link check until that page has
+       drawn under it, then fades out (180 ms). Without it the old calendar list showed for as long as the switch read
+       took (1.5 to 3.7 s on the live site), with blank frames between each step. It goes at once when the switch
+       reads off, on an error screen, or after 12 s whatever happens, so it can never hide a page for good. */
+    let _svRsVeilTimer = 0;
+    let _svRsVeilPoll = 0;
+    function _syncviewRsVeilDrawn() {
+        const de = document.documentElement;
+        if (!de.classList.contains('sv-rs-full')) return false;
+        const h = document.getElementById('svReviewStage');
+        if (!h || h.hidden || !h.shadowRoot || !h.offsetHeight) return false;
+        const app = h.shadowRoot.getElementById('rsApp');
+        if (!app || !app.offsetHeight) return false;
+        if (de.classList.contains('sv-rs-paint-stage') && calState && calState.view === 'review') {
+            const st = h.shadowRoot.getElementById('stepper');
+            const recap = h.shadowRoot.querySelector('#recap .rc-card');
+            return !!((st && st.children.length) || recap);
+        }
+        return true;
+    }
+    function _syncviewRsVeilDrop(fade) {
+        const v = document.getElementById('svRsBootVeil');
+        clearTimeout(_svRsVeilTimer); _svRsVeilTimer = 0;
+        clearTimeout(_svRsVeilPoll); _svRsVeilPoll = 0;
+        if (!v) return;
+        const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (!fade || reduce) { v.remove(); return; }
+        v.classList.add('is-out');
+        setTimeout(() => v.remove(), 220);
+    }
+    function _syncviewRsVeilShow(label) {
+        if (document.getElementById('svRsBootVeil')) return;
+        const v = document.createElement('div');
+        v.id = 'svRsBootVeil';
+        v.className = 'sv-rs-veil';
+        v.setAttribute('role', 'status');
+        v.setAttribute('aria-live', 'polite');
+        v.setAttribute('aria-label', label || 'Loading');
+        v.innerHTML = _svRsBootSkeletonHtml();
+        document.body.appendChild(v);
+        // The page draws inside its own shadow root, which no observer here can see, so look every 80 ms (cheap:
+        // a few property reads) until it has drawn. Two frames after that, its first paint under the layer has landed.
+        const tick = () => {
+            if (!document.getElementById('svRsBootVeil')) return;
+            if (!document.documentElement.classList.contains('sv-rs-paint')) { _syncviewRsVeilDrop(false); return; }
+            if (_syncviewRsVeilDrawn()) { requestAnimationFrame(() => requestAnimationFrame(() => _syncviewRsVeilDrop(true))); return; }
+            _svRsVeilPoll = setTimeout(tick, 80);
+        };
+        tick();
+        _svRsVeilTimer = setTimeout(() => _syncviewRsVeilDrop(true), 12000);
+    }
     function _syncviewClientEntryLoader(entry,opts) {
         const content = document.getElementById('content');
         if (!content || !entry) return;
@@ -2661,9 +2740,13 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         else if (entry.view === 'brief') { kind = 'client-brief'; label = 'Loading your brief...'; }
         else if (entry.view === 'samples' || entry.view === 'sample-reviews') { kind = 'review'; label = 'Loading sample reviews...'; }
         const extrasAttr=opts.extras?' data-client-extras-state="loading"':'';
+        // A link painted on the review page's hint keeps that page's shape until the page draws (no swap to the old
+        // calendar's skeleton in between).
+        if (entry.view === 'calendar' && document.documentElement.classList.contains('sv-rs-paint')) _syncviewRsVeilShow(label);
         content.innerHTML = `<div data-client-entry-loading="${entry.view}"${extrasAttr}>${_svLoadingSkeletonHtml(kind, { label, name: entry.client })}</div>`;
     }
     function _syncviewClientExtrasErrorScreen(entry) {
+        _syncviewRsVeilDrop(false);
         const content=document.getElementById('content');
         if(!content||!entry)return;
         const subject=entry.view==='brief'?'brief':'analytics';
@@ -2800,6 +2883,10 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                     Promise.resolve(rsReady).then(remember, () => {});
                 }
             }
+            // The head script's first-paint hint for this link (sv-rs-paint): kept in step with the switch.
+            Promise.resolve(svRsFlagsReady()).then(() => {
+                if (generation === _syncviewClientEntryGeneration) _syncviewRsPaintRemember(entry.client);
+            }, () => {});
             _syncviewClientEntryCapability = _syncviewCanonicalizeClientEntry(entry);
             _syncviewClientEntryLoader(_syncviewClientEntryCapability);
             const dataRun = _syncviewCreateClientEntryDataRun(generation, _syncviewClientEntryCapability.slug);

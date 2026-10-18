@@ -408,6 +408,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/cal-status-pick-during-save-browser.js
+      - name: A Calendar save that failed offline is resent when the browser is back online (mocked)
+        if: ${{ !cancelled() && matrix.part == 3 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/cal-offline-resend-browser.js
       - name: Typed captions, notes, comments and descriptions survive a closed tab or a failed save (mocked)
         if: ${{ !cancelled() && matrix.part == 4 }}
         env:
@@ -614,6 +619,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/calendar-sheet-skeleton-shape-browser.js
+      - name: Client link Sheet loading skeleton has the client Sheet's shape (desktop and phone)
+        if: ${{ !cancelled() && matrix.part == 2 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/client-sheet-skeleton-shape-browser.js
       - name: Month and Week loading skeleton is the loaded grid (desktop light and dark)
         if: ${{ !cancelled() && matrix.part == 2 }}
         env:
@@ -883,6 +893,21 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/start-page-browser.js
+      - name: Client link first paint, frame by frame (saved theme from the first frame, review-shaped loading screen, no old-page flash)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/first-paint-theme-browser.js
+      - name: Staff pages first paint, frame by frame (header never moves, no bare Loading line, phone title bar first)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/staff-first-paint-browser.js
+      - name: Placeholder to content is a fade (Kasper, Today; none with reduced motion)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/loading-fade-browser.js
       - name: Staff Calendar Review tab under the staff bar (toggle never moves, no second heading, old page when off)
         if: ${{ !cancelled() }}
         env:
@@ -903,11 +928,31 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-save-browser.js
+      - name: Client link Calendar is read only and its video button opens the in-app viewer (caption, call to action, dates, Month and Week drag; staff unchanged)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/client-calendar-read-only-browser.js
       - name: Smooth part switching on the new review page (only the media fades; panel, header, strip never blink)
         if: ${{ !cancelled() }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-smooth-browser.js
+      - name: A post answered elsewhere stays on the review stage, marked, and typed words go to the team as a note
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-elsewhere-browser.js
+      - name: The review stage's play button has its final look from the first frame (frame by frame, light and dark, 1440 and 390)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-first-frame-browser.js
+      - name: Client link small fixes: Full screen on narrow vertical players, Back goes back a tab, Escape closes Notes
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-curtain-ten-browser.js
       - name: Finish reviewing draws the eye once every part is answered (slow breathing ring, still with reduced motion)
         if: ${{ !cancelled() }}
         env:
@@ -923,6 +968,21 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-curtain-seven-browser.js
+      - name: Notes on a switched-on client link opens straight into the player view (no old dialog first, final shape from the first frame)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-notes-browser.js
+      - name: Review page skeleton has the shape of what loads (client link, 1440 and 390)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-skeleton-browser.js
+      - name: One scrollbar for the whole app (6px, rounded, the theme's thumb, light and dark; hidden ones stay hidden)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/scrollbars-browser.js
 
 
   split-preview:

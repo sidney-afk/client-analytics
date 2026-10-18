@@ -884,7 +884,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        inbox is still never asked for cold), pauses in a hidden tab and on the Production tab (its read-only
        gate allows no POST it did not ask for), and ends on sign-out or fallback. */
     let _msgBus = null, _msgChannel = null, _msgChannelTimer = null;
-    try { if (typeof BroadcastChannel === 'function') { _msgBus = new BroadcastChannel('sv-msg-inbox'); _msgBus.onmessage = () => _msgLiveRefresh(); } } catch (e) { _msgBus = null; }
+    try { if (typeof window.BroadcastChannel === 'function') { _msgBus = new window.BroadcastChannel('sv-msg-inbox'); _msgBus.onmessage = () => _msgLiveRefresh(); } } catch (e) { _msgBus = null; }
     function _msgLiveRefresh() {
         if (document.hidden || _msgState.unavailable || !_msgCanUse() || currentNav === 'production') return;
         _msgLoad(true);

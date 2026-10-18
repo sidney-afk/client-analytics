@@ -65,11 +65,12 @@ Before and after pictures (fictional fixture data only) are in
    its edges. The main phone Calendar tab does not have this.
 7. **Client review link ignores the phone or computer's dark setting** (stays
    light until the moon button is pressed). Probably intended; noting it.
-8. **Stale tests (not run in CI, fail identically on main):**
+8. **Tests that need the runner's preload (corrected in review):**
    `test/prod-subissue-parent-name.js`, `test/production-preview-source.js` and
-   `test/submit-video-notes-and-tab-icons.js` read functions out of
-   `index.html`, but that code now ships in `js/sv-*.js`, so they stop with
-   "missing function". Worth repointing at the source fragments.
+   `test/submit-video-notes-and-tab-icons.js` are in the unit list and pass in CI,
+   where `test/run-all.js` loads `test/helpers/single-file-index.js` first. Run
+   alone they stop with "missing function". Run them through `test/run-all.js`
+   or with `node -r ./test/helpers/single-file-index.js`.
 
 Not glitches, checked and fine: "This video could not be played" in the
 player came from the test browser lacking the video codec; `/samples` and

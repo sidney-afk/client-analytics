@@ -53,5 +53,54 @@ const parity = require('../scripts/sheets-mirror-parity.js');
   parity.addTo(other, 'probeclient', '', await m.rowHash('client_profiles', { ...sheetRow, email: 'new@example.invalid' }));
   ok(parity.compareGroups(other, dbGroups).differences[0].kind === 'values_differ', 'a Sheet value that really differs is still reported');
 
+  // ---- Both directions, column by column ----
+  // Every column the Sheet copy writes is part of the fingerprint: a change on either side is reported.
+  const cols = m.DATASETS.client_profiles.columns.filter(c => c !== 'client_name');
+  const sheetOf = row => { const o = rn.profileToSheetObject(row); return m.parseCsv([rn.CLIENT_HEADERS.join(','), rn.CLIENT_HEADERS.map(h => '"' + String(o[h]).replace(/"/g, '""') + '"').join(',')].join('\n'))[0]; };
+  const same = await m.rowHash('client_profiles', sheetOf(dbRow));
+  for (const c of cols.concat(['display_name'])) {
+    const changed = { ...dbRow, [c]: 'changed value' };
+    ok(await parity.profileHash(m, changed) !== same, 'a database-side change of ' + c + ' is reported (Sheet unchanged)');
+    const sheetSide = sheetOf(changed);
+    ok(await m.rowHash('client_profiles', sheetSide) !== await parity.profileHash(m, dbRow), 'a Sheet-side change of ' + c + ' is reported (database unchanged)');
+  }
+  // What the Sheet copy treats as the same text never differs: empty versus missing, padding, line endings.
+  ok(await parity.profileHash(m, { ...dbRow, email: '' }) === await parity.profileHash(m, { ...dbRow, email: null }), 'empty and null agree');
+  ok(await parity.profileHash(m, { ...dbRow, keywords: '  a, b  ' }) === await parity.profileHash(m, dbRow), 'padding does not matter');
+  // A Sheet cell still holding "\r\n" beside a database value stored with "\n": the copy treats them as the
+  // same text and never rewrites the cell, so the parity must not report it (read through the real Sheet reader).
+  const crlfSheet = 'client_name,keywords,content_description\n"Probe Client","a, b","Line one\r\nLine two"';
+  const crlfGroups = await parity.sheetGroups(m, 'client_profiles', crlfSheet, '');
+  const crlfDb = { slug: 'probeclient', display_name: 'Probe Client', keywords: 'a, b', content_description: 'Line one\nLine two' };
+  ok(crlfGroups.get('probeclient\u0000').hashes[0] === await parity.profileHash(m, crlfDb), 'line endings the copy ignores are not a difference');
+  // The extra column (not part of the fingerprint) and bookkeeping never change it.
+  ok(await parity.profileHash(m, { ...dbRow, extra: { postforme_instagram_account_id: 'other' }, row_hash: 'zzz', updated_by: 'x' }) === await parity.profileHash(m, dbRow), 'extra and bookkeeping are not fingerprinted');
+
+  // ---- The real script, end to end, against mocked reads ----
+  // A native edit whose Sheet copy landed: no difference. A real difference on either side: reported,
+  // and nothing printed carries a value, a name or a slug.
+  const { spawnSync } = require('child_process');
+  const fs = require('fs'), os = require('os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'parity-'));
+  const run = (sheetRow, dbOverride) => {
+    const sheetCsv = rn.CLIENT_HEADERS.join(',') + '\n' + rn.CLIENT_HEADERS.map(h => '"' + String(sheetRow[h]).replace(/"/g, '""') + '"').join(',');
+    const file = path.join(dir, 'scenario.json'), jsonOut = path.join(dir, 'report.json');
+    fs.writeFileSync(file, JSON.stringify({ sheets: { 'Clients Info': sheetCsv }, tables: { client_profiles: [{ ...dbRow, ...dbOverride }] } }));
+    const r = spawnSync(process.execPath, ['-r', path.join(__dirname, 'helpers', 'parity-fetch-mock.js'), path.join(__dirname, '..', 'scripts', 'sheets-mirror-parity.js'), '--strict', '--json=' + jsonOut],
+      { env: { ...process.env, PARITY_MOCK: file, SUPABASE_URL: 'https://example.invalid', SUPABASE_SERVICE_ROLE_KEY: 'synthetic' }, encoding: 'utf8' });
+    return { status: r.status, out: r.stdout + r.stderr + (fs.existsSync(jsonOut) ? fs.readFileSync(jsonOut, 'utf8') : '') };
+  };
+  const secret = 'SECRET-VALUE-9f3a';
+  const landed = run(sheetObj, {});
+  ok(landed.status === 0 && /PARITY: clean/.test(landed.out) && /client_profiles\s+groups\s+1\s+matched\s+1\s+differing\s+0/.test(landed.out), 'script: a native edit with its Sheet copy landed reports clean');
+  const sheetDiffers = run({ ...sheetObj, email: secret }, {});
+  ok(sheetDiffers.status === 1 && /PARITY: 1 difference/.test(sheetDiffers.out), 'script: a Sheet value that differs is reported (exit 1)');
+  const dbDiffers = run(sheetObj, { email: secret, display_name: 'Probe Client' });
+  ok(dbDiffers.status === 1 && /PARITY: 1 difference/.test(dbDiffers.out), 'script: a database value that differs is reported (exit 1)');
+  for (const r of [landed, sheetDiffers, dbDiffers]) {
+    ok(!r.out.includes(secret) && !/probe\s*client/i.test(r.out) && !r.out.includes('probeclient') && !r.out.includes('C123') && !r.out.includes('Line one'), 'script output carries no value, name or slug');
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
+
   console.log(`sheets-mirror-profile-parity: ${n} checks passed`);
 })().catch(e => { console.error(e); process.exit(1); });

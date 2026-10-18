@@ -17,7 +17,9 @@
  *   top_videos          client x scraped_date  (last 90 days, what the site reads)
  *   content_summaries   client x date
  *   market_research_briefs  client x brief id
- *   client_profiles     client (active copy vs the Clients Info tab)
+ *   client_profiles     client (active copy vs the Clients Info tab; the database side is
+ *                       hashed from the row's CURRENT values, not its stored row_hash, which
+ *                       native edits leave stale. --db-digests must do the same for this dataset)
  *
  * Prints counts only. A client is shown as a short sha256 reference of its
  * slug, never by name or slug: the repository and its CI logs are public.
@@ -146,7 +148,7 @@ async function sheetGroups(m, dataset, text, cutoff) {
     const day = g.day ? String(row[g.day] == null ? '' : row[g.day]).trim() : '';
     if (spec.dateColumn && !m.isIsoDate(day)) continue;   // the copy rejects these too
     if (g.recentDays && day < cutoff) continue;
-    addTo(groups, slug, day, await m.rowHash(dataset, row));
+    addTo(groups, slug, day, await m.rowHash(dataset, dataset === 'client_profiles' ? foldLines(row) : row));
   }
   return groups;
 }
@@ -169,8 +171,18 @@ async function restRows(table, select, filter, order) {
 
 // The fingerprint of a client_profiles row as it is now: the same function and column order
 // the Sheet side uses (the row's display_name stands for the Sheet's client_name).
+//
+// Line endings are compared as the Sheet copy compares them: the copy treats "\r\n" and "\n" as the
+// same text (roster-native text()) and so never rewrites a cell that differs only by them, which
+// means a native edit (stored with "\n") can sit beside a Sheet cell that still holds "\r\n". Both
+// sides are folded to "\n" here so that is not reported as a difference.
+const foldLines = row => {
+  const o = {};
+  for (const k of Object.keys(row)) o[k] = typeof row[k] === 'string' ? row[k].replace(/\r\n?/g, '\n') : row[k];
+  return o;
+};
 function profileHash(m, p) {
-  return m.rowHash('client_profiles', { ...p, client_name: p.display_name });
+  return m.rowHash('client_profiles', foldLines({ ...p, client_name: p.display_name }));
 }
 
 async function dbGroupsRest(dataset, cutoff) {
@@ -244,5 +256,5 @@ async function main() {
   if (differences && process.argv.includes('--strict')) process.exitCode = 1;
 }
 
-module.exports = { compareGroups, digest, ref, addTo, GROUPING, DATABASE_ONLY_SOURCE, databaseOwnedDatasets, readDatabaseOwned, dbGroupsRest, profileHash };
+module.exports = { compareGroups, digest, ref, addTo, GROUPING, DATABASE_ONLY_SOURCE, databaseOwnedDatasets, readDatabaseOwned, dbGroupsRest, profileHash, sheetGroups };
 if (require.main === module) main().catch(e => { console.error('parity failed: ' + e.message); process.exit(1); });

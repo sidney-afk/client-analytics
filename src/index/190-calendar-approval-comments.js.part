@@ -3169,6 +3169,13 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             e.preventDefault();
             if (_calEditTarget) _calBeginCommentEdit(null);
             else _calBeginReply(null);
+        } else if (e.key === 'Escape' && _isClientLink) {
+            // The client link's Notes panel opens with its message box focused, and it is not a staff layer: Escape
+            // there closes the panel too (the typed note stays as a draft), as a click on the backdrop does
+            // (card gauntlet, client side, "Other" 4; session Curtain Ten).
+            e.preventDefault();
+            e.stopPropagation();
+            closeCalComments();
         }
     }
     function _calBeginReply(rootId) {

@@ -1155,6 +1155,8 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         if (window.svThumbCollections?.consumeHistory(e)) return;
         if (window.svThumbMessagesConsumeHistory?.(e)) return;
         if (window.svMessagesConsumeReturn?.(e)) return;
+        // The new review page's tabs on a client link (Review, Sheet, Month, Week): Back goes back a tab (195).
+        if (window.svRsConsumeHistory?.(e)) return;
         // Several branches below route without navTo; keep the client bar in step.
         setTimeout(()=>{ if (typeof svClientBarSync === 'function') svClientBarSync(currentNav); },0);
         const state=e.state;

@@ -33528,3 +33528,5 @@ Coverage: `node test/review-stage-phone-browser.js`, WebKit iPhone SE / 15 / 15 
 Physical iPhone Safari toolbar, notch/home indicator, software keyboard, production saves and deployment are not proven by this mocked emulation. Revert this PR to roll back the changes.
 
 **Screenshot and journey follow-up (same entry):** the staff title and round note now wrap on phones; the wide-landscape caption card keeps its height; a deleted note refreshes the stage immediately; and the smallest player gives the skip buttons room by hiding them while retaining play, speed, mute and Full screen. The field-reveal handler responds to focus and viewport resize without pulling a person back while they scroll. See the fictional before/after gallery in the report.
+
+**Approval-message follow-up (same entry):** the fixed bottom approval message could put Undo over staff Finish in landscape. On the phone review session it now uses the safe top edge and a 44 px Undo target; the browser test checks that Finish is uncovered. The gallery retains the actual before and after state.

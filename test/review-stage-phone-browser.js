@@ -26,7 +26,8 @@ async function tap(locator) {
         const root = el.getRootNode();
         if (!el.isConnected || typeof root.elementFromPoint !== 'function') return { x, y, hit: false };
         const hit = root.elementFromPoint(x, y);
-        return { x, y, hit: hit === el || el.contains(hit), target: hit && (hit.id || hit.className?.baseVal || hit.className || hit.tagName) };
+        const outer = document.elementFromPoint(x, y);
+        return { x, y, hit: (hit === el || el.contains(hit)) && (!root.host || outer === root.host), target: hit && (hit.id || hit.className?.baseVal || hit.className || hit.tagName) };
       });
       const stable = prior && Math.abs(p.x - prior.x) < 1 && Math.abs(p.y - prior.y) < 1;
       prior = p;
@@ -232,6 +233,10 @@ async function kasperJourney(t, label) {
     await tap(inS(t.page, '[data-ok="video"]'));
     check(await inS(t.page, '#closeBtn').isDisabled(), label + ': Close waits for the approval receipt');
   }, u => u.id === 'rs1' && u.video_status === 'Client Approval', label + ': staff approves video');
+  const undo = t.page.locator('.sv-toast.show .sv-toast-action');
+  await undo.waitFor({ state: 'visible' });
+  const undoBox = await undo.boundingBox();
+  check(undoBox.width >= 44 && undoBox.height >= 44, label + ': approval Undo has a 44px target');
   t.state.writeDelay = 0;
   await step(t, 'caption');
   await tap(inS(t.page, '[data-chg="caption"]'));
@@ -241,6 +246,13 @@ async function kasperJourney(t, label) {
   if (process.env.PHONE_DEBUG) console.log(await t.page.evaluate(() => JSON.stringify({items:_kasperState.items.map(i=>({id:i.post.id,v:i.post.video_status,c:i.post.caption_status,e:i._errors})),steps:[...document.getElementById('svReviewStage').shadowRoot.querySelectorAll('.stp')].map(e=>({cls:e.className,part:e.dataset.step})),title:document.getElementById('svReviewStage').shadowRoot.querySelector('#side').textContent})));
   check(await inS(t.page, '#finishBtn').isEnabled(), label + ': staff Finish enabled');
   await shot(t, label.replaceAll('/', '-') + '-answered', '#drow');
+  const receipt = await t.page.evaluate(() => {
+    const toast = document.querySelector('.sv-toast.show'), host = document.getElementById('svReviewStage');
+    const b = host.shadowRoot.querySelector('#finishBtn').getBoundingClientRect();
+    return { clear: document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2) === host, visible: !!toast };
+  });
+  check(receipt.clear, label + ': approval message leaves Finish uncovered');
+  console.log('RECEIPT ' + JSON.stringify(receipt));
   await sent(t, () => tap(inS(t.page, '#finishBtn')), u => u.id === 'rs1' && !!u.kasper_finished_at, label + ': staff finishes');
   const id = await inS(t.page, '.chipp.cur').getAttribute('data-id');
   await sent(t, () => tap(inS(t.page, '#closeBtn')), u => u.id === id && !!u.kasper_closed_at, label + ': staff closes next card');

@@ -1832,6 +1832,30 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-elsewhere-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Changes a card on the mocked server as another window would and lets the page refresh: the post on stage stays, marked Approved in another window, typed change words go to the team as a note with a plain message, and every action lands on the card on screen (client page and the SMM's Review tab).",
+      "reproduce": "node test/review-stage-elsewhere-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "review-stage-first-frame-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. With the player's switch read slowed, records every animation frame of the first load and of a post switch, light and dark, at 1440x900 and 390x844, and checks no icon in the media box is bigger than 24 px, every play button is the 44 px player button, and the opens-in-a-new-tab fallback never shows.",
+      "reproduce": "node test/review-stage-first-frame-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "review-stage-curtain-ten-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Checks the narrow vertical player keeps Full screen (the speed button gives way), browser Back and Forward move between the client link's tabs without leaving the page, and Escape closes the client Sheet's Notes panel while its message box has focus.",
+      "reproduce": "node test/review-stage-curtain-ten-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-finish-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

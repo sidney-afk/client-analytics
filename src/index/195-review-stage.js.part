@@ -3,7 +3,7 @@ import { _calComponentsFor, _calIsYouTubeCard, _calNormStatus } from './120-cale
 import { _calCommentsFor, _calCommentsForView, _calSetCommentsFor, calState } from './130-calendar-model-cache.js';
 import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui.js';
 import { _calReviewState } from './180-calendar-native-post-media.js';
-import { svFrameStageMount, svFrameStageUnmount } from './187-frame-viewer.js';
+import { svFrameStageMount, svFrameStagePending, svFrameStageUnmount } from './187-frame-viewer.js';
 import { svRsCalOn, svRsHelpUrl, svRsToolsEl } from './188-review-stage-switch.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
@@ -580,6 +580,8 @@ svg{display:block;flex-shrink:0}
 .sk-list{scroll-behavior:auto}
 .rs-fv{position:relative;width:min(100%,calc(var(--fv-h,480px) * var(--fv-ar,.5625)));max-width:100%}
 .rs-fv .fv-player{width:100%}
+/* A narrow (vertical) player keeps Full screen: the speed button gives way instead (session Curtain Ten). */
+@container (max-width: 300px){.rs-fv .fv-player .fv-full{display:inline-flex!important}.rs-fv .fv-player .fv-rate{display:none!important}}
 .rs-fv .fv-stage-foot{position:absolute;top:10px;right:10px;z-index:4;width:auto;min-width:0;justify-content:flex-end}
 .rs-fv .fv-stage-foot .fv-small-note{display:none}
 .rs-fv .fv-open-link{height:24px;padding:0 10px;border:0;border-radius:99px;background:rgba(0,0,0,.5);color:#fff;font-size:.72rem;font-weight:700;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
@@ -597,6 +599,8 @@ svg{display:block;flex-shrink:0}
 .view.k-video.novid .player.rs-novid{display:block!important}
 .player.rs-novid .nv{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;text-align:center;color:#fff;background:rgba(0,0,0,.42);font-size:.86rem;font-weight:600}
 .player.rs-novid .nv a{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;background:#fff;color:#111110;font-weight:700}
+.player.rs-novid .nv a svg{width:16px;height:16px}
+.player.rs-novid.wait .nv{display:none}
 .bigthumb .tframe{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-size:.84rem;font-weight:600;color:var(--text-secondary)}
 .bigthumb .tframe a{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;background:var(--deck);box-shadow:inset 0 0 0 1px var(--border);color:var(--text-primary);font-weight:700}
 .help-btn{width:38px;height:38px;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-secondary);background:var(--fill);font-size:.95rem;font-weight:800;transition:background .14s,color .14s}
@@ -681,6 +685,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .bt.sending{opacity:.65}
 .err{margin-top:6px;font-size:.74rem;font-weight:600;color:var(--urgent);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .err.slow{color:var(--text-secondary);font-weight:500}
+.elsew{margin:0 0 8px;padding:8px 12px;border-radius:10px;background:var(--surface-subtle);border:1px solid var(--border);font-size:.78rem;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.elsew .mv{font:inherit;font-weight:700;color:inherit;background:none;border:1px solid currentColor;border-radius:999px;padding:2px 10px;cursor:pointer;margin-left:auto}
 .err .retry{font:inherit;font-weight:700;color:inherit;background:none;border:1px solid currentColor;border-radius:999px;padding:2px 10px;cursor:pointer}
 .err .retry:hover{background:color-mix(in srgb,currentColor 10%,transparent)}
 @media (max-width:1240px){.stage,.stage.land{grid-template-columns:minmax(0,1fr) 320px}.chipp.k{width:220px}}
@@ -895,14 +901,14 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
 
     /* ---------- state ---------- */
-    function _rsBlankNote() { return { text: '', part: null, where: 'chat', vis: 'team', aat: false }; }
+    function _rsBlankNote() { return { text: '', part: null, where: 'chat', vis: 'team', aat: false, was: '' }; }
     const R = {
         mode: '', key: '', host: null, root: null, ro: null, mo: null,
         S: null, kparts: null, pending: false
     };
     function _rsFreshState() {
         return { curId: null, step: '', note: _rsBlankNote(), editing: '', editText: '', fold: false, saved: null,
-            menu: '', exp: {}, edOpen: false, qOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, slow: {}, pressed: {}, ready: {}, actAt: {} };
+            menu: '', exp: {}, edOpen: false, qOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, slow: {}, pressed: {}, ready: {}, actAt: {}, seen: {}, told: {}, keepK: null };
     }
 
     /* ---------- the model: one shape for every person ---------- */
@@ -1027,6 +1033,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const list = (calState.posts || []).filter(p => {
             if (!p || !p.id) return false;
             if (S.finished.has(p.id)) return false;
+            // The post on stage stays until the person moves on, even when it was answered elsewhere (another
+            // tab, or the team) meanwhile: a background refresh never swaps it for another post (session Curtain Ten).
+            if (p.id === S.curId) return true;
             const m = _rsModel(p, mode, null);
             if (_rsWaiting(m).length) return mode !== 'smm' || _calHasMedia(p);
             // answered in this sitting: it stays until Finish reviewing
@@ -1060,6 +1069,15 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             }
             out[sec].push(m);
         }));
+        // The card on stage left Kasper's lists (answered in another window): it stays on stage, read only, until he
+        // moves on (session Curtain Ten).
+        const K = R.S && R.S.keepK;
+        if (K && K.item && K.item.post && K.item.post.id === R.S.curId && !['urgent', 'waiting', 'tweaks'].some(sec => out[sec].some(x => x.id === K.item.post.id))) {
+            const m = _rsModel(K.item.post, 'kasper', K.item);
+            m.client = K.item.client || K.item.post.client || '';
+            m.gone = true; m.note = '';
+            out[K.sec === 'tweaks' ? 'tweaks' : 'waiting'].push(m);
+        }
         return out;
     }
     function _rsAll() {
@@ -1084,6 +1102,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             R.S.editing = '';
         }
         if (m && !m.parts.some(x => x.key === R.S.step)) R.S.step = _rsFirstStep(m);
+        if (m && R.mode === 'kasper' && !m.gone) R.S.keepK = { item: m.item, sec: m.sec };
         return m;
     }
     function _rsFirstStep(m) { const w = _rsWaiting(m); return (w[0] || m.parts[0] || { key: '' }).key; }
@@ -1092,7 +1111,19 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         for (let j = 1; j <= a.length; j++) { const x = a[(i + j) % a.length]; if (x.st === 'wait') return x.key; }
         return null;
     }
-    function _rsActive(m) { return !!m && m.sec !== 'tweaks'; }
+    function _rsActive(m) { return !!m && m.sec !== 'tweaks' && !m.gone; }
+    /* Answered elsewhere: a part that was waiting while on stage here and now is not, with no action from this page.
+       Its plain words, or '' (session Curtain Ten). */
+    function _rsElsewhere(m, x) {
+        const S = R.S;
+        if (m.gone) return 'This was answered in another window, so it has left your list. Nothing more to do here.';
+        if (!x) return '';
+        const key = m.id + '|' + x.key;
+        if (S.told[key]) return S.told[key];
+        if (!S.seen[key] || x.st === 'wait' || S.acted.has(key)) return '';
+        const who = R.mode === 'client' ? ' or by your team' : '';
+        return x.st === 'ok' ? 'Approved in another window' + who + '.' : 'A change was asked in another window' + who + '.';
+    }
 
     /* ---------- the shell ---------- */
     function _rsHeaderHtml() {
@@ -1196,6 +1227,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (tabs) tabs.addEventListener('click', (e) => {
             const b = e.target.closest('[data-tab]');
             if (!b || b.classList.contains('active')) return;
+            _rsTabHistory(b.dataset.tab);
             window.onCalViewChange(b.dataset.tab);
         });
         const th = _rsQ('rsTheme');
@@ -1244,6 +1276,25 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             window.addEventListener('resize', _rsSizeTop);
         }
     }
+    /* Browser Back after a tab switch on the client link goes back a tab, instead of leaving the calendar (card
+       gauntlet, client side, "Other" 3; session Curtain Ten). Each switch from the header adds a history entry with
+       the same address, marked rsTab; only such entries are handled here (svRsConsumeHistory, called first by the
+       page's popstate), so the staff pages' history is untouched. */
+    function _rsTabHistory(tab) {
+        if (R.mode !== 'client') return;
+        try {
+            const st = history.state && typeof history.state === 'object' ? history.state : {};
+            if (!st.rsTab) history.replaceState(Object.assign({}, st, { rsTab: calState.view || 'review' }), '');
+            history.pushState(Object.assign({}, st, { rsTab: tab }), '');
+        } catch (e) {}
+    }
+    window.svRsConsumeHistory = (e) => {
+        const tab = e && e.state && e.state.rsTab;
+        if (!tab || R.mode !== 'client' || !_isClientLink || !R.host || !R.host.isConnected) return false;
+        if (!['review', 'organizer', 'month', 'week'].includes(tab)) return false;
+        if (calState.view !== tab) window.onCalViewChange(tab);
+        return true;
+    };
     function _rsFit() {
         const v = _rsQ('view'), h = _rsQ('fvHost');
         if (!v || !h) return;
@@ -1307,6 +1358,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         _rsQ('recap').hidden = !empty;
         _rsQ('stage').classList.toggle('is-empty', empty);
         if (empty) { _rsStageOff(); _rsRecap(); return; }
+        m.parts.forEach(x => { if (x.st === 'wait') R.S.seen[m.id + '|' + x.key] = 1; });
         _rsSide(m); _rsStepper(m); _rsMedia(m); _rsCard(m); _rsDecide(); _rsChatCalm(m); _rsChat(m);
         if (!R.S.hinted) _rsHint(m);
     }
@@ -1518,7 +1570,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 const img = _rsQ('poster');
                 if (m.thumb) { if (img.getAttribute('src') !== m.thumb) img.src = m.thumb; img.hidden = false; } else { img.removeAttribute('src'); img.hidden = true; }
                 const url = String(m.post.asset_url || '').trim();
-                _rsQ('novidMsg').innerHTML = /^https?:\/\//i.test(url)
+                // Until the player's switch is read (the first second of a first load), the poster alone: the
+                // "Watch the video" fallback would show and then give way to the player (owner report 2026-10-18,
+                // session Curtain Ten: a huge black play button for the first second).
+                let wait = false;
+                try { wait = !m.sample && svFrameStagePending(m.post); } catch (e) { wait = false; }
+                nv.classList.toggle('wait', wait);
+                _rsQ('novidMsg').innerHTML = wait ? '' : /^https?:\/\//i.test(url)
                     ? '<span>This video opens in a new tab.</span><a href="' + _re(url) + '" target="_blank" rel="noopener noreferrer">' + RI.play + 'Watch the video</a>'
                     : '<span>No video yet.</span>';
             }
@@ -1653,9 +1711,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!m) return;
         const S = R.S, x = m.parts.find(p => p.key === S.step);
         const el = _rsQ('drow');
-        if (!x) { el.innerHTML = ''; return; }
+        const elsew = _rsElsewhere(m, x) || (!x && m.parts.length === 0 ? 'Your team took this post back to work on it.' : '');
+        const note = elsew ? '<div class="elsew" role="status" id="elsew"><span>' + _re(elsew) + '</span>' + (m.gone || !x ? '<button class="mv" type="button" id="moveOn">Next post</button>' : '') + '</div>' : '';
+        const bindMove = () => { const b = _rsQ('moveOn'); if (b) b.addEventListener('click', () => _rsMoveOn(m)); };
+        if (!x) { el.innerHTML = note; bindMove(); return; }
         const n = _rsLname(x.key);
         let d;
+        if (m.gone) { el.innerHTML = note; bindMove(); return; }
         if (!_rsActive(m)) {
             d = x.st === 'ok'
                 ? '<span class="dst ok"><span class="ck">' + RI.check + '</span>Approved</span>'
@@ -1687,7 +1749,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!all) delete S.ready[m.id];
         const glow = all ? ' ready" style="animation-delay:-' + (Date.now() - S.ready[m.id]) + 'ms' : '';
         const dc = x.st === 'ok' && d && !S.editing && !saving ? ' is-ok' : (x.st === 'chg' || x.st === 'tweak') && d && !S.editing && !saving ? ' is-chg' : '';
-        el.innerHTML = '<div class="dwrap">' + (d === null ? _rsComposer(m) : '<div class="dec' + dc + '" id="dec">' + d + '</div>') + '</div>'
+        el.innerHTML = note + '<div class="dwrap">' + (d === null ? _rsComposer(m) : '<div class="dec' + dc + '" id="dec">' + d + '</div>') + '</div>'
             + _rsSaveIssues(m, x.key)
             + '<div class="drow2"><div class="dfin"><button class="finish' + glow + '" type="button" id="finishBtn"' + (all ? '' : ' disabled') + '>' + RI.check + 'Finish reviewing' + (all ? '' : ' <span class="fc num">' + (parts.length - left) + ' of ' + parts.length + '</span>') + '</button></div></div>';
         el.querySelectorAll('[data-ok]').forEach(b => b.addEventListener('click', () => _rsApprove(m, b.dataset.ok, R.mode === 'smm' ? 'kasper' : '')));
@@ -1804,7 +1866,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const cx = _rsQ('chipX'); if (cx) cx.addEventListener('click', () => _rsClearChange(true, false));
         const cc = _rsQ('cmpCancel'); if (cc) cc.addEventListener('click', () => _rsClearChange(false, true));
         const nb = _rsQ('noteBtn'); if (nb) nb.addEventListener('click', () => _rsSendNote(true));
-        root.querySelectorAll('[data-pc]').forEach(b => b.addEventListener('click', () => { const S2 = R.S; if (S2.note.part === b.dataset.pc) _rsClearChange(true, false); else { S2.note.part = b.dataset.pc; S2.note.where = 'chat'; S2.note.aat = false; _rsRender({ force: true }); _rsFocusTa(); } }));
+        root.querySelectorAll('[data-pc]').forEach(b => b.addEventListener('click', () => { const S2 = R.S; if (S2.note.part === b.dataset.pc) _rsClearChange(true, false); else { S2.note.part = b.dataset.pc; S2.note.where = 'chat'; S2.note.aat = false; const pm = _rsCur(), px = pm && pm.parts.find(p => p.key === b.dataset.pc); S2.note.was = px ? px.st : ''; _rsRender({ force: true }); _rsFocusTa(); } }));
         const mb = _rsQ('cmtBtn'); if (mb) mb.addEventListener('click', () => _rsSendNote(true));
         const sb = _rsQ('sendBtn'); if (sb) sb.addEventListener('click', () => _rsSendNote(!S.note.part));
         const ta = _rsQ('ta');
@@ -1902,6 +1964,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         setTimeout(tick, 200);
     }
     function _rsApprove(m, comp, how) {
+        // The button was drawn before a refresh said the part is no longer waiting: nothing to save; the stage says so.
+        // (Try again after a refused save still goes: the part reads as approved there, with its error.)
+        const fresh = _rsModelById(m.id), fx = fresh && fresh.parts.find(p => p.key === comp);
+        if (!fresh || fresh.gone || !fx || (fx.st !== 'wait' && !_rsError(fresh, comp))) { _rsRender({ force: true }); return; }
         R.S.retry[m.id + '|' + comp] = () => { const cur = _rsModelById(m.id); if (cur) _rsApprove(cur, comp, how); };
         R.S.pressed[m.id + '|' + comp] = how === 'client' ? 'client' : 'ok';
         R.S.actAt[m.id + '|' + comp] = Date.now();
@@ -1973,6 +2039,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const S = R.S;
         S.editing = ''; S.menu = '';
         S.note.part = key; S.note.where = where || 'stage'; S.note.aat = !!aat;
+        const cm = _rsCur(), cx = cm && cm.parts.find(p => p.key === key);
+        S.note.was = cx ? cx.st : '';
         if (S.step !== key) S.step = key;
         _rsRender({ force: true });
         _rsFocusTa();
@@ -1993,9 +2061,22 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const S = R.S, t = String(S.note.text || '').trim();
         if (!t) { _rsFocusTa(); return; }
         const m = _rsCur(); if (!m) return;
-        const picked = S.note.part, k = asNote ? null : S.note.part, where = S.note.where, aat = S.note.aat, vis = S.note.vis;
+        const picked = S.note.part, k = asNote ? null : S.note.part, where = S.note.where, aat = S.note.aat, vis = S.note.vis, was = S.note.was;
         const x = k ? m.parts.find(p => p.key === k) : null;
         S.note = _rsBlankNote(); S.note.vis = vis;
+        // The part stopped waiting while the words were typed (answered in another window, or by the team): the
+        // words are never dropped. They go to the team as a note on that part, and the page says so (session
+        // Curtain Ten; the old page's change request returns early once the part is not waiting).
+        const late = k && (m.gone || !x || (was === 'wait' && x.st !== 'wait' && !(R.mode === 'client' && x.st === 'chg')));
+        if (late) {
+            const msg = x && x.st === 'ok' && !m.gone ? 'This was already approved, so we sent your words to the team as a note.'
+                : 'This was already answered, so we sent your words to the team as a note.';
+            _rsSendNoteTo(m, k, t, R.mode === 'smm' ? 'team' : vis);
+            R.S.told[m.id + '|' + k] = msg;
+            _rsFlash('Sent to the team as a note', k);
+            _rsRender({ force: true });
+            return;
+        }
         if (k && R.mode === 'client' && x && x.st === 'ok') {
             // Change my mind on an approved part (client link): a note to the team on that part.
             _rsSendNoteTo(m, k, t, vis);
@@ -2055,6 +2136,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             Object.assign(R.S, { curId: id, note: _rsBlankNote(), editing: '', fold: false, saved: null, menu: '' });
             R.S.step = _rsFirstStep(m);
         });
+    }
+    // Leave a post answered elsewhere without saving anything: the next post in the list, or the recap.
+    function _rsMoveOn(m) {
+        const q = _rsQueue().filter(x => x.id !== m.id);
+        const nxt = q[0] || null;
+        const go = () => { R.S.curId = nxt ? nxt.id : null; R.S.step = nxt ? _rsFirstStep(nxt) : ''; R.S.note = _rsBlankNote(); R.S.editing = ''; R.S.keepK = null; };
+        if (nxt) _rsSwap(go); else { go(); _rsRender({ force: true }); }
     }
     function _rsFinish() {
         const m = _rsCur();

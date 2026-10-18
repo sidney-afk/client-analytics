@@ -928,6 +928,21 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-smooth-browser.js
+      - name: A post answered elsewhere stays on the review stage, marked, and typed words go to the team as a note
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-elsewhere-browser.js
+      - name: The review stage's play button has its final look from the first frame (frame by frame, light and dark, 1440 and 390)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-first-frame-browser.js
+      - name: Client link small fixes: Full screen on narrow vertical players, Back goes back a tab, Escape closes Notes
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-curtain-ten-browser.js
       - name: Finish reviewing draws the eye once every part is answered (slow breathing ring, still with reduced motion)
         if: ${{ !cancelled() }}
         env:

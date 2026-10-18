@@ -486,6 +486,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _fvPrimeFlag();
         return _fvEnabledFor(post.client || (calState && calState.client) || '') ? link : '';
     }
+    // A card with a Frame.io link whose player switch has not been read yet: nobody knows yet whether it plays here,
+    // so the stage shows only the poster until it does (never the "opens in a new tab" fallback for a second).
+    function svFrameStagePending(post) {
+        if (_fvFlagRead || !post || !_fvLinkOf(post.asset_url)) return false;
+        _fvPrimeFlag();
+        return !_fvFlagRead;
+    }
     function _fvSp(sel) { return FV_STAGE.host ? FV_STAGE.host.querySelector(sel) : null; }
 
     function svFrameStageMount(host, post, poster) {
@@ -875,5 +882,5 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svFrameFeedRetry, svFrameIntent, svFrameOpen, svFrameSeek, svFrameStageRetry, svFrameTileOpen
     });
 export {
-  svFrameFeed, svFrameFlagWait, svFrameIoLinkHtml, svFramePlayIconHtml, svFrameStageMount, svFrameStageUnmount, svFrameSyncPlayIcon, svFrameTileAttrs, svFrameTileLabelHtml, svFrameWarm, svFrameWatchBtnHtml, svFrameTime
+  svFrameFeed, svFrameFlagWait, svFrameIoLinkHtml, svFramePlayIconHtml, svFrameStageMount, svFrameStagePending, svFrameStageUnmount, svFrameSyncPlayIcon, svFrameTileAttrs, svFrameTileLabelHtml, svFrameWarm, svFrameWatchBtnHtml, svFrameTime
 };

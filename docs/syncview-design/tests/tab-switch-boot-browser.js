@@ -21,6 +21,7 @@
 const { chromium } = require('playwright');
 const { serveStatic, formatFailures } = require('./prod-test-utils');
 const { seedStaffGate } = require('../../../qa/staff-gate-seed');
+const { analyticsShown } = require('../../../test/fixtures/analytics-shown.js');
 
 const SETTLE_MS = Number(process.env.TAB_SWITCH_SETTLE_MS || 2500);
 
@@ -49,6 +50,7 @@ async function openHeld(browser, port, suffix, opts = {}) {
   // while on it (history.state.nav = home); that is what the mid-boot
   // switches below race against.
   if (opts.analytics) await context.addInitScript(() => { try { if (!history.state) history.replaceState({ nav: 'home', client: null }, ''); } catch (e) {} });
+  await analyticsShown(context);   // Analytics stays reachable here (hidden by default since session Curtain Seven)
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(String(e && e.message || e)));

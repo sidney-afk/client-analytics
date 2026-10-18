@@ -479,6 +479,9 @@
         .cal-view-btn.active { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 4px var(--sv-shadow-rgba-0-0-0-0_06); }
         .cal-view-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; padding: 0 5px; border-radius: 99px; background: var(--sv-bg-ec4899); color: var(--sv-fg-fff); font-size: 0.64rem; font-weight: 800; line-height: 1; }
         .cal-view-btn.active .cal-view-badge { background: var(--sv-bg-db2777); }
+        /* The count arrives with the data: it must not make its button taller, or the whole toolbar
+           and the page under it move 3px down when it appears (Mould, 2026-10-18). */
+        .cal-view-toggle .cal-view-badge { margin-block: -2px; }
         .cal-month-filter { position: relative; display: inline-flex; align-items: center; }
         .cal-month-filter .dropdown-trigger { padding: 8px 14px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; color: var(--text-primary); background: var(--bg); box-shadow: none; }
         .cal-month-filter .dropdown-trigger:hover { box-shadow: 0 1px 4px var(--sv-shadow-rgba-0-0-0-0_08); color: var(--text-primary); }
@@ -8117,6 +8120,12 @@ html .cal-card-thumb .cal-thumb-play:focus-visible { outline: 2px solid var(--fo
 /* A stall that does not recover: a message in the middle of the video, in place (absolute), gone when it plays again. */
 .fv-trouble { position: absolute; top: 42%; left: 50%; z-index: 3; display: none; align-items: center; gap: 10px; width: max-content; max-width: calc(100% - 20px); box-sizing: border-box; padding: 6px 6px 6px 12px; transform: translate(-50%, -50%); border-radius: 10px; text-align: center; background: var(--sv-bg-rgba-0-0-0-0_78); color: var(--sv-fg-fff); font-size: 0.76rem; font-weight: 700; line-height: 1.3; }
 .fv-player[data-trouble]:not([data-state="error"]) .fv-trouble { display: flex; }
+/* A video started from a play button that the browser would only start muted (session Curtain Seven): a clear button
+   over the picture turns the sound on. */
+.fv-unmute { position: absolute; top: 12px; left: 50%; z-index: 3; display: none; align-items: center; gap: 8px; height: 34px; padding: 0 14px 0 11px; transform: translateX(-50%); border: 0; border-radius: 99px; background: var(--sv-bg-rgba-0-0-0-0_78); color: var(--sv-fg-fff); font: inherit; font-size: 0.78rem; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.fv-unmute svg { width: 16px; height: 16px; flex: none; }
+.fv-unmute:hover { background: var(--sv-bg-000); }
+.fv-player[data-automuted]:not([data-state="error"]) .fv-unmute { display: inline-flex; }
 .fv-trouble-text { min-width: 0; }
 html .fv-player .fv-trouble-open { flex: none; padding: 6px 10px; background: var(--sv-fg-fff); color: var(--sv-bg-000); font-size: 0.72rem; }
 @container (max-width: 440px) { .fv-trouble { flex-direction: column; gap: 6px; padding: 8px 10px; } }

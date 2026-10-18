@@ -5,6 +5,7 @@ import { _calPendingEdits, calClientSlug, calState } from './130-calendar-model-
 import { _calRenderBody } from './160-calendar-organize-ui.js';
 import { _calFlushCardSave } from './170-calendar-links-status.js';
 import { _calReviewState } from './180-calendar-native-post-media.js';
+import { svRsCalOn } from './188-review-stage-switch.js';
 import { _calMintCommentId, _calReviewRequestTweak } from './190-calendar-approval-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     /* Client review send queue: a client's Approve or Request changes is
@@ -169,7 +170,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _crqPut(Object.assign({ kind, pid, comp,
             at: replay && prior && prior.at || Date.now(), diag }, data || {}));
         _crqRun.inflight.add(key);
-        _crqSending();
+        // The new review page shows a first send as a spinner on the pressed button; the toast stays for re-sends.
+        if (!(typeof svRsCalOn === 'function' && svRsCalOn())) _crqSending();
     }
 
     /* True while this part's action waits in the queue for a re-send (the
@@ -187,6 +189,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _crqDrop(pid, comp);
         if (!_crqMine().length) _crqRun.attempt = 0;
         if (!entry) { _crqQuiet(); return false; }
+        // The new review page confirms on the part itself ("Saved" on its step); a toast there covered Finish on a phone.
+        if (typeof svRsCalOn === 'function' && svRsCalOn()) { _crqQuiet(); return true; }
         _crqSay(entry.kind === 'request' ? 'Changes sent' : 'Approved', true);
         return true;
     }

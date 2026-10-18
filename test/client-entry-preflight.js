@@ -503,6 +503,8 @@ async function preflight({
       return response;
     },
   };
+  // No early (head) answer in these cases: the app makes its own request.
+  context._syncviewTakeEarlyClientVerify = () => null;
   vm.createContext(context);
   vm.runInContext(preflightSource, context);
   const verdict = await context._syncviewPreflightClientEntry(generation, href);
@@ -632,6 +634,34 @@ async function preflight({
   });
   assert.strictEqual(stale.verdict.kind, 'stale', 'late verifier result must not take over a newer entry attempt');
 
+  /* Speed sweep 2026-10-17: the <head> starts the link check while the
+     document parses. It must hit the same verifier, and the app may use its
+     answer only for the identical body on the identical address, once, fresh.
+     (qa/boot/client-entry-sequence.js proves in a browser that a valid link
+     still makes exactly one verifier call and a malformed one makes none.) */
+  {
+    const headUrl = (source.match(/fetch\('(https:\/\/[^']+\/functions\/v1\/client-token-verify)'/) || [])[1];
+    const supa = (source.match(/const CAL_SUPABASE_URL\s*=\s*'([^']+)'/) || [])[1];
+    assert(headUrl && supa && headUrl === supa + '/functions/v1/client-token-verify',
+      'the head\'s early link check must call the same verifier as CLIENT_TOKEN_VERIFY_URL');
+    const preflight = extract('_syncviewPreflightClientEntry');
+    assert(/const early = _syncviewTakeEarlyClientVerify\(body\);/.test(preflight)
+      && /body: JSON\.stringify\(\{ client: cvClient, slug: cvSlug, token: cvToken, view: cvView, strict: true \}\)|var cvBody = JSON\.stringify\(\{ client: cvClient, slug: cvSlug, token: cvToken, view: cvView, strict: true \}\)/.test(source)
+      && /const body = JSON\.stringify\(\{ client: entry\.client, slug: entry\.slug, token: entry\.token, view: entry\.view, strict: true \}\);/.test(preflight),
+      'head and app must build the verifier body from the same five fields in the same order');
+    const box = { Date, Number, location: { href: 'https://x.invalid/?c=A&t=T&v=calendar' }, window: {} };
+    vm.createContext(box);
+    vm.runInContext(extract('_syncviewTakeEarlyClientVerify') + '\nthis.take = _syncviewTakeEarlyClientVerify;', box);
+    const resp = { marker: 1 };
+    const seed = (over) => { box.window.__svEarlyClientVerify = Object.assign({ body: 'B', href: box.location.href, at: Date.now(), response: resp }, over || {}); };
+    seed(); assert.strictEqual(box.take('B'), resp, 'an identical body on the same address is taken');
+    assert.strictEqual(box.take('B'), null, 'and only once');
+    seed(); assert.strictEqual(box.take('B2'), null, 'a different body is never taken');
+    assert.strictEqual(box.window.__svEarlyClientVerify, null, 'a refused early answer is dropped, not kept for later');
+    seed({ href: 'https://x.invalid/?c=B&t=T' }); assert.strictEqual(box.take('B'), null, 'an answer for another address is never taken');
+    seed({ at: Date.now() - 61000 }); assert.strictEqual(box.take('B'), null, 'an answer older than a minute is never taken');
+    seed({ at: 'x' }); assert.strictEqual(box.take('B'), null, 'an answer with no valid time is never taken');
+  }
   console.log('client entry strict preflight checks: ok');
 })().catch(error => {
   console.error(error);

@@ -1801,7 +1801,11 @@
         .workload-skeleton-card { background: var(--white); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 7px; }
         .cal-skeleton-loader { align-items: stretch; justify-content: flex-start; padding: 20px 0; min-height: 220px; width: 100%; box-sizing: border-box; }
         .cal-skeleton-sheet { width: 100%; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
-        .boot-skeleton-calendar .boot-page-skeleton { width: 100%; max-width: none; margin: 0; padding: 8px 16px 20px; --cal-card-w: 268px; --cal-thumb-h: 178px; }
+        .boot-skeleton-calendar .boot-page-skeleton.cal-sheet-skeleton { width: 100%; max-width: none; margin: 0; padding: 0 16px 32px; --cal-card-w: 320px; --cal-thumb-h: 240px; }
+        /* The loaded staff Calendar sits under body.cal-page (020: .main padding-top 12px,
+           toolbar margin 0 0 8px); the boot copy takes the same spacing. */
+        html[data-boot-nav="calendar"] .main { padding-top: 12px; }
+        html[data-boot-nav="calendar"] .boot-skeleton-calendar .cal-sk-toolbar { margin: 0 0 8px; }
         .cal-skeleton-toolbar { display: flex; align-items: center; gap: 16px; padding: 12px 14px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; flex-wrap: wrap; }
         .cal-skeleton-toolbar-left, .cal-skeleton-toolbar-mid, .cal-skeleton-toolbar-right { display: flex; align-items: center; gap: 10px; min-width: 0; }
         .cal-skeleton-toolbar-left { flex: 1 1 380px; }
@@ -1818,6 +1822,54 @@
         .cal-skeleton-status.is-thumb { --sv-skel-base: var(--cal-status-for-smm-approval-bg); --sv-skel-sheen: var(--sv-bg-rgba-255-255-255-0_5); }
         .cal-skeleton-status.is-caption { --sv-skel-base: var(--cal-status-approved-bg); --sv-skel-sheen: var(--sv-bg-rgba-255-255-255-0_5); }
         @media (max-width: 760px) { .boot-skeleton-calendar .boot-page-skeleton { padding: 6px 10px 16px; } .cal-skeleton-toolbar { gap: 10px; } .cal-skeleton-toolbar-mid { order: 3; width: 100%; justify-content: flex-start; overflow: hidden; } .cal-skeleton-strip { min-height: 560px; } }
+        /* Staff Calendar Sheet skeleton (133 _svCalendarSheetSkeletonHtml and the
+           boot copy in 030): the real strip's classes, each row at the real
+           card row's height. Numbers measured on the loaded card, 2026-10-17. */
+        .cal-skeleton-loader.cal-sheet-skeleton { display: block; padding: 0; min-height: 0; }
+        .cal-sk-strip { overflow: hidden; }
+        .cal-sk-card { flex: 0 0 var(--cal-card-w, 320px); }
+        .cal-sk-body { padding: 13px 14px 12px; display: flex; flex-direction: column; gap: 9px; }
+        .cal-sk-title { height: 24px; display: flex; align-items: center; }
+        .cal-sk-title .sv-skeleton-line { height: 16px; }
+        .cal-sk-field { height: 30px; border-radius: 8px; }
+        .cal-sk-field.is-date { height: 29px; }
+        .cal-sk-cap { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+        .cal-sk-chip { width: 86px; height: 19px; margin-left: 4px; }
+        .cal-sk-copy { width: 100%; height: 107px; border-radius: 8px; }
+        .cal-sk-foot { height: 20px; display: flex; align-items: center; padding-left: 6px; }
+        .cal-sk-status-row { margin-top: 8px; padding-top: 5px; display: flex; flex-direction: column; gap: 4px; }
+        .cal-sk-setall { height: 27px; border-radius: 8px; }
+        .cal-sk-status { height: 21px; border-radius: 6px; }
+        .cal-sk-toolbar { display: flex; align-items: center; gap: 16px; padding: 12px 14px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; margin: 8px 0 16px; }
+        .cal-sk-tb-mid, .cal-sk-tb-right { display: flex; align-items: center; gap: 10px; }
+        .cal-sk-tb-mid { flex: 1 1 auto; min-width: 0; }
+        .cal-sk-viewtoggle { margin-right: auto; }
+        .cal-sk-tb-icon { width: 32px; height: 32px; border-radius: 8px; }
+        .cal-sk-direction { height: 55px; margin-top: 6px; border-radius: 10px; }
+        .cal-sk-foot.is-notes { height: 24px; padding-left: 0; }
+        .cal-sk-review-list { display: flex; flex-direction: column; gap: 14px; }
+        .cal-sk-kcard { display: grid; grid-template-columns: 96px 1fr auto; gap: 14px; padding: 12px; align-items: center; background: var(--white); border: 1px solid var(--border); border-radius: 14px; }
+        .cal-sk-kcard-thumb { width: 96px; height: 96px; border-radius: 10px; }
+        .cal-sk-kcard-main { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+        .cal-sk-kcard-title { height: 23px; display: flex; align-items: center; }
+        .cal-sk-kcard-line { height: 18px; display: flex; align-items: center; }
+        .cal-sk-kcard-chips { height: 16px; margin-top: 3px; display: flex; gap: 6px; }
+        .cal-sk-kcard-actions { display: flex; align-items: center; gap: 6px; }
+        .cal-sk-kcard-btn { width: 32px; height: 32px; border-radius: 8px; }
+        .cal-sk-phone { display: none; }
+        #calView[data-pocket-staff-phone] .cal-skeleton-loader.cal-sheet-skeleton { padding: 0; }
+        #calView[data-pocket-staff-phone] .cal-skeleton-loader.cal-sheet-skeleton::before { content: none; }
+        #calView[data-pocket-staff-phone] .cal-sheet-skeleton .cal-sk-desktop { display: none; }
+        #calView[data-pocket-staff-phone] .cal-sheet-skeleton .cal-sk-phone { display: block; }
+        .cal-sk-phone-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+        .cal-sk-phone-display { width: 102px; height: 52px; border-radius: 13px; }
+        .cal-sk-phone-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; }
+        .cal-sk-phone-tile { aspect-ratio: 3 / 4; border-radius: 4px; }
+        /* Month and Week loading (160 _calLoadingGridHtml): the real grid with no posts;
+           each day of the shown period shimmers until the posts arrive. */
+        .cal-grid-skeleton :is(.cal-month-cell:not(.out), .cal-week-col) { position: relative; overflow: hidden; }
+        .cal-grid-skeleton :is(.cal-month-cell:not(.out), .cal-week-col)::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 0%, var(--border-light) 50%, transparent 100%); opacity: 0.6; transform: translateX(-100%); animation: sv-shimmer-sweep 1.35s ease-in-out infinite; pointer-events: none; }
+        @media (prefers-reduced-motion: reduce) { .cal-grid-skeleton :is(.cal-month-cell, .cal-week-col)::after { animation: none; } }
         .cal-skeleton-review { display: flex; flex-direction: column; gap: 12px; }
         .cal-skeleton-review-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 14px; align-items: center; }
         .cal-skeleton-review-thumb { width: 96px; height: 96px; border-radius: 10px; }
@@ -1842,6 +1894,12 @@
         .prod-loading-detail { width: 286px; flex: 0 0 286px; border-left: 1px solid var(--prod-divider); padding: 18px 14px; display: flex; flex-direction: column; gap: 14px; }
         .error-state { background: var(--white); border: 1px solid var(--sv-border-fecaca); border-radius: 12px; padding: 32px; text-align: center; color: var(--dn); font-size: 0.88rem; }
         @media (max-width: 700px) { .video-card-tt { flex: 0 0 200px; } }
+
+        /* Analytics is hidden for everyone unless the analytics_hidden switch reads { "hidden": false } (188 adds
+           html.sv-analytics-on then; owner, 2026-10-17, session Curtain Seven): the staff bar's Analytics tab and a
+           client link's Analytics / Content Calendar toggle (desktop and the phone menus) are not drawn. */
+        html:not(.sv-analytics-on) #navHome { display: none !important; }
+        html.boot-client:not(.sv-analytics-on) .view-tab-toggle:has(> .view-tab-btn[onclick*="'analytics'"]) { display: none !important; }
 
         .view-tab-toggle {
             display: inline-flex; align-items: center;
@@ -2687,6 +2745,9 @@
         html:not([data-boot-nav]) #headerNav.pill-ready .header-nav-btn:hover { background: var(--bg); border-color: var(--sv-border-aaa); color: var(--text-primary); }
         html:not([data-boot-nav]) #headerNav.pill-ready .header-nav-btn.active { background: transparent; border-color: transparent; color: var(--white); }
         html:not([data-boot-nav]) #headerNav.pill-ready .header-nav-btn.active:hover { background: transparent; border-color: transparent; color: var(--white); }
+        /* No tab of this page in the bar (Messages): same flat tabs, no pill. */
+        html:not([data-boot-nav]) #headerNav.pill-idle .header-nav-btn { background: transparent; border-color: transparent; }
+        html:not([data-boot-nav]) #headerNav.pill-idle .header-nav-btn:hover { background: var(--bg); border-color: var(--sv-border-aaa); color: var(--text-primary); }
         @media (prefers-reduced-motion: reduce) { .header-nav-pill { transition: none; } }
 
         /* Linear form */

@@ -61,6 +61,7 @@ const PUBLISHED_DIRS = [
   'onboarding-ai',
   'onboarding-audio',
   'onboarding-video',
+  'start', // the public "start here" page for clients and videographers (2026-10-18)
 ];
 // Addresses that must NOT answer on the live site. Each is a repository
 // location that used to be served and holds source, plans or credentials-adjacent

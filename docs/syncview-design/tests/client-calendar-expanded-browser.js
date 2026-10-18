@@ -13,6 +13,7 @@ const { serve, installFixture, BASE_ROW } = require('./client-phone-review-brows
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' };
 const phoneThumbnailComparison = require('./phone-thumbnail-comparison');
 const { heightFor } = require('../../../qa/client-phone/profiles');
+const { analyticsShown } = require('../../../test/fixtures/analytics-shown.js');
 const arg = key => process.argv.find(x => x.startsWith('--' + key + '='))?.split('=').slice(1).join('=');
 const widths = (arg('widths') || '360,390,430').split(',').map(Number);
 const themes = (arg('themes') || 'light,dark').split(',');
@@ -126,6 +127,8 @@ async function run(browser, origin, width) {
       return route.fulfill({ status: 200, contentType: file.endsWith('.html') ? 'text/html' : 'text/javascript', body: fs.readFileSync(file) });
     });
   }
+  // This test opens Analytics from the tab menu: it is hidden unless analytics_hidden says shown (session Curtain Seven).
+  await analyticsShown(ctx);
   const page = await ctx.newPage();
   require('../../../qa/client-phone/native-captures').prepareCaptures(page);
   const errors = [];

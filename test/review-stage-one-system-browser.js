@@ -84,7 +84,7 @@ function kHead(page) {
       msgPage: !!document.getElementById('msgPage'),
       close: Array.from(document.querySelectorAll('.msg-close')).some(vis),
       embed: !!document.querySelector('#kasperContent [data-msg-embed] .msg-inbox'),
-      convs: document.querySelectorAll('#kasperContent [data-msg-embed] .msg-conv').length,
+      convs: (window._msgSetFilter && _msgSetFilter('all'), document.querySelectorAll('#kasperContent [data-msg-embed] .msg-conv').length),   // the switch opens on New; count them all
       mainPb: main ? getComputedStyle(main).paddingBottom : '',
       sh: se.scrollHeight, ch: se.clientHeight,
     };

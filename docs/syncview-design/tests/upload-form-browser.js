@@ -18,7 +18,10 @@
 //      toggle, on by default.
 //   4. On the upload link the Title is hidden but still sent, and the page
 //      reads "Upload your content" with the Synchro Social logo.
-//   5. Hovering or focusing a field shows its plain-English explanation.
+//   5. The field labels explain themselves (the house explainable label:
+//      hover, keyboard focus, Escape, tap to toggle on a phone).
+//   6. Advanced closes on Escape and on a click outside; the thumbnail choice
+//      survives a reload and a "Restore it" of a saved video-only submission.
 //
 // --shots=<dir> also writes the proof screenshots (1440 and 390, light and
 // dark, both forms, Advanced open, one explanation showing).
@@ -40,9 +43,9 @@ const SHOTS = shotsArg ? path.resolve(shotsArg.slice('--shots='.length)) : '';
 const failures = [];
 function check(cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!cond) failures.push(msg); }
 
-async function harness(browser, port, { staff, width = 1280, height = 1000, theme } = {}) {
-  const context = await browser.newContext({ viewport: { width, height }, colorScheme: theme === 'dark' ? 'dark' : 'light' });
-  const net = { intake: [] };
+async function harness(browser, port, { staff, width = 1280, height = 1000, theme, touch } = {}) {
+  const context = await browser.newContext({ viewport: { width, height }, colorScheme: theme === 'dark' ? 'dark' : 'light', ...(touch ? { hasTouch: true, isMobile: true } : {}) });
+  const net = { intake: [], drop: false };
   if (staff) await seedStaffGate(context);
   if (theme) await context.addInitScript(t => { try { localStorage.setItem('syncview_theme', t); } catch (e) {} }, theme);
   await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()), async route => {
@@ -52,6 +55,7 @@ async function harness(browser, port, { staff, width = 1280, height = 1000, them
       const body = JSON.parse(route.request().postData() || '{}');
       if (body.operation === 'intake_create') {
         net.intake.push(route.request().postData() || '');
+        if (net.drop) return route.abort('failed');
         return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({
           ok: true, native_committed: true, mirror_pending: false, batch: { id: 'batch-' + body.request_id },
           items: body.items.map((item, item_index) => ({ item_index, id: 'd-' + item_index + '-' + body.request_id, team: item.team, card_id: item.card_id })),
@@ -237,19 +241,43 @@ async function behaviour(browser, port) {
     await page.locator('#linearAdvancedToggle').click();
     check(await page.locator('#linearAdvancedPanel').isVisible() && await page.locator('#linearMakeThumbnail').isChecked(),
       'Advanced opens on click and "Make a thumbnail too" is on by default');
+    await page.locator('label[for="linearMakeThumbnail"]').click();
+    check(!(await page.locator('#linearMakeThumbnail').isChecked()) && await page.locator('#linearAdvancedState').isVisible(),
+      'turning the thumbnail off shows "Thumbnail off" beside Advanced');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
+    check(!(await page.locator('#linearAdvancedPanel').isVisible())
+      && await page.evaluate(() => document.activeElement && document.activeElement.id) === 'linearAdvancedToggle',
+      'Escape closes Advanced and focus returns to its button');
+    check(await page.locator('#linearAdvancedState').isVisible(), 'with Advanced closed, "Thumbnail off" stays on view');
     await page.locator('#linearAdvancedToggle').click();
-    check(!(await page.locator('#linearAdvancedPanel').isVisible()), 'Advanced closes again');
-
-    // Explanations.
-    const tip = page.locator('#linearGeneralDriveTip');
-    check(Number(await tip.evaluate(el => getComputedStyle(el).opacity)) === 0, 'the Main folder explanation is hidden at rest');
-    await page.locator('#linearGeneralDrive').hover();
-    await page.waitForTimeout(800);
-    check(Number(await tip.evaluate(el => getComputedStyle(el).opacity)) === 1, 'hovering Main folder shows its explanation');
-    await page.mouse.move(5, 5);
-    await page.locator('#vid_audio_1').focus();
+    await page.locator('#linearAdvancedPanel').click({ position: { x: 4, y: 4 } });
+    check(await page.locator('#linearAdvancedPanel').isVisible(), 'a click inside Advanced keeps it open');
+    await page.locator('.uf-videos-title').click({ position: { x: 2, y: 2 } });
+    check(!(await page.locator('#linearAdvancedPanel').isVisible()), 'a click outside closes Advanced');
+    await page.reload();
+    await page.waitForSelector('#linearMakeThumbnail', { state: 'attached' });
     await page.waitForTimeout(500);
-    check(Number(await page.locator('#vid_audio_1_tip').evaluate(el => getComputedStyle(el).opacity)) === 1, 'focusing a field (a tap on a phone) shows its explanation');
+    check(!(await page.locator('#linearMakeThumbnail').isChecked()) && await page.locator('#linearAdvancedState').isVisible(),
+      'the thumbnail choice survives a reload');
+    await page.evaluate(() => { const b = document.getElementById('linearMakeThumbnail'); b.checked = true; onLinearThumbChange(b); });
+
+    // Explanations: the house explainable label (shared tooltip).
+    const tipText = () => page.evaluate(() => { const t = document.getElementById('globalTooltip'); return t && t.isConnected ? t.textContent : ''; });
+    const folderLabel = page.locator('label[for="linearGeneralDrive"] [data-sv-explain]');
+    check(!(await tipText()), 'no explanation shows at rest');
+    await folderLabel.hover();
+    await page.waitForTimeout(300);
+    check(/Google Drive folder/.test(await tipText()), 'hovering the Main folder label explains it');
+    await page.mouse.move(5, 5);
+    await page.waitForTimeout(200);
+    check(!(await tipText()), 'moving away hides it');
+    await page.locator('label[for="vid_audio_1"] [data-sv-explain]').focus();
+    await page.waitForTimeout(200);
+    check(/main camera already has good audio/.test(await tipText()), 'keyboard focus on the Audio label explains it');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
+    check(!(await tipText()), 'Escape dismisses the explanation');
     const optional = await page.evaluate(() => ['vid_side_1', 'vid_audio_1', 'vid_notes_1', 'linearNotes']
       .every(id => /optional/.test(document.querySelector('label[for="' + id + '"]').textContent)));
     check(optional, 'side camera, audio and both notes boxes say "optional"');
@@ -268,6 +296,47 @@ async function behaviour(browser, port) {
     check(!errors.length, 'staff: no page errors ' + errors.join(' | '));
     await context.close();
   }
+  // A saved video-only submission comes back as video only after "Restore it".
+  {
+    const { context, page, net, errors } = await harness(browser, port, { staff: true });
+    await open(page, port, 'staff');
+    await page.evaluate(([n, s]) => selectLinearProject(n, s), [NAME, SLUG]);
+    await setCount(page, 1);
+    await page.locator('#vid_main_1').fill('https://drive.invalid/first');
+    net.drop = true;
+    await submitAs(page, 'video');
+    for (let i = 0; i < 150 && !net.intake.length; i++) await page.waitForTimeout(40);
+    await page.waitForTimeout(500);
+    check(await page.evaluate(() => { const j = _linearIntakeRead(); return !!j && j.context && j.context.mode === 'video'; }), 'the dropped video-only submission is saved in this browser');
+    await page.evaluate(() => { localStorage.removeItem('syncview_linear_make_thumbnail'); navTo('linear'); });
+    await page.waitForSelector('#linearSavedBox');
+    await page.click('#linearSavedBox >> text=Restore it');
+    await page.waitForTimeout(500);
+    check(!(await page.locator('#linearMakeThumbnail').isChecked()) && await page.locator('#linearAdvancedState').isVisible(),
+      'Restore it brings the thumbnail switch back off');
+    net.drop = false;
+    await page.locator('#linearSubmitBtn').click();
+    for (let i = 0; i < 150 && net.intake.length < 2; i++) await page.waitForTimeout(40);
+    const resent = net.intake[1] ? JSON.parse(net.intake[1]) : null;
+    check(!!resent && resent.items.every(item => item.team === 'video'), 'the restored submission is sent as video only (no graphics deliverable)');
+    check(!errors.length, 'restore: no page errors ' + errors.join(' | '));
+    await context.close();
+  }
+  // On a phone, tapping a label toggles its explanation and does not open the field.
+  {
+    const { context, page } = await harness(browser, port, { width: 390, height: 844, touch: true });
+    await open(page, port, 'link');
+    const label = page.locator('label[for="linearGeneralDrive"] [data-sv-explain]');
+    const tipText = () => page.evaluate(() => { const t = document.getElementById('globalTooltip'); return t && t.isConnected ? t.textContent : ''; });
+    await label.tap();
+    await page.waitForTimeout(200);
+    check(/Google Drive folder/.test(await tipText()) && await page.evaluate(() => document.activeElement.id !== 'linearGeneralDrive'),
+      'phone: a tap on the label shows its explanation without opening the field');
+    await label.tap();
+    await page.waitForTimeout(200);
+    check(!(await tipText()), 'phone: a second tap hides it');
+    await context.close();
+  }
 }
 
 async function shots(browser, port) {
@@ -275,7 +344,7 @@ async function shots(browser, port) {
   for (const surface of ['link', 'staff']) {
     for (const width of [1440, 390]) {
       for (const theme of ['light', 'dark']) {
-        const { context, page } = await harness(browser, port, { staff: surface === 'staff', width, height: width > 500 ? 1000 : 844, theme });
+        const { context, page } = await harness(browser, port, { staff: surface === 'staff', width, height: width > 500 ? 1000 : 844, theme, touch: width < 500 });
         await open(page, port, surface);
         await page.evaluate(([n, s]) => selectLinearProject(n, s), [NAME, SLUG]);
         if (width > 500) await setCount(page, 3);
@@ -287,14 +356,16 @@ async function shots(browser, port) {
         await page.screenshot({ path: path.join(SHOTS, `${surface}-${width}-${theme}.png`), fullPage: true });
         if (surface === 'link' && theme === 'light') {
           await page.locator('#linearAdvancedToggle').click();
+          await page.mouse.move(1, 1);
           await page.locator('#linearAdvancedPanel').scrollIntoViewIfNeeded();
           await page.waitForTimeout(250);
           await page.screenshot({ path: path.join(SHOTS, `${surface}-${width}-advanced-open.png`) });
-          await page.locator('#linearGeneralDrive').scrollIntoViewIfNeeded();
-          await page.evaluate(() => window.scrollBy(0, -120));
-          await page.locator('#linearAdvancedToggle').click();
+          await page.keyboard.press('Escape');
+          await page.evaluate(() => { window.scrollTo(0, 0); if (document.activeElement) document.activeElement.blur(); });
           await page.mouse.move(1, 1);
-          if (width > 500) await page.locator('#linearGeneralDrive').hover(); else await page.locator('#linearGeneralDrive').focus();
+          await page.waitForTimeout(400);
+          const lbl = page.locator('label[for="linearGeneralDrive"] [data-sv-explain]');
+          if (width > 500) { await lbl.hover(); await page.waitForTimeout(200); await lbl.hover({ position: { x: 6, y: 4 } }); } else await lbl.tap();
           await page.waitForTimeout(800);
           await page.screenshot({ path: path.join(SHOTS, `${surface}-${width}-explanation.png`) });
         }

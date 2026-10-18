@@ -16,8 +16,9 @@ import {
 } from './092-core-submit-form-navigation.js';
 import {
   CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewRequireStaffIdentity,
-  _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue
+  _svExplainLabel, _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue
 } from './100-onboarding-staff-controls.js';
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import {
   _calUpsertFetch, _syncviewEfHeaders, _writeUiQueueDiagnostic, _writeUiRecordFailure,
   _writeUiRefreshAuthority, _writeUiRerouteUseGatewayWhenReady
@@ -47,6 +48,9 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
        - The count control replaces Add Video and the per-video Remove.
        - On the link the Title is hidden; it is still computed and sent. */
     const LINEAR_MAX_VIDEOS = 24;
+    // The thumbnail switch survives a reload and a "Restore it" (a saved
+    // video-only submission must come back as video only).
+    const LINEAR_THUMB_KEY = 'syncview_linear_make_thumbnail';
     let _linearCountUndoVideos = null;
 
     const _LINEAR_HELP = {
@@ -59,8 +63,16 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
         vnotes: 'What the editor and the designer should know about this video: the take to use, a thumbnail idea.',
         advanced: 'Extra choices. Most uploads never need them.'
     };
-    function _linearHelpTip(id, key) {
-        return `<span class="uf-tip" role="tooltip" id="${id}">${_LINEAR_HELP[key]}</span>`;
+    // The house explainable label (shared tooltip: hover, keyboard focus,
+    // tap to toggle on a phone without opening the field, Escape).
+    function _linearHelpLabel(key, label) {
+        return _svExplainLabel('upload-' + key, label, _LINEAR_HELP[key]);
+    }
+    function _linearThumbStored() {
+        try { return localStorage.getItem(LINEAR_THUMB_KEY) !== '0'; } catch (e) { return true; }
+    }
+    function _linearThumbStore(on) {
+        try { if (on) localStorage.removeItem(LINEAR_THUMB_KEY); else localStorage.setItem(LINEAR_THUMB_KEY, '0'); } catch (e) {}
     }
     const _linearOptional = '<span class="uf-opt">optional</span>';
 
@@ -101,8 +113,13 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
         }
         // A held "video only" submission comes back with the toggle off, so
         // sending it again asks for the same thing it saved.
-        const makeThumbnail = !(heldSubmission && heldSubmission.mode === 'video');
+        const makeThumbnail = heldSubmission && heldSubmission.mode
+            ? heldSubmission.mode !== 'video' : _linearThumbStored();
 
+        // Advanced explains itself on hover. A phone has no hover, and a tip on
+        // tap would sit over the button, so there the open panel says it.
+        const canHover = !!(window.matchMedia && window.matchMedia('(hover: hover)').matches);
+        const advancedTip = canHover ? ` data-tip="${_LINEAR_HELP.advanced}"` : '';
         const receivedBanner = linearJustCreated === 'received';
         const successBanner = linearJustCreated ? `<div class="linear-success-banner" id="linearSuccessBanner">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8L6 12L14 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -152,31 +169,28 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
                     <label class="linear-label">Filming Plans</label>
                     <div class="linear-title-display empty" id="linearFilmingPlansDisplay">${onPhone ? 'Found from the client you pick' : 'Select a client…'}</div>
                 </div>
-                <div class="linear-field uf-help-host">
-                    <label class="linear-label" for="linearGeneralDrive">Main folder</label>
-                    <input class="linear-input" id="linearGeneralDrive" type="url" placeholder="Link to the Google Drive folder" aria-describedby="linearGeneralDriveTip" value="${savedGeneralDrive.replace(/"/g, '&quot;')}" oninput="saveLinearForm()">
-                    ${_linearHelpTip('linearGeneralDriveTip', 'folder')}
+                <div class="linear-field">
+                    <label class="linear-label" for="linearGeneralDrive">${_linearHelpLabel('folder', 'Main folder')}</label>
+                    <input class="linear-input" id="linearGeneralDrive" type="url" placeholder="Link to the Google Drive folder" value="${savedGeneralDrive.replace(/"/g, '&quot;')}" oninput="saveLinearForm()">
                 </div>
-                <div class="linear-field uf-help-host">
-                    <label class="linear-label" for="linearNotes">Notes ${_linearOptional}</label>
-                    <textarea class="linear-textarea" id="linearNotes" placeholder="Anything about the whole shoot" aria-describedby="linearNotesTip" oninput="saveLinearForm()">${saved.notes || ''}</textarea>
-                    ${_linearHelpTip('linearNotesTip', 'notes')}
+                <div class="linear-field">
+                    <label class="linear-label" for="linearNotes">${_linearHelpLabel('notes', 'Notes')} ${_linearOptional}</label>
+                    <textarea class="linear-textarea" id="linearNotes" placeholder="Anything about the whole shoot" oninput="saveLinearForm()">${saved.notes || ''}</textarea>
                 </div>
                 </section>
                 <section class="uf-section uf-videos" aria-labelledby="linearVideosHeading">
                     <div class="uf-videos-head">
-                        <h2 class="uf-videos-title" id="linearVideosHeading">Videos</h2>
-                        <div class="uf-count uf-help-host" role="group" aria-label="Number of videos">
+                        <h2 class="uf-videos-title" id="linearVideosHeading">${_linearHelpLabel('count', 'Videos')}</h2>
+                        <div class="uf-count" role="group" aria-label="Number of videos">
                             <button type="button" class="uf-count-btn" id="linearCountMinus" aria-label="One video less" onclick="stepLinearVideoCount(-1)">
                                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><line x1="1.5" y1="6" x2="10.5" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                             </button>
                             <input class="uf-count-input" id="linearVideoCount" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2"
-                                value="${linearVideoCount}" aria-label="Number of videos, 1 to ${LINEAR_MAX_VIDEOS}" aria-describedby="linearCountTip"
+                                value="${linearVideoCount}" aria-label="Number of videos, 1 to ${LINEAR_MAX_VIDEOS}"
                                 oninput="onLinearCountInput(this)" onkeydown="onLinearCountKey(event, this)" onchange="setLinearVideoCount(this.value)">
                             <button type="button" class="uf-count-btn" id="linearCountPlus" aria-label="One video more" onclick="stepLinearVideoCount(1)">
                                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><line x1="6" y1="1.5" x2="6" y2="10.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="1.5" y1="6" x2="10.5" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                             </button>
-                            ${_linearHelpTip('linearCountTip', 'count')}
                         </div>
                     </div>
                     <div class="uf-count-note" id="linearCountNote" role="status" aria-live="polite"></div>
@@ -187,15 +201,18 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
                     <div class="linear-submit-btns">
                         <button class="linear-submit-btn linear-submit-primary" id="linearSubmitBtn" type="button" onclick="submitLinearUpload()"><span class="linear-submit-primary-label">Create deliverables</span></button>
                     </div>
-                    <div class="linear-advanced uf-help-host">
-                        <button type="button" class="linear-advanced-toggle${makeThumbnail ? '' : ' open'}" id="linearAdvancedToggle" aria-expanded="${makeThumbnail ? 'false' : 'true'}" aria-controls="linearAdvancedPanel" aria-describedby="linearAdvancedTip" onclick="toggleLinearAdvanced()">
-                            <svg class="chevron" width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M3.5 2l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                            Advanced
-                        </button>
-                        ${_linearHelpTip('linearAdvancedTip', 'advanced')}
-                        <div class="linear-advanced-panel${makeThumbnail ? '' : ' open'}" id="linearAdvancedPanel"${makeThumbnail ? ' hidden' : ''}>
+                    <div class="linear-advanced" id="linearAdvancedWrap">
+                        <div class="uf-adv-row">
+                            <button type="button" class="linear-advanced-toggle" id="linearAdvancedToggle" aria-expanded="false" aria-controls="linearAdvancedPanel"${advancedTip} onclick="toggleLinearAdvanced()">
+                                <svg class="chevron" width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M3.5 2l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                Advanced
+                            </button>
+                            <span class="uf-adv-state" id="linearAdvancedState"${makeThumbnail ? ' hidden' : ''}>Thumbnail off: video only</span>
+                        </div>
+                        <div class="linear-advanced-panel" id="linearAdvancedPanel" hidden>
+                            <p class="uf-adv-intro">${_LINEAR_HELP.advanced}</p>
                             <label class="uf-switch" for="linearMakeThumbnail">
-                                <input type="checkbox" id="linearMakeThumbnail"${makeThumbnail ? ' checked' : ''}>
+                                <input type="checkbox" id="linearMakeThumbnail"${makeThumbnail ? ' checked' : ''} onchange="onLinearThumbChange(this)">
                                 <span class="uf-switch-track" aria-hidden="true"><span class="uf-switch-thumb"></span></span>
                                 <span class="uf-switch-text">
                                     <span class="uf-switch-label">Make a thumbnail too</span>
@@ -212,11 +229,10 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
 
     function renderVideoCard(num, data) {
         data = data || {};
-        const link = (kind, label, key, optional, value) => `<div class="uf-f uf-f-${kind} uf-help-host">
-                    <label class="uf-l" for="vid_${kind}_${num}">${label}${optional ? ' ' + _linearOptional : ''}</label>
-                    <input class="linear-input" id="vid_${kind}_${num}" type="url" placeholder="Paste a link" aria-describedby="vid_${kind}_${num}_tip" value="${(value || '').replace(/"/g, '&quot;')}"
+        const link = (kind, label, key, optional, value) => `<div class="uf-f uf-f-${kind}">
+                    <label class="uf-l" for="vid_${kind}_${num}">${_linearHelpLabel(key, label)}${optional ? ' ' + _linearOptional : ''}</label>
+                    <input class="linear-input" id="vid_${kind}_${num}" type="url" placeholder="Paste a link" value="${(value || '').replace(/"/g, '&quot;')}"
                         oninput="onVideoLinkInput(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
-                    ${_linearHelpTip('vid_' + kind + '_' + num + '_tip', key)}
                 </div>`;
         return `<div class="linear-video-card" id="videoCard_${num}">
             <div class="linear-video-header"><span class="linear-video-num">Video ${num}</span></div>
@@ -226,11 +242,10 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
                 ${link('side', 'Side camera', 'side', true, data.side_cam)}
                 ${link('audio', 'Audio', 'audio', true, data.audio)}
                 </div>
-                <div class="uf-f uf-f-notes uf-help-host">
-                    <label class="uf-l" for="vid_notes_${num}">Notes for this video ${_linearOptional}</label>
-                    <textarea class="linear-textarea linear-video-notes" id="vid_notes_${num}" rows="2" aria-describedby="vid_notes_${num}_tip"
+                <div class="uf-f uf-f-notes">
+                    <label class="uf-l" for="vid_notes_${num}">${_linearHelpLabel('vnotes', 'Notes for this video')} ${_linearOptional}</label>
+                    <textarea class="linear-textarea linear-video-notes" id="vid_notes_${num}" rows="2"
                         oninput="saveLinearForm()">${_calEsc(data.notes || '')}</textarea>
-                    ${_linearHelpTip('vid_notes_' + num + '_tip', 'vnotes')}
                 </div>
             </div>
         </div>`;
@@ -342,15 +357,45 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
         else if (e.key === 'Escape') { el.value = String(_linearCountCards()); el.blur(); }
     }
 
-    function toggleLinearAdvanced() {
+    function _linearAdvancedIsOpen() {
+        const btn = document.getElementById('linearAdvancedToggle');
+        return !!btn && btn.getAttribute('aria-expanded') === 'true';
+    }
+    function _linearSetAdvanced(open) {
         const btn = document.getElementById('linearAdvancedToggle');
         const panel = document.getElementById('linearAdvancedPanel');
         if (!btn || !panel) return;
-        const open = btn.getAttribute('aria-expanded') !== 'true';
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
         btn.classList.toggle('open', open);
         panel.classList.toggle('open', open);
         panel.hidden = !open;
+    }
+    // Advanced is an expanded panel: it joins the shared layer list, so
+    // Escape and a click outside close it and focus returns to its button.
+    function toggleLinearAdvanced() {
+        const open = !_linearAdvancedIsOpen();
+        _linearSetAdvanced(open);
+        if (open) {
+            svLayerOpen({
+                key: 'linear-advanced',
+                region: '#linearAdvancedWrap',
+                opener: () => document.getElementById('linearAdvancedToggle'),
+                isOpen: _linearAdvancedIsOpen,
+                holdRefresh: false,
+                close: () => _linearSetAdvanced(false),
+            });
+        } else {
+            svLayerRelease('linear-advanced');
+        }
+    }
+
+    // The choice stays visible beside Advanced while it is off, so a closed
+    // panel never hides that no thumbnail will be made.
+    function onLinearThumbChange(box) {
+        const on = !!(box && box.checked);
+        _linearThumbStore(on);
+        const state = document.getElementById('linearAdvancedState');
+        if (state) state.hidden = on;
     }
 
     // On = video + thumbnail (the old "both" request); off = video only.
@@ -862,6 +907,8 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
                 const form = _linearFormFromSavedJob(work.job);
                 await _linearIntakeWithLock(() => _linearIntakeMarkRestored(requestId));
                 localStorage.setItem(LINEAR_FORM_KEY, JSON.stringify(form));
+                const savedMode = String(work.job && work.job.context && work.job.context.mode || '');
+                if (savedMode) _linearThumbStore(savedMode !== 'video');
             }
             // A hold already shows its own draft in the form (loadLinearForm).
             _writeUiQueueDiagnostic(work.surface, 'saved_submission_restored', { kind: work.kind }, null);
@@ -1385,6 +1432,7 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
             nativeResult = result;
             localStorage.removeItem(LINEAR_FORM_KEY);
             localStorage.removeItem(LAST_LINK_KEY);
+            _linearThumbStore(true);
             _linearSetJustCreated(true);
             navTo('linear');
             if (result.mirror_pending === true) showNotify('Production created', 'Native work is saved; its Linear mirror is still draining.');
@@ -2017,9 +2065,9 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        onLinearCountInput, onLinearCountKey, onVideoLinkBlur, onVideoLinkInput, onVideoLinkKeydown,
-        setLinearVideoCount, stepLinearVideoCount, submitLinearUpload, toggleLinearAdvanced,
-        undoLinearVideoCount
+        onLinearCountInput, onLinearCountKey, onLinearThumbChange, onVideoLinkBlur, onVideoLinkInput,
+        onVideoLinkKeydown, setLinearVideoCount, stepLinearVideoCount, submitLinearUpload,
+        toggleLinearAdvanced, undoLinearVideoCount
     });
 export {
   BARE_LANDING_OK_PARAMS, CAL_CARD_JOBS_KEY, FAST_TABS, KASPER_UNLOCK_KEY, RESTORABLE_FAST_TABS,

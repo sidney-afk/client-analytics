@@ -455,7 +455,7 @@ async function selectMember(page, member) {
     assert(await page.locator('#navProd').isVisible(), 'promoted Linear mirror remains mounted in normal staff navigation');
     assert(await page.evaluate(() => {
       navTo('production');
-      return currentNav === 'home' && !_prodAccessAllowed();
+      return currentNav === 'calendar' && !_prodAccessAllowed(); // the fallback is Home, which opens the Calendar while Analytics is hidden (its default)
     }), 'invalid stored identity still cannot enter the guarded production route');
     await context.close();
 

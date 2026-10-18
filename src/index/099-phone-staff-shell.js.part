@@ -31,6 +31,9 @@ import { wlState } from './066-core-workload-state.js';
         // Booting into Today: currentNav still reads its default ('home')
         // until Today opens; do not show the Analytics bar in the meantime.
         if (currentNav !== 'today' && document.documentElement.getAttribute('data-boot-nav') === 'today') return null;
+        // The same while Analytics is hidden and a landing is bound for the Calendar (Home, #home, a client's Analytics
+        // address): currentNav reads 'home' until it opens, and the Analytics bar must not show in the meantime.
+        if (currentNav === 'home' && document.documentElement.getAttribute('data-boot-nav') === 'calendar') return null;
         return FPH_SCREENS[currentNav] || null;
     }
     function _fphEsc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }

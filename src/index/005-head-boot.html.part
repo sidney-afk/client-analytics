@@ -237,7 +237,14 @@
             // the Analytics-active pill + the "Client Analytics" overview
             // header first.
             var st = null; try { st = history.state; } catch (e) {}
+            // Analytics is hidden unless this browser last saw it shown (mirror of svAnalyticsSeenShown in 188):
+            // staff are then never sent to Analytics, so no route may paint its skeleton first.
+            var anHidden = true; try { anHidden = localStorage.getItem('sv-analytics-shown') !== '1'; } catch (e) {}
             if (st && st.client) {
+                if (anHidden && st.clientTab !== 'calendar' && st.clientTab !== 'brief') {
+                    de.setAttribute('data-boot-nav', 'calendar');
+                    return;
+                }
                 // A staff client profile is a route too. Tag its exact subtab
                 // before body paint so Calendar/Brief never borrow the static
                 // staff Analytics overview skeleton while fresh data loads.
@@ -303,6 +310,8 @@
                 } else if (RESTORABLE_FAST.indexOf(nav) >= 0) target = nav;
                 else if (st && st.nav && saved === 'kasper' && kasperOk()) target = saved;
             }
+            // Every other staff address ends on Home today, which opens the Calendar while Analytics is hidden.
+            if (!target && anHidden) target = 'calendar';
             if (target) {
                 de.setAttribute('data-boot-nav', target);
                 if (target === 'kasper') {

@@ -60,8 +60,9 @@ const CASES = [
   // The Post tab's old address still opens it, and the address bar shows its new one.
   ['staff old tiktok upload address', '/tiktok-upload', { staff: true, wantPath: '/post', parts: 5 }],
   // Time off is behind the PTO flag, which reads as off in this offline run (every
-  // backend read is empty), so the app sends the visitor home. Same as today.
-  ['staff time off', '/time-off', { staff: true, wantPath: '/', parts: 5 }],
+  // backend read is empty), so the app sends the visitor home. Home is the Calendar while Analytics is hidden
+  // (its default, and nothing is read in this run): staff are never sent to Analytics.
+  ['staff time off', '/time-off', { staff: true, wantPath: '/calendar', parts: 5 }],
   ['staff sample reviews', '/sample-reviews', { staff: true, keepPath: true, parts: 5 }],
   ['staff kasper', '/kasper', { staff: true, keepPath: true, parts: 5 }],
   ['staff client credentials', '/client-credentials', { staff: true, keepPath: true, parts: 5 }],

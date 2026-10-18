@@ -30,6 +30,7 @@ every walk was clicks, hovers, Escape, Back/Forward, refresh and screenshots.
 | #2176 | Phone Calendar and Samples grid (and focused card): last row cut off over an empty band of about 90px above the Review bar. | The grid measured its distance from the top once, while the phone page header (74px) was still showing, and never re-measured after it was hidden. |
 | #2177 | SyncLinear: after Back to card then browser Back, the sub-issue header read "0/13" sub-issues done for 1.5 to 3 seconds (truth 19/32). | First paint comes from the saved copy, which by design holds no finished work; the chip stated its "0 done" as fact. Now shows "…" until real counts arrive. |
 | #2182 | Messages chat: day dividers read "2026-10-17" on desktop, and notes sent after 6pm (UTC-6) sat under the next day. | Grouping cut the UTC timestamp's first ten characters. Now the reader's local day, labelled "Sat, 17 Oct 2026". |
+| #2204 | Desktop pop-ups: a mouse click on a dimmed backdrop (the Archived list, for one) closed it and then also landed on the page underneath, e.g. focusing a card's name field. Found while getting #2176 green. | The shared pop-up layer closed on the mouse press, removing the backdrop mid-click; a press on a backdrop is now left to its own click handler. |
 
 Before and after pictures (fictional fixture data only) are in
 `docs/audits/shots/2026-10-17-glitch-sweep/` on each PR's branch and in its body.

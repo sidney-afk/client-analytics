@@ -1736,6 +1736,14 @@
       "ci": "representative"
     },
     {
+      "file": "client-sheet-skeleton-shape-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, fictional test client and cards, no hosted credentials. Checks the client link Sheet loading skeleton has the loaded client Sheet's shape: card, thumbnail, row and status chip boxes on desktop and phone, each within 2px of the loaded page.",
+      "reproduce": "node test/client-sheet-skeleton-shape-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "calendar-status-row-urgent-height-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

@@ -1911,6 +1911,38 @@
         .cal-sk-kcard-actions { display: flex; align-items: center; gap: 6px; }
         .cal-sk-kcard-btn { width: 32px; height: 32px; border-radius: 8px; }
         .cal-sk-phone { display: none; }
+        /* Client link Sheet skeleton (133 _svClientLinkSheetSkeletonHtml): the client card's rows at the
+           loaded rows' heights, 1440 first; the phone column follows below. Measured 2026-10-18. */
+        .cal-sk-card.is-client .cal-sk-field.is-link { height: 29px; }
+        .cal-sk-csec-head { display: none; }
+        .cal-sk-card.is-client .cal-sk-field.is-cta { height: 30px; }
+        .cal-sk-chips { margin-top: 8px; height: 38px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; }
+        .cal-sk-cpill { height: 16px; border-radius: 5px; }
+        .cal-sk-cpill.is-a { width: 120px; }
+        .cal-sk-cpill.is-b { width: 152px; }
+        .cal-sk-cpill.is-c { width: 136px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .cal-skeleton-loader.cal-sheet-skeleton.is-client { padding: 0; align-items: stretch; }
+        html.boot-client #calView:has(.pocket-client-calendar) .cal-skeleton-loader.cal-sheet-skeleton.is-client::before { content: none; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-organizer-wrap { padding: 0; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-strip { flex-direction: column; align-items: stretch; gap: 20px; padding: 0; min-height: 0; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-strip::after { content: none; }
+        html.boot-client #calView:has(.pocket-client-calendar) .cal-sk-card.is-client { flex: 0 0 auto; width: 100%; border-radius: 22px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .cal-sk-card.is-client:nth-child(n+3) { display: none; }
+        html.boot-client #calView:has(.pocket-client-calendar) .cal-sk-card.is-client .cal-skeleton-thumb { height: 220px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .cal-sk-card.is-client .cal-sk-body { padding: 18px 16px; gap: 14px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-title { height: 44px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-field.is-date { height: 44px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-field.is-link { height: 46px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-csec { border-top: 1px solid var(--border-light); padding: 18px 0; box-sizing: border-box; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-csec-head { display: flex; align-items: center; height: 23px; margin-bottom: 14px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-csec.is-cap .cal-sk-copy { height: 190px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-csec.is-cta .cal-sk-field.is-cta { height: 44px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-foot { height: 44px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-chips { height: 70px; gap: 6px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-cpill { height: 32px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-cpill.is-a { width: 125px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-cpill.is-b { width: 156px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-cpill.is-c { width: 139px; }
         #calView[data-pocket-staff-phone] .cal-skeleton-loader.cal-sheet-skeleton { padding: 0; }
         #calView[data-pocket-staff-phone] .cal-skeleton-loader.cal-sheet-skeleton::before { content: none; }
         #calView[data-pocket-staff-phone] .cal-sheet-skeleton .cal-sk-desktop { display: none; }

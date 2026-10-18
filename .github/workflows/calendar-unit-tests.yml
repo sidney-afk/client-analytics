@@ -619,6 +619,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/calendar-sheet-skeleton-shape-browser.js
+      - name: Client link Sheet loading skeleton has the client Sheet's shape (desktop and phone)
+        if: ${{ !cancelled() && matrix.part == 2 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/client-sheet-skeleton-shape-browser.js
       - name: Month and Week loading skeleton is the loaded grid (desktop light and dark)
         if: ${{ !cancelled() && matrix.part == 2 }}
         env:

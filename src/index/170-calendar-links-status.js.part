@@ -2127,6 +2127,14 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             else { sent.forEach(k => { delete rec.vals[k]; }); if (!Object.keys(rec.vals).length) delete _calUnsentKeys[key]; }
         });
     }
+    /* The person gave a field up (discarded the restored draft, or chose "Use theirs"): the automatic resend must
+       not bring it back (Codex review of #2210). */
+    function _calDropUnsent(id, field) {
+        const rec = _calUnsentKeys[id];
+        if (!rec) return;
+        delete rec.vals[field];
+        if (!Object.keys(rec.vals).length) delete _calUnsentKeys[id];
+    }
     function _calRetryNetworkFailedSaves() {
         if (_isClientLink || !calState || !Array.isArray(calState.posts)) return 0;
         let n = 0;
@@ -2200,6 +2208,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         const post = calState.posts.find(p => p.id === pid);
         if (_calEditBase[pid]) delete _calEditBase[pid].caption;
         if (_calPendingEdits[pid]) delete _calPendingEdits[pid].caption;
+        _calDropUnsent(pid, 'caption');
         if (post) { try { _calRenderBody({ preserveScroll: true }); } catch (e) {} }
     }
     /* ── Two people on one card: notice instead of a silent overwrite ───────
@@ -2356,6 +2365,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         if (choice === 'theirs') {
             open.forEach(f => {
                 rec.fields[f].resolved = 'theirs';
+                _calDropUnsent(pid, f);
                 post[f] = rec.fields[f].theirs;    // statuses already show it; the caption box now does too
                 // Set aside, not thrown away: the text survives a reload as a draft marked "set aside".
                 if (f === 'caption') _svDraftSave('cal', calClientSlug(calState.client), pid, 'caption', rec.fields[f].mine, { aside: true });

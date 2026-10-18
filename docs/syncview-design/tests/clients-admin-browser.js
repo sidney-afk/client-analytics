@@ -165,6 +165,10 @@ const measure = page => page.evaluate(() => {
         pill: !!document.querySelector('.ca-head .search-bar-pill #caSearch'),
       }));
       if (head.title !== 'Clients' || head.sub || head.refresh || head.listShown || !head.pill) failures.push(`${label}: header is not title + search + All clients (${JSON.stringify(head)})`);
+      // The browser must not offer saved emails on the search (owner 2026-10-18): a search box, autocomplete off,
+      // and no "email" in its name or placeholder (Chrome's email autofill keys on those words).
+      const srch = await p.evaluate(() => { const i = document.getElementById('caSearch'); return { type: i.type, ac: i.getAttribute('autocomplete'), ph: i.placeholder, name: i.name || '' }; });
+      if (srch.type !== 'search' || srch.ac !== 'off' || /e-?mail/i.test(srch.ph + ' ' + srch.name)) failures.push(`${label}: client search invites the browser's saved emails (${JSON.stringify(srch)})`);
       if (phone) {
         // Lighthouse review 2026-10-07: one "Clients" heading, a placeholder that fits,
         // a labelled "All clients". Prism batch 6 gave search its own full row with

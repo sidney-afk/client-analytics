@@ -108,12 +108,17 @@ assert(CODE_TEXT.authority_unavailable.text.includes(
   'Team authority could not be verified. Reload and try again; no Linear write was attempted.',
 ));
 assert(CODE_TEXT.repair_storage_unavailable.text.includes(
-  'This browser cannot checkpoint recovery data. Free browser storage, then try again.',
+  'Keep this page open and copy your words before freeing browser storage.',
 ));
+for (const code of ['repair_storage_unavailable', 'repair_checkpoint_missing']) {
+  assert(/save may already have reached the server/.test(CODE_TEXT[code].text), code + ' must acknowledge a possible native commit');
+  assert(/reload to check|reload to check the saved result/.test(CODE_TEXT[code].text), code + ' must ask the person to check before resending');
+  assert(!/nothing was committed|nothing was saved/.test(CODE_TEXT[code].text), code + ' must not misdescribe post-commit bookkeeping as a refused mutation');
+}
 assert(CODE_TEXT.client_credentials_required.text.includes(
   'This client link needs a current review token. Ask your SMM for a fresh link, then try again.',
 ));
-console.log('  ok  the four pre-existing messages survived the refactor word for word');
+console.log('  ok  existing guidance remains, with storage and missing-checkpoint copy covering an acknowledged native save');
 
 // ── 3. Total coverage of every code either side of the wire can throw ───────
 const mapped = new Set(Object.keys(CODE_CLASS).concat(Object.keys(CODE_TEXT)));

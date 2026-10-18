@@ -196,7 +196,7 @@ ${helpers}
             else { const notes=JSON.parse(row.video_tweaks||'[]').filter(n=>n.body==='Keep every checkpoint word.');assert.equal(notes.length,1,'the words land once');if(action==='change')assert.equal(row.video_status,'Tweaks Needed'); }
             assert.equal(t.errors.length,0,'no browser exception');
             console.log('PASS '+engine+' '+width+' '+role+' '+action);
-          } catch(e){failures++;console.error('FAIL '+engine+' '+width+' '+role+' '+action+': '+e.message.split('\n')[0]);if(t)console.error('fixture alerts: '+await fixture.inS(t.page,'.err').allTextContents().then(a=>a.join('|')).catch(()=>''));}
+          } catch(e){failures++;console.error('FAIL '+engine+' '+width+' '+role+' '+action+': '+e.message.split('\n')[0]);if(t){console.error('fixture alerts: '+await fixture.inS(t.page,'.err').allTextContents().then(a=>a.join('|')).catch(()=>''));console.error('fixture errors: '+t.errors.join('|'));}}
           finally{if(t)await t.ctx.close();}
         }
       } finally { await browser.close(); }

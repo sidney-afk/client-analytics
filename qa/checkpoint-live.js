@@ -18,7 +18,7 @@ assert(input.identity.key && input.id.startsWith('p_native_'));
 const results = [];
 let phase = 'preflight';
 const wait = ms => new Promise(r => setTimeout(r, ms));
-const columns = 'id,status,caption,video_status,graphic_status,caption_status,video_tweaks,graphic_tweaks,caption_tweaks,video_deliverable_id,graphic_deliverable_id';
+const columns = 'id,status,caption,video_status,graphic_status,caption_status,video_tweaks,graphic_tweaks,caption_tweaks,video_deliverable_id,graphic_deliverable_id,kasper_finished_at,kasper_closed_at';
 function row() {
   const rows = L.supaCal('client=eq.sidneylaruel&id=eq.' + encodeURIComponent(input.id) + '&select=' + columns);
   assert(Array.isArray(rows) && rows.length === 1, 'scoped read must return one card');
@@ -54,13 +54,14 @@ async function context(browser, staff, width) {
     if (!url.hostname.endsWith('.supabase.co')) return route.abort();
     const fn = url.pathname.split('/').pop(); let body = {};
     try { body = JSON.parse(req.postData() || '{}'); } catch { return route.abort(); }
-    if (['key-verify','client-token-verify','card-read','frameio-view','write-refusal-report','write-refusal-log'].includes(fn)) return route.continue();
+    if (['key-verify','client-token-verify','card-read','frameio-view','write-diagnostics'].includes(fn)) return route.continue();
     if (fn === 'production-write' && ['reconcile_receipt','read','list'].includes(body.operation)) return route.continue();
     if (fn === 'production-comments' && ['list','inbox','unread_count'].includes(body.action)) return route.continue();
     const named = [body.client,body.client_slug,body.slug].filter(Boolean);
     if (named.some(v => normalizeClient(v) !== 'sidneylaruel')) return route.abort();
     const target = body.post?.id || body.id || body.card_id || body.deliverable_id;
     if (target && ids.has(target) && (named.length || fn === 'production-write' || fn === 'production-comments')) return route.continue();
+    report('guard','unrecognised mutation aborted',false,{endpoint:/^[a-z0-9-]+$/.test(fn)?fn:'unknown'});
     return route.abort();
   });
   return ctx;
@@ -142,13 +143,48 @@ async function shot(p, name) {
   }, [...new Set([client,input.identity.member.name].flatMap(name=>[name,...String(name||'').split(/\s+/).filter(word=>word.length>2)]))]);
   await p.screenshot({ path: path.join(out,name+'.png'), mask: [p.locator('[data-checkpoint-private]')], fullPage: false });
 }
+async function reviewerReady(p) {
+  await p.goto(LIVE+'/#kasper',{waitUntil:'domcontentloaded',timeout:25000});
+  await p.locator('[data-kasper-tab="review"]').click({timeout:20000});
+  await p.waitForSelector('#svReviewStage #stepper',{timeout:25000});
+  const chip=stage(p).locator('.chipp[data-id="'+input.id+'"]');
+  if(await chip.count()) await chip.click();
+  await p.waitForFunction(()=>document.querySelector('#svReviewStage')?.shadowRoot?.querySelector('#side')?.textContent.includes('Checkpoint'),null,{timeout:15000});
+}
+async function confirmIfAsked(p) {
+  if(await p.locator('#confirmOverlay.active').isVisible()) await p.locator('#confirmYes').click();
+}
+async function reviewerPass(setup) {
+  for(const engine of ['chromium','firefox','webkit']) for(const width of [1440,390]) {
+    const cell='reviewer-'+engine+'-'+width;
+    await setAll(setup,'Kasper Approval');
+    const browser=await pw[engine].launch(),ctx=await context(browser,true,width),p=await ctx.newPage();
+    const errors=[];
+    p.on('pageerror',e=>errors.push({kind:e.name,codes:e.message.match(/repair_[a-z_]+|_[A-Za-z0-9_]+ is not defined/g)||[],functions:[...String(e.stack||'').matchAll(/at ([A-Za-z_$][A-Za-z0-9_$]*)/g)].map(m=>m[1]).slice(0,5)}));
+    try {
+      await check(cell,'open',()=>reviewerReady(p));
+      await check(cell,'play',async()=>{await stage(p).locator('.fv-play').click();await p.waitForFunction(()=>{const v=document.querySelector('#svReviewStage')?.shadowRoot?.querySelector('video');return v&&!v.paused&&v.currentTime>0.1;},null,{timeout:10000});});
+      for(const part of ['video','caption'])await check(cell,part+' note',()=>note(p,part,'Checkpoint '+cell+' '+part,true));
+      await check(cell,'reload typing',async()=>{await stage(p).locator('#ta').fill('Checkpoint '+cell+' draft');await p.reload({waitUntil:'domcontentloaded',timeout:25000});await reviewerReady(p);assert.equal(await stage(p).locator('#ta').inputValue(),'Checkpoint '+cell+' draft');await stage(p).locator('#ta').fill('');});
+      await check(cell,'slow save',()=>slowNote(p,'video','Checkpoint '+cell+' slow',true));
+      await check(cell,'offline save and return',()=>offlineNote(p,ctx,'Checkpoint '+cell+' offline',true));
+      await check(cell,'two tabs',async()=>{const peer=await ctx.newPage();try{await reviewerReady(peer);await Promise.all([note(p,'video','Checkpoint '+cell+' tab A',true),note(peer,'video','Checkpoint '+cell+' tab B',true)]);}finally{await peer.close();}});
+      await check(cell,'change video',async()=>{await stage(p).locator('[data-step="video"]').click();await stage(p).locator('[data-chg="video"]').click();await stage(p).locator('#ta').fill('Checkpoint '+cell+' change');await stage(p).locator('#sendBtn').click();await confirmIfAsked(p);await poll(r=>r.video_status==='Tweaks Needed'&&notes(r,'video').some(n=>n.body==='Checkpoint '+cell+' change'));});
+      for(const part of ['graphic','caption'])await check(cell,'approve '+part,async()=>{await stage(p).locator('[data-step="'+part+'"]').click();await stage(p).locator('[data-ok="'+part+'"]').click();await confirmIfAsked(p);await poll(r=>r[part+'_status']==='Client Approval');});
+      await check(cell,'finish after changes',async()=>{await stage(p).locator('#finishBtn').click();await poll(r=>!!r.kasper_finished_at);});
+      await setAll(setup,'Kasper Approval');
+      await check(cell,'approve video',async()=>{await reviewerReady(p);await stage(p).locator('[data-ok="video"]').click();await confirmIfAsked(p);await poll(r=>r.video_status==='Client Approval');});
+      report(cell,'browser exceptions',errors.length===0,{errors});
+    }finally{await ctx.setOffline(false).catch(()=>{});await browser.close();}
+  }
+}
 (async () => {
   // Keep one staff browser solely for app-owned setup/cleanup. Every journey
   // uses the named engine and its own fresh staff/client contexts.
   const setupBrowser = await pw.chromium.launch();
   const setupCtx = await context(setupBrowser,true,1440), setup = await setupCtx.newPage();
   try {
-    for (const engine of ['chromium','firefox','webkit']) for (const width of [1440,390]) {
+    if(process.env.CHECKPOINT_REVIEWER_ONLY!=='1') for (const engine of ['chromium','firefox','webkit']) for (const width of [1440,390]) {
       const cell = engine+'-'+width;
       await setAll(setup,'Client Approval');
       const browser = await pw[engine].launch();
@@ -194,6 +230,7 @@ async function shot(p, name) {
         report(cell,'browser exceptions',errors.length===0,{count:errors.length});
       } finally { await cc.setOffline(false).catch(()=>{});await browser.close(); }
     }
+    await reviewerPass(setup);
   } finally {
     await setup.goto(LIVE+'/#calendar/sidneylaruel',{waitUntil:'domcontentloaded',timeout:25000});
     await setup.locator('.cal-card[data-pid="'+input.id+'"] .cal-card-del').click();

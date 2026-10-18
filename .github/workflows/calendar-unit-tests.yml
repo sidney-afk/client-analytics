@@ -428,6 +428,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/messages-inbox-browser.js
+      - name: Messages chat day dividers follow the reader's day and read as dates
+        if: ${{ !cancelled() && matrix.part == 4 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/messages-day-divider-browser.js
       - name: A note shows the moment it is sent and is never lost (slow server, error then retry, double click, refresh mid-send; desktop and phone) (mocked)
         if: ${{ !cancelled() && matrix.part == 3 }}
         env:

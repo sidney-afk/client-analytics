@@ -115,6 +115,8 @@ async function open(browser, origin, opt) {
     if (opt.noWebFont && (u.host === 'fonts.googleapis.com' || u.host === 'fonts.gstatic.com')) return route.abort();
     if (u.host === 'fonts.googleapis.com') return route.fulfill({ status: 200, headers: CORS, contentType: 'text/css', body: WEB_FONT_CSS });
     if (u.host === 'fonts.gstatic.com') return route.fulfill({ status: 200, headers: CORS, contentType: 'font/woff2', body: WEB_FONT });
+    // A slow staff sign-in check (opt.keyVerifyDelay ms): routing waits for it, so the page sits unrouted that long.
+    if (p === '/functions/v1/key-verify' && opt.keyVerifyDelay) await sleep(opt.keyVerifyDelay);
     if (p === '/functions/v1/key-verify') return json({ ok: true, role: opt.staff ? opt.staff.role : 'admin', member: opt.staff || STAFF });
     if (p === '/functions/v1/client-token-verify') {
       const b = JSON.parse(r.postData() || '{}');

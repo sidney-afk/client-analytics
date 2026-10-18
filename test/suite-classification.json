@@ -1923,10 +1923,18 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-caption-send-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and token), no hosted credentials and no live data. Checks that a client's sent caption edit saves the caption, tells the team, approves the caption once and moves the stage on (desktop and phone width), that a refused save stays on the step with the words back in the edit box and approves nothing, that a double click approves once, and that the last step of the last post ends as Approve does.",
+      "reproduce": "node test/review-stage-caption-send-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-client-composer-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and token), no hosted credentials and no live data. Checks the client review page's message box (no 'Is this a change?' prompt, part chips at the box's top left, 'Ask for a change' needs a part and saves a change request on it, 'Send comment' saves a plain comment), that a client's caption edit saves the new caption with a plain note carrying the old one (never approved, never a change request) shown as new over old on the client and SMM pages, and that the caption edit box and the message box draw the thin scrollbar.",
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and token), no hosted credentials and no live data. Checks the client review page's message box (no 'Is this a change?' prompt, part chips at the box's top left, 'Ask for a change' needs a part and saves a change request on it, 'Send comment' saves a plain comment), that a client's caption edit saves the new caption with a plain note carrying the old one (never a change request; approved by the client once it is sent) shown as new over old on the client and SMM pages, and that the caption edit box and the message box draw the thin scrollbar.",
       "reproduce": "node test/review-stage-client-composer-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },

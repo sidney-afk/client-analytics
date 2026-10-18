@@ -33513,7 +33513,17 @@ Audit of the upload link and the Submit tab against every way a send can fail (r
 
 **Way back:** revert the pull request; run the migration's ROLLBACK block to drop the table.
 
-## 437. [2026-10-18, BUILT, NOT MERGED] Review caption overwrite, lost drafts and recovery click/error gaps (session Gauntlet Three)
+## 437. [2026-10-18, BUILT, NOT MERGED] A client who edited the caption and pressed Send to your team stayed on the same step (session Onward)
+
+- **What the owner saw (test client, 2026-10-18).** He edited a caption and pressed "Send to your team"; the page showed the new caption and the same Approve / Ask for a change menu instead of moving on.
+- **Cause.** Since Curtain Eight the sent edit changed the caption and told the team, but deliberately never approved: the caption stayed waiting for the client's own Approve, so nothing moved the stage.
+- **Fix (Lighthouse's decision for the owner).** The sent edit is the client's answer for the caption step. Once the caption is stored and the team note is sent, the caption is approved by the client with the Approve button's own path (`_rsApprove`, one save) and the stage moves on as Approve does, to the next step or post, or Finish reviewing on the last. The approve waits for the note's own save to end, because the card refuses a second save on the same part while one runs. A failed or refused save approves nothing, stays on the step and puts the edited words back in the edit box with the existing "did not save" words. A second click while one is sending is ignored.
+- **Not changed.** SMM and Kasper caption edits save at once on the step and keep their own Approve; there is no "send" step for them, so they do not have this problem. A YouTube title edit is still a change request.
+- **Tests.** `test/review-stage-caption-send-browser.js` (new; fails on main). `review-stage-client-composer-browser.js` had two lines saying the caption "stays waiting for Approve"; they now say the sent edit was the answer (still never a change request).
+
+**Way back:** revert the pull request.
+
+## 439. [2026-10-18, BUILT, NOT MERGED] Review caption overwrite, lost drafts and recovery click/error gaps (session Gauntlet Three)
 
 **Confirmed, mocked browsers only.** A client saving an open caption editor could silently overwrite a newer team
 caption. Unsent caption text disappeared when switching posts/reloading, and a refused save hid the replacement text.

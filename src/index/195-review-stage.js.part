@@ -1020,7 +1020,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsFreshState() {
         return { curId: null, step: '', note: _rsBlankNote(), editing: '', editText: '', fold: false, saved: null,
-            menu: '', exp: {}, edOpen: false, qOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, retryText: {}, slow: {}, pressed: {}, ready: {}, actAt: {}, seen: {}, told: {}, keepK: null, drafts: {}, editDrafts: {}, editBase: {}, editSaving: {}, editErrors: {}, draftsLoaded: false, moved: null, stageTitle: '' };
+            menu: '', exp: {}, edOpen: false, qOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, retryText: {}, capSending: {}, slow: {}, pressed: {}, ready: {}, actAt: {}, seen: {}, told: {}, keepK: null, drafts: {}, editDrafts: {}, editBase: {}, editSaving: {}, editErrors: {}, draftsLoaded: false, moved: null, stageTitle: '' };
     }
 
     /* ---------- the model: one shape for every person ---------- */
@@ -2355,16 +2355,21 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         }
         if (R.mode === 'client') {
             // The client's caption edit changes the caption itself (owner, 2026-10-17), and a plain note on the
-            // caption tells the team, with the old caption, so the SMM can see it and put it back. It never approves
-            // and never asks for a change: the caption stays waiting for the client's own Approve.
+            // caption tells the team, with the old caption, so the SMM can see it and put it back. It never asks for
+            // a change. Since 2026-10-18 (session Onward) the sent edit is also the client's answer for the caption
+            // step: once it is stored the caption is approved, once, the way the Approve button does it, and the stage
+            // moves on. A save that fails approves nothing, moves nowhere and puts the words back in the edit box.
             // The note goes only once the caption is stored, so it never tells of a change that did not save.
             const old = String(m.caption || '');
+            if (S.capSending[m.id + '|' + k]) return;
+            S.capSending[m.id + '|' + k] = true;
             delete S.editErrors[key]; S.saved = null;
             S.editSaving[key] = true;
             const save = window._calClientReviewCaptionEdit ? window._calClientReviewCaptionEdit(m.id, t) : Promise.resolve(false);
             _rsFlash('Saving the caption…', k);
             _rsRender({ force: true });
             save.then(ok => {
+                delete S.capSending[m.id + '|' + k];
                 delete S.editSaving[key];
                 if (!ok) {
                     S.editErrors[key] = 'The caption did not save. Your words are kept in the editor. Please try again.';
@@ -2376,6 +2381,17 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 window._calReviewComment(m.id, k);
                 _rsFlash('Caption changed, your team can see it', k, m.id, true);
                 _rsRender({ force: true });
+                // The note's own card save marks the part as saving and the approve is dropped while it runs, so the
+                // approve goes the moment the note's save has ended (it is one save at a time on a part).
+                const t0 = Date.now(), pkey = m.id + '|' + k;
+                const approve = () => {
+                    if (R.S !== S) return;
+                    if (_calReviewState.saving[pkey] && Date.now() - t0 < RS_PRE_MS) { setTimeout(approve, 150); return; }
+                    const cur = _rsModelById(m.id);
+                    const x = cur && cur.parts.find(p => p.key === k);
+                    if (x && x.st === 'wait') _rsApprove(cur, k, '');
+                };
+                approve();
             });
             return;
         }

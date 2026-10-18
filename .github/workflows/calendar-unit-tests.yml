@@ -853,6 +853,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-one-system-browser.js
+      - name: Notes on a switched-on client link opens straight into the player view (no old dialog first, final shape from the first frame)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-notes-browser.js
 
 
   split-preview:

@@ -1748,6 +1748,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-notes-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token, with the player's switch answered slowly), no hosted credentials and no live data. Records every frame after a Notes click on a switched-on client link's Sheet tab, at 1440 and 390 wide, and checks no frame shows the Notes dialog without the player and the view has its final shape (portrait, one width) from its first frame.",
+      "reproduce": "node test/review-stage-notes-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "frameio-viewer-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

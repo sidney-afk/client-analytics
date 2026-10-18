@@ -1,6 +1,6 @@
 import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
-import { svFrameFeed, svFrameIoLinkHtml, svFrameStageMount, svFrameWarm, svFrameStageUnmount, svFrameTileAttrs, svFrameTileLabelHtml, svFrameTime } from './187-frame-viewer.js';
+import { svFrameFeed, svFrameFlagWait, svFrameIoLinkHtml, svFrameStageMount, svFrameWarm, svFrameStageUnmount, svFrameTileAttrs, svFrameTileLabelHtml, svFrameTime } from './187-frame-viewer.js';
 import { _svPhoneNotesPresentation } from './095-shared-client.js';
 import {
   CAL_COMPONENTS, CAL_REVIEW_COMPONENTS, _calClearStaleApprovals, _calComponentsFor, _prodCrosswalkInFlight,
@@ -47,7 +47,7 @@ import { _calCrqBegin, _calCrqDone, _calCrqFailed, _calCrqHeld, _calCrqResend, _
 import { _prodCanonicalCommentGate, _prodCardCommentsPending, _prodComments, _prodCommentsSkeletonHtml, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-onboarding-staff-controls.js';
-import { svRsCalOn, svRsCalSync } from './188-review-stage-switch.js';
+import { svRsCalOn, svRsCalSync, svRsClientNoAnalytics } from './188-review-stage-switch.js';
     function _calHasMedia(p) {
         return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim());
     }
@@ -2548,9 +2548,22 @@ import { svRsCalOn, svRsCalSync } from './188-review-stage-switch.js';
         wrap.replaceWith(next);
     }
 
+    let _calNotesHeld = '';
     function openCalComments(pid) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
+        /* A switched-on client link opens the Notes view with the player, but only once the player's switch has been
+           read. Opened before that, the old dialog painted for a moment and then turned into the new view (owner
+           feedback 2026-10-17, session Curtain Nine), so the open waits for the switch (at most 2.5 s). */
+        if (_isClientLink && svRsClientNoAnalytics(calState.client)) {
+            const wait = svFrameFlagWait(2500);
+            if (wait) {
+                _calNotesHeld = pid;
+                wait.then(() => { if (_calNotesHeld === pid) { _calNotesHeld = ''; openCalComments(pid); } });
+                return;
+            }
+        }
+        _calNotesHeld = '';
         _calOpenCommentsPid = pid;
         _calReplyTarget = null;
         _calEditTarget = null;

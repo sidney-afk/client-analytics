@@ -60,13 +60,51 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             const next = _rsParse(rows);
             const changed = next.all || next.clients.size || next.staff.size;
             _rsFlags = next;
+            _rsHintSave(next);
             // Something switched on: the open page draws again, now as the new page.
             if (changed) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
         } catch (e) {
             _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), help: '' };
             _rsFlagPromise = null;
             console.warn('[Review page] switch unreadable; the old page stays', e && e.message);
-        } finally { if (timer) clearTimeout(timer); }
+        } finally {
+            if (timer) clearTimeout(timer);
+            // The Review tab showed a loader while the answer was on its way (below): draw it again now, whatever the
+            // answer, so a switched-off or unreadable answer brings the old list back.
+            if (_rsPendingShown) {
+                _rsPendingShown = false;
+                const drawn = _rsFlags.loaded && (_rsFlags.all || _rsFlags.clients.size || _rsFlags.staff.size);
+                if (!drawn) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
+            }
+        }
+    }
+    /* The last answer this browser saw, kept as a hint (owner feedback 2026-10-17 23:00 UTC; review of #2167): the
+       live read takes 1.5 to 3.7 s, so an SMM who clicks Review soon after the Calendar opens would get the old list
+       painted for that long. While the read is still on its way and the hint lists this client, the Review tab shows
+       the Calendar's loader instead of the old list. The hint never shows the new page by itself (only the live answer
+       does), and a client it does not list keeps today's instant old list, so a switched-off client sees no change. */
+    const RS_HINT_KEY = 'sv-rs-on-clients';
+    let _rsPendingShown = false;
+    function _rsHintSave(f) {
+        try { localStorage.setItem(RS_HINT_KEY, JSON.stringify(f.all ? { all: true } : { clients: Array.from(f.clients) })); } catch (e) {}
+    }
+    function _rsHintHas(client) {
+        try {
+            const h = JSON.parse(localStorage.getItem(RS_HINT_KEY) || 'null');
+            if (!h || typeof h !== 'object') return false;
+            if (h.all === true) return true;
+            const slug = calClientSlug(String(client || ''));
+            return !!slug && Array.isArray(h.clients) && h.clients.includes(slug);
+        } catch (e) { return false; }
+    }
+    // The Review tab asks this before it draws the old list: true means "show the loader, the answer is coming".
+    function svRsCalPending() {
+        if (_rsFlags.loaded || !_rsFlagPromise) return false;
+        if (!calState || !calState.client || calState.loading || calState.error) return false;
+        if (calState.view !== 'review' && calState.view !== 'smmreview') return false;
+        if (!_rsHintHas(calState.client)) return false;
+        _rsPendingShown = true;
+        return true;
     }
     function _rsPrime() {
         if (_rsFlagPromise) return;
@@ -225,7 +263,11 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
                 + 'html.sv-rs-full #calView>#calBody>.cal-organizer-wrap{display:flex;flex-direction:column;justify-content:safe center;box-sizing:border-box;min-height:calc(100vh - var(--sv-rs-head,54px) - 8px);min-height:calc(100dvh - var(--sv-rs-head,54px) - 8px)}'
                 + 'html.sv-rs-full #calView>#calBody>.cal-organizer-wrap>.cal-organizer-strip:not(.is-empty){justify-content:safe center;padding:8px 4px;min-height:0;scroll-padding-right:0}'
                 + 'html.sv-rs-full #calView>#calBody>.cal-organizer-wrap>.cal-organizer-strip::after{content:none}'
-                + '}';
+                + '}'
+                // The "new version of SyncView" bar (350) keeps its place at the bottom centre; while it shows, the review
+                // stage makes room for it (195 reads --rs-bar), so it covers neither the stage's buttons nor the client
+                // page's header (session Curtain Six).
+                + 'html:has(#svUpdateBar) #svReviewStage{--rs-bar:84px}';
             document.head.appendChild(_rsChromeStyle);
         }
         de.classList.toggle('sv-rs-cal', !!on);
@@ -248,6 +290,10 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     // Called at the start of every Calendar body paint, and by the Review tab's renderer. Draws (or removes) the
     // new page beside #calView on the next frame, so the Calendar's own paint finishes first.
     function svRsCalSync() {
+        // Ask for the switch as soon as the Calendar paints any tab for a client, not first on Review: an SMM who
+        // opened on Sheet would otherwise get the old list painted for the first Review click while the answer was
+        // still on its way (owner feedback 2026-10-17 23:00 UTC, session Curtain Six). Read only; nothing is drawn.
+        if (calState && calState.client) _rsPrime();
         const on = svRsCalOn();
         const full = svRsClientFull();
         if ((on || full) && _isClientLink) {
@@ -267,7 +313,14 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             const stillFull = svRsClientFull();
             _rsChrome(still, stillFull);
             _rsToolsSync(stillFull);
-            if (!still && !stillFull) { const api = svAreaApi('reviewstage'); if (api) api.calHide(); return; }
+            if (!still && !stillFull) {
+                const api = svAreaApi('reviewstage');
+                if (api) api.calHide();
+                // A switched-on client on Sheet, Month or Week: fetch the new page's code now, so the first Review
+                // click draws it at once instead of waiting on the download (nothing is drawn here).
+                else if (calState && calState.client && !_isClientLink && _rsClientOn(calState.client)) svArea('reviewstage').catch(() => {});
+                return;
+            }
             svArea('reviewstage').then(api => { if (svRsCalOn() || svRsClientFull()) { api.cal(); if (svRsClientFull()) _rsHeadWatch(); } }, (e) => {
                 // The page could not be fetched: the old page comes back.
                 console.warn('[Review page] could not load; the old page stays', e && e.message);
@@ -315,4 +368,4 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         if (document.getElementById('kasperContent')) svRsKasperHeadSync();
         if (document.getElementById('kasperReviewBody')) _kasperPaintReview();
     });
-export { svRsCalOn, svRsCalSync, svRsClientNoAnalytics, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl };
+export { svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl };

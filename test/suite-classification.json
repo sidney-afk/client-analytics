@@ -1748,6 +1748,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-chat-switch-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people, conversation and token), no hosted credentials and no live data. Checks that the first switch from Sheet to Review never paints the old Review list for a switched-on client (every animation frame, staff Calendar light and dark, client link), that the probe does see the old list with the switch off, that the conversation is a phone-style chat for the client, SMM and Kasper in light and dark (own notes right, others left, bubbles apart from the panel, no side bar, part tags, Done, a long pasted caption keeps its paragraphs and folds behind Show all, nothing saved), and that the new-version bar covers none of the stage's buttons.",
+      "reproduce": "node test/review-stage-chat-switch-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "frameio-viewer-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

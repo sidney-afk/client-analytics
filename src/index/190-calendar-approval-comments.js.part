@@ -47,7 +47,8 @@ import { _calCrqBegin, _calCrqDone, _calCrqFailed, _calCrqHeld, _calCrqResend, _
 import { _prodCanonicalCommentGate, _prodCardCommentsPending, _prodComments, _prodCommentsSkeletonHtml, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-onboarding-staff-controls.js';
-import { svRsCalOn, svRsCalSync } from './188-review-stage-switch.js';
+import { svRsCalOn, svRsCalPending, svRsCalSync } from './188-review-stage-switch.js';
+import { _calLoaderHtml } from './133-core-loading-skeletons.js';
     function _calHasMedia(p) {
         return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim());
     }
@@ -235,6 +236,9 @@ import { svRsCalOn, svRsCalSync } from './188-review-stage-switch.js';
     function renderCalReview() {
         // The new review page (188/195) draws beside #calView when its switch is on for this client.
         if (svRsCalOn()) { svRsCalSync(); return '<div class="sv-rs-slot" hidden></div>'; }
+        // The switch answer is still on its way and this browser last saw the client switched on: a loader, not the
+        // old list (188, svRsCalPending).
+        if (svRsCalPending()) return _calLoaderHtml();
         const items = _calReviewItems();
         /* The notice sits ABOVE the queue in both states. An empty queue with
            stranded work is the case that made this necessary; a non-empty queue

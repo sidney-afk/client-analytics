@@ -853,6 +853,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-one-system-browser.js
+      - name: Review page first switch, chat and update bar (old list never paints on the first Sheet to Review, phone-style conversation, bar clear of the stage buttons)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-chat-switch-browser.js
 
 
   split-preview:

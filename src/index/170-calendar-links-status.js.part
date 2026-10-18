@@ -2092,7 +2092,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
        edit stayed unsaved until the person noticed and clicked. A save the
        server answered and refused is left for the person, as before. Staff
        pages only: a client link's answers have their own resend (185). */
-    const CAL_NETWORK_FAILURE_RE = /failed to fetch|networkerror|network request failed|load failed|network connection was lost|internet connection|server has not answered|checking whether saving is on (failed|took too long)/i;
+    const CAL_NETWORK_FAILURE_RE = /failed to fetch|networkerror|network request failed|load failed|network connection was lost|internet connection|server has not answered|timed out|checking whether saving is on (failed|took too long)/i;
     /* The fields each card's failed saves were carrying, so the automatic resend
        sends THOSE and nothing else. A bare Retry re-sends this tab's whole copy of
        the card, which would put back anything a teammate changed while this

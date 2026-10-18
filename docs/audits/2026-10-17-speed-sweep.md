@@ -130,10 +130,15 @@ In rough order of how many people they cost time.
    requested only after the switches answer (~1.7 s on the client link). It
    could be fetched in parallel with the link check for links whose client is
    on the switch.
-4. **Calendar opened without a client in the address** (the saved client, or
-   a click on the tab) still reads its cards after the scripts load; #2185 only
-   covers `/calendar/<slug>`. The saved client could be predicted from local
-   storage in the head the same way.
+4. **Samples, and Calendar opened without a client in the address,** still
+   read their cards only after the scripts load (Samples: `sample_reviews`
+   starts at ~1.16 s on a cold `/sample-reviews/<slug>` load). #2185 covers
+   `/calendar/<slug>` only. `_sxrFetchPosts` builds the same shape of URL, so
+   the same head pattern applies (about 0.3 s); left as a follow-up so it does
+   not edit the same head lines as #2185 before that merges. The staff Samples
+   card also downloads the 640 px Drive thumbnail (914 KB for the test client's
+   sample); every view shares that one cached URL (`_calDeriveThumb`), so a
+   smaller size needs a per-view decision, not a one-line change.
 5. **Today reads its whole day twice on every load**: the early read, then once
    more when its live connection comes up (deliberate: a change between the two
    is never replayed). About 7 requests and 130 KB extra, off the critical

@@ -719,7 +719,13 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
         // replay those rows still represent. The consumed-receipt signature
         // is a readable journal with zero rows for the card.
         const journalUnreadable = Number(journal.unknown || 0) > 0;
-        journal.groups.forEach(group => tasks.push(_writeUiReplayJournalGroup(group, principal)));
+        journal.groups.forEach(group => {
+            // A refresh can see the checkpoint of the foreground save that is still committing it.
+            // Let that writer finish; replaying it here can consume its receipt before it acknowledges success.
+            if (group.surface === 'calendar' && group.lane === 'card'
+                && typeof _calSaveInFlight !== 'undefined' && _calSaveInFlight[group.post_id]) return;
+            tasks.push(_writeUiReplayJournalGroup(group, principal));
+        });
         // A display-cache checkpoint without its exact journal receipt can be
         // left behind by a crash between source success and cache cleanup. It
         // is not proof of a native commit and must never auto-apply stale data.
@@ -768,7 +774,11 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
                 try { _sxrCacheWrite(sxrClientSlug(sxrState.client), sxrState.posts, { clearRepairIds: healedIds }); } catch (e) {}
             }
         }
-        return Promise.all(tasks);
+        const resumed = Promise.all(tasks);
+        // Hydration timers fire this without awaiting it. Keep failures observable to explicit callers and
+        // retain their journal, while preventing an unhandled rejection from the background trigger.
+        resumed.catch(() => { try { _writeUiQueueDiagnostic('lifecycle', 'source_resume_failed', { kind: 'source-repair' }); } catch (e) {} });
+        return resumed;
     }
     function _writeUiStoredSourceRepairState() {
         const seen = new Set();

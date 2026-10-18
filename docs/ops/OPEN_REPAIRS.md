@@ -33540,3 +33540,19 @@ part's eligibility for client caption and title edits, refuses clearly when it w
 Visual verification also found false Saved badges on pending/refused captions and plain client notes without an
 in-conversation failure/retry. Confirmed saves alone now mark Saved; caption failures stay visibly on the stage and
 plain-note retries reuse the existing outbox id. The tests check visible controls, not announcement text alone.
+
+The same audit confirmed Kasper's approval toast intercepting Next post at desktop width 1024, locally and in hosted
+Chromium. The stage now reserves space for that toast. The Finish regression checks the button and toast do not
+overlap while the toast is visible; an additional real-click test confirms Undo still restores the part's status.
+
+The expanded shared Notes-dialog fault matrix also reproduced a refused Delete hiding the note locally while
+claiming a native write was safe and would retry automatically. Only an explicit native acknowledgement now permits
+the saved-note message; other failures say the note change was not saved and ask the person to refresh/check it.
+Reply and delete are exercised separately under the dialog fault conditions. The legacy fixture has no Edit control;
+the corresponding cases assert unavailability and zero writes, and make no canonical note-edit save claim.
+
+Repeated WebKit overnight approval stress reproduced an unhandled repair_checkpoint_missing in 6/60 cases after
+the approval had landed. A hydration-triggered replay could compete with an active foreground checkpoint and left
+its rejecting promise unobserved. Source repair now defers the actively saving Calendar card, continues other cards,
+and observes background rejection without consuming the original promise. The durability test executes deferral,
+later eligibility and rejection propagation; an offline browser regression overlaps approval and recovery.

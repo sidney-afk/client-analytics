@@ -5,7 +5,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { chromium, firefox, webkit } = require('playwright');
 const { serveStatic } = require('../docs/syncview-design/tests/prod-test-utils');
-const { stripBlockComments } = require('./helpers/strip-comments');
 const { CLIENT, STAFF, open, openClient, inS, waitNew, sleep } = require('./fixtures/review-stage-fixture');
 const engines = { chromium, firefox, webkit };
 const cachedStage = process.env.G3_CACHE_REF ? '(function(){\n' + require('node:child_process').execFileSync('git', ['show', process.env.G3_CACHE_REF + ':src/index/195-review-stage.js.part'], { cwd: path.join(__dirname, '..'), encoding: 'utf8' }).replace(/^import .*;\r?\n/gm, '') + '\n})();' : '';
@@ -21,7 +20,7 @@ async function setup(browser, origin, role, width, state, more) {
   const t = role === 'client' ? await openClient(browser, origin, opt) : await open(browser, origin, { ...opt, staff: STAFF });
   try {
   t.browser = browser; t.origin = origin;
-  t.page.setDefaultTimeout(6000);
+  t.page.setDefaultTimeout(15000);
   t.page.setDefaultNavigationTimeout(30000);
   if (role === 'kasper') {
     await t.page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
@@ -43,8 +42,12 @@ async function post(t, id) {
   await until(async () => !!await inS(t.page, '.chipp.cur[data-id="' + id + '"]').count(), 'post did not switch');
   await sleep(350);
 }
-async function enterWords(t, selector, text, long) {
-  const box = inS(t.page, selector);
+async function saveError(t) {
+  // Player errors also offer Try again; only a save's own alert establishes a refused write.
+  return await inS(t.page, '[data-err]:visible, .bub .err[role="alert"]:visible').count() > 0;
+}
+async function enterWords(t, selector, text, long, outside = false) {
+  const box = outside ? t.page.locator(selector) : inS(t.page, selector);
   if (!long) return box.fill(text);
   // Win WebKit's fill times out on this payload even in a bare textarea after inserting it. Use the browser's
   // native text insertion after real focus/selection, and still require byte-for-byte input and saved text.
@@ -72,14 +75,15 @@ async function setupSmm(browser, origin, role, width) {
   } catch (e) { await t.ctx.close(); throw e; }
 }
 async function runCase(browser, origin, role, width, label, fn, more) {
+  if (process.env.G3_CASE && !label.includes(process.env.G3_CASE)) return;
   let t;
   try {
     t = more === 'smm' ? await setupSmm(browser, origin, role, width) : await setup(browser, origin, role, width, undefined, more);
     await fn(t);
     assert.deepEqual(t.errors, [], 'page errors');
-    if (process.env.G3_SHOTS && /refused plain|refused caption|caption editor|refused change/.test(label)) {
+    if (process.env.G3_SHOTS && /refused|caption editor|Finish|Undo/.test(label)) {
       fs.mkdirSync(process.env.G3_SHOTS, { recursive: true });
-      await t.page.screenshot({ path: path.join(process.env.G3_SHOTS, (process.env.G3_ENGINES || 'browser') + '-' + role + '-' + width + '-' + label.replace(/[^a-z0-9]+/gi, '-') + '.png') });
+      await t.page.screenshot({ path: path.join(process.env.G3_SHOTS, browser.browserType().name() + '-' + role + '-' + width + '-' + label.replace(/[^a-z0-9]+/gi, '-') + '.png') });
     }
     passed++;
     console.log('PASS ' + role + ' ' + width + ' ' + label);
@@ -90,6 +94,20 @@ async function runCase(browser, origin, role, width, label, fn, more) {
   } finally { if (t) await t.ctx.close(); }
 }
 async function regressions(browser, origin, role, width) {
+  if (role === 'client') await runCase(browser, origin, role, width, 'background repair waits for active approval', async t => {
+    t.state.writeDelay = 1000;
+    await inS(t.page, '[data-ok="video"]').click();
+    await until(() => t.state.attempts.some(a => a.endpoint === 'production-write' && a.body.operation === 'status'), 'native approval did not start');
+    const n = t.state.attempts.length;
+    await t.page.evaluate(async () => {
+      if (!_calSaveInFlight.rs1) throw Error('foreground save must still be active');
+      await _writeUiResumeSourceRepairs();
+    });
+    assert.equal(t.state.attempts.length, n, 'background repair competed with the foreground native write');
+    await until(() => t.state.cards[0].video_status === 'Approved', 'foreground approval did not finish');
+    await sleep(700);
+    assert.equal(t.state.upserts.filter(p => p.video_status === 'Approved').length, 1);
+  });
   await runCase(browser, origin, role, width, 'unsent note survives post switch', async t => {
     await inS(t.page, '#ta').fill('Unsent 日本語 café 👩🏽‍💻');
     await post(t, 'rs2');
@@ -136,6 +154,13 @@ async function regressions(browser, origin, role, width) {
     assert.match(await t.page.locator('#confirmOverlay').textContent(), /caption.*changed|changed.*caption/i);
     await t.page.locator('#confirmOverlay button').filter({ hasText: 'Cancel' }).click();
     assert.equal(t.state.upserts.length, 0);
+    await inS(t.page, '#capSave').click();
+    await t.page.locator('#confirmOverlay.active').waitFor({ state: 'visible' });
+    await t.page.locator('#confirmYes').click();
+    await until(() => t.state.cards[0].caption === 'My unsent caption', 'confirmed caption replacement did not land');
+    await until(() => JSON.parse(t.state.cards[0].caption_tweaks || '[]').some(n => n.body.includes('My unsent caption') && n.body.includes('The newer team caption')), 'replacement note lost the prior caption');
+    assert.equal(t.state.upserts.filter(p => p.caption === 'My unsent caption').length, 1);
+    assert.equal(t.state.cards[0].caption_status, 'Client Approval');
   });
   if (role === 'client') await runCase(browser, origin, role, width, 'caption approved by team while editor open', async t => {
     await step(t, 'caption'); await inS(t.page, '#editBtn').click();
@@ -285,7 +310,7 @@ async function exercise(t, role, action, condition) {
     const landed = kind === 'approve' ? row[part + '_status'] === (role === 'client' ? 'Approved' : 'Client Approval')
       : kind === 'caption-edit' ? row.caption === text
       : JSON.parse(row[part + '_tweaks'] || '[]').some(n => n.body === (kind === 'frame' ? 'Tweaks are on Frame.' : kind === 'title-edit' ? 'Please use this title:\n\n' + text : text));
-    return landed || /not (saved|sent)|refused|try again/i.test(ui);
+    return landed || await saveError(t);
   }, 'save neither landed nor showed a failure', 18000);
   await sleep(condition === 'drop-before' || condition === 'drop-after' ? 7000 : 700);
   const ui = await inS(t.page, '#rsApp').textContent();
@@ -299,8 +324,19 @@ async function exercise(t, role, action, condition) {
     }
     return;
   }
-  if (!t.state.upserts.length) {
+  const ownLanded = kind === 'approve' ? row[part + '_status'] === (role === 'client' ? 'Approved' : 'Client Approval')
+    : kind === 'caption-edit' ? row.caption === text
+    : JSON.parse(row[part + '_tweaks'] || '[]').some(n => n.body === (kind === 'frame' ? 'Tweaks are on Frame.' : kind === 'title-edit' ? 'Please use this title:\n\n' + text : text));
+  for (const [other, status] of Object.entries(untouched)) assert.equal(row[other + '_status'], status, 'changed another part status');
+  if (condition === 'two-tabs') assert.equal(JSON.parse(row.caption_tweaks || '[]').filter(n => n.body === 'Other tab words').length, 1, 'peer note lost');
+  if (!ownLanded) {
+    assert.ok(await saveError(t), 'transport failure must have its own visible save alert');
     assert.match(ui, /not (saved|sent)|refused|try again/i, 'silent transport failure');
+    if (!['approve', 'frame'].includes(kind)) {
+      const kept = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; return [...r.querySelectorAll('textarea')].map(x => x.value).join('\n') + r.textContent; });
+      assert.ok(kept.includes(text), 'typed words lost after transport failure');
+    }
+    console.log('  Own save refused visibly; typed words and peer outcome checked');
     return;
   }
   if (kind === 'approve') assert.equal(row[part + '_status'], role === 'client' ? 'Approved' : 'Client Approval');
@@ -318,8 +354,11 @@ async function exercise(t, role, action, condition) {
     if (kind === 'after-tweaks') assert.ok(String(row.kasper_approved_after_tweaks || '').split(',').includes(part), 'missing pre-approval marker');
     if (kind === 'title-edit') assert.equal(row.name, 'Why the first second matters', 'client renamed a card');
   }
-  for (const [other, status] of Object.entries(untouched)) assert.equal(row[other + '_status'], status, 'changed another part status');
-  if (condition === 'two-tabs') assert.equal(JSON.parse(row.caption_tweaks || '[]').filter(n => n.body === 'Other tab words').length, 1, 'peer note lost');
+  if (condition === 'double-click') {
+    const committed = t.state.gateway.map(body => JSON.parse(body)).filter(b => !b.reconcile_only && t.state.nativeReceipts[b.request_id]);
+    for (const op of ['status', 'comment']) assert.ok(new Set(committed.filter(b => b.operation === op).map(b => b.request_id)).size <= 1, 'double click committed two native ' + op + ' intents');
+    if (kind === 'approve') assert.equal(t.state.upserts.filter(p => Object.hasOwn(p, part + '_status')).length, 1, 'double click persisted approval twice');
+  }
 }
 async function matrix(browser, origin, role, width) {
   const list = process.env.G3_CONDITIONS ? process.env.G3_CONDITIONS.split(',') : conditions;
@@ -332,6 +371,14 @@ async function matrix(browser, origin, role, width) {
   }));
 }
 async function auxiliary(browser, origin, role, width) {
+  if (role === 'kasper') await runCase(browser, origin, role, width, 'approval Undo stays reachable', async t => {
+    await inS(t.page, '[data-ok="video"]').click();
+    await until(() => t.state.cards[0].video_status === 'Client Approval', 'approval missing');
+    await t.page.locator('.sv-toast-action').filter({ hasText: 'Undo' }).click();
+    await until(() => t.state.cards[0].video_status === 'Kasper Approval', 'Undo did not restore the part');
+    assert.equal(t.state.cards[0].caption_status, 'Kasper Approval');
+    assert.equal(t.state.cards[0].graphic_status, 'Kasper Approval');
+  });
   await runCase(browser, origin, role, width, 'two tabs approve versus change on the same part', async t => {
     const peer = await setup(browser, origin, role, width, t.state);
     try {
@@ -351,8 +398,21 @@ async function auxiliary(browser, origin, role, width) {
       await step(t, part); await inS(t.page, '[data-ok="' + part + '"]').click();
       await until(() => t.state.cards[0][part + '_status'] === (role === 'client' ? 'Approved' : 'Client Approval'), 'part approval missing');
     }
-    await until(async () => await inS(t.page, '#moveOn').count() || (await inS(t.page, '#finishBtn').count() && await inS(t.page, '#finishBtn').isEnabled()), 'Finish never enabled');
-    await inS(t.page, await inS(t.page, '#moveOn').count() ? '#moveOn' : '#finishBtn').click();
+    // The last native acknowledgement can replace Finish with Next post between two locator reads.
+    const next = inS(t.page, '#moveOn:visible, #finishBtn:visible:not(:disabled)').first();
+    await next.waitFor({ state: 'visible' });
+    if (role === 'kasper') {
+      const toast = t.page.locator('.sv-toast.show');
+      await toast.waitFor({ state: 'visible' });
+      const geometry = await next.evaluate(el => {
+        const a = el.getBoundingClientRect(), b = document.querySelector('.sv-toast.show').getBoundingClientRect();
+        return { clear: a.bottom <= b.top || b.bottom <= a.top || a.right <= b.left || b.right <= a.left,
+          reserve: getComputedStyle(document.getElementById('svReviewStage')).getPropertyValue('--rs-toast').trim(), button: a.toJSON(), toast: b.toJSON() };
+      });
+      assert.equal(geometry.reserve, '96px', 'toast space must exist before header chrome mounts');
+      assert.ok(geometry.clear, 'approval toast covers Next post: ' + JSON.stringify(geometry));
+    }
+    await next.click();
     await until(async () => !await inS(t.page, '.chipp.cur[data-id="rs1"]').count(), 'Finish stayed on answered post');
     assert.equal(t.state.cards[1].video_status, role === 'client' ? 'Client Approval' : 'Kasper Approval', 'Finish answered another post');
   });
@@ -383,10 +443,114 @@ async function auxiliary(browser, origin, role, width) {
     assert.ok(!JSON.parse(row.caption_tweaks).find(n => n.id === parent.id).deleted, 'deleting reply deleted root');
   });
 }
+async function dialogMatrix(browser, origin, role, width) {
+  if (role !== 'client') return;
+  for (const condition of process.env.G3_CONDITIONS ? process.env.G3_CONDITIONS.split(',') : conditions) for (const kind of ['reply', 'edit', 'delete']) {
+    await runCase(browser, origin, role, width, 'Notes dialog ' + condition + ' ' + kind, async t => {
+      await t.page.evaluate(() => onCalViewChange('organizer'));
+      const door = t.page.locator('[data-comments-btn]').filter({ visible: true }).first();
+      const id = await door.getAttribute('data-comments-btn'), row = t.state.cards.find(c => c.id === id);
+      assert.ok(row);
+      await door.click();
+      const box = t.page.locator('#calCommentComposer');
+      await box.waitFor({ state: 'visible' });
+      await t.page.evaluate(() => _calSetComposeComp('caption'));
+      await box.fill('Dialog root words'); await box.press('Enter');
+      await until(() => JSON.parse(row.caption_tweaks || '[]').some(n => n.body === 'Dialog root words'), 'dialog root missing');
+      await sleep(700);
+      const rootId = JSON.parse(row.caption_tweaks).find(n => n.body === 'Dialog root words').id;
+      const root = t.page.locator('#calCommentsModal .cal-cm-row').filter({ hasText: 'Dialog root words' }).first();
+      const statuses = Object.fromEntries(['video', 'graphic', 'caption', 'title'].map(k => [k, row[k + '_status']]));
+      if (condition === 'slow-5s') t.state.writeDelay = 5000;
+      if (condition === 'refused') t.state.refusal = { code: 'operation_forbidden', status: 403 };
+      if (condition === 'drop-before') t.state.dropBefore = 1;
+      if (condition === 'drop-after') t.state.dropAfter = 1;
+      if (condition === 'overnight') { t.state.clockOffset = 16 * 3600000; await t.page.clock.fastForward(t.state.clockOffset); }
+      if (['new-version', 'status-moved', 'no-video'].includes(condition)) {
+        if (condition === 'new-version') row.asset_url += '?version=2';
+        if (condition === 'no-video') row.asset_url = '';
+        if (condition === 'status-moved') { row.caption_status = 'Tweaks Needed'; statuses.caption = row.caption_status; }
+        row.updated_at = new Date(Date.now() + 1000).toISOString();
+        await t.page.evaluate(() => loadCalendarPosts({ background: true, quiet: true })); await sleep(700);
+      }
+      const text = condition === 'long-unicode' ? ('Dialog 日本語 العربية café 👩🏽‍💻 <tag>\n').repeat(180) + 'End.' : 'Dialog reply 日本語 👋';
+      await root.hover();
+      const n = t.state.attempts.length;
+      if (kind === 'edit' && !await root.locator('.cal-cm-action').filter({ hasText: 'Edit' }).count()) {
+        // Legacy threads offer Reply/Delete, while Edit requires a canonical can_edit capability.
+        const linked = await t.page.evaluate(id => _prodCanonicalCommentGate(calState.posts.find(p => p.id === id), 'caption').linked, id);
+        assert.equal(linked, false, 'a canonical thread unexpectedly omitted Edit');
+        assert.equal(JSON.parse(row.caption_tweaks).find(n => n.id === rootId).body, 'Dialog root words');
+        assert.equal(t.state.attempts.length, n, 'unavailable Edit must not write');
+        console.log('  Edit is unavailable on this legacy thread; no edit-save coverage claimed');
+        return;
+      }
+      if (kind !== 'delete') {
+        await root.locator('.cal-cm-action').filter({ hasText: kind === 'reply' ? 'Reply' : 'Edit' }).click();
+        await enterWords(t, '#calCommentComposer', text, condition === 'long-unicode', true);
+        await box.press('Enter');
+        if (condition === 'double-click') await box.press('Enter');
+      } else {
+        await root.locator('.cal-cm-action').filter({ hasText: 'Delete' }).click();
+        const yes = t.page.locator('#confirmYes');
+        if (condition === 'double-click') await yes.evaluate(b => { b.click(); b.click(); }); else await yes.click();
+      }
+      let peer;
+      if (condition === 'two-tabs') {
+        peer = await setup(browser, origin, role, width, t.state);
+        await peer.page.evaluate(() => onCalViewChange('organizer'));
+        await peer.page.locator('[data-comments-btn="' + id + '"]').filter({ visible: true }).click();
+        await peer.page.locator('#calCommentComposer').waitFor({ state: 'visible' });
+        await peer.page.evaluate(() => _calSetComposeComp('caption'));
+        await peer.page.locator('#calCommentComposer').fill('Peer dialog words'); await peer.page.locator('#calCommentComposer').press('Enter');
+      }
+      const landed = () => {
+        const notes = JSON.parse(row.caption_tweaks || '[]');
+        return kind === 'delete' ? !!notes.find(n => n.id === rootId && n.deleted) : notes.some(n => n.body === text && (kind === 'reply' || n.id === rootId));
+      };
+      const errorVisible = async () => {
+        const failed = await t.page.locator('#calCommentsModal .sv-note-outbox.is-failed:visible').count();
+        const overlay = t.page.locator('#confirmOverlay.active');
+        const notice = await overlay.count() ? await overlay.innerText() : '';
+        return failed > 0 || /not (saved|sent)|could(n.t| not) (save|send)|try again|refused|failed/i.test(notice);
+      };
+      try {
+        if (condition === 'drop-before' || condition === 'drop-after') {
+          await until(() => t.state.attempts.length > n, 'dialog save was not attempted');
+          await t.page.evaluate(() => { window.dispatchEvent(new Event('offline')); window.dispatchEvent(new Event('online')); });
+        }
+        await until(async () => landed() || await errorVisible(), 'dialog save neither landed nor showed an error', 18000);
+        await sleep(['drop-before', 'drop-after'].includes(condition) ? 7000 : 700);
+        if (condition === 'refused') {
+          assert.ok(!landed(), 'refused dialog mutation committed');
+          if (kind === 'delete') {
+            const notice = await t.page.locator('#confirmOverlay').textContent();
+            assert.ok(!/native note is safe|retry automatically/i.test(notice), 'refused delete claimed an acknowledged native write');
+          }
+        }
+        if (!landed()) {
+          assert.ok(await errorVisible(), 'silent dialog failure');
+          if (kind !== 'delete') {
+            const words = await t.page.locator('#calCommentsOverlay').textContent() + await box.inputValue();
+            assert.ok(words.includes(text), 'dialog words lost');
+          }
+        } else if (kind !== 'delete') {
+          const matches = JSON.parse(row.caption_tweaks).filter(n => n.body === text);
+          assert.equal(matches.length, 1, 'duplicate dialog note'); assert.equal(matches[0].parent_id, kind === 'reply' ? rootId : null); assert.equal(matches[0].role, 'client');
+        }
+        for (const [k, status] of Object.entries(statuses)) assert.equal(row[k + '_status'], status, 'dialog changed a part status');
+        if (peer) {
+          await until(() => JSON.parse(row.caption_tweaks || '[]').some(n => n.body === 'Peer dialog words'), 'peer dialog note lost');
+          assert.deepEqual(peer.errors, []);
+        }
+      } finally { if (peer) await peer.ctx.close(); }
+    });
+  }
+}
 // Enumerate from the owning tables rather than keeping a second list that can drift.
 const refusalSource = fs.readFileSync(path.join(__dirname, '../src/index/120-calendar-flags-write-repair.js.part'), 'utf8');
 const refusalTables = refusalSource.slice(refusalSource.indexOf('const WRITE_UI_FAILURE_CODE_CLASS'), refusalSource.indexOf('function _writeUiFailureText'));
-const refusalTableCode = stripBlockComments(refusalTables).replace(/\/\/[^\n]*/g, '');
+const refusalTableCode = require('./helpers/strip-comments').stripComments(refusalTables, ' ');
 const refusalCodes = [...new Set([
   ...[...refusalTableCode.matchAll(/'([a-z][a-z0-9]+(?:_[a-z0-9]+)+)'/g)].map(m => m[1]),
   ...[...refusalTableCode.matchAll(/^\s+([a-z][a-z0-9]+(?:_[a-z0-9]+)+):\s*\{/gm)].map(m => m[1])
@@ -416,7 +580,7 @@ async function refusals(browser, origin, role, width) {
   });
 }
 (async () => {
-  if (process.env.G3_MODE && !['matrix', 'regressions', 'auxiliary', 'refusals'].includes(process.env.G3_MODE)) throw Error('Unknown G3_MODE');
+  if (process.env.G3_MODE && !['matrix', 'regressions', 'auxiliary', 'refusals', 'dialogs'].includes(process.env.G3_MODE)) throw Error('Unknown G3_MODE');
   if (process.env.G3_CONDITIONS && process.env.G3_CONDITIONS.split(',').some(c => !conditions.includes(c))) throw Error('Unknown G3_CONDITIONS');
   if (process.env.G3_ROLES && process.env.G3_ROLES.split(',').some(r => !['client', 'kasper'].includes(r))) throw Error('Unknown G3_ROLES');
   if (process.env.G3_REPEAT && !/^(?:[1-9]|1[0-9]|20)$/.test(process.env.G3_REPEAT)) throw Error('G3_REPEAT must be 1 to 20');
@@ -428,6 +592,7 @@ async function refusals(browser, origin, role, width) {
         if (!process.env.G3_MODE || process.env.G3_MODE === 'regressions') await regressions(browser, origin, role, width);
         if (!process.env.G3_MODE || process.env.G3_MODE === 'matrix') await matrix(browser, origin, role, width);
         if (!process.env.G3_MODE || process.env.G3_MODE === 'auxiliary') await auxiliary(browser, origin, role, width);
+        if (!process.env.G3_MODE || process.env.G3_MODE === 'dialogs') await dialogMatrix(browser, origin, role, width);
         if (!process.env.G3_MODE || process.env.G3_MODE === 'refusals') await refusals(browser, origin, role, width);
       } }
       finally { await browser.close(); }

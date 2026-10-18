@@ -3548,6 +3548,8 @@
         /* Toast (Undo + confirmations) */
         .sv-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(10px); background: var(--toast-bg); color: var(--toast-color); border-radius: 12px; padding: 11px 16px; display: flex; align-items: center; gap: 14px; font-size: 0.84rem; font-weight: 600; box-shadow: 0 10px 32px var(--sv-shadow-rgba-0-0-0-0_28); z-index: 3000; opacity: 0; transition: opacity 0.18s ease, transform 0.18s ease; max-width: min(92vw, 480px); }
         .sv-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        /* Reserve the review controls' room even before the optional header chrome has mounted. */
+        body:has(.sv-toast) #svReviewStage { --rs-toast: 96px; }
         .sv-toast-msg { line-height: 1.35; }
         .sv-toast-action { background: var(--sv-bg-rgba-255-255-255-0_16); border: none; color: var(--sv-fg-fff); font-family: inherit; font-size: 0.8rem; font-weight: 800; border-radius: 8px; padding: 6px 13px; cursor: pointer; flex-shrink: 0; transition: background 0.13s; }
         .sv-toast-action:hover { background: var(--sv-bg-rgba-255-255-255-0_28); }

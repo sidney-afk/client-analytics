@@ -154,15 +154,23 @@ const textWrites = (t, from) => t.state.upserts.slice(from).filter(u => 'caption
       await t.ctx.close();
     }
 
-    // ---------- a click before the viewer switch has been read still opens the viewer ----------
-    {
-      console.log('--- client Sheet, video door clicked before the switch is read ---');
-      const t = await openClient(browser, origin, { flags: 'off', collab: true, frameDelay: 2500 });
+    // ---------- a click before the viewer switch has been read ----------
+    // The click is held at most 0.7 s for the switch (a link opened later than that can be blocked as a popup):
+    // a switch that answers within that opens the viewer; a slower one opens the link at once (Codex review of PR 2209).
+    for (const [delay, wantViewer] of [[300, true], [2500, false]]) {
+      console.log('--- client Sheet, video door clicked before the switch is read (switch answers in ' + delay + ' ms) ---');
+      const t = await openClient(browser, origin, { flags: 'off', collab: true, frameDelay: delay });
       await ready(t, 'organizer');
       let popup = false; t.page.context().on('page', () => { popup = true; });
       await t.page.locator('.cal-card[data-pid="rs1"] .cal-link-post a.cal-link-pill-open').first().click();
-      await t.page.locator('#calNotesStage .fv-player').first().waitFor({ timeout: 20000 });
-      expect(!popup, 'early click: the viewer opens and the old link does not');
+      if (wantViewer) {
+        await t.page.locator('#calNotesStage .fv-player').first().waitFor({ timeout: 20000 });
+        expect(!popup, 'early click, quick switch: the viewer opens and the old link does not');
+      } else {
+        for (let i = 0; i < 30 && !popup; i++) await sleep(100);
+        expect(popup, 'early click, slow switch: the link opens within a second instead of waiting');
+        expect(!(await t.page.locator('#calNotesStage .fv-player').count()), 'early click, slow switch: no viewer opens on top as well');
+      }
       await t.ctx.close();
     }
 

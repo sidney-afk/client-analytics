@@ -13,6 +13,11 @@ const FRAME = 'https://f.io/FixtureClip1';
 const MEDIA = 'https://media.fixture.test/clip.webm';
 const POSTER = { l: 'https://media.fixture.test/poster-l.png', p: 'https://media.fixture.test/poster-p.png' };
 const CLIP = { l: fs.readFileSync(path.join(__dirname, 'frameio-viewer-clip.webm')), p: fs.readFileSync(path.join(__dirname, 'frameio-viewer-clip-vertical.webm')) };
+/* The page's real web font, served from the repo's own copy (the start page bundles Plus Jakarta Sans, weights 300 to
+   800). Blocking Google Fonts left text in each machine's fallback font, so layout measurements differed between a
+   sandbox and CI (review-stage-skeleton failed only on CI, 2026-10-18). */
+const WEB_FONT = fs.readFileSync(path.join(__dirname, '..', '..', 'start', 'assets', 'plus-jakarta-sans.woff2'));
+const WEB_FONT_CSS = "@font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:300 800;font-display:swap;src:url(https://fonts.gstatic.com/fixture/plus-jakarta-sans.woff2) format('woff2')}";
 const PNG = { l: fs.readFileSync(path.join(__dirname, 'frameio-viewer-poster-landscape.png')), p: fs.readFileSync(path.join(__dirname, 'frameio-viewer-poster-vertical.png')) };
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS' };
 const FAKE_SUPABASE = "window.supabase={createClient:function(){return{channel:function(){var ch={on:function(){return ch;},subscribe:function(){return ch;}};return ch;},removeChannel:function(){}};}};";
@@ -106,7 +111,8 @@ async function open(browser, origin, opt) {
       if (range) { const a = Number(range[1]), b = range[2] ? Math.min(Number(range[2]), clip.length - 1) : clip.length - 1; return route.fulfill({ status: 206, headers: Object.assign({ 'content-range': `bytes ${a}-${b}/${clip.length}`, 'accept-ranges': 'bytes' }, CORS), contentType: 'video/webm', body: clip.subarray(a, b + 1) }); }
       return route.fulfill({ status: 200, headers: Object.assign({ 'accept-ranges': 'bytes' }, CORS), contentType: 'video/webm', body: clip });
     }
-    if (u.host === 'fonts.googleapis.com' || u.host === 'fonts.gstatic.com') return route.abort();
+    if (u.host === 'fonts.googleapis.com') return route.fulfill({ status: 200, headers: CORS, contentType: 'text/css', body: WEB_FONT_CSS });
+    if (u.host === 'fonts.gstatic.com') return route.fulfill({ status: 200, headers: CORS, contentType: 'font/woff2', body: WEB_FONT });
     if (p === '/functions/v1/key-verify') return json({ ok: true, role: opt.staff ? opt.staff.role : 'admin', member: opt.staff || STAFF });
     if (p === '/functions/v1/client-token-verify') {
       const b = JSON.parse(r.postData() || '{}');

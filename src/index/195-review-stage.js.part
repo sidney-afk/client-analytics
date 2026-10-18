@@ -232,7 +232,8 @@ svg{display:block;flex-shrink:0}
 .skm.land{--aw:16;--ah:9}
 .chipp.skc{pointer-events:none}
 .chipp.skc .cx{display:flex;flex-direction:column;gap:7px;flex:1;min-width:0}
-.stp.skp{pointer-events:none;width:104px}
+.stp.skp{pointer-events:none;width:86px}
+#stepper li:nth-child(3) .stp.skp{width:113px}#stepper li:nth-child(5) .stp.skp{width:99px}
 .stp.skp .sd{background:var(--fill)}
 .sk-bub{display:flex;gap:8px;align-items:flex-end}
 .sk-bub .sk-b{border-radius:14px}
@@ -524,6 +525,7 @@ svg{display:block;flex-shrink:0}
 .stepper::-webkit-scrollbar{display:none}
 .stepper .ln{width:12px;flex-shrink:0}
 .stp{padding:0 11px 0 8px;font-size:.76rem;flex-shrink:0}
+.stp.skp{width:80px}#stepper li:nth-child(3) .stp.skp{width:106px}#stepper li:nth-child(5) .stp.skp{width:93px}
 .stp .sm{display:none}
 .view{flex:none;height:min(46vh,420px)}
 .sd-news small{display:none}
@@ -1318,7 +1320,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         _rsQ('skList').innerHTML = Array.from({ length: 6 }, () => '<span class="chipp skc" aria-hidden="true"><span class="sl"><span class="si"></span></span><span class="cx">' + B('120px') + B('34px', '6px') + '</span></span>').join('');
         _rsQ('side').innerHTML = '<div class="sd-t"><h2>' + B('340px', '.8em', '8px', ';display:inline-block;vertical-align:middle;max-width:70vw') + '</h2></div>';
         const d = _rsQ('sdate'); d.hidden = false; d.innerHTML = RI.cal + '<span>' + T('64px') + '</span>';
-        _rsQ('stepper').innerHTML = [0, 1, 2].map(i => (i ? '<li class="ln" aria-hidden="true"></li>' : '') + '<li><span class="stp skp" aria-hidden="true"><span class="sd"></span>' + B('46px', '9px') + '</span></li>').join('');
+        _rsQ('stepper').innerHTML = [0, 1, 2].map(i => (i ? '<li class="ln" aria-hidden="true"></li>' : '') + '<li><span class="stp skp" aria-hidden="true"><span class="sd"></span>' + B('28px', '9px') + '</span></li>').join('');
         const v = _rsQ('view');
         if (!_rsQ('skMedia')) v.insertAdjacentHTML('beforeend', '<i class="sk-b skm" id="skMedia" aria-hidden="true"></i>');
         // The media's shape: the first post's own when this browser already holds the cards (a YouTube card is wide),

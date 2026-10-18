@@ -53,7 +53,7 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
     // The thumbnail switch survives a reload and a "Restore it" (a saved
     // video-only submission must come back as video only).
     const LINEAR_THUMB_KEY = 'syncview_linear_make_thumbnail';
-    let _linearCountUndoVideos = null;
+    let _linearCountUndo = null;
 
     const _LINEAR_HELP = {
         folder: 'The Google Drive folder with everything from this shoot. The team starts here.',
@@ -97,7 +97,7 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
             savedVideoCount = Math.max(last, 1);
         }
         _linearSetVideoCount(Math.max(savedVideoCount, 1));
-        _linearCountUndoVideos = null;
+        _linearCountUndo = null;
 
         let videoCards = '';
         for (let i = 1; i <= linearVideoCount; i++) {
@@ -286,11 +286,19 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
         // focus after Enter): leave any Undo on screen.
         if (n === current) { _linearCountSync(); if (note) _linearCountNote(note); return; }
         const videos = (saveLinearForm().videos || []).slice();
+        // A pending Undo is the list as it stood before the first removal,
+        // with the removed videos marked. The videos on screen are its
+        // unmarked entries, in order, so read them back from the form first:
+        // anything typed since the removal is kept.
+        let entries = _linearCountUndo
+            ? (k => _linearCountUndo.map(e => e.removed ? e : { video: videos[k++] || {}, removed: false }))(0)
+            : videos.map(v => ({ video: v, removed: false }));
         if (n > current) {
+            for (let i = current; i < n; i++) entries.push({ video: {}, removed: false });
             while (videos.length < n) videos.push({});
-            _linearCountUndoVideos = null;
+            if (_linearCountUndo) _linearCountUndo = entries;
             _linearDrawVideos(videos);
-            _linearCountNote(note);
+            if (_linearCountUndo) _linearCountUndoNote(note); else _linearCountNote(note);
             return;
         }
         // Lowering: empty videos go first, from the bottom up. A video that
@@ -301,30 +309,44 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
         for (let i = videos.length - 1; i >= 0 && excess > 0; i--) {
             if (!_linearVideoHasContent(videos[i])) { keep[i] = false; excess--; }
         }
-        const removedFilled = [];
         for (let i = videos.length - 1; i >= 0 && excess > 0; i--) {
-            if (keep[i]) { keep[i] = false; excess--; removedFilled.unshift(i + 1); }
+            if (keep[i]) { keep[i] = false; excess--; }
         }
-        _linearCountUndoVideos = removedFilled.length ? videos.slice() : null;
+        let j = 0;
+        entries = entries.map(e => e.removed ? e : (keep[j++] ? e : { video: e.video, removed: true }));
+        _linearCountUndo = entries.some(e => e.removed && _linearVideoHasContent(e.video)) ? entries : null;
         _linearDrawVideos(videos.filter((_, i) => keep[i]));
-        if (removedFilled.length) {
-            const count = removedFilled.length === 1 ? 'a video' : removedFilled.length + ' videos';
-            _linearCountNote(note + (note ? ' ' : '') + 'Removed ' + count + ' with links or notes (' + _linearListNumbers(removedFilled)
-                + '). <button type="button" class="uf-undo" id="linearCountUndo" onclick="undoLinearVideoCount()">Undo</button>');
-        } else {
-            _linearCountNote(note);
-        }
+        if (_linearCountUndo) _linearCountUndoNote(note);
+        else _linearCountNote(note);
+    }
+
+    // Names every filled video still waiting for Undo, by the number it had
+    // before the first removal, so a second lowering never hides the first.
+    function _linearCountUndoNote(note) {
+        const nums = [];
+        _linearCountUndo.forEach((e, i) => { if (e.removed && _linearVideoHasContent(e.video)) nums.push(i + 1); });
+        const count = nums.length === 1 ? 'a video' : nums.length + ' videos';
+        _linearCountNote(note + (note ? ' ' : '') + 'Removed ' + count + ' with links or notes (' + _linearListNumbers(nums)
+            + '). <button type="button" class="uf-undo" id="linearCountUndo" onclick="undoLinearVideoCount()">Undo</button>');
     }
 
     function stepLinearVideoCount(delta) {
         setLinearVideoCount(String(_linearCountCards() + delta));
     }
 
+    // Undo puts every removed video back in its old place and keeps what was
+    // typed into the others since. Empty boxes added after the removal give
+    // way, from the bottom, if the total would pass the cap.
     function undoLinearVideoCount() {
-        if (!_linearCountUndoVideos) return;
-        const videos = _linearCountUndoVideos;
-        _linearCountUndoVideos = null;
-        _linearDrawVideos(videos);
+        if (!_linearCountUndo) return;
+        const current = (saveLinearForm().videos || []).slice();
+        let k = 0;
+        const entries = _linearCountUndo.map(e => e.removed ? e : { video: current[k++] || e.video, removed: false });
+        _linearCountUndo = null;
+        for (let i = entries.length - 1; i >= 0 && entries.length > LINEAR_MAX_VIDEOS; i--) {
+            if (!entries[i].removed && !_linearVideoHasContent(entries[i].video)) entries.splice(i, 1);
+        }
+        _linearDrawVideos(entries.map(e => e.video));
         _linearCountNote('Put back.');
     }
 

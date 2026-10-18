@@ -2752,7 +2752,7 @@
         .uf .linear-field[hidden] { display: none; }
         .uf .linear-label, .uf .uf-l { font-size: 0.8rem; font-weight: 650; text-transform: none; letter-spacing: 0; color: var(--text-primary); }
         .uf .uf-l { font-size: 0.76rem; color: var(--text-secondary); }
-        .uf .uf-opt { font-weight: 500; color: var(--text-muted); margin-left: 4px; }
+        .uf .uf-opt { font-weight: 500; color: var(--text-secondary); margin-left: 4px; }
         .uf .linear-input, .uf .linear-textarea { border: 1.5px solid transparent; background: var(--uf-field); border-radius: 12px; padding: 12px 14px; box-shadow: none; transition: border-color 0.15s, box-shadow 0.15s, background 0.15s; }
         .uf .linear-input:hover, .uf .linear-textarea:hover { background: var(--uf-field-hover); }
         .uf .linear-input:focus, .uf .linear-textarea:focus { border-color: var(--uf-accent); box-shadow: 0 0 0 4px var(--uf-accent-soft); background: var(--uf-field); }
@@ -2815,8 +2815,8 @@
             .uf .linear-submit-btns { width: 100%; }
             .uf .linear-submit-primary { width: 100%; min-height: 52px; }
             .uf .uf-switch { align-self: flex-start; min-height: 40px; }
-            .uf .uf-count-btn { width: 40px; height: 40px; }
-            .uf .uf-count-input { height: 40px; font-size: 16px; }
+            .uf .uf-count-btn { width: 44px; height: 44px; }
+            .uf .uf-count-input { height: 44px; font-size: 16px; }
             .uf .linear-input, .uf .linear-textarea { font-size: 16px; }
         }
         /* The saved-submission box (Submit tab and Create Post): what is saved and the three ways out. */

@@ -233,6 +233,27 @@ async function behaviour(browser, port) {
     check(await cardCount(page) === 1 && /2 videos/.test(await note(page)), 'lowering to 1 with three filled says two filled videos were removed');
     await page.locator('#linearCountUndo').click();
     check(await cardCount(page) === 3 && await page.locator('#vid_main_2').inputValue() === 'https://drive.invalid/b', 'Undo restores all of them');
+    // Undo keeps what was typed after the removal, and two lowerings in a row
+    // can both be undone.
+    const vals = () => page.evaluate(() => Array.from(document.querySelectorAll('[id^="videoCard_"]')).map((c, i) => ['main', 'side', 'notes'].map(k => (document.getElementById('vid_' + k + '_' + (i + 1)) || {}).value || '').join('/')));
+    await page.locator('#linearCountMinus').click();
+    await page.locator('#vid_side_1').fill('typed after');
+    await page.locator('#linearCountUndo').click();
+    check((await vals()).join('|') === 'https://drive.invalid/a/typed after/|https://drive.invalid/b//|//a note only',
+      'Undo puts the removed video back and keeps what was typed into the others since');
+    await page.locator('#linearCountMinus').click();
+    await page.locator('#linearCountMinus').click();
+    check(await cardCount(page) === 1 && /videos 2 and 3/.test(await note(page)), 'a second lowering names both removed videos');
+    await page.locator('#linearCountUndo').click();
+    check((await vals()).join('|') === 'https://drive.invalid/a/typed after/|https://drive.invalid/b//|//a note only', 'one Undo restores both, in place');
+    await page.locator('#linearCountMinus').click();
+    await page.locator('#linearCountPlus').click();
+    check(await cardCount(page) === 3 && /Undo/.test(await note(page)), 'raising after a removal keeps the Undo on offer');
+    await page.locator('#linearCountUndo').click();
+    check((await vals()).join('|') === 'https://drive.invalid/a/typed after/|https://drive.invalid/b//|//a note only|//', 'Undo after raising puts the removed video back and keeps the new box');
+    await page.locator('#linearVideoCount').fill('3');
+    await page.locator('#linearVideoCount').press('Enter');
+    await page.locator('#vid_side_1').fill('');
     const savedCount = await page.evaluate(() => JSON.parse(localStorage.getItem('syncview_linear_form')).videos.length);
     check(savedCount === 3, 'the saved draft follows the count');
 
@@ -278,6 +299,16 @@ async function behaviour(browser, port) {
     await page.locator('label[for="vid_audio_1"] [data-sv-explain]').focus();
     await page.waitForTimeout(200);
     check(/main camera already has good audio/.test(await tipText()), 'keyboard focus on the Audio label explains it');
+    // A label hovered while the field above it has focus never covers that field.
+    await page.keyboard.press('Escape');
+    await page.locator('#vid_main_1').click();
+    await page.locator('label[for="vid_side_1"] [data-sv-explain]').hover();
+    await page.waitForTimeout(300);
+    check(await page.evaluate(() => { const t = document.getElementById('globalTooltip'); if (!t || !t.isConnected) return false; const a = t.getBoundingClientRect(), b = document.getElementById('vid_main_1').getBoundingClientRect(); return !(a.bottom > b.top && a.top < b.bottom && a.right > b.left && a.left < b.right); }),
+      'an explanation never covers the field being typed into');
+    await page.mouse.move(5, 5);
+    await page.locator('label[for="vid_audio_1"] [data-sv-explain]').focus();
+    await page.waitForTimeout(200);
     await page.keyboard.press('Escape');
     await page.waitForTimeout(150);
     check(!(await tipText()), 'Escape dismisses the explanation');

@@ -1847,6 +1847,15 @@
         .cal-sk-tb-icon { width: 32px; height: 32px; border-radius: 8px; }
         .cal-sk-direction { height: 55px; margin-top: 6px; border-radius: 10px; }
         .cal-sk-foot.is-notes { height: 24px; padding-left: 0; }
+        .cal-sk-review-list { display: flex; flex-direction: column; gap: 14px; }
+        .cal-sk-kcard { display: grid; grid-template-columns: 96px 1fr auto; gap: 14px; padding: 12px; align-items: center; background: var(--white); border: 1px solid var(--border); border-radius: 14px; }
+        .cal-sk-kcard-thumb { width: 96px; height: 96px; border-radius: 10px; }
+        .cal-sk-kcard-main { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+        .cal-sk-kcard-title { height: 23px; display: flex; align-items: center; }
+        .cal-sk-kcard-line { height: 18px; display: flex; align-items: center; }
+        .cal-sk-kcard-chips { height: 16px; margin-top: 3px; display: flex; gap: 6px; }
+        .cal-sk-kcard-actions { display: flex; align-items: center; gap: 6px; }
+        .cal-sk-kcard-btn { width: 32px; height: 32px; border-radius: 8px; }
         .cal-sk-phone { display: none; }
         #calView[data-pocket-staff-phone] .cal-skeleton-loader.cal-sheet-skeleton { padding: 0; }
         #calView[data-pocket-staff-phone] .cal-skeleton-loader.cal-sheet-skeleton::before { content: none; }

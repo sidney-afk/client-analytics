@@ -121,6 +121,23 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
             <div class="cal-organizer-wrap cal-sk-desktop"><div class="cal-organizer-strip cal-sk-strip" aria-hidden="true">${[0, 1, 2, 3, 4, 5].map(_svSamplesSheetCardSkeletonHtml).join('')}</div></div>
         </div>`;
     }
+    /* Staff Samples Review: the loaded list's own wrap and card grid (96px
+       thumbnail, title, the "needs approval" line, the status chips, the two
+       buttons), six cards. test/samples-review-skeleton-shape-browser.js. */
+    function _svSamplesReviewSkeletonHtml(label) {
+        const card = i => `<div class="cal-sk-kcard">
+            ${_svSkel('cal-sk-kcard-thumb')}
+            <div class="cal-sk-kcard-main">
+                <div class="cal-sk-kcard-title">${_svSkel('sv-skeleton-line', 'width:' + (i % 3 === 1 ? '96px' : '120px') + ';height:18px;')}</div>
+                <div class="cal-sk-kcard-line">${_svSkel('sv-skeleton-line', 'width:250px;height:12px;')}</div>
+                <div class="cal-sk-kcard-chips">${_svSkel('', 'width:175px;height:16px;border-radius:5px;')}${_svSkel('', 'width:207px;height:16px;border-radius:5px;')}</div>
+            </div>
+            <div class="cal-sk-kcard-actions">${_svSkel('cal-sk-kcard-btn')}${_svSkel('cal-sk-kcard-btn')}</div>
+        </div>`;
+        return `<div class="cal-loader cal-skeleton-loader cal-sheet-skeleton" role="status" aria-label="${_calEscAttr(label || 'Loading sample reviews')}">
+            <div class="cal-review-wrap"><div class="cal-sk-review-list" aria-hidden="true">${[0, 1, 2, 3, 4, 5].map(card).join('')}</div></div>
+        </div>`;
+    }
     function _svCalendarSheetSkeletonHtml(label) {
         return `<div class="cal-loader cal-skeleton-loader cal-sheet-skeleton" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
             <div class="cal-organizer-wrap cal-sk-desktop"><div class="cal-organizer-strip cal-sk-strip" aria-hidden="true">${[0, 1, 2, 3, 4, 5].map(_svCalendarSheetCardSkeletonHtml).join('')}</div></div>
@@ -426,6 +443,7 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
         if (kind === 'workload') return _svWorkloadSkeletonHtml();
         if (kind === 'samples') return _svSamplesSkeletonHtml(opts.label);
         if (kind === 'samples-sheet') return _svSamplesSheetSkeletonHtml(opts.label);
+        if (kind === 'samples-review') return _svSamplesReviewSkeletonHtml(opts.label);
         if (kind === 'review') return _svReviewSkeletonHtml(opts.label);
         if (kind === 'table') return _svTableSkeletonHtml(opts.rows || 5);
         if (kind === 'onboarding') return _svOnboardingSkeletonHtml();

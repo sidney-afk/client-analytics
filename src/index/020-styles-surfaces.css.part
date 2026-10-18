@@ -479,6 +479,9 @@
         .cal-view-btn.active { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 4px var(--sv-shadow-rgba-0-0-0-0_06); }
         .cal-view-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; padding: 0 5px; border-radius: 99px; background: var(--sv-bg-ec4899); color: var(--sv-fg-fff); font-size: 0.64rem; font-weight: 800; line-height: 1; }
         .cal-view-btn.active .cal-view-badge { background: var(--sv-bg-db2777); }
+        /* The count arrives with the data: it must not make its button taller, or the whole toolbar
+           and the page under it move 3px down when it appears (Mould, 2026-10-18). */
+        .cal-view-toggle .cal-view-badge { margin-block: -2px; }
         .cal-month-filter { position: relative; display: inline-flex; align-items: center; }
         .cal-month-filter .dropdown-trigger { padding: 8px 14px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; color: var(--text-primary); background: var(--bg); box-shadow: none; }
         .cal-month-filter .dropdown-trigger:hover { box-shadow: 0 1px 4px var(--sv-shadow-rgba-0-0-0-0_08); color: var(--text-primary); }

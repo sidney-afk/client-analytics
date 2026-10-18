@@ -1,13 +1,16 @@
 'use strict';
 /*
- * Staff Samples Sheet: the loading skeleton has the shape of what loads (owner,
+ * Staff Samples Sheet and Review: the loading skeleton has the shape of what loads (owner,
  * 2026-10-17: "Every skeleton should match the actual shape of what is
  * loading").
  *
  * Before: while the samples loaded, the Sheet drew three small list cards in
  * the middle of the page; the loaded Sheet is a strip of tall cards.
  * After: a strip of cards at the loaded cards' boxes, row for row (title, two
- * links, creative direction, Notes, Set all, two status rows).
+ * links, creative direction, Notes, Set all, two status rows). The Review tab
+ * drew the same three small cards; it now draws the loaded list's wide cards
+ * (thumbnail, title, the "needs approval" line, chips, two buttons). The
+ * Review count badge no longer makes the toolbar 3px taller when it arrives.
  *
  * How: fixture samples, every backend call answered locally; the samples'
  * read is held back, the skeleton measured, released, the loaded Sheet
@@ -35,6 +38,10 @@ const card = (id, order) => ({
   caption: 'Short test caption.', cta: '', thumbnail_url: '', asset_url: '', comments: [], graphic_comments: [], caption_comments: [],
 });
 const CARDS = [1, 2, 3, 4, 5, 6, 7, 8].map(i => card('c' + i, i));
+// The Review tab lists samples waiting on the SMM, with their links.
+const REVIEW_CARDS = CARDS.map((c, i) => Object.assign({}, c, { video_status: 'For SMM Approval', graphic_status: 'For SMM Approval',
+  asset_url: 'https://drive.google.com/file/d/fixturevideo' + i + '/view', thumbnail_url: 'https://drive.google.com/file/d/fixturethumb' + i + '/view' }));
+let SERVE = CARDS;
 
 function sameBox(a, b) { return a && b && ['x', 'y', 'w', 'h'].every(k => Math.abs(a[k] - b[k]) <= TOL); }
 function show(b) { return b ? `${b.x},${b.y} ${b.w}x${b.h}` : 'missing'; }
@@ -52,6 +59,10 @@ function measure(which) {
   if (which === 'skeleton') {
     const phone = firstVisible('.cal-sk-phone');
     if (phone) return { phone: [phone.querySelector('.cal-sk-phone-bar'), phone.querySelector('.cal-sk-phone-display'), ...[...phone.querySelectorAll('.cal-sk-phone-tile')].filter(e => e.getBoundingClientRect().top < innerHeight)].map(box) };
+    const tbS = document.querySelector('#sxrView .cal-toolbar');
+    const kc = [...document.querySelectorAll('#sxrBody .cal-sk-kcard')];
+    if (kc.length) return { tb: [box(tbS)], review: kc.filter(e => e.getBoundingClientRect().top < innerHeight).map(box),
+      inner: [...kc[0].querySelectorAll('.cal-sk-kcard-thumb, .cal-sk-kcard-main > *, .cal-sk-kcard-chips > *, .cal-sk-kcard-btn')].map(box) };
     const root = document.querySelector('#sxrBody .cal-sheet-skeleton');
     if (!root) return {};
     const cards = [...root.querySelectorAll('.cal-sk-card')].filter(vis).filter(inView);
@@ -66,6 +77,10 @@ function measure(which) {
   }
   const bar = document.querySelector('#calView .thumb-collection-bar');
   if (bar && vis(bar)) return { phone: [bar, bar.querySelector('.thumb-display'), ...[...document.querySelectorAll('#calView .thumb-grid-card')].filter(e => e.getBoundingClientRect().top < innerHeight)].map(box) };
+  const tbL = document.querySelector('#sxrView .cal-toolbar');
+  const kl = [...document.querySelectorAll('#sxrBody .kcard')];
+  if (kl.length) return { tb: [box(tbL)], review: kl.filter(e => e.getBoundingClientRect().top < innerHeight).map(box),
+    inner: [...kl[0].querySelectorAll('.kcard-thumb, .kcard-main > *, .cal-review-sub-row > *, .kcard-actions > button')].map(box) };
   const cards = [...document.querySelectorAll('#sxrBody .cal-card')].filter(vis).filter(inView);
   const c = cards[0];
   const tb = document.querySelector('#calView .cal-toolbar');
@@ -105,7 +120,7 @@ async function routeBackend(page, origin, opts) {
     if (p === '/rest/v1/sample_reviews') {
       if (state.hold) await held;
       const one = String(sp.get('id') || '').replace(/^eq\./, '');
-      return json(CARDS.filter(c => !one || c.id === one));
+      return json(SERVE.filter(c => !one || c.id === one));
     }
     if (/\/rest\/v1\//.test(p)) return json([]);
     if (/\/functions\/v1\/|\/webhook\//.test(p) || /n8n\.cloud$/.test(u.hostname)) return json({});
@@ -122,7 +137,8 @@ async function shot(page, name) {
 }
 
 // In the app: open the Sheet with the cards' read held, measure, release, measure.
-async function inApp(browser, origin, label, viewport, theme) {
+async function inApp(browser, origin, label, viewport, theme, review) {
+  SERVE = review ? REVIEW_CARDS : CARDS;
   const phone = viewport.width < 500;
   const ctx = await browser.newContext({ serviceWorkers: 'block', viewport, colorScheme: theme, isMobile: phone, hasTouch: phone });
   await ctx.addInitScript(t => { try { localStorage.setItem('syncview_theme', t); } catch (e) {} }, theme);
@@ -132,20 +148,25 @@ async function inApp(browser, origin, label, viewport, theme) {
   await seedStaffGate(page);
   const backend = await routeBackend(page, origin, {});
   await page.goto(`${origin}/index.html?v=calendar`, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => typeof onSxrPickClient === 'function' && typeof navTo === 'function', null, { timeout: 30000 });
+  await page.waitForFunction(() => typeof onSxrPickClient === 'function' && typeof onSxrViewChange === 'function' && typeof navTo === 'function', null, { timeout: 30000 });
   backend.hold = true;
-  await page.evaluate(n => { _syncviewStaffIdentityVerified = true; navTo('samples'); onSxrPickClient(n); }, NAME);
+  await page.evaluate(([n, r]) => { _syncviewStaffIdentityVerified = true; navTo('samples'); onSxrPickClient(n); if (r) onSxrViewChange('smmreview'); }, [NAME, !!review]);
   await page.waitForFunction(() => document.querySelector('#sxrBody [role="status"]'), null, { timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(400);
   const skel = await page.evaluate(measure, 'skeleton');
   await shot(page, `${label}-skeleton`);
   backend.release();
-  const loaded = await page.waitForSelector('#sxrBody .cal-card', { timeout: 20000 }).then(() => true, () => false);
+  const loaded = await page.waitForSelector(review ? '#sxrBody .kcard' : '#sxrBody .cal-card', { timeout: 20000 }).then(() => true, () => false);
   expect(loaded, `${label}: the cards load`);
   await page.waitForTimeout(800);
   const real = await page.evaluate(measure, 'loaded');
   await shot(page, `${label}-loaded`);
-  if (phone) {
+  if (review) {
+    expect(Array.isArray(skel.review), `${label}: the skeleton is the Review list`);
+    compare(`${label} toolbar`, skel.tb || [], real.tb || []);
+    compare(`${label} list cards`, (skel.review || []).slice(0, (real.review || []).length), real.review || []);
+    compare(`${label} first card insides`, skel.inner || [], real.inner || []);
+  } else if (phone) {
     expect(Array.isArray(skel.phone), `${label}: the skeleton shows the phone grid (got ${Object.keys(skel).join(',') || 'nothing'})`);
     // The skeleton draws three rows of tiles; the fixture fills two and a half.
     // Every loaded tile must sit on a skeleton tile.
@@ -169,10 +190,12 @@ async function inApp(browser, origin, label, viewport, theme) {
     const desk = { width: 1440, height: 900 };
     await inApp(browser, origin, 'samples-desktop-light', desk, 'light');
     await inApp(browser, origin, 'samples-desktop-dark', desk, 'dark');
+    await inApp(browser, origin, 'samples-review-desktop-light', desk, 'light', true);
+    await inApp(browser, origin, 'samples-review-desktop-dark', desk, 'dark', true);
   } finally {
     await browser.close();
     server.close();
   }
   if (failures.length) { console.error(`\n${failures.length} check(s) failed, ${checks} passed.`); process.exit(1); }
-  console.log(`\nsamples sheet skeleton shape: ${checks} checks passed`);
+  console.log(`\nsamples sheet and review skeleton shape: ${checks} checks passed`);
 })().catch(e => { console.error(e); process.exit(1); });

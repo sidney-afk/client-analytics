@@ -1719,7 +1719,7 @@
       "file": "samples-sheet-skeleton-shape-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, fictional test client and samples, no hosted credentials. Checks the staff Samples Sheet loading skeleton has the loaded Sheet's shape: card, thumbnail and row boxes, desktop light and dark, within 1px.",
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, fictional test client and samples, no hosted credentials. Checks the staff Samples Sheet and Review loading skeletons have the loaded shape: Sheet card, thumbnail and row boxes; Review toolbar, list cards and the first card's insides; desktop light and dark, within 1px.",
       "reproduce": "node test/samples-sheet-skeleton-shape-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },

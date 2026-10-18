@@ -239,6 +239,46 @@ function allowedNoop(c) {
     || (c.tag === 'BUTTON' && !attrs.onclick && /^Open$|^Active$/.test(text));
 }
 
+
+/* Closed list of assertion ids for the CI summary, in the style of
+   prod-layout-polish.js. Each rule maps a failure message SHAPE to a literal id;
+   the message body (control text, selectors, URLs, error text) is never printed.
+   A failure that matches no rule is simply not named. */
+const INTERACTION_ASSERTIONS = [
+  ['ipi_js_error_after_click', /JS error after click/],
+  ['ipi_silent_noop', /silent no-op/],
+  ['ipi_list_contextmenu', /list group right-click/],
+  ['ipi_context_menu_missing', /right-click did not open a Production context menu/],
+  ['ipi_project_menu_actions', /board project right-click menu/],
+  ['ipi_hover_tip', /hover tip did not render/],
+  ['ipi_row_open', /row click did not open/],
+  ['ipi_row_checkbox', /row checkbox did not select/],
+  ['ipi_locked_fixture', /Linear-authoritative fixture/],
+  ['ipi_locked_row_controls', /did not stay locked with the authority guard/],
+  ['ipi_client_chip', /row client chip did not open/],
+  ['ipi_subissue_rows', /sub-issue|parent detail|parent sub-issue/],
+  ['ipi_card_cursor', /project card cursor/],
+  ['ipi_fake_controls', /fake favorite|fake add\/options/],
+  ['ipi_write_like_requests', /write-like requests observed/],
+  ['ipi_browser_errors', /^browser errors:/],
+  ['ipi_probe_errors', /^page probe errors:/],
+  ['ipi_error_card', /Production preview rendered an error card/],
+];
+const INTERACTION_STATES = ['list', 'listSelected', 'filteredEmpty', 'detail', 'board', 'boardSelected', 'project'];
+
+function reportFailedAssertions(failures) {
+  const ids = [];
+  for (const [id, re] of INTERACTION_ASSERTIONS) {
+    if (!failures.some(f => re.test(String(f)))) continue;
+    ids.push(id);
+  }
+  /* Which click state, by closed list only. */
+  for (const st of INTERACTION_STATES) {
+    if (failures.some(f => String(f).startsWith(st + ' '))) ids.push('ipi_state_' + st);
+  }
+  if (ids.length) console.log('INTERACTION_FAILED_ASSERTIONS ' + ids.join(' '));
+}
+
 function sameCandidate(a, b) {
   return a && b && a.key === b.key && a.occ === b.occ;
 }
@@ -603,8 +643,10 @@ async function selectionChecks(page) {
 
   try {
     await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('.prod-row, .prod-empty-state, .prod-error', { timeout: 30000 });
-    if (await page.locator('.prod-error').count()) throw new Error('Production preview rendered an error card');
+    try {
+      await page.waitForSelector('.prod-row, .prod-empty-state, .prod-error', { timeout: 30000 });
+    } catch (e) { console.log('INTERACTION_FAILED_ASSERTIONS ipi_first_paint_timeout'); throw e; }
+    if (await page.locator('.prod-error').count()) { console.log('INTERACTION_FAILED_ASSERTIONS ipi_error_card'); throw new Error('Production preview rendered an error card'); }
 
     const results = [];
     const failures = [];
@@ -632,7 +674,7 @@ async function selectionChecks(page) {
     const probeErrors = await page.evaluate(() => window.__prodProbeErrors || []);
     if (probeErrors.length) failures.push('page probe errors: ' + probeErrors.slice(0, 5).join(' | '));
 
-    if (failures.length) throw new Error(failures.join('\n'));
+    if (failures.length) { reportFailedAssertions(failures); throw new Error(failures.join('\n')); }
     if (selectionOnly) console.log('prod-interaction-inventory: locked non-TEST selection path and no writes/errors passed');
     else console.log(`prod-interaction-inventory: click states ${results.join(', ')}, right-click menus, ${hoverChecked} hover tips, no writes/errors passed`);
   } finally {

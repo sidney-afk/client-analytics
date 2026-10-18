@@ -87,7 +87,7 @@ async function open(browser, origin, opt) {
   await ctx.routeWebSocket('**/*', s => s.close());
   const page = await ctx.newPage();
   const errors = [];
-  page.on('pageerror', e => errors.push(String(e.message || e).slice(0, 200)));
+  page.on('pageerror', e => errors.push(String(opt.context ? e.stack || e.message || e : e.message || e).slice(0, opt.context ? 1200 : 200)));
   if (opt.staff) {
     const id = JSON.stringify({ key: 'qa-key', role: opt.staff.role, member: opt.staff, verified_at: new Date().toISOString() });
     await page.addInitScript(([v, dark]) => { try { localStorage.setItem('syncview_staff_identity_v1', v); localStorage.setItem('syncview_auth_v1', 'ok'); if (dark) localStorage.setItem('syncview_theme', 'dark'); } catch (e) {} }, [id, !!opt.dark]);

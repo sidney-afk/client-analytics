@@ -935,6 +935,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-staff-layout-browser.js
+      - name: Kasper's With the editors rows (Client · Title, a small grey date, Ping editor kept)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-with-editors-row-browser.js
       - name: New review page as one system (one Kasper header on every section, Messages inside the tab, no page scroll, the app's colour tokens)
         if: ${{ !cancelled() }}
         env:

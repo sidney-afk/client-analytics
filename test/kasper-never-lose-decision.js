@@ -661,6 +661,23 @@ async function localMarksExpireAndUrgentWins() {
   assert.strictEqual(s._kasperIsFinished(ping), false, 'an urgent ping puts a hidden card back in front of him, even inside the window');
 }
 
+// Speed sweep 2026-10-17: the skip notes read starts beside the calendars, not
+// after the sent-at read, and a failed read still leaves the queue painting
+// with the notes it had.
+function skipsReadStartsWithTheCalendars() {
+  const run = extract('_kasperLoadReviewRun');
+  assert.ok(run, '_kasperLoadReviewRun must exist');
+  const start = run.indexOf('_kasperFetchSkips()');
+  assert.ok(start > 0 && start < run.indexOf('await _kasperFetchAllRelevantPosts('),
+    'the skips read must start before the calendars are awaited');
+  assert.ok(run.split('_kasperFetchSkips(').length === 2, 'and must be read once per load, not again later');
+  assert.ok(/_kasperFetchSkips\(\)\.then\(skips => \(\{ skips \}\), \(\) => null\)/.test(run),
+    'a failed read must never reject (no unhandled rejection when the calendars fail first)');
+  assert.ok(/if \(skipsRead\) _kasperState\.skips = skipsRead\.skips;/.test(run),
+    'a failed read keeps the notes it had');
+  assert.ok(run.indexOf('await skipsPromise') > run.indexOf('_kasperFetchSentEvents(items)'),
+    'the notes are applied where they were before, after the queue is sorted');
+}
 (async () => {
   await runCase('plain approve refused by an unrelated change is re-checked and applied', approveRefusedByAnUnrelatedChange);
   await runCase('a value the server already holds is not re-sent', alreadyApplied);
@@ -673,6 +690,7 @@ async function localMarksExpireAndUrgentWins() {
   await runCase('staff skipping Kasper is listed with who and when', staffSkipIsListed);
   await runCase('his own decisions are not skips', hisOwnDecisionsAreNotSkips);
   await runCase('history rows carry the skip note', historyGetsTheNote);
+  await runCase('the skip notes are read beside the calendars, not after them', skipsReadStartsWithTheCalendars);
   await runCase('"Sent back to you" marker', sentBackMarker);
   await runCase('urgent tag and the renamed editor button', urgentTagAndButton);
   await runCase('unsaved-change alerts stay until he acts', alertsStayUntilHeAct);

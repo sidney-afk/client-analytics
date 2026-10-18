@@ -41,7 +41,7 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
 import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
 import { _caRender, _kasperEnsureAllTabCounts, _kasperRenderReplies } from './323-kasper-dashboard-tail.js';
 import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './330-kasper-review-history.js';
-import { svRsKasperHeadSync, svRsKasperLeave } from './188-review-stage-switch.js';
+import { svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn } from './188-review-stage-switch.js';
     /* The Samples subtab was folded into Review (samples are listed in the
        Review queue) and then removed. Links that still name it, including
        urgent pings already sent, open Review instead of failing. */
@@ -52,6 +52,14 @@ import { svRsKasperHeadSync, svRsKasperLeave } from './188-review-stage-switch.j
         { label: 'Pipeline & Admin', keys: ['sales-intake', 'hiring-process', 'onboarding', 'quiz-leads', 'client-credentials', 'clients', 'save-problems'] },
         { label: 'Analytics', keys: ['ad-performance'] },
     ];
+    /* With the new review page on for this person (188, owner feedback 2026-10-17 23:20, session Curtain Seven) his
+       tabs are only Review Session and Messages; Filming Plans moves into More (still reachable there). Switch off:
+       today's three tabs. */
+    const KASPER_RS_PRIMARY_SUBTAB_KEYS = ['review', 'replies'];
+    const KASPER_RS_MORE_GROUPS = [{ label: 'Content', keys: ['filming'] }].concat(KASPER_MORE_GROUPS);
+    function _kasperRsNav() { try { return svRsKasperOn(); } catch (e) { return false; } }
+    function _kasperPrimaryKeys() { return _kasperRsNav() ? KASPER_RS_PRIMARY_SUBTAB_KEYS : KASPER_PRIMARY_SUBTAB_KEYS; }
+    function _kasperMoreGroups() { return _kasperRsNav() ? KASPER_RS_MORE_GROUPS : KASPER_MORE_GROUPS; }
     const KASPER_MORE_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="3" cy="8" r=".8" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r=".8" fill="currentColor" stroke="none"/><circle cx="13" cy="8" r=".8" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="6.5"/></svg>';
     const KASPER_MORE_CHEVRON = '<svg class="kasper-more-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>';
     // Optional override — if your workspace's primary domain is known, set it here.
@@ -153,11 +161,12 @@ import { svRsKasperHeadSync, svRsKasperLeave } from './188-review-stage-switch.j
                 ${t.icon}<span class="kasper-tab-label-full">${_calEsc(t.label)}</span><span class="kasper-tab-label-short">${_calEsc(shortLabel)}</span>${count}
             </button>`;
         };
-        const primaryTabs = KASPER_PRIMARY_SUBTAB_KEYS
+        const primaryTabs = _kasperPrimaryKeys()
             .map(key => visibleTabs.find(t => t.key === key))
             .filter(Boolean);
         const primaryTabsHtml = primaryTabs.map(t => tabButtonHtml(t, false)).join('');
-        const moreGroupsHtml = KASPER_MORE_GROUPS.map(group => {
+        const moreGroups = _kasperMoreGroups();
+        const moreGroupsHtml = moreGroups.map(group => {
             const groupTabs = group.keys.map(key => visibleTabs.find(t => t.key === key)).filter(Boolean);
             if (!groupTabs.length) return '';
             return `<div class="kasper-more-group" role="presentation">
@@ -165,7 +174,7 @@ import { svRsKasperHeadSync, svRsKasperLeave } from './188-review-stage-switch.j
                 ${groupTabs.map(t => tabButtonHtml(t, true)).join('')}
             </div>`;
         }).join('');
-        const moreKeys = new Set(KASPER_MORE_GROUPS.flatMap(group => group.keys));
+        const moreKeys = new Set(moreGroups.flatMap(group => group.keys));
         const activeMoreTab = visibleTabs.find(t => t.key === _kasperState.tab && moreKeys.has(t.key));
         const moreIcon = activeMoreTab ? activeMoreTab.icon : KASPER_MORE_ICON;
         const moreLabel = activeMoreTab ? activeMoreTab.label : 'More';
@@ -174,7 +183,7 @@ import { svRsKasperHeadSync, svRsKasperLeave } from './188-review-stage-switch.j
                 <div class="kasper-title">Kasper</div>
                 <div class="kasper-sub">Things waiting for your call.</div>
             </div>
-            <nav class="kasper-subtabs" aria-label="Kasper sections">
+            <nav class="kasper-subtabs" aria-label="Kasper sections" data-kasper-rs-nav="${_kasperRsNav() ? 'on' : 'off'}">
                 ${primaryTabsHtml}
                 <div class="kasper-more" onkeydown="_kasperOnMoreKeydown(event)">
                     <button type="button" class="kasper-subtab kasper-more-trigger${activeMoreTab ? ' active' : ''}" data-kasper-more-trigger aria-haspopup="menu" aria-expanded="false" aria-controls="kasperMoreMenu"${activeMoreTab ? ' aria-current="page"' : ''} onclick="_kasperToggleMore(event)">
@@ -196,6 +205,23 @@ import { svRsKasperHeadSync, svRsKasperLeave } from './188-review-stage-switch.j
         </div>`;
     }
 
+    // The switch (or the signed-in person) can be known only after the header was drawn: the tabs are drawn again
+    // when the answer differs from the one they were drawn with, keeping the counts already shown.
+    function _kasperRsNavRefresh() {
+        const nav = document.querySelector('.kasper-wrap > .kasper-subtabs');
+        if (!nav || nav.getAttribute('data-kasper-rs-nav') === (_kasperRsNav() ? 'on' : 'off')) return;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = renderKasperView();
+        const fresh = tmp.querySelector('.kasper-subtabs');
+        if (!fresh) return;
+        nav.querySelectorAll('[data-kasper-count]').forEach(old => {
+            const el = fresh.querySelector('[data-kasper-count="' + old.getAttribute('data-kasper-count') + '"]');
+            if (el) { el.textContent = old.textContent; el.hidden = old.hidden; }
+        });
+        nav.replaceWith(fresh);
+        _kasperSyncTabNav();
+    }
+    window.addEventListener('sv-review-stage-switch', () => { try { _kasperRsNavRefresh(); } catch (e) {} });
     let _kasperMoreWired = false;
     function _kasperVisibleMoreItems() {
         return [...document.querySelectorAll('#kasperMoreMenu .kasper-more-item:not([hidden])')];
@@ -308,7 +334,7 @@ import { svRsKasperHeadSync, svRsKasperLeave } from './188-review-stage-switch.j
             if (active) button.setAttribute('aria-current', 'page');
             else button.removeAttribute('aria-current');
         });
-        const activeMoreTab = KASPER_SUBTABS.find(tab => tab.key === activeKey && !KASPER_PRIMARY_SUBTAB_KEYS.includes(tab.key));
+        const activeMoreTab = KASPER_SUBTABS.find(tab => tab.key === activeKey && !_kasperPrimaryKeys().includes(tab.key));
         const trigger = document.querySelector('[data-kasper-more-trigger]');
         if (trigger) {
             const icon = trigger.querySelector('[data-kasper-more-icon]');
@@ -659,6 +685,7 @@ import { svRsKasperHeadSync, svRsKasperLeave } from './188-review-stage-switch.j
         _kasperSyncTabNav();
         // One header on every section while the new review page is on for this person (188).
         svRsKasperHeadSync();
+        _kasperRsNavRefresh();
         // Only the review queue holds the analytics extras back (see _analyticsHoldExtras).
         if (_kasperState.tab !== 'review' && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
         if (_kasperState.tab !== 'review') svRsKasperLeave();

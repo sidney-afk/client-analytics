@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const { staffGateIdentityJson } = require('../staff-gate-seed.js');
+const { analyticsShown } = require('../../test/fixtures/analytics-shown.js');
 // Staff fixtures boot past the entry gate the way a signed-in browser does:
 // a stored identity. Verification still happens against the backend these
 // cases stub, so this seeds admission only.
@@ -741,6 +742,10 @@ function installBfcacheSyntheticNetwork(config) {
         // in test/write-ui-writer-durability.js.
         if (keys.includes('prod_authority')) {
           return jsonResponse([{ value: { video: 'linear', graphics: 'linear' } }]);
+        }
+        // Analytics is hidden unless analytics_hidden says shown (session Curtain Seven); these scenarios open it.
+        if (keys.includes('analytics_hidden')) {
+          return jsonResponse([{ key: 'analytics_hidden', value: { hidden: false } }]);
         }
         return jsonResponse([]);
       }
@@ -1484,6 +1489,7 @@ async function openCase(browser, server, options = {}) {
     await context.addInitScript(installHeldTailPostLoad, options.heldTailPostLoad);
   }
   const network = await installSyntheticNetwork(context, server.origin, options.network || {});
+  await analyticsShown(context);   // Analytics stays reachable here (hidden by default since session Curtain Seven)
   const page = await context.newPage();
   const consoleErrors = [];
   const pageErrors = [];
@@ -1534,6 +1540,7 @@ async function openBfcacheCase(browser, options = {}) {
       ContentSummaries: SUMMARIES_CSV,
     },
   });
+  await analyticsShown(context);   // Analytics stays reachable here (hidden by default since session Curtain Seven)
   const page = await context.newPage();
   const consoleErrors = [];
   const pageErrors = [];

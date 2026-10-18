@@ -21,13 +21,18 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
                                     member whose id or full name is listed.
          review_help_video_url      { "url": "..." }: the tutorial video behind the "?" on the client page. Empty or
                                     missing hides the button.
+         analytics_hidden           { "hidden": false } brings Analytics back for everyone (the staff bar's Analytics
+                                    tab, the client link's Analytics / Content Calendar toggle). Missing, unreadable,
+                                    { "hidden": true } or any other shape: Analytics is hidden (owner, 2026-10-17
+                                    23:20, session Curtain Seven). Read at boot, in the same request as the switches.
        The lists live only in the database, never in this repository. */
-    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url'];
+    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden'];
     const RS_FLAG_TIMEOUT_MS = 4000;
     const RS_FLAG_RETRY_MS = 30000;
-    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), help: '' };
+    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), help: '', analytics: false };
     let _rsFlagPromise = null;
     let _rsFlagTriedAt = 0;
+    let _rsFlagFailed = false;
 
     function _rsParse(rows) {
         const by = {};
@@ -39,12 +44,15 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         const staff = okObj(s) && Array.isArray(s.staff) ? s.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
         const h = by.review_help_video_url;
         const help = okObj(h) && typeof h.url === 'string' && /^https:\/\//i.test(h.url.trim()) ? h.url.trim() : '';
+        const a = by.analytics_hidden;
         return {
             loaded: true,
             all: okObj(c) && c.all === true,
             clients: new Set(members.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
             staff: new Set(staff),
             help,
+            // Only the exact { "hidden": false } shows Analytics.
+            analytics: okObj(a) && a.hidden === false,
         };
     }
     async function _rsFetch() {
@@ -58,21 +66,65 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             const rows = await resp.json();
             if (!Array.isArray(rows)) throw new Error('shape');
             const next = _rsParse(rows);
-            const changed = next.all || next.clients.size || next.staff.size;
+            // Analytics shown, or hidden where this browser last saw it shown: the open page draws again too.
+            const changed = next.all || next.clients.size || next.staff.size || next.analytics || svAnalyticsSeenShown();
             _rsFlags = next;
+            _rsHintSave(next);
+            _rsFlagFailed = false;
+            _rsAnalyticsSync();
             // Something switched on: the open page draws again, now as the new page.
             if (changed) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
         } catch (e) {
-            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), help: '' };
+            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), help: '', analytics: false };
+            _rsFlagFailed = true;
+            _rsAnalyticsSync();
             _rsFlagPromise = null;
             console.warn('[Review page] switch unreadable; the old page stays', e && e.message);
-        } finally { if (timer) clearTimeout(timer); }
+        } finally {
+            if (timer) clearTimeout(timer);
+            // The Review tab showed a loader while the answer was on its way (below): draw it again now, whatever the
+            // answer, so a switched-off or unreadable answer brings the old list back.
+            if (_rsPendingShown) {
+                _rsPendingShown = false;
+                const drawn = _rsFlags.loaded && (_rsFlags.all || _rsFlags.clients.size || _rsFlags.staff.size);
+                if (!drawn) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
+            }
+        }
+    }
+    /* The last answer this browser saw, kept as a hint (owner feedback 2026-10-17 23:00 UTC; review of #2167): the
+       live read takes 1.5 to 3.7 s, so an SMM who clicks Review soon after the Calendar opens would get the old list
+       painted for that long. While the read is still on its way and the hint lists this client, the Review tab shows
+       the Calendar's loader instead of the old list. The hint never shows the new page by itself (only the live answer
+       does), and a client it does not list keeps today's instant old list, so a switched-off client sees no change. */
+    const RS_HINT_KEY = 'sv-rs-on-clients';
+    let _rsPendingShown = false;
+    function _rsHintSave(f) {
+        try { localStorage.setItem(RS_HINT_KEY, JSON.stringify(f.all ? { all: true } : { clients: Array.from(f.clients) })); } catch (e) {}
+    }
+    function _rsHintHas(client) {
+        try {
+            const h = JSON.parse(localStorage.getItem(RS_HINT_KEY) || 'null');
+            if (!h || typeof h !== 'object') return false;
+            if (h.all === true) return true;
+            const slug = calClientSlug(String(client || ''));
+            return !!slug && Array.isArray(h.clients) && h.clients.includes(slug);
+        } catch (e) { return false; }
+    }
+    // The Review tab asks this before it draws the old list: true means "show the loader, the answer is coming".
+    function svRsCalPending() {
+        if (_rsFlags.loaded || !_rsFlagPromise) return false;
+        if (!calState || !calState.client || calState.loading || calState.error) return false;
+        if (calState.view !== 'review' && calState.view !== 'smmreview') return false;
+        if (!_rsHintHas(calState.client)) return false;
+        _rsPendingShown = true;
+        return true;
     }
     function _rsPrime() {
         if (_rsFlagPromise) return;
         if (_rsFlagTriedAt && Date.now() - _rsFlagTriedAt < RS_FLAG_RETRY_MS) return;
         _rsFlagTriedAt = Date.now();
         _rsFlagPromise = _rsFetch();
+        _rsAnalyticsSync();
     }
     // A bare client link (no v=) asks this beside its link check (260): the answer decides whether the link opens on
     // Analytics or on the Content Calendar, so the page shows its neutral check screen until it is in. Never rejects;
@@ -111,9 +163,52 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         return _rsClientOn(calState.client);
     }
     // No Analytics for a switched-on client (the company dropped client analytics): render() asks this before it
-    // draws a client link, and sends an Analytics route to the Content Calendar instead.
+    // draws a client link, and sends an Analytics route to the Content Calendar instead. Since 2026-10-17 (session
+    // Curtain Seven) that is every client link while analytics_hidden hides Analytics (its default).
     function svRsClientNoAnalytics(client) {
-        return !!_isClientLink && _rsClientOn(client);
+        return !!_isClientLink && (svAnalyticsHidden() || _rsClientOn(client));
+    }
+    /* ANALYTICS IS GONE FOR EVERYONE (owner, 2026-10-17 23:20, session Curtain Seven), behind one switch so it can
+       come back: hidden unless analytics_hidden reads exactly { "hidden": false }. Hidden, the staff bar's Analytics
+       tab and the client link's Analytics / Content Calendar toggle are not drawn (CSS keyed on html.sv-analytics-on,
+       which only a "shown" answer adds), and a client link's Analytics address opens the Content Calendar. No code
+       is removed. A "shown" answer is remembered in this browser, so until this visit's read is in, a browser that last
+       saw Analytics shown keeps it (as fast as before), and every other browser hides it at once; a failed read keeps
+       what this browser last saw, so nobody is left on Analytics with the toggle hidden. */
+    const RS_ANALYTICS_SEEN_KEY = 'sv-analytics-shown';
+    function _rsAnalyticsShown() {
+        if (_rsFlags.loaded) return !!_rsFlags.analytics;
+        // An unreadable switch keeps what this browser last saw: a client who opened on Analytics (shown before) is
+        // never left there with the toggle hidden (review of #2179, Lighthouse).
+        return svAnalyticsSeenShown();
+    }
+    function svAnalyticsHidden() {
+        _rsPrime();
+        return !_rsAnalyticsShown();
+    }
+    // A client link moved off Analytics only because the switch had not been read yet (a browser that never saw
+    // Analytics shown): when the read then says shown, within a few seconds of the decision, the link goes back to
+    // Analytics as if it had waited (Codex review on #2179). Later than that, the person is already using the calendar.
+    const RS_ANALYTICS_RESTORE_MS = 10000;
+    let _rsAnalyticsDefaultMove = null;
+    function svAnalyticsMarkDefaultMove(client) {
+        _rsAnalyticsDefaultMove = (!_rsFlags.loaded && !_rsFlagFailed && client) ? { client: String(client), at: Date.now() } : null;
+    }
+    function _rsAnalyticsRestore() {
+        const mv = _rsAnalyticsDefaultMove;
+        _rsAnalyticsDefaultMove = null;
+        if (!mv || !_isClientLink || Date.now() - mv.at > RS_ANALYTICS_RESTORE_MS || svRsClientNoAnalytics(mv.client)) return;
+        const cap = _syncviewClientEntryCapability;
+        if (!cap || !cap.verified || cap.client !== mv.client || (clientViewTab[cap.client] || cap.view) !== 'calendar') return;
+        if (typeof window.setClientViewTab === 'function') window.setClientViewTab(encodeURIComponent(cap.client), 'analytics');
+    }
+    function svAnalyticsSeenShown() {
+        try { return localStorage.getItem(RS_ANALYTICS_SEEN_KEY) === '1'; } catch (e) { return false; }
+    }
+    function _rsAnalyticsSync() {
+        const on = _rsAnalyticsShown();
+        document.documentElement.classList.toggle('sv-analytics-on', on);
+        try { if (on) localStorage.setItem(RS_ANALYTICS_SEEN_KEY, '1'); else if (_rsFlags.loaded) localStorage.removeItem(RS_ANALYTICS_SEEN_KEY); } catch (e) {}
     }
     // The old bar's tools ride in the new header through a slot: this holder is a plain child of the page's host,
     // so the site's own styles and handlers still apply to them. Only the client link with the switch on uses it.
@@ -188,11 +283,17 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
                 // also live in #calView and must still open on the Review tab.
                 + 'html.sv-rs-cal:not(.sv-rs-client) #calView>:not(.cal-toolbar):not(.cal-preview-overlay):not(.cal-import-overlay):not(.cal-lightbox):not(.cal-comments-overlay):not(.cal-prompt-overlay){display:none!important}'
                 + 'html.sv-rs-cal:not(.sv-rs-client) #calView{padding-bottom:0!important}'
+                // The card size does nothing on Review and was drawn invisible, holding the space between Notify client and
+                // the menu: it goes, so Notify client sits on the right beside the menu (owner feedback 2026-10-17 23:20).
+                + 'html.sv-rs-cal:not(.sv-rs-client) #calView>.cal-toolbar .cal-zoom{display:none!important}'
                 + 'html.sv-rs-cal.sv-rs-client .client-view.cal-tab-view>.view-tab-toggle,html.sv-rs-cal.sv-rs-client #pageTitle,html.sv-rs-cal.sv-rs-client #pageSub{display:none!important}'
                 // Kasper (the approved design): his title and tabs on one row, the page at full width. The same header on
                 // every Kasper section while his switch is on (owner feedback 2026-10-17, Curtain Five), not only Review.
                 + 'html.sv-rs-khead .kasper-wrap{max-width:none;display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:22px;align-items:center}'
                 + 'html.sv-rs-khead .kasper-wrap>.kasper-head{margin:0}html.sv-rs-khead .kasper-wrap .kasper-sub{display:none}'
+                // No "Kasper" title and no "Updated 5:03 PM" line (owner feedback 2026-10-17 23:20, Curtain Seven): the
+                // section tabs head the page on their own.
+                + 'html.sv-rs-khead .kasper-wrap{grid-template-columns:minmax(0,1fr)}html.sv-rs-khead .kasper-wrap>.kasper-head,html.sv-rs-khead #kasperReviewBody [data-kasper-fresh]{display:none}'
                 + 'html.sv-rs-khead .kasper-wrap>.kasper-subtabs{margin:0;border:0;box-shadow:none;background:transparent;padding:0}'
                 + 'html.sv-rs-khead #kasperContent{grid-column:1/-1;margin-top:12px}'
                 // Messages inside the Kasper tab (no Close, the tab bar is the way out): the inbox fills the window.
@@ -225,7 +326,11 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
                 + 'html.sv-rs-full #calView>#calBody>.cal-organizer-wrap{display:flex;flex-direction:column;justify-content:safe center;box-sizing:border-box;min-height:calc(100vh - var(--sv-rs-head,54px) - 8px);min-height:calc(100dvh - var(--sv-rs-head,54px) - 8px)}'
                 + 'html.sv-rs-full #calView>#calBody>.cal-organizer-wrap>.cal-organizer-strip:not(.is-empty){justify-content:safe center;padding:8px 4px;min-height:0;scroll-padding-right:0}'
                 + 'html.sv-rs-full #calView>#calBody>.cal-organizer-wrap>.cal-organizer-strip::after{content:none}'
-                + '}';
+                + '}'
+                // The "new version of SyncView" bar (350) keeps its place at the bottom centre; while it shows, the review
+                // stage makes room for it (195 reads --rs-bar), so it covers neither the stage's buttons nor the client
+                // page's header (session Curtain Six).
+                + 'html:has(#svUpdateBar) #svReviewStage{--rs-bar:84px}';
             document.head.appendChild(_rsChromeStyle);
         }
         de.classList.toggle('sv-rs-cal', !!on);
@@ -248,6 +353,10 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     // Called at the start of every Calendar body paint, and by the Review tab's renderer. Draws (or removes) the
     // new page beside #calView on the next frame, so the Calendar's own paint finishes first.
     function svRsCalSync() {
+        // Ask for the switch as soon as the Calendar paints any tab for a client, not first on Review: an SMM who
+        // opened on Sheet would otherwise get the old list painted for the first Review click while the answer was
+        // still on its way (owner feedback 2026-10-17 23:00 UTC, session Curtain Six). Read only; nothing is drawn.
+        if (calState && calState.client) _rsPrime();
         const on = svRsCalOn();
         const full = svRsClientFull();
         if ((on || full) && _isClientLink) {
@@ -267,7 +376,14 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             const stillFull = svRsClientFull();
             _rsChrome(still, stillFull);
             _rsToolsSync(stillFull);
-            if (!still && !stillFull) { const api = svAreaApi('reviewstage'); if (api) api.calHide(); return; }
+            if (!still && !stillFull) {
+                const api = svAreaApi('reviewstage');
+                if (api) api.calHide();
+                // A switched-on client on Sheet, Month or Week: fetch the new page's code now, so the first Review
+                // click draws it at once instead of waiting on the download (nothing is drawn here).
+                else if (calState && calState.client && !_isClientLink && _rsClientOn(calState.client)) svArea('reviewstage').catch(() => {});
+                return;
+            }
             svArea('reviewstage').then(api => { if (svRsCalOn() || svRsClientFull()) { api.cal(); if (svRsClientFull()) _rsHeadWatch(); } }, (e) => {
                 // The page could not be fetched: the old page comes back.
                 console.warn('[Review page] could not load; the old page stays', e && e.message);
@@ -306,6 +422,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         if (api) api.kasperHide();
     }
     window.addEventListener('sv-review-stage-switch', () => {
+        if (_rsFlags.loaded) _rsAnalyticsRestore();
         // A switched-on client link that opened on Analytics: that route is gone, the Content Calendar takes its place.
         if (_isClientLink && !document.getElementById('calView')) {
             const cap = _syncviewClientEntryCapability;
@@ -315,4 +432,4 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         if (document.getElementById('kasperContent')) svRsKasperHeadSync();
         if (document.getElementById('kasperReviewBody')) _kasperPaintReview();
     });
-export { svRsCalOn, svRsCalSync, svRsClientNoAnalytics, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl };
+export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl };

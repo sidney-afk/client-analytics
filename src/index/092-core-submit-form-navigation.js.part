@@ -433,6 +433,11 @@ import { _kasperState } from './305-core-kasper-shared.js';
             const pill = nav.querySelector(':scope > .header-nav-pill');
             if (!pill) return;
             const active = nav.querySelector(':scope > .header-nav-btn.active');
+            // A page with no tab of its own in the bar (Messages opens from the
+            // chat button) keeps the bar's flat tabs with no highlight, instead
+            // of the outlined fallback below, which made every tab a white box
+            // on that one page.
+            nav.classList.toggle('pill-idle', !active);
             if (!active || !active.getClientRects().length || !active.offsetWidth) {
                 nav.classList.remove('pill-ready');
                 return;
@@ -609,7 +614,7 @@ import { _kasperState } from './305-core-kasper-shared.js';
         }
     }
     function navTo(page, push = true) {
-        if (page !== 'kasper' && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
+        if (typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras(page);
         if (_isClientLink) {
             const cap = _syncviewClientEntryCapability;
             if (cap && cap.verified && cap.view === 'sample-reviews' && _resolveRetiredSamplesRoute(page) === 'sample-reviews') {

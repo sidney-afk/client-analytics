@@ -110,6 +110,10 @@ function makeRenderer(state, options = {}) {
     const KASPER_MORE_GROUPS = deps.groups;
     const KASPER_MORE_ICON = '<svg data-test-icon="more"></svg>';
     const KASPER_MORE_CHEVRON = '<svg data-test-icon="chevron"></svg>';
+    // The new review page's Kasper switch is off here, so the tabs are today's (321's switch-off answer).
+    const _kasperPrimaryKeys = () => KASPER_PRIMARY_SUBTAB_KEYS;
+    const _kasperMoreGroups = () => KASPER_MORE_GROUPS;
+    const _kasperRsNav = () => false;
     const _ptoEnabled = () => deps.ptoEnabled;
     const _syncviewStaffCan = capability => deps.capabilities[capability] !== false;
     const _calEsc = value => String(value == null ? '' : value)

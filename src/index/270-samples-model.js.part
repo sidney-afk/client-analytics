@@ -17,7 +17,7 @@ import {
 } from './120-calendar-flags-write-repair.js';
 import { _calCompLinked, _calPillDisplayStatus } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
-import { _calLoaderHtml } from './133-core-loading-skeletons.js';
+import { _calLoaderHtml, _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
 import { _calGetPins, _calLinkKey, _calMapLinearStatusStrict, _calSavePins } from './134-calendar-prefs-mount.js';
 import {
   URGENT_EDITOR_NEEDS_NATIVE, _calApplyUrgentButtonState, _calBuildKasperUrgentPatch,
@@ -475,7 +475,14 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
 
     /* View/zoom prefs — own key so samples prefs never collide with the calendar. */
     const SXR_PREFS_KEY = 'syncview_sxr_prefs_v1';
-    function _sxrLoaderHtml(label) { return _calLoaderHtml(label || 'Loading sample reviews'); }
+    // Each tab's skeleton has that tab's loaded shape (owner, 2026-10-17): the Sheet's
+    // strip of cards, the Review list. The phone keeps the old picture for now.
+    function _sxrLoaderHtml(label) {
+        const desktop = !window.matchMedia('(max-width: 767px)').matches;
+        if (!label && desktop && sxrState.view === 'organizer') return _svLoadingSkeletonHtml('samples-sheet');
+        if (!label && desktop && sxrState.view === 'smmreview') return _svLoadingSkeletonHtml('samples-review');
+        return _calLoaderHtml(label || 'Loading sample reviews');
+    }
     function _sxrLoadPrefs() { try { return JSON.parse(localStorage.getItem(SXR_PREFS_KEY) || '{}'); } catch { return {}; } }
     function _sxrSavePrefs() {
         try {

@@ -2,7 +2,7 @@ import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showNotify, showToast } from './040-shared-briefs.js';
 import { wlNormalizeClient } from './070-core-client-names.js';
-import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL, CAL_SUPABASE_URL, _svReadWithRetry } from './100-onboarding-staff-controls.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL, CAL_SUPABASE_URL, _svReadWithRetry, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import {
   CAL_V2_KILL_KEY, CAL_V2_LS_KEY, CAL_V2_RT_DEBOUNCE_MS, CAL_V2_RT_MIN_RELOAD_MS,
   CAL_V2_RT_STORM_EVENTS, CAL_V2_RT_STORM_RELOAD_MS, CAL_V2_RT_STORM_WINDOW_MS
@@ -1047,6 +1047,20 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
        the caller's abort/timeout through every page. Caller passes a URL WITHOUT
        order/limit/cursor; we add them. */
     const CAL_SUPABASE_PAGE = 1000;
+    /* The first page the <head> started for a /calendar/<slug> address (see
+       005-head-boot, speed sweep 2026-10-17). Taken once, by exact URL, only
+       for the member and key it was sent for and within ten seconds of the
+       page opening; anything else returns null and the page reads for itself.
+       Only a genuine answer is used: a refusal or error is re-asked normally. */
+    function _calTakeEarlyPostsPage(url) {
+        let early = null;
+        try { early = window.__svEarlyCalendar; } catch (e) {}
+        if (!early || early.url !== url || !early.response || !(Date.now() - early.at < 10000)) return null;
+        try { window.__svEarlyCalendar = null; } catch (e) {}
+        const identity = typeof _syncviewStaffIdentityForHeaders === 'function' ? _syncviewStaffIdentityForHeaders() : null;
+        if (!identity || !identity.member || String(identity.member.id) !== early.memberId || String(identity.key) !== early.key) return null;
+        return early.response;
+    }
     async function _calSupabaseFetchAllRows(baseUrl, signal) {
         const sep = baseUrl.indexOf('?') >= 0 ? '&' : '?';
         const headers = { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' };
@@ -1059,9 +1073,20 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
                 // (id, client) strictly greater than the last row seen
                 pageUrl += '&or=(id.gt.' + enc(curId) + ',and(id.eq.' + enc(curId) + ',client.gt.' + enc(curClient == null ? '' : curClient) + '))';
             }
-            const resp = await fetch(pageUrl, { headers, signal: signal || undefined });
-            if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
-            const rows = await resp.json();
+            let rows = null;
+            const early = page === 0 ? _calTakeEarlyPostsPage(pageUrl) : null;
+            if (early) {
+                try {
+                    const r = await early;
+                    if (r && r.ok) { const j = await r.json(); if (Array.isArray(j)) rows = j; }
+                } catch (e) { /* the normal read below */ }
+                if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
+            }
+            if (!rows) {
+                const resp = await fetch(pageUrl, { headers, signal: signal || undefined });
+                if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
+                rows = await resp.json();
+            }
             if (!Array.isArray(rows)) throw new Error('Supabase: unexpected payload');
             for (const r of rows) all.push(r);
             if (rows.length < CAL_SUPABASE_PAGE) break;

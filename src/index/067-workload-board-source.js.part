@@ -939,8 +939,10 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
            concatenates after 070. Registered in
            test/deliverable-counts-exclude-parents.js as EXEMPT: callers pass only
            is_sub_issue rows, so a batch parent never reaches it. */
+        // ids === null: started before the ids are known (wlFetchNativeSnapshot
+        // runs it beside the board read; the URL never depended on them).
         const wanted = [...new Set((ids || []).map(id => String(id || '').trim()).filter(Boolean))];
-        if (!wanted.length || !CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return [];
+        if ((ids !== null && !wanted.length) || !CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return [];
         const pageSize = 1000;
         /* A RUNAWAY GUARD, NOT A ROW BUDGET, and the difference is the whole
            point of this constant (Codex review, PR 1491 -- PR numbers are
@@ -1011,13 +1013,17 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
        this check existed, because this guard can only ever HIDE a row, never show
        one that should stay hidden -- the permissive default AGENTS.md asks for
        whenever a guard could go either way. */
-    async function _wlArchivedNativeIds(rows) {
+    /* markerRead: the same read, already started beside the board read
+       (speed sweep 2026-10-17: it used to start only after the board answered,
+       adding ~0.3 s to every Workload open). Its failure is handled here,
+       exactly like a failure of a read started here. */
+    async function _wlArchivedNativeIds(rows, markerRead) {
         const ids = (rows || [])
             .filter(r => r && r.source === 'native' && r.is_sub_issue === true && typeof r.id === 'string' && r.id)
             .map(r => r.id);
         if (!ids.length) return new Set();
         try {
-            const markerRows = await _wlFetchArchiveMarkerRows(ids);
+            const markerRows = await (markerRead || _wlFetchArchiveMarkerRows(ids));
             const wantedIds = new Set(ids);
             const archived = new Set();
             markerRows.forEach(row => {
@@ -1064,6 +1070,10 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
         // The snapshot leg gets its own, longer budget -- see
         // WL_SNAPSHOT_READ_TIMEOUT_MS for the measurement that forced it.
         const timer = setTimeout(() => controller.abort(), WL_SNAPSHOT_READ_TIMEOUT_MS);
+        // The archive-marker read needs nothing from the board's answer: start
+        // it now, in parallel, and filter with it below (_wlArchivedNativeIds).
+        const markerRead = _wlFetchArchiveMarkerRows(null);
+        markerRead.catch(() => {});
         try {
             /* CACHED v2 FIRST (migrations/2026-09-23-workload-native-snapshot-cache.sql).
                The server serves a prebuilt copy and answers `unchanged` with no
@@ -1139,7 +1149,7 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
             // count (OPEN_REPAIRS 87 / test/workload-excluded-reported.js).
             // That strip is for rows the board admits and cannot place; an
             // archived-in-Linear row is not admitted at all.
-            const archivedNativeIds = await _wlArchivedNativeIds(value.rows);
+            const archivedNativeIds = await _wlArchivedNativeIds(value.rows, markerRead);
             const rows = archivedNativeIds.size
                 ? value.rows.filter(row => !(row && row.source === 'native' && row.is_sub_issue === true
                     && archivedNativeIds.has(row.id)))

@@ -224,7 +224,8 @@ svg{display:block;flex-shrink:0}
 .sk-b{display:block;border-radius:6px;height:10px;background:var(--fill);background-image:linear-gradient(90deg,transparent 0,color-mix(in srgb,var(--surface-raised) 60%,transparent) 50%,transparent 100%);background-size:220% 100%;background-repeat:no-repeat;animation:skShim 1.4s ease-in-out infinite}
 @keyframes skShim{from{background-position:130% 0}to{background-position:-130% 0}}
 .app.skel .mbox,.app.skel #flash{visibility:hidden}
-.skm{position:absolute;inset:0;margin:auto;height:100%;max-height:100cqh;aspect-ratio:9/16;max-width:100%;border-radius:14px}
+.skm{--aw:9;--ah:16;position:absolute;inset:0;margin:auto;height:auto;width:min(100cqw,calc(100cqh * var(--aw) / var(--ah)));aspect-ratio:var(--aw)/var(--ah);border-radius:12px}
+.skm.land{--aw:16;--ah:9}
 .chipp.skc{pointer-events:none}
 .chipp.skc .cx{display:flex;flex-direction:column;gap:7px;flex:1;min-width:0}
 .stp.skp{pointer-events:none;width:104px}
@@ -1099,14 +1100,24 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         _rsQ('stepper').innerHTML = [0, 1, 2].map(i => (i ? '<li class="ln" aria-hidden="true"></li>' : '') + '<li><span class="stp skp" aria-hidden="true"><span class="sd"></span>' + B('46px', '9px') + '</span></li>').join('');
         const v = _rsQ('view');
         if (!_rsQ('skMedia')) v.insertAdjacentHTML('beforeend', '<i class="sk-b skm" id="skMedia" aria-hidden="true"></i>');
+        // The media's shape: the first post's own when this browser already holds the cards (a YouTube card is wide),
+        // else a vertical video's, the usual shape.
+        let land = false;
+        try { const first = (calState.posts || []).length ? _rsCalPosts()[0] : null; land = !!(first && first.land); } catch (e) {}
+        _rsQ('skMedia').classList.toggle('land', land);
+        // Screen readers hear that the page is loading (the old calendar loader they replace said so).
+        const app = _rsQ('rsApp');
+        app.setAttribute('aria-busy', 'true');
+        if (!_rsQ('skSay')) app.insertAdjacentHTML('afterbegin', '<span id="skSay" role="status" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Loading your posts</span>');
         _rsQ('drow').innerHTML = '<div class="dwrap"><div class="dec">' + B('192px', '42px', '11px') + B('150px', '42px', '11px') + '</div></div><div class="drow2"><div class="dfin">' + B('158px', '38px', '10px') + '</div></div>';
         _rsQ('chat').innerHTML = '<div class="ch-head"><span class="avs">' + B('28px', '28px', '50%') + '</span><span class="who">' + B('90px', '12px') + B('150px', '9px', '', ';margin-top:6px') + '</span></div>'
             + '<div class="ch-scroll" id="tscroll" style="justify-content:flex-end">' + '<div class="sk-bub">' + B('26px', '26px', '50%') + B('62%', '58px') + '</div><div class="sk-bub" style="justify-content:flex-end">' + B('48%', '40px') + '</div></div>'
             + '<div class="ch-foot">' + B('100%', '46px', '14px') + '</div>';
     }
     function _rsSkeletonOff() {
-        const a = _rsQ('rsApp'); if (a) a.classList.remove('skel');
+        const a = _rsQ('rsApp'); if (a) { a.classList.remove('skel'); a.removeAttribute('aria-busy'); }
         const s = _rsQ('skMedia'); if (s) s.remove();
+        const say = _rsQ('skSay'); if (say) say.remove();
     }
     function _rsRender(opts) {
         if (!R.root || !R.S) return;

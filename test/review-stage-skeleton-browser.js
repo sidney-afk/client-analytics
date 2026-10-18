@@ -30,6 +30,8 @@ const TOL = 6;
       await sleep(400);
       const oldLoader = await t.page.evaluate(() => { const c = document.getElementById('calView'); return !!(c && c.offsetParent && c.querySelector('.cal-loader')); });
       expect(!oldLoader, w + ': the old calendar loader does not show under it');
+      const say = await t.page.evaluate(() => { const rr = document.getElementById('svReviewStage').shadowRoot; const st = rr.getElementById('skSay'); return { busy: rr.getElementById('rsApp').getAttribute('aria-busy'), role: st && st.getAttribute('role'), text: st && st.textContent }; });
+      expect(say.busy === 'true' && say.role === 'status' && /Loading/.test(say.text || ''), w + ': screen readers hear it is loading (' + JSON.stringify(say) + ')');
       const parts = { chip: '#skList .chipp', title: '#side h2', step: '#stepper li:first-child > *', dec: '#drow .dec', chat: '#chat', date: '#sdate' };
       const before = {};
       for (const [k, s] of Object.entries(parts)) before[k] = await r(s);
@@ -45,6 +47,8 @@ const TOL = 6;
         expect(close, w + ': the ' + k + ' placeholder sits where it lands, at its size (' + JSON.stringify(a) + ' then ' + JSON.stringify(b) + ')');
       }
       expect(!(await r('#skMedia')), w + ': the placeholders are gone once loaded');
+      const after2 = await t.page.evaluate(() => { const rr = document.getElementById('svReviewStage').shadowRoot; return { busy: rr.getElementById('rsApp').getAttribute('aria-busy'), say: !!rr.getElementById('skSay') }; });
+      expect(!after2.busy && !after2.say, w + ': the loading state is cleared once loaded (' + JSON.stringify(after2) + ')');
       expect(t.errors.length === 0, w + ': no page errors (' + t.errors.join(' | ') + ')');
       await t.ctx.close();
     }

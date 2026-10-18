@@ -167,7 +167,7 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
                 <input class="linear-input" id="vid_audio_${num}" type="url" placeholder="Audio link" value="${(data.audio || '').replace(/"/g, '&quot;')}"
                     oninput="onVideoLinkInput(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
                 <textarea class="linear-textarea linear-video-notes" id="vid_notes_${num}" rows="3"
-                    placeholder="Notes for this video (optional)"
+                    placeholder="Notes for this video (becomes the Linear description)"
                     oninput="saveLinearForm()">${_calEsc(data.notes || '')}</textarea>
             </div>
             <span class="video-link-hint">⇧ Shift — paste last link</span>

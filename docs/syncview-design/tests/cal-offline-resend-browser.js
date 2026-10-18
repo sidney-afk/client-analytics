@@ -55,6 +55,23 @@ async function run(cardWrite) {
     check(landed, lane + ': back online, the caption reaches the server with no click (' + (S.upserts.length - before) + ' write(s))');
     check(await waitFor(async () => await markOf(A, 'p_t1') === 'ok', 5000), lane + ': the red mark clears');
 
+    // 2b. A teammate changes OTHER fields while this tab is offline. The resend carries only
+    //     what this person changed (the caption), never this tab's older copy of the rest.
+    S.offline = true;
+    await A.evaluate(() => window.dispatchEvent(new Event('offline')));
+    check(await typeCaption(A, 'p_t1', 'Second offline text') === 'ok', lane + ': a second caption typed while offline');
+    check(await waitFor(async () => await markOf(A, 'p_t1') === 'error', 8000), lane + ': that save fails and says so');
+    S.setCardField('p_t1', { name: 'Renamed by a teammate', scheduled_date: '2026-10-12', asset_url: 'https://example.invalid/teammate.mp4' }, 'teammate');
+    S.offline = false;
+    const before2 = S.upserts.length;
+    await A.evaluate(() => window.dispatchEvent(new Event('online')));
+    check(await waitFor(async () => S.card('p_t1').caption === 'Second offline text', 8000), lane + ': back online, the second caption lands');
+    const resent = S.upserts.slice(before2).map(u => Object.keys(u.post).filter(k => k !== 'id').sort().join(','));
+    check(resent.length > 0 && resent.every(k => !/(^|,)(name|scheduled_date|asset_url)(,|$)/.test(k)), lane + ': the resend carries only the caption (' + JSON.stringify(resent) + ')');
+    const c2 = S.card('p_t1');
+    check(c2.name === 'Renamed by a teammate' && c2.scheduled_date === '2026-10-12' && c2.asset_url === 'https://example.invalid/teammate.mp4', lane + ': the teammate\'s name, date and video link survive (' + [c2.name, c2.scheduled_date, c2.asset_url].join(' | ') + ')');
+    await waitFor(async () => await markOf(A, 'p_t1') === 'ok', 5000);
+
     // 3. A save the SERVER refused is not resent by coming online.
     S.behave['cal-upsert'] = { mode: 'http', status: 400, body: { ok: false, error: 'Refused by the server for this test' }, commit: false, times: 1 };
     check(await typeCaption(A, 'p_t1', 'Refused text') === 'ok', lane + ': a second caption, refused by the server');

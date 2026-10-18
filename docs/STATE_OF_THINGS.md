@@ -18,7 +18,7 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
-## Public "start here" page at /start (session Foyer, 2026-10-18 about 01:30 UTC): PR open, live once merged
+## Public "start here" page at /start (session Foyer, 2026-10-18 about 01:05 UTC): PR open, live once merged
 
 `syncview.synchrosocial.com/start` is the page Synchro Social's social media managers send to clients and
 videographers instead of the Google Drive folder of guides. It is standalone (`start/index.html`, `start.css`,

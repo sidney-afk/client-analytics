@@ -154,6 +154,18 @@ const textWrites = (t, from) => t.state.upserts.slice(from).filter(u => 'caption
       await t.ctx.close();
     }
 
+    // ---------- a click before the viewer switch has been read still opens the viewer ----------
+    {
+      console.log('--- client Sheet, video door clicked before the switch is read ---');
+      const t = await openClient(browser, origin, { flags: 'off', collab: true, frameDelay: 2500 });
+      await ready(t, 'organizer');
+      let popup = false; t.page.context().on('page', () => { popup = true; });
+      await t.page.locator('.cal-card[data-pid="rs1"] .cal-link-post a.cal-link-pill-open').first().click();
+      await t.page.locator('#calNotesStage .fv-player').first().waitFor({ timeout: 20000 });
+      expect(!popup, 'early click: the viewer opens and the old link does not');
+      await t.ctx.close();
+    }
+
     // ---------- Month and Week: nothing drags ----------
     for (const collab of [true, false]) {
       console.log('--- client Month and Week, Collaborative mode ' + (collab ? 'on' : 'off') + ' ---');

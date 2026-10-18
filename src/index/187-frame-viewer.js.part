@@ -207,8 +207,22 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return '<span class="cal-review-video-label fv-lbl-off">Open video ↗</span><span class="cal-review-video-label fv-lbl-on">Watch video</span>';
     }
     function svFrameTileOpen(ev, tile) {
-        if (!tile || !tile.hasAttribute('data-fv-on')) return true;
+        if (!tile) return true;
         if (ev && (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey || ev.button === 1)) return true;
+        // A click before the switch has been read must not be lost to the old link: hold it for the one bounded read,
+        // then open the viewer or the link, whichever the switch says (the Sheet's door on a client link can be
+        // clicked straight after the page paints).
+        if (!tile.hasAttribute('data-fv-on') && !_fvFlagRead && _fvFlagPromise && tile.hasAttribute('data-fv-tile')) {
+            if (ev && ev.preventDefault) ev.preventDefault();
+            if (ev && ev.stopPropagation) ev.stopPropagation();
+            const href = tile.getAttribute('href') || '';
+            _fvFlagPromise.catch(() => null).then(() => {
+                if (_fvEnabledFor(tile.getAttribute('data-fv-client'))) { tile.setAttribute('data-fv-on', ''); svFrameTileOpen(null, tile); }
+                else if (href) window.open(href, '_blank', 'noopener');
+            });
+            return false;
+        }
+        if (!tile.hasAttribute('data-fv-on')) return true;
         const pid = tile.getAttribute('data-fv-card') || '';
         if (!pid || !_fvLinkOf(tile.getAttribute('data-fv-link')) || typeof window.svOpenCardNotes !== 'function') return true;
         if (ev && ev.preventDefault) ev.preventDefault();

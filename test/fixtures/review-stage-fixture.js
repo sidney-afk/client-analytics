@@ -47,8 +47,33 @@ function finished() {
     asset_url: FRAME, thumbnail_url: i % 2 ? POSTER.l : POSTER.p, caption: 'A finished fixture caption.', video_tweaks: '[]', graphic_tweaks: '[]', caption_tweaks: '[]', comments: [], graphic_comments: [], caption_comments: [] }));
 }
 
+// A fuller conversation on the first post (opt.thread): change requests (one handled), team notes, the signed-in
+// SMM's own note, Kasper's note, and a whole caption pasted as a change request (session Curtain Six).
+const LONG_CAPTION = 'Please use this caption:\n\nMost people decide in the first second whether to keep watching. Here is how to earn the second one: '
+  + 'start with the change, not the context. Show the result first, then rewind to how you got there. Keep the first line under ten words, '
+  + 'cut every "so" and "today I want to", and let the picture do the talking for the first beat.\n\nSave this for your next edit.';
+function thread(row) {
+  const T = (id, role, author, body, at, extra) => note(id, role, author, body, at, extra);
+  row.video_tweaks = JSON.stringify([
+    T('t1', 'client', CLIENT, 'Can we cut the pause after the hook? It feels slow.', '2026-10-11T09:02:00.000Z', { is_tweak: true, done: true, done_at: '2026-10-12T10:00:00.000Z' }),
+    T('t2', 'smm', 'Team Member', 'Done. The pause is gone in the new cut.', '2026-10-12T10:01:00.000Z', { author_member_id: OTHER.id }),
+    T('t3', 'kasper', 'Kasper', 'Looks good to me. Sending it to the client.', '2026-10-12T15:20:00.000Z', { audience: 'team' }),
+    T('t4', 'smm', 'Team Member', 'New cut uploaded. The intro is two seconds shorter.', '2026-10-12T16:12:00.000Z', { author_member_id: OTHER.id }),
+    T('t5', 'client', CLIENT, 'Love it. Could the end card stay a beat longer?', '2026-10-13T08:40:00.000Z', { is_tweak: true }),
+  ]);
+  row.graphic_tweaks = JSON.stringify([
+    T('g1', 'smm', STAFF.name, 'Thumbnail text is bigger now, as asked on the last post.', '2026-10-12T11:30:00.000Z', { author_member_id: STAFF.id }),
+    T('g2', 'client', CLIENT, 'Thanks, that reads much better on the phone.', '2026-10-13T08:41:00.000Z'),
+  ]);
+  row.caption_tweaks = JSON.stringify([
+    T('c1', 'client', CLIENT, LONG_CAPTION, '2026-10-13T08:45:00.000Z', { is_tweak: true }),
+  ]);
+  return row;
+}
+
 async function open(browser, origin, opt) {
-  const state = { cards: cards(opt.stage).concat(opt.finished ? finished() : []), upserts: [], gateway: [], flagReads: 0, orient: 'p' };
+  const state = { cards: cards(opt.stage).concat(opt.finished ? finished() : []), upserts: [], gateway: [], flagReads: 0, orient: 'p', writeDelay: 0, writeFail: 0 };
+  if (opt.thread) thread(state.cards[0]);
   const ctx = await browser.newContext({ viewport: { width: opt.width || 1440, height: opt.height || 900 }, serviceWorkers: 'block', colorScheme: 'light' });
   await ctx.routeWebSocket('**/*', s => s.close());
   const page = await ctx.newPage();
@@ -60,6 +85,9 @@ async function open(browser, origin, opt) {
   } else if (opt.dark) {
     await page.addInitScript(() => { try { localStorage.setItem('syncview_theme', 'dark'); } catch (e) {} });
   }
+  // opt.analytics === 'shown': analytics_hidden reads { hidden: false } (Analytics brought back), in a browser that
+  // already saw it shown. Without it the row is missing, which hides Analytics (session Curtain Seven).
+  if (opt.analytics === 'shown') await page.addInitScript(() => { try { localStorage.setItem('sv-analytics-shown', '1'); } catch (e) {} });
   await ctx.route('**/*', async route => {
     const r = route.request(); const u = new URL(r.url());
     if (r.url().startsWith(origin)) return route.continue();
@@ -89,6 +117,9 @@ async function open(browser, origin, opt) {
     if (p === '/functions/v1/frameio-view') return json({ ok: true, video: { url: MEDIA, renditions: { efficient: MEDIA, high_quality: MEDIA, original: MEDIA }, expires_at: new Date(Date.now() + 3600000).toISOString(), name: 'Fixture clip.mp4', file_id: 'f1', duration_seconds: 12, fps: 24 }, comments: [], comments_error: '', open_url: 'https://next.frame.io/share/00000000-0000-4000-8000-000000000001', fetched_at: new Date().toISOString() });
     if (/\/functions\/v1\/(calendar-upsert|calendar-card-write)$/.test(p) && r.method() === 'POST') {
       let body = {}; try { body = JSON.parse(r.postData() || '{}'); } catch (e) {}
+      // A slow or failing card save, switched at run time by a test (state.writeDelay ms, state.writeFail count).
+      if (state.writeDelay) await sleep(state.writeDelay);
+      if (state.writeFail > 0) { state.writeFail--; return json({ ok: false, error: 'fixture_unavailable', message: 'The fixture refused this save.' }, 503); }
       const post = body.post || {};
       state.upserts.push(post);
       const row = state.cards.find(c => c.id === post.id);
@@ -116,6 +147,9 @@ async function open(browser, origin, opt) {
       };
       if (opt.flags === 'on') { values.review_stage_client_pages = { clients: [SLUG] }; values.review_stage_kasper_staff = { staff: [STAFF.id] }; }
       if (opt.help) values.review_help_video_url = { url: opt.help };
+      // 'shownFresh': the same answer in a browser that has never seen Analytics shown.
+      if (opt.analytics === 'shown' || opt.analytics === 'shownFresh') values.analytics_hidden = { hidden: false };
+      else if (opt.analytics && typeof opt.analytics === 'object') values.analytics_hidden = opt.analytics;
       return json(keys.filter(k => Object.hasOwn(values, k)).map(k => ({ key: k, value: values[k] })));
     }
     if (p === '/rest/v1/calendar_posts') {

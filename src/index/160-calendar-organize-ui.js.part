@@ -1759,7 +1759,12 @@ import { svRsCalSync, svRsToolsAdopt, svRsToolsDrop } from './188-review-stage-s
                 : `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab so you can switch between your clients quickly.</div>`;
             return;
         }
-        if (calState.loading) { body.innerHTML = _calLoaderHtml(); return; }
+        if (calState.loading) {
+            const grid = _calLoadingGridHtml();
+            body.innerHTML = grid || _calLoaderHtml();
+            if (grid && calState.view === 'week') _calWireWeekWheel(body);
+            return;
+        }
         if (calState.error) {
             body.innerHTML = `<div class="cal-empty cal-error">
                 Couldn't load calendar — <button class="cal-link" onclick="loadCalendarPosts()">try again</button>.
@@ -2005,6 +2010,26 @@ import { svRsCalSync, svRsToolsAdopt, svRsToolsDrop } from './188-review-stage-s
     let _calWeekGen = 0;
     const _CAL_WEEK_WHEEL_FACTOR = 0.7; // wheel px → content px (lower = gentler)
     const _CAL_WEEK_BUFFER = 7;         // buffer days each side (matches renderCalWeek)
+    /* Month and Week while the posts load (owner, 2026-10-17: "every skeleton
+       should match the actual shape of what is loading"): the loaded view's own
+       grid, header and day labels, which need no data, drawn with no posts and
+       shimmering, so the posts land in place. Inert, so nothing in it can be
+       used before the data is there. Desktop only: the phone has its own
+       timeline skeleton. test/calendar-month-week-skeleton-shape-browser.js. */
+    function _calLoadingGridHtml() {
+        if (calState.view !== 'month' && calState.view !== 'week') return '';
+        if (_calStaffPhoneActive() || window.matchMedia('(max-width: 767px)').matches) return '';
+        const keep = calState.posts;
+        try {
+            calState.posts = [];
+            const html = calState.view === 'month' ? renderCalMonth() : renderCalWeek();
+            return `<div class="cal-grid-skeleton" role="status" aria-label="Loading your calendar" aria-busy="true" inert>${html}</div>`;
+        } catch (e) {
+            return '';
+        } finally {
+            calState.posts = keep;
+        }
+    }
     function _calWireWeekWheel(body) {
         const vp = body.querySelector('.cal-week-viewport');
         const grid = vp && vp.querySelector('.cal-week-grid');

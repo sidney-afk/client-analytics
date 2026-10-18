@@ -74,8 +74,18 @@ function grabConst(name) {
 // --- structural checks: the fix is a reused function, not a second copy ----
 
 const snapshotBlock = grabFunc('wlFetchNativeSnapshot');
-ok(/const archivedNativeIds = await _wlArchivedNativeIds\(value\.rows\);/.test(snapshotBlock),
+ok(/const archivedNativeIds = await _wlArchivedNativeIds\(value\.rows, markerRead\);/.test(snapshotBlock),
   'the native snapshot reader computes archived native ids before building issues');
+// Speed sweep 2026-10-17: the marker read starts BESIDE the board read (its URL
+// never used the ids), not after it, and before the first board request.
+{
+  const startAt = snapshotBlock.indexOf('const markerRead = _wlFetchArchiveMarkerRows(null);');
+  ok(startAt > 0 && startAt < snapshotBlock.indexOf("action: 'native_snapshot_v2'")
+    && startAt > snapshotBlock.indexOf("_syncviewRequireStaffIdentity('workload-plan-read')"),
+    'the archive-marker read starts after the staff check and before the board read, in parallel with it');
+  ok(/markerRead\.catch\(\(\) => \{\}\);/.test(snapshotBlock),
+    'an early marker read that is never awaited (the board read failed) cannot surface as an unhandled rejection');
+}
 ok(/for \(const row of rows\) \{/.test(snapshotBlock) && !/for \(const row of value\.rows\) \{/.test(snapshotBlock),
   'the row loop walks the FILTERED array, not the raw server payload');
 
@@ -155,7 +165,7 @@ function archivedContext(fetchImpl) {
     grabConst('WL_PLAN_READ_TIMEOUT_MS'),
     grabFunc('_wlFetchArchiveMarkerRows'),
     grabFunc('_wlArchivedNativeIds'),
-    'this.run = (rows) => _wlArchivedNativeIds(rows);',
+    'this.run = (rows, markerRead) => _wlArchivedNativeIds(rows, markerRead);',
     'this.fetchMarkers = (ids) => _wlFetchArchiveMarkerRows(ids);',
   ].join('\n'), ctx);
   return { ctx, calls };
@@ -167,6 +177,26 @@ function runArchivedNativeIds(rows, markerRows) {
 }
 
 async function runAsyncChecks() {
+  {
+    // Speed sweep 2026-10-17: the read started early (ids unknown, null) is the
+    // one the filter uses; no second request; a failed early read still leaves
+    // the board unfiltered; an empty id list still never reads.
+    const rows = [{ id: 'del_archived', source: 'native', is_sub_issue: true }, { id: 'del_live', source: 'native', is_sub_issue: true }];
+    const markerRows = [{ ...baseRow(), id: 'del_archived', raw_issue_archived_at: '2026-08-17T05:00:55.662Z' }];
+    const h = archivedContext(async () => ({ ok: true, json: async () => markerRows }));
+    const early = h.ctx.fetchMarkers(null);
+    ok(h.calls.length === 1, 'the early marker read (ids not yet known) goes out at once');
+    const archived = await h.ctx.run(rows, early);
+    ok(archived.has('del_archived') && !archived.has('del_live') && h.calls.length === 1,
+      'the filter uses the early read and makes no second request');
+    const failed = Promise.reject(new Error('network down')); failed.catch(() => {});
+    const h2 = archivedContext(async () => { throw new Error('must not be called'); });
+    const none = await h2.ctx.run(rows, failed);
+    ok(none.size === 0 && h2.calls.length === 0, 'a failed early read leaves every row unfiltered, without retrying');
+    const h3 = archivedContext(async () => ({ ok: true, json: async () => [] }));
+    await h3.ctx.fetchMarkers([]);
+    ok(h3.calls.length === 0, 'an empty id list still makes no request');
+  }
   {
     const rows = [
       { id: 'del_archived', source: 'native', is_sub_issue: true },

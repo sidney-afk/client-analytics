@@ -562,6 +562,7 @@
     "prod-row-cell-overflow-pin.js",
     "prod-silent-refresh-honesty.js",
     "prod-smm-line.js",
+    "prod-subissue-count-from-cache.js",
     "prod-subissue-order.js",
     "prod-subissue-parent-name.js",
     "prod-tail-prefetch.js",
@@ -671,6 +672,8 @@
     "sxr-optout-probe-waits-for-route.js",
     "sxr-reorder-failclosed.js",
     "synclinear-early-read.js",
+    "kasper-seen-one-write.js",
+    "calendar-early-read.js",
     "syncview-retirement-admission.js",
     "syncview-session.js",
     "system-map-sync.js",
@@ -1708,11 +1711,43 @@
       "ci": "representative"
     },
     {
+      "file": "calendar-month-week-skeleton-shape-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, fictional test client and cards, no hosted credentials. Checks the staff Calendar Month and Week loading skeleton has the loaded view's shape: header items, day-name row and day cells (Month), visible day columns (Week), desktop light and dark, within 1px (a Month row with a post may grow up to 4px).",
+      "reproduce": "node test/calendar-month-week-skeleton-shape-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "samples-sheet-skeleton-shape-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, fictional test client and samples, no hosted credentials. Checks the staff Samples Sheet and Review loading skeletons have the loaded shape: Sheet card, thumbnail and row boxes; Review toolbar, list cards and the first card's insides; desktop light and dark, within 1px.",
+      "reproduce": "node test/samples-sheet-skeleton-shape-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "calendar-sheet-skeleton-shape-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, fictional test client and cards, no hosted credentials. Checks the staff Calendar Sheet loading skeleton has the loaded page's shape: card, thumbnail and row boxes on desktop light and dark, the posts bar and tile grid on phone, and the first-paint toolbar and cards, each within 1px of the loaded page.",
+      "reproduce": "node test/calendar-sheet-skeleton-shape-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "calendar-status-row-urgent-height-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, fictional test client and cards, no hosted credentials. Checks the staff Calendar and Samples Sheet: with a part Urgent every status row stays one line and the same height, and each status name carries its full-name tooltip, on desktop (three card sizes) and phone, light and dark, both status palettes.",
       "reproduce": "node test/calendar-status-row-urgent-height-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "start-page-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; the repository served the way GitHub Pages serves it, the two tutorial MP4 addresses answered locally with the frame viewer's generated clip, every other outside request refused, no hosted credentials and no live data. Checks the public start-here page at /start: no console errors, both players carry the right MP4 and play and pause, the videographer view hides the client-only video, and start/ is published.",
+      "reproduce": "node test/start-page-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {
@@ -1753,6 +1788,54 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token, with the player's switch answered slowly), no hosted credentials and no live data. Records every frame after a Notes click on a switched-on client link's Sheet tab, at 1440 and 390 wide, and checks no frame shows the Notes dialog without the player and the view has its final shape (portrait, one width) from its first frame.",
       "reproduce": "node test/review-stage-notes-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "review-stage-chat-switch-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people, conversation and token), no hosted credentials and no live data. Checks that the first switch from Sheet to Review never paints the old Review list for a switched-on client (every animation frame, staff Calendar light and dark, client link), that the probe does see the old list with the switch off, that the conversation is a phone-style chat for the client, SMM and Kasper in light and dark (own notes right, others left, bubbles apart from the panel, no side bar, part tags, Done, a long pasted caption keeps its paragraphs and folds behind Show all, nothing saved), and that the new-version bar covers none of the stage's buttons.",
+      "reproduce": "node test/review-stage-chat-switch-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "review-stage-save-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member, with a slow or refusing card save switched at run time), no hosted credentials and no live data. Checks that every save on the new review stage ends on screen: an SMM approval that clears the card shows Approved to Kasper within three seconds (it used to stay on Saving), a slow server says it is still waiting, and a refused save shows its reason with Try again, which saves.",
+      "reproduce": "node test/review-stage-save-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "review-stage-smooth-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Records every animation frame while the new review page switches part (step bar, the next part after an approve) or post (a strip chip, Finish) on the client page and the SMM's Review tab, and checks the header, strip, title, step bar, decision row and conversation panel stay on screen, no message fades below 35% (never at all on a part switch) and no strip thumbnail goes blank.",
+      "reproduce": "node test/review-stage-smooth-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "review-stage-finish-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Checks on the client page and the SMM's Review tab that Finish reviewing is quiet while a part waits, breathes slowly (three times, then a still ring) once every part is answered, is not restarted by a redraw, and is a still ring with reduced motion.",
+      "reproduce": "node test/review-stage-finish-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "review-stage-client-composer-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and token), no hosted credentials and no live data. Checks the client review page's message box (no 'Is this a change?' prompt, part chips at the box's top left, 'Ask for a change' needs a part and saves a change request on it, 'Send comment' saves a plain comment), that a client's caption edit saves the new caption with a plain note carrying the old one (never approved, never a change request) shown as new over old on the client and SMM pages, and that the caption edit box and the message box draw the thin scrollbar.",
+      "reproduce": "node test/review-stage-client-composer-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "review-stage-curtain-seven-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and token, the frame viewer's generated clip), no hosted credentials and no live data. Checks the owner's feedback of 2026-10-17 23:20: on the new review page Kasper's tab has no title or Updated line, only Review Session and Messages (Filming Plans in More), a list button with his sections instead of the strip's texts, a one-row heading with the round beside the date, and full screen on a double click; Notify client beside the menu on the SMM Review tab; for everyone, a video opened from a play button starts playing (muted with a sound button when the browser refuses sound) while one opened from the notes does not, and Analytics hidden unless analytics_hidden reads { hidden: false }.",
+      "reproduce": "node test/review-stage-curtain-seven-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

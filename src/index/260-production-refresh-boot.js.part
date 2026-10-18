@@ -79,7 +79,7 @@ import {
 import { SXR_CACHE_PREFIX, _sxrAbortActiveLoad, _sxrNextLoadSeq, sxrState } from './270-samples-model.js';
 import { _sxrFlushAllPending, _sxrLinearOutboxTimer, _sxrSetLinearOutboxTimer, mountSxrClientView } from './280-samples-cards-notes.js';
 import { _sxrV2Teardown, _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
-import { svRsClientNoAnalytics, svRsFlagsReady } from './188-review-stage-switch.js';
+import { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsClientNoAnalytics, svRsFlagsReady } from './188-review-stage-switch.js';
 import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js';
         function _prodManualRefresh() {
             // The press must be visibly acknowledged: the refresh itself is a
@@ -1312,7 +1312,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                 + _prodIssueIdHTML(d)
                 + _prodStatusIcon(d.status, d.id)
                 + '<span class="prod-title"' + _prodTitleAttrs(parent ? (d.title || 'Untitled deliverable') + ' › ' + (parent.title || '') : (d.title || 'Untitled deliverable')) + '><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
-                + (sub ? '<span class="prod-subchip" data-prod-tip="' + sub.done + ' of ' + sub.total + ' sub-issues done">' + _prodStatusSVG(sub.done === sub.total && sub.total > 0 ? 'approved' : 'todo') + sub.done + '/' + sub.total + '</span>' : '')
+                + _prodSubChipHTML(sub)
                 + '<span class="prod-spacer"></span>' + _prodIssueProjectChipHTML(d)
                 + (d.due ? '<span class="prod-due' + (_prodRowOverdue(d) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '</span>')
                 + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '"' + assigneeWriteAttrs + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '</span>'
@@ -1453,6 +1453,28 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
            gated) -- see the note beside PROD_CREATE_CLOSED_TEXT. Sub-issue
            creation must not be reachable from Production at all, per
            CLAUDE.md's standing rule; only the content calendar creates. */
+        /* The "done/total" sub-issue chip. The first paint from the saved copy
+           carries no finished work by construction (_prodState.cachePartial,
+           see the snapshot notes in the state file), so while it is all the
+           page holds, "0 done" is that copy's silence, not an answer: Back from
+           a card to a sub-issue read "0/13" for a few seconds where the truth
+           was 19 of 32. The live first read is the same shape (finished work
+           arrives with the terminal tail), so the rule is: until the row set is
+           complete (_prodRowSetComplete) or a finished child is already here,
+           the chip says it is still counting. A tail that failed shows what is
+           held rather than counting forever. */
+        function _prodSubCountPending(sub) {
+            if (!sub || sub.done) return false;
+            if (_prodState.cachePartial) return true;
+            return !_prodState.terminalTailFailed && !_prodRowSetComplete();
+        }
+        function _prodSubChipHTML(sub) {
+            if (!sub) return '';
+            if (_prodSubCountPending(sub)) {
+                return '<span class="prod-subchip" data-prod-subchip-pending="1" data-prod-tip="Counting sub-issues\u2026" aria-label="Counting sub-issues">' + _prodStatusSVG('todo') + '\u2026</span>';
+            }
+            return '<span class="prod-subchip" data-prod-tip="' + sub.done + ' of ' + sub.total + ' sub-issues done">' + _prodStatusSVG(sub.done === sub.total && sub.total > 0 ? 'approved' : 'todo') + sub.done + '/' + sub.total + '</span>';
+        }
         function _prodSubIssueContextHTML(d, parent) {
             /* A parent that is linked but not loaded yet still gets a header,
                with a skeleton for its name: dropping the header and painting
@@ -1470,7 +1492,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                 : _prodIssueProjectChipHTML(d);
             return '<div class="prod-detail-context" data-prod-subissue-of="' + _calEscAttr(parent.id) + '"><span>Sub-issue of</span>'
                 + '<button class="prod-detail-context-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<b>' + (parentLabel ? _calEsc(parentLabel) + ' ' : '') + _prodParentNameHTML(parent) + '</b></button>'
-                + (progress ? '<span class="prod-subchip" data-prod-tip="' + progress.done + ' of ' + progress.total + ' sub-issues done">' + _prodStatusSVG(progress.done === progress.total && progress.total > 0 ? 'approved' : 'todo') + progress.done + '/' + progress.total + '</span>' : '')
+                + _prodSubChipHTML(progress)
                 + '<span class="prod-spacer"></span>' + projectContext + '</div>';
         }
         function _prodSubIssueRowHTML(k) {
@@ -1986,6 +2008,8 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                 }
             }
             _syncviewAppBooted = true;
+            // The switches (188) are read at boot: one of them, analytics_hidden, decides the staff bar's Analytics tab.
+            try { svRsFlagsReady(); } catch (e) {}
             const _ptoFlagReady = _isClientLink ? Promise.resolve(null) : _ptoPrimeFlag();
             // Resume any calendar-card write job a previous session left
             // unfinished (tab closed during the post-submit write window).
@@ -2150,7 +2174,10 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             // More / multi-select / zoom toolbar recovery hostage.
             // A Kasper landing holds the analytics extras until its first
             // content paints (see _analyticsHoldExtras).
+            // Every other staff fast-tab landing holds them until Analytics is
+            // opened, with no timer (speed sweep 2026-10-17).
             if (skipAwait && !_isClientLink && (_kasperHashLanding || (_kasperArrivedFromUnlockParam && _kasperUnlocked && !hashRaw))) _analyticsHoldExtras(8000);
+            else if (skipAwait && !_isClientLink) _analyticsHoldExtras(0, 'analytics');
             const dataLoad = fetchAll(_isClientLink?clientEntryRun:null);
             const dataPromise = dataLoad.complete;
             dataLoad.essentials.then(() => {
@@ -2222,7 +2249,8 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                     if (st.templatesTab === 'reels' || st.templatesTab === 'thumbnails') _templatesSetActiveTab(st.templatesTab);
                     navTo('templates', false);
                     const _tplEpoch = _syncviewNavEpoch;
-                    dataPromise.then(() => {
+                    // The client list is all this needs (the extras are held).
+                    dataLoad.essentials.then(() => {
                         // Only re-route Templates if nobody has left it since.
                         if (_syncviewNavEpoch !== _tplEpoch) return;
                         if (wlIsAllowedClient(_templatesSelected)) {
@@ -2232,7 +2260,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                             // Deep-link no longer resolves to a real client → index.
                             _templatesSetSelected(null); navTo('templates', false);
                         }
-                    });
+                    }, () => {});
                 } else if (hashRoute === 'smm-weekly-report' || hashRoute === 'smm-weekly-reports') {
                     navTo(hashRoute, false);
                 } else if (hashRaw === 'kasper' || hashRaw.startsWith('kasper/')) {
@@ -2667,19 +2695,39 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         history.replaceState(state, '', url);
         return Object.freeze({ client: entry.client, slug: entry.slug, view, tab: entry.tab || '', verified: true });
     }
+    /* The link check the <head> started while the document parsed (see
+       005-head-boot). Taken at most once, and only when it was sent for this
+       exact address with this exact body within the last minute; anything
+       else returns null and the caller checks as before. The answer is judged
+       by exactly the same rules either way. */
+    function _syncviewTakeEarlyClientVerify(body) {
+        let early = null;
+        try { early = window.__svEarlyClientVerify; window.__svEarlyClientVerify = null; } catch (e) {}
+        if (!early || !early.response || early.body !== body || early.href !== location.href) return null;
+        if (!(Date.now() - Number(early.at) < 60000)) return null;
+        return early.response;
+    }
     async function _syncviewPreflightClientEntry(generation, href) {
         const entry = _syncviewClientEntryEnvelope();
         if (!entry.ok) return { kind: 'invalid', reason: entry.reason };
         const controller = typeof AbortController === 'function' ? new AbortController() : null;
         const timer = controller ? setTimeout(() => controller.abort(), 8000) : null;
         try {
-            const resp = await fetch(CLIENT_TOKEN_VERIFY_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                cache: 'no-store',
-                signal: controller ? controller.signal : undefined,
-                body: JSON.stringify({ client: entry.client, slug: entry.slug, token: entry.token, view: entry.view, strict: true })
-            });
+            const body = JSON.stringify({ client: entry.client, slug: entry.slug, token: entry.token, view: entry.view, strict: true });
+            const early = _syncviewTakeEarlyClientVerify(body);
+            // The early request carries no signal, so the same 8 s budget
+            // is applied by racing it against this one's abort.
+            const resp = early
+                ? await Promise.race([early, new Promise((_, reject) => {
+                    if (controller) controller.signal.addEventListener('abort', () => reject(new Error('timeout')), { once: true });
+                })])
+                : await fetch(CLIENT_TOKEN_VERIFY_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    cache: 'no-store',
+                    signal: controller ? controller.signal : undefined,
+                    body
+                });
             let json = null; try { json = await resp.json(); } catch (e) {}
             if (generation !== _syncviewClientEntryGeneration || href !== location.href) return { kind: 'stale' };
             if (!resp.ok) return { kind: resp.status >= 500 || resp.status === 429 || resp.status === 408 ? 'retry' : 'invalid' };
@@ -2737,12 +2785,18 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                         else localStorage.removeItem(seenKey);
                     } catch (e) {}
                 };
-                if (seenOn) {
+                // Analytics is hidden for every client link unless analytics_hidden says otherwise (188, session
+                // Curtain Seven), decided at once: a browser that last saw Analytics shown keeps today's flow.
+                if (seenOn && svAnalyticsSeenShown()) {
                     await rsReady;
                     if (generation !== _syncviewClientEntryGeneration || href !== location.href) return;
                     remember();
                     if (svRsClientNoAnalytics(entry.client)) entry = Object.assign({}, entry, { view: 'calendar' });
                 } else {
+                    if (svRsClientNoAnalytics(entry.client)) {
+                        svAnalyticsMarkDefaultMove(entry.client);
+                        entry = Object.assign({}, entry, { view: 'calendar' });
+                    }
                     Promise.resolve(rsReady).then(remember, () => {});
                 }
             }

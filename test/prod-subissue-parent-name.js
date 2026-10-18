@@ -55,7 +55,7 @@ function extractFunction(name) {
 
 const NAMES = ['_prodIssueLabel', '_prodIssueDisplayLabel', '_prodIsInternalId', '_prodSafeName',
   '_prodKnownName', '_prodParentNameState', '_prodEnsureParentName', '_prodParentNameHTML',
-  '_prodSubIssueContextHTML'];
+  '_prodSubIssueContextHTML', '_prodSubCountPending', '_prodSubChipHTML'];
 // Timers shortened so the hung-request cases run in milliseconds.
 const consts = ['PROD_PARENT_NAME_TIMEOUT_MS = 40', 'PROD_PARENT_NAME_RETRY_MS = 60', '_prodParentNames = new Map()']
   .map(c => 'const ' + c + ';').join('\n');

@@ -372,6 +372,15 @@
             _svLayerPointerType = e.pointerType || '';
             if (e.pointerType === 'touch') return;
             if (e.button != null && e.button > 0 && e.pointerType === 'mouse') return;
+            /* A press on a marked dimmed backdrop itself (dataset.backdropDismiss) is
+               left to that backdrop's own click handler, which closes on the
+               click and gives focus back to the opener. Closing here, on the
+               press, removed the backdrop mid-click: the rest of the click
+               landed on whatever sat underneath (a card's name field took
+               focus behind the Archived list), and the backdrop never saw the
+               press its own handler waits for. */
+            const t = e.target;
+            if (t && t.dataset && 'backdropDismiss' in t.dataset) return;
             _svLayerOutside(e);
         }, true);
         document.addEventListener('click', e => {

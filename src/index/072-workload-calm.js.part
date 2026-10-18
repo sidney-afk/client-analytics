@@ -1,0 +1,380 @@
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
+import { wlState } from './066-core-workload-state.js';
+import { _wlDueWriteInFlight, _wlPlanWriteInFlight, wlLinearEditingEnabled, wlPlanEditingEnabled } from './067-workload-board-source.js';
+import {
+  wlDeadlineTagHtml, wlIsTweaksNeeded, wlIssueDragHandleHtml, wlPlanOriginHtml, wlWorkloadBadgeHtml
+} from './069-workload-planning-helpers.js';
+import { wlAutoPlacementTip, wlDisplayDate, wlPlacementMode, wlPlanDate, wlTeamBucket } from './071-workload-planner.js';
+import { renderWorkloadAll, wlEscape, wlLooseParentInfo, wlSortSubIssues, wlSyncLinearUrl } from './080-workload-render.js';
+import { _jsAttrArg } from './131-core-html.js';
+import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
+import { svWorkloadCalmOn, svWorkloadCalmPending } from './188-review-stage-switch.js';
+    /* THE CALM WORKLOAD CALENDAR (session Calm, 2026-10-18). A design preview the owner tweaks before anyone else sees
+       it: every line of it is behind the runtime switch row workload_calm_staff { "staff": [...] } (read with the other
+       page switches in 188). A page the switch does not name never reaches any of this: the old markup is produced by the
+       old code, byte for byte (docs/syncview-design/tests/workload-calm-off-browser.js holds it to a golden copy).
+
+       What changes is presentation and the number of clicks, never what a click writes. Every save here is the old one,
+       reached through the old attributes: a due date through [data-wl-due-issue] (the delegated change handler in
+       wlWireToolbar), "Use automatic plan" through [data-wl-plan-clear], a drag through the old drag handles.
+
+       The look (owner, 2026-10-18): one level of container where there were three or four, so fewer borders and more
+       spacing; muted secondary text; colour only where it means something (overdue red, due soon amber). The rules are in
+       010 under ".workload-view.wl-calm"; this file builds the few pieces of markup the old code did not have. */
+
+    let _calm = false;
+    let _held = false;
+    // Which client groups are open inside a day, kept across the redraw every save causes (key: day|assignee|client).
+    const _openGroups = new Set();
+    // "Needs assignment" and "Needs a work day" start closed on every visit and stay as the person left them.
+    const _looseOpen = { wlUnassigned: false, wlUndated: false };
+
+    const WL_CALM_ICON = {
+        chev: '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 4.5 3 3 3-3"/></svg>',
+        out: '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.6 2.4h3v3"/><path d="M9.6 2.4 5.2 6.8"/><path d="M9.6 6.6v3h-7v-7h3"/></svg>',
+        cal: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>',
+        linear: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.2 9.8 9.8 6.2M7 4.6h4.4V9"/><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/></svg>',
+        warn: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.8L15 14H1L8 1.8z"/><path d="M8 6.5v3.5"/><circle cx="8" cy="12" r="0.4" fill="currentColor"/></svg>',
+        close: '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg>',
+        view: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/><circle cx="10.5" cy="4.5" r="1.5" fill="var(--white)"/><circle cx="5.5" cy="8" r="1.5" fill="var(--white)"/><circle cx="9.5" cy="11.5" r="1.5" fill="var(--white)"/></svg>',
+    };
+
+    function wlCalmOn() { return _calm; }
+
+    /* A browser that last saw this person named holds a loader while the switch read is on its way, instead of painting
+       the old calendar and swapping it a moment later. Anyone else (and a read that failed or names nobody) gets the old
+       calendar at once. True means "draw nothing yet". */
+    function wlCalmHold() {
+        const root = document.querySelector('.workload-view');
+        let hold = false;
+        try { hold = !!svWorkloadCalmPending(); } catch (e) { hold = false; }
+        _held = hold;
+        if (root) root.classList.toggle('wl-calm-hold', hold);
+        if (hold) {
+            const body = document.getElementById('wlBody');
+            if (body) body.innerHTML = _svLoadingSkeletonHtml('workload');
+        }
+        return hold;
+    }
+
+    /* Decide, once per draw, whether this page is the calm one, and dress or undress the page's own controls. */
+    function wlCalmSync() {
+        let on = false;
+        try { on = !!svWorkloadCalmOn(); } catch (e) { on = false; }
+        _calm = on;
+        const root = document.querySelector('.workload-view');
+        if (!root) return on;
+        if (on) {
+            root.classList.add('wl-calm');
+            wlCalmWire(root);
+            const phone = !!(window.svIsStaffPhone && window.svIsStaffPhone());
+            wlCalmMenuSet(root, !phone);
+            wlCalmLooseDress(root, true);
+            wlCalmViewDot(root);
+        } else if (root.classList.contains('wl-calm')) {
+            wlCalmMenuSet(root, false);
+            wlCalmLooseDress(root, false);
+            root.classList.remove('wl-calm', 'wl-calm-hold');
+        }
+        return on;
+    }
+
+    // ── The View control: everything the top bar used to spread out, behind one small button ────────────────────────
+    function wlCalmMenuSet(root, want) {
+        const built = !!root.querySelector('#wlCalmViewMenu');
+        if (want === built) return;
+        if (!want) { wlCalmMenuClose(root, false); wlCalmMenuUnbuild(root); return; }
+        const toolbar = root.querySelector('.workload-toolbar');
+        const rows = toolbar ? toolbar.querySelectorAll(':scope > .workload-toolbar-row') : [];
+        const right = rows[0] && rows[0].querySelector('.workload-toolbar-right');
+        if (!right) return;
+        const refreshBtn = root.querySelector('[data-wl-nav="refresh"]');
+        const parts = [
+            ['Team', root.querySelector('#wlTeamPills')],
+            ['Editor', root.querySelector('.wl-dropdown[data-wl-filter="editor"]')],
+            ['Client', root.querySelector('.wl-client-search')],
+            ['Show', root.querySelector('.workload-deadline-mode')],
+            ['Range', root.querySelector('#wlViewPills')],
+            ['', refreshBtn && refreshBtn.closest('.workload-nav')],
+        ].filter(p => p[1]);
+        const holder = document.createElement('div');
+        holder.className = 'wl-calm-view';
+        holder.innerHTML = '<button type="button" class="wl-calm-view-btn" data-wl-calm-view-btn aria-haspopup="dialog" aria-expanded="false" aria-controls="wlCalmViewMenu">'
+            + WL_CALM_ICON.view + '<span>View</span></button>'
+            + '<div id="wlCalmViewMenu" class="wl-calm-menu" role="dialog" aria-label="View options" hidden></div>';
+        const menu = holder.querySelector('#wlCalmViewMenu');
+        menu._home = [];
+        for (const [label, el] of parts) {
+            const marker = document.createComment('wl-calm-home');
+            el.parentNode.insertBefore(marker, el);
+            menu._home.push({ el, marker });
+            const row = document.createElement('div');
+            row.className = 'wl-calm-menu-row';
+            if (label) { const l = document.createElement('span'); l.className = 'wl-calm-menu-label'; l.textContent = label; row.appendChild(l); }
+            row.appendChild(el);
+            menu.appendChild(row);
+        }
+        right.appendChild(holder);
+    }
+    function wlCalmMenuUnbuild(root) {
+        const holder = root.querySelector('.wl-calm-view');
+        const menu = holder && holder.querySelector('#wlCalmViewMenu');
+        if (menu && menu._home) {
+            for (const { el, marker } of menu._home) {
+                if (marker.parentNode) { marker.parentNode.insertBefore(el, marker); marker.remove(); }
+            }
+        }
+        if (holder) holder.remove();
+    }
+    function wlCalmMenuClose(root, returnFocus) {
+        const menu = root.querySelector('#wlCalmViewMenu');
+        const btn = root.querySelector('[data-wl-calm-view-btn]');
+        if (!menu || menu.hidden) return;
+        menu.hidden = true;
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+        svLayerRelease('wl-calm-view');
+        if (returnFocus && btn && typeof btn.focus === 'function') btn.focus();
+    }
+    function wlCalmMenuOpen(root) {
+        const menu = root.querySelector('#wlCalmViewMenu');
+        const btn = root.querySelector('[data-wl-calm-view-btn]');
+        if (!menu || !btn) return;
+        menu.hidden = false;
+        btn.setAttribute('aria-expanded', 'true');
+        svLayerOpen({
+            key: 'wl-calm-view',
+            region: '#wlCalmViewMenu',
+            opener: btn,
+            isOpen: () => { const m = document.getElementById('wlCalmViewMenu'); return !!m && !m.hidden; },
+            holdRefresh: false,
+            close: () => wlCalmMenuClose(root, false),
+        });
+    }
+    // A filter that is on while its control is tucked away must not be forgotten: a quiet dot on the button says so.
+    function wlCalmViewDot(root) {
+        const btn = root.querySelector('[data-wl-calm-view-btn]');
+        if (!btn) return;
+        const active = wlState.team !== 'all' || wlState.editor !== 'all' || wlState.client !== 'all';
+        btn.classList.toggle('has-filter', active);
+        btn.setAttribute('aria-label', active ? 'View options, a filter is on' : 'View options');
+    }
+
+    // ── "Needs assignment" and "Needs a work day": one quiet row that opens ─────────────────────────────────────────
+    function wlCalmLooseDress(root, on) {
+        for (const id of ['wlUnassigned', 'wlUndated']) {
+            const strip = root.querySelector('#' + id);
+            const label = strip && strip.querySelector(':scope > .workload-section-label');
+            if (!label) continue;
+            if (on) {
+                if (label.hasAttribute('data-wl-calm-toggle')) continue;
+                label.setAttribute('data-wl-calm-toggle', id);
+                label.setAttribute('role', 'button');
+                label.setAttribute('tabindex', '0');
+                label.insertAdjacentHTML('beforeend', '<span class="wl-calm-count" data-wl-calm-count></span><span class="wl-calm-chev">' + WL_CALM_ICON.chev + '</span>');
+                wlCalmLooseApply(strip, id);
+            } else if (label.hasAttribute('data-wl-calm-toggle')) {
+                label.removeAttribute('data-wl-calm-toggle'); label.removeAttribute('role'); label.removeAttribute('tabindex'); label.removeAttribute('aria-expanded');
+                label.querySelectorAll('.wl-calm-count, .wl-calm-chev').forEach(n => n.remove());
+                const chips = strip.querySelector('.wl-loose-clients'); if (chips) chips.hidden = false;
+            }
+        }
+    }
+    function wlCalmLooseApply(strip, id) {
+        const label = strip.querySelector(':scope > .workload-section-label');
+        const chips = strip.querySelector(':scope > .wl-loose-clients');
+        const open = !!_looseOpen[id];
+        if (label) label.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (chips) chips.hidden = !open;
+        strip.classList.toggle('is-open', open);
+    }
+    /* Both strips, drawn the calm way: a client per block, its videos as plain lines (each opens the video in SyncView),
+       and one small link per parent to open the batch where the work is assigned. No frames, no per-parent headings
+       unless a client has more than one batch. */
+    function wlCalmLooseStrip(stripEl, chipsEl, filtered) {
+        const byClient = new Map();
+        for (const s of filtered) {
+            const key = s.clientName || ' noclient';
+            if (!byClient.has(key)) byClient.set(key, { clientName: s.clientName || '', subs: [], parents: new Map() });
+            const client = byClient.get(key);
+            client.subs.push(s);
+            const parent = wlLooseParentInfo(s);
+            const pKey = parent ? parent.key : ' noparent';
+            if (!client.parents.has(pKey)) client.parents.set(pKey, { parent, subs: [] });
+            client.parents.get(pKey).subs.push(s);
+        }
+        const clients = [...byClient.values()].sort((a, b) => a.clientName.localeCompare(b.clientName));
+        const link = parent => {
+            if (!parent) return '';
+            const url = parent.nativeBatchId ? svRoute.fast('/?prod=1&batch=' + encodeURIComponent(parent.nativeBatchId)) : wlSyncLinearUrl(parent.identifier);
+            if (!url) return '';
+            const name = parent.identifier || 'the batch';
+            return '<a class="wl-calm-loose-open" href="' + wlEscape(url) + '" target="_blank" rel="noopener noreferrer" aria-label="' + wlEscape('Open ' + name + ' in SyncLinear to assign its sub-issues') + '" data-tip="Open in SyncLinear">' + WL_CALM_ICON.out + '</a>';
+        };
+        const line = s => {
+            const team = wlTeamBucket(s.teamKey, s.teamName);
+            const url = wlSyncLinearUrl(s.nativeId || s.identifier) || s.url || '';
+            const dot = '<span class="wl-calm-dot is-' + team + '" aria-hidden="true"></span>';
+            const label = '<span class="wl-calm-loose-title">' + wlEscape(s.title || s.identifier || 'Work') + '</span>';
+            const accessible = [s.identifier || '', s.title || '', s.clientName || ''].filter(Boolean).join(' · ');
+            return url
+                ? '<a class="wl-calm-loose-item" href="' + wlEscape(url) + '" target="_blank" rel="noopener noreferrer" aria-label="' + wlEscape(accessible) + '">' + dot + label + '</a>'
+                : '<span class="wl-calm-loose-item">' + dot + label + '</span>';
+        };
+        chipsEl.innerHTML = clients.map(client => {
+            const parents = [...client.parents.values()];
+            const many = parents.length > 1;
+            const body = parents.map(group => {
+                const items = wlSortSubIssues(group.subs).map(line).join('');
+                const sub = many && group.parent
+                    ? '<div class="wl-calm-loose-batch"><span>' + wlEscape(group.parent.identifier || 'Batch') + '</span>' + link(group.parent) + '</div>'
+                    : '';
+                return sub + '<div class="wl-calm-loose-items">' + items + '</div>';
+            }).join('');
+            const head = '<div class="wl-calm-loose-head"><span class="wl-calm-loose-client">' + wlEscape(client.clientName || 'No client') + '</span>'
+                + '<span class="wl-calm-loose-n">' + client.subs.length + '</span>' + (!many && parents[0] ? link(parents[0].parent) : '') + '</div>';
+            return '<section class="wl-calm-loose-block" aria-label="' + wlEscape(client.clientName || 'No client') + '">' + head + body + '</section>';
+        }).join('');
+        chipsEl.__wlLooseSig = '';
+        const count = stripEl.querySelector('[data-wl-calm-count]');
+        if (count) count.textContent = String(filtered.length);
+        wlCalmLooseApply(stripEl, stripEl.id);
+    }
+
+    // ── One row for one video: used inside a day's open client group and inside the flat popover ───────────────────
+    /* The due line IS the date control (click it to change the date), shown exactly as the old tag: same words, same
+       red / amber, so the look the owner likes stays. Under it, only when the day was pinned by hand, "Use automatic
+       plan". The control is the shared branded date picker's own markup (a trigger inside [data-sv-date-picker] with a
+       type=date input), so keyboard, Escape and focus behave as everywhere else; the save is the old delegated change
+       handler, reached through [data-wl-due-issue]. */
+    function wlCalmDueHtml(s, planDate, canEdit) {
+        const id = String(s.id || '');
+        const dateId = 'wlDueDate_' + id.replace(/[^A-Za-z0-9_-]/g, '_');
+        const tag = wlDeadlineTagHtml(s.dueDate, planDate);
+        if (wlIsTweaksNeeded(s)) return '<span class="wl-calm-due is-fixed">' + tag + '</span>';
+        const savingDue = _wlDueWriteInFlight.has(id);
+        const value = String(s.dueDate || '').slice(0, 10);
+        const label = (value ? 'Due ' + value : 'No due date') + '. Change due date';
+        return '<span class="wl-calm-due" data-wl-due-issue="' + wlEscape(id) + '">'
+            + '<span class="sv-date wl-calm-date' + (canEdit ? '' : ' is-disabled') + '" id="' + dateId + 'Wrap" data-sv-date-picker>'
+            + '<button type="button" class="sv-date-trigger wl-calm-date-btn" id="' + dateId + 'Btn" data-sv-date-trigger data-placeholder="Choose due date" aria-haspopup="dialog" aria-controls="svDatePickerPopup" aria-expanded="false" aria-label="' + wlEscape(label) + '"' + (canEdit ? '' : ' disabled') + '>'
+            + tag + '<span class="wl-calm-date-chev" aria-hidden="true">' + WL_CALM_ICON.chev + '</span></button>'
+            + '<input class="sv-date-value" id="' + dateId + '" type="date" tabindex="-1" aria-hidden="true" value="' + wlEscape(value) + '" data-sv-today-policy="workload"' + (canEdit ? '' : ' disabled') + '>'
+            + '</span>'
+            + (savingDue ? '<span class="wl-calm-saving" role="status">Saving…</span>' : '')
+            + '</span>';
+    }
+    function wlCalmRowHtml(s, o) {
+        o = o || {};
+        const id = String(s.id || '');
+        const dayISO = o.dayISO || '';
+        const planDate = o.planDate || dayISO || wlDisplayDate(s) || '';
+        const mode = wlPlacementMode(s);
+        const tweak = wlIsTweaksNeeded(s);
+        const explicitPlan = !!(wlPlanDate(s) || null);
+        const savingPlan = _wlPlanWriteInFlight.has(id);
+        const canEditPlan = !tweak && wlPlanEditingEnabled() && !savingPlan;
+        const canEditDue = !tweak && wlLinearEditingEnabled(s) && !_wlDueWriteInFlight.has(id);
+        const canDrag = !!o.drag && wlPlanEditingEnabled() && !savingPlan;
+        const rowUrl = wlSyncLinearUrl(s.nativeId || s.identifier) || s.url || '';
+        const titleText = wlEscape(s.title || s.identifier || 'Work');
+        const title = rowUrl
+            ? '<a class="wl-calm-row-title" href="' + wlEscape(rowUrl) + '" target="_blank" rel="noopener noreferrer" aria-label="' + wlEscape('Open ' + (s.title || s.identifier || 'work') + ' in SyncView') + '">' + titleText + '</a>'
+            : '<span class="wl-calm-row-title">' + titleText + '</span>';
+        const client = o.showClient && s.clientName ? '<span class="wl-calm-row-client">' + wlEscape(s.clientName) + '</span>' : '';
+        const cal = s.clientName
+            ? '<button type="button" class="wl-calm-tool" aria-label="Open in the content calendar" data-tip="Open in the content calendar" onclick="wlOpenInContentCalendar(' + _jsAttrArg(s.clientName) + ',' + _jsAttrArg(s.identifier || '') + ',' + _jsAttrArg(s.nativeId || '') + ')">' + WL_CALM_ICON.cal + '</button>'
+            : '';
+        const linear = s.url
+            ? '<a class="wl-calm-tool" href="' + wlEscape(s.url) + '" target="_blank" rel="noopener noreferrer" aria-label="Open in Linear" data-tip="Open in Linear">' + WL_CALM_ICON.linear + '</a>'
+            : '';
+        // The way this card was placed matters only when it was not the automatic plan: a hand pin says so through its
+        // own "Use automatic plan" button, carried-over and deadline-fallback keep their small marks.
+        const origin = (mode === 'carried' || mode === 'fallback' || mode === 'loading') ? wlPlanOriginHtml(mode, true, 0, '') : '';
+        const auto = explicitPlan && !tweak
+            ? '<button type="button" class="wl-calm-auto" data-wl-plan-clear="' + wlEscape(id) + '"' + (canEditPlan ? '' : ' disabled') + '>' + wlPlanOriginHtml(mode, false) + '<span>Use automatic plan</span></button>'
+            : '';
+        return '<div class="workload-plan-item wl-calm-row' + (canDrag ? '' : ' is-readonly') + '" tabindex="-1" data-wl-issue-id="' + wlEscape(id) + '" data-wl-parent-id="' + wlEscape(s.parentId || '') + '" data-wl-assignee-id="' + wlEscape(s.assigneeId || '') + '" data-wl-client="' + wlEscape(s.clientName || '') + '" data-wl-date="' + wlEscape(dayISO) + '">'
+            + '<div class="wl-calm-row-top">' + title + wlWorkloadBadgeHtml(s, true) + client
+            + '<span class="wl-calm-tools">' + cal + linear + (o.drag ? wlIssueDragHandleHtml(id, canDrag) : '') + '</span></div>'
+            + '<div class="wl-calm-row-due">' + wlCalmDueHtml(s, planDate, canEditDue) + origin + auto + '</div>'
+            + '</div>';
+    }
+    function wlCalmRowsHtml(subs, dayISO) {
+        return (subs || []).map(s => wlCalmRowHtml(s, { dayISO, planDate: dayISO || wlDisplayDate(s), drag: true })).join('');
+    }
+
+    // ── Which client groups are open ────────────────────────────────────────────────────────────────────────────────
+    function wlCalmGroupKey(dayISO, assigneeId, clientName) { return [dayISO || '', assigneeId || '', clientName || ''].join('|'); }
+    function wlCalmGroupOpen(key) { return _openGroups.has(key); }
+
+    // ── The flat popover (editor totals, status pills, the matrix chips, the phone list) ────────────────────────────
+    /* No box around any section: a header line, one muted Frame.io line when tweaks are listed, then the same rows the
+       day uses, each with its feedback notes beneath. `o.tweakBox(s)` is the loading placeholder the feedback read fills. */
+    function wlCalmPopoverHtml(o) {
+        const link = (href, text, extra) => '<a class="wl-calm-link" href="' + wlEscape(href) + '" target="_blank" rel="noopener noreferrer"' + (extra || '') + '>' + text + '</a>';
+        const head = '<div class="wl-calm-pop-head">'
+            + '<span class="wl-calm-pop-title">' + wlEscape(o.headerTitle || '') + '</span>'
+            + '<span class="wl-calm-pop-links">'
+            + (o.parentSyncUrl ? link(o.parentSyncUrl, wlEscape(o.openLabel || 'Open SyncView →')) : '')
+            + (o.templatesUrl ? link(o.templatesUrl, 'Templates', ' aria-label="' + wlEscape('Open ' + (o.clientName || '') + ' templates in a new tab') + '"') : '')
+            + (o.openLinearUrl ? link(o.openLinearUrl, 'Linear ↗') : '')
+            + '</span>'
+            + '<button type="button" class="workload-popover-close" data-wl-popover-close="1" aria-label="Close">' + WL_CALM_ICON.close + '</button>'
+            + '</div>';
+        const frame = o.frameNote
+            ? '<div class="wl-calm-frame" data-tip="Tweaks left as Frame.io comments can’t be shown here. The notes below are the ones sent through SyncView.">' + WL_CALM_ICON.warn + '<span>Always check Frame.io too.</span></div>'
+            : '';
+        const rows = (o.subs || []).map(s => wlCalmRowHtml(s, { planDate: wlDisplayDate(s) || '', showClient: o.showClient })
+            + (wlIsTweaksNeeded(s) ? o.tweakBox(s) : '')).join('')
+            || '<div class="wl-calm-empty">Nothing upcoming.</div>';
+        return head + frame + '<div class="wl-calm-rows">' + rows + '</div>';
+    }
+
+    // ── Wiring: one listener set on the page's root, added once ─────────────────────────────────────────────────────
+    function wlCalmWire(root) {
+        if (root.dataset.wlCalmWired === '1') return;
+        root.dataset.wlCalmWired = '1';
+        root.addEventListener('click', (e) => {
+            if (!_calm) return;
+            const viewBtn = e.target.closest('[data-wl-calm-view-btn]');
+            if (viewBtn && root.contains(viewBtn)) {
+                e.preventDefault();
+                const menu = root.querySelector('#wlCalmViewMenu');
+                if (menu && !menu.hidden) wlCalmMenuClose(root, true); else wlCalmMenuOpen(root);
+                return;
+            }
+            const toggle = e.target.closest('[data-wl-calm-toggle]');
+            if (toggle && root.contains(toggle)) {
+                e.preventDefault();
+                const id = toggle.getAttribute('data-wl-calm-toggle');
+                _looseOpen[id] = !_looseOpen[id];
+                const strip = root.querySelector('#' + id);
+                if (strip) wlCalmLooseApply(strip, id);
+            }
+        });
+        root.addEventListener('keydown', (e) => {
+            if (!_calm || (e.key !== 'Enter' && e.key !== ' ')) return;
+            const toggle = e.target.closest && e.target.closest('[data-wl-calm-toggle]');
+            if (toggle && e.target === toggle) { e.preventDefault(); toggle.click(); }
+        });
+        // A client group the person opened stays open through the redraw every save causes.
+        root.addEventListener('toggle', (e) => {
+            const d = e.target;
+            if (!_calm || !d || !d.matches || !d.matches('details.workload-day-client-group[data-wl-calm-key]')) return;
+            const key = d.getAttribute('data-wl-calm-key');
+            if (d.open) _openGroups.add(key); else _openGroups.delete(key);
+        }, true);
+        // A change to the filters keeps the dot on the View button honest; the menu itself stays open for the next one.
+        root.addEventListener('click', () => { if (_calm) setTimeout(() => wlCalmViewDot(root), 0); }, true);
+    }
+
+    // The switch answered (or its read gave up) after the page first drew: draw again, calm or not.
+    window.addEventListener('sv-review-stage-switch', () => {
+        if (!document.querySelector('.workload-view')) return;
+        let on = false;
+        try { on = !!svWorkloadCalmOn(); } catch (e) { on = false; }
+        if (on !== _calm || _held) renderWorkloadAll();
+    });
+export {
+  wlCalmGroupKey, wlCalmGroupOpen, wlCalmHold, wlCalmLooseStrip, wlCalmOn, wlCalmPopoverHtml, wlCalmRowsHtml, wlCalmSync
+};

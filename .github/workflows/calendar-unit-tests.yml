@@ -586,6 +586,16 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/popup-behaviour-areas-browser.js
+      - name: The calm Workload calendar is off for everyone the switch does not name, byte for byte
+        if: ${{ !cancelled() && matrix.part == 1 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/workload-calm-off-browser.js
+      - name: The calm Workload calendar saves exactly what the old one saved, once per action
+        if: ${{ !cancelled() && matrix.part == 1 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/workload-calm-browser.js
       - name: Creatives open on their own work in Workload and SyncLinear
         if: ${{ !cancelled() && matrix.part == 2 }}
         env:

@@ -40,6 +40,9 @@ import {
 } from './071-workload-planner.js';
 import { wlClosePopover, wlOpenRollupPopover } from './090-workload-popovers.js';
 import {
+  wlCalmGroupKey, wlCalmGroupOpen, wlCalmHold, wlCalmLooseStrip, wlCalmOn, wlCalmRowsHtml, wlCalmSync
+} from './072-workload-calm.js';
+import {
   CAL_SUPABASE_ANON_KEY, WORKLOAD_LINEAR_URL, WORKLOAD_PLAN_URL, _syncviewCreativeMe,
   _syncviewRequireStaffIdentity, _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders
 } from './100-onboarding-staff-controls.js';
@@ -2220,7 +2223,8 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
            unsaid, though -- "Nothing is shown here, but this is not an empty
            board" is exactly the sentence a reader needs most on the day
            something else is also wrong. */
-        if (boardShown) {
+        // The calm view drops this line entirely (owner, 2026-10-18).
+        if (boardShown && !(typeof wlCalmOn === 'function' && wlCalmOn())) {
             const excludedText = wlExcludedSummaryText(wlState.excluded, wlVisibleSubCount());
             if (excludedText) notices.push(excludedText);
         }
@@ -2267,6 +2271,10 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
             return;
         }
         wlUnhideSignedOut();
+        // The calm view (switch workload_calm_staff, 072): decides here, once per draw, whether this page is the calm
+        // one; a browser that last saw the person named holds a loader until the switch read answers. Everyone else
+        // falls straight through to the old code below.
+        if (typeof wlCalmSync === 'function') { wlCalmSync(); if (wlCalmHold()) return; }
         // Re-rendering the calendar wipes out the spotlight markers and the
         // popover's anchor element, so close it before painting the new DOM.
         if (wlState.popoverAnchor) wlClosePopover(false);
@@ -2354,6 +2362,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
     function wlPhoneRender() {
         const root = document.querySelector('.workload-view');
         if (!root) return;
+        if (typeof wlCalmSync === 'function') wlCalmSync();
         if (!window.svIsStaffPhone?.()) {
             const click = wlPhoneClickHandlers.get(root);
             if (click) root.removeEventListener('click', click);
@@ -3103,6 +3112,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
             return;
         }
         stripEl.classList.remove('empty');
+        if (typeof wlCalmOn === 'function' && wlCalmOn()) { wlCalmLooseStrip(stripEl, chipsEl, filtered); return; }
 
         const byClient = new Map();
         for (const s of filtered) {
@@ -3597,8 +3607,13 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
                 const canDragGroup = wlPlanEditingEnabled() && !!g.clientName && orderedSubs.length
                     && orderedSubs.every(s => String(s.id || '')
                         && !_wlPlanWriteInFlight.has(String(s.id || '')));
-                const issueCards = wlRenderPlanIssueCards(orderedSubs, dayISO);
-                return `<details class="workload-day-client-group">
+                const calm = typeof wlCalmOn === 'function' && wlCalmOn();
+                const calmKey = calm ? wlCalmGroupKey(dayISO, ed.assigneeId, g.clientName) : '';
+                const issueCards = calm ? wlCalmRowsHtml(orderedSubs, dayISO) : wlRenderPlanIssueCards(orderedSubs, dayISO);
+                const groupOpen = calm
+                    ? `<details class="workload-day-client-group" data-wl-calm-key="${wlEscape(calmKey)}"${wlCalmGroupOpen(calmKey) ? ' open' : ''}>`
+                    : '<details class="workload-day-client-group">';
+                return `${groupOpen}
                     <summary class="workload-day-card-chip" data-wl-date="${wlEscape(dayISO || '')}" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="${wlEscape(g.clientName || '')}">
                         <span class="workload-day-card-chip-main">
                             ${wlGroupDeadlineHtml(orderedSubs)}
@@ -3627,5 +3642,6 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
 export {
   initWorkloadView, renderWorkloadAll, wlAdoptNativeDueGatewayRow, wlApplyData,
   wlClearBackgroundRefreshFailure, wlDueWriteRoute, wlEscape, wlMarkBackgroundRefreshFailure,
-  wlPublishNativeDueReceipt, wlRefetchSilent, wlRefreshSensitiveStateSilent, wlSyncLinearUrl
+  wlLooseParentInfo, wlPublishNativeDueReceipt, wlRefetchSilent, wlRefreshSensitiveStateSilent,
+  wlSortSubIssues, wlSyncLinearUrl
 };

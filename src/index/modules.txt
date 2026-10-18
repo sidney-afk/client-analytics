@@ -12,6 +12,7 @@
 069-workload-planning-helpers.js.part
 070-core-client-names.js.part
 071-workload-planner.js.part
+072-workload-calm.js.part
 210-production-state-writes.js.part
 250-production-controls-data.js.part
 230-production-create-comments.js.part

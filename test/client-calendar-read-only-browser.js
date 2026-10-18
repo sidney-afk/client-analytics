@@ -243,11 +243,21 @@ const textWrites = (t, from) => t.state.upserts.slice(from).filter(u => 'caption
         await t.page.mouse.move(720, 600, { steps: 8 }); await t.page.mouse.up();
         await sleep(1200);
         expect(textWrites(t, n1).length === 0 && !(await t.page.evaluate(() => (calState.posts.find(p => p.id === 'ru1') || {}).scheduled_date)), label + ': dragging the undated post does nothing and saves nothing');
+        // The browser's own drag events too (an image inside the post can start a native drag), dropped on a day: still nothing, and no save of ANY kind (a reorder or a status write would not touch the text fields above).
+        await t.page.evaluate(() => {
+          const pill = document.querySelector('.cal-notyet .cal-month-pill'), cell = document.querySelector('[data-iso]');
+          const dt = new DataTransfer(); dt.setData('text/plain', 'ru1');
+          const ev = type => new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt });
+          pill.dispatchEvent(ev('dragstart')); cell.dispatchEvent(ev('dragover')); cell.dispatchEvent(ev('drop')); pill.dispatchEvent(ev('dragend'));
+          cell.dispatchEvent(ev('drop'));
+        });
+        await sleep(800);
+        expect(t.state.upserts.length === n1 && t.state.gateway.length === 0 && !(await t.page.evaluate(() => (calState.posts.find(p => p.id === 'ru1') || {}).scheduled_date)), label + ': a drag and drop sent by the browser changes nothing and sends no save at all');
         await nyPill.press('Enter');
         await t.page.locator('#calPreviewOverlay, .cal-preview-overlay, [id*="calPreview"]').first().waitFor({ timeout: 10000 }).catch(() => {});
         const opened = await t.page.evaluate(() => /An undated idea/.test(document.body.innerText) && !!document.querySelector('[id*="alPreview"], .cal-preview, .cal-preview-card, .cal-pv'));
         expect(opened, label + ': opening the undated post shows it the way a dated post opens');
-        expect(textWrites(t, n1).length === 0, label + ': opening it saves nothing');
+        expect(t.state.upserts.length === n1 && t.state.gateway.length === 0, label + ': opening it saves nothing');
         await t.page.keyboard.press('Escape');
         await sleep(400);
         if (collab && v === 'month') await shot(t, 'after-client-notyet-month-1440-light');

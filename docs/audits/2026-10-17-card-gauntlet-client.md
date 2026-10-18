@@ -133,6 +133,8 @@ Timings are from click to the database holding the answer, unless said.
 - **#2173** (ready): `_calReviewRemoveCard` redraws the new review page when it is on, so "Saving…" clears as soon as
   the last answer on a post saves (6 s or more on main, 0.1 s with the fix), for the client and the SMM.
   Test `test/review-stage-saving-clears-browser.js` fails on main and passes with the fix.
+- Also in #2173: `test/higgsfield-client-questions.js` expected a fixed date (2026-10-17) and went red on main and every
+  PR at midnight UTC; it now expects the real day (test only).
 
 ## Not reached
 

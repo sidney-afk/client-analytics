@@ -56,11 +56,10 @@
           </div>
         </div>
 
-        <div id="panel-upload" class="panel" role="tabpanel" aria-labelledby="tab-upload">
-          <!--
-            The upload video goes here when it is ready. Copy the review player above, change the MP4 address,
-            data-duration (in seconds), the aria labels and the poster, and give the panel the class "has-video".
-          -->
+        <div id="panel-upload" class="panel has-video" role="tabpanel" aria-labelledby="tab-upload">
+          <div class="player" data-player data-duration="69" tabindex="0" role="group" aria-label="Video player: uploading your content">
+            <video controls src="https://embed-ssl.wistia.com/deliveries/720c8ce14c972e8829aca32c5dbada52ea48879c/file.mp4" poster="/start/assets/poster-upload.webp" preload="none" playsinline aria-label="Video: sorting your footage and sending it with the upload form"></video>
+          </div>
           <div class="folders">
             <ol class="rules" aria-label="How to sort the footage">
               <li tabindex="0" data-hl="script"><b>One folder per script.</b></li>

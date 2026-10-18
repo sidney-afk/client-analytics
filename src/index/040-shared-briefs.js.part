@@ -224,7 +224,10 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             // The head script's paint hint (sv-rs-paint, a link this browser last saw switched on) counts too, so the
             // saved theme holds from the first frame instead of flashing light until the switch is read; 260 drops
             // the hint and re-applies the theme when the switch reads off.
-            return !q.get('c') || window.__svRsThemeOk === true || document.documentElement.classList.contains('sv-rs-paint');
+            const de = document.documentElement;
+            // A first-visit guess (sv-rs-paint-guess, set by the head script) paints the page's shape only; the saved
+            // theme waits for the switch read like any link nothing remembers.
+            return !q.get('c') || window.__svRsThemeOk === true || (de.classList.contains('sv-rs-paint') && !de.classList.contains('sv-rs-paint-guess'));
         } catch (e) { return false; }
     }
     function _syncviewStoredTheme() {

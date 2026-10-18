@@ -2687,8 +2687,11 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         const de = document.documentElement;
         if (!on && de.classList.contains('sv-rs-paint')) {
             _syncviewRsVeilDrop(false);
-            de.classList.remove('sv-rs-paint', 'sv-rs-paint-stage', 'sv-rs-paint-help');
+            de.classList.remove('sv-rs-paint', 'sv-rs-paint-stage', 'sv-rs-paint-help', 'sv-rs-paint-guess', 'sv-rs-paint-empty');
             try { _syncviewApplyTheme(_syncviewStoredTheme(), false); } catch (e) {}
+        } else if (on && svRsFlagsLoaded()) {
+            // The guess came true: from here the saved theme counts like any remembered link's.
+            de.classList.remove('sv-rs-paint-guess');
         }
     }
     /* The review page's shape stays on top, as one layer outside #content, from the link check until that page has
@@ -2859,6 +2862,10 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         // both answers are in, so a switched-on client never sees the Analytics skeleton (session Curtain Three).
         const envelope = _syncviewClientEntryEnvelope();
         const rsReady = envelope.ok && envelope.view === 'analytics' ? svRsFlagsReady() : null;
+        // The review page's shape is on screen (remembered or guessed), so its code is fetched now, beside the link
+        // check and the switch read, not after them: the download used to start only when the switch answer landed
+        // (session Dawn, 2026-10-18). Nothing is drawn by it; a switch that reads off just leaves the code unused.
+        if (envelope.ok && envelope.view === 'calendar' && document.documentElement.classList.contains('sv-rs-paint')) svArea('reviewstage').catch(() => {});
         Promise.resolve().then(async () => {
             const verdict = await _syncviewPreflightClientEntry(generation, href);
             if (!verdict || verdict.kind === 'stale') return;

@@ -1461,6 +1461,25 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const s = _rsQ('skMedia'); if (s) s.remove();
         const say = _rsQ('skSay'); if (say) say.remove();
     }
+    /* What the next visit's loading screen draws (005, html.sv-rs-paint-empty). A client whose last settled Review had
+       nothing waiting gets that page's shape, a short line and one card, instead of a video and buttons it will not
+       have (session Dawn, 2026-10-18). Kept per link in this browser: the lower-cased c= value, as the loading
+       screen's other lists, eight at most. Only the client's own Review, loaded and not from the cache, writes it. */
+    const RS_EMPTY_KEY = 'syncview_rs_empty_v1';
+    function _rsEmptyMemory(isEmpty) {
+        if (R.mode !== 'client' || R.bar || R.skel || calState.loading || calState.error || calState.fromCache) return;
+        try {
+            const c = String(new URLSearchParams(svRoute.search()).get('c') || '').trim().toLowerCase();
+            if (!c) return;
+            let list = JSON.parse(localStorage.getItem(RS_EMPTY_KEY) || '[]');
+            if (!Array.isArray(list)) list = [];
+            if ((list.indexOf(c) >= 0) === isEmpty) return;
+            list = list.filter(x => typeof x === 'string' && x !== c);
+            if (isEmpty) list.unshift(c);
+            if (list.length) localStorage.setItem(RS_EMPTY_KEY, JSON.stringify(list.slice(0, 8)));
+            else localStorage.removeItem(RS_EMPTY_KEY);
+        } catch (e) {}
+    }
     function _rsRender(opts) {
         if (!R.root || !R.S) return;
         if (R.skel) { _rsHeader(); _rsSkeleton(); return; }   // the client page's Review while its cards load
@@ -1469,6 +1488,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!(opts && opts.force) && _rsTyping()) { R.pending = true; _rsHeader(); _rsStrip(); return; }
         R.pending = false;
         const m = _rsCur();
+        _rsEmptyMemory(!m);
         _rsHeader();
         _rsStrip();
         const empty = !m;

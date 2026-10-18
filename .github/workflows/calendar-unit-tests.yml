@@ -408,6 +408,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/cal-status-pick-during-save-browser.js
+      - name: A Calendar save that failed offline is resent when the browser is back online (mocked)
+        if: ${{ !cancelled() && matrix.part == 3 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/cal-offline-resend-browser.js
       - name: Typed captions, notes, comments and descriptions survive a closed tab or a failed save (mocked)
         if: ${{ !cancelled() && matrix.part == 4 }}
         env:

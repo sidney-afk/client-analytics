@@ -111,6 +111,8 @@ async function open(browser, origin, opt) {
       if (range) { const a = Number(range[1]), b = range[2] ? Math.min(Number(range[2]), clip.length - 1) : clip.length - 1; return route.fulfill({ status: 206, headers: Object.assign({ 'content-range': `bytes ${a}-${b}/${clip.length}`, 'accept-ranges': 'bytes' }, CORS), contentType: 'video/webm', body: clip.subarray(a, b + 1) }); }
       return route.fulfill({ status: 200, headers: Object.assign({ 'accept-ranges': 'bytes' }, CORS), contentType: 'video/webm', body: clip });
     }
+    // opt.noWebFont: keep the old no-font conditions (a test about layout that must not see the font swap).
+    if (opt.noWebFont && (u.host === 'fonts.googleapis.com' || u.host === 'fonts.gstatic.com')) return route.abort();
     if (u.host === 'fonts.googleapis.com') return route.fulfill({ status: 200, headers: CORS, contentType: 'text/css', body: WEB_FONT_CSS });
     if (u.host === 'fonts.gstatic.com') return route.fulfill({ status: 200, headers: CORS, contentType: 'font/woff2', body: WEB_FONT });
     if (p === '/functions/v1/key-verify') return json({ ok: true, role: opt.staff ? opt.staff.role : 'admin', member: opt.staff || STAFF });

@@ -50,7 +50,9 @@ const FRAME_LOG = () => {
 };
 
 async function refresh(browser, origin, hash, opt) {
-  const t = await fx.open(browser, origin, Object.assign({ stage: 'smm', staff: fx.STAFF }, opt));
+  // Without the web font, as when this test was written: the font's own swap moves the tabs by 1 to 5 px and is a
+  // separate matter from the header looking final before the app's code has run.
+  const t = await fx.open(browser, origin, Object.assign({ stage: 'smm', staff: fx.STAFF, noWebFont: true }, opt));
   await t.page.goto(origin + '/index.html#' + hash, { waitUntil: 'load' });
   await fx.sleep(2500);
   await t.page.addInitScript(FRAME_LOG);

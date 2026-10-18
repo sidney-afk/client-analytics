@@ -1756,6 +1756,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-smooth-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Records every animation frame while the new review page switches part (step bar, the next part after an approve) or post (a strip chip, Finish) on the client page and the SMM's Review tab, and checks the header, strip, title, step bar, decision row and conversation panel stay on screen, no message fades below 35% (never at all on a part switch) and no strip thumbnail goes blank.",
+      "reproduce": "node test/review-stage-smooth-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "frameio-viewer-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

@@ -6,6 +6,7 @@ import { calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calRenderBody } from './160-calendar-organize-ui.js';
 import { _isClientLink, _syncviewClientEntryCapability } from './260-production-refresh-boot.js';
 import { _kasperPaintReview } from './305-core-kasper-shared.js';
+import { svFrameFlagWait } from './187-frame-viewer.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), behind two switches. Session Marquee, 2026-10-17.
 
        This file is the small, always-loaded half: it reads the switches and answers "show the new page here?".
@@ -373,6 +374,8 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         }
         _rsChrome(on, full);
         _rsToolsSync(full);
+        // The client page's Notes view holds the player: read its switch now, not on the first Notes click.
+        if (full) { try { svFrameFlagWait(0); } catch (e) {} }
         if (_rsCalQueued) return;
         _rsCalQueued = true;
         requestAnimationFrame(() => {

@@ -138,6 +138,8 @@ async function open(browser, origin, opt) {
       if (opt.flags === 'unreadable' && keys.includes('review_stage_client_pages')) return json({ message: 'fixture' }, 500);
       // A slow switch read (opt.flagDelay ms), as on the live site, where it took 1.5 to 3.7 s (session Curtain Three).
       if (opt.flagDelay && keys.includes('review_stage_client_pages')) await sleep(opt.flagDelay);
+      // A slow read of the player's switch (opt.frameDelay ms).
+      if (opt.frameDelay && keys.includes('frame_viewer_clients')) await sleep(opt.frameDelay);
       const values = {
         calendar_upsert_ef_clients: { clients: [SLUG] }, write_ui_reroute_clients: { clients: [SLUG] },
         client_comment_gateway_enabled: { enabled: true }, prod_authority: { video: 'syncview', graphics: 'syncview' },

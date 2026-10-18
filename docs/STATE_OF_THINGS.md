@@ -191,6 +191,13 @@ the switch reads off, the link is forgotten and the page goes back to light and 
 on keeps today's light check card. Test (records every frame, fails on main): `node test/first-paint-theme-browser.js`.
 Not yet done (Lantern's next pieces): the staff pages and Kasper frame walk on the live site, one shimmer and spinner
 family across the app, and a fade from skeleton to content elsewhere.
+**Notes flash fixed (session Curtain Nine, owner feedback 2026-10-17 23:40 UTC):** on a switched-on client link the
+Sheet tab's Notes opened the old dialog for up to a few seconds and then turned into the player view: nothing on that
+page had read the player's switch (`frame_viewer_clients`) yet, so the first Notes click did. The client page now reads
+it as soon as it draws, and a Notes click that still beats the answer waits for it (at most 2.5 s) before painting.
+The shared player also takes its portrait or landscape shape on its first frame from the same picture already decoded
+on the page (for everyone with the player; before, it painted landscape and jumped a frame later). Test:
+`node test/review-stage-notes-browser.js`.
 
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone

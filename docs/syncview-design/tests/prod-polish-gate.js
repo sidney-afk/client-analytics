@@ -376,6 +376,34 @@ function layoutPolishFailedAssertions(text) {
     ? '+' + (named.length - BEHAV_WIRED_NAME_CAP) + 'more' : '');
 }
 
+
+/* The interaction suite's assertion ids, harvested from its OWN SOURCE exactly
+   as LAYOUT_POLISH_ASSERTIONS is: an id not found there is dropped, so the
+   emitted code is assembled from allowlist entries and never from run output. */
+const INTERACTION_ASSERTIONS = (() => {
+  try {
+    const src = require('fs').readFileSync(
+      path.join(root, 'docs', 'syncview-design', 'tests', 'prod-interaction-inventory.js'), 'utf8');
+    const names = new Set();
+    const re = /'(ipi_[a-z0-9_]+)'/g;
+    let match;
+    while ((match = re.exec(src))) names.add(match[1]);
+    ['list', 'listSelected', 'filteredEmpty', 'detail', 'board', 'boardSelected', 'project']
+      .forEach(st => names.add('ipi_state_' + st));
+    return names;
+  } catch (_) { return new Set(); }
+})();
+
+function interactionFailedAssertions(text) {
+  const line = (String(text || '').match(/INTERACTION_FAILED_ASSERTIONS([^\n]*)/) || [])[1];
+  if (!line) return '';
+  const named = line.trim().split(/\s+/).filter(name => INTERACTION_ASSERTIONS.has(name));
+  if (!named.length) return '';
+  const shown = named.slice(0, BEHAV_WIRED_NAME_CAP).join('+');
+  return 'interaction:' + shown + (named.length > BEHAV_WIRED_NAME_CAP
+    ? '+' + (named.length - BEHAV_WIRED_NAME_CAP) + 'more' : '');
+}
+
 /* The read-only smoke suite's stage names, harvested from its OWN SOURCE for
    exactly the reason BEHAV_WIRED_CHECKS is: a name this file did not find in
    that file is dropped, so the emitted code is assembled from allowlist entries
@@ -430,6 +458,8 @@ function failureReason(text) {
   if (pixel) return pixel;
   const layout = layoutPolishFailedAssertions(text);
   if (layout) return layout;
+  const interaction = interactionFailedAssertions(text);
+  if (interaction) return interaction;
   const code = classifyFailure(text);
   const where = smokeFailedStage(text);
   return where ? code + '@' + where : code;

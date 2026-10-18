@@ -72,6 +72,24 @@ async function run(cardWrite) {
     check(c2.name === 'Renamed by a teammate' && c2.scheduled_date === '2026-10-12' && c2.asset_url === 'https://example.invalid/teammate.mp4', lane + ': the teammate\'s name, date and video link survive (' + [c2.name, c2.scheduled_date, c2.asset_url].join(' | ') + ')');
     await waitFor(async () => await markOf(A, 'p_t1') === 'ok', 5000);
 
+    // 2c. A refresh lands BEFORE the browser is back online (a realtime echo of a teammate's caption edit).
+    //     The resend must still carry this person's text, not the teammate's value the refresh put on the card
+    //     (Codex review of #2209).
+    S.offline = true;
+    await A.evaluate(() => window.dispatchEvent(new Event('offline')));
+    check(await typeCaption(A, 'p_t1', 'Third offline text') === 'ok', lane + ': a third caption typed while offline');
+    check(await waitFor(async () => await markOf(A, 'p_t1') === 'error', 8000), lane + ': that save fails and says so');
+    S.setCardField('p_t1', { name: 'Renamed again by a teammate' }, 'teammate');
+    S.offline = false;
+    const logMark = S.log.length;
+    await S.realtime();
+    await sleep(4000);
+    const before3 = S.upserts.length;
+    await A.evaluate(() => window.dispatchEvent(new Event('online')));
+    check(await waitFor(async () => S.card('p_t1').caption === 'Third offline text', 8000),
+      lane + ': after a refresh and then back online, this person\'s caption lands (' + S.card('p_t1').caption + ', ' + (S.upserts.length - before3) + ' write(s))');
+    await waitFor(async () => await markOf(A, 'p_t1') === 'ok', 5000);
+
     // 3. A save the SERVER refused is not resent by coming online.
     S.behave['cal-upsert'] = { mode: 'http', status: 400, body: { ok: false, error: 'Refused by the server for this test' }, commit: false, times: 1 };
     check(await typeCaption(A, 'p_t1', 'Refused text') === 'ok', lane + ': a second caption, refused by the server');

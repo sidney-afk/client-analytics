@@ -239,6 +239,48 @@ function allowedNoop(c) {
     || (c.tag === 'BUTTON' && !attrs.onclick && /^Open$|^Active$/.test(text));
 }
 
+
+/* Closed list of assertion ids for the CI summary, in the style of
+   prod-layout-polish.js. Each rule maps a failure message SHAPE to a literal id;
+   the message body (control text, selectors, URLs, error text) is never printed.
+   A failure that matches no rule is simply not named. */
+const INTERACTION_ASSERTIONS = [
+  ['ipi_js_error_after_click', /JS error after click/],
+  ['ipi_silent_noop', /silent no-op/],
+  ['ipi_list_contextmenu', /list group right-click/],
+  ['ipi_context_menu_missing', /right-click did not open a Production context menu/],
+  ['ipi_project_menu_actions', /board project right-click menu/],
+  ['ipi_hover_tip', /hover tip did not render/],
+  ['ipi_row_open', /row click did not open/],
+  ['ipi_row_checkbox', /row checkbox did not select/],
+  ['ipi_locked_fixture', /Linear-authoritative fixture/],
+  ['ipi_locked_row_controls', /did not stay locked with the authority guard/],
+  ['ipi_client_chip', /row client chip did not open/],
+  ['ipi_subissue_rows', /sub-issue|parent detail|parent sub-issue/],
+  ['ipi_card_cursor', /project card cursor/],
+  ['ipi_fake_controls', /fake favorite|fake add\/options/],
+  ['ipi_write_like_requests', /write-like requests observed/],
+  ['ipi_browser_errors', /^browser errors:/],
+  ['ipi_probe_errors', /^page probe errors:/],
+  ['ipi_error_card', /Production preview rendered an error card/],
+];
+/* Ids for a stage that stops the whole run before any assertion can fire. */
+const INTERACTION_STAGE_IDS = { firstPaint: 'ipi_first_paint_timeout', loadSettle: 'ipi_load_settle_timeout', errorCard: 'ipi_error_card' };
+const INTERACTION_STATES = ['list', 'listSelected', 'filteredEmpty', 'detail', 'board', 'boardSelected', 'project'];
+
+function reportFailedAssertions(failures) {
+  const ids = [];
+  for (const [id, re] of INTERACTION_ASSERTIONS) {
+    if (!failures.some(f => re.test(String(f)))) continue;
+    ids.push(id);
+  }
+  /* Which click state, by closed list only. */
+  for (const st of INTERACTION_STATES) {
+    if (failures.some(f => String(f).startsWith(st + ' '))) ids.push('ipi_state_' + st);
+  }
+  if (ids.length) console.log('INTERACTION_FAILED_ASSERTIONS ' + ids.join(' '));
+}
+
 function sameCandidate(a, b) {
   return a && b && a.key === b.key && a.occ === b.occ;
 }
@@ -382,7 +424,17 @@ async function selectionChecks(page) {
     };
     _syncviewStaffIdentityLoaded = true;
     _syncviewStaffIdentityVerified = true;
-    _prodState.authority = { video: 'linear', graphics: 'linear' };
+    /* Pinned, not just set: the page's own load or 30 s poll assigns
+       _prodState.authority when its answer lands, and a real answer here would
+       unlock the row for the invented admin (the avatar click then opens the
+       assignee picker and asks the live backend for options). The pin makes
+       those assignments no-ops until the fixture is torn down below. */
+    const fixtureAuthority = { video: 'linear', graphics: 'linear' };
+    Object.defineProperty(_prodState, 'authority', {
+      configurable: true, enumerable: true,
+      get: () => fixtureAuthority,
+      set: () => {},
+    });
     _prodState.authorityLoaded = true;
     // The browser TEST write bypass was removed 2026-08-06 (it could never
     // succeed at the gateway), so every row on a Linear-authoritative team is
@@ -464,6 +516,7 @@ async function selectionChecks(page) {
     _syncviewStaffIdentityMem = original.mem || null;
     _syncviewStaffIdentityLoaded = !!original.loaded;
     _syncviewStaffIdentityVerified = !!original.verified;
+    delete _prodState.authority;
     _prodState.authority = original.authority || null;
     _prodState.authorityLoaded = !!original.authorityLoaded;
     delete window.__prodInteractionIdentityState;
@@ -603,8 +656,20 @@ async function selectionChecks(page) {
 
   try {
     await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('.prod-row, .prod-empty-state, .prod-error', { timeout: 30000 });
-    if (await page.locator('.prod-error').count()) throw new Error('Production preview rendered an error card');
+    try {
+      await page.waitForSelector('.prod-row, .prod-empty-state, .prod-error', { timeout: 30000 });
+    } catch (e) { console.log('INTERACTION_FAILED_ASSERTIONS ' + INTERACTION_STAGE_IDS.firstPaint); throw e; }
+    if (await page.locator('.prod-error').count()) { console.log('INTERACTION_FAILED_ASSERTIONS ' + INTERACTION_STAGE_IDS.errorCard); throw new Error('Production preview rendered an error card'); }
+    /* The first rows can paint from the saved copy or the early reads while the
+       full load (and the authority answer that comes with it) is still in
+       flight. Everything below changes page state and re-renders, so a load that
+       lands halfway through would replace what a check just set up. Wait for the
+       load to settle first; the 30 s poll is handled where a check fakes state. */
+    try {
+      await page.waitForFunction(() => typeof _prodState !== 'undefined'
+        && _prodState.loaded && !_prodState.loading && !_prodState.refreshing
+        && !_prodState.fromCache && !_prodState.cachePartial && _prodState.authorityLoaded, null, { timeout: 60000 });
+    } catch (e) { console.log('INTERACTION_FAILED_ASSERTIONS ' + INTERACTION_STAGE_IDS.loadSettle); throw e; }
 
     const results = [];
     const failures = [];
@@ -632,7 +697,7 @@ async function selectionChecks(page) {
     const probeErrors = await page.evaluate(() => window.__prodProbeErrors || []);
     if (probeErrors.length) failures.push('page probe errors: ' + probeErrors.slice(0, 5).join(' | '));
 
-    if (failures.length) throw new Error(failures.join('\n'));
+    if (failures.length) { reportFailedAssertions(failures); throw new Error(failures.join('\n')); }
     if (selectionOnly) console.log('prod-interaction-inventory: locked non-TEST selection path and no writes/errors passed');
     else console.log(`prod-interaction-inventory: click states ${results.join(', ')}, right-click menus, ${hoverChecked} hover tips, no writes/errors passed`);
   } finally {

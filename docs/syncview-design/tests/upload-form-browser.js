@@ -182,6 +182,18 @@ async function behaviour(browser, port) {
     check(await page.locator('.linear-form-title').innerText() === 'Upload your content', 'the link is titled "Upload your content"');
     check(await page.locator('img.uf-logo[alt="Synchro Social"]').isVisible(), 'the link shows the Synchro Social logo');
     check(!(await page.locator('#linearTitleField').isVisible()), 'the link hides the Title field');
+    {
+      const help = page.locator('#ufHelp');
+      check(await help.isVisible() && await help.innerText() === '?', 'the link has a "?" button by the heading');
+      check(await help.getAttribute('href') === '/start#upload' && await help.getAttribute('target') === '_blank' && /noopener/.test(await help.getAttribute('rel') || ''),
+        'the "?" opens /start#upload in a new tab with rel=noopener');
+      check(!(await page.locator('#ufCopyLink').count()), 'the link has no "Copy upload link" button');
+      const popup = page.waitForEvent('popup', { timeout: 5000 }).catch(() => null);
+      await help.click();
+      const pop = await popup;
+      check(!!pop && /\/start#upload$/.test(pop.url()), 'clicking the "?" opens a new tab on /start#upload');
+      if (pop) await pop.close().catch(() => {});
+    }
     const body = await page.evaluate(() => document.body.innerText);
     check(!/Video issue only|Thumbnail issue only|Video \+ graphic issue|General Drive|becomes the Linear description|Add Video/.test(body),
       'none of the retired words are on the page');
@@ -336,6 +348,27 @@ async function behaviour(browser, port) {
     check(await page.locator('#linearVideoCount').isVisible() && await page.locator('label[for="linearMakeThumbnail"] .uf-switch-track').isVisible()
       && !(await page.locator('#linearAdvancedToggle').count()), 'the Submit tab has the count control and the thumbnail switch, and no Advanced');
     check(!(await page.locator('img.uf-logo').count()), 'the Submit tab is not branded as the client upload page');
+    check(!(await page.locator('#ufHelp').count()), 'the Submit tab has no "?" button');
+    {
+      const want = `http://127.0.0.1:${port}/?intake=1`;
+      const btn = page.locator('#ufCopyLink');
+      check(await btn.isVisible() && await btn.innerText() === 'Copy upload link', 'the Submit tab has a "Copy upload link" button');
+      await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: `http://127.0.0.1:${port}` }).catch(() => {});
+      await btn.click();
+      await page.waitForFunction(() => document.getElementById('ufCopyLink').textContent === 'Copied', null, { timeout: 3000 }).catch(() => {});
+      check(await btn.innerText() === 'Copied', 'the button says "Copied" after a click');
+      check(await page.evaluate(() => navigator.clipboard.readText()).catch(() => '') === want, 'the clipboard holds the client upload link built from the page origin');
+      check(!(await page.locator('#ufCopyField').isVisible()), 'no fallback field when the clipboard works');
+      await page.waitForFunction(() => document.getElementById('ufCopyLink').textContent === 'Copy upload link', null, { timeout: 5000 }).catch(() => {});
+      check(await btn.innerText() === 'Copy upload link', '"Copied" goes back to the button label after a moment');
+      // The clipboard refused: the link shows in a read-only field, selected.
+      await page.evaluate(() => { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new Error('denied')) } }); });
+      await btn.click();
+      const field = page.locator('#ufCopyField');
+      await field.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+      check(await field.isVisible() && await field.inputValue() === want && await field.getAttribute('readonly') !== null, 'a refused clipboard shows the link in a read-only field');
+      check(await page.evaluate(() => { const f = document.getElementById('ufCopyField'); return document.activeElement === f && f.selectionStart === 0 && f.selectionEnd === f.value.length; }), 'the fallback field is focused with the whole link selected');
+    }
     check(!errors.length, 'staff: no page errors ' + errors.join(' | '));
     await context.close();
   }

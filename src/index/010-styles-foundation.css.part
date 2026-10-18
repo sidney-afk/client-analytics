@@ -1916,9 +1916,15 @@
         .cal-sk-phone { display: none; }
         /* Client link Sheet skeleton (133 _svClientLinkSheetSkeletonHtml): the client card's rows at the
            loaded rows' heights, 1440 first; the phone column follows below. Measured 2026-10-18. */
-        .cal-sk-card.is-client .cal-sk-field.is-link { height: 29px; }
+        /* Re-measured with the page's real web font (2026-10-18, Lighthouse): the earlier heights were taken in a
+           fallback font and the loaded card came out 13 px taller. */
+        .cal-sk-card.is-client .cal-sk-title { height: 27px; }
+        .cal-sk-card.is-client .cal-sk-field.is-date { height: 31px; }
+        .cal-sk-card.is-client .cal-sk-field.is-link { height: 31px; }
         .cal-sk-csec-head { display: none; }
-        .cal-sk-card.is-client .cal-sk-field.is-cta { height: 30px; }
+        .cal-sk-card.is-client .cal-sk-field.is-cta { height: 33px; }
+        .cal-sk-card.is-client .cal-sk-foot { height: 21px; }
+        .cal-sk-card.is-client .cal-sk-chips { height: 40px; }
         .cal-sk-chips { margin-top: 8px; height: 38px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; }
         .cal-sk-cpill { height: 16px; border-radius: 5px; }
         .cal-sk-cpill.is-a { width: 120px; }
@@ -1943,9 +1949,9 @@
         html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-foot { height: 44px; }
         html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-chips { height: 70px; gap: 6px; }
         html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-cpill { height: 32px; }
-        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-cpill.is-a { width: 125px; }
-        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-cpill.is-b { width: 156px; }
-        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-cpill.is-c { width: 139px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-cpill.is-a { width: 129px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-cpill.is-b { width: 158px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-cpill.is-c { width: 143px; }
         #calView[data-pocket-staff-phone] .cal-skeleton-loader.cal-sheet-skeleton { padding: 0; }
         #calView[data-pocket-staff-phone] .cal-skeleton-loader.cal-sheet-skeleton::before { content: none; }
         #calView[data-pocket-staff-phone] .cal-sheet-skeleton .cal-sk-desktop { display: none; }
@@ -2899,6 +2905,14 @@
         .uf { max-width: 680px; padding-bottom: 140px; }
         .uf .uf-head { margin-bottom: 36px; }
         .uf .uf-logo { display: block; width: 84px; height: auto; margin: 0 0 22px -4px; }
+        .uf .uf-titlerow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 8px; }
+        .uf .uf-titlerow .linear-form-title { margin: 0; }
+        .uf .uf-help { width: 28px; height: 28px; border-radius: 99px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--text-secondary); background: var(--border-light); font-size: 0.82rem; font-weight: 800; text-decoration: none; transition: background 0.14s, color 0.14s; }
+        .uf .uf-help:hover { background: var(--border); color: var(--text-primary); }
+        .uf .uf-copy { font: inherit; font-size: 0.76rem; font-weight: 650; padding: 5px 12px; border: 0; border-radius: 99px; cursor: pointer; color: var(--text-secondary); background: var(--border-light); transition: background 0.14s, color 0.14s; }
+        .uf .uf-copy:hover { background: var(--border); color: var(--text-primary); }
+        .uf .uf-copy-field { display: block; width: 100%; max-width: 420px; margin: 4px 0 8px; font: inherit; font-size: 0.8rem; padding: 8px 12px; border: 1.5px solid transparent; border-radius: 10px; color: var(--text-primary); background: var(--uf-field); }
+        .uf .uf-copy-field[hidden] { display: none; }
         .uf .linear-form-title { font-size: 2rem; font-weight: 800; letter-spacing: -0.035em; line-height: 1.1; margin: 0 0 8px; color: var(--text-primary); }
         .uf .linear-form-sub { font-size: 0.92rem; line-height: 1.5; color: var(--text-secondary); margin: 0; max-width: 54ch; }
         .uf .linear-form { gap: 44px; }

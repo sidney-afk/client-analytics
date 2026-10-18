@@ -53,16 +53,22 @@ ok(/data-prod-create-graphics-note="1"/.test(source)
   && /tab instead/.test(source),
   'the dialog explains where graphics work is created instead of silently switching');
 
-// ---- the submission scope choice is on the surface ----------------------
-ok(/id="linearSubmitBtnVideo"/.test(source) && /id="linearSubmitBtnThumbnail"/.test(source)
-  && /id="linearSubmitBtnBoth"/.test(source),
-  'all three submission scopes still exist');
+// ---- the submission scope choice (owner feedback 2026-10-18) ------------
+// The owner reversed the 2026-08-17 ruling above for the Submit form: the
+// choice now sits under a collapsed Advanced as one toggle, "Make a thumbnail
+// too", on by default. On sends the old video + graphics request, off the old
+// video-only request. "Thumbnail only" left the form: the Submit form sent
+// none in the 60 days before 2026-10-18 (read-only count).
+ok(/id="linearSubmitBtn"/.test(source) && !/id="linearSubmitBtnVideo"/.test(source)
+  && !/id="linearSubmitBtnThumbnail"/.test(source),
+  'one Create deliverables button replaces the three scope buttons');
 
-ok(!/linearAdvancedPanel/.test(source) && !/toggleLinearAdvanced/.test(source),
-  'the per-team submission choice is no longer hidden behind an Advanced disclosure');
+ok(/id="linearAdvancedToggle"[^>]*aria-expanded=/.test(source) && /id="linearAdvancedPanel"/.test(source)
+  && /id="linearMakeThumbnail"/.test(source),
+  'the thumbnail choice is a toggle inside a collapsible Advanced section');
 
-ok(/class="linear-submit-btns linear-submit-scope"/.test(source),
-  'the video-only and thumbnail-only buttons render in a visible scope row');
+ok(/return box && !box\.checked \? 'video' : 'both';/.test(source),
+  'toggle on maps to the old "both" request and off to the old "video" request');
 
 if (failures) {
   console.error(`\nproduction create scope: ${failures} check(s) failed`);

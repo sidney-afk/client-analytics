@@ -1934,18 +1934,15 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     await page.waitForSelector('#linearClientSearch');
     await page.evaluate(() => {
       selectLinearProject('Normal Fixture', 'normal-fixture');
-      const cards = Array.from(document.querySelectorAll('[id^="videoCard_"]'));
-      cards.slice(1).forEach(card => card.remove());
-      renumberVideoCards();
-      linearVideoCount = 1;
-      saveLinearForm();
+      setLinearVideoCount(1);
     });
     await page.locator('#vid_main_1').fill('https://drive.invalid/main');
-    // The advanced panel is gone: the team-scope choice is the question the
-    // form asks, so its buttons sit on the surface now (see the comment above
-    // the `linear-submit-scope` markup in index.html).
+    // Video only: "Make a thumbnail too" under Advanced is turned off
+    // (owner feedback 2026-10-18 put the choice back under Advanced).
     phase('submit');
-    await page.locator('#linearSubmitBtnVideo').click();
+    await page.locator('#linearAdvancedToggle').click();
+    await page.locator('label[for="linearMakeThumbnail"]').click();
+    await page.locator('#linearSubmitBtn').click();
     for (let i = 0; i < 100 && !writes.some(write => write.body.operation === 'intake_create'); i++) {
       await new Promise(resolve => setTimeout(resolve, 20));
     }

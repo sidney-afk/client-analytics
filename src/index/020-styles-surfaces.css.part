@@ -5614,7 +5614,7 @@
             body:has(.pocket-staff-bar) .linear-view { max-width: none; margin: 0; padding: 0 0 28px; }
             body:has(.pocket-staff-bar) .linear-form-title { font-size: 25px; letter-spacing: -0.8px; margin-bottom: 8px; }
             body:has(.pocket-staff-bar) .linear-form-sub { font-size: 14px; line-height: 1.6; margin-bottom: 22px; }
-            body:has(.pocket-staff-bar) .linear-form { box-sizing: border-box; padding: 20px 18px; border: 1px solid var(--border); border-radius: 22px; background: var(--white); gap: 18px; }
+            body:has(.pocket-staff-bar) .linear-form { box-sizing: border-box; padding: 0; gap: 36px; }
             body:has(.pocket-staff-bar) .linear-field { gap: 8px; }
             body:has(.pocket-staff-bar) .linear-label { font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--text-secondary); }
             body:has(.pocket-staff-bar) .linear-search-wrap, body:has(.pocket-staff-bar) .linear-search-pill { width: 100%; max-width: 100%; box-sizing: border-box; box-shadow: none; }
@@ -5622,20 +5622,13 @@
             body:has(.pocket-staff-bar) .linear-search-dropdown { border-radius: 16px; max-height: 50dvh; overflow-y: auto; }
             body:has(.pocket-staff-bar) .linear-input, body:has(.pocket-staff-bar) .linear-textarea, body:has(.pocket-staff-bar) .linear-search-input { box-sizing: border-box; width: 100%; min-height: 48px; padding: 11px 12px; border-radius: 12px; font-size: 16px; line-height: 1.6; }
             body:has(.pocket-staff-bar) .linear-textarea { min-height: 100px; }
-            body:has(.pocket-staff-bar) .linear-form > .linear-field .linear-input, body:has(.pocket-staff-bar) .linear-form > .linear-field .linear-textarea, body:has(.pocket-staff-bar) .linear-search-pill { background: var(--field-bg); border: 1px solid var(--border); }
-            body:has(.pocket-staff-bar) .linear-video-card .linear-input, body:has(.pocket-staff-bar) .linear-video-card .linear-textarea { background: var(--white); }
+            body:has(.pocket-staff-bar) .linear-search-pill { border-width: 1.5px; }
             body:has(.pocket-staff-bar) .linear-search-input { background: transparent; border: 0; min-height: 44px; padding: 0; }
             body:has(.pocket-staff-bar) .linear-search-ghost { font-size: 16px; }
-            body:has(.pocket-staff-bar) .linear-title-display { min-height: 48px; box-sizing: border-box; display: flex; align-items: center; padding: 11px 12px; border-radius: 12px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
-            body:has(.pocket-staff-bar) .linear-title-display.empty { font-style: normal; color: var(--text-secondary); border: 1px dashed var(--border); }
-            body:has(.pocket-staff-bar) .linear-video-card { padding: 16px; border-radius: 18px; margin: 0 0 12px; background: var(--surface-subtle); }
-            body:has(.pocket-staff-bar) .linear-video-header { min-height: 44px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
-            body:has(.pocket-staff-bar) .linear-video-num { font-size: 14px; font-weight: 750; }
-            body:has(.pocket-staff-bar) .linear-video-remove { position: static; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 12px; background: var(--white); }
-            body:has(.pocket-staff-bar) .linear-video-fields { display: flex; flex-direction: column; gap: 10px; }
-            body:has(.pocket-staff-bar) .linear-video-notes { min-height: 110px; }
-            body:has(.pocket-staff-bar) .video-link-hint { display: none; }
-            body:has(.pocket-staff-bar) .linear-add-video-btn { width: 100%; min-height: 50px; border: 1px dashed var(--border); border-radius: 16px; background: var(--white); font-size: 13px; }
+            body:has(.pocket-staff-bar) .linear-title-display { box-sizing: border-box; display: flex; align-items: center; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+            body:has(.pocket-staff-bar) .linear-title-display.empty { font-style: normal; color: var(--text-secondary); }
+            body:has(.pocket-staff-bar) .linear-video-card { padding: 0; margin: 0; }
+                                                body:has(.pocket-staff-bar) .linear-video-notes { min-height: 72px; }
             body:has(.pocket-staff-bar) .linear-submit-btns { display: flex; gap: 8px; width: 100%; margin: 0; }
             body:has(.pocket-staff-bar) .linear-submit-btn { flex: 1; min-height: 50px; font-size: 13px; border-radius: 14px; padding: 10px 14px; box-shadow: none; }
             body:has(.pocket-staff-bar) .linear-submit-btn.linear-submit-primary { font-size: 14px; }

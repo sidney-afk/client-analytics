@@ -80,14 +80,15 @@ async function fillSubmit(page, link) {
   await page.waitForSelector('#linearClientSearch');
   await page.evaluate(([n, s]) => {
     selectLinearProject(n, s);
-    Array.from(document.querySelectorAll('[id^="videoCard_"]')).slice(1).forEach(card => card.remove());
-    renumberVideoCards(); linearVideoCount = 1; saveLinearForm();
+    setLinearVideoCount(1);
   }, [NAME, SLUG]);
   await page.locator('#vid_main_1').fill(link);
 }
 async function submit(page) {
-  await page.locator('#linearSubmitBtnVideo').click();
-  await page.waitForFunction(() => !document.querySelector('#linearSubmitBtnVideo[disabled]'), null, { timeout: 15000 }).catch(() => {});
+  // Video only: the thumbnail toggle under Advanced is off.
+  await page.evaluate(() => { document.getElementById('linearMakeThumbnail').checked = false; });
+  await page.locator('#linearSubmitBtn').click();
+  await page.waitForFunction(() => !document.querySelector('#linearSubmitBtn[disabled]'), null, { timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(400);
 }
 // The stuck state: the first send loses its connection, then a DIFFERENT form.

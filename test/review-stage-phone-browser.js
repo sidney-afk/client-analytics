@@ -26,7 +26,7 @@ async function tap(locator) {
         const root = el.getRootNode();
         if (!el.isConnected || typeof root.elementFromPoint !== 'function') return { x, y, hit: false };
         const hit = root.elementFromPoint(x, y);
-        return { x, y, hit: hit === el || el.contains(hit) };
+        return { x, y, hit: hit === el || el.contains(hit), target: hit && (hit.id || hit.className?.baseVal || hit.className || hit.tagName) };
       });
       const stable = prior && Math.abs(p.x - prior.x) < 1 && Math.abs(p.y - prior.y) < 1;
       prior = p;
@@ -37,7 +37,7 @@ async function tap(locator) {
       if (!/attached|detached|Timeout|visible/i.test(e.message)) throw e;
       prior = null; return false;
     }
-  }, 'touch target never became stable, enabled and uncovered: ' + locator);
+  }, () => 'touch target never became stable, enabled and uncovered: ' + locator + '; last target ' + JSON.stringify(prior));
   await locator.page().touchscreen.tap(point.x, point.y);
 }
 async function shot(t, name, sel) {
@@ -101,7 +101,7 @@ async function layout(t, label) {
 async function until(fn, message, ms = 10000) {
   const start = Date.now();
   while (Date.now() - start < ms) { if (await fn()) return; await sleep(80); }
-  assert.fail(message);
+  assert.fail(typeof message === 'function' ? message() : message);
 }
 const notes = (row, part) => JSON.parse(row[part + '_tweaks'] || '[]');
 async function step(t, part) {
@@ -133,18 +133,18 @@ async function media(t, label) {
   const v = inS(t.page, 'video');
   check(await v.evaluate(v => v.paused && !v.autoplay && v.playsInline), label + ': paused on open, inline, no autoplay');
   check(await v.evaluate(v => getComputedStyle(v).objectFit === 'contain'), label + ': video picture is contained');
-  await tap(inS(t.page, '.fv-play'));
+  await inS(t.page, '.fv-play').tap();
   await until(() => v.evaluate(v => !v.paused && v.currentTime > 0.1), 'video never played');
   await sleep(2800);
   check(await v.evaluate(v => !v.paused && v.currentTime > 2 && v.videoWidth > 0), label + ': playback keeps its picture beyond the format watchdog');
   check(await v.evaluate(v => !v.webkitDisplayingFullscreen && !document.fullscreenElement), label + ': Play stays inline');
-  await tap(inS(t.page, '.fv-play'));
+  await inS(t.page, '.fv-play').tap();
   await until(() => v.evaluate(v => v.paused), 'video never paused');
   const range = inS(t.page, '.fv-scrub');
   const b = await range.boundingBox();
-  await t.page.touchscreen.tap(b.x + b.width * 0.65, b.y + b.height / 2);
+  await range.tap({ position: { x: b.width * 0.65, y: b.height / 2 } });
   await until(() => v.evaluate(v => v.paused && Math.abs(v.currentTime - v.duration * 0.65) < 0.75), 'touch scrub did not seek to the chosen position');
-  await tap(inS(t.page, '.fv-rate'));
+  await inS(t.page, '.fv-rate').tap();
   await until(() => v.evaluate(v => v.playbackRate !== 1), 'speed never changed');
   check(true, label + ': play, pause, scrub and speed work by touch');
 }
@@ -152,7 +152,7 @@ async function keyboard(t, profile, label, field = '#ta') {
   const size = devices[profile].viewport;
   // A reduced visual area is a keyboard stand-in. Playwright cannot launch the real iOS keyboard or Safari bars.
   await t.page.setViewportSize({ width: size.width, height: Math.max(160, size.height - 300) });
-  await tap(inS(t.page, field)); await sleep(500);
+  await inS(t.page, field).tap(); await sleep(500);
   const b = await inS(t.page, field).boundingBox();
   const v = await t.page.evaluate(() => ({ top: visualViewport.offsetTop, bottom: visualViewport.offsetTop + visualViewport.height, scale: visualViewport.scale }));
   check(b.y >= v.top && b.y + b.height <= v.bottom + 1, label + ': typing box visible in reduced viewport');

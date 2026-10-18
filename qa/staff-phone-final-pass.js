@@ -177,9 +177,12 @@ async function verify(page, name, width, theme) {
       assert.ok(markers.length&&markers.every(mark=>mark.width===36&&mark.height===36&&mark.top>=0&&mark.bottom>=0),'The complete Today circle stays inside its phone agenda row: '+JSON.stringify(markers));
     }
     if(name==='calendar-loading') {
-      const loading=await page.locator('#calView .cal-skeleton-loader').evaluate(node=>({label:getComputedStyle(node,'::before').content,padding:parseFloat(getComputedStyle(node).paddingTop),statuses:[...node.querySelectorAll('.cal-skeleton-status')].map(bar=>({color:getComputedStyle(bar).backgroundColor,body:getComputedStyle(bar.parentElement.parentElement).backgroundColor}))}));
-      assert.ok(loading.label.includes('Loading your calendar')&&loading.padding<=24,'Calendar loading has a visible label and a compact gap');
-      assert.ok(loading.statuses.length&&new Set(loading.statuses.map(bar=>bar.color)).size===1&&loading.statuses.every(bar=>bar.color!==bar.body),'Unknown statuses use visible neutral loading bars');
+      // Owner, 2026-10-17: the loading picture has the loaded Sheet's shape (the posts bar and
+      // the three-column tile grid, test/calendar-sheet-skeleton-shape-browser.js), so no label
+      // sits above it to push the posts down when they arrive.
+      const loading=await page.locator('#calView .cal-skeleton-loader').evaluate(node=>{const grid=node.querySelector('.cal-sk-phone-grid');const page=getComputedStyle(document.body).backgroundColor;return {label:getComputedStyle(node,'::before').content,padding:parseFloat(getComputedStyle(node).paddingTop),columns:grid?getComputedStyle(grid).gridTemplateColumns.split(' ').length:0,tiles:[...node.querySelectorAll('.cal-sk-phone-tile')].filter(t=>t.getClientRects().length).map(t=>({color:getComputedStyle(t).backgroundColor,page}))};});
+      assert.ok((loading.label==='none'||loading.label==='normal')&&loading.padding<=24,'Calendar loading draws no label above the posts and keeps a compact gap: '+JSON.stringify(loading.label));
+      assert.ok(loading.columns===3&&loading.tiles.length>=3&&new Set(loading.tiles.map(t=>t.color)).size===1&&loading.tiles.every(t=>t.color!==t.page),'Calendar loading is the three-column tile grid with visible neutral tiles: '+JSON.stringify(loading));
     }
     if(name==='samples-loading') {
       const loading=await page.locator('#sxrView .cal-skeleton-loader').evaluate(node=>({label:getComputedStyle(node,'::before').content,padding:parseFloat(getComputedStyle(node).paddingTop),width:node.getBoundingClientRect().width,cards:[...node.querySelectorAll('.cal-skeleton-review-card')].map(card=>({width:card.getBoundingClientRect().width,columns:getComputedStyle(card).gridTemplateColumns,shape:getComputedStyle(card.querySelector('.sv-skeleton')).backgroundColor,body:getComputedStyle(card).backgroundColor}))}));

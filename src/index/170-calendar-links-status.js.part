@@ -2109,7 +2109,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
        The values are kept here, outside the card, because a refresh that lands
        before the resend replaces the card's fields (and can clear its
        _saveError): rebuilding the resend from the card would then send the
-       teammate's value, or nothing (Codex review of #2209). Rolled-back fields
+       teammate's value, or nothing (Codex review of PR 2209). Rolled-back fields
        (status, date, order, links) travel as the kept intent instead. */
     const _calUnsentKeys = Object.create(null);   // id -> { vals: {field: value}, network: bool }
     function _calNoteUnsent(id, edits, network) {
@@ -2128,7 +2128,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         });
     }
     /* The person gave a field up (discarded the restored draft, or chose "Use theirs"): the automatic resend must
-       not bring it back (Codex review of #2210). */
+       not bring it back (Codex review of PR 2210). */
     function _calDropUnsent(id, field) {
         const rec = _calUnsentKeys[id];
         if (!rec) return;

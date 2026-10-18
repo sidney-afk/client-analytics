@@ -218,7 +218,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             const href = tile.getAttribute('href') || '';
             /* Wait at most 0.7 s: a link opened later than that, from a network callback, can be blocked as a popup
                (Safari keeps a click's permission for about 1 s). If the switch has not answered by then, the click
-               opens the link, as it did before the viewer existed (Codex review of #2209). */
+               opens the link, as it did before the viewer existed (Codex review of PR 2209). */
             let done = false;
             const decide = () => {
                 if (done) return; done = true;

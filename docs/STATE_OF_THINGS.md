@@ -105,6 +105,10 @@ over to the new page (shared code, but the change only acts while the new page i
 save itself: it draws again the moment the save ends, says in words after 8 s that the server has not answered, and a
 refused save shows its reason with Try again (and the stage no longer moves on past a refused part). Test:
 `node test/review-stage-save-browser.js`.
+No more "Saving..." words (same session, item 2): the pressed button shows a small spinner (a slow breathing dot with
+reduced motion) and the other buttons wait; the step's "Saved" mark and the spoken confirmation come when the server
+answers, not on the click; and on a switched-on client link the old "Sending..." toast no longer shows for a first send
+(it still shows for a held re-send). Screenshots: `docs/audits/review-stage-curtain-nine/`.
 
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone

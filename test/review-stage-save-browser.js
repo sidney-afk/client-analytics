@@ -8,7 +8,7 @@
  *
  * In a real browser, fully offline (the review-stage fixture), this proves:
  *   1. an SMM approval that clears the card shows "Approved to Kasper" within three seconds, never a stuck "Saving";
- *   2. a slow server: after a few seconds the stage says, in words, that it is still waiting, and when the answer
+ *   2. a slow server: the pressed button spins (no "Saving..." words), after a few seconds the stage says, in words, that it is still waiting, and when the answer
  *      comes the part shows approved;
  *   3. a refused save: the stage shows the reason and a "Try again" button within a few seconds, and Try again saves.
  * Fails on main before this change (case 1 stays on "Saving").
@@ -57,6 +57,15 @@ async function until(t, fn, ms) { const t0 = Date.now(); while (Date.now() - t0 
     t = await openSmm(browser, origin, ['video', 'caption']);
     t.state.writeDelay = 11000;
     await inS(t.page, '[data-ok="video"]').click();
+    await sleep(250);
+    const busy = await t.page.evaluate(() => {
+      const r = document.getElementById('svReviewStage').shadowRoot, b = r.querySelector('#drow [data-ok="video"]');
+      const sp = b && b.querySelector('.spin');
+      return { spin: !!sp, anim: sp ? getComputedStyle(sp).animationName : '', busy: b && b.getAttribute('aria-busy'), text: r.getElementById('drow').textContent, early: !!r.querySelector('#stepper .svd') };
+    });
+    expect(busy.spin && busy.anim === 'rsSpin' && busy.busy === 'true', '2: the pressed button spins while it saves (' + JSON.stringify(busy) + ')');
+    expect(!/Saving/.test(busy.text), '2: no "Saving..." words while it saves');
+    expect(!busy.early, '2: the step bar does not say "Saved" before the server answers');
     took = await until(t, async () => await inS(t.page, '[data-slow="video"]').count() > 0, 10500);
     expect(took >= 0, '2: after a few seconds the stage says it is still waiting (' + took + ' ms)');
     t.state.writeDelay = 0;

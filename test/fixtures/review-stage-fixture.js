@@ -88,6 +88,14 @@ async function open(browser, origin, opt) {
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(String(opt.context ? e.stack || e.message || e : e.message || e).slice(0, opt.context ? 1200 : 200)));
+  if (opt.phone) await page.addInitScript(() => {
+    window.__phoneErrorLocations = [];
+    addEventListener('error', e => {
+      let file = ''; try { file = new URL(e.filename).pathname; } catch (_) {}
+      window.__phoneErrorLocations.push({ message: e.message, file, line: e.lineno, column: e.colno, stack: String(e.error?.stack || '').replace(/\?[^\s)]+/g, '?fixture') });
+    });
+    addEventListener('unhandledrejection', e => window.__phoneErrorLocations.push({ message: String(e.reason?.message || e.reason), rejection: true, stack: String(e.reason?.stack || '').replace(/\?[^\s)]+/g, '?fixture') }));
+  });
   if (opt.staff) {
     const id = JSON.stringify({ key: 'qa-key', role: opt.staff.role, member: opt.staff, verified_at: new Date().toISOString() });
     await page.addInitScript(([v, dark]) => { try { localStorage.setItem('syncview_staff_identity_v1', v); localStorage.setItem('syncview_auth_v1', 'ok'); if (dark) localStorage.setItem('syncview_theme', 'dark'); } catch (e) {} }, [id, !!opt.dark]);
@@ -155,7 +163,7 @@ async function open(browser, origin, opt) {
       let b = {}; try { b = JSON.parse(r.postData() || '{}'); } catch (e) {}
       state.gateway.push(r.postData() || '');
       if (opt.phone) state.native[b.deliverable_id || 'del_rs1'] = { id: b.deliverable_id || 'del_rs1', status: b.status || 'client_approval', status_at: new Date().toISOString(), updated_at: new Date().toISOString() };
-      return json({ ok: true, native_committed: true, authority: 'syncview', complete: true, outcome: 'absent', row: { id: b.deliverable_id || 'del_rs1', card_id: b.card_id || 'rs1', client_slug: SLUG, team: 'video', status: b.status || 'client_approval' } });
+      return json({ ok: true, native_committed: true, authority: 'syncview', complete: true, outcome: 'absent', row: { id: b.deliverable_id || 'del_rs1', card_id: b.card_id || 'rs1', client_slug: SLUG, team: opt.phone && b.team || 'video', status: b.status || 'client_approval' } });
     }
     if (p === '/rest/v1/syncview_runtime_flags') {
       state.flagReads++;

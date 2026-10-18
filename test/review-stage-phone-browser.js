@@ -14,33 +14,11 @@ let cases = 0;
 function check(ok, text) { checks++; if (!ok) { failures.push(text); console.error('FAIL ' + text); } }
 const remoteErrors = e => String(e.message || e).split('\n').filter((s, i) => i === 0 || /waiting for locator/.test(s)).join(' ');
 async function tap(locator) {
-  // Verify the actual hit target, then send one touch. Locator.tap can retry a touch when its click handler replaces
-  // the button immediately in WebKit, repeating an action that already ran (these views redraw on a click).
-  let point, prior;
-  await until(async () => {
-    try {
-      await locator.scrollIntoViewIfNeeded({ timeout: 750 });
-      if (!await locator.isEnabled()) return false;
-      const p = await locator.evaluate(el => {
-        const b = el.getBoundingClientRect(), x = b.left + b.width / 2, y = b.top + b.height / 2;
-        const root = el.getRootNode();
-        if (!el.isConnected || typeof root.elementFromPoint !== 'function') return { x, y, hit: false };
-        const hit = root.elementFromPoint(x, y);
-        const outer = document.elementFromPoint(x, y);
-        return { x, y, hit: (hit === el || el.contains(hit)) && (!root.host || outer === root.host), target: hit && (hit.id || hit.className?.baseVal || hit.className || hit.tagName) };
-      });
-      const stable = prior && Math.abs(p.x - prior.x) < 1 && Math.abs(p.y - prior.y) < 1;
-      prior = p;
-      if (!p.hit || !stable) return false;
-      point = p; return true;
-    } catch (e) {
-      // Pre-input only: a save/part redraw may replace the node while it is being scrolled into view.
-      if (!/attached|detached|Timeout|visible/i.test(e.message)) throw e;
-      prior = null; return false;
-    }
-  }, () => 'touch target never became stable, enabled and uncovered: ' + locator + '; last target ' + JSON.stringify(prior));
-  await locator.page().touchscreen.tap(point.x, point.y);
+  // Native touch checks attachment, visibility, stability and the real hit target across shadow roots and scroll.
+  // The following receipt assertions verify that each action reached the intended card and part.
+  await locator.tap();
 }
+
 async function shot(t, name, sel) {
   if (!process.env.PHONE_SHOTS) return;
   fs.mkdirSync(process.env.PHONE_SHOTS, { recursive: true });
@@ -295,6 +273,7 @@ async function kasperJourney(t, label) {
           if (process.env.PHONE_MODE !== 'layout') {
             if (role === 'client') await clientJourney(t, origin, label, profile); else await kasperJourney(t, label);
           }
+          if (t.errors.length) console.log('PAGE_ERROR_LOCATIONS ' + JSON.stringify(await t.page.evaluate(() => window.__phoneErrorLocations)));
           check(t.errors.length === 0, label + ': no page errors ' + t.errors.join('|'));
           cases++;
         } catch (e) {

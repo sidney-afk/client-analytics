@@ -60,7 +60,7 @@ async function runCase(browser, origin, role, width, label, fn) {
     t = await setup(browser, origin, role, width);
     await fn(t);
     assert.deepEqual(t.errors, [], 'page errors');
-    if (process.env.G3_SHOTS && /refused plain|refused caption|caption editor|refused change/.test(label)) {
+    if (process.env.G3_SHOTS && /refused plain|refused caption|caption editor|refused change|Finish|Undo/.test(label)) {
       fs.mkdirSync(process.env.G3_SHOTS, { recursive: true });
       await t.page.screenshot({ path: path.join(process.env.G3_SHOTS, (process.env.G3_ENGINES || 'browser') + '-' + role + '-' + width + '-' + label.replace(/[^a-z0-9]+/gi, '-') + '.png') });
     }
@@ -260,6 +260,14 @@ async function matrix(browser, origin, role, width) {
   }));
 }
 async function auxiliary(browser, origin, role, width) {
+  if (role === 'kasper') await runCase(browser, origin, role, width, 'approval Undo stays reachable', async t => {
+    await inS(t.page, '[data-ok="video"]').click();
+    await until(() => t.state.cards[0].video_status === 'Client Approval', 'approval missing');
+    await t.page.locator('.sv-toast-action').filter({ hasText: 'Undo' }).click();
+    await until(() => t.state.cards[0].video_status === 'Kasper Approval', 'Undo did not restore the part');
+    assert.equal(t.state.cards[0].caption_status, 'Kasper Approval');
+    assert.equal(t.state.cards[0].graphic_status, 'Kasper Approval');
+  });
   await runCase(browser, origin, role, width, 'two tabs approve versus change on the same part', async t => {
     const peer = await setup(browser, origin, role, width, t.state);
     try {
@@ -280,7 +288,14 @@ async function auxiliary(browser, origin, role, width) {
       await until(() => t.state.cards[0][part + '_status'] === (role === 'client' ? 'Approved' : 'Client Approval'), 'part approval missing');
     }
     await until(async () => await inS(t.page, '#moveOn').count() || (await inS(t.page, '#finishBtn').count() && await inS(t.page, '#finishBtn').isEnabled()), 'Finish never enabled');
-    await inS(t.page, await inS(t.page, '#moveOn').count() ? '#moveOn' : '#finishBtn').click();
+    const next = inS(t.page, await inS(t.page, '#moveOn').count() ? '#moveOn' : '#finishBtn');
+    if (role === 'kasper') {
+      const toast = t.page.locator('.sv-toast.show');
+      await toast.waitFor({ state: 'visible' });
+      const a = await next.boundingBox(), b = await toast.boundingBox();
+      assert.ok(a && b && (a.y + a.height <= b.y || b.y + b.height <= a.y || a.x + a.width <= b.x || b.x + b.width <= a.x), 'approval toast covers Next post');
+    }
+    await next.click();
     await until(async () => !await inS(t.page, '.chipp.cur[data-id="rs1"]').count(), 'Finish stayed on answered post');
     assert.equal(t.state.cards[1].video_status, role === 'client' ? 'Client Approval' : 'Kasper Approval', 'Finish answered another post');
   });
@@ -314,7 +329,7 @@ async function auxiliary(browser, origin, role, width) {
 // Enumerate from the owning tables rather than keeping a second list that can drift.
 const refusalSource = fs.readFileSync(path.join(__dirname, '../src/index/120-calendar-flags-write-repair.js.part'), 'utf8');
 const refusalTables = refusalSource.slice(refusalSource.indexOf('const WRITE_UI_FAILURE_CODE_CLASS'), refusalSource.indexOf('function _writeUiFailureText'));
-const refusalTableCode = refusalTables.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+const refusalTableCode = require('./helpers/strip-comments').stripComments(refusalTables, ' ');
 const refusalCodes = [...new Set([
   ...[...refusalTableCode.matchAll(/'([a-z][a-z0-9]+(?:_[a-z0-9]+)+)'/g)].map(m => m[1]),
   ...[...refusalTableCode.matchAll(/^\s+([a-z][a-z0-9]+(?:_[a-z0-9]+)+):\s*\{/gm)].map(m => m[1])

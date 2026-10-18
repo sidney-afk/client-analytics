@@ -33540,3 +33540,7 @@ part's eligibility for client caption and title edits, refuses clearly when it w
 Visual verification also found false Saved badges on pending/refused captions and plain client notes without an
 in-conversation failure/retry. Confirmed saves alone now mark Saved; caption failures stay visibly on the stage and
 plain-note retries reuse the existing outbox id. The tests check visible controls, not announcement text alone.
+
+The same audit confirmed Kasper's approval toast intercepting Next post at desktop width 1024, locally and in hosted
+Chromium. The stage now reserves space for that toast. The Finish regression checks the button and toast do not
+overlap while the toast is visible; an additional real-click test confirms Undo still restores the part's status.

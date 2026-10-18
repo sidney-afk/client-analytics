@@ -357,7 +357,9 @@ import { currentNav } from './065-core-nav-intake-state.js';
                 // The "new version of SyncView" bar (350) keeps its place at the bottom centre; while it shows, the review
                 // stage makes room for it (195 reads --rs-bar), so it covers neither the stage's buttons nor the client
                 // page's header (session Curtain Six).
-                + 'html:has(#svUpdateBar) #svReviewStage{--rs-bar:84px}';
+                + 'html:has(#svUpdateBar) #svReviewStage{--rs-bar:84px}'
+                // Approval keeps its Undo toast reachable without covering Finish or Next post.
+                + 'html:has(.sv-toast) #svReviewStage{--rs-toast:96px}';
             document.head.appendChild(_rsChromeStyle);
         }
         de.classList.toggle('sv-rs-cal', !!on);

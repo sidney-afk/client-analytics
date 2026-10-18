@@ -299,7 +299,11 @@ import { svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics } from './188-rev
                 notes: document.getElementById('vid_notes_' + num)?.value || ''
             });
         });
-        localStorage.setItem(LINEAR_FORM_KEY, JSON.stringify(f));
+        /* A full or blocked browser store must never stop typing or sending:
+           the throw used to escape every input handler, and the one before a
+           send. The page itself still holds what was typed, and the send
+           below keeps its own copy in memory when it cannot be stored. */
+        try { localStorage.setItem(LINEAR_FORM_KEY, JSON.stringify(f)); } catch (e) {}
         return f;
     }
 
@@ -784,6 +788,9 @@ import { svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics } from './188-rev
         if (page === 'linear') {
             pageTop.style.display = 'none';
             content.innerHTML = renderLinearView();
+            // Read out "Not sent yet" / "received" to screen readers as it appears.
+            const statusLine = document.getElementById('linearStatus');
+            if (statusLine) { statusLine.setAttribute('role', 'status'); statusLine.setAttribute('aria-live', 'polite'); }
             if (!linearProjects.length && !linearProjectsLoading) fetchLinearProjects();
             loadLinearPlanMap();
             window.scrollTo({ top: 0, behavior: 'instant' });

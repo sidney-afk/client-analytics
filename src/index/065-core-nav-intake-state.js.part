@@ -79,7 +79,7 @@ import { _linearIntakeRead } from './200-intake-data-startup.js';
 
 
     function getLastLink() { return localStorage.getItem(LAST_LINK_KEY) || ''; }
-    function saveLastLink(v) { if (v && v.trim()) localStorage.setItem(LAST_LINK_KEY, v.trim()); }
+    function saveLastLink(v) { if (v && v.trim()) { try { localStorage.setItem(LAST_LINK_KEY, v.trim()); } catch (e) {} } }
 
     function _linearPendingNativeClientSlug() {
         try {

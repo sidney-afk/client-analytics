@@ -1,4 +1,4 @@
-import { _syncviewApplyTheme, clientViewTab, svArea, svAreaApi } from './040-shared-briefs.js';
+import { _syncviewApplyTheme, clientViewTab, svArea, svAreaApi, svFetchRetryOnce } from './040-shared-briefs.js';
 import { render } from './050-market-briefs.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _calRuntimeFlagRawMembers, _calRuntimeFlagSlug } from './120-calendar-flags-write-repair.js';
@@ -63,7 +63,7 @@ import { svFrameFlagWait } from './187-frame-viewer.js';
         const timer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, RS_FLAG_TIMEOUT_MS) : null;
         try {
             const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=key,value&key=in.(' + RS_FLAG_KEYS.join(',') + ')';
-            const resp = await fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined, headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            const resp = await svFetchRetryOnce(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined, headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const rows = await resp.json();
             if (!Array.isArray(rows)) throw new Error('shape');

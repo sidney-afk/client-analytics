@@ -191,9 +191,23 @@
                     }
                 } catch (e) {}
                 var svFlagKeys = ['calendar_upsert_ef_clients', 'kasper_urgent_ping_enabled', 'write_ui_reroute_clients', 'client_comment_gateway_enabled', 'settings_ef_clients', 'sample_review_ef_clients', 'analytics_mirror_read_enabled'];
-                var svFlags = fetch(svBase + '/rest/v1/syncview_runtime_flags?select=key,value&key=in.(' + encodeURIComponent(svFlagKeys.join(',')) + ')&limit=' + svFlagKeys.length, {
-                    headers: { apikey: svKey, Authorization: 'Bearer ' + svKey, Accept: 'application/json' }
-                }).then(function (r) {
+                // ONE retry after about a second, for a network-level failure (fetch rejects) or a 5xx / 429, to the
+                // SAME address so the test audit sees the recovery. A 4xx is never retried; a second failure falls
+                // through to the old behaviour (each consumer reads its own row).
+                var svFlagUrl = svBase + '/rest/v1/syncview_runtime_flags?select=key,value&key=in.(' + encodeURIComponent(svFlagKeys.join(',')) + ')&limit=' + svFlagKeys.length;
+                var svFlagInit = { headers: { apikey: svKey, Authorization: 'Bearer ' + svKey, Accept: 'application/json' } };
+                var svFlagLater = function () {
+                    return new Promise(function (go) { setTimeout(go, 1000); }).then(function () { return svFlagTry(true); });
+                };
+                var svFlagTry = function (second) {
+                    return fetch(svFlagUrl, svFlagInit).then(function (r) {
+                        return (!second && (r.status === 429 || r.status >= 500)) ? svFlagLater() : r;
+                    }, function (e) {
+                        if (second) throw e;
+                        return svFlagLater();
+                    });
+                };
+                var svFlags = svFlagTry(false).then(function (r) {
                     if (!r.ok) throw new Error('HTTP ' + r.status);
                     return r.json();
                 }).then(function (rows) {

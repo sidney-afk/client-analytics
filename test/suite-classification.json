@@ -1785,6 +1785,14 @@
       "ci": "representative"
     },
     {
+      "file": "boot-reads-retry-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: a fictional staff member), no hosted credentials and no live data. Answers the page head's flags read, the review-stage switch read and the Clients Info Sheets read with a reset, 503, 429, 401 and 404 and checks one retry about a second later on the same address for the first three only, the old fallback when the retry fails too, and no console error from the app.",
+      "reproduce": "node test/boot-reads-retry-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "loading-fade-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

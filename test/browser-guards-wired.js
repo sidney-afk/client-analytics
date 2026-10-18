@@ -36,7 +36,6 @@ const DOCS_TESTS = 'docs/syncview-design/tests';
 /* Path -> reason. A file here is NOT run by any workflow, on purpose or as a
    known debt; the reason says which. Remove the line when the file is wired. */
 const NOT_WIRED = {
-  'docs/syncview-design/tests/b4-staff-login.js': 'offline, but fails on main 2026-10-10: its key-toggle label contradicts the pin in test/b4-staff-login-source.js, and its menu keyboard checks predate the September menu rework; settle the label, then repair before wiring (OPEN_REPAIRS 408)',
   'docs/syncview-design/tests/workload-board-browser.js': 'stale since #1391 (2026-09-17): its harness still serves the retired Linear-era reads, not the workload-plan native snapshot; the harness needs rewriting before wiring (OPEN_REPAIRS 408)',
   'docs/syncview-design/tests/workload-render-browser.js': 'same harness as workload-board-browser, stale since #1391 (2026-09-17); rewrite before wiring (OPEN_REPAIRS 408)',
 };

@@ -27,7 +27,7 @@ by a test that still runs; none came back.
 ## What was tested
 
 In a real headless Chromium against the mocked gateway, on the upload link at 1280 and 390 wide and on the
-Submit tab at 1280, new file `docs/syncview-design/tests/upload-never-lost-browser.js` (now **204 checks**):
+Submit tab at 1280, new file `docs/syncview-design/tests/upload-never-lost-browser.js` (now **203 checks**):
 
 - typed values survive a reload, a closed and reopened tab, back then forward, and a crash with no unload (the last keystroke is kept);
 - a dropped network, a 500, a 401 and a 200 that did not commit: nothing claimed, everything kept, plain words, button usable, the retry sends the same request id and ends with exactly one upload;

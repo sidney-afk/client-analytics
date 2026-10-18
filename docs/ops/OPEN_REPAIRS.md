@@ -30451,7 +30451,7 @@ Not changed on purpose: at 360 wide the batch name still truncates for the test 
 
 Not tested for real: Archive on the test client through the new button (the confirmation and click code are unchanged; the offline test opens the confirmation). Item 2 of the owner's list refers to "the same fix as #1971 item 5"; I read it as the chip style above and applied it here only.
 
-Proof: `docs/syncview-design/tests/staff-selection-samples-browser.js` (4,204 checks, now including: no Tools label, batch name fits at 390 and wider, post type picker on one row) and the three scope guards; before and after pictures in `docs/syncview-design/proofs/staff-selection-samples-expanded/design-check/`.
+Proof: `docs/syncview-design/tests/staff-selection-samples-browser.js` (4,203 checks, now including: no Tools label, batch name fits at 390 and wider, post type picker on one row) and the three scope guards; before and after pictures in `docs/syncview-design/proofs/staff-selection-samples-expanded/design-check/`.
 Way back: revert the commit.
 
 ## 348. [2026-10-05, BUILT, NOT DEPLOYED] Staff Samples and Calendar Selection on phones: batch name on two lines, status picker as a bottom sheet (session Polish)
@@ -33480,7 +33480,7 @@ Fixed in the tests only: the lane now waits for every one of the app's own "stil
 
 ## 434. [2026-10-18, BUILT, NOT MERGED] The upload form could still lose a send: a full browser store stopped typing and sending, and no server copy of the raw upload existed (session Keepsake)
 
-Audit of the upload link and the Submit tab against every way a send can fail (report `docs/audits/2026-10-18-upload-form-never-lost.md`, test `docs/syncview-design/tests/upload-never-lost-browser.js`, 204 checks, plus `test/intake-raw-copy.js`).
+Audit of the upload link and the Submit tab against every way a send can fail (report `docs/audits/2026-10-18-upload-form-never-lost.md`, test `docs/syncview-design/tests/upload-never-lost-browser.js`, 203 checks, plus `test/intake-raw-copy.js`).
 
 - **Full or refused browser store.** `saveLinearForm` and `saveLastLink` threw on every keystroke, and the send was refused as "could not be saved safely". Now typing never throws and the send goes out from memory under a stable request id.
 - **No cross-tab lock** (older browsers) refused every send; now it sends without the lock.

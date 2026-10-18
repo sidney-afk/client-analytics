@@ -33477,3 +33477,17 @@ Fixed in the tests only: the lane now waits for every one of the app's own "stil
 **Not fixed, on purpose:** a reset of a read the app never retries (the boot flags read in the page head) still fails, because the audit cannot call it recovered. The behaviour lane's `noConsoleErrors` failure on CI could not be read (the log is private); one plausible cause is a failed background refresh, which the app retries after 60 seconds, outside the 15-second window. That is unverified.
 
 **Way back:** revert the pull request.
+
+## 434. [2026-10-18, BUILT, NOT MERGED] The upload form could still lose a send: a full browser store stopped typing and sending, and no server copy of the raw upload existed (session Keepsake)
+
+Audit of the upload link and the Submit tab against every way a send can fail (report `docs/audits/2026-10-18-upload-form-never-lost.md`, test `docs/syncview-design/tests/upload-never-lost-browser.js`, 204 checks, plus `test/intake-raw-copy.js`).
+
+- **Full or refused browser store.** `saveLinearForm` and `saveLastLink` threw on every keystroke, and the send was refused as "could not be saved safely". Now typing never throws and the send goes out from memory under a stable request id.
+- **No cross-tab lock** (older browsers) refused every send; now it sends without the lock.
+- **Wording.** "Not sent yet… Press the button again" replaces "retry to resume safely"; a received upload whose calendar step failed says "received" on the client link.
+- **A refused saved send was discarded with the only copy of the typed form**; the form is now put back first.
+- **No raw server copy.** New `intake_raw_submissions` (migration `2026-10-18-intake-raw-submissions.sql`, gateway copes without it), written first by `production-write`, listed by `intake_raw_list`. Runbook `docs/ops/INTAKE_RAW_COPY.md`.
+
+**Lighthouse:** apply the migration. **Not done:** Safari and Firefox passes (only Chromium in the sandbox), a staff screen for the list, and archiving one live test batch (1 batch, 2 items, 1 card on the test client).
+
+**Way back:** revert the pull request; run the migration's ROLLBACK block to drop the table.

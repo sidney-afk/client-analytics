@@ -18,7 +18,6 @@ import {
   CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewRequireStaffIdentity,
   _svExplainLabel, _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue
 } from './100-onboarding-staff-controls.js';
-import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import {
   _calUpsertFetch, _syncviewEfHeaders, _writeUiQueueDiagnostic, _writeUiRecordFailure,
   _writeUiRefreshAuthority, _writeUiRerouteUseGatewayWhenReady
@@ -41,8 +40,11 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
        both: the public upload link (?intake=1, clients and videographers) and
        the team's Submit tab. What each one SENDS is unchanged; this only
        changes how the form looks and how the videos are counted.
-       - The video/thumbnail choice is one toggle under Advanced, on by default
+       - The video/thumbnail choice is one small switch, "Make a thumbnail
+         too", right above the Create button and always on view, on by default
          (on = the old "both" request, off = the old "video" request). The
+         owner ruled it stays visible (2026-10-18 03:45 UTC): hiding it in
+         August made every submission create a thumbnail card. The
          "thumbnail only" request was dropped from the form: the Submit form
          sent none in the 60 days to 2026-10-18 (read-only count).
        - The count control replaces Add Video and the per-video Remove.
@@ -61,7 +63,7 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
         side: 'A second angle, if you filmed one.',
         audio: 'Separate sound, if you recorded it. Skip it when the main camera already has good audio.',
         vnotes: 'What the editor and the designer should know about this video: the take to use, a thumbnail idea.',
-        advanced: 'Extra choices. Most uploads never need them.'
+        thumb: 'On: the team also makes a thumbnail. Turn it off when only the video needs editing.'
     };
     // The house explainable label (shared tooltip: hover, keyboard focus,
     // tap to toggle on a phone without opening the field, Escape).
@@ -116,10 +118,6 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
         const makeThumbnail = heldSubmission && heldSubmission.mode
             ? heldSubmission.mode !== 'video' : _linearThumbStored();
 
-        // Advanced explains itself on hover. A phone has no hover, and a tip on
-        // tap would sit over the button, so there the open panel says it.
-        const canHover = !!(window.matchMedia && window.matchMedia('(hover: hover)').matches);
-        const advancedTip = canHover ? ` data-tip="${_LINEAR_HELP.advanced}"` : '';
         const receivedBanner = linearJustCreated === 'received';
         const successBanner = linearJustCreated ? `<div class="linear-success-banner" id="linearSuccessBanner">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8L6 12L14 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -198,28 +196,13 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
                     <p class="video-link-hint">Tip: press Shift in a link box to paste your last link.</p>
                 </section>
                 <div class="uf-actions">
+                    <label class="uf-switch" for="linearMakeThumbnail">
+                        <input type="checkbox" id="linearMakeThumbnail"${makeThumbnail ? ' checked' : ''} onchange="onLinearThumbChange(this)">
+                        <span class="uf-switch-track" aria-hidden="true"><span class="uf-switch-thumb"></span></span>
+                        <span class="uf-switch-label">${_linearHelpLabel('thumb', 'Make a thumbnail too')}</span>
+                    </label>
                     <div class="linear-submit-btns">
                         <button class="linear-submit-btn linear-submit-primary" id="linearSubmitBtn" type="button" onclick="submitLinearUpload()"><span class="linear-submit-primary-label">Create deliverables</span></button>
-                    </div>
-                    <div class="linear-advanced" id="linearAdvancedWrap">
-                        <div class="uf-adv-row">
-                            <button type="button" class="linear-advanced-toggle" id="linearAdvancedToggle" aria-expanded="false" aria-controls="linearAdvancedPanel"${advancedTip} onclick="toggleLinearAdvanced()">
-                                <svg class="chevron" width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M3.5 2l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                Advanced
-                            </button>
-                            <span class="uf-adv-state" id="linearAdvancedState"${makeThumbnail ? ' hidden' : ''}>Thumbnail off: video only</span>
-                        </div>
-                        <div class="linear-advanced-panel" id="linearAdvancedPanel" hidden>
-                            <p class="uf-adv-intro">${_LINEAR_HELP.advanced}</p>
-                            <label class="uf-switch" for="linearMakeThumbnail">
-                                <input type="checkbox" id="linearMakeThumbnail"${makeThumbnail ? ' checked' : ''} onchange="onLinearThumbChange(this)">
-                                <span class="uf-switch-track" aria-hidden="true"><span class="uf-switch-thumb"></span></span>
-                                <span class="uf-switch-text">
-                                    <span class="uf-switch-label">Make a thumbnail too</span>
-                                    <span class="uf-switch-sub">Turn it off when only the video needs editing.</span>
-                                </span>
-                            </label>
-                        </div>
                     </div>
                 </div>
                 <div class="linear-status" id="linearStatus"></div>
@@ -357,45 +340,11 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
         else if (e.key === 'Escape') { el.value = String(_linearCountCards()); el.blur(); }
     }
 
-    function _linearAdvancedIsOpen() {
-        const btn = document.getElementById('linearAdvancedToggle');
-        return !!btn && btn.getAttribute('aria-expanded') === 'true';
-    }
-    function _linearSetAdvanced(open) {
-        const btn = document.getElementById('linearAdvancedToggle');
-        const panel = document.getElementById('linearAdvancedPanel');
-        if (!btn || !panel) return;
-        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-        btn.classList.toggle('open', open);
-        panel.classList.toggle('open', open);
-        panel.hidden = !open;
-    }
-    // Advanced is an expanded panel: it joins the shared layer list, so
-    // Escape and a click outside close it and focus returns to its button.
-    function toggleLinearAdvanced() {
-        const open = !_linearAdvancedIsOpen();
-        _linearSetAdvanced(open);
-        if (open) {
-            svLayerOpen({
-                key: 'linear-advanced',
-                region: '#linearAdvancedWrap',
-                opener: () => document.getElementById('linearAdvancedToggle'),
-                isOpen: _linearAdvancedIsOpen,
-                holdRefresh: false,
-                close: () => _linearSetAdvanced(false),
-            });
-        } else {
-            svLayerRelease('linear-advanced');
-        }
-    }
-
-    // The choice stays visible beside Advanced while it is off, so a closed
-    // panel never hides that no thumbnail will be made.
+    // The switch sits above the Create button, always on view (owner,
+    // 2026-10-18 03:45 UTC). The choice is remembered in this browser.
     function onLinearThumbChange(box) {
         const on = !!(box && box.checked);
         _linearThumbStore(on);
-        const state = document.getElementById('linearAdvancedState');
-        if (state) state.hidden = on;
     }
 
     // On = video + thumbnail (the old "both" request); off = video only.
@@ -2067,7 +2016,7 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
     Object.assign(window, {
         onLinearCountInput, onLinearCountKey, onLinearThumbChange, onVideoLinkBlur, onVideoLinkInput,
         onVideoLinkKeydown, setLinearVideoCount, stepLinearVideoCount, submitLinearUpload,
-        toggleLinearAdvanced, undoLinearVideoCount
+        undoLinearVideoCount
     });
 export {
   BARE_LANDING_OK_PARAMS, CAL_CARD_JOBS_KEY, FAST_TABS, KASPER_UNLOCK_KEY, RESTORABLE_FAST_TABS,

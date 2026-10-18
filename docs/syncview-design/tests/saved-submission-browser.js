@@ -85,7 +85,7 @@ async function fillSubmit(page, link) {
   await page.locator('#vid_main_1').fill(link);
 }
 async function submit(page) {
-  // Video only: the thumbnail toggle under Advanced is off.
+  // Video only: the thumbnail switch above the Create button is off.
   await page.evaluate(() => { document.getElementById('linearMakeThumbnail').checked = false; });
   await page.locator('#linearSubmitBtn').click();
   await page.waitForFunction(() => !document.querySelector('#linearSubmitBtn[disabled]'), null, { timeout: 15000 }).catch(() => {});

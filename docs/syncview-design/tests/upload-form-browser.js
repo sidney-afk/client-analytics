@@ -14,17 +14,19 @@
 //   2. The video count control: plus, minus, a typed number, the cap of 24, a
 //      number below 1, and lowering it when boxes hold links (empty boxes go
 //      first; filled ones only with an Undo).
-//   3. Advanced is collapsed by default and holds the "Make a thumbnail too"
-//      toggle, on by default.
+//   3. The "Make a thumbnail too" switch is on view right above the Create
+//      button (no Advanced panel: owner, 2026-10-18 03:45 UTC), on by default,
+//      and explains itself like the other labels.
 //   4. On the upload link the Title is hidden but still sent, and the page
 //      reads "Upload your content" with the Synchro Social logo.
 //   5. The field labels explain themselves (the house explainable label:
 //      hover, keyboard focus, Escape, tap to toggle on a phone).
-//   6. Advanced closes on Escape and on a click outside; the thumbnail choice
-//      survives a reload and a "Restore it" of a saved video-only submission.
+//   6. The thumbnail choice survives a reload and a "Restore it" of a saved
+//      video-only submission.
 //
 // --shots=<dir> also writes the proof screenshots (1440 and 390, light and
-// dark, both forms, Advanced open, one explanation showing).
+// dark, both forms, the bottom of the form with the thumbnail switch, one
+// explanation showing).
 //
 // Demo names only; this repo is public.
 
@@ -128,8 +130,7 @@ async function fillForm(page) {
 async function submitAs(page, mode) {
   if (await isNewForm(page)) {
     if (mode === 'video') {
-      await page.locator('#linearAdvancedToggle').click();
-      await page.locator('label[for="linearMakeThumbnail"]').click();
+      await page.locator('label[for="linearMakeThumbnail"] .uf-switch-track').click();
       if (await page.locator('#linearMakeThumbnail').isChecked()) throw new Error('the thumbnail toggle did not turn off');
     }
     await page.locator('#linearSubmitBtn').click();
@@ -235,32 +236,34 @@ async function behaviour(browser, port) {
     const savedCount = await page.evaluate(() => JSON.parse(localStorage.getItem('syncview_linear_form')).videos.length);
     check(savedCount === 3, 'the saved draft follows the count');
 
-    // Advanced.
-    check(await page.locator('#linearAdvancedToggle').getAttribute('aria-expanded') === 'false'
-      && !(await page.locator('#linearAdvancedPanel').isVisible()), 'Advanced is collapsed by default');
-    await page.locator('#linearAdvancedToggle').click();
-    check(await page.locator('#linearAdvancedPanel').isVisible() && await page.locator('#linearMakeThumbnail').isChecked(),
-      'Advanced opens on click and "Make a thumbnail too" is on by default');
-    await page.locator('label[for="linearMakeThumbnail"]').click();
-    check(!(await page.locator('#linearMakeThumbnail').isChecked()) && await page.locator('#linearAdvancedState').isVisible(),
-      'turning the thumbnail off shows "Thumbnail off" beside Advanced');
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(150);
-    check(!(await page.locator('#linearAdvancedPanel').isVisible())
-      && await page.evaluate(() => document.activeElement && document.activeElement.id) === 'linearAdvancedToggle',
-      'Escape closes Advanced and focus returns to its button');
-    check(await page.locator('#linearAdvancedState').isVisible(), 'with Advanced closed, "Thumbnail off" stays on view');
-    await page.locator('#linearAdvancedToggle').click();
-    await page.locator('#linearAdvancedPanel').click({ position: { x: 4, y: 4 } });
-    check(await page.locator('#linearAdvancedPanel').isVisible(), 'a click inside Advanced keeps it open');
-    await page.locator('.uf-videos-title').click({ position: { x: 2, y: 2 } });
-    check(!(await page.locator('#linearAdvancedPanel').isVisible()), 'a click outside closes Advanced');
+    // The thumbnail switch: on view above the button, no Advanced panel.
+    const thumbTrack = page.locator('label[for="linearMakeThumbnail"] .uf-switch-track');
+    check(!(await page.locator('#linearAdvancedToggle, #linearAdvancedPanel, #linearAdvancedState').count())
+      && !/Advanced/.test(await page.locator('.uf-actions').innerText()), 'there is no Advanced panel');
+    check(await thumbTrack.isVisible() && await page.locator('#linearMakeThumbnail').isChecked(),
+      '"Make a thumbnail too" is on view without opening anything, and on by default');
+    const place = await page.evaluate(() => {
+      const sw = document.querySelector('label[for="linearMakeThumbnail"]');
+      const btn = document.getElementById('linearSubmitBtn');
+      const a = sw.getBoundingClientRect(), b = btn.getBoundingClientRect();
+      return { inActions: !!sw.closest('.uf-actions') && !!btn.closest('.uf-actions'),
+        before: !!(sw.compareDocumentPosition(btn) & Node.DOCUMENT_POSITION_FOLLOWING),
+        gap: b.top - a.bottom, oneLine: a.height <= 30, sameLeft: Math.abs(a.left - b.left) <= 1 };
+    });
+    check(place.inActions && place.before && place.gap >= 0 && place.gap <= 24 && place.sameLeft,
+      'the switch sits directly above the Create button, aligned with it ' + JSON.stringify(place));
+    check(place.oneLine, 'the switch is one line');
+    await thumbTrack.click();
+    check(!(await page.locator('#linearMakeThumbnail').isChecked()), 'a click turns the thumbnail off');
     await page.reload();
     await page.waitForSelector('#linearMakeThumbnail', { state: 'attached' });
     await page.waitForTimeout(500);
-    check(!(await page.locator('#linearMakeThumbnail').isChecked()) && await page.locator('#linearAdvancedState').isVisible(),
-      'the thumbnail choice survives a reload');
-    await page.evaluate(() => { const b = document.getElementById('linearMakeThumbnail'); b.checked = true; onLinearThumbChange(b); });
+    check(!(await page.locator('#linearMakeThumbnail').isChecked()), 'the thumbnail choice survives a reload');
+    await thumbTrack.click();
+    check(await page.locator('#linearMakeThumbnail').isChecked(), 'a second click turns it back on');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.mouse.move(5, 5);
+    await page.waitForTimeout(200);
 
     // Explanations: the house explainable label (shared tooltip).
     const tipText = () => page.evaluate(() => { const t = document.getElementById('globalTooltip'); return t && t.isConnected ? t.textContent : ''; });
@@ -278,6 +281,14 @@ async function behaviour(browser, port) {
     await page.keyboard.press('Escape');
     await page.waitForTimeout(150);
     check(!(await tipText()), 'Escape dismisses the explanation');
+    const thumbHelp = page.locator('label[for="linearMakeThumbnail"] [data-sv-explain]');
+    await thumbHelp.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    await thumbHelp.hover();
+    await page.waitForTimeout(300);
+    check(/also makes a thumbnail/.test(await tipText()) && /only the video/.test(await tipText()), 'hovering "Make a thumbnail too" explains it');
+    await page.mouse.move(5, 5);
+    await page.waitForTimeout(200);
     const optional = await page.evaluate(() => ['vid_side_1', 'vid_audio_1', 'vid_notes_1', 'linearNotes']
       .every(id => /optional/.test(document.querySelector('label[for="' + id + '"]').textContent)));
     check(optional, 'side camera, audio and both notes boxes say "optional"');
@@ -291,7 +302,8 @@ async function behaviour(browser, port) {
     const { context, page, errors } = await harness(browser, port, { staff: true });
     await open(page, port, 'staff');
     check(await page.locator('#linearTitleField').isVisible(), 'the Submit tab still shows the Title');
-    check(await page.locator('#linearVideoCount').isVisible() && await page.locator('#linearAdvancedToggle').isVisible(), 'the Submit tab has the count control and Advanced');
+    check(await page.locator('#linearVideoCount').isVisible() && await page.locator('label[for="linearMakeThumbnail"] .uf-switch-track').isVisible()
+      && !(await page.locator('#linearAdvancedToggle').count()), 'the Submit tab has the count control and the thumbnail switch, and no Advanced');
     check(!(await page.locator('img.uf-logo').count()), 'the Submit tab is not branded as the client upload page');
     check(!errors.length, 'staff: no page errors ' + errors.join(' | '));
     await context.close();
@@ -312,8 +324,8 @@ async function behaviour(browser, port) {
     await page.waitForSelector('#linearSavedBox');
     await page.click('#linearSavedBox >> text=Restore it');
     await page.waitForTimeout(500);
-    check(!(await page.locator('#linearMakeThumbnail').isChecked()) && await page.locator('#linearAdvancedState').isVisible(),
-      'Restore it brings the thumbnail switch back off');
+    check(!(await page.locator('#linearMakeThumbnail').isChecked()) && await page.locator('label[for="linearMakeThumbnail"] .uf-switch-track').isVisible(),
+      'Restore it brings the thumbnail switch back off, on view');
     net.drop = false;
     await page.locator('#linearSubmitBtn').click();
     for (let i = 0; i < 150 && net.intake.length < 2; i++) await page.waitForTimeout(40);
@@ -335,6 +347,16 @@ async function behaviour(browser, port) {
     await label.tap();
     await page.waitForTimeout(200);
     check(!(await tipText()), 'phone: a second tap hides it');
+    const thumbLabel = page.locator('label[for="linearMakeThumbnail"] [data-sv-explain]');
+    await thumbLabel.scrollIntoViewIfNeeded();
+    await thumbLabel.tap();
+    await page.waitForTimeout(200);
+    check(/also makes a thumbnail/.test(await tipText()) && await page.locator('#linearMakeThumbnail').isChecked(),
+      'phone: a tap on "Make a thumbnail too" explains it without flipping the switch');
+    await thumbLabel.tap();
+    await page.waitForTimeout(200);
+    await page.locator('label[for="linearMakeThumbnail"] .uf-switch-track').tap();
+    check(!(await page.locator('#linearMakeThumbnail').isChecked()), 'phone: a tap on the switch turns it off');
     await context.close();
   }
 }
@@ -355,12 +377,13 @@ async function shots(browser, port) {
         await page.waitForTimeout(400);
         await page.screenshot({ path: path.join(SHOTS, `${surface}-${width}-${theme}.png`), fullPage: true });
         if (surface === 'link' && theme === 'light') {
-          await page.locator('#linearAdvancedToggle').click();
+          // The bottom of the form: the switch above the button (off at 1440).
+          if (width > 500) await page.locator('label[for="linearMakeThumbnail"] .uf-switch-track').click();
+          await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
           await page.mouse.move(1, 1);
-          await page.locator('#linearAdvancedPanel').scrollIntoViewIfNeeded();
-          await page.waitForTimeout(250);
-          await page.screenshot({ path: path.join(SHOTS, `${surface}-${width}-advanced-open.png`) });
-          await page.keyboard.press('Escape');
+          await page.evaluate(() => document.activeElement && document.activeElement.blur());
+          await page.waitForTimeout(400);
+          await page.screenshot({ path: path.join(SHOTS, `${surface}-${width}-thumbnail-switch.png`) });
           await page.evaluate(() => { window.scrollTo(0, 0); if (document.activeElement) document.activeElement.blur(); });
           await page.mouse.move(1, 1);
           await page.waitForTimeout(400);

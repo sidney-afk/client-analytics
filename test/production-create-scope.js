@@ -54,18 +54,34 @@ ok(/data-prod-create-graphics-note="1"/.test(source)
   'the dialog explains where graphics work is created instead of silently switching');
 
 // ---- the submission scope choice (owner feedback 2026-10-18) ------------
-// The owner reversed the 2026-08-17 ruling above for the Submit form: the
-// choice now sits under a collapsed Advanced as one toggle, "Make a thumbnail
-// too", on by default. On sends the old video + graphics request, off the old
-// video-only request. "Thumbnail only" left the form: the Submit form sent
-// none in the 60 days before 2026-10-18 (read-only count).
+// Owner ruling 2026-10-18 03:45 UTC, which keeps the 2026-08-17 rule above:
+// the choice is one small switch, "Make a thumbnail too", on view right above
+// the Create deliverables button, on by default. It is never hidden behind
+// Advanced (hiding it in August made every submission create a thumbnail
+// card, 60 empty placeholders, and 8 of the last 22 uploads were video only).
+// On sends the old video + graphics request, off the old video-only request.
+// "Thumbnail only" left the form: the Submit form sent none in the 60 days
+// before 2026-10-18 (read-only count).
 ok(/id="linearSubmitBtn"/.test(source) && !/id="linearSubmitBtnVideo"/.test(source)
   && !/id="linearSubmitBtnThumbnail"/.test(source),
   'one Create deliverables button replaces the three scope buttons');
 
-ok(/id="linearAdvancedToggle"[^>]*aria-expanded=/.test(source) && /id="linearAdvancedPanel"/.test(source)
-  && /id="linearMakeThumbnail"/.test(source),
-  'the thumbnail choice is a toggle inside a collapsible Advanced section');
+ok(!/linearAdvanced|linear-advanced|toggleLinearAdvanced/.test(source),
+  'there is no Advanced panel on the Submit form');
+
+{
+  const actions = source.indexOf('<div class="uf-actions">');
+  const sw = source.indexOf('id="linearMakeThumbnail"', actions);
+  const btn = source.indexOf('id="linearSubmitBtn"', actions);
+  const end = source.indexOf('<div class="linear-status" id="linearStatus">', actions);
+  ok(actions > -1 && sw > actions && btn > sw && end > btn,
+    'the thumbnail switch sits in the action row and precedes the Create deliverables button');
+}
+
+ok(/id="linearMakeThumbnail"\$\{makeThumbnail \? ' checked' : ''\}/.test(source)
+  && /return localStorage\.getItem\(LINEAR_THUMB_KEY\) !== '0';/.test(source)
+  && /catch \(e\) \{ return true; \}/.test(source),
+  'the switch is on by default (on unless this browser remembers it off)');
 
 ok(/return box && !box\.checked \? 'video' : 'both';/.test(source),
   'toggle on maps to the old "both" request and off to the old "video" request');

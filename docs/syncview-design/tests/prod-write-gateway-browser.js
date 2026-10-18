@@ -1937,11 +1937,10 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       setLinearVideoCount(1);
     });
     await page.locator('#vid_main_1').fill('https://drive.invalid/main');
-    // Video only: "Make a thumbnail too" under Advanced is turned off
-    // (owner feedback 2026-10-18 put the choice back under Advanced).
+    // Video only: the "Make a thumbnail too" switch above the Create button is
+    // turned off (owner, 2026-10-18 03:45 UTC: the switch stays on view).
     phase('submit');
-    await page.locator('#linearAdvancedToggle').click();
-    await page.locator('label[for="linearMakeThumbnail"]').click();
+    await page.locator('label[for="linearMakeThumbnail"] .uf-switch-track').click();
     await page.locator('#linearSubmitBtn').click();
     for (let i = 0; i < 100 && !writes.some(write => write.body.operation === 'intake_create'); i++) {
       await new Promise(resolve => setTimeout(resolve, 20));

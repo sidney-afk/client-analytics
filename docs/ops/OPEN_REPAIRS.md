@@ -30451,7 +30451,7 @@ Not changed on purpose: at 360 wide the batch name still truncates for the test 
 
 Not tested for real: Archive on the test client through the new button (the confirmation and click code are unchanged; the offline test opens the confirmation). Item 2 of the owner's list refers to "the same fix as #1971 item 5"; I read it as the chip style above and applied it here only.
 
-Proof: `docs/syncview-design/tests/staff-selection-samples-browser.js` (4,204 checks, now including: no Tools label, batch name fits at 390 and wider, post type picker on one row) and the three scope guards; before and after pictures in `docs/syncview-design/proofs/staff-selection-samples-expanded/design-check/`.
+Proof: `docs/syncview-design/tests/staff-selection-samples-browser.js` (4,203 checks, now including: no Tools label, batch name fits at 390 and wider, post type picker on one row) and the three scope guards; before and after pictures in `docs/syncview-design/proofs/staff-selection-samples-expanded/design-check/`.
 Way back: revert the commit.
 
 ## 348. [2026-10-05, BUILT, NOT DEPLOYED] Staff Samples and Calendar Selection on phones: batch name on two lines, status picker as a bottom sheet (session Polish)
@@ -33496,3 +33496,19 @@ Fixed in `scripts/sheets-mirror-parity.js` only: the Clients Info side now hashe
 **Measured live after the fix (review, read-only, counts only):** the parity went from 1 difference to 2, not to clean. The test client now matches. Two other active clients differ for a real reason, not a stale hash: the database holds an Instagram handle (one also a TikTok handle) that the Clients Info cell does not (Sheet cell empty in the export; both rows were last written by the Sheet copy on 2026-10-02; no `client_profile_edits` row explains them; their copy rows are `done`). Their stored `row_hash` had been equal to the Sheet's hash, which is how the old check hid them. That is the check doing its job; the owner or Lighthouse decides which side is right and re-copies (see the copy_to_sheet action) or clears. Also fixed in review: line endings are folded to `\n` on both sides, as the Sheet copy treats them as the same text, and the test now proves both directions column by column and runs the real script end to end (nothing printed carries a value, name or slug).
 
 **Way back:** revert the pull request.
+
+## 436. [2026-10-18, BUILT, NOT MERGED] The upload form could still lose a send: a full browser store stopped typing and sending, and no server copy of the raw upload existed (session Keepsake)
+
+Audit of the upload link and the Submit tab against every way a send can fail (report `docs/audits/2026-10-18-upload-form-never-lost.md`, test `docs/syncview-design/tests/upload-never-lost-browser.js`, 232 checks, plus `test/intake-raw-copy.js`).
+
+- **Full or refused browser store.** `saveLinearForm` and `saveLastLink` threw on every keystroke, and the send was refused as "could not be saved safely". Now typing never throws and the send goes out from memory under a stable request id.
+- **No cross-tab lock** (older browsers) refused every send; now it sends without the lock.
+- **Wording.** "Not sent yet… Press the button again" replaces "retry to resume safely"; a received upload whose calendar step failed says "received" on the client link.
+- **A refused saved send was discarded with the only copy of the typed form**; the form is now put back first.
+- **No raw server copy.** New `intake_raw_submissions` (migration `2026-10-18-intake-raw-submissions.sql`, gateway copes without it), written first by `production-write`, listed by `intake_raw_list`. Runbook `docs/ops/INTAKE_RAW_COPY.md`.
+
+- **Added in review.** (a) After a send from a browser that could not store its retry copy, an edit (or the due dates moving on at midnight) used a NEW request id, so a send whose answer was lost became two uploads; it now asks the server whether the first arrived, reuses the id if not, and sends nothing if it did. (b) A browser whose storage THROWS ON EVERY ACCESS (not just a full one) never started the page; the page head now stands in a memory-only store. (c) Typed text that could not be stored asks the browser to confirm before the page is closed or reloaded. (d) The raw copy's outcome can no longer be turned from `created` to `refused` by a refused retry; text the database cannot hold as JSON is kept as escaped text; the legacy intake route records its outcome. `test/native-intake-editor-browser.js` accounts for the added `recordIntakeRaw` line.
+
+**Lighthouse:** apply the migration. **Not done:** Safari and Firefox passes (only Chromium in the sandbox), a staff screen for the list, and archiving one live test batch (1 batch, 2 items, 1 card on the test client).
+
+**Way back:** revert the pull request; run the migration's ROLLBACK block to drop the table.

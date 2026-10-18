@@ -438,7 +438,12 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
 
     function _linearIntakeWithLock(callback) {
         if (typeof navigator === 'undefined' || !navigator.locks || typeof navigator.locks.request !== 'function') {
-            return Promise.reject(_linearIntakeActorError(503, 'native_intake_lock_unavailable'));
+            /* An older browser has no cross-tab lock. Refusing here meant such a
+               visitor could never send at all. The lock only keeps two TABS from
+               resuming one job together; the request id is the real guard (the
+               server treats a repeat of it as the same upload), and one tab
+               already sends one request at a time. */
+            return Promise.resolve().then(callback);
         }
         return navigator.locks.request('syncview-native-intake', { mode: 'exclusive' }, callback);
     }
@@ -450,7 +455,13 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
         } catch (e) { return null; }
     }
     function _linearIntakeJobId(job) { return String(job && job.payload && job.payload.request_id || ''); }
+    /* A browser that cannot store the retry copy (storage full or refused) must
+       still SEND what the person typed. The job then lives in memory only: it
+       keeps its request id for the life of the page so a second press of
+       Submit is the same request, and the page keeps the form itself. */
+    let _linearMemoryIntakeJob = null;
     function _linearIntakeWrite(job, options) {
+        if (job && job.memory_only === true) return true;
         try {
             const requestId = _linearIntakeJobId(job);
             if (!requestId) return false;
@@ -674,6 +685,31 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
             _linearIntakeWrite(saved);
             return saved;
         }
+        if (_linearMemoryIntakeJob && _linearMemoryIntakeJob.signature === signature && !seed) {
+            const kept = _linearMemoryIntakeJob;
+            const stored = Object.assign({}, kept); delete stored.memory_only;
+            // Storage may have recovered since: go back to the saved path.
+            if (_linearIntakeWrite(stored, { allowCreate: true })) { _linearMemoryIntakeJob = null; return stored; }
+            return kept;
+        }
+        /* The form changed (an edit, or the due dates moved on at midnight) after
+           a memory-only send that may have reached the server with its answer
+           lost. A new request id would make a SECOND upload. Same rule as the
+           saved path: the id is reused only after the server said the earlier
+           send never committed (_linearMemoryPrepareEdit stamped that just
+           before this); a committed one is never re-sent under its id. */
+        if (_linearMemoryIntakeJob && _linearMemoryIntakeJob.signature !== signature && !seed
+            && _linearMemoryIntakeJob.attempted === true) {
+            const earlier = _linearMemoryIntakeJob;
+            const verified = earlier.replace_verified || {};
+            if (earlier.result || verified.request_id !== _linearIntakeJobId(earlier)
+                || !(Date.now() - Number(verified.at || 0) < NATIVE_INTAKE_REPLACE_CHECK_MS)) {
+                throw _linearIntakeActorError(409, 'native_intake_memory_unverified');
+            }
+            seed = { request_id: _linearIntakeJobId(earlier), source_edited_at: String(earlier.payload && earlier.payload.source_edited_at || '') };
+        } else if (_linearMemoryIntakeJob && _linearMemoryIntakeJob.signature !== signature && !seed) {
+            _linearMemoryIntakeJob = null; // never sent: nothing to protect
+        }
         const requestId = String(seed && seed.request_id || '') || _linearIntakeRequestId(context && context.surface);
         const sourceEditedAt = String(seed && seed.source_edited_at || '') || new Date().toISOString();
         const payload = makePayload(requestId, sourceEditedAt);
@@ -681,7 +717,13 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
             version: 3, signature, payload, context: context || {}, result: null,
             completed_card_ids: [], stage: 'request_pending', telemetry_sent: false
         };
-        if (!_linearIntakeWrite(pending, { allowCreate: true })) throw new Error('native_intake_storage_unavailable');
+        if (!_linearIntakeWrite(pending, { allowCreate: true })) {
+            if (replacing) throw new Error('native_intake_storage_unavailable');
+            pending.memory_only = true;
+            _linearMemoryIntakeJob = pending;
+            return pending;
+        }
+        _linearMemoryIntakeJob = null;
         if (replacing) {
             // Same request id on both sides, so the id check inside the write
             // cannot tell the replacement from the saved copy it overwrites.
@@ -746,6 +788,30 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
             const counts = await Promise.all(reads);
             return counts.some(count => count > 0) ? 'committed' : 'uncommitted';
         } catch (error) { return 'unknown'; }
+    }
+    /* The memory-only twin of _linearIntakePrepareReplace: before a submit whose
+       form differs from an earlier memory-only send, ask the server whether that
+       send arrived. Never arrived: stamp it so the edited form goes out under
+       the same request id. Arrived: say so and send nothing (the next press is a
+       new upload, on purpose). Cannot tell: send nothing and keep the form. */
+    async function _linearMemoryPrepareEdit(signature) {
+        const job = _linearMemoryIntakeJob;
+        if (!job || job.signature === signature || job.attempted !== true) return;
+        const requestId = _linearIntakeJobId(job);
+        let verdict;
+        if (job.result && job.result.native_committed === true) {
+            // The server has it but the last step (calendar cards) did not finish: finish it first.
+            try { await _linearIntakeWithLock(() => _runNativeIntakeJob(job)); }
+            catch (error) { throw _linearIntakeActorError(409, 'native_intake_memory_unfinished'); }
+            verdict = 'committed';
+        } else verdict = await _linearIntakeSavedCommitState(job);
+        if (_linearMemoryIntakeJob !== job) return;
+        if (verdict === 'unknown') throw _linearIntakeActorError(409, 'native_intake_memory_unverified');
+        if (verdict === 'committed') {
+            _linearMemoryIntakeJob = null;
+            throw _linearIntakeActorError(409, 'native_intake_memory_committed');
+        }
+        job.replace_verified = { request_id: requestId, at: Date.now() };
     }
     /* Run before a submit on any surface. When the saved job is restored for
        editing, ask the server whether its request already committed:
@@ -1373,6 +1439,7 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
         let pending;
         try {
             await _linearIntakePrepareReplace('submission');
+            await _linearMemoryPrepareEdit(signature);
             pending = await _linearIntakeWithLock(() => _linearIntakePending(signature, (requestId, sourceEditedAt) => {
             return {
                 operation: 'intake_create', surface: 'submission', client_slug: client.slug,
@@ -1406,7 +1473,13 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
             _writeUiRecordFailure('production', 'intake_create', error);
             const blocked = error && (error.code === 'native_intake_pending_conflict' || error.code === 'native_intake_recovery_pending');
             const code = String(error && error.code || '');
-            status.textContent = code === 'native_intake_saved_committed'
+            status.textContent = code === 'native_intake_memory_committed'
+                ? 'Your first send had already arrived, so it was not sent again. Your latest change was not part of it. Press the button again to send it as a new upload.'
+                : code === 'native_intake_memory_unfinished'
+                ? 'Your first upload was received, but one last step on our side did not finish. Press the button again to try that step again; nothing is sent twice.'
+                : code === 'native_intake_memory_unverified'
+                ? 'Not sent yet. We could not check whether your first send arrived, and we do not want to send it twice. Check your connection and press the button again.'
+                : code === 'native_intake_saved_committed'
                 ? 'The saved submission already went through on the server, so your edits were not sent: they would have made a second batch. Use Send it as it was in the box at the top to finish it, then submit your changes as a new one.'
                 : code === 'native_intake_saved_unverified'
                     ? 'Your edits were not sent: the server could not confirm whether the saved submission already went through. Try again in a moment, or use the box at the top to send it as it was or discard it.'
@@ -1429,10 +1502,16 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
 
         let nativeResult = pending.result || null;
         try {
-            const result = await _resumeNativeIntakeJob('submit', pending);
+            if (pending.memory_only === true) pending.attempted = true;
+            const result = pending.memory_only === true
+                ? await _linearIntakeWithLock(() => _runNativeIntakeJob(pending))
+                : await _resumeNativeIntakeJob('submit', pending);
             nativeResult = result;
-            localStorage.removeItem(LINEAR_FORM_KEY);
-            localStorage.removeItem(LAST_LINK_KEY);
+            _linearMemoryIntakeJob = null;
+            window.__svUnsavedUpload = false;
+            // The server has it: nothing after this line may turn that into a failure message.
+            try { localStorage.removeItem(LINEAR_FORM_KEY); } catch (e) {}
+            try { localStorage.removeItem(LAST_LINK_KEY); } catch (e) {}
             _linearThumbStore(true);
             _linearSetJustCreated(true);
             navTo('linear');
@@ -1451,8 +1530,12 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
             status.textContent = String(error && error.code || '') === 'public_intake_too_large'
                 ? _linearIntakeTooLargeMessage(mode, videos.length * _linearIntakeItemsPerVideo(mode))
                 : (nativeResult && nativeResult.native_committed === true) || (savedJob && savedJob.result)
-                ? 'Production work is saved, but Calendar cards are incomplete. Retry to resume the same request safely.'
-                : 'Submission was not completed. Your exact request is saved; retry to resume safely.';
+                ? (typeof _isIntake !== 'undefined' && _isIntake)
+                    ? 'Your upload was received. We are finishing one last step on our side. Press the button again to finish it; nothing is sent twice.'
+                    : 'Saved in Production, but the calendar cards are not all made yet. Press the button again to finish them; nothing is sent twice.'
+                : pending.memory_only === true
+                ? 'Not sent yet. Everything you typed is still on this page. Press the button again to try again.'
+                : 'Not sent yet. Everything you typed is saved. Press the button again to try again; it will not be sent twice.';
         } finally {
             buttons.forEach((button, index) => { button.disabled = false; button.innerHTML = buttonHtml[index]; });
             _linearRefreshSavedBox();
@@ -1807,6 +1890,18 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
             _linearIntakeWrite(saved);
             return false;
         }
+        /* The payload is about to go, and it is the only copy of what the person
+           typed. Put the form back first so nothing typed is ever thrown away:
+           the notice below can then say "it is back in the form". */
+        let formRestored = false;
+        try {
+            const form = saved.context && saved.context.form;
+            if (!recoveryOnly && form && typeof form === 'object' && !localStorage.getItem(LINEAR_FORM_KEY)
+                && String(saved.payload && saved.payload.surface || '') === 'submission') {
+                localStorage.setItem(LINEAR_FORM_KEY, JSON.stringify(form));
+                formRestored = localStorage.getItem(LINEAR_FORM_KEY) !== null;
+            }
+        } catch (e) {}
         _linearIntakeRemoveIfCurrent(requestId);
         const client = String(saved.payload && saved.payload.client_slug || 'a client');
         try {
@@ -1817,7 +1912,8 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
             else showNotify('A saved post was discarded',
                 'A post saved in this browser for "' + client + '" failed ' + String(limit)
                 + ' times (' + String(error && error.code || 'error')
-                + ') and is not going to succeed. It has been discarded; create it again when ready.');
+                + ') and is not going to succeed. It has been discarded; '
+                + (formRestored ? 'what was typed is back in the form on the Submit tab.' : 'create it again when ready.'));
         } catch (e) {}
         return true;
     }

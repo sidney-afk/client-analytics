@@ -33,6 +33,15 @@ purpose: a browser that has never read the switch (no list names the link) shows
 link stays light when the new page is not on for it; and the app does not follow the operating system's dark setting
 anywhere (the sun/moon button is the only switch). Test (fails on main): `node test/client-link-dark-first-paint-browser.js`.
 
+## Upload form never loses a send (session Keepsake, 2026-10-18): PR open
+
+Audit of the upload link and the Submit tab against every failure path (`docs/audits/2026-10-18-upload-form-never-lost.md`,
+OPEN_REPAIRS 436, `node docs/syncview-design/tests/upload-never-lost-browser.js`). Fixed: a full or refused browser store no longer stops
+typing or sending, no cross-tab lock no longer blocks a send, plain "Not sent yet / received" words, a refused saved send puts the
+form back before it is discarded. New: `production-write` stores the raw request first in `intake_raw_submissions` and lists it for staff
+(`intake_raw_list`); **the migration must be applied by Lighthouse** (the gateway copes without it). Not done: Safari and Firefox passes, a staff
+screen for the list, archiving one live test batch on the test client.
+
 ## Client review page finishing touches (session Rail, 2026-10-18): PR open
 
 The six open notes of client gauntlet 2, done (`node test/review-stage-finish-polish-browser.js`): Finish reviewing stays

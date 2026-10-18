@@ -271,12 +271,14 @@ assert.equal(intakeWithoutNaming.split(nativeAttributionAfter).length,2);
 intakeWithoutNaming=intakeWithoutNaming.replace(nativeAttributionAfter,nativeAttributionBefore);
 // OPEN_REPAIRS 254: after each native commit the gateway links the EXISTING
 // card's empty deliverable slots itself (card-link.mjs). Account for exactly
-// those four lines, each present once, and keep the rest of the handler frozen.
+// those lines, each present once, and keep the rest of the handler frozen.
 for(const line of [
  '    const cardLink = await linkCardsToCreatedDeliverables(supabase, responseItems);\n',
  '      card_link: cardLink,\n',
  '  const cardLink = await linkCardsToCreatedDeliverables(supabase, currentResponseItems);\n',
  '    card_link: cardLink,\n',
+ // OPEN_REPAIRS 436: the raw copy of the request, stored first (best effort, never refuses).
+ '  await recordIntakeRaw(supabase, requestId, client.slug, surface, publicIntake ? "public-intake" : "staff", body, items.length);\n',
 ]) {
  assert.equal(intakeWithoutNaming.split(line).length,2,'card-link line must appear exactly once: '+line.trim());
  intakeWithoutNaming=intakeWithoutNaming.replace(line,'');

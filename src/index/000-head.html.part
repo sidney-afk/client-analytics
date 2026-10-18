@@ -6,6 +6,38 @@
     <meta name="referrer" content="no-referrer">
     <title>SyncView</title>
     <link rel="icon" type="image/png" href="/syncview-favicon.png">
+    <script>
+    /* A browser that refuses ALL site storage (every read and write throws, as
+       with "block all cookies", some in-app browsers and locked-down profiles)
+       used to stop the whole page from starting, so the upload form never
+       appeared. If storage cannot even be read, stand in a memory-only copy for
+       this page: typing, sending and confirming all work, and the draft simply
+       cannot outlive the page. Runs first, never throws and never logs. A
+       normal or merely full browser store is left exactly as it is. */
+    (function () {
+        function Mem() { this._d = {}; }
+        Mem.prototype.getItem = function (k) { k = String(k); return Object.prototype.hasOwnProperty.call(this._d, k) ? this._d[k] : null; };
+        Mem.prototype.setItem = function (k, v) { this._d[String(k)] = String(v); };
+        Mem.prototype.removeItem = function (k) { delete this._d[String(k)]; };
+        Mem.prototype.clear = function () { this._d = {}; };
+        Mem.prototype.key = function (i) { var ks = Object.keys(this._d); return i >= 0 && i < ks.length ? ks[i] : null; };
+        Object.defineProperty(Mem.prototype, 'length', { get: function () { return Object.keys(this._d).length; } });
+        ['localStorage', 'sessionStorage'].forEach(function (name) {
+            var ok = true;
+            try { window[name].getItem('sv_probe'); } catch (e) { ok = false; }
+            if (ok) return;
+            try {
+                var mem = new Mem();
+                Object.defineProperty(window, name, { configurable: true, get: function () { return mem; } });
+            } catch (e) {}
+        });
+        // Typed text that could not be stored (full store) lives only on the page:
+        // ask the browser to confirm before the page is closed, reloaded or left.
+        window.addEventListener('beforeunload', function (e) {
+            if (window.__svUnsavedUpload === true) { e.preventDefault(); e.returnValue = ''; return ''; }
+        });
+    })();
+    </script>
     <!-- Pre-paint boot gate. The static <body> markup is the staff analytics
          dashboard, but the code that reroutes special entries (onboarding
          forms, ?intake=1, ?c= client links, the password gate, hash-tab

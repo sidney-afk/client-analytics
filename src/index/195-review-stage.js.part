@@ -339,6 +339,10 @@ svg{display:block;flex-shrink:0}
 .finish:focus:not(:focus-visible){outline:0}
 .finish:disabled{background:transparent;color:var(--off-fg);box-shadow:inset 0 0 0 1px var(--off-line);font-weight:600;cursor:not-allowed}
 .finish .fc{font-weight:600;opacity:.85}
+/* Every part answered: Finish draws the eye with a soft ring that breathes slowly three times, then stays still.
+   The animation is offset by how long the button has been ready, so a redraw never restarts it. */
+.finish.ready{box-shadow:0 2px 8px var(--ok-shadow),0 0 0 3px color-mix(in srgb,var(--fin-bg) 24%,transparent);animation:finGlow 2.4s var(--ease) 3 both}
+@keyframes finGlow{0%,100%{box-shadow:0 2px 8px var(--ok-shadow),0 0 0 3px color-mix(in srgb,var(--fin-bg) 24%,transparent)}50%{box-shadow:0 0 22px color-mix(in srgb,var(--fin-bg) 45%,transparent),0 0 0 6px color-mix(in srgb,var(--fin-bg) 22%,transparent)}}
 .dock{flex-shrink:0;display:flex;justify-content:center}
 .dock .compose{width:min(100%,560px);animation:rise .18s var(--ease)}
 .chat{display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--well);border:1px solid var(--well-line);border-radius:18px;overflow:hidden}
@@ -796,7 +800,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     };
     function _rsFreshState() {
         return { curId: null, step: '', note: _rsBlankNote(), editing: '', editText: '', fold: false, saved: null,
-            menu: '', exp: {}, edOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, slow: {}, pressed: {} };
+            menu: '', exp: {}, edOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, slow: {}, pressed: {}, ready: {} };
     }
 
     /* ---------- the model: one shape for every person ---------- */
@@ -1445,10 +1449,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             d = _rsActions(x, '');
         }
         const parts = m.parts, left = parts.filter(p => p.st === 'wait').length, all = !left;
+        if (all && !S.ready[m.id]) S.ready[m.id] = Date.now();
+        if (!all) delete S.ready[m.id];
+        const glow = all ? ' ready" style="animation-delay:-' + (Date.now() - S.ready[m.id]) + 'ms' : '';
         const dc = x.st === 'ok' && d && !S.editing && !saving ? ' is-ok' : (x.st === 'chg' || x.st === 'tweak') && d && !S.editing && !saving ? ' is-chg' : '';
         el.innerHTML = '<div class="dwrap">' + (d === null ? _rsComposer(m) : '<div class="dec' + dc + '" id="dec">' + d + '</div>') + '</div>'
             + _rsSaveIssues(m, x.key)
-            + '<div class="drow2"><div class="dfin"><button class="finish" type="button" id="finishBtn"' + (all ? '' : ' disabled') + '>' + RI.check + 'Finish reviewing' + (all ? '' : ' <span class="fc num">' + (parts.length - left) + ' of ' + parts.length + '</span>') + '</button></div></div>';
+            + '<div class="drow2"><div class="dfin"><button class="finish' + glow + '" type="button" id="finishBtn"' + (all ? '' : ' disabled') + '>' + RI.check + 'Finish reviewing' + (all ? '' : ' <span class="fc num">' + (parts.length - left) + ' of ' + parts.length + '</span>') + '</button></div></div>';
         el.querySelectorAll('[data-ok]').forEach(b => b.addEventListener('click', () => _rsApprove(m, b.dataset.ok, R.mode === 'smm' ? 'kasper' : '')));
         el.querySelectorAll('[data-alt]').forEach(b => b.addEventListener('click', (e) => {
             e.stopPropagation(); S.menu = '';

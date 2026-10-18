@@ -189,6 +189,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _crqDrop(pid, comp);
         if (!_crqMine().length) _crqRun.attempt = 0;
         if (!entry) { _crqQuiet(); return false; }
+        // The new review page confirms on the part itself ("Saved" on its step); a toast there covered Finish on a phone.
+        if (typeof svRsCalOn === 'function' && svRsCalOn()) { _crqQuiet(); return true; }
         _crqSay(entry.kind === 'request' ? 'Changes sent' : 'Approved', true);
         return true;
     }

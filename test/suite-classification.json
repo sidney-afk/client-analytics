@@ -1771,6 +1771,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-finish-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Checks on the client page and the SMM's Review tab that Finish reviewing is quiet while a part waits, breathes slowly (three times, then a still ring) once every part is answered, is not restarted by a redraw, and is a still ring with reduced motion.",
+      "reproduce": "node test/review-stage-finish-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "frameio-viewer-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

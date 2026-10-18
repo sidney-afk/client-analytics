@@ -868,6 +868,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-smooth-browser.js
+      - name: Finish reviewing draws the eye once every part is answered (slow breathing ring, still with reduced motion)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-finish-browser.js
 
 
   split-preview:

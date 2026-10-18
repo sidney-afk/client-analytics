@@ -1458,11 +1458,19 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
            see the snapshot notes in the state file), so while it is all the
            page holds, "0 done" is that copy's silence, not an answer: Back from
            a card to a sub-issue read "0/13" for a few seconds where the truth
-           was 19 of 32. Until a live read brings a finished child in, the chip
-           says it is still counting. */
+           was 19 of 32. The live first read is the same shape (finished work
+           arrives with the terminal tail), so the rule is: until the row set is
+           complete (_prodRowSetComplete) or a finished child is already here,
+           the chip says it is still counting. A tail that failed shows what is
+           held rather than counting forever. */
+        function _prodSubCountPending(sub) {
+            if (!sub || sub.done) return false;
+            if (_prodState.cachePartial) return true;
+            return !_prodState.terminalTailFailed && !_prodRowSetComplete();
+        }
         function _prodSubChipHTML(sub) {
             if (!sub) return '';
-            if (_prodState.cachePartial && !sub.done) {
+            if (_prodSubCountPending(sub)) {
                 return '<span class="prod-subchip" data-prod-subchip-pending="1" data-prod-tip="Counting sub-issues\u2026" aria-label="Counting sub-issues">' + _prodStatusSVG('todo') + '\u2026</span>';
             }
             return '<span class="prod-subchip" data-prod-tip="' + sub.done + ' of ' + sub.total + ' sub-issues done">' + _prodStatusSVG(sub.done === sub.total && sub.total > 0 ? 'approved' : 'todo') + sub.done + '/' + sub.total + '</span>';

@@ -52,7 +52,7 @@ function extractFunction(name, optional) {
   throw new Error('unclosed ' + name);
 }
 
-const script = extractFunction('_prodSubChipHTML', true) + '\n' + extractFunction('_prodSubIssueContextHTML')
+const script = extractFunction('_prodRowSetComplete') + '\n' + extractFunction('_prodSubCountPending', true) + '\n' + extractFunction('_prodSubChipHTML', true) + '\n' + extractFunction('_prodSubIssueContextHTML')
   + '\nglobalThis.__header = _prodSubIssueContextHTML;';
 
 function header(state, progress) {
@@ -86,14 +86,23 @@ const vis = html => String(html).replace(/<[^>]*>/g, ' ');
   const html = header({ cachePartial: true }, { done: 19, total: 32 });
   ok(/\b19\/32\b/.test(vis(html)) && !/data-prod-subchip-pending/.test(html), 'finished children present: the real count shows');
 }
-// 3. Live data: every count shows, a real zero included.
+// 3. Live first read landed but the finished work (terminal tail) has not:
+//    no saved copy at all, so cachePartial is already false.
 {
-  ok(/\b19\/32\b/.test(vis(header({ cachePartial: false }, { done: 19, total: 32 }))), 'live data: 19/32');
-  const zero = header({ cachePartial: false }, { done: 0, total: 4 });
+  const pending = header({ cachePartial: false, terminalTailLoadedAt: 0, terminalTailPending: true }, { done: 0, total: 13 });
+  ok(!/\b0\s*\/\s*13\b/.test(vis(pending)) && /data-prod-subchip-pending/.test(pending), 'live first read, tail still loading: still counting, no "0/13"');
+  const failed = header({ cachePartial: false, terminalTailLoadedAt: 0, terminalTailFailed: true }, { done: 0, total: 13 });
+  ok(/\b0\/13\b/.test(vis(failed)), 'tail failed: shows what is held instead of counting forever');
+}
+// 4. Complete row set: every count shows, a real zero included.
+{
+  const DONE = { cachePartial: false, terminalTailLoadedAt: 1 };
+  ok(/\b19\/32\b/.test(vis(header(DONE, { done: 19, total: 32 }))), 'live data: 19/32');
+  const zero = header(DONE, { done: 0, total: 4 });
   ok(/\b0\/4\b/.test(vis(zero)) && !/data-prod-subchip-pending/.test(zero), 'live data: a real "0 done" still shows as 0/4');
   ok(!/prod-subchip/.test(header({ cachePartial: true }, null)), 'no sub-issues: no chip at all');
 }
-// 4. One helper draws the chip in the list row and in the header.
+// 5. One helper draws the chip in the list row and in the header.
 {
   const row = extractFunction('_prodRow');
   const ctx = extractFunction('_prodSubIssueContextHTML');

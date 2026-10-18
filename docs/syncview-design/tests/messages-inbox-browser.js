@@ -258,7 +258,7 @@ async function markUnread(page){
     withWriters = true;
     await page.evaluate(() => { navTo('kasper'); });
     await page.evaluate(() => _kasperGotoTab('replies'));
-    await page.evaluate(() => _msgLoad(true));
+    await page.evaluate(() => { _msgLoad(true); _msgSetFilter('all'); });
     check(await until(() => page.evaluate(() => !!document.querySelector('#msgPage [data-msg-conv="p_writers"]'))), 'I: the writers conversation is listed');
     await until(() => page.evaluate(() => /Robin Testwell/.test(document.querySelector('#msgPage [data-msg-conv="p_writers"]').innerText)));
     const iList = await page.evaluate(() => {

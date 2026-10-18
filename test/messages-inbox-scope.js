@@ -222,6 +222,23 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
     && /clean\(d\.card_id\) && clean\(d\.card_id\) !== clean\(post\.id\)/.test(edge),
     "a card's deliverable link only brings in notes when that deliverable is the card's own client, team and card");
 
+  // What counts as NEW (owner, 2026-10-18): only a person talking to you; automatic records never count.
+  const capRecord = { id: 'n1', author: 'Fixture Client', role: 'client', body: 'Changed the caption to:\n\nNew words\n\nIt was:\n\nOld words', created_at: '2026-10-11T10:00:00Z' };
+  const clientNote = { id: 'n2', author: 'Fixture Client', role: 'client', body: 'Can we add the hours?', created_at: '2026-10-11T11:00:00Z' };
+  const staffNote = { id: 'n3', author: 'First Manager', author_member_id: 'u1', role: 'smm', body: 'Trim the intro.', created_at: '2026-10-11T12:00:00Z' };
+  const ownNote = { id: 'n4', author: 'Fixture Reviewer', author_member_id: 'u5', role: 'kasper', body: 'On it.', created_at: '2026-10-11T13:00:00Z' };
+  const sysNote = { id: 'n5', author: 'SyncView', role: 'system', body: 'Status moved to In Review.', created_at: '2026-10-11T14:00:00Z' };
+  const nowMs = Date.parse('2026-10-12T00:00:00Z');
+  ok(inbox.unreadCount([capRecord], smmOne, '', nowMs, 'smm') === 0, 'SMM view: the caption-change record is never new');
+  ok(inbox.unreadCount([capRecord], reviewer, '', nowMs, 'reviewer') === 0, 'reviewer view: the caption-change record is never new');
+  ok(inbox.unreadCount([sysNote], smmOne, '', nowMs, 'smm') === 0 && inbox.unreadCount([sysNote], reviewer, '', nowMs, 'reviewer') === 0, 'a system-written record is never new in either view');
+  ok(inbox.unreadCount([clientNote], smmOne, '', nowMs, 'smm') === 1, "SMM view: a client's plain note still counts, as before");
+  ok(inbox.unreadCount([clientNote], reviewer, '', nowMs, 'reviewer') === 0, "reviewer view: a client's note shows but never counts");
+  ok(inbox.unreadCount([staffNote], reviewer, '', nowMs, 'reviewer') === 1, "reviewer view: a manager's message counts");
+  ok(inbox.unreadCount([ownNote], reviewer, '', nowMs, 'reviewer') === 0, 'reviewer view: your own message never counts');
+  ok(inbox.unreadCount([capRecord, clientNote, staffNote, ownNote, sysNote], reviewer, '', nowMs, 'reviewer') === 1, 'reviewer view: a mixed thread counts only the manager message');
+  ok(inbox.unreadMark([capRecord, staffNote, sysNote], reviewer, 'reviewer') === '2026-10-11T11:59:59.999Z', '"unread" marks before the newest message that counts, not the later record');
+
   const staff = fs.readFileSync(path.join(root, 'src/index/100-onboarding-staff-controls.js.part'), 'utf8');
   const shell = fs.readFileSync(path.join(root, 'src/index/030-body-shell.html.part'), 'utf8');
   ok(/capability === 'messages-button'\) return role === 'admin' \|\| role === 'smm';/.test(staff) && /id="navMessages"[^>]*data-staff-capability="messages-button"/.test(shell), 'the header Messages button shows for admins and SMMs, never editors or designers');

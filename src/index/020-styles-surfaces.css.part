@@ -2726,9 +2726,9 @@
            list first, then the chat. Same shapes as the approved mockup. */
         .msg-inbox { display: grid; grid-template-columns: 340px minmax(0, 1fr); height: calc(100vh - 250px); min-height: 520px; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--white); }
         .msg-list { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-        .msg-filters { display: flex; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-        .msg-filters button { font: inherit; font-size: 0.74rem; font-weight: 600; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer; }
-        .msg-filters button.is-active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
+        .msg-filters { display: flex; gap: 2px; margin: 10px 12px; padding: 3px; border-radius: 10px; background: var(--surface-raised, var(--bg)); border: 1px solid var(--border); }
+        .msg-filters button { flex: 1; font: inherit; font-size: 0.78rem; font-weight: 600; padding: 5px 10px; border-radius: 7px; border: 0; background: transparent; color: var(--text-secondary); cursor: pointer; }
+        .msg-filters button.is-active { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,0.12); }
         .msg-convs { overflow: auto; flex: 1; }
         .msg-list-empty { padding: 24px 16px; font-size: 0.82rem; color: var(--text-muted); text-align: center; }
         .msg-conv { display: flex; gap: 10px; align-items: center; width: 100%; text-align: left; font: inherit; color: inherit; background: none; border: 0; border-bottom: 1px solid var(--border-light, var(--border)); padding: 10px 12px; cursor: pointer; }

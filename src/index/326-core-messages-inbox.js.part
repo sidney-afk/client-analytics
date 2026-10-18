@@ -15,7 +15,7 @@ import {
   openCalComments
 } from './190-calendar-approval-comments.js';
 import { _prodCanonicalCommentGate, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
-import { _calLoadPostsWithoutScreen } from './150-calendar-hydration-import.js';
+import { _calLoadPostsWithoutScreen, _calV2Client, _calV2Ready } from './150-calendar-hydration-import.js';
 import { wlCanonicalClient } from './070-core-client-names.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     /* ── Messages inbox (Notes Step 2) ─────────────────────────────────────
@@ -36,10 +36,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        first, exactly as opening that card would, and the reply goes under the
        thread it answers, so it keeps that thread's part and audience. */
     const MSG_URL = CAL_SUPABASE_URL + '/functions/v1/production-comments';
-    const MSG_REFRESH_MS = 120000;
+    const MSG_REFRESH_MS = 30000;   // the safety-net refresh; realtime and other tabs reach it sooner
     const _msgState = {
         loading: false, loaded: false, error: '', conversations: [], scope: '',
-        openId: '', replyTo: '', draft: '', sending: false, filter: 'all', lastAt: 0,
+        openId: '', replyTo: '', draft: '', sending: false, filter: 'new', lastAt: 0,
         unavailable: false, fromCache: false, readWhenFresh: '', owner: '', epoch: 0,
     };
     let _msgTimer = null;
@@ -227,6 +227,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             _msgState.loaded = true;
             _msgState.fromCache = false;
             _msgState.lastAt = Date.now();
+            _msgStartLive();
             if (_msgState.openId && !_msgState.conversations.some(c => c.post_id === _msgState.openId)) _msgState.openId = '';
             _msgCacheWrite();
             // A conversation opened from the cached list is marked read only now,
@@ -328,10 +329,10 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     function _msgListHtml() {
         const query=_msgIsPhone()?_msgPhone.query.trim().toLowerCase():'';
-        const list=_msgState.conversations.filter(c=>(_msgState.filter!=='unread'||Number(c.unread)>0)&&(!query||[_msgClientName(c),c.title,c.last_body].join(' ').toLowerCase().includes(query)));
+        const list=_msgState.conversations.filter(c=>(_msgState.filter!=='new'||Number(c.unread)>0||c.post_id===_msgState.openId)&&(!query||[_msgClientName(c),c.title,c.last_body].join(' ').toLowerCase().includes(query)));
         if (!list.length) {
             if(query)return '<div class="msg-list-empty">No conversations match your search.</div>';
-            return `<div class="msg-list-empty">${_msgState.filter === 'unread' ? 'Nothing unread.' : 'No conversations yet.'}</div>`;
+            return `<div class="msg-list-empty">${_msgState.filter === 'new' ? 'No new messages' : 'No conversations yet.'}</div>`;
         }
         return list.map(c => {
             const who = _msgIsMine(_msgLastAsNote(c)) ? 'You' : _calNoteAuthorName(_msgLastAsNote(c));
@@ -448,8 +449,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     function _msgSkelFiltersHtml() {
         return `<div class="msg-filters" aria-hidden="true">
-            <button type="button" class="is-active" disabled tabindex="-1">All</button>
-            <button type="button" class="msg-skel sv-skeleton" disabled tabindex="-1">Unread · 0</button>
+            <button type="button" class="is-active" disabled tabindex="-1">New</button>
+            <button type="button" class="msg-skel sv-skeleton" disabled tabindex="-1">All</button>
         </div>`;
     }
     /* The phone list's search field. The loading placeholder carries a disabled
@@ -496,8 +497,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const html = `<div class="msg-inbox${_msgState.openId ? ' is-chat-open' : ''}">
             <div class="msg-list">
                 <div class="msg-filters" role="group" aria-label="Show">
-                    <button type="button" class="${_msgState.filter === 'all' ? 'is-active' : ''}" onclick="_msgSetFilter('all')">All</button>
-                    <button type="button" class="${_msgState.filter === 'unread' ? 'is-active' : ''}" onclick="_msgSetFilter('unread')">Unread · ${unread}</button>
+                    <button type="button" class="${_msgState.filter === 'new' ? 'is-active' : ''}" aria-pressed="${_msgState.filter === 'new'}" onclick="_msgSetFilter('new')">New${unread ? ' · ' + unread : ''}</button>
+                    <button type="button" class="${_msgState.filter === 'all' ? 'is-active' : ''}" aria-pressed="${_msgState.filter === 'all'}" onclick="_msgSetFilter('all')">All</button>
                 </div>
                 <div class="msg-convs">${_msgListHtml()}</div>
             </div>
@@ -555,7 +556,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
 
     /* ── Actions ── */
-    function _msgSetFilter(f) { _msgState.filter = f === 'unread' ? 'unread' : 'all'; _msgPaint(); }
+    function _msgSetFilter(f) { _msgState.filter = f === 'all' ? 'all' : 'new'; _msgPaint(); }
     function _msgSetReplyTo(rootId) {
         _msgState.replyTo = String(rootId || '');
         _msgPhoneKeepDraft();
@@ -577,6 +578,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     async function _msgMark(postId, state) {
         try {
             const value = await _msgCall({ action: 'inbox_mark', post_id: postId, state });
+            try { if (_msgBus) _msgBus.postMessage('marked'); } catch (e) {}
             return value;
         } catch (e) { return null; }
     }
@@ -875,14 +877,35 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         e.preventDefault();
         _msgClose();
     });
-    // While the page is open it refreshes itself every two minutes; the timer ends with the page.
-    function _msgStartLive() {
-        if (_msgTimer) return;
-        _msgTimer = setInterval(() => {
-            if (!document.getElementById('msgPage') && !document.querySelector('[data-msg-embed]')) { clearInterval(_msgTimer); _msgTimer = null; return; }
-            if (!document.hidden && !_msgState.unavailable) _msgLoad(true);
-        }, MSG_REFRESH_MS);
+    /* Live badge. Three ways in, all ending in the same _msgLoad(true): the shared realtime channel on the
+       cards (a note is saved on a card, so a new message moves a row there), a BroadcastChannel ping from
+       another tab of this browser after it reads or unreads a conversation, and a 30 s safety-net refresh
+       that also covers another device and a dropped socket. It starts after the first successful load (the
+       inbox is still never asked for cold), pauses in a hidden tab and on the Production tab (its read-only
+       gate allows no POST it did not ask for), and ends on sign-out or fallback. */
+    let _msgBus = null, _msgChannel = null, _msgChannelTimer = null;
+    try { if (typeof BroadcastChannel === 'function') { _msgBus = new BroadcastChannel('sv-msg-inbox'); _msgBus.onmessage = () => _msgLiveRefresh(); } } catch (e) { _msgBus = null; }
+    function _msgLiveRefresh() {
+        if (document.hidden || _msgState.unavailable || !_msgCanUse() || currentNav === 'production') return;
+        _msgLoad(true);
     }
+    async function _msgStartRealtime() {
+        if (_msgChannel || !_calV2Ready()) return;
+        const client = await _calV2Client();
+        if (!client || _msgChannel) return;
+        try {
+            _msgChannel = client.channel('msg-inbox').on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_posts' }, () => {
+                clearTimeout(_msgChannelTimer);
+                _msgChannelTimer = setTimeout(_msgLiveRefresh, 1500);
+            }).subscribe();
+        } catch (e) { _msgChannel = null; }
+    }
+    function _msgStartLive() {
+        _msgStartRealtime();
+        if (_msgTimer) return;
+        _msgTimer = setInterval(_msgLiveRefresh, MSG_REFRESH_MS);
+    }
+    document.addEventListener('visibilitychange', () => { if (_msgTimer && !document.hidden) _msgLiveRefresh(); });
     function _msgMountPage(el) {
         if (!el) return;
         el.innerHTML = '<div class="msg-page-head"><h1>Messages</h1><button type="button" class="msg-close" onclick="_msgClose()" aria-label="Close Messages"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>Close</button></div><div class="msg-page-body"></div>';

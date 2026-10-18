@@ -24,7 +24,7 @@
 //     (editors included) in a thread the reviewer started or replied to.
 //     Never a client message.
 // A conversation left with no visible message is dropped, and hidden
-// messages never count as unread.
+// messages never count as unread, nor do automatic records (see countsAsNew).
 
 export const COMPONENTS = ["video", "graphic", "caption", "title"];
 export const UNREAD_WINDOW_DAYS = 14; // with no read mark, older messages count as read
@@ -226,22 +226,42 @@ export function isMine(message, member) {
   return sameName(message && message.author, member && member.name);
 }
 
-export function unreadCount(messages, member, lastReadAt, nowMs) {
+// An automatic record is written by the app, not by a person: a role of
+// system/automatic/bot, or the client page's caption-change note
+// (src/index/195-review-stage.js.part, RS_EDIT_HEAD).
+const AUTOMATIC_ROLES = new Set(["system", "automatic", "auto", "bot"]);
+export function isAutomaticRecord(m) {
+  if (AUTOMATIC_ROLES.has(clean(m && m.role).toLowerCase())) return true;
+  return isClientMessage(m) && clean(m && m.body).startsWith("Changed the caption to:");
+}
+
+// What counts as NEW (owner, 2026-10-18): only a person talking to you.
+//   - reviewer view (Kasper): a staff member's message. Client notes and
+//     automatic records still show, but never count.
+//   - SMM view: any person's message, a client's plain note included (as
+//     before). Automatic records never count.
+// Your own messages never count in either view.
+export function countsAsNew(m, member, view) {
+  if (isMine(m, member) || isAutomaticRecord(m)) return false;
+  return !(view === "reviewer" && isClientMessage(m));
+}
+
+export function unreadCount(messages, member, lastReadAt, nowMs, view) {
   const floor = clean(lastReadAt)
     || new Date((nowMs || Date.now()) - UNREAD_WINDOW_DAYS * 86400000).toISOString();
-  return messages.filter((m) => m.created_at > floor && !isMine(m, member)).length;
+  return messages.filter((m) => m.created_at > floor && countsAsNew(m, member, view)).length;
 }
 
 // The read mark that makes a conversation unread again: just before the
 // newest message someone else wrote. Null when there is nothing to mark.
-export function unreadMark(messages, member) {
-  const others = messages.filter((m) => !isMine(m, member));
+export function unreadMark(messages, member, view) {
+  const others = messages.filter((m) => countsAsNew(m, member, view));
   if (!others.length) return null;
   const newest = Date.parse(others[others.length - 1].created_at);
   return Number.isFinite(newest) ? new Date(newest - 1).toISOString() : null;
 }
 
-export function buildConversation(post, messages, member, lastReadAt, nowMs) {
+export function buildConversation(post, messages, member, lastReadAt, nowMs, view) {
   const last = messages[messages.length - 1];
   return {
     post_id: clean(post.id),
@@ -255,7 +275,7 @@ export function buildConversation(post, messages, member, lastReadAt, nowMs) {
     last_author_member_id: last ? last.author_member_id : "",
     last_role: last ? last.role : "",
     last_body: last ? last.body.slice(0, 160) : "",
-    unread: unreadCount(messages, member, lastReadAt, nowMs),
+    unread: unreadCount(messages, member, lastReadAt, nowMs, view),
     messages,
   };
 }

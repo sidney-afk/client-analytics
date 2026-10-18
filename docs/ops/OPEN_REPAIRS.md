@@ -33512,3 +33512,15 @@ Audit of the upload link and the Submit tab against every way a send can fail (r
 **Lighthouse:** apply the migration. **Not done:** Safari and Firefox passes (only Chromium in the sandbox), a staff screen for the list, and archiving one live test batch (1 batch, 2 items, 1 card on the test client).
 
 **Way back:** revert the pull request; run the migration's ROLLBACK block to drop the table.
+
+## 437. [2026-10-18, BUILT, NOT MERGED] A completed save could report repair_checkpoint_missing when recovery consumed its checkpoint (session Checkpoint)
+
+**Confirmed.** The journal lock protected individual storage operations, not the card's asynchronous write and recovery lifetime. Recovery/another tab could consume a checkpoint before the native acknowledgement, companion binding or another receipt reader used it. Source completion could also remove a row under an active writer. Blocked storage reads were treated as an empty journal. A missing-checkpoint message claimed nothing had committed even when the native service had already acknowledged it.
+
+**Candidate.** Per-card browser leases serialize native attempts and exclude recovery/cleanup while that card is owned. Recovery re-reads queued groups and finishes cleanup after releasing its lease. An acknowledged caller retains an in-memory checkpoint and companion snapshot; a complete owned record can recover from storage being cleared while an acknowledgement or authenticated reconciliation is pending. Partial, corrupt, unavailable and conflicting records still refuse, with the original code visible. Storage/missing-checkpoint copy tells the person the save may already have reached the server and to copy words before reload/retry. No transport is retried to repair bookkeeping.
+
+**Proof.** `node test/repair-checkpoint-browser.js`: 69 passing cases across Chromium/Firefox/WebKit, desktop 1440 and phone 390 (33 storage/ownership checks plus 36 actual page-control cases). The checkpoint negative control reads production helpers from origin/main and fails; it is not a live backend test. Existing writer-durability and repair-race assertions remain. Full commands, limits and the separate live pass are in `docs/audits/2026-10-18-checkpoint-review.md`.
+
+**Live and release.** The deployed test-client pass is in progress, not evidence that this candidate is deployed. Its disposable native card is created/restored/archived through app controls only. No raw SQL card/status mutation, other-client mutation, merge, deployment, runtime-flag change or n8n edit. Lighthouse owns review and merge. This is the next free number on origin/main read at 01e0f12156db90d1a5de20d6ad09cada758f309e; the open Gauntlet Three branch also claims 437, so Lighthouse must reconcile that append-only numbering if both land.
+
+**Way back.** Revert this frontend change and rebuild. No database migration or function deployment is involved.

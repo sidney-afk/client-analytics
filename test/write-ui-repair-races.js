@@ -270,6 +270,7 @@ async function sxrKasperFreshCompanionExecutesStatusCase() {
       tweaks_needed: 'Tweaks Needed'
     })[value] || '',
     _writeUiMarkRepairCommitted: async ref => ref,
+    _writeUiRepairRecordForIntent: () => companionRecord,
     _sxrPushStatusToLinear: async (_url, status, meta) => {
       statusCalls++;
       assert.strictEqual(status, 'Tweaks Needed');
@@ -441,6 +442,10 @@ async function resumeExactRefBindingCase() {
   let mutationCalls = 0;
   const ctx = {
     calState: { client: 'fixture', posts: [calPost] },
+    _writeUiCompleteSourceRepairRefs: async () => true,
+    _writeUiRemoveCompletedRepairRefs: () => {},
+    _writeUiRepairReplayOwners: new WeakSet(),
+    navigator: { locks: { request: async (_name, _options, callback) => callback({ name: _name }) } },
     sxrState: { client: 'fixture', posts: [sxrPost] },
     calClientSlug: () => 'fixture',
     sxrClientSlug: () => 'fixture',
@@ -470,7 +475,7 @@ async function resumeExactRefBindingCase() {
   };
   vm.createContext(ctx);
   for (const name of ['_writeUiAppendRepairRef', '_writeUiAdoptRepairAck', '_writeUiReplayRepairIntents',
-    '_writeUiReplayJournalGroup']) vm.runInContext(extract(name), ctx);
+    '_writeUiWithRepairFlight', '_writeUiReplayJournalGroupOwned', '_writeUiReplayJournalGroup']) vm.runInContext(extract(name), ctx);
 
   const group = (surface, postId, ref) => ({
     surface, lane: 'card', client_slug: 'fixture', post_id: postId,
@@ -479,8 +484,11 @@ async function resumeExactRefBindingCase() {
       attempted: true, native_committed: true, gateway_payload: '{"local":"hint-only"}',
       _repair_key: ref.key, _repair_token: ref.token }]
   });
-  await ctx._writeUiReplayJournalGroup(group('calendar', 'cal-card', calRef), 'staff:fixture:smm');
-  await ctx._writeUiReplayJournalGroup(group('sxr', 'sxr-card', sxrRef), 'staff:fixture:smm');
+  const groups = [group('calendar', 'cal-card', calRef), group('sxr', 'sxr-card', sxrRef)];
+  groups.forEach(value => { value.key = [value.surface,value.lane,value.client_slug,value.post_id].join('|'); });
+  ctx._writeUiRepairGroups = () => ({ groups, unknown: 0 });
+  await ctx._writeUiReplayJournalGroup(groups[0], 'staff:fixture:smm');
+  await ctx._writeUiReplayJournalGroup(groups[1], 'staff:fixture:smm');
 
   assert.deepStrictEqual(capturedPending.calendar._writeUiRepairRefs, [calRef],
     'Calendar resume must bind exactly the journal group refs into this source-save attempt');

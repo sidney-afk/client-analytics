@@ -950,6 +950,14 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-save-browser.js
+      - name: Install Firefox and WebKit for checkpoint ownership regressions
+        if: ${{ !cancelled() }}
+        run: '"$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps firefox webkit'
+      - name: Checkpoint ownership survives recovery, another tab, storage failure and reload
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/repair-checkpoint-browser.js
       - name: Client link Calendar is read only and its video button opens the in-app viewer (caption, call to action, dates, Month and Week drag; staff unchanged)
         if: ${{ !cancelled() }}
         env:

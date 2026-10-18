@@ -18,6 +18,15 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Review-save checkpoints (session Checkpoint, 2026-10-18): candidate, live pass in progress
+
+The recovery journal could be consumed by background recovery or another tab while its original save still needed it,
+then report `repair_checkpoint_missing` after a native commit. The candidate shares a per-card browser lease between
+native attempts, recovery and cleanup, re-reads queued groups, and retains an acknowledged snapshot for companion
+binding. Storage refusals remain visible and no diagnostic code is hidden. The all-engine mocked suite passes 69 cases
+at 1440 and 390. The live test-client pass is separate and still in progress; it does not prove this unmerged candidate.
+Findings, limits and exact reruns: [Checkpoint report](audits/2026-10-18-checkpoint-review.md).
+
 ## Client link in a dark browser (session Dusk, 2026-10-18): PR open
 
 Owner report: with dark saved, opening the client review showed a white loading screen, not in the page's shape. Four
@@ -103,7 +112,7 @@ unchanged. Sheet card reordering (drag by the grip) was a separate, earlier owne
 same `frame_viewer_clients` switch as the staff Calendar; with the switch off, or for a link the viewer cannot play, it
 is the old Frame.io link. Test: `node test/client-calendar-read-only-browser.js`.
 
-## New review page, layout C (session Marquee, 2026-10-17): merged, on for the test client and the owner only
+## New review page, layout C (session Marquee, 2026-10-17): merged, client page enabled for every client
 
 The owner approved the client page (layout C, "Guided stage") and the SMM and Kasper versions of it on 2026-10-16.
 It is a new view beside the old one (`src/index/188-review-stage-switch.js.part` reads the switches;
@@ -122,7 +131,9 @@ shape is the old page; the lists live only in the database):
   Missing (today: no row, no migration), unreadable, `{ "hidden": true }` or any other shape hides it: no Analytics tab
   in the staff bar, no Analytics / Content Calendar toggle on a client link, and a client link's Analytics address
   opens the Content Calendar. Read at boot in the same request as the switches above. No Analytics code was removed.
-To try it: the test client in the first list and the owner in the second. Nobody else sees anything new.
+The 2026-10-17 trial used the test client in the first list and the owner in the second. A read-only live check on
+2026-10-18 confirms `review_stage_client_pages` has `all: true`: every client's review page is now enabled. The staff
+Review Session uses its separate staff switch. Historical trial timestamps below describe that earlier rollout.
 
 **The owner's decisions, 2026-10-16:** yes to the SMM and Kasper mock-ups, and to the five open choices:
 (1) the arrow on Approve is faint at rest and firm on hover; (2) SMM caption edits save at once, as today; (3) Kasper's

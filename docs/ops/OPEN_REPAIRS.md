@@ -33477,3 +33477,11 @@ Fixed in the tests only: the lane now waits for every one of the app's own "stil
 **Not fixed, on purpose:** a reset of a read the app never retries (the boot flags read in the page head) still fails, because the audit cannot call it recovered. The behaviour lane's `noConsoleErrors` failure on CI could not be read (the log is private); one plausible cause is a failed background refresh, which the app retries after 60 seconds, outside the 15-second window. That is unverified.
 
 **Way back:** revert the pull request.
+
+## 434. [2026-10-18, BUILT, NOT MERGED] The daily Clients Info parity stayed red after any Clients tab edit, even when the Sheet copy matched (session Tally)
+
+The parity compared each active client's stored `row_hash` with a hash of the Sheet row. Only the Sheet copy and the backfill write that stored hash; the native edits (`client_profile_admin_edit`, `client_profile_service_write`) change the values without recomputing it. Measured on the test client: the Sheet row and the database values hash identically, the stored hash is the one from before `slack_channel_id` was set natively on 2026-10-02. The field behind the stale hash is `slack_channel_id`; the 2026-10-18 email add-and-remove nets to nothing.
+
+Fixed in `scripts/sheets-mirror-parity.js` only: the Clients Info side now hashes the row's current values with the same `rowHash` (display name standing for `client_name`). No migration, nothing for Lighthouse to apply; it takes effect on merge. The stored `row_hash` column is left as is (nothing reads it for this dataset). Test: `node test/sheets-mirror-profile-parity.js`. The Sheet copy needed no change: null versus empty, multi-line text and the extra column read back to the same fingerprint (checked in the same test).
+
+**Way back:** revert the pull request.

@@ -116,6 +116,55 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             if (b) b.addEventListener('click', () => { if (typeof retry === 'function') retry(); else svWithArea(name, content, draw, retry); });
         });
     }
+    /* Placeholder to content is one short fade, never a hard swap (session Lantern, 2026-10-18). Wherever inside the
+       page area (#content) a grey placeholder is taken out and content put in its place, in one change, the new
+       content fades in over --sv-fade-in-dur (0 with reduced motion). The observer runs before the next paint, so the
+       content is never drawn once at full strength first. It looks only at changes that remove a placeholder, so
+       ordinary repaints cost one check of the removed nodes. */
+    const SV_SKELETON_SEL = '.sv-skeleton, .cal-skeleton-loader, .sv-area-loading, [data-client-entry-loading], .prod-skeleton, .tpl-skeleton, .boot-skeleton-variant';
+    const _svIsSkel = n => n.nodeType === 1 && (n.matches(SV_SKELETON_SEL) || !!n.querySelector(SV_SKELETON_SEL));
+    (function _svFadeAfterSkeleton() {
+        const content = document.getElementById('content');
+        if (!content || typeof MutationObserver !== 'function') return;
+        // A place whose placeholder was taken out keeps fading in what it holds for the length of one fade: a page
+        // may draw the same spot two or three times in a row, and each later draw continues the fade where it is
+        // (a negative delay) instead of showing at full strength.
+        const fading = new WeakMap();
+        const fadeMs = () => {
+            const v = getComputedStyle(document.documentElement).getPropertyValue('--sv-fade-in-dur').trim();
+            const n = parseFloat(v);
+            return isFinite(n) ? (/ms$/.test(v) ? n : n * 1000) : 180;
+        };
+        const fadeIn = (el, since) => {
+            if (el.nodeType !== 1 || _svIsSkel(el) || el.classList.contains('sv-fade-in')) return;
+            el.style.animationDelay = since ? (-since) + 'ms' : '';
+            el.classList.add('sv-fade-in');
+            const done = e => {
+                if (e.target !== el || e.animationName !== 'sv-fade-in') return;
+                el.classList.remove('sv-fade-in'); el.style.animationDelay = '';
+                el.removeEventListener('animationend', done);
+            };
+            el.addEventListener('animationend', done);
+        };
+        new MutationObserver(records => {
+            const dur = fadeMs();
+            if (!dur) return;
+            const now = performance.now();
+            const places = new Set();
+            for (const r of records) {
+                if (!r.addedNodes.length) continue;
+                const started = fading.get(r.target);
+                if (started !== undefined && now - started < dur) { places.add(r.target); continue; }
+                if (!r.removedNodes.length) continue;
+                for (const n of r.removedNodes) if (_svIsSkel(n)) { fading.set(r.target, now); places.add(r.target); break; }
+            }
+            places.forEach(place => {
+                if (!place.isConnected) return;
+                const since = now - fading.get(place);
+                Array.from(place.children).forEach(el => fadeIn(el, since));
+            });
+        }).observe(content, { childList: true, subtree: true });
+    })();
     // Staff pages served in parts fetch the remaining areas quietly once the
     // first screen is up, so switching tabs later waits on nothing. A client
     // link served in parts does not: it has none of those tabs, and an area it

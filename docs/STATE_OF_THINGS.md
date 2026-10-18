@@ -217,6 +217,13 @@ Today included), Kasper and Workload show their own grey shape instead of a bare
 and on a phone Today, Templates, Filming Plans and Submit draw the phone title bar from the first frame instead of the
 desktop header. Test (fails on main, 17 failures): `node test/staff-first-paint-browser.js`. Still showing late: the tab
 icons and logo (one or two frames, images), and Kasper's own phone heading.
+**One loading family (session Lantern, 2026-10-18 02:10 UTC):** every spinner in the shared styles turns at one
+speed (`--sv-spin-dur`, 0.75 s; it was six speeds from 0.7 to 1 s) and every grey placeholder shimmers at one speed
+and easing (`--sv-sheen-dur` 1.35 s, ease-in-out; it was four). Reduced motion stops every shimmer, slows spinners to
+1.5 s and drops fades. Wherever a grey placeholder inside the page is replaced by content, the content fades in over
+0.18 s instead of appearing in one frame. Tests: `node test/loading-family.js` (no spinner or shimmer with its own
+number) and `node test/loading-fade-browser.js` (both fail on main). Not covered: the review page and frame viewer's
+own sealed styles (other sessions'), and the small "updating" pulse dots.
 
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone

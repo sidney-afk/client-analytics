@@ -275,7 +275,7 @@
         .tpl-view-links { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 
         /* Skeleton (loading) */
-        .tpl-skeleton { --sv-skel-base: var(--bg); --sv-skel-sheen: var(--border-light); background: linear-gradient(90deg, var(--sv-skel-base) 0%, var(--sv-skel-sheen) 48%, var(--sv-skel-base) 100%); background-size: 220% 100%; border-radius: 8px; animation: sv-shimmer 1.35s ease-in-out infinite; }
+        .tpl-skeleton { --sv-skel-base: var(--bg); --sv-skel-sheen: var(--border-light); background: linear-gradient(90deg, var(--sv-skel-base) 0%, var(--sv-skel-sheen) 48%, var(--sv-skel-base) 100%); background-size: 220% 100%; border-radius: 8px; animation: sv-shimmer var(--sv-sheen-dur) var(--sv-sheen-ease) infinite; }
         .tpl-skeleton-pill { border-radius: 99px; }
         .tpl-skeleton-line { height: 14px; border-radius: 6px; }
         .tpl-skeleton-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 22px; margin-bottom: 14px; }
@@ -1007,7 +1007,7 @@
         /* Modern loader — single clean rotating ring with a subtle label.
            Used everywhere the calendar shows a loading state. */
         .cal-loader { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 70px 20px; color: var(--text-primary); }
-        .cal-loader-svg { animation: cal-loader-spin 1s linear infinite; color: var(--text-primary); display: block; }
+        .cal-loader-svg { animation: cal-loader-spin var(--sv-spin-dur) linear infinite; color: var(--text-primary); display: block; }
         .cal-loader-svg circle.track { opacity: 0.18; }
         .cal-loader-text { font-size: 0.86rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0.01em; }
         @keyframes cal-loader-spin { to { transform: rotate(360deg); } }
@@ -1599,9 +1599,9 @@
         .cal-refreshing:not([hidden]), .app-refresh-pill:not([hidden]) { opacity: 1; transform: translate(-50%, 0); }
         .cal-refreshing[hidden], .app-refresh-pill[hidden] { display: inline-flex; }
         .app-refresh-pill .cal-refresh-spin { width: 11px; height: 11px; border: 2px solid var(--border);
-            border-top-color: var(--text-muted); border-radius: 50%; animation: cal-spin 0.7s linear infinite; }
+            border-top-color: var(--text-muted); border-radius: 50%; animation: cal-spin var(--sv-spin-dur) linear infinite; }
         .cal-refresh-spin { width: 11px; height: 11px; border: 2px solid var(--border);
-            border-top-color: var(--text-muted); border-radius: 50%; animation: cal-spin 0.7s linear infinite; }
+            border-top-color: var(--text-muted); border-radius: 50%; animation: cal-spin var(--sv-spin-dur) linear infinite; }
         @keyframes cal-spin { to { transform: rotate(360deg); } }
         .cal-stale-notice { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem;
             font-weight: 600; color: var(--sv-fg-b45309); background: var(--sv-bg-fef3c7); border: 1px solid var(--sv-border-fde68a);
@@ -1875,7 +1875,7 @@
         .sv-save-ind-check { stroke: var(--text-inverse); stroke-dasharray: 16; stroke-dashoffset: 16; opacity: 0; }
         .sv-save-ind-bang { stroke: var(--text-inverse); opacity: 0; }
         /* saving — a subtle partial arc rotating around the ring */
-        .sv-save-ind.is-saving .sv-save-ind-svg { animation: spin 0.75s linear infinite; }
+        .sv-save-ind.is-saving .sv-save-ind-svg { animation: spin var(--sv-spin-dur) linear infinite; }
         .sv-save-ind.is-saving .sv-save-ind-arc { opacity: 1; }
         /* saved — a SOLID green disc with a white check that draws in */
         .sv-save-ind.is-saved .sv-save-ind-track { fill: var(--up); stroke: var(--up); }
@@ -2568,7 +2568,7 @@
         .cal-cm-skeleton { padding: 14px 20px; display: flex; flex-direction: column; gap: 18px; }
         .cal-cm-skel-row { display: flex; gap: 12px; align-items: flex-start; }
         .cal-cm-skel-col { display: flex; flex-direction: column; gap: 8px; flex: 1; padding-top: 3px; }
-        .cal-cm-skel { display: block; border-radius: 6px; background: linear-gradient(90deg, color-mix(in srgb, var(--text-muted) 14%, transparent) 0%, color-mix(in srgb, var(--text-muted) 26%, transparent) 48%, color-mix(in srgb, var(--text-muted) 14%, transparent) 100%); background-size: 220% 100%; animation: sv-shimmer 1.35s ease-in-out infinite; }
+        .cal-cm-skel { display: block; border-radius: 6px; background: linear-gradient(90deg, color-mix(in srgb, var(--text-muted) 14%, transparent) 0%, color-mix(in srgb, var(--text-muted) 26%, transparent) 48%, color-mix(in srgb, var(--text-muted) 14%, transparent) 100%); background-size: 220% 100%; animation: sv-shimmer var(--sv-sheen-dur) var(--sv-sheen-ease) infinite; }
         .cal-cm-skel-avatar { width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; }
         .cal-cm-skel-line { height: 11px; width: 70%; }
         .cal-cm-skel-line.is-short { width: 28%; }
@@ -2837,7 +2837,7 @@
         .cal-cap-gen svg { width: 12px; height: 12px; }
         .cal-cap-gen.is-busy { color: var(--text-primary); border-color: var(--text-primary); }
         .cal-cap-gen.is-busy:disabled { opacity: 1; cursor: default; }
-        .cal-cap-gen.is-busy .cal-cap-gen-spin { animation: cal-cap-spin 0.9s linear infinite; }
+        .cal-cap-gen.is-busy .cal-cap-gen-spin { animation: cal-cap-spin var(--sv-spin-dur) linear infinite; }
         .cal-cap-gen-spin { display: inline-block; width: 11px; height: 11px; border: 1.6px solid var(--border); border-top-color: var(--text-primary); border-radius: 50%; }
         @keyframes cal-cap-spin { to { transform: rotate(360deg); } }
         /* Per-card cancel for an in-flight generation. Anchored TOP-right: the
@@ -2925,7 +2925,7 @@
         .cal-bulk-cap-bar [data-bulk-cap-text] { display: inline-flex; align-items: center; gap: 8px; }
         .cal-bulk-cap-bar .cal-bulk-cap-cancel { background: var(--sv-bg-rgba-255-255-255-0_15); color: var(--white); border: none; border-radius: 7px; padding: 4px 9px; font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
         .cal-bulk-cap-bar .cal-bulk-cap-cancel:hover { background: var(--sv-bg-rgba-255-255-255-0_25); }
-        .cal-bulk-cap-bar .cal-bulk-cap-spin { display: inline-block; width: 12px; height: 12px; border: 1.8px solid var(--sv-border-rgba-255-255-255-0_3); border-top-color: var(--sv-border-fff); border-radius: 50%; animation: cal-cap-spin 0.9s linear infinite; }
+        .cal-bulk-cap-bar .cal-bulk-cap-spin { display: inline-block; width: 12px; height: 12px; border: 1.8px solid var(--sv-border-rgba-255-255-255-0_3); border-top-color: var(--sv-border-fff); border-radius: 50%; animation: cal-cap-spin var(--sv-spin-dur) linear infinite; }
 
         /* ── Kasper review tab (hidden, unlocked via ?Kasper=1) ───────── */
         .kasper-wrap { max-width: 1100px; margin: 0 auto; position: relative; }
@@ -3000,7 +3000,7 @@
         .kasper-refresh-btn:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
         .kasper-refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .kasper-refresh-btn svg { width: 12px; height: 12px; }
-        .kasper-refresh-btn.spinning svg { animation: spin 0.8s linear infinite; }
+        .kasper-refresh-btn.spinning svg { animation: spin var(--sv-spin-dur) linear infinite; }
         .kasper-loading { display: flex; align-items: center; justify-content: center; padding: 80px 20px; gap: 14px; color: var(--text-secondary); font-size: 0.86rem; }
         .kasper-loading .spinner { width: 22px; height: 22px; }
         .kasper-empty { text-align: center; padding: 80px 20px; color: var(--text-secondary); }
@@ -4194,7 +4194,7 @@
         .srp-skeleton { display: grid; gap: 15px; }
         .srp-skel-head { display: flex; gap: 12px; align-items: center; }
         .srp-skel-circle { width: 42px; height: 42px; border-radius: 50%; flex: 0 0 auto; }
-        .srp-skel-line, .srp-skel-pill, .srp-skel-box, .srp-skel-circle { display: block; background: linear-gradient(90deg, var(--bg) 0%, var(--border-light) 42%, var(--bg) 78%); background-size: 220% 100%; animation: srpSkeleton 1.25s ease-in-out infinite; }
+        .srp-skel-line, .srp-skel-pill, .srp-skel-box, .srp-skel-circle { display: block; background: linear-gradient(90deg, var(--bg) 0%, var(--border-light) 42%, var(--bg) 78%); background-size: 220% 100%; animation: srpSkeleton var(--sv-sheen-dur) var(--sv-sheen-ease) infinite; }
         .srp-skel-line { height: 12px; border-radius: 999px; }
         .srp-skel-line.short { width: 36%; }
         .srp-skel-line.medium { width: 62%; }

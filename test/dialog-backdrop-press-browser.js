@@ -96,6 +96,7 @@ const NOT_A_BACKDROP_CLICK = [
   ['100-onboarding-staff-controls', "e.target!==body || e.propertyName", 'waits for a CSS transition to end'],
   ['096-quick-jump', "e.target !== input", 'Escape key from a non-input element'],
   ['092-core-submit-form-navigation', 'r.target !== nav', 'a MutationObserver record of the header tab row, not a pointer event'],
+  ['040-shared-briefs', "e.target !== el || e.animationName !== 'sv-fade-in'", 'waits for its own fade-in animation to end (placeholder to content), not a pointer event'],
   ['096-quick-jump', 'if (e.target === box) svQuickJumpClose()', 'closes on the PRESS itself (mousedown), so a press that starts inside can never dismiss it'],
   // The staff phone sheets (menus and pickers, 2026-10-05..08, OPEN_REPAIRS 342-358)
   // close on a tap on their backdrop. On a touch screen a press that moves is a

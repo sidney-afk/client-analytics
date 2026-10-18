@@ -173,6 +173,30 @@ notes (Notes button, a note's link, Messages) it waits for play as before. Analy
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone
 layout follows the desktop one and has not been polished on its own (as the handoff said).
 
+## Loading skeletons match what loads (session Mould, owner feedback 2026-10-17 23:40 UTC)
+
+The owner: "Every skeleton should match the actual shape of what is loading." Each page fixed gets a browser test that
+measures the skeleton's boxes against the loaded page's (fixture data, 1px tolerance) and fails on the old skeleton;
+before and after screenshots live in `docs/audits/skeleton-shape/<page>/`.
+- **Staff Calendar, Sheet:** done. While cards load, no second made-up toolbar any more; the cards sit exactly where the
+  real cards land, row for row (title, date, two links, caption, call to action, notes, Set all, three status rows),
+  at the view's card size; phone shows the posts bar and the three-column tile grid; the first paint (before the app
+  starts) has the real toolbar's items at their sizes and the same cards. Test:
+  `node test/calendar-sheet-skeleton-shape-browser.js`. Not yet matched: the phone first paint (the whole phone header
+  is drawn by the app, so the first paint still shows the desktop shell there), a saved small or large card size on the
+  first paint (it draws the default size), and the staff client profile's Calendar tab, which shares the first-paint copy.
+- **Staff Calendar, Month and Week (desktop):** done. While posts load, the view's own header, day labels and grid are
+  drawn with no posts and shimmer (it was a narrow unlabelled grid for Month, other-sized pills for Week); a Month row
+  that gets a post grows at most a few pixels. Test: `node test/calendar-month-week-skeleton-shape-browser.js`. The phone
+  keeps its own timeline skeleton (not yet measured).
+- **Staff Samples, Sheet and Review (desktop):** done. Both drew three small list cards in the middle; the Sheet now
+  draws a strip of cards at the loaded sample cards' boxes, row for row, and Review the loaded list's wide cards
+  (thumbnail, title, the "needs approval" line, chips, two buttons). The Review count badge no longer makes the toolbar
+  3px taller when it arrives (Calendar too). Test: `node test/samples-sheet-skeleton-shape-browser.js`. Not yet
+  matched: Samples on phone, and the Samples first paint (still the old small cards; it cannot tell which tab opens).
+- **Not reached yet:** Calendar Review; Today, Samples, Templates, Filming, Post, Workload, Linear,
+  Submit, Messages, the old client page. The review page and Kasper's tab belong to sessions Curtain Nine and Seven.
+
 ## Latest (Lighthouse, 2026-10-17)
 
 Newest first. Checked against main and the live database on 2026-10-16. When an item here is finished or moved into

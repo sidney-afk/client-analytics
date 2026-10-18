@@ -68,7 +68,7 @@ const LAZY_VIEWS = {
   tiktok: [{ route: 'tiktok-upload', drawn: '.tk-page #tkFormCol' }],
   templates: [
     { route: 'templates', drawn: '.tpl-index-centered, [data-sv-save-ind="templates"]' },
-    { route: 'filming-plans', drawn: '.fp-view' },
+    { route: 'filming-plans', drawn: '.fp-view:not(.boot-page-skeleton)' },   // the boot placeholder carries .fp-view too; waiting for it let the check run before the code downloaded (CI, PR 2220)
   ],
   workload: [{ route: 'workload', drawn: '.workload-view' }],
   kasper: [

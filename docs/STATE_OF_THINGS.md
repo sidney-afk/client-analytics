@@ -60,6 +60,14 @@ Wistia script, never autoplays), with the five folder rules beside a drawn folde
 four demo posts). Published because `start` is in `PUBLISHED_DIRS` (`scripts/pages-site.js`). Test:
 `node test/start-page-browser.js`. To change the wording or a video, edit `start/index.html`.
 
+## Client Month and Week bring back undated posts, read only (session Ledge, 2026-10-18): PR open
+
+Owner decision, 2026-10-18: on the client link's Month and Week, posts with no date show again under "Not scheduled yet (N)",
+as a read-only list above the grid (same pills as the staff Unscheduled list, no drag, no drop, no date control, reachable
+by keyboard, hidden when there are none). A post opens exactly as a dated one does. The Collaborative-mode-off rule is the
+same as for dated posts: an unfinished undated post stays hidden. Staff Month and Week are unchanged. This refines the
+Pane section below, which removed the list for clients. Test: `node test/client-calendar-read-only-browser.js`.
+
 ## Client link Calendar is read only, video door opens the viewer (session Pane, 2026-10-18): PR open
 
 Owner's two decisions, 2026-10-18, for the client link only (staff pages unchanged). (1) On the client Sheet the caption,

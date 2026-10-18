@@ -48,19 +48,21 @@ async function context(browser, o = {}) {
   ctx.on('requestfinished', async req => {
     if (!req._t0) return;
     let status = 0; try { const r = await req.response(); status = r ? r.status() : 0; } catch {}
-    ctx._log.push({ fn: new URL(req.url()).pathname.replace('/functions/v1/', ''), status, ms: Date.now() - req._t0, at: Date.now(), body: (req.postData() || '').slice(0, 4000) });
+    ctx._log.push({ fn: new URL(req.url()).pathname.replace('/functions/v1/', ''), status, ms: Date.now() - req._t0, at: Date.now(), body: scrub(req.postData() || '').slice(0, 4000) });
   });
-  ctx.on('requestfailed', req => { if (req._t0) ctx._log.push({ fn: new URL(req.url()).pathname.replace('/functions/v1/', ''), status: -1, ms: Date.now() - req._t0, at: Date.now(), body: (req.postData() || '').slice(0, 4000) }); });
+  ctx.on('requestfailed', req => { if (req._t0) ctx._log.push({ fn: new URL(req.url()).pathname.replace('/functions/v1/', ''), status: -1, ms: Date.now() - req._t0, at: Date.now(), body: scrub(req.postData() || '').slice(0, 4000) }); });
   return ctx;
 }
 
 function capture(page) {
   page._errs = [];
-  page.on('pageerror', e => page._errs.push(String(e && e.message).slice(0, 200)));
-  page.on('console', m => { if (m.type() === 'error') { const t = m.text(); if (!/realtime|WebSocket|favicon|net::ERR_ABORTED|Failed to load resource/i.test(t)) page._errs.push(t.replace(/[?&]t=[^&\s]+/g, '').slice(0, 200)); } });
+  page.on('pageerror', e => page._errs.push(scrub(e && e.message).slice(0, 200)));
+  page.on('console', m => { if (m.type() === 'error') { const t = m.text(); if (!/realtime|WebSocket|favicon|net::ERR_ABORTED|Failed to load resource/i.test(t)) page._errs.push(scrub(t.replace(/[?&]t=[^&\s]+/g, '')).slice(0, 200)); } });
 }
 
 let _token = null;
+// Strip the link token from anything kept in memory or printed.
+function scrub(t) { t = String(t == null ? '' : t); return _token ? t.split(_token).join('[token]') : t; }
 async function token() { if (!_token) _token = await entry.currentTestClientToken(); return _token; }
 
 // Open the client link (view: calendar | sample-reviews) on a new page in ctx.

@@ -6,6 +6,7 @@ truthful empty/loading/error states at 390 and 430. Its approved design and
 actual screen/check evidence live in `docs/audits/2026-10-14-thumb-calendar-samples/`.
 Thumb Workload phone: `qa/staff-phone-workload.js` verifies agenda, creative queues, sheets and native planning; evidence is in `docs/audits/2026-10-15-thumb-workload/`.
 Thumb Messages phone: `qa/staff-phone-messages.js` verifies inbox/thread/draft/composer journeys; `qa/messages-desktop-parity.js` proves populated desktop parity; evidence lives in `docs/audits/2026-10-15-thumb-messages/`.
+Patrol glitch sweep (2026-10-17 night): the report is `docs/audits/2026-10-17-glitch-sweep.md`; before/after pictures of each fix (fictional fixture data only) live in `docs/audits/shots/2026-10-17-glitch-sweep/`, and each fix carries its own regression test (the first, `docs/syncview-design/tests/calendar-warn-pile-overlap-browser.js`).
 
 
 `qa/staff-phone-responsiveness.js` measures native staff cold useful paint and

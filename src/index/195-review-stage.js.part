@@ -7,6 +7,7 @@ import { svFrameStageMount, svFrameStageUnmount } from './187-frame-viewer.js';
 import { svRsCalOn, svRsHelpUrl, svRsToolsEl } from './188-review-stage-switch.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
+import { _kasperState } from './305-core-kasper-shared.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), the on-demand half. Session Marquee, 2026-10-17.
        Designs: the approved client page and the SMM and Kasper versions of it (Sidney, 2026-10-16), with his review
        of 2026-10-16: no part list on the left (the step bar shows each part's state), the date at the stage's top
@@ -323,7 +324,10 @@ svg{display:block;flex-shrink:0}
 @keyframes rsSpin{to{transform:rotate(360deg)}}
 @keyframes rsBreathe{0%,100%{opacity:.35}50%{opacity:.9}}
 .b-ok.busy,.b-ask.busy,.b-frame.busy{cursor:progress}
-.b-ok:disabled:not(.busy),.b-ask:disabled:not(.busy),.b-frame:disabled:not(.busy),.sarr:disabled{opacity:.45;cursor:default}
+/* While one action saves, the others wait with the stage's disabled look (a readable label, never faded by opacity). */
+.b-ok:disabled:not(.busy),.b-ask:disabled:not(.busy),.b-frame:disabled:not(.busy){background:transparent;color:var(--off-fg);box-shadow:inset 0 0 0 1px var(--off-line);cursor:default}
+.split.busy>.sarr:disabled{color:var(--okb-fg);cursor:default}
+.split:not(.busy)>.sarr:disabled{color:var(--off-fg);cursor:default}
 .b-ask.busy{background:var(--chgb);color:var(--chg-fg)}
 .dst.busy svg{width:14px;height:14px}
 .dst .when{font-weight:500;color:var(--text-secondary)}
@@ -881,7 +885,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     };
     function _rsFreshState() {
         return { curId: null, step: '', note: _rsBlankNote(), editing: '', editText: '', fold: false, saved: null,
-            menu: '', exp: {}, edOpen: false, qOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, slow: {}, pressed: {}, ready: {} };
+            menu: '', exp: {}, edOpen: false, qOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, slow: {}, pressed: {}, ready: {}, actAt: {} };
     }
 
     /* ---------- the model: one shape for every person ---------- */
@@ -1546,6 +1550,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         return !!_calReviewState.saving[m.id + '|' + k];
     }
     function _rsError(m, k) {
+        if (R.mode === 'kasper' && m.sample) {
+            // A refused Sample save is kept per post in Kasper's save alerts, not on the item: it counts here when it
+            // came after this part's own action on the stage.
+            const a = _kasperState.saveAlerts && _kasperState.saveAlerts[String(m.id)];
+            const at = R.S && R.S.actAt ? R.S.actAt[m.id + '|' + k] : 0;
+            return a && at && Number(a.at) >= at ? String(a.text || 'The save was refused.') : '';
+        }
         if (R.mode === 'kasper') { const it = m.item; return it && !m.sample && it._errors && it._errors[k] ? String(it._errors[k]) : ''; }
         return String(_calReviewState.errors[m.id + '|' + k] || '');
     }
@@ -1799,18 +1810,27 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
        and after a few seconds with no answer it says so in plain words. */
     const RS_SLOW_MS = 8000;
     function _rsModelById(id) { return _rsAll().find(x => x.id === id) || null; }
-    // `done` is the words for the moment the save ends well ("Video approved, saved"): the step's "Saved" mark and the
-    // spoken flash wait for the server, never the click.
+    // An action can wait before its save starts (the SMM's "resolve the open change requests" chooser, or a canonical
+    // resolve that reads first): until the saving flag has been seen, the watch keeps waiting (up to two minutes)
+    // instead of reading "not saving" as "done". `done` is the words for the moment the save ends well ("Video
+    // approved, saved"): the step's "Saved" mark and the spoken flash wait for the server, never the click.
+    const RS_PRE_MS = 120000;
     // `want` is the outcome the save asked for ('ok' approve, 'chg' a change): the flash and the Saved mark only show
     // when the part now reads that way. A held client approval the queue later drops as not saved (the post changed
     // meanwhile, or the hold expired) ends saving with no error but a different status: no "saved" claim then
     // (review of #2180, Lighthouse).
     function _rsWatch(m, comp, done, want) {
-        const key = m.id + '|' + comp, S = R.S, t0 = Date.now();
+        const key = m.id + '|' + comp, S = R.S;
+        let t0 = Date.now(), seen = _rsSaving(m, comp);
         delete S.slow[key];
         const tick = () => {
             if (R.S !== S) return;   // the page was remounted
             const cur = _rsModelById(m.id) || m;
+            if (!seen) {
+                if (_rsSaving(cur, comp)) { seen = true; t0 = Date.now(); }
+                else if (_rsError(cur, comp)) { _rsRender(); return; }
+                else { if (Date.now() - t0 < RS_PRE_MS) setTimeout(tick, 200); return; }
+            }
             if (!_rsSaving(cur, comp)) {
                 delete S.slow[key];
                 const part = (cur.parts || []).find(p => p.key === comp);
@@ -1828,6 +1848,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsApprove(m, comp, how) {
         R.S.retry[m.id + '|' + comp] = () => { const cur = _rsModelById(m.id); if (cur) _rsApprove(cur, comp, how); };
         R.S.pressed[m.id + '|' + comp] = how === 'client' ? 'client' : 'ok';
+        R.S.actAt[m.id + '|' + comp] = Date.now();
         R.S.acted.add(m.id + '|' + comp); R.S.menu = '';
         if (R.mode === 'client') window._calReviewApprove(m.id, comp);
         else if (R.mode === 'smm') window._calReviewApprove(m.id, comp, how === 'client' ? 'client' : 'kasper');
@@ -1841,6 +1862,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const opts = o || {};
         R.S.retry[m.id + '|' + comp] = () => { const cur = _rsModelById(m.id); if (cur) _rsSendChange(cur, comp, text, Object.assign({}, opts, { where: '' })); };
         R.S.pressed[m.id + '|' + comp] = opts.aat ? 'aat' : text === RS_FRAME_NOTE ? 'frame' : 'chg';
+        R.S.actAt[m.id + '|' + comp] = Date.now();
         R.S.acted.add(m.id + '|' + comp);
         if (R.mode === 'kasper') {
             if (m.sample) {

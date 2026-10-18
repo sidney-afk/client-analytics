@@ -2244,7 +2244,7 @@ export {
   _syncviewRenderClientExtrasGate, _syncviewStoredStatusPalette, _syncviewStoredTheme,
   _syncviewWatchClientExtras, _toastEl, activeBriefSection, activeBriefTab, activeMRBriefTab,
   activePeriods, buildTabData, clientHistory, clientMap, clientViewTab, contentSummaryState,
-  currentClientHistory, fetchAll, fetchEssentials, fetchExtras, fmt, fmtCompact, fmtDate,
+  currentClientHistory, dismissConfirm, fetchAll, fetchEssentials, fetchExtras, fmt, fmtCompact, fmtDate,
   followersMode, followersPlat, formatHookTemplate, getActivePeriod, getMonthRow, getPeriodKey,
   getWeekRow, growthChart, hideToast, isPhrase, latestPerClient, linearClientRows, linearProjects,
   monthPrevPerClient, n, parseCSV, parseViewCount, prevPerClient, renderBriefContent,

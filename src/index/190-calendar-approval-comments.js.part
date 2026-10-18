@@ -1,5 +1,5 @@
 import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
-import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
+import { dismissConfirm, showConfirm, showNotify, showToast } from './040-shared-briefs.js';
 import { svFrameFeed, svFrameFlagWait, svFrameIoLinkHtml, svFrameStageMount, svFrameWarm, svFrameStageUnmount, svFrameTileAttrs, svFrameTileLabelHtml, svFrameTime } from './187-frame-viewer.js';
 import { _svPhoneNotesPresentation } from './095-shared-client.js';
 import {
@@ -2725,6 +2725,19 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             close: () => closeCalComments(),
         });
     }
+    /* The client link has no layer stack (the staff pages' Escape rules are not wired there), so the Notes box only closed
+       on Escape while its own message box had focus: with focus on the video's controls, a button or nowhere, Escape did
+       nothing, and the "Your approval was not saved" box never closed on Escape at all (client gauntlet 2). Here the key
+       closes whatever sits on top, the confirm or notice first, unless a field already used it. */
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing || !_isClientLink || !svRsClientReviewOn(calState.client)) return;   // the old client page (switch off) is left as it was
+        const t = e.target, tag = ((t && t.tagName) || '').toLowerCase();
+        if (tag === 'textarea' || tag === 'input' || (t && t.isContentEditable)) return;
+        const c = document.getElementById('confirmOverlay');
+        if (c && c.classList.contains('active')) { e.preventDefault(); dismissConfirm(); return; }
+        const n = document.getElementById('calCommentsOverlay');
+        if (n && n.classList.contains('open') && !(_calReplyTarget || _calEditTarget)) { e.preventDefault(); closeCalComments(); }
+    });
     function closeCalComments() {
         svLayerRelease('cal-notes');
         const ovlOpen = document.getElementById('calCommentsOverlay');

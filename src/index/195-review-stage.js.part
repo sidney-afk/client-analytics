@@ -279,7 +279,7 @@ svg{display:block;flex-shrink:0}
 .b-edit svg{width:12px;height:12px}
 .b-edit:hover{background:var(--fill);box-shadow:inset 0 0 0 1px var(--text-secondary)}
 .tcard.wc{width:min(100cqw,480px);height:100cqh;max-height:none;display:flex;flex-direction:column;padding:26px 28px 22px}
-.tcard.wc .tc-main{flex:1;min-height:0}
+.tcard.wc .tc-main{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin}   /* a long caption scrolls inside the card; its footer stays put (client gauntlet 2) */
 .tc-lbl{display:flex;align-items:center;gap:7px;font-size:.74rem;font-weight:700;color:var(--pi)}
 .tc-foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--hair);font-size:.74rem;color:var(--text-secondary)}
 .tc-h:empty{display:none}
@@ -905,7 +905,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     };
     function _rsFreshState() {
         return { curId: null, step: '', note: _rsBlankNote(), editing: '', editText: '', fold: false, saved: null,
-            menu: '', exp: {}, edOpen: false, qOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, slow: {}, pressed: {}, ready: {}, actAt: {}, seen: {}, told: {}, keepK: null };
+            menu: '', exp: {}, edOpen: false, qOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, slow: {}, pressed: {}, ready: {}, actAt: {}, seen: {}, told: {}, keepK: null, drafts: {}, moved: null, stageTitle: '' };
     }
 
     /* ---------- the model: one shape for every person ---------- */
@@ -1091,7 +1091,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const all = _rsAll();
         let m = all.find(x => x.id === R.S.curId);
         if (!m) {
-            const q = _rsQueue();
+            const q = _rsQueue(), had = R.S.curId;   // had: a post was on stage (not the recap, not a first draw)
             m = q[0] || null;
             R.S.curId = m ? m.id : null;
             R.S.step = m ? _rsFirstStep(m) : '';
@@ -1100,7 +1100,16 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             const kept = R.S.note.text, vis = R.S.note.vis;
             R.S.note = _rsBlankNote(); R.S.note.text = kept; R.S.note.vis = vis;
             R.S.editing = '';
+            // ...and the page says so: the post on stage changed under the person, so they are told which one they
+            // were on and which one they are on now, and that the words (if any) would go on this one. Without the
+            // notice the title changed silently and a Send landed on a post nobody had chosen (client gauntlet 2).
+            R.S.moved = had && m && R.S.stageTitle && R.mode !== 'kasper' ? {
+                id: m.id,
+                text: '“' + R.S.stageTitle + '” is no longer on your list (it was taken back or finished), so this is the next post. '
+                    + (kept.trim() ? 'Your words are still in the box and will go on this post if you send them.' : 'Nothing was sent.')
+            } : null;
         }
+        if (m) R.S.stageTitle = m.title;
         if (m && !m.parts.some(x => x.key === R.S.step)) R.S.step = _rsFirstStep(m);
         if (m && R.mode === 'kasper' && !m.gone) R.S.keepK = { item: m.item, sec: m.sec };
         return m;
@@ -1116,6 +1125,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
        Its plain words, or '' (session Curtain Ten). */
     function _rsElsewhere(m, x) {
         const S = R.S;
+        if (S.moved && S.moved.id === m.id) return S.moved.text;
         if (m.gone) return S.told[Object.keys(S.told).find(k => k.indexOf(m.id + '|') === 0)] || 'This was answered in another window, so it has left your list. Nothing more to do here.';
         if (!x) return '';
         const key = m.id + '|' + x.key;
@@ -1270,6 +1280,19 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         R.ro.observe(_rsQ('view'));
         if (!R.mo) {
             document.addEventListener('pointerdown', (e) => { if (R.S && R.S.qOpen && R.host && !e.composedPath().includes(R.host)) _rsQueueClose(); }, true);
+            /* The arrow keys move between parts only while focus is inside the page (_rsKeys is bound to its shadow
+               root), so right after a click on the page's background or a fresh load they did nothing. On the client
+               link they work from anywhere on the page, unless a field, a dialog or the full screen player has the keys
+               (client gauntlet 2). */
+            document.addEventListener('keydown', (e) => {
+                if (R.mode !== 'client' || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+                if (!R.host || !R.host.isConnected || R.host.hidden || !R.host.offsetParent || R.skel || R.bar || !R.S) return;
+                if (e.composedPath().includes(R.host)) return;   // inside the page: its own handler has it
+                const t = e.target, tag = ((t && t.tagName) || '').toLowerCase();
+                if (tag === 'textarea' || tag === 'input' || tag === 'select' || (t && t.isContentEditable) || document.fullscreenElement) return;
+                if (document.querySelector('#calCommentsOverlay.open, #confirmOverlay.active') || R.root.querySelector('.help-ovl')) return;
+                _rsKeys(e);
+            });
             R.mo = new MutationObserver(_rsSyncTheme);
             R.mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
             window.addEventListener('resize', _rsSizeTop);
@@ -2096,7 +2119,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         }
         const picked = S.note.part, k = asNote ? null : S.note.part, where = S.note.where, aat = S.note.aat, vis = S.note.vis, was = S.note.was;
         const x = k ? m.parts.find(p => p.key === k) : null;
-        S.note = _rsBlankNote(); S.note.vis = vis;
+        S.note = _rsBlankNote(); S.note.vis = vis; S.moved = null;
         // The part stopped waiting while the words were typed (answered in another window, or by the team): the
         // words are never dropped. They go to the team as a note on that part, and the page says so (session
         // Curtain Ten; the old page's change request returns early once the part is not waiting).
@@ -2161,20 +2184,38 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         _rsFlash(RS_PART[k] + ' saved', k);
         _rsRender({ force: true });
     }
+    /* Words typed on a post and not sent are kept for that post while the client looks at another one, and come back
+       when they return (client gauntlet 2: opening another post emptied the box). Client link only. */
+    function _rsStashDraft() {
+        const S = R.S;
+        if (R.mode !== 'client' || !S || !S.curId) return;
+        if (String(S.note.text || '').trim()) S.drafts[S.curId] = { text: S.note.text, part: S.note.part, vis: S.note.vis };
+        else delete S.drafts[S.curId];
+    }
+    function _rsRestoreDraft(m) {
+        const S = R.S, d = R.mode === 'client' && m ? S.drafts[m.id] : null;
+        if (!d) return;
+        delete S.drafts[m.id];
+        S.note.text = d.text; S.note.vis = d.vis;
+        const px = d.part ? m.parts.find(p => p.key === d.part) : null;
+        if (px && px.st === 'wait') { S.note.part = d.part; S.note.where = 'chat'; S.note.was = px.st; }
+    }
     function _rsGo(id) {
         const all = _rsAll();
         const m = all.find(x => x.id === id);
         if (!m) return;
         _rsSwap(() => {
-            Object.assign(R.S, { curId: id, note: _rsBlankNote(), editing: '', fold: false, saved: null, menu: '' });
+            _rsStashDraft();
+            Object.assign(R.S, { curId: id, note: _rsBlankNote(), editing: '', fold: false, saved: null, menu: '', moved: null });
             R.S.step = _rsFirstStep(m);
+            _rsRestoreDraft(m);
         });
     }
     // Leave a post answered elsewhere without saving anything: the next post in the list, or the recap.
     function _rsMoveOn(m) {
         const q = _rsQueue().filter(x => x.id !== m.id);
         const nxt = q[0] || null;
-        const go = () => { R.S.curId = nxt ? nxt.id : null; R.S.step = nxt ? _rsFirstStep(nxt) : ''; R.S.note = _rsBlankNote(); R.S.editing = ''; R.S.keepK = null; };
+        const go = () => { _rsStashDraft(); R.S.curId = nxt ? nxt.id : null; R.S.step = nxt ? _rsFirstStep(nxt) : ''; R.S.note = _rsBlankNote(); R.S.editing = ''; R.S.keepK = null; R.S.moved = null; _rsRestoreDraft(nxt); };
         if (nxt) _rsSwap(go); else { go(); _rsRender({ force: true }); }
     }
     function _rsFinish() {
@@ -2193,9 +2234,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const rest = _rsQueue().filter(x => x.id !== m.id);
         const nxt = rest[Math.min(Math.max(i, 0), rest.length - 1)] || null;
         const go = () => {
+            _rsStashDraft();
             R.S.curId = nxt ? nxt.id : null;
             R.S.step = nxt ? _rsFirstStep(nxt) : '';
-            R.S.note = _rsBlankNote(); R.S.editing = '';
+            R.S.note = _rsBlankNote(); R.S.editing = ''; R.S.moved = null;
+            _rsRestoreDraft(nxt);
         };
         if (nxt) _rsSwap(go); else { go(); _rsRender({ force: true }); }
         _rsToast(msg + (nxt ? '. Next up: ' + nxt.title : ''), R.mode !== 'kasper' ? m.id : '');

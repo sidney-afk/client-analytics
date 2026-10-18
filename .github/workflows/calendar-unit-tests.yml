@@ -594,6 +594,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/calendar-sheet-skeleton-shape-browser.js
+      - name: Month and Week loading skeleton is the loaded grid (desktop light and dark)
+        if: ${{ !cancelled() && matrix.part == 2 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/calendar-month-week-skeleton-shape-browser.js
       - name: Status rows stay one line and the same height with Urgent on (Calendar and Samples, desktop and phone, both themes and palettes)
         if: ${{ !cancelled() && matrix.part == 2 }}
         env:

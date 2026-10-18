@@ -34,9 +34,13 @@ const failures = [];
 let checks = 0;
 function expect(value, message) { if (!value) { failures.push(message); console.error('FAIL  ' + message); } else { checks++; } }
 
+// Dates around today (three days before to four after), so the posts are always in the
+// week and month the views open on, whatever day the suite runs.
+const isoFromToday = days => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + days);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const card = (id, order) => ({
   id, client: SLUG, name: 'Test card ' + order, status: 'In Progress', order_index: order, updated_at: '2026-10-08T12:00:00.000Z',
-  scheduled_date: '2026-10-1' + order, video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress',
+  scheduled_date: isoFromToday(order - 4), video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress',
   caption: 'Short test caption.', cta: '', thumbnail_url: '', asset_url: '', comments: [], graphic_comments: [], caption_comments: [],
 });
 const CARDS = [1, 2, 3, 4, 5, 6, 7, 8].map(i => card('c' + i, i));

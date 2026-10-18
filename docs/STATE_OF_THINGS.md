@@ -198,6 +198,11 @@ it as soon as it draws, and a Notes click that still beats the answer waits for 
 The shared player also takes its portrait or landscape shape on its first frame from the same picture already decoded
 on the page (for everyone with the player; before, it painted landscape and jumped a frame later). Test:
 `node test/review-stage-notes-browser.js`.
+**Review page skeleton (session Curtain Nine, owner feedback 2026-10-17):** while a switched-on client's Review cards
+load, the new page draws its own placeholders (strip chips, title, date, step bar, the media at a video's shape, the
+buttons, the conversation) where the real parts land, within a few pixels (exact on a phone), instead of its header
+over the old calendar loader. Shimmer stops with reduced motion. Skeletons elsewhere are session Mould's. Test:
+`node test/review-stage-skeleton-browser.js`.
 
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone

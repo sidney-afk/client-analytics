@@ -154,6 +154,8 @@ async function open(browser, origin, opt) {
     }
     if (p === '/rest/v1/calendar_posts') {
       if (opt.postsFail) return json({ message: 'fixture' }, 503);
+      // A slow card read (opt.postsDelay ms, or state.postsDelay set at run time).
+      if (opt.postsDelay || state.postsDelay) await sleep(state.postsDelay || opt.postsDelay);
       const slug = String(sp.get('client') || '').replace(/^eq\./, '');
       const one = String(sp.get('id') || '').replace(/^eq\./, '');
       return json(state.cards.filter(c => (!slug || c.client === slug) && (!one || c.id === one)));

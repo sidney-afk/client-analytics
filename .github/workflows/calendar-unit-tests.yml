@@ -928,6 +928,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-notes-browser.js
+      - name: Review page skeleton has the shape of what loads (client link, 1440 and 390)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-skeleton-browser.js
 
 
   split-preview:

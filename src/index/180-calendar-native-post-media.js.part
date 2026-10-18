@@ -3288,11 +3288,26 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         catch { return new Set(); }
     })();
     function _calKasperSeenKey(pid, comp) { return String(pid) + '|' + comp; }
+    /* ONE WRITE PER BATCH (speed sweep 2026-10-17). Each new mark used to
+       rewrite the whole ledger, and a load marks one post after another
+       (_calMigratePostShape), so a browser meeting many posts at once rewrote
+       it hundreds of times: ~0.6 s of a fresh Kasper open was setItem alone.
+       The mark is in memory at once, as before; the save runs once, right
+       after the current batch of marks (a microtask: before any other event,
+       click or timer can run, so nothing can observe the gap). */
+    let _calKasperSeenSaveQueued = false;
+    function _calSaveKasperSeen() {
+        _calKasperSeenSaveQueued = false;
+        try { localStorage.setItem(CAL_KASPER_SEEN_KEY, JSON.stringify([..._calKasperSeen])); } catch {}
+    }
     function _calMarkKasperSeen(pid, comp) {
         const k = _calKasperSeenKey(pid, comp);
         if (!pid || _calKasperSeen.has(k)) return;
         _calKasperSeen.add(k);
-        try { localStorage.setItem(CAL_KASPER_SEEN_KEY, JSON.stringify([..._calKasperSeen])); } catch {}
+        if (_calKasperSeenSaveQueued) return;
+        _calKasperSeenSaveQueued = true;
+        if (typeof queueMicrotask === 'function') queueMicrotask(_calSaveKasperSeen);
+        else Promise.resolve().then(_calSaveKasperSeen);
     }
     function _calWasKasperSeen(pid, comp) { return _calKasperSeen.has(_calKasperSeenKey(pid, comp)); }
     /* Per-card "last message Kasper had seen" timestamp (local, per-device).

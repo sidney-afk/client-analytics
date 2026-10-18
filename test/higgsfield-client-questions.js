@@ -216,7 +216,8 @@ Stock b-roll or only their own footage?
   const after = files[`clients/${FOLDER}/questions.md`];
   const block = after.split('## Subtitle colour: white or yellow?')[1].split('-->')[0];
   assert.ok(block.includes('status: answered'), 'status set to answered');
-  assert.ok(block.includes(`answered: 2026-10-17, Robin (team), ${change.file}`), 'answered: date, who, the inputs file');
+  // The answered line carries the real day it was answered (new Date(), not the test's moved Date.now).
+  assert.ok(block.includes(`answered: ${new Date(realNow()).toISOString().slice(0, 10)}, Robin (team), ${change.file}`), 'answered: date, who, the inputs file');
   assert.ok(after.split('## Newer team question')[1].includes('status: open'), 'other questions untouched');
   assert.strictEqual(after.replace(/status: answered\nanswered: [^\n]+\n(?=-->\n\nDelivered)/, 'status: open\n'), QUESTIONS, 'nothing else in the file changed');
   // Once answered it is never offered again.

@@ -566,6 +566,16 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/popup-behaviour-browser.js
+      - name: Staff sign-in, account menu keyboard, wrong-role refusals and sign-out purge (mocked)
+        if: ${{ !cancelled() && matrix.part == 2 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/b4-staff-login.js
+      - name: The boot flags read, the review switch read and the roster Sheets read retry once (mocked)
+        if: ${{ !cancelled() && matrix.part == 2 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/boot-reads-retry-browser.js
       - name: A click on a pop-up's backdrop never falls through to the page underneath
         if: ${{ !cancelled() && matrix.part == 2 }}
         env:

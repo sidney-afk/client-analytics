@@ -464,6 +464,18 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         return out;
     }
 
+    // One retry, after about a second, for a read that failed at the network level (fetch rejects) or answered 5xx / 429.
+    // A 4xx is returned as it is. The retry goes to the SAME address, so the test audit counts it as the recovery of
+    // the first attempt. A caller's own abort is never retried. Used by the two boot reads that had no retry.
+    function svFetchRetryOnce(url, opts, pauseMs) {
+        const aborted = () => !!(opts && opts.signal && opts.signal.aborted);
+        const later = () => new Promise(go => setTimeout(go, pauseMs == null ? 1000 : pauseMs)).then(() => fetch(url, opts));
+        return fetch(url, opts).then(resp => ((resp.status === 429 || resp.status >= 500) && !aborted()) ? later() : resp, err => {
+            if (aborted()) throw err;
+            return later();
+        });
+    }
+
     const SHEET_ID    = '10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8';
     const METRICS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Metrics`;
     const CLIENTS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Clients%20Info`;
@@ -1704,7 +1716,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
             if(!clientEntryRun)_analyticsCacheWrite({ metrics: metricsText, clients: publicClientRows });
             return;
         }
-        const [mr,cr]=await Promise.all([fetch(METRICS_URL,requestOpts),fetch(CLIENTS_URL,requestOpts)]);
+        const [mr,cr]=await Promise.all([fetch(METRICS_URL,requestOpts),svFetchRetryOnce(CLIENTS_URL,requestOpts)]);
         if(!mr.ok||!cr.ok)throw new Error('analytics_essentials_http');
         const metricsText=await mr.text(), clientsText=await cr.text();
         if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
@@ -2226,7 +2238,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         toggleSyncViewStatusPalette, toggleSyncViewTheme
     });
 export {
-  ANALYTICS_CACHE_KEY, CONTENT_SUMMARY_WEBHOOK, FILMING_PLANS_EF_URL, FILMING_PLAN_TABS_URL, ICON,
+  svFetchRetryOnce, ANALYTICS_CACHE_KEY, CONTENT_SUMMARY_WEBHOOK, FILMING_PLANS_EF_URL, FILMING_PLAN_TABS_URL, ICON,
   SHEET_ID, TIKTOK_FORM_KEY, TIKTOK_HIDDEN_KEY, TIKTOK_LEGACY_MAX_BYTES, TIKTOK_MAX_BYTES,
   TIKTOK_MAX_PHOTOS, TIKTOK_OPTIMISTIC_TTL_MS, TIKTOK_PENDING_KEY, TIKTOK_PHOTO_MAX_BYTES,
   TIKTOK_QUEUE_CACHE_KEY, TIKTOK_UPLOADS_LIST_URL, TIKTOK_UPLOAD_CANCEL_URL,

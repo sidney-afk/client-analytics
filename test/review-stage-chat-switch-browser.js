@@ -219,9 +219,12 @@ async function clientOnSheet(browser, origin) {
   // The client link opened on its Sheet tab (the recorder goes in before the page loads).
   const t = await open(browser, origin, { stage: 'client', flags: 'on', finished: true, flagDelay: 400 });
   await t.page.addInitScript(RECORDER);
-  // The link last left on Sheet: the Calendar remembers the view.
-  await t.page.addInitScript(() => { try { localStorage.setItem('syncview_calendar_prefs', JSON.stringify({ view: 'organizer' })); } catch (e) {} });
+  // The link now always opens on Review (session Rail, 2026-10-18), so the client moves to Sheet with the header tab.
   await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, v: 'calendar', t: TOKEN }), { waitUntil: 'domcontentloaded' });
+  const tab = t.page.locator('#svReviewStage').locator('#rsTabs [data-tab="organizer"]');
+  await tab.waitFor({ timeout: 30000 });
+  await sleep(1500);
+  await tab.click();
   return t;
 }
 

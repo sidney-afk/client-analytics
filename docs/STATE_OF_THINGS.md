@@ -18,6 +18,18 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Client review page finishing touches (session Rail, 2026-10-18): PR open
+
+The six open notes of client gauntlet 2, done (`node test/review-stage-finish-polish-browser.js`): Finish reviewing stays
+off with a "Saving…" hint while an answer is being sent; the not-saved box speaks plain words (no "Linear issue", no raw
+code; the code stays in the server-side refusal report); the speed button stays on the review page's vertical player
+at desktop widths (1024 and up; the clock gives way, a phone keeps Full screen and drops speed); the client link opens
+on Review whenever it is opened fresh (Back and Forward between tabs inside a visit unchanged); on the client's Month
+and Week a post's thumbnail opens the in-app viewer (nothing opens for a post with no video); unsent change-request
+words (and their part) are kept in browser storage per client link (`syncview_rs_drafts_v1:<client>`), cleared when sent,
+when the post leaves the list, and after 7 days, and the page works with storage blocked. Still not done: a real
+video or thumbnail answer on a real card (needs a staff sign-in).
+
 ## Client review gauntlet 2 (session Gauntlet Client 2, 2026-10-18): PR open
 
 Live walk of the client link on the test client (196 checks, report `docs/audits/2026-10-18-card-gauntlet-client-2.md`).

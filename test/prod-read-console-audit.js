@@ -488,6 +488,61 @@ async function main() {
   assert.equal(readStartedDuringDrain.ok, true,
     'a read opened near the end of the drain is drained rather than called pending');
 
+  /* A browser "Failed to load resource" line for a reset connection is matched
+     to the read it belongs to: the same address answering 2xx inside the window
+     explains it, a reset nobody retried does not, and a reset of one address is
+     not explained by a success on another. */
+  const resetLine = url => ({
+    type: () => 'error',
+    text: () => 'Failed to load resource: net::ERR_CONNECTION_RESET',
+    location: () => ({ url }),
+  });
+  const resetThenRetry = await auditCase(page => {
+    const first = request(readUrl, { failure: 'net::ERR_CONNECTION_RESET' });
+    page.emit('request', first); page.emit('requestfailed', first); page.emit('console', resetLine(readUrl));
+    const retry = request(readUrl); page.emit('request', retry); respond(page, retry, 200);
+  });
+  assert.equal(resetThenRetry.ok, true, 'a reset the app retried on the same address is not an app error');
+  assert.equal(resetThenRetry.recoveredReadAttempts, 1);
+  const resetNeverRetried = await auditCase(page => {
+    const first = request(readUrl, { failure: 'net::ERR_CONNECTION_RESET' });
+    page.emit('request', first); page.emit('requestfailed', first); page.emit('console', resetLine(readUrl));
+  }, { consoleOnly: true });
+  assert.equal(resetNeverRetried.ok, false, 'a reset nobody recovered stays a failure');
+  const resetOtherAddressRecovered = await auditCase(page => {
+    const first = request(readUrl, { failure: 'net::ERR_CONNECTION_RESET' });
+    page.emit('request', first); page.emit('requestfailed', first); page.emit('console', resetLine(readUrl));
+    const other = request(otherUrl); page.emit('request', other); respond(page, other, 200);
+  }, { consoleOnly: true });
+  assert.equal(resetOtherAddressRecovered.ok, false, 'a success on a different address does not explain a reset');
+  const resetAfterWindow = await auditCase(page => {
+    const first = request(readUrl, { failure: 'net::ERR_CONNECTION_RESET' });
+    page.emit('request', first); page.emit('requestfailed', first); page.emit('console', resetLine(readUrl));
+    const late = request(readUrl);
+    page.schedule(20000, () => page.emit('request', late));
+    page.schedule(20100, () => respond(page, late, 200));
+  }, { consoleOnly: true });
+  assert.equal(resetAfterWindow.ok, false, 'a retry outside the recovery window does not explain a reset');
+
+  /* ignoreConsoleError lets through only the line it names. */
+  const hostingUrl = 'http://127.0.0.1:4000/synclinear/abc';
+  const notFoundLine = url => ({
+    type: () => 'error',
+    text: () => 'Failed to load resource: the server responded with a status of 404 ()',
+    location: () => ({ url }),
+  });
+  const ignoreHosting = ({ text, url }) => /status of 404/.test(text) && url === hostingUrl;
+  const ignored = await auditCase(page => { page.emit('console', notFoundLine(hostingUrl)); }, { consoleOnly: true, ignoreConsoleError: ignoreHosting });
+  assert.equal(ignored.ok, true, 'the named line is let through');
+  const notIgnored = await auditCase(page => { page.emit('console', notFoundLine('http://127.0.0.1:4000/other')); }, { consoleOnly: true, ignoreConsoleError: ignoreHosting });
+  assert.equal(notIgnored.ok, false, 'any other 404 still fails');
+  const unfiltered = await auditCase(page => { page.emit('console', notFoundLine(hostingUrl)); }, { consoleOnly: true });
+  assert.equal(unfiltered.ok, false, 'without the option nothing is let through');
+
+  const pixelSource = fs.readFileSync(path.join(__dirname, '..', 'docs', 'syncview-design', 'tests', 'pixel-wired.js'), 'utf8');
+  assert.ok(pixelSource.includes('await waitForProductionIdle(wired'), 'pixel-wired waits for the app to finish loading before measuring');
+  assert.ok(pixelSource.includes('await wiredAudit.settle()') && pixelSource.includes("state: 'console silence'"), 'pixel-wired reports console errors through the audit');
+
   for (const [file, settleNeedle, writeNeedle] of [
     ['behav-wired.js', 'const readConsole = await readConsoleAudit.settle()', "await ok('noWriteRequests'"],
     ['prod-a11y-focus.js', 'const readConsole = await readConsoleAudit.settle()', 'const writes = requests.filter'],

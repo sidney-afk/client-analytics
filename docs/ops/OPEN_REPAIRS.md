@@ -33464,3 +33464,16 @@ The slow-network misses after the change (boot budget and heavy lane, 1 run in 5
 **Not a guarantee.** The pool is still shared and first come, first served, so a lane can still wait when main merges and other pull-request workflows pile up. The full fix is to have the database timer call the sender's Edge Function directly, with no runner at all; that touches the delivery path and needs Lighthouse, so it is proposed, not built.
 
 **Way back:** revert the pull request.
+
+## 433. [2026-10-18, BUILT, NOT MERGED] The post-merge pixel-parity lane failed now and then on code that had not changed, because it measured the page before the page was finished (session Steady)
+
+The heavy lane's pixel check went red on main in a different place each time. Causes, found by running it twelve times before the fix (one red) and tracing every repaint of the list:
+
+- It started measuring as soon as the first rows and the finished-cards tail had landed, but the app keeps going after that (cached-paint revalidation, the 30-second refresh, the live channel). A repaint replaced the board, the cards and the selection checkboxes under the check. The computed style of a node a repaint has just removed is empty, which is where `got ` and `wired=` came from, and a drag highlight set up just before a repaint vanished (`.prod-col-drop` not found).
+- Its console check was a private listener, so a browser "Failed to load resource" line for a read the app then recovered counted as an app error, unlike the other suites that use the shared read/console audit.
+
+Fixed in the tests only: the lane now waits for every one of the app's own "still reading" flags (new `waitForProductionIdle`, which shares its question with the audit) and then holds the background refresh still; style readings are taken in one page turn after the element is drawn; console errors go through the shared audit, which matches a reset to a success on the same address inside the recovery window. Nothing asserted was loosened or removed. Unit cases for the matching are in `test/prod-read-console-audit.js`.
+
+**Not fixed, on purpose:** a reset of a read the app never retries (the boot flags read in the page head) still fails, because the audit cannot call it recovered. The behaviour lane's `noConsoleErrors` failure on CI could not be read (the log is private); one plausible cause is a failed background refresh, which the app retries after 60 seconds, outside the 15-second window. That is unverified.
+
+**Way back:** revert the pull request.

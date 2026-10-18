@@ -81,13 +81,13 @@ const activeTab = page => page.evaluate(() => { const b = document.querySelector
       const verifyWith = { slug: a.verifies[0] && a.verifies[0].slug, view: a.verifies[0] && a.verifies[0].view, strict: a.verifies[0] && a.verifies[0].strict };
       await a.context.close();
 
-      // 2. The same link without tab=review: unchanged. The Calendar follows the saved view (Sheet);
-      //    the Samples client already lands on Review.
+      // 2. The same link without tab=review: the client link now opens on Review every time it is opened fresh,
+      //    whatever tab this browser used last (owner, 2026-10-18; session Rail). The Samples client already did.
       const b = await open(browser, origin, surface, withIndex(strip(made[surface])), sheetPrefs);
       await b.page.waitForSelector(surface === 'calendar' ? '.cal-view-btn.active' : card, { timeout: 20000 }).catch(() => {});
-      const want = surface === 'calendar' ? 'organizer' : 'review';
+      const want = 'review';
       const got = await activeTab(b.page);
-      if (got !== want) failures.push(`${surface} (older link, browser last on the Sheet): opened on ${got}, expected ${want} as before`);
+      if (got !== want) failures.push(`${surface} (older link, browser last on the Sheet): opened on ${got}, expected ${want} (the link always opens on Review)`);
       const plain = { slug: b.verifies[0] && b.verifies[0].slug, view: b.verifies[0] && b.verifies[0].view, strict: b.verifies[0] && b.verifies[0].strict };
       if (JSON.stringify(plain) !== JSON.stringify(verifyWith)) failures.push(`${surface}: the verify request differs with tab=review (${JSON.stringify(verifyWith)} vs ${JSON.stringify(plain)})`);
       console.log(`client-link-review-tab: ${surface}: the older link (no tab) still opens on ${got}`);

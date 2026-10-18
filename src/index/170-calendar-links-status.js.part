@@ -2083,6 +2083,25 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         _calSetCardStatus(pid, 'saving');
         _calFlushCardSave(pid);
     }
+    /* Back online: press Retry for every card whose save failed only because
+       the network was down, including the saving-switch check that runs
+       first (session Gauntlet, 2026-10-18). Before this, the card
+       stayed on "Save failed · Retry" after the connection came back, and the
+       edit stayed unsaved until the person noticed and clicked. A save the
+       server answered and refused is left for the person, as before. Staff
+       pages only: a client link's answers have their own resend (185). */
+    const CAL_NETWORK_FAILURE_RE = /failed to fetch|networkerror|network request failed|load failed|network connection was lost|internet connection|checking whether saving is on (failed|took too long)/i;
+    function _calRetryNetworkFailedSaves() {
+        if (_isClientLink || !calState || !Array.isArray(calState.posts)) return 0;
+        let n = 0;
+        calState.posts.slice().forEach(p => {
+            if (!p || !p.id || _calSaveInFlight[p.id]) return;
+            if (!p._saveError || !CAL_NETWORK_FAILURE_RE.test(String(p._saveError))) return;
+            try { _calRetrySave(p.id); n++; } catch (e) {}
+        });
+        return n;
+    }
+    try { window.addEventListener('online', () => { setTimeout(_calRetryNetworkFailedSaves, 800); }); } catch (e) {}
     /* ── Caption text that outlives the tab (OPEN_REPAIRS 314, item 3) ───────
        Every keystroke is mirrored to a draft (shared helper in 131). The draft is
        dropped only when a save of that same text is confirmed. On the next load

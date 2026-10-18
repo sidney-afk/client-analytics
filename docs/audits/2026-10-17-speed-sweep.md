@@ -16,7 +16,7 @@ Patrol had glitches and bugs.
   switches (Review, Sheet, Month, Week) take 20 to 90 ms; most tab switches
   take 30 to 230 ms.
 - **The biggest hiccup was invisible in the old maps:** every staff page load
-  downloaded about 2.3 MB of Analytics data nobody on that page sees, and froze
+  downloaded about 2 MB of Analytics data nobody on that page sees, and froze
   the page for 0.25 to 1.6 s while processing it, 3 to 5 s after it was ready,
   when staff are already typing. Fixed in #2168.
 - **Six fixes, one per PR**, each measured before and after on the live site
@@ -126,7 +126,7 @@ In rough order of how many people they cost time.
    (`_calDriveImageUrl(id, p, 320)` is the smallest the helper allows; a
    dedicated small size would be better) and reusing the first download would
    save about 1.8 MB per client visit on a phone.
-3. **The review-stage script (`188-review-stage-switch.js.part`, off limits)** is
+3. **The review-stage script (`195-review-stage.js.part`, downloaded on demand as the `reviewstage` area)** is
    requested only after the switches answer (~1.7 s on the client link). It
    could be fetched in parallel with the link check for links whose client is
    on the switch.

@@ -1390,7 +1390,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             const k = p.key, key = m.id + '|' + k, err = _rsError(m, k);
             const who = k === onStage ? '' : RS_PART[k] + ': ';
             if (err) return '<div class="err" role="alert" data-err="' + k + '"><span>' + _re(who + 'Not saved. ' + err) + '</span>' + (S.retry[key] ? '<button class="retry" type="button" data-retry="' + k + '">Try again</button>' : '') + '</div>';
-            if (S.slow[key] && _rsSaving(m, k)) return '<div class="err slow" role="status" data-slow="' + k + '">' + _re(who) + 'Still waiting for the server. Nothing is lost: it finishes here on its own, or says so if it fails.</div>';
+            if (S.slow[key] && _rsSaving(m, k)) return '<div class="err slow" role="status" data-slow="' + k + '">' + _re(who) + 'Still waiting for the server. Nothing is lost: it finishes here on its own.</div>';
             return '';
         }).join('');
     }
@@ -1610,7 +1610,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsModelById(id) { return _rsAll().find(x => x.id === id) || null; }
     // `done` is the words for the moment the save ends well ("Video approved, saved"): the step's "Saved" mark and the
     // spoken flash wait for the server, never the click.
-    function _rsWatch(m, comp, done) {
+    // `want` is the outcome the save asked for ('ok' approve, 'chg' a change): the flash and the Saved mark only show
+    // when the part now reads that way. A held client approval the queue later drops as not saved (the post changed
+    // meanwhile, or the hold expired) ends saving with no error but a different status: no "saved" claim then
+    // (review of #2180, Lighthouse).
+    function _rsWatch(m, comp, done, want) {
         const key = m.id + '|' + comp, S = R.S, t0 = Date.now();
         delete S.slow[key];
         const tick = () => {
@@ -1618,7 +1622,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             const cur = _rsModelById(m.id) || m;
             if (!_rsSaving(cur, comp)) {
                 delete S.slow[key];
-                if (!_rsError(cur, comp)) { delete S.retry[key]; if (done) _rsFlash(done, comp, m.id); }
+                const part = (cur.parts || []).find(p => p.key === comp);
+                const st = part ? part.st : '';
+                const landed = !want || (want === 'ok' ? st === 'ok' : (st === 'chg' || st === 'tweak'));
+                if (!_rsError(cur, comp) && landed) { delete S.retry[key]; if (done) _rsFlash(done, comp, m.id); }
                 _rsRender();
                 return;
             }
@@ -1636,7 +1643,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         else if (m.sample) window._sxrKasperApproveComp(m.id, comp);
         else window._kasperApproveComp(m.id, comp, 'client');
         _rsRender({ force: true });
-        _rsWatch(m, comp, RS_PART[comp] + (R.mode === 'smm' ? ' approved to ' + (how === 'client' ? 'the client' : 'Kasper') : ' approved, saved'));
+        _rsWatch(m, comp, RS_PART[comp] + (R.mode === 'smm' ? ' approved to ' + (how === 'client' ? 'the client' : 'Kasper') : ' approved, saved'), R.mode === 'client' ? 'ok' : '');
         _rsAdvance(m, comp);
     }
     function _rsSendChange(m, comp, text, o) {
@@ -1659,7 +1666,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             window._calReviewRequestTweak(m.id, comp);
         }
         _rsRender({ force: true });
-        _rsWatch(m, comp, opts.aat ? RS_PART[comp] + ' approved after tweaks' : 'Change sent');
+        _rsWatch(m, comp, opts.aat ? RS_PART[comp] + ' approved after tweaks' : 'Change sent', R.mode === 'client' ? 'chg' : '');
         if (opts.where === 'stage') _rsAdvance(m, comp);
     }
     function _rsSendNoteTo(m, comp, text, vis) {

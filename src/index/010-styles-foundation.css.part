@@ -1950,7 +1950,7 @@
         html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-chips { height: 70px; gap: 6px; }
         html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-cpill { height: 32px; }
         html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-cpill.is-a { width: 129px; }
-        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-cpill.is-b { width: 156px; }
+        html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-cpill.is-b { width: 158px; }
         html.boot-client #calView:has(.pocket-client-calendar) .is-client .cal-sk-cpill.is-c { width: 143px; }
         #calView[data-pocket-staff-phone] .cal-skeleton-loader.cal-sheet-skeleton { padding: 0; }
         #calView[data-pocket-staff-phone] .cal-skeleton-loader.cal-sheet-skeleton::before { content: none; }

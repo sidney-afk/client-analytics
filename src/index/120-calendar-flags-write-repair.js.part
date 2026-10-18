@@ -1995,6 +1995,10 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             title: 'Editor list unavailable',
             text: 'The editor list could not be verified. Refresh the dialog to try again. Your draft is kept; automatic assignment is still available.'
         },
+        intake_raw_unavailable: {
+            title: 'Received uploads unavailable',
+            text: 'The list of received uploads could not be read just now. Try again in a moment. Nothing that was sent is affected.'
+        },
         invalid_cursor: {
             title: 'List needs refreshing',
             text: 'This saved page of the list is no longer usable. Refresh the submission inbox to load it again.'

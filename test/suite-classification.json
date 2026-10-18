@@ -316,6 +316,7 @@
     "instagram-upload-source.js",
     "intake-created-status-server-guard.js",
     "intake-post-names.js",
+    "intake-raw-copy.js",
     "intake-retry-mirror-convergence.js",
     "kasper-phone-css-scope.js",
     "kasper-admin-expanded-scope.js",

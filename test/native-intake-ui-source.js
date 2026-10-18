@@ -96,6 +96,8 @@ if (context.PROD_CREATED_STATUS === 'in_progress') {
 
 vm.createContext(context);
 vm.runInContext([
+  // Module state the real page declares beside _linearIntakeWrite (memory-only job when storage is full).
+  'var _linearMemoryIntakeJob = null;',
   extract('_linearIntakeRequestId'),
   extract('_linearIntakeWithLock'),
   extract('_linearIntakeRead'),

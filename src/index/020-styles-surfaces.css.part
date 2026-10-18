@@ -1316,6 +1316,10 @@
             background: var(--sv-bg-rgba-255-247-237-0_96); box-shadow: 0 6px 18px var(--sv-shadow-rgba-124-45-18-0_22);
             -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); pointer-events: none; }
         .cal-smm-warn-overlay svg { width: 14px; height: 14px; }
+        /* The button pile (Files, and SyncLinear when a part is linked) sits in
+           the same bottom-right corner; stop the warning short of it so the
+           folder button never covers the warning's last words. */
+        .cal-card-thumb:has(> .cal-linear-pile > *) > .cal-smm-warn-overlay { right: 40px; }
         .cal-smm-warn-dot { position: absolute; top: 4px; right: 4px; width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--sv-bg-fff7ed); border: 1px solid var(--sv-border-fdba74); color: var(--sv-fg-c2410c); box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_12); pointer-events: auto; z-index: 2; }
         .cal-smm-warn-dot svg { width: 11px; height: 11px; }
         .cal-card.is-blank .cal-card-thumb-fallback { color: var(--sv-fg-c5c5c2); }

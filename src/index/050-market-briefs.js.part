@@ -1,6 +1,6 @@
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { calClientSlug } from './130-calendar-model-cache.js';
-import { svRsClientNoAnalytics } from './188-review-stage-switch.js';
+import { svRsClientNoAnalytics, svStaffNoAnalytics } from './188-review-stage-switch.js';
 import {
   CONTENT_SUMMARY_WEBHOOK, ICON, WEEKLY_SLACK_WEBHOOK, _analyticsExtrasApplied,
   _analyticsExtrasArrival, _analyticsFlushPendingExtras, _analyticsHasTrustedMetrics,
@@ -1039,6 +1039,13 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                 try{const q=new URLSearchParams(svRoute.search());q.set('v','calendar');history.replaceState(Object.assign({},history.state||{},{client:sel,clientTab:'calendar'}),'','/?'+q.toString());_syncviewSyncClientEntryRunHref();}catch(e){}
             }
         }
+        // Staff never see Analytics while it is hidden (188): a saved #<client> address or a history entry for a client's
+        // Analytics page opens that client's Content Calendar, and the overview (Home) opens the Calendar as it was.
+        if(!_isClientLink&&!clientOnly&&svStaffNoAnalytics()&&(sel==='all'||(clientViewTab[sel]||'analytics')==='analytics')){
+            if(sel!=='all')_calSetFocusRequest({client:sel,cardId:null});
+            navTo('calendar',false);
+            return;
+        }
         _syncviewNextNavEpoch(); // Phase D: a client profile is a route too.
         // Boot-gate belt-and-braces: today's render()-first boot paths
         // (client links, history.state.client, client-name hashes) never set
@@ -1198,6 +1205,12 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             // icon would otherwise keep whatever section the user came FROM.
             _syncviewApplyTabFavicon(nav);
             const tab=state.clientTab||'analytics';
+            // Back/Forward onto a client's Analytics page while Analytics is hidden: that client's Content Calendar.
+            if(tab==='analytics'&&svStaffNoAnalytics()){
+                _calSetFocusRequest({client:state.client,cardId:null});
+                navTo('calendar',false);
+                return;
+            }
             if(tab!=='calendar'&&typeof _calV2Teardown==='function')_calV2Teardown();
             // Codex review, PR for item 176 (seventh pass): this branch never
             // reaches navTo() either (see the comment above).

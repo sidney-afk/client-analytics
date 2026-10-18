@@ -1,10 +1,8 @@
-/* SyncView "start here" page. No backend calls, no analytics, no app scripts. */
+/* SyncView "start here" page. Static: no scroll effects, no backend calls, no analytics, no app scripts. */
 (function () {
   'use strict';
   var root = document.documentElement;
   root.classList.add('js');
-  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  requestAnimationFrame(function () { requestAnimationFrame(function () { root.classList.add('ready'); }); });
 
   /* ---- Player: the review page's player, drawn again (big round play, then a slim bar). ---- */
   var ICO = {
@@ -138,59 +136,21 @@
   }
   Array.prototype.forEach.call(document.querySelectorAll('[data-player]'), makePlayer);
 
-  /* ---- Header line once the page moves. ---- */
-  var top = document.querySelector('.top');
-  function onScrollTop() { if (top) top.classList.toggle('scrolled', window.scrollY > 8); }
-
-  /* ---- The lens: an eye-shaped window that opens as you scroll. ---- */
-  var lens = document.querySelector('.lens'), pin = document.querySelector('.lens-pin');
-  function onScrollLens() {
-    if (!lens || !pin || reduce) return;
-    var r = lens.getBoundingClientRect(), span = lens.offsetHeight - window.innerHeight;
-    var p = span > 0 ? Math.min(1, Math.max(0, -r.top / (span * 0.75))) : 1; /* closed until it pins, open before it lets go */
-    p = 1 - Math.pow(1 - p, 2); /* ease out */
-    pin.style.setProperty('--p', p.toFixed(4));
-  }
-  if (reduce && pin) pin.style.setProperty('--p', '1');
-
-  var ticking = false;
-  function onScroll() {
-    if (ticking) return; ticking = true;
-    requestAnimationFrame(function () { ticking = false; onScrollTop(); onScrollLens(); });
-  }
-  window.addEventListener('scroll', onScroll, { passive: true });
-  window.addEventListener('resize', onScroll);
-  onScroll();
-
-  /* ---- Tour: the pinned picture follows the step in the middle of the screen. ---- */
-  var steps = document.querySelectorAll('.step'), shots = document.querySelectorAll('.shot');
-  if ('IntersectionObserver' in window && steps.length) {
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (en) {
-        if (!en.isIntersecting) return;
-        var k = en.target.getAttribute('data-shot');
-        steps.forEach(function (s) { s.classList.toggle('on', s === en.target); });
-        shots.forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-shot') === k); });
-      });
-    }, { rootMargin: '-45% 0px -45% 0px' });
-    steps.forEach(function (s) { io.observe(s); });
-  }
-  if (steps[0]) steps[0].classList.add('on');
-
-  /* ---- Who are you: clients or videographers. #client and #videographer open the right one. ---- */
-  var panel = document.getElementById('path-panel');
+  /* ---- Review content or Upload content. #review and #upload open the right one
+     (#client and #videographer, from links sent before, still work). ---- */
+  var hero = document.querySelector('.hero');
   var tabs = document.querySelectorAll('.switch [role="tab"]');
+  var ALIAS = { review: 'review', upload: 'upload', client: 'review', videographer: 'upload' };
   function choose(path, focus) {
-    if (!panel || (path !== 'client' && path !== 'videographer')) return;
-    if (panel.getAttribute('data-path') !== path) {
+    if (!hero || (path !== 'review' && path !== 'upload')) return;
+    if (hero.getAttribute('data-path') !== path) {
       players.forEach(function (o) { if (!o.paused) o.pause(); });
-      panel.setAttribute('data-path', path);
-      panel.classList.remove('swap'); void panel.offsetWidth; panel.classList.add('swap');
+      hero.setAttribute('data-path', path);
     }
     tabs.forEach(function (t) {
       var on = t.getAttribute('data-path') === path;
       t.setAttribute('aria-selected', on ? 'true' : 'false'); t.tabIndex = on ? 0 : -1;
-      if (on) { panel.setAttribute('aria-labelledby', t.id); if (focus) t.focus(); }
+      if (on && focus) t.focus();
     });
   }
   tabs.forEach(function (t, i) {
@@ -204,7 +164,7 @@
       choose(n.getAttribute('data-path'), true); e.preventDefault();
     });
   });
-  function fromHash() { var h = (location.hash || '').slice(1); if (h === 'client' || h === 'videographer') choose(h); }
+  function fromHash() { var p = ALIAS[(location.hash || '').slice(1)]; if (p) choose(p); }
   window.addEventListener('hashchange', fromHash);
   fromHash();
 

@@ -23,11 +23,14 @@ line is older than a week, re-check it before relying on it.
 `syncview.synchrosocial.com/start` is the page Synchro Social's social media managers send to clients and
 videographers instead of the Google Drive folder of guides. It is standalone (`start/index.html`, `start.css`,
 `start.js`, images in `start/assets/`), not part of the app build: no login, no app scripts, no backend calls, no
-analytics, the font self-hosted. It says what SyncView is, shows the review page through an "eye" that opens as you
-scroll, walks through watch / approve or ask for a change / talk to the team / see what is coming, then plays the two
-tutorials (review 1:19, upload 1:18) in a copy of the review page's player, straight from the Wistia MP4 files (no
-Wistia script, never autoplays), with the five folder rules beside a drawn folder tree. "I am a videographer" (or
-`/start/#videographer`) hides the client-only review video. Screenshots are demo data only (client "Alex Morgan",
+analytics, the font self-hosted. Round 2 (session Foyer 2, 2026-10-18 about 01:58 UTC, Sidney's feedback) made it a
+short static page: it opens on "Start here" with a switch, "Review content" (the review tutorial, 1:19, in a copy of
+the review page's player, straight from the Wistia MP4, no Wistia script, never autoplays) and "Upload content" (where
+to upload, the five folder rules and the drawn folder tree). Below that, four large cropped pictures (watch / approve
+or ask for a change / talk to your team / see what is coming), then questions. No scroll effects (the eye lens and the
+scroll tour are gone). The old upload tutorial is off the page on purpose (it showed a real client's details and the
+retired Linear step); a new upload video goes in the marked place in `#panel-upload` of `start/index.html` when it is
+made. `#upload` and `#review` open a side; the older `#videographer` and `#client` links still work. Screenshots are demo data only (client "Alex Morgan",
 four demo posts). Published because `start` is in `PUBLISHED_DIRS` (`scripts/pages-site.js`). Test:
 `node test/start-page-browser.js`. To change the wording or a video, edit `start/index.html`.
 

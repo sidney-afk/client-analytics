@@ -6400,6 +6400,15 @@ async function recordIntakeRaw(
       }).eq("request_id", requestId);
       return;
     }
+    // A body the database cannot hold as JSON (a NUL character in typed text is the known case)
+    // is kept as its escaped text instead of not being kept at all. A missing table is not retried.
+    if (error.code !== "42P01" && error.code !== "PGRST205") {
+      const { error: retryError } = await supabase.from("intake_raw_submissions").insert({
+        request_id: requestId, client_slug: clientSlug, surface, received_as: receivedAs,
+        item_count: itemCount, raw_body: { stored_as_text: true, text: JSON.stringify(intakeRawBody(body)) },
+      });
+      if (!retryError) return;
+    }
     console.error("intake raw copy not stored", clean(error.code));
   } catch (_error) {
     console.error("intake raw copy not stored");
@@ -6408,9 +6417,10 @@ async function recordIntakeRaw(
 
 async function recordIntakeOutcome(supabase: SupabaseClient, requestId: string, outcome: string, detail: string): Promise<void> {
   try {
+    // A later refused retry of an upload that was already created must not turn the row to "refused".
     await supabase.from("intake_raw_submissions").update({
       outcome, outcome_detail: detail.slice(0, 200), outcome_at: new Date().toISOString(),
-    }).eq("request_id", requestId);
+    }).eq("request_id", requestId).neq("outcome", "created");
   } catch (_error) {
     // Best effort, as above.
   }
@@ -7637,6 +7647,7 @@ async function handleLegacyIntake(supabase: SupabaseClient, req: Request, body: 
     if (parseJson(prepared.completion_actor).key !== actor.key) throw new GatewayError(409, "legacy_intake_original_staff_required");
     const response = await handleIntakeCreate(supabase, req, acceptedRequest, "submission",
       requestIdFor(acceptedRequest), sourceTimestamp(acceptedRequest.source_edited_at), true);
+    await intakeOutcomeFromResponse(supabase, requestIdFor(acceptedRequest), response);
     const result = await response.json();
     if (!response.ok || result.native_committed !== true) return json(result, response.status);
   }

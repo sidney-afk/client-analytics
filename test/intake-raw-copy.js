@@ -76,10 +76,15 @@ function fakeDb({ missing = false } = {}) {
         insert: async row => {
           if (missing) return { error: { code: '42P01' } };
           if (rows.has(row.request_id)) return { error: { code: '23505' } };
+          // The database refuses a NUL character inside JSON text.
+          if (JSON.stringify(row.raw_body).includes('\\u0000') && !row.raw_body.stored_as_text) return { error: { code: '22P05' } };
           rows.set(row.request_id, { attempts: 1, outcome: 'received', ...row }); return { error: null };
         },
         select: () => ({ eq: (_c, id) => ({ maybeSingle: async () => ({ data: rows.get(id) || null }) }) }),
-        update: patch => ({ eq: async (_c, id) => { if (rows.has(id)) Object.assign(rows.get(id), patch); return { error: null }; } }),
+        update: patch => ({ eq: (_c, id) => {
+          const apply = async not => { if (rows.has(id) && (not === undefined || rows.get(id).outcome !== not)) Object.assign(rows.get(id), patch); return { error: null }; };
+          return { neq: (_c2, not) => apply(not), then: (resolve, reject) => apply().then(resolve, reject) };
+        } }),
       };
     },
   };
@@ -99,8 +104,16 @@ function fakeDb({ missing = false } = {}) {
   ok(db.rows.size === 1 && db.rows.get('submission:abc').attempts === 2, 'a retry of the same request id is one row, attempts counted');
   await lib.intakeOutcomeFromResponse(db, 'submission:abc', new Response(JSON.stringify({ ok: true, native_committed: true }), { status: 201 }));
   ok(db.rows.get('submission:abc').outcome === 'created', 'a committed answer is recorded as created');
-  await lib.intakeOutcomeFromResponse(db, 'submission:abc', new Response(JSON.stringify({ ok: false, error: 'invalid_intake_item' }), { status: 400 }));
-  ok(db.rows.get('submission:abc').outcome === 'refused' && db.rows.get('submission:abc').outcome_detail === 'invalid_intake_item', 'a refusal is recorded with its code');
+  await lib.recordIntakeRaw(db, 'submission:ref', 'demo', 'submission', 'staff', body, 1);
+  await lib.intakeOutcomeFromResponse(db, 'submission:ref', new Response(JSON.stringify({ ok: false, error: 'invalid_intake_item' }), { status: 400 }));
+  ok(db.rows.get('submission:ref').outcome === 'refused' && db.rows.get('submission:ref').outcome_detail === 'invalid_intake_item', 'a refusal is recorded with its code');
+  await lib.intakeOutcomeFromResponse(db, 'submission:abc', new Response(JSON.stringify({ ok: true, native_committed: true }), { status: 200 }));
+  await lib.recordIntakeOutcome(db, 'submission:abc', 'refused', 'public_intake_rate_limited');
+  ok(db.rows.get('submission:abc').outcome === 'created', 'a refused retry of an upload that was already created does not turn its row to refused');
+  const nul = fakeDb();
+  await lib.recordIntakeRaw(nul, 'submission:nul', 'demo', 'submission', 'staff', { batch: { description: 'typed \u0000 here' }, items: [{}] }, 1);
+  const nulRow = nul.rows.get('submission:nul');
+  ok(nulRow && nulRow.raw_body.stored_as_text === true && nulRow.raw_body.text.includes('typed'), 'text the database cannot hold as JSON is kept as escaped text, not lost');
   const gone = fakeDb({ missing: true });
   let threw = false;
   try { await lib.recordIntakeRaw(gone, 'r', 'demo', 'submission', 'staff', body, 1); await lib.recordIntakeOutcome(gone, 'r', 'created', ''); } catch (e) { threw = true; }

@@ -2667,19 +2667,39 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         history.replaceState(state, '', url);
         return Object.freeze({ client: entry.client, slug: entry.slug, view, tab: entry.tab || '', verified: true });
     }
+    /* The link check the <head> started while the document parsed (see
+       005-head-boot). Taken at most once, and only when it was sent for this
+       exact address with this exact body within the last minute; anything
+       else returns null and the caller checks as before. The answer is judged
+       by exactly the same rules either way. */
+    function _syncviewTakeEarlyClientVerify(body) {
+        let early = null;
+        try { early = window.__svEarlyClientVerify; window.__svEarlyClientVerify = null; } catch (e) {}
+        if (!early || !early.response || early.body !== body || early.href !== location.href) return null;
+        if (!(Date.now() - Number(early.at) < 60000)) return null;
+        return early.response;
+    }
     async function _syncviewPreflightClientEntry(generation, href) {
         const entry = _syncviewClientEntryEnvelope();
         if (!entry.ok) return { kind: 'invalid', reason: entry.reason };
         const controller = typeof AbortController === 'function' ? new AbortController() : null;
         const timer = controller ? setTimeout(() => controller.abort(), 8000) : null;
         try {
-            const resp = await fetch(CLIENT_TOKEN_VERIFY_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                cache: 'no-store',
-                signal: controller ? controller.signal : undefined,
-                body: JSON.stringify({ client: entry.client, slug: entry.slug, token: entry.token, view: entry.view, strict: true })
-            });
+            const body = JSON.stringify({ client: entry.client, slug: entry.slug, token: entry.token, view: entry.view, strict: true });
+            const early = _syncviewTakeEarlyClientVerify(body);
+            // The early request carries no signal, so the same 8 s budget
+            // is applied by racing it against this one's abort.
+            const resp = early
+                ? await Promise.race([early, new Promise((_, reject) => {
+                    if (controller) controller.signal.addEventListener('abort', () => reject(new Error('timeout')), { once: true });
+                })])
+                : await fetch(CLIENT_TOKEN_VERIFY_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    cache: 'no-store',
+                    signal: controller ? controller.signal : undefined,
+                    body
+                });
             let json = null; try { json = await resp.json(); } catch (e) {}
             if (generation !== _syncviewClientEntryGeneration || href !== location.href) return { kind: 'stale' };
             if (!resp.ok) return { kind: resp.status >= 500 || resp.status === 429 || resp.status === 408 ? 'retry' : 'invalid' };

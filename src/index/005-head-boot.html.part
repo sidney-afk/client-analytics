@@ -20,6 +20,56 @@
                 de.classList.add('boot-client');
                 de.setAttribute('data-boot-nav', 'client');
                 de.setAttribute('data-boot-subtab', 'verify');
+                // Start the link check NOW, while the document still parses,
+                // instead of after every script has loaded (speed sweep
+                // 2026-10-17: it started ~0.9 s in and answered ~0.6 s later,
+                // with the whole page waiting on it). It grants nothing: it is
+                // the same POST with the same body the app sends from
+                // _syncviewPreflightClientEntry, and the app takes this answer
+                // only when its own body for this exact address is
+                // byte-identical, once, within a minute
+                // (_syncviewTakeEarlyClientVerify); otherwise it is dropped and
+                // the app checks as before. Same URL as CLIENT_TOKEN_VERIFY_URL
+                // (test/client-entry-preflight.js pins both).
+                // A link the app would refuse without asking (the rules of
+                // _syncviewClientEntryEnvelope) is never sent from here either.
+                try {
+                    var cvSlugOf = function (v) {
+                        return String(v || '').toLowerCase().trim().normalize('NFD').replace(/[̀-ͯ]/g, '')
+                            .replace(/^dr\.?\s+/, '').replace(/\s+(?:and|&)\s+/g, '&').replace(/[^a-z0-9&]+/g, '');
+                    };
+                    var cvKeys = ['c', 't', 'v', 'sxr', 'split', 'tab'];
+                    var cvOk = true;
+                    q.forEach(function (v, k) { if (cvKeys.indexOf(k) < 0) cvOk = false; });
+                    cvKeys.forEach(function (k) { if (q.getAll(k).length > 1) cvOk = false; });
+                    if (q.has('split') && q.get('split') !== '0' && q.get('split') !== '1') cvOk = false;
+                    if (q.has('tab') && q.get('tab') !== 'review') cvOk = false;
+                    var cvClient = String(q.get('c') || '').trim();
+                    var cvToken = String(q.get('t') || '').trim();
+                    var cvSlug = cvSlugOf(cvClient);
+                    if (!cvClient || !cvSlug || !cvToken || cvClient.length > 160 || cvToken.length > 512
+                        || /[\u0000-\u001f\u007f]/.test(cvClient + cvToken)) cvOk = false;
+                    var cvView = String(q.get('v') || 'analytics').trim().toLowerCase();
+                    if (['analytics', 'calendar', 'brief', 'samples', 'sample-reviews'].indexOf(cvView) < 0) cvOk = false;
+                    if (cvView === 'brief') cvView = 'calendar';
+                    var cvSxr = q.get('sxr');
+                    if (cvView === 'sample-reviews' ? cvSxr !== '1' : cvSxr !== null) cvOk = false;
+                    var cvHash = decodeURIComponent(String(svRoute.hash() || '').replace(/^#/, ''));
+                    if (cvHash && cvHash !== cvClient) cvOk = false;
+                    var cvState = null; try { cvState = history.state; } catch (e) {}
+                    if (cvState && cvState.client && cvSlugOf(cvState.client) !== cvSlug) cvOk = false;
+                    if (cvState && !cvState.client && cvState.nav) cvOk = false;
+                    if ((cvView === 'analytics' || !q.get('v')) && cvState && cvState.client && cvSlugOf(cvState.client) === cvSlug
+                        && (cvState.clientTab === 'calendar' || cvState.clientTab === 'brief')) cvView = 'calendar';
+                    if (window.fetch && cvOk) {
+                        var cvBody = JSON.stringify({ client: cvClient, slug: cvSlug, token: cvToken, view: cvView, strict: true });
+                        var cvResp = fetch('https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/client-token-verify', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', body: cvBody
+                        });
+                        cvResp.catch(function () {});
+                        window.__svEarlyClientVerify = { body: cvBody, href: location.href, at: Date.now(), response: cvResp };
+                    }
+                } catch (e) {}
                 return;
             }
             // Same detection as the app's entry router (search for

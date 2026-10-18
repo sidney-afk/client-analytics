@@ -1845,6 +1845,8 @@
         .cal-sk-tb-mid { flex: 1 1 auto; min-width: 0; }
         .cal-sk-viewtoggle { margin-right: auto; }
         .cal-sk-tb-icon { width: 32px; height: 32px; border-radius: 8px; }
+        .cal-sk-direction { height: 55px; margin-top: 6px; border-radius: 10px; }
+        .cal-sk-foot.is-notes { height: 24px; padding-left: 0; }
         .cal-sk-phone { display: none; }
         #calView[data-pocket-staff-phone] .cal-skeleton-loader.cal-sheet-skeleton { padding: 0; }
         #calView[data-pocket-staff-phone] .cal-skeleton-loader.cal-sheet-skeleton::before { content: none; }

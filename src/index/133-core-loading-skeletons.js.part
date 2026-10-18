@@ -99,6 +99,28 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
             <div class="cal-sk-phone-grid">${Array.from({ length: 9 }, () => _svSkel('cal-sk-phone-tile')).join('')}</div>
         </div>`;
     }
+    /* Staff Samples Sheet: the same strip, with a sample card's rows (title,
+       two links, creative direction, Notes, Set all and two status rows).
+       test/samples-sheet-skeleton-shape-browser.js. */
+    function _svSamplesSheetCardSkeletonHtml(i) {
+        const status = '<div class="sv-skeleton cal-sk-status"></div>';
+        return `<div class="cal-skeleton-card cal-sk-card">
+            ${_svSkel('cal-skeleton-thumb')}
+            <div class="cal-sk-body">
+                <div class="cal-sk-title">${_svSkel('sv-skeleton-line', 'width:' + (i % 3 === 1 ? '46%' : '58%') + ';')}</div>
+                ${_svSkel('cal-sk-field')}
+                ${_svSkel('cal-sk-field')}
+                ${_svSkel('cal-sk-direction')}
+                <div class="cal-sk-foot is-notes">${_svSkel('sv-skeleton-pill', 'width:72px;height:24px;')}</div>
+                <div class="cal-sk-status-row">${_svSkel('cal-sk-setall')}${status}${status}</div>
+            </div>
+        </div>`;
+    }
+    function _svSamplesSheetSkeletonHtml(label) {
+        return `<div class="cal-loader cal-skeleton-loader cal-sheet-skeleton" role="status" aria-label="${_calEscAttr(label || 'Loading sample reviews')}">
+            <div class="cal-organizer-wrap cal-sk-desktop"><div class="cal-organizer-strip cal-sk-strip" aria-hidden="true">${[0, 1, 2, 3, 4, 5].map(_svSamplesSheetCardSkeletonHtml).join('')}</div></div>
+        </div>`;
+    }
     function _svCalendarSheetSkeletonHtml(label) {
         return `<div class="cal-loader cal-skeleton-loader cal-sheet-skeleton" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
             <div class="cal-organizer-wrap cal-sk-desktop"><div class="cal-organizer-strip cal-sk-strip" aria-hidden="true">${[0, 1, 2, 3, 4, 5].map(_svCalendarSheetCardSkeletonHtml).join('')}</div></div>
@@ -403,6 +425,7 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
         if (kind === 'analytics-client') return _svAnalyticsSkeletonHtml(opts.name || '', 'client');
         if (kind === 'workload') return _svWorkloadSkeletonHtml();
         if (kind === 'samples') return _svSamplesSkeletonHtml(opts.label);
+        if (kind === 'samples-sheet') return _svSamplesSheetSkeletonHtml(opts.label);
         if (kind === 'review') return _svReviewSkeletonHtml(opts.label);
         if (kind === 'table') return _svTableSkeletonHtml(opts.rows || 5);
         if (kind === 'onboarding') return _svOnboardingSkeletonHtml();

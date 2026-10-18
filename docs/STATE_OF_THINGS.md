@@ -117,6 +117,9 @@ before and after screenshots live in `docs/audits/skeleton-shape/<page>/`.
   drawn with no posts and shimmer (it was a narrow unlabelled grid for Month, other-sized pills for Week); a Month row
   that gets a post grows at most a few pixels. Test: `node test/calendar-month-week-skeleton-shape-browser.js`. The phone
   keeps its own timeline skeleton (not yet measured).
+- **Staff Samples, Sheet (desktop):** done. It drew three small list cards in the middle; now a strip of cards at the
+  loaded sample cards' boxes, row for row. Test: `node test/samples-sheet-skeleton-shape-browser.js`. Not yet matched:
+  Samples on phone, the Samples Review tab, and the Samples first paint (still the old small cards).
 - **Not reached yet:** Calendar Review; Today, Samples, Templates, Filming, Post, Workload, Linear,
   Submit, Messages, the old client page. The review page and Kasper's tab belong to sessions Curtain Nine and Seven.
 

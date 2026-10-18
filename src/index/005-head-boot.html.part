@@ -370,6 +370,37 @@
                     }
                 } catch (e) {}
             }
+            if (target === 'calendar' && window.fetch) {
+                // A Calendar address that names its client (/calendar/<slug>):
+                // start the FIRST PAGE of that client's card read the moment the
+                // staff check passes, instead of after every script has loaded
+                // (speed sweep 2026-10-17: it started ~1.08 s into a cold load).
+                // Same rules as SyncLinear's block above: it WAITS for the early
+                // key-verify, the app takes the answer once, by exact URL, only
+                // for this same member and key and inside ten seconds
+                // (_calTakeEarlyPostsPage in the app script), and a URL that
+                // drifts just misses. The URL is _calV2FetchPosts's own first
+                // page; test/calendar-early-read.js fails if they ever differ.
+                try {
+                    var clId = JSON.parse(localStorage.getItem('syncview_staff_identity_v1') || 'null');
+                    var clSlug = String(hashParts[1] || '').split('?')[0];
+                    if (clId && clId.key && clId.member && clId.member.id && /^[a-z0-9&]+$/.test(clSlug)) {
+                        var clBase = 'https://uzltbbrjidmjwwfakwve.supabase.co';
+                        var clKey = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';
+                        var clKv = window.__svEarlyKeyVerify;
+                        var clGate = clKv && clKv.response ? clKv.response.then(function (r) {
+                            if (!r.ok) throw new Error('verify');
+                            return r.clone().json();
+                        }).then(function (j) { if (!(j && j.ok === true)) throw new Error('verify'); }) : Promise.reject(new Error('verify'));
+                        clGate.catch(function () {});
+                        var clUrl = clBase + '/rest/v1/calendar_posts?select=*&or=(status.is.null,status.neq.Archived)&client=eq.' + encodeURIComponent(clSlug)
+                            + '&order=id.asc,client.asc&limit=1000';
+                        var clRead = clGate.then(function () { return fetch(clUrl, { headers: { apikey: clKey, Authorization: 'Bearer ' + clKey, Accept: 'application/json' } }); });
+                        clRead.catch(function () {});
+                        window.__svEarlyCalendar = { memberId: String(clId.member.id), key: String(clId.key), at: Date.now(), url: clUrl, response: clRead };
+                    }
+                } catch (e) {}
+            }
         } catch (e) {}
     })();
     </script>

@@ -22,9 +22,9 @@ Patrol had glitches and bugs.
 - **Six fixes, one per PR**, each measured before and after on the live site
   (section 4): Analytics extras on demand (#2168), Workload's two reads in
   parallel (#2169), Kasper's skip notes read in parallel (#2172), the client
-  review link's check started in the page head (#2184), Calendar's card read
-  started in the page head (#2185), and the Kasper-seen ledger saved once per
-  batch instead of once per post (#2189).
+  review link's check started in the page head (#2184), Calendar's and
+  Samples' card read started in the page head (#2185), and the Kasper-seen
+  ledger saved once per batch instead of once per post (#2189).
 - **Still slow on a first visit:** the first switch to SyncLinear (~2.0 s), to
   Kasper (~1.6 s after #2172), and to Workload (~1.0 s after #2169). Section 5
   lists what I found and did not fix.
@@ -98,7 +98,7 @@ mocked SyncLinear boot.
 | #2169 | Workload's archive-marker read starts beside the board read instead of after it (its request never used the board's answer). | Workload load 1,436 → **1,190 ms**; switch from Calendar 1,269 → **1,004 ms**. |
 | #2172 | Kasper's review queue reads its skip notes (a fixed 14-day window) beside the calendars instead of after the sent-at read. | Kasper load 2,732 → **2,223 ms**; switch 1,817 → **1,639 ms**. |
 | #2184 | The client review link starts its link check in the page head, with the app's own validity rules, and the app uses that answer only for a byte-identical request on the same address. | Client Calendar link: content ready 1,305 → **927 ms**, first paint 1,216 → **860 ms**. |
-| #2185 | A `/calendar/<slug>` load starts that client's first card page in the page head once the staff check passes (the Today/SyncLinear pattern), taken once by exact URL within 10 s. | Calendar cards visible 922 → **717 ms**. |
+| #2185 | A `/calendar/<slug>` or `/sample-reviews/<slug>` load starts that client's first card page in the page head once the staff check passes (the Today/SyncLinear pattern), taken once by exact URL within 10 s. | Calendar cards visible 922 → **717 ms**; Samples 694 → **466 ms**. |
 | #2189 | `_calMarkKasperSeen` rewrote the whole "seen by Kasper" ledger to localStorage on every new mark (hundreds per Kasper load in a fresh browser); now one write per batch. | CPU profile of the Kasper switch: ledger work ~200 → ~0 ms, queue processing ~410 → ~220 ms, switch ~1,900 → ~1,680 ms. |
 
 Each PR carries a guard: a behavioural test that fails on the old code where
@@ -130,12 +130,10 @@ In rough order of how many people they cost time.
    requested only after the switches answer (~1.7 s on the client link). It
    could be fetched in parallel with the link check for links whose client is
    on the switch.
-4. **Samples, and Calendar opened without a client in the address,** still
-   read their cards only after the scripts load (Samples: `sample_reviews`
-   starts at ~1.16 s on a cold `/sample-reviews/<slug>` load). #2185 covers
-   `/calendar/<slug>` only. `_sxrFetchPosts` builds the same shape of URL, so
-   the same head pattern applies (about 0.3 s); left as a follow-up so it does
-   not edit the same head lines as #2185 before that merges. The staff Samples
+4. **Calendar or Samples opened without a client in the address** (the saved
+   client, or a click on the tab) still read their cards after the scripts
+   load; #2185 covers addresses that name the client. The saved client could
+   be predicted from local storage in the head the same way. The staff Samples
    card also downloads the 640 px Drive thumbnail (914 KB for the test client's
    sample); every view shares that one cached URL (`_calDeriveThumb`), so a
    smaller size needs a per-view decision, not a one-line change.

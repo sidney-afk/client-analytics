@@ -1537,19 +1537,20 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         return '<span class="sl"><span class="si' + (m.land ? ' l' : '') + '">' + (m.thumb ? '<img alt="" loading="lazy" src="' + _re(m.thumb) + '">' : '') + '</span></span>';
     }
     function _rsDots(m) { return '<span class="cd" aria-hidden="true">' + m.parts.map(x => '<i class="' + (x.st === 'ok' ? 'ok' : (x.st === 'chg' || x.st === 'tweak') ? 'chg' : '') + '"></i>').join('') + '</span>'; }
-    // Kasper's rows (strip chip and list panel): "Client · Title" on the first line, then the section's own small line.
+    // Kasper's rows (strip chip and list panel). Only "With the editors" rows read "Client · Title" on the first line
+    // with the small date below; Urgent and Waiting rows keep the title with the client on their small line.
     function _rsKRowHead(m) {
-        return '<span class="cn">' + (m.client ? '<span class="ck">' + _re(m.client) + '</span><span class="ct"> · ' + _re(m.title) + '</span>' : _re(m.title)) + '</span>';
+        return '<span class="cn">' + (m.sec === 'tweaks' && m.client ? '<span class="ck">' + _re(m.client) + '</span><span class="ct"> · ' + _re(m.title) + '</span>' : _re(m.title)) + '</span>';
     }
     function _rsKRowMeta(m) {
         return m.sec === 'urgent' ? '<span class="cm urg">' + RI.bell + '<span>' + _re(m.flag) + '</span></span>'
             : m.sec === 'tweaks' ? (m.since ? '<span class="cm"><span>' + _re(m.since) + '</span></span>' : '')
-            : '<span class="cm">' + (m.sample ? '<b class="tag">Sample</b>' : '') + _rsDots(m) + '</span>';
+            : '<span class="cm"><span>' + _re(m.client) + '</span>' + (m.sample ? '<b class="tag">Sample</b>' : '') + _rsDots(m) + '</span>';
     }
     function _rsChip(m, cur) {
         const on = cur && m.id === cur.id;
         if (R.mode !== 'kasper') return '<button class="chipp' + (on ? ' cur' : '') + '" type="button" data-id="' + _re(m.id) + '" aria-current="' + on + '" title="' + _re(m.title) + '">' + _rsChipImg(m) + '<span class="cx"><span class="cn">' + _re(m.title) + '</span>' + _rsDots(m) + '</span></button>';
-        return '<button class="chipp k' + (on ? ' cur' : '') + (m.sec === 'urgent' ? ' urgc' : '') + (m.sec === 'tweaks' ? ' edc' : '') + '" type="button" data-id="' + _re(m.id) + '" aria-current="' + on + '" title="' + _re(m.client + ': ' + m.title) + '">' + _rsChipImg(m) + '<span class="cx">' + _rsKRowHead(m) + _rsKRowMeta(m) + '</span></button>';
+        return '<button class="chipp k' + (on ? ' cur' : '') + (m.sec === 'urgent' ? ' urgc' : '') + (m.sec === 'tweaks' ? ' edc' : '') + '" type="button" data-id="' + _re(m.id) + '" aria-current="' + on + '" title="' + _re(m.client + ': ' + m.title) + '">' + _rsChipImg(m) + '<span class="cx">' + (m.sec === 'tweaks' ? _rsKRowHead(m) + _rsKRowMeta(m) : _rsKRowMeta(m) + _rsKRowHead(m)) + '</span></button>';
     }
     function _rsStrip() {
         const cur = _rsCur();

@@ -10,7 +10,7 @@
  *      week, otherwise "29 Sept" (no year), and the year only when it is not this year;
  *   3. the second line is the muted grey of secondary text, not orange;
  *   4. Ping editor is still on the row;
- *   5. the other sections (Waiting for your review) use the same first line.
+ *   5. the other sections (Waiting for your review) are NOT changed: title first line, client on the small line.
  * Desktop 1440 and phone 390, light and dark.
  * WITH_EDITORS_SHOTS=<dir> also writes screenshots (used for the PR, fictional data only).
  */
@@ -109,8 +109,7 @@ async function variant(browser, origin, width, height, dark) {
     });
     // Another section uses the same first line.
     const w = Object.keys(R.rows).filter(id => /Waiting for your review/.test(R.rows[id].sec));
-    expect(w.length > 0 && w.every(id => /^Fixture Studio · /.test(R.rows[id].first) && R.rows[id].oneLine), label + ' list: "Waiting for your review" rows use the same first line (' + w.length + ' rows)');
-    expect(w.every(id => !/Fixture Studio/.test(R.rows[id].second)), label + ' list: the client is not repeated on the second line of a waiting row');
+    expect(w.length > 0 && w.every(id => !/Fixture Studio/.test(R.rows[id].first) && R.rows[id].second.indexOf('Fixture Studio') === 0), label + ' list: "Waiting for your review" rows are unchanged (title first, client on the small line; ' + w.length + ' rows)');
     await shot(t, label + '-list');
     await t.page.keyboard.press('Escape');
     await sleep(300);
@@ -126,6 +125,8 @@ async function variant(browser, origin, width, height, dark) {
       expect(r.second === wording(AGES[id]), label + ' strip ' + id + ': second line is only the date (' + r.second + ')');
       expect(r.secondColor !== R.orange, label + ' strip ' + id + ': the second line is not orange');
     });
+    const sw = Object.keys(R.rows).filter(id => ids.indexOf(id) < 0);
+    expect(sw.length > 0 && sw.every(id => !/Fixture Studio/.test(R.rows[id].first) && R.rows[id].second.indexOf('Fixture Studio') === 0), label + ' strip: the other chips (waiting for review) are unchanged, title first and the client on the small line (' + sw.length + ' chips)');
     await shot(t, label + '-strip');
     expect(t.errors.length === 0, label + ': no page errors (' + t.errors.join(' | ') + ')');
   } catch (e) { expect(false, label + ': stopped (' + String(e && e.message || e).split('\n')[0] + ')'); }

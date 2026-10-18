@@ -124,6 +124,9 @@ async function open(opts) {
     await context.route(u => u.href.includes(needle), r => (text && text.hold ? new Promise(() => {}) : text && typeof text === 'object' ? r.fulfill(text) : r.fulfill({ status: 200, contentType: 'text/csv', body: typeof text === 'function' ? text() : text })));
   }
   for (const [glob, handler] of o.routes || []) await context.route(glob, handler);
+  // Analytics is hidden for everyone unless analytics_hidden says shown (session Curtain Seven), and staff are then
+  // never sent to it (session Detour); the Analytics screens of the phone pass bring it back.
+  if (/^#analytics/.test(o.hash || '')) await require('../../test/fixtures/analytics-shown.js').analyticsShown(context);
   if (o.beforeNavigate) await o.beforeNavigate(page, context);
   await page.goto(base + (o.query ? '?' + o.query : '') + (o.hash || ''), { waitUntil: 'domcontentloaded' });
   const close = async () => { await context.close().catch(() => {}); await browser.close().catch(() => {}); await new Promise(r => server.close(r)); };

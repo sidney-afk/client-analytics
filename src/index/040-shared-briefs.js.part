@@ -1328,6 +1328,10 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         // to a client page (client search, Back into a client entry) bypass
         // navTo(), which is where the hold is otherwise released.
         if (_analyticsExtrasHold) { _analyticsReleaseExtras(true); fetchExtras(null); }
+        // A hold released in this same breath (navTo('home'), then a client page; or a late "shown" answer taking a held
+        // Calendar landing back to a client's Analytics page): fetchAll starts the download a microtask later, so nothing
+        // is in flight yet and the page below would say the videos and briefs could not be loaded. fetchExtras de-duplicates.
+        else if (!_fetchExtrasPromise && _fetchExtrasState.status === 'idle') fetchExtras(null);
         const waits = [];
         if (_analyticsIdbExtRead) waits.push(_analyticsIdbExtRead.then(() => { if (!_analyticsExtrasApplied) throw new Error('no saved extras'); }));
         if (_fetchExtrasPromise) waits.push(_fetchExtrasPromise);

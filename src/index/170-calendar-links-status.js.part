@@ -13,7 +13,7 @@ import {
 import { _calNameSyncAfterSave } from './125-title-name-rule.js';
 import {
   CAL_SAVE_DEBOUNCE_MS, _calBumpThumbRev, _calCapBlockHtml, _calColorTagHtml, _calCommentsFor,
-  _calCompLinked, _calFailedNewCards, _calIsAutoSortOn, _calIsCollabOn, _calLocalRecentSaves,
+  _calCompLinked, _calFailedNewCards, _calIsAutoSortOn, _calLocalRecentSaves,
   _calMigratePostShape, _calNoLinearPush, _calNormMonthFilter, _calPendingEdits,
   _calPillDisplayStatus, _calPlatformsStripHtml, _calRecentSaveFields, _calSaveInFlight,
   _calSaveTimers, _calShouldBumpThumbRevForGraphicStatus, calClientSlug, calState

@@ -37,6 +37,15 @@ async function run(browser, origin, read, c) {
   const consoleErrors = [];
   t.page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
   let n = 0;
+  // The flag readers that take their row from the head's batch: when the batch (or its retry) answers they must not
+  // read their own row (a second apply of the same answer, and extra traffic); when it fails twice they do.
+  const ownFlagReads = [];
+  t.ctx.on('request', r => {
+    let u; try { u = new URL(r.url()); } catch (e) { return; }
+    if (r.method() !== 'GET' || u.pathname !== '/rest/v1/syncview_runtime_flags') return;
+    const k = u.searchParams.get('key') || '';
+    if (/^eq\.(calendar_upsert_ef_clients|kasper_urgent_ping_enabled|settings_ef_clients|sample_review_ef_clients|analytics_mirror_read_enabled)$/.test(k) || k === 'in.(write_ui_reroute_clients,client_comment_gateway_enabled)') ownFlagReads.push(k);
+  });
   // Registered after the fixture's catch-all, so it answers first.
   await t.ctx.route('**/*', async route => {
     const r = route.request();
@@ -52,7 +61,7 @@ async function run(browser, origin, read, c) {
   await fx.sleep(3600);
   const alive = await t.page.evaluate(() => !!document.getElementById('mainWrap') && !!document.querySelector('header.header'));
   await t.ctx.close();
-  return { seen, consoleErrors, alive, errors: t.errors };
+  return { seen, consoleErrors, alive, errors: t.errors, ownFlagReads };
 }
 
 (async () => {
@@ -71,6 +80,10 @@ async function run(browser, origin, read, c) {
           expect(gap >= 900 && gap < 2500, name + ': the retry comes after a short pause (' + gap + ' ms)');
         }
         if (c.recovered) expect(r.seen[1].step === 'ok', name + ': the second attempt is answered normally');
+        if (read === 'flags') {
+          if (c.recovered) expect(r.ownFlagReads.length === 0, name + ': the readers use the retried answer, none reads its own row (' + r.ownFlagReads.length + ')');
+          else expect(r.ownFlagReads.length > 0, name + ': after the failure the readers read their own rows as before (' + r.ownFlagReads.length + ')');
+        }
         // The browser's own "Failed to load resource" line for a failed attempt is the audit's to match to the
         // recovery; anything else on the console is the app's and is not allowed.
         const appErrors = r.consoleErrors.filter(m => !/^Failed to load resource/.test(m));

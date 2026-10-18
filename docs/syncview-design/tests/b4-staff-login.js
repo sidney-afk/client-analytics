@@ -342,6 +342,7 @@ async function selectMember(page, member) {
     const menuStops = await page.evaluate(() => Array.from(document.querySelectorAll('#staffAccountPopover .staff-account-action'))
       .filter(el => el.id !== 'staffIdentitySignOut' && el.getClientRects().length).map(el => el.id));
     assert(menuStops.length >= 2 && menuStops.slice(-2).join() === 'themeToggle,statusPaletteToggle', 'the menu ends with the theme and status-palette actions (' + menuStops.join(', ') + ')');
+    assert(menuStops.includes('headerOnboardingMenuItem') && menuStops.includes('headerCredentialsMenuItem'), 'an admin account sees the Onboarding and Client Credentials actions in the menu, so the Tab walk below covers them (' + menuStops.join(', ') + ')');
     for (const id of menuStops) {
       await page.keyboard.press('Tab');
       assert(await popover.isVisible() && await page.evaluate(() => document.activeElement?.id) === id,
@@ -509,7 +510,7 @@ async function selectMember(page, member) {
     await installMocks(preview);
     await preview.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
     await preview.waitForFunction(name => document.getElementById('headerMenuButton')?.getAttribute('aria-label')?.includes(name), ADMIN.name);
-    await preview.waitForSelector('.prod-view', { state: 'attached', timeout: 10000 });
+    await preview.waitForSelector('.prod-view', { timeout: 10000 });
     await preview.waitForTimeout(1100);
     assert(await preview.locator('#staffIdentityOverlay').count() === 0, 'direct ?prod=1 mirror alias remains available to signed-in staff without a sign-in prompt');
     await previewContext.close();

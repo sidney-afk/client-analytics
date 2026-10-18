@@ -1,6 +1,7 @@
 import { wlState } from './066-core-workload-state.js';
 import { calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
     /* Modern animated loader — a single rotating ring with a subtle label.
        The visible arc is drawn as a short stroke-dasharray segment so the
        spinning motion stays smooth across browsers. */

@@ -115,7 +115,8 @@ async function shot(t, name) { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursi
     const chg = t.state.upserts.slice(n0).find(u => u.graphic_status === 'Tweaks Needed');
     expect(!!chg && /Move the title to the top/.test(String(chg.graphic_tweaks || '')), 'client: Send saves the change request with its words on the thumbnail');
 
-    // the caption edit changes the caption itself and tells the team in a note; it never approves or asks for a change
+    // the caption edit changes the caption itself, tells the team in a note and is the client's answer for the caption
+    // step: it approves once and never asks for a change (owner, 2026-10-18)
     await sleep(900);
     await inS(t.page, '.stp[data-step="caption"]').click();
     await sleep(500);
@@ -123,14 +124,11 @@ async function shot(t, name) { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursi
     await inS(t.page, '#capTa').fill('A new caption written by the client.');
     n0 = t.state.upserts.length;
     await inS(t.page, '#capSave').click();
-    for (let i = 0; i < 80 && !t.state.upserts.slice(n0).some(u => /Changed the caption to/.test(String(u.caption_tweaks || ''))); i++) await sleep(100);
+    for (let i = 0; i < 80 && !t.state.upserts.slice(n0).some(u => u.caption_status === 'Approved'); i++) await sleep(100);
     const ups = t.state.upserts.slice(n0);
     expect(ups.some(u => u.id === 'rs1' && u.caption === 'A new caption written by the client.'), 'client: a caption edit saves the new caption on the card');
     expect(ups.some(u => /Changed the caption to/.test(String(u.caption_tweaks || ''))), 'client: and tells the team in a note on the caption');
-    expect(!ups.some(u => u.caption_status === 'Approved' || u.caption_status === 'Tweaks Needed'), 'client: the caption edit neither approves nor asks for a change');
-    await sleep(600);
-    await inS(t.page, '[data-ok="caption"]').click();
-    for (let i = 0; i < 60 && !t.state.upserts.slice(n0).some(u => u.caption_status === 'Approved'); i++) await sleep(100);
+    expect(ups.filter(u => u.caption_status === 'Approved').length === 1 && !ups.some(u => u.caption_status === 'Tweaks Needed'), 'client: the sent caption edit approves the caption once and asks for no change');
 
     // Finish opens the next post
     await sleep(900);

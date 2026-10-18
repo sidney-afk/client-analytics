@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { chromium, firefox, webkit } = require('playwright');
 const { serveStatic } = require('../docs/syncview-design/tests/prod-test-utils');
+const { stripBlockComments } = require('./helpers/strip-comments');
 const { CLIENT, STAFF, open, openClient, inS, waitNew, sleep } = require('./fixtures/review-stage-fixture');
 const engines = { chromium, firefox, webkit };
 const cachedStage = process.env.G3_CACHE_REF ? '(function(){\n' + require('node:child_process').execFileSync('git', ['show', process.env.G3_CACHE_REF + ':src/index/195-review-stage.js.part'], { cwd: path.join(__dirname, '..'), encoding: 'utf8' }).replace(/^import .*;\r?\n/gm, '') + '\n})();' : '';
@@ -385,7 +386,7 @@ async function auxiliary(browser, origin, role, width) {
 // Enumerate from the owning tables rather than keeping a second list that can drift.
 const refusalSource = fs.readFileSync(path.join(__dirname, '../src/index/120-calendar-flags-write-repair.js.part'), 'utf8');
 const refusalTables = refusalSource.slice(refusalSource.indexOf('const WRITE_UI_FAILURE_CODE_CLASS'), refusalSource.indexOf('function _writeUiFailureText'));
-const refusalTableCode = refusalTables.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+const refusalTableCode = stripBlockComments(refusalTables).replace(/\/\/[^\n]*/g, '');
 const refusalCodes = [...new Set([
   ...[...refusalTableCode.matchAll(/'([a-z][a-z0-9]+(?:_[a-z0-9]+)+)'/g)].map(m => m[1]),
   ...[...refusalTableCode.matchAll(/^\s+([a-z][a-z0-9]+(?:_[a-z0-9]+)+):\s*\{/gm)].map(m => m[1])

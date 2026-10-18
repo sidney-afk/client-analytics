@@ -1251,7 +1251,7 @@ import {
         // holding them, stop holding and start the download here: some routes
         // to a client page (client search, Back into a client entry) bypass
         // navTo(), which is where the hold is otherwise released.
-        if (_analyticsExtrasHold) { _analyticsReleaseExtras(); fetchExtras(null); }
+        if (_analyticsExtrasHold) { _analyticsReleaseExtras(true); fetchExtras(null); }
         const waits = [];
         if (_analyticsIdbExtRead) waits.push(_analyticsIdbExtRead.then(() => { if (!_analyticsExtrasApplied) throw new Error('no saved extras'); }));
         if (_fetchExtrasPromise) waits.push(_fetchExtrasPromise);
@@ -1709,18 +1709,33 @@ import {
        finish before the first card). The boot holds them until Kasper's first
        content paints, the visitor leaves Kasper, or a safety timeout -- the
        download still happens, just not in front of the queue. Anything that
-       needs the extras sooner calls fetchExtras() itself, which is unaffected. */
+       needs the extras sooner calls fetchExtras() itself, which is unaffected.
+
+       EVERY OTHER STAFF LANDING HOLDS THEM UNTIL ANALYTICS (speed sweep
+       2026-10-17). Only an Analytics client page shows the extras, yet every
+       staff page load (Today, Calendar, Samples, Workload...) downloaded them:
+       about 2.3 MB, and about 350 ms of main-thread freezes 3 to 5 s after the
+       page was ready, while staff were already typing. A landing on any other
+       fast tab now holds them with no timer (kind 'analytics'): they start when
+       the visitor opens Analytics (navTo('home')) or a client page asks for
+       them (_analyticsExtrasArrival), and never otherwise. */
     let _analyticsExtrasHold = null;
-    function _analyticsHoldExtras(ms){
+    function _analyticsHoldExtras(ms, kind){
         let release;
         const promise = new Promise(resolve => { release = resolve; });
-        const timer = setTimeout(() => _analyticsReleaseExtras(), ms);
-        _analyticsExtrasHold = { promise, release: () => { clearTimeout(timer); release(); } };
+        const timer = ms ? setTimeout(() => _analyticsReleaseExtras(true), ms) : 0;
+        _analyticsExtrasHold = { promise, kind: kind || 'kasper', release: () => { clearTimeout(timer); release(); } };
         return promise;
     }
-    function _analyticsReleaseExtras(){
+    // forPage: the page being opened (navTo), true to release whatever holds,
+    // or nothing (Kasper's first paint) to release only Kasper's own hold.
+    function _analyticsReleaseExtras(forPage){
         const hold = _analyticsExtrasHold;
         if (!hold) return;
+        if (forPage !== true) {
+            if (hold.kind === 'analytics' && forPage !== 'home') return;
+            if (hold.kind === 'kasper' && forPage === 'kasper') return;
+        }
         _analyticsExtrasHold = null;
         hold.release();
     }

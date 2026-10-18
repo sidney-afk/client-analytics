@@ -2150,7 +2150,10 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             // More / multi-select / zoom toolbar recovery hostage.
             // A Kasper landing holds the analytics extras until its first
             // content paints (see _analyticsHoldExtras).
+            // Every other staff fast-tab landing holds them until Analytics is
+            // opened, with no timer (speed sweep 2026-10-17).
             if (skipAwait && !_isClientLink && (_kasperHashLanding || (_kasperArrivedFromUnlockParam && _kasperUnlocked && !hashRaw))) _analyticsHoldExtras(8000);
+            else if (skipAwait && !_isClientLink) _analyticsHoldExtras(0, 'analytics');
             const dataLoad = fetchAll(_isClientLink?clientEntryRun:null);
             const dataPromise = dataLoad.complete;
             dataLoad.essentials.then(() => {
@@ -2222,7 +2225,8 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                     if (st.templatesTab === 'reels' || st.templatesTab === 'thumbnails') _templatesSetActiveTab(st.templatesTab);
                     navTo('templates', false);
                     const _tplEpoch = _syncviewNavEpoch;
-                    dataPromise.then(() => {
+                    // The client list is all this needs (the extras are held).
+                    dataLoad.essentials.then(() => {
                         // Only re-route Templates if nobody has left it since.
                         if (_syncviewNavEpoch !== _tplEpoch) return;
                         if (wlIsAllowedClient(_templatesSelected)) {
@@ -2232,7 +2236,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                             // Deep-link no longer resolves to a real client → index.
                             _templatesSetSelected(null); navTo('templates', false);
                         }
-                    });
+                    }, () => {});
                 } else if (hashRoute === 'smm-weekly-report' || hashRoute === 'smm-weekly-reports') {
                     navTo(hashRoute, false);
                 } else if (hashRaw === 'kasper' || hashRaw.startsWith('kasper/')) {

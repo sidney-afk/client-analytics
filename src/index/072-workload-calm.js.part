@@ -4,7 +4,7 @@ import { _wlDueWriteInFlight, _wlPlanWriteInFlight, wlLinearEditingEnabled, wlPl
 import {
   wlDeadlineTagHtml, wlIsTweaksNeeded, wlIssueDragHandleHtml, wlPlanOriginHtml, wlWorkloadBadgeHtml
 } from './069-workload-planning-helpers.js';
-import { wlAutoPlacementTip, wlDisplayDate, wlPlacementMode, wlPlanDate, wlTeamBucket } from './071-workload-planner.js';
+import { wlDisplayDate, wlPlacementMode, wlPlanDate, wlTeamBucket } from './071-workload-planner.js';
 import { renderWorkloadAll, wlEscape, wlLooseParentInfo, wlSortSubIssues, wlSyncLinearUrl } from './080-workload-render.js';
 import { _jsAttrArg } from './131-core-html.js';
 import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';

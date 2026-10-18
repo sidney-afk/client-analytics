@@ -504,6 +504,20 @@ async function main() {
   });
   assert.equal(resetThenRetry.ok, true, 'a reset the app retried on the same address is not an app error');
   assert.equal(resetThenRetry.recoveredReadAttempts, 1);
+  /* The boot flags read and the roster Sheets read retry once, about a second later, on the same address: that is
+     inside the window, for a reset and for a 5xx alike. */
+  for (const [label, firstFailure] of [['reset', 'net::ERR_CONNECTION_RESET'], ['5xx', '']]) {
+    const retriedAfterOneSecond = await auditCase(page => {
+      const first = request(readUrl, { failure: firstFailure });
+      page.emit('request', first);
+      if (firstFailure) { page.emit('requestfailed', first); page.emit('console', resetLine(readUrl)); } else respond(page, first, 503, true);
+      const retry = request(readUrl);
+      page.schedule(2000, () => page.emit('request', retry));
+      page.schedule(2100, () => respond(page, retry, 200));
+    });
+    assert.equal(retriedAfterOneSecond.ok, true, 'a ' + label + ' retried once about a second later is recovered');
+    assert.equal(retriedAfterOneSecond.recoveredReadAttempts, 1);
+  }
   const resetNeverRetried = await auditCase(page => {
     const first = request(readUrl, { failure: 'net::ERR_CONNECTION_RESET' });
     page.emit('request', first); page.emit('requestfailed', first); page.emit('console', resetLine(readUrl));

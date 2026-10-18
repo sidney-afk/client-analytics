@@ -1,16 +1,20 @@
 'use strict';
 /*
- * THE PUBLIC "START HERE" PAGE (/start), in a real browser, fully offline. Session Foyer, 2026-10-18.
+ * THE PUBLIC "START HERE" PAGE (/start), in a real browser, fully offline. Session Foyer, 2026-10-18;
+ * round 2 (Sidney's feedback) by session Foyer 2, 2026-10-18.
  *
  * Serves the repository the way GitHub Pages does (scripts/pages-site.js) and proves, on desktop and phone:
  *   - /start and /start/ load with no console errors and no failed requests;
- *   - the page asks nothing of the app or any backend: every request is to this origin, except the two tutorial
- *     MP4s, which are answered here with the frame viewer's generated clip (no network);
- *   - both players carry the right MP4 address, never autoplay, play and pause from the big button and the bar,
- *     and starting one pauses the other;
- *   - "I am a videographer" (and #videographer) hides the client-only review video; "I am a client" shows it;
+ *   - the page asks nothing of the app or any backend: every request is to this origin, except the review
+ *     tutorial MP4, which is answered here with the frame viewer's generated clip (no network);
+ *   - the first screen is the switch ("Review content" / "Upload content") and the review player;
+ *   - the player carries the right MP4 address, never autoplays, plays and pauses from the big button and the bar;
+ *   - the old upload tutorial (it showed a real client's form and a retired step) is gone from the page;
+ *   - "Upload content" (and #upload, and the old #videographer link) shows the folder rules, the drawn tree and
+ *     where to upload, with no player;
+ *   - the page is static: nothing is sticky or fixed, nothing is scroll-driven, and scrolling changes no styles;
  *   - start/ is on the publish allow-list.
- * START_PAGE_SHOTS=<dir> also writes full-page screenshots (desktop 1440 and phone 390) for the PR.
+ * START_PAGE_SHOTS=<dir> also writes full-page and first-screen screenshots (desktop 1440 and phone 390) for the PR.
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -18,7 +22,8 @@ const { chromium } = require('playwright');
 const site = require('../scripts/pages-site.js');
 
 const REVIEW_MP4 = 'https://embed-ssl.wistia.com/deliveries/8063b5cf9b2c2243a3413066c91feddb140a3352/file.mp4';
-const UPLOAD_MP4 = 'https://embed-ssl.wistia.com/deliveries/13b2f624ce35a73fffc264846cd340b9ced25479/file.mp4';
+const UPLOAD_MP4_ID = '13b2f624ce35a73fffc264846cd340b9ced25479'; // the OLD upload tutorial: must never come back
+const innerWidthGuess = w => w - 32;
 const CLIP = fs.readFileSync(path.join(__dirname, 'fixtures/frameio-viewer-clip.webm'));
 const SHOTS = process.env.START_PAGE_SHOTS || '';
 const failures = [];
@@ -46,7 +51,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       await page.route('**/*', route => {
         const u = route.request().url();
         if (u.startsWith(origin)) return route.continue();
-        if (u === REVIEW_MP4 || u === UPLOAD_MP4) return route.fulfill({ status: 200, contentType: 'video/webm', body: CLIP });
+        if (u === REVIEW_MP4) return route.fulfill({ status: 200, contentType: 'video/webm', body: CLIP });
         foreign.push(u);
         return route.abort();
       });
@@ -55,90 +60,100 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
         const res = await page.goto(origin + addr, { waitUntil: 'load' });
         expect(res && res.status() === 200, addr + ' answers 200');
       }
-      await sleep(400);
-      expect(await page.locator('h1').innerText().then(t => /every post/i.test(t)), 'the headline draws');
+      await sleep(300);
+      const html = await page.content();
+      expect(!html.includes(UPLOAD_MP4_ID), 'the old upload tutorial is not on the page');
+      expect(!/Linear/i.test(html), 'nothing on the page mentions Linear');
+      expect(!/email/i.test(html), 'nothing on the page mentions email');
+
+      const tabs = await page.$$eval('.switch [role="tab"]', ts => ts.map(t => t.textContent.trim()));
+      expect(tabs.join('|') === 'Review content|Upload content', 'the switch reads "Review content" and "Upload content" (' + tabs.join(', ') + ')');
+      expect(!/I am a (client|videographer)/i.test(html), 'the old "I am a client / videographer" labels are gone');
+
+      // The first screen: the switch and the review player, whole, without scrolling.
+      const first = await page.evaluate(() => {
+        const inView = el => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && r.height > 0; };
+        return { sw: inView(document.querySelector('.switch')), player: inView(document.querySelector('[data-player]')), y: scrollY };
+      });
+      expect(first.y === 0 && first.sw && first.player, 'the first screen shows the switch and the whole review player');
 
       const srcs = await page.$$eval('video', vs => vs.map(v => ({ src: v.getAttribute('src'), autoplay: v.autoplay, controls: v.controls, paused: v.paused, preload: v.preload })));
-      expect(srcs.length === 2, 'two players on the client view');
-      expect(srcs[0] && srcs[0].src === REVIEW_MP4, 'the first player plays the review tutorial MP4');
-      expect(srcs[1] && srcs[1].src === UPLOAD_MP4, 'the second player plays the upload tutorial MP4');
-      expect(srcs.every(v => !v.autoplay && v.paused && !v.controls && v.preload === 'none'), 'neither video autoplays, loads early or shows the browser controls');
-      for (const p of await page.$$('[data-player]')) {
-        const parts = await p.$$eval('.big-play, .time, .speed, .back, .pp, .fwd, .vol, .full, .scrub', els => els.map(e => e.className));
-        expect(parts.length === 9, 'a player has the big play button, time, speed, back 5 s, play/pause, forward 5 s, volume, full screen and the seek line');
-      }
+      expect(srcs.length === 1, 'one player on the page (the review tutorial)');
+      expect(srcs[0] && srcs[0].src === REVIEW_MP4, 'the player plays the review tutorial MP4');
+      expect(srcs.every(v => !v.autoplay && v.paused && !v.controls && v.preload === 'none'), 'the video does not autoplay, load early or show the browser controls');
+      const parts = await page.$$eval('[data-player] .big-play, [data-player] .time, [data-player] .speed, [data-player] .back, [data-player] .pp, [data-player] .fwd, [data-player] .vol, [data-player] .full, [data-player] .scrub', els => els.length);
+      expect(parts === 9, 'the player has the big play button, time, speed, back 5 s, play/pause, forward 5 s, volume, full screen and the seek line');
 
-      const players = page.locator('[data-player]');
-      await players.nth(0).scrollIntoViewIfNeeded();
-      await players.nth(0).locator('.big-play').click();
-      await page.waitForFunction(() => { const v = document.querySelectorAll('video')[0]; return !v.paused && v.currentTime > 0; }, null, { timeout: 8000 }).catch(() => {});
+      const player = page.locator('[data-player]').first();
+      await player.locator('.big-play').click();
+      await page.waitForFunction(() => { const v = document.querySelector('video'); return !v.paused && v.currentTime > 0; }, null, { timeout: 8000 }).catch(() => {});
       expect(await page.$eval('video', v => !v.paused && v.currentTime > 0), 'the big play button plays the review video');
-      expect(await players.nth(0).getAttribute('class').then(c => /playing/.test(c)), 'the player shows it is playing');
-      await players.nth(0).hover();
-      await players.nth(0).locator('.pp').click();
+      expect(await player.getAttribute('class').then(c => /playing/.test(c)), 'the player shows it is playing');
+      await player.hover();
+      await player.locator('.pp').click();
       expect(await page.$eval('video', v => v.paused), 'the bar\'s play/pause pauses it');
-      await players.nth(0).locator('.speed').click();
-      expect(await page.$eval('video', v => v.playbackRate === 1.5) && (await players.nth(0).locator('.speed').innerText()) === '1.5x', 'speed steps from 1x to 1.5x');
-      await players.nth(0).locator('.pp').click();
-      await sleep(200);
-      await players.nth(1).scrollIntoViewIfNeeded();
-      await players.nth(1).locator('.big-play').click();
-      await page.waitForFunction(() => !document.querySelectorAll('video')[1].paused, null, { timeout: 8000 }).catch(() => {});
-      const both = await page.$$eval('video', vs => vs.map(v => v.paused));
-      expect(both[1] === false, 'the upload video plays');
-      expect(both[0] === true, 'starting one video pauses the other');
-      await players.nth(1).locator('.pp').click();
+      await player.locator('.speed').click();
+      expect(await page.$eval('video', v => v.playbackRate === 1.5) && (await player.locator('.speed').innerText()) === '1.5x', 'speed steps from 1x to 1.5x');
+      await player.locator('.pp').click();
+      await sleep(150);
 
-      await page.locator('[data-path="videographer"][role="tab"]').click();
-      expect(!(await page.locator('video').nth(0).isVisible()), 'videographer view hides the review tutorial');
-      expect(await page.locator('video').nth(1).isVisible(), 'videographer view keeps the upload tutorial');
-      expect(await page.locator('.only-videographer').first().isVisible(), 'videographer view shows the videographer wording');
-      await page.locator('[data-path="client"][role="tab"]').click();
-      expect(await page.locator('video').nth(0).isVisible(), 'client view shows the review tutorial again');
-      await page.goto(origin + '/start/#videographer', { waitUntil: 'load' });
-      expect(await page.locator('#path-panel').getAttribute('data-path') === 'videographer', '#videographer opens the videographer view');
-
+      await page.locator('#tab-upload').click();
+      expect(await page.$eval('video', v => v.paused), 'switching to Upload content pauses the review video');
+      expect(!(await page.locator('[data-player]').first().isVisible()), 'Upload content hides the review player');
+      expect(await page.locator('#panel-upload [data-player], #panel-upload video, #panel-upload iframe').count() === 0, 'Upload content has no player (the new upload video is not made yet)');
+      expect(await page.locator('.tree').isVisible() && await page.locator('.rules li').count() === 5, 'Upload content shows the five folder rules and the drawn folder tree');
+      expect(await page.locator('.only-upload').isVisible() && /Google Drive/.test(await page.locator('.only-upload').innerText()), 'Upload content says where to upload');
+      expect(await page.locator('.only-upload a.cta').getAttribute('href') === '/?intake=1' && await page.locator('.only-upload a.cta').isVisible(), 'Upload content links to the upload form');
+      // The quiet "I'm a client or videographer" chooser picks the side too.
+      await page.click('.who [data-who="review"]');
+      expect(await page.locator('#tab-review').getAttribute('aria-selected') === 'true' && await page.locator('.who [data-who="review"]').getAttribute('aria-pressed') === 'true', "I'm a client opens Review content");
+      await page.click('.who [data-who="upload"]');
+      expect(await page.locator('#tab-upload').getAttribute('aria-selected') === 'true' && await page.locator('.who [data-who="upload"]').getAttribute('aria-pressed') === 'true', "I'm a videographer opens Upload content");
+      expect(await page.evaluate(() => location.hash) === '#upload', 'the address becomes #upload');
       await page.locator('.rules li').nth(3).hover();
       expect(await page.locator('.tree li.t-skip.on').count() === 1, 'pointing at "skip that folder" lights the skipped folder');
+      await page.locator('#tab-review').click();
+      expect(await page.locator('[data-player]').first().isVisible(), 'Review content shows the player again');
+      for (const [h, want] of [['#upload', 'upload'], ['#videographer', 'upload'], ['#client', 'review']]) {
+        await page.goto(origin + '/start/' + h, { waitUntil: 'load' });
+        expect(await page.locator('.hero').getAttribute('data-path') === want, h + ' opens ' + want);
+      }
+
+      // Static: nothing pinned to the screen or driven by scroll.
+      await page.goto(origin + '/start/', { waitUntil: 'load' });
+      const pinned = await page.evaluate(() => Array.from(document.querySelectorAll('body *')).filter(el => /sticky|fixed/.test(getComputedStyle(el).position)).map(el => el.className || el.tagName));
+      expect(pinned.length === 0, 'nothing is sticky or fixed' + (pinned.length ? ': ' + pinned.join(', ') : ''));
+      expect(await page.locator('.lens, .tour-stage, .tour-shots, .step').count() === 0, 'the eye lens and the scroll tour are gone');
+      const snap = () => page.evaluate(() => Array.from(document.querySelectorAll('main *')).map(el => { const c = getComputedStyle(el); return el.getAttribute('style') + c.opacity + c.transform + c.clipPath; }).join('|'));
+      await sleep(500); // let the one-off panel fade finish
+      const before = await snap();
+      for (let y = 0; y <= 4000; y += 500) { await page.evaluate(v => window.scrollTo(0, v), y); await sleep(40); }
+      await sleep(300);
+      expect(await snap() === before, 'scrolling the whole page changes no style (no scroll-driven animation)');
+      const pics = await page.$$eval('.pic img', ims => ims.map(i => Math.round(i.getBoundingClientRect().width)));
+      expect(pics.length === 4 && pics.every(w => w >= Math.min(300, innerWidthGuess(view.width))), 'the four pictures are large (' + pics.join(', ') + ' px wide)');
 
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow <= 0, 'no sideways scroll (' + overflow + ' px)');
       expect(errors.length === 0, 'no console errors' + (errors.length ? ': ' + errors.join(' | ') : ''));
       expect(failed.length === 0, 'no failed requests' + (failed.length ? ': ' + failed.join(' | ') : ''));
-      expect(foreign.length === 0, 'no request leaves the site except the two tutorial MP4s' + (foreign.length ? ': ' + foreign.join(' | ') : ''));
+      expect(foreign.length === 0, 'no request leaves the site except the review tutorial MP4' + (foreign.length ? ': ' + foreign.join(' | ') : ''));
 
       if (SHOTS) {
         fs.mkdirSync(SHOTS, { recursive: true });
         const sp = await ctx.newPage();
-        await sp.emulateMedia({ reducedMotion: 'reduce' });
         await sp.route('**/*', r => r.request().url().startsWith(origin) ? r.continue() : r.abort());
         await sp.goto(origin + '/start/', { waitUntil: 'load' });
         await sp.evaluate(async () => { for (let y = 0; y < document.body.scrollHeight; y += 400) { window.scrollTo(0, y); await new Promise(r => setTimeout(r, 30)); } window.scrollTo(0, 0); });
-        await sleep(600);
+        await sleep(500);
+        await sp.screenshot({ path: path.join(SHOTS, 'start-' + view.name + '-first-screen.png') });
         await sp.screenshot({ path: path.join(SHOTS, 'start-' + view.name + '.png'), fullPage: true });
-        // The motion, as a visitor sees it: the lens half open, then open, then the tour.
-        const mp = await ctx.newPage();
-        await mp.route('**/*', r => r.request().url().startsWith(origin) ? r.continue() : r.abort());
-        await mp.goto(origin + '/start/', { waitUntil: 'load' });
-        await sleep(1200);
-        await mp.screenshot({ path: path.join(SHOTS, 'start-' + view.name + '-1-hero.png') });
-        const lensTop = await mp.$eval('.lens', el => el.getBoundingClientRect().top + window.scrollY);
-        for (const [i, f] of [[2, -0.35], [3, 0.45]]) { await mp.evaluate(y => window.scrollTo(0, y), lensTop + f * view.height); await sleep(700); await mp.screenshot({ path: path.join(SHOTS, 'start-' + view.name + '-' + i + '-lens.png') }); }
-        const steps = await mp.$$eval('.step', els => els.map(e => { const r = e.getBoundingClientRect(); return r.top + window.scrollY + r.height / 2; }));
-        await mp.evaluate(y => window.scrollTo(0, y - window.innerHeight / 2), steps[1]); await sleep(900);
-        await mp.screenshot({ path: path.join(SHOTS, 'start-' + view.name + '-4-tour.png') });
+        await sp.locator('#tab-upload').click(); await sleep(400);
+        await sp.screenshot({ path: path.join(SHOTS, 'start-' + view.name + '-upload.png') });
       }
       await ctx.close();
     }
 
-    // Reduced motion: the lens is open and nothing waits on a scroll.
-    const rm = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
-    const rp = await rm.newPage();
-    await rp.route('**/*', r => r.request().url().startsWith(origin) ? r.continue() : r.abort());
-    await rp.goto(origin + '/start/', { waitUntil: 'load' });
-    const clip = await rp.$eval('.lens-frame', el => getComputedStyle(el).clipPath);
-    expect(clip === 'none', 'with reduced motion the screenshot shows whole, no lens');
-    await rm.close();
   } finally {
     await browser.close();
     server.close();

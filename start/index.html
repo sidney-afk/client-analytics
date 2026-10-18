@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>SyncView, start here</title>
-<meta name="description" content="SyncView is one private page where you see every post Synchro Social makes for you before it goes out. Watch it, approve it or ask for a change, and talk to your team.">
+<meta name="description" content="Start here with SyncView: how to review your content and how to upload footage for Synchro Social.">
 <meta name="theme-color" content="#F3F3F0">
 <meta name="robots" content="noindex">
 <link rel="icon" type="image/png" href="/start/assets/syncview-eye.png">
@@ -13,142 +13,111 @@
 <script src="/start/start.js" defer></script>
 </head>
 <body>
-<a class="skip" href="#paths">Skip to the videos</a>
+<a class="skip" href="#start">Skip to the videos</a>
 
 <header class="top">
   <a class="brand" href="/start/" aria-label="SyncView, start here">
     <img src="/start/assets/syncview-eye.png" width="32" height="32" alt="">
     <span>SyncView</span>
   </a>
-  <nav class="top-nav" aria-label="Jump to">
-    <a href="#client">For clients</a>
-    <a href="#videographer">For videographers</a>
-  </nav>
+  <div class="who" role="group" aria-label="I am a">
+    <span>I'm a</span>
+    <button type="button" data-who="review" aria-pressed="true">client</button>
+    <span aria-hidden="true">or</span>
+    <button type="button" data-who="upload" aria-pressed="false">videographer</button>
+  </div>
+  <a class="top-link" href="#what">What SyncView does</a>
 </header>
 
 <main>
-  <section class="hero" aria-labelledby="hero-h">
+  <section class="hero" id="start" aria-labelledby="hero-h" data-path="review">
     <div class="haze" aria-hidden="true"><i></i><i></i><i></i></div>
     <div class="hero-in">
-      <h1 id="hero-h" class="reveal-line"><span>See every post</span> <span>before it goes out.</span></h1>
-      <p class="lede">SyncView is one private page where you watch each post Synchro Social makes for you, approve it or ask for a change, and talk to your team.</p>
-      <p class="note"><span class="dot" aria-hidden="true"></span>You open it from a private link. Nothing to install, no password.</p>
-    </div>
-  </section>
-
-  <section class="lens" aria-label="The review page">
-    <div class="lens-pin">
-      <figure class="lens-frame">
-        <picture>
-          <source media="(max-width: 700px)" srcset="/start/assets/phone.webp" width="600" height="1298">
-          <img src="/start/assets/review-page.webp" width="2000" height="1125" alt="The SyncView review page: a post's video in the middle, its steps above it (video, thumbnail, caption), and a conversation with the team on the right." fetchpriority="high">
-        </picture>
-      </figure>
-      <p class="lens-cap">This is the page. One post at a time, with everything about it in one place.</p>
-    </div>
-  </section>
-
-  <section class="tour" aria-labelledby="tour-h">
-    <h2 id="tour-h" class="sr">What you can do</h2>
-    <div class="tour-stage" aria-hidden="true">
-      <div class="tour-shots">
-        <img class="shot on" data-shot="watch" src="/start/assets/tour-watch.webp" width="900" height="1163" alt="" loading="lazy">
-        <img class="shot" data-shot="change" src="/start/assets/tour-change.webp" width="900" height="1163" alt="" loading="lazy">
-        <img class="shot" data-shot="talk" src="/start/assets/tour-talk.webp" width="560" height="1403" alt="" loading="lazy">
-        <img class="shot wide" data-shot="month" src="/start/assets/tour-month.webp" width="1400" height="737" alt="" loading="lazy">
-      </div>
-    </div>
-    <ol class="tour-steps">
-      <li class="step" data-shot="watch">
-        <h3>Watch it.</h3>
-        <p>Each video plays right on the page. Slow it down, skip back, go full screen.</p>
-        <img class="step-img" src="/start/assets/tour-watch.webp" width="900" height="1163" alt="A post's video ready to play, with Approve the video and Ask for a change under it." loading="lazy">
-      </li>
-      <li class="step" data-shot="change">
-        <h3>Approve it, or ask for a change.</h3>
-        <p>One click to approve. Or write what you would like different, and your team edits it.</p>
-        <img class="step-img" src="/start/assets/tour-change.webp" width="900" height="1163" alt="A thumbnail with a change request typed under it: could the title be a little bigger?" loading="lazy">
-      </li>
-      <li class="step" data-shot="talk">
-        <h3>Talk to your team.</h3>
-        <p>Messages sit beside the post they are about, so nothing gets lost in email.</p>
-        <img class="step-img" src="/start/assets/tour-talk.webp" width="560" height="1403" alt="The conversation panel with a message sent to the team: love this one, thank you!" loading="lazy">
-      </li>
-      <li class="step" data-shot="month">
-        <h3>See what is coming.</h3>
-        <p>Every post with its date and where it stands: waiting for you, changes asked, approved.</p>
-        <img class="step-img" src="/start/assets/tour-month.webp" width="1400" height="737" alt="Four upcoming posts side by side, each with its date, caption and status." loading="lazy">
-      </li>
-    </ol>
-  </section>
-
-  <section class="paths" id="paths" aria-labelledby="paths-h">
-    <span class="anchor" id="client"></span><span class="anchor" id="videographer"></span>
-    <div class="paths-head">
-      <h2 id="paths-h">Start here</h2>
-      <div class="switch" role="tablist" aria-label="Who are you?">
-        <button role="tab" id="tab-client" aria-controls="path-panel" aria-selected="true" data-path="client">I am a client</button>
-        <button role="tab" id="tab-videographer" aria-controls="path-panel" aria-selected="false" data-path="videographer" tabindex="-1">I am a videographer</button>
-      </div>
-    </div>
-
-    <div id="path-panel" class="path-panel" role="tabpanel" aria-labelledby="tab-client" data-path="client">
-      <article class="chapter only-client">
-        <div class="chapter-text">
-          <h3>Reviewing your posts</h3>
-          <p>A short walk through the review page: watching, approving, asking for a change and messaging your team.</p>
+      <div class="hero-text">
+        <h1 id="hero-h">Start here</h1>
+        <div class="switch" role="tablist" aria-label="What do you want to do?">
+          <button role="tab" id="tab-review" aria-controls="panel-review" aria-selected="true" data-path="review">Review content</button>
+          <button role="tab" id="tab-upload" aria-controls="panel-upload" aria-selected="false" data-path="upload" tabindex="-1">Upload content</button>
+        </div>
+        <div class="hero-copy only-review">
+          <p>See every post Synchro Social makes for you before it goes out. This video shows how: watch it, approve it or ask for a change, and message your team.</p>
           <p class="len">1 min 19 s</p>
         </div>
-        <div class="player" data-player data-duration="79" tabindex="0" role="group" aria-label="Video player: reviewing your posts">
-          <video controls src="https://embed-ssl.wistia.com/deliveries/8063b5cf9b2c2243a3413066c91feddb140a3352/file.mp4" poster="/start/assets/poster-review.webp" preload="none" playsinline aria-label="Video: reviewing your posts in SyncView"></video>
+        <div class="hero-copy only-upload">
+          <p>Put the footage in Google Drive, sorted like this so the editors find everything straight away. Then send us the links with the upload form.</p>
+          <a class="cta" href="/?intake=1">Open the upload form <span aria-hidden="true">&rarr;</span></a>
         </div>
-      </article>
+      </div>
 
-      <article class="chapter">
-        <div class="chapter-text">
-          <h3 class="only-client">Sending us your footage</h3>
-          <h3 class="only-videographer">Uploading your footage</h3>
-          <p class="only-client">How to sort your clips in Google Drive and send them to us.</p>
-          <p class="only-videographer">Upload the footage to the folder link your Synchro Social contact sent you. This video shows how to sort it so the editors find everything straight away.</p>
-          <p class="len">1 min 18 s</p>
+      <div class="stage">
+        <div id="panel-review" class="panel" role="tabpanel" aria-labelledby="tab-review">
+          <div class="player" data-player data-duration="79" tabindex="0" role="group" aria-label="Video player: reviewing your content">
+            <video controls src="https://embed-ssl.wistia.com/deliveries/8063b5cf9b2c2243a3413066c91feddb140a3352/file.mp4" poster="/start/assets/poster-review.webp" preload="none" playsinline aria-label="Video: reviewing your content in SyncView"></video>
+          </div>
         </div>
-        <div class="player" data-player data-duration="78" tabindex="0" role="group" aria-label="Video player: sending us your footage">
-          <video controls src="https://embed-ssl.wistia.com/deliveries/13b2f624ce35a73fffc264846cd340b9ced25479/file.mp4" poster="/start/assets/poster-upload.webp" preload="none" playsinline aria-label="Video: sending us your footage"></video>
+
+        <div id="panel-upload" class="panel" role="tabpanel" aria-labelledby="tab-upload">
+          <!--
+            The upload video goes here when it is ready. Copy the review player above, change the MP4 address,
+            data-duration (in seconds), the aria labels and the poster, and give the panel the class "has-video".
+          -->
+          <div class="folders">
+            <ol class="rules" aria-label="How to sort the footage">
+              <li tabindex="0" data-hl="script"><b>One folder per script.</b></li>
+              <li tabindex="0" data-hl="inner"><b>Three folders inside it:</b> Main Camera, Side Camera, Audio.</li>
+              <li tabindex="0" data-hl="clip"><b>One clip per folder.</b></li>
+              <li tabindex="0" data-hl="skip"><b>No side camera or audio?</b> Skip that folder.</li>
+              <li tabindex="0" data-hl="name"><b>Keep the folder names exactly like this.</b></li>
+            </ol>
+            <figure class="tree" aria-label="Example: Script 1 holds Main Camera, Side Camera and Audio, one clip in each. Script 2 holds Main Camera and Audio; it has no side camera, so that folder is skipped.">
+              <div class="tree-bar" aria-hidden="true"><i></i><i></i><i></i><span>Your shared folder</span></div>
+              <ul class="tree-list" aria-hidden="true">
+                <li class="t-dir lv0" data-k="script"><svg viewBox="0 0 20 16"><path d="M1.5 3.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span class="nm">Script 1</span></li>
+                <li class="t-dir lv1" data-k="inner"><svg viewBox="0 0 20 16"><path d="M1.5 3.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span class="nm">Main Camera</span></li>
+                <li class="t-file lv2" data-k="clip"><svg viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="M6.5 6v4l3.5-2z"/></svg><span>clip.mp4</span></li>
+                <li class="t-dir lv1" data-k="inner"><svg viewBox="0 0 20 16"><path d="M1.5 3.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span class="nm">Side Camera</span></li>
+                <li class="t-file lv2" data-k="clip"><svg viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="M6.5 6v4l3.5-2z"/></svg><span>clip.mp4</span></li>
+                <li class="t-dir lv1" data-k="inner"><svg viewBox="0 0 20 16"><path d="M1.5 3.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span class="nm">Audio</span></li>
+                <li class="t-file lv2" data-k="clip"><svg viewBox="0 0 16 16"><path d="M3 6v4M6 4v8M9 2.5v11M12 5v6"/></svg><span>audio.wav</span></li>
+                <li class="t-dir lv0" data-k="script"><svg viewBox="0 0 20 16"><path d="M1.5 3.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span class="nm">Script 2</span></li>
+                <li class="t-dir lv1" data-k="inner"><svg viewBox="0 0 20 16"><path d="M1.5 3.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span class="nm">Main Camera</span></li>
+                <li class="t-file lv2" data-k="clip"><svg viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="M6.5 6v4l3.5-2z"/></svg><span>clip.mp4</span></li>
+                <li class="t-skip lv1" data-k="skip"><svg viewBox="0 0 20 16"><path d="M1.5 3.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span>Side Camera</span><em>none filmed, skipped</em></li>
+                <li class="t-dir lv1" data-k="inner"><svg viewBox="0 0 20 16"><path d="M1.5 3.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span class="nm">Audio</span></li>
+                <li class="t-file lv2" data-k="clip"><svg viewBox="0 0 16 16"><path d="M3 6v4M6 4v8M9 2.5v11M12 5v6"/></svg><span>audio.wav</span></li>
+              </ul>
+            </figure>
+          </div>
         </div>
-      </article>
+      </div>
     </div>
   </section>
 
-  <section class="folders" aria-labelledby="folders-h">
-    <div class="folders-text">
-      <h2 id="folders-h">How to sort the footage</h2>
-      <p class="sub">Five rules. Point at one to see it in the folders.</p>
-      <ol class="rules">
-        <li tabindex="0" data-hl="script"><b>One folder per script.</b></li>
-        <li tabindex="0" data-hl="inner"><b>Three folders inside it:</b> Main Camera, Side Camera, Audio.</li>
-        <li tabindex="0" data-hl="clip"><b>One clip per folder.</b></li>
-        <li tabindex="0" data-hl="skip"><b>No side camera or audio?</b> Skip that folder.</li>
-        <li tabindex="0" data-hl="name"><b>Keep the folder names exactly like this.</b></li>
-      </ol>
+  <section class="what" id="what" aria-labelledby="what-h">
+    <h2 id="what-h">What you can do in SyncView</h2>
+    <p class="what-sub">One private page, opened from a link. Nothing to install, no password.</p>
+    <div class="gallery">
+      <div class="row">
+        <figure class="pic" style="--r:.717">
+          <img src="/start/assets/pic-watch.webp" width="536" height="748" alt="A post's video with its play bar, and Approve the video and Ask for a change under it." loading="lazy">
+          <figcaption><b>Watch it.</b> Each video plays right on the page. Slow it down, skip back, go full screen.</figcaption>
+        </figure>
+        <figure class="pic" style="--r:1.27">
+          <img src="/start/assets/pic-change.webp" width="705" height="555" alt="A thumbnail with a change request typed under it: could the title be a little bigger?" loading="lazy">
+          <figcaption><b>Approve it, or ask for a change.</b> One click to approve. Or write what you would like different, and your team edits it.</figcaption>
+        </figure>
+      </div>
+      <div class="row">
+        <figure class="pic" style="--r:1.376">
+          <img src="/start/assets/pic-talk.webp" width="560" height="407" alt="The conversation with your team, with a message sent: love this one, thank you!" loading="lazy">
+          <figcaption><b>Talk to your team.</b> Messages sit beside the post they are about, so nothing gets lost.</figcaption>
+        </figure>
+        <figure class="pic" style="--r:1.966">
+          <img src="/start/assets/pic-month.webp" width="1160" height="590" alt="Four upcoming posts side by side, each with its date, caption and status." loading="lazy">
+          <figcaption><b>See what is coming.</b> Every post with its date and where it stands: waiting for you, changes asked, approved.</figcaption>
+        </figure>
+      </div>
     </div>
-    <figure class="tree" aria-label="Example: Script 1 holds Main Camera, Side Camera and Audio, one clip in each. Script 2 holds Main Camera and Audio; it has no side camera, so that folder is skipped.">
-      <div class="tree-bar" aria-hidden="true"><i></i><i></i><i></i><span>Your shared folder</span></div>
-      <ul class="tree-list" aria-hidden="true">
-        <li class="t-dir lv0" data-k="script"><svg viewBox="0 0 20 16"><path d="M1.5 3.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span class="nm" data-k2="name">Script 1</span></li>
-        <li class="t-dir lv1" data-k="inner"><svg viewBox="0 0 20 16"><path d="M1.5 3.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span class="nm" data-k2="name">Main Camera</span></li>
-        <li class="t-file lv2" data-k="clip"><svg viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="M6.5 6v4l3.5-2z"/></svg><span>clip.mp4</span></li>
-        <li class="t-dir lv1" data-k="inner"><svg viewBox="0 0 20 16"><path d="M1.5 3.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span class="nm" data-k2="name">Side Camera</span></li>
-        <li class="t-file lv2" data-k="clip"><svg viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="M6.5 6v4l3.5-2z"/></svg><span>clip.mp4</span></li>
-        <li class="t-dir lv1" data-k="inner"><svg viewBox="0 0 20 16"><path d="M1.5 3.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span class="nm" data-k2="name">Audio</span></li>
-        <li class="t-file lv2" data-k="clip"><svg viewBox="0 0 16 16"><path d="M3 6v4M6 4v8M9 2.5v11M12 5v6"/></svg><span>audio.wav</span></li>
-        <li class="t-dir lv0" data-k="script"><svg viewBox="0 0 20 16"><path d="M1.5 3.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span class="nm" data-k2="name">Script 2</span></li>
-        <li class="t-dir lv1" data-k="inner"><svg viewBox="0 0 20 16"><path d="M1.5 3.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span class="nm" data-k2="name">Main Camera</span></li>
-        <li class="t-file lv2" data-k="clip"><svg viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="M6.5 6v4l3.5-2z"/></svg><span>clip.mp4</span></li>
-        <li class="t-skip lv1" data-k="skip"><svg viewBox="0 0 20 16"><path d="M1.5 3.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span>Side Camera</span><em>none filmed, skipped</em></li>
-        <li class="t-dir lv1" data-k="inner"><svg viewBox="0 0 20 16"><path d="M1.5 3.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span class="nm" data-k2="name">Audio</span></li>
-        <li class="t-file lv2" data-k="clip"><svg viewBox="0 0 16 16"><path d="M3 6v4M6 4v8M9 2.5v11M12 5v6"/></svg><span>audio.wav</span></li>
-      </ul>
-    </figure>
   </section>
 
   <section class="ask" aria-labelledby="ask-h">

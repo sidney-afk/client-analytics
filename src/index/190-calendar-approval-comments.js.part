@@ -665,6 +665,9 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
        the last card in the list, re-renders the body so the empty state
        shows in its place. No intermediate "nothing left to review" stub. */
     function _calReviewRemoveCard(pid) {
+        // The new review page (188/195) has no old card to remove: it draws the change itself. Without this an
+        // approval that cleared the card's last part left the new page on "Saving" (session Curtain Nine).
+        if (svRsCalOn()) { svRsCalSync(); _calUpdateReviewBadge(); return; }
         const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
         const el = document.querySelector('.cal-review-card[data-cal-review-pid="' + sel + '"]');
         if (!el) return;

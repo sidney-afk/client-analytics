@@ -858,6 +858,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-chat-switch-browser.js
+      - name: Every save on the new review stage ends on screen (no stuck Saving, a slow server says so, a refused save offers Try again)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-save-browser.js
 
 
   split-preview:

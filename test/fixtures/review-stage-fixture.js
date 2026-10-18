@@ -72,7 +72,7 @@ function thread(row) {
 }
 
 async function open(browser, origin, opt) {
-  const state = { cards: cards(opt.stage).concat(opt.finished ? finished() : []), upserts: [], gateway: [], flagReads: 0, orient: 'p' };
+  const state = { cards: cards(opt.stage).concat(opt.finished ? finished() : []), upserts: [], gateway: [], flagReads: 0, orient: 'p', writeDelay: 0, writeFail: 0 };
   if (opt.thread) thread(state.cards[0]);
   const ctx = await browser.newContext({ viewport: { width: opt.width || 1440, height: opt.height || 900 }, serviceWorkers: 'block', colorScheme: 'light' });
   await ctx.routeWebSocket('**/*', s => s.close());
@@ -114,6 +114,9 @@ async function open(browser, origin, opt) {
     if (p === '/functions/v1/frameio-view') return json({ ok: true, video: { url: MEDIA, renditions: { efficient: MEDIA, high_quality: MEDIA, original: MEDIA }, expires_at: new Date(Date.now() + 3600000).toISOString(), name: 'Fixture clip.mp4', file_id: 'f1', duration_seconds: 12, fps: 24 }, comments: [], comments_error: '', open_url: 'https://next.frame.io/share/00000000-0000-4000-8000-000000000001', fetched_at: new Date().toISOString() });
     if (/\/functions\/v1\/(calendar-upsert|calendar-card-write)$/.test(p) && r.method() === 'POST') {
       let body = {}; try { body = JSON.parse(r.postData() || '{}'); } catch (e) {}
+      // A slow or failing card save, switched at run time by a test (state.writeDelay ms, state.writeFail count).
+      if (state.writeDelay) await sleep(state.writeDelay);
+      if (state.writeFail > 0) { state.writeFail--; return json({ ok: false, error: 'fixture_unavailable', message: 'The fixture refused this save.' }, 503); }
       const post = body.post || {};
       state.upserts.push(post);
       const row = state.cards.find(c => c.id === post.id);

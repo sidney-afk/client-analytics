@@ -644,7 +644,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .compose.smm.typed:not(.chg) .send{display:inline-flex}
 .cmp-foot .seg{margin-right:auto}
 .bt.sending{opacity:.65}
-.err{margin-top:6px;font-size:.74rem;font-weight:600;color:var(--urgent)}
+.err{margin-top:6px;font-size:.74rem;font-weight:600;color:var(--urgent);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.err.slow{color:var(--text-secondary);font-weight:500}
+.err .retry{font:inherit;font-weight:700;color:inherit;background:none;border:1px solid currentColor;border-radius:999px;padding:2px 10px;cursor:pointer}
+.err .retry:hover{background:color-mix(in srgb,currentColor 10%,transparent)}
 @media (max-width:1240px){.stage,.stage.land{grid-template-columns:minmax(0,1fr) 320px}.chipp.k{width:220px}}
 @media (max-width:860px){
 .app{height:auto}
@@ -783,7 +786,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     };
     function _rsFreshState() {
         return { curId: null, step: '', note: _rsBlankNote(), editing: '', editText: '', fold: false, saved: null,
-            menu: '', exp: {}, edOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {} };
+            menu: '', exp: {}, edOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, slow: {} };
     }
 
     /* ---------- the model: one shape for every person ---------- */
@@ -1320,6 +1323,18 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (R.mode === 'kasper') { const it = m.item; return it && !m.sample && it._errors && it._errors[k] ? String(it._errors[k]) : ''; }
         return String(_calReviewState.errors[m.id + '|' + k] || '');
     }
+    /* Save problems on this post, whichever part is on stage (the stage moves on to the next part while a save
+       runs): a refused save says why, with Try again; a save with no answer after a few seconds says so. */
+    function _rsSaveIssues(m, onStage) {
+        const S = R.S;
+        return m.parts.map(p => {
+            const k = p.key, key = m.id + '|' + k, err = _rsError(m, k);
+            const who = k === onStage ? '' : RS_PART[k] + ': ';
+            if (err) return '<div class="err" role="alert" data-err="' + k + '"><span>' + _re(who + 'Not saved. ' + err) + '</span>' + (S.retry[key] ? '<button class="retry" type="button" data-retry="' + k + '">Try again</button>' : '') + '</div>';
+            if (S.slow[key] && _rsSaving(m, k)) return '<div class="err slow" role="status" data-slow="' + k + '">' + _re(who) + 'Still waiting for the server. Nothing is lost: it finishes here on its own, or says so if it fails.</div>';
+            return '';
+        }).join('');
+    }
     function _rsSplit(x) {
         const k = x.key, n = _rsLname(k), open = R.S.menu === k;
         const label = R.mode === 'smm' ? 'Approve to Kasper' : 'Approve the ' + n;
@@ -1347,7 +1362,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             if (pb) pb.addEventListener('click', (e) => { S.pinged[m.id] = true; if (m.sample) window._sxrKasperSendUrgentSlack(e, m.id); else window._kasperSendUrgentSlack(e, m.id); _rsDecide(); });
             return;
         }
-        const saving = _rsSaving(m, x.key), err = _rsError(m, x.key);
+        const saving = _rsSaving(m, x.key);
         if (S.editing === x.key) d = '<span class="dst busy">' + RI.pen + 'Editing the ' + n + '</span>';
         else if (_rsWriting(x) && S.note.where === 'stage') d = null;
         else if (_rsWriting(x)) d = '<span class="dst wr">' + RI.pen + 'Writing a change to the ' + n + ' in the conversation</span>';
@@ -1366,7 +1381,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const parts = m.parts, left = parts.filter(p => p.st === 'wait').length, all = !left;
         const dc = x.st === 'ok' && d && !S.editing && !saving ? ' is-ok' : (x.st === 'chg' || x.st === 'tweak') && d && !S.editing && !saving ? ' is-chg' : '';
         el.innerHTML = '<div class="dwrap">' + (d === null ? _rsComposer(m) : '<div class="dec' + dc + '" id="dec">' + d + '</div>') + '</div>'
-            + (err ? '<div class="err" role="alert">' + _re(err) + '</div>' : '')
+            + _rsSaveIssues(m, x.key)
             + '<div class="drow2"><div class="dfin"><button class="finish" type="button" id="finishBtn"' + (all ? '' : ' disabled') + '>' + RI.check + 'Finish reviewing' + (all ? '' : ' <span class="fc num">' + (parts.length - left) + ' of ' + parts.length + '</span>') + '</button></div></div>';
         el.querySelectorAll('[data-ok]').forEach(b => b.addEventListener('click', () => _rsApprove(m, b.dataset.ok, R.mode === 'smm' ? 'kasper' : '')));
         el.querySelectorAll('[data-alt]').forEach(b => b.addEventListener('click', (e) => {
@@ -1379,6 +1394,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         el.querySelectorAll('[data-chg]').forEach(b => b.addEventListener('click', () => _rsStartChange(b.dataset.chg, 'stage')));
         el.querySelectorAll('[data-again]').forEach(b => b.addEventListener('click', () => _rsStartChange(b.dataset.again, 'stage')));
         const fb = _rsQ('finishBtn'); if (fb) fb.addEventListener('click', _rsFinish);
+        el.querySelectorAll('[data-retry]').forEach(b => b.addEventListener('click', () => { const f = S.retry[m.id + '|' + b.dataset.retry]; if (f) f(); }));
         if (d === null) _rsBindComposer(el);
     }
     function _rsComposer(m) {
@@ -1504,12 +1520,40 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         setTimeout(() => {
             const cur = _rsCur();
             if (!cur || cur.id !== m.id || R.S.step !== from || R.S.note.part || R.S.editing) return;
+            // a refused save stays on its part, with its reason and Try again
+            const x = cur.parts.find(p => p.key === from);
+            if (!x || x.st === 'wait' || _rsError(cur, from)) return;
             const nx = _rsNextOpen(cur, from);
             if (nx) _rsSetStep(nx);
         }, 650);
     }
     function _rsItem(m) { return m.item; }
+    /* A save on the stage always ends on screen (owner feedback 2026-10-17 23:40, session Curtain Nine). The old
+       page's save path tells the stage when it is done through its own repaint, but not every branch repaints (an
+       approval that cleared the card's last waiting part used to remove the old card and never told the stage, so it
+       read "Saving" for good). So the stage watches the part itself: the moment the saving flag drops it draws again,
+       and after a few seconds with no answer it says so in plain words. */
+    const RS_SLOW_MS = 8000;
+    function _rsModelById(id) { return _rsAll().find(x => x.id === id) || null; }
+    function _rsWatch(m, comp) {
+        const key = m.id + '|' + comp, S = R.S, t0 = Date.now();
+        delete S.slow[key];
+        const tick = () => {
+            if (R.S !== S) return;   // the page was remounted
+            const cur = _rsModelById(m.id) || m;
+            if (!_rsSaving(cur, comp)) {
+                delete S.slow[key];
+                if (!_rsError(cur, comp)) delete S.retry[key];
+                _rsRender();
+                return;
+            }
+            if (!S.slow[key] && Date.now() - t0 >= RS_SLOW_MS) { S.slow[key] = true; _rsRender(); }
+            setTimeout(tick, 200);
+        };
+        setTimeout(tick, 200);
+    }
     function _rsApprove(m, comp, how) {
+        R.S.retry[m.id + '|' + comp] = () => { const cur = _rsModelById(m.id); if (cur) _rsApprove(cur, comp, how); };
         R.S.acted.add(m.id + '|' + comp); R.S.menu = '';
         if (R.mode === 'client') window._calReviewApprove(m.id, comp);
         else if (R.mode === 'smm') window._calReviewApprove(m.id, comp, how === 'client' ? 'client' : 'kasper');
@@ -1517,10 +1561,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         else window._kasperApproveComp(m.id, comp, 'client');
         _rsFlash(RS_PART[comp] + (R.mode === 'smm' ? ' approved to ' + (how === 'client' ? 'the client' : 'Kasper') : ' approved, saved'), comp);
         _rsRender({ force: true });
+        _rsWatch(m, comp);
         _rsAdvance(m, comp);
     }
     function _rsSendChange(m, comp, text, o) {
         const opts = o || {};
+        R.S.retry[m.id + '|' + comp] = () => { const cur = _rsModelById(m.id); if (cur) _rsSendChange(cur, comp, text, Object.assign({}, opts, { where: '' })); };
         R.S.acted.add(m.id + '|' + comp);
         if (R.mode === 'kasper') {
             if (m.sample) {
@@ -1538,6 +1584,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         }
         _rsFlash(opts.aat ? RS_PART[comp] + ' approved after tweaks' : 'Change sent', comp);
         _rsRender({ force: true });
+        _rsWatch(m, comp);
         if (opts.where === 'stage') _rsAdvance(m, comp);
     }
     function _rsSendNoteTo(m, comp, text, vis) {

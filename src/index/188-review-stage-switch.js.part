@@ -165,6 +165,11 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     // No Analytics for a switched-on client (the company dropped client analytics): render() asks this before it
     // draws a client link, and sends an Analytics route to the Content Calendar instead. Since 2026-10-17 (session
     // Curtain Seven) that is every client link while analytics_hidden hides Analytics (its default).
+    /* Is the new review page on for this client link? Not the same question as svRsClientNoAnalytics, which is also
+       true for every link while Analytics is hidden for everyone. */
+    function svRsClientReviewOn(client) {
+        return !!_isClientLink && _rsClientOn(client);
+    }
     function svRsClientNoAnalytics(client) {
         return !!_isClientLink && (svAnalyticsHidden() || _rsClientOn(client));
     }
@@ -432,4 +437,4 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         if (document.getElementById('kasperContent')) svRsKasperHeadSync();
         if (document.getElementById('kasperReviewBody')) _kasperPaintReview();
     });
-export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl };
+export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl };

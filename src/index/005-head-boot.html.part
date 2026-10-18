@@ -70,6 +70,31 @@
                         window.__svEarlyClientVerify = { body: cvBody, href: location.href, at: Date.now(), response: cvResp };
                     }
                 } catch (e) {}
+                // Session Lantern, 2026-10-18. A client link stays light, except where the new review page is
+                // switched on for that client: there the sun/moon button works. The switch is a database read that
+                // lands well after the first paint, so this browser remembers the links it last saw switched on
+                // (_syncviewRsPaintRemember in 260 writes the list after every link check). A remembered link paints
+                // in its saved theme and in the review page's shape from the first frame, so a dark page never
+                // flashes white. A PAINT hint only: when the switch reads off, 260 drops the hint and the page
+                // goes back to light and the old shapes. It grants nothing.
+                try {
+                    var rsSeen = JSON.parse(localStorage.getItem('syncview_rs_paint_v1') || '[]');
+                    var rsC = String(q.get('c') || '').trim().toLowerCase();
+                    var rsV = String(q.get('v') || '');
+                    // Only the views that open the Calendar (a samples link keeps its own light page).
+                    var rsCal = rsV === '' || rsV === 'calendar' || rsV === 'analytics' || rsV === 'brief';
+                    if (rsC && rsCal && Array.isArray(rsSeen) && rsSeen.indexOf(rsC) >= 0) {
+                        de.classList.add('sv-rs-paint');
+                        // Which tab will open: tab=review forces Review once, else the saved Calendar view
+                        // (_calResolveInitialView in 134 decides the same way). Review gets the stage's shape.
+                        var rsTab = 'review';
+                        if (q.get('tab') !== 'review') {
+                            try { var rsPref = JSON.parse(localStorage.getItem('syncview_calendar_prefs') || '{}'); if (rsPref && ['organizer', 'month', 'week'].indexOf(rsPref.view) >= 0) rsTab = rsPref.view; } catch (e) {}
+                        }
+                        if ((rsV === '' || rsV === 'calendar' || rsV === 'analytics') && rsTab === 'review') de.classList.add('sv-rs-paint-stage');
+                        if (localStorage.getItem('syncview_theme') === 'dark') de.setAttribute('data-theme', 'dark');
+                    }
+                } catch (e) {}
                 return;
             }
             // Same detection as the app's entry router (search for

@@ -1784,6 +1784,61 @@
         .client-link-verify-skeleton { min-height: 58vh; display: flex; align-items: center; justify-content: center; }
         .client-link-verify-card { width: min(440px, calc(100vw - 40px)); background: var(--white); border: 1px solid var(--border); border-radius: 16px; padding: 28px; display: flex; flex-direction: column; align-items: center; gap: 13px; text-align: center; box-shadow: 0 10px 34px var(--sv-shadow-rgba-0-0-0-0_08); }
         .client-link-verify-mark { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; background: var(--bg); border: 1px solid var(--border); }
+        /* A client link this browser last saw with the new review page switched on (html.sv-rs-paint, set by the
+           head script): the link check draws that page's shape, in the saved theme, instead of the small card, so the
+           page that follows grows out of it. Same box sizes as the page (195-review-stage: .app, .hdr, .strip,
+           .stage, .chat). Session Lantern, 2026-10-18. */
+        .sv-rs-boot { display: none; }
+        html.sv-rs-paint .client-link-verify-skeleton { min-height: 0; display: block; }
+        html.sv-rs-paint .client-link-verify-card { display: none; }
+        html.sv-rs-paint .sv-rs-boot { display: flex; flex-direction: column; gap: 10px; position: fixed; inset: 0; z-index: 1; overflow: hidden; background: var(--bg); padding: 6px max(16px, env(safe-area-inset-right)) 18px max(16px, env(safe-area-inset-left)); box-sizing: border-box; }
+        .sv-rs-veil .sv-rs-boot { z-index: 40; transition: opacity 0.18s ease-out; }
+        .sv-rs-veil.is-out .sv-rs-boot { opacity: 0; pointer-events: none; }
+        html.sv-rs-paint:not(.sv-rs-paint-stage) .sv-rs-boot-strip, html.sv-rs-paint:not(.sv-rs-paint-stage) .sv-rs-boot-stage { display: none; }
+        .sv-rs-boot-hdr { height: 40px; flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 2px; }
+        .sv-rs-boot-who { display: flex; align-items: flex-end; gap: 12px; }
+        .sv-rs-boot-r { display: flex; align-items: center; gap: 10px; }
+        .sv-rs-boot-tabs { width: 311px; height: 38px; border-radius: 99px; background: var(--border-light); padding: 4px; box-sizing: border-box; }
+        .sv-rs-boot-tabs span { display: block; width: 98px; height: 100%; border-radius: 99px; background: var(--surface-raised); }
+        .sv-rs-boot-round { width: 38px; height: 38px; border-radius: 50%; background: var(--border-light); }
+        .sv-rs-boot-strip { height: 62px; flex: none; display: flex; align-items: center; gap: 14px; min-width: 0; }
+        .sv-rs-boot-count { flex: none; }
+        .sv-rs-boot-chips { display: flex; gap: 6px; overflow: hidden; min-width: 0; padding-left: 3px; }
+        .sv-rs-boot-chip { flex: 0 0 228px; height: 56px; box-sizing: border-box; border-radius: 12px; display: flex; align-items: center; gap: 12px; padding: 0 14px; }
+        .sv-rs-boot-chip.is-cur { background: var(--surface-raised); border: 1px solid var(--border); }
+        .sv-rs-boot-thumb { width: 26px; height: 36px; border-radius: 6px; flex: none; }
+        .sv-rs-boot-chiptext { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
+        .sv-rs-boot-stage { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; }
+        .sv-rs-boot-main { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+        .sv-rs-boot-main > .sv-skeleton-line { margin: 2px 0 0 4px; flex: none; }
+        .sv-rs-boot-card, .sv-rs-boot-chat { background: var(--surface-raised); border: 1px solid var(--border); border-radius: 18px; min-height: 0; box-sizing: border-box; }
+        .sv-rs-boot-card { flex: 1; display: flex; flex-direction: column; padding: 12px 14px 16px; gap: 12px; }
+        .sv-rs-boot-top { position: relative; display: flex; align-items: center; height: 34px; padding-left: 6px; }
+        .sv-rs-boot-steps { position: absolute; left: 50%; top: 0; transform: translateX(-50%); display: flex; gap: 22px; }
+        .sv-rs-boot-media { flex: 1; min-height: 0; position: relative; }
+        .sv-rs-boot-video { position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); aspect-ratio: 9 / 16; max-width: 100%; border-radius: 12px; }
+        .sv-rs-boot-acts { display: flex; justify-content: center; align-items: center; gap: 20px; flex: none; padding-bottom: 54px; }
+        .sv-rs-boot-chat { display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
+        .sv-rs-boot-chathead { display: flex; align-items: center; gap: 12px; height: 62px; padding: 0 16px; border-bottom: 1px solid var(--border-light); box-sizing: border-box; }
+        .sv-rs-boot-chatfoot { padding: 10px; border-top: 1px solid var(--border-light); }
+        @media (max-width: 1240px) { .sv-rs-boot-stage { grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; } }
+        @media (max-width: 860px) {
+            html.sv-rs-paint .sv-rs-boot { gap: 12px; padding-top: 8px; }
+            .sv-rs-boot-hdr { height: auto; flex-direction: column; align-items: flex-start; gap: 12px; padding-top: 0; }
+            .sv-rs-boot-who { height: 38px; align-items: center; }
+            .sv-rs-boot-tabs { width: 306px; max-width: calc(100vw - 84px); }
+            .sv-rs-boot-strip { height: 87px; flex-direction: column; align-items: flex-start; gap: 9px; }
+            .sv-rs-boot-count { margin-top: 3px; }
+            .sv-rs-boot-chips { width: 100%; padding-left: 0; }
+            .sv-rs-boot-chip { flex-basis: 190px; }
+            .sv-rs-boot-stage { display: flex; flex-direction: column; gap: 12px; flex: none; }
+            .sv-rs-boot-card { flex: none; height: 644px; gap: 0; padding-top: 14px; }
+            .sv-rs-boot-top { flex-direction: column; align-items: flex-start; height: auto; gap: 16px; padding-left: 8px; }
+            .sv-rs-boot-steps { position: static; transform: none; gap: 8px; }
+            .sv-rs-boot-media { flex: none; height: 388px; margin-top: 10px; }
+            .sv-rs-boot-acts { flex-direction: column; gap: 14px; padding: 14px 0 0; }
+            .sv-rs-boot-chat { height: 420px; flex: none; }
+        }
         .client-profile-boot-skeleton { display: flex; flex-direction: column; gap: 16px; }
         .client-profile-boot-skeleton .detail-hero { min-height: 112px; margin-bottom: 0; }
         .client-brief-boot-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(240px, 0.8fr); gap: 14px; }

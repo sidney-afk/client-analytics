@@ -72,6 +72,15 @@ const approveData = { edits: { caption_status: 'Approved', status: 'Approved', c
         t(s.post.caption_status === 'Tweaks Needed', 'two devices: the screen shows the server state (the change request wins)');
         t(/changed while your approval was waiting/.test(s.log.notes.join()), 'two devices: the client is told plainly it was not saved');
     }
+    // 1a. A save the 20 s timeout ended is a connection failure too: held and re-sent after the server row is read, never "refused"
+    {
+        const s = sandbox({ serverRow: { caption_status: 'Approved' } });
+        s.api._calCrqBegin('approve', 'p1', 'caption', approveData);
+        t(s.api._calCrqFailed('p1', 'caption', 'The server has not answered. Your change is kept; try again.') === true, 'timeout: the save the 20 s timeout ended is held, not refused');
+        await s.api._calCrqResend();
+        t(s.log.flushes === 0, 'timeout: the server already holds the approval, so the re-send does not save it a second time');
+        t(!/refused/.test(s.log.notes.join()), 'timeout: the client is never told SyncView refused it');
+    }
     // 1b. The local copy is never trusted: local says waiting, server says moved on.
     {
         const s = sandbox({ serverRow: { caption_status: 'For SMM Approval' } });

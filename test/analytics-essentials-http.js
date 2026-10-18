@@ -9,7 +9,7 @@ const vm = require('vm');
 const { extractFunction } = require('./helpers/extract-function');
 
 const source = fs.readFileSync(path.resolve(__dirname, '../src/index/040-shared-briefs.js.part'), 'utf8');
-const names = ['parseCSV', '_clientsInfoPublicRows', '_blankAnalyticsRow', '_applyEssentialRows',
+const names = ['svFetchRetryOnce', 'parseCSV', '_clientsInfoPublicRows', '_blankAnalyticsRow', '_applyEssentialRows',
   '_applyEssentialTexts', 'fetchEssentials', '_syncviewClientEssentials'];
 const code = names.map(name => (name === 'fetchEssentials' ? 'async ' : '') + extractFunction(source, name)).join('\n');
 const CLIENT = 'Fixture Client';
@@ -24,9 +24,10 @@ function harness(opts = {}) {
   let current = true;
   const bodies = [];
   const writes = [];
+  const calls = [];
   const replies = { metrics: { status: 200, body: METRICS }, roster: { status: 200, body: ROSTER } };
   const ctx = {
-    console: { log() {}, warn() {} },
+    console: { log() {}, warn() {} }, setTimeout,
     METRICS_URL: 'https://example.invalid/metrics', CLIENTS_URL: 'https://example.invalid/roster',
     CLIENTS_INFO_FORBIDDEN_FIELDS: new Set(['client_review_token']),
     _analyticsLiveEssentials: false, _analyticsAppliedFp: { ess: 'last good fingerprint' },
@@ -43,6 +44,7 @@ function harness(opts = {}) {
     async fetch(url, options) {
       const key = url.endsWith('/metrics') ? 'metrics' : 'roster';
       const reply = replies[key];
+      calls.push(key);
       return { ok: reply.status >= 200 && reply.status < 300, status: reply.status,
         async text() { bodies.push(key); if (reply.beforeText) reply.beforeText(); return reply.body; } };
     },
@@ -51,7 +53,7 @@ function harness(opts = {}) {
   vm.runInContext(code, ctx);
   const snapshot = () => plain({ data: ctx.allData, roster: ctx.clientMap, fresh: ctx._analyticsLiveEssentials,
     fingerprint: ctx._analyticsAppliedFp, saved });
-  return { ctx, saved, replies, bodies, writes, snapshot, revoke() { current = false; } };
+  return { ctx, saved, replies, bodies, writes, calls, snapshot, revoke() { current = false; } };
 }
 
 (async () => {
@@ -65,6 +67,11 @@ function harness(opts = {}) {
         assert.deepStrictEqual(h.snapshot(), before);
         assert.strictEqual(h.writes.length, 0);
         assert.strictEqual(h.bodies.length, 0, 'read neither body when either required response failed');
+      });
+      // The roster read (and only it) tries once more, after a pause, on a 5xx; a 4xx is final.
+      if (lane === 'roster') check('roster HTTP ' + status + (status === 503 ? ' is tried a second time' : ' is not retried'), () => {
+        assert.strictEqual(h.calls.filter(k => k === 'roster').length, status === 503 ? 2 : 1);
+        assert.strictEqual(h.calls.filter(k => k === 'metrics').length, 1);
       });
     }
   }

@@ -477,6 +477,7 @@ async function open(browser,origin,width,theme) {
     if (/\/functions\/|\/webhook\//.test(u.pathname)) return json({ ok:true,applications:[],leads:[],rows:[],daily:[],editors:[],submissions:[],pending_requests:[],admin_members:[] });
     return route.abort(); // Fonts/CDNs/images never escape the fixture.
   });
+  await require('../../../test/fixtures/analytics-shown.js').analyticsShown(ctx);   // the Overview action opens Analytics only while it is shown (hidden by default; staff then land on the Calendar)
   await ctx.route('**/*',r => {
     if(r.request().resourceType()==='image' && !new URL(r.request().url()).pathname.startsWith('/nav-icons/')) return r.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350"><rect width="1080" height="1350" fill="#e6ddf5"/><circle cx="720" cy="400" r="220" fill="#c8b6e9"/><path d="M0 1000Q450 600 1080 1100V1350H0Z" fill="#9580b8"/></svg>'});
     if(r.request().resourceType()==='media') return r.abort();

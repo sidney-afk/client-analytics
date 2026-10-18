@@ -18,6 +18,7 @@
 const { chromium } = require('playwright');
 const { serveStatic } = require('./prod-test-utils');
 const { seedStaffGate } = require('../../../qa/staff-gate-seed');
+const { analyticsShown } = require('../../../test/fixtures/analytics-shown.js');
 const { startStreamServer, openCase } = require('../../../qa/boot/client-entry-sequence');
 
 const failures = [];
@@ -28,6 +29,7 @@ async function openStaff(browser, port, path, opts = {}) {
   await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()),
     route => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }).catch(() => {}));
   if (!opts.signedOut) await seedStaffGate(context);
+  if (opts.analyticsShown) await analyticsShown(context);   // Analytics is hidden by default (session Curtain Seven); this case needs it back
   await context.addInitScript(() => { try { localStorage.removeItem('syncview_nav'); } catch (e) {} });
   const page = await context.newPage();
   const errors = [];
@@ -111,7 +113,7 @@ const nav = page => page.evaluate(() => typeof currentNav === 'string' ? current
     }
     // 4. Default landing.
     {
-      const { context, page, errors } = await openStaff(browser, port, '/');
+      const { context, page, errors } = await openStaff(browser, port, '/', { analyticsShown: true });
       await page.waitForFunction(() => currentNav === 'today', null, { timeout: 20000 }).catch(() => {});
       check(await nav(page) === 'today', 'the bare address opens Today for staff (got ' + await nav(page) + ')');
       check(await addr(page) === '/today', 'and the address reads /today (got ' + await addr(page) + ')');
@@ -121,6 +123,19 @@ const nav = page => page.evaluate(() => typeof currentNav === 'string' ? current
       await page.waitForFunction(() => typeof currentNav === 'string' && currentNav !== '', null, { timeout: 20000 });
       await page.waitForTimeout(800);
       check(await nav(page) === 'home', 'a refresh on Analytics stays on Analytics (got ' + await nav(page) + ')');
+      check(!errors.length, 'no page errors: ' + errors.join(' | '));
+      await context.close();
+    }
+    // 4b. Analytics hidden (the live state): Home opens the Calendar for staff, before and after a refresh.
+    {
+      const { context, page, errors } = await openStaff(browser, port, '/');
+      await page.waitForFunction(() => currentNav === 'today', null, { timeout: 20000 }).catch(() => {});
+      await page.evaluate(() => navTo('home'));
+      check(await nav(page) === 'calendar', 'with Analytics hidden, Home opens the Calendar (got ' + await nav(page) + ')');
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(() => typeof currentNav === 'string' && currentNav !== '', null, { timeout: 20000 });
+      await page.waitForTimeout(800);
+      check(await nav(page) === 'calendar', 'and a refresh stays on the Calendar (got ' + await nav(page) + ')');
       check(!errors.length, 'no page errors: ' + errors.join(' | '));
       await context.close();
     }

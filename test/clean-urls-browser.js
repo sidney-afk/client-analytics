@@ -261,18 +261,19 @@ const ADMIN_CASES = [
     check(missing.length === 0, 'assets loaded at / but not on the nested path: ' + missing.join(' '));
     check(![...nestedAssets.keys()].some(k => k.startsWith('/calendar/')), 'nothing resolved relative to the nested path');
 
-    // 5. Kasper is admin-only, and a remembered admin is never locked out.
+    // 5. Kasper is admin-only, and a remembered admin is never locked out. A refused tab falls back to Home, which
+    // opens the Calendar while Analytics is hidden (its default, session Detour).
     const smm = await newContext(browser, SMM);
     const sp = await smm.newPage();
     const smmKasper = await land(sp, base, '/kasper');
-    check(smmKasper.nav === 'home' && !smmKasper.kasperTab, `SMM on /kasper: ${JSON.stringify(smmKasper)}`);
+    check(smmKasper.nav === 'calendar' && !smmKasper.kasperTab, `SMM on /kasper: ${JSON.stringify(smmKasper)}`);
     const smmParam = await land(sp, base, '/?Kasper=1');
-    check(smmParam.nav === 'home' && !smmParam.kasperTab, `SMM with ?Kasper=1: ${JSON.stringify(smmParam)}`);
+    check(smmParam.nav === 'calendar' && !smmParam.kasperTab, `SMM with ?Kasper=1: ${JSON.stringify(smmParam)}`);
     // 6. The pages SMMs use stay reachable at their own paths.
     for (const [addr, nav] of [['/onboarding', 'staff-onboarding'], ['/client-credentials', 'client-credentials'], ['/filming-plans', 'filming-plans'], ['/time-off', null], ['/smm-weekly-report', 'smm-weekly-report'], ['/sample-reviews', 'sample-reviews']]) {
       const r = await land(sp, base, addr);
       if (nav) check(r.nav === nav, `SMM ${addr}: screen ${r.nav}`);
-      check(r.url.split('?')[0] === addr || r.nav === 'home', `SMM ${addr}: address ${r.url}`);
+      check(r.url.split('?')[0] === addr || r.nav === 'calendar', `SMM ${addr}: address ${r.url}`);
     }
     const onb = await land(sp, base, '/onboarding');
     const onbText = await sp.evaluate(() => (document.getElementById('kasperContent') || {}).innerText || '');

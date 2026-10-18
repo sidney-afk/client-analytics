@@ -151,9 +151,12 @@ const h = new Function(`
   ok(/_kasperHashLanding[\s\S]*_analyticsHoldExtras\(8000\)/.test(boot), 'the boot holds the extras only for a Kasper landing, with a safety timeout');
   ok(/_kasperState\.lastLoaded && typeof _analyticsReleaseExtras === 'function'/.test(grabFunc('_kasperPaintReviewNow')),
     'the review releases them only after the queue has loaded and painted');
-  ok(/typeof _analyticsReleaseExtras === 'function'\) _analyticsReleaseExtras\(page\)/.test(navTo), 'every navTo tells the hold which page opens');
+  // Home opens the Calendar while Analytics is hidden (188), so it is the Calendar that the hold is told about then.
+  ok(/typeof _analyticsReleaseExtras === 'function'\) _analyticsReleaseExtras\((page|page === 'home' && svStaffNoAnalytics\(\) \? 'calendar' : page)\)/.test(navTo), 'every navTo tells the hold which page opens');
   ok(/if \(_analyticsExtrasHold\) \{ _analyticsReleaseExtras\(true\); fetchExtras\(null\); \}/.test(grabFunc('_analyticsExtrasArrival')),
     'a client page reached without navTo (search, Back) releases and starts them itself');
+  ok(/else if \(!_fetchExtrasPromise && _fetchExtrasState\.status === 'idle'\) fetchExtras\(null\)/.test(grabFunc('_analyticsExtrasArrival')),
+    'a client page drawn in the breath a hold was released in starts them itself (the release only schedules the start)');
 
   // Kasper's hold: opening Kasper keeps it, any other page or its first paint releases it.
   h.hold(60000);

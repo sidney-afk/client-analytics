@@ -18,13 +18,18 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
-## Review-save checkpoints (session Checkpoint, 2026-10-18): candidate, live pass in progress
+## Review-save checkpoints (session Checkpoint, 2026-10-18): candidate PR #2233; live audit has failures
 
 The recovery journal could be consumed by background recovery or another tab while its original save still needed it,
 then report `repair_checkpoint_missing` after a native commit. The candidate shares a per-card browser lease between
 native attempts, recovery and cleanup, re-reads queued groups, and retains an acknowledged snapshot for companion
 binding. Storage refusals remain visible and no diagnostic code is hidden. The all-engine mocked suite passes 69 cases
-at 1440 and 390. The live test-client pass is separate and still in progress; it does not prove this unmerged candidate.
+at 1440 and 390. The separate live pass completed in all three engines at both widths, on client, SMM and reviewer
+pages. It confirmed lost unsent caption/staff-note drafts on reload, unresolved interrupted saves despite retained
+browser copies, inconsistent staff deletion and elapsed times over three seconds. Bundled Chromium video playback
+failed; Firefox, WebKit and an additional installed-Chrome check played the same media. This is not a live all-clear
+or proof of this unmerged candidate. The disposable card is archived through the app, both native work items were
+read back in Backlog, and the three original test cards are unchanged. Lighthouse owns review and merge.
 Findings, limits and exact reruns: [Checkpoint report](audits/2026-10-18-checkpoint-review.md).
 
 ## Client link in a dark browser (session Dusk, 2026-10-18): PR open

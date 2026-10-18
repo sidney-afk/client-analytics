@@ -1,0 +1,7056 @@
+{
+  "schema": 1,
+  "date": "2026-10-18",
+  "scope": "App-created disposable test card only; client link, Calendar SMM Review and staff Review Session.",
+  "candidateDeployed": false,
+  "engines": [
+    "chromium",
+    "firefox",
+    "webkit"
+  ],
+  "widths": [
+    1440,
+    390
+  ],
+  "timing": "Milliseconds from action start through independent source-row readback. Includes polling/read overhead and compound actions. Slow cases add 3500 ms to a real source request.",
+  "interpretation": "Raw failed observations are retained. See the adjacent report for driver errors, guard interference, later arrivals, cascading failures and unresolved candidates. These observations are not a single all-green acceptance run.",
+  "runs": [
+    {
+      "name": "initial_calendar",
+      "observations": [
+        {
+          "cell": "setup",
+          "action": "status menu lost during startup",
+          "ok": false
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "client open",
+          "ok": true,
+          "ms": 1500
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "client play",
+          "ok": false,
+          "ms": 10041,
+          "error": "TimeoutError"
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "client video note",
+          "ok": true,
+          "ms": 1066
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "client caption note",
+          "ok": true,
+          "ms": 1064
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "client caption edit",
+          "ok": true,
+          "ms": 988
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "client reload typing",
+          "ok": true,
+          "ms": 1126
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "client slow save",
+          "ok": true,
+          "ms": 4202
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "client offline save and return",
+          "ok": false,
+          "ms": 32496,
+          "error": "Error"
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "client two tabs",
+          "ok": true,
+          "ms": 2701
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "client change request",
+          "ok": true,
+          "ms": 4342
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "client approve graphic",
+          "ok": true,
+          "ms": 3427
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "client approve caption",
+          "ok": true,
+          "ms": 1238
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "client delete own note",
+          "ok": false,
+          "ms": 6447,
+          "error": "TimeoutError"
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "client approve video",
+          "ok": true,
+          "ms": 2872
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "staff open",
+          "ok": true,
+          "ms": 1351
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "staff video note",
+          "ok": true,
+          "ms": 1379
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "staff caption note",
+          "ok": false,
+          "ms": 25601,
+          "error": "Error"
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "staff play",
+          "ok": false,
+          "ms": 6043,
+          "error": "TimeoutError"
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "staff reload typing",
+          "ok": false,
+          "ms": 1070,
+          "error": "AssertionError"
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "staff caption edit",
+          "ok": true,
+          "ms": 2125
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "staff slow save",
+          "ok": false,
+          "ms": 25346,
+          "error": "Error"
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "staff offline save and return",
+          "ok": true,
+          "ms": 4146
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "staff two tabs",
+          "ok": true,
+          "ms": 7181
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "staff change request",
+          "ok": true,
+          "ms": 4356
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "staff approve graphic",
+          "ok": true,
+          "ms": 1700
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "staff approve caption",
+          "ok": true,
+          "ms": 1700
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "staff delete own note",
+          "ok": false,
+          "ms": 6763,
+          "error": "TimeoutError"
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "staff approve video",
+          "ok": false,
+          "ms": 28838,
+          "error": "Error"
+        },
+        {
+          "cell": "chromium-1440",
+          "action": "browser exceptions",
+          "ok": false,
+          "count": 3
+        },
+        {
+          "cell": "chromium-390",
+          "action": "client open",
+          "ok": true,
+          "ms": 1532
+        },
+        {
+          "cell": "chromium-390",
+          "action": "client play",
+          "ok": false,
+          "ms": 10056,
+          "error": "TimeoutError"
+        },
+        {
+          "cell": "chromium-390",
+          "action": "client video note",
+          "ok": true,
+          "ms": 1171
+        },
+        {
+          "cell": "chromium-390",
+          "action": "client caption note",
+          "ok": true,
+          "ms": 1121
+        },
+        {
+          "cell": "chromium-390",
+          "action": "client caption edit",
+          "ok": true,
+          "ms": 1018
+        },
+        {
+          "cell": "chromium-390",
+          "action": "client reload typing",
+          "ok": true,
+          "ms": 1187
+        },
+        {
+          "cell": "chromium-390",
+          "action": "client slow save",
+          "ok": true,
+          "ms": 4583
+        },
+        {
+          "cell": "chromium-390",
+          "action": "client offline save and return",
+          "ok": false,
+          "ms": 32530,
+          "error": "Error"
+        },
+        {
+          "cell": "chromium-390",
+          "action": "client two tabs",
+          "ok": true,
+          "ms": 2431
+        },
+        {
+          "cell": "chromium-390",
+          "action": "client change request",
+          "ok": true,
+          "ms": 9120
+        },
+        {
+          "cell": "chromium-390",
+          "action": "client approve graphic",
+          "ok": true,
+          "ms": 1891
+        },
+        {
+          "cell": "chromium-390",
+          "action": "client approve caption",
+          "ok": true,
+          "ms": 1271
+        },
+        {
+          "cell": "chromium-390",
+          "action": "client delete own note",
+          "ok": true,
+          "ms": 1749
+        },
+        {
+          "cell": "chromium-390",
+          "action": "client approve video",
+          "ok": true,
+          "ms": 2691
+        },
+        {
+          "cell": "chromium-390",
+          "action": "staff open",
+          "ok": true,
+          "ms": 1254
+        },
+        {
+          "cell": "chromium-390",
+          "action": "staff video note",
+          "ok": true,
+          "ms": 1610
+        },
+        {
+          "cell": "chromium-390",
+          "action": "staff caption note",
+          "ok": false,
+          "ms": 25156,
+          "error": "Error"
+        },
+        {
+          "cell": "chromium-390",
+          "action": "staff play",
+          "ok": false,
+          "ms": 6028,
+          "error": "TimeoutError"
+        },
+        {
+          "cell": "chromium-390",
+          "action": "staff reload typing",
+          "ok": false,
+          "ms": 954,
+          "error": "AssertionError"
+        },
+        {
+          "cell": "chromium-390",
+          "action": "staff caption edit",
+          "ok": true,
+          "ms": 1852
+        },
+        {
+          "cell": "chromium-390",
+          "action": "staff slow save",
+          "ok": false,
+          "ms": 25500,
+          "error": "Error"
+        },
+        {
+          "cell": "chromium-390",
+          "action": "staff offline save and return",
+          "ok": true,
+          "ms": 4118
+        },
+        {
+          "cell": "chromium-390",
+          "action": "staff two tabs",
+          "ok": true,
+          "ms": 3609
+        },
+        {
+          "cell": "chromium-390",
+          "action": "staff change request",
+          "ok": true,
+          "ms": 4387
+        },
+        {
+          "cell": "chromium-390",
+          "action": "staff approve graphic",
+          "ok": true,
+          "ms": 1743
+        },
+        {
+          "cell": "chromium-390",
+          "action": "staff approve caption",
+          "ok": true,
+          "ms": 2259
+        },
+        {
+          "cell": "chromium-390",
+          "action": "staff delete own note",
+          "ok": false,
+          "ms": 6397,
+          "error": "TimeoutError"
+        },
+        {
+          "cell": "chromium-390",
+          "action": "staff approve video",
+          "ok": false,
+          "ms": 26457,
+          "error": "Error"
+        },
+        {
+          "cell": "chromium-390",
+          "action": "browser exceptions",
+          "ok": false,
+          "count": 3
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "client open",
+          "ok": true,
+          "ms": 2237
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "client play",
+          "ok": true,
+          "ms": 1927
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "client video note",
+          "ok": true,
+          "ms": 1567
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "client caption note",
+          "ok": true,
+          "ms": 2398
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "client caption edit",
+          "ok": true,
+          "ms": 2112
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "client reload typing",
+          "ok": true,
+          "ms": 1708
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "client slow save",
+          "ok": true,
+          "ms": 5700
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "client offline save and return",
+          "ok": false,
+          "ms": 32587,
+          "error": "Error"
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "client two tabs",
+          "ok": true,
+          "ms": 3163
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "client change request",
+          "ok": true,
+          "ms": 5504
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "client approve graphic",
+          "ok": true,
+          "ms": 3832
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "client approve caption",
+          "ok": true,
+          "ms": 1475
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "client delete own note",
+          "ok": false,
+          "ms": 6519,
+          "error": "TimeoutError"
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "client approve video",
+          "ok": true,
+          "ms": 3005
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "staff open",
+          "ok": true,
+          "ms": 1536
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "staff video note",
+          "ok": true,
+          "ms": 2073
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "staff caption note",
+          "ok": false,
+          "ms": 25248,
+          "error": "Error"
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "staff play",
+          "ok": true,
+          "ms": 755
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "staff reload typing",
+          "ok": false,
+          "ms": 1475,
+          "error": "AssertionError"
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "staff caption edit",
+          "ok": true,
+          "ms": 2735
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "staff slow save",
+          "ok": false,
+          "ms": 25254,
+          "error": "Error"
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "staff offline save and return",
+          "ok": true,
+          "ms": 4583
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "staff two tabs",
+          "ok": true,
+          "ms": 4800
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "staff change request",
+          "ok": true,
+          "ms": 5233
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "staff approve graphic",
+          "ok": true,
+          "ms": 1855
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "staff approve caption",
+          "ok": true,
+          "ms": 2386
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "staff delete own note",
+          "ok": false,
+          "ms": 6625,
+          "error": "TimeoutError"
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "staff approve video",
+          "ok": false,
+          "ms": 26697,
+          "error": "Error"
+        },
+        {
+          "cell": "firefox-1440",
+          "action": "browser exceptions",
+          "ok": false,
+          "count": 2
+        },
+        {
+          "cell": "firefox-390",
+          "action": "client open",
+          "ok": true,
+          "ms": 1690
+        },
+        {
+          "cell": "firefox-390",
+          "action": "client play",
+          "ok": true,
+          "ms": 2518
+        },
+        {
+          "cell": "firefox-390",
+          "action": "client video note",
+          "ok": true,
+          "ms": 1266
+        },
+        {
+          "cell": "firefox-390",
+          "action": "client caption note",
+          "ok": true,
+          "ms": 2080
+        },
+        {
+          "cell": "firefox-390",
+          "action": "client caption edit",
+          "ok": true,
+          "ms": 1154
+        },
+        {
+          "cell": "firefox-390",
+          "action": "client reload typing",
+          "ok": true,
+          "ms": 1510
+        },
+        {
+          "cell": "firefox-390",
+          "action": "client slow save",
+          "ok": true,
+          "ms": 5122
+        },
+        {
+          "cell": "firefox-390",
+          "action": "client offline save and return",
+          "ok": false,
+          "ms": 32431,
+          "error": "Error"
+        },
+        {
+          "cell": "firefox-390",
+          "action": "client two tabs",
+          "ok": true,
+          "ms": 3261
+        },
+        {
+          "cell": "firefox-390",
+          "action": "client change request",
+          "ok": true,
+          "ms": 4895
+        },
+        {
+          "cell": "firefox-390",
+          "action": "client approve graphic",
+          "ok": true,
+          "ms": 3908
+        },
+        {
+          "cell": "firefox-390",
+          "action": "client approve caption",
+          "ok": true,
+          "ms": 1816
+        },
+        {
+          "cell": "firefox-390",
+          "action": "client delete own note",
+          "ok": true,
+          "ms": 2012
+        },
+        {
+          "cell": "firefox-390",
+          "action": "client approve video",
+          "ok": true,
+          "ms": 2843
+        },
+        {
+          "cell": "firefox-390",
+          "action": "staff open",
+          "ok": true,
+          "ms": 1477
+        },
+        {
+          "cell": "firefox-390",
+          "action": "staff video note",
+          "ok": true,
+          "ms": 2024
+        },
+        {
+          "cell": "firefox-390",
+          "action": "staff caption note",
+          "ok": false,
+          "ms": 25678,
+          "error": "Error"
+        },
+        {
+          "cell": "firefox-390",
+          "action": "staff play",
+          "ok": true,
+          "ms": 714
+        },
+        {
+          "cell": "firefox-390",
+          "action": "staff reload typing",
+          "ok": false,
+          "ms": 1387,
+          "error": "AssertionError"
+        },
+        {
+          "cell": "firefox-390",
+          "action": "staff caption edit",
+          "ok": true,
+          "ms": 2248
+        },
+        {
+          "cell": "firefox-390",
+          "action": "staff slow save",
+          "ok": false,
+          "ms": 25441,
+          "error": "Error"
+        },
+        {
+          "cell": "firefox-390",
+          "action": "staff offline save and return",
+          "ok": true,
+          "ms": 4676
+        },
+        {
+          "cell": "firefox-390",
+          "action": "staff two tabs",
+          "ok": true,
+          "ms": 4607
+        },
+        {
+          "cell": "firefox-390",
+          "action": "staff change request",
+          "ok": true,
+          "ms": 5151
+        },
+        {
+          "cell": "firefox-390",
+          "action": "staff approve graphic",
+          "ok": true,
+          "ms": 3899
+        },
+        {
+          "cell": "firefox-390",
+          "action": "staff approve caption",
+          "ok": true,
+          "ms": 2205
+        },
+        {
+          "cell": "firefox-390",
+          "action": "staff delete own note",
+          "ok": false,
+          "ms": 6462,
+          "error": "TimeoutError"
+        },
+        {
+          "cell": "firefox-390",
+          "action": "staff approve video",
+          "ok": false,
+          "ms": 26413,
+          "error": "Error"
+        },
+        {
+          "cell": "firefox-390",
+          "action": "browser exceptions",
+          "ok": false,
+          "count": 2
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "client open",
+          "ok": true,
+          "ms": 1684
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "client play",
+          "ok": true,
+          "ms": 2723
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "client video note",
+          "ok": true,
+          "ms": 1762
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "client caption note",
+          "ok": true,
+          "ms": 2778
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "client caption edit",
+          "ok": true,
+          "ms": 2102
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "client reload typing",
+          "ok": true,
+          "ms": 1372
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "client slow save",
+          "ok": true,
+          "ms": 5505
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "client offline save and return",
+          "ok": true,
+          "ms": 2647
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "client two tabs",
+          "ok": true,
+          "ms": 3709
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "client change request",
+          "ok": true,
+          "ms": 5004
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "client approve graphic",
+          "ok": true,
+          "ms": 3655
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "client approve caption",
+          "ok": true,
+          "ms": 2088
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "client delete own note",
+          "ok": false,
+          "ms": 7091,
+          "error": "TimeoutError"
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "client approve video",
+          "ok": true,
+          "ms": 3207
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "staff open",
+          "ok": true,
+          "ms": 1367
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "staff video note",
+          "ok": true,
+          "ms": 2039
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "staff caption note",
+          "ok": true,
+          "ms": 2433
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "staff play",
+          "ok": true,
+          "ms": 1503
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "staff reload typing",
+          "ok": false,
+          "ms": 1304,
+          "error": "AssertionError"
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "staff caption edit",
+          "ok": true,
+          "ms": 2703
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "staff slow save",
+          "ok": true,
+          "ms": 6383
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "staff offline save and return",
+          "ok": true,
+          "ms": 2686
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "staff two tabs",
+          "ok": true,
+          "ms": 4910
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "staff change request",
+          "ok": true,
+          "ms": 5531
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "staff approve graphic",
+          "ok": true,
+          "ms": 2192
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "staff approve caption",
+          "ok": true,
+          "ms": 2396
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "staff delete own note",
+          "ok": false,
+          "ms": 7137,
+          "error": "TimeoutError"
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "staff approve video",
+          "ok": false,
+          "ms": 26900,
+          "error": "Error"
+        },
+        {
+          "cell": "webkit-1440",
+          "action": "browser exceptions",
+          "ok": false,
+          "count": 1
+        },
+        {
+          "cell": "webkit-390",
+          "action": "client open",
+          "ok": true,
+          "ms": 1627
+        },
+        {
+          "cell": "webkit-390",
+          "action": "client play",
+          "ok": true,
+          "ms": 2766
+        },
+        {
+          "cell": "webkit-390",
+          "action": "client video note",
+          "ok": true,
+          "ms": 2543
+        },
+        {
+          "cell": "webkit-390",
+          "action": "client caption note",
+          "ok": true,
+          "ms": 1535
+        },
+        {
+          "cell": "webkit-390",
+          "action": "client caption edit",
+          "ok": true,
+          "ms": 1432
+        },
+        {
+          "cell": "webkit-390",
+          "action": "client reload typing",
+          "ok": true,
+          "ms": 1350
+        },
+        {
+          "cell": "webkit-390",
+          "action": "client slow save",
+          "ok": true,
+          "ms": 5380
+        },
+        {
+          "cell": "webkit-390",
+          "action": "client offline save and return",
+          "ok": true,
+          "ms": 2611
+        },
+        {
+          "cell": "webkit-390",
+          "action": "client two tabs",
+          "ok": true,
+          "ms": 3578
+        },
+        {
+          "cell": "webkit-390",
+          "action": "client change request",
+          "ok": true,
+          "ms": 5102
+        },
+        {
+          "cell": "webkit-390",
+          "action": "client approve graphic",
+          "ok": true,
+          "ms": 3386
+        },
+        {
+          "cell": "webkit-390",
+          "action": "client approve caption",
+          "ok": true,
+          "ms": 1857
+        },
+        {
+          "cell": "webkit-390",
+          "action": "client delete own note",
+          "ok": true,
+          "ms": 2705
+        },
+        {
+          "cell": "webkit-390",
+          "action": "client approve video",
+          "ok": true,
+          "ms": 3683
+        },
+        {
+          "cell": "webkit-390",
+          "action": "staff open",
+          "ok": true,
+          "ms": 1335
+        },
+        {
+          "cell": "webkit-390",
+          "action": "staff video note",
+          "ok": true,
+          "ms": 1670
+        },
+        {
+          "cell": "webkit-390",
+          "action": "staff caption note",
+          "ok": true,
+          "ms": 1917
+        },
+        {
+          "cell": "webkit-390",
+          "action": "staff play",
+          "ok": true,
+          "ms": 1135
+        },
+        {
+          "cell": "webkit-390",
+          "action": "staff reload typing",
+          "ok": false,
+          "ms": 1161,
+          "error": "AssertionError"
+        },
+        {
+          "cell": "webkit-390",
+          "action": "staff caption edit",
+          "ok": true,
+          "ms": 3070
+        },
+        {
+          "cell": "webkit-390",
+          "action": "staff slow save",
+          "ok": true,
+          "ms": 5593
+        },
+        {
+          "cell": "webkit-390",
+          "action": "staff offline save and return",
+          "ok": true,
+          "ms": 2591
+        },
+        {
+          "cell": "webkit-390",
+          "action": "staff two tabs",
+          "ok": true,
+          "ms": 5378
+        },
+        {
+          "cell": "webkit-390",
+          "action": "staff change request",
+          "ok": true,
+          "ms": 4952
+        },
+        {
+          "cell": "webkit-390",
+          "action": "staff approve graphic",
+          "ok": true,
+          "ms": 1923
+        },
+        {
+          "cell": "webkit-390",
+          "action": "staff approve caption",
+          "ok": true,
+          "ms": 2015
+        },
+        {
+          "cell": "webkit-390",
+          "action": "staff delete own note",
+          "ok": false,
+          "ms": 6591,
+          "error": "TimeoutError"
+        },
+        {
+          "cell": "webkit-390",
+          "action": "staff approve video",
+          "ok": false,
+          "ms": 26407,
+          "error": "Error"
+        },
+        {
+          "cell": "webkit-390",
+          "action": "browser exceptions",
+          "ok": false,
+          "count": 1
+        },
+        {
+          "cell": "cleanup",
+          "action": "disposable card archived through app",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "name": "client_and_smm_corrections",
+      "observations": [
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "setup",
+          "action": "status menu lost during startup",
+          "ok": false
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "followup-chromium-1440",
+          "action": "client caption draft reload",
+          "ok": false,
+          "ms": 2276,
+          "error": "AssertionError"
+        },
+        {
+          "cell": "followup-chromium-1440",
+          "action": "client delete with real hover",
+          "ok": true,
+          "ms": 2678
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "followup-chromium-1440",
+          "action": "client Finish",
+          "ok": true,
+          "ms": 6455
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "followup-chromium-1440",
+          "action": "staff caption note after visible part selection",
+          "ok": true,
+          "ms": 1734
+        },
+        {
+          "cell": "followup-chromium-1440",
+          "action": "staff slow note after visible part selection",
+          "ok": true,
+          "ms": 5041
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "followup-chromium-1440",
+          "action": "staff delete with real hover",
+          "ok": false,
+          "ms": 27255,
+          "error": "Error"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "followup-chromium-1440",
+          "action": "staff video approval with offered resolution chooser",
+          "ok": true,
+          "ms": 1773
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "followup-chromium-390",
+          "action": "client caption draft reload",
+          "ok": false,
+          "ms": 2326,
+          "error": "AssertionError"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "followup-chromium-390",
+          "action": "client delete with real hover",
+          "ok": true,
+          "ms": 3558
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "followup-chromium-390",
+          "action": "client Finish",
+          "ok": true,
+          "ms": 6981
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "followup-chromium-390",
+          "action": "staff caption note after visible part selection",
+          "ok": true,
+          "ms": 1759
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "followup-chromium-390",
+          "action": "staff slow note after visible part selection",
+          "ok": true,
+          "ms": 5508
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "followup-chromium-390",
+          "action": "staff delete with real hover",
+          "ok": false,
+          "ms": 7898,
+          "error": "TimeoutError"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "followup-chromium-390",
+          "action": "staff video approval with offered resolution chooser",
+          "ok": true,
+          "ms": 1752
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "followup-firefox-1440",
+          "action": "client caption draft reload",
+          "ok": false,
+          "ms": 3231,
+          "error": "AssertionError"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "followup-firefox-1440",
+          "action": "client delete with real hover",
+          "ok": true,
+          "ms": 3514
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "followup-firefox-1440",
+          "action": "client Finish",
+          "ok": true,
+          "ms": 7892
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "followup-firefox-1440",
+          "action": "staff caption note after visible part selection",
+          "ok": true,
+          "ms": 2405
+        },
+        {
+          "cell": "followup-firefox-1440",
+          "action": "staff slow note after visible part selection",
+          "ok": true,
+          "ms": 5755
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "followup-firefox-1440",
+          "action": "staff delete with real hover",
+          "ok": false,
+          "ms": 28169,
+          "error": "Error"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "followup-firefox-1440",
+          "action": "staff video approval with offered resolution chooser",
+          "ok": true,
+          "ms": 1886
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "followup-firefox-390",
+          "action": "client caption draft reload",
+          "ok": false,
+          "ms": 2813,
+          "error": "AssertionError"
+        },
+        {
+          "cell": "followup-firefox-390",
+          "action": "client delete with real hover",
+          "ok": true,
+          "ms": 3195
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "followup-firefox-390",
+          "action": "client Finish",
+          "ok": true,
+          "ms": 8097
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "followup-firefox-390",
+          "action": "staff caption note after visible part selection",
+          "ok": true,
+          "ms": 2344
+        },
+        {
+          "cell": "followup-firefox-390",
+          "action": "staff slow note after visible part selection",
+          "ok": true,
+          "ms": 5658
+        },
+        {
+          "cell": "followup-firefox-390",
+          "action": "staff delete with real hover",
+          "ok": false,
+          "ms": 7931,
+          "error": "TimeoutError"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write"
+        },
+        {
+          "cell": "followup-firefox-390",
+          "action": "staff video approval with offered resolution chooser",
+          "ok": true,
+          "ms": 1645
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "followup-webkit-1440",
+          "action": "client caption draft reload",
+          "ok": false,
+          "ms": 3313,
+          "error": "AssertionError"
+        },
+        {
+          "cell": "followup-webkit-1440",
+          "action": "client delete with real hover",
+          "ok": true,
+          "ms": 6689
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "followup-webkit-1440",
+          "action": "client Finish",
+          "ok": true,
+          "ms": 9313
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "followup-webkit-1440",
+          "action": "staff caption note after visible part selection",
+          "ok": true,
+          "ms": 2268
+        },
+        {
+          "cell": "followup-webkit-1440",
+          "action": "staff slow note after visible part selection",
+          "ok": true,
+          "ms": 5970
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "followup-webkit-1440",
+          "action": "staff delete with real hover",
+          "ok": true,
+          "ms": 6668
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "followup-webkit-1440",
+          "action": "staff video approval with offered resolution chooser",
+          "ok": true,
+          "ms": 2259
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "followup-webkit-390",
+          "action": "client caption draft reload",
+          "ok": false,
+          "ms": 2883,
+          "error": "AssertionError"
+        },
+        {
+          "cell": "followup-webkit-390",
+          "action": "client delete with real hover",
+          "ok": true,
+          "ms": 5242
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "followup-webkit-390",
+          "action": "client Finish",
+          "ok": true,
+          "ms": 8121
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "followup-webkit-390",
+          "action": "staff caption note after visible part selection",
+          "ok": true,
+          "ms": 2564
+        },
+        {
+          "cell": "followup-webkit-390",
+          "action": "staff slow note after visible part selection",
+          "ok": true,
+          "ms": 5560
+        },
+        {
+          "cell": "followup-webkit-390",
+          "action": "staff delete with real hover",
+          "ok": false,
+          "ms": 25538,
+          "error": "Error"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "followup-webkit-390",
+          "action": "staff video approval with offered resolution chooser",
+          "ok": true,
+          "ms": 1999
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "analytics-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "brain"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "thumbnail-revision-read"
+        },
+        {
+          "cell": "cleanup",
+          "action": "disposable card archived through app",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "name": "reviewer_sequence",
+      "observations": [
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "setup",
+          "action": "status menu lost during startup",
+          "ok": false
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "reviewer-chromium-1440: open",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-1440",
+          "action": "open",
+          "ok": true,
+          "ms": 3149
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-1440",
+          "action": "play",
+          "ok": false,
+          "ms": 10509,
+          "error": "TimeoutError"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-1440",
+          "action": "video note",
+          "ok": true,
+          "ms": 1554
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-1440",
+          "action": "caption note",
+          "ok": true,
+          "ms": 1717
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-1440",
+          "action": "reload typing",
+          "ok": false,
+          "ms": 1617,
+          "error": "AssertionError"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-1440",
+          "action": "slow save",
+          "ok": true,
+          "ms": 6370
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-1440",
+          "action": "offline save and return",
+          "ok": false,
+          "ms": 33466,
+          "error": "Error",
+          "draftVisible": false,
+          "legacyDraftRetained": false,
+          "wordBubbleShown": false,
+          "alertCount": 0,
+          "retryOffered": false,
+          "savedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-1440",
+          "action": "two tabs",
+          "ok": true,
+          "ms": 7536
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-1440",
+          "action": "change video",
+          "ok": true,
+          "ms": 3987
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "reviewer-chromium-1440: approve graphic",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-1440",
+          "action": "approve graphic",
+          "ok": true,
+          "ms": 2028
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "server",
+          "action": "write refused",
+          "ok": false,
+          "phase": "reviewer-chromium-1440: approve caption",
+          "endpoint": "calendar-card-write",
+          "status": 200,
+          "code": "unclassified"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "reviewer-chromium-1440: approve caption",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-1440",
+          "action": "approve caption",
+          "ok": false,
+          "ms": 25731,
+          "error": "Error"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-1440",
+          "action": "finish after changes",
+          "ok": false,
+          "ms": 6002,
+          "error": "TimeoutError"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "reviewer-chromium-1440: approve video",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-1440",
+          "action": "approve video",
+          "ok": true,
+          "ms": 3291
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-1440",
+          "action": "browser exceptions",
+          "ok": true,
+          "errors": []
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-390",
+          "action": "open",
+          "ok": true,
+          "ms": 3346
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-390",
+          "action": "play",
+          "ok": false,
+          "ms": 10260,
+          "error": "TimeoutError"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-390",
+          "action": "video note",
+          "ok": true,
+          "ms": 1584
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-390",
+          "action": "caption note",
+          "ok": true,
+          "ms": 1763
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-390",
+          "action": "reload typing",
+          "ok": false,
+          "ms": 1796,
+          "error": "AssertionError"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-390",
+          "action": "slow save",
+          "ok": true,
+          "ms": 6569
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-390",
+          "action": "offline save and return",
+          "ok": false,
+          "ms": 33421,
+          "error": "Error",
+          "draftVisible": false,
+          "legacyDraftRetained": false,
+          "wordBubbleShown": false,
+          "alertCount": 0,
+          "retryOffered": false,
+          "savedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-390",
+          "action": "two tabs",
+          "ok": true,
+          "ms": 7421
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-390",
+          "action": "change video",
+          "ok": true,
+          "ms": 4396
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "reviewer-chromium-390: approve graphic",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-390",
+          "action": "approve graphic",
+          "ok": true,
+          "ms": 1884
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "server",
+          "action": "write refused",
+          "ok": false,
+          "phase": "reviewer-chromium-390: approve caption",
+          "endpoint": "calendar-card-write",
+          "status": 200,
+          "code": "unclassified"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "reviewer-chromium-390: approve caption",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-390",
+          "action": "approve caption",
+          "ok": false,
+          "ms": 25939,
+          "error": "Error"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-390",
+          "action": "finish after changes",
+          "ok": false,
+          "ms": 6012,
+          "error": "TimeoutError"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "reviewer-chromium-390: approve video",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-390",
+          "action": "approve video",
+          "ok": true,
+          "ms": 4844
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-chromium-390",
+          "action": "browser exceptions",
+          "ok": true,
+          "errors": []
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-1440",
+          "action": "open",
+          "ok": true,
+          "ms": 3919
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-1440",
+          "action": "play",
+          "ok": true,
+          "ms": 2233
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-1440",
+          "action": "video note",
+          "ok": true,
+          "ms": 2901
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-1440",
+          "action": "caption note",
+          "ok": true,
+          "ms": 2432
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-1440",
+          "action": "reload typing",
+          "ok": false,
+          "ms": 1783,
+          "error": "AssertionError"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-1440",
+          "action": "slow save",
+          "ok": true,
+          "ms": 6052
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-1440",
+          "action": "offline save and return",
+          "ok": false,
+          "ms": 33914,
+          "error": "Error",
+          "draftVisible": false,
+          "legacyDraftRetained": false,
+          "wordBubbleShown": false,
+          "alertCount": 0,
+          "retryOffered": false,
+          "savedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-1440",
+          "action": "two tabs",
+          "ok": true,
+          "ms": 7503
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "reviewer-firefox-1440: change video",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "reviewer-firefox-1440: change video",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-1440",
+          "action": "change video",
+          "ok": true,
+          "ms": 5743
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-1440",
+          "action": "approve graphic",
+          "ok": true,
+          "ms": 2009
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "server",
+          "action": "write refused",
+          "ok": false,
+          "phase": "reviewer-firefox-1440: approve caption",
+          "endpoint": "calendar-card-write",
+          "status": 200,
+          "code": "unclassified"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "reviewer-firefox-1440: approve caption",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-1440",
+          "action": "approve caption",
+          "ok": false,
+          "ms": 25492,
+          "error": "Error"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-1440",
+          "action": "finish after changes",
+          "ok": false,
+          "ms": 6006,
+          "error": "TimeoutError"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-1440",
+          "action": "approve video",
+          "ok": true,
+          "ms": 4299
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-1440",
+          "action": "browser exceptions",
+          "ok": true,
+          "errors": []
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-390",
+          "action": "open",
+          "ok": true,
+          "ms": 3584
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-390",
+          "action": "play",
+          "ok": true,
+          "ms": 4462
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-390",
+          "action": "video note",
+          "ok": true,
+          "ms": 3349
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-390",
+          "action": "caption note",
+          "ok": true,
+          "ms": 2597
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-390",
+          "action": "reload typing",
+          "ok": false,
+          "ms": 1817,
+          "error": "AssertionError"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-390",
+          "action": "slow save",
+          "ok": true,
+          "ms": 6319
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-390",
+          "action": "offline save and return",
+          "ok": false,
+          "ms": 33152,
+          "error": "Error",
+          "draftVisible": false,
+          "legacyDraftRetained": false,
+          "wordBubbleShown": false,
+          "alertCount": 0,
+          "retryOffered": false,
+          "savedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-390",
+          "action": "two tabs",
+          "ok": true,
+          "ms": 8051
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-390",
+          "action": "change video",
+          "ok": false,
+          "ms": 25834,
+          "error": "Error"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-390",
+          "action": "approve graphic",
+          "ok": true,
+          "ms": 2088
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "server",
+          "action": "write refused",
+          "ok": false,
+          "phase": "reviewer-firefox-390: approve caption",
+          "endpoint": "calendar-card-write",
+          "status": 200,
+          "code": "unclassified"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "reviewer-firefox-390: approve caption",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-390",
+          "action": "approve caption",
+          "ok": false,
+          "ms": 25583,
+          "error": "Error"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-390",
+          "action": "finish after changes",
+          "ok": false,
+          "ms": 6018,
+          "error": "TimeoutError"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-390",
+          "action": "approve video",
+          "ok": true,
+          "ms": 3383
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-firefox-390",
+          "action": "browser exceptions",
+          "ok": true,
+          "errors": []
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-1440",
+          "action": "open",
+          "ok": true,
+          "ms": 3914
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-1440",
+          "action": "play",
+          "ok": true,
+          "ms": 2722
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-1440",
+          "action": "video note",
+          "ok": true,
+          "ms": 3622
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-1440",
+          "action": "caption note",
+          "ok": true,
+          "ms": 2922
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-1440",
+          "action": "reload typing",
+          "ok": false,
+          "ms": 3784,
+          "error": "AssertionError"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-1440",
+          "action": "slow save",
+          "ok": true,
+          "ms": 8869
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-1440",
+          "action": "offline save and return",
+          "ok": true,
+          "ms": 2773
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-1440",
+          "action": "two tabs",
+          "ok": true,
+          "ms": 7671
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-1440",
+          "action": "change video",
+          "ok": true,
+          "ms": 5394
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "reviewer-webkit-1440: approve graphic",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-1440",
+          "action": "approve graphic",
+          "ok": true,
+          "ms": 2471
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "server",
+          "action": "write refused",
+          "ok": false,
+          "phase": "reviewer-webkit-1440: approve caption",
+          "endpoint": "calendar-card-write",
+          "status": 200,
+          "code": "unclassified"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "reviewer-webkit-1440: approve caption",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-1440",
+          "action": "approve caption",
+          "ok": false,
+          "ms": 26530,
+          "error": "Error"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-1440",
+          "action": "finish after changes",
+          "ok": false,
+          "ms": 6003,
+          "error": "TimeoutError"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-1440",
+          "action": "approve video",
+          "ok": true,
+          "ms": 6573
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-1440",
+          "action": "browser exceptions",
+          "ok": true,
+          "errors": []
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-390",
+          "action": "open",
+          "ok": true,
+          "ms": 4439
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-390",
+          "action": "play",
+          "ok": true,
+          "ms": 2361
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-390",
+          "action": "video note",
+          "ok": true,
+          "ms": 1843
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-390",
+          "action": "caption note",
+          "ok": true,
+          "ms": 2052
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-390",
+          "action": "reload typing",
+          "ok": false,
+          "ms": 1762,
+          "error": "AssertionError"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-390",
+          "action": "slow save",
+          "ok": true,
+          "ms": 7176
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-390",
+          "action": "offline save and return",
+          "ok": true,
+          "ms": 2565
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-390",
+          "action": "two tabs",
+          "ok": false,
+          "ms": 29016,
+          "error": "Error"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-390",
+          "action": "change video",
+          "ok": true,
+          "ms": 5440
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "reviewer-webkit-390: approve graphic",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-390",
+          "action": "approve graphic",
+          "ok": true,
+          "ms": 2235
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "server",
+          "action": "write refused",
+          "ok": false,
+          "phase": "reviewer-webkit-390: approve caption",
+          "endpoint": "calendar-card-write",
+          "status": 200,
+          "code": "unclassified"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "reviewer-webkit-390: approve caption",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-390",
+          "action": "approve caption",
+          "ok": false,
+          "ms": 25835,
+          "error": "Error"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-390",
+          "action": "finish after changes",
+          "ok": false,
+          "ms": 6004,
+          "error": "TimeoutError"
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-390",
+          "action": "approve video",
+          "ok": true,
+          "ms": 3697
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "reviewer-webkit-390",
+          "action": "browser exceptions",
+          "ok": true,
+          "errors": []
+        },
+        {
+          "run": "Checkpoint mveersmi",
+          "cell": "cleanup",
+          "action": "disposable card archived through app",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "name": "fresh_staff_checks",
+      "observations": [
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "setup",
+          "action": "status menu lost during startup",
+          "ok": false
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "setup: read status back",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "staff-check-chromium-1440: fresh staff note delete",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-chromium-1440",
+          "action": "fresh staff note delete",
+          "ok": false,
+          "ms": 27517,
+          "error": "Error"
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-chromium-1440",
+          "action": "fresh reviewer caption approval",
+          "ok": true,
+          "ms": 1988
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-chromium-1440",
+          "action": "reviewer graphic then caption approval",
+          "ok": false,
+          "ms": 7997,
+          "error": "TimeoutError"
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-chromium-390",
+          "action": "fresh staff note delete",
+          "ok": false,
+          "ms": 8244,
+          "error": "TimeoutError"
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-chromium-390",
+          "action": "fresh reviewer caption approval",
+          "ok": true,
+          "ms": 2324
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-chromium-390",
+          "action": "reviewer graphic then caption approval",
+          "ok": false,
+          "ms": 8173,
+          "error": "TimeoutError"
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: read status back",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: read status back",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "setup: read status back",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "setup: read status back",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "staff-check-firefox-1440: fresh staff note delete",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "staff-check-firefox-1440: fresh staff note delete",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "staff-check-firefox-1440: fresh staff note delete",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "staff-check-firefox-1440: fresh staff note delete",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-firefox-1440",
+          "action": "fresh staff note delete",
+          "ok": false,
+          "ms": 28762,
+          "error": "Error"
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-firefox-1440",
+          "action": "fresh reviewer caption approval",
+          "ok": true,
+          "ms": 3180
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-firefox-1440",
+          "action": "reviewer graphic then caption approval",
+          "ok": true,
+          "ms": 11088
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "staff-check-firefox-390: fresh staff note delete",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-firefox-390",
+          "action": "fresh staff note delete",
+          "ok": false,
+          "ms": 9016,
+          "error": "TimeoutError"
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-firefox-390",
+          "action": "fresh reviewer caption approval",
+          "ok": true,
+          "ms": 3009
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "server",
+          "action": "write refused",
+          "ok": false,
+          "phase": "staff-check-firefox-390: reviewer graphic then caption approval",
+          "endpoint": "calendar-card-write",
+          "status": 200,
+          "code": "unclassified",
+          "conflict": true,
+          "messageClass": "stale_card",
+          "errorKeys": []
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-firefox-390",
+          "action": "reviewer graphic then caption approval",
+          "ok": false,
+          "ms": 29532,
+          "error": "Error"
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-webkit-1440",
+          "action": "fresh staff note delete",
+          "ok": true,
+          "ms": 8423
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-webkit-1440",
+          "action": "fresh reviewer caption approval",
+          "ok": true,
+          "ms": 3920
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "server",
+          "action": "write refused",
+          "ok": false,
+          "phase": "staff-check-webkit-1440: reviewer graphic then caption approval",
+          "endpoint": "calendar-card-write",
+          "status": 200,
+          "code": "unclassified",
+          "conflict": true,
+          "messageClass": "stale_card",
+          "errorKeys": []
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-webkit-1440",
+          "action": "reviewer graphic then caption approval",
+          "ok": false,
+          "ms": 31357,
+          "error": "Error"
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-webkit-390",
+          "action": "fresh staff note delete",
+          "ok": false,
+          "ms": 9059,
+          "error": "TimeoutError"
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "setup: read status back",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-webkit-390",
+          "action": "fresh reviewer caption approval",
+          "ok": true,
+          "ms": 3095
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "server",
+          "action": "write refused",
+          "ok": false,
+          "phase": "staff-check-webkit-390: reviewer graphic then caption approval",
+          "endpoint": "calendar-card-write",
+          "status": 200,
+          "code": "unclassified",
+          "conflict": true,
+          "messageClass": "stale_card",
+          "errorKeys": []
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "staff-check-webkit-390",
+          "action": "reviewer graphic then caption approval",
+          "ok": false,
+          "ms": 34433,
+          "error": "Error"
+        },
+        {
+          "run": "Checkpoint mvef7fgz",
+          "cell": "cleanup",
+          "action": "disposable card archived through app",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "name": "isolated_offline",
+      "observations": [
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "setup",
+          "action": "status menu lost during startup",
+          "ok": false
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-client-chromium-1440",
+          "action": "interrupted save with draft and message inspection",
+          "ok": false,
+          "ms": 51317,
+          "error": "Error",
+          "draftVisible": false,
+          "legacyDraftRetained": false,
+          "reviewerDraftRetained": false,
+          "localCopyRetained": true,
+          "sessionCopyRetained": false,
+          "wordBubbleShown": true,
+          "alertCount": 0,
+          "retryOffered": false,
+          "promisesAutomaticFinish": false,
+          "savedCount": 0,
+          "recoveryAction": "reload",
+          "recoveryError": "Error",
+          "afterRecoverySavedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: read status back",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: read status back",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "setup: read status back",
+          "operation": "warm_snapshot",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "offline-smm-chromium-1440: interrupted save with draft and message inspection",
+          "operation": "warm_snapshot",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "offline-smm-chromium-1440: interrupted save with draft and message inspection",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "offline-smm-chromium-1440: interrupted save with draft and message inspection",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-smm-chromium-1440",
+          "action": "interrupted save with draft and message inspection",
+          "ok": true,
+          "ms": 4164
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "setup: read status back",
+          "operation": "warm_snapshot",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "offline-reviewer-chromium-1440: interrupted save with draft and message inspection",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "offline-reviewer-chromium-1440: interrupted save with draft and message inspection",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-reviewer-chromium-1440",
+          "action": "interrupted save with draft and message inspection",
+          "ok": false,
+          "ms": 61895,
+          "error": "Error",
+          "draftVisible": false,
+          "legacyDraftRetained": false,
+          "reviewerDraftRetained": true,
+          "localCopyRetained": true,
+          "sessionCopyRetained": false,
+          "wordBubbleShown": false,
+          "alertCount": 1,
+          "retryOffered": false,
+          "promisesAutomaticFinish": false,
+          "savedCount": 0,
+          "recoveryError": "TimeoutError",
+          "afterRecoverySavedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-client-chromium-390",
+          "action": "interrupted save with draft and message inspection",
+          "ok": false,
+          "ms": 50915,
+          "error": "Error",
+          "draftVisible": false,
+          "legacyDraftRetained": false,
+          "reviewerDraftRetained": false,
+          "localCopyRetained": true,
+          "sessionCopyRetained": false,
+          "wordBubbleShown": true,
+          "alertCount": 0,
+          "retryOffered": false,
+          "promisesAutomaticFinish": false,
+          "savedCount": 0,
+          "recoveryAction": "reload",
+          "recoveryError": "Error",
+          "afterRecoverySavedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: read status back",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: read status back",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "offline-smm-chromium-390: interrupted save with draft and message inspection",
+          "operation": "warm_snapshot",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "offline-smm-chromium-390: interrupted save with draft and message inspection",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "offline-smm-chromium-390: interrupted save with draft and message inspection",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-smm-chromium-390",
+          "action": "interrupted save with draft and message inspection",
+          "ok": true,
+          "ms": 4256
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "setup: read status back",
+          "operation": "warm_snapshot",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "offline-reviewer-chromium-390: interrupted save with draft and message inspection",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "offline-reviewer-chromium-390: interrupted save with draft and message inspection",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-reviewer-chromium-390",
+          "action": "interrupted save with draft and message inspection",
+          "ok": false,
+          "ms": 60916,
+          "error": "Error",
+          "draftVisible": false,
+          "legacyDraftRetained": false,
+          "reviewerDraftRetained": true,
+          "localCopyRetained": true,
+          "sessionCopyRetained": false,
+          "wordBubbleShown": false,
+          "alertCount": 1,
+          "retryOffered": false,
+          "promisesAutomaticFinish": false,
+          "savedCount": 0,
+          "recoveryError": "TimeoutError",
+          "afterRecoverySavedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-client-firefox-1440",
+          "action": "interrupted save with draft and message inspection",
+          "ok": false,
+          "ms": 51762,
+          "error": "Error",
+          "draftVisible": false,
+          "legacyDraftRetained": false,
+          "reviewerDraftRetained": false,
+          "localCopyRetained": true,
+          "sessionCopyRetained": false,
+          "wordBubbleShown": true,
+          "alertCount": 0,
+          "retryOffered": false,
+          "promisesAutomaticFinish": false,
+          "savedCount": 0,
+          "recoveryAction": "reload",
+          "recoveryError": "Error",
+          "afterRecoverySavedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-smm-firefox-1440",
+          "action": "interrupted save with draft and message inspection",
+          "ok": true,
+          "ms": 4859
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-reviewer-firefox-1440",
+          "action": "interrupted save with draft and message inspection",
+          "ok": false,
+          "ms": 60241,
+          "error": "Error",
+          "draftVisible": false,
+          "legacyDraftRetained": false,
+          "reviewerDraftRetained": true,
+          "localCopyRetained": true,
+          "sessionCopyRetained": false,
+          "wordBubbleShown": false,
+          "alertCount": 1,
+          "retryOffered": false,
+          "promisesAutomaticFinish": false,
+          "savedCount": 0,
+          "recoveryError": "TimeoutError",
+          "afterRecoverySavedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "setup: read status back",
+          "operation": "warm_snapshot",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "offline-client-firefox-390: interrupted save with draft and message inspection",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "offline-client-firefox-390: interrupted save with draft and message inspection",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-client-firefox-390",
+          "action": "interrupted save with draft and message inspection",
+          "ok": false,
+          "ms": 51300,
+          "error": "Error",
+          "draftVisible": false,
+          "legacyDraftRetained": false,
+          "reviewerDraftRetained": false,
+          "localCopyRetained": true,
+          "sessionCopyRetained": false,
+          "wordBubbleShown": true,
+          "alertCount": 0,
+          "retryOffered": false,
+          "promisesAutomaticFinish": false,
+          "savedCount": 0,
+          "recoveryAction": "reload",
+          "recoveryError": "Error",
+          "afterRecoverySavedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-smm-firefox-390",
+          "action": "interrupted save with draft and message inspection",
+          "ok": false,
+          "ms": 2136,
+          "error": "AssertionError"
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-reviewer-firefox-390",
+          "action": "interrupted save with draft and message inspection",
+          "ok": false,
+          "ms": 60289,
+          "error": "Error",
+          "draftVisible": false,
+          "legacyDraftRetained": false,
+          "reviewerDraftRetained": true,
+          "localCopyRetained": true,
+          "sessionCopyRetained": false,
+          "wordBubbleShown": false,
+          "alertCount": 1,
+          "retryOffered": false,
+          "promisesAutomaticFinish": false,
+          "savedCount": 0,
+          "recoveryError": "TimeoutError",
+          "afterRecoverySavedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "setup: read status back",
+          "operation": "warm_snapshot",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "offline-client-webkit-1440: interrupted save with draft and message inspection",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "offline-client-webkit-1440: interrupted save with draft and message inspection",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-client-webkit-1440",
+          "action": "interrupted save with draft and message inspection",
+          "ok": true,
+          "ms": 2776
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-smm-webkit-1440",
+          "action": "interrupted save with draft and message inspection",
+          "ok": true,
+          "ms": 2764
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-reviewer-webkit-1440",
+          "action": "interrupted save with draft and message inspection",
+          "ok": false,
+          "ms": 2361,
+          "error": "AssertionError"
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-client-webkit-390",
+          "action": "interrupted save with draft and message inspection",
+          "ok": true,
+          "ms": 2644
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-smm-webkit-390",
+          "action": "interrupted save with draft and message inspection",
+          "ok": true,
+          "ms": 5181
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "offline-reviewer-webkit-390",
+          "action": "interrupted save with draft and message inspection",
+          "ok": true,
+          "ms": 3021
+        },
+        {
+          "run": "Checkpoint mvefhahc",
+          "cell": "cleanup",
+          "action": "disposable card archived through app",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "name": "corrected_offline",
+      "observations": [
+        {
+          "run": "Checkpoint mvefyj42",
+          "cell": "setup",
+          "action": "status menu lost during startup",
+          "ok": false
+        },
+        {
+          "run": "Checkpoint mvefyj42",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "setup: read status back",
+          "operation": "warm_snapshot",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefyj42",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "setup: read status back",
+          "operation": "warm_snapshot",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefyj42",
+          "cell": "offline-smm-firefox-390",
+          "action": "interrupted save with draft and message inspection",
+          "ok": true,
+          "ms": 5416,
+          "interruptionOccurred": true,
+          "interruptedEndpoint": "calendar-card-write"
+        },
+        {
+          "run": "Checkpoint mvefyj42",
+          "cell": "offline-reviewer-webkit-1440",
+          "action": "interrupted save with draft and message inspection",
+          "ok": true,
+          "ms": 4547,
+          "interruptionOccurred": true,
+          "interruptedEndpoint": "calendar-card-write"
+        },
+        {
+          "run": "Checkpoint mvefyj42",
+          "cell": "offline-reviewer-webkit-390",
+          "action": "interrupted save with draft and message inspection",
+          "ok": true,
+          "ms": 3147,
+          "interruptionOccurred": true,
+          "interruptedEndpoint": "calendar-card-write"
+        },
+        {
+          "run": "Checkpoint mvefyj42",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "offline-reviewer-webkit-390: interrupted save with draft and message inspection",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefyj42",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "offline-reviewer-webkit-390: interrupted save with draft and message inspection",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefyj42",
+          "cell": "cleanup",
+          "action": "disposable card archived through app",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "name": "smm_finish",
+      "observations": [
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "setup",
+          "action": "status menu lost during startup",
+          "ok": false
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "setup: read status back",
+          "operation": "warm_snapshot",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "smm-finish-chromium-1440: approve all parts and Finish",
+          "operation": "warm_snapshot",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "smm-finish-chromium-1440",
+          "action": "approve all parts and Finish",
+          "ok": true,
+          "ms": 7285
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "smm-finish-chromium-390",
+          "action": "approve all parts and Finish",
+          "ok": true,
+          "ms": 7052
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "smm-finish-firefox-1440",
+          "action": "approve all parts and Finish",
+          "ok": true,
+          "ms": 8858
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: open Sheet",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: read status back",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "setup: read status back",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "setup: read status back",
+          "operation": "warm_snapshot",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "workload-plan",
+          "phase": "smm-finish-firefox-390: approve all parts and Finish",
+          "operation": "warm_snapshot",
+          "keys": [
+            "action"
+          ],
+          "postKeys": [],
+          "targetKnown": false,
+          "namedCount": 0
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "smm-finish-firefox-390: approve all parts and Finish",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "smm-finish-firefox-390: approve all parts and Finish",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "smm-finish-firefox-390: approve all parts and Finish",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "smm-finish-firefox-390: approve all parts and Finish",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "smm-finish-firefox-390: approve all parts and Finish",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "smm-finish-firefox-390: approve all parts and Finish",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "smm-finish-firefox-390",
+          "action": "approve all parts and Finish",
+          "ok": true,
+          "ms": 8034
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "smm-finish-firefox-390: approve all parts and Finish",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "guard",
+          "action": "unrecognised mutation aborted",
+          "ok": false,
+          "endpoint": "calendar-card-write",
+          "phase": "smm-finish-firefox-390: approve all parts and Finish",
+          "keys": [
+            "client",
+            "post"
+          ],
+          "postKeys": [
+            "id",
+            "graphic_linear_issue_id"
+          ],
+          "targetKnown": false,
+          "namedCount": 1
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "smm-finish-webkit-1440",
+          "action": "approve all parts and Finish",
+          "ok": true,
+          "ms": 9219
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "smm-finish-webkit-390",
+          "action": "approve all parts and Finish",
+          "ok": true,
+          "ms": 7338
+        },
+        {
+          "run": "Checkpoint mvefzots",
+          "cell": "cleanup",
+          "action": "disposable card archived through app",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "name": "final_native_cleanup",
+      "observations": [
+        {
+          "run": "Checkpoint mveg52kn",
+          "cell": "cleanup",
+          "action": "disposable card archived through app",
+          "ok": true,
+          "nativeItemsParked": 2
+        }
+      ]
+    }
+  ],
+  "over3Seconds": [
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-1440",
+      "action": "client play",
+      "ok": false,
+      "ms": 10041,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-1440",
+      "action": "client slow save",
+      "ok": true,
+      "ms": 4202,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-1440",
+      "action": "client offline save and return",
+      "ok": false,
+      "ms": 32496,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-1440",
+      "action": "client change request",
+      "ok": true,
+      "ms": 4342,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-1440",
+      "action": "client approve graphic",
+      "ok": true,
+      "ms": 3427,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-1440",
+      "action": "client delete own note",
+      "ok": false,
+      "ms": 6447,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-1440",
+      "action": "staff caption note",
+      "ok": false,
+      "ms": 25601,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-1440",
+      "action": "staff play",
+      "ok": false,
+      "ms": 6043,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-1440",
+      "action": "staff slow save",
+      "ok": false,
+      "ms": 25346,
+      "error": "Error",
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-1440",
+      "action": "staff offline save and return",
+      "ok": true,
+      "ms": 4146,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-1440",
+      "action": "staff two tabs",
+      "ok": true,
+      "ms": 7181,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-1440",
+      "action": "staff change request",
+      "ok": true,
+      "ms": 4356,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-1440",
+      "action": "staff delete own note",
+      "ok": false,
+      "ms": 6763,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-1440",
+      "action": "staff approve video",
+      "ok": false,
+      "ms": 28838,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-390",
+      "action": "client play",
+      "ok": false,
+      "ms": 10056,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-390",
+      "action": "client slow save",
+      "ok": true,
+      "ms": 4583,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-390",
+      "action": "client offline save and return",
+      "ok": false,
+      "ms": 32530,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-390",
+      "action": "client change request",
+      "ok": true,
+      "ms": 9120,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-390",
+      "action": "staff caption note",
+      "ok": false,
+      "ms": 25156,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-390",
+      "action": "staff play",
+      "ok": false,
+      "ms": 6028,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-390",
+      "action": "staff slow save",
+      "ok": false,
+      "ms": 25500,
+      "error": "Error",
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-390",
+      "action": "staff offline save and return",
+      "ok": true,
+      "ms": 4118,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-390",
+      "action": "staff two tabs",
+      "ok": true,
+      "ms": 3609,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-390",
+      "action": "staff change request",
+      "ok": true,
+      "ms": 4387,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-390",
+      "action": "staff delete own note",
+      "ok": false,
+      "ms": 6397,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "chromium-390",
+      "action": "staff approve video",
+      "ok": false,
+      "ms": 26457,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-1440",
+      "action": "client slow save",
+      "ok": true,
+      "ms": 5700,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-1440",
+      "action": "client offline save and return",
+      "ok": false,
+      "ms": 32587,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-1440",
+      "action": "client two tabs",
+      "ok": true,
+      "ms": 3163,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-1440",
+      "action": "client change request",
+      "ok": true,
+      "ms": 5504,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-1440",
+      "action": "client approve graphic",
+      "ok": true,
+      "ms": 3832,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-1440",
+      "action": "client delete own note",
+      "ok": false,
+      "ms": 6519,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-1440",
+      "action": "client approve video",
+      "ok": true,
+      "ms": 3005,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-1440",
+      "action": "staff caption note",
+      "ok": false,
+      "ms": 25248,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-1440",
+      "action": "staff slow save",
+      "ok": false,
+      "ms": 25254,
+      "error": "Error",
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-1440",
+      "action": "staff offline save and return",
+      "ok": true,
+      "ms": 4583,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-1440",
+      "action": "staff two tabs",
+      "ok": true,
+      "ms": 4800,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-1440",
+      "action": "staff change request",
+      "ok": true,
+      "ms": 5233,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-1440",
+      "action": "staff delete own note",
+      "ok": false,
+      "ms": 6625,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-1440",
+      "action": "staff approve video",
+      "ok": false,
+      "ms": 26697,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-390",
+      "action": "client slow save",
+      "ok": true,
+      "ms": 5122,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-390",
+      "action": "client offline save and return",
+      "ok": false,
+      "ms": 32431,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-390",
+      "action": "client two tabs",
+      "ok": true,
+      "ms": 3261,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-390",
+      "action": "client change request",
+      "ok": true,
+      "ms": 4895,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-390",
+      "action": "client approve graphic",
+      "ok": true,
+      "ms": 3908,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-390",
+      "action": "staff caption note",
+      "ok": false,
+      "ms": 25678,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-390",
+      "action": "staff slow save",
+      "ok": false,
+      "ms": 25441,
+      "error": "Error",
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-390",
+      "action": "staff offline save and return",
+      "ok": true,
+      "ms": 4676,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-390",
+      "action": "staff two tabs",
+      "ok": true,
+      "ms": 4607,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-390",
+      "action": "staff change request",
+      "ok": true,
+      "ms": 5151,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-390",
+      "action": "staff approve graphic",
+      "ok": true,
+      "ms": 3899,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-390",
+      "action": "staff delete own note",
+      "ok": false,
+      "ms": 6462,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "firefox-390",
+      "action": "staff approve video",
+      "ok": false,
+      "ms": 26413,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-1440",
+      "action": "client slow save",
+      "ok": true,
+      "ms": 5505,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-1440",
+      "action": "client two tabs",
+      "ok": true,
+      "ms": 3709,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-1440",
+      "action": "client change request",
+      "ok": true,
+      "ms": 5004,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-1440",
+      "action": "client approve graphic",
+      "ok": true,
+      "ms": 3655,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-1440",
+      "action": "client delete own note",
+      "ok": false,
+      "ms": 7091,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-1440",
+      "action": "client approve video",
+      "ok": true,
+      "ms": 3207,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-1440",
+      "action": "staff slow save",
+      "ok": true,
+      "ms": 6383,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-1440",
+      "action": "staff two tabs",
+      "ok": true,
+      "ms": 4910,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-1440",
+      "action": "staff change request",
+      "ok": true,
+      "ms": 5531,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-1440",
+      "action": "staff delete own note",
+      "ok": false,
+      "ms": 7137,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-1440",
+      "action": "staff approve video",
+      "ok": false,
+      "ms": 26900,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-390",
+      "action": "client slow save",
+      "ok": true,
+      "ms": 5380,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-390",
+      "action": "client two tabs",
+      "ok": true,
+      "ms": 3578,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-390",
+      "action": "client change request",
+      "ok": true,
+      "ms": 5102,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-390",
+      "action": "client approve graphic",
+      "ok": true,
+      "ms": 3386,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-390",
+      "action": "client approve video",
+      "ok": true,
+      "ms": 3683,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-390",
+      "action": "staff caption edit",
+      "ok": true,
+      "ms": 3070,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-390",
+      "action": "staff slow save",
+      "ok": true,
+      "ms": 5593,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-390",
+      "action": "staff two tabs",
+      "ok": true,
+      "ms": 5378,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-390",
+      "action": "staff change request",
+      "ok": true,
+      "ms": 4952,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-390",
+      "action": "staff delete own note",
+      "ok": false,
+      "ms": 6591,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "initial_calendar",
+      "cell": "webkit-390",
+      "action": "staff approve video",
+      "ok": false,
+      "ms": 26407,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-chromium-1440",
+      "action": "client Finish",
+      "ok": true,
+      "ms": 6455,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-chromium-1440",
+      "action": "staff slow note after visible part selection",
+      "ok": true,
+      "ms": 5041,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-chromium-1440",
+      "action": "staff delete with real hover",
+      "ok": false,
+      "ms": 27255,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-chromium-390",
+      "action": "client delete with real hover",
+      "ok": true,
+      "ms": 3558,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-chromium-390",
+      "action": "client Finish",
+      "ok": true,
+      "ms": 6981,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-chromium-390",
+      "action": "staff slow note after visible part selection",
+      "ok": true,
+      "ms": 5508,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-chromium-390",
+      "action": "staff delete with real hover",
+      "ok": false,
+      "ms": 7898,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-firefox-1440",
+      "action": "client caption draft reload",
+      "ok": false,
+      "ms": 3231,
+      "error": "AssertionError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-firefox-1440",
+      "action": "client delete with real hover",
+      "ok": true,
+      "ms": 3514,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-firefox-1440",
+      "action": "client Finish",
+      "ok": true,
+      "ms": 7892,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-firefox-1440",
+      "action": "staff slow note after visible part selection",
+      "ok": true,
+      "ms": 5755,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-firefox-1440",
+      "action": "staff delete with real hover",
+      "ok": false,
+      "ms": 28169,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-firefox-390",
+      "action": "client delete with real hover",
+      "ok": true,
+      "ms": 3195,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-firefox-390",
+      "action": "client Finish",
+      "ok": true,
+      "ms": 8097,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-firefox-390",
+      "action": "staff slow note after visible part selection",
+      "ok": true,
+      "ms": 5658,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-firefox-390",
+      "action": "staff delete with real hover",
+      "ok": false,
+      "ms": 7931,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-webkit-1440",
+      "action": "client caption draft reload",
+      "ok": false,
+      "ms": 3313,
+      "error": "AssertionError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-webkit-1440",
+      "action": "client delete with real hover",
+      "ok": true,
+      "ms": 6689,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-webkit-1440",
+      "action": "client Finish",
+      "ok": true,
+      "ms": 9313,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-webkit-1440",
+      "action": "staff slow note after visible part selection",
+      "ok": true,
+      "ms": 5970,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-webkit-1440",
+      "action": "staff delete with real hover",
+      "ok": true,
+      "ms": 6668,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-webkit-390",
+      "action": "client delete with real hover",
+      "ok": true,
+      "ms": 5242,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-webkit-390",
+      "action": "client Finish",
+      "ok": true,
+      "ms": 8121,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-webkit-390",
+      "action": "staff slow note after visible part selection",
+      "ok": true,
+      "ms": 5560,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "client_and_smm_corrections",
+      "cell": "followup-webkit-390",
+      "action": "staff delete with real hover",
+      "ok": false,
+      "ms": 25538,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-1440",
+      "action": "open",
+      "ok": true,
+      "ms": 3149,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-1440",
+      "action": "play",
+      "ok": false,
+      "ms": 10509,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-1440",
+      "action": "slow save",
+      "ok": true,
+      "ms": 6370,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-1440",
+      "action": "offline save and return",
+      "ok": false,
+      "ms": 33466,
+      "error": "Error",
+      "draftVisible": false,
+      "legacyDraftRetained": false,
+      "wordBubbleShown": false,
+      "alertCount": 0,
+      "retryOffered": false,
+      "savedCount": 0,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-1440",
+      "action": "two tabs",
+      "ok": true,
+      "ms": 7536,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-1440",
+      "action": "change video",
+      "ok": true,
+      "ms": 3987,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-1440",
+      "action": "approve caption",
+      "ok": false,
+      "ms": 25731,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-1440",
+      "action": "finish after changes",
+      "ok": false,
+      "ms": 6002,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-1440",
+      "action": "approve video",
+      "ok": true,
+      "ms": 3291,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-390",
+      "action": "open",
+      "ok": true,
+      "ms": 3346,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-390",
+      "action": "play",
+      "ok": false,
+      "ms": 10260,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-390",
+      "action": "slow save",
+      "ok": true,
+      "ms": 6569,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-390",
+      "action": "offline save and return",
+      "ok": false,
+      "ms": 33421,
+      "error": "Error",
+      "draftVisible": false,
+      "legacyDraftRetained": false,
+      "wordBubbleShown": false,
+      "alertCount": 0,
+      "retryOffered": false,
+      "savedCount": 0,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-390",
+      "action": "two tabs",
+      "ok": true,
+      "ms": 7421,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-390",
+      "action": "change video",
+      "ok": true,
+      "ms": 4396,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-390",
+      "action": "approve caption",
+      "ok": false,
+      "ms": 25939,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-390",
+      "action": "finish after changes",
+      "ok": false,
+      "ms": 6012,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-chromium-390",
+      "action": "approve video",
+      "ok": true,
+      "ms": 4844,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-1440",
+      "action": "open",
+      "ok": true,
+      "ms": 3919,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-1440",
+      "action": "slow save",
+      "ok": true,
+      "ms": 6052,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-1440",
+      "action": "offline save and return",
+      "ok": false,
+      "ms": 33914,
+      "error": "Error",
+      "draftVisible": false,
+      "legacyDraftRetained": false,
+      "wordBubbleShown": false,
+      "alertCount": 0,
+      "retryOffered": false,
+      "savedCount": 0,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-1440",
+      "action": "two tabs",
+      "ok": true,
+      "ms": 7503,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-1440",
+      "action": "change video",
+      "ok": true,
+      "ms": 5743,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-1440",
+      "action": "approve caption",
+      "ok": false,
+      "ms": 25492,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-1440",
+      "action": "finish after changes",
+      "ok": false,
+      "ms": 6006,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-1440",
+      "action": "approve video",
+      "ok": true,
+      "ms": 4299,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-390",
+      "action": "open",
+      "ok": true,
+      "ms": 3584,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-390",
+      "action": "play",
+      "ok": true,
+      "ms": 4462,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-390",
+      "action": "video note",
+      "ok": true,
+      "ms": 3349,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-390",
+      "action": "slow save",
+      "ok": true,
+      "ms": 6319,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-390",
+      "action": "offline save and return",
+      "ok": false,
+      "ms": 33152,
+      "error": "Error",
+      "draftVisible": false,
+      "legacyDraftRetained": false,
+      "wordBubbleShown": false,
+      "alertCount": 0,
+      "retryOffered": false,
+      "savedCount": 0,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-390",
+      "action": "two tabs",
+      "ok": true,
+      "ms": 8051,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-390",
+      "action": "change video",
+      "ok": false,
+      "ms": 25834,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-390",
+      "action": "approve caption",
+      "ok": false,
+      "ms": 25583,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-390",
+      "action": "finish after changes",
+      "ok": false,
+      "ms": 6018,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-firefox-390",
+      "action": "approve video",
+      "ok": true,
+      "ms": 3383,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-webkit-1440",
+      "action": "open",
+      "ok": true,
+      "ms": 3914,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-webkit-1440",
+      "action": "video note",
+      "ok": true,
+      "ms": 3622,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-webkit-1440",
+      "action": "reload typing",
+      "ok": false,
+      "ms": 3784,
+      "error": "AssertionError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-webkit-1440",
+      "action": "slow save",
+      "ok": true,
+      "ms": 8869,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-webkit-1440",
+      "action": "two tabs",
+      "ok": true,
+      "ms": 7671,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-webkit-1440",
+      "action": "change video",
+      "ok": true,
+      "ms": 5394,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-webkit-1440",
+      "action": "approve caption",
+      "ok": false,
+      "ms": 26530,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-webkit-1440",
+      "action": "finish after changes",
+      "ok": false,
+      "ms": 6003,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-webkit-1440",
+      "action": "approve video",
+      "ok": true,
+      "ms": 6573,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-webkit-390",
+      "action": "open",
+      "ok": true,
+      "ms": 4439,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-webkit-390",
+      "action": "slow save",
+      "ok": true,
+      "ms": 7176,
+      "injectedLatency": true,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-webkit-390",
+      "action": "two tabs",
+      "ok": false,
+      "ms": 29016,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-webkit-390",
+      "action": "change video",
+      "ok": true,
+      "ms": 5440,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-webkit-390",
+      "action": "approve caption",
+      "ok": false,
+      "ms": 25835,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-webkit-390",
+      "action": "finish after changes",
+      "ok": false,
+      "ms": 6004,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mveersmi",
+      "cell": "reviewer-webkit-390",
+      "action": "approve video",
+      "ok": true,
+      "ms": 3697,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvef7fgz",
+      "cell": "staff-check-chromium-1440",
+      "action": "fresh staff note delete",
+      "ok": false,
+      "ms": 27517,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvef7fgz",
+      "cell": "staff-check-chromium-1440",
+      "action": "reviewer graphic then caption approval",
+      "ok": false,
+      "ms": 7997,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvef7fgz",
+      "cell": "staff-check-chromium-390",
+      "action": "fresh staff note delete",
+      "ok": false,
+      "ms": 8244,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvef7fgz",
+      "cell": "staff-check-chromium-390",
+      "action": "reviewer graphic then caption approval",
+      "ok": false,
+      "ms": 8173,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvef7fgz",
+      "cell": "staff-check-firefox-1440",
+      "action": "fresh staff note delete",
+      "ok": false,
+      "ms": 28762,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvef7fgz",
+      "cell": "staff-check-firefox-1440",
+      "action": "fresh reviewer caption approval",
+      "ok": true,
+      "ms": 3180,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvef7fgz",
+      "cell": "staff-check-firefox-1440",
+      "action": "reviewer graphic then caption approval",
+      "ok": true,
+      "ms": 11088,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvef7fgz",
+      "cell": "staff-check-firefox-390",
+      "action": "fresh staff note delete",
+      "ok": false,
+      "ms": 9016,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvef7fgz",
+      "cell": "staff-check-firefox-390",
+      "action": "fresh reviewer caption approval",
+      "ok": true,
+      "ms": 3009,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvef7fgz",
+      "cell": "staff-check-firefox-390",
+      "action": "reviewer graphic then caption approval",
+      "ok": false,
+      "ms": 29532,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvef7fgz",
+      "cell": "staff-check-webkit-1440",
+      "action": "fresh staff note delete",
+      "ok": true,
+      "ms": 8423,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvef7fgz",
+      "cell": "staff-check-webkit-1440",
+      "action": "fresh reviewer caption approval",
+      "ok": true,
+      "ms": 3920,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvef7fgz",
+      "cell": "staff-check-webkit-1440",
+      "action": "reviewer graphic then caption approval",
+      "ok": false,
+      "ms": 31357,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvef7fgz",
+      "cell": "staff-check-webkit-390",
+      "action": "fresh staff note delete",
+      "ok": false,
+      "ms": 9059,
+      "error": "TimeoutError",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvef7fgz",
+      "cell": "staff-check-webkit-390",
+      "action": "fresh reviewer caption approval",
+      "ok": true,
+      "ms": 3095,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvef7fgz",
+      "cell": "staff-check-webkit-390",
+      "action": "reviewer graphic then caption approval",
+      "ok": false,
+      "ms": 34433,
+      "error": "Error",
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvefhahc",
+      "cell": "offline-client-chromium-1440",
+      "action": "interrupted save with draft and message inspection",
+      "ok": false,
+      "ms": 51317,
+      "error": "Error",
+      "draftVisible": false,
+      "legacyDraftRetained": false,
+      "reviewerDraftRetained": false,
+      "localCopyRetained": true,
+      "sessionCopyRetained": false,
+      "wordBubbleShown": true,
+      "alertCount": 0,
+      "retryOffered": false,
+      "promisesAutomaticFinish": false,
+      "savedCount": 0,
+      "recoveryAction": "reload",
+      "recoveryError": "Error",
+      "afterRecoverySavedCount": 0,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mvefhahc",
+      "cell": "offline-smm-chromium-1440",
+      "action": "interrupted save with draft and message inspection",
+      "ok": true,
+      "ms": 4164,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mvefhahc",
+      "cell": "offline-reviewer-chromium-1440",
+      "action": "interrupted save with draft and message inspection",
+      "ok": false,
+      "ms": 61895,
+      "error": "Error",
+      "draftVisible": false,
+      "legacyDraftRetained": false,
+      "reviewerDraftRetained": true,
+      "localCopyRetained": true,
+      "sessionCopyRetained": false,
+      "wordBubbleShown": false,
+      "alertCount": 1,
+      "retryOffered": false,
+      "promisesAutomaticFinish": false,
+      "savedCount": 0,
+      "recoveryError": "TimeoutError",
+      "afterRecoverySavedCount": 0,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mvefhahc",
+      "cell": "offline-client-chromium-390",
+      "action": "interrupted save with draft and message inspection",
+      "ok": false,
+      "ms": 50915,
+      "error": "Error",
+      "draftVisible": false,
+      "legacyDraftRetained": false,
+      "reviewerDraftRetained": false,
+      "localCopyRetained": true,
+      "sessionCopyRetained": false,
+      "wordBubbleShown": true,
+      "alertCount": 0,
+      "retryOffered": false,
+      "promisesAutomaticFinish": false,
+      "savedCount": 0,
+      "recoveryAction": "reload",
+      "recoveryError": "Error",
+      "afterRecoverySavedCount": 0,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mvefhahc",
+      "cell": "offline-smm-chromium-390",
+      "action": "interrupted save with draft and message inspection",
+      "ok": true,
+      "ms": 4256,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mvefhahc",
+      "cell": "offline-reviewer-chromium-390",
+      "action": "interrupted save with draft and message inspection",
+      "ok": false,
+      "ms": 60916,
+      "error": "Error",
+      "draftVisible": false,
+      "legacyDraftRetained": false,
+      "reviewerDraftRetained": true,
+      "localCopyRetained": true,
+      "sessionCopyRetained": false,
+      "wordBubbleShown": false,
+      "alertCount": 1,
+      "retryOffered": false,
+      "promisesAutomaticFinish": false,
+      "savedCount": 0,
+      "recoveryError": "TimeoutError",
+      "afterRecoverySavedCount": 0,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mvefhahc",
+      "cell": "offline-client-firefox-1440",
+      "action": "interrupted save with draft and message inspection",
+      "ok": false,
+      "ms": 51762,
+      "error": "Error",
+      "draftVisible": false,
+      "legacyDraftRetained": false,
+      "reviewerDraftRetained": false,
+      "localCopyRetained": true,
+      "sessionCopyRetained": false,
+      "wordBubbleShown": true,
+      "alertCount": 0,
+      "retryOffered": false,
+      "promisesAutomaticFinish": false,
+      "savedCount": 0,
+      "recoveryAction": "reload",
+      "recoveryError": "Error",
+      "afterRecoverySavedCount": 0,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mvefhahc",
+      "cell": "offline-smm-firefox-1440",
+      "action": "interrupted save with draft and message inspection",
+      "ok": true,
+      "ms": 4859,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mvefhahc",
+      "cell": "offline-reviewer-firefox-1440",
+      "action": "interrupted save with draft and message inspection",
+      "ok": false,
+      "ms": 60241,
+      "error": "Error",
+      "draftVisible": false,
+      "legacyDraftRetained": false,
+      "reviewerDraftRetained": true,
+      "localCopyRetained": true,
+      "sessionCopyRetained": false,
+      "wordBubbleShown": false,
+      "alertCount": 1,
+      "retryOffered": false,
+      "promisesAutomaticFinish": false,
+      "savedCount": 0,
+      "recoveryError": "TimeoutError",
+      "afterRecoverySavedCount": 0,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mvefhahc",
+      "cell": "offline-client-firefox-390",
+      "action": "interrupted save with draft and message inspection",
+      "ok": false,
+      "ms": 51300,
+      "error": "Error",
+      "draftVisible": false,
+      "legacyDraftRetained": false,
+      "reviewerDraftRetained": false,
+      "localCopyRetained": true,
+      "sessionCopyRetained": false,
+      "wordBubbleShown": true,
+      "alertCount": 0,
+      "retryOffered": false,
+      "promisesAutomaticFinish": false,
+      "savedCount": 0,
+      "recoveryAction": "reload",
+      "recoveryError": "Error",
+      "afterRecoverySavedCount": 0,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mvefhahc",
+      "cell": "offline-reviewer-firefox-390",
+      "action": "interrupted save with draft and message inspection",
+      "ok": false,
+      "ms": 60289,
+      "error": "Error",
+      "draftVisible": false,
+      "legacyDraftRetained": false,
+      "reviewerDraftRetained": true,
+      "localCopyRetained": true,
+      "sessionCopyRetained": false,
+      "wordBubbleShown": false,
+      "alertCount": 1,
+      "retryOffered": false,
+      "promisesAutomaticFinish": false,
+      "savedCount": 0,
+      "recoveryError": "TimeoutError",
+      "afterRecoverySavedCount": 0,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mvefhahc",
+      "cell": "offline-smm-webkit-390",
+      "action": "interrupted save with draft and message inspection",
+      "ok": true,
+      "ms": 5181,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mvefhahc",
+      "cell": "offline-reviewer-webkit-390",
+      "action": "interrupted save with draft and message inspection",
+      "ok": true,
+      "ms": 3021,
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mvefyj42",
+      "cell": "offline-smm-firefox-390",
+      "action": "interrupted save with draft and message inspection",
+      "ok": true,
+      "ms": 5416,
+      "interruptionOccurred": true,
+      "interruptedEndpoint": "calendar-card-write",
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mvefyj42",
+      "cell": "offline-reviewer-webkit-1440",
+      "action": "interrupted save with draft and message inspection",
+      "ok": true,
+      "ms": 4547,
+      "interruptionOccurred": true,
+      "interruptedEndpoint": "calendar-card-write",
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mvefyj42",
+      "cell": "offline-reviewer-webkit-390",
+      "action": "interrupted save with draft and message inspection",
+      "ok": true,
+      "ms": 3147,
+      "interruptionOccurred": true,
+      "interruptedEndpoint": "calendar-card-write",
+      "injectedLatency": false,
+      "inducedDisconnection": true
+    },
+    {
+      "run": "Checkpoint mvefzots",
+      "cell": "smm-finish-chromium-1440",
+      "action": "approve all parts and Finish",
+      "ok": true,
+      "ms": 7285,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvefzots",
+      "cell": "smm-finish-chromium-390",
+      "action": "approve all parts and Finish",
+      "ok": true,
+      "ms": 7052,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvefzots",
+      "cell": "smm-finish-firefox-1440",
+      "action": "approve all parts and Finish",
+      "ok": true,
+      "ms": 8858,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvefzots",
+      "cell": "smm-finish-firefox-390",
+      "action": "approve all parts and Finish",
+      "ok": true,
+      "ms": 8034,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvefzots",
+      "cell": "smm-finish-webkit-1440",
+      "action": "approve all parts and Finish",
+      "ok": true,
+      "ms": 9219,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    },
+    {
+      "run": "Checkpoint mvefzots",
+      "cell": "smm-finish-webkit-390",
+      "action": "approve all parts and Finish",
+      "ok": true,
+      "ms": 7338,
+      "injectedLatency": false,
+      "inducedDisconnection": false
+    }
+  ]
+}

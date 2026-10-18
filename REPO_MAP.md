@@ -196,7 +196,7 @@ the whole repository; a new runtime folder must be added to it.
 
 ## Test & automation entry points
 
-Checkpoint recovery: `test/repair-checkpoint-browser.js` drives actual checkpoint helpers with same-origin browser storage/Web Locks and the review page's controls in Chromium, Firefox and WebKit. `qa/checkpoint-live.js` is an opt-in live pass on an app-created disposable test card, with existing read helpers and app-owned archive cleanup. Findings and reruns: `docs/audits/2026-10-18-checkpoint-review.md`.
+Checkpoint recovery: `test/repair-checkpoint-browser.js` drives actual checkpoint helpers with same-origin browser storage/Web Locks and the review page's controls in Chromium, Firefox and WebKit. `qa/checkpoint-live.js` is an opt-in live pass on an app-created disposable test card, with existing read helpers and app-owned archive cleanup. Findings and reruns: `docs/audits/2026-10-18-checkpoint-review.md`; public-safe observations and every recorded action over three seconds: `docs/audits/2026-10-18-checkpoint-live-results.json`.
 
 | Command / trigger | What runs | Notes |
 |---|---|---|

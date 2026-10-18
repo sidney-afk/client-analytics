@@ -204,6 +204,9 @@ async function clientJourney(t, origin, label, profile) {
     await layout(t, label + '/' + part);
     await sent(t, () => tap(inS(t.page, `[data-ok="${part}"]`)), u => u.id === 'rs2' && u[part + '_status'] === 'Approved', label + ': approve ' + part);
   }
+  for (const [part, id] of [['video', 'del_rs2'], ['graphic', 'gra_rs2']]) {
+    check(t.state.native[id]?.status === 'approved', label + ': ' + part + ' approval reaches its own native deliverable');
+  }
   check(await inS(t.page, '#finishBtn').isEnabled(), label + ': Finish enabled after receipts');
   await tap(inS(t.page, '#finishBtn')); await sleep(450);
   check(await inS(t.page, '.chipp.cur').getAttribute('data-id') !== 'rs2', label + ': Finish opens next post');

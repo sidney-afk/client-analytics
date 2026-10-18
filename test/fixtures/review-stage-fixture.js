@@ -77,7 +77,7 @@ function thread(row) {
 }
 
 async function open(browser, origin, opt) {
-  const state = { cards: cards(opt.stage).concat(opt.finished ? finished() : []), upserts: [], gateway: [], native: {}, flagReads: 0, orient: 'p', writeDelay: 0, writeFail: 0, writeAttempts: 0 };
+  const state = { cards: cards(opt.stage).concat(opt.finished ? finished() : []), upserts: [], gateway: [], native: {}, receipts: {}, flagReads: 0, orient: 'p', writeDelay: 0, writeFail: 0, writeAttempts: 0 };
   if (opt.thread) thread(state.cards[0]);
   // opt.collab: the calendar's Collaborative mode is on (a settings row, as the live calendar keeps it).
   if (opt.collab) state.cards.push({ id: 'p_cal_settings', client: SLUG, caption: JSON.stringify({ collab_mode: true }) });
@@ -162,8 +162,25 @@ async function open(browser, origin, opt) {
       if (state.writeOffline) return route.abort('internetdisconnected');
       let b = {}; try { b = JSON.parse(r.postData() || '{}'); } catch (e) {}
       state.gateway.push(r.postData() || '');
-      if (opt.phone) state.native[b.deliverable_id || 'del_rs1'] = { id: b.deliverable_id || 'del_rs1', status: b.status || 'client_approval', status_at: new Date().toISOString(), updated_at: new Date().toISOString() };
-      return json({ ok: true, native_committed: true, authority: 'syncview', complete: true, outcome: 'absent', row: { id: b.deliverable_id || 'del_rs1', card_id: b.card_id || 'rs1', client_slug: SLUG, team: opt.phone && b.team || 'video', status: b.status || 'client_approval' } });
+      if (opt.phone) {
+        const id = b.id || b.deliverable_id || 'del_rs1';
+        const card = state.cards.find(c => c.video_deliverable_id === id || c.graphic_deliverable_id === id);
+        const prior = state.native[id], seen = b.request_id && state.receipts[b.request_id];
+        const now = new Date().toISOString();
+        const row = { id, card_id: card?.id || b.card_id || 'rs1', client_slug: SLUG,
+          team: card?.graphic_deliverable_id === id ? 'graphics' : 'video',
+          status: b.status || prior?.status || 'client_approval',
+          status_at: b.operation === 'status' ? now : prior?.status_at || now, updated_at: now };
+        // Reconciliation reads do not commit an intent; retries return its original receipt.
+        if (!b.reconcile_only && !seen) {
+          state.native[id] = row;
+          if (b.request_id) state.receipts[b.request_id] = row;
+        }
+        const committed = !b.reconcile_only || !!seen;
+        return json({ ok: true, native_committed: committed, authority: 'syncview', complete: committed,
+          outcome: committed ? 'committed_exact' : 'absent', row: b.reconcile_only ? seen || prior || row : seen || row });
+      }
+      return json({ ok: true, native_committed: true, authority: 'syncview', complete: true, outcome: 'absent', row: { id: b.deliverable_id || 'del_rs1', card_id: b.card_id || 'rs1', client_slug: SLUG, team: 'video', status: b.status || 'client_approval' } });
     }
     if (p === '/rest/v1/syncview_runtime_flags') {
       state.flagReads++;

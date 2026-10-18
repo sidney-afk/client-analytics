@@ -102,7 +102,13 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       expect(!(await page.locator('[data-player]').first().isVisible()), 'Upload content hides the review player');
       expect(await page.locator('#panel-upload [data-player], #panel-upload video, #panel-upload iframe').count() === 0, 'Upload content has no player (the new upload video is not made yet)');
       expect(await page.locator('.tree').isVisible() && await page.locator('.rules li').count() === 5, 'Upload content shows the five folder rules and the drawn folder tree');
-      expect(await page.locator('.only-upload').isVisible() && /folder link your Synchro Social contact sent you/.test(await page.locator('.only-upload').innerText()), 'Upload content says where to upload');
+      expect(await page.locator('.only-upload').isVisible() && /Google Drive/.test(await page.locator('.only-upload').innerText()), 'Upload content says where to upload');
+      expect(await page.locator('.only-upload a.cta').getAttribute('href') === '/?intake=1' && await page.locator('.only-upload a.cta').isVisible(), 'Upload content links to the upload form');
+      // The quiet "I'm a client or videographer" chooser picks the side too.
+      await page.click('.who [data-who="review"]');
+      expect(await page.locator('#tab-review').getAttribute('aria-selected') === 'true' && await page.locator('.who [data-who="review"]').getAttribute('aria-pressed') === 'true', "I'm a client opens Review content");
+      await page.click('.who [data-who="upload"]');
+      expect(await page.locator('#tab-upload').getAttribute('aria-selected') === 'true' && await page.locator('.who [data-who="upload"]').getAttribute('aria-pressed') === 'true', "I'm a videographer opens Upload content");
       expect(await page.evaluate(() => location.hash) === '#upload', 'the address becomes #upload');
       await page.locator('.rules li').nth(3).hover();
       expect(await page.locator('.tree li.t-skip.on').count() === 1, 'pointing at "skip that folder" lights the skipped folder');

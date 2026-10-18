@@ -141,12 +141,14 @@
   var hero = document.querySelector('.hero');
   var tabs = document.querySelectorAll('.switch [role="tab"]');
   var ALIAS = { review: 'review', upload: 'upload', client: 'review', videographer: 'upload' };
+  var whos = document.querySelectorAll('.who [data-who]');
   function choose(path, focus) {
     if (!hero || (path !== 'review' && path !== 'upload')) return;
     if (hero.getAttribute('data-path') !== path) {
       players.forEach(function (o) { if (!o.paused) o.pause(); });
       hero.setAttribute('data-path', path);
     }
+    whos.forEach(function (w) { w.setAttribute('aria-pressed', w.getAttribute('data-who') === path ? 'true' : 'false'); });
     tabs.forEach(function (t) {
       var on = t.getAttribute('data-path') === path;
       t.setAttribute('aria-selected', on ? 'true' : 'false'); t.tabIndex = on ? 0 : -1;
@@ -162,6 +164,13 @@
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
       var n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
       choose(n.getAttribute('data-path'), true); e.preventDefault();
+    });
+  });
+  /* I'm a client: Review content. I'm a videographer: Upload content. */
+  whos.forEach(function (w) {
+    w.addEventListener('click', function () {
+      var p = w.getAttribute('data-who'); choose(p);
+      try { history.replaceState(null, '', '#' + p); } catch (e) {}
     });
   });
   function fromHash() { var p = ALIAS[(location.hash || '').slice(1)]; if (p) choose(p); }

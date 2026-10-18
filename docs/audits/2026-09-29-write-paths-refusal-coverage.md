@@ -80,6 +80,7 @@ and SMM weekly reports.
 <!-- inventory:begin -->
 | Fragment | Function | Sends to | What it is | Recorded in | Notes |
 |---|---|---|---|---|---|
+| `005-head-boot.html` | `(top level)` | `'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/clien` POST | read |  | Client link's early link check (client-token-verify), started while the page parses; the same read _syncviewPreflightClientEntry sends. It answers "is this link valid", it saves nothing. |
 | `005-head-boot.html` | `(top level)` | `svBase` POST | read |  | Boot-time sign-in and client-link checks (key-verify, token verify). They answer "who is this", they save nothing. |
 | `040-shared-briefs.js` | `abortForClientEntry` | `TAB_SUMMARY_WEBHOOK` POST | read |  | Reads the tab summary by POST. |
 | `040-shared-briefs.js` | `addHookToLibrary` | `HOOK_LIBRARY_WEBHOOK` POST | reports | `addHookToLibrary` | Hook library add (n8n webhook). Wrapped: a refused or failed request is recorded as hook_library_add. |

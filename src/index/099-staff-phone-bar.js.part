@@ -813,6 +813,13 @@
     function sync(m) {
         if (!m.root.isConnected) return;
         const {root,state,type} = m, r = record(type,state);
+        // The collection fills the screen below whatever sits above it. That is
+        // re-measured here, not only at mount: the phone page header is still
+        // showing for a moment when the collection first mounts and is hidden
+        // right after, and a height measured then left the grid 74px short, its
+        // last row cut off over an empty band above the Review bar.
+        const top = Math.max(0, Math.round(root.getBoundingClientRect().top + scrollY)) + 'px';
+        if (root.style.getPropertyValue('--thumb-top') !== top) root.style.setProperty('--thumb-top', top);
         const detail = state.view === 'organizer' && r.detail && !state.selectMode;
         const mode = detail ? 'detail' : state.selectMode ? 'select' : state.view === 'organizer' ? r.mode : state.view;
         if (root.dataset.thumbMode !== mode) root.dataset.thumbMode = mode;

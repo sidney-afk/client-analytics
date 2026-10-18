@@ -115,7 +115,7 @@ async function shot(t, name) { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursi
     const chg = t.state.upserts.slice(n0).find(u => u.graphic_status === 'Tweaks Needed');
     expect(!!chg && /Move the title to the top/.test(String(chg.graphic_tweaks || '')), 'client: Send saves the change request with its words on the thumbnail');
 
-    // the caption edit goes to the team as a change, never an approval
+    // the caption edit changes the caption itself and tells the team in a note; it never approves or asks for a change
     await sleep(900);
     await inS(t.page, '.stp[data-step="caption"]').click();
     await sleep(500);
@@ -123,10 +123,14 @@ async function shot(t, name) { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursi
     await inS(t.page, '#capTa').fill('A new caption written by the client.');
     n0 = t.state.upserts.length;
     await inS(t.page, '#capSave').click();
-    for (let i = 0; i < 80 && !t.state.upserts.slice(n0).some(u => u.caption_status); i++) await sleep(100);
-    const ce = t.state.upserts.slice(n0).find(u => u.caption_status);
-    expect(!!ce && ce.caption_status === 'Tweaks Needed' && /A new caption written by the client/.test(String(ce.caption_tweaks || '')), 'client: a caption edit is sent as a change request carrying the new text');
-    expect(!t.state.upserts.slice(n0).some(u => u.caption_status === 'Approved' || 'caption' in u), 'client: the caption edit neither approves nor overwrites the caption');
+    for (let i = 0; i < 80 && !t.state.upserts.slice(n0).some(u => /Changed the caption to/.test(String(u.caption_tweaks || ''))); i++) await sleep(100);
+    const ups = t.state.upserts.slice(n0);
+    expect(ups.some(u => u.id === 'rs1' && u.caption === 'A new caption written by the client.'), 'client: a caption edit saves the new caption on the card');
+    expect(ups.some(u => /Changed the caption to/.test(String(u.caption_tweaks || ''))), 'client: and tells the team in a note on the caption');
+    expect(!ups.some(u => u.caption_status === 'Approved' || u.caption_status === 'Tweaks Needed'), 'client: the caption edit neither approves nor asks for a change');
+    await sleep(600);
+    await inS(t.page, '[data-ok="caption"]').click();
+    for (let i = 0; i < 60 && !t.state.upserts.slice(n0).some(u => u.caption_status === 'Approved'); i++) await sleep(100);
 
     // Finish opens the next post
     await sleep(900);
@@ -160,6 +164,21 @@ async function shot(t, name) { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursi
     expect(await host(t.page).getAttribute('data-theme') === 'light', 'theme: the sun/moon switches back to light');
     expect(t.errors.length === 0, 'help/dark: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
+
+    // a Wistia media page plays in Wistia's own player; a direct Wistia file still plays as a plain video
+    console.log('--- client link, help video on Wistia ---');
+    for (const [addr, want] of [['https://example.wistia.com/medias/ab12cd34ef', 'iframe'], ['https://fast.wistia.net/embed/iframe/ab12cd34ef', 'iframe'], ['https://embed-ssl.wistia.com/deliveries/0123456789abcdef/file.mp4', 'video']]) {
+      t = await openClient(browser, origin, { flags: 'on', width: 1280, height: 800, help: addr });
+      await waitNew(t);
+      await inS(t.page, '#rsHelp').click();
+      if (want === 'iframe') {
+        const src = await inS(t.page, '.help-ovl iframe').getAttribute('src');
+        expect(src === 'https://fast.wistia.net/embed/iframe/ab12cd34ef?autoplay=1', 'wistia: ' + addr + ' opens Wistia\'s player (' + src + ')');
+      } else {
+        expect(await inS(t.page, '.help-ovl video').count() === 1 && await inS(t.page, '.help-ovl iframe').count() === 0, 'wistia: a direct file link plays as a plain video');
+      }
+      await t.ctx.close();
+    }
     if (SHOTS) {
       t = await openClient(browser, origin, { flags: 'on', dark: true });
       await waitNew(t); await shot(t, 'after-client-1440-dark'); await t.ctx.close();
@@ -227,8 +246,9 @@ async function shot(t, name) { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursi
         await waitNew(t3);
         await sleep(800);
         if (process.env.RS_DEBUG) console.log(await t3.page.evaluate(() => { const out = []; let e = document.getElementById('svReviewStage'); while (e && e !== document.body) { const cs = getComputedStyle(e); out.push((e.id ? '#' + e.id : '') + '.' + String(e.className).split(' ').join('.') + ' w=' + e.offsetWidth + ' max=' + cs.maxWidth + ' pad=' + cs.paddingLeft + ' top=' + Math.round(e.getBoundingClientRect().top)); e = e.parentElement; } return out.join('\n'); }));
-        const sk = await inS(t3.page, '#skHead').textContent();
-        expect(/to review/.test(sk), 'Kasper: his strip heads with what is left to review (' + sk + ')');
+        // The strip heads with his list button, the count of what is left to review as its badge (session Curtain Seven).
+        const sk = await inS(t3.page, '#qBtn').getAttribute('aria-label');
+        expect(/\d+ to review/.test(sk || ''), 'Kasper: his strip heads with what is left to review (' + sk + ')');
         expect(await inS(t3.page, '[data-frame="video"]').isVisible(), 'Kasper: Tweaks are on Frame sits on the video');
         await shot(t3, 'after-kasper-1440-light');
         let n0 = t3.state.upserts.length;

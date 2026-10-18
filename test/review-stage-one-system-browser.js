@@ -77,6 +77,10 @@ function kHead(page) {
       sub: vis(document.querySelector('.kasper-sub')),
       items: Array.from(document.querySelectorAll('.kasper-subtabs .kasper-primary-tab .kasper-tab-label-full, .kasper-subtabs [data-kasper-more-label]')).filter(vis).map(e => e.textContent.trim()).join('|'),
       itemBoxes: Array.from(document.querySelectorAll('.kasper-subtabs .kasper-primary-tab, .kasper-subtabs .kasper-more-trigger')).map(box).join(';'),
+      // The section tabs and More's right edge (More names the More section open in it, so its width follows the name).
+      primary: Array.from(document.querySelectorAll('.kasper-subtabs .kasper-primary-tab .kasper-tab-label-full')).filter(vis).map(e => e.textContent.trim()).join('|'),
+      primaryBoxes: Array.from(document.querySelectorAll('.kasper-subtabs .kasper-primary-tab')).map(box).join(';'),
+      moreRight: (() => { const m = document.querySelector('.kasper-more-trigger'); return vis(m) ? Math.round(m.getBoundingClientRect().right) + ',' + Math.round(m.getBoundingClientRect().top) : null; })(),
       msgPage: !!document.getElementById('msgPage'),
       close: Array.from(document.querySelectorAll('.msg-close')).some(vis),
       embed: !!document.querySelector('#kasperContent [data-msg-embed] .msg-inbox'),
@@ -137,9 +141,11 @@ function scrollOf(page) { return page.evaluate(() => ({ sh: document.scrollingEl
         const K = seen[key];
         expect(K.head === R.head && K.title === R.title, key + ' ' + w + ': the title sits where it does on Review Session (' + K.head + ' vs ' + R.head + ')');
         expect(K.subtabs === R.subtabs, key + ' ' + w + ': the section tabs sit where they do on Review Session (' + K.subtabs + ' vs ' + R.subtabs + ')');
-        expect(K.more === R.more, key + ' ' + w + ': More sits where it does on Review Session (' + K.more + ' vs ' + R.more + ')');
-        expect(K.items === R.items, key + ' ' + w + ': the same items in the header (' + K.items + ' vs ' + R.items + ')');
-        expect(K.itemBoxes === R.itemBoxes, key + ' ' + w + ': every item at the same place (' + K.itemBoxes + ' vs ' + R.itemBoxes + ')');
+        // Filming Plans lives in More (session Curtain Seven): on it, More carries its name, so More's right edge is
+        // what stays put.
+        expect(K.moreRight === R.moreRight, key + ' ' + w + ': More sits where it does on Review Session (' + K.moreRight + ' vs ' + R.moreRight + ')');
+        expect(K.primary === R.primary, key + ' ' + w + ': the same tabs in the header (' + K.primary + ' vs ' + R.primary + ')');
+        expect(K.primaryBoxes === R.primaryBoxes, key + ' ' + w + ': every tab at the same place (' + K.primaryBoxes + ' vs ' + R.primaryBoxes + ')');
       }
       const M = seen.replies;
       expect(!M.msgPage && !M.close && M.embed, 'Messages ' + w + ': shown inside the tab, no Messages page, no Close button (page ' + M.msgPage + ', close ' + M.close + ', embedded ' + M.embed + ')');

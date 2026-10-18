@@ -7,6 +7,7 @@ import { svFrameStageMount, svFrameStageUnmount } from './187-frame-viewer.js';
 import { svRsCalOn, svRsHelpUrl, svRsToolsEl } from './188-review-stage-switch.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
+import { _kasperState } from './305-core-kasper-shared.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), the on-demand half. Session Marquee, 2026-10-17.
        Designs: the approved client page and the SMM and Kasper versions of it (Sidney, 2026-10-16), with his review
        of 2026-10-16: no part list on the left (the step bar shows each part's state), the date at the stage's top
@@ -218,6 +219,9 @@ svg{display:block;flex-shrink:0}
 .view{flex:1 1 auto;min-height:0;position:relative;container-type:size;display:flex;align-items:center;justify-content:center}
 .mbox{position:relative;display:flex;align-items:center;justify-content:center;transition:opacity .16s var(--ease),transform .16s var(--ease)}
 .view.swap .mbox{opacity:0;transform:scale(.985)}
+.rs.calm .bub,.rs.calm .sugg,.rs.calm .compose,.rs.xpost .bub,.rs.xpost .sugg,.rs.xpost .compose,.rs.grow .bub:not(:last-child),.rs.grow .sugg,.rs.grow .compose{animation:none}
+.rs.xpost .ch-scroll{animation:rsXf .26s var(--ease)}
+@keyframes rsXf{from{opacity:.35}to{opacity:1}}
 .player,.bigthumb{--aw:9;--ah:16;position:relative;width:min(100cqw,calc(100cqh * var(--aw) / var(--ah)));aspect-ratio:var(--aw)/var(--ah);border-radius:12px;overflow:hidden;background:var(--media-bg);box-shadow:0 0 0 1px var(--border-light)}
 .player.land,.bigthumb.land{--aw:16;--ah:9}
 .player{container-type:inline-size}
@@ -315,6 +319,16 @@ svg{display:block;flex-shrink:0}
 .dst.wr{color:var(--chg-fg)}
 .dst.wr svg{width:14px;height:14px}
 .dst.busy{color:var(--text-secondary);font-weight:600}
+.spin{display:inline-block;flex:none;width:15px;height:15px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;opacity:.85;animation:rsSpin .7s linear infinite}
+.b-ask .spin,.b-frame .spin{width:13px;height:13px}
+@keyframes rsSpin{to{transform:rotate(360deg)}}
+@keyframes rsBreathe{0%,100%{opacity:.35}50%{opacity:.9}}
+.b-ok.busy,.b-ask.busy,.b-frame.busy{cursor:progress}
+/* While one action saves, the others wait with the stage's disabled look (a readable label, never faded by opacity). */
+.b-ok:disabled:not(.busy),.b-ask:disabled:not(.busy),.b-frame:disabled:not(.busy){background:transparent;color:var(--off-fg);box-shadow:inset 0 0 0 1px var(--off-line);cursor:default}
+.split.busy>.sarr:disabled{color:var(--okb-fg);cursor:default}
+.split:not(.busy)>.sarr:disabled{color:var(--off-fg);cursor:default}
+.b-ask.busy{background:var(--chgb);color:var(--chg-fg)}
 .dst.busy svg{width:14px;height:14px}
 .dst .when{font-weight:500;color:var(--text-secondary)}
 .dq{font-size:.82rem;line-height:1.35;color:var(--text-primary);max-width:34ch;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -329,6 +343,10 @@ svg{display:block;flex-shrink:0}
 .finish:focus:not(:focus-visible){outline:0}
 .finish:disabled{background:transparent;color:var(--off-fg);box-shadow:inset 0 0 0 1px var(--off-line);font-weight:600;cursor:not-allowed}
 .finish .fc{font-weight:600;opacity:.85}
+/* Every part answered: Finish draws the eye with a soft ring that breathes slowly three times, then stays still.
+   The animation is offset by how long the button has been ready, so a redraw never restarts it. */
+.finish.ready{box-shadow:0 2px 8px var(--ok-shadow),0 0 0 3px color-mix(in srgb,var(--fin-bg) 24%,transparent);animation:finGlow 2.4s var(--ease) 3 both}
+@keyframes finGlow{0%,100%{box-shadow:0 2px 8px var(--ok-shadow),0 0 0 3px color-mix(in srgb,var(--fin-bg) 24%,transparent)}50%{box-shadow:0 0 22px color-mix(in srgb,var(--fin-bg) 45%,transparent),0 0 0 6px color-mix(in srgb,var(--fin-bg) 22%,transparent)}}
 .dock{flex-shrink:0;display:flex;justify-content:center}
 .dock .compose{width:min(100%,560px);animation:rise .18s var(--ease)}
 .chat{display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--well);border:1px solid var(--well-line);border-radius:18px;overflow:hidden}
@@ -644,7 +662,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .compose.smm.typed:not(.chg) .send{display:inline-flex}
 .cmp-foot .seg{margin-right:auto}
 .bt.sending{opacity:.65}
-.err{margin-top:6px;font-size:.74rem;font-weight:600;color:var(--urgent)}
+.err{margin-top:6px;font-size:.74rem;font-weight:600;color:var(--urgent);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.err.slow{color:var(--text-secondary);font-weight:500}
+.err .retry{font:inherit;font-weight:700;color:inherit;background:none;border:1px solid currentColor;border-radius:999px;padding:2px 10px;cursor:pointer}
+.err .retry:hover{background:color-mix(in srgb,currentColor 10%,transparent)}
 @media (max-width:1240px){.stage,.stage.land{grid-template-columns:minmax(0,1fr) 320px}.chipp.k{width:220px}}
 @media (max-width:860px){
 .app{height:auto}
@@ -654,7 +675,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .sk-lab{height:auto;flex-direction:row;gap:6px;padding:4px 6px}
 .rs-fv{width:min(100%,calc(46vh * var(--fv-ar,.5625)))}
 }
-@media (prefers-reduced-motion:reduce){.stp.hint{animation:none}}
+@media (prefers-reduced-motion:reduce){.stp.hint{animation:none}.spin{animation:rsBreathe 1.6s ease-in-out infinite!important;border-right-color:currentColor}}
 :host([hidden]){display:none!important}
 .rs.client{background:transparent}
 .hdr-tools{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0;height:38px;margin-left:auto}
@@ -670,6 +691,46 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .rs.client .hdr-r{grid-column:1/-1;grid-row:2}
 .app.bar{min-height:0}
 }
+/* Kasper (owner feedback 2026-10-17 23:20, session Curtain Seven): the strip opens with a small list button (the
+   count as a badge) whose panel lists his sections; the post's heading is one row; the round sits beside the date. */
+.strip{position:relative}
+.qbtn{position:relative;width:40px;height:40px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;background:var(--fill);color:var(--text-secondary);transition:background .14s,color .14s}
+.qbtn:hover,.qbtn[aria-expanded="true"]{background:var(--fill-hover);color:var(--text-primary)}
+.qbtn svg{width:18px;height:18px}
+.qbtn .qb{position:absolute;top:-5px;right:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:var(--white);font-size:.64rem;font-weight:800;box-shadow:0 0 0 2px var(--bg)}
+.sk-head.k{flex-direction:row;align-items:center;padding-left:0}
+.qp{position:absolute;left:0;top:calc(100% + 6px);z-index:30;width:360px;max-width:calc(100vw - 32px);max-height:min(560px,calc(100vh - var(--rs-top,0px) - 120px));overflow-y:auto;scrollbar-width:thin;background:var(--surface-raised);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-md);padding:6px;animation:rise .16s var(--ease)}
+.qp-sec+.qp-sec{margin-top:4px;padding-top:4px;border-top:1px solid var(--hair)}
+.qp-h{display:flex;align-items:center;gap:6px;padding:8px 10px 6px;font-size:.74rem;font-weight:800;color:var(--text-secondary)}
+.qp-h svg{width:12px;height:12px}
+.qp-h .c{margin-left:auto;font-weight:600;color:var(--label)}
+.qp-h.urg,.qp-h.urg .c{color:var(--urgent)}
+.qp-r{display:flex;align-items:center;gap:6px;border-radius:10px}
+.qp-r:hover{background:var(--fill)}
+.qp-r.cur{background:var(--fill)}
+.qp-row{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:6px 8px 6px 4px;text-align:left}
+.qp-row .sl{height:40px;width:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.qp-row .si{height:40px;width:23px;border-radius:5px;overflow:hidden;background:var(--media-bg);box-shadow:0 0 0 1px var(--border-light)}
+.qp-row .si.l{width:40px;height:23px}
+.qp-row .si img{width:100%;height:100%;object-fit:cover;max-width:none}
+.qp-row .cx{display:flex;flex-direction:column;gap:3px;min-width:0}
+.qp-row .cn{font-size:.82rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qp-row .cm{display:flex;align-items:center;gap:6px;min-width:0;font-size:.7rem;color:var(--text-secondary);white-space:nowrap;overflow:hidden}
+.qp-row .cm>span{overflow:hidden;text-overflow:ellipsis}
+.qp-row .cm svg{width:11px;height:11px;flex-shrink:0}
+.qp-row .cm.urg{color:var(--urgent);font-weight:600}
+.qp-row .cm.edc{color:var(--chg-fg)}
+.qp-ping{flex-shrink:0;margin-right:6px;height:30px;padding:0 10px;border-radius:8px;font-size:.74rem}
+.qp-empty{padding:4px 10px 10px;font-size:.78rem;color:var(--text-secondary)}
+.sd-t h2 .sep{color:var(--text-secondary);font-weight:600}
+.sd-t h2 .tag{vertical-align:3px;margin-left:8px}
+.sdate .sdn{display:inline-flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sdate .sdn::before{content:'·';opacity:.7}
+.sdate .sdn.flag{color:var(--urgent)}
+.sdate .sdn.flag svg{width:12px;height:12px;opacity:1}
+.rs.in-kasper .sdate{max-width:34%;overflow:hidden}
+.rs.in-kasper .stage .sd-t{width:100%;min-width:0}
+.rs.in-kasper .stage .sd-t h2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 @media (min-width:861px){
 .rs.client .sk-list{margin-right:2px}
 .rs.client .sk-list.more-r{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 40px),transparent)}
@@ -693,6 +754,83 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 }
 .rs,.rs.client{background:transparent}
 .card,.chat{background:var(--surface-raised);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow-stage)}
+`
+    /* THE CONVERSATION AS A PHONE CHAT (owner feedback 2026-10-17 23:00 UTC, session Curtain Six: it read as a column
+       of full-width cards). The approved mock-up puts light bubbles on a grey panel; the panel is now the stage's one
+       surface (above), so the contrast flips: everyone else's bubbles take the page's own background, the viewer's own
+       a soft tint of the app's accent, no outlines, no coloured side bar. An open change request keeps a thin orange
+       edge and its "Change asked" label; a handled one shows "Done". Line breaks in a note are kept, and a very long
+       note (a whole caption pasted as a change) folds after a few lines behind "Show all". Only the look changes:
+       what is saved, who sees it and Team only / Client can see are untouched. App tokens only. */
+    + `
+.chat{--team-bub:var(--bg);--team-bub-line:transparent;--you-bub:color-mix(in srgb,var(--focus-ring) 13%,var(--surface-raised));--you-bub-line:transparent}
+:host([data-theme="dark"]) .chat{--you-bub:color-mix(in srgb,var(--focus-ring) 24%,var(--surface-raised))}
+.ch-scroll{gap:8px;padding:14px 12px 10px}
+.bub{max-width:84%;gap:7px}
+.bub.you{max-width:84%}
+.bub+.bub.you,.bub.you+.bub.team{margin-top:4px}
+.bb{gap:3px;padding:8px 12px 9px;border-radius:18px}
+.team .bb{background:var(--team-bub);box-shadow:none;border-bottom-left-radius:6px}
+.you .bb{background:var(--you-bub);box-shadow:none;border-bottom-right-radius:6px}
+.bub .av{width:26px;height:26px;font-size:.62rem}
+.bh{gap:2px 7px;font-size:.68rem;line-height:1.3}
+.bh .tag{background:none;padding:0;height:auto;color:inherit;font-weight:600;gap:5px;display:inline-flex;align-items:center;border-radius:0;font-size:inherit}
+.bt{font-size:.86rem;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.bt.clamp{display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden}
+.bmore{align-self:flex-start;font-size:.74rem;font-weight:700;color:var(--text-primary);padding:2px 0;text-decoration:underline;text-decoration-color:var(--border);text-underline-offset:3px}
+.bmore:hover{text-decoration-color:currentColor}
+.bub.is-chg .bb,.bub.you.is-chg .bb{box-shadow:inset 0 0 0 1px var(--chgrow-line)}
+.bub.is-chg.handled .bb,.bub.you.is-chg.handled .bb{box-shadow:none}
+.bfoot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px}
+.bfoot .donec{margin-left:auto}
+.bfoot .vis{font-size:.66rem}
+`
+    /* The client's message box (session Curtain Eight): the part it is about is picked first, from chips at the box's
+       top left, and the bottom right sends it either as a change request on that part or as a plain comment. A
+       client's caption edit shows in the conversation as the new caption over the old one, struck through and folded.
+       The caption edit box and the message box get the conversation's thin scrollbar (a local style, until the
+       app-wide one lands). */
+    + `
+.compose.cl .cta{padding:8px 14px 6px;min-height:44px}
+.cl-parts{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 10px 0}
+.cl-parts .lbl{font-size:.72rem;font-weight:600;color:var(--text-secondary);margin-right:2px}
+.cl-parts .why{font-size:.72rem;color:var(--text-secondary)}
+.pchip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px 0 9px;border-radius:99px;background:var(--fill);color:var(--text-primary);font-size:.76rem;font-weight:700;white-space:nowrap;cursor:pointer;box-shadow:inset 0 0 0 1px var(--border);transition:background .14s,box-shadow .14s,color .14s}
+.pchip:hover{background:var(--fill-hover);box-shadow:inset 0 0 0 1px var(--text-secondary)}
+.pchip .pdot{width:7px;height:7px}
+.pchip .px{display:none;width:18px;height:18px;margin-left:-2px;border-radius:50%;align-items:center;justify-content:center}
+.pchip .px svg{width:10px;height:10px}
+.pchip[aria-pressed="true"]{background:var(--chgb);color:var(--chg-fg);box-shadow:inset 0 0 0 1px var(--cmp-chg-line);padding-right:5px}
+.pchip[aria-pressed="true"] .px{display:inline-flex}
+.pchip[aria-pressed="true"]:hover .px{background:var(--chgb-h)}
+.cl-foot{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;padding:2px 8px 8px 14px}
+.b-cmt{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 13px;border-radius:9px;background:var(--deck);color:var(--text-primary);box-shadow:inset 0 0 0 1px var(--border);font-size:.8rem;font-weight:700;transition:background .14s,box-shadow .14s}
+.b-cmt:hover:not(:disabled){background:var(--fill)}
+.b-cmt svg{width:12px;height:12px}
+.b-cmt:disabled,.cl-foot .b-send-chg:disabled{background:transparent;color:var(--off-fg);box-shadow:inset 0 0 0 1px var(--off-line);cursor:not-allowed}
+.tc-text{white-space:pre-line}
+.bub .diff{margin-top:4px}
+.bub .diff .new{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.84rem;line-height:1.45;color:var(--text-primary)}
+.bub .was{font-size:.76rem}
+.bub .was summary{cursor:pointer;color:var(--text-secondary);font-weight:600;list-style:none}
+.bub .was summary::-webkit-details-marker{display:none}
+.bub .was summary:hover{color:var(--text-primary)}
+.bub .was .old{margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere}
+.cap-edit textarea::-webkit-scrollbar,.cta::-webkit-scrollbar{width:6px}
+.cap-edit textarea::-webkit-scrollbar-track,.cta::-webkit-scrollbar-track{background:transparent}
+.cap-edit textarea::-webkit-scrollbar-thumb,.cta::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:99px}
+.cap-edit textarea::-webkit-scrollbar-thumb:hover,.cta::-webkit-scrollbar-thumb:hover{background:var(--scroll-thumb-hover)}
+.cap-edit textarea::-webkit-scrollbar-corner,.cta::-webkit-scrollbar-corner{background:transparent}
+@supports not selector(::-webkit-scrollbar){.cap-edit textarea,.cta{scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent}}
+`
+    /* The "new version of SyncView" bar (350) sits at the bottom of the window; while it shows, --rs-bar (188) makes
+       the stage that much shorter on a desktop, and leaves that much room under the page on a phone, so the bar never
+       covers Approve or Finish reviewing (session Curtain Six). On a phone the bar's text wraps (about 185px tall with
+       its margin at 390 wide), so the room under the page is a little over twice the desktop allowance, or the bar
+       covers the client's message box buttons at the bottom right (session Curtain Eight). */
+    + `
+@media (min-width:861px){.app:not(.bar){height:calc(100vh - var(--rs-top,0px) - var(--rs-bar,0px));height:calc(100dvh - var(--rs-top,0px) - var(--rs-bar,0px))}}
+@media (max-width:860px){.app:not(.bar){padding-bottom:calc(14px + var(--rs-bar,0px) * 2.2)}}
 `;
     const RS_PART = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'YouTube title' };
     const RS_CSSKEY = { video: 'video', graphic: 'thumbnail', caption: 'caption', title: 'youtube' };
@@ -716,6 +854,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         cal: _rsSv('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>', 2),
         moon: _rsSv('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>', 2),
         sun: _rsSv('<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>', 2),
+        list: _rsSv('<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".6"/><circle cx="4.5" cy="12" r=".6"/><circle cx="4.5" cy="18" r=".6"/>', 2.2),
         play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>'
     };
     const _re = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -746,7 +885,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     };
     function _rsFreshState() {
         return { curId: null, step: '', note: _rsBlankNote(), editing: '', editText: '', fold: false, saved: null,
-            menu: '', exp: {}, edOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {} };
+            menu: '', exp: {}, edOpen: false, qOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, slow: {}, pressed: {}, ready: {}, actAt: {} };
     }
 
     /* ---------- the model: one shape for every person ---------- */
@@ -820,12 +959,25 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             let who;
             try { who = _calNoteAuthorName(c) || c.author || ''; } catch (e) { who = c.author || ''; }
             return {
-                you: _rsIsMine(c, mode), who: who || (c.role === 'client' ? 'Client' : 'Team'), role: c.role || '',
+                id: String(c.id || ''), you: _rsIsMine(c, mode), who: who || (c.role === 'client' ? 'Client' : 'Team'), role: c.role || '',
                 part: comp, time: c.sending ? 'Sending…' : _rsWhen(c.created_at), text: String(c.body || ''),
-                change: !!c.is_tweak, done: !!c.done, aud: c.audience || '', sending: !!c.sending,
+                change: !!c.is_tweak, done: !!c.done, aud: c.audience || '', sending: !!c.sending, edit: c.is_tweak ? null : _rsEditOf(c.body),
                 frame: !!c.is_tweak && String(c.body || '').trim() === RS_FRAME_NOTE
             };
         });
+    }
+    /* A client's caption edit is saved on the card and told in the conversation as a plain note in these words, so
+       every page that shows notes (the old Review panel, Notes, Kasper's) reads it as it is, and this page shows it as
+       the new caption over the old one. */
+    const RS_EDIT_HEAD = 'Changed the caption to:\n\n', RS_EDIT_WAS = '\n\nIt was:\n\n', RS_EDIT_EMPTY = '\n\nIt was empty.';
+    function _rsEditNote(now, old) { return RS_EDIT_HEAD + now + (String(old || '').trim() ? RS_EDIT_WAS + old : RS_EDIT_EMPTY); }
+    function _rsEditOf(body) {
+        const b = String(body || '');
+        if (b.indexOf(RS_EDIT_HEAD) !== 0) return null;
+        const rest = b.slice(RS_EDIT_HEAD.length);
+        if (rest.endsWith(RS_EDIT_EMPTY)) return { now: rest.slice(0, -RS_EDIT_EMPTY.length), old: '' };
+        const i = rest.lastIndexOf(RS_EDIT_WAS);
+        return i < 0 ? null : { now: rest.slice(0, i), old: rest.slice(i + RS_EDIT_WAS.length) };
     }
     function _rsModel(post, mode, item) {
         const comps = _rsCompsOf(post, mode, item);
@@ -942,7 +1094,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsShellHtml() {
         return '<div class="rs' + (R.mode === 'kasper' ? ' in-kasper' : R.mode === 'client' ? ' client' : ' smm') + '"><div class="app" id="rsApp">' + _rsHeaderHtml()
-            + '<nav class="strip" id="strip" aria-label="Posts waiting for review"><div class="sk-head" id="skHead"></div><div class="sk-list" id="skList"></div></nav>'
+            + '<nav class="strip" id="strip" aria-label="Posts waiting for review"><div class="sk-head" id="skHead"></div><div class="sk-list" id="skList"></div>'
+            + (R.mode === 'kasper' ? '<div class="qp" id="qPanel" role="dialog" aria-label="Your review list" hidden></div>' : '') + '</nav>'
             + '<main class="stage" id="stage">'
             + '<aside class="side" id="side" aria-label="This post"></aside>'
             + '<section class="theatre" id="theatre" aria-label="Review this post"><div class="card">'
@@ -984,7 +1137,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsMount(container, mode, key) {
         const fresh = !R.host || !R.host.isConnected || R.mode !== mode || R.key !== key;
-        if (R.mode !== mode || R.key !== key) { R.S = _rsFreshState(); }
+        if (R.mode !== mode || R.key !== key) { R.S = _rsFreshState(); R.chatKey = null; }
         R.mode = mode; R.key = key;
         // The client link's page sits above the calendar (its header heads every tab); the others below it.
         const above = mode === 'client';
@@ -1050,11 +1203,25 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (typeof ResizeObserver !== 'undefined') new ResizeObserver(_rsStripEdge).observe(sl);
         R.root.addEventListener('keydown', _rsKeys);
         R.root.addEventListener('focusout', () => { if (R.pending) setTimeout(() => { if (R.pending && !_rsTyping()) { R.pending = false; _rsRender(); } }, 0); });
-        R.root.addEventListener('click', (e) => { if (R.S.menu && !e.target.closest('.split')) { R.S.menu = ''; _rsDecide(); } });
+        R.root.addEventListener('click', (e) => {
+            if (R.S.menu && !e.target.closest('.split')) { R.S.menu = ''; _rsDecide(); }
+            if (R.S.qOpen && !e.target.closest('#qPanel,#qBtn')) _rsQueueClose();
+        });
+        // A video on the stage goes full screen on a double click, as in an ordinary player (owner feedback 2026-10-17
+        // 23:20): the player's own full screen button does it, and a second double click comes back out.
+        const fvh = _rsQ('fvHost');
+        if (fvh) fvh.addEventListener('dblclick', (e) => {
+            if (e.target.closest('.fv-controls,.fv-stage-foot,button,a,input,.fv-trouble,.fv-state')) return;
+            const fb = fvh.querySelector('.fv-full');
+            if (!fb) return;
+            e.preventDefault();
+            fb.click();
+        });
         if (R.ro) R.ro.disconnect();
         R.ro = new ResizeObserver(() => _rsFit());
         R.ro.observe(_rsQ('view'));
         if (!R.mo) {
+            document.addEventListener('pointerdown', (e) => { if (R.S && R.S.qOpen && R.host && !e.composedPath().includes(R.host)) _rsQueueClose(); }, true);
             R.mo = new MutationObserver(_rsSyncTheme);
             R.mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
             window.addEventListener('resize', _rsSizeTop);
@@ -1084,8 +1251,20 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         _rsQ('recap').hidden = !empty;
         _rsQ('stage').classList.toggle('is-empty', empty);
         if (empty) { _rsStageOff(); _rsRecap(); return; }
-        _rsSide(m); _rsStepper(m); _rsMedia(m); _rsCard(m); _rsDecide(); _rsChat(m);
+        _rsSide(m); _rsStepper(m); _rsMedia(m); _rsCard(m); _rsDecide(); _rsChatCalm(m); _rsChat(m);
         if (!R.S.hinted) _rsHint(m);
+    }
+    /* The conversation is drawn again on every change, so its entrance animations would replay and the whole panel
+       would fade out and in. Same post, same messages: no animation. A new message on this post: only it rises.
+       Another post: its messages cross-fade softly. (The panel itself never leaves the screen.) */
+    function _rsChatCalm(m) {
+        const rs = R.root.querySelector('.rs');
+        if (!rs) return;
+        const n = m.thread.length, prev = R.chatKey || null;
+        R.chatKey = { id: m.id, n };
+        rs.classList.remove('calm', 'grow', 'xpost');
+        void rs.offsetWidth;
+        rs.classList.add(!prev ? 'calm' : prev.id !== m.id ? 'xpost' : n > prev.n ? 'grow' : 'calm');
     }
     function _rsHeader() {
         const n = _rsQ('rsName');
@@ -1098,6 +1277,20 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (b) { const c = _rsQueue().filter(x => !_rsAnswered(x)).length; b.textContent = String(c); b.hidden = !c; }
         const hp = _rsQ('rsHelp');
         if (hp) hp.hidden = !svRsHelpUrl();
+    }
+    /* Smooth switching (owner feedback 2026-10-17, session Curtain Nine): nothing outside the media may blink when the
+       part or the post changes. A region is rewritten only when its markup changed, and an image already decoded on
+       screen is moved into the new markup instead of being loaded again (a fresh <img> paints blank for a frame).
+       Answers whether it rewrote. */
+    function _rsPut(el, html) {
+        if (!el) return false;
+        if (el.__rsHtml === html) return false;
+        const have = new Map();
+        el.querySelectorAll('img[src]').forEach(i => { if (i.complete && i.naturalWidth) { const k = i.getAttribute('src'); if (!have.has(k)) have.set(k, []); have.get(k).push(i); } });
+        el.innerHTML = html;
+        el.__rsHtml = html;
+        if (have.size) el.querySelectorAll('img[src]').forEach(i => { const l = have.get(i.getAttribute('src')); const o = l && l.shift(); if (o) { o.className = i.className; i.replaceWith(o); } });
+        return true;
     }
     function _rsChipImg(m) {
         return '<span class="sl"><span class="si' + (m.land ? ' l' : '') + '">' + (m.thumb ? '<img alt="" loading="lazy" src="' + _re(m.thumb) + '">' : '') + '</span></span>';
@@ -1115,30 +1308,39 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const cur = _rsCur();
         const sl = _rsQ('skList'), sh = _rsQ('skHead');
         const keep = sl.scrollLeft;
+        let fresh = false;
         if (R.mode !== 'kasper') {
             const q = _rsQueue();
             const open = q.filter(x => !_rsAnswered(x)).length;
             const done = R.mode === 'client' ? 'You can still change your mind' : 'Approve sends to Kasper';
-            sh.innerHTML = '<b class="num">' + (open ? open + ' waiting for you' : 'Nothing else waiting') + '</b><span class="num">' + (open ? (R.mode === 'smm' ? 'Approve sends to Kasper' : '') : done) + '</span>';
+            _rsPut(sh, '<b class="num">' + (open ? open + ' waiting for you' : 'Nothing else waiting') + '</b><span class="num">' + (open ? (R.mode === 'smm' ? 'Approve sends to Kasper' : '') : done) + '</span>');
             const fin = (calState.posts || []).filter(p => R.S.finished.has(p.id)).map(p => _rsModel(p, R.mode, null));
-            sl.innerHTML = q.map(m => _rsChip(m, cur)).join('') + (fin.length ? '<span class="sk-sep" aria-hidden="true"></span>' + fin.map(m => {
+            fresh = _rsPut(sl, q.map(m => _rsChip(m, cur)).join('') + (fin.length ? '<span class="sk-sep" aria-hidden="true"></span>' + fin.map(m => {
                 const ch = m.parts.some(x => x.st === 'chg');
                 return '<button class="chipp done" type="button" data-reopen="' + _re(m.id) + '" title="Open it again" aria-label="' + _re(m.title) + ', done. Open it again">' + _rsChipImg(m) + '<span class="cx"><span class="cn">' + _re(m.title) + '</span>' + _rsDots(m) + '</span><span class="dk' + (ch ? ' chg' : '') + '">' + (ch ? RI.back : RI.check) + '</span></button>';
-            }).join('') : '');
+            }).join('') : ''));
         } else {
             const k = _rsKasperModels();
             const open = k.urgent.length + k.waiting.length;
-            sh.innerHTML = '<b class="num">' + (open ? open + ' to review' : 'All caught up') + '</b><span class="num">' + (k.urgent.length ? k.urgent.length + ' urgent' : open ? 'Oldest first' : 'Nothing waiting on you') + '</span>';
+            // No "9 to review" and no section labels on the strip (owner feedback 2026-10-17 23:20): a small list button
+            // with the count opens his sections as a list (_rsQueuePanel).
+            sh.className = 'sk-head k';
+            sh.innerHTML = '<button class="qbtn" type="button" id="qBtn" aria-haspopup="dialog" aria-expanded="' + !!R.S.qOpen + '" aria-controls="qPanel" aria-label="Your review list, ' + open + ' to review" title="Your review list">' + RI.list + (open ? '<b class="qb num">' + open + '</b>' : '') + '</button>';
+            const qb = _rsQ('qBtn');
+            if (qb) qb.addEventListener('click', (e) => { e.stopPropagation(); R.S.qOpen = !R.S.qOpen; _rsQueuePanel(); });
             const h = [];
-            if (k.urgent.length) h.push('<div class="sk-grp"><span class="sk-lab urg"><span class="r">' + RI.bell + 'Urgent</span><span class="c num">' + k.urgent.length + '</span></span>' + k.urgent.map(m => _rsChip(m, cur)).join('') + '</div>');
-            if (k.waiting.length) h.push('<div class="sk-grp"><span class="sk-lab"><span class="r">Waiting for your review</span><span class="c num">' + k.waiting.length + '</span></span>' + k.waiting.map(m => _rsChip(m, cur)).join('') + '</div>');
+            if (k.urgent.length) h.push('<div class="sk-grp">' + k.urgent.map(m => _rsChip(m, cur)).join('') + '</div>');
+            if (k.waiting.length) h.push('<div class="sk-grp">' + k.waiting.map(m => _rsChip(m, cur)).join('') + '</div>');
             if (k.tweaks.length) h.push('<div class="sk-grp"><button class="sk-lab" type="button" id="edTog" aria-expanded="' + !!R.S.edOpen + '"><span class="r">With the editors <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg></span><span class="c num">' + k.tweaks.length + ' tweaks pending</span></button>' + (R.S.edOpen || (cur && cur.sec === 'tweaks') ? k.tweaks.map(m => _rsChip(m, cur)).join('') : '') + '</div>');
-            sl.innerHTML = h.join('<span class="sk-sep" aria-hidden="true"></span>');
+            fresh = _rsPut(sl, h.join('<span class="sk-sep" aria-hidden="true"></span>'));
             const t = _rsQ('edTog');
-            if (t) t.addEventListener('click', () => { R.S.edOpen = !R.S.edOpen; _rsStrip(); });
+            if (t && fresh) t.addEventListener('click', () => { R.S.edOpen = !R.S.edOpen; _rsStrip(); });
         }
-        sl.querySelectorAll('[data-id]').forEach(b => b.addEventListener('click', () => _rsGo(b.dataset.id)));
-        sl.querySelectorAll('[data-reopen]').forEach(b => b.addEventListener('click', () => { R.S.finished.delete(b.dataset.reopen); _rsGo(b.dataset.reopen); }));
+        if (fresh) {
+            sl.querySelectorAll('[data-id]').forEach(b => b.addEventListener('click', () => _rsGo(b.dataset.id)));
+            sl.querySelectorAll('[data-reopen]').forEach(b => b.addEventListener('click', () => { R.S.finished.delete(b.dataset.reopen); _rsGo(b.dataset.reopen); }));
+        }
+        if (R.mode === 'kasper') _rsQueuePanel();
         sl.scrollLeft = keep;
         const c = sl.querySelector('.cur');
         if (c) { const l = c.offsetLeft, r = l + c.offsetWidth; if (l < sl.scrollLeft || r > sl.scrollLeft + sl.clientWidth) sl.scrollLeft = Math.max(0, l - 40); }
@@ -1148,13 +1350,65 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const sl = _rsQ('skList');
         if (sl) sl.classList.toggle('more-r', sl.scrollWidth - sl.clientWidth - sl.scrollLeft > 1);
     }
+    /* Kasper's list (owner feedback 2026-10-17 23:20, session Curtain Seven): the strip's list button opens his
+       sections as they are today, top to bottom: Urgent, Waiting for your review, With the editors (tweaks pending,
+       with Ping editor). A row opens that post on the stage and closes the list; Escape or a click outside closes it. */
+    function _rsQueuePanel() {
+        const p = _rsQ('qPanel'), b = _rsQ('qBtn');
+        if (!p) return;
+        const on = R.mode === 'kasper' && !!R.S.qOpen;
+        if (b) b.setAttribute('aria-expanded', String(on));
+        p.hidden = !on;
+        if (!on) { p.innerHTML = ''; return; }
+        const k = _rsKasperModels(), cur = _rsCur();
+        const row = (m) => {
+            const meta = m.sec === 'urgent' ? '<span class="cm urg">' + RI.bell + '<span>' + _re(m.flag) + '</span></span>'
+                : m.sec === 'tweaks' ? '<span class="cm edc"><span>' + _re(m.client) + ', ' + _re(m.note.replace(/^With /, 'with ')) + '</span></span>'
+                : '<span class="cm"><span>' + _re(m.client) + '</span>' + (m.sample ? '<b class="tag">Sample</b>' : '') + _rsDots(m) + '</span>';
+            let ping = '';
+            if (m.sec === 'tweaks') {
+                const canPing = (() => { try { return _calShowUrgent(m.post, 'video'); } catch (e) { return false; } })();
+                if (canPing) ping = R.S.pinged[m.id] ? '<span class="b-soft sent qp-ping">' + RI.check + 'Editor pinged</span>' : '<button class="b-soft qp-ping" type="button" data-qping="' + _re(m.id) + '">' + RI.bell + 'Ping editor</button>';
+            }
+            const on = cur && cur.id === m.id;
+            return '<div class="qp-r' + (on ? ' cur' : '') + '"><button class="qp-row" type="button" data-qid="' + _re(m.id) + '"' + (on ? ' aria-current="true"' : '') + '>' + _rsChipImg(m) + '<span class="cx"><span class="cn">' + _re(m.title) + '</span>' + meta + '</span></button>' + ping + '</div>';
+        };
+        const sec = (cls, icon, label, count, list, empty) => '<div class="qp-sec"><div class="qp-h' + cls + '">' + icon + '<span>' + label + '</span><span class="c num">' + count + '</span></div>' + (list.length ? list.map(row).join('') : '<div class="qp-empty">' + empty + '</div>') + '</div>';
+        let h = '';
+        if (k.urgent.length) h += sec(' urg', RI.bell, 'Urgent', k.urgent.length, k.urgent, '');
+        h += sec('', '', 'Waiting for your review', k.waiting.length, k.waiting, 'Nothing waiting on you.');
+        if (k.tweaks.length) h += sec('', '', 'With the editors', k.tweaks.length + ' tweaks pending', k.tweaks, '');
+        p.innerHTML = h;
+        p.querySelectorAll('[data-qid]').forEach(x => x.addEventListener('click', () => {
+            const id = x.dataset.qid;
+            R.S.qOpen = false;
+            if (k.tweaks.some(m => m.id === id)) R.S.edOpen = true;
+            _rsGo(id);
+            const bb = _rsQ('qBtn'); if (bb) bb.focus({ preventScroll: true });
+        }));
+        p.querySelectorAll('[data-qping]').forEach(x => x.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const m = k.tweaks.find(t => t.id === x.dataset.qping);
+            if (!m) return;
+            R.S.pinged[m.id] = true;
+            if (m.sample) window._sxrKasperSendUrgentSlack(e, m.id); else window._kasperSendUrgentSlack(e, m.id);
+            _rsQueuePanel();
+            if (cur && cur.id === m.id) _rsDecide();
+        }));
+    }
+    function _rsQueueClose() { if (R.S && R.S.qOpen) { R.S.qOpen = false; _rsQueuePanel(); } }
     function _rsSide(m) {
-        const who = R.mode === 'kasper' ? '<span class="sd-cl"><span class="avatar">' + _re(String(m.client || '?').split(/\s+/).map(w => w.charAt(0)).join('').slice(0, 2).toUpperCase()) + '</span>' + _re(m.client) + (m.sample ? '<b class="tag">Sample</b>' : '') + '</span>' : '';
-        const meta = R.mode === 'kasper'
-            ? '<span class="tm">' + (m.flag ? '<span class="flag">' + RI.bell + _re(m.flag) + '</span>' : '') + '<span>' + _re(m.note) + '</span></span>'
-            : '';
-        _rsQ('side').innerHTML = '<div class="sd-t">' + who + '<h2>' + _re(m.title) + '</h2>' + meta + '</div>';
         const d = _rsQ('sdate');
+        if (R.mode === 'kasper') {
+            // One row (owner feedback 2026-10-17 23:20, session Curtain Seven): "Client · Title", no initials badge; the
+            // round ("Back after tweaks, round 3") and an urgent ping sit beside the date at the stage's top left.
+            _rsQ('side').innerHTML = '<div class="sd-t"><h2>' + (m.client ? _re(m.client) + '<span class="sep"> · </span>' : '') + _re(m.title) + (m.sample ? '<b class="tag">Sample</b>' : '') + '</h2></div>';
+            const extra = (m.flag ? '<span class="sdn flag">' + RI.bell + _re(m.flag) + '</span>' : '') + (m.note ? '<span class="sdn">' + _re(m.note) + '</span>' : '');
+            d.innerHTML = (m.date ? RI.cal + _re(m.date) : '') + extra;
+            d.hidden = !m.date && !extra;
+            return;
+        }
+        _rsQ('side').innerHTML = '<div class="sd-t"><h2>' + _re(m.title) + '</h2></div>';
         d.innerHTML = m.date ? RI.cal + _re(m.date) : '';
         d.hidden = !m.date;
     }
@@ -1238,12 +1492,28 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const m = _rsCur();
         if (!m || !m.parts.some(x => x.key === k)) return;
         if (R.S.step === k) { _rsRender({ force: true }); return; }
-        R.S.step = k; R.S.menu = '';
-        if (R.S.editing && R.S.editing !== k) R.S.editing = '';
+        _rsSwap(() => {
+            R.S.step = k; R.S.menu = '';
+            if (R.S.editing && R.S.editing !== k) R.S.editing = '';
+        });
+    }
+    /* Change what is on stage: only the media fades (out, the change, back in); everything around it stays put. */
+    let _rsSwapT = null;
+    function _rsSwap(apply) {
         const v = _rsQ('view');
-        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) { _rsRender({ force: true }); return; }
+        if (!v || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) { apply(); _rsRender({ force: true }); return; }
+        if (_rsSwapT) { clearTimeout(_rsSwapT.t); _rsSwapT.apply(); }
         v.classList.add('swap');
-        setTimeout(() => { _rsRender({ force: true }); _rsQ('view').classList.add('swap'); requestAnimationFrame(() => requestAnimationFrame(() => _rsQ('view').classList.remove('swap'))); }, 150);
+        const job = { apply, t: 0 };
+        job.t = setTimeout(() => {
+            _rsSwapT = null;
+            apply();
+            _rsRender({ force: true });
+            const nv = _rsQ('view'); if (!nv) return;
+            nv.classList.add('swap');
+            requestAnimationFrame(() => requestAnimationFrame(() => nv.classList.remove('swap')));
+        }, 150);
+        _rsSwapT = job;
     }
     function _rsCard(m) {
         const S = R.S, k = S.step, tc = _rsQ('tcard');
@@ -1280,15 +1550,47 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         return !!_calReviewState.saving[m.id + '|' + k];
     }
     function _rsError(m, k) {
+        if (R.mode === 'kasper' && m.sample) {
+            // A refused Sample save is kept per post in Kasper's save alerts, not on the item: it counts here when it
+            // came after this part's own action on the stage.
+            const a = _kasperState.saveAlerts && _kasperState.saveAlerts[String(m.id)];
+            const at = R.S && R.S.actAt ? R.S.actAt[m.id + '|' + k] : 0;
+            return a && at && Number(a.at) >= at ? String(a.text || 'The save was refused.') : '';
+        }
         if (R.mode === 'kasper') { const it = m.item; return it && !m.sample && it._errors && it._errors[k] ? String(it._errors[k]) : ''; }
         return String(_calReviewState.errors[m.id + '|' + k] || '');
     }
-    function _rsSplit(x) {
-        const k = x.key, n = _rsLname(k), open = R.S.menu === k;
-        const label = R.mode === 'smm' ? 'Approve to Kasper' : 'Approve the ' + n;
+    /* Save problems on this post, whichever part is on stage (the stage moves on to the next part while a save
+       runs): a refused save says why, with Try again; a save with no answer after a few seconds says so. */
+    function _rsSaveIssues(m, onStage) {
+        const S = R.S;
+        return m.parts.map(p => {
+            const k = p.key, key = m.id + '|' + k, err = _rsError(m, k);
+            const who = k === onStage ? '' : RS_PART[k] + ': ';
+            if (err) return '<div class="err" role="alert" data-err="' + k + '"><span>' + _re(who + 'Not saved. ' + err) + '</span>' + (S.retry[key] ? '<button class="retry" type="button" data-retry="' + k + '">Try again</button>' : '') + '</div>';
+            if (S.slow[key] && _rsSaving(m, k)) return '<div class="err slow" role="status" data-slow="' + k + '">' + _re(who) + 'Still waiting for the server. Nothing is lost: it finishes here on its own.</div>';
+            return '';
+        }).join('');
+    }
+    // A small spinner in place of a button's icon while its save runs (owner feedback 2026-10-17: no "Saving..." text).
+    const RS_SPIN = '<span class="spin" aria-hidden="true"></span>';
+    function _rsSplit(x, busy) {
+        const k = x.key, n = _rsLname(k), open = !busy && R.S.menu === k;
+        const label = busy === 'client' ? 'Approve to client' : busy === 'aat' ? 'Approve after tweaks' : R.mode === 'smm' ? 'Approve to Kasper' : 'Approve the ' + n;
         const alt = R.mode === 'smm' ? ['client', RI.skip + 'Approve to client'] : ['aat', RI.aat + 'Approve after tweaks'];
         const menu = open ? '<div class="apmenu" role="menu"><button role="menuitem" type="button" data-alt="' + alt[0] + '" data-for="' + k + '">' + alt[1] + '</button></div>' : '';
-        return '<div class="split' + (open ? ' open' : '') + '"><button class="b-ok" type="button" data-ok="' + k + '">' + RI.check + label + '</button><button class="sarr" type="button" data-menu="' + k + '" aria-haspopup="menu" aria-expanded="' + open + '" aria-label="Other ways to approve the ' + n + '" title="' + (R.mode === 'smm' ? 'Approve to client' : 'Approve after tweaks') + '">' + RI.down + '</button>' + menu + '</div>';
+        const on = busy === 'ok' || busy === 'client' || busy === 'aat';
+        return '<div class="split' + (open ? ' open' : '') + (on ? ' busy' : '') + '"><button class="b-ok' + (on ? ' busy' : '') + '" type="button" data-ok="' + k + '"' + _rsBusyAttr(busy, on) + '>' + (on ? RS_SPIN : RI.check) + label + '</button><button class="sarr" type="button" data-menu="' + k + '" aria-haspopup="menu" aria-expanded="' + open + '" aria-label="Other ways to approve the ' + n + '" title="' + (R.mode === 'smm' ? 'Approve to client' : 'Approve after tweaks') + '"' + (busy ? ' disabled' : '') + '>' + RI.down + '</button>' + menu + '</div>';
+    }
+    function _rsBusyAttr(busy, on) { return busy ? (on ? ' aria-busy="true"' : '') + ' disabled' : ''; }
+    // The decision buttons; with `busy` (what was pressed) the pressed one spins and every one waits.
+    function _rsActions(x, busy) {
+        const n = _rsLname(x.key);
+        const ok = busy === 'ok' || (R.mode === 'client' && busy === 'client');
+        const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + 'Approve the ' + n + '</button>' : _rsSplit(x, busy);
+        const chg = busy === 'chg', fr = busy === 'frame';
+        return approve + '<button class="b-ask' + (chg ? ' busy' : '') + '" type="button" data-chg="' + x.key + '"' + _rsBusyAttr(busy, chg) + '>' + (chg ? RS_SPIN : RI.back) + 'Ask for a change</button>'
+            + (R.mode === 'kasper' && x.key === 'video' ? '<button class="b-frame' + (fr ? ' busy' : '') + '" type="button" data-frame="' + x.key + '"' + _rsBusyAttr(busy, fr) + ' title="Your notes are in Frame.io: sends the change without typing">' + (fr ? RS_SPIN : RI.frame) + 'Tweaks are on Frame</button>' : '');
     }
     function _rsDecide() {
         const m = _rsCur();
@@ -1310,11 +1612,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             if (pb) pb.addEventListener('click', (e) => { S.pinged[m.id] = true; if (m.sample) window._sxrKasperSendUrgentSlack(e, m.id); else window._kasperSendUrgentSlack(e, m.id); _rsDecide(); });
             return;
         }
-        const saving = _rsSaving(m, x.key), err = _rsError(m, x.key);
+        const saving = _rsSaving(m, x.key);
         if (S.editing === x.key) d = '<span class="dst busy">' + RI.pen + 'Editing the ' + n + '</span>';
         else if (_rsWriting(x) && S.note.where === 'stage') d = null;
         else if (_rsWriting(x)) d = '<span class="dst wr">' + RI.pen + 'Writing a change to the ' + n + ' in the conversation</span>';
-        else if (saving) d = '<span class="dst busy">' + RI.clock + 'Saving…</span>';
+        else if (saving) d = _rsActions(x, S.pressed[m.id + '|' + x.key] || 'ok');
         else if (x.st === 'ok' && R.mode === 'smm') d = '<span class="dst ok"><span class="ck' + (x.route === 'client' ? ' tocl' : '') + '">' + (x.route === 'client' ? RI.skip : RI.check) + '</span>Approved to ' + (x.route === 'client' ? 'client' : 'Kasper') + '</span><button class="qlink o" type="button" data-again="' + x.key + '">Change my mind</button>';
         else if (x.st === 'ok') d = '<span class="dst ok"><span class="ck">' + (x.dec === 'aat' ? RI.aat : RI.check) + '</span>' + (x.dec === 'aat' ? 'Approved after tweaks' : 'Approved') + (x.when ? ' <span class="when">' + _re(_rsWhen(x.when)) + '</span>' : '') + '</span><button class="qlink o" type="button" data-again="' + x.key + '">Change my mind</button>';
         else if (x.st === 'chg' && x.frame) d = '<span class="dst chg"><span class="ck chg">' + RI.frame + '</span>Tweaks are on Frame</span>' + (m.post.asset_url ? '<a class="rlink" href="' + _re(m.post.asset_url) + '" target="_blank" rel="noopener noreferrer">' + RI.ext + 'Your notes in Frame.io</a>' : '');
@@ -1322,15 +1624,16 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             const last = m.thread.filter(t => t.part === x.key && t.change).slice(-1)[0];
             d = '<span class="dst chg"><span class="ck chg">' + RI.back + '</span>Change asked</span>' + (last ? '<span class="dq" title="' + _re(last.text) + '">' + _re(last.text) + '</span>' : '');
         } else {
-            const approve = R.mode === 'client' ? '<button class="b-ok" type="button" data-ok="' + x.key + '">' + RI.check + 'Approve the ' + n + '</button>' : _rsSplit(x);
-            d = approve + '<button class="b-ask" type="button" data-chg="' + x.key + '">' + RI.back + 'Ask for a change</button>'
-                + (R.mode === 'kasper' && x.key === 'video' ? '<button class="b-frame" type="button" data-frame="' + x.key + '" title="Your notes are in Frame.io: sends the change without typing">' + RI.frame + 'Tweaks are on Frame</button>' : '');
+            d = _rsActions(x, '');
         }
         const parts = m.parts, left = parts.filter(p => p.st === 'wait').length, all = !left;
+        if (all && !S.ready[m.id]) S.ready[m.id] = Date.now();
+        if (!all) delete S.ready[m.id];
+        const glow = all ? ' ready" style="animation-delay:-' + (Date.now() - S.ready[m.id]) + 'ms' : '';
         const dc = x.st === 'ok' && d && !S.editing && !saving ? ' is-ok' : (x.st === 'chg' || x.st === 'tweak') && d && !S.editing && !saving ? ' is-chg' : '';
         el.innerHTML = '<div class="dwrap">' + (d === null ? _rsComposer(m) : '<div class="dec' + dc + '" id="dec">' + d + '</div>') + '</div>'
-            + (err ? '<div class="err" role="alert">' + _re(err) + '</div>' : '')
-            + '<div class="drow2"><div class="dfin"><button class="finish" type="button" id="finishBtn"' + (all ? '' : ' disabled') + '>' + RI.check + 'Finish reviewing' + (all ? '' : ' <span class="fc num">' + (parts.length - left) + ' of ' + parts.length + '</span>') + '</button></div></div>';
+            + _rsSaveIssues(m, x.key)
+            + '<div class="drow2"><div class="dfin"><button class="finish' + glow + '" type="button" id="finishBtn"' + (all ? '' : ' disabled') + '>' + RI.check + 'Finish reviewing' + (all ? '' : ' <span class="fc num">' + (parts.length - left) + ' of ' + parts.length + '</span>') + '</button></div></div>';
         el.querySelectorAll('[data-ok]').forEach(b => b.addEventListener('click', () => _rsApprove(m, b.dataset.ok, R.mode === 'smm' ? 'kasper' : '')));
         el.querySelectorAll('[data-alt]').forEach(b => b.addEventListener('click', (e) => {
             e.stopPropagation(); S.menu = '';
@@ -1342,6 +1645,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         el.querySelectorAll('[data-chg]').forEach(b => b.addEventListener('click', () => _rsStartChange(b.dataset.chg, 'stage')));
         el.querySelectorAll('[data-again]').forEach(b => b.addEventListener('click', () => _rsStartChange(b.dataset.again, 'stage')));
         const fb = _rsQ('finishBtn'); if (fb) fb.addEventListener('click', _rsFinish);
+        el.querySelectorAll('[data-retry]').forEach(b => b.addEventListener('click', () => { const f = S.retry[m.id + '|' + b.dataset.retry]; if (f) f(); }));
         if (d === null) _rsBindComposer(el);
     }
     function _rsComposer(m) {
@@ -1368,16 +1672,42 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             : (opts.length ? '<div class="sugg"><div class="sgl"><span>Is this a change?</span><button class="justnote" type="button" id="noteBtn">Just a note ' + RI.send + '</button></div><div class="sgp">' + opts.map(q => '<button class="sg" type="button" data-sg="' + q.key + '">' + _rsDot(q.key) + RS_PART[q.key] + (q.st === 'ok' ? '<span class="sga">, approved</span>' : '') + '</button>').join('') + '</div></div>' : '')
               + (R.mode === 'smm' ? '<div class="nfoot">' + seg + '<button class="send" type="button" id="sendBtn" aria-label="Send the note"' + (typed ? '' : ' disabled') + '>' + RI.send + '</button></div>' : '');
         const send = chg || R.mode === 'smm' ? '' : '<button class="send" type="button" id="sendBtn" aria-label="Send as a note"' + (typed ? '' : ' disabled') + '>' + RI.send + '</button>';
+        if (R.mode === 'client' && nt.where !== 'stage') return _rsClientComposer(m, opts, ph, paused, typed);
         return '<div class="compose' + (R.mode === 'smm' ? ' smm' : '') + (chg ? ' chg' : '') + (typed ? ' typed' : '') + '" id="compose"><div class="cbox">' + top + '<div class="ta-wrap"><textarea class="cta" id="ta" rows="1" placeholder="' + _re(ph) + '" aria-label="' + _re(ph) + '"' + (paused ? ' disabled' : '') + '>' + _re(nt.text) + '</textarea>' + send + '</div>' + foot + '</div></div>';
     }
+    /* The client's message box: chips at the top left say what the message is about (one at a time; picking it again
+       clears it), and two buttons at the bottom right send it. "Ask for a change" needs a part; "Send comment" asks for
+       nothing and goes on the chosen part, or on the part on stage. Enter sends a change when a part is picked, a
+       comment otherwise. */
+    function _rsClientComposer(m, opts, ph, paused, typed) {
+        const nt = R.S.note, k = nt.part, x = k ? m.parts.find(p => p.key === k) : null;
+        const reopenNote = x && x.st === 'ok';
+        const keys = opts.map(q => q.key);
+        if (k && keys.indexOf(k) < 0) keys.push(k);
+        const chips = keys.length ? '<div class="cl-parts" role="group" aria-label="What is this about?"><span class="lbl">About</span>' + keys.map(q => '<button class="pchip" type="button" data-pc="' + q + '" aria-pressed="' + (q === k) + '"' + (q === k ? ' title="Clear: send it as a comment"' : '') + '>' + _rsDot(q) + RS_PART[q] + '<span class="px" aria-hidden="true">' + RI.x + '</span></button>').join('')
+            + (k ? '<span class="why">' + (reopenNote ? 'Your team will reopen it' : 'Your team will edit it') + '</span>' : '') + '</div>' : '';
+        const chgLabel = reopenNote ? 'Send to your team' : 'Ask for a change';
+        const foot = '<div class="cl-foot">'
+            + '<button class="b-cmt" type="button" id="cmtBtn"' + (typed ? '' : ' disabled') + '>' + RI.send + 'Send comment</button>'
+            + (keys.length ? '<button class="b-send-chg" type="button" id="sendBtn"' + (typed && k ? '' : ' disabled') + (k ? '' : ' title="Pick what it is about first"') + '>' + RI.back + chgLabel + '</button>' : '') + '</div>';
+        return '<div class="compose cl' + (k ? ' chg' : '') + (typed ? ' typed' : '') + '" id="compose"><div class="cbox">' + chips + '<div class="ta-wrap"><textarea class="cta" id="ta" rows="1" placeholder="' + _re(ph) + '" aria-label="' + _re(ph) + '"' + (paused ? ' disabled' : '') + '>' + _re(nt.text) + '</textarea></div>' + foot + '</div></div>';
+    }
+    // A note longer than this folds after a few lines behind "Show all" (a whole caption pasted as a change request).
+    function _rsLongNote(text) { const t = String(text || ''); return t.length > 320 || t.split('\n').length > 7; }
     function _rsBubble(t, old) {
         const isChg = t.change && t.part;
-        const tag = t.part ? '<span class="tag" style="background:none;padding:0;height:auto;color:inherit;font-weight:600;gap:5px;display:inline-flex;align-items:center">' + _rsDot(t.part) + RS_PART[t.part] + '</span>' : '';
+        const tag = t.part ? '<span class="tag">' + _rsDot(t.part) + RS_PART[t.part] + '</span>' : '';
         const kind = isChg ? '<span class="kchg">' + (t.frame ? RI.frame + 'Tweaks on Frame' : RI.back + 'Change asked') + '</span>' : '';
         const role = R.mode === 'smm' && !t.you && t.role ? ' <span class="role">' + (t.role === 'client' ? 'client' : t.role === 'kasper' ? 'review' : '') + '</span>' : '';
         const vis = R.mode === 'smm' && !t.change && t.aud ? '<span class="vis' + (t.aud === 'client' ? ' cl' : '') + '">' + (t.aud === 'client' ? RI.eye + 'Client can see' : RI.lock + 'Team only') + '</span>' : '';
+        const done = t.done ? '<span class="donec">' + RI.check + 'Done</span>' : '';
         const av = t.you ? '' : '<span class="av' + (t.role === 'client' ? ' cl' : t.role === 'kasper' ? ' kp' : '') + '">' + _re(String(t.who || '?').charAt(0).toUpperCase()) + '</span>';
-        return '<div class="bub ' + (t.you ? 'you' : 'team') + (old ? ' old' : '') + (isChg ? ' is-chg' : '') + (isChg && t.done ? ' handled' : '') + '">' + av + '<div class="bb"><div class="bh"><b>' + (t.you ? 'You' : _re(t.who)) + role + '</b>' + tag + kind + '<span>' + _re(t.time) + '</span>' + vis + '</div><div class="bt' + (t.sending ? ' sending' : '') + '">' + _re(t.text) + '</div>' + (t.done ? '<span class="donec">' + RI.check + 'Done</span>' : '') + '</div></div>';
+        const long = !t.edit && _rsLongNote(t.text), open = long && !!(t.id && R.S.exp['note:' + t.id]);
+        const more = long && t.id ? '<button class="bmore" type="button" data-more="' + _re(t.id) + '" aria-expanded="' + open + '">' + (open ? 'Show less' : 'Show all') + '</button>' : '';
+        return '<div class="bub ' + (t.you ? 'you' : 'team') + (old ? ' old' : '') + (isChg ? ' is-chg' : '') + (isChg && t.done ? ' handled' : '') + '">' + av + '<div class="bb"><div class="bh"><b>' + (t.you ? 'You' : _re(t.who)) + role + '</b>' + tag + kind + '<span>' + _re(t.time) + '</span></div>' + (t.edit
+            ? '<div class="bt' + (t.sending ? ' sending' : '') + '">' + (t.you ? 'You changed' : 'Changed') + ' the caption</div><div class="diff"><div class="new">' + _re(t.edit.now) + '</div>'
+              + (t.edit.old ? '<details class="was"><summary>Show the old caption</summary><div class="old">' + _re(t.edit.old) + '</div></details>' : '<div class="was">It had no caption before.</div>') + '</div>'
+            : '<div class="bt' + (t.sending ? ' sending' : '') + (long && t.id && !open ? ' clamp' : '') + '">' + _re(t.text) + '</div>') + more + (vis || done ? '<div class="bfoot">' + vis + done + '</div>' : '') + '</div></div>';
     }
     function _rsChat(m) {
         const S = R.S, c = _rsQ('chat');
@@ -1398,6 +1728,16 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 : '<span class="avs"><span class="av">' + _re(String(m.client || '?').charAt(0)) + '</span><span class="av l">E</span></span><span class="who"><b>The team</b><span>' + _re(m.client) + '’s SMM and editors. The client does not see this.</span></span>';
         c.innerHTML = '<div class="ch-head">' + head + '</div><div class="ch-scroll" id="tscroll">' + th + '</div><div class="ch-foot">' + foot + '</div>';
         const fb = _rsQ('foldBtn'); if (fb) fb.addEventListener('click', () => { S.fold = !S.fold; _rsChat(m); });
+        // "Show all" on a long note: only this bubble opens, the thread keeps its place.
+        c.querySelectorAll('[data-more]').forEach(b => b.addEventListener('click', () => {
+            const k = 'note:' + b.dataset.more, ts0 = _rsQ('tscroll'), top = ts0 ? ts0.scrollTop : 0;
+            S.exp[k] = !S.exp[k];
+            const bt = b.previousElementSibling;
+            if (bt) bt.classList.toggle('clamp', !S.exp[k]);
+            b.textContent = S.exp[k] ? 'Show less' : 'Show all';
+            b.setAttribute('aria-expanded', String(!!S.exp[k]));
+            if (ts0) ts0.scrollTop = top;
+        }));
         if (!dk) _rsBindComposer(c);
         const ts = _rsQ('tscroll'); if (ts) ts.scrollTop = ts.scrollHeight;
     }
@@ -1408,6 +1748,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const cx = _rsQ('chipX'); if (cx) cx.addEventListener('click', () => _rsClearChange(true, false));
         const cc = _rsQ('cmpCancel'); if (cc) cc.addEventListener('click', () => _rsClearChange(false, true));
         const nb = _rsQ('noteBtn'); if (nb) nb.addEventListener('click', () => _rsSendNote(true));
+        root.querySelectorAll('[data-pc]').forEach(b => b.addEventListener('click', () => { const S2 = R.S; if (S2.note.part === b.dataset.pc) _rsClearChange(true, false); else { S2.note.part = b.dataset.pc; S2.note.where = 'chat'; S2.note.aat = false; _rsRender({ force: true }); _rsFocusTa(); } }));
+        const mb = _rsQ('cmtBtn'); if (mb) mb.addEventListener('click', () => _rsSendNote(true));
         const sb = _rsQ('sendBtn'); if (sb) sb.addEventListener('click', () => _rsSendNote(!S.note.part));
         const ta = _rsQ('ta');
         if (!ta) return;
@@ -1416,7 +1758,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             S.note.text = ta.value;
             const has = !!ta.value.trim();
             const cp = _rsQ('compose'); if (cp) cp.classList.toggle('typed', has);
-            const s = _rsQ('sendBtn'); if (s) s.disabled = !has;
+            const s = _rsQ('sendBtn'); if (s) s.disabled = !has || (R.mode === 'client' && S.note.where !== 'stage' && !S.note.part);
+            const cm = _rsQ('cmtBtn'); if (cm) cm.disabled = !has;
             grow();
         });
         ta.addEventListener('keydown', (e) => {
@@ -1443,32 +1786,83 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 
     /* ---------- actions ---------- */
     let _rsFT = null;
-    function _rsFlash(text, key) {
+    function _rsFlash(text, key, pid) {
         const m = _rsCur();
-        R.S.saved = { key, pid: m ? m.id : '', t: Date.now() };
+        R.S.saved = { key, pid: pid || (m ? m.id : ''), t: Date.now() };
         const f = _rsQ('flash'); if (f) { f.textContent = text; clearTimeout(_rsFT); _rsFT = setTimeout(() => { f.textContent = ''; }, 2600); }
     }
     function _rsAdvance(m, from) {
         setTimeout(() => {
             const cur = _rsCur();
             if (!cur || cur.id !== m.id || R.S.step !== from || R.S.note.part || R.S.editing) return;
+            // a refused save stays on its part, with its reason and Try again
+            const x = cur.parts.find(p => p.key === from);
+            if (!x || x.st === 'wait' || _rsError(cur, from)) return;
             const nx = _rsNextOpen(cur, from);
             if (nx) _rsSetStep(nx);
         }, 650);
     }
     function _rsItem(m) { return m.item; }
+    /* A save on the stage always ends on screen (owner feedback 2026-10-17 23:40, session Curtain Nine). The old
+       page's save path tells the stage when it is done through its own repaint, but not every branch repaints (an
+       approval that cleared the card's last waiting part used to remove the old card and never told the stage, so it
+       read "Saving" for good). So the stage watches the part itself: the moment the saving flag drops it draws again,
+       and after a few seconds with no answer it says so in plain words. */
+    const RS_SLOW_MS = 8000;
+    function _rsModelById(id) { return _rsAll().find(x => x.id === id) || null; }
+    // An action can wait before its save starts (the SMM's "resolve the open change requests" chooser, or a canonical
+    // resolve that reads first): until the saving flag has been seen, the watch keeps waiting (up to two minutes)
+    // instead of reading "not saving" as "done". `done` is the words for the moment the save ends well ("Video
+    // approved, saved"): the step's "Saved" mark and the spoken flash wait for the server, never the click.
+    const RS_PRE_MS = 120000;
+    // `want` is the outcome the save asked for ('ok' approve, 'chg' a change): the flash and the Saved mark only show
+    // when the part now reads that way. A held client approval the queue later drops as not saved (the post changed
+    // meanwhile, or the hold expired) ends saving with no error but a different status: no "saved" claim then
+    // (review of #2180, Lighthouse).
+    function _rsWatch(m, comp, done, want) {
+        const key = m.id + '|' + comp, S = R.S;
+        let t0 = Date.now(), seen = _rsSaving(m, comp);
+        delete S.slow[key];
+        const tick = () => {
+            if (R.S !== S) return;   // the page was remounted
+            const cur = _rsModelById(m.id) || m;
+            if (!seen) {
+                if (_rsSaving(cur, comp)) { seen = true; t0 = Date.now(); }
+                else if (_rsError(cur, comp)) { _rsRender(); return; }
+                else { if (Date.now() - t0 < RS_PRE_MS) setTimeout(tick, 200); return; }
+            }
+            if (!_rsSaving(cur, comp)) {
+                delete S.slow[key];
+                const part = (cur.parts || []).find(p => p.key === comp);
+                const st = part ? part.st : '';
+                const landed = !want || (want === 'ok' ? st === 'ok' : (st === 'chg' || st === 'tweak'));
+                if (!_rsError(cur, comp) && landed) { delete S.retry[key]; if (done) _rsFlash(done, comp, m.id); }
+                _rsRender();
+                return;
+            }
+            if (!S.slow[key] && Date.now() - t0 >= RS_SLOW_MS) { S.slow[key] = true; _rsRender(); }
+            setTimeout(tick, 200);
+        };
+        setTimeout(tick, 200);
+    }
     function _rsApprove(m, comp, how) {
+        R.S.retry[m.id + '|' + comp] = () => { const cur = _rsModelById(m.id); if (cur) _rsApprove(cur, comp, how); };
+        R.S.pressed[m.id + '|' + comp] = how === 'client' ? 'client' : 'ok';
+        R.S.actAt[m.id + '|' + comp] = Date.now();
         R.S.acted.add(m.id + '|' + comp); R.S.menu = '';
         if (R.mode === 'client') window._calReviewApprove(m.id, comp);
         else if (R.mode === 'smm') window._calReviewApprove(m.id, comp, how === 'client' ? 'client' : 'kasper');
         else if (m.sample) window._sxrKasperApproveComp(m.id, comp);
         else window._kasperApproveComp(m.id, comp, 'client');
-        _rsFlash(RS_PART[comp] + (R.mode === 'smm' ? ' approved to ' + (how === 'client' ? 'the client' : 'Kasper') : ' approved, saved'), comp);
         _rsRender({ force: true });
+        _rsWatch(m, comp, RS_PART[comp] + (R.mode === 'smm' ? ' approved to ' + (how === 'client' ? 'the client' : 'Kasper') : ' approved, saved'), R.mode === 'client' ? 'ok' : '');
         _rsAdvance(m, comp);
     }
     function _rsSendChange(m, comp, text, o) {
         const opts = o || {};
+        R.S.retry[m.id + '|' + comp] = () => { const cur = _rsModelById(m.id); if (cur) _rsSendChange(cur, comp, text, Object.assign({}, opts, { where: '' })); };
+        R.S.pressed[m.id + '|' + comp] = opts.aat ? 'aat' : text === RS_FRAME_NOTE ? 'frame' : 'chg';
+        R.S.actAt[m.id + '|' + comp] = Date.now();
         R.S.acted.add(m.id + '|' + comp);
         if (R.mode === 'kasper') {
             if (m.sample) {
@@ -1484,8 +1878,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             _calReviewState.drafts[m.id + '|' + comp] = text;
             window._calReviewRequestTweak(m.id, comp);
         }
-        _rsFlash(opts.aat ? RS_PART[comp] + ' approved after tweaks' : 'Change sent', comp);
         _rsRender({ force: true });
+        _rsWatch(m, comp, opts.aat ? RS_PART[comp] + ' approved after tweaks' : 'Change sent', R.mode === 'client' ? 'chg' : '');
         if (opts.where === 'stage') _rsAdvance(m, comp);
     }
     function _rsSendNoteTo(m, comp, text, vis) {
@@ -1543,7 +1937,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const S = R.S, t = String(S.note.text || '').trim();
         if (!t) { _rsFocusTa(); return; }
         const m = _rsCur(); if (!m) return;
-        const k = asNote ? null : S.note.part, where = S.note.where, aat = S.note.aat, vis = S.note.vis;
+        const picked = S.note.part, k = asNote ? null : S.note.part, where = S.note.where, aat = S.note.aat, vis = S.note.vis;
         const x = k ? m.parts.find(p => p.key === k) : null;
         S.note = _rsBlankNote(); S.note.vis = vis;
         if (k && R.mode === 'client' && x && x.st === 'ok') {
@@ -1554,8 +1948,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             return;
         }
         if (k) { _rsSendChange(m, k, t, { where, aat }); return; }
-        // a plain note goes on the part on stage (every note belongs to a part on a card)
-        const comp = m.parts.some(p => p.key === S.step) ? S.step : (m.parts[0] || { key: 'video' }).key;
+        // a plain note goes on the part it is about, else the part on stage (every note belongs to a part on a card)
+        const comp = (asNote && picked && m.parts.some(p => p.key === picked)) ? picked : m.parts.some(p => p.key === S.step) ? S.step : (m.parts[0] || { key: 'video' }).key;
         _rsSendNoteTo(m, comp, t, vis);
         _rsRender({ force: true });
     }
@@ -1569,9 +1963,28 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const S = R.S, t = String(S.editText || '').trim(), before = k === 'title' ? m.ytitle : m.caption;
         S.editing = '';
         if (!t || t === before.trim()) { _rsRender({ force: true }); return; }
+        if (R.mode === 'client' && k === 'title') {
+            // A client link never renames a card (the YouTube title is the card's name, and a rename moves the
+            // Production work items with it), so a title edit still goes to the team as a change request.
+            _rsSendChange(m, k, 'Please use this title:\n\n' + t, { where: 'stage' });
+            return;
+        }
         if (R.mode === 'client') {
-            // The client's edit goes to the team as a change request carrying the new text; it is never approved by itself.
-            _rsSendChange(m, k, 'Please use this ' + (k === 'title' ? 'title' : 'caption') + ':\n\n' + t, { where: 'stage' });
+            // The client's caption edit changes the caption itself (owner, 2026-10-17), and a plain note on the
+            // caption tells the team, with the old caption, so the SMM can see it and put it back. It never approves
+            // and never asks for a change: the caption stays waiting for the client's own Approve.
+            // The note goes only once the caption is stored, so it never tells of a change that did not save.
+            const old = String(m.caption || '');
+            const save = window._calClientReviewCaptionEdit ? window._calClientReviewCaptionEdit(m.id, t) : Promise.resolve(false);
+            _rsFlash('Saving the caption…', k);
+            _rsRender({ force: true });
+            save.then(ok => {
+                if (!ok) { _rsFlash('The caption did not save. Please try again.', k); _rsRender({ force: true }); return; }
+                _calReviewState.drafts[m.id + '|' + k] = _rsEditNote(t, old);
+                window._calReviewComment(m.id, k);
+                _rsFlash('Caption changed, your team can see it', k);
+                _rsRender({ force: true });
+            });
             return;
         }
         window._calOnFieldBlur({ dataset: { pid: m.id, fld: k === 'title' ? 'name' : 'caption' }, value: t });
@@ -1582,9 +1995,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const all = _rsAll();
         const m = all.find(x => x.id === id);
         if (!m) return;
-        Object.assign(R.S, { curId: id, note: _rsBlankNote(), editing: '', fold: false, saved: null, menu: '' });
-        R.S.step = _rsFirstStep(m);
-        _rsRender({ force: true });
+        _rsSwap(() => {
+            Object.assign(R.S, { curId: id, note: _rsBlankNote(), editing: '', fold: false, saved: null, menu: '' });
+            R.S.step = _rsFirstStep(m);
+        });
     }
     function _rsFinish() {
         const m = _rsCur();
@@ -1601,10 +2015,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         }
         const rest = _rsQueue().filter(x => x.id !== m.id);
         const nxt = rest[Math.min(Math.max(i, 0), rest.length - 1)] || null;
-        R.S.curId = nxt ? nxt.id : null;
-        R.S.step = nxt ? _rsFirstStep(nxt) : '';
-        R.S.note = _rsBlankNote(); R.S.editing = '';
-        _rsRender({ force: true });
+        const go = () => {
+            R.S.curId = nxt ? nxt.id : null;
+            R.S.step = nxt ? _rsFirstStep(nxt) : '';
+            R.S.note = _rsBlankNote(); R.S.editing = '';
+        };
+        if (nxt) _rsSwap(go); else { go(); _rsRender({ force: true }); }
         _rsToast(msg + (nxt ? '. Next up: ' + nxt.title : ''), R.mode !== 'kasper' ? m.id : '');
     }
     let _rsTT = null;
@@ -1621,6 +2037,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsKeys(e) {
         const tag = (e.target && e.target.tagName || '').toLowerCase();
         if (e.key === 'Escape') {
+            if (R.S.qOpen) { _rsQueueClose(); const bb = _rsQ('qBtn'); if (bb) bb.focus({ preventScroll: true }); return; }
             if (R.S.menu) { R.S.menu = ''; _rsDecide(); }
             else if (R.S.note.part) _rsClearChange(false, R.S.note.where === 'stage');
             else if (R.S.editing) { R.S.editing = ''; _rsRender({ force: true }); }
@@ -1638,7 +2055,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const yt = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([A-Za-z0-9_-]{11})/);
         const vm = url.match(/vimeo\.com\/(\d+)/);
         const loom = url.match(/loom\.com\/share\/([A-Za-z0-9]+)/);
-        const src = yt ? 'https://www.youtube.com/embed/' + yt[1] + '?autoplay=1&rel=0' : vm ? 'https://player.vimeo.com/video/' + vm[1] + '?autoplay=1' : loom ? 'https://www.loom.com/embed/' + loom[1] : '';
+        // Wistia (the company's video host): a media page or an embed link plays in Wistia's own player (adaptive
+        // quality, view stats). A direct file link (…/deliveries/….mp4) is not matched and plays as a plain video.
+        const wis = url.match(/(?:wistia\.com\/medias\/|wistia\.net\/embed\/iframe\/)([A-Za-z0-9]{6,})/);
+        const src = yt ? 'https://www.youtube.com/embed/' + yt[1] + '?autoplay=1&rel=0' : vm ? 'https://player.vimeo.com/video/' + vm[1] + '?autoplay=1' : loom ? 'https://www.loom.com/embed/' + loom[1]
+            : wis ? 'https://fast.wistia.net/embed/iframe/' + wis[1] + '?autoplay=1' : '';
         const media = src ? '<iframe src="' + _re(src) + '" title="How this page works" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>'
             : '<video src="' + _re(url) + '" controls autoplay playsinline></video>';
         const o = document.createElement('div');

@@ -5,6 +5,10 @@
       "status": "read",
       "note": "Boot-time sign-in and client-link checks (key-verify, token verify). They answer \"who is this\", they save nothing."
     },
+    "005-head-boot.html.part|(top level)|'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/clien|POST": {
+      "status": "read",
+      "note": "Client link's early link check (client-token-verify), started while the page parses; the same read _syncviewPreflightClientEntry sends. It answers \"is this link valid\", it saves nothing."
+    },
     "040-shared-briefs.js.part|abortForClientEntry|TAB_SUMMARY_WEBHOOK|POST": {
       "status": "read",
       "note": "Reads the tab summary by POST."
@@ -501,7 +505,6 @@
     "187-frame-viewer.js.part|ctrl|FRAMEIO_VIEW_EF_URL|POST": {
       "status": "read",
       "note": "Watch here: asks the frameio-view function for a video address and comments. A POST only to carry the link; it reads from Frame.io and saves nothing."
-
     },
     "160-calendar-organize-ui.js.part|_notifyClientCall|CLIENT_REVIEW_ALERT_URL|POST": {
       "status": "reports",

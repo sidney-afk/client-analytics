@@ -31,6 +31,11 @@ or ask for a change / talk to your team / see what is coming), then questions. N
 scroll tour are gone). The old upload tutorial is off the page on purpose (it showed a real client's details and the
 retired Linear step); a new upload video goes in the marked place in `#panel-upload` of `start/index.html` when it is
 made. `#upload` and `#review` open a side; the older `#videographer` and `#client` links still work. Screenshots are demo data only (client "Alex Morgan",
+analytics, the font self-hosted. It says what SyncView is, shows the review page through an "eye" that opens as you
+scroll, walks through watch / approve or ask for a change / talk to the team / see what is coming, then plays the two
+tutorials (review 1:19, upload 1:18) in a copy of the review page's player, straight from the Wistia MP4 files (no
+Wistia script, never autoplays), with the five folder rules beside a drawn folder tree. "I am a videographer" (or
+`/start/#videographer`) hides the client-only review video. Screenshots are demo data only (client "Alex Morgan",
 four demo posts). Published because `start` is in `PUBLISHED_DIRS` (`scripts/pages-site.js`). Test:
 `node test/start-page-browser.js`. To change the wording or a video, edit `start/index.html`.
 
@@ -49,6 +54,10 @@ shape is the old page; the lists live only in the database):
   roster id or full name is listed.
 - `review_help_video_url` `{ "url": "https://..." }`: the tutorial video behind the client page's "?". Empty or missing
   hides the button. The video is made later by another session.
+- `analytics_hidden` `{ "hidden": false }` brings Analytics back for everyone (session Curtain Seven, 2026-10-17).
+  Missing (today: no row, no migration), unreadable, `{ "hidden": true }` or any other shape hides it: no Analytics tab
+  in the staff bar, no Analytics / Content Calendar toggle on a client link, and a client link's Analytics address
+  opens the Content Calendar. Read at boot in the same request as the switches above. No Analytics code was removed.
 To try it: the test client in the first list and the owner in the second. Nobody else sees anything new.
 
 **The owner's decisions, 2026-10-16:** yes to the SMM and Kasper mock-ups, and to the five open choices:
@@ -65,8 +74,9 @@ theme button on the client page opens a tutorial video in an overlay.
 
 **Decisions made in the build (every save is the old page's own; no new write path):**
 - Client "Finish reviewing" saves nothing: each answer is already saved when given; it opens the next waiting post.
-- A client's caption (or YouTube title) edit is sent as a change request on that part carrying the new text, so the
-  SMM applies it; there is no client caption save, and it never approves.
+- A client's caption edit changes the caption itself (since Curtain Eight, below) and a plain note tells the team; a
+  YouTube title edit is still sent as a change request carrying the new text (a client link never renames a card).
+  Neither ever approves.
 - A client's "Change my mind" on an approved part sends a note to the team on that part (a client link cannot reopen
   an approved part); the SMM's and Kasper's reopen it as a change request, as their old pages do.
 - A client's "Take it back" on a sent change request is not offered (nothing on the old page undoes one).
@@ -113,9 +123,100 @@ a stage shows); and the stage reads the app's own colour tokens (one page backgr
 and the notes panel, one border, radius and shadow) in light and dark. Switch off or unreadable: pixel-identical to
 main. Test: `node test/review-stage-one-system-browser.js`.
 
+**Owner feedback of 2026-10-17 23:00 UTC (session Curtain Six):** (1) the old Review list no longer flashes on the
+first Sheet to Review switch. It was the staff Calendar only (the client link was already clean): the switch was first
+read when Review was clicked, so that first paint drew the old list until the answer came back. The switch is now read
+as soon as the Calendar paints any tab for a client, and for a switched-on client the new page's code is fetched while
+on Sheet, so the first click draws the new page at once. The live read takes 1.5 to 3.7 s, so a Review click before it answers
+shows the Calendar's loader instead of the old list whenever this browser last saw the client switched on (a hint kept
+in the browser; it never shows the new page by itself, and a client it does not list keeps today's instant old list).
+Left as is: the very first visit from a browser that never saw the switch answer (Lighthouse, review of #2167). (2) The conversation panel is the approved phone-style chat on all
+three versions, light and dark: bubbles with no outline or side bar, the viewer's own on the right in a soft tint of the
+app's accent, everyone else's on the left on the page's own background (the panel stays the stage's one surface from
+Curtain Five), the part tag and "Change asked" in the bubble's top line, Team only / Client can see under the note,
+"Done" on handled requests, line breaks kept, and a very long note (a whole caption pasted as a change) folds after
+seven lines behind "Show all". Only the look changed: what is saved, who sees it and the Team only / Client can see
+switch are untouched. (3) The "new version of SyncView" bar keeps its place at the bottom of the window; while it shows, the review stage
+makes room for it (shorter on a desktop, extra room under the page on a phone), so it covers neither the stage's Approve
+and Finish reviewing buttons nor the client page's header. Switch off: every page as on main. Test:
+`node test/review-stage-chat-switch-browser.js`.
+**Stuck "Saving..." fixed (session Curtain Nine, owner feedback 2026-10-17 23:40 UTC):** the owner's "Approve to Kasper"
+on the SMM's Review tab saved (every card save in that window returned 200 in under 2 s; nothing in the refusal log) but
+the stage read "Saving..." for good. An approval that answered the card's last waiting part took the old page's
+"remove the card" branch, which found no old card and never told the new page to draw again. That branch now hands
+over to the new page (shared code, but the change only acts while the new page is on), and the stage also watches each
+save itself: it draws again the moment the save ends, says in words after 8 s that the server has not answered, and a
+refused save shows its reason with Try again (and the stage no longer moves on past a refused part). Test:
+`node test/review-stage-save-browser.js`.
+No more "Saving..." words (same session, item 2): the pressed button shows a small spinner (a slow breathing dot with
+reduced motion) and the other buttons wait; the step's "Saved" mark and the spoken confirmation come when the server
+answers, not on the click; and on a switched-on client link the old "Sending..." toast no longer shows for a first send
+(it still shows for a held re-send). Screenshots: `docs/audits/review-stage-curtain-nine/`.
+Smooth switching (same session, item 3): changing the part (step bar, the next part after an answer) or the post (a
+strip chip, Finish) fades only the media; the header, strip, title, step bar and conversation stay on screen. The
+conversation no longer replays its entrance animation on every redraw (only a new message rises; another post's
+messages cross-fade softly), and the strip keeps its decoded thumbnails instead of making them again. Test:
+`node test/review-stage-smooth-browser.js` (records every frame).
+Finish reviewing (same session, item 4): once every part is answered it carries a soft green ring that breathes slowly
+three times and then stays still (a still ring with reduced motion; a redraw never restarts it). The client link's own
+"Approved" / "Changes sent" toast no longer shows on the new page (it covered Finish on a phone; the step's "Saved"
+says it). Test: `node test/review-stage-finish-browser.js`.
+
+**Owner feedback of 2026-10-17 23:40 UTC (session Curtain Eight), client page only:** (1) A client's caption edit
+changes the caption itself: the same card save as a caption edit on the Sheet, also with Collaborative mode off (that
+switch still guards the Sheet's fields; `_calClientReviewCaptionEdit` in `170` is the one exception, caption only). A
+plain client note on the caption ("Changed the caption to: ... It was: ...") tells the team, so every page that shows
+notes reads it and the SMM has the old text to put back; the new page draws it as the new caption with the old one
+folded and struck through. The caption is never approved or sent back by the edit: it waits for the client's Approve.
+The YouTube title is the card's name, which a client link may not change, so a title edit is still a change request.
+(2) The client's message box: no "Is this a change?" prompt; the parts are clickable chips at the box's top left
+(picked one turns the box orange with "Your team will edit it", as before; picking it again clears it); at the bottom
+right "Send comment" (a plain note on the chosen part, or the part on stage) and "Ask for a change" (needs a part). Enter
+sends a change when a part is picked, a comment otherwise. The SMM's and Kasper's boxes are unchanged. (3) The caption
+edit box and the message box use the conversation's thin scrollbar (a local style; the app-wide one is Curtain Nine's).
+The stage's caption card keeps line breaks. Test: `node test/review-stage-client-composer-browser.js`.
+**Owner feedback of 2026-10-17 23:20 UTC (session Curtain Seven):** with the switch on, Kasper's tab has no "Kasper"
+title and no "Updated" line, and only Review Session and Messages as tabs (Filming Plans is in More, under "Content");
+the strip opens with a small list button (the count as a badge) instead of "9 to review" and the section labels, and it
+opens his sections as a list (Urgent, Waiting for your review, With the editors with Ping editor; a row opens that post,
+Escape or a click elsewhere closes it); the post heading is one row, "Client · Title", with no initials badge, and the
+round ("Back after tweaks, round 3", or "First review") sits beside the date; a double click on the stage's video goes
+full screen (all three stages). On the SMM's Review tab Notify client sits on the right beside the menu (the card size
+control, invisible on Review, no longer holds the space). For everyone: a video opened from a play button (Sheet,
+Month and Week play icons, the Review tab's "Watch video" preview, Kasper's Watch here) starts playing at once, with
+sound when the browser allows it and otherwise muted with a "Sound is off. Click for sound" button; opened from the
+notes (Notes button, a note's link, Messages) it waits for play as before. Analytics is hidden for everyone behind
+`analytics_hidden` (above). Switch off: Kasper and the SMM page are today's. Test:
+`node test/review-stage-curtain-seven-browser.js`; the older browser tests that open Analytics now answer
+`analytics_hidden` with `{ "hidden": false }` (`test/fixtures/analytics-shown.js`).
+
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone
 layout follows the desktop one and has not been polished on its own (as the handoff said).
+
+## Loading skeletons match what loads (session Mould, owner feedback 2026-10-17 23:40 UTC)
+
+The owner: "Every skeleton should match the actual shape of what is loading." Each page fixed gets a browser test that
+measures the skeleton's boxes against the loaded page's (fixture data, 1px tolerance) and fails on the old skeleton;
+before and after screenshots live in `docs/audits/skeleton-shape/<page>/`.
+- **Staff Calendar, Sheet:** done. While cards load, no second made-up toolbar any more; the cards sit exactly where the
+  real cards land, row for row (title, date, two links, caption, call to action, notes, Set all, three status rows),
+  at the view's card size; phone shows the posts bar and the three-column tile grid; the first paint (before the app
+  starts) has the real toolbar's items at their sizes and the same cards. Test:
+  `node test/calendar-sheet-skeleton-shape-browser.js`. Not yet matched: the phone first paint (the whole phone header
+  is drawn by the app, so the first paint still shows the desktop shell there), a saved small or large card size on the
+  first paint (it draws the default size), and the staff client profile's Calendar tab, which shares the first-paint copy.
+- **Staff Calendar, Month and Week (desktop):** done. While posts load, the view's own header, day labels and grid are
+  drawn with no posts and shimmer (it was a narrow unlabelled grid for Month, other-sized pills for Week); a Month row
+  that gets a post grows at most a few pixels. Test: `node test/calendar-month-week-skeleton-shape-browser.js`. The phone
+  keeps its own timeline skeleton (not yet measured).
+- **Staff Samples, Sheet and Review (desktop):** done. Both drew three small list cards in the middle; the Sheet now
+  draws a strip of cards at the loaded sample cards' boxes, row for row, and Review the loaded list's wide cards
+  (thumbnail, title, the "needs approval" line, chips, two buttons). The Review count badge no longer makes the toolbar
+  3px taller when it arrives (Calendar too). Test: `node test/samples-sheet-skeleton-shape-browser.js`. Not yet
+  matched: Samples on phone, and the Samples first paint (still the old small cards; it cannot tell which tab opens).
+- **Not reached yet:** Calendar Review; Today, Samples, Templates, Filming, Post, Workload, Linear,
+  Submit, Messages, the old client page. The review page and Kasper's tab belong to sessions Curtain Nine and Seven.
 
 ## Latest (Lighthouse, 2026-10-17)
 

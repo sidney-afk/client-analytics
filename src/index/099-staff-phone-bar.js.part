@@ -106,6 +106,8 @@
                         grid.append(divider); return;
                     }
                     if (native.hidden || native.style.display === 'none') return;
+                    // Analytics is hidden by a stylesheet rule on the native tab (not inline), so the copy would show it (188).
+                    if (native.id === 'navHome' && !document.documentElement.classList.contains('sv-analytics-on')) return;
                     // Reuse the native artwork and destination; never copy its inline handler.
                     const b = native.cloneNode(true);
                     b.removeAttribute('id'); b.removeAttribute('onclick'); b.removeAttribute('style'); b.removeAttribute('aria-current');

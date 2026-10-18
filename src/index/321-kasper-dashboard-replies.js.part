@@ -41,7 +41,7 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
 import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
 import { _caRender, _kasperEnsureAllTabCounts, _kasperRenderReplies } from './323-kasper-dashboard-tail.js';
 import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './330-kasper-review-history.js';
-import { svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn } from './188-review-stage-switch.js';
+import { svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svStaffNoAnalytics } from './188-review-stage-switch.js';
     /* The Samples subtab was folded into Review (samples are listed in the
        Review queue) and then removed. Links that still name it, including
        urgent pings already sent, open Review instead of failing. */
@@ -2885,7 +2885,8 @@ import { svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn } from './188-review-
             const body = document.createElement('div'); body.className = 'pocket-admin-tabs-body';
             tabs.append(body);
             window.svStaffPhoneMenus.tabs(body, tabs);
-            body.insertBefore(overview, body.querySelector('.sv-phone-tabs-grid'));
+            // The Overview row opens Home, which is the Calendar while Analytics is hidden (188): the grid has that tab, so no row.
+            if (!svStaffNoAnalytics()) body.insertBefore(overview, body.querySelector('.sv-phone-tabs-grid'));
             document.body.append(tabs);
             tabs.addEventListener('cancel', event => { event.preventDefault(); closeTabs(); });
             tabs.addEventListener('close', closeTabs);

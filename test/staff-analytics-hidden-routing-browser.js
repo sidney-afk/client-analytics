@@ -36,6 +36,8 @@ const FRAME_LOG = () => {
       clientPage: shownIn('.client-view:not(.cal-tab-view)'),
       lit: vis(nav) && nav.classList.contains('active'),
       skeleton: vis(sk),
+      // The phone's own Analytics layout and title bar (set while the page reads Home).
+      phoneBar: de.getAttribute('data-fph') === 'home',
       bootNav: de.getAttribute('data-boot-nav') || '',
     };
   };
@@ -45,8 +47,8 @@ const FRAME_LOG = () => {
   };
   requestAnimationFrame(tick);
 };
-const analyticsFrames = log => log.filter(f => f.body && (f.overview || f.clientPage || f.lit || f.skeleton || f.bootNav === 'analytics'));
-const describe = f => f ? JSON.stringify({ overview: f.overview, clientPage: f.clientPage, lit: f.lit, skeleton: f.skeleton, bootNav: f.bootNav }) : '';
+const analyticsFrames = log => log.filter(f => f.body && (f.overview || f.clientPage || f.lit || f.skeleton || f.phoneBar || f.bootNav === 'analytics'));
+const describe = f => f ? JSON.stringify({ overview: f.overview, clientPage: f.clientPage, lit: f.lit, skeleton: f.skeleton, phoneBar: f.phoneBar, bootNav: f.bootNav }) : '';
 
 async function where(page) {
   return page.evaluate(name => ({
@@ -191,6 +193,56 @@ let CLIENT_HASH = '';
       await t.ctx.close();
     }
 
+    console.log('--- hidden: a phone on #home and on a saved client address never shows the Analytics bar ---');
+    for (const [label, go] of [['#home', load('#home')], ['a saved #<client> address', load(CLIENT_HASH)]]) {
+      const { t, log } = await run(browser, origin, { width: 390, height: 844 }, go);
+      const bad = analyticsFrames(log);
+      expect(log.filter(f => f.body).length > 5, 'the phone, ' + label + ': frames were logged');
+      expect(!bad.length, 'the phone, ' + label + ': no frame shows Analytics (' + bad.length + ' did; first ' + describe(bad[0]) + ')');
+      expect(t.errors.length === 0, 'the phone, ' + label + ': no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    }
+
+    console.log('--- a staff phone\'s Tabs sheet lists Analytics only while it is shown ---');
+    for (const [label, opt, want] of [['hidden', {}, false], ['shown', { analytics: 'shown' }, true]]) {
+      const { t } = await run(browser, origin, Object.assign({ width: 390, height: 844 }, opt), load('#calendar'));
+      await t.page.locator('button:has-text("Tabs")').first().click();
+      await fx.sleep(400);
+      const labels = await t.page.evaluate(() => Array.from(document.querySelectorAll('dialog[open] .sv-phone-tabs-link')).filter(e => e.getClientRects().length).map(e => e.textContent.replace(/\s+/g, ' ').trim()));
+      expect(labels.includes('Calendar'), label + ': the Tabs sheet is open and lists the Calendar (' + labels.join(', ') + ')');
+      expect(labels.includes('Analytics') === want, label + ': Analytics is ' + (want ? '' : 'not ') + 'in the Tabs sheet (' + labels.join(', ') + ')');
+      await t.ctx.close();
+    }
+
+    // The heavy Analytics sheets (TopVideos, the briefs) are not downloaded for a landing that ends on the Calendar.
+    for (const [label, go] of [['#home', load('#home')], ['a saved #<client> address', load(CLIENT_HASH)]]) {
+      console.log('--- hidden: ' + label + ' downloads no heavy Analytics sheet ---');
+      const t = await fx.open(browser, origin, { stage: 'smm', staff: fx.STAFF });
+      const sheets = [];
+      t.page.on('request', r => { const m = /[?&]sheet=([^&]+)/.exec(r.url()); if (/docs\.google\.com/.test(r.url()) && m) sheets.push(decodeURIComponent(m[1])); });
+      await go(t.page, origin);
+      await fx.sleep(1500);
+      expect(sheets.includes('Metrics') && sheets.includes('Clients Info'), label + ': the essentials are still read (' + sheets.join(', ') + ')');
+      expect(!sheets.some(n => /TopVideos|Market Research|ContentSummaries/.test(n)), label + ': TopVideos and the briefs are not (' + sheets.join(', ') + ')');
+      await t.ctx.close();
+    }
+    // A browser that last saw Analytics shown, when the switch then reads hidden: Analytics moves to the Calendar once,
+    // but a client's Brief tab (not Analytics) is left where it is.
+    for (const [label, state, path, ok] of [
+      ['Home', { nav: 'home', client: null }, '/index.html', w => w.calTab && !w.analytics],
+      ['a client\'s Brief tab', { nav: 'home', client: TEST_CLIENT, clientTab: 'brief' }, '/index.html' + CLIENT_HASH, w => !w.calTab && w.clientPage],
+    ]) {
+      console.log('--- hidden answer in a browser that last saw it shown: ' + label + ' ---');
+      const t = await fx.open(browser, origin, { stage: 'smm', staff: fx.STAFF, analytics: { hidden: true }, flagDelay: 1200 });
+      await t.page.addInitScript(() => { try { localStorage.setItem('sv-analytics-shown', '1'); } catch (e) {} });
+      await refreshWithState(state, path)(t.page, origin);
+      await fx.sleep(2500);
+      const w = await where(t.page);
+      expect(ok(w), label + ': ' + JSON.stringify(w));
+      expect(t.errors.length === 0, label + ': no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    }
+
     // ---------- shown: analytics_hidden = { hidden: false } changes nothing ----------
     for (const [label, go, ok] of [
       ['a refresh of Home', refreshWithState({ nav: 'home', client: null }, '/index.html'), w => w.analytics],
@@ -215,6 +267,32 @@ let CLIENT_HASH = '';
       const { t } = await run(browser, origin, { analytics: 'shownFresh', flagDelay: 1500 }, refreshWithState(state, path));
       const w = await where(t.page);
       expect(w.analytics, label + ': Analytics comes back once the late answer says shown (' + JSON.stringify(w) + ')');
+      await t.ctx.close();
+    }
+    // The heavy sheets were held for the Calendar landing; the late "shown" answer opens Analytics, which releases them.
+    for (const [label, go] of [['#home', load('#home', 5000)], ['a saved #<client> address', load(CLIENT_HASH, 5000)]]) {
+      console.log('--- shown late: ' + label + ' releases the held Analytics sheets ---');
+      const t = await fx.open(browser, origin, { stage: 'smm', staff: fx.STAFF, analytics: 'shownFresh', flagDelay: 1500 });
+      const sheets = [];
+      t.page.on('request', r => { const m = /[?&]sheet=([^&]+)/.exec(r.url()); if (/docs\.google\.com/.test(r.url()) && m) sheets.push(decodeURIComponent(m[1])); });
+      await go(t.page, origin);
+      const w = await where(t.page);
+      expect(w.analytics, label + ': Analytics is back (' + JSON.stringify(w) + ')');
+      expect(sheets.includes('TopVideos'), label + ': the held TopVideos sheet is then read (' + sheets.join(', ') + ')');
+      expect(!(await t.page.locator('#analyticsExtrasRetry').count()), label + ': no "could not load videos and briefs" card');
+      expect(t.errors.length === 0, label + ': no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    }
+    // A switch that cannot be read: a browser that never saw Analytics shown keeps it hidden, and one that did keeps it.
+    for (const [label, opt, ok] of [
+      ['never shown', {}, w => w.calTab && !w.analytics],
+      ['shown before', { analytics: 'shown' }, w => w.analytics],
+    ]) {
+      console.log('--- the switch is unreadable, ' + label + ' ---');
+      const { t, log } = await run(browser, origin, Object.assign({ flags: 'unreadable' }, opt), load('#home', 5000));
+      const w = await where(t.page);
+      expect(ok(w), label + ': ' + JSON.stringify(w));
+      if (!opt.analytics) expect(!analyticsFrames(log).length, label + ': no frame shows Analytics (' + analyticsFrames(log).length + ' did)');
       await t.ctx.close();
     }
     console.log('--- shown: a bare visit keeps its default landing ---');

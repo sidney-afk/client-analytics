@@ -457,9 +457,10 @@ import { currentNav } from './065-core-nav-intake-state.js';
             const mv = _rsStaffMove;
             _rsStaffMove = null;
             if (svAnalyticsHidden()) {
-                if (currentNav === 'home') {
+                // Only Analytics itself (the overview, or a client's Analytics tab): a client's Brief or Calendar tab stays.
+                const c = history.state && history.state.client;
+                if (currentNav === 'home' && (!c || (clientViewTab[c] || 'analytics') === 'analytics')) {
                     // The client the person was on rides along, as the immediate redirects in render() do.
-                    const c = history.state && history.state.client;
                     if (c) _calSetFocusRequest({ client: c, cardId: null });
                     navTo('calendar', false);
                 }

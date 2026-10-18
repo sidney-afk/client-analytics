@@ -2177,8 +2177,14 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             // content paints (see _analyticsHoldExtras).
             // Every other staff fast-tab landing holds them until Analytics is
             // opened, with no timer (speed sweep 2026-10-17).
+            /* Analytics hidden (188): a landing that ends on the Calendar anyway (Home, #home, a client's Analytics
+               address or history entry) has no use for TopVideos and the briefs either, so they wait for Analytics as on
+               every fast-tab landing. A client's Calendar or Brief profile is left alone. */
+            const _staffProfileTab = !!(stateClient && (history.state.clientTab === 'calendar' || history.state.clientTab === 'brief'));
+            const _landsOnCalendar = !_isClientLink && !qp.get('c') && !skipAwait && !_staffProfileTab && svStaffNoAnalytics();
             if (skipAwait && !_isClientLink && (_kasperHashLanding || (_kasperArrivedFromUnlockParam && _kasperUnlocked && !hashRaw))) _analyticsHoldExtras(8000);
             else if (skipAwait && !_isClientLink) _analyticsHoldExtras(0, 'analytics');
+            else if (_landsOnCalendar) _analyticsHoldExtras(0, 'analytics');
             const dataLoad = fetchAll(_isClientLink?clientEntryRun:null);
             const dataPromise = dataLoad.complete;
             dataLoad.essentials.then(() => {
@@ -2300,7 +2306,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             let _paintedFromCache = false;
             /* Analytics hidden (188): staff are never shown it, so its saved copy is not painted first (that would
                flash the overview before the Calendar), and the landing waits only for the essentials the Calendar needs. */
-            const _noAnalytics = !_isClientLink && svStaffNoAnalytics();
+            const _noAnalytics = !_isClientLink && !_staffProfileTab && svStaffNoAnalytics();
             if (!qp.get('c') && !_noAnalytics) _paintedFromCache = _analyticsHydrateFromCache();
             /* A staff landing on the overview draws from Metrics and Clients
                Info alone, so it waits for those and not for TopVideos (15.8 MB,

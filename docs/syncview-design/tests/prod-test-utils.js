@@ -184,6 +184,80 @@ async function holdBackgroundRefresh(page) {
   });
 }
 
+/* THE APP'S OWN "I AM STILL READING" FLAGS, as one predicate the page can run.
+ *
+ * Self-contained on purpose: Playwright serializes it into the page, so it may
+ * not close over anything in this module. Shared by the audit's drain below and
+ * by waitForProductionIdle, so a suite that waits for "loaded" asks exactly the
+ * question the audit asks. */
+function productionAppIdle() {
+  /* `_prodState` is a top-level `const`, which lives in the global
+     LEXICAL environment and is therefore never a property of `window`
+     -- reading it as `window._prodState` yields undefined on every
+     page and turns this wait into a no-op that looks like it works. */
+  if (typeof _prodState === 'undefined' || !_prodState) return true;
+  if (_prodState.error) return true;
+  /* THE APP'S OWN "I AM STILL READING" FLAGS, ALL OF THEM.
+     `cachePartial` and `loading` cover the first projection only. After
+     first paint the app keeps reading on its own: the finished half of
+     the list (`terminalTailPending`, about four thousand rows in
+     sequential pages), and the 30-second delta tick or a realtime
+     nudge (`refreshInFlight`, `refreshing`). Leaving those out made the
+     drain below the only thing standing between a slow live page and a
+     "pending read requests" failure, and a drain is a guess about
+     time: it gives up when no request finishes for a budget. A read
+     the app itself says is still running is not hung, so wait for the
+     app to say it is done. A read that really hangs keeps its flag up
+     until this wait times out, and the drain then reports it exactly
+     as before. */
+  /* And the finished half has to have LANDED, not merely not be
+     running: between the live swap and the tail's first request the app
+     waits up to 400 ms on its saved copy, and in that gap every flag
+     above is down while about two thirds of the rows have not arrived.
+     (The app asks the same question: _prodRowSetComplete.) A tail that
+     failed ends the wait too; the fixture pages in unit tests that carry
+     no such field are not asked. */
+  const tailLanded = !('terminalTailLoadedAt' in _prodState)
+    || !!_prodState.terminalTailLoadedAt || !!_prodState.terminalTailFailed;
+  return !_prodState.cachePartial && !_prodState.loading
+    && !_prodState.terminalTailPending
+    && !_prodState.refreshInFlight
+    && !_prodState.refreshing
+    && tailLanded;
+}
+
+/* WAIT FOR THE PRODUCTION TAB TO FINISH LOADING, THEN HOLD IT STILL.
+ *
+ * "Rows are on screen" is not "the page is done": the first paint is followed by
+ * the finished-cards tail, a cached-paint revalidation and the saved-copy wait,
+ * each of which repaints the list and replaces the nodes under a suite that is
+ * measuring them. A reading taken from an element that a repaint has just
+ * detached comes back empty (computed style of a detached node is ""), which is
+ * how a stable page produced "got " and "wired=" failures on one run in twelve.
+ *
+ * So wait until every flag in productionAppIdle stays down, then stop the
+ * 30-second ticks and the realtime channel (holdBackgroundRefresh), which would
+ * otherwise repaint again whenever a run is slow enough to reach them. The idle
+ * check is repeated after a short hold because the app's loads chain: for one
+ * tick between two of them every flag is down. */
+async function waitForProductionIdle(page, opts = {}) {
+  const timeout = Math.max(1000, Number(opts.timeout || 40000));
+  const holdMs = Math.max(100, Number(opts.holdMs || 700));
+  const deadline = Date.now() + timeout;
+  // Before the first projection lands every flag is down too, so idle alone
+  // would pass on a page that has not started reading.
+  await page.waitForFunction(() => typeof _prodState !== 'undefined' && !!_prodState && (!!_prodState.loaded || !!_prodState.error),
+    null, { timeout, polling: 100 });
+  for (;;) {
+    const left = deadline - Date.now();
+    if (left <= 0) throw new Error('page did not go idle within ' + timeout + 'ms');
+    await page.waitForFunction(productionAppIdle, null, { timeout: left, polling: 100 });
+    await page.waitForTimeout(holdMs);
+    if (await page.evaluate(productionAppIdle)) break;
+  }
+  if (opts.hold !== false) await holdBackgroundRefresh(page);
+}
+
 function formatFailures(title, failures) {
   return `${title}:\n` + failures.map(f => `  - ${f}`).join('\n');
 }
@@ -246,6 +320,10 @@ function installReadConsoleAudit(page, opts = {}) {
   page.on('console', message => {
     if (message.type() !== 'error') return;
     const location = message.location && message.location();
+    // A line the suite has a stated, narrow reason to let through (see the
+    // option's comment at the call site); everything else is still recorded.
+    if (typeof opts.ignoreConsoleError === 'function'
+      && opts.ignoreConsoleError({ text: message.text(), url: location && location.url ? location.url : '' })) return;
     consoleErrors.push({
       message: message.text(),
       url: location && location.url ? location.url : '',
@@ -364,41 +442,7 @@ function installReadConsoleAudit(page, opts = {}) {
          down. A single look at that tick calls the page quiet and the second read
          is then caught mid-flight as "pending". So after the flags first read
          idle, look again after a short pause and keep waiting if a new run began. */
-      const appIdle = () => {
-          /* `_prodState` is a top-level `const`, which lives in the global
-             LEXICAL environment and is therefore never a property of `window`
-             -- reading it as `window._prodState` yields undefined on every
-             page and turns this wait into a no-op that looks like it works. */
-          if (typeof _prodState === 'undefined' || !_prodState) return true;
-          if (_prodState.error) return true;
-          /* THE APP'S OWN "I AM STILL READING" FLAGS, ALL OF THEM.
-             `cachePartial` and `loading` cover the first projection only. After
-             first paint the app keeps reading on its own: the finished half of
-             the list (`terminalTailPending`, about four thousand rows in
-             sequential pages), and the 30-second delta tick or a realtime
-             nudge (`refreshInFlight`, `refreshing`). Leaving those out made the
-             drain below the only thing standing between a slow live page and a
-             "pending read requests" failure, and a drain is a guess about
-             time: it gives up when no request finishes for a budget. A read
-             the app itself says is still running is not hung, so wait for the
-             app to say it is done. A read that really hangs keeps its flag up
-             until this wait times out, and the drain then reports it exactly
-             as before. */
-          /* And the finished half has to have LANDED, not merely not be
-             running: between the live swap and the tail's first request the app
-             waits up to 400 ms on its saved copy, and in that gap every flag
-             above is down while about two thirds of the rows have not arrived.
-             (The app asks the same question: _prodRowSetComplete.) A tail that
-             failed ends the wait too; the fixture pages in unit tests that carry
-             no such field are not asked. */
-          const tailLanded = !('terminalTailLoadedAt' in _prodState)
-            || !!_prodState.terminalTailLoadedAt || !!_prodState.terminalTailFailed;
-          return !_prodState.cachePartial && !_prodState.loading
-            && !_prodState.terminalTailPending
-            && !_prodState.refreshInFlight
-            && !_prodState.refreshing
-            && tailLanded;
-      };
+      const appIdle = productionAppIdle;
       const idleDeadline = Date.now() + revalidationTimeoutMs;
       try {
         for (;;) {
@@ -600,7 +644,7 @@ function installReadConsoleAudit(page, opts = {}) {
   return { settle, quiesce: async waitMs => { await quiesce(waitMs); } };
 }
 
-module.exports = { legacyPageUrl, pagesFallback,
+module.exports = { productionAppIdle, waitForProductionIdle, legacyPageUrl, pagesFallback,
   root,
   serveStatic,
   isWriteLikeRequest,

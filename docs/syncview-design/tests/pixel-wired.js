@@ -12,7 +12,7 @@ const fs = require('fs');
 const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const path = require('path');
 const { chromium } = require('playwright');
-const { serveStatic, isNonReadRequest } = require('./prod-test-utils');
+const { serveStatic, isNonReadRequest, installReadConsoleAudit, waitForProductionIdle } = require('./prod-test-utils');
 
 const root = path.resolve(__dirname, '..', '..', '..');
 const SIGNED_OUT_WRITE_COPY = 'Sign in with your staff account to edit.';
@@ -168,13 +168,26 @@ function compareContextMenuInventory(gaps, artifactRows, wiredRows) {
   });
 }
 
+/* Read the computed style in ONE page turn. Resolving the element and reading
+   its style as two steps lets a repaint land between them, and the computed
+   style of a node that has just been detached is the empty string for every
+   property -- which reads as a style mismatch ("wired=") when nothing is wrong.
+   Null means no such element is in the document right now. */
 async function styles(page, selector, props = STYLE_PROPS) {
-  return page.locator(selector).first().evaluate((el, names) => {
+  return page.evaluate(([sel, names]) => {
+    const el = document.querySelector(sel);
+    if (!el) return null;
     const cs = getComputedStyle(el);
     const out = {};
     names.forEach(n => { out[n] = cs[n]; });
     return out;
-  }, props);
+  }, [selector, props]);
+}
+
+/* Wait for the element to be drawn before judging that it is missing. A
+   missing pair is still reported when it never appears. */
+async function waitDrawn(page, selector) {
+  await page.waitForSelector(selector, { state: 'attached' }).catch(() => {});
 }
 
 function px(v) {
@@ -190,14 +203,13 @@ function equivalentStyle(prop, a, w) {
 }
 
 async function compareStyles(gaps, name, artifact, wired, aSel, wSel, props = STYLE_PROPS) {
-  const ac = await artifact.locator(aSel).count();
-  const wc = await wired.locator(wSel).count();
-  if (!ac || !wc) {
-    gaps.push({ rank: 1, state: name, message: `missing pair ${aSel} -> ${wSel} (${ac}/${wc})` });
-    return;
-  }
+  await Promise.all([waitDrawn(artifact, aSel), waitDrawn(wired, wSel)]);
   const a = await styles(artifact, aSel, props);
   const w = await styles(wired, wSel, props);
+  if (!a || !w) {
+    gaps.push({ rank: 1, state: name, message: `missing pair ${aSel} -> ${wSel} (${a ? 1 : 0}/${w ? 1 : 0})` });
+    return;
+  }
   Object.keys(a).forEach(prop => {
     if (!equivalentStyle(prop, a[prop], w[prop])) {
       gaps.push({ rank: 2, state: name, message: `${prop}: artifact=${a[prop]} wired=${w[prop]}` });
@@ -206,6 +218,7 @@ async function compareStyles(gaps, name, artifact, wired, aSel, wSel, props = ST
 }
 
 async function requirePair(gaps, state, artifact, wired, aSel, wSel) {
+  await Promise.all([waitDrawn(artifact, aSel), waitDrawn(wired, wSel)]);
   const ac = await artifact.locator(aSel).count();
   const wc = await wired.locator(wSel).count();
   if (!ac || !wc) gaps.push({ rank: 1, state, message: `semantic inventory missing ${aSel} -> ${wSel} (${ac}/${wc})` });
@@ -257,21 +270,23 @@ async function runTheme(port, browser, theme) {
   const wired = await browser.newPage({ viewport: { width: 1440, height: 950 } });
   artifact.setDefaultTimeout(5000);
   wired.setDefaultTimeout(5000);
-  const wiredErrors = [];
   const wiredRequests = [];
-  wired.on('pageerror', error => wiredErrors.push('pageerror: ' + error.message));
-  wired.on('console', message => {
-    if (message.type() !== 'error') return;
-    /* A reload of a clean deep link (/synclinear/<id>) is answered the way
-       GitHub Pages answers it: the app shell with a 404 status, which the
-       browser logs as a failed load of the page's own address. That is the
-       hosting design (see pagesFallback in prod-test-utils.js), not an app
-       error, so only that one line, from that one address, is let through.
-       Any other 404, or any other error, still fails the check. */
-    let from = '';
-    try { from = message.location().url || ''; } catch (_) {}
-    if (/status of 404/.test(message.text()) && /^http:\/\/127\.0\.0\.1:\d+\/synclinear\/[^/?#]+(?:[?#].*)?$/.test(from)) return;
-    wiredErrors.push('console: ' + message.text());
+  /* Console and page errors go through the shared read/console audit, which
+     pairs a browser "Failed to load resource" line with the read that failed
+     and then succeeded again on the same address, so a request reset that the
+     app recovered is not an app error. Everything else stays a failure.
+
+     One line is let through, by name: a reload of a clean deep link
+     (/synclinear/<id>) is answered the way GitHub Pages answers it, the app
+     shell with a 404 status, which the browser logs as a failed load of the
+     page's own address. That is the hosting design (see pagesFallback in
+     prod-test-utils.js), not an app error, so only that one line, from that
+     one address, is let through. Any other 404, or any other error, still
+     fails the check. */
+  const wiredAudit = installReadConsoleAudit(wired, {
+    consoleOnly: true,
+    ignoreConsoleError: ({ text, url }) => /status of 404/.test(text)
+      && /^http:\/\/127\.0\.0\.1:\d+\/synclinear\/[^/?#]+(?:[?#].*)?$/.test(url),
   });
   wired.on('request', request => wiredRequests.push({ method: request.method(), url: request.url() }));
   await artifact.addInitScript(mode => {
@@ -307,10 +322,11 @@ async function runTheme(port, browser, theme) {
     await artifact.waitForSelector('.row', { timeout: 30000 });
     await wired.waitForSelector('.prod-row, .prod-empty, .prod-error', { timeout: 30000 });
     if (await wired.locator('.prod-error').count()) throw new Error('wired Production tab rendered error state');
-    // A first paint can precede the tail that rebuilds rows and their ancestry.
-    // Wait for the existing read phases before screenshots or no-mutation checks.
-    await wired.waitForFunction(() => _prodState.loaded && !_prodState.loading
-      && !_prodState.refreshing && !_prodState.terminalTailPending, null, { timeout: 30000 });
+    // A first paint can precede the tail that rebuilds rows and their ancestry,
+    // the cached-paint revalidation and the 30-second refresh. Wait for every
+    // one of the app's own "still reading" flags, then hold the background
+    // refresh still: this lane measures the DOM, and the refresh has its own tests.
+    await waitForProductionIdle(wired, { timeout: 45000 });
     await shot(artifact, 'artifact-list');
     await shot(wired, 'wired-list');
 
@@ -693,7 +709,11 @@ async function runTheme(port, browser, theme) {
     }
     await compareStyles(gaps, 'board scroll axis', artifact, wired, '.board', '.prod-board', ['overflowX', 'overflowY']);
     await compareStyles(gaps, 'board collapse chevron', artifact, wired, '[data-pcolcollapse]', '[data-prod-pcolcollapse]', ['width', 'height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'backgroundColor', 'opacity']);
-    const wiredCardCursor = await wired.locator('.prod-card').first().evaluate(el => getComputedStyle(el).cursor);
+    await waitDrawn(wired, '.prod-card');
+    const wiredCardCursor = await wired.evaluate(() => {
+      const card = document.querySelector('.prod-card');
+      return card ? getComputedStyle(card).cursor : '(no card drawn)';
+    });
     if (wiredCardCursor !== 'pointer') {
       gaps.push({ rank: 1, state: 'board card cursor', message: `read-only project card cursor should be pointer, got ${wiredCardCursor}` });
     }
@@ -846,7 +866,8 @@ async function runTheme(port, browser, theme) {
 
     const writeRequests = wiredRequests.filter(isNonReadRequest);
     if (writeRequests.length) gaps.push({ rank: 1, state: 'write silence', message: `wired fixture sent ${writeRequests.length} write-like request(s)` });
-    if (wiredErrors.length) gaps.push({ rank: 1, state: 'console silence', message: wiredErrors.slice(0, 5).join(' | ') });
+    const consoleAudit = await wiredAudit.settle();
+    if (!consoleAudit.ok) gaps.push({ rank: 1, state: 'console silence', message: consoleAudit.error });
 
     gaps.sort((a, b) => a.rank - b.rank || a.state.localeCompare(b.state));
     if (gaps.length) {

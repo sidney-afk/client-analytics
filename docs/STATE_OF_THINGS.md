@@ -114,6 +114,10 @@ strip chip, Finish) fades only the media; the header, strip, title, step bar and
 conversation no longer replays its entrance animation on every redraw (only a new message rises; another post's
 messages cross-fade softly), and the strip keeps its decoded thumbnails instead of making them again. Test:
 `node test/review-stage-smooth-browser.js` (records every frame).
+Finish reviewing (same session, item 4): once every part is answered it carries a soft green ring that breathes slowly
+three times and then stays still (a still ring with reduced motion; a redraw never restarts it). The client link's own
+"Approved" / "Changes sent" toast no longer shows on the new page (it covered Finish on a phone; the step's "Saved"
+says it). Test: `node test/review-stage-finish-browser.js`.
 
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone

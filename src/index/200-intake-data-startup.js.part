@@ -438,7 +438,12 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
 
     function _linearIntakeWithLock(callback) {
         if (typeof navigator === 'undefined' || !navigator.locks || typeof navigator.locks.request !== 'function') {
-            return Promise.reject(_linearIntakeActorError(503, 'native_intake_lock_unavailable'));
+            /* An older browser has no cross-tab lock. Refusing here meant such a
+               visitor could never send at all. The lock only keeps two TABS from
+               resuming one job together; the request id is the real guard (the
+               server treats a repeat of it as the same upload), and one tab
+               already sends one request at a time. */
+            return Promise.resolve().then(callback);
         }
         return navigator.locks.request('syncview-native-intake', { mode: 'exclusive' }, callback);
     }

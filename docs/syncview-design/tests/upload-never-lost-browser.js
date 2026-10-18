@@ -22,10 +22,11 @@ function check(cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!
 // `plan` decides what the pretend server does with each intake_create call, in
 // order: 'ok', 'drop' (nothing reaches the server), 'lost' (server keeps it,
 // the answer never arrives), '500', '401', 'plain200' (200 without a commit).
-async function harness(browser, port, { staff, width = 1280, height = 900, blockStorage, plan = [], delayMs = 0, clientsFail, cardFails = 0 } = {}) {
+async function harness(browser, port, { staff, width = 1280, height = 900, blockStorage, noLocks, plan = [], delayMs = 0, clientsFail, cardFails = 0 } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, ...(width < 500 ? { hasTouch: true, isMobile: true } : {}) });
   const net = { intake: [], stored: new Map(), plan: plan.slice(), cardFails };
   if (staff) await seedStaffGate(context);
+  if (noLocks) await context.addInitScript(() => { try { Object.defineProperty(Navigator.prototype, 'locks', { get() { return undefined; } }); } catch (e) {} });
   if (blockStorage) {
     await context.addInitScript(() => {
       const boom = () => { throw new DOMException('The quota has been exceeded.', 'QuotaExceededError'); };
@@ -206,6 +207,14 @@ async function all(browser, port, surface, width) {
     await send(page); await waitSettled(page, net, 2);
     check(net.stored.size === 1 && new Set(net.intake.map(b => b.request_id)).size === 1, L('the second press is the same request: one submission'));
     check(received(await bodyText(page)), L('told it arrived'));
+  });
+  // 6c an older browser with no cross-tab lock must still send, once.
+  await scenario(browser, port, surface, 'no Web Locks (older browser)', { ...base, noLocks: true, plan: ['lost'] }, async ({ page, net }, L) => {
+    check(await page.evaluate(() => !navigator.locks), L('the page really has no navigator.locks'));
+    await fillForm(page); await send(page); await waitSettled(page, net, 1);
+    check(!received(await bodyText(page)) && await typedIntact(page), L('answer lost: nothing claimed, form intact'));
+    await send(page); await waitSettled(page, net, 2);
+    check(net.stored.size === 1 && new Set(net.intake.map(b => b.request_id)).size === 1 && received(await bodyText(page)), L('retry is the same request and is confirmed'));
   });
   // 7 slow network.
   await scenario(browser, port, surface, 'slow server', { ...base, delayMs: 2500 }, async ({ page, net }, L) => {

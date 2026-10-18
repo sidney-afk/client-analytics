@@ -672,6 +672,7 @@
     "sxr-reorder-failclosed.js",
     "synclinear-early-read.js",
     "kasper-seen-one-write.js",
+    "calendar-early-read.js",
     "syncview-retirement-admission.js",
     "syncview-session.js",
     "system-map-sync.js",

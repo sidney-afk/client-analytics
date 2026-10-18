@@ -1793,6 +1793,14 @@
       "ci": "representative"
     },
     {
+      "file": "staff-analytics-hidden-routing-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: a fictional staff member and client), no hosted credentials and no live data. With analytics_hidden missing (the live state), logs every frame and fails if staff are ever shown Analytics: a refresh of Home, #home, a saved #<client> address, a client Analytics history entry, the logo, Back and Forward onto a client's Analytics entry or a bare client address all open the Calendar, and a phone's bare visit still opens Today. With analytics_hidden = { hidden: false } Home and a client address still open Analytics.",
+      "reproduce": "node test/staff-analytics-hidden-routing-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "loading-fade-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

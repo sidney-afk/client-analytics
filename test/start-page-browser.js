@@ -108,6 +108,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       expect(await page.locator('.tree').isVisible() && await page.locator('.rules li').count() === 5, 'Upload content shows the five folder rules and the drawn folder tree');
       expect(await page.locator('.only-upload').isVisible() && /Google Drive/.test(await page.locator('.only-upload').innerText()), 'Upload content says where to upload');
       expect(await page.locator('.only-upload a.cta').getAttribute('href') === '/?intake=1' && await page.locator('.only-upload a.cta').isVisible(), 'Upload content links to the upload form');
+      expect(await page.locator('.only-upload a.cta').getAttribute('target') === '_blank' && /noopener/.test(await page.locator('.only-upload a.cta').getAttribute('rel') || ''), 'the upload form opens in a new tab (owner, 2026-10-18)');
       // The quiet "I'm a client or videographer" chooser picks the side too.
       await page.click('.who [data-who="review"]');
       expect(await page.locator('#tab-review').getAttribute('aria-selected') === 'true' && await page.locator('.who [data-who="review"]').getAttribute('aria-pressed') === 'true', "I'm a client opens Review content");

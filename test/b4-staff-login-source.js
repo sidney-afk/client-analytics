@@ -51,7 +51,7 @@ const formSource = functionSource('_syncviewRenderStaffIdentityForm');
 ok(/const memberInput = overlay\.querySelector\('#staffIdentityMember'\)/.test(formSource) && /String\(memberInput\.value\)/.test(formSource), 'custom roster picker feeds the existing form-submit value path');
 ok(/showError\('Choose your name\.', memberTrigger\)/.test(formSource), 'roster validation focuses the custom picker trigger');
 ok(!/id="staffIdentity(?:Name|Other)"/.test(source), 'identity modal has no free-text name field');
-ok(/id="staffIdentityKeyToggle"[^>]+aria-label="Show role key"[^>]+onclick="_syncviewToggleStaffRoleKey\(this\)"/.test(source), 'role key has an accessible visibility toggle');
+ok(/id="staffIdentityKeyToggle"[^>]+aria-label="Show your key"[^>]+onclick="_syncviewToggleStaffRoleKey\(this\)"/.test(source), 'role key has an accessible visibility toggle');
 ok(/function _syncviewToggleStaffRoleKey\(button\)[\s\S]{0,260}button\.setAttribute\('aria-label', label\)/.test(source), 'role-key visibility toggle updates its accessible label');
 ok(/\.staff-auth-overlay\s*\{[^}]*background:\s*var\(--sv-bg-rgba-0-0-0-0_5\)[^}]*backdrop-filter:\s*blur\(3px\)/.test(source), 'staff sign-in overlay uses a stronger blurred scrim');
 ok(/aria-busy="true"[^>]*>[\s\S]{0,240}Preparing secure sign-in/.test(source), 'roster loading has a calm dialog busy state');

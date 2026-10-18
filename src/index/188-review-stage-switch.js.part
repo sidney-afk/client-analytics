@@ -2,11 +2,13 @@ import { _syncviewApplyTheme, clientViewTab, svArea, svAreaApi } from './040-sha
 import { render } from './050-market-briefs.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _calRuntimeFlagRawMembers, _calRuntimeFlagSlug } from './120-calendar-flags-write-repair.js';
-import { calClientSlug, calState } from './130-calendar-model-cache.js';
+import { _calSetFocusRequest, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calRenderBody } from './160-calendar-organize-ui.js';
 import { _isClientLink, _syncviewClientEntryCapability } from './260-production-refresh-boot.js';
 import { _kasperPaintReview } from './305-core-kasper-shared.js';
 import { svFrameFlagWait } from './187-frame-viewer.js';
+import { navTo } from './092-core-submit-form-navigation.js';
+import { currentNav } from './065-core-nav-intake-state.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), behind two switches. Session Marquee, 2026-10-17.
 
        This file is the small, always-loaded half: it reads the switches and answers "show the new page here?".
@@ -196,6 +198,20 @@ import { svFrameFlagWait } from './187-frame-viewer.js';
         _rsPrime();
         return !_rsAnalyticsShown();
     }
+    /* Staff are never shown Analytics while it is hidden (session Detour, 2026-10-18): the staff bar has no tab for
+       it, so a page that still opened on it would leave the person with nothing to identify or leave it by. Every
+       staff route that used to end on Analytics asks this and opens the Content Calendar instead. */
+    function svStaffNoAnalytics() {
+        return !_isClientLink && svAnalyticsHidden();
+    }
+    // A staff route moved to the Calendar only because the switch had not been read yet (a browser that never saw
+    // Analytics shown): when the read then says shown, within a few seconds and with the person still there, it goes
+    // back to Analytics as if it had waited. Any later navigation clears the mark.
+    let _rsStaffMove = null;
+    function svStaffMarkMove(client) {
+        _rsStaffMove = (!_rsFlags.loaded && !_rsFlagFailed) ? { client: client ? String(client) : '', at: Date.now() } : null;
+    }
+    function svStaffClearMove() { _rsStaffMove = null; }
     // A client link moved off Analytics only because the switch had not been read yet (a browser that never saw
     // Analytics shown): when the read then says shown, within a few seconds of the decision, the link goes back to
     // Analytics as if it had waited (Codex review on #2179). Later than that, the person is already using the calendar.
@@ -438,6 +454,24 @@ import { svFrameFlagWait } from './187-frame-viewer.js';
     }
     window.addEventListener('sv-review-stage-switch', () => {
         if (_rsFlags.loaded) _rsAnalyticsRestore();
+        // A staff browser that last saw Analytics shown kept it until this read came in; the read says hidden, so the
+        // person on Analytics (the overview or a client's page) moves to the Content Calendar, nobody is left there.
+        if (!_isClientLink && _rsFlags.loaded) {
+            const mv = _rsStaffMove;
+            _rsStaffMove = null;
+            if (svAnalyticsHidden()) {
+                // Only Analytics itself (the overview, or a client's Analytics tab): a client's Brief or Calendar tab stays.
+                const c = history.state && history.state.client;
+                if (currentNav === 'home' && (!c || (clientViewTab[c] || 'analytics') === 'analytics')) {
+                    // The client the person was on rides along, as the immediate redirects in render() do.
+                    if (c) _calSetFocusRequest({ client: c, cardId: null });
+                    navTo('calendar', false);
+                }
+            } else if (mv && Date.now() - mv.at <= RS_ANALYTICS_RESTORE_MS && currentNav === 'calendar') {
+                navTo('home', false);
+                if (mv.client) { clientViewTab[mv.client] = 'analytics'; render(mv.client, false); }
+            }
+        }
         // A switched-on client link that opened on Analytics: that route is gone, the Content Calendar takes its place.
         if (_isClientLink && !document.getElementById('calView')) {
             const cap = _syncviewClientEntryCapability;
@@ -447,4 +481,4 @@ import { svFrameFlagWait } from './187-frame-viewer.js';
         if (document.getElementById('kasperContent')) svRsKasperHeadSync();
         if (document.getElementById('kasperReviewBody')) _kasperPaintReview();
     });
-export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl };
+export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics };

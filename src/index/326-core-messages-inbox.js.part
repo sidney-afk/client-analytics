@@ -36,7 +36,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        first, exactly as opening that card would, and the reply goes under the
        thread it answers, so it keeps that thread's part and audience. */
     const MSG_URL = CAL_SUPABASE_URL + '/functions/v1/production-comments';
-    const MSG_REFRESH_MS = 30000;   // the safety-net refresh; realtime and other tabs reach it sooner
+    const MSG_REFRESH_MS = 60000;   // the safety-net refresh; realtime and other tabs reach it sooner
+    const MSG_LIVE_GAP_MS = 5000;   // card edits trigger at most one live inbox read per 5 s, however many arrive
     const _msgState = {
         loading: false, loaded: false, error: '', conversations: [], scope: '',
         openId: '', replyTo: '', draft: '', sending: false, filter: 'new', lastAt: 0,
@@ -883,7 +884,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     });
     /* Live badge. Three ways in, all ending in the same _msgLoad(true): the shared realtime channel on the
        cards (a note is saved on a card, so a new message moves a row there), a BroadcastChannel ping from
-       another tab of this browser after it reads or unreads a conversation, and a 30 s safety-net refresh
+       another tab of this browser after it reads or unreads a conversation, and a 60 s safety-net refresh
        that also covers another device and a dropped socket. It starts after the first successful load (the
        inbox is still never asked for cold), pauses in a hidden tab and on the Production tab (its read-only
        gate allows no POST it did not ask for), and ends on sign-out or fallback. */
@@ -891,7 +892,20 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     try { if (typeof window.BroadcastChannel === 'function') { _msgBus = new window.BroadcastChannel('sv-msg-inbox'); _msgBus.onmessage = () => _msgLiveRefresh(); } } catch (e) { _msgBus = null; }
     function _msgLiveRefresh() {
         if (document.hidden || _msgState.unavailable || !_msgCanUse() || currentNav === 'production') return;
+        _msgLiveAt = Date.now();
         _msgLoad(true);
+    }
+    // The card channel fires on anyone's card edit and the inbox read is heavy (every card, note and read
+    // mark in scope), so that one source runs at most once per MSG_LIVE_GAP_MS, trailing the last edit.
+    // Another tab's read ping and coming back to the tab stay immediate.
+    let _msgLiveAt = 0, _msgLiveTrail = null;
+    function _msgCardEditRefresh() {
+        const wait = MSG_LIVE_GAP_MS - (Date.now() - _msgLiveAt);
+        if (wait > 0) {
+            if (!_msgLiveTrail) _msgLiveTrail = setTimeout(() => { _msgLiveTrail = null; _msgCardEditRefresh(); }, wait);
+            return;
+        }
+        _msgLiveRefresh();
     }
     async function _msgStartRealtime() {
         if (_msgChannel || !_calV2Ready()) return;
@@ -900,7 +914,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         try {
             _msgChannel = client.channel('msg-inbox').on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_posts' }, () => {
                 clearTimeout(_msgChannelTimer);
-                _msgChannelTimer = setTimeout(_msgLiveRefresh, 1500);
+                _msgChannelTimer = setTimeout(_msgCardEditRefresh, 1500);
             }).subscribe();
         } catch (e) { _msgChannel = null; }
     }

@@ -7,7 +7,7 @@ import { svFrameStageMount, svFrameStagePending, svFrameStageUnmount } from './1
 import { svRsCalOn, svRsHelpUrl, svRsToolsEl } from './188-review-stage-switch.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
-import { _kasperState } from './305-core-kasper-shared.js';
+import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), the on-demand half. Session Marquee, 2026-10-17.
        Designs: the approved client page and the SMM and Kasper versions of it (Sidney, 2026-10-16), with his review
        of 2026-10-16: no part list on the left (the step bar shows each part's state), the date at the stage's top
@@ -1098,7 +1098,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             m = q[0] || null;
             R.S.curId = m ? m.id : null;
             R.S.step = m ? _rsFirstStep(m) : '';
-            R.S.note = _rsBlankNote();
+            // The post on stage left the list (archived, or moved): typed words stay in the box, about no part, so
+            // nothing is sent until the person sees the post now on stage (review of #2207).
+            const kept = R.S.note.text, vis = R.S.note.vis;
+            R.S.note = _rsBlankNote(); R.S.note.text = kept; R.S.note.vis = vis;
             R.S.editing = '';
         }
         if (m && !m.parts.some(x => x.key === R.S.step)) R.S.step = _rsFirstStep(m);
@@ -1116,11 +1119,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
        Its plain words, or '' (session Curtain Ten). */
     function _rsElsewhere(m, x) {
         const S = R.S;
-        if (m.gone) return 'This was answered in another window, so it has left your list. Nothing more to do here.';
+        if (m.gone) return S.told[Object.keys(S.told).find(k => k.indexOf(m.id + '|') === 0)] || 'This was answered in another window, so it has left your list. Nothing more to do here.';
         if (!x) return '';
         const key = m.id + '|' + x.key;
+        if (x.st === 'wait') { delete S.told[key]; return ''; }
         if (S.told[key]) return S.told[key];
-        if (!S.seen[key] || x.st === 'wait' || S.acted.has(key)) return '';
+        if (!S.seen[key] || S.acted.has(key)) return '';
         const who = R.mode === 'client' ? ' or by your team' : '';
         return x.st === 'ok' ? 'Approved in another window' + who + '.' : 'A change was asked in another window' + who + '.';
     }
@@ -1358,6 +1362,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         _rsQ('recap').hidden = !empty;
         _rsQ('stage').classList.toggle('is-empty', empty);
         if (empty) { _rsStageOff(); _rsRecap(); return; }
+        R.S.shown = m.id;
         m.parts.forEach(x => { if (x.st === 'wait') R.S.seen[m.id + '|' + x.key] = 1; });
         _rsSide(m); _rsStepper(m); _rsMedia(m); _rsCard(m); _rsDecide(); _rsChatCalm(m); _rsChat(m);
         if (!R.S.hinted) _rsHint(m);
@@ -1717,7 +1722,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!x) { el.innerHTML = note; bindMove(); return; }
         const n = _rsLname(x.key);
         let d;
-        if (m.gone) { el.innerHTML = note; bindMove(); return; }
+        if (m.gone) {
+            // Words typed on the stage stay on screen: the conversation's box takes them (review of #2207).
+            if (S.note.part && S.note.where === 'stage') { S.note.where = 'chat'; _rsChat(m); }
+            el.innerHTML = note; bindMove(); return;
+        }
         if (!_rsActive(m)) {
             d = x.st === 'ok'
                 ? '<span class="dst ok"><span class="ck">' + RI.check + '</span>Approved</span>'
@@ -2009,6 +2018,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             if (m.sample) { window._sxrKasperState.drafts[m.id + '|' + comp] = text; window._sxrKasperAddCommentComp(m.id, comp); return; }
             const it = _rsItem(m);
             if (!it._drafts) it._drafts = { video: '', graphic: '', caption: '' };
+            // A card that left his lists (m.gone) is no longer where his own save path looks it up by id, so it would
+            // drop the words: the note is saved here instead (review of #2207).
+            if (m.gone && !_kasperState.items.some(x => x.post && x.post.id === m.id)) { _rsKasperGoneNote(m, it, comp, text); return; }
             it._drafts[comp] = text;
             window._kasperAddCommentComp(m.id, comp);
             return;
@@ -2016,6 +2028,25 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (R.mode === 'smm' && vis === 'client') { _rsClientVisibleNote(m.post, comp, text); return; }
         _calReviewState.drafts[m.id + '|' + comp] = text;
         window._calReviewComment(m.id, comp);
+    }
+    /* Kasper's team-only note on a card that left his lists: the same comment and the same field-level card save as
+       _kasperAddCommentComp (comment cells, and scalars only when they changed since load, so the statuses the other
+       window set are not sent back). A refused save puts the words back in the box. */
+    function _rsKasperGoneNote(m, it, comp, body) {
+        const list = _calCommentsFor(it.post, comp).slice(), now = new Date().toISOString();
+        list.push({ id: _calMintCommentId(), parent_id: null, author: 'Kasper', role: 'kasper', is_tweak: false, audience: 'internal', body, created_at: now, updated_at: now, done: false, done_at: '', done_by: '' });
+        _calSetCommentsFor(it.post, comp, list);
+        if (comp === 'video') it.post.comments = list;
+        if (!it._saving) it._saving = {};
+        if (!it._errors) it._errors = {};
+        it._saving[comp] = true; it._errors[comp] = null;
+        _kasperPersistPost(it).then(() => { it._saving[comp] = false; _rsRender(); }, (e) => {
+            it._saving[comp] = false;
+            it._errors[comp] = String((e && e.message) || 'The save was refused.');
+            if (R.S && R.S.curId === m.id && !String(R.S.note.text || '').trim()) { R.S.note.text = body; R.S.note.part = null; }
+            _rsFlash('Not saved. Your words are back in the box.', comp, m.id);
+            _rsRender({ force: true });
+        });
     }
     /* The SMM's "Client can see" note: the same outbox and card save as the Review panel's note
        (_calReviewComment), with the audience the Notes dialog's switch would give it. */
@@ -2060,7 +2091,14 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsSendNote(asNote) {
         const S = R.S, t = String(S.note.text || '').trim();
         if (!t) { _rsFocusTa(); return; }
-        const m = _rsCur(); if (!m) return;
+        const m = _rsCur();
+        if (!m || (S.shown && m.id !== S.shown)) {
+            // The post the words were typed on left the list while the stage waited for the typing to stop: draw the
+            // post now on stage and keep the words in the box, never send them onto a card nobody looked at.
+            _rsRender({ force: true });
+            _rsFlash('That post left your list. Your words are still in the box.', '');
+            return;
+        }
         const picked = S.note.part, k = asNote ? null : S.note.part, where = S.note.where, aat = S.note.aat, vis = S.note.vis, was = S.note.was;
         const x = k ? m.parts.find(p => p.key === k) : null;
         S.note = _rsBlankNote(); S.note.vis = vis;

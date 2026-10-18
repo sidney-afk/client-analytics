@@ -11,6 +11,10 @@
  *      window", and the next action (Change my mind; a change on a part still waiting) lands on the card on screen,
  *      never on another one. Finish reviewing moves on.
  *   3. The same on the SMM's Review tab: the post on stage stays, marked.
+ *   4. Kasper's tab: the card leaves his lists while he types a change (another window approved it). The words still
+ *      reach that card as a team-only note, and nothing but notes is sent (review of #2207).
+ *   5. The client's post leaves the list altogether while they type: the words stay in the box and nothing lands on
+ *      another card (review of #2207).
  * Fails on main: the stage swapped to another post and the typed words went nowhere.
  * Screenshots: docs/audits/2026-10-18-curtain-ten/ (only with SV_SHOTS=1).
  */
@@ -141,6 +145,53 @@ function posts(t) {
     expect(/Approved in another window/.test(await drow(t)), '3: it is marked plainly');
     await shot(t, 'item2-smm-kept-on-stage.png');
     expect(!t.errors.length, '3: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+    // 4. Kasper's tab: the card leaves his lists while he types a change
+    console.log('--- Kasper: typing a change, the card leaves his lists ---');
+    t = await open(browser, origin, { stage: 'kasper', flags: 'on', staff: STAFF });
+    await t.page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
+    await t.page.waitForFunction(() => typeof navTo === 'function', null, { timeout: 30000 });
+    await t.page.evaluate(name => { try { _syncviewStaffIdentityVerified = true; } catch (e) {} try { wlMergeClientsFromSheet([name]); } catch (e) {} navTo('kasper'); }, CLIENT);
+    await waitNew(t);
+    await sleep(1500);
+    const k0 = await title(t);
+    await inS(t.page, '[data-chg="video"]').click();
+    await inS(t.page, '#ta').fill('Kasper: lift the voice a touch.');
+    await inS(t.page, '#ta').evaluate(e => e.blur());
+    const krow = t.state.cards.find(c => c.id === 'rs1');
+    Object.assign(krow, { video_status: 'Client Approval', graphic_status: 'Client Approval', caption_status: 'Client Approval', updated_at: new Date().toISOString() });
+    await t.page.evaluate(() => _kasperLoadReview(true));
+    await sleep(2500);
+    expect((await title(t)) === k0, '4: the card stays on stage after it left his lists');
+    expect((await inS(t.page, '#ta').inputValue().catch(() => '')) === 'Kasper: lift the voice a touch.', '4: his typed words are still on screen');
+    const kn = t.state.upserts.length;
+    await inS(t.page, '#sendBtn').click();
+    await sleep(2000);
+    const kup = t.state.upserts.slice(kn).filter(u => JSON.stringify(u).includes('lift the voice'));
+    expect(kup.length === 1 && kup[0].id === 'rs1', '4: the words reach that card once (' + kup.map(u => u.id).join(',') + ')');
+    expect(kup.every(u => !Object.keys(u).some(k => /_status$|^status$/.test(k))), '4: only the notes are sent, never the old statuses');
+    expect(/sent your words to the team as a note/.test(await drow(t)), '4: the stage says so');
+    expect(!t.errors.length, '4: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+
+    // 5. the client's post leaves the list while they type
+    console.log('--- client: the post on stage leaves the list while they type ---');
+    t = await openClient(browser, origin, { flags: 'on' });
+    sent = posts(t);
+    await waitNew(t);
+    await sleep(800);
+    await inS(t.page, '[data-chg="video"]').click();
+    await inS(t.page, '#ta').fill('Gone card words');
+    const grow = t.state.cards.find(c => c.id === 'rs1');
+    grow.client = 'not-this-client'; grow.updated_at = new Date().toISOString();
+    await t.page.evaluate(() => loadCalendarPosts({ background: true, quiet: true }));
+    await sleep(1500);
+    await inS(t.page, '#ta').pressSequentially(' and more');
+    await inS(t.page, '#ta').press('Enter');
+    await sleep(1500);
+    expect(!sent.some(r => r.body.includes('Gone card words')) && !t.state.upserts.some(u => JSON.stringify(u).includes('Gone card words')), '5: nothing lands on another card');
+    expect(/Gone card words and more/.test(await inS(t.page, '#ta').inputValue().catch(() => '')), '5: the words stay in the box');
+    expect(!t.errors.length, '5: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
   } finally {
     await browser.close();

@@ -1,6 +1,6 @@
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { calClientSlug } from './130-calendar-model-cache.js';
-import { svRsClientNoAnalytics, svStaffNoAnalytics } from './188-review-stage-switch.js';
+import { svRsClientNoAnalytics, svStaffMarkMove, svStaffNoAnalytics } from './188-review-stage-switch.js';
 import {
   CONTENT_SUMMARY_WEBHOOK, ICON, WEEKLY_SLACK_WEBHOOK, _analyticsExtrasApplied,
   _analyticsExtrasArrival, _analyticsFlushPendingExtras, _analyticsHasTrustedMetrics,
@@ -1044,6 +1044,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         if(!_isClientLink&&!clientOnly&&svStaffNoAnalytics()&&(sel==='all'||(clientViewTab[sel]||'analytics')==='analytics')){
             if(sel!=='all')_calSetFocusRequest({client:sel,cardId:null});
             navTo('calendar',false);
+            svStaffMarkMove(sel!=='all'?sel:'');
             return;
         }
         _syncviewNextNavEpoch(); // Phase D: a client profile is a route too.
@@ -1209,6 +1210,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             if(tab==='analytics'&&svStaffNoAnalytics()){
                 _calSetFocusRequest({client:state.client,cardId:null});
                 navTo('calendar',false);
+                svStaffMarkMove(state.client);
                 return;
             }
             if(tab!=='calendar'&&typeof _calV2Teardown==='function')_calV2Teardown();

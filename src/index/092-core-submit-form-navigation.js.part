@@ -27,7 +27,7 @@ import { _sxrEnabled, mountSxrView, renderSxrView } from './270-samples-model.js
 import { mountSxrClientView } from './280-samples-cards-notes.js';
 import { _sxrV2Teardown } from './290-samples-writes-review.js';
 import { _kasperState } from './305-core-kasper-shared.js';
-import { svStaffNoAnalytics } from './188-review-stage-switch.js';
+import { svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics } from './188-review-stage-switch.js';
     function onLinearSearchInput() {
         const input = document.getElementById('linearClientSearch');
         const q = input?.value || '';
@@ -644,7 +644,8 @@ import { svStaffNoAnalytics } from './188-review-stage-switch.js';
         if (page === 'kasper' && !_kasperApplyAccess()) page = 'home'; // admins only
         // Analytics is hidden for everyone (188): the staff bar has no tab for it, so every route that fell back to Home
         // (boot, the logo, the fallbacks above, Quick Jump) opens the Content Calendar instead.
-        if (page === 'home' && svStaffNoAnalytics()) page = 'calendar';
+        svStaffClearMove();
+        if (page === 'home' && svStaffNoAnalytics()) { page = 'calendar'; svStaffMarkMove(''); }
         _syncviewSetCurrentNav(page);
         // Guarded: on a FULL localStorage (a heavy user whose caches filled the
         // quota) this setItem throws QuotaExceededError, and unguarded it aborted

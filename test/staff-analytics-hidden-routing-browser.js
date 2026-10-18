@@ -205,6 +205,18 @@ let CLIENT_HASH = '';
       expect(await t.page.locator('#navHome').isVisible(), label + ': the Analytics tab is in the staff bar');
       await t.ctx.close();
     }
+    // A browser that never saw Analytics shown, and a slow switch read: the route is held on the Calendar until the
+    // answer is in, and a "shown" answer then brings it back (as the client link does), without a second reload.
+    for (const [label, state, path] of [
+      ['Home', { nav: 'home', client: null }, '/index.html'],
+      ['a client\'s Analytics page', { nav: 'home', client: TEST_CLIENT, clientTab: 'analytics' }, '/index.html' + CLIENT_HASH],
+    ]) {
+      console.log('--- shown late, in a browser that never saw it: ' + label + ' ---');
+      const { t } = await run(browser, origin, { analytics: 'shownFresh', flagDelay: 1500 }, refreshWithState(state, path));
+      const w = await where(t.page);
+      expect(w.analytics, label + ': Analytics comes back once the late answer says shown (' + JSON.stringify(w) + ')');
+      await t.ctx.close();
+    }
     console.log('--- shown: a bare visit keeps its default landing ---');
     {
       const { t } = await run(browser, origin, { analytics: 'shown' }, load(''));

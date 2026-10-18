@@ -49,6 +49,9 @@ The stage and the shared Notes dialog are distinguished because their controls a
 | Client | Switch post; switch part; return to typed words | Per-post draft regressions, `step` in every matrix action, Finish auxiliary case |
 | Client | Finish reviewing; continue to the next post | `Finish waits for parts and moves once; part switching`; next post's statuses checked |
 | Client | Cancel a request, Escape, arrows, navigation/history, player controls, theme, help | Existing Gauntlet Two and finish-polish suites retained; no claim these existing Chromium cases were newly run in all engines |
+| Client | Retry a refused approval/change; expand unsent words; change part/comment/request chips | Core refusal cases keep words; Gauntlet Two keeps the chosen part. Every retry/chip/expansion under every fault remains **UNPROVEN** |
+| Client | Retry a failed plain note | `refused plain note is visible and recoverable` clicks the actual retry and checks one stored note id |
+| Client | Notes dialog: cancel reply, close, expand text, retry/discard failed outbox entries | Escape/close is retained from Gauntlet Two. The other shared-dialog controls are **UNPROVEN** in the new fault matrix |
 | Kasper | Approve video, thumbnail, caption or engaged title to the client | Each part's `approve` matrix case; thumbnail fixture has a native work item |
 | Kasper | Ask for a change to each part | Each part's `change` matrix case |
 | Kasper | Approve after tweaks, with his words | Each part's `after-tweaks` matrix case, title under `G3_TITLE=1` |
@@ -57,6 +60,7 @@ The stage and the shared Notes dialog are distinguished because their controls a
 | Kasper | Switch posts and parts while composing | Per-post draft regression and every matrix action's part switch |
 | Kasper | Finish / Next post after the last approval | Finish auxiliary; the existing approval writer can remove a fully approved card before Finish, so Next post is also exercised |
 | Kasper | Undo an approval | `approval Undo stays reachable`; the actual toast button restores the previous part status |
+| Kasper | Retry a refused answer/note; Undo after completing the whole card | The new Undo test covers a part on an unfinished card. These additional retry/removal intersections remain **UNPROVEN** |
 | Kasper | Edit a caption; reply/delete directly in the stage's conversation | **Not offered by this stage.** No caption edit, Reply or Delete control is rendered there. The shared Notes dialog is tested separately on the client link |
 | Kasper | Queue/With editors, Ping editor, sample cards, Messages navigation | Existing stage suites own these; **not expanded into the full new fault matrix** |
 
@@ -113,7 +117,7 @@ Remove-Item Env:G3_TITLE, Env:G3_MODE
 ```
 
 Narrow reruns use `G3_ENGINES=chromium|firefox|webkit`, `G3_WIDTHS=1024,1440,1920`,
-`G3_MODE=regressions|matrix|auxiliary|refusals|dialogs`, `G3_CONDITIONS`, `G3_ROLES`, and `G3_ACTION`.
+`G3_MODE=regressions|matrix|auxiliary|refusals|dialogs`, `G3_CONDITIONS`, `G3_ROLES`, `G3_ACTION`, and `G3_CASE` (label substring).
 `G3_REPEAT=10`, `G3_MODE=matrix`, `G3_CONDITIONS=drop-before`, `G3_ROLES=kasper`, `G3_ACTION=change` repeats the recovery
 race. `G3_CACHE_REF=origin/main`, `G3_MODE=regressions` is the intentionally red cached-source control; unset it afterward.
 No environment selector alters existing suites or CI checks. The new CI job runs all nine engine/width cells and title mode.

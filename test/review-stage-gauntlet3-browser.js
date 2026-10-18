@@ -59,6 +59,7 @@ async function enterWords(t, selector, text, long, outside = false) {
   assert.equal(await box.inputValue(), text, 'text entry changed the supplied words');
 }
 async function runCase(browser, origin, role, width, label, fn) {
+  if (process.env.G3_CASE && !label.includes(process.env.G3_CASE)) return;
   let t;
   try {
     t = await setup(browser, origin, role, width);
@@ -137,6 +138,13 @@ async function regressions(browser, origin, role, width) {
     assert.match(await t.page.locator('#confirmOverlay').textContent(), /caption.*changed|changed.*caption/i);
     await t.page.locator('#confirmOverlay button').filter({ hasText: 'Cancel' }).click();
     assert.equal(t.state.upserts.length, 0);
+    await inS(t.page, '#capSave').click();
+    await t.page.locator('#confirmOverlay.active').waitFor({ state: 'visible' });
+    await t.page.locator('#confirmYes').click();
+    await until(() => t.state.cards[0].caption === 'My unsent caption', 'confirmed caption replacement did not land');
+    await until(() => JSON.parse(t.state.cards[0].caption_tweaks || '[]').some(n => n.body.includes('My unsent caption') && n.body.includes('The newer team caption')), 'replacement note lost the prior caption');
+    assert.equal(t.state.upserts.filter(p => p.caption === 'My unsent caption').length, 1);
+    assert.equal(t.state.cards[0].caption_status, 'Client Approval');
   });
   if (role === 'client') await runCase(browser, origin, role, width, 'caption approved by team while editor open', async t => {
     await step(t, 'caption'); await inS(t.page, '#editBtn').click();

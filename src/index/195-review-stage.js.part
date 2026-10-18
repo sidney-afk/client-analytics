@@ -933,6 +933,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         delete R.S.editBase[key];
         try { const k = _rsEditDraftKey(key); if (k) sessionStorage.removeItem(k); } catch (e) {}
     }
+    // Cancel or Escape on the caption editor throws the words away, as it always did; so do a save that is
+    // finished (or needs no save), or the next Edit would open on stale words instead of the current text.
+    function _rsEditDiscard(key) {
+        if (R.S) { R.S.editing = ''; delete R.S.editErrors[key]; }
+        _rsEditDraftDrop(key);
+    }
     function _rsDraftStoreKey() {
         const c = String(calState.client || '').trim().toLowerCase();
         return R.mode === 'client' && c ? RS_DRAFT_KEY + c : '';
@@ -1817,8 +1823,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const eb = _rsQ('editBtn'); if (eb) eb.addEventListener('click', () => _rsStartEdit(k, text));
         const xb = _rsQ('expBtn'); if (xb) xb.addEventListener('click', () => { S.exp[m.id + k] = !S.exp[m.id + k]; _rsCard(m); });
         const cs = _rsQ('capSave'); if (cs) cs.addEventListener('click', () => _rsSaveEdit(m, k));
-        const cc = _rsQ('capCancel'); if (cc) cc.addEventListener('click', () => { S.editing = ''; _rsRender({ force: true }); });
-        const ct = _rsQ('capTa'); if (ct) { ct.addEventListener('input', () => { S.editText = ct.value; _rsEditDraftPut(m.id + '|' + k, ct.value); }); ct.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); S.editing = ''; _rsRender({ force: true }); } }); }
+        const cc = _rsQ('capCancel'); if (cc) cc.addEventListener('click', () => { _rsEditDiscard(m.id + '|' + k); _rsRender({ force: true }); });
+        const ct = _rsQ('capTa'); if (ct) { ct.addEventListener('input', () => { S.editText = ct.value; _rsEditDraftPut(m.id + '|' + k, ct.value); }); ct.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); _rsEditDiscard(m.id + '|' + k); _rsRender({ force: true }); } }); }
     }
     function _rsSaving(m, k) {
         if (R.S && R.S.editSaving[m.id + '|' + k]) return true;
@@ -2142,6 +2148,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const fresh = _rsModelById(m.id), fx = fresh && fresh.parts.find(p => p.key === comp);
         if (!fresh || fresh.gone || !fx || (fx.st !== 'wait' && !_rsError(fresh, comp))) { _rsRender({ force: true }); return; }
         R.S.saved = null;
+        delete R.S.editErrors[m.id + '|' + comp];   // an earlier refused caption edit must not stand in for this save's own result
         R.S.retry[m.id + '|' + comp] = () => { const cur = _rsModelById(m.id); if (cur) _rsApprove(cur, comp, how); };
         R.S.pressed[m.id + '|' + comp] = how === 'client' ? 'client' : 'ok';
         R.S.actAt[m.id + '|' + comp] = Date.now();
@@ -2157,6 +2164,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsSendChange(m, comp, text, o) {
         const opts = o || {};
         R.S.saved = null;
+        delete R.S.editErrors[m.id + '|' + comp];
         R.S.retry[m.id + '|' + comp] = () => { const cur = _rsModelById(m.id); if (cur) _rsSendChange(cur, comp, text, Object.assign({}, opts, { where: '' })); };
         R.S.retryText[m.id + '|' + comp] = text;
         R.S.pressed[m.id + '|' + comp] = opts.aat ? 'aat' : text === RS_FRAME_NOTE ? 'frame' : 'chg';
@@ -2337,10 +2345,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         }
         _rsEditDraftPut(key, S.editText);
         S.editing = '';
-        if (!t || t === before.trim()) { _rsRender({ force: true }); return; }
+        if (!t || t === before.trim()) { _rsEditDiscard(key); _rsRender({ force: true }); return; }
         if (R.mode === 'client' && k === 'title') {
             // A client link never renames a card (the YouTube title is the card's name, and a rename moves the
             // Production work items with it), so a title edit still goes to the team as a change request.
+            _rsEditDraftDrop(key);   // the change request keeps its own words (retryText) if it is refused
             _rsSendChange(m, k, 'Please use this title:\n\n' + t, { where: 'stage' });
             return;
         }
@@ -2371,6 +2380,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             return;
         }
         window._calOnFieldBlur({ dataset: { pid: m.id, fld: k === 'title' ? 'name' : 'caption' }, value: t });
+        _rsEditDraftDrop(key);
         _rsFlash(RS_PART[k] + ' saved', k);
         _rsRender({ force: true });
     }

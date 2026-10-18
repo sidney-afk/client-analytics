@@ -15,8 +15,8 @@ async function until(fn, message, timeout = 15000) {
   while (Date.now() - start < timeout) { if (await fn()) return; await sleep(100); }
   throw new Error(message);
 }
-async function setup(browser, origin, role, width, state) {
-  const opt = { stage: role, flags: 'on', width, state, finished: true, linkedParts: true, mergeComments: true, nativeReceipts: true, clock: true, youtube: !!process.env.G3_TITLE, stageSource: cachedStage, errorStacks: !!process.env.G3_DEBUG };
+async function setup(browser, origin, role, width, state, more) {
+  const opt = { ...more, stage: role, flags: 'on', width, state, finished: true, linkedParts: true, mergeComments: true, nativeReceipts: true, clock: true, youtube: !!process.env.G3_TITLE || !!(more && more.youtube), stageSource: cachedStage, errorStacks: !!process.env.G3_DEBUG };
   const t = role === 'client' ? await openClient(browser, origin, opt) : await open(browser, origin, { ...opt, staff: STAFF });
   try {
   t.browser = browser; t.origin = origin;
@@ -54,10 +54,26 @@ async function enterWords(t, selector, text, long) {
   finally { clearTimeout(timer); }
   assert.equal(await box.inputValue(), text, 'text entry changed the supplied words');
 }
-async function runCase(browser, origin, role, width, label, fn) {
+// The signed-in SMM's Review tab (a staff page, not a client link or Kasper).
+async function setupSmm(browser, origin, role, width) {
+  const t = await open(browser, origin, { stage: 'smm', flags: 'on', staff: STAFF, width });
+  try {
+    t.browser = browser; t.origin = origin;
+    t.page.setDefaultTimeout(6000);
+    await t.page.goto(origin + '/index.html?v=calendar', { waitUntil: 'domcontentloaded' });
+    await t.page.waitForFunction(() => typeof _calSavePins === 'function' && typeof navTo === 'function');
+    await t.page.evaluate(name => { _syncviewStaffIdentityVerified = true; _calSavePins([name]); calState.client = name; navTo('calendar'); }, CLIENT);
+    await t.page.waitForFunction(() => typeof calState === 'object' && !calState.loading && (calState.posts || []).length > 0);
+    await t.page.evaluate(() => onCalViewChange('smmreview'));
+    await waitNew(t);
+    await sleep(800);
+    return t;
+  } catch (e) { await t.ctx.close(); throw e; }
+}
+async function runCase(browser, origin, role, width, label, fn, more) {
   let t;
   try {
-    t = await setup(browser, origin, role, width);
+    t = more === 'smm' ? await setupSmm(browser, origin, role, width) : await setup(browser, origin, role, width, undefined, more);
     await fn(t);
     assert.deepEqual(t.errors, [], 'page errors');
     if (process.env.G3_SHOTS && /refused plain|refused caption|caption editor|refused change/.test(label)) {
@@ -132,6 +148,61 @@ async function regressions(browser, origin, role, width) {
     assert.equal(await inS(t.page, '#capTa').inputValue(), 'An edit after the team answered');
     assert.match(await t.page.locator('#confirmOverlay').textContent(), /already answered|no longer waiting/i);
   });
+  if (role === 'client') await runCase(browser, origin, role, width, 'cancelled caption edit is discarded, not offered again', async t => {
+    const before = t.state.cards[0].caption;
+    await step(t, 'caption'); await inS(t.page, '#editBtn').click();
+    await inS(t.page, '#capTa').fill('Words the client threw away');
+    await inS(t.page, '#capCancel').click();
+    await inS(t.page, '#editBtn').click();
+    assert.equal(await inS(t.page, '#capTa').inputValue(), before, 'Cancel kept the thrown away words');
+    await inS(t.page, '#capTa').fill('Thrown away by Escape'); await inS(t.page, '#capTa').press('Escape');
+    await inS(t.page, '#editBtn').click();
+    assert.equal(await inS(t.page, '#capTa').inputValue(), before, 'Escape kept the thrown away words');
+  });
+  if (role === 'client') await runCase(browser, origin, role, width, 'refused caption edit does not outlive the approval that follows', async t => {
+    await step(t, 'caption'); await inS(t.page, '#editBtn').click();
+    await inS(t.page, '#capTa').fill('An edit the server refuses'); t.state.writeFail = 1;
+    await inS(t.page, '#capSave').click();
+    await until(async () => /did not save/.test(await inS(t.page, '#rsApp').textContent()), 'missing caption refusal');
+    await inS(t.page, '#capCancel').click();
+    await inS(t.page, '[data-ok="caption"]').click();
+    await until(() => t.state.cards[0].caption_status === 'Approved', 'approval did not land');
+    await sleep(700);
+    assert.equal(await inS(t.page, '[data-err="caption"]').count(), 0, 'an approved caption still says Not saved');
+    assert.doesNotMatch(await inS(t.page, '#rsApp').textContent(), /words are kept in the editor/);
+  });
+  if (role === 'client') await runCase(browser, origin, role, width, 'refused approval after a refused caption edit shows its own failure and Try again', async t => {
+    await step(t, 'caption'); await inS(t.page, '#editBtn').click();
+    await inS(t.page, '#capTa').fill('An edit the server refuses'); t.state.writeFail = 20;
+    await inS(t.page, '#capSave').click();
+    await until(async () => /did not save/.test(await inS(t.page, '#rsApp').textContent()), 'missing caption refusal');
+    await inS(t.page, '#capCancel').click();
+    t.state.writeFail = 0; t.state.refusal = { code: 'operation_forbidden', status: 403 };
+    await inS(t.page, '[data-ok="caption"]').click();
+    await until(async () => await inS(t.page, '[data-retry="caption"]').count() > 0, 'a refused approval offered no Try again');
+    assert.doesNotMatch(await inS(t.page, '[data-err="caption"]').textContent(), /words are kept in the editor/, 'the approval failure was hidden behind the edit failure');
+    if (await t.page.locator('#confirmOverlay.active').count()) await t.page.locator('#confirmYes').click();   // the page's own "Not saved" notice
+    t.state.refusal = null; await inS(t.page, '[data-retry="caption"]').click();
+    await until(() => t.state.cards[0].caption_status === 'Approved', 'Try again did not approve');
+  });
+  if (role === 'client') await runCase(browser, origin, role, width, 'a sent title request does not come back as the next title edit', async t => {
+    await step(t, 'title'); await inS(t.page, '#editBtn').click();
+    await inS(t.page, '#capTa').fill('The title the client asked for'); await inS(t.page, '#capSave').click();
+    await until(() => t.state.cards[0].title_status === 'Tweaks Needed', 'title request did not land');
+    const title = t.state.cards[0].name;
+    t.state.cards[0].title_status = 'Client Approval';   // the team answered the request and sent the title back
+    t.state.cards[0].updated_at = new Date(Date.now() + 9000).toISOString();
+    await t.page.evaluate(() => loadCalendarPosts({ background: true, quiet: true })); await sleep(1200);
+    await step(t, 'title'); await inS(t.page, '#editBtn').click();
+    assert.equal(await inS(t.page, '#capTa').inputValue(), title, 'the editor opened on the client\'s old request');
+  }, { youtube: true });
+  if (role === 'client') await runCase(browser, origin, 'smm', width, 'staff caption editor: Cancel discards the words', async t => {
+    const before = t.state.cards[0].caption;
+    await step(t, 'caption'); await inS(t.page, '#editBtn').click();
+    await inS(t.page, '#capTa').fill('Staff words thrown away'); await inS(t.page, '#capCancel').click();
+    await inS(t.page, '#editBtn').click();
+    assert.equal(await inS(t.page, '#capTa').inputValue(), before, 'Cancel kept the thrown away words');
+  }, 'smm');
   await runCase(browser, origin, role, width, 'refused plain note is visible and recoverable', async t => {
     t.state.writeFail = 20;
     await inS(t.page, '#ta').fill('Plain note words');

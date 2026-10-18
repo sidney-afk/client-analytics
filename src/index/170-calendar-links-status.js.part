@@ -124,7 +124,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         // been client-editable (the Suggest-a-post flow). SMM is never
         // locked. This is the only flag that diverges from `ro` when collab
         // is on, so it stays scoped to the four text inputs and nowhere else.
-        const editableText = !_isClientLink || isBlank || _calIsCollabOn();
+        const editableText = !_isClientLink || isBlank;
         const selectable = calState.selectMode && !ro && !isBlank;
         // Drag-to-reorder works for the SMM and clients alike (desktop native
         // DnD). The `ro` flag keeps the client's media/status surface read-only
@@ -1048,7 +1048,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
     }
 
     function _calOnDateChange(el) {
-        if (_calClientFieldEditBlocked()) return;
+        if (_calClientFieldEditBlocked(el)) return;
         const pid = el.dataset.pid;
         const card = el.closest('.cal-card');
         const chip = card ? card.querySelector(`[data-date-display="${pid}"]`) : null;
@@ -1143,18 +1143,22 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         if (html) thumbDiv.insertAdjacentHTML('beforeend', html);
     }
 
-    // Editing card text (name / caption / CTA / alt-caption) and the date is allowed for
-    // the SMM always, and for a client only in Collaborative mode (mirrors the editableText
-    // gate that sets the readonly attribute). These handler-level checks stop a read-only
-    // client persisting an edit by bypassing the UI gate (e.g. a direct handler call).
-    function _calClientFieldEditBlocked() { return _isClientLink && !_calIsCollabOn(); }
+    // Editing card text (caption / CTA / alt-caption) and the date is allowed for the SMM always, and for a client
+    // only on a blank "suggest a post" card they are creating (owner, 2026-10-18: a client's caption and CTA are read
+    // only on the Sheet, Collaborative mode or not; the review page's caption edit goes through
+    // _calClientReviewCaptionEdit instead). Mirrors the editableText gate that sets the readonly attribute. These
+    // handler-level checks stop a client persisting an edit by bypassing the UI gate (e.g. a direct handler call).
+    function _calClientFieldEditBlocked(el) {
+        if (!_isClientLink) return false;
+        return !(el && el.dataset && _calIsBlankId(el.dataset.pid));
+    }
     // Clients may not rename a card (see _calTitleRowHtml). Handler-level twin
     // of the readonly attribute, like _calClientFieldEditBlocked.
     function _calClientRenameBlocked(el) {
         return _isClientLink && el && el.dataset.fld === 'name' && !_calIsBlankId(el.dataset.pid);
     }
     function _calOnFieldInput(el) {
-        if (_calClientFieldEditBlocked()) return;
+        if (_calClientFieldEditBlocked(el)) return;
         if (_calClientRenameBlocked(el)) return;
         const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
@@ -1175,7 +1179,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, CAL_SAVE_DEBOUNCE_MS);
     }
     function _calOnFieldBlur(el) {
-        if (_calClientFieldEditBlocked()) return;
+        if (_calClientFieldEditBlocked(el)) return;
         if (_calClientRenameBlocked(el)) return;
         const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};

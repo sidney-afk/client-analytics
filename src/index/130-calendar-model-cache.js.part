@@ -372,7 +372,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const vals = {};
         block.querySelectorAll('textarea[data-fld]').forEach(t => { vals[t.dataset.fld] = t.value; });
         const isBlank = _calIsBlankId(pid);
-        const editableText = !_isClientLink || isBlank || _calIsCollabOn();
+        const editableText = !_isClientLink || isBlank;
         block.innerHTML = _calCapBlockHtml(pid, post, editableText, isBlank);
         block.querySelectorAll('textarea[data-fld]').forEach(t => {
             if (vals[t.dataset.fld] != null) t.value = vals[t.dataset.fld];
@@ -474,7 +474,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        label always travels with the text even when the tab is still a local
        draft (platform never explicitly saved). */
     function _calOnAltCapInput(ta) {
-        if (_calClientFieldEditBlocked()) return;
+        if (_calClientFieldEditBlocked(ta)) return;
         const pid = ta.dataset.pid;
         if (pid) {
             const post = calState.posts.find(p => p.id === pid);
@@ -879,11 +879,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return { settings: Object.assign({}, CAL_SETTINGS_DEFAULTS, backend), source: 'backend' };
     }
     function _calIsCollabOn() { return !!(calState.settings && calState.settings.collab_mode); }
-    /* Who may drag a pill onto a day to (re)schedule it. The SMM always can;
-       the client can too, but only once Collaborative mode is on — that's the
-       same gate that lets them suggest posts, so reserve content they place /
-       swap stays consistent with everything else they can touch. */
-    function _calCanDragCards() { return !_isClientLink || _calIsCollabOn(); }
+    /* Who may drag a pill onto a day to (re)schedule it: staff only. A client link never drags on Month or Week,
+       Collaborative mode or not (owner, 2026-10-18); its dates are the team's to move. */
+    function _calCanDragCards() { return !_isClientLink; }
     // Tail of the serialized settings-write queue (see _calSaveSettings).
     let _calSettingsWriteChain = Promise.resolve();
     async function _calSaveSettings(patch) {

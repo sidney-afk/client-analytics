@@ -1722,6 +1722,8 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
     }
     async function _sxrKasperResumeSourceRepairs() {
         const principal = _writeUiPrincipalKey();
+        // The background resume can run before the shared state script; queue loading calls it again afterwards.
+        if (!principal || typeof _kasperState === 'undefined' || !_kasperState) return;
         const repairs = ((_kasperState && _kasperState.sxrRepairs) || []).slice();
         for (const repair of repairs) {
             if (!repair || repair.principal !== principal || !repair.id || !repair.slug) continue;

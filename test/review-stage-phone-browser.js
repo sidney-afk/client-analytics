@@ -51,7 +51,8 @@ async function layout(t, label) {
   const m = await t.page.evaluate(() => {
     const r = document.getElementById('svReviewStage').shadowRoot;
     const visible = e => { const b = e.getBoundingClientRect(); return b.width > 0 && b.height > 0 && getComputedStyle(e).visibility !== 'hidden' && !e.closest('[hidden]'); };
-    const targets = [...r.querySelectorAll('button,a,input[type=range],summary')].filter(visible).map(e => {
+    const chrome = [...document.querySelectorAll('body>.header button,body>.header a,body>.header [role=button],.kasper-subtab')];
+    const targets = [...r.querySelectorAll('button,a,input[type=range],summary'), ...chrome].filter(visible).map(e => {
       const b = e.getBoundingClientRect(); return { id: e.id || e.className, w: Math.round(b.width), h: Math.round(b.height) };
     });
     return { width: innerWidth, overflow: document.scrollingElement.scrollWidth - document.scrollingElement.clientWidth,

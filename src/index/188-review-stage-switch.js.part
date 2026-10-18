@@ -358,6 +358,12 @@ import { currentNav } from './065-core-nav-intake-state.js';
                 // stage makes room for it (195 reads --rs-bar), so it covers neither the stage's buttons nor the client
                 // page's header (session Curtain Six).
                 + 'html:has(#svUpdateBar) #svReviewStage{--rs-bar:84px}';
+            // An approval's Undo must not sit over Finish on a short phone screen.
+            _rsChromeStyle.textContent += '@media (max-width:860px), (max-width:1023px) and (pointer:coarse){'
+                + 'html.sv-rs-kasper .sv-toast{top:max(12px,env(safe-area-inset-top,0px));bottom:auto}'
+                + 'html.sv-rs-kasper .sv-toast-action{min-width:44px;min-height:44px}'
+                + 'html.sv-rs-kasper body>.header :is(button,a,[role="button"]),html.sv-rs-kasper .kasper-subtab{min-width:44px!important;min-height:44px!important;box-sizing:border-box}'
+                + 'html.sv-rs-kasper body>.header .logo{display:inline-flex;align-items:center}}';
             document.head.appendChild(_rsChromeStyle);
         }
         de.classList.toggle('sv-rs-cal', !!on);

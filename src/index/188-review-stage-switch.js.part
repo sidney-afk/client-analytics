@@ -20,8 +20,9 @@ import { svFrameFlagWait } from './187-frame-viewer.js';
                                     Calendar Review tab for those clients.
          review_stage_kasper_staff  { "staff": [...] }: the Kasper tab's Review Session, only for the signed-in staff
                                     member whose id or full name is listed.
-         review_help_video_url      { "url": "..." }: the tutorial video behind the "?" on the client page. Empty or
-                                    missing hides the button.
+         review_help_video_url      { "url": "..." }: whether the "?" shows on the client page. It opens the public
+                                    start page (/start#review) in a new tab; the address itself is no longer played.
+                                    Empty or missing hides the button.
          analytics_hidden           { "hidden": false } brings Analytics back for everyone (the staff bar's Analytics
                                     tab, the client link's Analytics / Content Calendar toggle). Missing, unreadable,
                                     { "hidden": true } or any other shape: Analytics is hidden (owner, 2026-10-17

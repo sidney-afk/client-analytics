@@ -78,6 +78,30 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
     }
     const _linearOptional = '<span class="uf-opt">optional</span>';
 
+    /* The client upload link, built from the page's own origin. Copies it and says "Copied" for a moment; when the
+       browser refuses the clipboard, shows the link in a read-only field, selected, so it can be copied by hand. */
+    function copyLinearUploadLink() {
+        const url = location.origin + '/?intake=1';
+        const btn = document.getElementById('ufCopyLink');
+        const field = document.getElementById('ufCopyField');
+        const done = () => {
+            if (!btn) return;
+            btn.textContent = 'Copied';
+            clearTimeout(copyLinearUploadLink._t);
+            copyLinearUploadLink._t = setTimeout(() => { btn.textContent = 'Copy upload link'; }, 2000);
+        };
+        const manual = () => {
+            if (!field) return;
+            field.value = url; field.hidden = false;
+            field.focus(); field.select();
+        };
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, manual);
+            else manual();
+        } catch (e) { manual(); }
+    }
+    window.copyLinearUploadLink = copyLinearUploadLink;
+
     function renderLinearView() {
         const saved = loadLinearForm();
         const heldSubmission = _linearSubmissionHoldRead();
@@ -128,12 +152,19 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
         const head = isLink
             ? `<header class="uf-head">
                 <img class="uf-logo" src="/synchro-social-logo.png" alt="Synchro Social" width="84" height="53">
-                <h1 class="linear-form-title">Upload your content</h1>
+                <div class="uf-titlerow">
+                    <h1 class="linear-form-title">Upload your content</h1>
+                    <a class="uf-help" id="ufHelp" href="/start#upload" target="_blank" rel="noopener" aria-label="How this page works" title="How this page works">?</a>
+                </div>
                 <p class="linear-form-sub">Paste your links, one set per video, and we take it from there.</p>
             </header>`
             : `<header class="uf-head">
-                <h1 class="linear-form-title">Create production work</h1>
+                <div class="uf-titlerow">
+                    <h1 class="linear-form-title">Create production work</h1>
+                    <button class="uf-copy" id="ufCopyLink" type="button" onclick="copyLinearUploadLink()">Copy upload link</button>
+                </div>
                 <p class="linear-form-sub">Create native video and graphics deliverables</p>
+                <input class="uf-copy-field" id="ufCopyField" type="text" readonly hidden aria-label="Client upload link">
             </header>`;
 
         return `<div class="linear-view uf${isLink ? ' uf-link' : ''}">

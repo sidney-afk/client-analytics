@@ -207,7 +207,7 @@ const textWrites = (t, from) => t.state.upserts.slice(from).filter(u => 'caption
     // ---------- Month and Week: nothing drags ----------
     for (const collab of [true, false]) {
       console.log('--- client Month and Week, Collaborative mode ' + (collab ? 'on' : 'off') + ' ---');
-      const t = await openClient(browser, origin, { flags: 'off', collab, unscheduled: true, finished: true });
+      const t = await openClient(browser, origin, { flags: 'off', collab, unscheduled: collab ? true : 'approved', finished: true });
       for (const v of ['month', 'week']) {
         await ready(t, v);
         const label = v + ' collab ' + (collab ? 'on' : 'off');
@@ -219,6 +219,49 @@ const textWrites = (t, from) => t.state.upserts.slice(from).filter(u => 'caption
         expect(m.pills > 0, label + ': the posts show (' + m.pills + ')');
         expect(m.movable === 0 && m.draggable === 0 && m.grips === 0, label + ': nothing is draggable and no drag grip shows');
         expect(m.unsched === 0, label + ': no "Unscheduled ... drag onto a day" list');
+        // The undated post comes back as a read-only list (owner decision 2026-10-18): same pills, nothing to drag or date.
+        const ny = await t.page.evaluate(() => {
+          const box = document.querySelector('.cal-notyet');
+          const pills = box ? Array.from(box.querySelectorAll('.cal-month-pill')) : [];
+          return {
+            has: !!box, heading: box ? box.querySelector('.cal-notyet-h').textContent.trim() : '', pills: pills.length,
+            names: pills.map(b => b.textContent), buttons: pills.every(b => b.tagName === 'BUTTON' && b.tabIndex >= 0),
+            drag: box ? box.querySelectorAll('[draggable="true"], [data-cal-move], .cal-move-grip, input, textarea, select, [data-iso]').length : -1,
+            dated: document.querySelectorAll('.cal-notyet [data-iso]').length,
+          };
+        });
+        expect(ny.has && /^Not scheduled yet \(1\)$/.test(ny.heading), label + ': the "Not scheduled yet" list shows with one post (' + ny.heading + ')');
+        expect(ny.pills === 1 && /An undated idea/.test(ny.names[0]), label + ': the list holds the undated post');
+        expect(ny.buttons, label + ': each post in the list is a button the keyboard can reach');
+        expect(ny.drag === 0, label + ': the list has no drag handle, drop target, date control or input');
+        const nyPill = t.page.locator('.cal-notyet .cal-month-pill').first();
+        await nyPill.focus();
+        expect(await nyPill.evaluate(e => document.activeElement === e), label + ': the post takes keyboard focus');
+        const n1 = t.state.upserts.length;
+        const pb = await nyPill.boundingBox();
+        await t.page.mouse.move(pb.x + pb.width / 2, pb.y + pb.height / 2); await t.page.mouse.down();
+        await t.page.mouse.move(720, 600, { steps: 8 }); await t.page.mouse.up();
+        await sleep(1200);
+        expect(textWrites(t, n1).length === 0 && !(await t.page.evaluate(() => (calState.posts.find(p => p.id === 'ru1') || {}).scheduled_date)), label + ': dragging the undated post does nothing and saves nothing');
+        // The browser's own drag events too (an image inside the post can start a native drag), dropped on a day: still nothing, and no save of ANY kind (a reorder or a status write would not touch the text fields above).
+        await t.page.evaluate(() => {
+          const pill = document.querySelector('.cal-notyet .cal-month-pill'), cell = document.querySelector('[data-iso]');
+          const dt = new DataTransfer(); dt.setData('text/plain', 'ru1');
+          const ev = type => new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt });
+          pill.dispatchEvent(ev('dragstart')); cell.dispatchEvent(ev('dragover')); cell.dispatchEvent(ev('drop')); pill.dispatchEvent(ev('dragend'));
+          cell.dispatchEvent(ev('drop'));
+        });
+        await sleep(800);
+        expect(t.state.upserts.length === n1 && t.state.gateway.length === 0 && !(await t.page.evaluate(() => (calState.posts.find(p => p.id === 'ru1') || {}).scheduled_date)), label + ': a drag and drop sent by the browser changes nothing and sends no save at all');
+        await nyPill.press('Enter');
+        await t.page.locator('#calPreviewOverlay, .cal-preview-overlay, [id*="calPreview"]').first().waitFor({ timeout: 10000 }).catch(() => {});
+        const opened = await t.page.evaluate(() => /An undated idea/.test(document.body.innerText) && !!document.querySelector('[id*="alPreview"], .cal-preview, .cal-preview-card, .cal-pv'));
+        expect(opened, label + ': opening the undated post shows it the way a dated post opens');
+        expect(t.state.upserts.length === n1 && t.state.gateway.length === 0, label + ': opening it saves nothing');
+        await t.page.keyboard.press('Escape');
+        await sleep(400);
+        if (collab && v === 'month') await shot(t, 'after-client-notyet-month-1440-light');
+        if (collab && v === 'week') await shot(t, 'after-client-notyet-week-1440-light');
         const n0 = t.state.upserts.length;
         await t.page.evaluate(() => {
           const day = document.querySelector('[data-cal-day], .cal-month-cell, .cal-week-col');
@@ -230,6 +273,54 @@ const textWrites = (t, from) => t.state.upserts.slice(from).filter(u => 'caption
         if (collab) await shot(t, 'after-client-' + v + '-1440-light');
       }
       expect(t.errors.length === 0, 'month/week: no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    }
+
+    // ---------- an unfinished undated post follows the same rule as an unfinished dated one ----------
+    {
+      console.log('--- client Month and Week, Collaborative mode off, undated post not finished ---');
+      const t = await openClient(browser, origin, { flags: 'off', collab: false, unscheduled: true, finished: true });
+      for (const v of ['month', 'week']) {
+        await ready(t, v);
+        expect(await t.page.locator('.cal-notyet').count() === 0, v + ': an unfinished undated post stays hidden while Collaborative mode is off, like a dated one');
+      }
+      await t.ctx.close();
+    }
+
+    // ---------- no undated posts: no list at all ----------
+    {
+      console.log('--- client Month and Week, no undated posts ---');
+      const t = await openClient(browser, origin, { flags: 'off', collab: true, finished: true });
+      for (const v of ['month', 'week']) {
+        await ready(t, v);
+        expect(await t.page.locator('.cal-notyet').count() === 0, v + ': no "Not scheduled yet" list when every post has a date');
+      }
+      await t.ctx.close();
+    }
+
+    // ---------- phone widths: the list shows, scrolls sideways or wraps inside the page, and opens a post ----------
+    for (const width of [390, 430]) {
+      console.log('--- client Month and Week at ' + width + ' ---');
+      const t = await openClient(browser, origin, { flags: 'off', collab: true, unscheduled: true, finished: true, width, height: 844 });
+      for (const v of ['month', 'week']) {
+        await ready(t, v);
+        const r = await t.page.evaluate(() => {
+          const box = document.querySelector('.cal-notyet'); const b = box && box.getBoundingClientRect();
+          return { has: !!box, left: b && Math.round(b.left), right: b && Math.round(b.right), vw: innerWidth, sw: document.documentElement.scrollWidth, drag: document.querySelectorAll('.cal-notyet [draggable="true"], .cal-notyet .cal-move-grip').length, h: b && Math.round(b.height) };
+        });
+        expect(r.has && r.left >= 0 && r.right <= r.vw && r.sw <= r.vw, v + ' ' + width + ': the list fits the screen (' + JSON.stringify(r) + ')');
+        expect(r.drag === 0, v + ' ' + width + ': nothing in it drags');
+        await t.page.locator('.cal-notyet .cal-month-pill').first().click();
+        await sleep(800);
+        expect(await t.page.evaluate(() => /An undated idea/.test(document.body.innerText)), v + ' ' + width + ': tapping the post opens it');
+        await t.page.keyboard.press('Escape');
+        await sleep(300);
+        await t.page.evaluate(() => { if (document.querySelector('#calCommentsOverlay.open')) closeCalComments(); });
+        await sleep(300);
+        if (width === 390) await shot(t, 'after-client-notyet-' + v + '-390-light');
+        if (width === 430 && v === 'month') await shot(t, 'after-client-notyet-month-430-light');
+      }
+      expect(t.errors.length === 0, width + ': no page errors (' + t.errors.join(' | ') + ')');
       await t.ctx.close();
     }
 
@@ -271,6 +362,7 @@ const textWrites = (t, from) => t.state.upserts.slice(from).filter(u => 'caption
         const m = await t.page.evaluate(() => ({ movable: document.querySelectorAll('[data-cal-move]').length, unsched: document.querySelectorAll('.cal-unscheduled').length }));
         expect(m.movable > 0, 'staff ' + v + ': posts still drag (' + m.movable + ')');
         expect(m.unsched > 0, 'staff ' + v + ': the Unscheduled list is still offered');
+        expect(await t.page.locator('.cal-notyet').count() === 0, 'staff ' + v + ': the client-only "Not scheduled yet" list is not added');
       }
       expect(t.errors.length === 0, 'staff: no page errors (' + t.errors.join(' | ') + ')');
       await t.ctx.close();

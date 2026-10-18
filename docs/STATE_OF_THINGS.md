@@ -21,7 +21,7 @@ line is older than a week, re-check it before relying on it.
 ## Upload form never loses a send (session Keepsake, 2026-10-18): PR open
 
 Audit of the upload link and the Submit tab against every failure path (`docs/audits/2026-10-18-upload-form-never-lost.md`,
-OPEN_REPAIRS 434, `node docs/syncview-design/tests/upload-never-lost-browser.js`). Fixed: a full or refused browser store no longer stops
+OPEN_REPAIRS 435, `node docs/syncview-design/tests/upload-never-lost-browser.js`). Fixed: a full or refused browser store no longer stops
 typing or sending, no cross-tab lock no longer blocks a send, plain "Not sent yet / received" words, a refused saved send puts the
 form back before it is discarded. New: `production-write` stores the raw request first in `intake_raw_submissions` and lists it for staff
 (`intake_raw_list`); **the migration must be applied by Lighthouse** (the gateway copes without it). Not done: Safari and Firefox passes, a staff
@@ -68,6 +68,14 @@ Wistia script, never autoplays), with the five folder rules beside a drawn folde
 `/start/#videographer`) hides the client-only review video. Screenshots are demo data only (client "Alex Morgan",
 four demo posts). Published because `start` is in `PUBLISHED_DIRS` (`scripts/pages-site.js`). Test:
 `node test/start-page-browser.js`. To change the wording or a video, edit `start/index.html`.
+
+## Client Month and Week bring back undated posts, read only (session Ledge, 2026-10-18): PR open
+
+Owner decision, 2026-10-18: on the client link's Month and Week, posts with no date show again under "Not scheduled yet (N)",
+as a read-only list above the grid (same pills as the staff Unscheduled list, no drag, no drop, no date control, reachable
+by keyboard, hidden when there are none). A post opens exactly as a dated one does. The Collaborative-mode-off rule is the
+same as for dated posts: an unfinished undated post stays hidden. Staff Month and Week are unchanged. This refines the
+Pane section below, which removed the list for clients. Test: `node test/client-calendar-read-only-browser.js`.
 
 ## Client link Calendar is read only, video door opens the viewer (session Pane, 2026-10-18): PR open
 

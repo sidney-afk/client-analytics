@@ -33478,7 +33478,16 @@ Fixed in the tests only: the lane now waits for every one of the app's own "stil
 
 **Way back:** revert the pull request.
 
-## 434. [2026-10-18, BUILT, NOT MERGED] The upload form could still lose a send: a full browser store stopped typing and sending, and no server copy of the raw upload existed (session Keepsake)
+## 434. [2026-10-18, BUILT, NOT MERGED] Two boot reads had no retry, and the staff sign-in browser test had gone stale and ran nowhere (session Retry)
+
+Follow-up to 433, which left a reset of a read the app never retries as a failure the audit could not call recovered.
+
+- **One retry for two reads.** The page head's batched flags read, the review-stage switch read (188) and the Google Sheets "Clients Info" read the Analytics boot makes now try once more, about a second later and on the same address, when the first attempt fails at the network level (the browser's fetch rejects) or answers 5xx or 429. A 4xx is never retried, a caller's own abort is never retried, and when the retry fails too each read keeps the fallback it had (each flag consumer reads its own row, the switch reads as off, the roster read fails as before). The same address is what lets the read/console audit count the second attempt as the recovery of the first (matched inside its recovery window, unit cases added to `test/prod-read-console-audit.js`). Nothing else got a retry. Test: `node test/boot-reads-retry-browser.js` (18 cases: reset, 503, 429 then ok; both reset; 401 and 404 not retried; for each of the three reads).
+- **`b4-staff-login.js` repaired and wired.** It had been red on main since September and ran in no workflow. Each stale expectation was settled against the app: the key-toggle label said "Show role key" at first and "Show your key" after one toggle, so the app now says "role key" throughout and the test pins that; Tab in the account menu really walks every visible item (an admin also has Onboarding and Client Credentials) and closes the menu when focus leaves it, so the test walks the real order; the credentials and onboarding code load on demand, so the test loads them before touching their state; a Creative account may now use onboarding (the app says so), so the wrong-role refusal is checked on a Time Off approval action, and the Creative check asserts the new rule; `?prod=1` with no saved identity meets the staff door like every staff surface, so the alias check runs signed in and a second check pins the door; on a phone the account menu is the More sheet. No check was deleted. It now runs in `entry-links-boot` part 2 and is off the not-wired list.
+
+**Way back:** revert the pull request.
+
+## 435. [2026-10-18, BUILT, NOT MERGED] The upload form could still lose a send: a full browser store stopped typing and sending, and no server copy of the raw upload existed (session Keepsake)
 
 Audit of the upload link and the Submit tab against every way a send can fail (report `docs/audits/2026-10-18-upload-form-never-lost.md`, test `docs/syncview-design/tests/upload-never-lost-browser.js`, 203 checks, plus `test/intake-raw-copy.js`).
 

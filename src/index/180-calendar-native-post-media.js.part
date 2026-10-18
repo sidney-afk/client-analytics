@@ -3094,6 +3094,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         // a piece onto a day (or swap it in) themselves. Off → no tray, since a
         // client with no drag rights could only stare at it.
         const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date && _calPostPassesCardStatus(p)) : [];
+        const undated = _calClientUndatedPosts(hideUnready);
         const headers = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
         const todayISO = _calIsoOf(new Date());
         const monthRuns = _calPhoneEmptyRuns(cells, iso => iso.slice(0,7) === firstISO.slice(0,7) && iso !== todayISO && !(byDate.get(iso) || []).length);
@@ -3104,7 +3105,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                 <button class="cal-nav-btn" onclick="calMonthShift(1)" title="Next month">›</button>
                 <button class="cal-today-btn" onclick="calMonthToday()">Today</button>
             </div>
-            ${_calUnscheduledTrayHtml(unsched)}
+            ${_calUnscheduledTrayHtml(unsched)}${_calUndatedReadOnlyHtml(undated)}
             <div class="cal-month-grid">
                 ${headers.map(h => `<div class="cal-month-head">${h}</div>`).join('')}
                 ${cells.map(iso => {
@@ -3135,6 +3136,23 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                 ${unsched.map(p => _calMonthPillHtml(p)).join('')}
             </div>
         </div>`;
+    }
+    /* Client link only: posts with no date, shown as a read-only list under the heading "Not scheduled yet". The same
+       pills as the staff tray, so a post opens the way a dated one does (openCalPreview, thumbnail door), but this list
+       has no drag, no drop target and no date control: _calMonthPillHtml draws no grip for a client link, and the list
+       carries no data-cal-day. Staff keep their own tray above. Hidden when there is nothing to show. */
+    function _calClientUndatedPosts(hideUnready) {
+        if (!_isClientLink) return [];
+        return calState.posts.filter(p => !p.scheduled_date && _calPostPassesCardStatus(p) && !(hideUnready && !_calIsClientReady(p)));
+    }
+    function _calUndatedReadOnlyHtml(list) {
+        if (!list || !list.length) return '';
+        return `<section class="cal-notyet cal-unscheduled-top" aria-labelledby="calNotYetH">
+            <h3 class="cal-notyet-h" id="calNotYetH">Not scheduled yet (${list.length})</h3>
+            <div class="cal-notyet-list">
+                ${list.map(p => _calMonthPillHtml(p)).join('')}
+            </div>
+        </section>`;
     }
     function calMonthShift(n) { calState.monthCursor = _calAddMonthsISO(calState.monthCursor, n); _calRenderBody(); }
     function calMonthToday() { calState.monthCursor = _calIsoFirstOfMonth(new Date()); _calRenderBody(); }
@@ -3168,6 +3186,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         // Same reserve-content tray as the Month tab: SMM always, client when
         // Collaborative mode is on. Drag a pill onto a day column to schedule it.
         const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date && _calPostPassesCardStatus(p)) : [];
+        const undated = _calClientUndatedPosts(hideUnready);
         return `<div class="cal-week-wrap">
             <div class="cal-month-header">
                 <button class="cal-nav-btn" onclick="calWeekShift(-1)" title="Previous week">‹</button>
@@ -3175,7 +3194,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                 <button class="cal-nav-btn" onclick="calWeekShift(1)" title="Next week">›</button>
                 <button class="cal-today-btn" onclick="calWeekToday()">Today</button>
             </div>
-            ${_calUnscheduledTrayHtml(unsched)}
+            ${_calUnscheduledTrayHtml(unsched)}${_calUndatedReadOnlyHtml(undated)}
             <div class="cal-week-viewport">
             <div class="cal-week-grid">
                 ${days.map((iso) => {

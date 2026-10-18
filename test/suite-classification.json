@@ -1824,6 +1824,14 @@
       "ci": "representative"
     },
     {
+      "file": "client-calendar-read-only-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and token, with Collaborative mode and an undated card switched on by the test), no hosted credentials and no live data. Checks that on a client link the Sheet's caption, call to action and date are read only (Collaborative mode on or off, review page on or off, at 1440 and 390) and that typing, pasting, dropping, blurring or calling the page's handlers saves nothing, that Month and Week offer no dragging and no Unscheduled list, that Notes still send, that the Sheet's Video button opens the in-app viewer (video left, notes right) when the viewer switch is on and the old link when it is off, and that the staff Calendar is unchanged.",
+      "reproduce": "node test/client-calendar-read-only-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-smooth-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

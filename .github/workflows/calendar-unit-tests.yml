@@ -923,6 +923,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-save-browser.js
+      - name: Client link Calendar is read only and its video button opens the in-app viewer (caption, call to action, dates, Month and Week drag; staff unchanged)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/client-calendar-read-only-browser.js
       - name: Smooth part switching on the new review page (only the media fades; panel, header, strip never blink)
         if: ${{ !cancelled() }}
         env:

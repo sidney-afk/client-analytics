@@ -903,7 +903,7 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/staff-first-paint-browser.js
-      - name: Staff never see Analytics while it is hidden (Home, #client, logo, Back and Forward open the Calendar; shown changes nothing)
+      - name: Staff never see Analytics while it is hidden (Home, client addresses, logo, Back and Forward open the Calendar; shown changes nothing)
         if: ${{ !cancelled() }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

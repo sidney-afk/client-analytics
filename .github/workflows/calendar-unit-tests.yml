@@ -1143,6 +1143,10 @@ jobs:
           retention-days: 30
 
   review-gauntlet-three:
+    # Gated like the other browser jobs: a pull request that cannot reach the page (docs only) must not queue nine
+    # long legs on the shared guards seat.
+    needs: changes
+    if: needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

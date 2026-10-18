@@ -218,6 +218,9 @@ svg{display:block;flex-shrink:0}
 .view{flex:1 1 auto;min-height:0;position:relative;container-type:size;display:flex;align-items:center;justify-content:center}
 .mbox{position:relative;display:flex;align-items:center;justify-content:center;transition:opacity .16s var(--ease),transform .16s var(--ease)}
 .view.swap .mbox{opacity:0;transform:scale(.985)}
+.rs.calm .bub,.rs.calm .sugg,.rs.calm .compose,.rs.xpost .bub,.rs.xpost .sugg,.rs.xpost .compose,.rs.grow .bub:not(:last-child),.rs.grow .sugg,.rs.grow .compose{animation:none}
+.rs.xpost .ch-scroll{animation:rsXf .26s var(--ease)}
+@keyframes rsXf{from{opacity:.35}to{opacity:1}}
 .player,.bigthumb{--aw:9;--ah:16;position:relative;width:min(100cqw,calc(100cqh * var(--aw) / var(--ah)));aspect-ratio:var(--aw)/var(--ah);border-radius:12px;overflow:hidden;background:var(--media-bg);box-shadow:0 0 0 1px var(--border-light)}
 .player.land,.bigthumb.land{--aw:16;--ah:9}
 .player{container-type:inline-size}
@@ -1031,7 +1034,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsMount(container, mode, key) {
         const fresh = !R.host || !R.host.isConnected || R.mode !== mode || R.key !== key;
-        if (R.mode !== mode || R.key !== key) { R.S = _rsFreshState(); }
+        if (R.mode !== mode || R.key !== key) { R.S = _rsFreshState(); R.chatKey = null; }
         R.mode = mode; R.key = key;
         // The client link's page sits above the calendar (its header heads every tab); the others below it.
         const above = mode === 'client';
@@ -1131,8 +1134,20 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         _rsQ('recap').hidden = !empty;
         _rsQ('stage').classList.toggle('is-empty', empty);
         if (empty) { _rsStageOff(); _rsRecap(); return; }
-        _rsSide(m); _rsStepper(m); _rsMedia(m); _rsCard(m); _rsDecide(); _rsChat(m);
+        _rsSide(m); _rsStepper(m); _rsMedia(m); _rsCard(m); _rsDecide(); _rsChatCalm(m); _rsChat(m);
         if (!R.S.hinted) _rsHint(m);
+    }
+    /* The conversation is drawn again on every change, so its entrance animations would replay and the whole panel
+       would fade out and in. Same post, same messages: no animation. A new message on this post: only it rises.
+       Another post: its messages cross-fade softly. (The panel itself never leaves the screen.) */
+    function _rsChatCalm(m) {
+        const rs = R.root.querySelector('.rs');
+        if (!rs) return;
+        const n = m.thread.length, prev = R.chatKey || null;
+        R.chatKey = { id: m.id, n };
+        rs.classList.remove('calm', 'grow', 'xpost');
+        void rs.offsetWidth;
+        rs.classList.add(!prev ? 'calm' : prev.id !== m.id ? 'xpost' : n > prev.n ? 'grow' : 'calm');
     }
     function _rsHeader() {
         const n = _rsQ('rsName');
@@ -1145,6 +1160,20 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (b) { const c = _rsQueue().filter(x => !_rsAnswered(x)).length; b.textContent = String(c); b.hidden = !c; }
         const hp = _rsQ('rsHelp');
         if (hp) hp.hidden = !svRsHelpUrl();
+    }
+    /* Smooth switching (owner feedback 2026-10-17, session Curtain Nine): nothing outside the media may blink when the
+       part or the post changes. A region is rewritten only when its markup changed, and an image already decoded on
+       screen is moved into the new markup instead of being loaded again (a fresh <img> paints blank for a frame).
+       Answers whether it rewrote. */
+    function _rsPut(el, html) {
+        if (!el) return false;
+        if (el.__rsHtml === html) return false;
+        const have = new Map();
+        el.querySelectorAll('img[src]').forEach(i => { if (i.complete && i.naturalWidth) { const k = i.getAttribute('src'); if (!have.has(k)) have.set(k, []); have.get(k).push(i); } });
+        el.innerHTML = html;
+        el.__rsHtml = html;
+        if (have.size) el.querySelectorAll('img[src]').forEach(i => { const l = have.get(i.getAttribute('src')); const o = l && l.shift(); if (o) { o.className = i.className; i.replaceWith(o); } });
+        return true;
     }
     function _rsChipImg(m) {
         return '<span class="sl"><span class="si' + (m.land ? ' l' : '') + '">' + (m.thumb ? '<img alt="" loading="lazy" src="' + _re(m.thumb) + '">' : '') + '</span></span>';
@@ -1162,30 +1191,33 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const cur = _rsCur();
         const sl = _rsQ('skList'), sh = _rsQ('skHead');
         const keep = sl.scrollLeft;
+        let fresh = false;
         if (R.mode !== 'kasper') {
             const q = _rsQueue();
             const open = q.filter(x => !_rsAnswered(x)).length;
             const done = R.mode === 'client' ? 'You can still change your mind' : 'Approve sends to Kasper';
-            sh.innerHTML = '<b class="num">' + (open ? open + ' waiting for you' : 'Nothing else waiting') + '</b><span class="num">' + (open ? (R.mode === 'smm' ? 'Approve sends to Kasper' : '') : done) + '</span>';
+            _rsPut(sh, '<b class="num">' + (open ? open + ' waiting for you' : 'Nothing else waiting') + '</b><span class="num">' + (open ? (R.mode === 'smm' ? 'Approve sends to Kasper' : '') : done) + '</span>');
             const fin = (calState.posts || []).filter(p => R.S.finished.has(p.id)).map(p => _rsModel(p, R.mode, null));
-            sl.innerHTML = q.map(m => _rsChip(m, cur)).join('') + (fin.length ? '<span class="sk-sep" aria-hidden="true"></span>' + fin.map(m => {
+            fresh = _rsPut(sl, q.map(m => _rsChip(m, cur)).join('') + (fin.length ? '<span class="sk-sep" aria-hidden="true"></span>' + fin.map(m => {
                 const ch = m.parts.some(x => x.st === 'chg');
                 return '<button class="chipp done" type="button" data-reopen="' + _re(m.id) + '" title="Open it again" aria-label="' + _re(m.title) + ', done. Open it again">' + _rsChipImg(m) + '<span class="cx"><span class="cn">' + _re(m.title) + '</span>' + _rsDots(m) + '</span><span class="dk' + (ch ? ' chg' : '') + '">' + (ch ? RI.back : RI.check) + '</span></button>';
-            }).join('') : '');
+            }).join('') : ''));
         } else {
             const k = _rsKasperModels();
             const open = k.urgent.length + k.waiting.length;
-            sh.innerHTML = '<b class="num">' + (open ? open + ' to review' : 'All caught up') + '</b><span class="num">' + (k.urgent.length ? k.urgent.length + ' urgent' : open ? 'Oldest first' : 'Nothing waiting on you') + '</span>';
+            _rsPut(sh, '<b class="num">' + (open ? open + ' to review' : 'All caught up') + '</b><span class="num">' + (k.urgent.length ? k.urgent.length + ' urgent' : open ? 'Oldest first' : 'Nothing waiting on you') + '</span>');
             const h = [];
             if (k.urgent.length) h.push('<div class="sk-grp"><span class="sk-lab urg"><span class="r">' + RI.bell + 'Urgent</span><span class="c num">' + k.urgent.length + '</span></span>' + k.urgent.map(m => _rsChip(m, cur)).join('') + '</div>');
             if (k.waiting.length) h.push('<div class="sk-grp"><span class="sk-lab"><span class="r">Waiting for your review</span><span class="c num">' + k.waiting.length + '</span></span>' + k.waiting.map(m => _rsChip(m, cur)).join('') + '</div>');
             if (k.tweaks.length) h.push('<div class="sk-grp"><button class="sk-lab" type="button" id="edTog" aria-expanded="' + !!R.S.edOpen + '"><span class="r">With the editors <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg></span><span class="c num">' + k.tweaks.length + ' tweaks pending</span></button>' + (R.S.edOpen || (cur && cur.sec === 'tweaks') ? k.tweaks.map(m => _rsChip(m, cur)).join('') : '') + '</div>');
-            sl.innerHTML = h.join('<span class="sk-sep" aria-hidden="true"></span>');
+            fresh = _rsPut(sl, h.join('<span class="sk-sep" aria-hidden="true"></span>'));
             const t = _rsQ('edTog');
-            if (t) t.addEventListener('click', () => { R.S.edOpen = !R.S.edOpen; _rsStrip(); });
+            if (t && fresh) t.addEventListener('click', () => { R.S.edOpen = !R.S.edOpen; _rsStrip(); });
         }
-        sl.querySelectorAll('[data-id]').forEach(b => b.addEventListener('click', () => _rsGo(b.dataset.id)));
-        sl.querySelectorAll('[data-reopen]').forEach(b => b.addEventListener('click', () => { R.S.finished.delete(b.dataset.reopen); _rsGo(b.dataset.reopen); }));
+        if (fresh) {
+            sl.querySelectorAll('[data-id]').forEach(b => b.addEventListener('click', () => _rsGo(b.dataset.id)));
+            sl.querySelectorAll('[data-reopen]').forEach(b => b.addEventListener('click', () => { R.S.finished.delete(b.dataset.reopen); _rsGo(b.dataset.reopen); }));
+        }
         sl.scrollLeft = keep;
         const c = sl.querySelector('.cur');
         if (c) { const l = c.offsetLeft, r = l + c.offsetWidth; if (l < sl.scrollLeft || r > sl.scrollLeft + sl.clientWidth) sl.scrollLeft = Math.max(0, l - 40); }
@@ -1200,7 +1232,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const meta = R.mode === 'kasper'
             ? '<span class="tm">' + (m.flag ? '<span class="flag">' + RI.bell + _re(m.flag) + '</span>' : '') + '<span>' + _re(m.note) + '</span></span>'
             : '';
-        _rsQ('side').innerHTML = '<div class="sd-t">' + who + '<h2>' + _re(m.title) + '</h2>' + meta + '</div>';
+        _rsPut(_rsQ('side'), '<div class="sd-t">' + who + '<h2>' + _re(m.title) + '</h2>' + meta + '</div>');
         const d = _rsQ('sdate');
         d.innerHTML = m.date ? RI.cal + _re(m.date) : '';
         d.hidden = !m.date;
@@ -1285,12 +1317,28 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const m = _rsCur();
         if (!m || !m.parts.some(x => x.key === k)) return;
         if (R.S.step === k) { _rsRender({ force: true }); return; }
-        R.S.step = k; R.S.menu = '';
-        if (R.S.editing && R.S.editing !== k) R.S.editing = '';
+        _rsSwap(() => {
+            R.S.step = k; R.S.menu = '';
+            if (R.S.editing && R.S.editing !== k) R.S.editing = '';
+        });
+    }
+    /* Change what is on stage: only the media fades (out, the change, back in); everything around it stays put. */
+    let _rsSwapT = null;
+    function _rsSwap(apply) {
         const v = _rsQ('view');
-        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) { _rsRender({ force: true }); return; }
+        if (!v || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) { apply(); _rsRender({ force: true }); return; }
+        if (_rsSwapT) { clearTimeout(_rsSwapT.t); _rsSwapT.apply(); }
         v.classList.add('swap');
-        setTimeout(() => { _rsRender({ force: true }); _rsQ('view').classList.add('swap'); requestAnimationFrame(() => requestAnimationFrame(() => _rsQ('view').classList.remove('swap'))); }, 150);
+        const job = { apply, t: 0 };
+        job.t = setTimeout(() => {
+            _rsSwapT = null;
+            apply();
+            _rsRender({ force: true });
+            const nv = _rsQ('view'); if (!nv) return;
+            nv.classList.add('swap');
+            requestAnimationFrame(() => requestAnimationFrame(() => nv.classList.remove('swap')));
+        }, 150);
+        _rsSwapT = job;
     }
     function _rsCard(m) {
         const S = R.S, k = S.step, tc = _rsQ('tcard');
@@ -1701,9 +1749,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const all = _rsAll();
         const m = all.find(x => x.id === id);
         if (!m) return;
-        Object.assign(R.S, { curId: id, note: _rsBlankNote(), editing: '', fold: false, saved: null, menu: '' });
-        R.S.step = _rsFirstStep(m);
-        _rsRender({ force: true });
+        _rsSwap(() => {
+            Object.assign(R.S, { curId: id, note: _rsBlankNote(), editing: '', fold: false, saved: null, menu: '' });
+            R.S.step = _rsFirstStep(m);
+        });
     }
     function _rsFinish() {
         const m = _rsCur();
@@ -1720,10 +1769,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         }
         const rest = _rsQueue().filter(x => x.id !== m.id);
         const nxt = rest[Math.min(Math.max(i, 0), rest.length - 1)] || null;
-        R.S.curId = nxt ? nxt.id : null;
-        R.S.step = nxt ? _rsFirstStep(nxt) : '';
-        R.S.note = _rsBlankNote(); R.S.editing = '';
-        _rsRender({ force: true });
+        const go = () => {
+            R.S.curId = nxt ? nxt.id : null;
+            R.S.step = nxt ? _rsFirstStep(nxt) : '';
+            R.S.note = _rsBlankNote(); R.S.editing = '';
+        };
+        if (nxt) _rsSwap(go); else { go(); _rsRender({ force: true }); }
         _rsToast(msg + (nxt ? '. Next up: ' + nxt.title : ''), R.mode !== 'kasper' ? m.id : '');
     }
     let _rsTT = null;

@@ -126,6 +126,11 @@ No more "Saving..." words (same session, item 2): the pressed button shows a sma
 reduced motion) and the other buttons wait; the step's "Saved" mark and the spoken confirmation come when the server
 answers, not on the click; and on a switched-on client link the old "Sending..." toast no longer shows for a first send
 (it still shows for a held re-send). Screenshots: `docs/audits/review-stage-curtain-nine/`.
+Smooth switching (same session, item 3): changing the part (step bar, the next part after an answer) or the post (a
+strip chip, Finish) fades only the media; the header, strip, title, step bar and conversation stay on screen. The
+conversation no longer replays its entrance animation on every redraw (only a new message rises; another post's
+messages cross-fade softly), and the strip keeps its decoded thumbnails instead of making them again. Test:
+`node test/review-stage-smooth-browser.js` (records every frame).
 
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone

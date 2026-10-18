@@ -863,6 +863,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-save-browser.js
+      - name: Smooth part switching on the new review page (only the media fades; panel, header, strip never blink)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-smooth-browser.js
 
 
   split-preview:

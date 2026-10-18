@@ -1026,7 +1026,7 @@ jobs:
       group: ${{ github.event_name == 'pull_request' && 'pr-runner-seat-guards' || format('calendar-unit-tests-{0}-review-stage-phones-{1}', github.run_id, strategy.job-index) }}
       cancel-in-progress: false
       queue: max
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

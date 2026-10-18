@@ -6348,6 +6348,104 @@ async function handleComponentFill(
   });
 }
 
+/*
+ * THE RAW COPY, STORED FIRST (owner goal 2026-10-18: an upload must never be
+ * lost). Everything else on this path derives rows from the request: if a later
+ * step refuses it, half-applies it or is rolled back, the words the person typed
+ * must still exist somewhere staff can read. So the request body is written to
+ * `intake_raw_submissions` as received, keyed by its request id, as soon as the
+ * caller is accepted (a public caller only after the rate-limit ledger took the
+ * slot) and before any row is built from it. A retry of the same request id
+ * counts as another attempt on the same row, so the copy stays one per upload.
+ *
+ * BEST EFFORT BY DESIGN: this never throws and never refuses a submission. The
+ * table is created by a migration the gateway may deploy ahead of; a missing
+ * table must not stop uploads, because the browser still holds the draft and
+ * the created rows are themselves a record.
+ */
+const INTAKE_RAW_MAX_CHARS = 600000;
+
+function intakeRawBody(body: JsonMap): JsonMap {
+  // Credentials travel in headers; strip anything secret-shaped from the body anyway.
+  const kept: JsonMap = {};
+  for (const [key, value] of Object.entries(body)) {
+    if (/token|secret|password|authorization|apikey|api_key|x-syncview-key/i.test(key)) continue;
+    kept[key] = value;
+  }
+  const text = JSON.stringify(kept);
+  if (text.length <= INTAKE_RAW_MAX_CHARS) return kept;
+  return { truncated: true, original_chars: text.length, head: text.slice(0, INTAKE_RAW_MAX_CHARS) };
+}
+
+async function recordIntakeRaw(
+  supabase: SupabaseClient,
+  requestId: string,
+  clientSlug: string,
+  surface: string,
+  receivedAs: string,
+  body: JsonMap,
+  itemCount: number,
+): Promise<void> {
+  try {
+    const { error } = await supabase.from("intake_raw_submissions").insert({
+      request_id: requestId, client_slug: clientSlug, surface, received_as: receivedAs,
+      item_count: itemCount, raw_body: intakeRawBody(body),
+    });
+    if (!error) return;
+    if (error.code === "23505") {
+      const { data } = await supabase.from("intake_raw_submissions")
+        .select("attempts").eq("request_id", requestId).maybeSingle();
+      await supabase.from("intake_raw_submissions").update({
+        attempts: Number(data && data.attempts || 1) + 1, last_received_at: new Date().toISOString(),
+      }).eq("request_id", requestId);
+      return;
+    }
+    console.error("intake raw copy not stored", clean(error.code));
+  } catch (_error) {
+    console.error("intake raw copy not stored");
+  }
+}
+
+async function recordIntakeOutcome(supabase: SupabaseClient, requestId: string, outcome: string, detail: string): Promise<void> {
+  try {
+    await supabase.from("intake_raw_submissions").update({
+      outcome, outcome_detail: detail.slice(0, 200), outcome_at: new Date().toISOString(),
+    }).eq("request_id", requestId);
+  } catch (_error) {
+    // Best effort, as above.
+  }
+}
+
+async function intakeOutcomeFromResponse(supabase: SupabaseClient, requestId: string, response: Response): Promise<void> {
+  let result: JsonMap = {};
+  try { result = parseJson(await response.clone().json()); } catch (_error) { /* not JSON */ }
+  if (response.ok && result.native_committed === true) {
+    await recordIntakeOutcome(supabase, requestId, "created", "");
+  } else if (response.ok) {
+    await recordIntakeOutcome(supabase, requestId, "accepted_not_committed", String(response.status));
+  } else {
+    await recordIntakeOutcome(supabase, requestId, "refused", clean(result.error) || String(response.status));
+  }
+}
+
+/* Staff read of the raw copies: newest first, no body unless one request id is asked for. */
+async function handleIntakeRawList(supabase: SupabaseClient, req: Request, body: JsonMap): Promise<Response> {
+  const principal = await authenticate(supabase, req, body, "");
+  if (principal.kind !== "staff" || !["admin", "smm"].includes(principal.keyRole)) {
+    throw new GatewayError(403, "operation_forbidden");
+  }
+  const requestId = clean(body.request_id);
+  const columns = requestId
+    ? "request_id,client_slug,surface,received_as,item_count,attempts,outcome,outcome_detail,first_received_at,last_received_at,outcome_at,raw_body"
+    : "request_id,client_slug,surface,received_as,item_count,attempts,outcome,outcome_detail,first_received_at,last_received_at,outcome_at";
+  let query = supabase.from("intake_raw_submissions").select(columns);
+  if (requestId) query = query.eq("request_id", requestId);
+  const limit = Math.min(Math.max(Number(body.limit) || 50, 1), 200);
+  const { data, error } = await query.order("first_received_at", { ascending: false }).limit(limit);
+  if (error) throw new GatewayError(503, "intake_raw_unavailable");
+  return json({ ok: true, contract: "intake-raw-list-v1", rows: data || [] });
+}
+
 async function handleIntakeCreate(
   supabase: SupabaseClient,
   req: Request,
@@ -6482,6 +6580,7 @@ async function handleIntakeCreate(
     });
     if (logError) throw new GatewayError(503, "public_intake_rate_unavailable");
   }
+  await recordIntakeRaw(supabase, requestId, client.slug, surface, publicIntake ? "public-intake" : "staff", body, items.length);
   const epochDedups = await Promise.all(items.map(async (item, index) =>
     dedupKey("create", "deliverable", await deterministicNativeId("del", requestId, `${normalizeTeam(item.team)}:${index}`), requestId)));
   const nativeEpochByTeam = await intakeEpochs(supabase, principal, requestId,
@@ -7554,6 +7653,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!url || !key) return json({ ok: false, error: "service_unavailable" }, 503);
   const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 
+  let intakeRequestId = "";
   try {
     const rawRequest = req.clone();
     const body = await req.json().catch(() => null) as JsonMap | null;
@@ -7585,6 +7685,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     if (lower(body.action) === "intake_editor_options") {
       return await handleIntakeEditorOptions(supabase, req, body);
+    }
+    if (lower(body.action) === "intake_raw_list") {
+      return await handleIntakeRawList(supabase, req, body);
     }
     if (lower(body.action) === "create_options") {
       return await handleCreateOptions(supabase, req, body);
@@ -7624,10 +7727,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (operation === "component_fill") {
       return await handleComponentFill(supabase, req, body, surface, requestId, sourceEditedAt);
     }
-    return operation === "intake_create"
-      ? await handleIntakeCreate(supabase, req, body, surface, requestId, sourceEditedAt)
-      : await handleEntityOperation(supabase, req, body, operation, surface, requestId, sourceEditedAt);
+    if (operation === "intake_create") {
+      intakeRequestId = requestId;
+      const response = await handleIntakeCreate(supabase, req, body, surface, requestId, sourceEditedAt);
+      await intakeOutcomeFromResponse(supabase, requestId, response);
+      return response;
+    }
+    return await handleEntityOperation(supabase, req, body, operation, surface, requestId, sourceEditedAt);
   } catch (error) {
+    if (intakeRequestId) {
+      await recordIntakeOutcome(supabase, intakeRequestId, "refused",
+        error instanceof GatewayError ? error.code : "write_failed");
+    }
     if (error instanceof GatewayError) {
       return await reportGatewayRefusal(supabase, req, error, json({ ok: false, error: error.code, ...(error.detail || {}) }, error.status));
     }

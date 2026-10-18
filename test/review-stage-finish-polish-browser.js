@@ -153,6 +153,31 @@ const reload = async t => { await t.page.reload({ waitUntil: 'domcontentloaded' 
       await t.ctx.close();
     });
 
+    await section('5b', async () => {
+      console.log('--- 5b. Month and Week thumbnails with the viewer switched off behave as before ---');
+      const t = await openClient(browser, origin, { flags: 'on', frame: 'off', finished: true });
+      await waitNew(t); await sleep(600);
+      const novid = t.state.cards.find(c => c.id === 'rf3'); novid.asset_url = ''; novid.updated_at = new Date().toISOString();
+      await t.page.evaluate(() => loadCalendarPosts({ background: true, quiet: true })); await sleep(1500);
+      const viewerOpen = () => t.page.evaluate(() => !!document.querySelector('#calNotesStage .fv-player') && document.getElementById('calCommentsOverlay').classList.contains('open'));
+      const previewOpen = () => t.page.evaluate(() => { const o = document.getElementById('calPreviewOverlay'); return !!o && /open|active|show/.test(o.className); });
+      for (const tab of ['month', 'week']) {
+        await t.page.evaluate(x => { onCalViewChange(x); }, tab);
+        await t.page.evaluate(() => { calState.monthCursor = '2026-10-01'; calState.weekCursor = '2026-10-12'; _calRenderBody(); });
+        await sleep(900);
+        const sel = tab === 'month' ? '.cal-month-pill' : '.cal-week-card';
+        const thumbOf = name => t.page.locator(sel, { hasText: name }).first().locator(tab === 'month' ? '.cal-month-pill-thumb' : '.cal-week-card-thumb');
+        for (const name of ['Behind the scenes', 'Monday reset']) {
+          await thumbOf(name).click(); await sleep(1200);
+          expect(await previewOpen() && !await viewerOpen(), '5b: ' + tab + ': with the viewer off the thumbnail of "' + name + '" opens the small preview, as before');
+          await t.page.evaluate(() => { try { closeCalPreview(); } catch (e) {} const o = document.getElementById('calPreviewOverlay'); if (o) o.className = o.className.replace(/\b(open|active|show)\b/g, '').trim(); });
+          await t.page.keyboard.press('Escape'); await sleep(500);
+        }
+      }
+      expect(!t.errors.length, '5b: no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    });
+
     await section('6', async () => {
       console.log('--- 6. Unsent words survive a reload ---');
       let t = await openClient(browser, origin, { flags: 'on' });
@@ -199,6 +224,27 @@ const reload = async t => { await t.page.reload({ waitUntil: 'domcontentloaded' 
       const chip = await inS(t.page, '#compose').evaluate(e => e.className + ' | ' + e.textContent).catch(() => '');
       expect(await inS(t.page, '#ta').inputValue().catch(() => '') === 'Reopen the thumbnail' && /\bchg\b/.test(chip) && /reopen it/.test(chip), '6: words about an approved part come back about that part (' + chip.replace(/\s+/g, ' ').slice(0, 60) + ')');
       expect(!t.errors.length, '6: no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+
+      console.log('--- 6c. Kept words keep the status their part had (combined with the kept-draft fix of #2214) ---');
+      t = await openClient(browser, origin, { flags: 'on' });
+      await waitNew(t); await sleep(800);
+      await inS(t.page, '#skList .chipp[data-id="rs3"]').click(); await sleep(900);
+      const wKey = await inS(t.page, '[data-pc]').first().getAttribute('data-pc');
+      await inS(t.page, '[data-pc]').first().click(); await sleep(300);
+      await inS(t.page, '#ta').fill('Words for a part that gets approved while the page is closed');
+      const kept = JSON.parse(await stored(t) || '{}').rs3 || {};
+      expect(kept.part === wKey && kept.was === 'wait', '6c: storage keeps the part and the status it had when picked (' + JSON.stringify({ part: kept.part, was: kept.was }) + ')');
+      const c3 = t.state.cards.find(c => c.id === 'rs3'); const col = { video: 'video_status', graphic: 'graphic_status', thumbnail: 'graphic_status', thumb: 'graphic_status', caption: 'caption_status' }[wKey];
+      if (col) { c3[col] = 'Approved'; c3.updated_at = new Date().toISOString(); }
+      await reload(t);
+      expect(await inS(t.page, '#skList .chipp.cur').getAttribute('data-id') === 'rs3' && (await inS(t.page, '[data-pc][aria-pressed="true"]').getAttribute('data-pc').catch(() => '')) === wKey, '6c: after the reload the words are on that post and still name their part');
+      const n0 = t.state.upserts.length;
+      await inS(t.page, (await inS(t.page, '#sendBtn').count()) ? '#sendBtn' : '#cmtBtn').click(); await sleep(1500);
+      expect(!t.state.upserts.slice(n0).some(u => u[col] === 'Tweaks Needed') && t.state.cards.find(c => c.id === 'rs3')[col] === 'Approved', '6c: no change request reopens the part approved meanwhile');
+      const noteOn = await t.page.evaluate(k => { const p = calState.posts.find(x => x.id === 'rs3'); return JSON.stringify(p[k + '_tweaks'] || ''); }, wKey);
+      expect(/page is closed/.test(noteOn), '6c: the words went to the team as a note on that part');
+      expect(!t.errors.length, '6c: no page errors (' + t.errors.join(' | ') + ')');
       await t.ctx.close();
 
       console.log('--- 6b. With browser storage blocked ---');

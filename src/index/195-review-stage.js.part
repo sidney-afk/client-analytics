@@ -925,7 +925,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             let stale = false;
             Object.keys(raw).forEach(id => {
                 const d = raw[id];
-                if (d && typeof d.text === 'string' && d.text.trim() && now - Number(d.at || 0) < RS_DRAFT_TTL_MS) out[id] = { text: d.text, part: d.part || null, vis: d.vis === 'client' ? 'client' : 'team', was: d.was || '', aat: !!d.aat, at: Number(d.at) };
+                if (d && typeof d.text === 'string' && d.text.trim() && now - Number(d.at || 0) < RS_DRAFT_TTL_MS) out[id] = { text: d.text, part: d.part || null, vis: d.vis === 'client' ? 'client' : 'team', was: ['wait', 'ok', 'chg', 'tweak'].indexOf(d.was) >= 0 ? d.was : '', aat: !!d.aat, at: Number(d.at) };
                 else stale = true;
             });
             // Words past their 7 days are removed from storage, not just left out of the answer.
@@ -971,6 +971,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             const stored = _rsStoreRead();
             Object.keys(stored).forEach(id => { if (!S.drafts[id]) S.drafts[id] = stored[id]; });
         }
+        // The list may still be the saved copy from an earlier visit (calState.fromCache): it can lack a post that
+        // is waiting now, so nothing is dropped until the live list has landed.
+        if (calState.fromCache) return;
         let gone = false;
         Object.keys(S.drafts).forEach(id => { if (!live.has(id)) { delete S.drafts[id]; gone = true; } });
         if (gone || S.draftsSwept !== true) {
@@ -1180,7 +1183,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             m = q[0] || null;
             // A reload: open on the post whose unsent words were kept, so they are in front of the client again.
             if (!had && R.mode === 'client') { const kp = _rsDraftPick(q); if (kp) m = kp; }
-            if (had) _rsDraftDrop(had);
+            if (had && all.length && !calState.fromCache && !calState.loading) _rsDraftDrop(had);
             R.S.curId = m ? m.id : null;
             R.S.step = m ? _rsFirstStep(m) : '';
             // The post on stage left the list (archived, or moved): typed words stay in the box, about no part, so

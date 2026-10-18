@@ -247,7 +247,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _calCrqClientWords(errorText) {
         const raw = String(errorText || '');
         if (/native_link_required|linked to a Linear|no SyncView work item/i.test(raw)) {
-            return { text: 'This post is not ready for approval yet. Your team has been told.', whole: true };
+            return { text: 'This post is not ready for approval yet. Please let your account manager know.', whole: true };
         }
         const clean = raw.replace(/\s*\(code: [A-Za-z0-9_]+\)/g, '').replace(/\b[a-z0-9]+(?:_[a-z0-9]+)+\b/g, '').replace(/\s{2,}/g, ' ').trim();
         return { text: clean || 'Something went wrong on our side.', whole: false };

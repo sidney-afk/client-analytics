@@ -224,6 +224,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
                 if (done) return; done = true;
                 if (_fvFlagRead && _fvEnabledFor(tile.getAttribute('data-fv-client'))) { tile.setAttribute('data-fv-on', ''); svFrameTileOpen(null, tile); }
                 else if (href) window.open(href, '_blank', 'noopener');
+                else { const host = tile.closest && tile.closest('button'); if (host) host.click(); }   // a Month or Week thumbnail with the viewer off: the click was held, so it opens the small preview now
             };
             _fvFlagPromise.catch(() => null).then(decide);
             setTimeout(decide, 700);
@@ -244,11 +245,21 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        the click behaves as before. Client link only; the staff Calendar draws its own play icon. */
     function svFrameThumbAttrs(rawLink, client, cardId) {
         if (!_isClientLink) return '';
-        if (!cardId || !_fvLinkOf(rawLink)) return ' data-fv-none onclick="return svFrameThumbOpen(event,this)"';
+        if (!cardId || !_fvLinkOf(rawLink)) {
+            _fvPrimeFlag();
+            return ` data-fv-none data-fv-client="${_calEscAttr(_fvFlagSlugOf(client || (calState && calState.client) || ''))}" onclick="return svFrameThumbOpen(event,this)"`;
+        }
         return svFrameTileAttrs(rawLink, client, cardId, '').replace('onclick="return svFrameTileOpen(event,this)"', 'onclick="return svFrameThumbOpen(event,this)"');
     }
     function svFrameThumbOpen(ev, el) {
-        if (!el || !el.hasAttribute('data-fv-tile')) { if (ev && ev.stopPropagation) ev.stopPropagation(); return false; }
+        if (!el) return true;
+        if (!el.hasAttribute('data-fv-tile')) {
+            // No video: with the viewer on for this client the click opens nothing and does not fall through to the
+            // small preview. With the switch off (or not read yet) the thumbnail behaves as before.
+            if (!_fvFlagRead || !_fvEnabledFor(el.getAttribute('data-fv-client'))) return true;
+            if (ev && ev.stopPropagation) ev.stopPropagation();
+            return false;
+        }
         return svFrameTileOpen(ev, el);
     }
     // The keyboard's way to the same door: Enter or Space on a client's Month or Week post (a click with no pointer,

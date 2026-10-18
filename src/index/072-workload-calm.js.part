@@ -355,7 +355,7 @@ import { svWorkloadCalmOn, svWorkloadCalmPending } from './188-review-stage-swit
         root.addEventListener('keydown', (e) => {
             if (!_calm || (e.key !== 'Enter' && e.key !== ' ')) return;
             const toggle = e.target.closest && e.target.closest('[data-wl-calm-toggle]');
-            if (toggle && e.target === toggle) { e.preventDefault(); toggle.click(); }
+            if (toggle) { e.preventDefault(); toggle.click(); }
         });
         // A client group the person opened stays open through the redraw every save causes.
         root.addEventListener('toggle', (e) => {

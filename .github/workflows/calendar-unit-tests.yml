@@ -910,6 +910,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/first-paint-theme-browser.js
+      - name: Client link in a dark browser, frame by frame (dark from the first frame, loading screen in the page's shape)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/client-link-dark-first-paint-browser.js
       - name: Staff pages first paint, frame by frame (header never moves, no bare Loading line, phone title bar first)
         if: ${{ !cancelled() }}
         env:

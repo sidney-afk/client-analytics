@@ -33487,6 +33487,16 @@ Follow-up to 433, which left a reset of a read the app never retries as a failur
 
 **Way back:** revert the pull request.
 
+## 435. [2026-10-18, BUILT, NOT MERGED] The daily Clients Info parity stayed red after any Clients tab edit, even when the Sheet copy matched (session Tally)
+
+The parity compared each active client's stored `row_hash` with a hash of the Sheet row. Only the Sheet copy and the backfill write that stored hash; the native edits (`client_profile_admin_edit`, `client_profile_service_write`) change the values without recomputing it. Measured on the test client: the Sheet row and the database values hash identically, the stored hash is the one from before `slack_channel_id` was set natively on 2026-10-02. The field behind the stale hash is `slack_channel_id`; the 2026-10-18 email add-and-remove nets to nothing.
+
+Fixed in `scripts/sheets-mirror-parity.js` only: the Clients Info side now hashes the row's current values with the same `rowHash` (display name standing for `client_name`). No migration, nothing for Lighthouse to apply; it takes effect on merge. The stored `row_hash` column is left as is (nothing reads it for this dataset). Test: `node test/sheets-mirror-profile-parity.js`. The Sheet copy needed no change: null versus empty, multi-line text and the extra column read back to the same fingerprint (checked in the same test).
+
+**Measured live after the fix (review, read-only, counts only):** the parity went from 1 difference to 2, not to clean. The test client now matches. Two other active clients differ for a real reason, not a stale hash: the database holds an Instagram handle (one also a TikTok handle) that the Clients Info cell does not (Sheet cell empty in the export; both rows were last written by the Sheet copy on 2026-10-02; no `client_profile_edits` row explains them; their copy rows are `done`). Their stored `row_hash` had been equal to the Sheet's hash, which is how the old check hid them. That is the check doing its job; the owner or Lighthouse decides which side is right and re-copies (see the copy_to_sheet action) or clears. Also fixed in review: line endings are folded to `\n` on both sides, as the Sheet copy treats them as the same text, and the test now proves both directions column by column and runs the real script end to end (nothing printed carries a value, name or slug).
+
+**Way back:** revert the pull request.
+
 ## 436. [2026-10-18, BUILT, NOT MERGED] The upload form could still lose a send: a full browser store stopped typing and sending, and no server copy of the raw upload existed (session Keepsake)
 
 Audit of the upload link and the Submit tab against every way a send can fail (report `docs/audits/2026-10-18-upload-form-never-lost.md`, test `docs/syncview-design/tests/upload-never-lost-browser.js`, 232 checks, plus `test/intake-raw-copy.js`).

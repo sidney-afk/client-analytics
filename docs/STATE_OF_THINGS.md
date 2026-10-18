@@ -18,6 +18,21 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Client link in a dark browser (session Dusk, 2026-10-18): PR open
+
+Owner report: with dark saved, opening the client review showed a white loading screen, not in the page's shape. Four
+causes, all measured on the live site (test client) and in the fixture. (1) A browser that had not yet seen this link
+switched on painted light until the switch read landed (about 1 s of white); the head script now also reads the other
+list the app already keeps (`sv-rs-on-clients`, written by every switch read, staff pages too, keyed by slug so any
+spelling of the link finds it) and paints dark and review-shaped when it names the client or says all. (2) A switch read
+that failed or timed out (it gives up at 4 s) made the app FORGET the link, so the next visit was white: a read with no
+answer now leaves the memory alone. (3) The loading screen lacked the page's "?" button (the live page shows it, which
+moved the tabs 49 px and shrank them on a phone), had the step and answer buttons at the wrong size and place, and the
+phone's step row 12 px off: all now within 6 px at 1440 and 390, light and dark. (4) Still true and left alone on
+purpose: a browser that has never read the switch (no list names the link) shows light until the read, because a client
+link stays light when the new page is not on for it; and the app does not follow the operating system's dark setting
+anywhere (the sun/moon button is the only switch). Test (fails on main): `node test/client-link-dark-first-paint-browser.js`.
+
 ## Upload form never loses a send (session Keepsake, 2026-10-18): PR open
 
 Audit of the upload link and the Submit tab against every failure path (`docs/audits/2026-10-18-upload-form-never-lost.md`,

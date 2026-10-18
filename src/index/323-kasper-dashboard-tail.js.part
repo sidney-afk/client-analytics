@@ -400,8 +400,8 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
                 <h2 class="cc-title">Clients</h2>
                 <div class="search-bar-wrap ca-search" id="caSearchWrap">
                     <div class="search-bar-pill">
-                        <input class="search-bar-input" id="caSearch" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="caSearchPop"
-                            placeholder="${_caPhone() ? (_syncviewStaffCan('clients-admin') ? 'Search' : 'Search clients') : 'Search name, handle or email'}" value="${_calEscAttr(_caState.search)}" autocomplete="off" spellcheck="false" aria-label="Search clients"
+                        <input class="search-bar-input ca-search-input" id="caSearch" name="sv-client-search" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="caSearchPop"
+                            placeholder="${_caPhone() ? (_syncviewStaffCan('clients-admin') ? 'Search' : 'Search clients') : 'Search name or handle'}" value="${_calEscAttr(_caState.search)}" autocomplete="off" data-1p-ignore data-lpignore="true" spellcheck="false" aria-label="Search clients by name, handle or email"
                             oninput="_caSetSearch(this.value)" onfocus="_caSearchFocus()" onkeydown="_caSearchKey(event)">
                         <button class="search-bar-icon" type="button" tabindex="-1" aria-hidden="true" onclick="document.getElementById('caSearch')?.focus()">${CA_ICONS.search}</button>
                     </div>

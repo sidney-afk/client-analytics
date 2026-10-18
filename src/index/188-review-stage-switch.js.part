@@ -103,7 +103,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
     const RS_HINT_KEY = 'sv-rs-on-clients';
     let _rsPendingShown = false;
     function _rsHintSave(f) {
-        try { localStorage.setItem(RS_HINT_KEY, JSON.stringify(f.all ? { all: true } : { clients: Array.from(f.clients) })); } catch (e) {}
+        try { localStorage.setItem(RS_HINT_KEY, JSON.stringify(Object.assign(f.all ? { all: true } : { clients: Array.from(f.clients) }, { help: !!f.help }))); } catch (e) {}
     }
     function _rsHintHas(client) {
         try {
@@ -137,6 +137,9 @@ import { currentNav } from './065-core-nav-intake-state.js';
         _rsPrime();
         return _rsFlagPromise || Promise.resolve();
     }
+    // Did this visit's switch read come back? (A failed or timed-out read is not an answer: 260 keeps what this
+    // browser remembered about the link instead of forgetting it, so the next visit still paints in its saved theme.)
+    function svRsFlagsLoaded() { return !!_rsFlags.loaded; }
     function _rsClientOn(client) {
         _rsPrime();
         if (!_rsFlags.loaded) return false;
@@ -478,4 +481,4 @@ import { currentNav } from './065-core-nav-intake-state.js';
         if (document.getElementById('kasperContent')) svRsKasperHeadSync();
         if (document.getElementById('kasperReviewBody')) _kasperPaintReview();
     });
-export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics };
+export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics };

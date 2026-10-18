@@ -651,6 +651,7 @@
     "setall-skips-what-it-cannot-set.js",
     "shadow-audit-attribution-classes.js",
     "sheets-mirror-parity-catchup.js",
+    "sheets-mirror-profile-parity.js",
     "sheets-mirror-policy.js",
     "slice5-test-drills.js",
     "smm-client-match.js",
@@ -1775,6 +1776,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token), no hosted credentials and no live data. Refreshes the client link with the new review page on and records every painted frame: dark saved never shows a white frame or the old review list, light saved never shows a dark frame, a link whose switch was turned off goes back to light and is forgotten, and a link never seen switched on stays light.",
       "reproduce": "node test/first-paint-theme-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "client-link-dark-first-paint-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token), no hosted credentials and no live data. Records every painted frame of the client link in a dark browser: a first visit named only by the browser's other switch list (any spelling of the link) is dark from the first frame at 1440 and 390, a failed switch read keeps what the browser remembered, the review page's sun/moon button decides the next load's colours both ways, a link nothing names stays light, and the loading screen's tabs, help button, chip, card, video, step buttons, answer buttons and conversation sit where the loaded page puts them within a few pixels, light and dark.",
+      "reproduce": "node test/client-link-dark-first-paint-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

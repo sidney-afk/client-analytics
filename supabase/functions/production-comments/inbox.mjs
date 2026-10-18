@@ -230,9 +230,15 @@ export function isMine(message, member) {
 // system/automatic/bot, or the client page's caption-change note
 // (src/index/195-review-stage.js.part, RS_EDIT_HEAD).
 const AUTOMATIC_ROLES = new Set(["system", "automatic", "auto", "bot"]);
+// The caption-change note is matched by its WHOLE shape (head, new words, then
+// "It was:" and the old words, or "It was empty."), never by its first words
+// alone: a client who types "Changed the caption to: ..." as a real message
+// must still count as a person talking to you. A missed record only counts
+// once more; a missed person is a message nobody reads.
+const CAPTION_RECORD = /^Changed the caption to:\r?\n\r?\n[\s\S]*\r?\n\r?\nIt was(?: empty\.|:\r?\n\r?\n)/;
 export function isAutomaticRecord(m) {
   if (AUTOMATIC_ROLES.has(clean(m && m.role).toLowerCase())) return true;
-  return isClientMessage(m) && clean(m && m.body).startsWith("Changed the caption to:");
+  return isClientMessage(m) && CAPTION_RECORD.test(clean(m && m.body));
 }
 
 // What counts as NEW (owner, 2026-10-18): only a person talking to you.
@@ -246,10 +252,21 @@ export function countsAsNew(m, member, view) {
   return !(view === "reviewer" && isClientMessage(m));
 }
 
+const readFloor = (lastReadAt, nowMs) => clean(lastReadAt)
+  || new Date((nowMs || Date.now()) - UNREAD_WINDOW_DAYS * 86400000).toISOString();
+
 export function unreadCount(messages, member, lastReadAt, nowMs, view) {
-  const floor = clean(lastReadAt)
-    || new Date((nowMs || Date.now()) - UNREAD_WINDOW_DAYS * 86400000).toISOString();
+  const floor = readFloor(lastReadAt, nowMs);
   return messages.filter((m) => m.created_at > floor && countsAsNew(m, member, view)).length;
+}
+
+// The first message that counts as new, for the phone's "New messages" line.
+// The browser cannot tell which later messages are automatic records, so it
+// must not guess the line's place from the count.
+export function firstUnreadId(messages, member, lastReadAt, nowMs, view) {
+  const floor = readFloor(lastReadAt, nowMs);
+  const hit = messages.find((m) => m.created_at > floor && countsAsNew(m, member, view));
+  return hit ? clean(hit.id) : "";
 }
 
 // The read mark that makes a conversation unread again: just before the
@@ -276,6 +293,7 @@ export function buildConversation(post, messages, member, lastReadAt, nowMs, vie
     last_role: last ? last.role : "",
     last_body: last ? last.body.slice(0, 160) : "",
     unread: unreadCount(messages, member, lastReadAt, nowMs, view),
+    first_unread_id: firstUnreadId(messages, member, lastReadAt, nowMs, view),
     messages,
   };
 }

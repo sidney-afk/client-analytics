@@ -602,7 +602,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             if(draft){_msgState.draft=draft.draft;_msgState.replyTo=draft.replyTo;}
             const incoming=(c?.messages||[]).filter(m=>!_msgIsMine(m));
             const unread=Math.min(incoming.length,Math.max(0,Math.floor(Number(c?.unread)||0)));
-            if(unread)_msgPhone.unread.set(c.post_id,incoming[incoming.length-unread].id);
+            // The server names the first message that counts as new; automatic records and (for the
+            // reviewer) client notes sit among the incoming ones and never count, so the last-N guess
+            // is only the fallback for an answer that carries no id.
+            const named=c&&c.first_unread_id&&incoming.some(m=>m.id===c.first_unread_id)?c.first_unread_id:'';
+            if(unread)_msgPhone.unread.set(c.post_id,named||incoming[incoming.length-unread].id);
             else _msgPhone.unread.delete(c?.post_id);
         }
         if (c && Number(c.unread) > 0) {

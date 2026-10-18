@@ -239,6 +239,24 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
   ok(inbox.unreadCount([capRecord, clientNote, staffNote, ownNote, sysNote], reviewer, '', nowMs, 'reviewer') === 1, 'reviewer view: a mixed thread counts only the manager message');
   ok(inbox.unreadMark([capRecord, staffNote, sysNote], reviewer, 'reviewer') === '2026-10-11T11:59:59.999Z', '"unread" marks before the newest message that counts, not the later record');
 
+  // "Automatic" is the record's whole shape, so a person who types those first words is still a person,
+  // and the words the client page really writes (read from its source, never retyped here) still match.
+  const typed = { id: 'n6', author: 'Fixture Client', role: 'client', body: 'Changed the caption to: the hours please, ok?', created_at: '2026-10-11T15:00:00Z' };
+  ok(inbox.unreadCount([typed], smmOne, '', nowMs, 'smm') === 1, 'SMM view: a client who types the caption-change words as a real message still counts');
+  const rsSrc = fs.readFileSync(path.join(root, 'src/index/195-review-stage.js.part'), 'utf8');
+  const rsHead = (rsSrc.match(/const RS_EDIT_HEAD = '((?:[^'\\]|\\.)*)', RS_EDIT_WAS = '((?:[^'\\]|\\.)*)', RS_EDIT_EMPTY = '((?:[^'\\]|\\.)*)';/) || []).slice(1).map((t) => t && JSON.parse('"' + t.replace(/"/g, '\\"') + '"'));
+  ok(rsHead.length === 3, 'the client page still defines the caption-change words this server recognises');
+  if (rsHead.length === 3) {
+    const real = (now, old) => ({ ...capRecord, body: rsHead[0] + now + (old ? rsHead[1] + old : rsHead[2]) });
+    ok(inbox.isAutomaticRecord(real('New words', 'Old words')) && inbox.isAutomaticRecord(real('New words', '')), "what the client page writes (with and without an old caption) is recognised as an automatic record");
+    ok(inbox.isAutomaticRecord({ ...real('New\nwords', 'Old'), body: real('New\nwords', 'Old').body.replace(/\n/g, '\r\n') }), 'a record whose line breaks became CRLF is still recognised');
+  }
+  // The phone's "New messages" line goes before the first message that counts, not before the last N incoming.
+  const afterRecord = { id: 'n7', author: 'Fixture Client', role: 'client', body: capRecord.body, created_at: '2026-10-11T13:30:00Z' };
+  ok(inbox.firstUnreadId([staffNote, afterRecord], reviewer, '', nowMs, 'reviewer') === 'n3', 'the first new message is named even when an automatic record follows it');
+  ok(inbox.firstUnreadId([capRecord, sysNote], reviewer, '', nowMs, 'reviewer') === '', 'nothing new, no first new message');
+  ok(inbox.buildConversation({ id: 'p9', client: 'x' }, [staffNote, afterRecord], reviewer, '', nowMs, 'reviewer').first_unread_id === 'n3', 'the conversation carries first_unread_id');
+
   const staff = fs.readFileSync(path.join(root, 'src/index/100-onboarding-staff-controls.js.part'), 'utf8');
   const shell = fs.readFileSync(path.join(root, 'src/index/030-body-shell.html.part'), 'utf8');
   ok(/capability === 'messages-button'\) return role === 'admin' \|\| role === 'smm';/.test(staff) && /id="navMessages"[^>]*data-staff-capability="messages-button"/.test(shell), 'the header Messages button shows for admins and SMMs, never editors or designers');

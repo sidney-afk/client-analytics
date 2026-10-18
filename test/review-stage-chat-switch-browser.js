@@ -69,11 +69,13 @@ async function record(page, click, frames) {
 async function staffOnSheet(browser, origin, o) {
   const t = await open(browser, origin, Object.assign({ stage: 'smm', staff: STAFF, finished: true, flagDelay: 400 }, o));
   await t.page.addInitScript(RECORDER);
+  // A browser that saw the switch answer on an earlier visit keeps it as a hint (188, svRsCalPending).
+  if (o && o.hint) await t.page.addInitScript(h => { try { localStorage.setItem('sv-rs-on-clients', h); } catch (e) {} }, o.hint);
   await t.page.goto(origin + '/index.html?v=calendar', { waitUntil: 'domcontentloaded' });
   await t.page.waitForFunction(() => typeof _calSavePins === 'function' && typeof navTo === 'function', null, { timeout: 30000 });
   await t.page.evaluate(name => { try { _syncviewStaffIdentityVerified = true; } catch (e) {} _calSavePins([name]); calState.client = name; calState.view = 'organizer'; navTo('calendar'); }, CLIENT);
   await t.page.waitForFunction(() => typeof calState === 'object' && !calState.loading && (calState.posts || []).length > 0 && calState.view === 'organizer', null, { timeout: 30000 });
-  await sleep(2500);   // the person looks at the Sheet for a moment before clicking Review
+  await sleep(o && o.wait !== undefined ? o.wait : 2500);   // the person looks at the Sheet for a moment before clicking Review
   return t;
 }
 
@@ -108,6 +110,25 @@ async function staffOnSheet(browser, origin, o) {
       expect(R.oldFrames === 0, 'client link: the old Review list never shows on the first switch (' + R.oldFrames + ' frames, first at ' + R.firstOld + ')');
       expect(!c.errors.length, 'client link: no page errors (' + c.errors.join(' | ') + ')');
       await c.ctx.close();
+    }
+
+    console.log('--- SMM Calendar, slow switch read (3 s), Review clicked 0.3 s after Sheet paints, client seen switched on before ---');
+    {
+      // An earlier visit stored the switch answer in this browser; this visit's read is slow and Review is clicked at
+      // once (review of #2167: the live read takes 1.5 to 3.7 s).
+      const t = await staffOnSheet(browser, origin, { flags: 'on', flagDelay: 3000, wait: 300, hint: JSON.stringify({ all: true }) });
+      const R = await record(t.page, () => t.page.locator('#calView .cal-view-btn[data-cal-view="smmreview"]').first().click(), 240);
+      expect(R.newAt > 0, 'slow read: the new page shows once the answer is in (frame ' + R.newAt + ' of ' + R.frames + ')');
+      expect(R.oldFrames === 0, 'slow read: the old Review list never shows while the answer is on its way (' + R.oldFrames + ' frames, first at ' + R.firstOld + ')');
+      await t.ctx.close();
+    }
+
+    console.log('--- SMM Calendar, slow switch read, client seen switched OFF before: the old list comes back as today ---');
+    {
+      const t = await staffOnSheet(browser, origin, { flags: 'off', flagDelay: 3000, wait: 300, hint: JSON.stringify({ clients: [] }) });
+      const R = await record(t.page, () => t.page.locator('#calView .cal-view-btn[data-cal-view="smmreview"]').first().click(), 240);
+      expect(R.oldFrames > 0 && R.newAt < 0, 'slow read, switch off: the old list shows and the new page never does (' + R.oldFrames + ' frames, new at ' + R.newAt + ')');
+      await t.ctx.close();
     }
 
     console.log('--- SMM Calendar, switch off: the probe sees the old list ---');

@@ -101,8 +101,10 @@ main. Test: `node test/review-stage-one-system-browser.js`.
 first Sheet to Review switch. It was the staff Calendar only (the client link was already clean): the switch was first
 read when Review was clicked, so that first paint drew the old list until the answer came back. The switch is now read
 as soon as the Calendar paints any tab for a client, and for a switched-on client the new page's code is fetched while
-on Sheet, so the first click draws the new page at once. Left as is: a Review click in the first moment after the page loads,
-before the switch has answered at all (bounded at 4 s), still shows today's list until the answer arrives. (2) The conversation panel is the approved phone-style chat on all
+on Sheet, so the first click draws the new page at once. The live read takes 1.5 to 3.7 s, so a Review click before it answers
+shows the Calendar's loader instead of the old list whenever this browser last saw the client switched on (a hint kept
+in the browser; it never shows the new page by itself, and a client it does not list keeps today's instant old list).
+Left as is: the very first visit from a browser that never saw the switch answer (Lighthouse, review of #2167). (2) The conversation panel is the approved phone-style chat on all
 three versions, light and dark: bubbles with no outline or side bar, the viewer's own on the right in a soft tint of the
 app's accent, everyone else's on the left on the page's own background (the panel stays the stage's one surface from
 Curtain Five), the part tag and "Change asked" in the bubble's top line, Team only / Client can see under the note,

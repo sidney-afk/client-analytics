@@ -1755,6 +1755,9 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people, conversation and token), no hosted credentials and no live data. Checks that the first switch from Sheet to Review never paints the old Review list for a switched-on client (every animation frame, staff Calendar light and dark, client link), that the probe does see the old list with the switch off, that the conversation is a phone-style chat for the client, SMM and Kasper in light and dark (own notes right, others left, bubbles apart from the panel, no side bar, part tags, Done, a long pasted caption keeps its paragraphs and folds behind Show all, nothing saved), and that the new-version bar covers none of the stage's buttons.",
       "reproduce": "node test/review-stage-chat-switch-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-save-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -1784,6 +1787,9 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and token), no hosted credentials and no live data. Checks the client review page's message box (no 'Is this a change?' prompt, part chips at the box's top left, 'Ask for a change' needs a part and saves a change request on it, 'Send comment' saves a plain comment), that a client's caption edit saves the new caption with a plain note carrying the old one (never approved, never a change request) shown as new over old on the client and SMM pages, and that the caption edit box and the message box draw the thin scrollbar.",
       "reproduce": "node test/review-stage-client-composer-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-curtain-seven-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

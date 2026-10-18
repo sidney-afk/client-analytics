@@ -1778,6 +1778,14 @@
       "ci": "representative"
     },
     {
+      "file": "client-link-dark-first-paint-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token), no hosted credentials and no live data. Records every painted frame of the client link in a dark browser: a first visit named only by the browser's other switch list (any spelling of the link) is dark from the first frame at 1440 and 390, a failed switch read keeps what the browser remembered, the review page's sun/moon button decides the next load's colours both ways, a link nothing names stays light, and the loading screen's tabs, help button, chip, card, video, step buttons, answer buttons and conversation sit where the loaded page puts them within a few pixels, light and dark.",
+      "reproduce": "node test/client-link-dark-first-paint-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "staff-first-paint-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

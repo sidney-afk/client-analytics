@@ -230,10 +230,27 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _crqDrop(pid, comp);
         if (_crqApprovalSourcePending(entry)) _crqTellSavedSyncing();
         else if (_crqIsConnectionFailure(errorText)) _crqTellExpired(entry);
-        else _crqTell('Your ' + _crqWhat(entry) + ' was not saved',
-            'SyncView refused it, so nothing was saved: ' + String(errorText || 'unknown reason')
-            + ' Please try again, or tell your account manager if it keeps happening.');
+        else {
+            const words = _calCrqClientWords(errorText);
+            _crqTell('Your ' + _crqWhat(entry) + ' was not saved', words.whole ? words.text
+                : 'SyncView refused it, so nothing was saved: ' + words.text
+                + ' Please try again, or tell your account manager if it keeps happening.');
+        }
         return false;
+    }
+
+    /* A refusal reaches a client in plain words, never as a developer's sentence or a raw code (session Rail,
+       2026-10-18): a post with no work item behind it (native_link_required, worded for staff as "linked to a Linear
+       issue") reads as "not ready yet". Any other code in the text is cut out. The raw code stays in the server-side
+       refusal report, which is built from the error itself and never from this sentence.
+       Returns { text, whole }: whole is true when text is already the full sentence to show. */
+    function _calCrqClientWords(errorText) {
+        const raw = String(errorText || '');
+        if (/native_link_required|linked to a Linear|no SyncView work item/i.test(raw)) {
+            return { text: 'This post is not ready for approval yet. Your team has been told.', whole: true };
+        }
+        const clean = raw.replace(/\s*\(code: [A-Za-z0-9_]+\)/g, '').replace(/\b[a-z0-9]+(?:_[a-z0-9]+)+\b/g, '').replace(/\s{2,}/g, ' ').trim();
+        return { text: clean || 'Something went wrong on our side.', whole: false };
     }
 
     /* Keep a held approve on screen as approved (the save funnel rolled the
@@ -385,4 +402,4 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         });
         setTimeout(() => _crqResumeWhenLoaded(0), 1500);
     }
-export { _calCrqBegin, _calCrqDone, _calCrqFailed, _calCrqHeld, _calCrqResend, _calCrqResolve };
+export { _calCrqBegin, _calCrqClientWords, _calCrqDone, _calCrqFailed, _calCrqHeld, _calCrqResend, _calCrqResolve };

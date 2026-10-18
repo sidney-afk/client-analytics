@@ -5,6 +5,7 @@ import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui
 import { _calReviewState } from './180-calendar-native-post-media.js';
 import { svFrameStageMount, svFrameStagePending, svFrameStageUnmount } from './187-frame-viewer.js';
 import { svRsCalOn, svRsHelpUrl, svRsToolsEl } from './188-review-stage-switch.js';
+import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
@@ -584,6 +585,8 @@ svg{display:block;flex-shrink:0}
 .rs-fv .fv-player{width:100%}
 /* A narrow (vertical) player keeps Full screen: the speed button gives way instead (session Curtain Ten). */
 @container (max-width: 300px){.rs-fv .fv-player .fv-full{display:inline-flex!important}.rs-fv .fv-player .fv-rate{display:none!important}}
+/* ...but not on a desktop screen: there the speed button stays and the clock gives way, so the bar still fits (Rail). */
+@media (min-width: 1024px){@container (max-width: 300px){.rs-fv .fv-player .fv-rate{display:inline-flex!important}.rs-fv .fv-player .fv-clock{display:none!important}}}
 .rs-fv .fv-stage-foot{position:absolute;top:10px;right:10px;z-index:4;width:auto;min-width:0;justify-content:flex-end}
 .rs-fv .fv-stage-foot .fv-small-note{display:none}
 .rs-fv .fv-open-link{height:24px;padding:0 10px;border:0;border-radius:99px;background:rgba(0,0,0,.5);color:#fff;font-size:.72rem;font-weight:700;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
@@ -903,9 +906,86 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         mode: '', key: '', host: null, root: null, ro: null, mo: null,
         S: null, kparts: null, pending: false
     };
+    /* Unsent change-request words survive a reload (session Rail, 2026-10-18). Client link only. Kept in this browser
+       under one key per client link: { postId: { text, part, vis, at } }. Cleared when sent, when the post leaves the
+       list, and after 7 days. Every read and write is guarded: with storage blocked the page works as before, the
+       words just do not outlive the tab. No link token is ever stored. */
+    const RS_DRAFT_KEY = 'syncview_rs_drafts_v1:';
+    const RS_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+    function _rsDraftStoreKey() {
+        const c = String(calState.client || '').trim().toLowerCase();
+        return R.mode === 'client' && c ? RS_DRAFT_KEY + c : '';
+    }
+    function _rsStoreRead() {
+        const key = _rsDraftStoreKey(), out = {};
+        if (!key) return out;
+        try {
+            const raw = JSON.parse(localStorage.getItem(key) || '{}'), now = Date.now();
+            if (!raw || typeof raw !== 'object') return out;
+            Object.keys(raw).forEach(id => {
+                const d = raw[id];
+                if (d && typeof d.text === 'string' && d.text.trim() && now - Number(d.at || 0) < RS_DRAFT_TTL_MS) out[id] = { text: d.text, part: d.part || null, vis: d.vis === 'client' ? 'client' : 'team', at: Number(d.at) };
+            });
+        } catch (e) {}
+        return out;
+    }
+    function _rsStoreWrite(all) {
+        const key = _rsDraftStoreKey();
+        if (!key) return;
+        try {
+            if (Object.keys(all).length) localStorage.setItem(key, JSON.stringify(all));
+            else localStorage.removeItem(key);
+        } catch (e) {}
+    }
+    function _rsDraftPut(pid, d) {
+        if (!_rsDraftStoreKey() || !pid) return;
+        const all = _rsStoreRead();
+        all[pid] = { text: d.text, part: d.part || null, vis: d.vis || 'team', at: Date.now() };
+        _rsStoreWrite(all);
+    }
+    function _rsDraftDrop(pid) {
+        if (!_rsDraftStoreKey() || !pid) return;
+        if (R.S && R.S.drafts) delete R.S.drafts[pid];
+        const all = _rsStoreRead();
+        if (all[pid]) { delete all[pid]; _rsStoreWrite(all); }
+    }
+    // The words in the box right now, kept for the post on stage (called as they are typed).
+    function _rsPersistCur() {
+        const S = R.S;
+        if (R.mode !== 'client' || !S || !S.curId) return;
+        if (String(S.note.text || '').trim()) _rsDraftPut(S.curId, { text: S.note.text, part: S.note.part, vis: S.note.vis });
+        else _rsDraftDrop(S.curId);
+    }
+    /* Once the list has loaded: kept words come back from storage (once), and words for a post that is no longer on
+       the list are dropped, from memory and from storage. An empty or still loading list never drops anything. */
+    function _rsDraftsSettle(all) {
+        const S = R.S;
+        if (R.mode !== 'client' || !S || calState.loading || !all.length) return;
+        const live = new Set(all.map(x => x.id));
+        if (!S.draftsLoaded) {
+            S.draftsLoaded = true;
+            const stored = _rsStoreRead();
+            Object.keys(stored).forEach(id => { if (!S.drafts[id]) S.drafts[id] = stored[id]; });
+        }
+        let gone = false;
+        Object.keys(S.drafts).forEach(id => { if (!live.has(id)) { delete S.drafts[id]; gone = true; } });
+        if (gone || S.draftsSwept !== true) {
+            S.draftsSwept = true;
+            const all2 = _rsStoreRead();
+            let changed = false;
+            Object.keys(all2).forEach(id => { if (!live.has(id) && id !== S.curId) { delete all2[id]; changed = true; } });
+            if (changed) _rsStoreWrite(all2);
+        }
+    }
+    function _rsDraftPick(q) {
+        const S = R.S;
+        let best = null, at = -1;
+        q.forEach(x => { const d = S.drafts[x.id]; if (d && Number(d.at || 0) > at) { best = x; at = Number(d.at || 0); } });
+        return best;
+    }
     function _rsFreshState() {
         return { curId: null, step: '', note: _rsBlankNote(), editing: '', editText: '', fold: false, saved: null,
-            menu: '', exp: {}, edOpen: false, qOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, slow: {}, pressed: {}, ready: {}, actAt: {}, seen: {}, told: {}, keepK: null, drafts: {}, moved: null, stageTitle: '' };
+            menu: '', exp: {}, edOpen: false, qOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, slow: {}, pressed: {}, ready: {}, actAt: {}, seen: {}, told: {}, keepK: null, drafts: {}, draftsLoaded: false, moved: null, stageTitle: '' };
     }
 
     /* ---------- the model: one shape for every person ---------- */
@@ -1090,9 +1170,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsCur() {
         const all = _rsAll();
         let m = all.find(x => x.id === R.S.curId);
+        _rsDraftsSettle(all);
         if (!m) {
             const q = _rsQueue(), had = R.S.curId;   // had: a post was on stage (not the recap, not a first draw)
             m = q[0] || null;
+            // A reload: open on the post whose unsent words were kept, so they are in front of the client again.
+            if (!had && R.mode === 'client') { const kp = _rsDraftPick(q); if (kp) m = kp; }
+            if (had) _rsDraftDrop(had);
             R.S.curId = m ? m.id : null;
             R.S.step = m ? _rsFirstStep(m) : '';
             // The post on stage left the list (archived, or moved): typed words stay in the box, about no part, so
@@ -1100,6 +1184,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             const kept = R.S.note.text, vis = R.S.note.vis;
             R.S.note = _rsBlankNote(); R.S.note.text = kept; R.S.note.vis = vis;
             R.S.editing = '';
+            if (!had && m && !kept.trim()) _rsRestoreDraft(m);
+            else if (had && m && kept.trim()) _rsPersistCur();
             // ...and the page says so: the post on stage changed under the person, so they are told which one they
             // were on and which one they are on now, and that the words (if any) would go on this one. Without the
             // notice the title changed silently and a Send landed on a post nobody had chosen (client gauntlet 2).
@@ -1306,7 +1392,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (R.mode !== 'client') return;
         try {
             const st = history.state && typeof history.state === 'object' ? history.state : {};
-            if (!st.rsTab) history.replaceState(Object.assign({}, st, { rsTab: calState.view || 'review' }), '');
+            // The first switch of a page load marks the entry the person is on with the tab on screen (a reload keeps
+            // the old entry's mark, and the link now always opens on Review).
+            if (!st.rsTab || !R.tabMarked) history.replaceState(Object.assign({}, st, { rsTab: calState.view || 'review' }), '');
+            R.tabMarked = true;
             history.pushState(Object.assign({}, st, { rsTab: tab }), '');
         } catch (e) {}
     }
@@ -1704,7 +1793,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         return m.parts.map(p => {
             const k = p.key, key = m.id + '|' + k, err = _rsError(m, k);
             const who = k === onStage ? '' : RS_PART[k] + ': ';
-            if (err) return '<div class="err" role="alert" data-err="' + k + '"><span>' + _re(who + 'Not saved. ' + err) + '</span>' + (S.retry[key] ? '<button class="retry" type="button" data-retry="' + k + '">Try again</button>' : '') + '</div>';
+            if (err) return '<div class="err" role="alert" data-err="' + k + '"><span>' + _re(who + 'Not saved. ' + (R.mode === 'client' ? _calCrqClientWords(err).text : err)) + '</span>' + (S.retry[key] ? '<button class="retry" type="button" data-retry="' + k + '">Try again</button>' : '') + '</div>';
             if (S.slow[key] && _rsSaving(m, k)) return '<div class="err slow" role="status" data-slow="' + k + '">' + _re(who) + 'Still waiting for the server. Nothing is lost: it finishes here on its own.</div>';
             return '';
         }).join('');
@@ -1771,14 +1860,18 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         } else {
             d = _rsActions(x, '');
         }
-        const parts = m.parts, left = parts.filter(p => p.st === 'wait').length, all = !left;
+        const parts = m.parts, left = parts.filter(p => p.st === 'wait').length;
+        // On the client link Finish reviewing stays off, with a short "Saving…", while any part's answer is still being
+        // sent: it lights up when the save lands or fails (an answer is never lost to a quick Finish and a closed tab).
+        const sending = R.mode === 'client' && parts.some(p => _rsSaving(m, p.key));
+        const all = !left && !sending;
         if (all && !S.ready[m.id]) S.ready[m.id] = Date.now();
         if (!all) delete S.ready[m.id];
         const glow = all ? ' ready" style="animation-delay:-' + (Date.now() - S.ready[m.id]) + 'ms' : '';
         const dc = x.st === 'ok' && d && !S.editing && !saving ? ' is-ok' : (x.st === 'chg' || x.st === 'tweak') && d && !S.editing && !saving ? ' is-chg' : '';
         el.innerHTML = note + '<div class="dwrap">' + (d === null ? _rsComposer(m) : '<div class="dec' + dc + '" id="dec">' + d + '</div>') + '</div>'
             + _rsSaveIssues(m, x.key)
-            + '<div class="drow2"><div class="dfin"><button class="finish' + glow + '" type="button" id="finishBtn"' + (all ? '' : ' disabled') + '>' + RI.check + 'Finish reviewing' + (all ? '' : ' <span class="fc num">' + (parts.length - left) + ' of ' + parts.length + '</span>') + '</button></div></div>';
+            + '<div class="drow2"><div class="dfin"><button class="finish' + glow + '" type="button" id="finishBtn"' + (all ? '' : ' disabled') + '>' + RI.check + 'Finish reviewing' + (all ? '' : sending ? ' <span class="fc num" id="finishWait">Saving…</span>' : ' <span class="fc num">' + (parts.length - left) + ' of ' + parts.length + '</span>') + '</button></div></div>';
         el.querySelectorAll('[data-ok]').forEach(b => b.addEventListener('click', () => _rsApprove(m, b.dataset.ok, R.mode === 'smm' ? 'kasper' : '')));
         el.querySelectorAll('[data-alt]').forEach(b => b.addEventListener('click', (e) => {
             e.stopPropagation(); S.menu = '';
@@ -1893,7 +1986,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const cx = _rsQ('chipX'); if (cx) cx.addEventListener('click', () => _rsClearChange(true, false));
         const cc = _rsQ('cmpCancel'); if (cc) cc.addEventListener('click', () => _rsClearChange(false, true));
         const nb = _rsQ('noteBtn'); if (nb) nb.addEventListener('click', () => _rsSendNote(true));
-        root.querySelectorAll('[data-pc]').forEach(b => b.addEventListener('click', () => { const S2 = R.S; if (S2.note.part === b.dataset.pc) _rsClearChange(true, false); else { S2.note.part = b.dataset.pc; S2.note.where = 'chat'; S2.note.aat = false; const pm = _rsCur(), px = pm && pm.parts.find(p => p.key === b.dataset.pc); S2.note.was = px ? px.st : ''; _rsRender({ force: true }); _rsFocusTa(); } }));
+        root.querySelectorAll('[data-pc]').forEach(b => b.addEventListener('click', () => { const S2 = R.S; if (S2.note.part === b.dataset.pc) _rsClearChange(true, false); else { S2.note.part = b.dataset.pc; S2.note.where = 'chat'; S2.note.aat = false; const pm = _rsCur(), px = pm && pm.parts.find(p => p.key === b.dataset.pc); S2.note.was = px ? px.st : ''; _rsPersistCur(); _rsRender({ force: true }); _rsFocusTa(); } }));
         const mb = _rsQ('cmtBtn'); if (mb) mb.addEventListener('click', () => _rsSendNote(true));
         const sb = _rsQ('sendBtn'); if (sb) sb.addEventListener('click', () => _rsSendNote(!S.note.part));
         const ta = _rsQ('ta');
@@ -1901,6 +1994,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(160, ta.scrollHeight + 2) + 'px'; };
         ta.addEventListener('input', () => {
             S.note.text = ta.value;
+            _rsPersistCur();
             const has = !!ta.value.trim();
             const cp = _rsQ('compose'); if (cp) cp.classList.toggle('typed', has);
             const s = _rsQ('sendBtn'); if (s) s.disabled = !has || (R.mode === 'client' && S.note.where !== 'stage' && !S.note.part);
@@ -2091,6 +2185,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const cm = _rsCur(), cx = cm && cm.parts.find(p => p.key === key);
         S.note.was = cx ? cx.st : '';
         if (S.step !== key) S.step = key;
+        _rsPersistCur();
         _rsRender({ force: true });
         _rsFocusTa();
     }
@@ -2098,6 +2193,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const S = R.S;
         if (drop) S.note.text = '';
         S.note.part = null; S.note.where = 'chat'; S.note.aat = false;
+        _rsPersistCur();
         _rsRender({ force: true });
         if (refocus) _rsFocusTa();
     }
@@ -2120,6 +2216,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const picked = S.note.part, k = asNote ? null : S.note.part, where = S.note.where, aat = S.note.aat, vis = S.note.vis, was = S.note.was;
         const x = k ? m.parts.find(p => p.key === k) : null;
         S.note = _rsBlankNote(); S.note.vis = vis; S.moved = null;
+        _rsDraftDrop(m.id);
         // The part stopped waiting while the words were typed (answered in another window, or by the team): the
         // words are never dropped. They go to the team as a note on that part, and the page says so (session
         // Curtain Ten; the old page's change request returns early once the part is not waiting).
@@ -2189,8 +2286,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsStashDraft() {
         const S = R.S;
         if (R.mode !== 'client' || !S || !S.curId) return;
-        if (String(S.note.text || '').trim()) S.drafts[S.curId] = { text: S.note.text, part: S.note.part, vis: S.note.vis };
-        else delete S.drafts[S.curId];
+        if (String(S.note.text || '').trim()) { S.drafts[S.curId] = { text: S.note.text, part: S.note.part, vis: S.note.vis, at: Date.now() }; _rsDraftPut(S.curId, S.drafts[S.curId]); }
+        else _rsDraftDrop(S.curId);
     }
     function _rsRestoreDraft(m) {
         const S = R.S, d = R.mode === 'client' && m ? S.drafts[m.id] : null;
@@ -2221,6 +2318,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsFinish() {
         const m = _rsCur();
         if (!m || _rsWaiting(m).length) return;
+        if (R.mode === 'client' && m.parts.some(p => _rsSaving(m, p.key))) return;
         const q = _rsQueue(), i = q.findIndex(x => x.id === m.id);
         let msg;
         if (R.mode === 'kasper') {

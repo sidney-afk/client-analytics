@@ -140,7 +140,8 @@ theme button on the client page opens a tutorial video in an overlay.
 - Client "Finish reviewing" saves nothing: each answer is already saved when given; it opens the next waiting post.
 - A client's caption edit changes the caption itself (since Curtain Eight, below) and a plain note tells the team; a
   YouTube title edit is still sent as a change request carrying the new text (a client link never renames a card).
-  Neither ever approves.
+  A title edit never approves. A caption edit, once sent, IS the client's answer for the caption step: it is approved
+  once and the stage moves on, as Approve does (session Onward, 2026-10-18; a failed save approves nothing).
 - A client's "Change my mind" on an approved part sends a note to the team on that part (a client link cannot reopen
   an approved part); the SMM's and Kasper's reopen it as a change request, as their old pages do.
 - A client's "Take it back" on a sent change request is not offered (nothing on the old page undoes one).

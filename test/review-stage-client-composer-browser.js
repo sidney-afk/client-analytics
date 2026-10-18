@@ -170,9 +170,14 @@ async function shots(browser, origin) {
       const note = told && notes(told, 'caption_tweaks').find(n => /^Changed the caption to:/.test(n.body));
       expect(!!saved, 'the card save carries the client\'s new caption');
       expect(!!note && !note.is_tweak && note.role === 'client' && note.body.includes(NEW_CAPTION) && note.body.includes(OLD_CAPTION), 'a plain client note on the caption says it changed, with the new and the old text');
-      expect(!t.state.upserts.slice(n0).some(u => u.caption_status === 'Approved' || u.caption_status === 'Tweaks Needed'), 'the caption is neither approved nor sent back as a change request');
+      // Since 2026-10-18 (session Onward) the sent edit is the client's answer for the caption step: approved once
+      // (review-stage-caption-send-browser.js covers that); it is still never a change request.
+      expect(!t.state.upserts.slice(n0).some(u => u.caption_status === 'Tweaks Needed'), 'the caption is not sent back as a change request');
       expect(!t.state.upserts.slice(n0).some(u => notes(u, 'caption_tweaks').some(n => /Please use this caption/.test(n.body))), 'no "Please use this caption" change request');
       await sleep(1200);
+      // the sent edit was the answer, so the stage has moved on; the caption step is opened again to read it
+      await inS(t.page, '.stp[data-step="caption"]').click();
+      await sleep(500);
       const look = await R(t.page, (r) => {
         const b = Array.from(r.querySelectorAll('#tscroll .bub')).find(x => x.querySelector('.diff'));
         if (!b) return null;
@@ -188,7 +193,7 @@ async function shots(browser, origin) {
       expect(!!look && look.foldedAtFirst && look.summary === 'Show the old caption' && look.old === OLD_CAPTION && /line-through/.test(look.struck), 'the old caption is folded behind "Show the old caption" and struck through');
       expect(!!look && !look.chg, 'the note is not shown as a change request');
       expect(!!look && look.stage === NEW_CAPTION, 'the stage shows the new caption');
-      expect(await inS(t.page, '[data-ok="caption"]').count() === 1, 'the caption still waits for the client\'s own Approve');
+      expect(await inS(t.page, '[data-ok="caption"]').count() === 0, 'the caption no longer waits for Approve: the sent edit was the answer');
       // the message box's thin scrollbar
       await inS(t.page, '#ta').fill(Array.from({ length: 30 }, (_, i) => 'Note line ' + (i + 1)).join('\n'));
       await sleep(200);

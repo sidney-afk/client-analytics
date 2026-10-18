@@ -22,11 +22,19 @@ function check(cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!
 // `plan` decides what the pretend server does with each intake_create call, in
 // order: 'ok', 'drop' (nothing reaches the server), 'lost' (server keeps it,
 // the answer never arrives), '500', '401', 'plain200' (200 without a commit).
-async function harness(browser, port, { staff, width = 1280, height = 900, blockStorage, noLocks, plan = [], delayMs = 0, clientsFail, cardFails = 0 } = {}) {
+async function harness(browser, port, { staff, width = 1280, height = 900, blockStorage, noLocks, plan = [], delayMs = 0, clientsFail, cardFails = 0, blockAll } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, ...(width < 500 ? { hasTouch: true, isMobile: true } : {}) });
   const net = { intake: [], stored: new Map(), plan: plan.slice(), cardFails };
   if (staff) await seedStaffGate(context);
   if (noLocks) await context.addInitScript(() => { try { Object.defineProperty(Navigator.prototype, 'locks', { get() { return undefined; } }); } catch (e) {} });
+  if (blockAll) {
+    // Every storage access throws (not just a full store): the page must still start.
+    await context.addInitScript(() => {
+      const boom = () => { throw new DOMException('The operation is insecure.', 'SecurityError'); };
+      try { Object.defineProperty(window, 'localStorage', { get: boom, configurable: true }); } catch (e) {}
+      try { Object.defineProperty(window, 'sessionStorage', { get: boom, configurable: true }); } catch (e) {}
+    });
+  }
   if (blockStorage) {
     await context.addInitScript(() => {
       const boom = () => { throw new DOMException('The quota has been exceeded.', 'QuotaExceededError'); };
@@ -62,7 +70,8 @@ async function harness(browser, port, { staff, width = 1280, height = 900, block
     }
     if (/functions\/v1\//.test(url.pathname) || /calendar-upsert/.test(url.pathname)) return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
     if (/\/rest\/v1\/(deliverables|batches)$/.test(url.pathname) && /(^|&)select=id(&|$)/.test(url.search.slice(1))) {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      // The commit check: rows exist once the pretend server has kept an upload.
+      return route.fulfill({ status: 200, contentType: 'application/json', body: net.stored.size ? '[{"id":"kept"}]' : '[]' });
     }
     if (url.pathname.endsWith('/clients')) {
       if (clientsFail) return route.abort('failed');
@@ -196,8 +205,10 @@ async function all(browser, port, surface, width) {
   await scenario(browser, port, surface, 'storage full', { ...base, blockStorage: true }, async ({ page, net, errors }, L) => {
     await fillForm(page);
     check(await typedIntact(page), L('typing still works with storage refusing writes'));
+    check(await page.evaluate(() => window.__svUnsavedUpload === true), L('leaving the page is flagged, since the typed text lives only on the page'));
     await send(page); await waitSettled(page, net, 1);
     check(net.stored.size === 1 && received(await bodyText(page)), L('still sent and confirmed (' + net.stored.size + ')'));
+    check(await page.evaluate(() => window.__svUnsavedUpload !== true), L('and no leave warning once the server has it'));
     check(!errors.length, L('no page errors ' + errors.join('|')));
   });
   // 6b storage full AND the answer lost: the retry must be the same request.
@@ -206,6 +217,26 @@ async function all(browser, port, surface, width) {
     check(!received(await bodyText(page)) && /Not sent yet/.test(await status(page)) && await typedIntact(page), L('nothing claimed, form intact, plain message'));
     await send(page); await waitSettled(page, net, 2);
     check(net.stored.size === 1 && new Set(net.intake.map(b => b.request_id)).size === 1, L('the second press is the same request: one submission'));
+    check(received(await bodyText(page)), L('told it arrived'));
+  });
+  // 6d storage full, the answer lost, then the person EDITS and presses again: the first send is
+  // on the server, so the edit must not make a second upload (a new request id would).
+  await scenario(browser, port, surface, 'storage full, answer lost, then edited', { ...base, blockStorage: true, plan: ['lost'] }, async ({ page, net }, L) => {
+    await fillForm(page); await send(page); await waitSettled(page, net, 1);
+    await page.locator('#vid_notes_1').fill('Use the second take. Also trim the start.');
+    await send(page); await waitSettled(page, net, 1);
+    check(net.stored.size === 1 && net.intake.length === 1, L('the edit made no second upload (' + net.stored.size + ' stored, ' + net.intake.length + ' sent)'));
+    check(/already arrived|arrived/i.test(await status(page)) && !/Submitting/.test(await status(page)), L('the person is told the first send arrived: "' + (await status(page)).slice(0, 90) + '"'));
+    check((await page.locator('#vid_notes_1').inputValue()) === 'Use the second take. Also trim the start.', L('the edit is still in the form'));
+  });
+  // 6e storage full, the first send never reached the server, then edited: the edited form is sent, once.
+  await scenario(browser, port, surface, 'storage full, send dropped, then edited', { ...base, blockStorage: true, plan: ['drop'] }, async ({ page, net }, L) => {
+    await fillForm(page); await send(page); await waitSettled(page, net, 1);
+    await page.locator('#vid_notes_1').fill('Use the second take. Also trim the start.');
+    await send(page); await waitSettled(page, net, 2);
+    const sent = net.stored.values().next().value;
+    check(net.stored.size === 1 && new Set(net.intake.map(b => b.request_id)).size === 1, L('one upload under one request id'));
+    check(!!sent && JSON.stringify(sent).includes('Also trim the start.'), L('the edited text is what the server kept'));
     check(received(await bodyText(page)), L('told it arrived'));
   });
   // 6c an older browser with no cross-tab lock must still send, once.
@@ -263,6 +294,23 @@ async function all(browser, port, surface, width) {
   });
 }
 
+async function blockedStorage(browser, port) {
+  // Storage that throws on EVERY access (not merely full): the form must still start and send.
+  await scenario(browser, port, 'link', 'all storage access refused', { blockAll: true }, async ({ page, net, errors }, L) => {
+    await fillForm(page);
+    check(await typedIntact(page), L('typing works'));
+    await send(page); await waitSettled(page, net, 1);
+    check(net.stored.size === 1 && received(await bodyText(page)), L('sent and confirmed'));
+    check(!errors.length, L('no page errors ' + errors.join('|')));
+  });
+  await scenario(browser, port, 'link', 'all storage access refused and answer lost', { blockAll: true, plan: ['lost'] }, async ({ page, net }, L) => {
+    await fillForm(page); await send(page); await waitSettled(page, net, 1);
+    check(!received(await bodyText(page)) && await typedIntact(page), L('nothing claimed, form intact'));
+    await send(page); await waitSettled(page, net, 2);
+    check(net.stored.size === 1 && new Set(net.intake.map(b => b.request_id)).size === 1 && received(await bodyText(page)), L('the second press is the same request: one upload'));
+  });
+}
+
 async function signedOut(browser, port) {
   const h = await harness(browser, port, {});
   try {
@@ -283,6 +331,7 @@ async function signedOut(browser, port) {
       await all(browser, port, surface, 1280);
     }
     await all(browser, port, 'link', 390);
+    await blockedStorage(browser, port);
     await signedOut(browser, port);
   } finally { await browser.close(); server.close(); }
   if (failures.length) { console.error(`\n${failures.length} failure(s)`); process.exit(1); }

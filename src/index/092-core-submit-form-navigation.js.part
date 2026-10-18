@@ -303,7 +303,14 @@ import { svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics } from './188-rev
            the throw used to escape every input handler, and the one before a
            send. The page itself still holds what was typed, and the send
            below keeps its own copy in memory when it cannot be stored. */
-        try { localStorage.setItem(LINEAR_FORM_KEY, JSON.stringify(f)); } catch (e) {}
+        let unsaved = false;
+        try { localStorage.setItem(LINEAR_FORM_KEY, JSON.stringify(f)); }
+        catch (e) {
+            // Typed text that now lives only on this page: closing, reloading or going back would lose
+            // it, so the page head asks the browser to confirm leaving (see window.__svUnsavedUpload).
+            unsaved = !!(f.notes || f.generalDrive || f.videos.some(v => v.main_cam || v.side_cam || v.audio || v.notes));
+        }
+        window.__svUnsavedUpload = unsaved;
         return f;
     }
 

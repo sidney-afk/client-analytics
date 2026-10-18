@@ -431,8 +431,9 @@ jobs:
       # Re-pinned 2026-10-18 (session Keepsake): production-write keeps a raw copy of every
       # upload first (intake_raw_submissions) and lists them for staff (intake_raw_list).
       # Regenerated with scripts/ef-fingerprint.js --slugs=production-write --expected-only.
+      # Re-pinned again in review (raw-copy outcome never downgrades "created"; escaped-text fallback; legacy outcome).
       # (Previous pin: 07677a1f0b... -- production-write, 2026-10.)
-      PRODUCTION_WRITE_SOURCE_SHA256: 5427faf5a051fb956c0d0ca375e3000696df9ececdc67ee1d54607539c38e858
+      PRODUCTION_WRITE_SOURCE_SHA256: 279aff1a03e3e7500b119bbe1e37d5fc50db953e73603d8dd28eb7aa515592e4
       # The two bundle values are exported to GITHUB_ENV as ROLLBACK_BUNDLE_SHA256
       # and ROLLBACK_BUNDLE_BYTE_LENGTH by the validation step (given) or the
       # capture step (sealed in this run); a job-level value would shadow those.

@@ -33489,13 +33489,15 @@ Follow-up to 433, which left a reset of a read the app never retries as a failur
 
 ## 435. [2026-10-18, BUILT, NOT MERGED] The upload form could still lose a send: a full browser store stopped typing and sending, and no server copy of the raw upload existed (session Keepsake)
 
-Audit of the upload link and the Submit tab against every way a send can fail (report `docs/audits/2026-10-18-upload-form-never-lost.md`, test `docs/syncview-design/tests/upload-never-lost-browser.js`, 203 checks, plus `test/intake-raw-copy.js`).
+Audit of the upload link and the Submit tab against every way a send can fail (report `docs/audits/2026-10-18-upload-form-never-lost.md`, test `docs/syncview-design/tests/upload-never-lost-browser.js`, 232 checks, plus `test/intake-raw-copy.js`).
 
 - **Full or refused browser store.** `saveLinearForm` and `saveLastLink` threw on every keystroke, and the send was refused as "could not be saved safely". Now typing never throws and the send goes out from memory under a stable request id.
 - **No cross-tab lock** (older browsers) refused every send; now it sends without the lock.
 - **Wording.** "Not sent yet… Press the button again" replaces "retry to resume safely"; a received upload whose calendar step failed says "received" on the client link.
 - **A refused saved send was discarded with the only copy of the typed form**; the form is now put back first.
 - **No raw server copy.** New `intake_raw_submissions` (migration `2026-10-18-intake-raw-submissions.sql`, gateway copes without it), written first by `production-write`, listed by `intake_raw_list`. Runbook `docs/ops/INTAKE_RAW_COPY.md`.
+
+- **Added in review.** (a) After a send from a browser that could not store its retry copy, an edit (or the due dates moving on at midnight) used a NEW request id, so a send whose answer was lost became two uploads; it now asks the server whether the first arrived, reuses the id if not, and sends nothing if it did. (b) A browser whose storage THROWS ON EVERY ACCESS (not just a full one) never started the page; the page head now stands in a memory-only store. (c) Typed text that could not be stored asks the browser to confirm before the page is closed or reloaded. (d) The raw copy's outcome can no longer be turned from `created` to `refused` by a refused retry; text the database cannot hold as JSON is kept as escaped text; the legacy intake route records its outcome. `test/native-intake-editor-browser.js` accounts for the added `recordIntakeRaw` line.
 
 **Lighthouse:** apply the migration. **Not done:** Safari and Firefox passes (only Chromium in the sandbox), a staff screen for the list, and archiving one live test batch (1 batch, 2 items, 1 card on the test client).
 

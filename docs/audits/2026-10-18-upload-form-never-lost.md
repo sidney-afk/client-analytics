@@ -27,7 +27,7 @@ by a test that still runs; none came back.
 ## What was tested
 
 In a real headless Chromium against the mocked gateway, on the upload link at 1280 and 390 wide and on the
-Submit tab at 1280, new file `docs/syncview-design/tests/upload-never-lost-browser.js` (now **203 checks**):
+Submit tab at 1280, new file `docs/syncview-design/tests/upload-never-lost-browser.js` (now **232 checks**):
 
 - typed values survive a reload, a closed and reopened tab, back then forward, and a crash with no unload (the last keystroke is kept);
 - a dropped network, a 500, a 401 and a 200 that did not commit: nothing claimed, everything kept, plain words, button usable, the retry sends the same request id and ends with exactly one upload;
@@ -65,6 +65,11 @@ page said "Upload received. Thank you!" only after the second answer.
    as received in `intake_raw_submissions` as soon as the caller is accepted, one row per request id, with attempts and
    the outcome. Staff read it through `intake_raw_list` (admin and SMM keys) or the SQL in `docs/ops/INTAKE_RAW_COPY.md`.
 
+7. **(review) A send whose answer was lost, in a browser that could not store its retry copy, became two uploads once the person edited the form** (or the due dates moved on at midnight): the in-memory job was keyed by the exact form, so a changed form got a new request id. Now the page asks the server whether the first send arrived: not arrived, the edited form goes out under the same id; arrived, it says so and sends nothing. (Tests 6d and 6e.)
+8. **(review) A browser whose storage throws on every access (not merely full) never started the page**, so the form never appeared. The page head now stands in a memory-only store when storage cannot even be read. (Tests "all storage access refused".)
+9. **(review) Typed text that could not be stored** now asks the browser to confirm before the page is closed or reloaded.
+10. **(review) Raw copy outcome:** a refused retry can no longer turn a `created` row to `refused`; text the database cannot hold as JSON is kept as escaped text; the legacy intake route records its outcome.
+
 ## What Lighthouse must apply
 
 1. Apply `migrations/2026-10-18-intake-raw-submissions.sql` (a new table; rollback at its foot). The gateway copes without it
@@ -78,7 +83,7 @@ page said "Upload received. Thank you!" only after the second answer.
 - No staff screen lists received uploads yet (the gateway action and SQL exist).
 - The raw copy is taken after a caller is accepted. A request refused before that (bad shape, flag off, rate limit) is
   not stored; the person sees the error and keeps the draft, and the refusal appears in the write-refusal log.
-- If storage is full AND the tab is closed before a send finishes, nothing is saved: there is nowhere to keep it.
+- If storage is full AND the tab is closed before a send finishes, nothing is saved: there is nowhere to keep it (the browser now asks before leaving). If only the small draft fits and the retry copy does not, a reload after a lost answer starts a new request id, so a second upload is still possible in that one case.
 - **Test data left on the live system, not archived:** the repo's test-residue tool was blocked by the sandbox's permission
   check, so this session's single live send is still active on the test client: 1 batch (`bat_48060b66-c2f1-4c9b-862d-4a2ccf240cb1`),
   2 work items (`del_8812827b-8f00-4945-a961-f252f26ddcb6`, `del_35716465-7d1e-4421-8c2e-74006424b826`) and 1 calendar

@@ -650,6 +650,7 @@
     "setall-skips-what-it-cannot-set.js",
     "shadow-audit-attribution-classes.js",
     "sheets-mirror-parity-catchup.js",
+    "sheets-mirror-profile-parity.js",
     "sheets-mirror-policy.js",
     "slice5-test-drills.js",
     "smm-client-match.js",

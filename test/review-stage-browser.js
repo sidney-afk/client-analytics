@@ -160,6 +160,21 @@ async function shot(t, name) { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursi
     expect(await host(t.page).getAttribute('data-theme') === 'light', 'theme: the sun/moon switches back to light');
     expect(t.errors.length === 0, 'help/dark: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
+
+    // a Wistia media page plays in Wistia's own player; a direct Wistia file still plays as a plain video
+    console.log('--- client link, help video on Wistia ---');
+    for (const [addr, want] of [['https://example.wistia.com/medias/ab12cd34ef', 'iframe'], ['https://fast.wistia.net/embed/iframe/ab12cd34ef', 'iframe'], ['https://embed-ssl.wistia.com/deliveries/0123456789abcdef/file.mp4', 'video']]) {
+      t = await openClient(browser, origin, { flags: 'on', width: 1280, height: 800, help: addr });
+      await waitNew(t);
+      await inS(t.page, '#rsHelp').click();
+      if (want === 'iframe') {
+        const src = await inS(t.page, '.help-ovl iframe').getAttribute('src');
+        expect(src === 'https://fast.wistia.net/embed/iframe/ab12cd34ef?autoplay=1', 'wistia: ' + addr + ' opens Wistia\'s player (' + src + ')');
+      } else {
+        expect(await inS(t.page, '.help-ovl video').count() === 1 && await inS(t.page, '.help-ovl iframe').count() === 0, 'wistia: a direct file link plays as a plain video');
+      }
+      await t.ctx.close();
+    }
     if (SHOTS) {
       t = await openClient(browser, origin, { flags: 'on', dark: true });
       await waitNew(t); await shot(t, 'after-client-1440-dark'); await t.ctx.close();

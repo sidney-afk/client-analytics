@@ -724,6 +724,7 @@ import { _isClientLink, _syncviewClientEntryCapability } from './260-production-
        Approval) queue; a saved view belonging to the other audience is coerced
        back to that side's default. */
     let _calClientTabUsed = false;
+    let _calClientFreshOpened = false;
     function _calResolveInitialView(savedView) {
         const allowed = ['review','smmreview','organizer','month','week'];
         const saved = allowed.includes(savedView) ? savedView : null;
@@ -735,6 +736,9 @@ import { _isClientLink, _syncviewClientEntryCapability } from './260-production-
             _calClientTabUsed = true;
             return 'review';
         }
+        // The client link opens on Review every time it is opened fresh, whatever tab was used last (owner,
+        // 2026-10-18). Later mounts inside the same visit (a refresh, the client list) keep the saved tab.
+        if (_isClientLink && !_calClientFreshOpened) { _calClientFreshOpened = true; return 'review'; }
         if (_isClientLink) return (saved && saved !== 'smmreview') ? saved : 'review';
         if (saved && saved !== 'review') return saved;
         return 'organizer';

@@ -85,12 +85,8 @@
                     var rsCal = rsV === '' || rsV === 'calendar' || rsV === 'analytics' || rsV === 'brief';
                     if (rsC && rsCal && Array.isArray(rsSeen) && rsSeen.indexOf(rsC) >= 0) {
                         de.classList.add('sv-rs-paint');
-                        // Which tab will open: tab=review forces Review once, else the saved Calendar view
-                        // (_calResolveInitialView in 134 decides the same way). Review gets the stage's shape.
+                        // A client link always opens on Review when opened fresh (_calResolveInitialView in 134 decides the same way).
                         var rsTab = 'review';
-                        if (q.get('tab') !== 'review') {
-                            try { var rsPref = JSON.parse(localStorage.getItem('syncview_calendar_prefs') || '{}'); if (rsPref && ['organizer', 'month', 'week'].indexOf(rsPref.view) >= 0) rsTab = rsPref.view; } catch (e) {}
-                        }
                         if ((rsV === '' || rsV === 'calendar' || rsV === 'analytics') && rsTab === 'review') de.classList.add('sv-rs-paint-stage');
                         if (localStorage.getItem('syncview_theme') === 'dark') de.setAttribute('data-theme', 'dark');
                     }

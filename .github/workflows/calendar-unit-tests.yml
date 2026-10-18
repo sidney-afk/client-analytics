@@ -709,7 +709,9 @@ jobs:
       group: ${{ github.event_name == 'pull_request' && 'pr-runner-seat-guards' || format('calendar-unit-tests-{0}-browser-guards-{1}', github.run_id, strategy.job-index) }}
       cancel-in-progress: false
       queue: max
-    timeout-minutes: 20
+    # 35 since 2026-10-18 (Lighthouse): the guards ran 19 min 15 s on 1510b4e4 and passed 20 when #2215 added its
+    # review page tests (cancelled mid-test at 20:12, every check so far green). Split the job before it nears 35.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -948,6 +950,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-gauntlet2-browser.js
+      - name: The client review page, finishing touches (Finish waits while saving, plain not-saved words, speed button, opens on Review, thumbnails open the viewer, words kept across a reload)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-finish-polish-browser.js
       - name: The review stage's play button has its final look from the first frame (frame by frame, light and dark, 1440 and 390)
         if: ${{ !cancelled() }}
         env:

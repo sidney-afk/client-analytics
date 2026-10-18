@@ -1848,6 +1848,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-gauntlet2-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Five things a client could hit on the review page: the post on stage leaves the list while words are typed (the page names it and says where the words would go), typed words kept per post, a long caption scrolling inside its card, Escape closing the Notes box and the not-saved box from anywhere, and the arrow keys working with nothing focused.",
+      "reproduce": "node test/review-stage-gauntlet2-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-elsewhere-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

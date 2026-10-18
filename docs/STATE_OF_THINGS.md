@@ -18,6 +18,15 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Client review gauntlet 2 (session Gauntlet Client 2, 2026-10-18): PR open
+
+Live walk of the client link on the test client (196 checks, report `docs/audits/2026-10-18-card-gauntlet-client-2.md`).
+Five small bugs fixed with a test (`node test/review-stage-gauntlet2-browser.js`): a post that leaves the list while the
+client types is now named in a notice (the words used to follow silently to another post); unsent words are kept per
+post; a long caption scrolls inside its card; Escape closes the Notes box and the not-saved box from anywhere on the
+client link; arrow keys work with nothing focused. Not done: a real video or thumbnail answer on a real card (needs a
+staff sign-in to put it back), and keeping unsent words across a reload (a design question in the report).
+
 ## Public "start here" page at /start (session Foyer, 2026-10-18 about 01:05 UTC): PR open, live once merged
 
 `syncview.synchrosocial.com/start` is the page Synchro Social's social media managers send to clients and

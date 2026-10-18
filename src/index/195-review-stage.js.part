@@ -218,6 +218,19 @@ svg{display:block;flex-shrink:0}
 .view{flex:1 1 auto;min-height:0;position:relative;container-type:size;display:flex;align-items:center;justify-content:center}
 .mbox{position:relative;display:flex;align-items:center;justify-content:center;transition:opacity .16s var(--ease),transform .16s var(--ease)}
 .view.swap .mbox{opacity:0;transform:scale(.985)}
+/* THE SKELETON (owner feedback 2026-10-17, session Curtain Nine): while the cards load, the page draws its own parts
+   as placeholders of the same shape and size (the strip's chips, the title, the date, the step bar, the media at a
+   video's shape, the buttons, the conversation), so nothing moves when the real page arrives. */
+.sk-b{display:block;border-radius:6px;height:10px;background:var(--fill);background-image:linear-gradient(90deg,transparent 0,color-mix(in srgb,var(--surface-raised) 60%,transparent) 50%,transparent 100%);background-size:220% 100%;background-repeat:no-repeat;animation:skShim 1.4s ease-in-out infinite}
+@keyframes skShim{from{background-position:130% 0}to{background-position:-130% 0}}
+.app.skel .mbox,.app.skel #flash{visibility:hidden}
+.skm{position:absolute;inset:0;margin:auto;height:100%;max-height:100cqh;aspect-ratio:9/16;max-width:100%;border-radius:14px}
+.chipp.skc{pointer-events:none}
+.chipp.skc .cx{display:flex;flex-direction:column;gap:7px;flex:1;min-width:0}
+.stp.skp{pointer-events:none;width:104px}
+.stp.skp .sd{background:var(--fill)}
+.sk-bub{display:flex;gap:8px;align-items:flex-end}
+.sk-bub .sk-b{border-radius:14px}
 .player,.bigthumb{--aw:9;--ah:16;position:relative;width:min(100cqw,calc(100cqh * var(--aw) / var(--ah)));aspect-ratio:var(--aw)/var(--ah);border-radius:12px;overflow:hidden;background:var(--media-bg);box-shadow:0 0 0 1px var(--border-light)}
 .player.land,.bigthumb.land{--aw:16;--ah:9}
 .player{container-type:inline-size}
@@ -654,7 +667,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .sk-lab{height:auto;flex-direction:row;gap:6px;padding:4px 6px}
 .rs-fv{width:min(100%,calc(46vh * var(--fv-ar,.5625)))}
 }
-@media (prefers-reduced-motion:reduce){.stp.hint{animation:none}}
+@media (prefers-reduced-motion:reduce){.stp.hint{animation:none}.sk-b{animation:none;background-image:none}}
 :host([hidden]){display:none!important}
 .rs.client{background:transparent}
 .hdr-tools{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0;height:38px;margin-left:auto}
@@ -1071,8 +1084,34 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
 
     /* ---------- drawing ---------- */
+    function _rsSkeleton() {
+        const B = (w, h, r, ex) => '<i class="sk-b" style="width:' + w + (h ? ';height:' + h : '') + (r ? ';border-radius:' + r : '') + (ex || '') + '"></i>';
+        _rsQ('rsApp').classList.add('skel');
+        ['theatre', 'side', 'chat'].forEach(id => { _rsQ(id).hidden = false; });
+        _rsQ('recap').hidden = true;
+        _rsQ('stage').classList.remove('is-empty');
+        // Text placeholders sit inside a real line of the same text style, so they take its exact height.
+        const T = (w) => B(w, '.8em', '5px', ';display:inline-block;vertical-align:middle');
+        _rsQ('skHead').innerHTML = '<b class="num">' + T('112px') + '</b><span class="num"></span>';
+        _rsQ('skList').innerHTML = Array.from({ length: 6 }, () => '<span class="chipp skc" aria-hidden="true"><span class="sl"><span class="si"></span></span><span class="cx">' + B('120px') + B('34px', '6px') + '</span></span>').join('');
+        _rsQ('side').innerHTML = '<div class="sd-t"><h2>' + B('340px', '.8em', '8px', ';display:inline-block;vertical-align:middle;max-width:70vw') + '</h2></div>';
+        const d = _rsQ('sdate'); d.hidden = false; d.innerHTML = RI.cal + '<span>' + T('64px') + '</span>';
+        _rsQ('stepper').innerHTML = [0, 1, 2].map(i => (i ? '<li class="ln" aria-hidden="true"></li>' : '') + '<li><span class="stp skp" aria-hidden="true"><span class="sd"></span>' + B('46px', '9px') + '</span></li>').join('');
+        const v = _rsQ('view');
+        if (!_rsQ('skMedia')) v.insertAdjacentHTML('beforeend', '<i class="sk-b skm" id="skMedia" aria-hidden="true"></i>');
+        _rsQ('drow').innerHTML = '<div class="dwrap"><div class="dec">' + B('192px', '42px', '11px') + B('150px', '42px', '11px') + '</div></div><div class="drow2"><div class="dfin">' + B('158px', '38px', '10px') + '</div></div>';
+        _rsQ('chat').innerHTML = '<div class="ch-head"><span class="avs">' + B('28px', '28px', '50%') + '</span><span class="who">' + B('90px', '12px') + B('150px', '9px', '', ';margin-top:6px') + '</span></div>'
+            + '<div class="ch-scroll" id="tscroll" style="justify-content:flex-end">' + '<div class="sk-bub">' + B('26px', '26px', '50%') + B('62%', '58px') + '</div><div class="sk-bub" style="justify-content:flex-end">' + B('48%', '40px') + '</div></div>'
+            + '<div class="ch-foot">' + B('100%', '46px', '14px') + '</div>';
+    }
+    function _rsSkeletonOff() {
+        const a = _rsQ('rsApp'); if (a) a.classList.remove('skel');
+        const s = _rsQ('skMedia'); if (s) s.remove();
+    }
     function _rsRender(opts) {
         if (!R.root || !R.S) return;
+        if (R.skel) { _rsHeader(); _rsSkeleton(); return; }   // the client page's Review while its cards load
+        _rsSkeletonOff();
         if (R.bar) { _rsHeader(); return; }   // Sheet, Month or Week under the client link's header: no stage
         if (!(opts && opts.force) && _rsTyping()) { R.pending = true; _rsHeader(); _rsStrip(); return; }
         R.pending = false;
@@ -1663,7 +1702,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const mode = _isClientLink ? 'client' : 'smm';
         _rsMount(cv, mode, mode + '|' + (calState.client || ''));
         // The client link on Sheet, Month or Week (or while its cards load): the header only, the calendar below it.
-        R.bar = mode === 'client' && !svRsCalOn();
+        // The client page's Review while its cards load: its own skeleton, never the old calendar's loader.
+        R.skel = mode === 'client' && calState.view === 'review' && !!calState.loading && !calState.error;
+        R.bar = mode === 'client' && !svRsCalOn() && !R.skel;
         _rsQ('rsApp').classList.toggle('bar', R.bar);
         if (R.bar) _rsStageOff();
         _rsRender();

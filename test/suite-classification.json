@@ -1748,6 +1748,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-skeleton-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token, with the card read answered slowly), no hosted credentials and no live data. On a switched-on client link's Review at 1440 and 390 wide, checks the new page draws its own skeleton while the cards load (not the old calendar loader) and each placeholder (strip chip, title, date, step bar, media, buttons, conversation) sits where the real part lands, at its size, within a few pixels.",
+      "reproduce": "node test/review-stage-skeleton-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "frameio-viewer-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

@@ -203,6 +203,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
                 // The client link, whole page: no frame, no second header, no Analytics toggle on any of the four tabs.
                 + 'html.sv-rs-full .client-view.cal-tab-view>.view-tab-toggle,html.sv-rs-full #pageTitle,html.sv-rs-full #pageSub,html.sv-rs-full #calView>.pocket-client-calendar{display:none!important}'
                 + 'html.sv-rs-full #mainWrap{padding:0!important}'
+                + 'html.sv-rs-skel #calView{display:none!important}'
                 + 'html.sv-rs-full #calView{padding:4px max(16px,env(safe-area-inset-right,0px)) 32px max(16px,env(safe-area-inset-left,0px))}'
                 // The old bar's tools, in the new header's slot: just the tools, no bar around them.
                 + 'html.sv-rs-full #svReviewStage .cal-toolbar{display:flex;align-items:center;gap:8px;margin:0!important;padding:0!important;min-height:0;background:transparent!important;border:0!important;box-shadow:none!important;position:static;width:auto;flex-wrap:nowrap}'
@@ -231,6 +232,8 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         de.classList.toggle('sv-rs-cal', !!on);
         de.classList.toggle('sv-rs-client', !!on && !!_isClientLink);
         de.classList.toggle('sv-rs-full', !!full);
+        // The client page's Review while its cards load: the new page draws its skeleton, the old loader steps aside.
+        de.classList.toggle('sv-rs-skel', !!full && !!_isClientLink && calState && calState.view === 'review' && !!calState.loading && !calState.error);
     }
     // The Sheet centres its cards in the space under the header (above), so the page needs the header's height.
     let _rsHeadRo = null;

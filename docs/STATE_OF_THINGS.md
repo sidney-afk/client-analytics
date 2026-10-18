@@ -97,6 +97,12 @@ a stage shows); and the stage reads the app's own colour tokens (one page backgr
 and the notes panel, one border, radius and shadow) in light and dark. Switch off or unreadable: pixel-identical to
 main. Test: `node test/review-stage-one-system-browser.js`.
 
+**Review page skeleton (session Curtain Nine, owner feedback 2026-10-17):** while a switched-on client's Review cards
+load, the new page draws its own placeholders (strip chips, title, date, step bar, the media at a video's shape, the
+buttons, the conversation) where the real parts land, within a few pixels (exact on a phone), instead of its header
+over the old calendar loader. Shimmer stops with reduced motion. Skeletons elsewhere are session Mould's. Test:
+`node test/review-stage-skeleton-browser.js`.
+
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone
 layout follows the desktop one and has not been polished on its own (as the handoff said).

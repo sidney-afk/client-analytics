@@ -3067,7 +3067,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         // knows what its own batch colours mean, so it's client-only.
         const colorTitle = (_isClientLink && color) ? ' title="Color tag. Shows which batch this card is in."' : '';
         const warn = (!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnDotHtml(p) : '';
-        return `<button class="cal-month-pill${posted}"${colorAttr}${colorTitle}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${thumbDoor}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calPillBadgeHtml(p)}</span>${warn}</button>`;
+        return `<button class="cal-month-pill${posted}"${colorAttr}${colorTitle}${ribbonAttr}${drag} onclick="if(!svFrameKeyDoor(event,this))openCalPreview('${id}')">${grip}${thumbDoor}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calPillBadgeHtml(p)}</span>${warn}</button>`;
     }
 
     function renderCalMonth() {
@@ -3210,7 +3210,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                                 const wColorAttr = wColor ? ` data-color="${wColor}"` : '';
                                 const wColorTitle = (_isClientLink && wColor) ? ' title="Color tag. Shows which batch this card is in."' : '';
                                 const wWarn = (!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnDotHtml(p) : '';
-                                return `<button class="cal-week-card${posted}"${wColorAttr}${wColorTitle}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${_calClientThumbDoor(th, p)}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calPillBadgeHtml(p)}</span>${wWarn}</button>`;
+                                return `<button class="cal-week-card${posted}"${wColorAttr}${wColorTitle}${ribbonAttr}${drag} onclick="if(!svFrameKeyDoor(event,this))openCalPreview('${id}')">${grip}${_calClientThumbDoor(th, p)}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calPillBadgeHtml(p)}</span>${wWarn}</button>`;
                             }).join('')}
                         </div>
                     </div>`;

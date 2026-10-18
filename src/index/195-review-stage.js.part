@@ -922,10 +922,14 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         try {
             const raw = JSON.parse(localStorage.getItem(key) || '{}'), now = Date.now();
             if (!raw || typeof raw !== 'object') return out;
+            let stale = false;
             Object.keys(raw).forEach(id => {
                 const d = raw[id];
                 if (d && typeof d.text === 'string' && d.text.trim() && now - Number(d.at || 0) < RS_DRAFT_TTL_MS) out[id] = { text: d.text, part: d.part || null, vis: d.vis === 'client' ? 'client' : 'team', at: Number(d.at) };
+                else stale = true;
             });
+            // Words past their 7 days are removed from storage, not just left out of the answer.
+            if (stale) _rsStoreWrite(out);
         } catch (e) {}
         return out;
     }
@@ -2295,7 +2299,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         delete S.drafts[m.id];
         S.note.text = d.text; S.note.vis = d.vis;
         const px = d.part ? m.parts.find(p => p.key === d.part) : null;
-        if (px && px.st === 'wait') { S.note.part = d.part; S.note.where = 'chat'; S.note.was = px.st; }
+        // A part still waiting, or one already approved ("Change my mind" is a note to the team on that part).
+        if (px && (px.st === 'wait' || (px.st === 'ok' && R.mode === 'client'))) { S.note.part = d.part; S.note.where = 'chat'; S.note.was = px.st; }
     }
     function _rsGo(id) {
         const all = _rsAll();

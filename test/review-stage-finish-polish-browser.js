@@ -140,6 +140,10 @@ const reload = async t => { await t.page.reload({ waitUntil: 'domcontentloaded' 
         expect(!await previewOpen(), tab + ': and not the small preview behind it');
         await t.page.keyboard.press('Escape'); await sleep(900);
         expect(!await viewerOpen(), tab + ': Escape closes it');
+        await t.page.locator(sel, { hasText: 'Behind the scenes' }).first().focus();
+        await t.page.keyboard.press('Enter'); await sleep(1800);
+        expect(await viewerOpen() && !await previewOpen(), tab + ': Enter on the post (no pointer) opens the viewer too');
+        await t.page.keyboard.press('Escape'); await sleep(900);
         const before = t.errors.length;
         await thumbOf('Monday reset').click(); await sleep(1200);
         expect(!await viewerOpen() && !await previewOpen(), tab + ': a post with no video opens nothing');
@@ -184,9 +188,16 @@ const reload = async t => { await t.page.reload({ waitUntil: 'domcontentloaded' 
       await t.page.evaluate(([k, id]) => { localStorage.setItem(k, JSON.stringify({ [id]: { text: 'Old words', part: null, vis: 'team', at: Date.now() - 8 * 86400000 } })); }, [storeKey, 'rs1']);
       await reload(t);
       expect(await inS(t.page, '#ta').inputValue().catch(() => 'x') === '', '6: words older than 7 days are not restored');
+      expect(!(await stored(t)), '6: and they are removed from storage, not just hidden');
       await t.page.evaluate(([k, id]) => { localStorage.setItem(k, JSON.stringify({ [id]: { text: 'Fresh words', part: null, vis: 'team', at: Date.now() - 6 * 86400000 } })); }, [storeKey, 'rs1']);
       await reload(t);
       expect(await inS(t.page, '#ta').inputValue().catch(() => '') === 'Fresh words', '6: words under 7 days old are restored');
+      // words about an approved part ("Change my mind") come back about that part
+      t.state.cards[0].graphic_status = 'Approved'; t.state.cards[0].updated_at = new Date().toISOString();
+      await t.page.evaluate(([k, id]) => { localStorage.setItem(k, JSON.stringify({ [id]: { text: 'Reopen the thumbnail', part: 'graphic', vis: 'team', at: Date.now() } })); }, [storeKey, 'rs1']);
+      await reload(t);
+      const chip = await inS(t.page, '#compose').evaluate(e => e.className + ' | ' + e.textContent).catch(() => '');
+      expect(await inS(t.page, '#ta').inputValue().catch(() => '') === 'Reopen the thumbnail' && /\bchg\b/.test(chip) && /reopen it/.test(chip), '6: words about an approved part come back about that part (' + chip.replace(/\s+/g, ' ').slice(0, 60) + ')');
       expect(!t.errors.length, '6: no page errors (' + t.errors.join(' | ') + ')');
       await t.ctx.close();
 

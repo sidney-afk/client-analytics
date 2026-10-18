@@ -22,6 +22,7 @@ const { chromium } = require('playwright');
 const site = require('../scripts/pages-site.js');
 
 const REVIEW_MP4 = 'https://embed-ssl.wistia.com/deliveries/8063b5cf9b2c2243a3413066c91feddb140a3352/file.mp4';
+const UPLOAD_MP4 = 'https://embed-ssl.wistia.com/deliveries/720c8ce14c972e8829aca32c5dbada52ea48879c/file.mp4';
 const UPLOAD_MP4_ID = '13b2f624ce35a73fffc264846cd340b9ced25479'; // the OLD upload tutorial: must never come back
 const innerWidthGuess = w => w - 32;
 const CLIP = fs.readFileSync(path.join(__dirname, 'fixtures/frameio-viewer-clip.webm'));
@@ -51,7 +52,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       await page.route('**/*', route => {
         const u = route.request().url();
         if (u.startsWith(origin)) return route.continue();
-        if (u === REVIEW_MP4) return route.fulfill({ status: 200, contentType: 'video/webm', body: CLIP });
+        if (u === REVIEW_MP4 || u === UPLOAD_MP4) return route.fulfill({ status: 200, contentType: 'video/webm', body: CLIP });
         foreign.push(u);
         return route.abort();
       });
@@ -78,10 +79,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       expect(first.y === 0 && first.sw && first.player, 'the first screen shows the switch and the whole review player');
 
       const srcs = await page.$$eval('video', vs => vs.map(v => ({ src: v.getAttribute('src'), autoplay: v.autoplay, controls: v.controls, paused: v.paused, preload: v.preload })));
-      expect(srcs.length === 1, 'one player on the page (the review tutorial)');
+      expect(srcs.length === 2, 'two players on the page (the review tutorial and the upload tutorial)');
       expect(srcs[0] && srcs[0].src === REVIEW_MP4, 'the player plays the review tutorial MP4');
       expect(srcs.every(v => !v.autoplay && v.paused && !v.controls && v.preload === 'none'), 'the video does not autoplay, load early or show the browser controls');
-      const parts = await page.$$eval('[data-player] .big-play, [data-player] .time, [data-player] .speed, [data-player] .back, [data-player] .pp, [data-player] .fwd, [data-player] .vol, [data-player] .full, [data-player] .scrub', els => els.length);
+      const parts = await page.$$eval('#panel-review [data-player] .big-play, #panel-review [data-player] .time, #panel-review [data-player] .speed, #panel-review [data-player] .back, #panel-review [data-player] .pp, #panel-review [data-player] .fwd, #panel-review [data-player] .vol, #panel-review [data-player] .full, #panel-review [data-player] .scrub', els => els.length);
+      const upParts = await page.$$eval('#panel-upload [data-player] .big-play, #panel-upload [data-player] .scrub, #panel-upload [data-player] .full', els => els.length);
+      expect(upParts === 3, 'the upload player is the same player (play button, seek line, full screen)');
       expect(parts === 9, 'the player has the big play button, time, speed, back 5 s, play/pause, forward 5 s, volume, full screen and the seek line');
 
       const player = page.locator('[data-player]').first();
@@ -100,7 +103,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       await page.locator('#tab-upload').click();
       expect(await page.$eval('video', v => v.paused), 'switching to Upload content pauses the review video');
       expect(!(await page.locator('[data-player]').first().isVisible()), 'Upload content hides the review player');
-      expect(await page.locator('#panel-upload [data-player], #panel-upload video, #panel-upload iframe').count() === 0, 'Upload content has no player (the new upload video is not made yet)');
+      expect(await page.locator('#panel-upload [data-player] video').count() === 1 && await page.locator('#panel-upload iframe').count() === 0, 'Upload content has its own player (the new upload tutorial)');
+      expect(await page.$eval('#panel-upload video', v => v.getAttribute('src')) === UPLOAD_MP4 && await page.$eval('#panel-upload video', v => !v.autoplay), 'the upload player plays the upload tutorial MP4 and never autoplays');
       expect(await page.locator('.tree').isVisible() && await page.locator('.rules li').count() === 5, 'Upload content shows the five folder rules and the drawn folder tree');
       expect(await page.locator('.only-upload').isVisible() && /Google Drive/.test(await page.locator('.only-upload').innerText()), 'Upload content says where to upload');
       expect(await page.locator('.only-upload a.cta').getAttribute('href') === '/?intake=1' && await page.locator('.only-upload a.cta').isVisible(), 'Upload content links to the upload form');
@@ -137,7 +141,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       expect(overflow <= 0, 'no sideways scroll (' + overflow + ' px)');
       expect(errors.length === 0, 'no console errors' + (errors.length ? ': ' + errors.join(' | ') : ''));
       expect(failed.length === 0, 'no failed requests' + (failed.length ? ': ' + failed.join(' | ') : ''));
-      expect(foreign.length === 0, 'no request leaves the site except the review tutorial MP4' + (foreign.length ? ': ' + foreign.join(' | ') : ''));
+      expect(foreign.length === 0, 'no request leaves the site except the two tutorial MP4s' + (foreign.length ? ': ' + foreign.join(' | ') : ''));
 
       if (SHOTS) {
         fs.mkdirSync(SHOTS, { recursive: true });

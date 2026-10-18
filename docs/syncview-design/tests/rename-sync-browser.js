@@ -112,7 +112,7 @@ function mockBackend(page, state) {
       ok(!r.blankReadonly, 'client: a new blank card can still be named');
       ok(!r.marker, 'client: no name-syncing marker');
       ok(!r.nameQueued, 'client: a direct handler call cannot queue a rename');
-      ok(r.captionQueued, 'client Collab: other text fields still edit');
+      ok(!r.captionQueued, 'client Collab: a caption is read only too (owner, 2026-10-18), so a direct handler call queues nothing');
       await page.close();
     }
 

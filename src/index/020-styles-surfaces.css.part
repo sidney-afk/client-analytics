@@ -1794,6 +1794,12 @@
         .cal-fld-cta::placeholder, .cal-fld-tweaks::placeholder { color: var(--field-placeholder); }
         .cal-fld-cta:focus, .cal-fld-tweaks:focus { background: var(--field-bg-focus); border-color: var(--field-border-focus); }
         .cal-fld-tweaks { line-height: 1.5; resize: none; }
+        /* A client link's caption and call to action are read only (owner, 2026-10-18): they read as finished text, not
+           as a field. The arrow cursor, and no focus fill or border that would hint at typing. A clamped caption
+           keeps its pointer (tap to read more). Blank "suggest a post" cards are not read only, so they are unchanged. */
+        html.boot-client .cal-card-edit textarea.cal-fld-cap[readonly], html.boot-client .cal-card-edit .cal-fld-cta[readonly] { cursor: default; }
+        html.boot-client .cal-card-edit textarea.cal-fld-cap[readonly]:focus, html.boot-client .cal-card-edit .cal-fld-cta[readonly]:focus { background: var(--field-bg); border-color: transparent; }
+        html.boot-client .cal-cap-wrap.is-clamped textarea.cal-fld-cap[readonly] { cursor: pointer; }
 
         /* Alt caption — optional second platform-specific caption on a card.
            Rides inside the same caption component (one caption_status, one

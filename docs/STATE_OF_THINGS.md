@@ -31,6 +31,17 @@ Wistia script, never autoplays), with the five folder rules beside a drawn folde
 four demo posts). Published because `start` is in `PUBLISHED_DIRS` (`scripts/pages-site.js`). Test:
 `node test/start-page-browser.js`. To change the wording or a video, edit `start/index.html`.
 
+## Client link Calendar is read only, video door opens the viewer (session Pane, 2026-10-18): PR open
+
+Owner's two decisions, 2026-10-18, for the client link only (staff pages unchanged). (1) On the client Sheet the caption,
+call to action and date are read only, Collaborative mode on or off (a blank "suggest a post" card the client is writing
+stays editable); Month and Week no longer drag posts and no longer offer the "Unscheduled ... drag onto a day" list;
+Notes still work; the new review page's caption edit for a post waiting on the client is a separate path and is
+unchanged. Sheet card reordering (drag by the grip) was a separate, earlier owner decision and was not changed.
+(2) The Sheet's Video button opens the Notes view with the video on the left and the notes on the right, behind the
+same `frame_viewer_clients` switch as the staff Calendar; with the switch off, or for a link the viewer cannot play, it
+is the old Frame.io link. Test: `node test/client-calendar-read-only-browser.js`.
+
 ## New review page, layout C (session Marquee, 2026-10-17): merged, on for the test client and the owner only
 
 The owner approved the client page (layout C, "Guided stage") and the SMM and Kasper versions of it on 2026-10-16.

@@ -63,8 +63,8 @@ ok(/\$\{\(isBlank \|\| _isClientLink\) \? '' : `<button class="cal-card-del"/.te
 // the underlying engine is unchanged and client-agnostic (sends the slug).
 ok(/body: JSON\.stringify\(\{ client: slug, items \}\)/.test(INDEX),
    'reorder still persists through persistCalReorder with the client slug');
-ok(/function _calCanDragCards\(\) \{ return !_isClientLink \|\| _calIsCollabOn\(\); \}/.test(INDEX),
-   'collab-gated day-reschedule drag (_calCanDragCards) is untouched — Sheet reorder is separate');
+ok(/function _calCanDragCards\(\) \{ return !_isClientLink; \}/.test(INDEX),
+   'day-reschedule drag on Month and Week (_calCanDragCards) is staff only since 2026-10-18 — Sheet reorder is separate');
 
 console.log('\n============================================================');
 console.log('B) CAPTION — fade + Show more/less + click-to-expand');

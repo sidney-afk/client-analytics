@@ -2010,7 +2010,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 // merge doesn't see a phantom "we wrote newer" stamp.
                 cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
                 cur._saveError = _writeUiFailureSentence(e, 'save failed');
-                _calNoteUnsent(realId, edits);
+                _calNoteUnsent(realId, edits, CAL_NETWORK_FAILURE_RE.test(String(cur._saveError || '')));
                 if (gatewayCommitted) {
                     cur._writeUiRetryEdits = Object.assign({}, edits);
                     cur._writeUiRetrySourceAt = writeUiSourceAt;
@@ -2102,23 +2102,29 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
        server answered and refused is left for the person, as before. Staff
        pages only: a client link's answers have their own resend (185). */
     const CAL_NETWORK_FAILURE_RE = /failed to fetch|networkerror|network request failed|load failed|network connection was lost|internet connection|server has not answered|timed out|checking whether saving is on (failed|took too long)/i;
-    /* The fields each card's failed saves were carrying, so the automatic resend
-       sends THOSE and nothing else. A bare Retry re-sends this tab's whole copy of
-       the card, which would put back anything a teammate changed while this
-       browser was offline (their rename, date or video link). Rolled-back fields
+    /* The fields AND VALUES each card's failed saves were carrying, so the
+       automatic resend sends THOSE and nothing else. A bare Retry re-sends this
+       tab's whole copy of the card, which would put back anything a teammate
+       changed while this browser was offline (their rename, date or video link).
+       The values are kept here, outside the card, because a refresh that lands
+       before the resend replaces the card's fields (and can clear its
+       _saveError): rebuilding the resend from the card would then send the
+       teammate's value, or nothing (Codex review of #2209). Rolled-back fields
        (status, date, order, links) travel as the kept intent instead. */
-    const _calUnsentKeys = Object.create(null);
-    function _calNoteUnsent(id, edits) {
-        const keys = _calUnsentKeys[id] || (_calUnsentKeys[id] = new Set());
-        Object.keys(edits || {}).forEach(k => { if (k.charAt(0) !== '_' && _CAL_ROLLBACK_FIELDS.indexOf(k) < 0) keys.add(k); });
+    const _calUnsentKeys = Object.create(null);   // id -> { vals: {field: value}, network: bool }
+    function _calNoteUnsent(id, edits, network) {
+        const rec = _calUnsentKeys[id] || (_calUnsentKeys[id] = { vals: Object.create(null), network: false });
+        rec.network = !!network;
+        Object.keys(edits || {}).forEach(k => { if (k.charAt(0) !== '_' && _CAL_ROLLBACK_FIELDS.indexOf(k) < 0) rec.vals[k] = edits[k]; });
+        if (!Object.keys(rec.vals).length) delete _calUnsentKeys[id];
     }
     function _calForgetUnsent(id, pid, edits) {
         [id, pid].forEach(key => {
-            const keys = _calUnsentKeys[key];
-            if (!keys) return;
+            const rec = _calUnsentKeys[key];
+            if (!rec) return;
             const sent = Object.keys(edits || {});
             if (!sent.length) delete _calUnsentKeys[key];
-            else { sent.forEach(k => keys.delete(k)); if (!keys.size) delete _calUnsentKeys[key]; }
+            else { sent.forEach(k => { delete rec.vals[k]; }); if (!Object.keys(rec.vals).length) delete _calUnsentKeys[key]; }
         });
     }
     function _calRetryNetworkFailedSaves() {
@@ -2126,13 +2132,16 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         let n = 0;
         calState.posts.slice().forEach(p => {
             if (!p || !p.id || _calSaveInFlight[p.id]) return;
-            if (!p._saveError || !CAL_NETWORK_FAILURE_RE.test(String(p._saveError))) return;
+            const rec = _calUnsentKeys[p.id];
+            const netErr = !!p._saveError && CAL_NETWORK_FAILURE_RE.test(String(p._saveError));
+            // A refresh may have cleared _saveError: the kept network failure still counts.
+            if (!netErr && !(rec && rec.network)) return;
             if (!_calFailedNewCards.has(p.id)) {
-                const keys = _calUnsentKeys[p.id];
                 // Nothing known to resend but the whole card: leave that Retry to the person.
-                if ((!keys || !keys.size) && !p._calFailedIntentLabel) return;
+                if (!rec && !p._calFailedIntentLabel) return;
                 const bucket = _calPendingEdits[p.id] || (_calPendingEdits[p.id] = {});
-                (keys || []).forEach(k => { if (!(k in bucket)) bucket[k] = p[k]; });
+                // The value that failed, not the card's current one (newer typing in the bucket wins).
+                if (rec) Object.keys(rec.vals).forEach(k => { if (!(k in bucket)) bucket[k] = rec.vals[k]; });
             }
             try { _calRetrySave(p.id); n++; } catch (e) {}
         });

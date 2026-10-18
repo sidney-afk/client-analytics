@@ -203,6 +203,13 @@ load, the new page draws its own placeholders (strip chips, title, date, step ba
 buttons, the conversation) where the real parts land, within a few pixels (exact on a phone), instead of its header
 over the old calendar loader. Shimmer stops with reduced motion. Skeletons elsewhere are session Mould's. Test:
 `node test/review-stage-skeleton-browser.js`.
+**One scrollbar for the whole app (session Curtain Nine, owner feedback 2026-10-17, for everyone):** every scrollbar
+(text boxes, lists, panels, dialogs, the page) now looks like the review conversation panel's: 6px, fully rounded, no
+track, the theme's soft thumb (`--scrollbar-thumb` / `--scrollbar-thumb-hover`, light and dark), darker on hover. One
+shared block at the end of `020-styles-surfaces.css.part` (and the same rule inside the review page's shadow root);
+the 31 per-place scrollbar rules are gone. A place that hides its scrollbar still does. Firefox gets
+`scrollbar-width: thin` and the same colour (only where `::-webkit-scrollbar` is unsupported, so Chromium keeps the
+rounded thumb). Test: `node test/scrollbars-browser.js`.
 
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone

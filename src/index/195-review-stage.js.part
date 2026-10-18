@@ -374,10 +374,13 @@ svg{display:block;flex-shrink:0}
 .av{width:28px;height:28px;border-radius:50%;background:var(--av-team);color:var(--av-team-fg);font-size:.66rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
 .av.l{background:var(--pt-thumbnail);color:var(--pi-thumbnail)}
 .ch-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;padding:14px 14px 10px;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 16px);mask-image:linear-gradient(to bottom,transparent 0,#000 16px);display:flex;flex-direction:column;gap:10px}
-.ch-scroll::-webkit-scrollbar{width:6px}
-.ch-scroll::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:99px}
-.ch-scroll::-webkit-scrollbar-thumb:hover{background:var(--scroll-thumb-hover)}
-@supports not selector(::-webkit-scrollbar){.ch-scroll{scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent}}
+/* The app's one scrollbar (020's last block) for everything in here too: page styles cannot reach this shadow root. */
+*::-webkit-scrollbar{width:6px;height:6px;background:transparent}
+*::-webkit-scrollbar-track,*::-webkit-scrollbar-corner{background:transparent}
+*::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:99px}
+*::-webkit-scrollbar-thumb:hover{background:var(--scroll-thumb-hover)}
+*::-webkit-scrollbar-button{display:none;width:0;height:0}
+@supports not selector(::-webkit-scrollbar){*{scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent}}
 .pin{display:flex;align-items:center;gap:9px;margin:10px 12px 0;padding:8px 12px 8px 8px;border-radius:12px;background:var(--deck);box-shadow:inset 0 0 0 1px var(--deck-line);font-size:.78rem;color:var(--text-secondary);flex-shrink:0}
 .pin .av{width:24px;height:24px;font-size:.62rem}
 .pin span{min-width:0;line-height:1.35}
@@ -713,7 +716,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .qbtn svg{width:18px;height:18px}
 .qbtn .qb{position:absolute;top:-5px;right:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:var(--white);font-size:.64rem;font-weight:800;box-shadow:0 0 0 2px var(--bg)}
 .sk-head.k{flex-direction:row;align-items:center;padding-left:0}
-.qp{position:absolute;left:0;top:calc(100% + 6px);z-index:30;width:360px;max-width:calc(100vw - 32px);max-height:min(560px,calc(100vh - var(--rs-top,0px) - 120px));overflow-y:auto;scrollbar-width:thin;background:var(--surface-raised);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-md);padding:6px;animation:rise .16s var(--ease)}
+.qp{position:absolute;left:0;top:calc(100% + 6px);z-index:30;width:360px;max-width:calc(100vw - 32px);max-height:min(560px,calc(100vh - var(--rs-top,0px) - 120px));overflow-y:auto;background:var(--surface-raised);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-md);padding:6px;animation:rise .16s var(--ease)}
 .qp-sec+.qp-sec{margin-top:4px;padding-top:4px;border-top:1px solid var(--hair)}
 .qp-h{display:flex;align-items:center;gap:6px;padding:8px 10px 6px;font-size:.74rem;font-weight:800;color:var(--text-secondary)}
 .qp-h svg{width:12px;height:12px}

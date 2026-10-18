@@ -945,8 +945,6 @@
         .cc-select.open .cc-select-trigger svg { transform: rotate(180deg); color: var(--text-primary); }
         .cc-select-menu { position: absolute; z-index: 620; top: calc(100% + 7px); left: 0; right: 0; max-height: 240px; overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: 14px; background: var(--sv-bg-rgba-255-255-255-0_98); box-shadow: 0 18px 48px var(--sv-shadow-rgba-17-17-16-0_16); opacity: 0; transform: translateY(-4px) scale(0.985); pointer-events: none; visibility: hidden; transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s linear 0.13s; }
         .cc-select.open .cc-select-menu { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; visibility: visible; transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s; }
-        .cc-select-menu::-webkit-scrollbar { width: 6px; }
-        .cc-select-menu::-webkit-scrollbar-thumb { background: var(--sv-bg-d8d8d4); border-radius: 99px; }
         .cc-select-option { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 0.82rem; font-weight: 650; text-align: left; cursor: pointer; }
         .cc-select-option:hover { background: var(--bg); color: var(--text-primary); }
         .cc-select-option.active { background: var(--sv-bg-111110); color: var(--sv-fg-fff); }
@@ -1018,7 +1016,6 @@
         /* Organizer — inline-editable cards */
         .cal-organizer-wrap { padding: 4px 0; }
         .cal-organizer-strip { display: flex; gap: 14px; overflow-x: auto; padding: 10px 4px 6px; align-items: flex-start; min-height: 320px;
-            scrollbar-width: thin; scrollbar-color: var(--sv-fg-cdcdc8) transparent;
             /* Generous right runway so the user can scroll past the last
                card into empty canvas — and so a newly added card can be
                scrolled into the centre of the viewport instead of pinning
@@ -1026,26 +1023,6 @@
                space stays sensible on tiny and wide screens. */
             scroll-padding-right: clamp(120px, 40vw, 800px); }
         .cal-organizer-strip::after { content: ''; flex: 0 0 clamp(120px, 40vw, 800px); align-self: stretch; }
-        /* Subtle scrollbar — track blends into the page; thumb is solid and
-           pill-shaped. The arrow buttons (start / end / single-button) are
-           all zero-sized so they can't render even on platforms where
-           `display: none` is ignored for scrollbar buttons. */
-        .cal-organizer-strip::-webkit-scrollbar { height: 10px; background: transparent; }
-        .cal-organizer-strip::-webkit-scrollbar-track,
-        .cal-organizer-strip::-webkit-scrollbar-track-piece { background: transparent; }
-        .cal-organizer-strip::-webkit-scrollbar-thumb { background: var(--sv-bg-cdcdc8); border-radius: 99px; border: 2px solid transparent; background-clip: padding-box; }
-        .cal-organizer-strip::-webkit-scrollbar-thumb:hover { background: var(--sv-bg-b1b1aa); background-clip: padding-box; }
-        .cal-organizer-strip::-webkit-scrollbar-button,
-        .cal-organizer-strip::-webkit-scrollbar-button:single-button,
-        .cal-organizer-strip::-webkit-scrollbar-button:start:decrement,
-        .cal-organizer-strip::-webkit-scrollbar-button:end:increment,
-        .cal-organizer-strip::-webkit-scrollbar-button:horizontal:start,
-        .cal-organizer-strip::-webkit-scrollbar-button:horizontal:end,
-        .cal-organizer-strip::-webkit-scrollbar-button:vertical:start,
-        .cal-organizer-strip::-webkit-scrollbar-button:vertical:end {
-            display: block; width: 0 !important; height: 0 !important; background: transparent;
-        }
-        .cal-organizer-strip::-webkit-scrollbar-corner { background: transparent; }
         .cal-card { position: relative; flex: 0 0 var(--cal-card-w, 420px); background: var(--white); border: 1px solid var(--border); border-radius: 14px; transition: box-shadow 0.12s, border-color 0.12s; overflow: hidden; display: flex; flex-direction: column; }
         .cal-card:hover { box-shadow: 0 4px 14px var(--sv-shadow-rgba-0-0-0-0_07); }
         .cal-card.is-blank { background: var(--sv-bg-fcfcfb); border-style: dashed; border-color: var(--sv-border-d4d4d2); }
@@ -1789,14 +1766,9 @@
         .cal-cap-wrap { position: relative; display: flex; flex-direction: column; }
         .cal-fld-cap { width: 100%; box-sizing: border-box; background: var(--field-bg); border: 1px solid transparent;
             border-radius: 8px; padding: 8px 9px; font-family: inherit; font-size: 0.74rem; line-height: 1.5;
-            color: var(--text-primary); resize: none; outline: 0;
-            scrollbar-width: thin; scrollbar-color: var(--sv-fg-c8c8c3) transparent; }
+            color: var(--text-primary); resize: none; outline: 0; }
         .cal-fld-cap::placeholder { color: var(--field-placeholder); }
         .cal-fld-cap:focus { background: var(--field-bg-focus); border-color: var(--field-border-focus); }
-        .cal-fld-cap::-webkit-scrollbar, .cal-fld-tweaks::-webkit-scrollbar { width: 9px; }
-        .cal-fld-cap::-webkit-scrollbar-thumb, .cal-fld-tweaks::-webkit-scrollbar-thumb { background: var(--sv-bg-cdcdc8); border-radius: 99px; border: 3px solid transparent; background-clip: padding-box; }
-        .cal-fld-cap::-webkit-scrollbar-thumb:hover, .cal-fld-tweaks::-webkit-scrollbar-thumb:hover { background: var(--sv-bg-b1b1aa); background-clip: padding-box; }
-        .cal-fld-cap::-webkit-scrollbar-track, .cal-fld-tweaks::-webkit-scrollbar-track { background: transparent; }
         /* Bottom fade over a collapsed caption that has more text below — the
            passive "there's more" cue. Blends to the collapsed textarea bg
            (var(--sv-misc-f3f3f1)); pointer-events:none so clicks fall through to the box. */
@@ -1821,7 +1793,7 @@
             border-radius: 8px; padding: 8px 9px; font-family: inherit; font-size: 0.72rem; color: var(--text-primary); outline: 0; }
         .cal-fld-cta::placeholder, .cal-fld-tweaks::placeholder { color: var(--field-placeholder); }
         .cal-fld-cta:focus, .cal-fld-tweaks:focus { background: var(--field-bg-focus); border-color: var(--field-border-focus); }
-        .cal-fld-tweaks { line-height: 1.5; resize: none; scrollbar-width: thin; }
+        .cal-fld-tweaks { line-height: 1.5; resize: none; }
 
         /* Alt caption — optional second platform-specific caption on a card.
            Rides inside the same caption component (one caption_status, one
@@ -3650,8 +3622,6 @@
         .sv-select.open .sv-select-menu { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; visibility: visible; transition: transform 0.13s ease, visibility 0s; }
         .sv-select.open-up .sv-select-menu { top: auto; bottom: calc(100% + 7px); transform: translateY(4px) scale(0.985); }
         .sv-select.open.open-up .sv-select-menu { transform: translateY(0) scale(1); }
-        .sv-select-menu::-webkit-scrollbar { width: 6px; }
-        .sv-select-menu::-webkit-scrollbar-thumb { background: var(--sv-bg-d8d8d4); border-radius: 99px; }
         .sv-select-option { width: 100%; min-height: 42px; display: flex; align-items: center; gap: 9px; border: 0; border-radius: 10px; padding: 9px 10px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 0.78rem; font-weight: 700; text-align: left; cursor: pointer; outline: 0; }
         .sv-select-option > span:not(.sv-option-dot):not(.sv-option-check) { min-width: 0; flex: 1; }
         .sv-select-option:hover, .sv-select-option:focus-visible { background: var(--bg); color: var(--text-primary); }
@@ -4190,8 +4160,6 @@
         .srp-select-wrap.open .srp-select-trigger svg { transform: rotate(180deg); color: var(--text-primary); }
         .srp-select-menu { position: absolute; z-index: 620; top: calc(100% + 7px); left: 0; right: 0; max-height: 260px; overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: 14px; background: var(--white); box-shadow: 0 18px 48px var(--sv-shadow-rgba-17-17-16-0_16); opacity: 0; transform: translateY(-4px) scale(0.985); pointer-events: none; visibility: hidden; transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s linear 0.13s; }
         .srp-select-wrap.open .srp-select-menu { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; visibility: visible; transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s; }
-        .srp-select-menu::-webkit-scrollbar, .srp-search-results::-webkit-scrollbar { width: 6px; }
-        .srp-select-menu::-webkit-scrollbar-thumb, .srp-search-results::-webkit-scrollbar-thumb { background: var(--sv-bg-d8d8d4); border-radius: 99px; }
         .srp-select-option { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 0.82rem; font-weight: 650; text-align: left; cursor: pointer; }
         .srp-select-option:hover { background: var(--bg); color: var(--text-primary); }
         .srp-select-option.active { background: var(--sv-bg-111110); color: var(--sv-fg-fff); }
@@ -8473,3 +8441,19 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
 
 /* Keep the native caption field inside a reduced keyboard viewport. */
 @media(max-width:767px){html.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] textarea.cal-fld-cap {max-height:min(336px,calc(100dvh - 260px))!important;overflow-y:auto;}}
+
+/* ONE SCROLLBAR FOR THE WHOLE APP (owner feedback 2026-10-17, session Curtain Nine): every scrollbar (text boxes,
+   lists, panels, dialogs, the page) looks like the review conversation panel's: 6px, fully rounded, no track, a soft
+   thumb that darkens on hover, from the theme's --scrollbar-thumb tokens (light and dark). No place styles its own; a
+   place that hides its scrollbar (scrollbar-width: none, or display: none on ::-webkit-scrollbar) still hides it.
+   Chromium and Safari draw the ::-webkit-scrollbar rules; Firefox, which has none, gets the standard properties. The
+   standard ones are kept away from Chromium on purpose: there they would replace the rounded thumb with its own. */
+::-webkit-scrollbar, *::-webkit-scrollbar { width: 6px; height: 6px; background: transparent; }
+::-webkit-scrollbar-track, *::-webkit-scrollbar-track, ::-webkit-scrollbar-track-piece, *::-webkit-scrollbar-track-piece,
+::-webkit-scrollbar-corner, *::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb, *::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover, *::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+::-webkit-scrollbar-button, *::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+@supports not selector(::-webkit-scrollbar) {
+    * { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+}

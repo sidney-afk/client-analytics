@@ -1855,6 +1855,14 @@
       "ci": "representative"
     },
     {
+      "file": "scrollbars-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium (started without its --hide-scrollbars default); every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Measures the drawn scrollbar of the page, the staff Sheet's card strip, a caption box, a plain scrolling box and the review page's conversation panel in light and dark (6px each, the theme's thumb colour, no standard scrollbar-width in Chromium), and that a hidden scrollbar stays hidden.",
+      "reproduce": "node test/scrollbars-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "frameio-viewer-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

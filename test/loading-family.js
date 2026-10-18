@@ -25,6 +25,13 @@ for (const f of files) {
     let m;
     while ((m = re.exec(src))) {
       if (/keyframes/.test(m[1])) continue;
+      // The Time Off spinner's line is part of the PTO evidence fingerprint (qa/pto-lifecycle): it keeps its literal,
+      // which must stay equal to the token value.
+      if (/\.pto-spinner \{/.test(src.slice(src.lastIndexOf('\n', m.index) + 1, m.index))) {
+        checks++;
+        if (!/^spin 0\.75s linear infinite/.test(m[1] + ' ' + m[2])) bad.push(f + ': the Time Off spinner must stay "spin 0.75s linear infinite" (equal to --sv-spin-dur)');
+        continue;
+      }
       checks++;
       if (!m[2].includes('var(' + token + ')')) bad.push(f + ': "' + m[0].trim().slice(0, 90) + '" should use var(' + token + ')');
     }

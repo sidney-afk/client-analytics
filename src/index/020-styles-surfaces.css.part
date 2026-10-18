@@ -3735,7 +3735,7 @@
         .pto-signin { display: grid; justify-items: center; gap: 10px; padding: 44px 18px; text-align: center; }
         .pto-signin strong { font-size: 0.92rem; }
         .pto-signin span { max-width: 420px; color: var(--text-muted); font-size: 0.7rem; line-height: 1.5; }
-        .pto-spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--text-primary); border-radius: 50%; animation: spin var(--sv-spin-dur) linear infinite; }
+        .pto-spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--text-primary); border-radius: 50%; animation: spin 0.75s linear infinite; }
         @media (prefers-reduced-motion: reduce) {
             .sv-select-menu { animation: none !important; transition: none !important; }
             .sv-explain-label { transition: none !important; }

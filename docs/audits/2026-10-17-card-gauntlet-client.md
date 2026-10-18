@@ -23,7 +23,7 @@ seeds test the caption, the real card tests video and thumbnail.
 
 | Sighting | Verdict | Exact steps |
 |---|---|---|
-| "Saving…" stuck after an approve | **Confirmed, fixed in #2173** | Open the link, open a post whose video and thumbnail are approved, click Approve the caption. The save answers in about 0.6 s and the saving flag clears at 0.53 s, but the stage shows "Saving…" for 4.8, 5.0, 5.1 and 13.5 s (four runs), over 30 s on a slow network, until an unrelated background reload. Same for Ask for a change on the last part. Cause: the finish step calls `_calReviewRemoveCard`, which finds no old card on the new page and returns without redrawing (`190-calendar-approval-comments.js.part`). |
+| "Saving…" stuck after an approve | **Confirmed; fix lands with #2174** | Open the link, open a post whose video and thumbnail are approved, click Approve the caption. The save answers in about 0.6 s and the saving flag clears at 0.53 s, but the stage shows "Saving…" for 4.8, 5.0, 5.1 and 13.5 s (four runs), over 30 s on a slow network, until an unrelated background reload. Same for Ask for a change on the last part. Cause: the finish step calls `_calReviewRemoveCard`, which finds no old card on the new page and returns without redrawing (`190-calendar-approval-comments.js.part`). |
 | The stage blinking when switching parts | **Confirmed (Curtain files)** | Open any post, click Thumbnail, then Caption, then Video. Each click: the whole media box fades to 0.5% opacity for about 50 ms (the `.swap` fade, 150 ms out, 200 ms in), the conversation panel is rebuilt (empty for a frame, then refilled), the "waiting for you" strip is rebuilt (its thumbnails are new `<img>` elements and pop back in), and leaving the video step replaces the `<video>` element. Recorded frame by frame; no layout jump (stage height stays 534 px). |
 | The old Notes dialog flashing on the client Sheet tab | **Not reproduced** | Watched `#calCommentsOverlay` every animation frame through: Review to Sheet to Month to Week and back (twice), a direct load landing on Sheet, Month and Review, clicking a Sheet card's body, its thumbnail, its Video door and its Notes button. It never flashed. The Notes button does open the old Notes dialog and keeps it open (by design today), so that may be what was seen. If it happens again, the exact click before it would pin it. |
 
@@ -35,7 +35,7 @@ Timings are from click to the database holding the answer, unless said.
 |---|---|---|---|
 | Load | Open the link, stage drawn | Pass | 2.4 to 2.9 s (7.3 s with every backend call slowed by 2.5 s) |
 | Strip | Click a post in "waiting for you" | Pass, opens it | 0.6 s |
-| Review, caption | Approve | Pass (database right); stage stuck on "Saving…" (fixed in #2173) | DB within 1 s |
+| Review, caption | Approve | Pass (database right); stage stuck on "Saving…" (fix lands with #2174) | DB within 1 s |
 | Review, caption | Change my mind on an approved caption, Cancel | Pass, nothing sent | |
 | Review, caption | Change my mind, empty box | Pass, Send disabled | |
 | Review, caption | Change my mind with text and emoji | Pass: caption stays Approved, a note to the team is saved | 0.55 s save |
@@ -64,7 +64,7 @@ Timings are from click to the database holding the answer, unless said.
 | Theme | Sun/moon to dark, refresh | Pass, dark kept after refresh, on all four tabs | |
 | Help | "?" | Pass, hidden (no video address set yet) | |
 | Phone 390 and 430, light and dark | Review, Sheet, Month, Week | Pass: stage under 2.2 s, no sideways scroll on any tab, Approve fully on screen | |
-| Phone 390 | Tap Approve | Pass, saved; the stuck "Saving…" also shows here (fixed in #2173) | 1.2 s |
+| Phone 390 | Tap Approve | Pass, saved; the stuck "Saving…" also shows here (fix lands with #2174) | 1.2 s |
 | Hard case | Double click Approve | Pass: one save | |
 | Hard case | Five fast clicks on Approve | Pass: one save, no errors | |
 | Hard case | Double click Send on a change | Pass: one change request | |
@@ -74,7 +74,7 @@ Timings are from click to the database holding the answer, unless said.
 | Hard case | Two tabs on the same post | **Fails** (Curtain, 1 and 2) | |
 | Hard case | Offline, Approve, back online | Pass: "Sending... waiting for your connection to come back", sent by itself | 1.1 s after online |
 | Hard case | Offline, Ask for a change, back online | Pass: words kept and sent by itself | 5.4 s after online |
-| Hard case | Slow network (every backend call +2.5 s) | Pass for the save; "Saving…" never cleared in 30 s (fixed in #2173) | |
+| Hard case | Slow network (every backend call +2.5 s) | Pass for the save; "Saving…" never cleared in 30 s (fix lands with #2174) | |
 | Hard case | Stale page after a new deploy (deploy check answered with newer headers) | Pass: "A new version of SyncView is available" bar with Reload; text typed in a change request survives the check | |
 | Staff side | Staff signed in on the live site, Calendar for the test client | Pass: all 16 cards touched here show the same status as the client page and the database | |
 | Safety | Other-client writes, Linear calls, page errors | 0, 0, 0 on every run | |
@@ -130,10 +130,12 @@ Timings are from click to the database holding the answer, unless said.
 
 ## What was fixed
 
-- **#2173** (ready): `_calReviewRemoveCard` redraws the new review page when it is on, so "Saving…" clears as soon as
-  the last answer on a post saves (6 s or more on main, 0.1 s with the fix), for the client and the SMM.
-  Test `test/review-stage-saving-clears-browser.js` fails on main and passes with the fix.
-- Also in #2173: `test/higgsfield-client-questions.js` expected a fixed date (2026-10-17) and went red on main and every
+- **The stuck "Saving…"**: root cause and fix found here (#2173, closed by Lighthouse as included elsewhere).
+  `_calReviewRemoveCard` must redraw the new review page when it is on, so "Saving…" clears as soon as the last answer
+  on a post saves (6 s or more on main, 0.1 s with the fix). #2174 makes the same one-line change, plus a save watch
+  with Try again, and lands in the train #2200. The client-page test from #2173 can be ported into
+  `review-stage-save-browser.js` later.
+- In this PR: `test/higgsfield-client-questions.js` expected a fixed date (2026-10-17) and went red on main and every
   PR at midnight UTC; it now expects the real day (test only).
 
 ## Not reached

@@ -603,13 +603,8 @@ svg{display:block;flex-shrink:0}
 .player.rs-novid.wait .nv{display:none}
 .bigthumb .tframe{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-size:.84rem;font-weight:600;color:var(--text-secondary)}
 .bigthumb .tframe a{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;background:var(--deck);box-shadow:inset 0 0 0 1px var(--border);color:var(--text-primary);font-weight:700}
-.help-btn{width:38px;height:38px;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-secondary);background:var(--fill);font-size:.95rem;font-weight:800;transition:background .14s,color .14s}
+.help-btn{width:38px;height:38px;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-secondary);background:var(--fill);font-size:.95rem;font-weight:800;text-decoration:none;transition:background .14s,color .14s}
 .help-btn:hover{background:var(--fill-hover);color:var(--text-primary)}
-.help-ovl{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.6);animation:rise .18s var(--ease)}
-.help-box{position:relative;width:min(960px,100%);background:#000;border-radius:16px;overflow:hidden;box-shadow:var(--shadow-md)}
-.help-box video,.help-box iframe{display:block;width:100%;aspect-ratio:16/9;border:0;background:#000}
-.help-x{position:absolute;top:10px;right:10px;z-index:2;width:34px;height:34px;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);color:#fff}
-.help-x svg{width:14px;height:14px}
 .split{position:relative;display:inline-flex;flex-shrink:0}
 .split>.b-ok{padding-right:54px}
 .split>.sarr{position:absolute;right:0;top:0;bottom:0;width:38px;display:inline-flex;align-items:center;justify-content:center;border-radius:0 11px 11px 0;color:var(--okb-fg);box-shadow:inset 1px 0 0 var(--okb-line);transition:background .14s}
@@ -1135,7 +1130,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // Calendar's own bar, the same one Sheet, Month and Week show (188), so nothing moves between the tabs.
         if (R.mode !== 'client') return '';
         const tabs = [['review', 'Review'], ['organizer', 'Sheet'], ['month', 'Month'], ['week', 'Week']];
-        const right = '<button class="help-btn" id="rsHelp" type="button" aria-label="How this page works" title="How this page works" hidden>?</button>'
+        const right = '<a class="help-btn" id="rsHelp" href="/start#review" target="_blank" rel="noopener" aria-label="How this page works" title="How this page works" hidden>?</a>'
             + '<button class="theme-btn" id="rsTheme" type="button" aria-label="Switch to dark mode" title="Switch to dark mode"></button>';
         // The client link's header is its only one on all four tabs (188): a fixed slot holds the old bar's tools on
         // Sheet, Month and Week, left of the pill toggle, so neither the toggle nor the sun/moon button ever moves.
@@ -1236,8 +1231,6 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         });
         const th = _rsQ('rsTheme');
         if (th) th.addEventListener('click', () => { window.toggleSyncViewTheme(); _rsSyncTheme(); });
-        const hp = _rsQ('rsHelp');
-        if (hp) hp.addEventListener('click', _rsHelpOpen);
         // The strip: the ordinary mouse wheel moves it sideways while the pointer is over it (owner, 2026-10-16).
         // A trackpad's sideways swipe already scrolls it; the page scrolls on when the strip has nowhere to go.
         const sl = _rsQ('skList');
@@ -2231,34 +2224,6 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (e.key === 'ArrowRight' && i < keys.length - 1) { _rsSetStep(keys[i + 1]); e.preventDefault(); }
         if (e.key === 'ArrowLeft' && i > 0) { _rsSetStep(keys[i - 1]); e.preventDefault(); }
     }
-    function _rsHelpOpen() {
-        const url = svRsHelpUrl();
-        if (!url) return;
-        const yt = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([A-Za-z0-9_-]{11})/);
-        const vm = url.match(/vimeo\.com\/(\d+)/);
-        const loom = url.match(/loom\.com\/share\/([A-Za-z0-9]+)/);
-        // Wistia (the company's video host): a media page or an embed link plays in Wistia's own player (adaptive
-        // quality, view stats). A direct file link (…/deliveries/….mp4) is not matched and plays as a plain video.
-        const wis = url.match(/(?:wistia\.com\/medias\/|wistia\.net\/embed\/iframe\/)([A-Za-z0-9]{6,})/);
-        const src = yt ? 'https://www.youtube.com/embed/' + yt[1] + '?autoplay=1&rel=0' : vm ? 'https://player.vimeo.com/video/' + vm[1] + '?autoplay=1' : loom ? 'https://www.loom.com/embed/' + loom[1]
-            : wis ? 'https://fast.wistia.net/embed/iframe/' + wis[1] + '?autoplay=1' : '';
-        const media = src ? '<iframe src="' + _re(src) + '" title="How this page works" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>'
-            : '<video src="' + _re(url) + '" controls autoplay playsinline></video>';
-        const o = document.createElement('div');
-        o.className = 'help-ovl'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); o.setAttribute('aria-label', 'How this page works');
-        o.innerHTML = '<div class="help-box"><button class="help-x" type="button" aria-label="Close">' + RI.x + '</button>' + media + '</div>';
-        const close = () => { o.remove(); document.removeEventListener('keydown', esc, true); const hb = _rsQ('rsHelp'); if (hb) hb.focus(); };
-        const esc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
-        // Only a press that began on the backdrop closes it (OPEN_REPAIRS 215). The page's shared listener cannot
-        // see inside this page's shadow root, so the overlay keeps its own press mark.
-        o.addEventListener('mousedown', (e) => { o._backdropPressBegan = (e.target === o); });
-        o.addEventListener('click', (e) => { if (e.target === o && o._backdropPressBegan) close(); o._backdropPressBegan = false; });
-        o.querySelector('.help-x').addEventListener('click', close);
-        document.addEventListener('keydown', esc, true);
-        R.root.querySelector('.rs').appendChild(o);
-        o.querySelector('.help-x').focus();
-    }
-
     /* ---------- the area's door ---------- */
     function _rsCalDraw() {
         const cv = document.getElementById('calView');

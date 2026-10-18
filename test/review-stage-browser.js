@@ -11,7 +11,7 @@
  *   - every button saves through the old page's own path: approve, a change request (nothing is sent before Send),
  *     a note, the client's caption edit (a change request, never an approval), Finish opening the next post, the
  *     SMM's Approve to Kasper and to client, Kasper's Approve and Tweaks are on Frame;
- *   - the "?" help button is hidden with no video address and opens the video with one.
+ *   - the "?" help button is hidden with no address set and opens /start#review in a new tab with one.
  * REVIEW_STAGE_SHOTS=<dir> also writes the screenshots used in the PR (before and after, light and dark).
  */
 const fs = require('node:fs');
@@ -148,37 +148,21 @@ async function shot(t, name) { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursi
     expect(await inS(t.page, '#rsHelp').isVisible(), 'help: the "?" shows when the address is set');
     expect(await host(t.page).getAttribute('data-theme') === 'dark', 'dark: the client page follows the sun/moon button');
     await shot(t, 'after-client-1280-dark');
-    await inS(t.page, '#rsHelp').click();
-    expect(await inS(t.page, '.help-ovl video').count() === 1, 'help: the "?" opens the video');
-    await t.page.keyboard.press('Escape');
-    expect(await inS(t.page, '.help-ovl').count() === 0, 'help: Escape closes it');
-    await inS(t.page, '#rsHelp').click();
-    const vb = await inS(t.page, '.help-ovl video').boundingBox();
-    await t.page.mouse.move(vb.x + vb.width / 2, vb.y + vb.height / 2);
-    await t.page.mouse.down(); await t.page.mouse.move(8, 8); await t.page.mouse.up();
-    expect(await inS(t.page, '.help-ovl').count() === 1, 'help: a press that starts on the video and ends on the backdrop does not close it');
-    await t.page.mouse.click(8, 8);
-    expect(await inS(t.page, '.help-ovl').count() === 0, 'help: a click on the backdrop closes it');
+    const hl = inS(t.page, '#rsHelp');
+    expect(await hl.getAttribute('href') === '/start#review', 'help: the "?" points at the start page\'s Review side');
+    expect(await hl.getAttribute('target') === '_blank' && /noopener/.test(await hl.getAttribute('rel') || ''), 'help: it opens a new tab with rel=noopener');
+    const popup = t.page.waitForEvent('popup', { timeout: 5000 }).catch(() => null);
+    await hl.click();
+    const pop = await popup;
+    expect(!!pop, 'help: clicking the "?" opens a new tab');
+    if (pop) { expect(/\/start#review$/.test(pop.url()), 'help: the new tab is /start#review (' + pop.url() + ')'); await pop.close().catch(() => {}); }
+    expect(await inS(t.page, '.help-ovl').count() === 0, 'help: no in-page video overlay any more');
     await inS(t.page, '#rsTheme').click();
     await sleep(300);
     expect(await host(t.page).getAttribute('data-theme') === 'light', 'theme: the sun/moon switches back to light');
     expect(t.errors.length === 0, 'help/dark: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
 
-    // a Wistia media page plays in Wistia's own player; a direct Wistia file still plays as a plain video
-    console.log('--- client link, help video on Wistia ---');
-    for (const [addr, want] of [['https://example.wistia.com/medias/ab12cd34ef', 'iframe'], ['https://fast.wistia.net/embed/iframe/ab12cd34ef', 'iframe'], ['https://embed-ssl.wistia.com/deliveries/0123456789abcdef/file.mp4', 'video']]) {
-      t = await openClient(browser, origin, { flags: 'on', width: 1280, height: 800, help: addr });
-      await waitNew(t);
-      await inS(t.page, '#rsHelp').click();
-      if (want === 'iframe') {
-        const src = await inS(t.page, '.help-ovl iframe').getAttribute('src');
-        expect(src === 'https://fast.wistia.net/embed/iframe/ab12cd34ef?autoplay=1', 'wistia: ' + addr + ' opens Wistia\'s player (' + src + ')');
-      } else {
-        expect(await inS(t.page, '.help-ovl video').count() === 1 && await inS(t.page, '.help-ovl iframe').count() === 0, 'wistia: a direct file link plays as a plain video');
-      }
-      await t.ctx.close();
-    }
     if (SHOTS) {
       t = await openClient(browser, origin, { flags: 'on', dark: true });
       await waitNew(t); await shot(t, 'after-client-1440-dark'); await t.ctx.close();

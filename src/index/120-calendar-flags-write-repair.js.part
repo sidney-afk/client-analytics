@@ -2480,7 +2480,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             credentialsRequired && _isClientLink ? 'client_credentials_required' : code,
             error && error.status
         );
-        if (_isClientLink && document.documentElement.classList.contains('sv-rs-client')
+        if (_isClientLink && typeof document !== 'undefined' && document.documentElement.classList.contains('sv-rs-client')
             && (code === 'authority_unavailable' || /load failed|failed to fetch|network|offline|aborted|internet/i.test(code))) {
             showNotify('We could not confirm this save', 'Your words are kept in this browser. Reconnect, then check this post before trying again.');
         } else showNotify(notice.title, notice.text + ' (code: ' + code + ')');

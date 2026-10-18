@@ -124,7 +124,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         // been client-editable (the Suggest-a-post flow). SMM is never
         // locked. This is the only flag that diverges from `ro` when collab
         // is on, so it stays scoped to the four text inputs and nowhere else.
-        const editableText = !_isClientLink || isBlank;
+        const editableText = _calClientMayEditText(p.id) || isBlank;
         const selectable = calState.selectMode && !ro && !isBlank;
         // Drag-to-reorder works for the SMM and clients alike (desktop native
         // DnD). The `ro` flag keeps the client's media/status surface read-only
@@ -1148,9 +1148,13 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
     // only on the Sheet, Collaborative mode or not; the review page's caption edit goes through
     // _calClientReviewCaptionEdit instead). Mirrors the editableText gate that sets the readonly attribute. These
     // handler-level checks stop a client persisting an edit by bypassing the UI gate (e.g. a direct handler call).
+    // A post the client began in this visit stays theirs to finish: the first save turns the blank card into a real one
+    // in place (_calPromoteBlankCard), and a caption typed after the name must still save (review of #2208).
+    const _calClientOwnNew = new Set();
+    function _calClientMayEditText(pid) { return !_isClientLink || _calIsBlankId(pid) || _calClientOwnNew.has(pid); }
     function _calClientFieldEditBlocked(el) {
         if (!_isClientLink) return false;
-        return !(el && el.dataset && _calIsBlankId(el.dataset.pid));
+        return !(el && el.dataset && _calClientMayEditText(el.dataset.pid));
     }
     // Clients may not rename a card (see _calTitleRowHtml). Handler-level twin
     // of the readonly attribute, like _calClientFieldEditBlocked.
@@ -1486,6 +1490,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         if (isBlank) {
             realId = _calMintId();
             _calPromoteBlankCard(pid, realId);
+            if (_isClientLink) _calClientOwnNew.add(realId);
             // Edits made during this save land under the new real id, so the
             // lock must cover it too or the re-flush would race this request.
             _calSaveInFlight[realId] = _calSaveInFlight[pid];
@@ -3626,7 +3631,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
 export {
   CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS, CAL_NATIVE_BATCH_FILTER_MIN,
   CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS, CAL_NATIVE_NAME_MAX, CAL_NATIVE_TITLE_SEPARATOR,
-  _calAutoResolveDestStatus, _calAutosizeTextareas, _calAwaitCardSave, _calClientFieldEditBlocked,
+  _calAutoResolveDestStatus, _calAutosizeTextareas, _calAwaitCardSave, _calClientFieldEditBlocked, _calClientMayEditText,
   _calCloseNativePost, _calCloseStatusMenu, _calFlushCardSave, _calForceThumbRefresh,
   _calInsertLocalBlankCard, _calLivePreviewThumb, _calNativeBatchCompatible,
   _calNativeBatchDisplayName, _calNativeBatchLists, _calNativeBatchMatches, _calNativeBatchNameFor,

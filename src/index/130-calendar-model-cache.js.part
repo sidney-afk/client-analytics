@@ -14,7 +14,7 @@ import { closeCalImport } from './134-calendar-prefs-mount.js';
 import { CAL_LOAD_TIMEOUT_MS, _calCacheWrite, _calV2Log } from './150-calendar-hydration-import.js';
 import { _CAL_CLIENT_READY_STATES, _calIsBlankId, _calRenderBody } from './160-calendar-organize-ui.js';
 import {
-  _calClientFieldEditBlocked, _calCloseStatusMenu, _calFlushCardSave, _calOnCaptionInput,
+  _calClientFieldEditBlocked, _calClientMayEditText, _calCloseStatusMenu, _calFlushCardSave, _calOnCaptionInput,
   _calOpenStatusMenu, _calRefreshCaption, _calSetOpenStatusMenu
 } from './170-calendar-links-status.js';
 import { CAL_BULK_ARCHIVE_CONCURRENCY, _calCapAiToolsHtml, _calCapGenBtnHtml, _calMarkKasperSeen, _calRunPooled } from './180-calendar-native-post-media.js';
@@ -372,7 +372,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const vals = {};
         block.querySelectorAll('textarea[data-fld]').forEach(t => { vals[t.dataset.fld] = t.value; });
         const isBlank = _calIsBlankId(pid);
-        const editableText = !_isClientLink || isBlank;
+        const editableText = _calClientMayEditText(pid) || isBlank;
         block.innerHTML = _calCapBlockHtml(pid, post, editableText, isBlank);
         block.querySelectorAll('textarea[data-fld]').forEach(t => {
             if (vals[t.dataset.fld] != null) t.value = vals[t.dataset.fld];

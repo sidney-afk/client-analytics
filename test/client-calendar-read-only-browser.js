@@ -166,6 +166,36 @@ const textWrites = (t, from) => t.state.upserts.slice(from).filter(u => 'caption
       await t.ctx.close();
     }
 
+    // ---------- a post the client is suggesting (Collaborative mode on) can still be finished ----------
+    {
+      console.log('--- client Sheet, suggesting a post ---');
+      const t = await openClient(browser, origin, { flags: 'off', collab: true, finished: true });
+      await ready(t, 'organizer');
+      await t.page.locator('.cal-card-add').click();
+      await t.page.locator('.cal-card.is-blank .cal-fld-name').click();
+      await t.page.keyboard.type('My suggested post');
+      await sleep(2500);   // the name's first save turns the blank card into a real one, in place
+      const mine = t.page.locator('.cal-card[data-pid^="p_"]:not(.is-blank) textarea[data-fld="caption"]').first();
+      await mine.click(); await t.page.keyboard.type('Caption typed after the name saved');
+      await t.page.locator('body').click({ position: { x: 5, y: 5 } });
+      for (let i = 0; i < 40 && !t.state.upserts.some(u => u.caption === 'Caption typed after the name saved'); i++) await sleep(100);
+      expect(t.state.upserts.some(u => u.caption === 'Caption typed after the name saved'), 'suggest: a caption typed after the name has saved still saves');
+      await t.ctx.close();
+    }
+
+    // ---------- the Sheet's own reorder (a separate, earlier decision) still saves with Collaborative mode on ----------
+    {
+      console.log('--- client Sheet, reorder ---');
+      const t = await openClient(browser, origin, { flags: 'off', collab: true, finished: true });
+      await ready(t, 'organizer');
+      const reorders = []; t.page.on('request', r => { if (r.method() === 'POST' && /calendar-reorder/.test(r.url())) reorders.push(r.postData() || ''); });
+      const cards = t.page.locator('.cal-card[draggable="true"]');
+      await cards.nth(0).locator('.cal-card-grip').dragTo(cards.nth(2), { force: true });
+      for (let i = 0; i < 30 && !reorders.length; i++) await sleep(100);
+      expect(reorders.length > 0, 'reorder: dragging a card by its grip on the Sheet still sends the new order');
+      await t.ctx.close();
+    }
+
     // ---------- Month and Week: nothing drags ----------
     for (const collab of [true, false]) {
       console.log('--- client Month and Week, Collaborative mode ' + (collab ? 'on' : 'off') + ' ---');

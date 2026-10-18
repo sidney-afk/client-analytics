@@ -184,10 +184,10 @@ ok(/const named = behavWiredFailedChecks\(text\);\s*\n\s*if \(named\) return nam
      failureReason without adding the name here throws ReferenceError inside
      this eval -- which is exactly how the fifth one was caught, one CI cycle
      after it was written. */
-  const build = (behav, pixel, layout = () => '') => new Function(
+  const build = (behav, pixel, layout = () => '', interaction = () => '') => new Function(
     'behavWiredFailedChecks', 'pixelWiredFailedStates', 'layoutPolishFailedAssertions',
-    'classifyFailure', 'smokeFailedStage',
-    reasonFn + '\nreturn failureReason;')(behav, pixel, layout, () => 'timeout_unspecified', failedStage);
+    'interactionFailedAssertions', 'classifyFailure', 'smokeFailedStage',
+    reasonFn + '\nreturn failureReason;')(behav, pixel, layout, interaction, () => 'timeout_unspecified', failedStage);
   const reason = build(() => '', () => '');
   ok(reason('SMOKE_STAGE board_open\nTimeout') === 'timeout_unspecified@board_open',
     'the code says WHAT broke and the stage says WHERE, joined by a literal this file owns');
@@ -207,6 +207,12 @@ ok(/const named = behavWiredFailedChecks\(text\);\s*\n\s*if \(named\) return nam
   ok(build(() => 'behav_wired:x', () => '', () => 'layout_polish:plp_list_metadata')('anything') === 'behav_wired:x'
     && build(() => '', () => 'pixel_wired:topbar', () => 'layout_polish:plp_list_metadata')('anything') === 'pixel_wired:topbar',
     'and the layout lane takes its place BEHIND the two that came before it, so no existing summary changes');
+  /* `interactionFailedAssertions` joined the chain on 2026-10-18 (session Inventory), behind the layout lane. */
+  const interactionNamed = build(() => '', () => '', () => '', () => 'interaction:ipi_locked_row_controls');
+  ok(interactionNamed('SMOKE_STAGE board_open') === 'interaction:ipi_locked_row_controls',
+    'a named interaction assertion outranks the generic code and the stage');
+  ok(build(() => '', () => '', () => 'layout_polish:plp_list_metadata', () => 'interaction:ipi_locked_row_controls')('anything') === 'layout_polish:plp_list_metadata',
+    'and the interaction lane answers BEHIND the layout lane, so no existing summary changes');
 }
 
 if (failures) {

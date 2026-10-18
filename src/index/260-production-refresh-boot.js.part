@@ -1312,7 +1312,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                 + _prodIssueIdHTML(d)
                 + _prodStatusIcon(d.status, d.id)
                 + '<span class="prod-title"' + _prodTitleAttrs(parent ? (d.title || 'Untitled deliverable') + ' › ' + (parent.title || '') : (d.title || 'Untitled deliverable')) + '><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
-                + (sub ? '<span class="prod-subchip" data-prod-tip="' + sub.done + ' of ' + sub.total + ' sub-issues done">' + _prodStatusSVG(sub.done === sub.total && sub.total > 0 ? 'approved' : 'todo') + sub.done + '/' + sub.total + '</span>' : '')
+                + _prodSubChipHTML(sub)
                 + '<span class="prod-spacer"></span>' + _prodIssueProjectChipHTML(d)
                 + (d.due ? '<span class="prod-due' + (_prodRowOverdue(d) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '</span>')
                 + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '"' + assigneeWriteAttrs + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '</span>'
@@ -1453,6 +1453,28 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
            gated) -- see the note beside PROD_CREATE_CLOSED_TEXT. Sub-issue
            creation must not be reachable from Production at all, per
            CLAUDE.md's standing rule; only the content calendar creates. */
+        /* The "done/total" sub-issue chip. The first paint from the saved copy
+           carries no finished work by construction (_prodState.cachePartial,
+           see the snapshot notes in the state file), so while it is all the
+           page holds, "0 done" is that copy's silence, not an answer: Back from
+           a card to a sub-issue read "0/13" for a few seconds where the truth
+           was 19 of 32. The live first read is the same shape (finished work
+           arrives with the terminal tail), so the rule is: until the row set is
+           complete (_prodRowSetComplete) or a finished child is already here,
+           the chip says it is still counting. A tail that failed shows what is
+           held rather than counting forever. */
+        function _prodSubCountPending(sub) {
+            if (!sub || sub.done) return false;
+            if (_prodState.cachePartial) return true;
+            return !_prodState.terminalTailFailed && !_prodRowSetComplete();
+        }
+        function _prodSubChipHTML(sub) {
+            if (!sub) return '';
+            if (_prodSubCountPending(sub)) {
+                return '<span class="prod-subchip" data-prod-subchip-pending="1" data-prod-tip="Counting sub-issues\u2026" aria-label="Counting sub-issues">' + _prodStatusSVG('todo') + '\u2026</span>';
+            }
+            return '<span class="prod-subchip" data-prod-tip="' + sub.done + ' of ' + sub.total + ' sub-issues done">' + _prodStatusSVG(sub.done === sub.total && sub.total > 0 ? 'approved' : 'todo') + sub.done + '/' + sub.total + '</span>';
+        }
         function _prodSubIssueContextHTML(d, parent) {
             /* A parent that is linked but not loaded yet still gets a header,
                with a skeleton for its name: dropping the header and painting
@@ -1470,7 +1492,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                 : _prodIssueProjectChipHTML(d);
             return '<div class="prod-detail-context" data-prod-subissue-of="' + _calEscAttr(parent.id) + '"><span>Sub-issue of</span>'
                 + '<button class="prod-detail-context-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<b>' + (parentLabel ? _calEsc(parentLabel) + ' ' : '') + _prodParentNameHTML(parent) + '</b></button>'
-                + (progress ? '<span class="prod-subchip" data-prod-tip="' + progress.done + ' of ' + progress.total + ' sub-issues done">' + _prodStatusSVG(progress.done === progress.total && progress.total > 0 ? 'approved' : 'todo') + progress.done + '/' + progress.total + '</span>' : '')
+                + _prodSubChipHTML(progress)
                 + '<span class="prod-spacer"></span>' + projectContext + '</div>';
         }
         function _prodSubIssueRowHTML(k) {

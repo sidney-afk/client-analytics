@@ -2189,7 +2189,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsStashDraft() {
         const S = R.S;
         if (R.mode !== 'client' || !S || !S.curId) return;
-        if (String(S.note.text || '').trim()) S.drafts[S.curId] = { text: S.note.text, part: S.note.part, vis: S.note.vis };
+        if (String(S.note.text || '').trim()) S.drafts[S.curId] = { text: S.note.text, part: S.note.part, vis: S.note.vis, was: S.note.was, aat: S.note.aat };
         else delete S.drafts[S.curId];
     }
     function _rsRestoreDraft(m) {
@@ -2197,8 +2197,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!d) return;
         delete S.drafts[m.id];
         S.note.text = d.text; S.note.vis = d.vis;
+        // The words keep the part they were about and the status that part had when they were picked for it, so a
+        // "Change my mind" note stays on its approved part, and a part answered elsewhere meanwhile takes the words as
+        // a late note on that part (_rsSendNote), never as a request on whatever step is on stage (Codex on PR 2214).
         const px = d.part ? m.parts.find(p => p.key === d.part) : null;
-        if (px && px.st === 'wait') { S.note.part = d.part; S.note.where = 'chat'; S.note.was = px.st; }
+        if (px) { S.note.part = d.part; S.note.where = 'chat'; S.note.was = d.was || px.st; S.note.aat = !!d.aat; }
     }
     function _rsGo(id) {
         const all = _rsAll();

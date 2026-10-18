@@ -93,6 +93,45 @@ const refresh = async (t) => { await t.page.evaluate(() => loadCalendarPosts({ b
       expect(!t.errors.length, '2: no page errors (' + t.errors.join(' | ') + ')');
       await t.ctx.close();
     });
+    await section('2b', async () => {
+      // 2b. words for an approved part ("Change my mind") keep that part when the client comes back to the post, and
+      //     words for a waiting part that gets approved elsewhere meanwhile go to the team as a note on that part
+      console.log('--- kept words keep their part, approved or answered meanwhile ---');
+      let t = await openClient(browser, origin, { flags: 'on' });
+      await waitNew(t); await sleep(800);
+      await inS(t.page, '#skList .chipp[data-id="rs2"]').click(); await sleep(900);
+      const steps = await t.page.evaluate(() => [...document.getElementById('svReviewStage').shadowRoot.querySelectorAll('.stp[data-step]')].map(b => b.dataset.step));
+      let okKey = '';
+      for (const k of steps) { await inS(t.page, '.stp[data-step="' + k + '"]').click(); await sleep(400); if (await inS(t.page, '[data-again]').count()) { okKey = k; break; } }
+      expect(!!okKey, '2b: the approved part shows Change my mind (' + okKey + ')');
+      await inS(t.page, '[data-again]').first().click(); await sleep(400);
+      await inS(t.page, '#ta').fill('Second thoughts on this part');
+      await inS(t.page, '#skList .chipp[data-id="rs1"]').click(); await sleep(900);
+      await inS(t.page, '#skList .chipp[data-id="rs2"]').click(); await sleep(900);
+      expect((await inS(t.page, '#ta').inputValue().catch(() => '')) === 'Second thoughts on this part', '2b: the words came back');
+      expect((await inS(t.page, '[data-pc][aria-pressed="true"]').getAttribute('data-pc').catch(() => '')) === okKey, '2b: still on the approved part they were about');
+      // a waiting part picked, then approved elsewhere while the client is on another post
+      await inS(t.page, '#ta').fill('');
+      await inS(t.page, '#skList .chipp[data-id="rs3"]').click(); await sleep(900);
+      const wKey = await inS(t.page, '[data-pc]').first().getAttribute('data-pc');
+      await inS(t.page, '[data-pc]').first().click(); await sleep(300);
+      await inS(t.page, '#ta').fill('Words for a part that gets approved meanwhile');
+      await inS(t.page, '#skList .chipp[data-id="rs1"]').click(); await sleep(900);
+      const c3 = t.state.cards.find(c => c.id === 'rs3'); const col = { video: 'video_status', graphic: 'graphic_status', thumbnail: 'graphic_status', thumb: 'graphic_status', caption: 'caption_status' }[wKey];
+      expect(!!col, '2b: the waiting part is a known column (' + wKey + ')');
+      if (col) { c3[col] = 'Approved'; c3.updated_at = new Date().toISOString(); }
+      await refresh(t);
+      await inS(t.page, '#skList .chipp[data-id="rs3"]').click(); await sleep(900);
+      expect((await inS(t.page, '[data-pc][aria-pressed="true"]').getAttribute('data-pc').catch(() => '')) === wKey, '2b: the words still name their part after it was approved elsewhere');
+      const n0 = t.state.upserts.length;
+      await inS(t.page, (await inS(t.page, '#sendBtn').count()) ? '#sendBtn' : '#cmtBtn').click(); await sleep(1500);
+      expect(!t.state.upserts.slice(n0).some(u => u[col] === 'Tweaks Needed'), '2b: no change request reopens the part approved meanwhile');
+      expect(t.state.cards.find(c => c.id === 'rs3')[col] === 'Approved', '2b: it stays approved');
+      const noteOn = await t.page.evaluate(k => { const p = calState.posts.find(x => x.id === 'rs3'); return JSON.stringify(p[k + '_tweaks'] || ''); }, wKey);
+      expect(/approved meanwhile/.test(noteOn), '2b: the words are a note on that part (' + wKey + ')');
+      expect(!t.errors.length, '2b: no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    });
     await section('3', async () => {
       // 3. a long caption scrolls inside its card
       console.log('--- a long caption ---');

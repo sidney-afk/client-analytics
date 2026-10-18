@@ -1,6 +1,6 @@
 'use strict';
 /*
- * Calendar's first card read starts as soon as the staff check passes.
+ * Calendar's and Samples' first card read starts as soon as the staff check passes.
  *
  * Speed sweep 2026-10-17: a cold open of /calendar/<slug> started the card
  * read (calendar_posts for that client) only after every script had loaded,
@@ -37,8 +37,15 @@ const block = HEAD_SRC.slice(startAt, HEAD_SRC.indexOf('} catch (e) {}', startAt
 
 // 1. The URL is the app's own first page, with the app's headers.
 const appBase = (SRC.match(/const baseUrl = CAL_SUPABASE_URL \+ '(\/rest\/v1\/calendar_posts\?select=\*&or=\(status\.is\.null,status\.neq\.Archived\)&client=eq\.)' \+ encodeURIComponent\(slug\);/) || [])[1];
-const headBase = (block.match(/clBase \+ '(\/rest\/v1\/calendar_posts\?[^']+)' \+ encodeURIComponent\(clSlug\)/) || [])[1];
-ok(appBase && appBase === headBase, 'the head asks for exactly _calV2FetchPosts\'s base URL');
+const headRest = (block.match(/clBase \+ '\/rest\/v1\/' \+ clTable \+ '(\?[^']+)' \+ encodeURIComponent\(clSlug\)/) || [])[1];
+ok(/var clTable = target === 'calendar' \? 'calendar_posts' : 'sample_reviews';/.test(block), 'Calendar reads calendar_posts and Samples reads sample_reviews');
+ok(appBase && appBase === '/rest/v1/calendar_posts' + headRest, 'the head asks for exactly _calV2FetchPosts\'s base URL');
+const SXR_SRC = fs.readFileSync(path.join(ROOT, 'src/index/270-samples-model.js.part'), 'utf8');
+ok(/const SXR_TABLE\s*= 'sample_reviews';/.test(SXR_SRC)
+  && SXR_SRC.includes("const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '" + headRest + "' + encodeURIComponent(slug);")
+  && /const _sxrSupabaseFetchAllRows = _calSupabaseFetchAllRows;/.test(SXR_SRC)
+  && /const _sxrNormalizeClient = wlNormalizeClient;/.test(SXR_SRC),
+  'and exactly _sxrFetchPosts\'s, which pages through the same reader and slugs clients the same way');
 ok(/\+ '&order=id\.asc,client\.asc&limit=1000';/.test(block)
   && /let pageUrl = baseUrl \+ sep \+ 'order=id\.asc,client\.asc&limit=' \+ CAL_SUPABASE_PAGE;/.test(SRC)
   && /const CAL_SUPABASE_PAGE = 1000;/.test(SRC),
@@ -52,8 +59,8 @@ ok(appUrl && block.includes("var clBase = '" + appUrl + "'") && appKey && block.
   'against the same project, with the same browser key');
 
 // 2. Gated on the staff check, only for a Calendar landing naming a client.
-ok(HEAD_SRC.lastIndexOf("if (target === 'calendar' && window.fetch) {", startAt) > HEAD_SRC.lastIndexOf("if (target === 'production' && window.fetch) {", startAt),
-  'only when the head predicts the Calendar tab, in its own branch');
+ok(HEAD_SRC.lastIndexOf("if ((target === 'calendar' || target === 'sample-reviews') && window.fetch) {", startAt) > HEAD_SRC.lastIndexOf("if (target === 'production' && window.fetch) {", startAt),
+  'only when the head predicts the Calendar or Samples tab, in its own branch');
 ok(/window\.__svEarlyKeyVerify/.test(block) && /clGate\.then\(function \(\) \{ return fetch\(clUrl/.test(block)
   && /if \(!\(j && j\.ok === true\)\) throw new Error\('verify'\)/.test(block) && /Promise\.reject\(new Error\('verify'\)\)/.test(block),
   'the request waits for the early key-verify to pass; a rejected, malformed or missing check sends nothing');

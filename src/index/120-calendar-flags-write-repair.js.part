@@ -3058,11 +3058,45 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     function _settingsAssertSavingOn(clientOrSlug) {
         return _calAssertFlagAllows(SETTINGS_EF_FLAG_KEY, clientOrSlug, set => _settingsSetEfClients(set), 'Saving caption prompts');
     }
+    /* A card save that the server never answers must END, or the review page's
+       waiting line (and the old page's saving state) stays forever. After this
+       long the fetch is abandoned and fails like any network failure, which the
+       save paths already handle (the review stage offers Try again; the offline
+       resend keeps the change). Browsers without AbortSignal.timeout use a
+       controller and a timer. Only the signal is added; what is sent is not
+       changed. */
+    const CAL_SAVE_TIMEOUT_MS = 20000;
+    const CAL_SAVE_NO_ANSWER_MESSAGE = 'The server has not answered. Your change is kept; try again.';
+    function _calSaveSignal() {
+        try {
+            if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(CAL_SAVE_TIMEOUT_MS);
+            if (typeof AbortController === 'function') {
+                const ctl = new AbortController();
+                setTimeout(() => { try { ctl.abort(); } catch (e) {} }, CAL_SAVE_TIMEOUT_MS);
+                return ctl.signal;
+            }
+        } catch (e) {}
+        return undefined;
+    }
+    async function _calSaveFetch(url, init) {
+        try {
+            return await fetch(url, Object.assign({}, init, { signal: _calSaveSignal() }));
+        } catch (error) {
+            // The timer fired. Say so in words, and mark it a network failure like any other.
+            if (error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+                const ended = new Error(CAL_SAVE_NO_ANSWER_MESSAGE);
+                ended.name = 'AbortError';
+                ended.network = true;
+                throw ended;
+            }
+            throw error;
+        }
+    }
     function _calUpsertFetchClientLink(clientOrSlug, payload, source) {
         /* n8n exit step K: a client link always sends to the function. It never
            looks at the routing flag, so an unloaded flag cannot send an approve or
            request-changes save to n8n. The function checks the link's own token. */
-        return fetch(CALENDAR_UPSERT_EF_URL, {
+        return _calSaveFetch(CALENDAR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _calUpsertHeaders(source, CALENDAR_UPSERT_EF_URL),
             body: JSON.stringify(payload)
@@ -3119,7 +3153,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         return !!slug && members.some(member => _calRuntimeFlagSlug(member) === slug);
     }
     function _calUpsertPost(url, payload, source) {
-        return fetch(url, {
+        return _calSaveFetch(url, {
             method: 'POST',
             headers: _calUpsertHeaders(source, url),
             body: JSON.stringify(payload)
@@ -3247,7 +3281,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         }
         /* Step K: a client link never replays to n8n, whatever the repair was pinned to. */
         const url = transport === 'supabase' || _isClientLink ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
-        return fetch(url, {
+        return _calSaveFetch(url, {
             method: 'POST',
             headers: _calUpsertHeaders(source, url),
             body: JSON.stringify(payload)

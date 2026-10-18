@@ -229,6 +229,10 @@ own sealed styles (other sessions'), and the small "updating" pulse dots.
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone
 layout follows the desktop one and has not been polished on its own (as the handoff said).
 
+## Card saves end after 20 s (session Tether, 2026-10-18)
+
+The Calendar card save fetches (`_calUpsertPost`, the client link's `_calUpsertFetchClientLink` and the pinned repair resend) now give up after 20 seconds and fail like any network failure ("The server has not answered. Your change is kept; try again."), so the review page's waiting line ends with Try again and the offline resend treats it like a dropped connection. What is sent is unchanged. Test: case 5 of `node test/review-stage-save-browser.js`.
+
 ## Loading skeletons match what loads (session Mould, owner feedback 2026-10-17 23:40 UTC)
 
 The owner: "Every skeleton should match the actual shape of what is loading." Each page fixed gets a browser test that
@@ -241,6 +245,11 @@ before and after screenshots live in `docs/audits/skeleton-shape/<page>/`.
   `node test/calendar-sheet-skeleton-shape-browser.js`. Not yet matched: the phone first paint (the whole phone header
   is drawn by the app, so the first paint still shows the desktop shell there), a saved small or large card size on the
   first paint (it draws the default size), and the staff client profile's Calendar tab, which shares the first-paint copy.
+- **Client link, Sheet (session Tether, 2026-10-18):** done. The client link's Sheet drew the staff Sheet's placeholder;
+  it now draws the client card at the loaded card's boxes (thumbnail, title, date, one link row, caption, call to
+  action, Notes, the status chips; on the phone one full-width column with the Caption and Call to action headings and
+  no "Loading your calendar..." line). Test: `node test/client-sheet-skeleton-shape-browser.js`. The first paint on a
+  client link (before the app starts) is not matched.
 - **Staff Calendar, Month and Week (desktop):** done. While posts load, the view's own header, day labels and grid are
   drawn with no posts and shimmer (it was a narrow unlabelled grid for Month, other-sized pills for Week); a Month row
   that gets a post grows at most a few pixels. Test: `node test/calendar-month-week-skeleton-shape-browser.js`. The phone

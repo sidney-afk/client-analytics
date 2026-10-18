@@ -138,7 +138,37 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
             <div class="cal-review-wrap"><div class="cal-sk-review-list" aria-hidden="true">${[0, 1, 2, 3, 4, 5].map(card).join('')}</div></div>
         </div>`;
     }
+    /* Client link Sheet, while its cards load. The client's card is a different
+       card from the staff one: one link row (Video, never edited), the caption and
+       the call to action with no chip or Set all, the Notes button, and the three
+       part statuses as read-only chips. On the phone the same card is a single
+       full-width column with a heading above the caption and the call to action
+       (CSS keys that on #calView:has(.pocket-client-calendar)). Rows are drawn at
+       the loaded rows' heights; test/client-sheet-skeleton-shape-browser.js. */
+    function _svClientSheetCardSkeletonHtml(i) {
+        const head = w => `<div class="cal-sk-csec-head">${_svSkel('sv-skeleton-line', 'width:' + w + 'px;height:14px;')}</div>`;
+        return `<div class="cal-skeleton-card cal-sk-card is-client">
+            ${_svSkel('cal-skeleton-thumb')}
+            <div class="cal-sk-body">
+                <div class="cal-sk-title">${_svSkel('sv-skeleton-line', 'width:' + (i % 3 === 1 ? '46%' : '58%') + ';')}</div>
+                ${_svSkel('cal-sk-field is-date')}
+                ${_svSkel('cal-sk-field is-link')}
+                <div class="cal-sk-csec is-cap">${head(56)}${_svSkel('cal-sk-copy')}</div>
+                <div class="cal-sk-csec is-cta">${head(88)}${_svSkel('cal-sk-field is-cta')}</div>
+                <div class="cal-sk-foot">${_svSkel('sv-skeleton-line', 'width:56px;height:12px;')}</div>
+                <div class="cal-sk-chips">${_svSkel('cal-sk-cpill is-a')}${_svSkel('cal-sk-cpill is-b')}${_svSkel('cal-sk-cpill is-c')}</div>
+            </div>
+        </div>`;
+    }
+    function _svClientLinkSheetSkeletonHtml(label) {
+        return `<div class="cal-loader cal-skeleton-loader cal-sheet-skeleton is-client" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="cal-organizer-wrap"><div class="cal-organizer-strip cal-sk-strip" aria-hidden="true">${[0, 1, 2, 3, 4, 5].map(_svClientSheetCardSkeletonHtml).join('')}</div></div>
+        </div>`;
+    }
     function _svCalendarSheetSkeletonHtml(label) {
+        let client = false;
+        try { client = !!_isClientLink; } catch (e) { client = false; }
+        if (client) return _svClientLinkSheetSkeletonHtml(label);
         return `<div class="cal-loader cal-skeleton-loader cal-sheet-skeleton" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
             <div class="cal-organizer-wrap cal-sk-desktop"><div class="cal-organizer-strip cal-sk-strip" aria-hidden="true">${[0, 1, 2, 3, 4, 5].map(_svCalendarSheetCardSkeletonHtml).join('')}</div></div>
             ${_svCalendarPhoneSheetSkeletonHtml()}

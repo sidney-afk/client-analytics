@@ -113,6 +113,22 @@ async function until(t, fn, ms) { const t0 = Date.now(); while (Date.now() - t0 
     expect(took >= 0, '4: a refused save after the chooser still shows its reason and Try again (' + took + ' ms)');
     expect(t.errors.length === 0, '4: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
+
+    // 5. a server that never answers: the save ends after about 20 s as a failed save, and Try again saves
+    console.log('--- SMM: a server that never answers ---');
+    t = await openSmm(browser, origin, ['video', 'caption']);
+    t.state.writeHang = true;
+    await inS(t.page, '[data-ok="video"]').click();
+    took = await until(t, async () => await inS(t.page, '[data-retry="video"]').count() > 0, 26000);
+    expect(took >= 18000 && took <= 25000, '5: the hung save ends as a failed save with Try again after about 20 s (' + took + ' ms)');
+    expect(/not answered|not respond|didn.t answer/i.test(await inS(t.page, '.err').first().textContent().catch(() => '')), '5: the stage says the server has not answered');
+    expect(!/Saving|Still waiting/.test(await drow(t)), '5: no waiting line left on the stage');
+    t.state.writeHang = false;
+    const n1 = t.state.upserts.length;
+    if (took >= 0) await inS(t.page, '[data-retry="video"]').click();
+    took = await until(t, async () => t.state.upserts.slice(n1).some(u => u.video_status === 'Kasper Approval'), 6000);
+    expect(took >= 0, '5: Try again saves once the server answers');
+    await t.ctx.close();
   } finally {
     await browser.close();
     server.close();

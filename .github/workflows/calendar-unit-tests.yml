@@ -853,6 +853,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-one-system-browser.js
+      - name: One scrollbar for the whole app (6px, rounded, the theme's thumb, light and dark; hidden ones stay hidden)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/scrollbars-browser.js
 
 
   split-preview:

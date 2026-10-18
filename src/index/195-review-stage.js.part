@@ -342,10 +342,13 @@ svg{display:block;flex-shrink:0}
 .av{width:28px;height:28px;border-radius:50%;background:var(--av-team);color:var(--av-team-fg);font-size:.66rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
 .av.l{background:var(--pt-thumbnail);color:var(--pi-thumbnail)}
 .ch-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;padding:14px 14px 10px;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 16px);mask-image:linear-gradient(to bottom,transparent 0,#000 16px);display:flex;flex-direction:column;gap:10px}
-.ch-scroll::-webkit-scrollbar{width:6px}
-.ch-scroll::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:99px}
-.ch-scroll::-webkit-scrollbar-thumb:hover{background:var(--scroll-thumb-hover)}
-@supports not selector(::-webkit-scrollbar){.ch-scroll{scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent}}
+/* The app's one scrollbar (020's last block) for everything in here too: page styles cannot reach this shadow root. */
+*::-webkit-scrollbar{width:6px;height:6px;background:transparent}
+*::-webkit-scrollbar-track,*::-webkit-scrollbar-corner{background:transparent}
+*::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:99px}
+*::-webkit-scrollbar-thumb:hover{background:var(--scroll-thumb-hover)}
+*::-webkit-scrollbar-button{display:none;width:0;height:0}
+@supports not selector(::-webkit-scrollbar){*{scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent}}
 .pin{display:flex;align-items:center;gap:9px;margin:10px 12px 0;padding:8px 12px 8px 8px;border-radius:12px;background:var(--deck);box-shadow:inset 0 0 0 1px var(--deck-line);font-size:.78rem;color:var(--text-secondary);flex-shrink:0}
 .pin .av{width:24px;height:24px;font-size:.62rem}
 .pin span{min-width:0;line-height:1.35}

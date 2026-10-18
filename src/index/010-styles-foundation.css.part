@@ -12,6 +12,8 @@
             --surface-raised: #ffffff; --surface-hover: #f8f8f6; --surface-subtle: #f3f3f1;
             --text-primary: #111110; --text-secondary: #6b6b67; --text-muted: #b4b4ae; --text-inverse: #ffffff; --toast-bg: #111110; --toast-color: #ffffff;
             --focus-ring: #6c5ce7; --overlay: rgba(0,0,0,0.25);
+            /* Upload forms (.uf): the Synchro Social violet. */
+            --uf-accent: #8a24dc; --uf-accent-hover: #7419bf; --uf-accent-ink: #6c17b3; --uf-accent-soft: #f3eafc; --uf-on-accent: #ffffff; --uf-field: #ffffff; --uf-field-hover: #fbf9fe; --uf-switch-thumb: #ffffff; --uf-switch-shadow: rgba(0,0,0,0.2); --uf-switch-off: #cfcfc9;
             --shadow-sm: 0 1px 3px rgba(0,0,0,0.06); --shadow-md: 0 8px 30px rgba(0,0,0,0.12); --shadow-lg: 0 12px 40px rgba(0,0,0,0.18);
             --ig: #E1306C; --ig-light: #fdf0f5; --ig-mid: #f4c2d5; --ig-dark: #a81950;
             --tt: #111111; --tt-light: #f5f5f5; --tt-mid: #d8d8d8; --tt-dark: #3a3a3a;
@@ -56,6 +58,7 @@
             --surface-raised: #20232a; --surface-hover: #242730; --surface-subtle: #15171c;
             --text-primary: #f4f6f8; --text-secondary: #c2c7cf; --text-muted: #aeb6c2; --text-inverse: #ffffff; --toast-bg: #20232a; --toast-color: #f4f6f8;
             --focus-ring: #8b7cf6; --overlay: rgba(0,0,0,0.62);
+            --uf-accent: #b682ff; --uf-accent-hover: #c79dff; --uf-accent-ink: #d2b0ff; --uf-accent-soft: rgba(182,130,255,0.14); --uf-on-accent: #1a0c2c; --uf-field: #1c1f26; --uf-field-hover: #22252e; --uf-switch-off: #4a4f5b;
             --notify-bg: #8b7cf6; --notify-bg-hover: #a094f8; --notify-fg: #101114;
             --shadow-sm: 0 1px 3px rgba(0,0,0,0.35); --shadow-md: 0 10px 34px rgba(0,0,0,0.42); --shadow-lg: 0 18px 54px rgba(0,0,0,0.5);
             --ig: #ff5d9d; --ig-light: #351926; --ig-mid: #794058; --ig-dark: #ff9dc4;
@@ -2865,17 +2868,12 @@
         .linear-video-card { background: var(--white); border: 1.5px solid var(--border); border-radius: 12px; padding: 14px 16px; }
         .linear-video-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
         .linear-video-num { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); }
-        .linear-video-remove { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: none; background: transparent; cursor: pointer; color: var(--text-muted); transition: all 0.13s; opacity: 0; }
-        .linear-video-remove:hover { background: var(--dn-bg); color: var(--dn); }
-        .linear-video-card:hover .linear-video-remove { opacity: 1; }
         .linear-title-display { padding: 10px 14px; border-radius: 10px; border: 1.5px solid var(--border-light); background: var(--bg); font-size: 0.85rem; font-weight: 600; color: var(--text-primary); min-height: 42px; display: flex; align-items: center; }
         .linear-title-display.empty { color: var(--text-muted); font-weight: 400; font-style: italic; }
         /* Read-only filming-plan display: auto-filled from the filming_plans source,
            mirrors the Title field. Long doc URLs wrap rather than overflow. */
         #linearFilmingPlansDisplay { word-break: break-all; overflow-wrap: anywhere; font-weight: 500; font-size: 0.8rem; line-height: 1.4; }
         .linear-title-display.warn { color: var(--sv-fg-b45309); font-weight: 600; font-style: normal; }
-        .video-link-hint { font-size: 0.65rem; color: var(--text-muted); opacity: 0.7; white-space: nowrap; position: absolute; bottom: 12px; left: 16px; pointer-events: none; }
-        .linear-video-card { position: relative; padding-bottom: 30px; }
         .linear-video-fields { display: flex; flex-direction: column; gap: 8px; }
         /* Per-video notes. Shorter than the batch-level box (.linear-textarea is
            80px) because it sits inside a card that already carries three inputs,
@@ -2883,8 +2881,6 @@
         .linear-video-notes { min-height: 62px; }
         .linear-video-field-row { display: flex; gap: 8px; }
         .linear-video-field-row .linear-input { flex: 1; padding: 9px 12px; font-size: 0.8rem; }
-        .linear-add-video-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 10px; border: 1.5px dashed var(--border); background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); cursor: pointer; transition: all 0.15s; align-self: flex-start; }
-        .linear-add-video-btn:hover { border-color: var(--sv-border-aaa); color: var(--text-secondary); background: var(--white); }
         .linear-submit-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 28px; border-radius: 10px; border: none; background: var(--text-primary); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.88rem; font-weight: 700; color: var(--white); cursor: pointer; transition: all 0.15s; align-self: flex-start; margin-top: 4px; }
         .linear-submit-btn:hover { background: var(--sv-bg-333); }
         .linear-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -2893,18 +2889,91 @@
         .linear-submit-btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
         .linear-submit-btn.success { background: var(--up); }
         .linear-submit-primary { padding: 14px 28px; flex-direction: row; gap: 12px; }
-        .linear-submit-primary-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
         .linear-submit-primary-label { font-size: 0.92rem; font-weight: 700; }
-        .linear-submit-primary-sub { font-size: 0.66rem; font-weight: 500; opacity: 0.65; letter-spacing: 0.02em; margin-top: 2px; }
-        .linear-advanced { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; align-self: flex-start; }
-        .linear-advanced-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 4px 2px; border: none; background: transparent; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.7rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; transition: color 0.15s; align-self: flex-start; }
-        .linear-advanced-toggle:hover { color: var(--text-secondary); }
-        .linear-advanced-toggle .chevron { transition: transform 0.18s ease; }
-        .linear-advanced-toggle.open .chevron { transform: rotate(90deg); }
-        .linear-advanced-panel { display: none; flex-wrap: wrap; gap: 8px; }
-        .linear-advanced-panel.open { display: flex; animation: fadeIn 0.15s ease; }
-        .linear-advanced-panel .linear-submit-btn { padding: 9px 18px; font-size: 0.78rem; font-weight: 600; margin-top: 0; }
         .linear-status { font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
+        /* The upload forms (.uf: the upload link and the Submit tab, owner
+           feedback 2026-10-18). One accent, the Synchro Social violet; no
+           outlined boxes: soft filled fields, groups made by space alone.
+           Every rule is scoped to .uf so the other forms that borrow
+           .linear-input keep their look. */
+        .uf { max-width: 680px; padding-bottom: 140px; }
+        .uf .uf-head { margin-bottom: 36px; }
+        .uf .uf-logo { display: block; width: 84px; height: auto; margin: 0 0 22px -4px; }
+        .uf .linear-form-title { font-size: 2rem; font-weight: 800; letter-spacing: -0.035em; line-height: 1.1; margin: 0 0 8px; color: var(--text-primary); }
+        .uf .linear-form-sub { font-size: 0.92rem; line-height: 1.5; color: var(--text-secondary); margin: 0; max-width: 54ch; }
+        .uf .linear-form { gap: 44px; }
+        .uf .uf-section { display: flex; flex-direction: column; gap: 22px; }
+        .uf .linear-field { gap: 8px; }
+        .uf .linear-field[hidden] { display: none; }
+        .uf .linear-label, .uf .uf-l { font-size: 0.8rem; font-weight: 650; text-transform: none; letter-spacing: 0; color: var(--text-primary); }
+        .uf .uf-l { font-size: 0.76rem; color: var(--text-secondary); }
+        .uf .uf-opt { font-weight: 500; color: var(--text-secondary); margin-left: 4px; }
+        .uf .linear-input, .uf .linear-textarea { border: 1.5px solid transparent; background: var(--uf-field); border-radius: 12px; padding: 12px 14px; box-shadow: none; transition: border-color 0.15s, box-shadow 0.15s, background 0.15s; }
+        .uf .linear-input:hover, .uf .linear-textarea:hover { background: var(--uf-field-hover); }
+        .uf .linear-input:focus, .uf .linear-textarea:focus { border-color: var(--uf-accent); box-shadow: 0 0 0 4px var(--uf-accent-soft); background: var(--uf-field); }
+        .uf .linear-search-pill { border: 1.5px solid transparent; background: var(--uf-field); box-shadow: none; }
+        .uf .linear-search-pill:focus-within { border-color: var(--uf-accent); box-shadow: 0 0 0 4px var(--uf-accent-soft); }
+        .uf .linear-title-display { border: 0; background: transparent; padding: 2px 0; min-height: 0; font-size: 0.9rem; }
+        .uf .linear-title-display.empty { font-style: normal; }
+        /* Videos: a heading with the count beside it, then one quiet group per video. */
+        .uf .uf-videos { gap: 0; }
+        .uf .uf-videos-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .uf .uf-videos-title { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.02em; margin: 0; color: var(--text-primary); }
+        .uf .uf-count { display: inline-flex; align-items: center; gap: 2px; padding: 4px; border-radius: 99px; background: var(--uf-accent-soft); }
+        .uf .uf-count-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 99px; border: 0; background: transparent; color: var(--uf-accent-ink); cursor: pointer; transition: background 0.12s, color 0.12s; }
+        .uf .uf-count-btn:hover:not(:disabled) { background: var(--uf-field); }
+        .uf .uf-count-btn:disabled { opacity: 0.35; cursor: default; }
+        .uf .uf-count-input { width: 46px; height: 34px; border: 0; border-radius: 10px; background: transparent; text-align: center; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.05rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text-primary); outline: none; }
+        .uf .uf-count-input:hover, .uf .uf-count-input:focus { background: var(--uf-field); }
+        .uf .uf-count-btn:focus-visible, .uf .uf-count-input:focus-visible { outline: 2px solid var(--uf-accent); outline-offset: 1px; }
+        .uf .uf-count-note { font-size: 0.8rem; line-height: 1.5; color: var(--text-secondary); min-height: 0; margin-top: 10px; }
+        .uf .uf-count-note:empty { margin-top: 0; }
+        .uf .uf-undo { font: inherit; font-weight: 700; color: var(--uf-accent-ink); background: none; border: 0; padding: 0 2px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+        .uf .linear-videos-section { gap: 34px; margin-top: 26px; }
+        .uf .linear-video-card { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 0 16px; background: transparent; border: 0; border-radius: 0; padding: 0; }
+        .uf .linear-video-header { margin: 0; padding-top: 1px; align-items: flex-start; }
+        .uf .linear-video-num { display: inline-flex; align-items: center; height: 26px; padding: 0 11px; border-radius: 99px; background: var(--uf-accent-soft); color: var(--uf-accent-ink); font-size: 0.76rem; font-weight: 750; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .uf .linear-video-fields { gap: 14px; }
+        .uf .uf-f { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+        .uf .uf-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .uf .linear-video-notes { min-height: 48px; }
+        .uf .video-link-hint { position: static; font-size: 0.74rem; color: var(--text-muted); margin: 26px 0 0; white-space: normal; }
+        /* The one action, with the "Make a thumbnail too" switch on one quiet
+           line right above it (always on view: owner, 2026-10-18 03:45 UTC). */
+        .uf .uf-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+        .uf .linear-submit-btns { margin: 0; }
+        .uf .linear-submit-primary { margin: 0; padding: 15px 34px; border-radius: 14px; background: var(--uf-accent); color: var(--uf-on-accent); box-shadow: 0 6px 18px -8px var(--uf-accent); }
+        .uf .linear-submit-primary:hover:not(:disabled) { background: var(--uf-accent-hover); }
+        .uf .linear-submit-primary:focus-visible { outline: 2px solid var(--uf-accent); outline-offset: 3px; }
+        .uf .linear-submit-primary-label { font-size: 0.95rem; }
+        /* Explainable labels (shared tooltip): the dotted underline sits on the label words only. */
+        .uf .linear-label .sv-explain-label, .uf .uf-l .sv-explain-label, .uf .uf-videos-title .sv-explain-label { text-underline-offset: 4px; }
+        .uf .uf-switch { position: relative; display: inline-flex; align-items: center; gap: 10px; min-height: 28px; cursor: pointer; }
+        .uf .uf-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+        .uf .uf-switch-track { position: relative; flex: none; width: 30px; height: 18px; border-radius: 99px; background: var(--uf-switch-off); transition: background 0.15s; }
+        .uf .uf-switch-thumb { position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 99px; background: var(--uf-switch-thumb); box-shadow: 0 1px 2px var(--uf-switch-shadow); transition: transform 0.15s; }
+        .uf .uf-switch input:checked + .uf-switch-track { background: var(--uf-accent); }
+        .uf .uf-switch input:checked + .uf-switch-track .uf-switch-thumb { transform: translateX(12px); }
+        .uf .uf-switch input:focus-visible + .uf-switch-track { outline: 2px solid var(--uf-accent); outline-offset: 2px; }
+        .uf .uf-switch-label { font-size: 0.8rem; font-weight: 650; line-height: 1.3; color: var(--text-secondary); }
+        .uf .uf-switch:hover .uf-switch-label { color: var(--text-primary); }
+        @media (hover: none) { .uf .video-link-hint { display: none; } }
+        @media (prefers-reduced-motion: reduce) { .uf .uf-switch-track, .uf .uf-switch-thumb { transition: none; } }
+        @media (max-width: 600px) {
+            .uf .uf-head { margin-bottom: 28px; }
+            .uf .linear-form-title { font-size: 1.65rem; }
+            .uf .linear-form { gap: 38px; }
+            .uf .linear-video-card { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+            .uf .uf-pair { grid-template-columns: minmax(0, 1fr); }
+            .uf .linear-videos-section { gap: 30px; }
+            .uf .uf-actions { align-items: stretch; }
+            .uf .linear-submit-btns { width: 100%; }
+            .uf .linear-submit-primary { width: 100%; min-height: 52px; }
+            .uf .uf-switch { align-self: flex-start; min-height: 40px; }
+            .uf .uf-count-btn { width: 44px; height: 44px; }
+            .uf .uf-count-input { height: 44px; font-size: 16px; }
+            .uf .linear-input, .uf .linear-textarea { font-size: 16px; }
+        }
         /* The saved-submission box (Submit tab and Create Post): what is saved and the three ways out. */
         .linear-saved-box { border: 1px solid var(--wl-tweaks-accent); background: var(--surface-subtle); border-radius: 12px; padding: 14px 16px; margin: 0 0 18px; display: flex; flex-direction: column; gap: 8px; }
         .linear-saved-lead { font-size: 0.86rem; font-weight: 700; color: var(--text-primary); }

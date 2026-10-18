@@ -260,12 +260,12 @@ try{
   if(publicLink){useCapturedCalendar=servingMode==='captured-positive';await run.page.evaluate(()=>{localStorage.removeItem('syncview_staff_identity_v1');localStorage.removeItem('syncview_auth_v1');sessionStorage.clear();});await navigate('/index.html?intake=1');}
   else await run.page.evaluate(()=>navTo('linear'));
   await run.page.locator('#linearClientSearch').waitFor({state:'visible'});
-  await run.page.evaluate(()=>{selectLinearProject('Fixture Client','fixtureclient');Array.from(document.querySelectorAll('[id^="videoCard_"]')).slice(1).forEach(c=>c.remove());renumberVideoCards();linearVideoCount=1;saveLinearForm();});
+  await run.page.evaluate(()=>{selectLinearProject('Fixture Client','fixtureclient');setLinearVideoCount(1);});
   await run.page.locator('#vid_main_1').fill('https://drive.invalid/synthetic-main');
   const before=new Set((await rows('select id from deliverables')).map(r=>r.id));
   const submitted=run.page.waitForResponse(r=>r.url().endsWith('/production-write')&&r.request().postDataJSON()?.operation==='intake_create');
   const materialization=publicLink?run.page.waitForResponse(r=>r.url().endsWith('/calendar-upsert')):null;
-  await run.page.locator('#linearSubmitBtnVideo').click();const answer=await submitted;assert.equal(answer.status(),201,await answer.text());
+  await run.page.evaluate(()=>{document.getElementById('linearMakeThumbnail').checked=false;});await run.page.locator('#linearSubmitBtn').click();const answer=await submitted;assert.equal(answer.status(),201,await answer.text());
   if(publicLink&&servingMode==='repository-negative'){const blocked=await materialization;assert.equal(blocked.status(),401,await blocked.text());const children=(await rows('select id,team,card_id from deliverables')).filter(r=>!before.has(r.id));assert.equal(children.length,1);assert.equal(await sql('select count(*) from calendar_posts where id='+q(children[0].card_id)),'0');assert.ok(await run.page.evaluate(()=>_linearIntakeRead()!==null));receipt.blockers=['PUBLIC_INTAKE_MATERIALIZATION_401: actual public intake commits one child; unchanged repository card writer refuses unauthenticated materialization; recovery stays pending and no card exists. Frozen-writer restriction prevents changing its authentication contract.'];await run.page.screenshot({path:path.join(out,'public-intake-failure.png')});break;}
   await run.page.waitForFunction(()=>_linearIntakeRead()===null,null,{timeout:20000});
   if(publicLink){const accepted=await materialization;assert.equal(accepted.status(),200,await accepted.text());const sent=accepted.request().headers();assert.ok(!sent['x-syncview-key'],'public request must remain staff-key-free');}

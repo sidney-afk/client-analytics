@@ -242,9 +242,11 @@ ok(/_calEsc\(data\.notes \|\| ''\)/.test(cardFn),
   'the saved value is HTML-escaped on re-render — a note containing </textarea> cannot break the form');
 ok(!/onkeydown="onVideoLinkKeydown/.test(cardFn.split('vid_notes_')[1] || ''),
   'the notes box does NOT take the link keydown handler, which would eat Shift and block capitals');
-const renumber = extractFn('renumberVideoCards');
-ok(/\[id\^="vid_notes_"\]/.test(renumber) && /notes\.id = 'vid_notes_' \+ newNum/.test(renumber),
-  'removing a video renumbers the notes field too, so a note can never follow the wrong video');
+// Since 2026-10-18 the count control redraws every video from the saved list
+// (no per-video Remove), so a note is carried with its own video's links.
+const draw = extractFn('_linearDrawVideos');
+ok(/videos\.map\(\(v, i\) => renderVideoCard\(i \+ 1, v\)\)/.test(draw),
+  'changing the count redraws each video with its own notes, so a note can never follow the wrong video');
 ok((source.match(/vid_notes_' \+ (num|id)\)/g) || []).length >= 2,
   'the draft and native submit collector both read the notes field');
 ok(/notes: document\.getElementById\('vid_notes_' \+ num\)\?\.value \|\| ''/.test(source),

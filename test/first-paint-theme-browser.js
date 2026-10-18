@@ -142,8 +142,17 @@ async function recordRefresh(browser, origin, opt) {
       // A second context with the same storage, the switch now off.
       const t2 = await fx.open(browser, origin, { stage: 'client', flags: 'off', dark: true });
       await t2.page.addInitScript(c => { try { localStorage.setItem('syncview_rs_paint_v1', JSON.stringify([c])); } catch (e) {} }, fx.CLIENT.toLowerCase());
+      // Record every theme the page takes, from the head script on: with a fast link check the page can already be
+      // back to light by the time domcontentloaded returns, so reading the theme then was a race.
+      await t2.page.addInitScript(() => {
+        window.__fpThemes = [];
+        // The init script runs before <html> exists, so watch the document for that one attribute on <html>.
+        new MutationObserver(list => list.forEach(m => {
+          if (m.target === document.documentElement) window.__fpThemes.push(m.target.getAttribute('data-theme') || 'light');
+        })).observe(document, { attributes: true, subtree: true, attributeFilter: ['data-theme'] });
+      });
       await t2.page.goto(origin + '/index.html?' + new URLSearchParams({ c: fx.CLIENT, v: 'calendar', t: fx.TOKEN }), { waitUntil: 'domcontentloaded' });
-      expect(await t2.page.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark'), 'off: the remembered link paints dark at first');
+      expect(await t2.page.evaluate(() => (window.__fpThemes || [])[0] === 'dark'), 'off: the remembered link paints dark at first');
       await t2.page.locator('.kcard[data-cal-review-pid="rs1"]').waitFor({ timeout: 30000 });
       await fx.sleep(800);
       const end = await t2.page.evaluate(() => ({

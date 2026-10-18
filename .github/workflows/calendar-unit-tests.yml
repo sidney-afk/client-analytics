@@ -948,6 +948,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-gauntlet2-browser.js
+      - name: The client review page, finishing touches (Finish waits while saving, plain not-saved words, speed button, opens on Review, thumbnails open the viewer, words kept across a reload)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-finish-polish-browser.js
       - name: The review stage's play button has its final look from the first frame (frame by frame, light and dark, 1440 and 390)
         if: ${{ !cancelled() }}
         env:

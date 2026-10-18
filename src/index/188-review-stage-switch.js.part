@@ -147,6 +147,22 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         _rsPrime();
         return !_rsAnalyticsShown();
     }
+    // A client link moved off Analytics only because the switch had not been read yet (a browser that never saw
+    // Analytics shown): when the read then says shown, within a few seconds of the decision, the link goes back to
+    // Analytics as if it had waited (Codex review on #2179). Later than that, the person is already using the calendar.
+    const RS_ANALYTICS_RESTORE_MS = 10000;
+    let _rsAnalyticsDefaultMove = null;
+    function svAnalyticsMarkDefaultMove(client) {
+        _rsAnalyticsDefaultMove = (!_rsFlags.loaded && !_rsFlagFailed && client) ? { client: String(client), at: Date.now() } : null;
+    }
+    function _rsAnalyticsRestore() {
+        const mv = _rsAnalyticsDefaultMove;
+        _rsAnalyticsDefaultMove = null;
+        if (!mv || !_isClientLink || Date.now() - mv.at > RS_ANALYTICS_RESTORE_MS || svRsClientNoAnalytics(mv.client)) return;
+        const cap = _syncviewClientEntryCapability;
+        if (!cap || !cap.verified || cap.client !== mv.client || (clientViewTab[cap.client] || cap.view) !== 'calendar') return;
+        if (typeof window.setClientViewTab === 'function') window.setClientViewTab(encodeURIComponent(cap.client), 'analytics');
+    }
     function svAnalyticsSeenShown() {
         try { return localStorage.getItem(RS_ANALYTICS_SEEN_KEY) === '1'; } catch (e) { return false; }
     }
@@ -352,6 +368,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         if (api) api.kasperHide();
     }
     window.addEventListener('sv-review-stage-switch', () => {
+        if (_rsFlags.loaded) _rsAnalyticsRestore();
         // A switched-on client link that opened on Analytics: that route is gone, the Content Calendar takes its place.
         if (_isClientLink && !document.getElementById('calView')) {
             const cap = _syncviewClientEntryCapability;
@@ -361,4 +378,4 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         if (document.getElementById('kasperContent')) svRsKasperHeadSync();
         if (document.getElementById('kasperReviewBody')) _kasperPaintReview();
     });
-export { svAnalyticsHidden, svAnalyticsSeenShown, svRsCalOn, svRsCalSync, svRsClientNoAnalytics, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl };
+export { svAnalyticsHidden, svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalSync, svRsClientNoAnalytics, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl };

@@ -79,7 +79,7 @@ import {
 import { SXR_CACHE_PREFIX, _sxrAbortActiveLoad, _sxrNextLoadSeq, sxrState } from './270-samples-model.js';
 import { _sxrFlushAllPending, _sxrLinearOutboxTimer, _sxrSetLinearOutboxTimer, mountSxrClientView } from './280-samples-cards-notes.js';
 import { _sxrV2Teardown, _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
-import { svAnalyticsSeenShown, svRsClientNoAnalytics, svRsFlagsReady } from './188-review-stage-switch.js';
+import { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsClientNoAnalytics, svRsFlagsReady } from './188-review-stage-switch.js';
 import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js';
         function _prodManualRefresh() {
             // The press must be visibly acknowledged: the refresh itself is a
@@ -2747,7 +2747,10 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                     remember();
                     if (svRsClientNoAnalytics(entry.client)) entry = Object.assign({}, entry, { view: 'calendar' });
                 } else {
-                    if (svRsClientNoAnalytics(entry.client)) entry = Object.assign({}, entry, { view: 'calendar' });
+                    if (svRsClientNoAnalytics(entry.client)) {
+                        svAnalyticsMarkDefaultMove(entry.client);
+                        entry = Object.assign({}, entry, { view: 'calendar' });
+                    }
                     Promise.resolve(rsReady).then(remember, () => {});
                 }
             }

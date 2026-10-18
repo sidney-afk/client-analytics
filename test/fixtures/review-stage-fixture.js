@@ -117,7 +117,8 @@ async function open(browser, origin, opt) {
       };
       if (opt.flags === 'on') { values.review_stage_client_pages = { clients: [SLUG] }; values.review_stage_kasper_staff = { staff: [STAFF.id] }; }
       if (opt.help) values.review_help_video_url = { url: opt.help };
-      if (opt.analytics === 'shown') values.analytics_hidden = { hidden: false };
+      // 'shownFresh': the same answer in a browser that has never seen Analytics shown.
+      if (opt.analytics === 'shown' || opt.analytics === 'shownFresh') values.analytics_hidden = { hidden: false };
       else if (opt.analytics && typeof opt.analytics === 'object') values.analytics_hidden = opt.analytics;
       return json(keys.filter(k => Object.hasOwn(values, k)).map(k => ({ key: k, value: values[k] })));
     }

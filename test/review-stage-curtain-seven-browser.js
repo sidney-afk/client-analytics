@@ -308,7 +308,7 @@ async function refuseSound(t) {
     }
 
     // ---------- 8. Analytics hidden for everyone, behind analytics_hidden ----------
-    for (const [label, opt, shown] of [['missing', {}, false], ['unreadable', { flags: 'unreadable' }, false], ['{ hidden: true }', { analytics: { hidden: true } }, false], ['{ hidden: false }', { analytics: 'shown' }, true]]) {
+    for (const [label, opt, shown] of [['missing', {}, false], ['unreadable', { flags: 'unreadable' }, false], ['{ hidden: true }', { analytics: { hidden: true } }, false], ['{ hidden: false }', { analytics: 'shown' }, true], ['{ hidden: false }, new browser, slow read', { analytics: 'shownFresh', flagDelay: 1500 }, true]]) {
       console.log('--- 8. analytics_hidden ' + label + ' ---');
       {
         const t = await openStaffCal(browser, origin, opt);

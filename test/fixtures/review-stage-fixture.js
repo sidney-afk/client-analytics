@@ -77,13 +77,13 @@ function thread(row) {
 }
 
 async function open(browser, origin, opt) {
-  const state = { cards: cards(opt.stage).concat(opt.finished ? finished() : []), upserts: [], gateway: [], flagReads: 0, orient: 'p', writeDelay: 0, writeFail: 0 };
+  const state = { cards: cards(opt.stage).concat(opt.finished ? finished() : []), upserts: [], gateway: [], native: {}, flagReads: 0, orient: 'p', writeDelay: 0, writeFail: 0, writeAttempts: 0 };
   if (opt.thread) thread(state.cards[0]);
   // opt.collab: the calendar's Collaborative mode is on (a settings row, as the live calendar keeps it).
   if (opt.collab) state.cards.push({ id: 'p_cal_settings', client: SLUG, caption: JSON.stringify({ collab_mode: true }) });
   // opt.unscheduled: one card with no date, so Month and Week show their undated list where it is offered ('approved' makes it a finished post, which a client sees with Collaborative mode off too).
   if (opt.unscheduled) { const done = opt.unscheduled === 'approved' ? 'Approved' : 'Client Approval'; state.cards.push({ id: 'ru1', client: SLUG, name: 'An undated idea', status: done, order_index: 30, updated_at: '2026-10-10T12:00:00.000Z', scheduled_date: '', video_status: done, graphic_status: done, caption_status: done, asset_url: FRAME, thumbnail_url: POSTER.p, caption: 'No date yet.', cta: 'Link in bio', video_tweaks: '[]', graphic_tweaks: '[]', caption_tweaks: '[]', comments: [], graphic_comments: [], caption_comments: [] }); }
-  const ctx = await browser.newContext({ viewport: { width: opt.width || 1440, height: opt.height || 900 }, serviceWorkers: 'block', colorScheme: 'light' });
+  const ctx = await browser.newContext(Object.assign({ viewport: { width: opt.width || 1440, height: opt.height || 900 }, serviceWorkers: 'block', colorScheme: 'light' }, opt.context || {}));
   await ctx.routeWebSocket('**/*', s => s.close());
   const page = await ctx.newPage();
   const errors = [];
@@ -107,9 +107,10 @@ async function open(browser, origin, opt) {
     if (u.host === 'media.fixture.test' && /\.png$/.test(p)) return route.fulfill({ status: 200, headers: CORS, contentType: 'image/png', body: /-l\.png$/.test(p) ? PNG.l : PNG.p });
     if (u.host === 'media.fixture.test') {
       const clip = CLIP[state.orient];
+      const contentType = 'video/webm';
       const range = /bytes=(\d+)-(\d*)/.exec(r.headers().range || '');
-      if (range) { const a = Number(range[1]), b = range[2] ? Math.min(Number(range[2]), clip.length - 1) : clip.length - 1; return route.fulfill({ status: 206, headers: Object.assign({ 'content-range': `bytes ${a}-${b}/${clip.length}`, 'accept-ranges': 'bytes' }, CORS), contentType: 'video/webm', body: clip.subarray(a, b + 1) }); }
-      return route.fulfill({ status: 200, headers: Object.assign({ 'accept-ranges': 'bytes' }, CORS), contentType: 'video/webm', body: clip });
+      if (range) { const a = Number(range[1]), b = range[2] ? Math.min(Number(range[2]), clip.length - 1) : clip.length - 1; return route.fulfill({ status: 206, headers: Object.assign({ 'content-range': `bytes ${a}-${b}/${clip.length}`, 'accept-ranges': 'bytes' }, CORS), contentType, body: clip.subarray(a, b + 1) }); }
+      return route.fulfill({ status: 200, headers: Object.assign({ 'accept-ranges': 'bytes' }, CORS), contentType, body: clip });
     }
     // opt.noWebFont: keep the old no-font conditions (a test about layout that must not see the font swap).
     if (opt.noWebFont && (u.host === 'fonts.googleapis.com' || u.host === 'fonts.gstatic.com')) return route.abort();
@@ -128,12 +129,18 @@ async function open(browser, origin, opt) {
       if (b.action === 'inbox') return json({ ok: true, scope: 'all', conversations: opt.inbox });
       return json({ ok: true });
     }
-    if (p === '/functions/v1/frameio-view') return json({ ok: true, video: { url: MEDIA, renditions: { efficient: MEDIA, high_quality: MEDIA, original: MEDIA }, expires_at: new Date(Date.now() + 3600000).toISOString(), name: 'Fixture clip.mp4', file_id: 'f1', duration_seconds: 12, fps: 24 }, comments: [], comments_error: '', open_url: 'https://next.frame.io/share/00000000-0000-4000-8000-000000000001', fetched_at: new Date().toISOString() });
+    if (p === '/functions/v1/frameio-view') {
+      // Windows WebKit's media loader bypasses Playwright routing. Serve its generated H.264 fixture on loopback.
+      const media = opt.phoneMedia ? origin + '/test/fixtures/review-stage-phone-clip.mp4' : MEDIA;
+      return json({ ok: true, video: { url: media, renditions: { efficient: media, high_quality: media, original: media }, expires_at: new Date(Date.now() + 3600000).toISOString(), name: 'Fixture clip.mp4', file_id: 'f1', duration_seconds: 12, fps: 24 }, comments: [], comments_error: '', open_url: 'https://next.frame.io/share/00000000-0000-4000-8000-000000000001', fetched_at: new Date().toISOString() });
+    }
     if (/\/functions\/v1\/(calendar-upsert|calendar-card-write)$/.test(p) && r.method() === 'POST') {
       let body = {}; try { body = JSON.parse(r.postData() || '{}'); } catch (e) {}
+      state.writeAttempts++;
       // A slow or failing card save, switched at run time by a test (state.writeDelay ms, state.writeFail count).
       if (state.writeHang) return new Promise(() => {});   // a server that never answers
       if (state.writeDelay) await sleep(state.writeDelay);
+      if (state.writeOffline) return route.abort('internetdisconnected');
       if (state.writeFail > 0) { state.writeFail--; return json({ ok: false, error: 'fixture_unavailable', message: 'The fixture refused this save.' }, 503); }
       const post = body.post || {};
       state.upserts.push(post);
@@ -142,8 +149,12 @@ async function open(browser, origin, opt) {
       return json({ ok: true, post: row || post });
     }
     if (p === '/functions/v1/production-write' && r.method() === 'POST') {
+      state.writeAttempts++;
+      if (state.networkDelay) await sleep(state.networkDelay);
+      if (state.writeOffline) return route.abort('internetdisconnected');
       let b = {}; try { b = JSON.parse(r.postData() || '{}'); } catch (e) {}
       state.gateway.push(r.postData() || '');
+      if (opt.phone) state.native[b.deliverable_id || 'del_rs1'] = { id: b.deliverable_id || 'del_rs1', status: b.status || 'client_approval', status_at: new Date().toISOString(), updated_at: new Date().toISOString() };
       return json({ ok: true, native_committed: true, authority: 'syncview', complete: true, outcome: 'absent', row: { id: b.deliverable_id || 'del_rs1', card_id: b.card_id || 'rs1', client_slug: SLUG, team: 'video', status: b.status || 'client_approval' } });
     }
     if (p === '/rest/v1/syncview_runtime_flags') {
@@ -174,6 +185,10 @@ async function open(browser, origin, opt) {
       const slug = String(sp.get('client') || '').replace(/^eq\./, '');
       const one = String(sp.get('id') || '').replace(/^eq\./, '');
       return json(state.cards.filter(c => (!slug || c.client === slug) && (!one || c.id === one)));
+    }
+    if (opt.phone && p === '/rest/v1/deliverables') {
+      const id = String(sp.get('id') || '').replace(/^eq\./, '');
+      return json(state.native[id] ? [state.native[id]] : []);
     }
     if (p === '/rest/v1/clients') return json([{ slug: SLUG, display_name: CLIENT, kind: 'client', active: true }]);
     if (p === '/rest/v1/team_members') return json([STAFF, OTHER].map(m => Object.assign({ active: true }, m)));

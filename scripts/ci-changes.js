@@ -117,7 +117,7 @@ function jobBlock(text, name) {
 function closures(workflowText) {
   const text = workflowText == null ? fs.readFileSync(path.join(ROOT, WORKFLOW), 'utf8') : workflowText;
   const phoneText = jobBlock(text, 'staff-phone-rules');
-  const browserText = ['entry-links-boot', 'browser-guards', 'split-preview'].map(j => jobBlock(text, j)).join('\n');
+  const browserText = ['entry-links-boot', 'browser-guards', 'review-stage-phones', 'split-preview'].map(j => jobBlock(text, j)).join('\n');
   return { browser: closureOf(suiteFiles(browserText)), phone: closureOf(suiteFiles(phoneText)) };
 }
 

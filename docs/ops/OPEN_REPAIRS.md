@@ -33512,3 +33512,17 @@ Audit of the upload link and the Submit tab against every way a send can fail (r
 **Lighthouse:** apply the migration. **Not done:** Safari and Firefox passes (only Chromium in the sandbox), a staff screen for the list, and archiving one live test batch (1 batch, 2 items, 1 card on the test client).
 
 **Way back:** revert the pull request; run the migration's ROLLBACK block to drop the table.
+
+## 437. [2026-10-18, BUILT, NOT MERGED] Phone review could lose a caption draft, and staff Finish stayed off after sending a part back (session Pocket)
+
+The owner reported the new review page live for every client on 2026-10-18. This work uses only the existing mocked browser fixtures; no live writes, switch changes or deployment.
+
+- Staff parts with content were always called waiting, even after a change request saved. Require the part's waiting status too. Finish and Close wait for save receipts, and explicit Close leaves the stage through the old close writer.
+- Caption edits had no persistent draft and the editor closed before a failed save answered. Keep the edit per client/post, restore it on reload without sending, retain the editor and a plain message after failure, and clear the kept edit after success or Cancel.
+- Phone controls were 16–42 px, fields were below 16 px, speed was hidden, and a portrait video's width collapsed in landscape. Phone-only styles provide 44 px targets, 16 px fields, a contained video with visible speed, safe-area padding and viewport-aware field scrolling. Placeholder controls and conversation space match the loaded layout.
+- The new client conversation had no Delete action. Its own-note control calls the existing permission-checked tombstone writer with the explicit post id; deleting never changes the part's status. Connection failures on the client review page use plain recovery words while the refusal report keeps the diagnostic.
+- Windows WebKit's frame counters could stay zero while it drew a picture. A readable current frame now confirms a picture before the existing unsupported-video fallback; forbidden cross-origin reads keep that fallback.
+
+Coverage: `node test/review-stage-phone-browser.js`, WebKit iPhone SE / 15 / 15 Pro Max and Chromium Pixel 7, portrait and landscape, both themes, client and staff. The new CI job shares the existing guards runner seat and is included in the result check; no old check is disabled. Findings, exact repeat commands, action inventory, fictional before/after pictures and physical-device limitations: `docs/audits/2026-10-18-review-stage-phones/README.md`.
+
+Physical iPhone Safari toolbar, notch/home indicator, software keyboard, production saves and deployment are not proven by this mocked emulation. Revert this PR to roll back the changes.

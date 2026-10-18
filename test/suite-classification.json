@@ -1883,6 +1883,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-phone-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Pinned Playwright 1.56.1 with WebKit and Chromium. Shared mocked review-stage fixture only, local generated media, no hosted credentials. iPhone SE, iPhone 15, iPhone 15 Pro Max and Pixel 7 in portrait and landscape, light and dark: touch playback, scrub, speed, notes, caption edit and draft reload, interrupted saves and reconnect, four part approvals, delete, later visit, staff send-back, finish and close, geometry and reduced-viewport typing. Physical iOS keyboard and Safari chrome need a real device.",
+      "reproduce": "npx playwright install --with-deps webkit chromium && node scripts/build-index.js && node test/review-stage-phone-browser.js",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-finish-polish-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

@@ -338,7 +338,16 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _fvNoPicture(video) {
         if (!video || video.paused || video.currentTime < 1) return false;
         if (video.readyState >= 1 && video.videoWidth === 0) return true;
-        return _fvDecodedFrames(video) === 0;
+        if (_fvDecodedFrames(video) !== 0) return false;
+        // Some WebKit builds leave both frame counters at zero even while drawing a picture. A readable current
+        // frame is stronger evidence. An audio-only file has no dimensions; a missing image leaves the pixel clear.
+        // Cross-origin media may forbid this read: keep the existing counter-based fallback in that case.
+        try {
+            const c = document.createElement('canvas'); c.width = c.height = 1;
+            const ctx = c.getContext('2d'); ctx.drawImage(video, 0, 0, 1, 1);
+            if (ctx.getImageData(0, 0, 1, 1).data[3] > 0) return false;
+        } catch (e) {}
+        return true;
     }
     function _fvWatchPicture(video) {
         clearTimeout(video._fvPicT);

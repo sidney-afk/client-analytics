@@ -244,6 +244,9 @@ async function shot(t, name) { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursi
         expect(sentFrame, 'Kasper: Tweaks are on Frame sends the change with that message through his change request');
         await sleep(900);
         n0 = t3.state.upserts.length;
+        // Sending the video back answers it; approve the still-waiting caption next (Pocket, 2026-10-18).
+        await inS(t3.page, '.stp[data-step="caption"]').click();
+        await sleep(400);
         const step = await inS(t3.page, '.stp.on').getAttribute('data-step');
         await inS(t3.page, '[data-ok="' + step + '"]').click();
         for (let i = 0; i < 80 && !t3.state.upserts.slice(n0).some(u => u[step + '_status'] === 'Client Approval'); i++) { await answerConfirm(t3.page); await sleep(100); }

@@ -15,6 +15,7 @@
 const { chromium } = require('playwright');
 const { serveStatic, formatFailures } = require('./prod-test-utils');
 const { seedStaffGate } = require('../../../qa/staff-gate-seed');
+const { analyticsShown } = require('../../../test/fixtures/analytics-shown.js');
 
 const FIRST = 'Anchor Fixture Alpha';
 const SECOND = 'Anchor Fixture Bravo';
@@ -30,6 +31,7 @@ async function open(browser, port, suffix, { staff = true } = {}) {
   await context.addInitScript(() => {
     try { localStorage.removeItem('syncview_nav'); } catch (e) {}
   });
+  await analyticsShown(context);   // Analytics stays reachable here (hidden by default since session Curtain Seven)
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(String(e && e.message || e)));
@@ -359,6 +361,7 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       });
       await seedStaffGate(context);
       await context.addInitScript(v => { try { localStorage.setItem('syncview_recent_clients', JSON.stringify(v)); } catch (e) {} }, [FIRST, SECOND]);
+      await analyticsShown(context);   // Analytics stays reachable here (hidden by default since session Curtain Seven)
       const page = await context.newPage();
       await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
       await page.waitForFunction(() => typeof window.navTo === 'function' && document.getElementById('svClientBar'));
@@ -409,6 +412,7 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
         });
         await seedStaffGate(context);
         await context.addInitScript(v => { try { localStorage.setItem('syncview_shared_client', v); } catch (e) {} }, FIRST);
+        await analyticsShown(context);   // Analytics stays reachable here (hidden by default since session Curtain Seven)
         const page = await context.newPage();
         await page.goto(`http://127.0.0.1:${port}${path}`, { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(2500);
@@ -456,6 +460,7 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
         await context.addInitScript(v => {
           try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); localStorage.setItem('syncview_shared_client', v); } catch (e) {}
         }, FIRST);
+        await analyticsShown(context);   // Analytics stays reachable here (hidden by default since session Curtain Seven)
         const page = await context.newPage();
         await page.goto(`http://127.0.0.1:${port}${path}`, { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(2500);
@@ -525,6 +530,7 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
         await context.addInitScript(v => {
           try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); localStorage.setItem('syncview_shared_client', v); } catch (e) {}
         }, FIRST);
+        await analyticsShown(context);   // Analytics stays reachable here (hidden by default since session Curtain Seven)
         const page = await context.newPage();
         await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(2500);
@@ -645,6 +651,7 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
           });
         } catch (e) {}
       }, FIRST);
+      await analyticsShown(context);   // Analytics stays reachable here (hidden by default since session Curtain Seven)
       const page = await context.newPage();
       await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(1200);
@@ -693,6 +700,7 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       await context.addInitScript(v => {
         try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); localStorage.setItem('syncview_shared_client', v); } catch (e) {}
       }, FIRST);
+      await analyticsShown(context);   // Analytics stays reachable here (hidden by default since session Curtain Seven)
       const page = await context.newPage();
       await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(2500);
@@ -721,6 +729,7 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
         route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }).catch(() => {});
       });
       await seedStaffGate(context);
+      await analyticsShown(context);   // Analytics stays reachable here (hidden by default since session Curtain Seven)
       const page = await context.newPage();
       await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(2000);
@@ -736,6 +745,7 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
         route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }).catch(() => {});
       });
       await context.addInitScript(v => { try { localStorage.setItem('syncview_shared_client', v); } catch (e) {} }, FIRST);
+      await analyticsShown(context);   // Analytics stays reachable here (hidden by default since session Curtain Seven)
       const page = await context.newPage();
       await page.goto(`http://127.0.0.1:${port}/?c=anchor-fixture-token`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(2500);

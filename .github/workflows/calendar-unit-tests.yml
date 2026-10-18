@@ -428,6 +428,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/messages-inbox-browser.js
+      - name: Messages chat day dividers follow the reader's day and read as dates
+        if: ${{ !cancelled() && matrix.part == 4 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/messages-day-divider-browser.js
       - name: A note shows the moment it is sent and is never lost (slow server, error then retry, double click, refresh mid-send; desktop and phone) (mocked)
         if: ${{ !cancelled() && matrix.part == 3 }}
         env:
@@ -473,6 +478,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/calendar-refresh-scroll-browser.js
+      - name: Phone picture grid reaches the Review bar (no empty band, last row not cut off)
+        if: ${{ !cancelled() && matrix.part == 3 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/phone-collection-bottom-gap-browser.js
       - name: Calendar status filter (Show only / Hide) on desktop and phone
         if: ${{ !cancelled() && matrix.part == 3 }}
         env:
@@ -551,6 +561,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/popup-behaviour-browser.js
+      - name: A click on a pop-up's backdrop never falls through to the page underneath
+        if: ${{ !cancelled() && matrix.part == 2 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/backdrop-press-fallthrough-browser.js
       - name: Every pop-up closes the same way, part two (SyncLinear, Kasper, Workload, Analytics)
         if: ${{ !cancelled() && matrix.part == 1 }}
         env:
@@ -571,6 +586,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/shared-client-browser.js
+      - name: Top bar keeps flat tabs on a page with no tab of its own (Messages)
+        if: ${{ !cancelled() && matrix.part == 4 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/header-nav-no-active-tab-browser.js
       # n8n exit (PRs 2 and 3): the Calendar write guard, the caption prompt read
       # and save, and the proof that the client approve and request-changes
       # requests are byte-identical to main. Fully mocked, no backend.
@@ -589,6 +609,21 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/calendar-sheet-caption-wheel-browser.js
+      - name: Sheet loading skeleton has the loaded Sheet's shape (desktop light and dark, phone, first paint)
+        if: ${{ !cancelled() && matrix.part == 2 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/calendar-sheet-skeleton-shape-browser.js
+      - name: Month and Week loading skeleton is the loaded grid (desktop light and dark)
+        if: ${{ !cancelled() && matrix.part == 2 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/calendar-month-week-skeleton-shape-browser.js
+      - name: Samples Sheet and Review loading skeletons have the loaded shape (desktop light and dark)
+        if: ${{ !cancelled() && matrix.part == 2 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/samples-sheet-skeleton-shape-browser.js
       - name: Status rows stay one line and the same height with Urgent on (Calendar and Samples, desktop and phone, both themes and palettes)
         if: ${{ !cancelled() && matrix.part == 2 }}
         env:
@@ -843,6 +878,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-client-layout-browser.js
+      - name: Public start-here page at /start (loads clean, both tutorial players play, client and videographer views)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/start-page-browser.js
       - name: Staff Calendar Review tab under the staff bar (toggle never moves, no second heading, old page when off)
         if: ${{ !cancelled() }}
         env:
@@ -853,6 +893,36 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-one-system-browser.js
+      - name: Review page first switch, chat and update bar (old list never paints on the first Sheet to Review, phone-style conversation, bar clear of the stage buttons)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-chat-switch-browser.js
+      - name: Every save on the new review stage ends on screen (no stuck Saving, a slow server says so, a refused save offers Try again)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-save-browser.js
+      - name: Smooth part switching on the new review page (only the media fades; panel, header, strip never blink)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-smooth-browser.js
+      - name: Finish reviewing draws the eye once every part is answered (slow breathing ring, still with reduced motion)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-finish-browser.js
+      - name: Client review message box and caption edits (part chips, comment or change request, the caption itself changes, thin scrollbars)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-client-composer-browser.js
+      - name: Review page owner feedback round 7 (Kasper list button and one-row heading, Notify client by the menu, play buttons autoplay, Analytics hidden behind analytics_hidden)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-curtain-seven-browser.js
 
 
   split-preview:

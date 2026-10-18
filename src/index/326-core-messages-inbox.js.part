@@ -355,6 +355,22 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const last = c.messages[c.messages.length - 1];
         return last ? (byId.get(last.root_id) || roots[roots.length - 1] || null) : null;
     }
+    /* Day dividers in a chat. A note belongs to the reader's own calendar day,
+       not the UTC one: cutting the timestamp's first ten characters put the
+       team's evening notes (after 6pm at UTC-6) under the next day. And the
+       divider reads as a date on every screen, not "2026-10-17" on a desktop. */
+    const _MSG_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const _MSG_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    function _msgLocalDay(value) {
+        const t = new Date(String(value || ''));
+        if (!value || isNaN(t)) return '';
+        return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+    }
+    function _msgDayLabel(ymd) {
+        const d = new Date(ymd + 'T12:00:00');
+        if (isNaN(d)) return ymd;
+        return _MSG_DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + _MSG_MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+    }
     function _msgChatHtml() {
         const c = _msgState.conversations.find(x => x.post_id === _msgState.openId);
         if (!c) {
@@ -365,8 +381,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         let day = '';
         const phone=_msgIsPhone(),firstUnread=phone?_msgPhone.unread.get(c.post_id):'';
         const bubbles = c.messages.map(m => {
-            const d = String(m.created_at || '').slice(0, 10);
-            const dayRow = d && d !== day ? `<div class="msg-day">${_calEsc(phone?(window.svPhoneDate?.(d)||d):d)}</div>` : '';
+            const d = _msgLocalDay(m.created_at);
+            const dayRow = d && d !== day ? `<div class="msg-day">${_calEsc(_msgDayLabel(d))}</div>` : '';
             day = d || day;
             const mine = _msgIsMine(m);
             const isRoot = m.root_id === m.id;

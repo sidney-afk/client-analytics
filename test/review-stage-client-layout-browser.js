@@ -15,7 +15,8 @@
  *   - no "Watch the video with its notes" hover text on the video (the client page, and the staff Sheet's play icon);
  *   - the video step plays in the Frame.io player when frame_viewer_clients allows the client, and shows the plain
  *     "opens in a new tab" stage when it does not.
- * With the switch off the client link keeps today's page (old header, Analytics toggle, no new page).
+ * With the switch off (and Analytics brought back by analytics_hidden { hidden: false }) the client link keeps
+ * today's page (old header, Analytics toggle, no new page).
  *
  * The Sheet and the strip on a desktop (owner feedback 2026-10-17, session Curtain Three), with the switch on:
  *   - at 1440x900 and 1920x1080, small and medium cards: the row of cards sits in the middle of the space under
@@ -252,10 +253,11 @@ function look(page) {
     }
 
     // A bare link while the switch is slow to read (1.5 s, as live): no Analytics skeleton, ever, for a switched-on
-    // client. Switch off: the same link still opens on Analytics.
+    // client. Switch off, with Analytics brought back (analytics_hidden { hidden: false }, session Curtain Seven): the
+    // same link still opens on Analytics. (Analytics hidden, its default, is test/review-feedback-seven-browser.js.)
     for (const flags of ['on', 'off']) {
       console.log('--- bare client link, slow switch read, switch ' + flags + ' ---');
-      const t = await open(browser, origin, { stage: 'client', flags, flagDelay: 1500, finished: true });
+      const t = await open(browser, origin, Object.assign({ stage: 'client', flags, flagDelay: 1500, finished: true }, flags === 'off' ? { analytics: 'shown' } : {}));
       await t.page.addInitScript(() => {
         window.__svSawAnalytics = false;
         // What a person would see: an Analytics loader or skeleton on screen (the page carries hidden copies).
@@ -348,10 +350,10 @@ function look(page) {
       await t.ctx.close();
     }
 
-    // Switch off: the client link is today's page.
+    // Switch off (and Analytics brought back): the client link is today's page.
     console.log('--- client link, switch off ---');
     for (const [w, h] of [[1440, 900], [390, 844]]) {
-      const t = await openClient(browser, origin, { flags: 'off', width: w, height: h, tab: 'review', finished: true });
+      const t = await openClient(browser, origin, { flags: 'off', analytics: 'shown', width: w, height: h, tab: 'review', finished: true });
       await t.page.locator('.kcard[data-cal-review-pid="rs1"]').waitFor({ timeout: 30000 });
       await sleep(1200);
       for (const v of TABS) {

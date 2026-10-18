@@ -9,6 +9,7 @@ const { chromium } = require('playwright');
 const { serve, installFixture, BASE_ROW } = require('./client-phone-review-browser');
 const phoneThumbnailComparison = require('./phone-thumbnail-comparison');
 const { heightFor } = require('../../../qa/client-phone/profiles');
+const { analyticsShown } = require('../../../test/fixtures/analytics-shown.js');
 const arg = key => process.argv.find(x => x.startsWith('--' + key + '='))?.slice(key.length + 3);
 const widths = (arg('widths') || '360,390,430').split(',').map(Number);
 const themes = (arg('themes') || 'light,dark').split(',');
@@ -348,6 +349,8 @@ async function analytics(browser, origin, width, emptyCase = false) {
   const { ctx, cors, writes } = await fixture(browser, origin, width);
   const day = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   await ctx.route('**/rest/v1/syncview_runtime_flags?**', route => route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify([{ key: 'analytics_mirror_read_enabled', value: { enabled: true } }]) }));
+  // Analytics is hidden unless analytics_hidden says shown (session Curtain Seven); this test opens it.
+  await analyticsShown(ctx);
   await ctx.route('**/functions/v1/analytics-read', route => route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({
     ok: true, slug: 'phonefixtureclient', principal: 'client',
     receipts: Object.fromEntries(['metrics', 'top_videos', 'market_research_briefs', 'content_summaries', 'client_profiles'].map(key => [key, { complete: true, created_at: new Date().toISOString() }])),

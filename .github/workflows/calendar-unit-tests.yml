@@ -888,6 +888,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/first-paint-theme-browser.js
+      - name: Staff pages first paint, frame by frame (header never moves, no bare Loading line, phone title bar first)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/staff-first-paint-browser.js
       - name: Staff Calendar Review tab under the staff bar (toggle never moves, no second heading, old page when off)
         if: ${{ !cancelled() }}
         env:

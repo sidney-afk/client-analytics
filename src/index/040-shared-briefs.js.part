@@ -19,6 +19,7 @@ import {
   _syncviewSetClientEntryCapability, _syncviewStaleClientEntryError,
   _syncviewSyncClientEntryRunHref
 } from './260-production-refresh-boot.js';
+import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     const SYNCVIEW_THEME_KEY = 'syncview_theme';
     const SYNCVIEW_STATUS_PALETTE_KEY = 'syncview_status_palette';
     /*
@@ -77,11 +78,34 @@ import {
         _svAreaLoads[name] = load.catch(e => { delete _svAreaLoads[name]; throw e; });
         return _svAreaLoads[name];
     }
+    // The page's first markup carries a grey shape per tab (030-body-shell, "boot-skeleton-*"), which the first route
+    // render replaces. Kept here (read once, as this file runs) so an on-demand tab that waits for its code later
+    // shows the same shape as a refresh does.
+    const SV_AREA_SKELETON = { kasper: 'kasper', workload: 'workload' };
+    const _svBootShapes = {};
+    try {
+        ['kasper', 'workload', 'templates', 'filming', 'tiktok'].forEach(k => {
+            const el = document.querySelector('#content .boot-skeleton-' + k);
+            if (el) _svBootShapes[k] = el.innerHTML;
+        });
+    } catch (e) {}
+    function _svAreaWaitShape(name, page) {
+        const key = page === 'filming-plans' ? 'filming' : name;
+        if (_svBootShapes[key]) return _svBootShapes[key];
+        return SV_AREA_SKELETON[name] ? _svLoadingSkeletonHtml(SV_AREA_SKELETON[name]) : '';
+    }
     function svWithArea(name, content, draw, retry) {
         const seq = ++_svAreaDrawSeq;
         const api = _svAreaApis[name];
         if (api) { draw(api); return; }
-        content.innerHTML = '<div class="sv-area-loading" data-sv-area-wait="' + seq + '" role="status" aria-live="polite" style="padding:48px 24px;text-align:center;opacity:.7;">Loading…</div>';
+        // While the code downloads, the tab's own grey shape where there is one, so the page that
+        // follows grows out of it; a bare "Loading…" line flashed on every Kasper refresh (session Lantern, 2026-10-18).
+        let page = '';
+        try { page = String(svRoute.hash() || '').replace('#', '').split('/')[0]; } catch (e) {}
+        const skel = _svAreaWaitShape(name, page);
+        content.innerHTML = skel
+            ? '<div class="sv-area-loading" data-sv-area-wait="' + seq + '" role="status" aria-live="polite" aria-label="Loading">' + skel + '</div>'
+            : '<div class="sv-area-loading" data-sv-area-wait="' + seq + '" role="status" aria-live="polite" style="padding:48px 24px;text-align:center;opacity:.7;">Loading…</div>';
         const stillWaiting = () => seq === _svAreaDrawSeq && !!content.querySelector('[data-sv-area-wait="' + seq + '"]');
         svArea(name).then(loaded => { if (stillWaiting()) draw(loaded); }, () => {
             if (!stillWaiting()) return;

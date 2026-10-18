@@ -1767,6 +1767,14 @@
       "ci": "representative"
     },
     {
+      "file": "staff-first-paint-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: a fictional staff member and client), no hosted credentials and no live data. Refreshes staff pages and logs every frame: on desktop the header never moves and only the page's tab is lit before the sliding pill, Kasper never shows a bare Loading line, and on a phone the desktop header never shows before the phone title bar.",
+      "reproduce": "node test/staff-first-paint-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-client-layout-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

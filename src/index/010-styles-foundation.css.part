@@ -2008,7 +2008,8 @@
            and pre-light the pill of the tab actually being restored.
            navTo()/render() remove the attribute when routing takes over. */
         html[data-boot-nav] #pageTop { display: none; }
-        html[data-boot-nav] #headerNav .header-nav-btn.active { background: var(--white); color: var(--text-secondary); border-color: var(--border); }
+        html[data-boot-nav] #headerNav .header-nav-btn.active { background: transparent; color: var(--text-secondary); border-color: transparent; }
+        html[data-boot-nav="today"] #navToday,
         html[data-boot-nav="linear"] #navLinear, html[data-boot-nav="production"] #navProd,
         html[data-boot-nav="workload"] #navWorkload,
         html[data-boot-nav="calendar"] #navCalendar,
@@ -2791,6 +2792,13 @@
         html:not([data-boot-nav]) #headerNav.pill-idle .header-nav-btn { background: transparent; border-color: transparent; }
         html:not([data-boot-nav]) #headerNav.pill-idle .header-nav-btn:hover { background: var(--bg); border-color: var(--sv-border-aaa); color: var(--text-primary); }
         @media (prefers-reduced-motion: reduce) { .header-nav-pill { transition: none; } }
+        /* Before the sliding pill is measured (and while the pre-paint route
+           highlight owns the strip), the tabs already look the way they will
+           once it is: no chip around each tab, only the lit tab filled. They
+           used to show a bordered white chip each until the pill was ready, so
+           every staff refresh changed the whole strip's look (session Lantern,
+           2026-10-18). :where() keeps this below every highlight and hover rule. */
+        :where(html[data-boot-nav] #headerNav, #headerNav:not(.pill-ready)) .header-nav-btn { background: transparent; border-color: transparent; }
 
         /* Linear form */
         .linear-view { max-width: 620px; margin: 0 auto; animation: fadeIn 0.15s ease; }

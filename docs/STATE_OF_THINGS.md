@@ -97,6 +97,14 @@ a stage shows); and the stage reads the app's own colour tokens (one page backgr
 and the notes panel, one border, radius and shadow) in light and dark. Switch off or unreadable: pixel-identical to
 main. Test: `node test/review-stage-one-system-browser.js`.
 
+**Staff pages, first paint (session Lantern, 2026-10-18 01:40 UTC):** a staff refresh no longer reshuffles the header:
+the client picker, Samples, Kasper and the Messages button show from the first frame (the app script still re-checks
+each), every tab looks the way it will once the sliding highlight is ready (no bordered chips, only the page's tab lit,
+Today included), Kasper and Workload show their own grey shape instead of a bare "Loading…" while their code downloads,
+and on a phone Today, Templates, Filming Plans and Submit draw the phone title bar from the first frame instead of the
+desktop header. Test (fails on main, 17 failures): `node test/staff-first-paint-browser.js`. Still showing late: the tab
+icons and logo (one or two frames, images), and Kasper's own phone heading.
+
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone
 layout follows the desktop one and has not been polished on its own (as the handoff said).

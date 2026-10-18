@@ -108,6 +108,10 @@ function makeRenderer(state, options = {}) {
     const KASPER_PRIMARY_SUBTAB_KEYS = deps.primary;
     const KASPER_PRIMARY_SHORT_LABELS = deps.shortLabels;
     const KASPER_MORE_GROUPS = deps.groups;
+    // The new review page's switch (188) picks the tab list; off here, so today's three tabs (session Curtain Seven).
+    const _kasperRsNav = () => false;
+    const _kasperPrimaryKeys = () => KASPER_PRIMARY_SUBTAB_KEYS;
+    const _kasperMoreGroups = () => KASPER_MORE_GROUPS;
     const KASPER_MORE_ICON = '<svg data-test-icon="more"></svg>';
     const KASPER_MORE_CHEVRON = '<svg data-test-icon="chevron"></svg>';
     const _ptoEnabled = () => deps.ptoEnabled;

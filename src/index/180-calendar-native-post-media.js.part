@@ -3306,8 +3306,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         _calKasperSeen.add(k);
         if (_calKasperSeenSaveQueued) return;
         _calKasperSeenSaveQueued = true;
-        if (typeof queueMicrotask === 'function') queueMicrotask(_calSaveKasperSeen);
-        else Promise.resolve().then(_calSaveKasperSeen);
+        Promise.resolve().then(_calSaveKasperSeen);
     }
     function _calWasKasperSeen(pid, comp) { return _calKasperSeen.has(_calKasperSeenKey(pid, comp)); }
     /* Per-card "last message Kasper had seen" timestamp (local, per-device).

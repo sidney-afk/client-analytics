@@ -85,6 +85,9 @@ async function open(browser, origin, opt) {
   } else if (opt.dark) {
     await page.addInitScript(() => { try { localStorage.setItem('syncview_theme', 'dark'); } catch (e) {} });
   }
+  // opt.analytics === 'shown': analytics_hidden reads { hidden: false } (Analytics brought back), in a browser that
+  // already saw it shown. Without it the row is missing, which hides Analytics (session Curtain Seven).
+  if (opt.analytics === 'shown') await page.addInitScript(() => { try { localStorage.setItem('sv-analytics-shown', '1'); } catch (e) {} });
   await ctx.route('**/*', async route => {
     const r = route.request(); const u = new URL(r.url());
     if (r.url().startsWith(origin)) return route.continue();
@@ -142,6 +145,9 @@ async function open(browser, origin, opt) {
       };
       if (opt.flags === 'on') { values.review_stage_client_pages = { clients: [SLUG] }; values.review_stage_kasper_staff = { staff: [STAFF.id] }; }
       if (opt.help) values.review_help_video_url = { url: opt.help };
+      // 'shownFresh': the same answer in a browser that has never seen Analytics shown.
+      if (opt.analytics === 'shown' || opt.analytics === 'shownFresh') values.analytics_hidden = { hidden: false };
+      else if (opt.analytics && typeof opt.analytics === 'object') values.analytics_hidden = opt.analytics;
       return json(keys.filter(k => Object.hasOwn(values, k)).map(k => ({ key: k, value: values[k] })));
     }
     if (p === '/rest/v1/calendar_posts') {

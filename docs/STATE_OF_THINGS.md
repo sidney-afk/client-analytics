@@ -33,6 +33,10 @@ shape is the old page; the lists live only in the database):
   roster id or full name is listed.
 - `review_help_video_url` `{ "url": "https://..." }`: the tutorial video behind the client page's "?". Empty or missing
   hides the button. The video is made later by another session.
+- `analytics_hidden` `{ "hidden": false }` brings Analytics back for everyone (session Curtain Seven, 2026-10-17).
+  Missing (today: no row, no migration), unreadable, `{ "hidden": true }` or any other shape hides it: no Analytics tab
+  in the staff bar, no Analytics / Content Calendar toggle on a client link, and a client link's Analytics address
+  opens the Content Calendar. Read at boot in the same request as the switches above. No Analytics code was removed.
 To try it: the test client in the first list and the owner in the second. Nobody else sees anything new.
 
 **The owner's decisions, 2026-10-16:** yes to the SMM and Kasper mock-ups, and to the five open choices:
@@ -150,6 +154,20 @@ right "Send comment" (a plain note on the chosen part, or the part on stage) and
 sends a change when a part is picked, a comment otherwise. The SMM's and Kasper's boxes are unchanged. (3) The caption
 edit box and the message box use the conversation's thin scrollbar (a local style; the app-wide one is Curtain Nine's).
 The stage's caption card keeps line breaks. Test: `node test/review-stage-client-composer-browser.js`.
+**Owner feedback of 2026-10-17 23:20 UTC (session Curtain Seven):** with the switch on, Kasper's tab has no "Kasper"
+title and no "Updated" line, and only Review Session and Messages as tabs (Filming Plans is in More, under "Content");
+the strip opens with a small list button (the count as a badge) instead of "9 to review" and the section labels, and it
+opens his sections as a list (Urgent, Waiting for your review, With the editors with Ping editor; a row opens that post,
+Escape or a click elsewhere closes it); the post heading is one row, "Client · Title", with no initials badge, and the
+round ("Back after tweaks, round 3", or "First review") sits beside the date; a double click on the stage's video goes
+full screen (all three stages). On the SMM's Review tab Notify client sits on the right beside the menu (the card size
+control, invisible on Review, no longer holds the space). For everyone: a video opened from a play button (Sheet,
+Month and Week play icons, the Review tab's "Watch video" preview, Kasper's Watch here) starts playing at once, with
+sound when the browser allows it and otherwise muted with a "Sound is off. Click for sound" button; opened from the
+notes (Notes button, a note's link, Messages) it waits for play as before. Analytics is hidden for everyone behind
+`analytics_hidden` (above). Switch off: Kasper and the SMM page are today's. Test:
+`node test/review-stage-curtain-seven-browser.js`; the older browser tests that open Analytics now answer
+`analytics_hidden` with `{ "hidden": false }` (`test/fixtures/analytics-shown.js`).
 
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone

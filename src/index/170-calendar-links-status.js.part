@@ -1198,6 +1198,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         if (!_isClientLink) return Promise.resolve(false);
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return Promise.resolve(false);
+        const before = post.caption;
         _calNoteEditBase(pid, 'caption', post.caption);
         _calCaptionDraftWrite(pid, val);
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
@@ -1213,8 +1214,17 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                 const cur = calState.posts.find(p => p.id === pid);
                 // "Not saved yet: ..." is an older intent's chip put back after a save that worked (as in _calReviewCommentSend).
                 const err = cur && cur._saveError && !/^Not saved yet: /.test(String(cur._saveError));
-                return !!cur && !err && !queued() && cur.caption === val;
-            }, () => false);
+                const ok = !!cur && !err && !queued() && cur.caption === val;
+                if (!ok) undo();
+                return ok;
+            }, () => { undo(); return false; });
+        // A caption that did not save goes back on screen to the stored one, and leaves no queued edit, so the client
+        // sees the truth and a second try really sends (review of #2171, Lighthouse). The draft keeps their text.
+        function undo() {
+            const cur = calState.posts.find(p => p.id === pid);
+            if (cur && cur.caption === val) cur.caption = before;
+            if (_calPendingEdits[pid] && _calPendingEdits[pid].caption === val) delete _calPendingEdits[pid].caption;
+        }
     }
     window._calClientReviewCaptionEdit = _calClientReviewCaptionEdit;
 

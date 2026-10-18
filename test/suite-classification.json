@@ -1784,6 +1784,11 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and token), no hosted credentials and no live data. Checks the client review page's message box (no 'Is this a change?' prompt, part chips at the box's top left, 'Ask for a change' needs a part and saves a change request on it, 'Send comment' saves a plain comment), that a client's caption edit saves the new caption with a plain note carrying the old one (never approved, never a change request) shown as new over old on the client and SMM pages, and that the caption edit box and the message box draw the thin scrollbar.",
       "reproduce": "node test/review-stage-client-composer-browser.js (after repository Playwright/Chromium setup)",
+      "file": "review-stage-curtain-seven-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and token, the frame viewer's generated clip), no hosted credentials and no live data. Checks the owner's feedback of 2026-10-17 23:20: on the new review page Kasper's tab has no title or Updated line, only Review Session and Messages (Filming Plans in More), a list button with his sections instead of the strip's texts, a one-row heading with the round beside the date, and full screen on a double click; Notify client beside the menu on the SMM Review tab; for everyone, a video opened from a play button starts playing (muted with a sound button when the browser refuses sound) while one opened from the notes does not, and Analytics hidden unless analytics_hidden reads { hidden: false }.",
+      "reproduce": "node test/review-stage-curtain-seven-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

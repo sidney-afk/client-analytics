@@ -246,8 +246,9 @@ async function shot(t, name) { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursi
         await waitNew(t3);
         await sleep(800);
         if (process.env.RS_DEBUG) console.log(await t3.page.evaluate(() => { const out = []; let e = document.getElementById('svReviewStage'); while (e && e !== document.body) { const cs = getComputedStyle(e); out.push((e.id ? '#' + e.id : '') + '.' + String(e.className).split(' ').join('.') + ' w=' + e.offsetWidth + ' max=' + cs.maxWidth + ' pad=' + cs.paddingLeft + ' top=' + Math.round(e.getBoundingClientRect().top)); e = e.parentElement; } return out.join('\n'); }));
-        const sk = await inS(t3.page, '#skHead').textContent();
-        expect(/to review/.test(sk), 'Kasper: his strip heads with what is left to review (' + sk + ')');
+        // The strip heads with his list button, the count of what is left to review as its badge (session Curtain Seven).
+        const sk = await inS(t3.page, '#qBtn').getAttribute('aria-label');
+        expect(/\d+ to review/.test(sk || ''), 'Kasper: his strip heads with what is left to review (' + sk + ')');
         expect(await inS(t3.page, '[data-frame="video"]').isVisible(), 'Kasper: Tweaks are on Frame sits on the video');
         await shot(t3, 'after-kasper-1440-light');
         let n0 = t3.state.upserts.length;

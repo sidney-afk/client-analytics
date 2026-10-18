@@ -191,6 +191,13 @@ async function clientJourney(t, origin, label, profile) {
   await until(async () => /did not save|not saved|connection|try again/i.test(await inS(t.page, '#drow, #flash, #tcard').allTextContents().then(x => x.join(' '))), 'no caption failure message');
   check(await inS(t.page, '#capTa').inputValue().catch(() => '') === 'A caption draft kept across a reload.', label + ': failed caption save keeps editable words');
   await shot(t, label.replaceAll('/', '-') + '-offline-caption', '#tcard');
+  // Cancel, then open the editor again: the old "did not save" line must not follow a fresh edit.
+  if (await inS(t.page, '#capCancel').count()) {
+    await tap(inS(t.page, '#capCancel'));
+    await tap(inS(t.page, '#editBtn'));
+    check(!/did not save/i.test(await inS(t.page, '.cap-edit .hint').textContent()), label + ': a fresh caption edit does not show the old failure line');
+    await inS(t.page, '#capTa').fill('A caption draft kept across a reload.');
+  }
   await reconnect(t);
   if (!await inS(t.page, '#capTa').count()) { await tap(inS(t.page, '#editBtn')); await inS(t.page, '#capTa').fill('A caption draft kept across a reload.'); }
   await sent(t, () => tap(inS(t.page, '#capSave')), u => u.caption === 'A caption draft kept across a reload.', label + ': caption retry saves');

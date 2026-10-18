@@ -857,7 +857,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 /* Phone controls keep their hit area in both orientations. The player uses the available width, with the video
    contained inside it, so a portrait clip never shrinks its controls to a narrow sliver in landscape. */
 @media (max-width:860px), (max-width:1023px) and (pointer:coarse){
-.app:not(.bar){height:auto;min-height:0;padding-top:max(12px,env(safe-area-inset-top,0px));padding-bottom:calc(20px + env(safe-area-inset-bottom,0px) + var(--rs-bar,0px) * 2.2)}
+.app:not(.bar){height:auto;min-height:0;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px) + var(--rs-bar,0px) * 2.2)}
 .stage,.stage.land{display:flex;flex-direction:column;gap:16px}
 .side,.stage.land .side{padding:0 2px}
 .rs.in-kasper .stage .sd-t h2{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
@@ -1961,7 +1961,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const parts = m.parts, left = parts.filter(p => p.st === 'wait').length;
         // On the client link Finish reviewing stays off, with a short "Saving…", while any part's answer is still being
         // sent: it lights up when the save lands or fails (an answer is never lost to a quick Finish and a closed tab).
-        const sending = Object.keys(RS_PART).some(k => _rsSaving(m, k));
+        const sending = R.mode !== 'smm' && Object.keys(RS_PART).some(k => _rsSaving(m, k));
         const all = !left && !sending;
         if (all && !S.ready[m.id]) S.ready[m.id] = Date.now();
         if (!all) delete S.ready[m.id];
@@ -2355,7 +2355,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsStartEdit(k, text) {
         const S = R.S;
-        S.note.part = null; S.note.where = 'chat'; S.editing = k; S.editText = text || '';
+        S.note.part = null; S.note.where = 'chat'; S.editing = k; S.editText = text || ''; S.editError = null;
         _rsRender({ force: true });
         const t = _rsQ('capTa'); if (t) { t.focus({ preventScroll: true }); t.setSelectionRange(t.value.length, t.value.length); }
     }
@@ -2437,7 +2437,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsFinish() {
         const m = _rsCur();
         if (!m || _rsWaiting(m).length) return;
-        if (Object.keys(RS_PART).some(k => _rsSaving(m, k))) return;
+        if (R.mode !== 'smm' && Object.keys(RS_PART).some(k => _rsSaving(m, k))) return;
         const q = _rsQueue(), i = q.findIndex(x => x.id === m.id);
         let msg;
         if (R.mode === 'kasper') {

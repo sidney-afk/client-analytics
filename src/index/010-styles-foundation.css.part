@@ -1922,7 +1922,7 @@
         /* Month and Week loading (160 _calLoadingGridHtml): the real grid with no posts;
            each day of the shown period shimmers until the posts arrive. */
         .cal-grid-skeleton :is(.cal-month-cell:not(.out), .cal-week-col) { position: relative; overflow: hidden; }
-        .cal-grid-skeleton :is(.cal-month-cell:not(.out), .cal-week-col)::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 0%, var(--border-light) 50%, transparent 100%); opacity: 0.6; transform: translateX(-100%); animation: sv-shimmer-sweep 1.35s ease-in-out infinite; pointer-events: none; }
+        .cal-grid-skeleton :is(.cal-month-cell:not(.out), .cal-week-col)::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 0%, var(--border-light) 50%, transparent 100%); opacity: 0.6; transform: translateX(-100%); animation: sv-shimmer-sweep var(--sv-sheen-dur) var(--sv-sheen-ease) infinite; pointer-events: none; }
         @media (prefers-reduced-motion: reduce) { .cal-grid-skeleton :is(.cal-month-cell, .cal-week-col)::after { animation: none; } }
         .cal-skeleton-review { display: flex; flex-direction: column; gap: 12px; }
         .cal-skeleton-review-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 14px; align-items: center; }

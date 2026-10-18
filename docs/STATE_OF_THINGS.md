@@ -97,6 +97,17 @@ a stage shows); and the stage reads the app's own colour tokens (one page backgr
 and the notes panel, one border, radius and shadow) in light and dark. Switch off or unreadable: pixel-identical to
 main. Test: `node test/review-stage-one-system-browser.js`.
 
+**First paint on that client link (session Lantern, 2026-10-18 01:13 UTC; owner report: a dark page refreshed through a
+white page with a small white card):** the browser now remembers the client links it last saw with the new page
+switched on (`syncview_rs_paint_v1` in its own storage, a paint hint that grants nothing), so a refresh paints the saved
+theme from the first frame and draws the page's own shape (header, strip, stage, conversation, within 3 px of the real
+page at 1440 and 390) instead of the white check card. That shape stays on top until the page has drawn under it, then
+fades out in 0.18 s (none with reduced motion), so the old review list no longer shows while the switch is read. When
+the switch reads off, the link is forgotten and the page goes back to light and the old page. A link never seen switched
+on keeps today's light check card. Test (records every frame, fails on main): `node test/first-paint-theme-browser.js`.
+Not yet done (Lantern's next pieces): the staff pages and Kasper frame walk on the live site, one shimmer and spinner
+family across the app, and a fade from skeleton to content elsewhere.
+
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone
 layout follows the desktop one and has not been polished on its own (as the handoff said).

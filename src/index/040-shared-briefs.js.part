@@ -148,7 +148,10 @@ import {
             const q = new URLSearchParams(svRoute.search());
             // A client link stays light, except on the new review page, which has its own sun/moon button
             // (188 sets this only when that page's switch is on for the client).
-            return !q.get('c') || window.__svRsThemeOk === true;
+            // The head script's paint hint (sv-rs-paint, a link this browser last saw switched on) counts too, so the
+            // saved theme holds from the first frame instead of flashing light until the switch is read; 260 drops
+            // the hint and re-applies the theme when the switch reads off.
+            return !q.get('c') || window.__svRsThemeOk === true || document.documentElement.classList.contains('sv-rs-paint');
         } catch (e) { return false; }
     }
     function _syncviewStoredTheme() {

@@ -1724,6 +1724,14 @@
       "ci": "representative"
     },
     {
+      "file": "first-paint-theme-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token), no hosted credentials and no live data. Refreshes the client link with the new review page on and records every painted frame: dark saved never shows a white frame or the old review list, light saved never shows a dark frame, a link whose switch was turned off goes back to light and is forgotten, and a link never seen switched on stays light.",
+      "reproduce": "node test/first-paint-theme-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-client-layout-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

@@ -23,7 +23,9 @@ async function tap(locator) {
       if (!await locator.isEnabled()) return false;
       const p = await locator.evaluate(el => {
         const b = el.getBoundingClientRect(), x = b.left + b.width / 2, y = b.top + b.height / 2;
-        const hit = el.getRootNode().elementFromPoint(x, y);
+        const root = el.getRootNode();
+        if (!el.isConnected || typeof root.elementFromPoint !== 'function') return { x, y, hit: false };
+        const hit = root.elementFromPoint(x, y);
         return { x, y, hit: hit === el || el.contains(hit) };
       });
       const stable = prior && Math.abs(p.x - prior.x) < 1 && Math.abs(p.y - prior.y) < 1;

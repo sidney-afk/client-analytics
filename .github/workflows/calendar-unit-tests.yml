@@ -873,6 +873,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-finish-browser.js
+      - name: Client review message box and caption edits (part chips, comment or change request, the caption itself changes, thin scrollbars)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-client-composer-browser.js
 
 
   split-preview:

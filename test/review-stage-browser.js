@@ -115,7 +115,7 @@ async function shot(t, name) { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursi
     const chg = t.state.upserts.slice(n0).find(u => u.graphic_status === 'Tweaks Needed');
     expect(!!chg && /Move the title to the top/.test(String(chg.graphic_tweaks || '')), 'client: Send saves the change request with its words on the thumbnail');
 
-    // the caption edit goes to the team as a change, never an approval
+    // the caption edit changes the caption itself and tells the team in a note; it never approves or asks for a change
     await sleep(900);
     await inS(t.page, '.stp[data-step="caption"]').click();
     await sleep(500);
@@ -123,10 +123,14 @@ async function shot(t, name) { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursi
     await inS(t.page, '#capTa').fill('A new caption written by the client.');
     n0 = t.state.upserts.length;
     await inS(t.page, '#capSave').click();
-    for (let i = 0; i < 80 && !t.state.upserts.slice(n0).some(u => u.caption_status); i++) await sleep(100);
-    const ce = t.state.upserts.slice(n0).find(u => u.caption_status);
-    expect(!!ce && ce.caption_status === 'Tweaks Needed' && /A new caption written by the client/.test(String(ce.caption_tweaks || '')), 'client: a caption edit is sent as a change request carrying the new text');
-    expect(!t.state.upserts.slice(n0).some(u => u.caption_status === 'Approved' || 'caption' in u), 'client: the caption edit neither approves nor overwrites the caption');
+    for (let i = 0; i < 80 && !t.state.upserts.slice(n0).some(u => /Changed the caption to/.test(String(u.caption_tweaks || ''))); i++) await sleep(100);
+    const ups = t.state.upserts.slice(n0);
+    expect(ups.some(u => u.id === 'rs1' && u.caption === 'A new caption written by the client.'), 'client: a caption edit saves the new caption on the card');
+    expect(ups.some(u => /Changed the caption to/.test(String(u.caption_tweaks || ''))), 'client: and tells the team in a note on the caption');
+    expect(!ups.some(u => u.caption_status === 'Approved' || u.caption_status === 'Tweaks Needed'), 'client: the caption edit neither approves nor asks for a change');
+    await sleep(600);
+    await inS(t.page, '[data-ok="caption"]').click();
+    for (let i = 0; i < 60 && !t.state.upserts.slice(n0).some(u => u.caption_status === 'Approved'); i++) await sleep(100);
 
     // Finish opens the next post
     await sleep(900);

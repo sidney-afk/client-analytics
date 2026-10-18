@@ -49,8 +49,9 @@ theme button on the client page opens a tutorial video in an overlay.
 
 **Decisions made in the build (every save is the old page's own; no new write path):**
 - Client "Finish reviewing" saves nothing: each answer is already saved when given; it opens the next waiting post.
-- A client's caption (or YouTube title) edit is sent as a change request on that part carrying the new text, so the
-  SMM applies it; there is no client caption save, and it never approves.
+- A client's caption edit changes the caption itself (since Curtain Eight, below) and a plain note tells the team; a
+  YouTube title edit is still sent as a change request carrying the new text (a client link never renames a card).
+  Neither ever approves.
 - A client's "Change my mind" on an approved part sends a note to the team on that part (a client link cannot reopen
   an approved part); the SMM's and Kasper's reopen it as a change request, as their old pages do.
 - A client's "Take it back" on a sent change request is not offered (nothing on the old page undoes one).
@@ -135,6 +136,20 @@ Finish reviewing (same session, item 4): once every part is answered it carries 
 three times and then stays still (a still ring with reduced motion; a redraw never restarts it). The client link's own
 "Approved" / "Changes sent" toast no longer shows on the new page (it covered Finish on a phone; the step's "Saved"
 says it). Test: `node test/review-stage-finish-browser.js`.
+
+**Owner feedback of 2026-10-17 23:40 UTC (session Curtain Eight), client page only:** (1) A client's caption edit
+changes the caption itself: the same card save as a caption edit on the Sheet, also with Collaborative mode off (that
+switch still guards the Sheet's fields; `_calClientReviewCaptionEdit` in `170` is the one exception, caption only). A
+plain client note on the caption ("Changed the caption to: ... It was: ...") tells the team, so every page that shows
+notes reads it and the SMM has the old text to put back; the new page draws it as the new caption with the old one
+folded and struck through. The caption is never approved or sent back by the edit: it waits for the client's Approve.
+The YouTube title is the card's name, which a client link may not change, so a title edit is still a change request.
+(2) The client's message box: no "Is this a change?" prompt; the parts are clickable chips at the box's top left
+(picked one turns the box orange with "Your team will edit it", as before; picking it again clears it); at the bottom
+right "Send comment" (a plain note on the chosen part, or the part on stage) and "Ask for a change" (needs a part). Enter
+sends a change when a part is picked, a comment otherwise. The SMM's and Kasper's boxes are unchanged. (3) The caption
+edit box and the message box use the conversation's thin scrollbar (a local style; the app-wide one is Curtain Nine's).
+The stage's caption card keeps line breaks. Test: `node test/review-stage-client-composer-browser.js`.
 
 **Still to do:** run `/dawn-check` and
 `/master-test` with them on (they need the live site) and a side-by-side `/human-audit` against the mock-ups. The phone

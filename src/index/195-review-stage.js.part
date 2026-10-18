@@ -741,12 +741,52 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .bfoot .donec{margin-left:auto}
 .bfoot .vis{font-size:.66rem}
 `
+    /* The client's message box (session Curtain Eight): the part it is about is picked first, from chips at the box's
+       top left, and the bottom right sends it either as a change request on that part or as a plain comment. A
+       client's caption edit shows in the conversation as the new caption over the old one, struck through and folded.
+       The caption edit box and the message box get the conversation's thin scrollbar (a local style, until the
+       app-wide one lands). */
+    + `
+.compose.cl .cta{padding:8px 14px 6px;min-height:44px}
+.cl-parts{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 10px 0}
+.cl-parts .lbl{font-size:.72rem;font-weight:600;color:var(--text-secondary);margin-right:2px}
+.cl-parts .why{font-size:.72rem;color:var(--text-secondary)}
+.pchip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px 0 9px;border-radius:99px;background:var(--fill);color:var(--text-primary);font-size:.76rem;font-weight:700;white-space:nowrap;cursor:pointer;box-shadow:inset 0 0 0 1px var(--border);transition:background .14s,box-shadow .14s,color .14s}
+.pchip:hover{background:var(--fill-hover);box-shadow:inset 0 0 0 1px var(--text-secondary)}
+.pchip .pdot{width:7px;height:7px}
+.pchip .px{display:none;width:18px;height:18px;margin-left:-2px;border-radius:50%;align-items:center;justify-content:center}
+.pchip .px svg{width:10px;height:10px}
+.pchip[aria-pressed="true"]{background:var(--chgb);color:var(--chg-fg);box-shadow:inset 0 0 0 1px var(--cmp-chg-line);padding-right:5px}
+.pchip[aria-pressed="true"] .px{display:inline-flex}
+.pchip[aria-pressed="true"]:hover .px{background:var(--chgb-h)}
+.cl-foot{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;padding:2px 8px 8px 14px}
+.b-cmt{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 13px;border-radius:9px;background:var(--deck);color:var(--text-primary);box-shadow:inset 0 0 0 1px var(--border);font-size:.8rem;font-weight:700;transition:background .14s,box-shadow .14s}
+.b-cmt:hover:not(:disabled){background:var(--fill)}
+.b-cmt svg{width:12px;height:12px}
+.b-cmt:disabled,.cl-foot .b-send-chg:disabled{background:transparent;color:var(--off-fg);box-shadow:inset 0 0 0 1px var(--off-line);cursor:not-allowed}
+.tc-text{white-space:pre-line}
+.bub .diff{margin-top:4px}
+.bub .diff .new{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.84rem;line-height:1.45;color:var(--text-primary)}
+.bub .was{font-size:.76rem}
+.bub .was summary{cursor:pointer;color:var(--text-secondary);font-weight:600;list-style:none}
+.bub .was summary::-webkit-details-marker{display:none}
+.bub .was summary:hover{color:var(--text-primary)}
+.bub .was .old{margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere}
+.cap-edit textarea::-webkit-scrollbar,.cta::-webkit-scrollbar{width:6px}
+.cap-edit textarea::-webkit-scrollbar-track,.cta::-webkit-scrollbar-track{background:transparent}
+.cap-edit textarea::-webkit-scrollbar-thumb,.cta::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:99px}
+.cap-edit textarea::-webkit-scrollbar-thumb:hover,.cta::-webkit-scrollbar-thumb:hover{background:var(--scroll-thumb-hover)}
+.cap-edit textarea::-webkit-scrollbar-corner,.cta::-webkit-scrollbar-corner{background:transparent}
+@supports not selector(::-webkit-scrollbar){.cap-edit textarea,.cta{scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent}}
+`
     /* The "new version of SyncView" bar (350) sits at the bottom of the window; while it shows, --rs-bar (188) makes
        the stage that much shorter on a desktop, and leaves that much room under the page on a phone, so the bar never
-       covers Approve or Finish reviewing (session Curtain Six). */
+       covers Approve or Finish reviewing (session Curtain Six). On a phone the bar's text wraps (about 185px tall with
+       its margin at 390 wide), so the room under the page is a little over twice the desktop allowance, or the bar
+       covers the client's message box buttons at the bottom right (session Curtain Eight). */
     + `
 @media (min-width:861px){.app:not(.bar){height:calc(100vh - var(--rs-top,0px) - var(--rs-bar,0px));height:calc(100dvh - var(--rs-top,0px) - var(--rs-bar,0px))}}
-@media (max-width:860px){.app:not(.bar){padding-bottom:calc(14px + var(--rs-bar,0px) + var(--rs-bar,0px) / 3)}}
+@media (max-width:860px){.app:not(.bar){padding-bottom:calc(14px + var(--rs-bar,0px) * 2.2)}}
 `;
     const RS_PART = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'YouTube title' };
     const RS_CSSKEY = { video: 'video', graphic: 'thumbnail', caption: 'caption', title: 'youtube' };
@@ -876,10 +916,23 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             return {
                 id: String(c.id || ''), you: _rsIsMine(c, mode), who: who || (c.role === 'client' ? 'Client' : 'Team'), role: c.role || '',
                 part: comp, time: c.sending ? 'Sending…' : _rsWhen(c.created_at), text: String(c.body || ''),
-                change: !!c.is_tweak, done: !!c.done, aud: c.audience || '', sending: !!c.sending,
+                change: !!c.is_tweak, done: !!c.done, aud: c.audience || '', sending: !!c.sending, edit: c.is_tweak ? null : _rsEditOf(c.body),
                 frame: !!c.is_tweak && String(c.body || '').trim() === RS_FRAME_NOTE
             };
         });
+    }
+    /* A client's caption edit is saved on the card and told in the conversation as a plain note in these words, so
+       every page that shows notes (the old Review panel, Notes, Kasper's) reads it as it is, and this page shows it as
+       the new caption over the old one. */
+    const RS_EDIT_HEAD = 'Changed the caption to:\n\n', RS_EDIT_WAS = '\n\nIt was:\n\n', RS_EDIT_EMPTY = '\n\nIt was empty.';
+    function _rsEditNote(now, old) { return RS_EDIT_HEAD + now + (String(old || '').trim() ? RS_EDIT_WAS + old : RS_EDIT_EMPTY); }
+    function _rsEditOf(body) {
+        const b = String(body || '');
+        if (b.indexOf(RS_EDIT_HEAD) !== 0) return null;
+        const rest = b.slice(RS_EDIT_HEAD.length);
+        if (rest.endsWith(RS_EDIT_EMPTY)) return { now: rest.slice(0, -RS_EDIT_EMPTY.length), old: '' };
+        const i = rest.lastIndexOf(RS_EDIT_WAS);
+        return i < 0 ? null : { now: rest.slice(0, i), old: rest.slice(i + RS_EDIT_WAS.length) };
     }
     function _rsModel(post, mode, item) {
         const comps = _rsCompsOf(post, mode, item);
@@ -1494,7 +1547,25 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             : (opts.length ? '<div class="sugg"><div class="sgl"><span>Is this a change?</span><button class="justnote" type="button" id="noteBtn">Just a note ' + RI.send + '</button></div><div class="sgp">' + opts.map(q => '<button class="sg" type="button" data-sg="' + q.key + '">' + _rsDot(q.key) + RS_PART[q.key] + (q.st === 'ok' ? '<span class="sga">, approved</span>' : '') + '</button>').join('') + '</div></div>' : '')
               + (R.mode === 'smm' ? '<div class="nfoot">' + seg + '<button class="send" type="button" id="sendBtn" aria-label="Send the note"' + (typed ? '' : ' disabled') + '>' + RI.send + '</button></div>' : '');
         const send = chg || R.mode === 'smm' ? '' : '<button class="send" type="button" id="sendBtn" aria-label="Send as a note"' + (typed ? '' : ' disabled') + '>' + RI.send + '</button>';
+        if (R.mode === 'client' && nt.where !== 'stage') return _rsClientComposer(m, opts, ph, paused, typed);
         return '<div class="compose' + (R.mode === 'smm' ? ' smm' : '') + (chg ? ' chg' : '') + (typed ? ' typed' : '') + '" id="compose"><div class="cbox">' + top + '<div class="ta-wrap"><textarea class="cta" id="ta" rows="1" placeholder="' + _re(ph) + '" aria-label="' + _re(ph) + '"' + (paused ? ' disabled' : '') + '>' + _re(nt.text) + '</textarea>' + send + '</div>' + foot + '</div></div>';
+    }
+    /* The client's message box: chips at the top left say what the message is about (one at a time; picking it again
+       clears it), and two buttons at the bottom right send it. "Ask for a change" needs a part; "Send comment" asks for
+       nothing and goes on the chosen part, or on the part on stage. Enter sends a change when a part is picked, a
+       comment otherwise. */
+    function _rsClientComposer(m, opts, ph, paused, typed) {
+        const nt = R.S.note, k = nt.part, x = k ? m.parts.find(p => p.key === k) : null;
+        const reopenNote = x && x.st === 'ok';
+        const keys = opts.map(q => q.key);
+        if (k && keys.indexOf(k) < 0) keys.push(k);
+        const chips = keys.length ? '<div class="cl-parts" role="group" aria-label="What is this about?"><span class="lbl">About</span>' + keys.map(q => '<button class="pchip" type="button" data-pc="' + q + '" aria-pressed="' + (q === k) + '"' + (q === k ? ' title="Clear: send it as a comment"' : '') + '>' + _rsDot(q) + RS_PART[q] + '<span class="px" aria-hidden="true">' + RI.x + '</span></button>').join('')
+            + (k ? '<span class="why">' + (reopenNote ? 'Your team will reopen it' : 'Your team will edit it') + '</span>' : '') + '</div>' : '';
+        const chgLabel = reopenNote ? 'Send to your team' : 'Ask for a change';
+        const foot = '<div class="cl-foot">'
+            + '<button class="b-cmt" type="button" id="cmtBtn"' + (typed ? '' : ' disabled') + '>' + RI.send + 'Send comment</button>'
+            + (keys.length ? '<button class="b-send-chg" type="button" id="sendBtn"' + (typed && k ? '' : ' disabled') + (k ? '' : ' title="Pick what it is about first"') + '>' + RI.back + chgLabel + '</button>' : '') + '</div>';
+        return '<div class="compose cl' + (k ? ' chg' : '') + (typed ? ' typed' : '') + '" id="compose"><div class="cbox">' + chips + '<div class="ta-wrap"><textarea class="cta" id="ta" rows="1" placeholder="' + _re(ph) + '" aria-label="' + _re(ph) + '"' + (paused ? ' disabled' : '') + '>' + _re(nt.text) + '</textarea></div>' + foot + '</div></div>';
     }
     // A note longer than this folds after a few lines behind "Show all" (a whole caption pasted as a change request).
     function _rsLongNote(text) { const t = String(text || ''); return t.length > 320 || t.split('\n').length > 7; }
@@ -1506,9 +1577,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const vis = R.mode === 'smm' && !t.change && t.aud ? '<span class="vis' + (t.aud === 'client' ? ' cl' : '') + '">' + (t.aud === 'client' ? RI.eye + 'Client can see' : RI.lock + 'Team only') + '</span>' : '';
         const done = t.done ? '<span class="donec">' + RI.check + 'Done</span>' : '';
         const av = t.you ? '' : '<span class="av' + (t.role === 'client' ? ' cl' : t.role === 'kasper' ? ' kp' : '') + '">' + _re(String(t.who || '?').charAt(0).toUpperCase()) + '</span>';
-        const long = _rsLongNote(t.text), open = long && !!(t.id && R.S.exp['note:' + t.id]);
+        const long = !t.edit && _rsLongNote(t.text), open = long && !!(t.id && R.S.exp['note:' + t.id]);
         const more = long && t.id ? '<button class="bmore" type="button" data-more="' + _re(t.id) + '" aria-expanded="' + open + '">' + (open ? 'Show less' : 'Show all') + '</button>' : '';
-        return '<div class="bub ' + (t.you ? 'you' : 'team') + (old ? ' old' : '') + (isChg ? ' is-chg' : '') + (isChg && t.done ? ' handled' : '') + '">' + av + '<div class="bb"><div class="bh"><b>' + (t.you ? 'You' : _re(t.who)) + role + '</b>' + tag + kind + '<span>' + _re(t.time) + '</span></div><div class="bt' + (t.sending ? ' sending' : '') + (long && t.id && !open ? ' clamp' : '') + '">' + _re(t.text) + '</div>' + more + (vis || done ? '<div class="bfoot">' + vis + done + '</div>' : '') + '</div></div>';
+        return '<div class="bub ' + (t.you ? 'you' : 'team') + (old ? ' old' : '') + (isChg ? ' is-chg' : '') + (isChg && t.done ? ' handled' : '') + '">' + av + '<div class="bb"><div class="bh"><b>' + (t.you ? 'You' : _re(t.who)) + role + '</b>' + tag + kind + '<span>' + _re(t.time) + '</span></div>' + (t.edit
+            ? '<div class="bt' + (t.sending ? ' sending' : '') + '">' + (t.you ? 'You changed' : 'Changed') + ' the caption</div><div class="diff"><div class="new">' + _re(t.edit.now) + '</div>'
+              + (t.edit.old ? '<details class="was"><summary>Show the old caption</summary><div class="old">' + _re(t.edit.old) + '</div></details>' : '<div class="was">It had no caption before.</div>') + '</div>'
+            : '<div class="bt' + (t.sending ? ' sending' : '') + (long && t.id && !open ? ' clamp' : '') + '">' + _re(t.text) + '</div>') + more + (vis || done ? '<div class="bfoot">' + vis + done + '</div>' : '') + '</div></div>';
     }
     function _rsChat(m) {
         const S = R.S, c = _rsQ('chat');
@@ -1549,6 +1623,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const cx = _rsQ('chipX'); if (cx) cx.addEventListener('click', () => _rsClearChange(true, false));
         const cc = _rsQ('cmpCancel'); if (cc) cc.addEventListener('click', () => _rsClearChange(false, true));
         const nb = _rsQ('noteBtn'); if (nb) nb.addEventListener('click', () => _rsSendNote(true));
+        root.querySelectorAll('[data-pc]').forEach(b => b.addEventListener('click', () => { const S2 = R.S; if (S2.note.part === b.dataset.pc) _rsClearChange(true, false); else { S2.note.part = b.dataset.pc; S2.note.where = 'chat'; S2.note.aat = false; _rsRender({ force: true }); _rsFocusTa(); } }));
+        const mb = _rsQ('cmtBtn'); if (mb) mb.addEventListener('click', () => _rsSendNote(true));
         const sb = _rsQ('sendBtn'); if (sb) sb.addEventListener('click', () => _rsSendNote(!S.note.part));
         const ta = _rsQ('ta');
         if (!ta) return;
@@ -1557,7 +1633,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             S.note.text = ta.value;
             const has = !!ta.value.trim();
             const cp = _rsQ('compose'); if (cp) cp.classList.toggle('typed', has);
-            const s = _rsQ('sendBtn'); if (s) s.disabled = !has;
+            const s = _rsQ('sendBtn'); if (s) s.disabled = !has || (R.mode === 'client' && S.note.where !== 'stage' && !S.note.part);
+            const cm = _rsQ('cmtBtn'); if (cm) cm.disabled = !has;
             grow();
         });
         ta.addEventListener('keydown', (e) => {
@@ -1724,7 +1801,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const S = R.S, t = String(S.note.text || '').trim();
         if (!t) { _rsFocusTa(); return; }
         const m = _rsCur(); if (!m) return;
-        const k = asNote ? null : S.note.part, where = S.note.where, aat = S.note.aat, vis = S.note.vis;
+        const picked = S.note.part, k = asNote ? null : S.note.part, where = S.note.where, aat = S.note.aat, vis = S.note.vis;
         const x = k ? m.parts.find(p => p.key === k) : null;
         S.note = _rsBlankNote(); S.note.vis = vis;
         if (k && R.mode === 'client' && x && x.st === 'ok') {
@@ -1735,8 +1812,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             return;
         }
         if (k) { _rsSendChange(m, k, t, { where, aat }); return; }
-        // a plain note goes on the part on stage (every note belongs to a part on a card)
-        const comp = m.parts.some(p => p.key === S.step) ? S.step : (m.parts[0] || { key: 'video' }).key;
+        // a plain note goes on the part it is about, else the part on stage (every note belongs to a part on a card)
+        const comp = (asNote && picked && m.parts.some(p => p.key === picked)) ? picked : m.parts.some(p => p.key === S.step) ? S.step : (m.parts[0] || { key: 'video' }).key;
         _rsSendNoteTo(m, comp, t, vis);
         _rsRender({ force: true });
     }
@@ -1750,9 +1827,28 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const S = R.S, t = String(S.editText || '').trim(), before = k === 'title' ? m.ytitle : m.caption;
         S.editing = '';
         if (!t || t === before.trim()) { _rsRender({ force: true }); return; }
+        if (R.mode === 'client' && k === 'title') {
+            // A client link never renames a card (the YouTube title is the card's name, and a rename moves the
+            // Production work items with it), so a title edit still goes to the team as a change request.
+            _rsSendChange(m, k, 'Please use this title:\n\n' + t, { where: 'stage' });
+            return;
+        }
         if (R.mode === 'client') {
-            // The client's edit goes to the team as a change request carrying the new text; it is never approved by itself.
-            _rsSendChange(m, k, 'Please use this ' + (k === 'title' ? 'title' : 'caption') + ':\n\n' + t, { where: 'stage' });
+            // The client's caption edit changes the caption itself (owner, 2026-10-17), and a plain note on the
+            // caption tells the team, with the old caption, so the SMM can see it and put it back. It never approves
+            // and never asks for a change: the caption stays waiting for the client's own Approve.
+            // The note goes only once the caption is stored, so it never tells of a change that did not save.
+            const old = String(m.caption || '');
+            const save = window._calClientReviewCaptionEdit ? window._calClientReviewCaptionEdit(m.id, t) : Promise.resolve(false);
+            _rsFlash('Saving the caption…', k);
+            _rsRender({ force: true });
+            save.then(ok => {
+                if (!ok) { _rsFlash('The caption did not save. Please try again.', k); _rsRender({ force: true }); return; }
+                _calReviewState.drafts[m.id + '|' + k] = _rsEditNote(t, old);
+                window._calReviewComment(m.id, k);
+                _rsFlash('Caption changed, your team can see it', k);
+                _rsRender({ force: true });
+            });
             return;
         }
         window._calOnFieldBlur({ dataset: { pid: m.id, fld: k === 'title' ? 'name' : 'caption' }, value: t });

@@ -104,11 +104,14 @@ async function shots(browser, origin) {
       const typing = await R(t.page, (r) => ({
         prompt: /Is this a change\?/.test(r.getElementById('chat').innerText), sugg: !!r.querySelector('#chat .sugg'),
         cmt: !r.getElementById('cmtBtn').disabled, chg: !r.getElementById('sendBtn').disabled,
-        order: (() => { const a = r.getElementById('cmtBtn').getBoundingClientRect(), b = r.getElementById('sendBtn').getBoundingClientRect(), cb = r.querySelector('#chat .cbox').getBoundingClientRect(); return a.right <= b.left && cb.right - b.right < 16 && cb.bottom - b.bottom < 16; })(),
+        // One row (comment, then change) or, where a wider fallback font wraps them, stacked at the right (comment above).
+        order: (() => { const a = r.getElementById('cmtBtn').getBoundingClientRect(), b = r.getElementById('sendBtn').getBoundingClientRect(), cb = r.querySelector('#chat .cbox').getBoundingClientRect();
+          const row = a.right <= b.left + 1 && Math.abs(a.top - b.top) < 4, stack = a.bottom <= b.top + 1 && cb.right - a.right < 16;
+          return { ok: (row || stack) && cb.right - b.right < 16 && cb.bottom - b.bottom < 16, at: [a.left, a.top, a.right, b.left, b.top, b.right, cb.right, cb.bottom].map(Math.round).join(',') }; })(),
       }));
       expect(!typing.prompt && !typing.sugg, 'typing shows no "Is this a change?" prompt');
       expect(typing.cmt && !typing.chg, 'with no part picked, "Send comment" is on and "Ask for a change" is off');
-      expect(typing.order, 'the two buttons sit at the bottom right of the box, comment first');
+      expect(typing.order.ok, 'the two buttons sit at the bottom right of the box, comment first (' + typing.order.at + ')');
       await inS(t.page, '[data-pc="graphic"]').click();
       await sleep(200);
       let st = await R(t.page, (r) => ({ pressed: r.querySelector('[data-pc="graphic"]').getAttribute('aria-pressed'), chg: r.getElementById('compose').classList.contains('chg'), on: !r.getElementById('sendBtn').disabled, why: (r.querySelector('.cl-parts .why') || {}).textContent || '', kept: r.getElementById('ta').value }));

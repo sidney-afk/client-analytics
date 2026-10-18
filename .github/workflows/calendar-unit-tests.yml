@@ -1142,13 +1142,52 @@ jobs:
           path: f27-proof/
           retention-days: 30
 
+  review-gauntlet-three:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        engine: [chromium, firefox, webkit]
+        width: [1024, 1440, 1920]
+    # Reuse the existing browser seat; do not increase simultaneous PR runner demand.
+    concurrency:
+      group: ${{ github.event_name == 'pull_request' && 'pr-runner-seat-guards' || format('calendar-unit-tests-{0}-review-gauntlet-three-{1}', github.run_id, strategy.job-index) }}
+      cancel-in-progress: false
+      queue: max
+    timeout-minutes: 35
+    env:
+      G3_ENGINES: ${{ matrix.engine }}
+      G3_WIDTHS: '${{ matrix.width }}'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: ./.github/actions/build-index
+      - name: Install the selected browser
+        run: |
+          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps "${{ matrix.engine }}"
+      - name: Review action and failure matrix
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-gauntlet3-browser.js
+      - name: Engaged YouTube title action and failure matrix
+        if: ${{ !cancelled() }}
+        env:
+          G3_TITLE: '1'
+          G3_MODE: matrix
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-gauntlet3-browser.js
+
   calendar-ci-result:
     # The one check that sums this workflow up: red when any job failed or was
     # cancelled, green when every job passed or was not needed by this change.
     # Make this the required check, not the individual parts: a part a change
     # does not need is skipped, and its matrix names never appear.
     if: always()
-    needs: [changes, unit, identity-exposure, module-check, entry-links-boot, browser-guards, split-preview, staff-phone-rules, f27-team-rollback-proof]
+    needs: [changes, unit, identity-exposure, module-check, entry-links-boot, browser-guards, split-preview, staff-phone-rules, f27-team-rollback-proof, review-gauntlet-three]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

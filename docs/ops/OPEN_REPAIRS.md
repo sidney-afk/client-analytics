@@ -33512,3 +33512,31 @@ Audit of the upload link and the Submit tab against every way a send can fail (r
 **Lighthouse:** apply the migration. **Not done:** Safari and Firefox passes (only Chromium in the sandbox), a staff screen for the list, and archiving one live test batch (1 batch, 2 items, 1 card on the test client).
 
 **Way back:** revert the pull request; run the migration's ROLLBACK block to drop the table.
+
+## 437. [2026-10-18, BUILT, NOT MERGED] Review caption overwrite, lost drafts and recovery click/error gaps (session Gauntlet Three)
+
+**Confirmed, mocked browsers only.** A client saving an open caption editor could silently overwrite a newer team
+caption. Unsent caption text disappeared when switching posts/reloading, and a refused save hid the replacement text.
+Staff stage messages were not stashed per post; the old writer's refused-note draft did not return to the new box.
+Refused changes retained a retry closure but hid its words. Firefox could apply a pending refresh between focus-out
+and click, losing the Save click. Returning online could also expose an unhandled recovery-promise rejection
+(14/30 interrupted-change stress attempts before, 0/30 after).
+
+**Candidate repair.** `src/index/195-review-stage.js.part` retains per-post draft text, caption/base pairs in tab-scoped
+storage, compares concurrent captions before replacement, returns refused captions to the editor, exposes refused
+change words, restores staff note drafts and lets focused controls receive their click before a deferred repaint.
+`src/index/290-samples-writes-review.js.part` observes background recovery rejections without consuming receipts or
+changing explicit callers' rejecting promise. `test/review-stage-gauntlet3-browser.js` drives the existing offline
+fixture in Chromium, Firefox and WebKit at 1024, 1440 and 1920; the CI matrix also covers engaged titles.
+
+**Limits and ownership.** No live writes, merge or deployment. This does not repair an already executing cached page,
+prove every action/error-code intersection, or independently prove live database/provider behavior. The action table,
+reproduction commands, confirmed/refuted boundaries and unproven cases are in
+`docs/audits/2026-10-18-review-stage-gauntlet-three.md`. Lighthouse owns review and merge.
+
+The same audit also reproduced a stale editor changing an already approved caption. Save now rechecks the current
+part's eligibility for client caption and title edits, refuses clearly when it was already answered, and keeps the text.
+
+Visual verification also found false Saved badges on pending/refused captions and plain client notes without an
+in-conversation failure/retry. Confirmed saves alone now mark Saved; caption failures stay visibly on the stage and
+plain-note retries reuse the existing outbox id. The tests check visible controls, not announcement text alone.

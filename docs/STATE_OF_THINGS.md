@@ -42,6 +42,17 @@ form back before it is discarded. New: `production-write` stores the raw request
 (`intake_raw_list`); **the migration must be applied by Lighthouse** (the gateway copes without it). Not done: Safari and Firefox passes, a staff
 screen for the list, archiving one live test batch on the test client.
 
+## Review reliability (session Gauntlet Three, 2026-10-18): candidate, not merged
+
+The owner reports the new review page is live for every client as of 2026-10-18; the test-only switch history below
+is the earlier rollout record. Offline browser reproductions found concurrent/stale caption edits, lost caption and
+staff drafts, hidden refused change-request words, plain notes that looked sent after refusal, false Saved badges,
+a refresh/click race, and an unhandled recovery rejection.
+Candidate repairs and the action/engine/width matrix are in
+[`2026-10-18-review-stage-gauntlet-three.md`](audits/2026-10-18-review-stage-gauntlet-three.md), run by
+`node test/review-stage-gauntlet3-browser.js`. Cached old code and the full action/error cross-product remain unproven;
+this is not a universal or live-backend assurance claim. No live writes were used.
+
 ## Client review page finishing touches (session Rail, 2026-10-18): PR open
 
 The six open notes of client gauntlet 2, done (`node test/review-stage-finish-polish-browser.js`): Finish reviewing stays
@@ -103,7 +114,7 @@ unchanged. Sheet card reordering (drag by the grip) was a separate, earlier owne
 same `frame_viewer_clients` switch as the staff Calendar; with the switch off, or for a link the viewer cannot play, it
 is the old Frame.io link. Test: `node test/client-calendar-read-only-browser.js`.
 
-## New review page, layout C (session Marquee, 2026-10-17): merged, on for the test client and the owner only
+## New review page, layout C (session Marquee, 2026-10-17): merged; owner reports all-client rollout on 2026-10-18
 
 The owner approved the client page (layout C, "Guided stage") and the SMM and Kasper versions of it on 2026-10-16.
 It is a new view beside the old one (`src/index/188-review-stage-switch.js.part` reads the switches;

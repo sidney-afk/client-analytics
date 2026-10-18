@@ -2003,6 +2003,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-gauntlet3-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Repository Playwright 1.56.1 with Chromium, Firefox and WebKit. All data and transports use the offline review-stage fixture; no hosted credentials or live writes. Desktop widths 1024, 1440 and 1920; client and staff review actions, slow and interrupted writes, refusals, duplicate clicks, two tabs, aged sessions, changing cards, Unicode, drafts, Finish and Notes replies/deletes.",
+      "reproduce": "node scripts/build-index.js && node test/review-stage-gauntlet3-browser.js; repeat the matrix with G3_TITLE=1 and G3_MODE=matrix for engaged YouTube titles",
+      "ci": "representative"
+    },
+    {
       "file": "samples-write-guard-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

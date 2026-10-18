@@ -1000,6 +1000,10 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
         });
         _writeUiLegacyResumeActiveOwnerKey = ownerKey;
         _writeUiLegacyResumePromise = tracked;
+        // Lifecycle listeners do not await this promise. A refused replay must retain its journal and the
+        // action's failure UI, without becoming an unhandled browser error. Explicit callers still receive
+        // the original rejecting promise; this observer never acknowledges or drops recovery work.
+        tracked.catch(() => { try { _writeUiQueueDiagnostic('lifecycle', 'resume_failed', { kind: String(reason || '') }); } catch (e) {} });
         return tracked;
     }
     window.addEventListener('focus', () => { _writeUiResumeLegacyQueues('focus'); });

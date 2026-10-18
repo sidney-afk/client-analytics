@@ -77,7 +77,19 @@ function thread(row) {
 }
 
 async function open(browser, origin, opt) {
-  const state = { cards: cards(opt.stage).concat(opt.finished ? finished() : []), upserts: [], gateway: [], flagReads: 0, orient: 'p', writeDelay: 0, writeFail: 0 };
+  const state = opt.state || { cards: cards(opt.stage).concat(opt.finished ? finished() : []), upserts: [], gateway: [], flagReads: 0, orient: 'p', writeDelay: 0, writeFail: 0 };
+  const stamp = () => new Date(Date.now() + Number(state.clockOffset || 0)).toISOString();
+  // Gauntlet Three can share a backend across independent tabs and interrupt an actual save request.
+  if (!state.attempts) state.attempts = [];
+  if (opt.linkedParts) state.cards.forEach(c => { c.graphic_deliverable_id = 'fixture_graphic_' + c.id; });
+  if (opt.youtube) { state.cards[0].platforms = 'youtube'; state.cards[0].title_status = opt.stage === 'kasper' ? 'Kasper Approval' : 'Client Approval'; state.cards[0].title_tweaks = '[]'; }
+  if (opt.nativeReceipts && !state.nativeRows) {
+    state.nativeRows = {};
+    state.nativeReceipts = {};
+    for (const c of state.cards) for (const comp of ['video', 'graphic']) if (c[comp + '_deliverable_id']) {
+      state.nativeRows[c[comp + '_deliverable_id']] = { id: c[comp + '_deliverable_id'], card_id: c.id, client_slug: SLUG, team: comp === 'graphic' ? 'graphics' : 'video', status: opt.stage === 'kasper' ? 'kasper_approval' : 'client_approval', updated_at: c.updated_at, status_at: c.updated_at };
+    }
+  }
   if (opt.thread) thread(state.cards[0]);
   // opt.collab: the calendar's Collaborative mode is on (a settings row, as the live calendar keeps it).
   if (opt.collab) state.cards.push({ id: 'p_cal_settings', client: SLUG, caption: JSON.stringify({ collab_mode: true }) });
@@ -86,8 +98,9 @@ async function open(browser, origin, opt) {
   const ctx = await browser.newContext({ viewport: { width: opt.width || 1440, height: opt.height || 900 }, serviceWorkers: 'block', colorScheme: 'light' });
   await ctx.routeWebSocket('**/*', s => s.close());
   const page = await ctx.newPage();
+  if (opt.clock) await page.clock.install();
   const errors = [];
-  page.on('pageerror', e => errors.push(String(e.message || e).slice(0, 200)));
+  page.on('pageerror', e => { errors.push(String(e.message || e).slice(0, 200)); if (opt.errorStacks) (state.errorStacks || (state.errorStacks = [])).push(String(e.stack || e)); });
   if (opt.staff) {
     const id = JSON.stringify({ key: 'qa-key', role: opt.staff.role, member: opt.staff, verified_at: new Date().toISOString() });
     await page.addInitScript(([v, dark]) => { try { localStorage.setItem('syncview_staff_identity_v1', v); localStorage.setItem('syncview_auth_v1', 'ok'); if (dark) localStorage.setItem('syncview_theme', 'dark'); } catch (e) {} }, [id, !!opt.dark]);
@@ -99,10 +112,19 @@ async function open(browser, origin, opt) {
   if (opt.analytics === 'shown') await page.addInitScript(() => { try { localStorage.setItem('sv-analytics-shown', '1'); } catch (e) {} });
   await ctx.route('**/*', async route => {
     const r = route.request(); const u = new URL(r.url());
+    if (opt.stageSource && r.url().startsWith(origin + '/js/') && /\/sv-\d+-reviewstage-[a-f0-9]+\.js$/.test(u.pathname)) return route.fulfill({ status: 200, contentType: 'application/javascript', body: opt.stageSource });
     if (r.url().startsWith(origin)) return route.continue();
-    const json = (body, status) => route.fulfill({ status: status || 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(body) });
+    const json = (body, status) => {
+      if (state.clockOffset && body && body.video) { body.video.expires_at = new Date(Date.now() + state.clockOffset + 3600000).toISOString(); body.fetched_at = stamp(); }
+      return route.fulfill({ status: status || 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(body) });
+    };
     if (r.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
     const p = u.pathname, sp = u.searchParams;
+    if (/\/functions\/v1\/(calendar-upsert|calendar-card-write|production-write)$/.test(p) && r.method() === 'POST') {
+      state.attempts.push({ endpoint: p.split('/').pop(), body: JSON.parse(r.postData() || '{}') });
+      if (state.dropBefore > 0) { state.dropBefore--; return route.abort('connectionfailed'); }
+      if (state.refusal) return json({ ok: false, error: state.refusal.code, message: 'The fixture refused this save.' }, state.refusal.status || 409);
+    }
     if (/supabase-js/.test(r.url())) return route.fulfill({ status: 200, contentType: 'application/javascript', headers: CORS, body: FAKE_SUPABASE });
     if (u.host === 'media.fixture.test' && /\.png$/.test(p)) return route.fulfill({ status: 200, headers: CORS, contentType: 'image/png', body: /-l\.png$/.test(p) ? PNG.l : PNG.p });
     if (u.host === 'media.fixture.test') {
@@ -138,12 +160,36 @@ async function open(browser, origin, opt) {
       const post = body.post || {};
       state.upserts.push(post);
       const row = state.cards.find(c => c.id === post.id);
-      if (row) Object.assign(row, post, { updated_at: new Date().toISOString() });
+      if (row) {
+        const patch = { ...post };
+        if (opt.mergeComments) for (const key of ['video_tweaks', 'graphic_tweaks', 'caption_tweaks', 'title_tweaks']) {
+          if (!(key in patch)) continue;
+          // The real endpoint unions comment ids when comments_base_at is empty (the v2 wire contract).
+          const byId = new Map(JSON.parse(row[key] || '[]').map(n => [n.id, n]));
+          JSON.parse(patch[key] || '[]').forEach(n => { const old = byId.get(n.id); if (!old || String(n.updated_at) >= String(old.updated_at)) byId.set(n.id, n); });
+          patch[key] = JSON.stringify([...byId.values()]);
+        }
+        Object.assign(row, patch, { updated_at: stamp() });
+      }
+      if (state.dropAfter > 0) { state.dropAfter--; return route.abort('connectionfailed'); }
       return json({ ok: true, post: row || post });
     }
     if (p === '/functions/v1/production-write' && r.method() === 'POST') {
+      if (opt.nativeReceipts && state.writeDelay) await sleep(state.writeDelay);
+      if (opt.nativeReceipts && state.writeFail > 0) { state.writeFail--; return json({ ok: false, error: 'fixture_unavailable', message: 'The fixture refused this save.' }, 503); }
       let b = {}; try { b = JSON.parse(r.postData() || '{}'); } catch (e) {}
       state.gateway.push(r.postData() || '');
+      if (opt.nativeReceipts) {
+        const row = state.nativeRows[b.id];
+        if (!row) return json({ ok: false, error: 'entity_not_found' }, 404);
+        if (b.reconcile_only) return json(state.nativeReceipts[b.request_id] ? { ...state.nativeReceipts[b.request_id], outcome: 'committed_exact' } : { ok: true, outcome: 'absent', row });
+        if (state.nativeReceipts[b.request_id]) return json(state.nativeReceipts[b.request_id]);
+        row.updated_at = stamp();
+        if (b.operation === 'status') { row.status = b.status; row.status_at = row.updated_at; }
+        const result = { ok: true, native_committed: true, complete: true, row: { ...row }, ...(b.operation === 'comment' ? { comment: { ...b.comment, id: b.comment.native_comment_id, created_at: b.source_edited_at, updated_at: b.source_edited_at, source_created_at: b.source_edited_at, source_updated_at: b.source_edited_at } } : {}) };
+        state.nativeReceipts[b.request_id] = result;
+        return json(result);
+      }
       return json({ ok: true, native_committed: true, authority: 'syncview', complete: true, outcome: 'absent', row: { id: b.deliverable_id || 'del_rs1', card_id: b.card_id || 'rs1', client_slug: SLUG, team: 'video', status: b.status || 'client_approval' } });
     }
     if (p === '/rest/v1/syncview_runtime_flags') {
@@ -177,6 +223,10 @@ async function open(browser, origin, opt) {
     }
     if (p === '/rest/v1/clients') return json([{ slug: SLUG, display_name: CLIENT, kind: 'client', active: true }]);
     if (p === '/rest/v1/team_members') return json([STAFF, OTHER].map(m => Object.assign({ active: true }, m)));
+    if (p === '/rest/v1/deliverables' && opt.nativeReceipts) {
+      const id = String(sp.get('id') || '').replace(/^eq\./, '');
+      return json(Object.values(state.nativeRows).filter(row => !id || row.id === id));
+    }
     if (p.startsWith('/rest/v1/')) return json([]);
     if (u.host === 'docs.google.com') return route.fulfill({ status: 200, headers: CORS, contentType: 'text/csv', body: '' });
     if (p.startsWith('/functions/v1/') || p.startsWith('/webhook/')) return json({ ok: true });

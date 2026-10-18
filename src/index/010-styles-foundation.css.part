@@ -7,6 +7,8 @@
             --surface-raised: #ffffff; --surface-hover: #f8f8f6; --surface-subtle: #f3f3f1;
             --text-primary: #111110; --text-secondary: #6b6b67; --text-muted: #b4b4ae; --text-inverse: #ffffff; --toast-bg: #111110; --toast-color: #ffffff;
             --focus-ring: #6c5ce7; --overlay: rgba(0,0,0,0.25);
+            /* Upload forms (.uf): the Synchro Social violet. */
+            --uf-accent: #8a24dc; --uf-accent-hover: #7419bf; --uf-accent-ink: #6c17b3; --uf-accent-soft: #f3eafc; --uf-on-accent: #ffffff; --uf-field: #ffffff; --uf-field-hover: #fbf9fe; --uf-switch-thumb: #ffffff; --uf-switch-shadow: rgba(0,0,0,0.2);
             --shadow-sm: 0 1px 3px rgba(0,0,0,0.06); --shadow-md: 0 8px 30px rgba(0,0,0,0.12); --shadow-lg: 0 12px 40px rgba(0,0,0,0.18);
             --ig: #E1306C; --ig-light: #fdf0f5; --ig-mid: #f4c2d5; --ig-dark: #a81950;
             --tt: #111111; --tt-light: #f5f5f5; --tt-mid: #d8d8d8; --tt-dark: #3a3a3a;
@@ -51,6 +53,7 @@
             --surface-raised: #20232a; --surface-hover: #242730; --surface-subtle: #15171c;
             --text-primary: #f4f6f8; --text-secondary: #c2c7cf; --text-muted: #aeb6c2; --text-inverse: #ffffff; --toast-bg: #20232a; --toast-color: #f4f6f8;
             --focus-ring: #8b7cf6; --overlay: rgba(0,0,0,0.62);
+            --uf-accent: #b682ff; --uf-accent-hover: #c79dff; --uf-accent-ink: #d2b0ff; --uf-accent-soft: rgba(182,130,255,0.14); --uf-on-accent: #1a0c2c; --uf-field: #1c1f26; --uf-field-hover: #22252e;
             --notify-bg: #8b7cf6; --notify-bg-hover: #a094f8; --notify-fg: #101114;
             --shadow-sm: 0 1px 3px rgba(0,0,0,0.35); --shadow-md: 0 10px 34px rgba(0,0,0,0.42); --shadow-lg: 0 18px 54px rgba(0,0,0,0.5);
             --ig: #ff5d9d; --ig-light: #351926; --ig-mid: #794058; --ig-dark: #ff9dc4;
@@ -2745,8 +2748,7 @@
            outlined boxes: soft filled fields, groups made by space alone.
            Every rule is scoped to .uf so the other forms that borrow
            .linear-input keep their look. */
-        .uf { --uf-accent: #8a24dc; --uf-accent-hover: #7419bf; --uf-accent-ink: #6c17b3; --uf-accent-soft: #f3eafc; --uf-on-accent: #ffffff; --uf-field: #ffffff; --uf-field-hover: #fbf9fe; max-width: 680px; padding-bottom: 48px; }
-        html[data-theme="dark"] .uf { --uf-accent: #b682ff; --uf-accent-hover: #c79dff; --uf-accent-ink: #d2b0ff; --uf-accent-soft: rgba(182,130,255,0.14); --uf-on-accent: #1a0c2c; --uf-field: #1c1f26; --uf-field-hover: #22252e; }
+        .uf { max-width: 680px; padding-bottom: 48px; }
         .uf .uf-head { margin-bottom: 36px; }
         .uf .uf-logo { display: block; width: 84px; height: auto; margin: 0 0 22px -4px; }
         .uf .linear-form-title { font-size: 2rem; font-weight: 800; letter-spacing: -0.035em; line-height: 1.1; margin: 0 0 8px; color: var(--text-primary); }
@@ -2804,7 +2806,7 @@
         .uf .uf-switch { display: inline-flex; align-items: flex-start; gap: 12px; cursor: pointer; }
         .uf .uf-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
         .uf .uf-switch-track { position: relative; flex: none; width: 38px; height: 22px; margin-top: 1px; border-radius: 99px; background: var(--border); transition: background 0.15s; }
-        .uf .uf-switch-thumb { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 99px; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.2); transition: transform 0.15s; }
+        .uf .uf-switch-thumb { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 99px; background: var(--uf-switch-thumb); box-shadow: 0 1px 2px var(--uf-switch-shadow); transition: transform 0.15s; }
         .uf .uf-switch input:checked + .uf-switch-track { background: var(--uf-accent); }
         .uf .uf-switch input:checked + .uf-switch-track .uf-switch-thumb { transform: translateX(16px); }
         .uf .uf-switch input:focus-visible + .uf-switch-track { outline: 2px solid var(--uf-accent); outline-offset: 2px; }

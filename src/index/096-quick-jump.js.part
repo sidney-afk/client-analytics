@@ -2,6 +2,7 @@ import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { currentNav } from './065-core-nav-intake-state.js';
 import { WL_CLIENT_NAMES, wlCanonicalClient } from './070-core-client-names.js';
 import { navTo } from './092-core-submit-form-navigation.js';
+import { svStaffNoAnalytics } from './188-review-stage-switch.js';
 import { SV_CLIENT_FOLLOW_TABS, svOpenAnalytics, svSharedClientGet, svSharedClientNote } from './095-shared-client.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
     /* QUICK JUMP (owner decision 2026-09-27). Press / anywhere, type part of a
@@ -26,6 +27,7 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
         { page: 'kasper', label: 'Kasper', nav: 'navKasper', words: ['kasper'] },
     ];
     function _svJumpTabVisible(t) {
+        if (t.page === 'home' && svStaffNoAnalytics()) return false; // Analytics is hidden (188): never offered
         const el = document.getElementById(t.nav);
         return !!el && el.getClientRects().length > 0 && getComputedStyle(el).display !== 'none';
     }
@@ -50,7 +52,7 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
     function svQuickJumpOptions(query) {
         const tokens = String(query || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
         if (!tokens.length) return [];
-        const here = SV_JUMP_TABS.find(t => t.page === currentNav && SV_CLIENT_FOLLOW_TABS.includes(t.page));
+        const here = SV_JUMP_TABS.find(t => t.page === currentNav && SV_CLIENT_FOLLOW_TABS.includes(t.page) && _svJumpTabVisible(t));
         const fallbackTab = here || SV_JUMP_TABS[0];
         const out = [];
         const seen = new Set();

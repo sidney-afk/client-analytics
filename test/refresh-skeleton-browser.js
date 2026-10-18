@@ -12,6 +12,7 @@ const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
 const { seedStaffIdentity } = require('../qa/staff-gate-seed.js');
+const { analyticsShown } = require('./fixtures/analytics-shown.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const MIME = { '.html': 'text/html; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
@@ -78,6 +79,8 @@ async function newContext(browser, viewport) {
     return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: /\/rest\/v1\//.test(url) ? '[]' : '{}' });
   });
   await seedStaffIdentity(context, ADMIN);
+  // The '/' row refreshes Analytics, which is hidden by default and then never shown to staff (session Detour).
+  await analyticsShown(context);
   await context.addInitScript(() => { try { localStorage.setItem('syncview_kasper_admin_seen', '1'); } catch (e) {} });
   // Record every skeleton on screen, frame by frame, until the app takes over.
   await context.addInitScript(() => {

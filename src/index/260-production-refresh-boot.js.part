@@ -80,7 +80,7 @@ import {
 import { SXR_CACHE_PREFIX, _sxrAbortActiveLoad, _sxrNextLoadSeq, sxrState } from './270-samples-model.js';
 import { _sxrFlushAllPending, _sxrLinearOutboxTimer, _sxrSetLinearOutboxTimer, mountSxrClientView } from './280-samples-cards-notes.js';
 import { _sxrV2Teardown, _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
-import { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsReady } from './188-review-stage-switch.js';
+import { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady } from './188-review-stage-switch.js';
 import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js';
         function _prodManualRefresh() {
             // The press must be visibly acknowledged: the refresh itself is a
@@ -2664,7 +2664,10 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         try { c = String(new URLSearchParams(svRoute.search()).get('c') || '').trim().toLowerCase(); } catch (e) { return; }
         if (!c) return;
         const on = !!svRsClientReviewOn(client);
-        try {
+        // No answer (the read failed or timed out; it takes 1.5 to 3.7 s live and gives up at 4 s): what this browser
+        // remembered stays as it was. Forgetting the link on a slow read made the NEXT visit paint white (session
+        // Dusk, 2026-10-18). This visit still gets the old page in light, below.
+        if (svRsFlagsLoaded()) try {
             let seen = JSON.parse(localStorage.getItem(SV_RS_PAINT_KEY) || '[]');
             if (!Array.isArray(seen)) seen = [];
             seen = seen.filter(x => typeof x === 'string' && x !== c);
@@ -2675,7 +2678,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         const de = document.documentElement;
         if (!on && de.classList.contains('sv-rs-paint')) {
             _syncviewRsVeilDrop(false);
-            de.classList.remove('sv-rs-paint', 'sv-rs-paint-stage');
+            de.classList.remove('sv-rs-paint', 'sv-rs-paint-stage', 'sv-rs-paint-help');
             try { _syncviewApplyTheme(_syncviewStoredTheme(), false); } catch (e) {}
         }
     }

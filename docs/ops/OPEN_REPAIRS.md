@@ -33487,7 +33487,7 @@ Follow-up to 433, which left a reset of a read the app never retries as a failur
 
 **Way back:** revert the pull request.
 
-## 435. [2026-10-18, BUILT, NOT MERGED] The upload form could still lose a send: a full browser store stopped typing and sending, and no server copy of the raw upload existed (session Keepsake)
+## 436. [2026-10-18, BUILT, NOT MERGED] The upload form could still lose a send: a full browser store stopped typing and sending, and no server copy of the raw upload existed (session Keepsake)
 
 Audit of the upload link and the Submit tab against every way a send can fail (report `docs/audits/2026-10-18-upload-form-never-lost.md`, test `docs/syncview-design/tests/upload-never-lost-browser.js`, 232 checks, plus `test/intake-raw-copy.js`).
 

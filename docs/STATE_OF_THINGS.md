@@ -21,7 +21,7 @@ line is older than a week, re-check it before relying on it.
 ## Upload form never loses a send (session Keepsake, 2026-10-18): PR open
 
 Audit of the upload link and the Submit tab against every failure path (`docs/audits/2026-10-18-upload-form-never-lost.md`,
-OPEN_REPAIRS 435, `node docs/syncview-design/tests/upload-never-lost-browser.js`). Fixed: a full or refused browser store no longer stops
+OPEN_REPAIRS 436, `node docs/syncview-design/tests/upload-never-lost-browser.js`). Fixed: a full or refused browser store no longer stops
 typing or sending, no cross-tab lock no longer blocks a send, plain "Not sent yet / received" words, a refused saved send puts the
 form back before it is discarded. New: `production-write` stores the raw request first in `intake_raw_submissions` and lists it for staff
 (`intake_raw_list`); **the migration must be applied by Lighthouse** (the gateway copes without it). Not done: Safari and Firefox passes, a staff

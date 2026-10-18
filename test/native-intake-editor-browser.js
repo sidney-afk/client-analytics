@@ -277,7 +277,7 @@ for(const line of [
  '      card_link: cardLink,\n',
  '  const cardLink = await linkCardsToCreatedDeliverables(supabase, currentResponseItems);\n',
  '    card_link: cardLink,\n',
- // OPEN_REPAIRS 435: the raw copy of the request, stored first (best effort, never refuses).
+ // OPEN_REPAIRS 436: the raw copy of the request, stored first (best effort, never refuses).
  '  await recordIntakeRaw(supabase, requestId, client.slug, surface, publicIntake ? "public-intake" : "staff", body, items.length);\n',
 ]) {
  assert.equal(intakeWithoutNaming.split(line).length,2,'card-link line must appear exactly once: '+line.trim());

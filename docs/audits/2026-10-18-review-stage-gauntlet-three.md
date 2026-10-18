@@ -15,6 +15,7 @@ Gauntlet Two's report and browser tests were read first; its five repairs are re
 | Kasper loses an unsent message when switching posts; a refused note does not return to his visible message box. | Only client messages were stashed; the old writer restored a different draft from the stage's composer. | Stash stage drafts for each mode and restore the refused writer draft without replacing newer typing. `unsent note survives post switch`, `refused plain note is visible and recoverable`. |
 | A refused change request removes its words from view. | The retry closure retained the text, but the stage's error renderer did not show it. | The refusal includes expandable, escaped unsent words next to Try again. Every part's `refused change` matrix case. |
 | A refused plain client note can look like a sent message, without a retry in the conversation. | The stage ignored the existing outbox's pending/failed metadata. | Render the outbox state and retry the same note id; the plain-note regression asserts a visible retry and one stored note. |
+| A refused Delete in Notes hides the note locally and says a native write is safe and will retry automatically. | The shared save watcher assumed every note change had a native acknowledgement, including legacy deletes. | Only an explicit native acknowledgement permits the saved-note message; otherwise show that the note change was not saved and ask the person to refresh/check. The dialog fault matrix checks the refused deletion and its message. |
 | In Firefox and WebKit, Save can disappear between pressing and releasing it after a background refresh. | Focus-out applied a deferred redraw before click reached the control. | A pointer hold keeps the stage control until its click runs; the pending redraw settles afterward. The concurrent-caption regression reproduces the lost click. |
 | Kasper cannot click Next post after the last approval at 1024 pixels. | The approval toast covers the button and intercepts the click. | Reserve space for the toast in the stage; the Finish test checks their rectangles do not overlap and clicks while the toast is visible. A separate Undo test verifies that Undo still works. This also reproduced in hosted Chromium. |
 | Returning online after a refused write can raise an unhandled browser error. | Lifecycle listeners started a rejecting recovery promise without a rejection observer. | Record the rejection without consuming the original promise or dropping journal work. Interrupted-change stress reproduced 14/30 failures before, 0/30 after. |
@@ -38,6 +39,8 @@ The stage and the shared Notes dialog are distinguished because their controls a
 | Client | Edit caption; cancel; return to edit; save; reload an unsent edit | Caption-edit matrix and named caption regressions; concurrent replacement cancellation checked |
 | Client | Suggest a replacement YouTube title | `G3_TITLE=1`, `title-edit`; sends a change request, never renames the card |
 | Client | Reply to and delete a note | `Sheet Notes dialog reply and delete`; real hover/click, parent id and reply tombstone checked |
+| Client | Reply to and delete an own note in the shared Notes dialog under faults | `Notes dialog <condition> reply/delete`; exact body, parent/id, refusal text, draft retention and unchanged part statuses checked |
+| Client | Edit an own note in Notes, where offered | The legacy fixture has no Edit control; the `edit` cases assert that absence and zero writes. Canonical `can_edit` capability coverage remains **UNPROVEN** |
 | Client | Switch post; switch part; return to typed words | Per-post draft regressions, `step` in every matrix action, Finish auxiliary case |
 | Client | Finish reviewing; continue to the next post | `Finish waits for parts and moves once; part switching`; next post's statuses checked |
 | Client | Cancel a request, Escape, arrows, navigation/history, player controls, theme, help | Existing Gauntlet Two and finish-polish suites retained; no claim these existing Chromium cases were newly run in all engines |
@@ -97,7 +100,7 @@ Remove-Item Env:G3_TITLE, Env:G3_MODE
 ```
 
 Narrow reruns use `G3_ENGINES=chromium|firefox|webkit`, `G3_WIDTHS=1024,1440,1920`,
-`G3_MODE=regressions|matrix|auxiliary|refusals`, `G3_CONDITIONS`, `G3_ROLES`, and `G3_ACTION`.
+`G3_MODE=regressions|matrix|auxiliary|refusals|dialogs`, `G3_CONDITIONS`, `G3_ROLES`, and `G3_ACTION`.
 `G3_REPEAT=10`, `G3_MODE=matrix`, `G3_CONDITIONS=drop-before`, `G3_ROLES=kasper`, `G3_ACTION=change` repeats the recovery
 race. `G3_CACHE_REF=origin/main`, `G3_MODE=regressions` is the intentionally red cached-source control; unset it afterward.
 No environment selector alters existing suites or CI checks. The new CI job runs all nine engine/width cells and title mode.

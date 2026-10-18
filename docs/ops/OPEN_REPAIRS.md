@@ -33544,3 +33544,9 @@ plain-note retries reuse the existing outbox id. The tests check visible control
 The same audit confirmed Kasper's approval toast intercepting Next post at desktop width 1024, locally and in hosted
 Chromium. The stage now reserves space for that toast. The Finish regression checks the button and toast do not
 overlap while the toast is visible; an additional real-click test confirms Undo still restores the part's status.
+
+The expanded shared Notes-dialog fault matrix also reproduced a refused Delete hiding the note locally while
+claiming a native write was safe and would retry automatically. Only an explicit native acknowledgement now permits
+the saved-note message; other failures say the note change was not saved and ask the person to refresh/check it.
+Reply and delete are exercised separately under the dialog fault conditions. The legacy fixture has no Edit control;
+the corresponding cases assert unavailability and zero writes, and make no canonical note-edit save claim.

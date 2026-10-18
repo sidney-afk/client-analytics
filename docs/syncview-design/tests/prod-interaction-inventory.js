@@ -264,6 +264,8 @@ const INTERACTION_ASSERTIONS = [
   ['ipi_probe_errors', /^page probe errors:/],
   ['ipi_error_card', /Production preview rendered an error card/],
 ];
+/* Ids for a stage that stops the whole run before any assertion can fire. */
+const INTERACTION_STAGE_IDS = { firstPaint: 'ipi_first_paint_timeout', loadSettle: 'ipi_load_settle_timeout', errorCard: 'ipi_error_card' };
 const INTERACTION_STATES = ['list', 'listSelected', 'filteredEmpty', 'detail', 'board', 'boardSelected', 'project'];
 
 function reportFailedAssertions(failures) {
@@ -422,7 +424,17 @@ async function selectionChecks(page) {
     };
     _syncviewStaffIdentityLoaded = true;
     _syncviewStaffIdentityVerified = true;
-    _prodState.authority = { video: 'linear', graphics: 'linear' };
+    /* Pinned, not just set: the page's own load or 30 s poll assigns
+       _prodState.authority when its answer lands, and a real answer here would
+       unlock the row for the invented admin (the avatar click then opens the
+       assignee picker and asks the live backend for options). The pin makes
+       those assignments no-ops until the fixture is torn down below. */
+    const fixtureAuthority = { video: 'linear', graphics: 'linear' };
+    Object.defineProperty(_prodState, 'authority', {
+      configurable: true, enumerable: true,
+      get: () => fixtureAuthority,
+      set: () => {},
+    });
     _prodState.authorityLoaded = true;
     // The browser TEST write bypass was removed 2026-08-06 (it could never
     // succeed at the gateway), so every row on a Linear-authoritative team is
@@ -504,6 +516,7 @@ async function selectionChecks(page) {
     _syncviewStaffIdentityMem = original.mem || null;
     _syncviewStaffIdentityLoaded = !!original.loaded;
     _syncviewStaffIdentityVerified = !!original.verified;
+    delete _prodState.authority;
     _prodState.authority = original.authority || null;
     _prodState.authorityLoaded = !!original.authorityLoaded;
     delete window.__prodInteractionIdentityState;
@@ -645,8 +658,18 @@ async function selectionChecks(page) {
     await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
     try {
       await page.waitForSelector('.prod-row, .prod-empty-state, .prod-error', { timeout: 30000 });
-    } catch (e) { console.log('INTERACTION_FAILED_ASSERTIONS ipi_first_paint_timeout'); throw e; }
-    if (await page.locator('.prod-error').count()) { console.log('INTERACTION_FAILED_ASSERTIONS ipi_error_card'); throw new Error('Production preview rendered an error card'); }
+    } catch (e) { console.log('INTERACTION_FAILED_ASSERTIONS ' + INTERACTION_STAGE_IDS.firstPaint); throw e; }
+    if (await page.locator('.prod-error').count()) { console.log('INTERACTION_FAILED_ASSERTIONS ' + INTERACTION_STAGE_IDS.errorCard); throw new Error('Production preview rendered an error card'); }
+    /* The first rows can paint from the saved copy or the early reads while the
+       full load (and the authority answer that comes with it) is still in
+       flight. Everything below changes page state and re-renders, so a load that
+       lands halfway through would replace what a check just set up. Wait for the
+       load to settle first; the 30 s poll is handled where a check fakes state. */
+    try {
+      await page.waitForFunction(() => typeof _prodState !== 'undefined'
+        && _prodState.loaded && !_prodState.loading && !_prodState.refreshing
+        && !_prodState.fromCache && !_prodState.cachePartial && _prodState.authorityLoaded, null, { timeout: 60000 });
+    } catch (e) { console.log('INTERACTION_FAILED_ASSERTIONS ' + INTERACTION_STAGE_IDS.loadSettle); throw e; }
 
     const results = [];
     const failures = [];

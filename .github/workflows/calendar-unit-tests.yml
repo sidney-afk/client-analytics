@@ -558,6 +558,7 @@ jobs:
           Staff gate stub refuses invented keys beside the fake gateway|node test/staff-gate-stub-refusal-local.js
           TikTok upload layout|node --require ./test/helpers/single-file-index.js test/tiktok-upload-redesign-browser.js
           TikTok preview clears when the form empties|node test/tiktok-preview-empty-clearance-browser.js
+          Kasper's With the editors rows: Client · Title on one line, a small grey date below|node test/review-stage-with-editors-row-browser.js
           LANES
 
 

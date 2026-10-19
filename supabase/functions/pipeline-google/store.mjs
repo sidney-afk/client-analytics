@@ -38,21 +38,34 @@ export const SNAPSHOT_BUCKET = "brain-snapshots";
 export const SNAPSHOT_LINK_SECONDS = 600;
 // The cached object's name carries the rule it was built under, so a zip built
 // under another rule (the earlier no-money-1 build) is never handed out.
-export const SNAPSHOT_FORMAT = "inputs-drive-only-1";
+export const SNAPSHOT_FORMAT = "inputs-drive-plus-summaries-1";
 export const snapshotName = (commit) => `${commit}.${SNAPSHOT_FORMAT}.zip`;
 // What the snapshot holds (owner's decisions, 2026-10-17): the whole brain,
 // money.md and history.md included (the pipeline's money guard reads each
 // client's figures from money.md to keep them out of every Sheet and Doc; only
 // the people on the filming plan list get a pass), but under any folder named
-// inputs/ (at any depth) only inputs/drive/ is kept: the rest is raw
-// transcripts and chat text the pipeline never reads.
+// inputs/ (at any depth) only inputs/drive/ is kept, plus the pipeline's four
+// named per-client summaries (SNAPSHOT_KEEP below): the raw transcripts and chat
+// text stay out, but the summaries the pipeline names in each client's config
+// (competitor research, own top videos, finished videos, captions) are not raw
+// text, and a batch that lacks them runs without its reference lane.
+export const SNAPSHOT_KEEP = [
+  ["research", "competitor-research"],
+  ["research", "own-top-videos"],
+  ["video", "finished-videos"],
+  ["published", "instagram-captions"],
+];
 export function dropFromSnapshot(name) {
   const parts = String(name).split("/");
   const at = parts.findIndex((p) => p.toLowerCase() === "inputs");
   if (at < 0) return false;
   const next = parts[at + 1];
   if (next === undefined || next === "") return false;
-  return next.toLowerCase() !== "drive";
+  if (next.toLowerCase() === "drive") return false;
+  const file = (parts[at + 2] ?? "").toLowerCase();
+  const direct = parts.length === at + 3;
+  if (direct && file.endsWith(".md") && SNAPSHOT_KEEP.some(([dir, frag]) => next.toLowerCase() === dir && file.includes(frag))) return false;
+  return true;
 }
 
 const str = (v) => (typeof v === "string" ? v.trim() : "");

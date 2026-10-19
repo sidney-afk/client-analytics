@@ -278,6 +278,14 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
     [TOP + 'clients/client-a/inputs/calls/call-2.md', 'DROP nested transcript'],
     [TOP + 'clients/client-a/inputs/drive/doc.md', 'nested drive'],
     [TOP + 'notinputs/calls/x.md', 'kept, not an inputs folder'],
+    [TOP + 'inputs/research/client-a-competitor-research-2026-01-01.md', 'summary competitor'],
+    [TOP + 'inputs/research/client-a-own-top-videos-2026-01-01.md', 'summary own top'],
+    [TOP + 'inputs/video/client-a-finished-videos-2026-01-01.md', 'summary finished'],
+    [TOP + 'inputs/published/client-a-instagram-captions-2026-01-01.md', 'summary captions'],
+    [TOP + 'inputs/research/client-a-raw-scrape.md', 'DROP other research'],
+    [TOP + 'inputs/video/deep/client-a-finished-videos.md', 'DROP nested video'],
+    [TOP + 'inputs/video/client-a-finished-videos.txt', 'DROP not markdown'],
+    [TOP + 'inputs/calls/client-a-competitor-research.md', 'DROP wrong folder'],
   ];
   const isDropped = (t) => /^DROP/.test(t);
   const src = makeZip(BRAIN, COMMIT);
@@ -286,7 +294,7 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
   const re = store.repackZip(src);
   const after = readZip(re.zip);
   const nDrop = BRAIN.filter(([, t]) => isDropped(t)).length;
-  eq([re.kept, re.dropped], [BRAIN.length - nDrop, nDrop], 'only inputs/ outside inputs/drive/ is left out');
+  eq([re.kept, re.dropped], [BRAIN.length - nDrop, nDrop], 'only raw inputs/ (not inputs/drive/, not the four named summaries) is left out');
   ok(!Object.values(after.files).some(isDropped), 'no raw transcript or chat entry survives, at the top or nested');
   for (const [name, text] of BRAIN) {
     if (isDropped(text)) continue;
@@ -294,6 +302,8 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
   }
   ok(after.files[TOP + 'clients/client-a/money.md'] === 'MONEY A' && after.files[TOP + 'company/money.md'] === 'MONEY CO', 'money.md stays (the money guard reads it)');
   ok(after.files[TOP + 'clients/client-a/history.md'] === 'history a', 'history.md stays');
+  ok(['research/client-a-competitor-research-2026-01-01', 'research/client-a-own-top-videos-2026-01-01', 'video/client-a-finished-videos-2026-01-01', 'published/client-a-instagram-captions-2026-01-01']
+    .every((n) => /^summary/.test(after.files[TOP + 'inputs/' + n + '.md'] || '')), 'the four named summaries stay (competitor research, own top videos, finished videos, captions)');
   ok(after.files[TOP + 'inputs/drive/plan-a.md'] === 'plan a' && after.files[TOP + 'clients/client-a/inputs/drive/doc.md'] === 'nested drive', 'inputs/drive/ stays, at the top and nested');
   eq(after.comment, COMMIT, 'the zip comment (GitHub puts the commit there) is kept');
   eq(readZip(store.repackZip(re.zip).zip).files, after.files, 'repacking again changes nothing');
@@ -322,7 +332,7 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
   w.deps.snapshotFetch = async () => new Uint8Array(10);
   r = await run(w, 'brain.snapshot', {});
   ok(r.status === 503 && /could not be read/.test(r.body.error) && !w.calls.stored.length && !w.calls.signed.length, 'an unreadable zip is never stored or handed out');
-  eq(store.snapshotName(COMMIT), COMMIT + '.inputs-drive-only-1.zip', 'the cache name says the rule, so an older (no-money-1) build is never served');
+  eq(store.snapshotName(COMMIT), COMMIT + '.inputs-drive-plus-summaries-1.zip', 'the cache name says the rule, so an older build (no-money-1, inputs-drive-only-1) is never served');
   ok(/zipName = \(commit: string\) => snapshotName\(commit\)/.test(read(fnDir, 'pipeline-google', 'index.ts')), 'pipeline-google caches under that name');
 
   // ---- Who may use the filming plan pipeline (fp_settings "pipeline_users") --------

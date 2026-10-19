@@ -178,7 +178,7 @@ import { wlCalmOn } from './072-workload-calm.js';
         const meta = wlGroupDeadlineSummary(subs);
         // Calm: every client row shows a dot. A mixed group, or one with a missing due date, has no single
         // tone, so it gets a neutral grey dot instead of none (the old view still prints nothing for it).
-        if (meta.label && !meta.tone && wlCalmOn()) {
+        if (meta.label && !meta.tone && typeof wlCalmOn === 'function' && wlCalmOn()) {
             return `<span class="wl-deadline-summary is-neutral" role="img" aria-label="${wlEscape(meta.label)}" data-tip="${wlEscape(meta.label + '.')}">${wlDeadlineDotHtml()}</span>`;
         }
         if (!meta.label || !meta.tone) return '';

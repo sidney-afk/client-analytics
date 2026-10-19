@@ -260,7 +260,7 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
   eq((await run(w, 'brain.snapshot', {})).status, 502, 'an odd commit id is refused');
 
 
-  // ---- The snapshot: everything except inputs/ outside inputs/drive/ ----------------
+  // ---- The snapshot: the whole brain, raw inputs and money.md included -------------
   const TOP = 'example-brain-0000000/';
   const BRAIN = [
     [TOP, '', 'stored'],
@@ -273,9 +273,9 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
     [TOP + 'inputs/', '', 'stored'],
     [TOP + 'inputs/drive/plan-a.md', 'plan a'],
     [TOP + 'inputs/drive/sub/plan-b.md', 'plan b', 'stored'],
-    [TOP + 'inputs/calls/call-1.md', 'DROP transcript'],
-    [TOP + 'inputs/slack/day.md', 'DROP slack'],
-    [TOP + 'clients/client-a/inputs/calls/call-2.md', 'DROP nested transcript'],
+    [TOP + 'inputs/calls/call-1.md', 'kept transcript'],
+    [TOP + 'inputs/slack/day.md', 'kept slack'],
+    [TOP + 'clients/client-a/inputs/calls/call-2.md', 'kept nested transcript'],
     [TOP + 'clients/client-a/inputs/drive/doc.md', 'nested drive'],
     [TOP + 'notinputs/calls/x.md', 'kept, not an inputs folder'],
   ];
@@ -286,8 +286,8 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
   const re = store.repackZip(src);
   const after = readZip(re.zip);
   const nDrop = BRAIN.filter(([, t]) => isDropped(t)).length;
-  eq([re.kept, re.dropped], [BRAIN.length - nDrop, nDrop], 'only inputs/ outside inputs/drive/ is left out');
-  ok(!Object.values(after.files).some(isDropped), 'no raw transcript or chat entry survives, at the top or nested');
+  eq([re.kept, re.dropped], [BRAIN.length - nDrop, nDrop], 'nothing is left out');
+  ok(!Object.values(after.files).some(isDropped), 'nothing is dropped');
   for (const [name, text] of BRAIN) {
     if (isDropped(text)) continue;
     eq(after.files[name], text, 'kept byte for byte: ' + name.slice(TOP.length || 0));
@@ -316,13 +316,13 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
   let storedBytes = null;
   w.deps.snapshotStore = async (c, bytes) => { storedBytes = bytes; w.calls.stored.push([c, bytes.byteLength]); };
   r = await run(w, 'brain.snapshot', {});
-  ok(storedBytes && !Object.values(readZip(storedBytes).files).some(isDropped) && readZip(storedBytes).files[TOP + 'clients/client-a/money.md'] === 'MONEY A', 'the cached snapshot is the filtered one: no raw inputs, money.md kept');
+  ok(storedBytes && !Object.values(readZip(storedBytes).files).some(isDropped) && readZip(storedBytes).files[TOP + 'clients/client-a/money.md'] === 'MONEY A', 'the cached snapshot is the full one: raw inputs and money.md kept');
   eq(r.body.bytes, storedBytes.byteLength, 'and its size is the one answered');
   w = world({ headFails: false });
   w.deps.snapshotFetch = async () => new Uint8Array(10);
   r = await run(w, 'brain.snapshot', {});
   ok(r.status === 503 && /could not be read/.test(r.body.error) && !w.calls.stored.length && !w.calls.signed.length, 'an unreadable zip is never stored or handed out');
-  eq(store.snapshotName(COMMIT), COMMIT + '.inputs-drive-only-1.zip', 'the cache name says the rule, so an older (no-money-1) build is never served');
+  eq(store.snapshotName(COMMIT), COMMIT + '.full-brain-1.zip', 'the cache name says the rule, so an older (no-money-1, inputs-drive-only-1) build is never served');
   ok(/zipName = \(commit: string\) => snapshotName\(commit\)/.test(read(fnDir, 'pipeline-google', 'index.ts')), 'pipeline-google caches under that name');
 
   // ---- Who may use the filming plan pipeline (fp_settings "pipeline_users") --------

@@ -8,7 +8,7 @@
 //   batch.take     {}                                fp_take_batch for the pass's client
 //   notes.add      { title, body, source, follows? } a note in fp_feedback_notes
 //   brain.snapshot { have_commit? }                  the Synchro Brain at main, as a signed zip link,
-//                                                    inputs/ cut to inputs/drive/ (see dropFromSnapshot)
+//                                                    the whole brain (see dropFromSnapshot)
 //
 // Who may save what. Any pass saves the files in OPEN_FILES (and
 // filming_plans/*.md). The files in ADMIN_FILES need a pass made on a personal
@@ -37,22 +37,18 @@ export const COMMIT_RE = /^[0-9a-f]{40}$/;
 export const SNAPSHOT_BUCKET = "brain-snapshots";
 export const SNAPSHOT_LINK_SECONDS = 600;
 // The cached object's name carries the rule it was built under, so a zip built
-// under another rule (the earlier no-money-1 build) is never handed out.
-export const SNAPSHOT_FORMAT = "inputs-drive-only-1";
+// under another rule (the earlier no-money-1 and inputs-drive-only-1 builds)
+// is never handed out.
+export const SNAPSHOT_FORMAT = "full-brain-1";
 export const snapshotName = (commit) => `${commit}.${SNAPSHOT_FORMAT}.zip`;
-// What the snapshot holds (owner's decisions, 2026-10-17): the whole brain,
-// money.md and history.md included (the pipeline's money guard reads each
-// client's figures from money.md to keep them out of every Sheet and Doc; only
-// the people on the filming plan list get a pass), but under any folder named
-// inputs/ (at any depth) only inputs/drive/ is kept: the rest is raw
-// transcripts and chat text the pipeline never reads.
-export function dropFromSnapshot(name) {
-  const parts = String(name).split("/");
-  const at = parts.findIndex((p) => p.toLowerCase() === "inputs");
-  if (at < 0) return false;
-  const next = parts[at + 1];
-  if (next === undefined || next === "") return false;
-  return next.toLowerCase() !== "drive";
+// What the snapshot holds (owner's decision, 2026-10-19): the whole brain,
+// every inputs/ folder (call transcripts, chat), money.md and history.md
+// included. Only the people on the filming plan list get a pass, made on their
+// own personal connector link, and they may read all of it; anyone added to
+// that list later gets the same. The repack still runs, so a zip that cannot
+// be read is never stored or handed out.
+export function dropFromSnapshot(_name) {
+  return false;
 }
 
 const str = (v) => (typeof v === "string" ? v.trim() : "");

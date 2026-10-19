@@ -37,6 +37,7 @@ const DOCS_TESTS = 'docs/syncview-design/tests';
    known debt; the reason says which. Remove the line when the file is wired. */
 const NOT_WIRED = {
   'docs/syncview-design/tests/workload-board-browser.js': 'stale since #1391 (2026-09-17): its harness still serves the retired Linear-era reads, not the workload-plan native snapshot; the harness needs rewriting before wiring (OPEN_REPAIRS 408)',
+  'docs/syncview-design/tests/workload-calm-gallery.js': 'a screenshot tool, not a test: it shoots the before and after gallery of the Calm Workload view for the PR (OPEN_REPAIRS 438)',
   'docs/syncview-design/tests/workload-render-browser.js': 'same harness as workload-board-browser, stale since #1391 (2026-09-17); rewrite before wiring (OPEN_REPAIRS 408)',
 };
 

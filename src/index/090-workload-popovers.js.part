@@ -16,6 +16,7 @@ import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
 import { _jsAttrArg } from './131-core-html.js';
 import { _svSkel } from './133-core-loading-skeletons.js';
 import { _calFmtCommentTime } from './190-calendar-approval-comments.js';
+import { wlCalmOn, wlCalmPopoverHtml } from './072-workload-calm.js';
     // ── Sub-issue popover ────────────────────────────────────────────────
     // Fetches the underlying subs for a rollup (either the in-progress list
     // or the work-on-that-day list), filters by assignee+client, and
@@ -830,6 +831,16 @@ import { _calFmtCommentTime } from './190-calendar-approval-comments.js';
             : '';
 
         pop.innerHTML = header + frameNote + items;
+        /* The calm view (072) draws this popover flat instead; the old markup above is built for everyone else, untouched. */
+        const calm = typeof wlCalmOn === 'function' && wlCalmOn();
+        pop.classList.toggle('wl-calm-pop', calm);
+        if (calm) {
+            pop.innerHTML = wlCalmPopoverHtml({
+                headerTitle, clientName, templatesUrl, parentSyncUrl, openLabel, openLinearUrl, subs, showClient,
+                frameNote: !!frameNote,
+                tweakBox: s => `<div class="wl-tweak-comments" data-wl-comments-for="${wlEscape(s.id)}"><div class="wl-tweak-comments-status" role="status" aria-label="Loading">${_svSkel('sv-skeleton-line', 'width:72%;height:10px;')}</div></div>`,
+            });
+        }
         // EVERY replacement advances the feedback generation, not only one that
         // starts a read of its own. The line above just destroyed the previous
         // popover's feedback boxes; a rollup with no tweak rows destroys them

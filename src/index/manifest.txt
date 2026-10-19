@@ -15,6 +15,7 @@
 069-workload-planning-helpers.js.part
 070-core-client-names.js.part
 071-workload-planner.js.part
+072-workload-calm.js.part
 080-workload-render.js.part
 090-workload-popovers.js.part
 092-core-submit-form-navigation.js.part

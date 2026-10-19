@@ -33541,7 +33541,7 @@ The same row is drawn in three places, all changed in `src/index/195-review-stag
 
 **Way back:** revert the pull request.
 
-## 439. [2026-10-18, BUILT, NOT MERGED] Review caption overwrite, lost drafts and recovery click/error gaps (session Gauntlet Three)
+## 440. [2026-10-18, BUILT, NOT MERGED] Review caption overwrite, lost drafts and recovery click/error gaps (session Gauntlet Three)
 
 **Confirmed, mocked browsers only.** A client saving an open caption editor could silently overwrite a newer team
 caption. Unsent caption text disappeared when switching posts/reloading, and a refused save hid the replacement text.

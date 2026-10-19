@@ -270,6 +270,7 @@ async function sxrKasperFreshCompanionExecutesStatusCase() {
       tweaks_needed: 'Tweaks Needed'
     })[value] || '',
     _writeUiMarkRepairCommitted: async ref => ref,
+    _writeUiRepairRecordForIntent: () => companionRecord,
     _sxrPushStatusToLinear: async (_url, status, meta) => {
       statusCalls++;
       assert.strictEqual(status, 'Tweaks Needed');
@@ -441,6 +442,10 @@ async function resumeExactRefBindingCase() {
   let mutationCalls = 0;
   const ctx = {
     calState: { client: 'fixture', posts: [calPost] },
+    _writeUiCompleteSourceRepairRefs: async () => true,
+    _writeUiRemoveCompletedRepairRefs: () => {},
+    _writeUiRepairReplayOwners: new WeakSet(),
+    navigator: { locks: { request: async (_name, _options, callback) => callback({ name: _name }) } },
     sxrState: { client: 'fixture', posts: [sxrPost] },
     calClientSlug: () => 'fixture',
     sxrClientSlug: () => 'fixture',
@@ -470,7 +475,7 @@ async function resumeExactRefBindingCase() {
   };
   vm.createContext(ctx);
   for (const name of ['_writeUiAppendRepairRef', '_writeUiAdoptRepairAck', '_writeUiReplayRepairIntents',
-    '_writeUiReplayJournalGroup']) vm.runInContext(extract(name), ctx);
+    '_writeUiWithRepairFlight', '_writeUiReplayJournalGroupOwned', '_writeUiReplayJournalGroup']) vm.runInContext(extract(name), ctx);
 
   const group = (surface, postId, ref) => ({
     surface, lane: 'card', client_slug: 'fixture', post_id: postId,
@@ -479,8 +484,11 @@ async function resumeExactRefBindingCase() {
       attempted: true, native_committed: true, gateway_payload: '{"local":"hint-only"}',
       _repair_key: ref.key, _repair_token: ref.token }]
   });
-  await ctx._writeUiReplayJournalGroup(group('calendar', 'cal-card', calRef), 'staff:fixture:smm');
-  await ctx._writeUiReplayJournalGroup(group('sxr', 'sxr-card', sxrRef), 'staff:fixture:smm');
+  const groups = [group('calendar', 'cal-card', calRef), group('sxr', 'sxr-card', sxrRef)];
+  groups.forEach(value => { value.key = [value.surface,value.lane,value.client_slug,value.post_id].join('|'); });
+  ctx._writeUiRepairGroups = () => ({ groups, unknown: 0 });
+  await ctx._writeUiReplayJournalGroup(groups[0], 'staff:fixture:smm');
+  await ctx._writeUiReplayJournalGroup(groups[1], 'staff:fixture:smm');
 
   assert.deepStrictEqual(capturedPending.calendar._writeUiRepairRefs, [calRef],
     'Calendar resume must bind exactly the journal group refs into this source-save attempt');
@@ -730,12 +738,49 @@ async function absentCommentReissuesCurrentLaneCase() {
   assert.deepStrictEqual(clone(post._writeUiRepairRefs), [{ key: 'repair-comment-2', token: 'token-comment-2' }]);
 }
 
+async function sxrKasperLateStateCase() {
+  let persisted = 0;
+  const diagnostics = [];
+  const ctx = {
+    _writeUiPrincipalKey: () => 'fixture-principal',
+    _writeUiJournalHasRepair: () => false,
+    _writeUiQueueDiagnostic: (...args) => diagnostics.push(args),
+    _kasperPersistCache: () => persisted++
+  };
+  vm.createContext(ctx);
+  vm.runInContext(extract('_sxrKasperResumeSourceRepairs'), ctx);
+  // The background task can run between the Samples and shared-state scripts.
+  await ctx._sxrKasperResumeSourceRepairs();
+  assert.strictEqual(persisted, 0);
+  assert.strictEqual(diagnostics.length, 0);
+  // Loading the queue calls it again: outstanding debt must still be inspected and held.
+  ctx._kasperState = { sxrRepairs: [{ principal: 'fixture-principal', id: 'fixture-card', slug: 'fixture' }] };
+  await ctx._sxrKasperResumeSourceRepairs();
+  assert.strictEqual(persisted, 1);
+  assert.strictEqual(diagnostics[0][1], 'cache_only_repair_held');
+  assert.match(ctx._kasperState.sxrRepairs[0].error, /explicit review required/);
+  assert.strictEqual(ctx._kasperState.sxrRepairs.length, 1, 'the repair is retained for explicit review');
+}
+async function kasperStateNotLoadedCase() {
+  // The Kasper script can load after the boot-time repair resume. An unguarded
+  // read of its state is a ReferenceError (an unhandled rejection in WebKit
+  // roughly one load in three) and skips the resume. Not loaded means no
+  // Samples repairs to resume, not an exception.
+  const ctx = { _writeUiPrincipalKey: () => 'staff:fixture:smm' };
+  vm.createContext(ctx);
+  vm.runInContext(extract('_sxrKasperResumeSourceRepairs'), ctx);
+  await ctx._sxrKasperResumeSourceRepairs();
+  const lateBinding = source.match(/\(_kasperState && _kasperState\.sxrRepairs\)/g);
+  assert.strictEqual(lateBinding, null, 'every read of the Kasper state outside its own script must be typeof-guarded');
+}
+
 (async () => {
   await runCase('Calendar keeps trailing pending repair metadata while a save is in flight', () => pendingMetadataCase('calendar'));
   await runCase('Samples keeps trailing pending repair metadata while a save is in flight', () => pendingMetadataCase('sxr'));
   await runCase('Calendar cache-only retry debt is held outside the source funnel', () => cacheOnlyRetryBlockedCase('calendar'));
   await runCase('Samples cache-only retry debt is held outside the source funnel', () => cacheOnlyRetryBlockedCase('sxr'));
   await runCase('Calendar Kasper cache-only retry debt is blocked', calendarKasperCacheOnlyBlockedCase);
+  await runCase('Samples background recovery tolerates late shared state and still inspects its repair cache', sxrKasperLateStateCase);
   await runCase('Samples Kasper composite tweak commits comment before status', sxrKasperCommentFirstCase);
   await runCase('Samples Kasper fresh status companion executes before source persistence', sxrKasperFreshCompanionExecutesStatusCase);
   await runCase('concurrent Kasper invocations complete only their own repair refs', kasperInvocationIsolationCase);
@@ -746,6 +791,7 @@ async function absentCommentReissuesCurrentLaneCase() {
   await runCase('absent status ignores local commit hints and retains debt without mutation', absentStatusRetainsDebtCase);
   await runCase('newer native status supersedes absent receipt read-only', newerStatusSupersedesAbsentReceiptCase);
   await runCase('absent comment reissues once through the current authority lane', absentCommentReissuesCurrentLaneCase);
+  await runCase('Samples Kasper repair resume tolerates the Kasper script not being loaded yet', kasperStateNotLoadedCase);
 
   if (failures.length) {
     console.error('\n' + failures.length + ' write-UI repair race regression(s) failed');

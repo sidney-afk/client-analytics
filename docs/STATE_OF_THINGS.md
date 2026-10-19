@@ -23,10 +23,46 @@ line is older than a week, re-check it before relying on it.
 Owner report: on a part with open change requests, picking "Approve to Kasper" or "Approve to client" opened a second
 pop-up ("Tweaks resolved, where to next?", with a checklist and a plain Approve). Now the pick is the answer: every open
 change request on the part is marked done in the same save, with a toast "N change requests marked done" and Undo
-(OPEN_REPAIRS 440). The manager's Review tab never offers a plain Approve; the chooser now only opens for Notes "Mark done" on the
+(OPEN_REPAIRS 447). The manager's Review tab never offers a plain Approve; the chooser now only opens for Notes "Mark done" on the
 last open request, where a review pass restored its four options (Kasper approval / Client approval / Approve / Mark done) as on main. The Notes panel opens at the newest message and stays
 there. Test: `node test/review-stage-one-question-browser.js`. Other places that ask twice are listed in the PR for the
 owner to decide (the card's status pills still leave open requests open; the client Sheet "Approve this post?" confirm).
+
+## Client link loading screen, second pass (session Dawn, 2026-10-18): PR open
+
+Owner: the loading screen "still looks horrible, even on mobile". Measured on the live site, then fixed (OPEN_REPAIRS 442): a first
+visit draws one review-shaped screen in light instead of four different ones; placeholders can be seen in light and dark; a client
+whose last page had nothing waiting gets that page's shape; the shape follows the phone (checked at six sizes); the page's code
+downloads beside the link check. Test: `node test/client-link-dark-first-paint-browser.js`. Supersedes point (4) of the Dusk
+section below for links with an explicit `v=calendar`. Not done: first paint on slow 4G waits for the 1.5 MB page (build change).
+
+## Messages inbox: what counts as new, New/All switch, live badge (session Hush, 2026-10-18): PR open
+
+Automatic records (a client's caption-change note, anything the system writes) never count as new, never raise the badge. Kasper's inbox counts only staff messages; the managers' inbox keeps counting what people write to them. One New/All switch (opens on New, "No new messages" when calm). The badge refreshes by itself: realtime on the cards, a ping from other tabs, and a 30 s safety net. Server side in `production-comments/inbox.mjs` (auto-deploys on merge, no migration). OPEN_REPAIRS 443; test `node docs/syncview-design/tests/messages-new-view-browser.js`.
+
+## Review-save checkpoints (session Checkpoint, 2026-10-18): candidate PR #2233 (ledger 444); live audit has failures
+
+The recovery journal could be consumed by background recovery or another tab while its original save still needed it,
+then report `repair_checkpoint_missing` after a native commit. The candidate shares a per-card browser lease between
+native attempts, recovery and cleanup, re-reads queued groups, and retains an acknowledged snapshot for companion
+binding. Storage refusals remain visible and no diagnostic code is hidden. The all-engine mocked suite passes 69 cases
+at 1440 and 390. The separate live pass completed in all three engines at both widths, on client, SMM and reviewer
+pages. It confirmed lost unsent caption/staff-note drafts on reload, unresolved interrupted saves despite retained
+browser copies, inconsistent staff deletion and elapsed times over three seconds. Bundled Chromium video playback
+failed; Firefox, WebKit and an additional installed-Chrome check played the same media. This is not a live all-clear
+or proof of this unmerged candidate. The disposable card is archived through the app, both native work items were
+read back in Backlog, and the three original test cards are unchanged. Lighthouse owns review and merge.
+Findings, limits and exact reruns: [Checkpoint report](audits/2026-10-18-checkpoint-review.md).
+
+## Approve and Ask for a change answer at once (session Swift, 2026-10-19): PR open
+
+Owner request: nothing may slow the moment someone approves, sends on or asks for a change. Measured in the offline fixture
+(live not measured: no test-client link or staff sign-in was handed to the session): the page already reacted in about 20 ms, but
+the pressed button showed only a spinner on its old words until the server answered. Now it says its result at once
+("Approved", "Approved to Kasper", "Change asked"); confirmation polls and pauses are shorter (50 ms, 400 ms, 40 ms); a note sent
+while the same part is still saving used to be lost and is now queued and sent when that save ends. The two writes of a save (status
+write, then card write) stay in their order. Test: `node test/review-stage-instant-browser.js` (fails on main). OPEN_REPAIRS 446.
+Still to do: re-measure on the live site with the test client after merge.
 
 ## Client link in a dark browser (session Dusk, 2026-10-18): PR open
 
@@ -51,6 +87,19 @@ typing or sending, no cross-tab lock no longer blocks a send, plain "Not sent ye
 form back before it is discarded. New: `production-write` stores the raw request first in `intake_raw_submissions` and lists it for staff
 (`intake_raw_list`); **the migration must be applied by Lighthouse** (the gateway copes without it). Not done: Safari and Firefox passes, a staff
 screen for the list, archiving one live test batch on the test client.
+
+## Review reliability (session Gauntlet Three, 2026-10-18): candidate, not merged
+
+The owner reports the new review page is live for every client as of 2026-10-18; the test-only switch history below
+is the earlier rollout record. Offline browser reproductions found concurrent/stale caption edits, lost caption and
+staff drafts, hidden refused change-request words, plain notes that looked sent after refusal, false Saved badges,
+a refresh/click race, an unhandled recovery rejection, an approval toast covering Kasper's Next post button, and
+a refused Notes deletion claiming a native save had succeeded. Overnight stress also reproduced hydration recovery
+racing an active approval's checkpoint; source repair now waits for that foreground card save and observes its errors.
+Candidate repairs and the action/engine/width matrix are in
+[`2026-10-18-review-stage-gauntlet-three.md`](audits/2026-10-18-review-stage-gauntlet-three.md), run by
+`node test/review-stage-gauntlet3-browser.js`. Cached old code and the full action/error cross-product remain unproven;
+this is not a universal or live-backend assurance claim. No live writes were used.
 
 ## Client review page finishing touches (session Rail, 2026-10-18): PR open
 
@@ -113,7 +162,11 @@ unchanged. Sheet card reordering (drag by the grip) was a separate, earlier owne
 same `frame_viewer_clients` switch as the staff Calendar; with the switch off, or for a link the viewer cannot play, it
 is the old Frame.io link. Test: `node test/client-calendar-read-only-browser.js`.
 
-## New review page, layout C (session Marquee, 2026-10-17): merged, on for the test client and the owner only
+## New review page, layout C (session Marquee, 2026-10-17): merged; owner reports all-client rollout on 2026-10-18
+
+**Rollout update, owner report 2026-10-18:** the new client review page is live for every client. The limited-switch
+readback dated 2026-10-17 below records the initial rollout. Pocket's phone work uses mocked fixtures only and makes
+no live switch changes. Its phone coverage and repairs are in [the phone report](audits/2026-10-18-review-stage-phones/README.md).
 
 The owner approved the client page (layout C, "Guided stage") and the SMM and Kasper versions of it on 2026-10-16.
 It is a new view beside the old one (`src/index/188-review-stage-switch.js.part` reads the switches;
@@ -122,7 +175,7 @@ says yes). Turning a switch off brings the old page back on the next load. Test:
 
 **The switches** (rows in `syncview_runtime_flags`, read once per page, fail closed: missing, unreadable or the wrong
 shape is the old page; the lists live only in the database):
-- `review_stage_client_pages` `{ "clients": [...] }`: the client's review link and the SMM's Calendar Review tab for those
+- `review_stage_client_pages` `{ "clients": [...] }` or `{ "all": true }`: the client's review link and the SMM's Calendar Review tab for those
   clients. (Not named `..._clients`: several browser tests answer every `_clients` key with "on".)
 - `review_stage_kasper_staff` `{ "staff": [...] }`: Kasper's Review Session, only for the signed-in staff member whose
   roster id or full name is listed.
@@ -132,7 +185,10 @@ shape is the old page; the lists live only in the database):
   Missing (today: no row, no migration), unreadable, `{ "hidden": true }` or any other shape hides it: no Analytics tab
   in the staff bar, no Analytics / Content Calendar toggle on a client link, and a client link's Analytics address
   opens the Content Calendar. Read at boot in the same request as the switches above. No Analytics code was removed.
-To try it: the test client in the first list and the owner in the second. Nobody else sees anything new.
+The initial test rollout used the test client in the first list and the owner in the second; see the 2026-10-18 owner update above for the client rollout.
+The 2026-10-17 trial used the test client in the first list and the owner in the second. A read-only live check on
+2026-10-18 confirms `review_stage_client_pages` has `all: true`: every client's review page is now enabled. The staff
+Review Session uses its separate staff switch. Historical trial timestamps below describe that earlier rollout.
 
 **The owner's decisions, 2026-10-16:** yes to the SMM and Kasper mock-ups, and to the five open choices:
 (1) the arrow on Approve is faint at rest and firm on hover; (2) SMM caption edits save at once, as today; (3) Kasper's

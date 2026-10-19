@@ -2766,6 +2766,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         if (n && n.classList.contains('open') && !(_calReplyTarget || _calEditTarget)) { e.preventDefault(); closeCalComments(); }
     });
     function closeCalComments() {
+        _calEnterWhenReady = '';
         svLayerRelease('cal-notes');
         const ovlOpen = document.getElementById('calCommentsOverlay');
         if (!ovlOpen || !ovlOpen.classList.contains('open')) return;
@@ -3007,6 +3008,14 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
                 });
             }
         }
+        if (_calEnterWhenReady) {
+            const queuedBtn = modal.querySelector('.cal-cm-send');
+            if (_calEnterWhenReady !== pid) _calEnterWhenReady = '';
+            else if (queuedBtn && !queuedBtn.hasAttribute('data-send-pending')) {
+                _calEnterWhenReady = '';
+                setTimeout(() => { if (_calOpenCommentsPid === pid) _calSubmitComposer(); }, 0);
+            }
+        }
         const ta = document.getElementById('calCommentComposer');
         if (ta) {
             _calAutosizeComposer(ta);
@@ -3200,6 +3209,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             _calRootDraft = ta.value;
             _calNoteDraftSet(_calOpenCommentsPid, ta.value);
         }
+        _calEnterWhenReady = '';
         const wrap = ta.closest('.cal-cm-composer');
         if (!wrap) return;
         const sendBtn = wrap.querySelector('.cal-cm-send');
@@ -3210,13 +3220,20 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
     }
     // The split Send menu closes on Escape or a click anywhere else: it is a
     // layer (see _calToggleSendMenu), so the shared handler does both.
+    let _calEnterWhenReady = '';
     function _calOnComposerKey(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             // Enter follows the send button: nothing is sent while it waits.
             const sendBtn = e.target && e.target.closest && e.target.closest('.cal-cm-composer')
                 ? e.target.closest('.cal-cm-composer').querySelector('.cal-cm-send') : null;
-            if (sendBtn && sendBtn.hasAttribute('data-send-pending')) return;
+            if (sendBtn && sendBtn.hasAttribute('data-send-pending')) {
+                // Enter inside the short window while the card's link is looked up used to do nothing at all
+                // and say nothing: the words stayed in the box, unsent, and the person believed they had sent
+                // them. It now counts as the send and goes the moment the notes finish loading.
+                _calEnterWhenReady = _calOpenCommentsPid || '';
+                return;
+            }
             _calSubmitComposer();
         } else if (e.key === 'Escape' && (_calReplyTarget || _calEditTarget)) {
             e.preventDefault();
@@ -3323,14 +3340,15 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
     /* Flush a comment-carrying save and, if it failed while the Notes modal is
        still open on that card, tell the user. The card's "Save failed" chip is
        the normal failure surface, but the open modal covers it — without this
-       the user closes the modal believing the note was sent. The note itself
-       is checkpointed in the v2 cache after native acknowledgement and rides
-       the normal source-repair path across refreshes. */
-    function _calWatchNoteSave(pid) {
+       the user closes the modal believing the note was sent. Only an explicit
+       native acknowledgement establishes that the note itself is safe; legacy
+       edits/deletes can fail before anything was stored. */
+    function _calWatchNoteSave(pid, nativeCommitted = false) {
         return Promise.resolve(_calFlushCardSave(pid)).then(() => {
             const p = calState.posts.find(x => x.id === pid);
             if (p && p._saveError && _calOpenCommentsPid === pid) {
-                showNotify('Note source sync pending', 'The native note is safe. Calendar sync will retry automatically (' + p._saveError + ').');
+                if (nativeCommitted) showNotify('Note saved; calendar copy pending', 'Your note was saved, but its calendar copy is not up to date. Refresh and check the note before trying again.');
+                else showNotify('Note change not saved', 'The note change did not finish saving. Please refresh and check the note before trying again.');
             }
         });
     }
@@ -3472,7 +3490,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         // can never leak a caption/title note onto the video issue. Create-only
         // (edits/resolves/deletes never sync); audience-independent;
         // _calPostLinearComment no-ops on an unlinked issue (empty url).
-        await _calWatchNoteSave(pid);
+        await _calWatchNoteSave(pid, nativeCommentCommitted);
         _calRefreshCommentsBtn(pid);
         _calUpdateCardStatusDisplay(pid);
         return true;
@@ -3626,8 +3644,8 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
        button-visibility rules. Deleting a root cascades into its replies
        so the thread doesn't leave orphans. If an SMM delete clears the
        last open thread, the same Client-Approval auto-status applies. */
-    function _calDeleteComment(commentId) {
-        const pid = _calOpenCommentsPid;
+    function _calDeleteComment(commentId, postId) {
+        const pid = postId || _calOpenCommentsPid;
         if (!pid) return;
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
@@ -3650,6 +3668,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             if (canonicalGate.linked) {
                 const receipt = await _writeUiCommitCardCommentLifecycle('calendar', post, comp, target, 'delete');
                 if (receipt) await _writeUiPersistCanonicalCommentProjection('calendar', post, comp);
+                if (postId && svRsCalOn()) svRsCalSync();
                 return;
             }
             if (_calCanonicalCrosswalkPending(post, comp)) return;
@@ -3680,6 +3699,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             _calUpdateCardStatusDisplay(pid);
             _calCaptureModalDrafts();
             _calRenderCommentsModal();
+            if (postId && svRsCalOn()) svRsCalSync();
         }, 'Delete');
     }
 

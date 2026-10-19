@@ -46,7 +46,7 @@ async function until(t, fn, ms) { const t0 = Date.now(); while (Date.now() - t0 
     console.log('--- SMM: Approve to Kasper on the last waiting part ---');
     let t = await openSmm(browser, origin, ['video']);
     await inS(t.page, '[data-ok="video"]').click();
-    let took = await until(t, async () => /Approved to Kasper/.test(await drow(t)), 3000);
+    let took = await until(t, async () => /Approved to Kasper/.test(await drow(t)) && t.state.upserts.some(u => u.id === 'rs1' && u.video_status === 'Kasper Approval') && await t.page.evaluate(() => !_calReviewState.saving['rs1|video']), 3000);
     expect(t.state.upserts.some(u => u.id === 'rs1' && u.video_status === 'Kasper Approval'), '1: the save reached the server');
     expect(took >= 0, '1: the stage shows "Approved to Kasper" within 3 s (' + took + ' ms; reads "' + (await drow(t)) + '")');
     expect(!/Saving/.test(await drow(t)), '1: no "Saving" left on the stage');

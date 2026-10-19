@@ -25,15 +25,19 @@ import { currentNav } from './065-core-nav-intake-state.js';
          review_help_video_url      { "url": "..." }: whether the "?" shows on the client page. It opens the public
                                     start page (/start#review) in a new tab; the address itself is no longer played.
                                     Empty or missing hides the button.
+         workload_calm_staff        { "staff": [...] }: the calm Workload calendar (session Calm, 2026-10-18), only for the
+                                    signed-in staff member whose id or full name is listed. A design preview the owner
+                                    tweaks before anyone else sees it. Missing, unreadable or the wrong shape: the
+                                    Workload calendar exactly as it was.
          analytics_hidden           { "hidden": false } brings Analytics back for everyone (the staff bar's Analytics
                                     tab, the client link's Analytics / Content Calendar toggle). Missing, unreadable,
                                     { "hidden": true } or any other shape: Analytics is hidden (owner, 2026-10-17
                                     23:20, session Curtain Seven). Read at boot, in the same request as the switches.
        The lists live only in the database, never in this repository. */
-    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden'];
+    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff'];
     const RS_FLAG_TIMEOUT_MS = 4000;
     const RS_FLAG_RETRY_MS = 30000;
-    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), help: '', analytics: false };
+    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), help: '', analytics: false };
     let _rsFlagPromise = null;
     let _rsFlagTriedAt = 0;
     let _rsFlagFailed = false;
@@ -46,6 +50,8 @@ import { currentNav } from './065-core-nav-intake-state.js';
         const members = okObj(c) ? (_calRuntimeFlagRawMembers(c) || []) : [];
         const s = by.review_stage_kasper_staff;
         const staff = okObj(s) && Array.isArray(s.staff) ? s.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
+        const w = by.workload_calm_staff;
+        const calm = okObj(w) && Array.isArray(w.staff) ? w.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
         const h = by.review_help_video_url;
         const help = okObj(h) && typeof h.url === 'string' && /^https:\/\//i.test(h.url.trim()) ? h.url.trim() : '';
         const a = by.analytics_hidden;
@@ -54,6 +60,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
             all: okObj(c) && c.all === true,
             clients: new Set(members.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
             staff: new Set(staff),
+            calm: new Set(calm),
             help,
             // Only the exact { "hidden": false } shows Analytics.
             analytics: okObj(a) && a.hidden === false,
@@ -71,15 +78,16 @@ import { currentNav } from './065-core-nav-intake-state.js';
             if (!Array.isArray(rows)) throw new Error('shape');
             const next = _rsParse(rows);
             // Analytics shown, or hidden where this browser last saw it shown: the open page draws again too.
-            const changed = next.all || next.clients.size || next.staff.size || next.analytics || svAnalyticsSeenShown();
+            const changed = next.all || next.clients.size || next.staff.size || next.calm.size || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
             _rsFlags = next;
             _rsHintSave(next);
+            _wlCalmHintSave(next);
             _rsFlagFailed = false;
             _rsAnalyticsSync();
             // Something switched on: the open page draws again, now as the new page.
             if (changed) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
         } catch (e) {
-            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), help: '', analytics: false };
+            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), help: '', analytics: false };
             _rsFlagFailed = true;
             _rsAnalyticsSync();
             _rsFlagPromise = null;
@@ -88,6 +96,10 @@ import { currentNav } from './065-core-nav-intake-state.js';
             if (timer) clearTimeout(timer);
             // The Review tab showed a loader while the answer was on its way (below): draw it again now, whatever the
             // answer, so a switched-off or unreadable answer brings the old list back.
+            if (_wlCalmPendingShown) {
+                _wlCalmPendingShown = false;
+                if (!svWorkloadCalmOn()) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
+            }
             if (_rsPendingShown) {
                 _rsPendingShown = false;
                 const drawn = _rsFlags.loaded && (_rsFlags.all || _rsFlags.clients.size || _rsFlags.staff.size);
@@ -291,6 +303,45 @@ import { currentNav } from './065-core-nav-intake-state.js';
         const id = String(m.id || '').trim().toLowerCase(), name = String(m.name || '').trim().toLowerCase();
         return (!!id && _rsFlags.staff.has(id)) || (!!name && _rsFlags.staff.has(name));
     }
+    /* THE CALM WORKLOAD CALENDAR (session Calm, 2026-10-18): on only for the staff member workload_calm_staff names, by
+       id or full name, exactly as Kasper's switch above. Until the switch has been read, or the server has said who is
+       signed in, the answer is no: the old calendar shows and nothing else changes. */
+    function _rsListed(set) {
+        let who = null;
+        try { who = _syncviewStaffIdentityForHeaders(); } catch (e) { who = null; }
+        const m = who && who.member;
+        if (!m) return false;
+        const id = String(m.id || '').trim().toLowerCase(), name = String(m.name || '').trim().toLowerCase();
+        return (!!id && set.has(id)) || (!!name && set.has(name));
+    }
+    function svWorkloadCalmOn() {
+        _rsPrime();
+        if (!_rsFlags.loaded || !_rsFlags.calm.size || _isClientLink) return false;
+        return _rsListed(_rsFlags.calm);
+    }
+    /* The last list this browser saw, kept only to avoid a flash: while the read is still on its way and the list named
+       this person last time, Workload holds a loader instead of painting the old calendar and then swapping. The hint
+       never turns the calm calendar on by itself (only the live answer does), and a read that fails or names nobody
+       clears it, so an unreadable switch ends on the old calendar. */
+    const WL_CALM_HINT_KEY = 'sv-wl-calm-staff';
+    function _wlCalmHintSave(f) {
+        try { if (f.calm.size) localStorage.setItem(WL_CALM_HINT_KEY, JSON.stringify(Array.from(f.calm))); else localStorage.removeItem(WL_CALM_HINT_KEY); } catch (e) {}
+    }
+    function _wlCalmHintSet() {
+        try {
+            const h = JSON.parse(localStorage.getItem(WL_CALM_HINT_KEY) || 'null');
+            return Array.isArray(h) ? new Set(h.filter(x => typeof x === 'string')) : null;
+        } catch (e) { return null; }
+    }
+    function _wlCalmHintHas() { const set = _wlCalmHintSet(); return !!set && set.size > 0 && _rsListed(set); }
+    let _wlCalmPendingShown = false;
+    function svWorkloadCalmPending() {
+        if (_isClientLink || _rsFlags.loaded || _rsFlagFailed) return false;
+        _rsPrime();
+        if (!_rsFlagPromise || !_wlCalmHintHas()) return false;
+        _wlCalmPendingShown = true;
+        return true;
+    }
     function svRsHelpUrl() { return _rsFlags.help || ''; }
 
     // The page's own chrome steps aside while the new page shows (it draws its own header).
@@ -358,6 +409,12 @@ import { currentNav } from './065-core-nav-intake-state.js';
                 // stage makes room for it (195 reads --rs-bar), so it covers neither the stage's buttons nor the client
                 // page's header (session Curtain Six).
                 + 'html:has(#svUpdateBar) #svReviewStage{--rs-bar:84px}';
+            // An approval's Undo must not sit over Finish on a short phone screen.
+            _rsChromeStyle.textContent += '@media (max-width:860px), (max-width:1023px) and (pointer:coarse){'
+                + 'html.sv-rs-kasper .sv-toast{top:max(12px,env(safe-area-inset-top,0px));bottom:auto}'
+                + 'html.sv-rs-kasper .sv-toast-action{min-width:44px;min-height:44px}'
+                + 'html.sv-rs-kasper body>.header :is(button,a,[role="button"]),html.sv-rs-kasper .kasper-subtab{min-width:44px!important;min-height:44px!important;box-sizing:border-box}'
+                + 'html.sv-rs-kasper body>.header .logo{display:inline-flex;align-items:center}}';
             document.head.appendChild(_rsChromeStyle);
         }
         de.classList.toggle('sv-rs-cal', !!on);
@@ -481,4 +538,4 @@ import { currentNav } from './065-core-nav-intake-state.js';
         if (document.getElementById('kasperContent')) svRsKasperHeadSync();
         if (document.getElementById('kasperReviewBody')) _kasperPaintReview();
     });
-export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics };
+export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };

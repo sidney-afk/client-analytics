@@ -28,13 +28,14 @@ async function main(){
   const p=await context.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));p.setDefaultTimeout(8000);captures.prepareCaptures(p);
   try{
    await p.goto('http://127.0.0.1:'+server.address().port);await p.waitForFunction(()=>typeof navTo==='function');await p.evaluate(()=>navTo('messages'));
-   await p.locator('.msg-conv').first().waitFor();assert.equal(await p.locator('.msg-conv').count(),12);
+   await p.locator('.msg-conv').first().waitFor();assert.equal(await p.locator('.msg-conv').count(),6,'The inbox opens on New: only the conversations with something new');
+   await shot(p,'messages-unread',width,theme);await p.getByRole('button',{name:'All',exact:true}).tap();assert.equal(await p.locator('.msg-conv').count(),12);
    await shot(p,'messages-inbox',width,theme);
    const tabs=p.locator('.pocket-staff-tabs-btn').filter({visible:true});await tabs.tap();
    const tile=p.locator('dialog[open] [data-nav=navMessages]');assert(await tile.getByText('Messages',{exact:true}).isVisible(),'Messages has its stable label');
    assert(await tile.locator('svg').isVisible(),'Messages has its native icon');await shot(p,'messages-tabs',width,theme);await p.keyboard.press('Escape');
    const search=p.getByRole('searchbox',{name:'Search conversations'});await search.fill('A calmer start');assert.equal(await p.locator('.msg-conv').count(),1);await shot(p,'messages-search',width,theme);await search.fill('');
-   await p.getByRole('button',{name:/^Unread/}).tap();assert.equal(await p.locator('.msg-conv').count(),6);await shot(p,'messages-unread',width,theme);await p.getByRole('button',{name:'All',exact:true}).tap();
+   await p.getByRole('button',{name:/^New/}).tap();assert.equal(await p.locator('.msg-conv').count(),6);await p.getByRole('button',{name:'All',exact:true}).tap();assert.equal(await p.locator('.msg-conv').count(),12);
    await p.locator('[data-msg-conv="message-fixture-0"]').tap();await p.getByRole('button',{name:'Back to conversations'}).waitFor();
    const title=await p.locator('.msg-chat-titles').boundingBox();assert(title.width>=150&&title.height<=80,'Thread title has readable width without wrapping one letter per line');
    assert(await p.getByText('New messages',{exact:true}).isVisible(),'Thread opens at the unread boundary');

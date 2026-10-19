@@ -1862,7 +1862,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (S.editing === x.key) d = '<span class="dst busy">' + RI.pen + 'Editing the ' + n + '</span>';
         else if (_rsWriting(x) && S.note.where === 'stage') d = null;
         else if (_rsWriting(x)) d = '<span class="dst wr">' + RI.pen + 'Writing a change to the ' + n + ' in the conversation</span>';
-        else if (saving) d = _rsActions(x, S.pressed[m.id + '|' + x.key] || 'ok');
+        // The pressed button names its result only while the save is the one that button started. A note or an edit
+        // saving on a waiting part leaves the buttons as they were (waiting, disabled), never reading "Approved"
+        // (review of #2235); on a part already answered, the answer shows.
+        else if (saving && (S.pressed[m.id + '|' + x.key] || x.st === 'wait')) d = _rsActions(x, S.pressed[m.id + '|' + x.key] || 'wait');
         else if (x.st === 'ok' && R.mode === 'smm') d = '<span class="dst ok"><span class="ck' + (x.route === 'client' ? ' tocl' : '') + '">' + (x.route === 'client' ? RI.skip : RI.check) + '</span>Approved to ' + (x.route === 'client' ? 'client' : 'Kasper') + '</span><button class="qlink o" type="button" data-again="' + x.key + '">Change my mind</button>';
         else if (x.st === 'ok') d = '<span class="dst ok"><span class="ck">' + (x.dec === 'aat' ? RI.aat : RI.check) + '</span>' + (x.dec === 'aat' ? 'Approved after tweaks' : 'Approved') + (x.when ? ' <span class="when">' + _re(_rsWhen(x.when)) + '</span>' : '') + '</span><button class="qlink o" type="button" data-again="' + x.key + '">Change my mind</button>';
         else if (x.st === 'chg' && x.frame) d = '<span class="dst chg"><span class="ck chg">' + RI.frame + '</span>Tweaks are on Frame</span>' + (m.post.asset_url ? '<a class="rlink" href="' + _re(m.post.asset_url) + '" target="_blank" rel="noopener noreferrer">' + RI.ext + 'Your notes in Frame.io</a>' : '');
@@ -2083,7 +2086,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 else { if (Date.now() - t0 < RS_PRE_MS) setTimeout(tick, 50); return; }
             }
             if (!_rsSaving(cur, comp)) {
-                delete S.slow[key];
+                delete S.slow[key]; delete S.pressed[key];
                 const part = (cur.parts || []).find(p => p.key === comp);
                 const st = part ? part.st : '';
                 const landed = !want || (want === 'ok' ? st === 'ok' : (st === 'chg' || st === 'tweak'));
@@ -2159,6 +2162,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         drain();
     }
     function _rsSendNoteNow(m, comp, text, vis) {
+        delete R.S.pressed[m.id + '|' + comp];   // a stale "Approved" must not label this note's save
         if (R.mode === 'kasper') {
             if (m.sample) { window._sxrKasperState.drafts[m.id + '|' + comp] = text; window._sxrKasperAddCommentComp(m.id, comp); return; }
             const it = _rsItem(m);

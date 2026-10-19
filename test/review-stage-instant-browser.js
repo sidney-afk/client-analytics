@@ -130,6 +130,44 @@ async function refused(browser, origin, mode) {
   await t.ctx.close();
 }
 
+// Review of #2235: honest labels and exactly-once writes while a part is saving.
+async function honest(browser, origin) {
+  console.log('--- client: a note never reads "Approved"; one write per action; queued notes go once, in order ---');
+  const t = await openMode(browser, origin, 'client', 1440);
+  t.state.writeDelay = 1200; t.state.gatewayDelay = 1200;
+  // 1. A plain note on a waiting part: the Approve button must not say "Approved" while the note saves.
+  await inS(t.page, '#chat #ta').fill('Just a note, not approving.');
+  await inS(t.page, '#chat #cmtBtn').click();
+  await sleep(300);
+  const lab = await inS(t.page, '[data-ok="video"]').textContent();
+  expect(!/Approved/.test(lab), 'a note on a waiting part does not make the Approve button read "Approved" (reads "' + lab.trim() + '")');
+  await quiet(t); await sleep(400);
+  expect(await t.page.evaluate(() => calState.posts[0].video_status) === 'Client Approval', 'the part is still waiting after the note');
+  // 2. Double click on Approve: one status write to the gateway, one answer.
+  const g0 = t.state.gateway.length;
+  await inS(t.page, '[data-ok="video"]').dblclick();
+  await sleep(150);
+  // 3. Two notes written while that approve is still saving: both show at once, both are sent once, in the order written.
+  await inS(t.page, '#chat #ta').fill('First queued note.');
+  await inS(t.page, '#chat #cmtBtn').click();
+  await inS(t.page, '#chat #ta').fill('Second queued note.');
+  await inS(t.page, '#chat #cmtBtn').click();
+  await sleep(150);
+  const chat = await inS(t.page, '#chat').textContent();
+  expect(/First queued note\./.test(chat) && /Second queued note\./.test(chat), 'both queued notes are in the conversation at once');
+  t.state.writeDelay = 0; t.state.gatewayDelay = 0;
+  await quiet(t); await sleep(1500); await quiet(t);
+  expect(t.state.gateway.length - g0 === 1, 'a double click on Approve makes one status write (' + (t.state.gateway.length - g0) + ')');
+  const last = t.state.upserts[t.state.upserts.length - 1] || {};
+  const tw = String(last.video_tweaks || '');
+  const n1 = (tw.match(/First queued note\./g) || []).length, n2 = (tw.match(/Second queued note\./g) || []).length;
+  expect(n1 === 1 && n2 === 1, 'each queued note reached the server exactly once (' + n1 + ', ' + n2 + ')');
+  expect(tw.indexOf('First queued note.') > -1 && tw.indexOf('First queued note.') < tw.indexOf('Second queued note.'), 'in the order they were written');
+  expect(await t.page.evaluate(() => calState.posts[0].video_status) === 'Approved', 'and the approval stands');
+  expect(t.errors.length === 0, 'no page errors (' + t.errors.join(' | ') + ')');
+  await t.ctx.close();
+}
+
 (async () => {
   const server = await serveStatic();
   const origin = 'http://127.0.0.1:' + server.address().port;
@@ -137,6 +175,7 @@ async function refused(browser, origin, mode) {
   try {
     for (const width of [1440, 390]) for (const mode of ['client', 'smm', 'kasper']) await run(browser, origin, mode, width);
     for (const mode of ['smm']) await refused(browser, origin, mode);
+    await honest(browser, origin);
   } finally { await browser.close(); server.close(); }
   if (failures.length) { console.error('\n' + failures.length + ' failure(s)'); process.exit(1); }
   console.log('\nreview stage instant answers: all passed');

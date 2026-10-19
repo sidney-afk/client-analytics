@@ -1883,6 +1883,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-instant-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js), with every save made slow so nothing on screen can come from the server. Approve, Approve to Kasper or client, Ask for a change, a note and Finish reviewing must be on screen within 150 ms of the click on the client link, the managers' Review tab and Kasper's Review Session, at 1440 and 390, and a refused save must put the part back with Try again.",
+      "reproduce": "node test/review-stage-instant-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-finish-polish-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

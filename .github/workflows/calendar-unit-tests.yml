@@ -970,6 +970,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-gauntlet2-browser.js
+      - name: The review page answers every approve, change and note at once (under 150 ms, three modes, phone and desktop, slow server)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-instant-browser.js
       - name: The client review page, finishing touches (Finish waits while saving, plain not-saved words, speed button, opens on Review, thumbnails open the viewer, words kept across a reload)
         if: ${{ !cancelled() }}
         env:

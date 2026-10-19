@@ -18,6 +18,16 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Approve and Ask for a change answer at once (session Swift, 2026-10-19): PR open
+
+Owner request: nothing may slow the moment someone approves, sends on or asks for a change. Measured in the offline fixture
+(live not measured: no test-client link or staff sign-in was handed to the session): the page already reacted in about 20 ms, but
+the pressed button showed only a spinner on its old words until the server answered. Now it says its result at once
+("Approved", "Approved to Kasper", "Change asked"); confirmation polls and pauses are shorter (50 ms, 400 ms, 40 ms); a note sent
+while the same part is still saving used to be lost and is now queued and sent when that save ends. The two writes of a save (status
+write, then card write) stay in their order. Test: `node test/review-stage-instant-browser.js` (fails on main). OPEN_REPAIRS 438.
+Still to do: re-measure on the live site with the test client after merge.
+
 ## Client link in a dark browser (session Dusk, 2026-10-18): PR open
 
 Owner report: with dark saved, opening the client review showed a white loading screen, not in the page's shape. Four

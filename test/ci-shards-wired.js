@@ -3,10 +3,11 @@
  * The Calendar unit tests workflow runs its slow jobs as parallel parts
  * (2026-10-17, session Turbo). Splitting a job must never drop a suite or run
  * one twice. This checks, from the workflow text:
- *   1. every test step of a split job runs in exactly one part that exists,
- *      or in every part when the step splits itself (--shard / UNIT_SHARD);
- *   2. every part runs at least one test step;
- *   3. a self-splitting step's denominator equals the number of parts;
+ *   1. every test command of a split job (a line of its lane step, see
+ *      scripts/ci-lanes.js) runs in exactly one part that exists; the phone
+ *      state inventory's four quarters each run once per width;
+ *   2. every part runs at least one test command;
+ *   3. the unit job's UNIT_SHARD denominator equals its number of parts;
  *   4. test/run-all.js and qa/staff-phone-final-pass.js partition their lists
  *      exactly once across the parts (the same rule, run here on numbers);
  *   5. every split or skippable job feeds calendar-ci-result, the one check
@@ -22,14 +23,20 @@ const WF = fs.readFileSync(path.join(ROOT, '.github/workflows/calendar-unit-test
 const { jobBlock } = require('../scripts/ci-changes');
 let checks = 0;
 
-function steps(block) {
+// A split job now runs its checks inside lane steps (scripts/ci-lanes.js): one
+// step per part, its commands listed `name|command` between <<'LANES' and LANES.
+function laneSteps(block) {
   const body = block.slice(block.indexOf('\n    steps:\n') + '\n    steps:\n'.length);
-  return body.split(/\n(?=      - )/).filter(s => /^\s*- /.test(s)).map(s => ({
-    text: s,
-    name: (s.match(/- name: (.*)/) || [])[1] || (s.match(/- uses: (.*)/) || [])[1] || '',
-    if: (s.match(/\n        if: (.*)/) || [])[1] || '',
-    runs: /\n        run:|^      - name:[\s\S]*\n        run:/.test(s) && /node /.test(s),
-  }));
+  return body.split(/\n(?=      - )/).filter(s => /ci-lanes\.js/.test(s)).map(s => {
+    const lanes = Number((s.match(/--lanes=(\d+)/) || [])[1]);
+    const text = (s.match(/<<'LANES'\n([\s\S]*?)\n\s*LANES/) || [])[1] || '';
+    return {
+      name: (s.match(/- name: (.*)/) || [])[1] || '',
+      if: (s.match(/\n        if: (.*)/) || [])[1] || '',
+      lanes,
+      cmds: text.split('\n').map(l => l.trim()).filter(Boolean).map(l => ({ name: l.slice(0, l.indexOf('|')), cmd: l.slice(l.indexOf('|') + 1) })),
+    };
+  });
 }
 function matrixList(block, key) {
   const m = block.match(new RegExp('\\n        ' + key + ': \\[([^\\]]*)\\]'));
@@ -37,34 +44,50 @@ function matrixList(block, key) {
   return m[1].split(',').map(x => Number(x.trim()));
 }
 
+// job -> the matrix key that names its parts. Every part is one lane step.
 const SPLIT = {
   'entry-links-boot': { key: 'part' },
-  'staff-phone-rules': { key: 'part', self: /--shard=\$\{\{ matrix\.part \}\}\/(\d+)/ },
-  'split-preview': { key: 'part' },
-  'unit': { key: 'shard', self: /UNIT_SHARD: \$\{\{ matrix\.shard \}\}\/(\d+)/ },
+  'browser-guards': { key: 'part' },
+  'staff-phone-rules': { key: 'part', quarters: 4 },
+  // The two parts run the same gates against two different builds of the page, on purpose.
+  'split-preview': { key: 'part', sameInEveryPart: true },
 };
 for (const [job, spec] of Object.entries(SPLIT)) {
   const block = jobBlock(WF, job);
   const parts = matrixList(block, spec.key);
   assert.deepEqual(parts, parts.map((_, i) => i + 1), `${job}: parts must be 1..n`);
+  const seenCmd = new Map();
   const used = new Set();
-  for (const st of steps(block)) {
-    if (!st.runs) continue;
-    const self = spec.self && st.text.match(spec.self);
+  const quarters = [];
+  for (const st of laneSteps(block)) {
     const pick = st.if.match(new RegExp('matrix\\.' + spec.key + ' == (\\d+)'));
-    if (self) {
-      assert.equal(Number(self[1]), parts.length, `${job}: "${st.name}" splits itself into ${self[1]} but the job has ${parts.length} parts`);
-      assert(!pick, `${job}: "${st.name}" splits itself, so it must run in every part`);
-      parts.forEach(p => used.add(p));
-    } else if (pick) {
-      assert(parts.includes(Number(pick[1])), `${job}: "${st.name}" runs in part ${pick[1]}, which does not exist`);
-      used.add(Number(pick[1]));
-    } else {
-      assert.fail(`${job}: test step "${st.name}" has no part: it would run in every part (twice or more) or be dropped`);
+    assert(pick, `${job}: lane step "${st.name}" has no part: it would run in every part (twice or more)`);
+    const part = Number(pick[1]);
+    assert(parts.includes(part), `${job}: "${st.name}" runs in part ${part}, which does not exist`);
+    assert(!used.has(part), `${job}: part ${part} has two lane steps`);
+    used.add(part);
+    assert(st.lanes >= 1 && st.lanes <= 4, `${job}: "${st.name}" runs ${st.lanes} lanes; 4 is the most a 4-CPU runner is measured to hold`);
+    assert(st.cmds.length > 0, `${job}: part ${part} runs no test`);
+    for (const c of st.cmds) {
+      assert(c.name && /\bnode\s/.test(c.cmd), `${job}: lane line "${c.name}" needs a name and a node command`);
+      assert(spec.sameInEveryPart || !seenCmd.has(c.cmd), `${job}: "${c.cmd}" runs in part ${seenCmd.get(c.cmd)} and part ${part}`);
+      seenCmd.set(c.cmd, part);
+      const q = c.cmd.match(/--shard=(\d+)\/(\d+)/);
+      if (q) { assert.equal(Number(q[2]), spec.quarters, `${job}: "${c.name}" splits into ${q[2]} but the job expects ${spec.quarters}`); quarters.push(Number(q[1])); }
+      checks++;
     }
-    checks++;
   }
-  for (const p of parts) assert(used.has(p), `${job}: part ${p} runs no test step`);
+  for (const p of parts) assert(used.has(p), `${job}: part ${p} has no lane step`);
+  if (spec.quarters) assert.deepEqual(quarters.sort(), Array.from({ length: spec.quarters }, (_, i) => i + 1), `${job}: the ${spec.quarters} quarters of the state inventory must each run exactly once per width`);
+}
+// unit splits itself: test/run-all.js runs every third suite per part (UNIT_SHARD).
+{
+  const block = jobBlock(WF, 'unit');
+  const parts = matrixList(block, 'shard');
+  assert.deepEqual(parts, parts.map((_, i) => i + 1), 'unit: parts must be 1..n');
+  const m = block.match(/UNIT_SHARD: \$\{\{ matrix\.shard \}\}\/(\d+)/);
+  assert(m && Number(m[1]) === parts.length, `unit: UNIT_SHARD denominator must equal the ${parts.length} parts`);
+  checks++;
 }
 
 // The same partition rule the two self-splitting runners use, on numbers.

@@ -55,16 +55,18 @@ Per kind of pull request (median wall time from the first check queued to the la
    Messages inbox Edge Function code). Page code, the build, `package.json`, the shared browser helpers and the
    workflow itself run everything. Anything unknown runs everything. **A push to main or a manual run always runs
    every suite.** Guarded by `test/ci-changes.js`.
-2. **Parallel parts.** entry-links-boot in 4 parts, staff-phone-rules in 4 parts per width, split-preview in 2, unit in
-   3 (`UNIT_SHARD=k/n` in `test/run-all.js`). Steps were placed from the measured step times so parts finish together.
-   `test/ci-shards-wired.js` fails when a step has no part, names a part that does not exist, or a self-splitting
-   step's count does not match the parts.
+2. **Parallel parts.** entry-links-boot in 3 parts, browser-guards in 2, staff-phone-rules in 2 parts per width,
+   split-preview in 2, unit in 3 (`UNIT_SHARD=k/n` in `test/run-all.js`). Since 2026-10-19 (session Express) each
+   browser part runs three of its suites side by side on its 4-CPU runner (`scripts/ci-lanes.js`; the suites mostly
+   wait on timers), so the same suites need fewer, shorter jobs. `test/ci-shards-wired.js` fails when a lane
+   command has no part, runs in two parts, names a part that does not exist, or the four quarters of the phone
+   state inventory are not each run once per width; a unit job's count must match its parts.
 3. **`calendar-ci-result`**: one check that is red when any job failed or was cancelled, and green when every job
    passed or was skipped as not needed. **This is the check to require** if the owner ever adds required checks: a
    matrix job that is skipped shows only its bare name, so requiring `entry-links-boot (1)` would stay pending.
    (Today the `protect-main` ruleset requires a pull request but no status checks.)
 4. **A new push to a pull request cancels the run it replaces.** Main pushes are grouped by commit and never cancelled.
-5. Steps inside a part keep running after one fails, so one red run names every broken suite.
+5. Suites inside a part keep running after one fails (`scripts/ci-lanes.js` runs every command and fails the job if any failed), so one red run names every broken suite.
 
 Larger runners: not used. GitHub's larger runners need an organisation on the Team or Enterprise plan (this repository
 belongs to a personal account), and they cost money per minute even on public repositories (about $0.032 a minute for

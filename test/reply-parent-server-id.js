@@ -15,8 +15,9 @@ const ok = (c, m) => { console.log((c ? '  ok  ' : 'FAIL  ') + m); if (!c) failu
 
 const src = extractFunction(INDEX, '_prodServerParentRef');
 let canon = [];
-const _prodComments = { rows: () => canon };
-const fn = new Function('_prodComments', src + '; return _prodServerParentRef;')(_prodComments);
+ok(!/_prodComments/.test(src.replace(/\/\*[\s\S]*?\*\//g, '')), 'mapping lives in the always-loaded part and needs no lazy module');
+const fn0 = new Function(src + '; return _prodServerParentRef;')();
+const fn = (d, p, l) => fn0(canon, p, l);
 
 const legacy = [
   { id: 'c_old_1', parent_id: null, role: 'client', body: 'Same q', created_at: '2026-10-19T19:08:37.424Z' },
@@ -32,8 +33,20 @@ ok(fn('del_1', 'pc_a', legacy) === 'pc_a', 'canonical id is left alone');
 ok(fn('del_1', 'c_zzz', legacy) === 'c_zzz', 'unknown id with no legacy row is sent unchanged');
 canon = [];
 ok(fn('del_1', 'c_old_1', legacy) === 'c_old_1', 'no canonical read yet: unchanged');
+const L = [{ id: 'c_x', parent_id: null, role: 'client', body: 'Same', audience: 'client', component: 'video', created_at: '2026-10-19T19:08:00Z' }];
+canon = [
+  { id: 'pc_v', parent_id: null, role: 'client', body: 'Same', audience: 'client', component: 'video', created_at: '2026-10-19T19:12:00Z' },
+  { id: 'pc_g', parent_id: null, role: 'client', body: 'Same', audience: 'client', component: 'graphic', created_at: '2026-10-19T19:12:00Z' }
+];
+ok(fn('d', 'c_x', L) === 'pc_v', 'two identical notes on different components: the same component wins');
+canon = [canon[0], Object.assign({}, canon[0], { id: 'pc_v2' })];
+ok(fn('d', 'c_x', L) === 'c_x', 'two equally good matches: parent left unchanged');
+canon = [{ id: 'pc_i', parent_id: null, role: 'client', body: 'Same', audience: 'internal', component: 'video', created_at: '2026-10-19T19:12:00Z' }];
+ok(fn('d', 'c_x', L) === 'c_x', 'different audience: no match');
+canon = [{ id: 'pc_late', parent_id: null, role: 'client', body: 'Same', audience: 'client', component: 'video', created_at: '2026-10-20T19:12:00Z' }];
+ok(fn('d', 'c_x', L) === 'c_x', 'a day apart: no match');
 for (const f of ['140-calendar-legacy-outbox', '290-samples-writes-review']) {
   const s = fs.readFileSync(path.join(__dirname, '..', 'src/index', f + '.js.part'), 'utf8');
-  ok(/_prodServerParentRef\(nativeId/.test(s), f + ' sends the server parent id');
+  ok(/_prodServerParentRef\(_prodComments\.rows\(nativeId\)/.test(s) && !/typeof _prodServerParentRef/.test(s), f + ' sends the server parent id, no lazy-area guard');
 }
 process.exit(failures ? 1 : 0);

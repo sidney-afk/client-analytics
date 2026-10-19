@@ -66,6 +66,7 @@ function context(authority, mutate) {
         _writeUiSourceClientSlug() { return 'aclient'; },
         _writeUiBuildSourceRepair() { return null; },
         _writeUiIntentId(a, b, parts) { return [a, b].concat(parts || []).join(':'); },
+        _prodServerParentRef: (canon, parent) => parent, _prodComments: { rows: () => [] }, _calCommentsFor: () => [], _sxrCommentsFor: () => [],
         async _writeUiGatewayWithRepair(intent) { calls.gateway.push(intent); return { native_committed: true }; },
         _calLegacyPostLinearComment(url, body) { calls.legacy.push({ url, body }); },
         _calCurrentAuthor() { return 'Kasper'; },

@@ -117,6 +117,7 @@ function extractBlock(text, start) {
     _writeUiTeam: component => component === 'graphic' ? 'graphics' : 'video',
     _writeUiIntentId: (surface, operation, parts) =>
       [surface, operation].concat(parts || []).join(':'),
+    _prodServerParentRef: (canon, parent) => parent, _prodComments: { rows: () => [] },
     _writeUiGatewayWithRepair: async intent => {
       captured.push(intent);
       return { ok: true };

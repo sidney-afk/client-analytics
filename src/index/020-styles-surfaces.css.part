@@ -8655,8 +8655,6 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
  .wl-calm-pop .wl-calm-link:hover { color: var(--text-primary); text-decoration: underline; text-underline-offset: 2px; }
  .wl-calm-pop .workload-popover-close { width: 32px; height: 32px; margin: -4px -6px -4px 0; }
  .wl-calm-pop .workload-popover-close svg { width: 12px; height: 12px; }
- .wl-calm-pop .wl-calm-frame { display: flex; align-items: center; gap: 6px; padding: 0 0 8px; font-size: 0.66rem; font-weight: 600; color: var(--sv-fg-92400e); }
- .wl-calm-pop .wl-calm-frame svg { width: 12px; height: 12px; }
  .wl-calm-pop .wl-calm-rows { display: flex; flex-direction: column; gap: 12px; padding-top: 2px; }
  .wl-calm-pop .wl-calm-empty { color: var(--text-muted); font-size: 0.72rem; }
  .wl-calm-pop .wl-calm-row { display: flex; flex-direction: column; gap: 2px; font-size: 0.78rem; }

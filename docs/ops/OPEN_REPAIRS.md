@@ -33668,3 +33668,11 @@ Test: `node test/client-link-dark-first-paint-browser.js` (fails on main, passes
 - **Tests.** `test/review-stage-instant-browser.js` (new; every action, three modes, 1440 and 390, fails above 150 ms; fails on main). `review-stage-save-browser.js` case 1 now waits for the save to land before reading the server (the words arrive earlier now).
 
 **Way back:** revert the pull request.
+
+## 448. [2026-10-19, BUILT, NOT MERGED] Calm Workload popover: one "Linear →" link, no Templates, no Frame.io line (session Calm Three)
+
+- **Asked by the owner** after looking at Calm: the client popover header showed two links ("Open SyncView →" or "Open parent →", and "Templates") and a yellow "Always check Frame.io too." line. Nobody uses Templates, and Linear is cancelled.
+- **Changed, Calm only.** `wlCalmPopoverHtml` (`src/index/072-workload-calm.js.part`) now draws one link labelled "Linear →" with the same target as before (parent or batch versus the single item); the Templates link, the dead Linear link and the Frame.io line are gone, and the unused `.wl-calm-frame` style is removed. The old popover in `090-workload-popovers.js.part` is untouched, so staff not on `workload_calm_staff` see exactly what they saw.
+- **Tests.** `docs/syncview-design/tests/workload-calm-interactions-browser.js` (new, wired in `calendar-unit-tests.yml`) clicks every pill and chip, closes by X, Escape and outside click, folds Needs assignment, drives the View menu and week arrows, at 1440, 390 and in dark, with no console errors, and asserts a non-Calm member still sees Templates and the Frame.io line. `workload-calm-browser.js` now asserts the Frame.io line is gone.
+
+**Way back:** revert the pull request.

@@ -309,26 +309,21 @@ import { svWorkloadCalmOn, svWorkloadCalmPending } from './188-review-stage-swit
     function wlCalmGroupOpen(key) { return _openGroups.has(key); }
 
     // ── The flat popover (editor totals, status pills, the matrix chips, the phone list) ────────────────────────────
-    /* No box around any section: a header line, one muted Frame.io line when tweaks are listed, then the same rows the
+    /* No box around any section: a header line with one "Linear →" link (SyncView's own Linear page), then the same rows the
        day uses, each with its feedback notes beneath. `o.tweakBox(s)` is the loading placeholder the feedback read fills. */
     function wlCalmPopoverHtml(o) {
         const link = (href, text, extra) => '<a class="wl-calm-link" href="' + wlEscape(href) + '" target="_blank" rel="noopener noreferrer"' + (extra || '') + '>' + text + '</a>';
         const head = '<div class="wl-calm-pop-head">'
             + '<span class="wl-calm-pop-title">' + wlEscape(o.headerTitle || '') + '</span>'
             + '<span class="wl-calm-pop-links">'
-            + (o.parentSyncUrl ? link(o.parentSyncUrl, wlEscape(o.openLabel || 'Open SyncView →')) : '')
-            + (o.templatesUrl ? link(o.templatesUrl, 'Templates', ' aria-label="' + wlEscape('Open ' + (o.clientName || '') + ' templates in a new tab') + '"') : '')
-            + (o.openLinearUrl ? link(o.openLinearUrl, 'Linear ↗') : '')
+            + (o.parentSyncUrl ? link(o.parentSyncUrl, 'Linear →') : '')
             + '</span>'
             + '<button type="button" class="workload-popover-close" data-wl-popover-close="1" aria-label="Close">' + WL_CALM_ICON.close + '</button>'
             + '</div>';
-        const frame = o.frameNote
-            ? '<div class="wl-calm-frame" data-tip="Tweaks left as Frame.io comments can’t be shown here. The notes below are the ones sent through SyncView.">' + WL_CALM_ICON.warn + '<span>Always check Frame.io too.</span></div>'
-            : '';
         const rows = (o.subs || []).map(s => wlCalmRowHtml(s, { planDate: wlDisplayDate(s) || '', showClient: o.showClient })
             + (wlIsTweaksNeeded(s) ? o.tweakBox(s) : '')).join('')
             || '<div class="wl-calm-empty">Nothing upcoming.</div>';
-        return head + frame + '<div class="wl-calm-rows">' + rows + '</div>';
+        return head + '<div class="wl-calm-rows">' + rows + '</div>';
     }
 
     // ── Wiring: one listener set on the page's root, added once ─────────────────────────────────────────────────────

@@ -93,7 +93,19 @@ for (const f of ['src/index/195-review-stage.js.part', 'src/index/188-review-sta
   'scripts/build-index.js', 'package.json', '.github/workflows/calendar-unit-tests.yml', 'test/helpers/single-file-index.js']) {
   expectRun([f], ['browser', 'review'], 'the review page, its suites, or the build every suite shares');
 }
-for (const f of ['src/index/160-calendar-organize-ui.js.part', 'qa/staff-phone-collections.js', 'test/tiktok-upload-steps-browser.js']) {
+// Shared page code fails safe (Codex on #2242): styles, head, boot and any part a
+// review part imports, directly or not, run the review suites.
+for (const f of ['src/index/020-styles-surfaces.css.part', 'src/index/010-styles-foundation.css.part', 'src/index/005-head-boot.html.part',
+  'src/index/040-shared-briefs.js.part', 'src/index/131-core-html.js.part', 'src/index/160-calendar-organize-ui.js.part', 'src/index/manifest.txt',
+  'src/index/999-brand-new-part.js.part']) {
+  expectRun([f], ['browser', 'review'], 'shared page code the review page can load');
+}
+// A Workload-only change (the page parts of a PR like #2241, without its 020 styles edit) cannot reach the review page.
+expectSkip(['src/index/069-workload-planning-helpers.js.part', 'src/index/080-workload-render.js.part', 'docs/syncview-design/tests/workload-calm-browser.js'], ['review'], 'Workload only');
+expectRun(['src/index/069-workload-planning-helpers.js.part', 'src/index/020-styles-surfaces.css.part'], ['review'], 'one styles file is enough');
+assert(c.reviewParts().has('src/index/195-review-stage.js.part') && c.reviewParts().has('src/index/040-shared-briefs.js.part'), 'the review import graph reaches the shared parts');
+checks++;
+for (const f of ['src/index/080-workload-render.js.part', 'qa/staff-phone-collections.js', 'test/tiktok-upload-steps-browser.js']) {
   expectRun([f], ['browser'], 'page code still runs the browser suites');
   expectSkip([f], ['review'], 'not the review page: its full Gauntlet Three runs after merge on main');
 }

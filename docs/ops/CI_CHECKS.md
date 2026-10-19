@@ -33,8 +33,8 @@ Minutes are the job's own run time from Actions (main run 39262592453 and the pu
 | repair-checkpoint (seat guards-1) | Checkpoint ownership on three engines | Page or browser plumbing changed | 2.4 | Keep, area-gated |
 | **review-stage-phones** (now seat guards-2) | Client and staff review on iPhone and Android | **Review page changed** (was: any page change) | 12 to 14 | **Reduced to review PRs; always on main.** Moved to the lighter guards seat |
 | **review-gauntlet-pr** (new, seat guards-1) | Gauntlet Three on chromium at 1440: both roles and the YouTube title, every condition | **Review page changed** | about 6 to 7 (estimate) | **New reduced PR form.** Its three halves run side by side |
-| **review-gauntlet-three** (9 legs) | Same checks on chromium, firefox and webkit at 1024, 1440, 1920 | **Never on a PR; every push to main** (3 legs at a time) | 11 to 23 per leg | **Moved after merge.** A red main run pages the alert channel |
-| calendar-ci-result | Sums the run up; the one required check | Always | 0 | Keep. Now also pages the alert channel when main is red |
+| **review-gauntlet-three** (9 legs) | Same checks on chromium, firefox and webkit at 1024, 1440, 1920 | **Never on a PR; every push to main** (3 legs at a time) | 11 to 23 per leg | **Moved after merge.** It fails main's run (see the open decision below) |
+| calendar-ci-result | Sums the run up; the one required check | Always | 0 | Keep, unchanged |
 | Production polish gate, fast lane | Production tab against the live backend | `src/index/**`, build, `docs/syncview-design/**` | 10 | Keep, already path-gated. Its heavy lanes already run only after merge |
 | Pages site | The published site builds and its allowlist holds | Page files and site assets | 3 to 4.5 | Keep, path-gated, runs in parallel |
 | PTO UI browser checks | Time-off screens | Page, PTO function and migrations | 2 to 3 | Keep, path-gated |
@@ -46,13 +46,19 @@ Minutes are the job's own run time from Actions (main run 39262592453 and the pu
 
 Nothing was dropped: no check is a duplicate of another. Two checks moved from "every page pull request" to
 "review-page pull requests", and the eight Gauntlet legs that are not chromium 1440 moved to "every push to main".
-Coverage after merge is unchanged: main still runs every suite in full, now with an alert when it goes red.
+Coverage after merge is unchanged: main still runs every suite in full.
 
-**What counts as a review-page change** (`review` in `scripts/ci-changes.js`): a file under `src/`, `test/`, `qa/`,
-`docs/syncview-design/` or `supabase/functions/` whose name says review, notes or comment (the review stage, the
-approval comments, Samples notes, the comment Edge Functions and their suites); any file the review suites read;
-or the build and shared browser plumbing (build scripts, `package.json`, `test/helpers`, `test/fixtures`, this
-workflow). A doc never counts.
+**Open owner decision: who hears about a red main run.** Checks moved after merge show up as a red Calendar run on main
+and GitHub's failed-run e-mail to whoever merged; nothing pages. A new notification needs the owner's go (AGENTS.md),
+so none was added. Options: a Slack post from `calendar-ci-result` on a red push, or a line in the combined problem message.
+
+**What counts as a review-page change** (`review` in `scripts/ci-changes.js`), failing safe: any page file that is
+not a JavaScript part (styles, head, boot, shell, manifest); any JavaScript part the review, notes or comment parts
+import, directly or through another part (the `import` lines of `src/index`, 52 of 66 parts today); any file whose
+name says review, notes or comment under `src/`, `test/`, `qa/`, `docs/syncview-design/` or `supabase/functions/`;
+any file the review suites read; or the build and shared browser plumbing. Only parts nothing on the review page
+reaches skip it: Workload (067, 069, 071, 072, 080, 090), templates (060), quick jump, the staff phone shell and
+bar, archive restore, Instagram and TikTok upload, the date picker. A doc never counts.
 
 **Why chromium at 1440 for the pull request form:** 1440 is the width the review page is used at most, chromium is
 the engine every other browser job already runs (so its install is the cheapest), and the single leg runs every
@@ -64,7 +70,7 @@ differences, and the 1024 and 1920 layouts, are caught on main within about an h
 | Kind of pull request | Before (measured) | After (estimate, no other PR queued) | After, one other PR ahead |
 |---|---|---|---|
 | Docs only | about 2 min | about 2 min | about 2 min |
-| One area, not the review page (e.g. #2241) | 2 h to 4 h+ (the Gauntlet's 140 min of seat time, queued behind other PRs) | about 12 to 15 min (slowest: guards seat 1 at about 11 min, polish gate 10) | about 20 to 25 min |
+| One area, not the review page (e.g. Workload only) | 2 h to 4 h+ (the Gauntlet's 140 min of seat time, queued behind other PRs) | about 12 to 15 min (slowest: guards seat 1 at about 11 min, polish gate 10) | about 20 to 25 min |
 | Review page (e.g. #2237) | same, 2 h 20 min of Gauntlet seat time alone | about 20 min (guards seats at about 18 to 20 min) | about 35 to 40 min |
 | Push to main | about 2 h 20 min (Gauntlet one leg at a time) | about 55 to 60 min (three legs at a time) | n/a |
 

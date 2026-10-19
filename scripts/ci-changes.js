@@ -52,6 +52,35 @@ function isReviewFile(f) {
   return /^(src|test|qa|docs\/syncview-design|supabase\/functions)\//.test(f)
     && /review|notes?|comment/i.test(f.replace(/^.*\//, '') + '/' + (f.match(/^supabase\/functions\/([^/]+)\//) || [])[1]);
 }
+// Page parts the review page runs: every review, notes or comment part and every part
+// they import, directly or through another part (the `import ... from './NNN-x.js'`
+// lines of src/index). Fail safe: any src/index file that is not a JavaScript part
+// (styles, head, boot, shell, manifest) counts, and so does any part this graph
+// reaches. Only a JavaScript part no review part can reach (Workload, Today,
+// onboarding and the like) is outside.
+let reviewPartsCache = null;
+function reviewParts() {
+  if (reviewPartsCache) return reviewPartsCache;
+  const dir = path.join(ROOT, 'src/index');
+  const parts = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => /\.js\.part$/.test(f)) : [];
+  const seen = new Set();
+  const stack = parts.filter(f => isReviewFile('src/index/' + f));
+  while (stack.length) {
+    const f = stack.pop();
+    if (seen.has(f)) continue;
+    seen.add(f);
+    const src = fs.existsSync(path.join(dir, f)) ? fs.readFileSync(path.join(dir, f), 'utf8') : '';
+    for (const m of src.matchAll(/from\s+['"]\.\/([\w.-]+)\.js['"]/g)) stack.push(m[1] + '.js.part');
+  }
+  return (reviewPartsCache = new Set([...seen].map(f => 'src/index/' + f)));
+}
+function isReviewPageCode(f) {
+  if (/^js\/|^index\.html$/.test(f)) return true;
+  if (!/^src\//.test(f)) return false;
+  if (!/^src\/index\/[^/]+\.js\.part$/.test(f)) return true;
+  return reviewParts().has(f) || !fs.existsSync(path.join(ROOT, f));
+}
+
 // The build and the plumbing every browser suite shares (isPageFile without the
 // page's own code and without the staff phone harnesses).
 function isBuildPlumbing(f) {
@@ -162,7 +191,7 @@ function decide(files, opts) {
   const browserBy = files.find(f => isPageFile(f) || !isOutsideBrowser(f) || c.browser.has(f) || c.phone.has(f) || browserReadsFn(f) || goneCode(f));
   const phoneBy = files.find(f => isPageFile(f) || isStaffPhoneFile(f) || c.phone.has(f) || phoneReadsFn(f) || (goneCode(f) && /^(qa|docs\/syncview-design)\//.test(f)));
   const review = c.review || new Set();
-  const reviewBy = files.find(f => isReviewFile(f) || isBuildPlumbing(f) || review.has(f));
+  const reviewBy = files.find(f => isReviewFile(f) || isReviewPageCode(f) || isBuildPlumbing(f) || review.has(f));
   return {
     browser: !!browserBy,
     phone: !!phoneBy,
@@ -191,7 +220,7 @@ function deletedFiles(base, head) {
   return out.split('\0').filter(Boolean);
 }
 
-module.exports = { REVIEW_JOBS, isReviewFile, isBuildPlumbing, isPageFile, isOutsideBrowser, suiteFiles, closureOf, closures, namesFunction, decide, changedFiles, deletedFiles, jobBlock };
+module.exports = { REVIEW_JOBS, isReviewFile, isReviewPageCode, reviewParts, isBuildPlumbing, isPageFile, isOutsideBrowser, suiteFiles, closureOf, closures, namesFunction, decide, changedFiles, deletedFiles, jobBlock };
 
 if (require.main === module) {
   const [event, base, head] = process.argv.slice(2);

@@ -118,8 +118,7 @@ ok(/\nconcurrency:\n {2}group: calendar-unit-tests-\$\{\{ github\.event_name == 
     'the reduced Gauntlet still runs both roles and the YouTube title matrix');
   ok(/\n {4}if: github\.event_name != 'pull_request'\n/.test(full), 'the full Gauntlet never queues on a pull request');
   ok(/engine: \[chromium, firefox, webkit\]/.test(full) && /width: \[1024, 1440, 1920\]/.test(full), 'the full Gauntlet keeps all nine legs after merge');
-  ok(/review-gauntlet-three\]/.test(jobBlock(WF, 'calendar-ci-result')) && /failure\(\) && github\.event_name == 'push'/.test(jobBlock(WF, 'calendar-ci-result')),
-    'a red main run (where the full Gauntlet runs) pages the alert channel');
+  ok(/review-gauntlet-three\]/.test(jobBlock(WF, 'calendar-ci-result')), 'the full Gauntlet feeds the one summing check on main');
 }
 
 // Seat names belong to this workflow alone, and no seat group anywhere can cancel.

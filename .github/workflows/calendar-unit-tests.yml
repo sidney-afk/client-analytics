@@ -56,8 +56,8 @@ name: Calendar unit tests
 # can change (`review` from scripts/ci-changes.js), as one job on chromium at 1440
 # with its three halves side by side (review-gauntlet-pr); the review phones are
 # gated the same way. Every push to main runs all nine legs (review-gauntlet-three)
-# and the review phones, whatever changed, and a red main run pages the alert
-# channel (calendar-ci-result). docs/ops/CI_CHECKS.md has the whole audit.
+# and the review phones, whatever changed. Whether a red main run should page
+# anyone is an open owner decision. docs/ops/CI_CHECKS.md has the whole audit.
 on:
   push:
     branches: [main]
@@ -783,7 +783,7 @@ jobs:
     # browser jobs already run; its three halves (client, reviewer, YouTube title)
     # side by side on one runner. Only when the review page can change. The other
     # eight engine and width legs run after merge, on every push to main
-    # (review-gauntlet-three below), and a red main run pages the alert channel.
+    # (review-gauntlet-three below).
     needs: changes
     if: github.event_name == 'pull_request' && needs.changes.outputs.review == 'true'
     runs-on: ubuntu-latest
@@ -881,18 +881,3 @@ jobs:
             echo "::error::Not green: $bad"
             exit 1
           fi
-      - name: Page the alert channel when main is red
-        # Checks moved off pull requests (session Pitstop) run here after merge, so a
-        # red main run must reach a person, not only the merger's e-mail.
-        if: failure() && github.event_name == 'push'
-        env:
-          SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          if [ -z "$SLACK_ALERT_WEBHOOK" ]; then
-            echo "::warning::SLACK_ALERT_WEBHOOK not configured; failed-run e-mail only."
-            exit 0
-          fi
-          curl -sS -X POST -H 'Content-Type: application/json' \
-            --data "{\"text\":\"[SyncView CI] Calendar unit tests FAILED on main after a merge (the full Gauntlet Three and every suite run here). Run: $RUN_URL\"}" \
-            "$SLACK_ALERT_WEBHOOK"

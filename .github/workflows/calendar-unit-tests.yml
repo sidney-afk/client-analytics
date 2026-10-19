@@ -554,6 +554,7 @@ jobs:
           Workload, signed out shows no board|node docs/syncview-design/tests/workload-signed-out-browser.js
           Calm Workload view behind its switch (one click to details, saves once)|node docs/syncview-design/tests/workload-calm-browser.js
           Calm Workload switch off leaves the old Workload byte-identical|node docs/syncview-design/tests/workload-calm-off-browser.js
+          Calm Workload, every click (pills, chips, one Open link, close three ways, folds, filters, weeks, dark, phone)|node docs/syncview-design/tests/workload-calm-interactions-browser.js
           Production list scrolls inside its frame|node docs/syncview-design/tests/prod-list-scroll-containment.js
           Instagram cover image|node test/instagram-cover-browser.js
           Calendar and Samples link boxes, Escape and Enter|node test/calendar-link-box-keys-browser.js

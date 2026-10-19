@@ -25,7 +25,7 @@ Owner request: nothing may slow the moment someone approves, sends on or asks fo
 the pressed button showed only a spinner on its old words until the server answered. Now it says its result at once
 ("Approved", "Approved to Kasper", "Change asked"); confirmation polls and pauses are shorter (50 ms, 400 ms, 40 ms); a note sent
 while the same part is still saving used to be lost and is now queued and sent when that save ends. The two writes of a save (status
-write, then card write) stay in their order. Test: `node test/review-stage-instant-browser.js` (fails on main). OPEN_REPAIRS 438.
+write, then card write) stay in their order. Test: `node test/review-stage-instant-browser.js` (fails on main). OPEN_REPAIRS 440.
 Still to do: re-measure on the live site with the test client after merge.
 
 ## Client link in a dark browser (session Dusk, 2026-10-18): PR open

@@ -25,6 +25,13 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same pull request replaces the run it supersedes (session
+# Express, 2026-10-19: 154 runs in 3 days, none ever cancelled, each holding four
+# runners while the account was full). Only pull requests run this workflow.
+concurrency:
+  group: linear-exit-preparation-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   isolated-preparation:
     name: Isolated PG17 ${{ matrix.lane }}

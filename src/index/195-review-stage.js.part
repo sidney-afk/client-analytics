@@ -484,7 +484,7 @@ svg{display:block;flex-shrink:0}
 .rc .rx{display:flex;flex-direction:column;gap:2px;min-width:0}
 .rc .rt{font-size:.82rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rc .rw{font-size:.74rem;color:var(--ok-ink);display:flex;align-items:center;gap:5px}
-.rc .rw.wt{color:var(--chg-fg)}
+.rc .rw.wt{color:var(--text-secondary)}
 .rc .rw svg{width:11px;height:11px}
 .tabpane{background:var(--deck);border:1px solid var(--deck-line);border-radius:16px;min-height:420px;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size:.9rem}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,8px);z-index:60;display:flex;align-items:center;gap:12px;padding:9px 9px 9px 14px;border-radius:12px;background:var(--toast-bg);color:var(--toast-fg);font-size:.82rem;font-weight:600;box-shadow:var(--shadow-md);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s var(--ease);max-width:calc(100vw - 32px)}
@@ -652,7 +652,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .chipp.k .cx{gap:3px}
 .chipp.urgc{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--urgent) 28%,transparent)}
 .chipp.urgc.cur{box-shadow:0 0 0 1px color-mix(in srgb,var(--urgent) 45%,transparent),var(--shadow-sm)}
-.chipp.edc .cm{color:var(--chg-fg)}
+.chipp .cn .ck,.qp-row .cn .ck,.rc .rt .ck{color:var(--text-primary)}
+.chipp .cn .ct,.qp-row .cn .ct,.rc .rt .ct{font-weight:500}
 .tag{display:inline-flex;align-items:center;height:16px;padding:0 6px;border-radius:5px;background:var(--tag-bg);color:var(--tag-fg);font-size:.62rem;font-weight:700;flex-shrink:0}
 .sd-cl{display:inline-flex;align-items:center;gap:8px;font-size:.8rem;font-weight:700;color:var(--text-secondary)}
 .sd-cl .avatar{width:22px;height:22px;border-radius:6px;background:var(--accent-soft);color:var(--accent-ink);font-size:.6rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
@@ -743,7 +744,6 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .qp-row .cm>span{overflow:hidden;text-overflow:ellipsis}
 .qp-row .cm svg{width:11px;height:11px;flex-shrink:0}
 .qp-row .cm.urg{color:var(--urgent);font-weight:600}
-.qp-row .cm.edc{color:var(--chg-fg)}
 .qp-ping{flex-shrink:0;margin-right:6px;height:30px;padding:0 10px;border-radius:8px;font-size:.74rem}
 .qp-empty{padding:4px 10px 10px;font-size:.78rem;color:var(--text-secondary)}
 .sd-t h2 .sep{color:var(--text-secondary);font-weight:600}
@@ -899,6 +899,20 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsWhen(iso) {
         if (!iso) return '';
         try { return _calFmtCommentTime(iso) || ''; } catch (e) { return ''; }
+    }
+    /* The date a tweak went to the editors, as small as it can be (owner, 2026-10-18): Today, Yesterday, the weekday
+       within the last week, otherwise "29 Sept"; the year only when it is not this year. Local days, not 24 hours. */
+    const RS_WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const RS_SINCE_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
+    function _rsSince(iso) {
+        const t = Date.parse(iso || '');
+        if (!isFinite(t)) return '';
+        const d = new Date(t), now = new Date();
+        const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+        if (days <= 0) return 'Today';
+        if (days === 1) return 'Yesterday';
+        if (days < 7) return RS_WEEKDAYS[d.getDay()];
+        return d.getDate() + ' ' + RS_SINCE_MONTHS[d.getMonth()] + (d.getFullYear() === now.getFullYear() ? '' : ' ' + d.getFullYear());
     }
 
     /* ---------- state ---------- */
@@ -1176,7 +1190,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 const by = String(p.kasper_urgent_by || '').trim();
                 m.flag = (by ? by + ' pinged you' : 'Pinged') + (p.kasper_urgent_pinged_at ? ', ' + _rsWhen(p.kasper_urgent_pinged_at) : '');
             }
-            if (sec === 'tweaks') m.note = p.kasper_finished_at ? 'With the editors since ' + _rsWhen(p.kasper_finished_at) : 'With the editors';
+            if (sec === 'tweaks') { m.note = p.kasper_finished_at ? 'With the editors since ' + _rsWhen(p.kasper_finished_at) : 'With the editors'; m.since = _rsSince(p.kasper_finished_at); }
             else {
                 const rounds = m.thread.filter(x => x.change && x.role === 'kasper').length;
                 m.note = rounds ? 'Back after tweaks, round ' + (rounds + 1) : (m.sample ? 'Sample' : 'First review');
@@ -1571,13 +1585,20 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         return '<span class="sl"><span class="si' + (m.land ? ' l' : '') + '">' + (m.thumb ? '<img alt="" loading="lazy" src="' + _re(m.thumb) + '">' : '') + '</span></span>';
     }
     function _rsDots(m) { return '<span class="cd" aria-hidden="true">' + m.parts.map(x => '<i class="' + (x.st === 'ok' ? 'ok' : (x.st === 'chg' || x.st === 'tweak') ? 'chg' : '') + '"></i>').join('') + '</span>'; }
+    // Kasper's rows (strip chip and list panel). Only "With the editors" rows read "Client · Title" on the first line
+    // with the small date below; Urgent and Waiting rows keep the title with the client on their small line.
+    function _rsKRowHead(m) {
+        return '<span class="cn">' + (m.sec === 'tweaks' && m.client ? '<span class="ck">' + _re(m.client) + '</span><span class="ct"> · ' + _re(m.title) + '</span>' : _re(m.title)) + '</span>';
+    }
+    function _rsKRowMeta(m) {
+        return m.sec === 'urgent' ? '<span class="cm urg">' + RI.bell + '<span>' + _re(m.flag) + '</span></span>'
+            : m.sec === 'tweaks' ? (m.since ? '<span class="cm"><span>' + _re(m.since) + '</span></span>' : '')
+            : '<span class="cm"><span>' + _re(m.client) + '</span>' + (m.sample ? '<b class="tag">Sample</b>' : '') + _rsDots(m) + '</span>';
+    }
     function _rsChip(m, cur) {
         const on = cur && m.id === cur.id;
         if (R.mode !== 'kasper') return '<button class="chipp' + (on ? ' cur' : '') + '" type="button" data-id="' + _re(m.id) + '" aria-current="' + on + '" title="' + _re(m.title) + '">' + _rsChipImg(m) + '<span class="cx"><span class="cn">' + _re(m.title) + '</span>' + _rsDots(m) + '</span></button>';
-        const meta = m.sec === 'urgent' ? '<span class="cm urg">' + RI.bell + '<span>' + _re(m.flag) + '</span></span>'
-            : m.sec === 'tweaks' ? '<span class="cm"><span>' + _re(m.client) + ', ' + _re(m.note.replace(/^With /, 'with ')) + '</span></span>'
-            : '<span class="cm"><span>' + _re(m.client) + '</span>' + (m.sample ? '<b class="tag">Sample</b>' : '') + _rsDots(m) + '</span>';
-        return '<button class="chipp k' + (on ? ' cur' : '') + (m.sec === 'urgent' ? ' urgc' : '') + (m.sec === 'tweaks' ? ' edc' : '') + '" type="button" data-id="' + _re(m.id) + '" aria-current="' + on + '" title="' + _re(m.client + ': ' + m.title) + '">' + _rsChipImg(m) + '<span class="cx">' + meta + '<span class="cn">' + _re(m.title) + '</span></span></button>';
+        return '<button class="chipp k' + (on ? ' cur' : '') + (m.sec === 'urgent' ? ' urgc' : '') + (m.sec === 'tweaks' ? ' edc' : '') + '" type="button" data-id="' + _re(m.id) + '" aria-current="' + on + '" title="' + _re(m.client + ': ' + m.title) + '">' + _rsChipImg(m) + '<span class="cx">' + (m.sec === 'tweaks' ? _rsKRowHead(m) + _rsKRowMeta(m) : _rsKRowMeta(m) + _rsKRowHead(m)) + '</span></button>';
     }
     function _rsStrip() {
         const cur = _rsCur();
@@ -1637,16 +1658,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!on) { p.innerHTML = ''; return; }
         const k = _rsKasperModels(), cur = _rsCur();
         const row = (m) => {
-            const meta = m.sec === 'urgent' ? '<span class="cm urg">' + RI.bell + '<span>' + _re(m.flag) + '</span></span>'
-                : m.sec === 'tweaks' ? '<span class="cm edc"><span>' + _re(m.client) + ', ' + _re(m.note.replace(/^With /, 'with ')) + '</span></span>'
-                : '<span class="cm"><span>' + _re(m.client) + '</span>' + (m.sample ? '<b class="tag">Sample</b>' : '') + _rsDots(m) + '</span>';
             let ping = '';
             if (m.sec === 'tweaks') {
                 const canPing = (() => { try { return _calShowUrgent(m.post, 'video'); } catch (e) { return false; } })();
                 if (canPing) ping = R.S.pinged[m.id] ? '<span class="b-soft sent qp-ping">' + RI.check + 'Editor pinged</span>' : '<button class="b-soft qp-ping" type="button" data-qping="' + _re(m.id) + '">' + RI.bell + 'Ping editor</button>';
             }
             const on = cur && cur.id === m.id;
-            return '<div class="qp-r' + (on ? ' cur' : '') + '"><button class="qp-row" type="button" data-qid="' + _re(m.id) + '"' + (on ? ' aria-current="true"' : '') + '>' + _rsChipImg(m) + '<span class="cx"><span class="cn">' + _re(m.title) + '</span>' + meta + '</span></button>' + ping + '</div>';
+            return '<div class="qp-r' + (on ? ' cur' : '') + '"><button class="qp-row" type="button" data-qid="' + _re(m.id) + '"' + (on ? ' aria-current="true"' : '') + '>' + _rsChipImg(m) + '<span class="cx">' + _rsKRowHead(m) + _rsKRowMeta(m) + '</span></button>' + ping + '</div>';
         };
         const sec = (cls, icon, label, count, list, empty) => '<div class="qp-sec"><div class="qp-h' + cls + '">' + icon + '<span>' + label + '</span><span class="c num">' + count + '</span></div>' + (list.length ? list.map(row).join('') : '<div class="qp-empty">' + empty + '</div>') + '</div>';
         let h = '';
@@ -2070,7 +2088,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (R.mode === 'kasper') {
             const ed = _rsKasperModels().tweaks;
             r.innerHTML = '<div class="rc-card"><div class="ei">' + RI.check + '</div><h3>All caught up.</h3><p>Nothing is waiting for your review. New cards show up here as soon as an SMM sends them.</p>'
-                + (ed.length ? '<div class="recent"><div class="recent-h"><span>With the editors</span></div>' + ed.map(m => '<button class="rc" type="button" data-id="' + _re(m.id) + '" style="cursor:pointer;width:100%;text-align:left"><span class="sw"><span class="slot' + (m.land ? ' l' : '') + '">' + (m.thumb ? '<img alt="" src="' + _re(m.thumb) + '">' : '') + '</span></span><span class="rx"><span class="rt">' + _re(m.title) + '</span><span class="rw wt">' + RI.back + _re(m.client) + ', ' + _re(m.note.replace(/^With /, 'with ')) + '</span></span></button>').join('') + '</div>' : '') + '</div>';
+                + (ed.length ? '<div class="recent"><div class="recent-h"><span>With the editors</span></div>' + ed.map(m => '<button class="rc" type="button" data-id="' + _re(m.id) + '" style="cursor:pointer;width:100%;text-align:left"><span class="sw"><span class="slot' + (m.land ? ' l' : '') + '">' + (m.thumb ? '<img alt="" src="' + _re(m.thumb) + '">' : '') + '</span></span><span class="rx"><span class="rt">' + (m.client ? '<span class="ck">' + _re(m.client) + '</span><span class="ct"> · ' + _re(m.title) + '</span>' : _re(m.title)) + '</span>' + (m.since ? '<span class="rw wt">' + _re(m.since) + '</span>' : '') + '</span></button>').join('') + '</div>' : '') + '</div>';
             r.querySelectorAll('[data-id]').forEach(b => b.addEventListener('click', () => { R.S.edOpen = true; _rsGo(b.dataset.id); }));
             return;
         }

@@ -106,6 +106,22 @@ ok(seats.size > 0 && seats.size <= MAX_SEATS,
 ok(/\nconcurrency:\n {2}group: calendar-unit-tests-\$\{\{ github\.event_name == 'pull_request' && format\('pr-\{0\}', github\.event\.pull_request\.number\) \|\| github\.sha \}\}\n {2}cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}\n/.test(WF),
   'a newer push to a pull request still cancels the run it replaces, so its seats free up; main runs are never cancelled');
 
+// The Gauntlet Three (session Pitstop, 2026-10-19): one reduced job on a pull request,
+// the nine legs only off pull requests. Its nine legs once ran one after another on one
+// shared seat for every page pull request (about 2 h 20 min of seat time each).
+{
+  const pr = jobBlock(WF, 'review-gauntlet-pr');
+  const full = jobBlock(WF, 'review-gauntlet-three');
+  ok(/\n {4}if: github\.event_name == 'pull_request' && needs\.changes\.outputs\.review == 'true'\n/.test(pr), 'the reduced Gauntlet runs on a pull request only when the review page can change');
+  ok(!/\n {4}strategy:/.test(pr) && /G3_ENGINES: chromium\n/.test(pr) && /G3_WIDTHS: '1440'\n/.test(pr), 'the reduced Gauntlet is one job: chromium at 1440');
+  ok(/G3_ROLES=client node test\/review-stage-gauntlet3-browser\.js/.test(pr) && /G3_ROLES=kasper node test\/review-stage-gauntlet3-browser\.js/.test(pr) && /G3_TITLE=1 G3_MODE=matrix node test\/review-stage-gauntlet3-browser\.js/.test(pr),
+    'the reduced Gauntlet still runs both roles and the YouTube title matrix');
+  ok(/\n {4}if: github\.event_name != 'pull_request'\n/.test(full), 'the full Gauntlet never queues on a pull request');
+  ok(/engine: \[chromium, firefox, webkit\]/.test(full) && /width: \[1024, 1440, 1920\]/.test(full), 'the full Gauntlet keeps all nine legs after merge');
+  ok(/review-gauntlet-three\]/.test(jobBlock(WF, 'calendar-ci-result')) && /failure\(\) && github\.event_name == 'push'/.test(jobBlock(WF, 'calendar-ci-result')),
+    'a red main run (where the full Gauntlet runs) pages the alert channel');
+}
+
 // Seat names belong to this workflow alone, and no seat group anywhere can cancel.
 for (const file of fs.readdirSync(WF_DIR).filter(f => /\.ya?ml$/.test(f) && f !== 'calendar-unit-tests.yml')) {
   ok(!fs.readFileSync(path.join(WF_DIR, file), 'utf8').includes('pr-runner-seat-'), `${file} does not use a pull-request runner seat`);

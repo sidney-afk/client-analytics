@@ -48,6 +48,16 @@ name: Calendar unit tests
 # than about 9 minutes. The seats also stay a fair queue now: each width of the
 # phone matrix has its own seat, and the guards job is two parts, so no seat is
 # loaded twice as long as another. To add a check, add a line to a lane step.
+#
+# Review page (2026-10-19, session Pitstop). The Gauntlet Three added in #2237 ran
+# nine 11-to-23-minute legs one after another on one shared seat for EVERY page
+# pull request (about 2 h 20 min of seat time each), so two small pull requests
+# waited over four hours. On a pull request it now runs only when the review page
+# can change (`review` from scripts/ci-changes.js), as one job on chromium at 1440
+# with its three halves side by side (review-gauntlet-pr); the review phones are
+# gated the same way. Every push to main runs all nine legs (review-gauntlet-three)
+# and the review phones, whatever changed, and a red main run pages the alert
+# channel (calendar-ci-result). docs/ops/CI_CHECKS.md has the whole audit.
 on:
   push:
     branches: [main]
@@ -71,6 +81,7 @@ jobs:
     outputs:
       browser: ${{ steps.files.outputs.browser }}
       phone: ${{ steps.files.outputs.phone }}
+      review: ${{ steps.files.outputs.review }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -568,12 +579,14 @@ jobs:
 
 
   review-stage-phones:
+    # Review page only on a pull request (Pitstop); always on main. It shares guards
+    # seat 2 (browser-guards part 2 is the shorter part), so guards seat 1 is not
+    # loaded with 24 minutes per pull request any more.
     needs: changes
-    if: needs.changes.outputs.browser == 'true'
+    if: needs.changes.outputs.review == 'true'
     runs-on: ubuntu-latest
-    # Share the guards seat: this adds coverage without taking another production runner.
     concurrency:
-      group: ${{ github.event_name == 'pull_request' && 'pr-runner-seat-guards-1' || format('calendar-unit-tests-{0}-review-stage-phones-{1}', github.run_id, strategy.job-index) }}
+      group: ${{ github.event_name == 'pull_request' && 'pr-runner-seat-guards-2' || format('calendar-unit-tests-{0}-review-stage-phones-{1}', github.run_id, strategy.job-index) }}
       cancel-in-progress: false
       queue: max
     timeout-minutes: 40
@@ -764,21 +777,62 @@ jobs:
           path: f27-proof/
           retention-days: 30
 
-  review-gauntlet-three:
-    # Gated like the other browser jobs: a pull request that cannot reach the page (docs only) must not queue nine
-    # long legs on the shared guards seat.
+  review-gauntlet-pr:
+    # The Gauntlet Three's pull-request form (session Pitstop, 2026-10-19): chromium
+    # at 1440 only, the width staff and clients use most, and the engine the other
+    # browser jobs already run; its three halves (client, reviewer, YouTube title)
+    # side by side on one runner. Only when the review page can change. The other
+    # eight engine and width legs run after merge, on every push to main
+    # (review-gauntlet-three below), and a red main run pages the alert channel.
     needs: changes
-    if: needs.changes.outputs.browser == 'true'
+    if: github.event_name == 'pull_request' && needs.changes.outputs.review == 'true'
+    runs-on: ubuntu-latest
+    # Guards seat 1 holds browser-guards part 1 (about 9 min) and repair-checkpoint
+    # (about 2 min); this adds about 6 to 7 min on a review pull request only.
+    concurrency:
+      group: ${{ github.event_name == 'pull_request' && 'pr-runner-seat-guards-1' || format('calendar-unit-tests-{0}-review-gauntlet-pr-{1}', github.run_id, strategy.job-index) }}
+      cancel-in-progress: false
+      queue: max
+    timeout-minutes: 25
+    env:
+      G3_ENGINES: chromium
+      G3_WIDTHS: '1440'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: ./.github/actions/build-index
+      - name: Install chromium
+        run: |
+          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Gauntlet Three on chromium at 1440, three halves side by side
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: |
+          node scripts/ci-lanes.js --lanes=3 --title="Gauntlet Three (chromium 1440)" <<'LANES'
+          Review action and failure matrix, client|G3_ROLES=client node test/review-stage-gauntlet3-browser.js
+          Review action and failure matrix, reviewer|G3_ROLES=kasper node test/review-stage-gauntlet3-browser.js
+          Engaged YouTube title action and failure matrix|G3_TITLE=1 G3_MODE=matrix node test/review-stage-gauntlet3-browser.js
+          LANES
+
+  review-gauntlet-three:
+    # The full Gauntlet Three: three engines by three widths. After merge only, on
+    # every push to main (and manual runs); a pull request runs review-gauntlet-pr.
+    # Main has no seats, so three legs run at a time (about 50 min, not 2 h 20).
+    needs: changes
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      max-parallel: 1
+      max-parallel: 3
       matrix:
         engine: [chromium, firefox, webkit]
         width: [1024, 1440, 1920]
-    # Reuse the existing browser seat; do not increase simultaneous PR runner demand.
+    # Never runs on a pull request; the seat name below only satisfies the seat rule.
     concurrency:
-      group: ${{ github.event_name == 'pull_request' && 'pr-runner-seat-guards-2' || format('calendar-unit-tests-{0}-review-gauntlet-three-{1}', github.run_id, strategy.job-index) }}
+      group: ${{ github.event_name == 'pull_request' && 'pr-runner-seat-guards-1' || format('calendar-unit-tests-{0}-review-gauntlet-three-{1}', github.run_id, strategy.job-index) }}
       cancel-in-progress: false
       queue: max
     timeout-minutes: 35
@@ -813,7 +867,7 @@ jobs:
     # Make this the required check, not the individual parts: a part a change
     # does not need is skipped, and its matrix names never appear.
     if: always()
-    needs: [changes, unit, identity-exposure, module-check, entry-links-boot, browser-guards, review-stage-phones, repair-checkpoint, split-preview, staff-phone-rules, f27-team-rollback-proof, review-gauntlet-three]
+    needs: [changes, unit, identity-exposure, module-check, entry-links-boot, browser-guards, review-stage-phones, repair-checkpoint, split-preview, staff-phone-rules, f27-team-rollback-proof, review-gauntlet-pr, review-gauntlet-three]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -827,3 +881,18 @@ jobs:
             echo "::error::Not green: $bad"
             exit 1
           fi
+      - name: Page the alert channel when main is red
+        # Checks moved off pull requests (session Pitstop) run here after merge, so a
+        # red main run must reach a person, not only the merger's e-mail.
+        if: failure() && github.event_name == 'push'
+        env:
+          SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$SLACK_ALERT_WEBHOOK" ]; then
+            echo "::warning::SLACK_ALERT_WEBHOOK not configured; failed-run e-mail only."
+            exit 0
+          fi
+          curl -sS -X POST -H 'Content-Type: application/json' \
+            --data "{\"text\":\"[SyncView CI] Calendar unit tests FAILED on main after a merge (the full Gauntlet Three and every suite run here). Run: $RUN_URL\"}" \
+            "$SLACK_ALERT_WEBHOOK"

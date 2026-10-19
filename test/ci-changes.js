@@ -27,7 +27,7 @@ function expectSkip(files, what, why) {
 // Not a pull request: everything, always (every suite runs in full on main).
 for (const event of ['push', 'workflow_dispatch', 'schedule']) {
   const d = c.decide([], { event, closures });
-  assert(d.browser && d.phone, event + ' must run every suite');
+  assert(d.browser && d.phone && d.review, event + ' must run every suite, the full Gauntlet Three included');
   checks++;
 }
 
@@ -84,6 +84,22 @@ expectSkip(['supabase/migrations/20261017000000_example.sql', 'migrations/2026-1
 expectSkip(['.github/workflows/deploy-single-function.yml'], ['browser', 'phone'], 'another workflow');
 expectSkip(['docs/syncview-design/tests/clients-admin-browser.js'], ['phone'], 'a desktop browser suite no phone suite reads');
 expectSkip([], ['browser', 'phone'], 'no files');
+
+// Review page suites (session Pitstop, 2026-10-19): on a pull request only when the
+// review page can change; the full Gauntlet Three always runs on main (checked above).
+for (const f of ['src/index/195-review-stage.js.part', 'src/index/188-review-stage-switch.js.part', 'src/index/190-calendar-approval-comments.js.part',
+  'src/index/280-samples-cards-notes.js.part', 'src/index/330-kasper-review-history.js.part', 'test/review-stage-gauntlet3-browser.js',
+  'test/review-stage-phone-browser.js', 'test/fixtures/review-stage-fixture.js', 'supabase/functions/production-comments/index.ts',
+  'scripts/build-index.js', 'package.json', '.github/workflows/calendar-unit-tests.yml', 'test/helpers/single-file-index.js']) {
+  expectRun([f], ['browser', 'review'], 'the review page, its suites, or the build every suite shares');
+}
+for (const f of ['src/index/160-calendar-organize-ui.js.part', 'qa/staff-phone-collections.js', 'test/tiktok-upload-steps-browser.js']) {
+  expectRun([f], ['browser'], 'page code still runs the browser suites');
+  expectSkip([f], ['review'], 'not the review page: its full Gauntlet Three runs after merge on main');
+}
+expectSkip(['docs/ops/REVIEW_NOTES.md'], ['browser', 'review'], 'a doc never runs the review suites, whatever its name');
+// Every file a review suite reads runs them.
+for (const f of c.closures().review) if (fs.existsSync(path.join(ROOT, f)) && /^(test|qa|docs\/syncview-design)\//.test(f)) expectRun([f], ['review'], 'a review suite reads it');
 
 // The classification never mixes up "safe area" and "page".
 for (const f of ['docs/ops/X.md', 'supabase/functions/x/index.ts', 'test/x.js', 'scripts/x.js', 'qa/x.js']) assert(c.isOutsideBrowser(f), f);

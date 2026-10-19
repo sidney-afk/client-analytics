@@ -16,6 +16,11 @@
  *   browser  every browser job (entry links, browser guards, split preview)
  *   phone    the staff phone matrix: staff phone files (scripts/staff-phone-changed.js),
  *            page code and the shared browser plumbing, or a file a phone suite reads
+ *   review   the review page's own suites on a pull request (the Gauntlet Three in
+ *            its reduced form, and the review phones): a file whose name says review,
+ *            notes or comment, a file those suites read, or the build and shared
+ *            browser plumbing (session Pitstop, 2026-10-19). Every push to main runs
+ *            them in full, all nine engine and width legs, whatever changed.
  *
  * Usage: node scripts/ci-changes.js <event> <base> <head>
  *   event is github.event_name; anything but pull_request runs everything.
@@ -37,6 +42,20 @@ function isPageFile(f) {
     || /^test\/(helpers|fixtures)\//.test(f)
     || /^qa\/(client-phone|finch-phone|boot|staff-phone)/.test(f)
     || f === 'qa/staff-gate-seed.js';
+}
+
+// The review page and its comment and notes threads (src/index/185-client-review-queue,
+// 188/195-review-stage, 190-calendar-approval-comments, 230-production-create-comments,
+// 280-samples-cards-notes, 290-samples-writes-review, 330-kasper-review-history and
+// their tests and Edge Functions). Names, not a list, so a new review file is caught.
+function isReviewFile(f) {
+  return /^(src|test|qa|docs\/syncview-design|supabase\/functions)\//.test(f)
+    && /review|notes?|comment/i.test(f.replace(/^.*\//, '') + '/' + (f.match(/^supabase\/functions\/([^/]+)\//) || [])[1]);
+}
+// The build and the plumbing every browser suite shares (isPageFile without the
+// page's own code and without the staff phone harnesses).
+function isBuildPlumbing(f) {
+  return isPageFile(f) && !/^(src\/|js\/|index\.html$|qa\/)/.test(f);
 }
 
 // Areas no browser suite loads by itself. A file here still runs the browser
@@ -114,17 +133,21 @@ function jobBlock(text, name) {
   const next = rest.slice(1).search(/\n  [A-Za-z0-9_-]+:\n/);
   return next < 0 ? rest : rest.slice(0, next + 1);
 }
+// The jobs a pull request runs only when the review page can change.
+const REVIEW_JOBS = ['review-stage-phones', 'review-gauntlet-pr', 'review-gauntlet-three'];
 function closures(workflowText) {
   const text = workflowText == null ? fs.readFileSync(path.join(ROOT, WORKFLOW), 'utf8') : workflowText;
   const phoneText = jobBlock(text, 'staff-phone-rules');
-  const browserText = ['entry-links-boot', 'browser-guards', 'review-stage-phones', 'repair-checkpoint', 'split-preview', 'review-gauntlet-three'].map(j => jobBlock(text, j)).join('\n');
-  return { browser: closureOf(suiteFiles(browserText)), phone: closureOf(suiteFiles(phoneText)) };
+  const browserText = ['entry-links-boot', 'browser-guards', 'review-stage-phones', 'repair-checkpoint', 'split-preview', 'review-gauntlet-pr', 'review-gauntlet-three'].map(j => jobBlock(text, j)).join('\n');
+  const reviewText = REVIEW_JOBS.map(j => jobBlock(text, j)).join('\n');
+  return { browser: closureOf(suiteFiles(browserText)), phone: closureOf(suiteFiles(phoneText)), review: closureOf(suiteFiles(reviewText)) };
 }
 
 function decide(files, opts) {
   opts = opts || {};
   if (opts.event && opts.event !== 'pull_request') {
-    return { browser: true, phone: true, why: { browser: 'not a pull request (' + opts.event + '): every suite runs', phone: 'not a pull request (' + opts.event + '): every suite runs' } };
+    const all = 'not a pull request (' + opts.event + '): every suite runs';
+    return { browser: true, phone: true, review: true, why: { browser: all, phone: all, review: all } };
   }
   const c = opts.closures || closures();
   const read = set => [...set].filter(f => /\.(js|mjs|cjs)$/.test(f)).map(f => fs.readFileSync(path.join(ROOT, f), 'utf8'));
@@ -138,10 +161,15 @@ function decide(files, opts) {
   const goneCode = f => deleted.has(f) && !(/^docs\/(?!syncview-design\/)/.test(f) || (/\.md$/i.test(f) && !/^src\//.test(f)));
   const browserBy = files.find(f => isPageFile(f) || !isOutsideBrowser(f) || c.browser.has(f) || c.phone.has(f) || browserReadsFn(f) || goneCode(f));
   const phoneBy = files.find(f => isPageFile(f) || isStaffPhoneFile(f) || c.phone.has(f) || phoneReadsFn(f) || (goneCode(f) && /^(qa|docs\/syncview-design)\//.test(f)));
+  const review = c.review || new Set();
+  const reviewBy = files.find(f => isReviewFile(f) || isBuildPlumbing(f) || review.has(f));
   return {
     browser: !!browserBy,
     phone: !!phoneBy,
+    // Never more than the browser suites: a review file that cannot reach the page (a doc) runs nothing.
+    review: !!browserBy && !!reviewBy,
     why: {
+      review: !browserBy ? 'no change reaches a browser suite' : reviewBy ? reviewBy + ' can change the review page or its suites' : 'no review page change (the full Gauntlet Three runs after merge on main)',
       browser: browserBy ? browserBy + ' can change what the browser suites load' : 'no change reaches a browser suite',
       phone: phoneBy ? phoneBy + ' can change the staff phone screens or their suites' : 'no staff phone change',
     },
@@ -163,7 +191,7 @@ function deletedFiles(base, head) {
   return out.split('\0').filter(Boolean);
 }
 
-module.exports = { isPageFile, isOutsideBrowser, suiteFiles, closureOf, closures, namesFunction, decide, changedFiles, deletedFiles, jobBlock };
+module.exports = { REVIEW_JOBS, isReviewFile, isBuildPlumbing, isPageFile, isOutsideBrowser, suiteFiles, closureOf, closures, namesFunction, decide, changedFiles, deletedFiles, jobBlock };
 
 if (require.main === module) {
   const [event, base, head] = process.argv.slice(2);
@@ -175,16 +203,18 @@ if (require.main === module) {
     deleted = deletedFiles(base, head);
   }
   const d = decide(files, { event, deleted });
-  if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, 'browser=' + d.browser + '\nphone=' + d.phone + '\n');
+  if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, 'browser=' + d.browser + '\nphone=' + d.phone + '\nreview=' + d.review + '\n');
   console.log('CHANGED FILES: ' + (event === 'pull_request' ? files.length : 'not a pull request'));
   console.log('BROWSER SUITES: ' + (d.browser ? 'run' : 'skip') + ' (' + d.why.browser + ')');
   console.log('STAFF PHONE MATRIX: ' + (d.phone ? 'run' : 'skip') + ' (' + d.why.phone + ')');
+  console.log('REVIEW PAGE SUITES: ' + (d.review ? 'run' : 'skip') + ' (' + d.why.review + ')');
   if (process.env.GITHUB_STEP_SUMMARY) {
     fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
       '### What this change needs', '',
       '| Suites | Decision | Why |', '|---|---|---|',
       '| Browser (entry links, browser guards, split preview) | ' + (d.browser ? 'run' : 'skip') + ' | ' + d.why.browser + ' |',
       '| Staff phone matrix | ' + (d.phone ? 'run' : 'skip') + ' | ' + d.why.phone + ' |',
+      '| Review page (Gauntlet Three on chromium 1440, review phones) | ' + (d.review ? 'run' : 'skip') + ' | ' + d.why.review + ' |',
       '| Unit, module check, identity check | always run | |', '',
       'Every suite runs in full on every push to main.', '',
     ].join('\n'));

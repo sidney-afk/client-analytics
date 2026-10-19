@@ -33676,3 +33676,11 @@ Test: `node test/client-link-dark-first-paint-browser.js` (fails on main, passes
 - **Tests.** `docs/syncview-design/tests/workload-calm-interactions-browser.js` (new, wired in `calendar-unit-tests.yml`) clicks every pill and chip, closes by X, Escape and outside click, folds Needs assignment, drives the View menu and week arrows, at 1440, 390 and in dark, with no console errors, and asserts a non-Calm member still sees Templates and the Frame.io line. `workload-calm-browser.js` now asserts the Frame.io line is gone.
 
 **Way back:** revert the pull request.
+
+## 451. [2026-10-19, BUILT, NOT MERGED] Pull request checks took hours: the Gauntlet Three ran nine legs on one shared seat (session Pitstop)
+
+- **Asked by the owner:** two small pull requests waited over four hours. Measured on #2238: the Gauntlet Three (#2237) ran nine engine and width legs one after another on one seat shared by every open pull request, 140 minutes of seat time per pull request; guards seat 1 carried about 24 minutes more.
+- **Changed.** On a pull request the Gauntlet runs only when the review page can change (`review` in `scripts/ci-changes.js`), as one job on chromium at 1440 with its three halves side by side (`review-gauntlet-pr`); the review phones are gated the same way and moved to the lighter guards seat. Every push to main runs all nine legs (three at a time) and every suite, and a red main run now pages the alert channel. Still 14 seats. Audit of every check: `docs/ops/CI_CHECKS.md`.
+- **Tests.** `test/ci-changes.js` (review decisions), `test/ci-runner-seats.js` (the PR form, the nine legs off pull requests, the main alert).
+
+**Way back:** revert the pull request.

@@ -84,9 +84,15 @@ for (const id of jobIds) {
   for (const leg of legs(matrix(block))) {
     let name;
     const lit = /^'(pr-runner-seat-[a-z0-9-]+)'$/.exec(expr);
-    const fmt = /^format\('(pr-runner-seat-[a-z0-9-]+)\{0\}', matrix\.([a-z_-]+)\)$/.exec(expr);
+    // One matrix key ({0}) or two ({0}-{1}), so a seat can belong to one leg of a two-key matrix.
+    const fmt = /^format\('(pr-runner-seat-[a-z0-9-]+)\{0\}(-\{1\})?', matrix\.([a-z_-]+)(?:, matrix\.([a-z_-]+))?\)$/.exec(expr);
     if (lit) name = lit[1];
-    else if (fmt) { ok(fmt[2] in leg, `${id}: its seat names a matrix key the job has (${fmt[2]})`); name = fmt[1] + leg[fmt[2]]; }
+    else if (fmt) {
+      ok(fmt[3] in leg, `${id}: its seat names a matrix key the job has (${fmt[3]})`);
+      ok(!!fmt[2] === !!fmt[4], `${id}: its seat uses {1} exactly when it names a second matrix key`);
+      name = fmt[1] + leg[fmt[3]];
+      if (fmt[4]) { ok(fmt[4] in leg, `${id}: its seat names a matrix key the job has (${fmt[4]})`); name += '-' + leg[fmt[4]]; }
+    }
     else ok(false, `${id}: seat expression must be a literal or format('pr-runner-seat-...{0}', matrix.x): ${expr}`);
     if (!seats.has(name)) seats.set(name, []);
     seats.get(name).push(`${id} ${JSON.stringify(leg)}`);

@@ -111,7 +111,7 @@ function parity(name, cal, sxr, note) {
 
     // ── CASE 3 — "Mark done" on the LAST open change-request opens the chooser ──
     // THE bug the user found: in the SMM view, resolving the final change-request
-    // must open the route chooser (Kasper / Client / Mark done). Calendar
+    // must open the route chooser (Kasper / Client / Approve / Mark done). Calendar
     // defers to the chooser; samples just flips done and the comment vanishes.
     try {
       dismissOverlay();

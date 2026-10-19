@@ -46,6 +46,7 @@ function check(name, got, want) { const ok = got === want; console.log((ok ? '  
     }
     R.kasper = runMarkDone('resolveDestKasper');
     R.client = runMarkDone('resolveDestClient');
+    R.approve = runMarkDone('resolveDestApprove');
     R.stay = runMarkDone('resolveDestStay');
 
     // Review-tab approve with an open change-request → NO chooser: the pick is the answer, the request is marked done.
@@ -76,6 +77,7 @@ function check(name, got, want) { const ok = got === want; console.log((ok ? '  
   check('mark-done → Kasper: comment resolved', out.kasper.done, true);
   check('mark-done → Kasper: status → Kasper Approval', out.kasper.video_status, 'Kasper Approval');
   check('mark-done → Client: status → Client Approval', out.client.video_status, 'Client Approval');
+  check('mark-done → Approve: status → Approved', out.approve.video_status, 'Approved');
   check('mark-done → Stay: comment resolved', out.stay.done, true);
   check('mark-done → Stay: status UNCHANGED (For SMM Approval)', out.stay.video_status, 'For SMM Approval');
   check('mark-done: overlay closes after pick', out.kasper.overlayClosed, true);

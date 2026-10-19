@@ -9,8 +9,8 @@
  *     linger in Notes demanding a second, redundant "mark done".
  *   • The Review tab never opens the chooser: the manager's Kasper / client pick IS the answer, every open request on
  *     the part is marked done in the same send (toast with Undo; Settle, 2026-10-18).
- *   • The chooser (now only the Notes "mark done" on the LAST open request) offers two routes (Kasper / client), a
- *     "Mark done" that routes nowhere, and a ✕ close. No plain "Approve", no checklist.
+ *   • The chooser (now only the Notes "mark done" on the LAST open request) offers three routes (Kasper / client / Approve), a
+ *     "Mark done" that routes nowhere, and a ✕ close. No checklist.
  *   • Plain conversation comments (is_tweak false) are NEVER auto-resolved.
  *
  * Run:  node test/resolve-route-chooser.js   (exit 0 = all good)
@@ -39,10 +39,10 @@ const check = (label, got, want) => {
 const overlayAt = INDEX.indexOf('id="resolveDestOverlay"');
 const gateAt = INDEX.indexOf('<!-- Password gate', overlayAt);
 const overlay = INDEX.slice(overlayAt, gateAt > overlayAt ? gateAt : overlayAt + 3000);
-console.log('— chooser markup: 2 routes + ✕ close, no Cancel, no plain Approve, no checklist —');
+console.log('— chooser markup: 3 routes (Kasper / client / Approve) + Mark done + ✕ close, no Cancel, no checklist —');
 check('has a Kasper route button',  /id="resolveDestKasper"/.test(overlay), true);
 check('has a Client route button',  /id="resolveDestClient"/.test(overlay), true);
-check('has NO plain Approve route button (the manager only sends to Kasper or the client)', /id="resolveDestApprove"/.test(overlay), false);
+check('has an Approve route button (the Notes chooser keeps all four options)', /id="resolveDestApprove"/.test(overlay), true);
 check('has a ✕ close button',       /id="resolveDestClose"/.test(overlay), true);
 check('has NO change-request checklist container', /id="resolveDestChecklist"/.test(overlay), false);
 check('the old Cancel button is gone', /onclick="_calDismissResolveDest\(\)">Cancel</.test(overlay), false);
@@ -117,14 +117,14 @@ check('the two destination rules genuinely differ on an unrecognised dest',
 console.log('\n— the chooser has no checklist (it only ever holds the one last request) —');
 const show = grabFunc('_calShowResolveDest');
 check('no checklist code in the chooser', /checklist|resolve-dest-check/.test(show), false);
-check('no plain Approve button wiring in the chooser', /resolveDestApprove|pick\('approved'\)/.test(show), false);
+check('the Approve button is wired in the chooser', /resolveDestApprove/.test(show) && /aBtn\.onclick = \(\) => pick\('approved'\)/.test(show), true);
 check('picks resolve every request passed in', /const allIds = \(\) => openTweaks\.map\(t => t\.id\)/.test(show), true);
 
 // ---- "Mark done — don't change the status" (resolve without routing) ----
 console.log('\n— "Mark done" escape: resolve the change-request without moving the status —');
 check('chooser markup has the no-route action', /id="resolveDestStay"/.test(overlay), true);
 check('the no-route action is NOT a third route button (it sits outside the route row)',
-  /resolve-dest-actions[\s\S]*?id="resolveDestClient"[\s\S]*?<\/div>\s*<button[^>]*id="resolveDestStay"/.test(overlay), true);
+  /resolve-dest-actions[\s\S]*?id="resolveDestApprove"[\s\S]*?<\/div>\s*<button[^>]*id="resolveDestStay"/.test(overlay), true);
 check('stay button resolves with dest "stay"', /resolveDestStay[\s\S]*?pick\('stay'\)/.test(show), true);
 const resolveLast = grabFunc('_calResolveLastTweak');
 check('Notes path resolves but SKIPS the status flip on "stay"',

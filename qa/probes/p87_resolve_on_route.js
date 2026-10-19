@@ -1,8 +1,8 @@
-// p87 — resolve-on-route: the Notes chooser (Kasper / Client / Mark done / ✕) and the Review tab's no-question send.
+// p87 — resolve-on-route: the Notes chooser (Kasper / Client / Approve / Mark done / ✕) and the Review tab's no-question send.
 // Drives the REAL app (sidneylaruel) headless against the live backend.
 //
-//   A) Notes "mark done" on the ONLY open change-request → chooser (no checklist, no plain
-//      Approve) → the Client route sends the caption to Client Approval and marks the
+//   A) Notes "mark done" on the ONLY open change-request → chooser (no checklist, all four
+//      options kept: Kasper / Client / Approve / Mark done) → the Client route sends the caption to Client Approval and marks the
 //      change-request done.
 //   B) SMM Review-tab "Approve to Kasper" on a component with TWO open change-requests
 //      → NO chooser (the pick is the answer, Settle 2026-10-18): BOTH are resolved,
@@ -49,7 +49,7 @@ async function cleanup(pid) {
         hasChecklist: !!document.getElementById('resolveDestChecklist') };
     }, { pid: PIDA, id: TA });
     S.ok(oa && oa.active === true, 'A: marking the only open change-request opens the chooser');
-    S.ok(!oa.hasApprove && oa.hasKasper && oa.hasClient, 'A: chooser offers Kasper / Client and no plain Approve');
+    S.ok(oa.hasApprove && oa.hasKasper && oa.hasClient, 'A: chooser offers Kasper / Client / Approve');
     S.ok(oa.hasChecklist === false, 'A: no checklist (one request, implied by the route)');
     await smm.evaluate(() => { const b = document.getElementById('resolveDestClient'); if (b) b.click(); });
     let rA = await Q.pollRaw(PIDA, x => x.caption_status === 'Client Approval', 'caption_status,caption_tweaks', 15000);

@@ -50,7 +50,7 @@
 
 <!-- Resolve-and-route chooser. Opened only when the SMM marks the LAST open change-request on a part
      done in the Notes modal: that single request is marked done and the part goes to Kasper or the client
-     (or nowhere, with "Mark done"). The Review tab no longer opens it: its Kasper / client pick is the answer.
+     (or straight to Approved, or nowhere, with "Mark done"). The Review tab no longer opens it: its Kasper / client pick is the answer.
      The ✕ (and a backdrop click) just close it — closing is non-destructive, since nothing is applied until a
      route is picked. -->
 <div class="confirm-overlay" id="resolveDestOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)_calDismissResolveDest()">
@@ -64,7 +64,8 @@
             <div class="confirm-box-actions resolve-dest-actions">
                 <button class="brief-action-btn" type="button" id="resolveDestKasper">Kasper approval</button>
                 <button class="brief-action-btn" type="button" id="resolveDestClient">Client approval</button>
-                            </div>
+                <button class="brief-action-btn" type="button" id="resolveDestApprove">Approve</button>
+            </div>
             <button type="button" class="resolve-dest-stay" id="resolveDestStay" title="Mark these tweaks as done. The card stays in its stage.">Mark done — don’t change the status</button>
         </div>
     </div>

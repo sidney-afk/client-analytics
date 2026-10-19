@@ -190,12 +190,26 @@ async function until(fn, ms) { const t0 = Date.now(); while (Date.now() - t0 < m
       buttons: Array.from(document.querySelectorAll('#resolveDestOverlay button')).filter(b => b.offsetParent).map(b => b.textContent.trim()),
       checks: document.querySelectorAll('#resolveDestOverlay input[type="checkbox"]').length,
     }));
-    expect(shape.buttons.includes('Kasper approval') && shape.buttons.includes('Client approval') && shape.buttons.some(b => /^Mark done/.test(b)), '6: it offers Kasper approval, Client approval and Mark done (' + JSON.stringify(shape.buttons) + ')');
-    expect(!shape.buttons.includes('Approve'), '6: there is no plain "Approve"');
+    expect(shape.buttons.includes('Kasper approval') && shape.buttons.includes('Client approval') && shape.buttons.includes('Approve') && shape.buttons.some(b => /^Mark done/.test(b)), '6: it offers all four: Kasper approval, Client approval, Approve and Mark done (' + JSON.stringify(shape.buttons) + ')');
+    expect(shape.buttons.filter(Boolean).length === 4, '6: exactly four options, nothing else (' + shape.buttons.filter(Boolean).length + ')');
     expect(shape.checks === 0, '6: there is no checklist');
     await t.page.locator('#resolveDestKasper').click();
     took = await until(async () => !!lastUpsert(t, u => u.id === 'rs1' && u.video_status === 'Kasper Approval' && parse(u.video_tweaks).every(c => c.done === true)), 6000);
     expect(took >= 0, '6: Kasper approval marks it done and sends the part to Kasper');
+    await t.ctx.close();
+
+    // 6b. the same chooser, Approve: what it wrote on main (request done, part straight to Approved)
+    console.log('--- Notes, mark the last request done, Approve ---');
+    t = await openSmm(browser, origin, ['video'], c => { c.video_tweaks = JSON.stringify([tw('g1', 'client', 'The only request left.')]); });
+    await t.page.evaluate(() => openCalComments('rs1'));
+    await t.page.waitForSelector('#calCommentsFeed .cal-cm-action', { timeout: 8000 });
+    await t.page.locator('#calCommentsFeed .cal-cm-action', { hasText: 'Mark done' }).first().evaluate(el => el.click());
+    took = await until(() => popup(t.page), 3000);
+    expect(took >= 0, '6b: the chooser opens');
+    await t.page.locator('#resolveDestApprove').click();
+    took = await until(async () => !!lastUpsert(t, u => u.id === 'rs1' && u.video_status === 'Approved' && parse(u.video_tweaks).every(c => c.done === true)), 6000);
+    expect(took >= 0, '6b: Approve marks the request done and sets the part to Approved');
+    expect(t.errors.length === 0, '6b: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
 
     // 7. the Notes panel scroll

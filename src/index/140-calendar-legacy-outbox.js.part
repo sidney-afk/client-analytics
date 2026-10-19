@@ -46,7 +46,7 @@ import {
 } from './190-calendar-approval-comments.js';
 import {
   _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodComments,
-  _prodProjectCanonicalCardComments, _prodVerifiedClientCommentMutationContext
+  _prodProjectCanonicalCardComments, _prodServerParentRef, _prodVerifiedClientCommentMutationContext
 } from './230-production-create-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import {
@@ -2349,7 +2349,7 @@ import {
                     comment: {
                         body: txt,
                         native_comment_id: nativeCommentId,
-                        parent_id: String(meta && meta.parentId || ''),
+                        parent_id: (typeof _prodServerParentRef === 'function' ? _prodServerParentRef(nativeId, String(meta && meta.parentId || ''), meta && meta.post ? _calCommentsFor(meta.post, component) : []) : String(meta && meta.parentId || '')),
                         audience: meta && meta.audience === 'client' ? 'client' : 'internal',
                         component,
                         is_tweak: !!(meta && meta.isTweak),

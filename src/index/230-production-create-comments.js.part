@@ -2070,8 +2070,34 @@ import {
                 const moreError = state.moreError ? '<div class="prod-comment-state is-error">' + _calEsc(state.moreError) + ' <button class="prod-comment-state-action" type="button" onclick="_prodComments.loadOlder(' + _jsAttrArg(id) + ')">Retry</button></div>' : '';
                 return refreshError + '<div class="prod-comment-feed" data-prod-comments-state="ready">' + rows + '</div>' + moreError + more + feedback;
             }
-            return { clear, ensure, refresh, retry, loadOlder, signIn, render, find, adopt, readCanonical };
+            function rows(id) {
+                const state = stateFor(id);
+                return state && Array.isArray(state.items) ? state.items : [];
+            }
+            return { clear, ensure, refresh, retry, loadOlder, signIn, render, find, adopt, readCanonical, rows };
         })();
+        /* The id the SERVER knows a reply's parent by. A note the card still
+           shows from its own comment list (the canonical projection holds the
+           card back when the two timestamps differ) keeps the id the page gave
+           it, which production_comments may never have seen: the same words
+           were saved a second time under another id. A reply naming that id was
+           refused for good (comment_parent_not_found). When the id is unknown
+           to the canonical thread, name the canonical twin: same words, same
+           author and role, a root note, taken once. Otherwise the id is sent
+           unchanged and the server decides. */
+        function _prodServerParentRef(deliverableId, parentId, legacyRows) {
+            const ref = String(parentId || '');
+            if (!ref || !deliverableId) return ref;
+            const canon = _prodComments.rows(deliverableId);
+            if (!canon.length || canon.some(r => r && (String(r.id) === ref || String(r.native_comment_id || '') === ref))) return ref;
+            const legacy = (Array.isArray(legacyRows) ? legacyRows : []).find(r => r && String(r.id) === ref);
+            if (!legacy) return ref;
+            const same = (r) => !r.parent_id && String(r.body || '') === String(legacy.body || '')
+                && String(r.role || '') === String(legacy.role || '');
+            const legacyIds = new Set((legacyRows || []).map(r => r && String(r.id)));
+            const twins = canon.filter(r => r && same(r) && !legacyIds.has(String(r.id)));
+            return twins.length ? String(twins[0].id) : ref;
+        }
         function _prodCanonicalCardComment(row) {
             const c = _prodCommentNormalize(row);
             return {
@@ -2801,7 +2827,7 @@ import {
 export {
   _prodApplyGatewayRow, _prodBoardDragOver, _prodBoardDragStart, _prodBoardDrop,
   _prodCanonicalCommentGate, _prodCardCommentsPending, _prodCommentsSkeletonHtml, _prodClearBoardDropFx, _prodClientCommentGatewayContext,
-  _prodComments, _prodComposerHTML, _prodDescriptionHTML, _prodDescriptionState,
+  _prodComments, _prodServerParentRef, _prodComposerHTML, _prodDescriptionHTML, _prodDescriptionState,
   _prodDescriptionText, _prodDueIso, _prodGatewayWrite, _prodInvalidateScopedReads,
   _prodLabelColorStyle, _prodLabelsButtonHTML, _prodLabelsPopHTML, _prodLinkify,
   _prodLoadCreateOptions, _prodMarkDescriptionsStale, _prodNextDescriptionRequestToken,

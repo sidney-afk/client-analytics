@@ -41,7 +41,7 @@ import {
   _linearRefreshSavedBox, _linearResumeSubmissionHold, _resumeNativeIntakeJob,
   _resumePendingCalCardJobs
 } from './200-intake-data-startup.js';
-import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodVerifiedClientCommentMutationContext } from './230-production-create-comments.js';
+import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodServerParentRef, _prodVerifiedClientCommentMutationContext } from './230-production-create-comments.js';
 import { _isClientLink, _isIntake } from './260-production-refresh-boot.js';
 import {
   SXR_CACHE_PREFIX, SXR_COMPONENTS, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS,
@@ -242,7 +242,7 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
                     nativeId,
                     sourceEditedAt: comment && (comment.updated_at || comment.created_at),
                     requestId: _writeUiIntentId('sxr', 'comment', [nativeCommentId]),
-                    comment: { body: txt, native_comment_id: nativeCommentId, parent_id: String(meta && meta.parentId || ''), audience: meta && meta.audience === 'client' ? 'client' : 'internal', component, is_tweak: !!(meta && meta.isTweak), round: _writeUiCommentRound(meta && meta.round), ...(clientSurface ? { card_id: clientSurface.card_id } : clientFrontDoorSurface ? { card_id: clientFrontDoorSurface.card_id } : {}) }
+                    comment: { body: txt, native_comment_id: nativeCommentId, parent_id: (typeof _prodServerParentRef === 'function' ? _prodServerParentRef(nativeId, String(meta && meta.parentId || ''), meta && meta.post ? _sxrCommentsFor(meta.post, component) : []) : String(meta && meta.parentId || '')), audience: meta && meta.audience === 'client' ? 'client' : 'internal', component, is_tweak: !!(meta && meta.isTweak), round: _writeUiCommentRound(meta && meta.round), ...(clientSurface ? { card_id: clientSurface.card_id } : clientFrontDoorSurface ? { card_id: clientFrontDoorSurface.card_id } : {}) }
                 }, repair);
     }
     function _writeUiApplyJournalEdits(post, edits, surface) {

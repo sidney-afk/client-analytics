@@ -85,7 +85,7 @@ console.log('\n— Review-tab "Approve to Kasper / client" resolves open change-
 const approve = grabFunc('_calReviewApprove');
 check('SMM + open change-requests never opens the chooser', /_calShowResolveDest/.test(approve), false);
 check('SMM + open change-requests resolves every open one, THEN runs the real approve',
-  /_calReviewMode\(\) === 'smm' && _calCanResolveComment\(\)[\s\S]*?_calOpenTweaksForComp\(post, comp\)[\s\S]*?open\.map\(t => t\.id\)[\s\S]*?_calResolveTweaksDone\(post, comp, ids\);[\s\S]*?_calReviewApplyApprove\(pid, comp, pickDest(?:, resolvedBefore)?\)/.test(approve), true);
+  /_calReviewMode\(\) === 'smm' && _calCanResolveComment\(\)[\s\S]*?_calOpenTweaksForComp\(post, comp\)[\s\S]*?open\.map\(t => t\.id\)[\s\S]*?_calResolveTweaksDone\(post, comp, ids\);[\s\S]*?_calReviewApplyApprove\(pid, comp, pickDest(?:, resolvedBefore(?:, told)?)?\)/.test(approve), true);
 check('the destination is the manager\'s own pick: client, else Kasper (never "approved")',
   /const pickDest = dest === 'client' \? 'client' : 'kasper';/.test(approve), true);
 check('a refused approve is checked BEFORE any request is marked done',

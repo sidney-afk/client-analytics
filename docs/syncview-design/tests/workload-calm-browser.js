@@ -118,11 +118,11 @@ async function pickDate(page, iso) {
     await p.waitForTimeout(900);
     const pop = p.locator('#wlPopover');
     expect(await pop.isVisible() && await pop.evaluate(el => el.classList.contains('wl-calm-pop')), 'one click opens the flat popover');
-    expect((await pop.innerText()).includes('Always check Frame.io too.'), 'the Frame.io reminder stays, as one line');
+    expect(!(await pop.innerText()).includes('Frame.io'), 'the Frame.io reminder is gone (owner, 2026-10-19)');
     expect(await pop.locator('.wl-calm-row').count() === 2, 'both tweak videos listed');
     expect(await pop.locator('.wl-tweak-comment').count() >= 3, 'with their latest comments');
     expect(await pop.locator('.workload-popover-plan, .workload-popover-item, .wl-tweak-frame-note').count() === 0, 'none of the old boxes');
-    const bordered = await pop.evaluate(el => [...el.querySelectorAll('.wl-calm-row, .wl-calm-frame, .wl-tweak-comments, .wl-tweak-comment, .wl-calm-pop-head')].filter(n => parseFloat(getComputedStyle(n).borderTopWidth) > 0 || parseFloat(getComputedStyle(n).borderBottomWidth) > 0).length);
+    const bordered = await pop.evaluate(el => [...el.querySelectorAll('.wl-calm-row, .wl-tweak-comments, .wl-tweak-comment, .wl-calm-pop-head')].filter(n => parseFloat(getComputedStyle(n).borderTopWidth) > 0 || parseFloat(getComputedStyle(n).borderBottomWidth) > 0).length);
     expect(bordered === 0, 'no section inside it has a border');
     expect(h.state.commentReads.length === 2, 'each deliverable\'s notes were read once (saw ' + h.state.commentReads.length + ')');
     expect(await pop.locator('[data-sv-date-trigger]').count() === 0, 'tweak rows offer no date edit, as before');

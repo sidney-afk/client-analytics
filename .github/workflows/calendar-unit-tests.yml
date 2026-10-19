@@ -715,7 +715,7 @@ jobs:
         width: [1024, 1440, 1920]
     # Reuse the existing browser seat; do not increase simultaneous PR runner demand.
     concurrency:
-      group: ${{ github.event_name == 'pull_request' && 'pr-runner-seat-guards' || format('calendar-unit-tests-{0}-review-gauntlet-three-{1}', github.run_id, strategy.job-index) }}
+      group: ${{ github.event_name == 'pull_request' && 'pr-runner-seat-guards-2' || format('calendar-unit-tests-{0}-review-gauntlet-three-{1}', github.run_id, strategy.job-index) }}
       cancel-in-progress: false
       queue: max
     timeout-minutes: 35

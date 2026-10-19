@@ -1000,6 +1000,11 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node test/review-stage-client-composer-browser.js
+      - name: A client's sent caption edit is their answer for the caption step (saves, tells the team, approves once, moves on; refused save stays)
+        if: ${{ !cancelled() }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node test/review-stage-caption-send-browser.js
       - name: Review page owner feedback round 7 (Kasper list button and one-row heading, Notify client by the menu, play buttons autoplay, Analytics hidden behind analytics_hidden)
         if: ${{ !cancelled() }}
         env:

@@ -33669,7 +33669,7 @@ Test: `node test/client-link-dark-first-paint-browser.js` (fails on main, passes
 
 **Way back:** revert the pull request.
 
-## 447. [2026-10-19, BUILT, NOT MERGED] Calm Workload popover: one "Open →" link, no Templates, no Frame.io line (session Calm Three)
+## 448. [2026-10-19, BUILT, NOT MERGED] Calm Workload popover: one "Open →" link, no Templates, no Frame.io line (session Calm Three)
 
 - **Asked by the owner** after looking at Calm: the client popover header showed two links ("Open SyncView →" or "Open parent →", and "Templates") and a yellow "Always check Frame.io too." line. Nobody uses Templates, and Linear is cancelled.
 - **Changed, Calm only.** `wlCalmPopoverHtml` (`src/index/072-workload-calm.js.part`) now draws one link labelled "Open →" with the same target as before (parent or batch versus the single item); the Templates link, the dead Linear link and the Frame.io line are gone, and the unused `.wl-calm-frame` style is removed. The old popover in `090-workload-popovers.js.part` is untouched, so staff not on `workload_calm_staff` see exactly what they saw.

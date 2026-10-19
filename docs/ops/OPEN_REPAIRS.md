@@ -33522,3 +33522,14 @@ Audit of the upload link and the Submit tab against every way a send can fail (r
 - **Tests.** `test/review-stage-caption-send-browser.js` (new; fails on main). `review-stage-client-composer-browser.js` had two lines saying the caption "stays waiting for Approve"; they now say the sent edit was the answer (still never a change request).
 
 **Way back:** revert the pull request.
+
+## 438. [2026-10-19, BUILT, NOT MERGED] Approve and Ask for a change answered with a spinner, not the result, and a note typed on a part that was still saving was lost (session Swift)
+
+- **Owner request (2026-10-18).** Approving and asking for a change must be as fast as possible, in all three modes of the new review page and on the calendar card's approval controls.
+- **Measured (offline fixture with a 300 ms server round trip; the live site was NOT measured, see below).** The click already updated the page in 10 to 25 ms (no long tasks), but the pressed button only showed a spinner on its old words ("Approve the video") until the server answered; the result words came back with the save, about 0.8 s later. The save itself is two round trips one after the other (status write to the gateway, then the card write): the second needs the first one's acknowledgement, so the order is the server's and is unchanged.
+- **Our own waits found.** (1) The confirmation poll ran every 200 ms, so "Saved" and the spoken flash came up to 200 ms after the server answered (now 50 ms). (2) The pause before the stage moves to the next part after an answer was 650 ms (now 400 ms). (3) A sent caption edit polled every 150 ms for the note's save before approving (now 40 ms). (4) A note sent while the same part was still saving was ignored by the old save paths (`_calReviewComment`, `_kasperAddCommentComp` return when the part is saving) while the page cleared the box: the words were lost. They now show in the conversation at once as "Sending…" and go the moment that save ends, in order.
+- **Fix.** The pressed button says its result at once ("Approved", "Approved to Kasper", "Approved to client", "Approved after tweaks", "Change asked") with its spinner; a refused save still puts the part back with its reason and Try again (the existing path, unchanged). No Edge Function or database change: no measured delay there.
+- **Not measured.** The live site: it needs the test client's review link and a staff sign-in, which this session was not handed. Re-measure live after merge.
+- **Tests.** `test/review-stage-instant-browser.js` (new; every action, three modes, 1440 and 390, fails above 150 ms; fails on main). `review-stage-save-browser.js` case 1 now waits for the save to land before reading the server (the words arrive earlier now).
+
+**Way back:** revert the pull request.

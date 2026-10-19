@@ -403,3 +403,11 @@ Tested: version diff checked (only these lines). Two manual runs with simulated 
 `meta_capi_sent` table pinned so nothing was sent or written: execution 671857 (doctors calendar, facebook source: fires,
 URL /doctors) and 671858 (`utm_source=Referral `: skipped, `excluded_traffic`).
 Undo: restore version `f120ace1-5d63-4396-8c7a-48207ec2660a` in n8n and publish.
+
+## 2026-10-18 One-off DoctorEmailEntered backfill to Meta (owner's go, Ads supervisor Billboard)
+
+Workflow: Ads, One-off DoctorEmailEntered backfill (18 Oct 2026) (`PCChAls5J5KwV5aP`), new, version `6cec4132-5c5b-44f4-a46c-6bf5fcfe9777`. Never published; run once by hand (execution 672759, 2026-10-18 20:02 UTC), then archived.
+Changed: no existing workflow touched. The new workflow read `booking_recovery` (`xEhLpKwNv8uTaeAK`, doctor-strategy-call, utm_source facebook, utm_medium paid, last 6.9 days), left out test addresses and row 296 (already sent live on 2026-10-17), and sent one `DoctorEmailEntered` event per remaining row to dataset 4309835332571875 through the existing "Facebook Graph account" credential: real event time, event_id `dee-backfill-<row id>`, page /doctors, hashed email/phone/name, fbc built from the stored fbclid, custom_data `backfill: true`.
+Why: the event went live on 2026-10-17 (synchrosocial #182). The new ad sets will aim at a custom conversion on it, so Meta gets the past week's real form starters as history. Meta accepts website events up to 7 days old.
+Tested: Meta answered `events_received: 9` (fbtrace AsxRKrFNREymJWxJ2BMkEXE). Rows sent: 219, 220, 221, 222, 224, 248, 250, 289, 293.
+Undo: not possible to delete events from Meta; they are marked `backfill: true` and use their own event_id prefix. The workflow is archived and can be restored from n8n's archive if ever needed.

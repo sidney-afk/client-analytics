@@ -163,7 +163,9 @@ async function regressions(browser, origin, role, width) {
     await until(() => t.state.cards[0].caption === 'My unsent caption', 'confirmed caption replacement did not land');
     await until(() => JSON.parse(t.state.cards[0].caption_tweaks || '[]').some(n => n.body.includes('My unsent caption') && n.body.includes('The newer team caption')), 'replacement note lost the prior caption');
     assert.equal(t.state.upserts.filter(p => p.caption === 'My unsent caption').length, 1);
-    assert.equal(t.state.cards[0].caption_status, 'Client Approval');
+    // The confirmed replacement is a sent caption edit, so since #2229 it answers the caption step: approved, once.
+    await until(() => t.state.cards[0].caption_status === 'Approved', 'confirmed caption replacement did not answer the caption step');
+    assert.equal(t.state.upserts.filter(p => p.caption_status === 'Approved').length, 1, 'the caption was approved more than once');
   });
   if (role === 'client') await runCase(browser, origin, role, width, 'caption approved by team while editor open', async t => {
     await step(t, 'caption'); await inS(t.page, '#editBtn').click();

@@ -2604,7 +2604,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
     // A queue with nothing in it renders no pill at all. The matrix has room
     // for a "Clear" placeholder; a calendar cell does not, and three empty
     // outlines per editor would bury the one that matters.
-    function wlEditorStatusPillsHtml(assigneeId, editorName, counts) {
+    function wlEditorStatusPillsHtml(assigneeId, editorName, counts, inHead) {
         const totals = counts && counts.get(String(assigneeId || '').trim());
         if (!totals) return '';
         const pills = WL_STATUS_QUEUES.filter(queue => totals[queue.key] > 0).map(queue => {
@@ -2613,7 +2613,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
             return `<button type="button" class="wl-day-status-pill is-${queue.key}" data-wl-rollup="1" data-wl-count-badge="1" data-wl-source="${queue.sourceMode}" data-wl-assignee-id="${wlEscape(assigneeId || '')}" data-wl-client="" data-wl-in-progress="${queue.key === 'inprogress' ? '1' : '0'}" data-wl-editor-name="${wlEscape(editorName || 'Unknown')}" aria-label="${wlEscape(label)}" data-tip="${wlEscape(label)}">${total}</button>`;
         });
         if (!pills.length) return '';
-        return `<div class="workload-day-card-status">${pills.join('')}</div>`;
+        return `<div class="workload-day-card-status${inHead ? ' is-in-head' : ''}">${pills.join('')}</div>`;
     }
 
     // Compact editor matrix: capacity and the three exception queues share one
@@ -3629,12 +3629,13 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
                     <div class="workload-day-card-items">${issueCards}</div>
                 </details>`;
             }).join('');
+            const calmHead = typeof wlCalmOn === 'function' && wlCalmOn();
             return `<div class="workload-day-card team-${team}">
                 <div class="workload-day-card-head">
-                    <span class="workload-day-card-name">${wlEscape(name)}</span>
+                    ${calmHead ? `<span class="workload-day-card-badge" aria-hidden="true">${wlEscape(wlInitials(name).charAt(0))}</span>` : ''}<span class="workload-day-card-name">${wlEscape(name)}</span>${calmHead && statusCounts ? wlEditorStatusPillsHtml(ed.assigneeId, name, statusCounts, true) : ''}
                     <button type="button" class="workload-day-card-total${overBy ? ' over-capacity' : ''}" data-wl-rollup="1" data-wl-count-badge="1" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="" data-wl-in-progress="0" data-wl-date="${wlEscape(dayISO || '')}" data-wl-editor-name="${wlEscape(name)}" aria-label="${overBy ? `${name} is ${overBy} workload unit${overBy === 1 ? '' : 's'} over the ${capacity}-unit daily capacity; all work remains visible` : `See ${ed.total} workload unit${ed.total === 1 ? '' : 's'} across ${ed.subs.length} sub-issue${ed.subs.length === 1 ? '' : 's'}`}">${overBy ? `${ed.total}/${capacity} · ${overBy} over` : ed.total}</button>
                 </div>
-                ${statusCounts ? wlEditorStatusPillsHtml(ed.assigneeId, name, statusCounts) : ''}
+                ${statusCounts && !calmHead ? wlEditorStatusPillsHtml(ed.assigneeId, name, statusCounts) : ''}
                 <div class="workload-day-card-clients">${clientGroups}</div>
             </div>`;
         }).join('');

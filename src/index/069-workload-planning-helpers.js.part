@@ -175,6 +175,11 @@ import { wlEscape } from './080-workload-render.js';
     }
     function wlGroupDeadlineHtml(subs) {
         const meta = wlGroupDeadlineSummary(subs);
+        // Calm: every client row shows a dot. A mixed group, or one with a missing due date, has no single
+        // tone, so it gets a neutral grey dot instead of none (the old view still prints nothing for it).
+        if (meta.label && !meta.tone && typeof wlCalmOn === 'function' && wlCalmOn()) {
+            return `<span class="wl-deadline-summary is-neutral" role="img" aria-label="${wlEscape(meta.label)}" data-tip="${wlEscape(meta.label + '.')}">${wlDeadlineDotHtml()}</span>`;
+        }
         if (!meta.label || !meta.tone) return '';
         const toneLabel = ({ red: 'Red', orange: 'Orange', green: 'Green' })[meta.tone] || 'Deadline';
         const tip = `${toneLabel}: ${meta.label}.`;

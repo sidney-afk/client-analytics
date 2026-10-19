@@ -33676,3 +33676,12 @@ Test: `node test/client-link-dark-first-paint-browser.js` (fails on main, passes
 - **Tests.** `docs/syncview-design/tests/workload-calm-interactions-browser.js` (new, wired in `calendar-unit-tests.yml`) clicks every pill and chip, closes by X, Escape and outside click, folds Needs assignment, drives the View menu and week arrows, at 1440, 390 and in dark, with no console errors, and asserts a non-Calm member still sees Templates and the Frame.io line. `workload-calm-browser.js` now asserts the Frame.io line is gone.
 
 **Way back:** revert the pull request.
+
+## 449. [2026-10-19, BUILT, NOT MERGED] Calm Workload day cards: editor no longer looks like a client row, every client row has a dot, count pills on the header row (session Calm Four)
+
+- **Asked by the owner** after looking at the week calendar: the editor name had a dot just like the client rows, some client rows had no dot at all, and the overdue / tweaks / in progress pills sat on a line of their own.
+- **Why some rows had no dot.** The dot on a client row is the deadline-buffer dot (`wlGroupDeadlineHtml`). It was missing in two cases. (1) Every item in the group has three or more working days of buffer ("green"): Calm hid that dot on purpose (`.wl-deadline-summary.is-green { display: none }`). (2) The group has no single tone, either because its items mix different buffers or because at least one has no due date: the helper returned an empty string, so nothing was drawn, in the old view too.
+- **Changed, Calm only.** The editor is now a muted rounded-square initial badge (same look as the Team workload avatars) with the name a little stronger than the client rows; the dot before the name is gone. Green rows now show a neutral grey dot, and a mixed or no-deadline group gets the same grey dot (tooltip carries the deadline text). The three count pills moved onto the editor header row, between the name and the load ("N" or "5/4 · 1 over"); the header wraps if a name is long. The flag-off Workload markup is byte-identical (the old-view golden in `workload-calm-off-browser.js` still matches, and it now also fails on any badge or grey dot leaking out).
+- **Tests.** `workload-calm-browser.js` asserts a badge and no dot before every editor name, a visible dot on every client row, and the pills inside the header row between the name and the load.
+
+**Way back:** revert the pull request.

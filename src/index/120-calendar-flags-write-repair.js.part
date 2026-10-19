@@ -2126,7 +2126,11 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         },
         repair_storage_unavailable: {
             title: 'Write paused safely',
-            text: 'This browser cannot checkpoint recovery data. Free browser storage, then try again.'
+            text: 'This browser could not keep a recovery copy of your save. Keep this page open and copy your words before freeing browser storage. The save may already have reached the server; after copying, reload to check before trying again.'
+        },
+        repair_checkpoint_missing: {
+            title: 'Check this save before trying again',
+            text: 'The recovery copy of this save is missing. The save may already have reached the server. Keep this page open and copy your words, then reload to check the saved result before trying again. If it is still missing, contact your team with the code below.'
         },
         /* Had NO branch here, so it fell through to the default
            safe-to-retry text -- and it was not: the store was full, so retries failed
@@ -2486,7 +2490,9 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         } else showNotify(notice.title, notice.text + ' (code: ' + code + ')');
     }
     function _writeUiRepairJournalRead() {
-        const raw = (() => { try { return localStorage.getItem(WRITE_UI_SOURCE_REPAIR_KEY); } catch (e) { return null; } })();
+        let raw;
+        try { raw = localStorage.getItem(WRITE_UI_SOURCE_REPAIR_KEY); }
+        catch (e) { return { rows: [], unknown: 1 }; }
         if (!raw) return { rows: [], unknown: 0 };
         try {
             const parsed = JSON.parse(raw);
@@ -2655,7 +2661,21 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         return _writeUiRepairWithLock(() => {
             const state = _writeUiRepairJournalRead();
             if (state.unknown) throw _writeUiGatewayError(507, 'repair_storage_unknown');
-            const index = state.rows.findIndex(row => row.key === record.key && row.token === record.token);
+            let index = state.rows.findIndex(row => row.key === record.key && row.token === record.token);
+            // A person can clear storage while the request is in flight. Only
+            // a committed response or authenticated current-state reconciliation
+            // plus the complete owned record may restore it. A partial replay
+            // reference is never sufficient.
+            if (index < 0 && ((response && response.native_committed === true) || (options && options.reconciled === true))
+                && record.surface && record.client_slug && record.post_id && record.principal
+                && record.source_at && record.edits && Array.isArray(record.intents)
+                && record.intents.some(value => value && value.key === record.primary_intent_key
+                    && ((value.attempted === true && value.gateway_payload)
+                        || (options && options.reconciled === true && value.operation === 'status' && value.status)))
+                && !state.rows.some(row => row.key === record.key)) {
+                state.rows.push(JSON.parse(JSON.stringify(record)));
+                index = state.rows.length - 1;
+            }
             if (index < 0) throw _writeUiGatewayError(507, 'repair_checkpoint_missing');
             const row = state.rows[index];
             const intent = (row.intents || []).find(value => value && value.key === record.primary_intent_key);
@@ -2670,7 +2690,11 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             state.rows[index] = row;
             if (!_writeUiRepairJournalWrite(state.rows)) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
             record.intents = row.intents;
-            return { key: row.key, token: row.token };
+            const ref = { key: row.key, token: row.token };
+            // Not persisted into display caches. The caller already owns this
+            // acknowledgement even if recovery finishes before its next turn.
+            Object.defineProperty(ref, '_checkpoint', { value: JSON.parse(JSON.stringify(row)) });
+            return ref;
         });
     }
     function _writeUiAdoptRepairAck(post, acknowledgement) {
@@ -2731,7 +2755,9 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     }
     function _writeUiRepairCompanions(ref) {
         if (!ref || !ref.key || !ref.token) return [];
-        const state = _writeUiRepairJournalRead();
+        const snapshot = ref._checkpoint;
+        const state = snapshot && snapshot.key === ref.key && snapshot.token === ref.token
+            ? { rows: [snapshot], unknown: 0 } : _writeUiRepairJournalRead();
         if (state.unknown) throw _writeUiGatewayError(507, 'repair_storage_unknown');
         const stored = state.rows.find(row => row.key === ref.key && row.token === ref.token);
         if (!stored) throw _writeUiGatewayError(507, 'repair_checkpoint_missing');
@@ -2739,11 +2765,13 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             && intent.key !== stored.primary_intent_key && intent.native_committed !== true).map(intent => {
                 const record = JSON.parse(JSON.stringify(stored));
                 record.primary_intent_key = intent.key;
+                const ownedIntent = Object.assign({}, intent, { _repair_key: stored.key, _repair_token: stored.token });
+                Object.defineProperty(ownedIntent, '_checkpoint', { value: record });
                 return {
                     operation: intent.operation,
                     component: intent.component,
                     source_at: intent.source_at || stored.source_at,
-                    intent: Object.assign({}, intent, { _repair_key: stored.key, _repair_token: stored.token }),
+                    intent: ownedIntent,
                     record
                 };
             });
@@ -2785,9 +2813,45 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     }
     function _writeUiCompleteSourceRepairRefs(refs) {
         if (!Array.isArray(refs) || !refs.length) return Promise.resolve(true);
-        return _writeUiRepairWithLock(() => _writeUiCompleteSourceRepairRefsUnlocked(refs));
+        const state = _writeUiRepairJournalRead();
+        if (state.unknown) return Promise.resolve(false);
+        const exact = new Set(refs.map(ref => ref.key + '|' + ref.token));
+        const cards = new Map();
+        state.rows.filter(row => exact.has(row.key + '|' + row.token)).forEach(row => {
+            cards.set([row.surface, row.client_slug, row.post_id].join('|'), row);
+        });
+        const records = Array.from(cards.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(pair => pair[1]);
+        const finish = index => index === records.length
+            ? _writeUiRepairWithLock(() => _writeUiCompleteSourceRepairRefsUnlocked(refs))
+            : _writeUiWithRepairFlight(records[index], () => finish(index + 1), true);
+        // A foreground save or receipt reader still owns this card. Leave the
+        // exact debt durable instead of deleting its checkpoint underneath it.
+        // Recovery completes its own refs after releasing the replay lease.
+        return finish(0);
     }
-    async function _writeUiGatewayWithRepair(intent, repair) {
+    const _writeUiRepairReplayOwners = new WeakSet();
+    function _writeUiWithRepairFlight(record, callback, recovering) {
+        if (!record) return Promise.resolve().then(() => callback());
+        if (record._flightOwner && _writeUiRepairReplayOwners.has(record._flightOwner)) {
+            return Promise.resolve().then(() => callback(record._flightOwner));
+        }
+        if (typeof navigator === 'undefined' || !navigator.locks || typeof navigator.locks.request !== 'function') {
+            return Promise.reject(_writeUiGatewayError(503, 'repair_lock_unavailable'));
+        }
+        const name = 'syncview-source-repair-flight:' + [record.surface, record.client_slug, record.post_id].join('|');
+        const options = recovering ? { mode: 'exclusive', ifAvailable: true } : { mode: 'exclusive' };
+        return navigator.locks.request(name, options, async lock => {
+            if (!lock) return false;
+            const owner = {};
+            if (recovering) _writeUiRepairReplayOwners.add(owner);
+            try { return await callback(owner); }
+            finally { if (recovering) _writeUiRepairReplayOwners.delete(owner); }
+        });
+    }
+    function _writeUiGatewayWithRepair(intent, repair) {
+        return _writeUiWithRepairFlight(repair, () => _writeUiGatewayWithRepairOwned(intent, repair));
+    }
+    async function _writeUiGatewayWithRepairOwned(intent, repair) {
         let initiallyExisting = null;
         let sourceRepair = null;
         try {
@@ -3583,6 +3647,7 @@ export {
   _writeUiPrimeRerouteFlag, _writeUiPrincipalKey, _writeUiQueueDiagnostic, _writeUiRecordFailure,
   _writeUiRefreshAuthority, _writeUiRemoveCompletedRepairRefs, _writeUiRepairCompanions,
   _writeUiRepairJournalRead, _writeUiReportFailure, _writeUiRerouteUseGateway,
+  _writeUiWithRepairFlight,
   _writeUiRerouteUseGatewayWhenReady, _writeUiSetLastRenderedAuthoritySig,
   _writeUiSnapshotRepairRefs, _writeUiSourceClientSlug, _writeUiSourceEditsOnly, _writeUiTeam,
   _writeUiUseGatewayWhenReady, computeOverallStatus

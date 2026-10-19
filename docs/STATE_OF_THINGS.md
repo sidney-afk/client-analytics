@@ -30,6 +30,20 @@ section below for links with an explicit `v=calendar`. Not done: first paint on 
 
 Automatic records (a client's caption-change note, anything the system writes) never count as new, never raise the badge. Kasper's inbox counts only staff messages; the managers' inbox keeps counting what people write to them. One New/All switch (opens on New, "No new messages" when calm). The badge refreshes by itself: realtime on the cards, a ping from other tabs, and a 30 s safety net. Server side in `production-comments/inbox.mjs` (auto-deploys on merge, no migration). OPEN_REPAIRS 443; test `node docs/syncview-design/tests/messages-new-view-browser.js`.
 
+## Review-save checkpoints (session Checkpoint, 2026-10-18): candidate PR #2233 (ledger 444); live audit has failures
+
+The recovery journal could be consumed by background recovery or another tab while its original save still needed it,
+then report `repair_checkpoint_missing` after a native commit. The candidate shares a per-card browser lease between
+native attempts, recovery and cleanup, re-reads queued groups, and retains an acknowledged snapshot for companion
+binding. Storage refusals remain visible and no diagnostic code is hidden. The all-engine mocked suite passes 69 cases
+at 1440 and 390. The separate live pass completed in all three engines at both widths, on client, SMM and reviewer
+pages. It confirmed lost unsent caption/staff-note drafts on reload, unresolved interrupted saves despite retained
+browser copies, inconsistent staff deletion and elapsed times over three seconds. Bundled Chromium video playback
+failed; Firefox, WebKit and an additional installed-Chrome check played the same media. This is not a live all-clear
+or proof of this unmerged candidate. The disposable card is archived through the app, both native work items were
+read back in Backlog, and the three original test cards are unchanged. Lighthouse owns review and merge.
+Findings, limits and exact reruns: [Checkpoint report](audits/2026-10-18-checkpoint-review.md).
+
 ## Client link in a dark browser (session Dusk, 2026-10-18): PR open
 
 Owner report: with dark saved, opening the client review showed a white loading screen, not in the page's shape. Four
@@ -152,6 +166,9 @@ shape is the old page; the lists live only in the database):
   in the staff bar, no Analytics / Content Calendar toggle on a client link, and a client link's Analytics address
   opens the Content Calendar. Read at boot in the same request as the switches above. No Analytics code was removed.
 The initial test rollout used the test client in the first list and the owner in the second; see the 2026-10-18 owner update above for the client rollout.
+The 2026-10-17 trial used the test client in the first list and the owner in the second. A read-only live check on
+2026-10-18 confirms `review_stage_client_pages` has `all: true`: every client's review page is now enabled. The staff
+Review Session uses its separate staff switch. Historical trial timestamps below describe that earlier rollout.
 
 **The owner's decisions, 2026-10-16:** yes to the SMM and Kasper mock-ups, and to the five open choices:
 (1) the arrow on Approve is faint at rest and firm on hover; (2) SMM caption edits save at once, as today; (3) Kasper's

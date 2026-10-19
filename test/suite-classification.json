@@ -1868,6 +1868,14 @@
       "ci": "representative"
     },
     {
+      "file": "repair-checkpoint-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright, Chromium, Firefox and WebKit. Actual checkpoint helpers, same-origin localStorage and browser Web Locks; fictional transport only. Includes concurrent recovery, acknowledgement after storage clear, companion binding after cleanup, quota, blocked reads and reload.",
+      "reproduce": "node test/repair-checkpoint-browser.js",
+      "ci": "representative"
+    },
+    {
       "file": "client-calendar-read-only-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

@@ -38,8 +38,10 @@ const SCENARIOS = [
 ];
 
 // Whether a long note was marked expandable depends on when the browser measured it (a loaded machine measures
-// later), which is not the page's markup: both sides are compared without that mark.
-const unclamp = html => html.replace(/ is-clamped/g, '').replace(/( onkeydown="wlOnTweakCommentKey\(event,this\)") role="button" tabindex="0"( aria-expanded="(?:true|false)")?/g, '$1');
+// later), which is not the page's markup: both sides are compared without that mark. The same goes for an empty
+// style="" left on the grid wrapper by a transition that has or has not finished when the DOM is read (it comes and
+// goes between runs of the unchanged old page too).
+const unclamp = html => html.replace(/ style=""/g, '').replace(/ is-clamped/g, '').replace(/( onkeydown="wlOnTweakCommentKey\(event,this\)") role="button" tabindex="0"( aria-expanded="(?:true|false)")?/g, '$1');
 
 /* Everything an old-view user can see or open on this board, as markup. */
 async function capture(h) {

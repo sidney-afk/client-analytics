@@ -33521,4 +33521,10 @@ Audit of the upload link and the Submit tab against every way a send can fail (r
 - **Not changed.** SMM and Kasper caption edits save at once on the step and keep their own Approve; there is no "send" step for them, so they do not have this problem. A YouTube title edit is still a change request.
 - **Tests.** `test/review-stage-caption-send-browser.js` (new; fails on main). `review-stage-client-composer-browser.js` had two lines saying the caption "stays waiting for Approve"; they now say the sent edit was the answer (still never a change request).
 
+## 438. [2026-10-18, BUILT, NOT MERGED] Kasper's "With the editors" rows were two lines of orange text; now "Client · Title" and a small grey date (session Tidy)
+
+Owner request: less text, less noise. Each row used to show the video title, then an orange "<client>, with the editors since 29 Sept 2026". Now the first line is the client (normal text colour) then " · " and the title, one line, an ellipsis when too long; the second line is only the day the tweak went to the editors in the muted grey of secondary text: Today, Yesterday, the weekday for 2 to 6 days ago, otherwise "29 Sept", with the year only when it is not this year (local days, not 24 hours). A row with no finished date shows no second line. Ping editor and everything else are unchanged.
+
+The same row is drawn in three places, all changed in `src/index/195-review-stage.js.part`: the list panel (the list button), the strip chips (after opening "With the editors"), and the "All caught up" recap list. The Urgent and Waiting for your review rows share those components and are deliberately left as they were (title first, client on the small line). Test: `node test/review-stage-with-editors-row-browser.js` (fails on main), 1440 and 390, light and dark; before and after screenshots in `docs/audits/2026-10-18-with-editors-row/` (fictional data). Not covered by the test: the recap list (it only shows when nothing is waiting).
+
 **Way back:** revert the pull request.

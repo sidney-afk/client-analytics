@@ -139,7 +139,10 @@ async function regressions(browser, origin, role, width) {
     await step(t, 'caption'); await inS(t.page, '#editBtn').click();
     await inS(t.page, '#capTa').fill('Caption kept over reload 👋');
     await t.page.reload({ waitUntil: 'domcontentloaded' }); await waitNew(t);
-    await step(t, 'caption'); await inS(t.page, '#editBtn').click();
+    await step(t, 'caption');
+    // The editor reopens by itself on the post with unsent words (phones); on a page where it did not, Edit shows them.
+    await sleep(700);
+    if (!await inS(t.page, '#capTa').count()) await inS(t.page, '#editBtn').click();
     assert.equal(await inS(t.page, '#capTa').inputValue(), 'Caption kept over reload 👋');
   });
   if (role === 'client') await runCase(browser, origin, role, width, 'caption changed by team while editor open', async t => {
@@ -340,7 +343,11 @@ async function exercise(t, role, action, condition) {
     return;
   }
   if (kind === 'approve') assert.equal(row[part + '_status'], role === 'client' ? 'Approved' : 'Client Approval');
-  else if (kind === 'caption-edit') { assert.equal(row.caption, text); assert.equal(row.caption_status, 'Client Approval', 'editing approved the caption'); }
+  else if (kind === 'caption-edit') { assert.equal(row.caption, text);
+    // The approval is its own request after the caption lands, so a slow or interrupted network needs time to deliver it.
+    if (role === 'client') await until(() => t.state.cards[0].caption_status === 'Approved', 'caption edit did not answer the caption step', 20000);
+    // Since #2229 a sent caption edit is the client's answer for the caption step: it approves the caption, once.
+    assert.equal(row.caption_status, role === 'client' ? 'Approved' : 'Client Approval', 'caption edit did not answer the caption step once'); }
   else {
     const notes = JSON.parse(row[part + '_tweaks'] || '[]');
     const matching = notes.filter(n => n.body === (kind === 'frame' ? 'Tweaks are on Frame.' : kind === 'title-edit' ? 'Please use this title:\n\n' + text : text));

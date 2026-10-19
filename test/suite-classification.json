@@ -1868,6 +1868,14 @@
       "ci": "representative"
     },
     {
+      "file": "repair-checkpoint-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright, Chromium, Firefox and WebKit. Actual checkpoint helpers, same-origin localStorage and browser Web Locks; fictional transport only. Includes concurrent recovery, acknowledgement after storage clear, companion binding after cleanup, quota, blocked reads and reload.",
+      "reproduce": "node test/repair-checkpoint-browser.js",
+      "ci": "representative"
+    },
+    {
       "file": "client-calendar-read-only-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -1892,10 +1900,26 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-phone-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Pinned Playwright 1.56.1 with WebKit and Chromium. Shared mocked review-stage fixture only, local generated media, no hosted credentials. iPhone SE, iPhone 15, iPhone 15 Pro Max and Pixel 7 in portrait and landscape, light and dark: touch playback, scrub, speed, notes, caption edit and draft reload, interrupted saves and reconnect, four part approvals, delete, later visit, staff send-back, finish and close, geometry and reduced-viewport typing. Physical iOS keyboard and Safari chrome need a real device.",
+      "reproduce": "npx playwright install --with-deps webkit chromium && node scripts/build-index.js && node test/review-stage-phone-browser.js",
+      "ci": "representative"
+    },
+    {
+      "file": "review-stage-instant-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js), with every save made slow so nothing on screen can come from the server. Approve, Approve to Kasper or client, Ask for a change, a note and Finish reviewing must be on screen within 150 ms of the click on the client link, the managers' Review tab and Kasper's Review Session, at 1440 and 390, and a refused save must put the part back with Try again.",
+      "reproduce": "node test/review-stage-instant-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-finish-polish-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Six finishing touches on the client review page: Finish reviewing stays off with a Saving hint while an answer is sent, the not-saved box in plain words with no raw code, the speed button on the vertical player at 1440, 1280 and 1024 (and gone at 390), the link opening on Review when opened fresh with Back and Forward still working, Month and Week thumbnails opening the in-app viewer (nothing for a post with no video), and unsent change-request words kept across a reload (cleared when sent, when the post leaves the list, after 7 days, and working with storage blocked).",
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Six finishing touches on the client review page: Finish reviewing stays off with a Saving hint while an answer is sent, the not-saved box in plain words with no raw code, the speed button on the vertical player at 1440, 1280 and 1024 (and visible at 390 under the phone coverage contract), the link opening on Review when opened fresh with Back and Forward still working, Month and Week thumbnails opening the in-app viewer (nothing for a post with no video), and unsent change-request words kept across a reload (cleared when sent, when the post leaves the list, after 7 days, and working with storage blocked).",
       "reproduce": "node test/review-stage-finish-polish-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
@@ -2017,6 +2041,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Calendar caption prompt table read, its last-known-good and n8n error-only fallbacks, and the fresh settings-flag guard on the save.",
       "reproduce": "node test/caption-prompts-guard-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "review-stage-gauntlet3-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Repository Playwright 1.56.1 with Chromium, Firefox and WebKit. All data and transports use the offline review-stage fixture; no hosted credentials or live writes. Desktop widths 1024, 1440 and 1920; client and staff review actions, slow and interrupted writes, refusals, duplicate clicks, two tabs, aged sessions, changing cards, Unicode, drafts, Finish and Notes replies/deletes.",
+      "reproduce": "node scripts/build-index.js && node test/review-stage-gauntlet3-browser.js; repeat the matrix with G3_TITLE=1 and G3_MODE=matrix for engaged YouTube titles",
       "ci": "representative"
     },
     {

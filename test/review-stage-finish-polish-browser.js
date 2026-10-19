@@ -4,7 +4,7 @@
  *   1. Finish reviewing stays off, with a short "Saving...", while any part's answer is still being sent.
  *   2. The "Your approval was not saved" box speaks plain words: no "Linear issue", no raw code.
  *   3. The speed button stays on the review page's vertical player at desktop sizes (1440, 1280, 1024); a phone (390)
- *      keeps Full screen and drops the speed button.
+ *      keeps Full screen and speed (Pocket's phone contract, 2026-10-18).
  *   4. The client link opens on Review every time it is opened fresh, whatever tab was used last; Back and Forward
  *      between tabs inside a visit keep working.
  *   5. Client Month and Week: a post's thumbnail opens the in-app viewer (video left, notes right); a post with no
@@ -74,7 +74,7 @@ const reload = async t => { await t.page.reload({ waitUntil: 'domcontentloaded' 
 
     await section('3', async () => {
       console.log('--- 3. The speed button on the vertical player ---');
-      for (const [w, h, wantRate] of [[1440, 900, true], [1280, 800, true], [1024, 768, true], [390, 844, false]]) {
+      for (const [w, h, wantRate] of [[1440, 900, true], [1280, 800, true], [1024, 768, true], [390, 844, true]]) {
         const t = await openClient(browser, origin, { flags: 'on', width: w, height: h });
         await waitNew(t);
         await t.page.waitForFunction(() => !!document.getElementById('svReviewStage').shadowRoot.querySelector('.fv-player .fv-full'), null, { timeout: 15000 });

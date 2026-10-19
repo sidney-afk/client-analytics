@@ -3712,6 +3712,24 @@ for (const name of ['_writeUiComponentHasWorkItem', '_writeUiCommentRound', '_ca
       && diagnostics.includes('calendar:cache_only_repair_held')
       && !diagnostics.includes('calendar:cache_only_repair_superseded'),
     'an unreadable journal blocks the heal — the consumed-receipt signature is a READABLE journal with zero rows');
+    // A foreground commit owns its checkpoint until it settles; a simultaneous refresh must not consume it.
+    const replayed = [];
+    resumeContext.calState.posts = [];
+    resumeContext._writeUiRepairGroups = () => ({ groups: [
+      { surface: 'calendar', lane: 'card', post_id: 'active' },
+      { surface: 'calendar', lane: 'card', post_id: 'waiting' },
+    ], unknown: 0 });
+    resumeContext._calSaveInFlight.active = true;
+    resumeContext._writeUiReplayJournalGroup = async group => replayed.push(group.post_id);
+    await resumeContext._writeUiResumeSourceRepairs();
+    assert(replayed.join(',') === 'waiting', 'background repair leaves an active foreground checkpoint alone and still drains other cards');
+    delete resumeContext._calSaveInFlight.active;
+    replayed.length = 0;
+    await resumeContext._writeUiResumeSourceRepairs();
+    assert(replayed.join(',') === 'active,waiting', 'the deferred card is eligible again when its foreground writer settles');
+    resumeContext._writeUiReplayJournalGroup = async () => { throw new Error('fixture repair refusal'); };
+    await assert.rejects(resumeContext._writeUiResumeSourceRepairs(), /fixture repair refusal/);
+    assert(diagnostics.includes('lifecycle:source_resume_failed'), 'background refusal is observed without consuming the original rejection');
   }
   assert(extract('_kasperPersistPostWrite').includes('_kasperPersistCache()'), 'Calendar Kasper repair is checkpointed in the existing Kasper cache');
   assert(extract('_sxrKasperApplyAndPersist').includes('_writeUiKasperRepair'), 'Samples Kasper repair is checkpointed for reload recovery');
@@ -4031,6 +4049,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_writeUiCommentRound', '_ca
   const repairStorage = new Map();
   let rejectRepairWrite = false;
   const repairContext = {
+    _writeUiRepairReplayOwners: new WeakSet(),
     WRITE_UI_SOURCE_REPAIR_KEY: 'repair-journal',
     localStorage: {
       get length() { return repairStorage.size; },
@@ -4043,7 +4062,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_writeUiCommentRound', '_ca
       removeItem: key => repairStorage.delete(key),
     },
     _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
-    navigator: { locks: { request: async (_name, _options, callback) => callback() } },
+    navigator: { locks: { request: async (_name, _options, callback) => callback({ name: _name }) } },
     _writeUiGatewayPost: async (_intent, hooks) => {
       if (hooks && hooks.beforeAttempt) await hooks.beforeAttempt('{"fixture":true}');
       repairContext.gatewayHits++;
@@ -4060,7 +4079,8 @@ for (const name of ['_writeUiComponentHasWorkItem', '_writeUiCommentRound', '_ca
     '_writeUiRequireRepairStorage', '_writeUiRepairWithLock', '_writeUiReserveSourceRepair',
     '_writeUiPrepareRepairAttempt', '_writeUiMarkRepairCommitted',
     '_writeUiDiscardSourceRepairUnlocked', '_writeUiDiscardSourceRepair',
-    '_writeUiCompleteSourceRepairRefsUnlocked', '_writeUiGatewayWithRepair'
+    '_writeUiCompleteSourceRepairRefsUnlocked', '_writeUiWithRepairFlight',
+    '_writeUiGatewayWithRepairOwned', '_writeUiGatewayWithRepair'
   ]) {
     vm.runInContext(extract(name), repairContext);
   }

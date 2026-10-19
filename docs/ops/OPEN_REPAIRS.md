@@ -33527,6 +33527,17 @@ Owner request: less text, less noise. Each row used to show the video title, the
 
 The same row is drawn in three places, all changed in `src/index/195-review-stage.js.part`: the list panel (the list button), the strip chips (after opening "With the editors"), and the "All caught up" recap list. The Urgent and Waiting for your review rows share those components and are deliberately left as they were (title first, client on the small line). Test: `node test/review-stage-with-editors-row-browser.js` (fails on main), 1440 and 390, light and dark; before and after screenshots in `docs/audits/2026-10-18-with-editors-row/` (fictional data). Not covered by the test: the recap list (it only shows when nothing is waiting).
 
+## 443. [2026-10-18, BUILT, NOT MERGED] The Messages inbox counted a client's automatic caption-change record as a new message, and its badge only refreshed every two minutes (session Hush)
+
+Owner report: the inbox showed the automatic record of a client changing a caption ("Changed the caption to: ... It was: ...") as a new unread message. The number 437 was claimed by another open pull request, so this entry was written as 438 and is numbered 443 in train 4.
+
+- **Where unread is decided:** on the server, `production-comments/inbox.mjs` (`countsAsNew`, used by `unreadCount` and `unreadMark`). `production-comments` is not a Section 4 function, so no fingerprint is re-pinned; the merge lane deploys it. No migration.
+- **What counts as new now.** Reviewer view (Kasper): only a staff member's message to you. Client notes and automatic records still appear in the list and the thread, never count, never raise the badge. SMM view: unchanged for what people write (a client's plain note still counts), except automatic records, which never count. Your own messages never count in either view. An automatic record is a note with role `system`, `automatic`, `auto` or `bot`, or a client note that starts with the caption-change words the client page writes. "Mark as unread" now marks before the newest message that counts.
+- **Switch.** One two-option segmented switch, "New" (with the count when there is one) then "All", opening on New; New with nothing new says "No new messages". The conversation you have open stays on screen in New. Same code in Kasper's tab and the managers' inbox.
+- **Live badge.** Three paths into one refresh: the app's shared realtime channel on the cards (a note is saved on a card), a BroadcastChannel ping from another tab of the same browser after it reads or unreads, and a 30 s safety-net refresh (was 120 s) that also covers another device and a dropped socket. It starts after the first inbox load (the inbox is still never asked for cold), pauses in a hidden tab and on the Production tab.
+- **Tests (fail on main):** `node docs/syncview-design/tests/messages-new-view-browser.js`; new rules in `node test/messages-inbox-scope.js`; `messages-inbox-browser.js` now opens All where it reads every row.
+- **Not done:** a read in another browser or device waits up to 30 s (no push for read marks, the table is closed to browsers); a message that exists only in the canonical comments table, not on the card row, is also picked up by the 30 s refresh rather than instantly.
+
 **Way back:** revert the pull request.
 
 ## 439. [2026-10-19, BUILT, NOT MERGED] Pull-request checks waited hours for a runner seat; browser suites now run three side by side (session Express)
@@ -33549,3 +33560,111 @@ Owner request 2026-10-18: the staff Workload calendar has too much visual noise 
 - **Every write is the old one.** Due dates through `[data-wl-due-issue]` (production-write `due`), Use automatic plan through `[data-wl-plan-clear]`, drags through the old handles. There is no "ping editor" action in Workload today, so none was touched.
 - **Tests.** `node docs/syncview-design/tests/workload-calm-off-browser.js` holds the old calendar to a golden copy captured before this change (7 ways the switch can fail to name the member, 49 checks); `node docs/syncview-design/tests/workload-calm-browser.js` drives the calm view (53 checks: each action saves exactly once). `workload-harness-lib.js` gained opt-in `nativeSnapshot`, `flagRows`, `flagResponse` and `comments` options (off by default; every older suite is unchanged). Note the older design-folder Workload suites (`workload-render-browser.js`, `workload-board-browser.js`) already fail on `main` because that harness mocks the retired Linear read, not the current native snapshot; not changed here.
 - **Not done.** Month cells and the Plan + Due Date timeline get the flat look from the shared styles only; the owner's tweaks come as a follow-up on this PR. The switch row must be added by Lighthouse.
+
+## 440. [2026-10-18, BUILT, NOT MERGED] Review caption overwrite, lost drafts and recovery click/error gaps (session Gauntlet Three)
+
+**Confirmed, mocked browsers only.** A client saving an open caption editor could silently overwrite a newer team
+caption. Unsent caption text disappeared when switching posts/reloading, and a refused save hid the replacement text.
+Staff stage messages were not stashed per post; the old writer's refused-note draft did not return to the new box.
+Refused changes retained a retry closure but hid its words. Firefox could apply a pending refresh between focus-out
+and click, losing the Save click. Returning online could also expose an unhandled recovery-promise rejection
+(14/30 interrupted-change stress attempts before, 0/30 after).
+
+**Candidate repair.** `src/index/195-review-stage.js.part` retains per-post draft text, caption/base pairs in tab-scoped
+storage, compares concurrent captions before replacement, returns refused captions to the editor, exposes refused
+change words, restores staff note drafts and lets focused controls receive their click before a deferred repaint.
+`src/index/290-samples-writes-review.js.part` observes background recovery rejections without consuming receipts or
+changing explicit callers' rejecting promise. `test/review-stage-gauntlet3-browser.js` drives the existing offline
+fixture in Chromium, Firefox and WebKit at 1024, 1440 and 1920; the CI matrix also covers engaged titles.
+
+**Limits and ownership.** No live writes, merge or deployment. This does not repair an already executing cached page,
+prove every action/error-code intersection, or independently prove live database/provider behavior. The action table,
+reproduction commands, confirmed/refuted boundaries and unproven cases are in
+`docs/audits/2026-10-18-review-stage-gauntlet-three.md`. Lighthouse owns review and merge.
+
+The same audit also reproduced a stale editor changing an already approved caption. Save now rechecks the current
+part's eligibility for client caption and title edits, refuses clearly when it was already answered, and keeps the text.
+
+Visual verification also found false Saved badges on pending/refused captions and plain client notes without an
+in-conversation failure/retry. Confirmed saves alone now mark Saved; caption failures stay visibly on the stage and
+plain-note retries reuse the existing outbox id. The tests check visible controls, not announcement text alone.
+
+The same audit confirmed Kasper's approval toast intercepting Next post at desktop width 1024, locally and in hosted
+Chromium. The stage now reserves space for that toast. The Finish regression checks the button and toast do not
+overlap while the toast is visible; an additional real-click test confirms Undo still restores the part's status.
+
+The expanded shared Notes-dialog fault matrix also reproduced a refused Delete hiding the note locally while
+claiming a native write was safe and would retry automatically. Only an explicit native acknowledgement now permits
+the saved-note message; other failures say the note change was not saved and ask the person to refresh/check it.
+Reply and delete are exercised separately under the dialog fault conditions. The legacy fixture has no Edit control;
+the corresponding cases assert unavailability and zero writes, and make no canonical note-edit save claim.
+
+Repeated WebKit overnight approval stress reproduced an unhandled repair_checkpoint_missing in 6/60 cases after
+the approval had landed. A hydration-triggered replay could compete with an active foreground checkpoint and left
+its rejecting promise unobserved. Source repair now defers the actively saving Calendar card, continues other cards,
+and observes background rejection without consuming the original promise. The durability test executes deferral,
+later eligibility and rejection propagation; an offline browser regression overlaps approval and recovery.
+
+**Train 4 follow-up (same entry):** since #2229 a sent caption edit is the client's answer for the caption step, and the phone editor now reopens by itself on unsent words, so `test/review-stage-gauntlet3-browser.js` expects the caption to be approved once after an edit (not, after a lost answer to the caption save, where the part keeps waiting), and clicks Edit after a reload only when the editor did not reopen. The unsent-caption drafts of this entry and of entry 441 are one store (per tab, `syncview_rs_caption_draft_v1:`), which the phone's reopen-on-load reads.
+
+## 441. [2026-10-18, BUILT, NOT MERGED] Phone review could lose a caption draft, and staff Finish stayed off after sending a part back (session Pocket)
+
+The owner reported the new review page live for every client on 2026-10-18. This work uses only the existing mocked browser fixtures; no live writes, switch changes or deployment.
+
+- Staff parts with content were always called waiting, even after a change request saved. Require the part's waiting status too. Finish and Close wait for save receipts, and explicit Close leaves the stage through the old close writer.
+- Caption edits had no persistent draft and the editor closed before a failed save answered. Keep the edit per client/post, restore it on reload without sending, retain the editor and a plain message after failure, and clear the kept edit after success or Cancel.
+- Phone controls were 16–42 px, fields were below 16 px, speed was hidden, and a portrait video's width collapsed in landscape. Phone-only styles provide 44 px targets, 16 px fields, a contained video with visible speed, safe-area padding and viewport-aware field scrolling. Placeholder controls and conversation space match the loaded layout.
+- The new client conversation had no Delete action. Its own-note control calls the existing permission-checked tombstone writer with the explicit post id; deleting never changes the part's status. Connection failures on the client review page use plain recovery words while the refusal report keeps the diagnostic.
+- Windows WebKit's frame counters could stay zero while it drew a picture. A readable current frame now confirms a picture before the existing unsupported-video fallback; forbidden cross-origin reads keep that fallback.
+
+Coverage: `node test/review-stage-phone-browser.js`, WebKit iPhone SE / 15 / 15 Pro Max and Chromium Pixel 7, portrait and landscape, both themes, client and staff. The new CI job shares the existing guards runner seat and is included in the result check; no old check is disabled. Findings, exact repeat commands, action inventory, fictional before/after pictures and physical-device limitations: `docs/audits/2026-10-18-review-stage-phones/README.md`.
+
+Physical iPhone Safari toolbar, notch/home indicator, software keyboard, production saves and deployment are not proven by this mocked emulation. Revert this PR to roll back the changes.
+
+**Screenshot and journey follow-up (same entry):** the staff title and round note now wrap on phones; the wide-landscape caption card keeps its height; a deleted note refreshes the stage immediately; and the smallest player gives the skip buttons room by hiding them while retaining play, speed, mute and Full screen. The field-reveal handler responds to focus and viewport resize without pulling a person back while they scroll. See the fictional before/after gallery in the report.
+
+**Approval-message follow-up (same entry):** the fixed bottom approval message could put Undo over staff Finish in landscape. On the phone review session it now uses the safe top edge and a 44 px Undo target; the browser test checks that Finish is uncovered. The gallery retains the actual before and after state.
+
+**Startup and surrounding-controls follow-up (same entry):** an intermittent WebKit rejection was traced to the background Samples recovery task reading shared staff state before that startup script loaded. It now uses the calendar recovery task's early-state guard; the repair race suite verifies that queue loading still inspects and retains repair debt afterwards. Wide-landscape staff navigation also inherited 30–36 px desktop targets; this review view now enlarges them to 44 px and the phone matrix checks the surrounding controls too. No save authority or receipt guard changes.
+
+## 442. [2026-10-18, BUILT, NOT MERGED] The client link's loading screen still looked bad after 2222: four screens on a first visit, near-invisible placeholders, the wrong shape for an empty client and for most phones (session Dawn)
+
+Owner report, 2026-10-18 about 19:40 UTC: the loading screen of the client review link "still looks horrible, even on mobile". Measured frame by frame on the live site (test client only, read only; Chromium and WebKit; 390, 430 and 1440 wide; light and dark; fast and throttled slow 4G; first and repeat visit). Causes and fixes:
+
+- **First visit showed four screens before the page** (small check card, the old calendar's loader, the old list of posts, a blank). The head script only drew the review shape for a link this browser remembered. An explicit calendar link nothing says is off now draws the review shape, in light, from the first frame (`sv-rs-paint-guess`); a switch that reads off takes it away and the old page shows as before. A guess never grants the saved theme.
+- **Placeholders were the page's own colour in light** (contrast 1.0; 1.05 in dark), so the screen looked empty. Bars on the page are one step darker, bars on a card a pale grey, the sheen calmer.
+- **A client with nothing waiting saw a video and buttons the page never has.** 195 now remembers per link (`syncview_rs_empty_v1`) that the last settled Review was empty; the next visit draws that page's shape (a short line and one card).
+- **Phone sizes other than 390x844 were off.** The loading screen hard-coded one phone: card 644 px, video 388 px, buttons stacked. At 430 the buttons share a row and the video is taller; on a short phone (360x640) the card was 90 px too tall; on a tablet the tabs were 380 px too short. Now sized like the page (video 46vh, card as tall as its content, buttons wrap); checked at six phone sizes, a tablet and four desktop sizes, all within 6 px.
+- **The page's code started downloading only after the switch answer.** It now starts beside the link check (the answer takes 1.5 to 3.7 s live).
+- **Left alone:** the first paint on slow 4G waits for the 1.5 MB page (all CSS is inline before the body); that needs a build change.
+
+Test: `node test/client-link-dark-first-paint-browser.js` (fails on main, passes here). `test/first-paint-theme-browser.js` had one assertion for the old behaviour (a never-seen link shows no review shape) and now asserts the guess is dropped cleanly when the switch reads off.
+
+**Way back:** revert the pull request.
+
+**Train 4 follow-up (same entry):** Pocket's phone work made the loaded page's controls 44 px, its video 56% of the screen tall and full card width, and its chat 480 px tall, so on a phone the loading screen no longer sat where the page lands (63 shape checks failed once both were combined). The phone block of the loading screen in `010-styles-foundation.css.part` now draws those sizes; `node test/client-link-dark-first-paint-browser.js` passes at 390 and 430, light and dark.
+
+## 444. [2026-10-18, BUILT, NOT MERGED] A completed save could report repair_checkpoint_missing when recovery consumed its checkpoint (session Checkpoint)
+
+**Confirmed.** The journal lock protected individual storage operations, not the card's asynchronous write and recovery lifetime. Recovery/another tab could consume a checkpoint before the native acknowledgement, companion binding or another receipt reader used it. Source completion could also remove a row under an active writer. Blocked storage reads were treated as an empty journal. A missing-checkpoint message claimed nothing had committed even when the native service had already acknowledged it.
+
+**Candidate.** Per-card browser leases serialize native attempts and exclude recovery/cleanup while that card is owned. Recovery re-reads queued groups and finishes cleanup after releasing its lease. An acknowledged caller retains an in-memory checkpoint and companion snapshot; a complete owned record can recover from storage being cleared while an acknowledgement or authenticated reconciliation is pending. Partial, corrupt, unavailable and conflicting records still refuse, with the original code visible. Storage/missing-checkpoint copy tells the person the save may already have reached the server and to copy words before reload/retry. No transport is retried to repair bookkeeping.
+
+**Proof.** `node test/repair-checkpoint-browser.js`: 69 passing cases across Chromium/Firefox/WebKit, desktop 1440 and phone 390 (33 storage/ownership checks plus 36 actual page-control cases). The checkpoint negative control reads production helpers from origin/main and fails; it is not a live backend test. Existing writer-durability and repair-race assertions remain. Full commands, limits and the separate live pass are in `docs/audits/2026-10-18-checkpoint-review.md`.
+
+**Live and release.** The deployed test-client pass is in progress, not evidence that this candidate is deployed. Its disposable native card is created/restored/archived through app controls only. No raw SQL card/status mutation, other-client mutation, merge, deployment, runtime-flag change or n8n edit. Lighthouse owns review and merge. This is the next free number on origin/main read at 01e0f12156db90d1a5de20d6ad09cada758f309e; the open Gauntlet Three branch also claimed 437; in train 4 this entry is numbered 444 and the numbers are unique.
+
+**Way back.** Revert this frontend change and rebuild. No database migration or function deployment is involved.
+
+**Checkpoint final live audit, 2026-10-18 (PR #2233, not merged).** Completed Chromium/Firefox/WebKit at 1440 and 390 on the live client link, Calendar SMM Review and staff Review Session. The deployed site still loses unsent client caption edits and staff note drafts on reload. Four client and four reviewer Chromium/Firefox interrupted saves remained absent through the observation/recovery checks, with browser copies retained; this is not proof of permanent loss. Staff Delete was inconsistent, successful work sometimes exceeded three seconds, and bundled Chromium video playback failed while Firefox/WebKit and installed Chrome played it. Fresh caption approvals passed; stale-card refusals, invalid interruption probes and missing-hover/chooser mistakes are separated from product findings. The final app-owned archive was independently checked through both native work items (Backlog); all three original test cards are unchanged. The first source-only cleanup closed the browser too early and was corrected through app restore/archive, not SQL. The report and public-safe observations retain all failed cases and timings. Focused candidate proof remains 69/69; the full-local and earlier hosted accessibility reds are preserved and explained. This is not a live all-clear or deployed proof of this candidate. Lighthouse reviews and merges.
+
+## 446. [2026-10-19, BUILT, NOT MERGED] Approve and Ask for a change answered with a spinner, not the result, and a note typed on a part that was still saving was lost (session Swift)
+
+- **Owner request (2026-10-18).** Approving and asking for a change must be as fast as possible, in all three modes of the new review page and on the calendar card's approval controls.
+- **Measured (offline fixture with a 300 ms server round trip; the live site was NOT measured, see below).** The click already updated the page in 10 to 25 ms (no long tasks), but the pressed button only showed a spinner on its old words ("Approve the video") until the server answered; the result words came back with the save, about 0.8 s later. The save itself is two round trips one after the other (status write to the gateway, then the card write): the second needs the first one's acknowledgement, so the order is the server's and is unchanged.
+- **Our own waits found.** (1) The confirmation poll ran every 200 ms, so "Saved" and the spoken flash came up to 200 ms after the server answered (now 50 ms). (2) The pause before the stage moves to the next part after an answer was 650 ms (now 400 ms). (3) A sent caption edit polled every 150 ms for the note's save before approving (now 40 ms). (4) A note sent while the same part was still saving was ignored by the old save paths (`_calReviewComment`, `_kasperAddCommentComp` return when the part is saving) while the page cleared the box: the words were lost. They now show in the conversation at once as "Sending…" and go the moment that save ends, in order.
+- **Fix.** The pressed button says its result at once ("Approved", "Approved to Kasper", "Approved to client", "Approved after tweaks", "Change asked") with its spinner; a refused save still puts the part back with its reason and Try again (the existing path, unchanged). No Edge Function or database change: no measured delay there.
+- **Not measured.** The live site: it needs the test client's review link and a staff sign-in, which this session was not handed. Re-measure live after merge.
+- **Tests.** `test/review-stage-instant-browser.js` (new; every action, three modes, 1440 and 390, fails above 150 ms; fails on main). `review-stage-save-browser.js` case 1 now waits for the save to land before reading the server (the words arrive earlier now).
+
+**Way back:** revert the pull request.

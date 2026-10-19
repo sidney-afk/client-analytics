@@ -14,7 +14,7 @@ import {
   _writeUiMarkRepairCommitted, _writeUiCommentRound, _writeUiNativeId, _writeUiNativeStatus, _writeUiPrincipalKey,
   _writeUiQueueDiagnostic, _writeUiRecordFailure, _writeUiRefreshAuthority,
   _writeUiRemoveCompletedRepairRefs, _writeUiRepairCompanions, _writeUiRepairJournalRead,
-  _writeUiReportFailure, _writeUiSetLastRenderedAuthoritySig, _writeUiSnapshotRepairRefs,
+  _writeUiReportFailure, _writeUiSetLastRenderedAuthoritySig, _writeUiSnapshotRepairRefs, _writeUiWithRepairFlight,
   _writeUiTeam, _writeUiUseGatewayWhenReady, computeOverallStatus
 } from './120-calendar-flags-write-repair.js';
 import {
@@ -280,13 +280,14 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
             const key = [row.surface, row.lane || 'card', row.client_slug, row.post_id].join('|');
             const group = groups.get(key) || {
                 key, surface: row.surface, lane: row.lane || 'card', client_slug: row.client_slug,
-                post_id: row.post_id, source_at: row.source_at, edits: {}, intents: [], refs: []
+                post_id: row.post_id, source_at: row.source_at, edits: {}, intents: [], refs: [], records: []
             };
             group.edits = Object.assign(group.edits, row.edits || {});
             group.intents = group.intents.concat((row.intents || []).map(intent => Object.assign({}, intent, {
                 _repair_key: row.key, _repair_token: row.token
             })));
             group.refs.push({ key: row.key, token: row.token });
+            group.records.push(JSON.parse(JSON.stringify(row)));
             if (String(row.source_at || '') > String(group.source_at || '')) group.source_at = row.source_at;
             groups.set(key, group);
         });
@@ -307,16 +308,20 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
             && row.client_slug === slug && row.post_id === String(post && post.id || '')
             && row.principal === principal));
     }
-    function _writeUiRepairRecordForIntent(intent) {
+    function _writeUiRepairRecordForIntent(intent, group) {
         if (!intent || !intent._repair_key || !intent._repair_token || !intent.key) {
             throw _writeUiGatewayError(507, 'repair_intent_unavailable');
         }
         const state = _writeUiRepairJournalRead();
         if (state.unknown) throw _writeUiGatewayError(507, 'repair_storage_unknown');
-        const stored = state.rows.find(row => row.key === intent._repair_key && row.token === intent._repair_token);
+        const snapshot = intent._checkpoint;
+        const stored = state.rows.find(row => row.key === intent._repair_key && row.token === intent._repair_token)
+            || (snapshot && snapshot.key === intent._repair_key && snapshot.token === intent._repair_token ? snapshot : null)
+            || (group && group._flightOwner && (group.records || []).find(row => row.key === intent._repair_key && row.token === intent._repair_token));
         if (!stored) throw _writeUiGatewayError(507, 'repair_checkpoint_missing');
         const record = JSON.parse(JSON.stringify(stored));
         record.primary_intent_key = intent.key;
+        if (group && group._flightOwner) Object.defineProperty(record, '_flightOwner', { value: group._flightOwner });
         return record;
     }
     function _writeUiMaxSourceClock() {
@@ -486,9 +491,8 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
                 receipt.comment.deleted_at, receipt.comment.resolved_at, receipt.comment.updated_at
             ) || group.source_at;
         }
-        const ref = await _writeUiMarkRepairCommitted({
-            key: intent._repair_key, token: intent._repair_token, primary_intent_key: intent.key
-        }, { row: receipt.row }, { reconciled: true, reason: 'committed_exact_receipt' });
+        const ref = await _writeUiMarkRepairCommitted(_writeUiRepairRecordForIntent(intent, group),
+            { row: receipt.row }, { reconciled: true, reason: 'committed_exact_receipt' });
         _writeUiAdoptRepairAck(post, { native_committed: true, row: receipt.row, source_repair: ref });
         intent.native_committed = true;
         intent.reconciled = true;
@@ -542,9 +546,7 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
                 group.edits[component + '_status'] = display;
             }
         }
-        const ref = await _writeUiMarkRepairCommitted({
-            key: intent._repair_key, token: intent._repair_token, primary_intent_key: intent.key
-        }, { row: current }, {
+        const ref = await _writeUiMarkRepairCommitted(_writeUiRepairRecordForIntent(intent, group), { row: current }, {
             reconciled: true,
             reason: superseded ? 'newer_native_status' : 'matching_native_status'
         });
@@ -576,7 +578,7 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
             const meta = {
                 post, component, sourceEditedAt: intent.source_at || group.source_at,
                 clientSlug: group.client_slug, repairLane: group.lane, repairEdits: group.edits,
-                repairRecord: _writeUiRepairRecordForIntent(intent)
+                repairRecord: _writeUiRepairRecordForIntent(intent, group)
             };
             let acknowledgement;
             if (intent.operation === 'comment' && intent.comment && intent.comment.id) {
@@ -602,6 +604,25 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
         }
     }
     async function _writeUiReplayJournalGroup(group, principal) {
+        let recovered = null;
+        const result = await _writeUiWithRepairFlight(group, async owner => {
+            // Groups are snapshots made before async work. Another tab may
+            // have completed this one while we waited for the browser lock.
+            const current = _writeUiRepairGroups(principal);
+            if (current.unknown) throw _writeUiGatewayError(507, 'repair_storage_unknown');
+            const fresh = current.groups.find(value => value.key === group.key);
+            if (!fresh) return false;
+            Object.defineProperty(fresh, '_flightOwner', { value: owner });
+            const done = await _writeUiReplayJournalGroupOwned(fresh, principal);
+            if (done) recovered = fresh;
+            return done;
+        }, true);
+        if (result && recovered && await _writeUiCompleteSourceRepairRefs(recovered.refs)) {
+            _writeUiRemoveCompletedRepairRefs(recovered._completedPost, recovered.refs);
+        }
+        return result;
+    }
+    async function _writeUiReplayJournalGroupOwned(group, principal) {
         let post = null;
         let item = null;
         if (group.lane === 'kasper-calendar' && typeof _kasperState === 'object') {
@@ -668,6 +689,7 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
             });
             await _sxrFlushCardSave(post.id);
         }
+        group._completedPost = post;
         return true;
     }
     function _writeUiSourceRepairSuperseded(post) {
@@ -719,7 +741,13 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
         // replay those rows still represent. The consumed-receipt signature
         // is a readable journal with zero rows for the card.
         const journalUnreadable = Number(journal.unknown || 0) > 0;
-        journal.groups.forEach(group => tasks.push(_writeUiReplayJournalGroup(group, principal)));
+        journal.groups.forEach(group => {
+            // A refresh can see the checkpoint of the foreground save that is still committing it.
+            // Let that writer finish; replaying it here can consume its receipt before it acknowledges success.
+            if (group.surface === 'calendar' && group.lane === 'card'
+                && typeof _calSaveInFlight !== 'undefined' && _calSaveInFlight[group.post_id]) return;
+            tasks.push(_writeUiReplayJournalGroup(group, principal));
+        });
         // A display-cache checkpoint without its exact journal receipt can be
         // left behind by a crash between source success and cache cleanup. It
         // is not proof of a native commit and must never auto-apply stale data.
@@ -768,7 +796,11 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
                 try { _sxrCacheWrite(sxrClientSlug(sxrState.client), sxrState.posts, { clearRepairIds: healedIds }); } catch (e) {}
             }
         }
-        return Promise.all(tasks);
+        const resumed = Promise.all(tasks);
+        // Hydration timers fire this without awaiting it. Keep failures observable to explicit callers and
+        // retain their journal, while preventing an unhandled rejection from the background trigger.
+        resumed.catch(() => { try { _writeUiQueueDiagnostic('lifecycle', 'source_resume_failed', { kind: 'source-repair' }); } catch (e) {} });
+        return resumed;
     }
     function _writeUiStoredSourceRepairState() {
         const seen = new Set();
@@ -1000,6 +1032,10 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
         });
         _writeUiLegacyResumeActiveOwnerKey = ownerKey;
         _writeUiLegacyResumePromise = tracked;
+        // Lifecycle listeners do not await this promise. A refused replay must retain its journal and the
+        // action's failure UI, without becoming an unhandled browser error. Explicit callers still receive
+        // the original rejecting promise; this observer never acknowledges or drops recovery work.
+        tracked.catch(() => { try { _writeUiQueueDiagnostic('lifecycle', 'resume_failed', { kind: String(reason || '') }); } catch (e) {} });
         return tracked;
     }
     window.addEventListener('focus', () => { _writeUiResumeLegacyQueues('focus'); });
@@ -1299,7 +1335,7 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
             _sxrKasperState.smmByClient = smmMap;
             const items = [];
             const keepDismissed = new Set();
-            const repairById = new Map(((_kasperState && _kasperState.sxrRepairs) || []).map(repair => [repair && repair.id, repair]));
+            const repairById = new Map(((typeof _kasperState === 'object' && _kasperState && _kasperState.sxrRepairs) || []).map(repair => [repair && repair.id, repair]));
             for (const p of (rows || [])) {
                 if (!p || String(p.status || '').toLowerCase() === 'archived') continue;
                 p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p);
@@ -1534,7 +1570,7 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
         _sxrKasperState.writeGen++;
         const p = it.post;
         const cachedRepair = p._writeUiKasperRepair
-            || ((_kasperState && _kasperState.sxrRepairs) || []).find(row => row && row.id === p.id && row.slug === it.slug);
+            || ((typeof _kasperState === 'object' && _kasperState && _kasperState.sxrRepairs) || []).find(row => row && row.id === p.id && row.slug === it.slug);
         if (cachedRepair) {
             _sxrKasperState.saving[key] = false;
             /* Was `_sxrKasperState.errors[key] = ...` -- a store this state has
@@ -1722,7 +1758,10 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
     }
     async function _sxrKasperResumeSourceRepairs() {
         const principal = _writeUiPrincipalKey();
-        const repairs = ((_kasperState && _kasperState.sxrRepairs) || []).slice();
+        // The background resume can run before the shared state script; queue loading calls it again afterwards.
+        // An unguarded read of that script's state is a ReferenceError (an unhandled rejection in WebKit).
+        if (!principal || typeof _kasperState === 'undefined' || !_kasperState) return;
+        const repairs = ((typeof _kasperState === 'object' && _kasperState && _kasperState.sxrRepairs) || []).slice();
         for (const repair of repairs) {
             if (!repair || repair.principal !== principal || !repair.id || !repair.slug) continue;
             if (_writeUiJournalHasRepair('sxr', 'kasper-sxr', repair.slug, repair.id, principal)) continue;

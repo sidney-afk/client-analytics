@@ -2739,6 +2739,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         if (n && n.classList.contains('open') && !(_calReplyTarget || _calEditTarget)) { e.preventDefault(); closeCalComments(); }
     });
     function closeCalComments() {
+        _calEnterWhenReady = '';
         svLayerRelease('cal-notes');
         const ovlOpen = document.getElementById('calCommentsOverlay');
         if (!ovlOpen || !ovlOpen.classList.contains('open')) return;
@@ -2967,6 +2968,14 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             const feed = document.getElementById('calCommentsFeed');
             if (feed) feed.scrollTop = atBottom ? feed.scrollHeight : prevTop;
         }
+        if (_calEnterWhenReady) {
+            const queuedBtn = modal.querySelector('.cal-cm-send');
+            if (_calEnterWhenReady !== pid) _calEnterWhenReady = '';
+            else if (queuedBtn && !queuedBtn.hasAttribute('data-send-pending')) {
+                _calEnterWhenReady = '';
+                setTimeout(() => { if (_calOpenCommentsPid === pid) _calSubmitComposer(); }, 0);
+            }
+        }
         const ta = document.getElementById('calCommentComposer');
         if (ta) {
             _calAutosizeComposer(ta);
@@ -3160,6 +3169,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             _calRootDraft = ta.value;
             _calNoteDraftSet(_calOpenCommentsPid, ta.value);
         }
+        _calEnterWhenReady = '';
         const wrap = ta.closest('.cal-cm-composer');
         if (!wrap) return;
         const sendBtn = wrap.querySelector('.cal-cm-send');
@@ -3170,13 +3180,20 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
     }
     // The split Send menu closes on Escape or a click anywhere else: it is a
     // layer (see _calToggleSendMenu), so the shared handler does both.
+    let _calEnterWhenReady = '';
     function _calOnComposerKey(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             // Enter follows the send button: nothing is sent while it waits.
             const sendBtn = e.target && e.target.closest && e.target.closest('.cal-cm-composer')
                 ? e.target.closest('.cal-cm-composer').querySelector('.cal-cm-send') : null;
-            if (sendBtn && sendBtn.hasAttribute('data-send-pending')) return;
+            if (sendBtn && sendBtn.hasAttribute('data-send-pending')) {
+                // Enter inside the short window while the card's link is looked up used to do nothing at all
+                // and say nothing: the words stayed in the box, unsent, and the person believed they had sent
+                // them. It now counts as the send and goes the moment the notes finish loading.
+                _calEnterWhenReady = _calOpenCommentsPid || '';
+                return;
+            }
             _calSubmitComposer();
         } else if (e.key === 'Escape' && (_calReplyTarget || _calEditTarget)) {
             e.preventDefault();

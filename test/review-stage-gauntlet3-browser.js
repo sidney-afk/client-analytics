@@ -433,6 +433,24 @@ async function auxiliary(browser, origin, role, width) {
     await until(async () => !await inS(t.page, '.chipp.cur[data-id="rs1"]').count(), 'Finish stayed on answered post');
     assert.equal(t.state.cards[1].video_status, role === 'client' ? 'Client Approval' : 'Kasper Approval', 'Finish answered another post');
   });
+  if (role === 'client') await runCase(browser, origin, role, width, 'Enter while the card link is still looked up sends once it lands', async t => {
+    await t.page.evaluate(() => onCalViewChange('organizer'));
+    const door = t.page.locator('[data-comments-btn]').filter({ visible: true }).first();
+    const id = await door.getAttribute('data-comments-btn'), row = t.state.cards.find(c => c.id === id);
+    await door.click();
+    const box = t.page.locator('#calCommentComposer');
+    await box.waitFor({ state: 'visible' });
+    await t.page.evaluate(() => _calSetComposeComp('caption'));
+    // Hold the lookup open ourselves, so the window is not left to timing.
+    await t.page.evaluate(id => { const p = calState.posts.find(x => x.id === id); window.__heldPost = p; _prodCrosswalkRunStart(p); _calRenderCommentsModal({ keepFocus: true }); }, id);
+    await t.page.locator('.cal-cm-send[data-send-pending]').waitFor({ state: 'attached' });
+    await box.fill('Pending words'); await box.press('Enter');
+    await sleep(500);
+    assert.equal(JSON.parse(row.caption_tweaks || '[]').length, 0, 'sent while the notes were still loading');
+    assert.equal(await box.inputValue(), 'Pending words', 'the typed words left the box');
+    await t.page.evaluate(() => { _prodCrosswalkRunEnd(window.__heldPost); _calRenderCommentsModal({ keepFocus: true }); });
+    await until(() => JSON.parse(row.caption_tweaks || '[]').some(n => n.body === 'Pending words'), 'Enter pressed during the lookup was dropped');
+  });
   if (role === 'client') await runCase(browser, origin, role, width, 'Sheet Notes dialog reply and delete', async t => {
     await t.page.evaluate(() => onCalViewChange('organizer'));
     const door = t.page.locator('[data-comments-btn]').filter({ visible: true }).first();

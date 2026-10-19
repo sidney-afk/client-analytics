@@ -33584,3 +33584,23 @@ the approval had landed. A hydration-triggered replay could compete with an acti
 its rejecting promise unobserved. Source repair now defers the actively saving Calendar card, continues other cards,
 and observes background rejection without consuming the original promise. The durability test executes deferral,
 later eligibility and rejection propagation; an offline browser regression overlaps approval and recovery.
+
+## 441. [2026-10-18, BUILT, NOT MERGED] Phone review could lose a caption draft, and staff Finish stayed off after sending a part back (session Pocket)
+
+The owner reported the new review page live for every client on 2026-10-18. This work uses only the existing mocked browser fixtures; no live writes, switch changes or deployment.
+
+- Staff parts with content were always called waiting, even after a change request saved. Require the part's waiting status too. Finish and Close wait for save receipts, and explicit Close leaves the stage through the old close writer.
+- Caption edits had no persistent draft and the editor closed before a failed save answered. Keep the edit per client/post, restore it on reload without sending, retain the editor and a plain message after failure, and clear the kept edit after success or Cancel.
+- Phone controls were 16–42 px, fields were below 16 px, speed was hidden, and a portrait video's width collapsed in landscape. Phone-only styles provide 44 px targets, 16 px fields, a contained video with visible speed, safe-area padding and viewport-aware field scrolling. Placeholder controls and conversation space match the loaded layout.
+- The new client conversation had no Delete action. Its own-note control calls the existing permission-checked tombstone writer with the explicit post id; deleting never changes the part's status. Connection failures on the client review page use plain recovery words while the refusal report keeps the diagnostic.
+- Windows WebKit's frame counters could stay zero while it drew a picture. A readable current frame now confirms a picture before the existing unsupported-video fallback; forbidden cross-origin reads keep that fallback.
+
+Coverage: `node test/review-stage-phone-browser.js`, WebKit iPhone SE / 15 / 15 Pro Max and Chromium Pixel 7, portrait and landscape, both themes, client and staff. The new CI job shares the existing guards runner seat and is included in the result check; no old check is disabled. Findings, exact repeat commands, action inventory, fictional before/after pictures and physical-device limitations: `docs/audits/2026-10-18-review-stage-phones/README.md`.
+
+Physical iPhone Safari toolbar, notch/home indicator, software keyboard, production saves and deployment are not proven by this mocked emulation. Revert this PR to roll back the changes.
+
+**Screenshot and journey follow-up (same entry):** the staff title and round note now wrap on phones; the wide-landscape caption card keeps its height; a deleted note refreshes the stage immediately; and the smallest player gives the skip buttons room by hiding them while retaining play, speed, mute and Full screen. The field-reveal handler responds to focus and viewport resize without pulling a person back while they scroll. See the fictional before/after gallery in the report.
+
+**Approval-message follow-up (same entry):** the fixed bottom approval message could put Undo over staff Finish in landscape. On the phone review session it now uses the safe top edge and a 44 px Undo target; the browser test checks that Finish is uncovered. The gallery retains the actual before and after state.
+
+**Startup and surrounding-controls follow-up (same entry):** an intermittent WebKit rejection was traced to the background Samples recovery task reading shared staff state before that startup script loaded. It now uses the calendar recovery task's early-state guard; the repair race suite verifies that queue loading still inspects and retains repair debt afterwards. Wide-landscape staff navigation also inherited 30–36 px desktop targets; this review view now enlarges them to 44 px and the phone matrix checks the surrounding controls too. No save authority or receipt guard changes.

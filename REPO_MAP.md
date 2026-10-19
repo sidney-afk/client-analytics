@@ -1,5 +1,7 @@
 # Repo map
 
+`test/review-stage-phone-browser.js` drives the shared mocked review-stage fixture in WebKit iPhone and Chromium Pixel device profiles. `test/fixtures/review-stage-phone-clip.mp4` is a generated H.264 copy of the existing fictional clip for Windows WebKit. Phone findings, repeat commands and before/after pictures live in `docs/audits/2026-10-18-review-stage-phones/`.
+
 `qa/staff-phone-collections.js` verifies Thumb's phone collection grid, retained
 native List, card/back navigation, More sections, bulk selection, review and
 truthful empty/loading/error states at 390 and 430. Its approved design and

@@ -730,12 +730,37 @@ async function absentCommentReissuesCurrentLaneCase() {
   assert.deepStrictEqual(clone(post._writeUiRepairRefs), [{ key: 'repair-comment-2', token: 'token-comment-2' }]);
 }
 
+async function sxrKasperLateStateCase() {
+  let persisted = 0;
+  const diagnostics = [];
+  const ctx = {
+    _writeUiPrincipalKey: () => 'fixture-principal',
+    _writeUiJournalHasRepair: () => false,
+    _writeUiQueueDiagnostic: (...args) => diagnostics.push(args),
+    _kasperPersistCache: () => persisted++
+  };
+  vm.createContext(ctx);
+  vm.runInContext(extract('_sxrKasperResumeSourceRepairs'), ctx);
+  // The background task can run between the Samples and shared-state scripts.
+  await ctx._sxrKasperResumeSourceRepairs();
+  assert.strictEqual(persisted, 0);
+  assert.strictEqual(diagnostics.length, 0);
+  // Loading the queue calls it again: outstanding debt must still be inspected and held.
+  ctx._kasperState = { sxrRepairs: [{ principal: 'fixture-principal', id: 'fixture-card', slug: 'fixture' }] };
+  await ctx._sxrKasperResumeSourceRepairs();
+  assert.strictEqual(persisted, 1);
+  assert.strictEqual(diagnostics[0][1], 'cache_only_repair_held');
+  assert.match(ctx._kasperState.sxrRepairs[0].error, /explicit review required/);
+  assert.strictEqual(ctx._kasperState.sxrRepairs.length, 1, 'the repair is retained for explicit review');
+}
+
 (async () => {
   await runCase('Calendar keeps trailing pending repair metadata while a save is in flight', () => pendingMetadataCase('calendar'));
   await runCase('Samples keeps trailing pending repair metadata while a save is in flight', () => pendingMetadataCase('sxr'));
   await runCase('Calendar cache-only retry debt is held outside the source funnel', () => cacheOnlyRetryBlockedCase('calendar'));
   await runCase('Samples cache-only retry debt is held outside the source funnel', () => cacheOnlyRetryBlockedCase('sxr'));
   await runCase('Calendar Kasper cache-only retry debt is blocked', calendarKasperCacheOnlyBlockedCase);
+  await runCase('Samples background recovery tolerates late shared state and still inspects its repair cache', sxrKasperLateStateCase);
   await runCase('Samples Kasper composite tweak commits comment before status', sxrKasperCommentFirstCase);
   await runCase('Samples Kasper fresh status companion executes before source persistence', sxrKasperFreshCompanionExecutesStatusCase);
   await runCase('concurrent Kasper invocations complete only their own repair refs', kasperInvocationIsolationCase);

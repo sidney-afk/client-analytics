@@ -77,7 +77,7 @@ function thread(row) {
 }
 
 async function open(browser, origin, opt) {
-  const state = opt.state || { cards: cards(opt.stage).concat(opt.finished ? finished() : []), upserts: [], gateway: [], flagReads: 0, orient: 'p', writeDelay: 0, writeFail: 0 };
+  const state = opt.state || { cards: cards(opt.stage).concat(opt.finished ? finished() : []), upserts: [], gateway: [], flagReads: 0, orient: 'p', writeDelay: 0, writeFail: 0, native: {}, receipts: {}, writeAttempts: 0 };
   const stamp = () => new Date(Date.now() + Number(state.clockOffset || 0)).toISOString();
   // Gauntlet Three can share a backend across independent tabs and interrupt an actual save request.
   if (!state.attempts) state.attempts = [];
@@ -95,12 +95,24 @@ async function open(browser, origin, opt) {
   if (opt.collab) state.cards.push({ id: 'p_cal_settings', client: SLUG, caption: JSON.stringify({ collab_mode: true }) });
   // opt.unscheduled: one card with no date, so Month and Week show their undated list where it is offered ('approved' makes it a finished post, which a client sees with Collaborative mode off too).
   if (opt.unscheduled) { const done = opt.unscheduled === 'approved' ? 'Approved' : 'Client Approval'; state.cards.push({ id: 'ru1', client: SLUG, name: 'An undated idea', status: done, order_index: 30, updated_at: '2026-10-10T12:00:00.000Z', scheduled_date: '', video_status: done, graphic_status: done, caption_status: done, asset_url: FRAME, thumbnail_url: POSTER.p, caption: 'No date yet.', cta: 'Link in bio', video_tweaks: '[]', graphic_tweaks: '[]', caption_tweaks: '[]', comments: [], graphic_comments: [], caption_comments: [] }); }
-  const ctx = await browser.newContext({ viewport: { width: opt.width || 1440, height: opt.height || 900 }, serviceWorkers: 'block', colorScheme: 'light' });
+  const ctx = await browser.newContext(Object.assign({ viewport: { width: opt.width || 1440, height: opt.height || 900 }, serviceWorkers: 'block', colorScheme: 'light' }, opt.context || {}));
   await ctx.routeWebSocket('**/*', s => s.close());
   const page = await ctx.newPage();
   if (opt.clock) await page.clock.install();
   const errors = [];
-  page.on('pageerror', e => { errors.push(String(e.message || e).slice(0, 200)); if (opt.errorStacks) (state.errorStacks || (state.errorStacks = [])).push(String(e.stack || e)); });
+  page.on('pageerror', e => {
+    // Phone runs (opt.context) keep a longer stack so a WebKit-only error can be located.
+    errors.push(String(opt.context ? e.stack || e.message || e : e.message || e).slice(0, opt.context ? 1200 : 200));
+    if (opt.errorStacks) (state.errorStacks || (state.errorStacks = [])).push(String(e.stack || e));
+  });
+  if (opt.phone) await page.addInitScript(() => {
+    window.__phoneErrorLocations = [];
+    addEventListener('error', e => {
+      let file = ''; try { file = new URL(e.filename).pathname; } catch (_) {}
+      window.__phoneErrorLocations.push({ message: e.message, file, line: e.lineno, column: e.colno, stack: String(e.error?.stack || '').replace(/\?[^\s)]+/g, '?fixture') });
+    });
+    addEventListener('unhandledrejection', e => window.__phoneErrorLocations.push({ message: String(e.reason?.message || e.reason), rejection: true, stack: String(e.reason?.stack || '').replace(/\?[^\s)]+/g, '?fixture') }));
+  });
   if (opt.staff) {
     const id = JSON.stringify({ key: 'qa-key', role: opt.staff.role, member: opt.staff, verified_at: new Date().toISOString() });
     await page.addInitScript(([v, dark]) => { try { localStorage.setItem('syncview_staff_identity_v1', v); localStorage.setItem('syncview_auth_v1', 'ok'); if (dark) localStorage.setItem('syncview_theme', 'dark'); } catch (e) {} }, [id, !!opt.dark]);
@@ -129,9 +141,10 @@ async function open(browser, origin, opt) {
     if (u.host === 'media.fixture.test' && /\.png$/.test(p)) return route.fulfill({ status: 200, headers: CORS, contentType: 'image/png', body: /-l\.png$/.test(p) ? PNG.l : PNG.p });
     if (u.host === 'media.fixture.test') {
       const clip = CLIP[state.orient];
+      const contentType = 'video/webm';
       const range = /bytes=(\d+)-(\d*)/.exec(r.headers().range || '');
-      if (range) { const a = Number(range[1]), b = range[2] ? Math.min(Number(range[2]), clip.length - 1) : clip.length - 1; return route.fulfill({ status: 206, headers: Object.assign({ 'content-range': `bytes ${a}-${b}/${clip.length}`, 'accept-ranges': 'bytes' }, CORS), contentType: 'video/webm', body: clip.subarray(a, b + 1) }); }
-      return route.fulfill({ status: 200, headers: Object.assign({ 'accept-ranges': 'bytes' }, CORS), contentType: 'video/webm', body: clip });
+      if (range) { const a = Number(range[1]), b = range[2] ? Math.min(Number(range[2]), clip.length - 1) : clip.length - 1; return route.fulfill({ status: 206, headers: Object.assign({ 'content-range': `bytes ${a}-${b}/${clip.length}`, 'accept-ranges': 'bytes' }, CORS), contentType, body: clip.subarray(a, b + 1) }); }
+      return route.fulfill({ status: 200, headers: Object.assign({ 'accept-ranges': 'bytes' }, CORS), contentType, body: clip });
     }
     // opt.noWebFont: keep the old no-font conditions (a test about layout that must not see the font swap).
     if (opt.noWebFont && (u.host === 'fonts.googleapis.com' || u.host === 'fonts.gstatic.com')) return route.abort();
@@ -150,12 +163,18 @@ async function open(browser, origin, opt) {
       if (b.action === 'inbox') return json({ ok: true, scope: 'all', conversations: opt.inbox });
       return json({ ok: true });
     }
-    if (p === '/functions/v1/frameio-view') return json({ ok: true, video: { url: MEDIA, renditions: { efficient: MEDIA, high_quality: MEDIA, original: MEDIA }, expires_at: new Date(Date.now() + 3600000).toISOString(), name: 'Fixture clip.mp4', file_id: 'f1', duration_seconds: 12, fps: 24 }, comments: [], comments_error: '', open_url: 'https://next.frame.io/share/00000000-0000-4000-8000-000000000001', fetched_at: new Date().toISOString() });
+    if (p === '/functions/v1/frameio-view') {
+      // Windows WebKit's media loader bypasses Playwright routing. Serve its generated H.264 fixture on loopback.
+      const media = opt.phoneMedia ? origin + '/test/fixtures/review-stage-phone-clip.mp4' : MEDIA;
+      return json({ ok: true, video: { url: media, renditions: { efficient: media, high_quality: media, original: media }, expires_at: new Date(Date.now() + 3600000).toISOString(), name: 'Fixture clip.mp4', file_id: 'f1', duration_seconds: 12, fps: 24 }, comments: [], comments_error: '', open_url: 'https://next.frame.io/share/00000000-0000-4000-8000-000000000001', fetched_at: new Date().toISOString() });
+    }
     if (/\/functions\/v1\/(calendar-upsert|calendar-card-write)$/.test(p) && r.method() === 'POST') {
       let body = {}; try { body = JSON.parse(r.postData() || '{}'); } catch (e) {}
+      state.writeAttempts++;
       // A slow or failing card save, switched at run time by a test (state.writeDelay ms, state.writeFail count).
       if (state.writeHang) return new Promise(() => {});   // a server that never answers
       if (state.writeDelay) await sleep(state.writeDelay);
+      if (state.writeOffline) return route.abort('internetdisconnected');
       if (state.writeFail > 0) { state.writeFail--; return json({ ok: false, error: 'fixture_unavailable', message: 'The fixture refused this save.' }, 503); }
       const post = body.post || {};
       state.upserts.push(post);
@@ -175,6 +194,9 @@ async function open(browser, origin, opt) {
       return json({ ok: true, post: row || post });
     }
     if (p === '/functions/v1/production-write' && r.method() === 'POST') {
+      state.writeAttempts++;
+      if (state.networkDelay) await sleep(state.networkDelay);
+      if (state.writeOffline) return route.abort('internetdisconnected');
       if (opt.nativeReceipts && state.writeDelay) await sleep(state.writeDelay);
       if (opt.nativeReceipts && state.writeFail > 0) { state.writeFail--; return json({ ok: false, error: 'fixture_unavailable', message: 'The fixture refused this save.' }, 503); }
       let b = {}; try { b = JSON.parse(r.postData() || '{}'); } catch (e) {}
@@ -189,6 +211,24 @@ async function open(browser, origin, opt) {
         const result = { ok: true, native_committed: true, complete: true, row: { ...row }, ...(b.operation === 'comment' ? { comment: { ...b.comment, id: b.comment.native_comment_id, created_at: b.source_edited_at, updated_at: b.source_edited_at, source_created_at: b.source_edited_at, source_updated_at: b.source_edited_at } } : {}) };
         state.nativeReceipts[b.request_id] = result;
         return json(result);
+      }
+      if (opt.phone && !opt.nativeReceipts) {
+        const id = b.id || b.deliverable_id || 'del_rs1';
+        const card = state.cards.find(c => c.video_deliverable_id === id || c.graphic_deliverable_id === id);
+        const prior = state.native[id], seen = b.request_id && state.receipts[b.request_id];
+        const now = new Date().toISOString();
+        const row = { id, card_id: card?.id || b.card_id || 'rs1', client_slug: SLUG,
+          team: card?.graphic_deliverable_id === id ? 'graphics' : 'video',
+          status: b.status || prior?.status || 'client_approval',
+          status_at: b.operation === 'status' ? now : prior?.status_at || now, updated_at: now };
+        // Reconciliation reads do not commit an intent; retries return its original receipt.
+        if (!b.reconcile_only && !seen) {
+          state.native[id] = row;
+          if (b.request_id) state.receipts[b.request_id] = row;
+        }
+        const committed = !b.reconcile_only || !!seen;
+        return json({ ok: true, native_committed: committed, authority: 'syncview', complete: committed,
+          outcome: committed ? 'committed_exact' : 'absent', row: b.reconcile_only ? seen || prior || row : seen || row });
       }
       return json({ ok: true, native_committed: true, authority: 'syncview', complete: true, outcome: 'absent', row: { id: b.deliverable_id || 'del_rs1', card_id: b.card_id || 'rs1', client_slug: SLUG, team: 'video', status: b.status || 'client_approval' } });
     }
@@ -220,6 +260,10 @@ async function open(browser, origin, opt) {
       const slug = String(sp.get('client') || '').replace(/^eq\./, '');
       const one = String(sp.get('id') || '').replace(/^eq\./, '');
       return json(state.cards.filter(c => (!slug || c.client === slug) && (!one || c.id === one)));
+    }
+    if (opt.phone && p === '/rest/v1/deliverables') {
+      const id = String(sp.get('id') || '').replace(/^eq\./, '');
+      return json(state.native[id] ? [state.native[id]] : []);
     }
     if (p === '/rest/v1/clients') return json([{ slug: SLUG, display_name: CLIENT, kind: 'client', active: true }]);
     if (p === '/rest/v1/team_members') return json([STAFF, OTHER].map(m => Object.assign({ active: true }, m)));

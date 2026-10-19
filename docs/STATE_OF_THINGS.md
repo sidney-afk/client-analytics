@@ -118,6 +118,10 @@ is the old Frame.io link. Test: `node test/client-calendar-read-only-browser.js`
 
 ## New review page, layout C (session Marquee, 2026-10-17): merged; owner reports all-client rollout on 2026-10-18
 
+**Rollout update, owner report 2026-10-18:** the new client review page is live for every client. The limited-switch
+readback dated 2026-10-17 below records the initial rollout. Pocket's phone work uses mocked fixtures only and makes
+no live switch changes. Its phone coverage and repairs are in [the phone report](audits/2026-10-18-review-stage-phones/README.md).
+
 The owner approved the client page (layout C, "Guided stage") and the SMM and Kasper versions of it on 2026-10-16.
 It is a new view beside the old one (`src/index/188-review-stage-switch.js.part` reads the switches;
 `src/index/195-review-stage.js.part` is the page, its own on-demand area `reviewstage`, downloaded only when a switch
@@ -125,7 +129,7 @@ says yes). Turning a switch off brings the old page back on the next load. Test:
 
 **The switches** (rows in `syncview_runtime_flags`, read once per page, fail closed: missing, unreadable or the wrong
 shape is the old page; the lists live only in the database):
-- `review_stage_client_pages` `{ "clients": [...] }`: the client's review link and the SMM's Calendar Review tab for those
+- `review_stage_client_pages` `{ "clients": [...] }` or `{ "all": true }`: the client's review link and the SMM's Calendar Review tab for those
   clients. (Not named `..._clients`: several browser tests answer every `_clients` key with "on".)
 - `review_stage_kasper_staff` `{ "staff": [...] }`: Kasper's Review Session, only for the signed-in staff member whose
   roster id or full name is listed.
@@ -135,7 +139,7 @@ shape is the old page; the lists live only in the database):
   Missing (today: no row, no migration), unreadable, `{ "hidden": true }` or any other shape hides it: no Analytics tab
   in the staff bar, no Analytics / Content Calendar toggle on a client link, and a client link's Analytics address
   opens the Content Calendar. Read at boot in the same request as the switches above. No Analytics code was removed.
-To try it: the test client in the first list and the owner in the second. Nobody else sees anything new.
+The initial test rollout used the test client in the first list and the owner in the second; see the 2026-10-18 owner update above for the client rollout.
 
 **The owner's decisions, 2026-10-16:** yes to the SMM and Kasper mock-ups, and to the five open choices:
 (1) the arrow on Approve is faint at rest and firm on hover; (2) SMM caption edits save at once, as today; (3) Kasper's

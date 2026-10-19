@@ -1892,10 +1892,18 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-phone-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Pinned Playwright 1.56.1 with WebKit and Chromium. Shared mocked review-stage fixture only, local generated media, no hosted credentials. iPhone SE, iPhone 15, iPhone 15 Pro Max and Pixel 7 in portrait and landscape, light and dark: touch playback, scrub, speed, notes, caption edit and draft reload, interrupted saves and reconnect, four part approvals, delete, later visit, staff send-back, finish and close, geometry and reduced-viewport typing. Physical iOS keyboard and Safari chrome need a real device.",
+      "reproduce": "npx playwright install --with-deps webkit chromium && node scripts/build-index.js && node test/review-stage-phone-browser.js",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-finish-polish-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Six finishing touches on the client review page: Finish reviewing stays off with a Saving hint while an answer is sent, the not-saved box in plain words with no raw code, the speed button on the vertical player at 1440, 1280 and 1024 (and gone at 390), the link opening on Review when opened fresh with Back and Forward still working, Month and Week thumbnails opening the in-app viewer (nothing for a post with no video), and unsent change-request words kept across a reload (cleared when sent, when the post leaves the list, after 7 days, and working with storage blocked).",
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Six finishing touches on the client review page: Finish reviewing stays off with a Saving hint while an answer is sent, the not-saved box in plain words with no raw code, the speed button on the vertical player at 1440, 1280 and 1024 (and visible at 390 under the phone coverage contract), the link opening on Review when opened fresh with Back and Forward still working, Month and Week thumbnails opening the in-app viewer (nothing for a post with no video), and unsent change-request words kept across a reload (cleared when sent, when the post leaves the list, after 7 days, and working with storage blocked).",
       "reproduce": "node test/review-stage-finish-polish-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },

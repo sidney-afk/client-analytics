@@ -3587,8 +3587,8 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
        button-visibility rules. Deleting a root cascades into its replies
        so the thread doesn't leave orphans. If an SMM delete clears the
        last open thread, the same Client-Approval auto-status applies. */
-    function _calDeleteComment(commentId) {
-        const pid = _calOpenCommentsPid;
+    function _calDeleteComment(commentId, postId) {
+        const pid = postId || _calOpenCommentsPid;
         if (!pid) return;
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
@@ -3611,6 +3611,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             if (canonicalGate.linked) {
                 const receipt = await _writeUiCommitCardCommentLifecycle('calendar', post, comp, target, 'delete');
                 if (receipt) await _writeUiPersistCanonicalCommentProjection('calendar', post, comp);
+                if (postId && svRsCalOn()) svRsCalSync();
                 return;
             }
             if (_calCanonicalCrosswalkPending(post, comp)) return;
@@ -3641,6 +3642,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             _calUpdateCardStatusDisplay(pid);
             _calCaptureModalDrafts();
             _calRenderCommentsModal();
+            if (postId && svRsCalOn()) svRsCalSync();
         }, 'Delete');
     }
 

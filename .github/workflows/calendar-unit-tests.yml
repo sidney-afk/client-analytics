@@ -562,6 +562,39 @@ jobs:
           LANES
 
 
+  review-stage-phones:
+    needs: changes
+    if: needs.changes.outputs.browser == 'true'
+    runs-on: ubuntu-latest
+    # Share the guards seat: this adds coverage without taking another production runner.
+    concurrency:
+      group: ${{ github.event_name == 'pull_request' && 'pr-runner-seat-guards-1' || format('calendar-unit-tests-{0}-review-stage-phones-{1}', github.run_id, strategy.job-index) }}
+      cancel-in-progress: false
+      queue: max
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: ./.github/actions/build-index
+      - name: Install the pinned Safari and Android engines
+        run: |
+          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps webkit chromium
+      - name: Client and staff review on iPhone and Android, both orientations and themes
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          PHONE_SHOTS: ${{ runner.temp }}/review-stage-phones
+        run: node test/review-stage-phone-browser.js
+      - name: Retain fictional phone screenshots, including failures
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-stage-phones
+          path: ${{ runner.temp }}/review-stage-phones
+          if-no-files-found: error
+
   split-preview:
     # Plan docs/plans/2026-09-28-load-per-tab-plan.md, step 2. The split build
     # (scripts/index-split.js) is off in src/index/split.json, so nothing
@@ -750,7 +783,7 @@ jobs:
     # Make this the required check, not the individual parts: a part a change
     # does not need is skipped, and its matrix names never appear.
     if: always()
-    needs: [changes, unit, identity-exposure, module-check, entry-links-boot, browser-guards, split-preview, staff-phone-rules, f27-team-rollback-proof, review-gauntlet-three]
+    needs: [changes, unit, identity-exposure, module-check, entry-links-boot, browser-guards, review-stage-phones, split-preview, staff-phone-rules, f27-team-rollback-proof, review-gauntlet-three]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

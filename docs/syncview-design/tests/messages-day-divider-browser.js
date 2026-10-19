@@ -38,6 +38,7 @@ async function run(width) {
     const page = await S.newPage();
     await S.openCalendar(page);
     await page.evaluate(() => navTo('messages'));
+    await page.evaluate(() => _msgSetFilter('all'));   // the switch opens on New; this test reads a conversation that is already read
     const tag = width + 'px';
     check(await until(() => page.evaluate(() => !!document.querySelector('#msgPage [data-msg-conv="p_t1"]'))), tag + ': the conversation is listed');
     await page.click('#msgPage [data-msg-conv="p_t1"]');

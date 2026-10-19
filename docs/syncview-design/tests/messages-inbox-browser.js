@@ -258,7 +258,7 @@ async function markUnread(page){
     withWriters = true;
     await page.evaluate(() => { navTo('kasper'); });
     await page.evaluate(() => _kasperGotoTab('replies'));
-    await page.evaluate(() => _msgLoad(true));
+    await page.evaluate(() => { _msgLoad(true); _msgSetFilter('all'); });
     check(await until(() => page.evaluate(() => !!document.querySelector('#msgPage [data-msg-conv="p_writers"]'))), 'I: the writers conversation is listed');
     await until(() => page.evaluate(() => /Robin Testwell/.test(document.querySelector('#msgPage [data-msg-conv="p_writers"]').innerText)));
     const iList = await page.evaluate(() => {
@@ -409,6 +409,7 @@ async function markUnread(page){
           }
         }
         await pg.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+        await pg.evaluate(() => _msgSetFilter('all'));   // these checks are about the list itself; the switch opens on New
         check(await until(() => pg.evaluate(() => !!document.querySelector('#msgPage .msg-conv[data-msg-conv]')), 12000), 'M: ' + name + ': the real list replaces the placeholder');
         const real = {};
         for (const t of ['light', 'dark']) {
@@ -452,6 +453,7 @@ async function markUnread(page){
         await pg.click('#msgPage [data-msg-conv="p_cached"]');
         check(await pg.evaluate(() => !!document.querySelector('#msgPage .msg-bubbles[role="status"]')), 'N: opening it before the answer shows the chat placeholder, not an empty chat');
         check(marks.length === before, 'N: nothing is marked read before the notes are in');
+        await pg.evaluate(() => _msgSetFilter('all'));   // these checks are about the list itself; the switch opens on New
         check(await until(() => pg.evaluate(() => !/Cached fixture title/.test(document.querySelector('#msgPage').innerText) && !!document.querySelector('#msgPage [data-msg-conv="p_t1"]')), 12000), "N: the server's list replaces the cached one");
         check(await pg.evaluate(() => _msgState.fromCache === false), 'N: no longer marked cached');
         await pg.close();
@@ -474,6 +476,7 @@ async function markUnread(page){
       {
         const pg = await withCache(null);
         await pg.evaluate(() => _msgOpenPage());
+        await pg.evaluate(() => _msgSetFilter('all'));   // these checks are about the list itself; the switch opens on New
         check(await until(() => pg.evaluate(() => !!document.querySelector('#msgPage [data-msg-conv="p_t1"]')), 12000), 'N: first visit: the list arrives');
         const raw = await pg.evaluate(() => sessionStorage.getItem('sv_msg_inbox_v1') || '');
         check(raw.includes('"member":"m1"') && !raw.includes('"messages"') && !raw.includes('Can we add the opening hours'), 'N: the saved copy is yours and holds the list lines only, no conversation text (' + raw.length + ' bytes)');
@@ -506,6 +509,7 @@ async function markUnread(page){
         await pg.hover('#navMessages');
         check(await until(() => inboxCalls > n0, 3000), 'O: the call starts when the pointer reaches the Messages button');
         await pg.click('#navMessages');
+        await pg.evaluate(() => _msgSetFilter('all'));   // these checks are about the list itself; the switch opens on New
         check(await until(() => pg.evaluate(() => !!document.querySelector('#msgPage [data-msg-conv="p_t1"]')), 3000), 'O: opening afterwards shows the list');
         check(inboxCalls === n0 + 1, 'O: opening did not start a second call (' + (inboxCalls - n0) + ')');
         await pg.close();
@@ -600,6 +604,7 @@ async function markUnread(page){
         await pg.setViewportSize({ width: 1366, height: 900 });
         await ready(pg);
         await pg.click('#navMessages');
+        await pg.evaluate(() => _msgSetFilter('all'));
         await until(() => pg.evaluate(() => !!document.querySelector('#msgPage [data-msg-conv="p_t1"]')), 8000);
         await pg.click('#msgPage [data-msg-conv="p_t1"]');
         await pg.fill('#msgReplyBox', 'A reply I am still writing');

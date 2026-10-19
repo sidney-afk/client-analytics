@@ -588,7 +588,7 @@ async function handleInbox(supabase: SupabaseClient, principal: Principal, body:
     if (posts.length !== 1) return json({ ok: false, error: "forbidden" }, 403);
     const canonical = await inboxCanonical(supabase, posts);
     const messages = visibleMessages(collectMessages(posts[0], canonical.get(postId) || []), view, smmIds, member);
-    const mark = state === "read" ? new Date().toISOString() : unreadMark(messages, member);
+    const mark = state === "read" ? new Date().toISOString() : unreadMark(messages, member, view);
     if (!mark) return json({ ok: true, post_id: postId, last_read_at: null });
     const { error } = await supabase.from("message_reads").upsert(
       { reader_id: member.id, post_id: postId, last_read_at: mark, updated_at: new Date().toISOString() },
@@ -619,7 +619,7 @@ async function handleInbox(supabase: SupabaseClient, principal: Principal, body:
     .map((p) => {
       const messages = visibleMessages(collectMessages(p, canonical.get(clean(p.id)) || []), view, smmIds, member);
       if (!messages.length) return null;
-      const conversation = buildConversation(p, messages, member, reads.get(clean(p.id)) || "", now);
+      const conversation = buildConversation(p, messages, member, reads.get(clean(p.id)) || "", now, view);
       return { ...conversation, client_name: names.get(clean(p.client)) || "" };
     })
     .filter(Boolean)

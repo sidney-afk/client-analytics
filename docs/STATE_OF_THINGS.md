@@ -26,6 +26,10 @@ whose last page had nothing waiting gets that page's shape; the shape follows th
 downloads beside the link check. Test: `node test/client-link-dark-first-paint-browser.js`. Supersedes point (4) of the Dusk
 section below for links with an explicit `v=calendar`. Not done: first paint on slow 4G waits for the 1.5 MB page (build change).
 
+## Messages inbox: what counts as new, New/All switch, live badge (session Hush, 2026-10-18): PR open
+
+Automatic records (a client's caption-change note, anything the system writes) never count as new, never raise the badge. Kasper's inbox counts only staff messages; the managers' inbox keeps counting what people write to them. One New/All switch (opens on New, "No new messages" when calm). The badge refreshes by itself: realtime on the cards, a ping from other tabs, and a 30 s safety net. Server side in `production-comments/inbox.mjs` (auto-deploys on merge, no migration). OPEN_REPAIRS 443; test `node docs/syncview-design/tests/messages-new-view-browser.js`.
+
 ## Client link in a dark browser (session Dusk, 2026-10-18): PR open
 
 Owner report: with dark saved, opening the client review showed a white loading screen, not in the page's shape. Four

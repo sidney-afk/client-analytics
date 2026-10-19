@@ -33527,6 +33527,17 @@ Owner request: less text, less noise. Each row used to show the video title, the
 
 The same row is drawn in three places, all changed in `src/index/195-review-stage.js.part`: the list panel (the list button), the strip chips (after opening "With the editors"), and the "All caught up" recap list. The Urgent and Waiting for your review rows share those components and are deliberately left as they were (title first, client on the small line). Test: `node test/review-stage-with-editors-row-browser.js` (fails on main), 1440 and 390, light and dark; before and after screenshots in `docs/audits/2026-10-18-with-editors-row/` (fictional data). Not covered by the test: the recap list (it only shows when nothing is waiting).
 
+## 443. [2026-10-18, BUILT, NOT MERGED] The Messages inbox counted a client's automatic caption-change record as a new message, and its badge only refreshed every two minutes (session Hush)
+
+Owner report: the inbox showed the automatic record of a client changing a caption ("Changed the caption to: ... It was: ...") as a new unread message. The number 437 is claimed by an open pull request, so this entry takes 438.
+
+- **Where unread is decided:** on the server, `production-comments/inbox.mjs` (`countsAsNew`, used by `unreadCount` and `unreadMark`). `production-comments` is not a Section 4 function, so no fingerprint is re-pinned; the merge lane deploys it. No migration.
+- **What counts as new now.** Reviewer view (Kasper): only a staff member's message to you. Client notes and automatic records still appear in the list and the thread, never count, never raise the badge. SMM view: unchanged for what people write (a client's plain note still counts), except automatic records, which never count. Your own messages never count in either view. An automatic record is a note with role `system`, `automatic`, `auto` or `bot`, or a client note that starts with the caption-change words the client page writes. "Mark as unread" now marks before the newest message that counts.
+- **Switch.** One two-option segmented switch, "New" (with the count when there is one) then "All", opening on New; New with nothing new says "No new messages". The conversation you have open stays on screen in New. Same code in Kasper's tab and the managers' inbox.
+- **Live badge.** Three paths into one refresh: the app's shared realtime channel on the cards (a note is saved on a card), a BroadcastChannel ping from another tab of the same browser after it reads or unreads, and a 30 s safety-net refresh (was 120 s) that also covers another device and a dropped socket. It starts after the first inbox load (the inbox is still never asked for cold), pauses in a hidden tab and on the Production tab.
+- **Tests (fail on main):** `node docs/syncview-design/tests/messages-new-view-browser.js`; new rules in `node test/messages-inbox-scope.js`; `messages-inbox-browser.js` now opens All where it reads every row.
+- **Not done:** a read in another browser or device waits up to 30 s (no push for read marks, the table is closed to browsers); a message that exists only in the canonical comments table, not on the card row, is also picked up by the 30 s refresh rather than instantly.
+
 **Way back:** revert the pull request.
 
 ## 439. [2026-10-19, BUILT, NOT MERGED] Pull-request checks waited hours for a runner seat; browser suites now run three side by side (session Express)

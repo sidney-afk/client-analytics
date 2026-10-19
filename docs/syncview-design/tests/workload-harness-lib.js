@@ -155,6 +155,19 @@ function parentRow(overrides) {
  *                 #workload hash.
  *   holdIssues    hold the issue snapshot read open until `state.releaseIssues()`
  *                 is called; `state.holdIssuesRead()` re-arms it before a reload.
+ *   nativeSnapshot  answer the board's CURRENT read, the `workload-plan`
+ *                 `native_snapshot` action, built from `issues` (each row becomes a
+ *                 native row, due dates written through `production-write`, tweak
+ *                 notes read through `production-comments`). Off by default, which
+ *                 leaves every existing suite exactly as it was. The Calm view's
+ *                 suites turn it on.
+ *   flagRows      extra `syncview_runtime_flags` rows ({ key, value }) beside the
+ *                 due-date authority row.
+ *   flagResponse  { status, body } replaces the answer to the page-switch read (the one
+ *                 that asks for `review_stage_client_pages` and its siblings), so a
+ *                 suite can make that read fail or answer in a wrong shape.
+ *   comments      { issueId: [{ author, body, created_at }] } tweak notes served
+ *                 by the `production-comments` mock when `nativeSnapshot` is on.
  */
 async function launchWorkloadHarness(options) {
   const opts = options || {};
@@ -165,6 +178,9 @@ async function launchWorkloadHarness(options) {
     plans: new Map((opts.plans || []).map(row => [String(row.issue_id), String(row.plan_date)])),
     weights: { ...(opts.weights || {}) },
     planWrites: [],          // every `set` body the board sent
+    dueWrites: [],           // every production-write `due` body (nativeSnapshot only)
+    commentReads: [],        // every production-comments read (nativeSnapshot only)
+    comments: { ...(opts.comments || {}) },
     planWriteStatus: 200,    // flipped by the refusal phases
     planListStatus: opts.planListStatus || 200,
     planListMeta: opts.planListMeta || null,
@@ -274,10 +290,12 @@ async function launchWorkloadHarness(options) {
 
   // Per-team due-date authority. Both teams SyncView-authoritative, mirroring
   // the live flag after the 2026-08-28 video flip.
-  await context.route('**/rest/v1/syncview_runtime_flags**', route => route.fulfill({
+  await context.route('**/rest/v1/syncview_runtime_flags**', route => opts.flagResponse && /review_stage_client_pages/.test(route.request().url())
+    ? route.fulfill({ status: opts.flagResponse.status, contentType: 'application/json', body: JSON.stringify(opts.flagResponse.body === undefined ? [] : opts.flagResponse.body) })
+    : route.fulfill({
     status: 200,
     contentType: 'application/json',
-    body: JSON.stringify([{ key: 'prod_authority', value: { video: 'syncview', graphics: 'syncview' } }]),
+    body: JSON.stringify([{ key: 'prod_authority', value: { video: 'syncview', graphics: 'syncview' } }, ...(opts.flagRows || [])]),
   }));
 
   /* Native metadata: one row per active sub-issue, carrying the workload
@@ -305,9 +323,73 @@ async function launchWorkloadHarness(options) {
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows) });
   });
 
+  const slugOf = name => String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const nativeRowFor = row => {
+      if (!row.is_sub_issue) return { ...row, source: 'native', active: true, linear_id: row.id };
+      const graphics = /graphic/i.test(String(row.team_name || '')) || row.team_key === 'DES' || row.team_key === 'GRA';
+      const version = (state.dueVersions || (state.dueVersions = {}))[row.id] || '2026-09-14T14:00:00.000Z';
+      return {
+        ...row,
+        source: 'native', active: true, linear_id: row.id,
+        team_key: graphics ? 'GRA' : 'VID',
+        native_client_active: true,
+        native_assignee_eligible: !!row.assignee_id,
+        native_metadata: {
+          id: row.id, client_slug: slugOf(row.client_name), team: graphics ? 'graphics' : 'video',
+          due_date: row.due_date, updated_at: version,
+          workload_labels_complete: true,
+          workload_labels: state.weights[row.id] ? [{ id: 'label-' + state.weights[row.id], name: state.weights[row.id] + '× Workload', color: '#F59E0B' }] : [],
+        },
+      };
+  };
+  if (opts.nativeSnapshot) {
+    await context.route('**/functions/v1/production-write*', async route => {
+      const body = JSON.parse(route.request().postData() || '{}');
+      if (body.operation !== 'due') return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'unsupported_in_fixture' }) });
+      state.dueWrites.push(body);
+      const row = state.issues.find(r => r.id === body.id);
+      if (state.dueWriteStatus && state.dueWriteStatus !== 200) {
+        return route.fulfill({ status: state.dueWriteStatus, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'due_write_refused' }) });
+      }
+      if (row) row.due_date = body.due_date || null;
+      const updated = '2026-09-14T15:00:0' + (state.dueWrites.length % 10) + '.000Z';
+      (state.dueVersions || (state.dueVersions = {}))[body.id] = updated;
+      return route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ ok: true, native_committed: true, authority: 'syncview',
+          row: { id: body.id, client_slug: row ? slugOf(row.client_name) : '', team: 'video', due_date: body.due_date || null, updated_at: updated } }),
+      });
+    });
+    await context.route('**/functions/v1/production-comments*', async route => {
+      const body = JSON.parse(route.request().postData() || '{}');
+      state.commentReads.push(body.deliverable_id);
+      const list = state.comments[body.deliverable_id] || [];
+      return route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ ok: true, canonical_thread: true, audience_scope: 'all', total: list.length, has_more: false,
+          comments: list.map((c, i) => ({ id: 'c-' + body.deliverable_id + '-' + i, author_name: c.author, body: c.body, created_at: c.created_at, version: 1, row_updated_at: c.created_at })),
+          feedback: { complete: true, rows: [] } }),
+      });
+    });
+  }
   // The saved-plan sidecar: the only write path this surface has.
   await context.route('**/functions/v1/workload-plan*', async route => {
     const body = JSON.parse(route.request().postData() || '{}');
+    if (opts.nativeSnapshot && body.action === 'native_snapshot_v2') {
+      return route.fulfill({ status: 501, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'snapshot_cache_unavailable' }) });
+    }
+    if (opts.nativeSnapshot && body.action === 'native_snapshot') {
+      const rows = state.issues.map(nativeRowFor);
+      return route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true, contract: 'workload-native-snapshot-v1', complete: true, count: rows.length,
+          authority: { video: 'syncview', graphics: 'syncview' }, legacy_teams: [], rows,
+          roster: [EDITOR_1, EDITOR_2].map(m => ({ id: m.id, native_id: 'nat-' + m.id, name: m.name, team: 'video' })).concat([{ id: DESIGNER_1.id, native_id: 'nat-' + DESIGNER_1.id, name: DESIGNER_1.name, team: 'graphics' }]),
+          plans: [...state.plans].map(([issue_id, plan_date]) => ({ issue_id, storage_issue_id: issue_id, client: slugOf(((state.issues.find(r => r.id === issue_id) || {}).client_name)), plan_date })),
+        }),
+      });
+    }
     if (body.action === 'list') {
       if (state.planListStatus !== 200) {
         return route.fulfill({

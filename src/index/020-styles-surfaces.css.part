@@ -8468,3 +8468,239 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
 @supports not selector(::-webkit-scrollbar) {
     * { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
 }
+
+ /* ── THE CALM WORKLOAD CALENDAR (session Calm, 2026-10-18). Only under .workload-view.wl-calm, which 072 adds for the
+    staff members named by the workload_calm_staff switch; nothing here reaches anyone else. One level of container, spacing
+    and a subtle shade instead of frames, muted secondary text, colour only for overdue (red) and due soon (amber). ── */
+ .workload-view.wl-calm { --wl-calm-gap: 14px; --wl-calm-hair: var(--border-light); }
+ .workload-view.wl-calm-hold > :not(.workload-calendar-module),
+ .workload-view.wl-calm-hold .workload-calendar-module > :not(#wlBody) { visibility: hidden; }
+ .workload-view.wl-calm svg { flex-shrink: 0; }
+ /* Text that can go */
+ .workload-view.wl-calm .workload-calendar-heading h2,
+ .workload-view.wl-calm .workload-legend,
+ .workload-view.wl-calm .workload-overview-status.is-empty span,
+ .workload-view.wl-calm .workload-day-count,
+ .workload-view.wl-calm .workload-toolbar > .workload-toolbar-row:nth-child(2) { display: none; }
+ .workload-view.wl-calm .workload-calendar-heading { margin: 0; }
+ /* Frames off: the two big sections lose their card */
+ /* ROUND 2: one soft surface per section (the panel tone the client review page's cards use), never nested */
+ .workload-view.wl-calm { --wl-calm-tint: color-mix(in srgb, var(--bg) 55%, transparent); }
+ html[data-theme="dark"] .workload-view.wl-calm { --wl-calm-tint: color-mix(in srgb, var(--text-primary) 4%, transparent); }
+ .workload-view.wl-calm .workload-overview-matrix,
+ .workload-view.wl-calm .workload-calendar-module { border: 1px solid var(--wl-calm-hair); border-radius: 14px; background: var(--white); box-shadow: none; padding: 12px 16px 14px; margin-bottom: 12px; }
+ /* Top bar: a title, three arrows, one View button */
+ .workload-view.wl-calm .workload-toolbar { margin-bottom: 6px; gap: 0; }
+ .workload-view.wl-calm .workload-title { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; }
+ .workload-view.wl-calm .workload-nav button { border: 0; background: transparent; color: var(--text-secondary); padding: 6px 10px; font-weight: 600; }
+ .workload-view.wl-calm .workload-nav button[data-wl-nav="prev"], .workload-view.wl-calm .workload-nav button[data-wl-nav="next"] { font-size: 1.15rem; line-height: 1; padding: 4px 10px; color: var(--text-primary); }
+ .workload-view.wl-calm .workload-nav button:hover { background: var(--bg); color: var(--text-primary); border: 0; }
+ .workload-view.wl-calm .wl-calm-view { position: relative; display: inline-flex; }
+ .workload-view.wl-calm .wl-calm-view-btn { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--text-secondary); font: inherit; font-size: 0.74rem; font-weight: 650; padding: 6px 10px; border-radius: 8px; cursor: pointer; position: relative; }
+ .workload-view.wl-calm .wl-calm-view-btn:hover, .workload-view.wl-calm .wl-calm-view-btn[aria-expanded="true"] { background: var(--bg); color: var(--text-primary); }
+ .workload-view.wl-calm .wl-calm-view-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+ .workload-view.wl-calm .wl-calm-view-btn svg { width: 15px; height: 15px; }
+ .workload-view.wl-calm .wl-calm-view-btn.has-filter::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--focus-ring); position: absolute; top: 5px; right: 4px; }
+ .workload-view.wl-calm .wl-calm-menu { position: absolute; z-index: 40; top: calc(100% + 6px); right: 0; width: min(340px, 92vw); padding: 14px 16px; background: var(--white); border: 1px solid var(--border-light); border-radius: 12px; box-shadow: 0 12px 36px var(--sv-shadow-rgba-0-0-0-0_18); display: flex; flex-direction: column; gap: 12px; }
+ .workload-view.wl-calm .wl-calm-menu[hidden] { display: none; }
+ .workload-view.wl-calm .wl-calm-menu-row { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; }
+ .workload-view.wl-calm .wl-calm-menu-label { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+ .workload-view.wl-calm .wl-calm-menu .wl-dropdown, .workload-view.wl-calm .wl-calm-menu .wl-client-search { width: 100%; min-width: 0; }
+ .workload-view.wl-calm .wl-calm-menu .wl-dropdown .dropdown-trigger { width: 100%; box-shadow: none; background: var(--bg); min-width: 0; }
+ .workload-view.wl-calm .wl-calm-menu .wl-client-search-input { box-shadow: none; background: var(--bg); }
+ .workload-view.wl-calm .wl-calm-menu .workload-pills { border: 0; background: var(--bg); }
+ .workload-view.wl-calm .wl-calm-menu .workload-nav button { border: 0; background: var(--bg); }
+ /* Notices stay (they say something is wrong) but lose the box */
+ .workload-view.wl-calm .workload-plan-status { border: 0; background: transparent; padding: 0; margin: 0 0 10px; font-weight: 600; font-size: 0.7rem; }
+ .workload-view.wl-calm .workload-weekend-notice summary { border: 0; background: transparent; }
+ /* Team matrix: no row boxes, no empty words, chips as plain text with a dot */
+ /* Team workload: a small title, a header row in muted caps, one line per editor with hairlines between */
+ .workload-view.wl-calm .workload-overview-head,
+ .workload-view.wl-calm .workload-overview-row { grid-template-columns: 190px 150px repeat(3, minmax(120px, 200px)); justify-content: start; gap: 4px 20px; }
+ .workload-view.wl-calm .workload-overview-head { padding: 0 0 6px; border-bottom: 1px solid var(--wl-calm-hair); }
+ .workload-view.wl-calm .workload-overview-heading { grid-column: 1 / -1; grid-row: 1; flex-direction: row; margin-bottom: 8px; }
+ .workload-view.wl-calm .workload-overview-heading span { display: none; }
+ .workload-view.wl-calm .workload-overview-heading strong { color: var(--text-secondary); font-size: 0.8rem; font-weight: 700; letter-spacing: 0; text-transform: none; }
+ .workload-view.wl-calm .workload-overview-head::before { content: 'Editor'; grid-row: 2; grid-column: 1; }
+ .workload-view.wl-calm .workload-overview-capacity-head { grid-row: 2; font-size: 0; }
+ .workload-view.wl-calm .workload-overview-capacity-head::before { content: 'Load'; font-size: 0.6rem; }
+ .workload-view.wl-calm .workload-overview-head::before,
+ .workload-view.wl-calm .workload-overview-capacity-head::before,
+ .workload-view.wl-calm .workload-overview-status-head { color: var(--text-muted); font-size: 0.6rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; }
+ .workload-view.wl-calm .workload-overview-capacity-head { text-align: left; }
+ .workload-view.wl-calm .workload-overview-status-head { grid-row: 2; justify-content: flex-start; min-height: 0; padding: 0; }
+ .workload-view.wl-calm .workload-overview-rows { gap: 0; }
+ .workload-view.wl-calm .workload-overview-row { background: transparent; box-shadow: none; padding: 7px 0; border-radius: 0; border-top: 1px solid var(--wl-calm-hair); }
+ .workload-view.wl-calm .workload-overview-row:first-child { border-top: 0; }
+ .workload-view.wl-calm .workload-overview-row:hover { background: transparent; box-shadow: none; }
+ .workload-view.wl-calm .workload-overview-status-clients { justify-content: flex-start; }
+ .workload-view.wl-calm .workload-overview-status.is-empty { justify-content: flex-start; }
+ .workload-view.wl-calm .workload-overview-status { background: transparent; box-shadow: none; border: 0; padding: 2px 4px; }
+ .workload-view.wl-calm .workload-overview-status-head { font-size: 0.66rem; color: var(--text-secondary); }
+ .workload-view.wl-calm .workload-overview-head-total { background: transparent; color: var(--text-secondary); padding: 0; min-width: 0; font-weight: 700; }
+ .workload-view.wl-calm .workload-overview-avatar { background: var(--bg); color: var(--text-secondary); }
+ .workload-view.wl-calm .workload-overview-status .wl-now-client-chip { background: transparent; color: var(--text-primary); padding: 2px 6px; gap: 5px; font-weight: 600; }
+ .workload-view.wl-calm .workload-overview-status .wl-now-client-chip::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--wl-overview-accent); flex: 0 0 6px; }
+ .workload-view.wl-calm .workload-overview-status .wl-now-client-chip:hover { background: var(--bg); }
+ .workload-view.wl-calm .wl-now-client-chip-count { color: var(--text-secondary); }
+ .workload-view.wl-calm .workload-overview-status-clients:not(:has(.wl-now-client-chip:nth-child(2))) + .workload-overview-status-total { display: none; }
+ .workload-view.wl-calm .workload-overview-status-total { background: transparent; color: var(--text-secondary); box-shadow: none; }
+ /* Calendar: only the day columns are shaded containers */
+ /* The calendar: hairlines between the days and under the day names; today keeps a soft wash */
+ .workload-view.wl-calm .workload-weekdays { gap: 0; margin-bottom: 0; border-bottom: 1px solid var(--wl-calm-hair); }
+ .workload-view.wl-calm .workload-weekday { font-size: 0.62rem; color: var(--text-muted); text-align: left; padding: 6px 12px; }
+ .workload-view.wl-calm .workload-grid { gap: 0; }
+ .workload-view.wl-calm .workload-day { background: transparent; border-radius: 0; padding: 10px 12px; gap: 10px; border: 0; box-shadow: none; }
+ .workload-view.wl-calm .workload-grid.week .workload-day { min-height: 190px; padding: 10px 12px; gap: 10px; }
+ .workload-view.wl-calm .workload-grid.month .workload-day { min-height: 96px; }
+ .workload-view.wl-calm .workload-grid.week { grid-auto-rows: minmax(190px, auto); }
+ .workload-view.wl-calm .workload-grid.month { grid-auto-rows: minmax(96px, auto); }
+ .workload-view.wl-calm .workload-grid.week .workload-day:not(:nth-child(5n+1)),
+ .workload-view.wl-calm .workload-grid.month .workload-day:not(:nth-child(7n+1)) { border-left: 1px solid var(--wl-calm-hair); }
+ .workload-view.wl-calm .workload-grid.month .workload-day:nth-child(n+8) { border-top: 1px solid var(--wl-calm-hair); }
+ .workload-view.wl-calm .workload-day.today { background: color-mix(in srgb, var(--focus-ring) 6%, transparent); outline: 0; box-shadow: none; }
+ .workload-view.wl-calm .workload-day.today .workload-day-num { color: var(--text-primary); }
+ .workload-view.wl-calm .workload-day-num { color: var(--text-muted); font-weight: 650; }
+ .workload-view.wl-calm .workload-day.is-plan-drop-target { box-shadow: inset 0 0 0 2px var(--focus-ring); }
+ .workload-view.wl-calm .workload-day-card { background: var(--wl-calm-tint); border: 0; border-radius: 8px; padding: 6px 8px; gap: 3px; }
+ .workload-view.wl-calm .workload-day-card-head::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--sv-border-6c5ce7); flex: 0 0 6px; }
+ .workload-view.wl-calm .workload-day-card.team-graphics .workload-day-card-head::before { background: var(--sv-border-d97706); }
+ .workload-view.wl-calm .workload-day-card-name { font-weight: 650; color: var(--text-secondary); }
+ .workload-view.wl-calm .workload-day-card-total { background: transparent; box-shadow: none; padding: 1px 4px; color: var(--text-muted); font-weight: 650; }
+ .workload-view.wl-calm .workload-day-card-total:hover { background: var(--white); box-shadow: none; color: var(--text-primary); }
+ .workload-view.wl-calm .workload-day-card-total.over-capacity { background: transparent; color: var(--wl-proximity-red); font-weight: 800; }
+ .workload-view.wl-calm .workload-day-card-total.over-capacity:hover { background: var(--white); color: var(--wl-overdue-label); }
+ .workload-view.wl-calm .wl-day-status-pill { box-shadow: none; padding: 1px 4px 1px 2px; }
+ .workload-view.wl-calm .wl-day-status-pill:hover { box-shadow: none; background: var(--white); }
+ .workload-view.wl-calm .workload-day-card-clients { flex-direction: column; flex-wrap: nowrap; gap: 0; }
+ .workload-view.wl-calm .workload-day-client-group[open] { flex-basis: auto; }
+ .workload-view.wl-calm .workload-day-card-chip { display: flex; width: 100%; padding: 4px 6px; margin: 0 -6px; border-radius: 7px; background: transparent; font-size: 0.74rem; font-weight: 600; box-sizing: content-box; }
+ .workload-view.wl-calm .workload-day-card-chip:hover { background: var(--white); box-shadow: none; }
+ .workload-view.wl-calm .workload-day-card-chip-main { flex: 1; }
+ .workload-view.wl-calm .workload-day-card-chip-count { color: var(--text-muted); font-weight: 600; }
+ .workload-view.wl-calm .workload-day-card-chip-meta { margin-left: auto; flex-wrap: nowrap; }
+ .workload-view.wl-calm .workload-day-card-chip-meta .wl-plan-origin, .workload-view.wl-calm .workload-day-card-chip-meta .wl-workload-group { display: none; }
+ .workload-view.wl-calm .workload-day-card-chip .workload-drag-handle, .workload-view.wl-calm .wl-calm-row .workload-drag-handle { opacity: 0; transition: opacity 0.1s; }
+ .workload-view.wl-calm .workload-day-card-chip:hover .workload-drag-handle, .workload-view.wl-calm .wl-calm-row:hover .workload-drag-handle, .workload-view.wl-calm .workload-drag-handle:focus-visible { opacity: 0.7; }
+ .workload-view.wl-calm .wl-deadline-summary.is-green { display: none; }
+ .workload-view.wl-calm .wl-deadline-summary.is-orange .wl-deadline-dot { background: var(--wl-tweaks-accent); }
+ /* The open group: the same compact list, no tree lines, no row boxes */
+ .workload-view.wl-calm .workload-day-client-group[open] > .workload-day-card-items { padding-left: 12px; gap: 8px; margin: 2px 0 8px; }
+ .workload-view.wl-calm .wl-calm-row { display: flex; flex-direction: column; align-items: stretch; gap: 2px; width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; cursor: default; font-size: 0.72rem; outline: 0; }
+ .workload-view.wl-calm .wl-calm-row:hover { background: transparent; border-color: transparent; }
+ .workload-view.wl-calm .wl-calm-row.is-dragging { opacity: 0.45; }
+ .workload-view.wl-calm .wl-calm-row-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+ .workload-view.wl-calm .wl-calm-row-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); font-weight: 600; text-decoration: none; }
+ .workload-view.wl-calm a.wl-calm-row-title:hover { text-decoration: underline; text-underline-offset: 2px; }
+ .workload-view.wl-calm .wl-calm-row-client { color: var(--text-muted); font-size: 0.64rem; font-weight: 600; white-space: nowrap; }
+ .workload-view.wl-calm .wl-calm-tools { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }
+ .workload-view.wl-calm .wl-calm-tool { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); cursor: pointer; opacity: 0; transition: opacity 0.1s; }
+ .workload-view.wl-calm .wl-calm-tool svg { width: 13px; height: 13px; }
+ .workload-view.wl-calm .wl-calm-row:hover .wl-calm-tool, .workload-view.wl-calm .wl-calm-row:focus-within .wl-calm-tool, .workload-view.wl-calm .wl-calm-tool:focus-visible { opacity: 1; }
+ .workload-view.wl-calm .wl-calm-tool:hover { background: var(--white); color: var(--text-primary); }
+ .workload-view.wl-calm .wl-calm-row-due { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
+ .workload-view.wl-calm .wl-calm-due { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+ .workload-view.wl-calm .wl-calm-date { display: inline-flex; min-width: 0; width: auto; }
+ .workload-view.wl-calm .wl-calm-date-btn { display: inline-flex; align-items: center; gap: 3px; width: auto; min-height: 0; padding: 1px 4px 1px 0; margin: 0; border: 0; border-radius: 5px; background: transparent; box-shadow: none; font: inherit; cursor: pointer; color: inherit; }
+ .workload-view.wl-calm .wl-calm-date-btn, .workload-view.wl-calm .wl-calm-date-btn > span, .wl-calm-pop .wl-calm-date-btn > span { flex: none; overflow: visible; text-overflow: clip; }
+ .workload-view.wl-calm .wl-calm-date-btn:hover { background: var(--white); }
+ .workload-view.wl-calm .wl-calm-date-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+ .workload-view.wl-calm .wl-calm-date-btn:disabled { cursor: default; }
+ .workload-view.wl-calm .wl-calm-date-chev { display: inline-flex; color: var(--text-muted); opacity: 0; }
+ .workload-view.wl-calm .wl-calm-date-chev svg { width: 10px; height: 10px; }
+ .workload-view.wl-calm .wl-calm-date-btn:hover .wl-calm-date-chev, .workload-view.wl-calm .wl-calm-date-btn:focus-visible .wl-calm-date-chev, .workload-view.wl-calm .wl-calm-date-btn[aria-expanded="true"] .wl-calm-date-chev { opacity: 1; }
+ .workload-view.wl-calm .wl-calm-date-btn:disabled .wl-calm-date-chev { display: none; }
+ .workload-view.wl-calm .wl-deadline-tag.is-green { color: var(--text-secondary); }
+ .workload-view.wl-calm .wl-deadline-tag.is-green::before { background: var(--text-muted); }
+ .workload-view.wl-calm .wl-deadline-tag.is-orange { color: var(--sv-fg-92400e); }
+ .workload-view.wl-calm .wl-calm-saving { color: var(--text-muted); font-size: 0.62rem; }
+ .workload-view.wl-calm .wl-calm-auto { display: inline-flex; align-items: center; gap: 4px; padding: 1px 4px; border: 0; border-radius: 5px; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.64rem; font-weight: 600; cursor: pointer; }
+ .workload-view.wl-calm .wl-calm-auto:hover:not(:disabled) { background: var(--white); color: var(--text-primary); }
+ .workload-view.wl-calm .wl-calm-auto:disabled { opacity: 0.5; cursor: default; }
+ .workload-view.wl-calm .wl-calm-auto .wl-plan-origin { color: inherit; }
+ .workload-view.wl-calm .wl-calm-auto:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+ /* Needs assignment / needs a work day: one quiet list on the same panel, the two joined by a hairline */
+ .workload-view.wl-calm .workload-needs-assignment { border: 1px solid var(--wl-calm-hair); background: var(--white); border-radius: 14px; padding: 2px 16px; margin: 0 0 12px; }
+ .workload-view.wl-calm .workload-needs-assignment.empty { display: none; }
+ .workload-view.wl-calm #wlUnassigned:not(.empty):has(+ #wlUndated:not(.empty)) { border-bottom: 0; border-radius: 14px 14px 0 0; margin-bottom: 0; padding-bottom: 0; }
+ .workload-view.wl-calm #wlUnassigned:not(.empty) + #wlUndated:not(.empty) { border-top: 0; border-radius: 0 0 14px 14px; padding-top: 0; }
+ .workload-view.wl-calm #wlUnassigned:not(.empty) + #wlUndated:not(.empty) > .workload-section-label { border-top: 1px solid var(--wl-calm-hair); border-radius: 0; }
+ .workload-view.wl-calm .workload-needs-assignment .workload-section-label { display: flex; align-items: center; gap: 8px; margin: 0; padding: 8px 4px; font-size: 0.74rem; font-weight: 650; letter-spacing: 0; text-transform: none; color: var(--text-secondary); cursor: pointer; border-radius: 8px; }
+ .workload-view.wl-calm .workload-needs-assignment .workload-section-label:hover { color: var(--text-primary); }
+ .workload-view.wl-calm .workload-needs-assignment .workload-section-label:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+ .workload-view.wl-calm .wl-calm-count { color: var(--text-muted); font-weight: 600; }
+ .workload-view.wl-calm .wl-calm-chev { display: inline-flex; color: var(--text-muted); transition: transform 0.15s; }
+ .workload-view.wl-calm .wl-calm-chev svg { width: 12px; height: 12px; }
+ .workload-view.wl-calm .workload-needs-assignment.is-open .wl-calm-chev { transform: rotate(180deg); }
+ .workload-view.wl-calm .wl-loose-clients { padding: 4px 4px 10px; display: flex; flex-direction: column; gap: 14px; }
+ .workload-view.wl-calm .wl-loose-clients[hidden] { display: none; }
+ .workload-view.wl-calm .wl-calm-loose-block { display: flex; flex-direction: column; gap: 4px; }
+ .workload-view.wl-calm .wl-calm-loose-head { display: flex; align-items: center; gap: 8px; font-size: 0.76rem; font-weight: 650; }
+ .workload-view.wl-calm .wl-calm-loose-n { color: var(--text-muted); font-weight: 600; }
+ .workload-view.wl-calm .wl-calm-loose-open { display: inline-flex; color: var(--text-muted); padding: 2px; border-radius: 5px; }
+ .workload-view.wl-calm .wl-calm-loose-open:hover { color: var(--text-primary); background: var(--bg); }
+ .workload-view.wl-calm .wl-calm-loose-open svg { width: 12px; height: 12px; }
+ .workload-view.wl-calm .wl-calm-loose-batch { display: flex; align-items: center; gap: 6px; font-size: 0.64rem; color: var(--text-muted); font-weight: 600; margin-top: 4px; }
+ .workload-view.wl-calm .wl-calm-loose-items { display: flex; flex-direction: column; gap: 1px; }
+ .workload-view.wl-calm .wl-calm-loose-item { display: flex; align-items: center; gap: 8px; padding: 3px 0; color: var(--text-secondary); font-size: 0.74rem; font-weight: 550; text-decoration: none; }
+ .workload-view.wl-calm a.wl-calm-loose-item:hover { color: var(--text-primary); }
+ .workload-view.wl-calm .wl-calm-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sv-border-6c5ce7); flex: 0 0 6px; }
+ .workload-view.wl-calm .wl-calm-dot.is-graphics { background: var(--sv-border-d97706); }
+ /* The flat popover: no box around any section */
+ .workload-popover.wl-calm-pop { border: 0; border-radius: 14px; padding: 12px 14px 10px; min-width: 300px; box-shadow: 0 16px 48px var(--sv-shadow-rgba-0-0-0-0_18), 0 0 0 1px var(--border-light); }
+ .wl-calm-pop .wl-calm-pop-head { display: flex; align-items: center; gap: 10px; padding: 0 0 8px; }
+ .wl-calm-pop .wl-calm-pop-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82rem; font-weight: 700; color: var(--text-primary); }
+ .wl-calm-pop .wl-calm-pop-links { display: inline-flex; align-items: center; gap: 10px; }
+ .wl-calm-pop .wl-calm-link { font-size: 0.66rem; font-weight: 600; color: var(--text-muted); text-decoration: none; white-space: nowrap; }
+ .wl-calm-pop .wl-calm-link:hover { color: var(--text-primary); text-decoration: underline; text-underline-offset: 2px; }
+ .wl-calm-pop .workload-popover-close { width: 32px; height: 32px; margin: -4px -6px -4px 0; }
+ .wl-calm-pop .workload-popover-close svg { width: 12px; height: 12px; }
+ .wl-calm-pop .wl-calm-frame { display: flex; align-items: center; gap: 6px; padding: 0 0 8px; font-size: 0.66rem; font-weight: 600; color: var(--sv-fg-92400e); }
+ .wl-calm-pop .wl-calm-frame svg { width: 12px; height: 12px; }
+ .wl-calm-pop .wl-calm-rows { display: flex; flex-direction: column; gap: 12px; padding-top: 2px; }
+ .wl-calm-pop .wl-calm-empty { color: var(--text-muted); font-size: 0.72rem; }
+ .wl-calm-pop .wl-calm-row { display: flex; flex-direction: column; gap: 2px; font-size: 0.78rem; }
+ .wl-calm-pop .wl-calm-row-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+ .wl-calm-pop .wl-calm-row-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); font-weight: 600; text-decoration: none; }
+ .wl-calm-pop a.wl-calm-row-title:hover { text-decoration: underline; text-underline-offset: 2px; }
+ .wl-calm-pop .wl-calm-row-client { color: var(--text-muted); font-size: 0.64rem; font-weight: 600; }
+ .wl-calm-pop .wl-calm-tools { margin-left: auto; display: inline-flex; gap: 2px; }
+ .wl-calm-pop .wl-calm-tool { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); cursor: pointer; }
+ .wl-calm-pop .wl-calm-tool svg { width: 13px; height: 13px; }
+ .wl-calm-pop .wl-calm-tool:hover { background: var(--bg); color: var(--text-primary); }
+ .wl-calm-pop .wl-calm-row-due { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+ .wl-calm-pop .wl-calm-due, .wl-calm-pop .wl-calm-date { display: inline-flex; align-items: center; gap: 6px; width: auto; min-width: 0; }
+ .wl-calm-pop .wl-calm-date-btn { display: inline-flex; align-items: center; gap: 3px; width: auto; min-height: 0; padding: 1px 4px 1px 0; border: 0; border-radius: 5px; background: transparent; box-shadow: none; font: inherit; cursor: pointer; color: inherit; }
+ .wl-calm-pop .wl-calm-date-btn:hover { background: var(--bg); }
+ .wl-calm-pop .wl-calm-date-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+ .wl-calm-pop .wl-calm-date-btn:disabled { cursor: default; }
+ .wl-calm-pop .wl-calm-date-chev { display: inline-flex; color: var(--text-muted); }
+ .wl-calm-pop .wl-calm-date-chev svg { width: 10px; height: 10px; }
+ .wl-calm-pop .wl-calm-date-btn:disabled .wl-calm-date-chev { display: none; }
+ .wl-calm-pop .wl-deadline-tag.is-green { color: var(--text-secondary); }
+ .wl-calm-pop .wl-deadline-tag.is-orange { color: var(--sv-fg-92400e); }
+ .wl-calm-pop .wl-calm-saving { color: var(--text-muted); font-size: 0.62rem; }
+ .wl-calm-pop .wl-calm-auto { display: inline-flex; align-items: center; gap: 4px; padding: 1px 4px; border: 0; border-radius: 5px; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.66rem; font-weight: 600; cursor: pointer; }
+ .wl-calm-pop .wl-calm-auto:hover:not(:disabled) { background: var(--bg); color: var(--text-primary); }
+ .wl-calm-pop .wl-calm-auto:disabled { opacity: 0.5; cursor: default; }
+ .wl-calm-pop .wl-calm-auto:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+ .wl-calm-pop .wl-tweak-comments { margin: 4px 0 0; padding: 0; border: 0; background: transparent; border-radius: 0; }
+ .wl-calm-pop .wl-tweak-comment { background: transparent; border: 0; padding: 1px 0; }
+ .wl-calm-pop .wl-tweak-comments-status { background: transparent; border: 0; padding: 0; color: var(--text-muted); font-size: 0.66rem; }
+ /* Phone: the same calm on the agenda and the sheet */
+ html.sv-staff-phone .workload-view.wl-calm .thumb-wl-header small, html.sv-staff-phone .workload-view.wl-calm .thumb-wl-header strong { display: none; }
+ html.sv-staff-phone .workload-view.wl-calm :is(.thumb-wl-person, .thumb-wl-item) { border: 0; background: transparent; box-shadow: none; border-radius: 0; border-bottom: 1px solid var(--border-light); }
+ html.sv-staff-phone .workload-view.wl-calm .thumb-wl-summary { display: none; }
+ html.sv-staff-phone .workload-view.wl-calm .thumb-wl-status:not(.is-overdue) { display: none; }
+ html.sv-staff-phone .workload-view.wl-calm .thumb-wl-person small:not(.is-overdue) { color: var(--text-muted); }
+ html.sv-staff-phone .workload-view.wl-calm .thumb-wl-header button { border: 0; background: transparent; color: var(--text-secondary); }
+ @media (max-width: 767px) {
+   .workload-popover.wl-calm-pop .wl-calm-row-title { white-space: normal; }
+   .workload-popover.wl-calm-pop .wl-calm-tool { opacity: 1; }
+   .workload-view.wl-calm .wl-calm-tool { opacity: 1; }
+   .workload-view.wl-calm .wl-calm-date-chev { opacity: 1; }
+   .workload-popover.wl-calm-pop .wl-calm-row { font-size: 0.92rem; gap: 4px; }
+   .workload-popover.wl-calm-pop .wl-deadline-tag, .workload-popover.wl-calm-pop .wl-calm-auto { font-size: 0.74rem; }
+   .workload-popover.wl-calm-pop .wl-calm-date-btn, .workload-popover.wl-calm-pop .wl-calm-auto { min-height: 36px; }
+ }
+ .workload-view.wl-calm .workload-calendar-heading:has(#wlWeekendNotice[hidden]) { display: none; }

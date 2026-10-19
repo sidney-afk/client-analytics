@@ -60,7 +60,20 @@ function serveStatic() {
         return;
       }
     }
-    res.writeHead(status, { 'Content-Type': mime[path.extname(full).toLowerCase()] || 'application/octet-stream' });
+    const type = mime[path.extname(full).toLowerCase()] || 'application/octet-stream';
+    // Byte ranges, like GitHub Pages: a WebKit video seeks by asking for a range, and a server that answers every
+    // request with the whole file makes that seek fail with a network error (MEDIA_ERR_NETWORK) on a clip that decodes fine.
+    const size = fs.statSync(full).size;
+    const range = status === 200 && /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+    if (range && (range[1] || range[2])) {
+      let a = range[1] === '' ? Math.max(0, size - Number(range[2])) : Number(range[1]);
+      let b = range[1] === '' || range[2] === '' ? size - 1 : Math.min(Number(range[2]), size - 1);
+      if (a > b || a >= size) { res.writeHead(416, { 'Content-Range': 'bytes */' + size }); res.end(); return; }
+      res.writeHead(206, { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Content-Range': `bytes ${a}-${b}/${size}`, 'Content-Length': b - a + 1 });
+      fs.createReadStream(full, { start: a, end: b }).pipe(res);
+      return;
+    }
+    res.writeHead(status, { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Content-Length': size });
     fs.createReadStream(full).pipe(res);
   });
   return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));

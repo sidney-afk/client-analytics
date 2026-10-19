@@ -779,10 +779,16 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
                    first, exactly as _calResolveLastTweak does, and stop if
                    any resolve is refused. */
                 if (_prodCanonicalCommentGate(post, comp).linked) {
+                    /* The old pop-up kept a second press out while the requests were being resolved; with no pop-up the
+                       "saving" flag is not up until the resolves are done, so a double press would resolve twice and
+                       send twice (two saves, two toasts). Hold the part until the approve has taken over. */
+                    const closing = _calReviewState.closing || (_calReviewState.closing = {});
+                    if (closing[key]) return;
+                    closing[key] = true;
                     _calReviewResolveCanonical(post, comp, ids, pickDest).then(ok => {
                         if (!ok) return;
                         _calReviewApplyApprove(pid, comp, pickDest, resolvedBefore, told);
-                    });
+                    }).finally(() => { delete closing[key]; });
                     return;
                 }
                 if (_calCanonicalCrosswalkPending(post, comp)) return;

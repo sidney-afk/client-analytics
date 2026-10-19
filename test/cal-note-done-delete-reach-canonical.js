@@ -131,5 +131,22 @@ const tick = () => new Promise(r => setImmediate(r));
     await tick();
     assert(w.reloadPanel().every(c => c.done), 'legacy-only cards still mark done');
   }
+  // 5. OPEN_REPAIRS 438 review: with no pop-up in the way, a second press on the same part while the requests are
+  //    still being resolved must not resolve and send twice; a refused send closes nothing more than the old pop-up did.
+  {
+    const w = world();
+    let applies = 0, resolves = 0;
+    w.ctx._calReviewApplyApprove = () => { applies++; };
+    const base = w.ctx._writeUiCommitCardCommentLifecycle;
+    w.ctx._writeUiCommitCardCommentLifecycle = async (...a) => { resolves++; return base(...a); };
+    w.ctx._calReviewApprove('card-1', 'video', 'kasper');
+    w.ctx._calReviewApprove('card-1', 'video', 'kasper');
+    await tick(); await tick(); await tick(); await tick();
+    assert.equal(resolves, 2, 'a double press resolves each open request once, not twice');
+    assert.equal(applies, 1, 'a double press sends the part once');
+    w.ctx._calReviewApprove('card-1', 'video', 'kasper');
+    await tick(); await tick();
+    assert.equal(applies, 2, 'the hold is released once the send has taken over (a later press with nothing open sends directly)');
+  }
   console.log('cal-note-done-delete-reach-canonical: done and delete reach the canonical thread ✅');
 })().catch(e => { console.error(e); process.exit(1); });

@@ -33521,9 +33521,27 @@ Audit of the upload link and the Submit tab against every way a send can fail (r
 - **Not changed.** SMM and Kasper caption edits save at once on the step and keep their own Approve; there is no "send" step for them, so they do not have this problem. A YouTube title edit is still a change request.
 - **Tests.** `test/review-stage-caption-send-browser.js` (new; fails on main). `review-stage-client-composer-browser.js` had two lines saying the caption "stays waiting for Approve"; they now say the sent edit was the answer (still never a change request).
 
+## 438. [2026-10-18, BUILT, NOT MERGED] Kasper's "With the editors" rows were two lines of orange text; now "Client · Title" and a small grey date (session Tidy)
+
+Owner request: less text, less noise. Each row used to show the video title, then an orange "<client>, with the editors since 29 Sept 2026". Now the first line is the client (normal text colour) then " · " and the title, one line, an ellipsis when too long; the second line is only the day the tweak went to the editors in the muted grey of secondary text: Today, Yesterday, the weekday for 2 to 6 days ago, otherwise "29 Sept", with the year only when it is not this year (local days, not 24 hours). A row with no finished date shows no second line. Ping editor and everything else are unchanged.
+
+The same row is drawn in three places, all changed in `src/index/195-review-stage.js.part`: the list panel (the list button), the strip chips (after opening "With the editors"), and the "All caught up" recap list. The Urgent and Waiting for your review rows share those components and are deliberately left as they were (title first, client on the small line). Test: `node test/review-stage-with-editors-row-browser.js` (fails on main), 1440 and 390, light and dark; before and after screenshots in `docs/audits/2026-10-18-with-editors-row/` (fictional data). Not covered by the test: the recap list (it only shows when nothing is waiting).
+
 **Way back:** revert the pull request.
 
-## 438. [2026-10-18, BUILT, NOT MERGED] A calmer Workload calendar, as a design preview behind a staff switch (session Calm)
+## 439. [2026-10-19, BUILT, NOT MERGED] Pull-request checks waited hours for a runner seat; browser suites now run three side by side (session Express)
+
+- **What the owner saw.** With about 8 open pull requests a PR waited over an hour before its browser jobs started, and one Calendar unit tests run took over 2 hours.
+- **Measured (3 days to 2026-10-19, 1,075 workflow runs, 6,663 jobs, GitHub Actions API).** The browser jobs run 4 to 21 minutes but waited at the 90th percentile 43 min (staff phone), 73 min (unit), 37 min (browser guards), 20 min (entry links, split preview), maximum 3.8 hours. The cause was the shared runner seats (OPEN_REPAIRS Throttle): one PR held the guards seat for 21 minutes and each phone seat for about 20 (two widths on one seat), so 8 PRs queued 160+ minutes on one seat. 105 of 153 PR runs were cancelled, so much seat time was spent on pushes already replaced. Two PR workflows (`linear-exit-preparation-ci`, `edge-function-type-ratchet`) never cancelled a superseded run (154 runs, none cancelled).
+- **Why the seats could stay.** They protect the production lanes on main from a full account (20 jobs at once, the free limit assumed here). The jobs inside them were too long, not the seats wrong.
+- **Fix.** `scripts/ci-lanes.js` runs three browser suites side by side inside one job (a 128 s suite used 39 s of CPU, so a 4-CPU runner holds three). Every command that ran before still runs, each exactly once per leg (checked by `test/ci-shards-wired.js` and by comparing the command lists with main). Phone: 2 parts per width, 1 seat each; entry links 3 parts; browser guards 2 parts; split preview 2 parts; unit 3 parts; still 14 seats. A PR holds about 90 runner-minutes instead of about 175 and no seat longer than about 9 minutes. The two workflows above now cancel superseded PR runs.
+- **For the review jobs in #2225 and #2228** (not merged when this was written): give them their own seats or put them in the guards seats as lanes, run the widths as lanes inside one job per engine rather than 9 serialised legs, and gate them on the review fragments, not on every PR.
+- **One suite stays alone.** `split-load-browser.js` counts downloads and failed once ("expected one download, saw 0") when it shared a runner with two other suites; it passes alone. It now runs by itself, first, in each split-preview part, and the rest of the part runs in lanes.
+- **Not changed.** No test skipped, weakened or moved to after-merge. Deploy lanes and anything that runs against the live backend are untouched.
+
+**Way back:** revert the pull request.
+
+## 445. [2026-10-18, BUILT, NOT MERGED] A calmer Workload calendar, as a design preview behind a staff switch (session Calm)
 
 Owner request 2026-10-18: the staff Workload calendar has too much visual noise and too many clicks. Built for real, but only for the staff the new runtime switch row `workload_calm_staff` `{ "staff": [<roster ids>] }` names (read once per page with the other switches in `188`; missing, unreadable, the wrong shape or someone else listed means today's calendar, unchanged). Lighthouse puts only the owner's own staff accounts on it; he tweaks it before anyone else sees it.
 

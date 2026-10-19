@@ -1858,14 +1858,16 @@
             html.sv-rs-paint .sv-rs-boot { gap: 12px; padding-top: 8px; }
             .sv-rs-boot-hdr { height: auto; flex-direction: column; align-items: flex-start; gap: 12px; padding-top: 0; }
             .sv-rs-boot-who { height: 38px; align-items: center; }
-            .sv-rs-boot-r { width: 100%; }
-            .sv-rs-boot-tabs { flex: 1 1 auto; width: auto; min-width: 0; }
+            .sv-rs-boot-r { width: 100%; height: 50px; }
+            .sv-rs-boot-tabs { flex: 1 1 auto; width: auto; min-width: 0; height: 50px; }
+            /* Phone controls keep a 44 px hit area on the page (session Pocket), so the placeholders are that size too. */
+            .sv-rs-boot-round { width: 44px; height: 44px; }
             .sv-rs-boot-tabs span { width: calc((100% - 8px) / 4); }
-            .sv-rs-boot-strip { height: 87px; flex-direction: column; align-items: flex-start; gap: 9px; }
+            .sv-rs-boot-strip { height: 90px; flex-direction: column; align-items: flex-start; gap: 9px; }
             .sv-rs-boot-count { margin-top: 3px; }
             .sv-rs-boot-chips { width: 100%; padding-left: 0; }
             .sv-rs-boot-chip { flex-basis: 190px; }
-            .sv-rs-boot-stage { display: flex; flex-direction: column; gap: 12px; flex: none; }
+            .sv-rs-boot-stage { display: flex; flex-direction: column; gap: 16px; flex: none; }
             /* The phone page's sizes follow the screen, not one phone (session Dawn): the video is 46vh tall (width 46vh x 9/16,
                centred in a box of min(46vh, 420px)), the card is as tall as what is in it, and the two answer buttons share a
                row where the card is wide enough (430 px and up) and stack where it is not (390), as the page's own do. */
@@ -1875,10 +1877,12 @@
             .sv-rs-boot-s1 { width: 80px; }
             .sv-rs-boot-s2 { width: 106px; }
             .sv-rs-boot-s3 { width: 93px; }
-            .sv-rs-boot-media { flex: none; height: min(46vh, 420px); margin-top: 10px; }
-            .sv-rs-boot-video { top: 50%; bottom: auto; transform: translate(-50%, -50%); width: min(100%, calc(46vh * 0.5625)); max-width: none; }
-            .sv-rs-boot-acts { flex-wrap: wrap; gap: 4px 6px; padding: 10px 0 59px; }
-            .sv-rs-boot-chat { height: 420px; flex: none; }
+            .sv-rs-boot-s1, .sv-rs-boot-s2, .sv-rs-boot-s3, .sv-rs-boot-a1, .sv-rs-boot-a2 { height: 44px; }
+            /* Since Pocket's phone work the page's video fills the card's width and is 56% of the screen tall (at most 480 px). */
+            .sv-rs-boot-media { flex: none; height: clamp(220px, 56vh, 480px); height: clamp(220px, 56svh, 480px); margin-top: 10px; }
+            .sv-rs-boot-video { top: 0; bottom: 0; left: 0; transform: none; width: 100%; aspect-ratio: auto; max-width: none; }
+            .sv-rs-boot-acts { flex-wrap: wrap; gap: 4px 6px; padding: 10px 0 63px; }
+            .sv-rs-boot-chat { height: 480px; flex: none; }
             html.sv-rs-paint-empty .sv-rs-boot-strip { height: 31px; }
             html.sv-rs-paint-empty .sv-rs-boot-empty { align-items: flex-start; padding-top: 24px; flex: none; }
         }

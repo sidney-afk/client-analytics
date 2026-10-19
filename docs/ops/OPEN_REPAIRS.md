@@ -33596,6 +33596,8 @@ its rejecting promise unobserved. Source repair now defers the actively saving C
 and observes background rejection without consuming the original promise. The durability test executes deferral,
 later eligibility and rejection propagation; an offline browser regression overlaps approval and recovery.
 
+**Train 4 follow-up (same entry):** since #2229 a sent caption edit is the client's answer for the caption step, and the phone editor now reopens by itself on unsent words, so `test/review-stage-gauntlet3-browser.js` expects the caption to be approved once after an edit (not, after a lost answer to the caption save, where the part keeps waiting), and clicks Edit after a reload only when the editor did not reopen. The unsent-caption drafts of this entry and of entry 441 are one store (per tab, `syncview_rs_caption_draft_v1:`), which the phone's reopen-on-load reads.
+
 ## 441. [2026-10-18, BUILT, NOT MERGED] Phone review could lose a caption draft, and staff Finish stayed off after sending a part back (session Pocket)
 
 The owner reported the new review page live for every client on 2026-10-18. This work uses only the existing mocked browser fixtures; no live writes, switch changes or deployment.
@@ -33631,6 +33633,7 @@ Test: `node test/client-link-dark-first-paint-browser.js` (fails on main, passes
 
 **Way back:** revert the pull request.
 
+**Train 4 follow-up (same entry):** Pocket's phone work made the loaded page's controls 44 px, its video 56% of the screen tall and full card width, and its chat 480 px tall, so on a phone the loading screen no longer sat where the page lands (63 shape checks failed once both were combined). The phone block of the loading screen in `010-styles-foundation.css.part` now draws those sizes; `node test/client-link-dark-first-paint-browser.js` passes at 390 and 430, light and dark.
 
 ## 444. [2026-10-18, BUILT, NOT MERGED] A completed save could report repair_checkpoint_missing when recovery consumed its checkpoint (session Checkpoint)
 

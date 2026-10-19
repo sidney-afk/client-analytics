@@ -344,10 +344,12 @@ async function exercise(t, role, action, condition) {
   }
   if (kind === 'approve') assert.equal(row[part + '_status'], role === 'client' ? 'Approved' : 'Client Approval');
   else if (kind === 'caption-edit') { assert.equal(row.caption, text);
-    // The approval is its own request after the caption lands, so a slow or interrupted network needs time to deliver it.
-    if (role === 'client') await until(() => t.state.cards[0].caption_status === 'Approved', 'caption edit did not answer the caption step', 20000);
-    // Since #2229 a sent caption edit is the client's answer for the caption step: it approves the caption, once.
-    assert.equal(row.caption_status, role === 'client' ? 'Approved' : 'Client Approval', 'caption edit did not answer the caption step once'); }
+    // Since #2229 a sent caption edit is the client's answer for the caption step: it approves the caption, once. The
+    // approval is its own request after the caption lands, so a slow network needs time to deliver it. When the answer
+    // to the caption save itself was lost (drop-after) the page cannot know the save succeeded, so it approves
+    // nothing: the caption is stored, the part keeps waiting, and the client presses Approve.
+    if (role === 'client' && condition !== 'drop-after') await until(() => t.state.cards[0].caption_status === 'Approved', 'caption edit did not answer the caption step', 20000);
+    assert.equal(row.caption_status, role === 'client' && condition !== 'drop-after' ? 'Approved' : 'Client Approval', 'caption edit answered the caption step wrongly'); }
   else {
     const notes = JSON.parse(row[part + '_tweaks'] || '[]');
     const matching = notes.filter(n => n.body === (kind === 'frame' ? 'Tweaks are on Frame.' : kind === 'title-edit' ? 'Please use this title:\n\n' + text : text));

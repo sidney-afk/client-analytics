@@ -54,7 +54,8 @@ jobs:
     needs: schedule-guard
     if: ${{ !cancelled() && (needs.schedule-guard.result == 'skipped' || (needs.schedule-guard.result == 'success' && needs.schedule-guard.outputs.run == 'true')) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The fast lane alone takes about 9 to 10 minutes; 10 cut it off mid-run twice on 2026-10-19.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

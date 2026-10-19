@@ -738,6 +738,19 @@ async function absentCommentReissuesCurrentLaneCase() {
   assert.deepStrictEqual(clone(post._writeUiRepairRefs), [{ key: 'repair-comment-2', token: 'token-comment-2' }]);
 }
 
+async function kasperStateNotLoadedCase() {
+  // The Kasper script can load after the boot-time repair resume. An unguarded
+  // read of its state is a ReferenceError (an unhandled rejection in WebKit
+  // roughly one load in three) and skips the resume. Not loaded means no
+  // Samples repairs to resume, not an exception.
+  const ctx = { _writeUiPrincipalKey: () => 'staff:fixture:smm' };
+  vm.createContext(ctx);
+  vm.runInContext(extract('_sxrKasperResumeSourceRepairs'), ctx);
+  await ctx._sxrKasperResumeSourceRepairs();
+  const lateBinding = source.match(/\(_kasperState && _kasperState\.sxrRepairs\)/g);
+  assert.strictEqual(lateBinding, null, 'every read of the Kasper state outside its own script must be typeof-guarded');
+}
+
 (async () => {
   await runCase('Calendar keeps trailing pending repair metadata while a save is in flight', () => pendingMetadataCase('calendar'));
   await runCase('Samples keeps trailing pending repair metadata while a save is in flight', () => pendingMetadataCase('sxr'));
@@ -754,6 +767,7 @@ async function absentCommentReissuesCurrentLaneCase() {
   await runCase('absent status ignores local commit hints and retains debt without mutation', absentStatusRetainsDebtCase);
   await runCase('newer native status supersedes absent receipt read-only', newerStatusSupersedesAbsentReceiptCase);
   await runCase('absent comment reissues once through the current authority lane', absentCommentReissuesCurrentLaneCase);
+  await runCase('Samples Kasper repair resume tolerates the Kasper script not being loaded yet', kasperStateNotLoadedCase);
 
   if (failures.length) {
     console.error('\n' + failures.length + ' write-UI repair race regression(s) failed');

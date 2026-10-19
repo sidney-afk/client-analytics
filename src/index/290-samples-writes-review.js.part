@@ -1321,7 +1321,7 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
             _sxrKasperState.smmByClient = smmMap;
             const items = [];
             const keepDismissed = new Set();
-            const repairById = new Map(((_kasperState && _kasperState.sxrRepairs) || []).map(repair => [repair && repair.id, repair]));
+            const repairById = new Map(((typeof _kasperState === 'object' && _kasperState && _kasperState.sxrRepairs) || []).map(repair => [repair && repair.id, repair]));
             for (const p of (rows || [])) {
                 if (!p || String(p.status || '').toLowerCase() === 'archived') continue;
                 p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p);
@@ -1556,7 +1556,7 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
         _sxrKasperState.writeGen++;
         const p = it.post;
         const cachedRepair = p._writeUiKasperRepair
-            || ((_kasperState && _kasperState.sxrRepairs) || []).find(row => row && row.id === p.id && row.slug === it.slug);
+            || ((typeof _kasperState === 'object' && _kasperState && _kasperState.sxrRepairs) || []).find(row => row && row.id === p.id && row.slug === it.slug);
         if (cachedRepair) {
             _sxrKasperState.saving[key] = false;
             /* Was `_sxrKasperState.errors[key] = ...` -- a store this state has
@@ -1744,7 +1744,7 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
     }
     async function _sxrKasperResumeSourceRepairs() {
         const principal = _writeUiPrincipalKey();
-        const repairs = ((_kasperState && _kasperState.sxrRepairs) || []).slice();
+        const repairs = ((typeof _kasperState === 'object' && _kasperState && _kasperState.sxrRepairs) || []).slice();
         for (const repair of repairs) {
             if (!repair || repair.principal !== principal || !repair.id || !repair.slug) continue;
             if (_writeUiJournalHasRepair('sxr', 'kasper-sxr', repair.slug, repair.id, principal)) continue;

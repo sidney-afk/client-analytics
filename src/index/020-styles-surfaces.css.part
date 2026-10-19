@@ -8480,13 +8480,15 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
  .workload-view.wl-calm .workload-overview-status.is-empty span,
  .workload-view.wl-calm .workload-day-count,
  .workload-view.wl-calm .workload-toolbar > .workload-toolbar-row:nth-child(2) { display: none; }
- .workload-view.wl-calm .workload-overview-heading, .workload-view.wl-calm .workload-overview-capacity-head { visibility: hidden; }
  .workload-view.wl-calm .workload-calendar-heading { margin: 0; }
  /* Frames off: the two big sections lose their card */
+ /* ROUND 2: one soft surface per section (the panel tone the client review page's cards use), never nested */
+ .workload-view.wl-calm { --wl-calm-tint: color-mix(in srgb, var(--bg) 55%, transparent); }
+ html[data-theme="dark"] .workload-view.wl-calm { --wl-calm-tint: color-mix(in srgb, var(--text-primary) 4%, transparent); }
  .workload-view.wl-calm .workload-overview-matrix,
- .workload-view.wl-calm .workload-calendar-module { border: 0; border-radius: 0; background: transparent; box-shadow: none; padding: 0; margin-bottom: 22px; }
+ .workload-view.wl-calm .workload-calendar-module { border: 1px solid var(--wl-calm-hair); border-radius: 14px; background: var(--white); box-shadow: none; padding: 12px 16px 14px; margin-bottom: 12px; }
  /* Top bar: a title, three arrows, one View button */
- .workload-view.wl-calm .workload-toolbar { margin-bottom: 12px; gap: 0; }
+ .workload-view.wl-calm .workload-toolbar { margin-bottom: 6px; gap: 0; }
  .workload-view.wl-calm .workload-title { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; }
  .workload-view.wl-calm .workload-nav button { border: 0; background: transparent; color: var(--text-secondary); padding: 6px 10px; font-weight: 600; }
  .workload-view.wl-calm .workload-nav button[data-wl-nav="prev"], .workload-view.wl-calm .workload-nav button[data-wl-nav="next"] { font-size: 1.15rem; line-height: 1; padding: 4px 10px; color: var(--text-primary); }
@@ -8510,10 +8512,27 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
  .workload-view.wl-calm .workload-plan-status { border: 0; background: transparent; padding: 0; margin: 0 0 10px; font-weight: 600; font-size: 0.7rem; }
  .workload-view.wl-calm .workload-weekend-notice summary { border: 0; background: transparent; }
  /* Team matrix: no row boxes, no empty words, chips as plain text with a dot */
- .workload-view.wl-calm .workload-overview-head { padding: 0 10px 6px; }
- .workload-view.wl-calm .workload-overview-rows { gap: 2px; }
- .workload-view.wl-calm .workload-overview-row { background: transparent; box-shadow: none; padding: 8px 10px; border-radius: 10px; }
- .workload-view.wl-calm .workload-overview-row:hover { background: var(--bg); box-shadow: none; }
+ /* Team workload: a small title, a header row in muted caps, one line per editor with hairlines between */
+ .workload-view.wl-calm .workload-overview-head,
+ .workload-view.wl-calm .workload-overview-row { grid-template-columns: 190px 150px repeat(3, minmax(120px, 200px)); justify-content: start; gap: 4px 20px; }
+ .workload-view.wl-calm .workload-overview-head { padding: 0 0 6px; border-bottom: 1px solid var(--wl-calm-hair); }
+ .workload-view.wl-calm .workload-overview-heading { grid-column: 1 / -1; grid-row: 1; flex-direction: row; margin-bottom: 8px; }
+ .workload-view.wl-calm .workload-overview-heading span { display: none; }
+ .workload-view.wl-calm .workload-overview-heading strong { color: var(--text-secondary); font-size: 0.8rem; font-weight: 700; letter-spacing: 0; text-transform: none; }
+ .workload-view.wl-calm .workload-overview-head::before { content: 'Editor'; grid-row: 2; grid-column: 1; }
+ .workload-view.wl-calm .workload-overview-capacity-head { grid-row: 2; font-size: 0; }
+ .workload-view.wl-calm .workload-overview-capacity-head::before { content: 'Load'; font-size: 0.6rem; }
+ .workload-view.wl-calm .workload-overview-head::before,
+ .workload-view.wl-calm .workload-overview-capacity-head::before,
+ .workload-view.wl-calm .workload-overview-status-head { color: var(--text-muted); font-size: 0.6rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; }
+ .workload-view.wl-calm .workload-overview-capacity-head { text-align: left; }
+ .workload-view.wl-calm .workload-overview-status-head { grid-row: 2; justify-content: flex-start; min-height: 0; padding: 0; }
+ .workload-view.wl-calm .workload-overview-rows { gap: 0; }
+ .workload-view.wl-calm .workload-overview-row { background: transparent; box-shadow: none; padding: 7px 0; border-radius: 0; border-top: 1px solid var(--wl-calm-hair); }
+ .workload-view.wl-calm .workload-overview-row:first-child { border-top: 0; }
+ .workload-view.wl-calm .workload-overview-row:hover { background: transparent; box-shadow: none; }
+ .workload-view.wl-calm .workload-overview-status-clients { justify-content: flex-start; }
+ .workload-view.wl-calm .workload-overview-status.is-empty { justify-content: flex-start; }
  .workload-view.wl-calm .workload-overview-status { background: transparent; box-shadow: none; border: 0; padding: 2px 4px; }
  .workload-view.wl-calm .workload-overview-status-head { font-size: 0.66rem; color: var(--text-secondary); }
  .workload-view.wl-calm .workload-overview-head-total { background: transparent; color: var(--text-secondary); padding: 0; min-width: 0; font-weight: 700; }
@@ -8525,14 +8544,23 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
  .workload-view.wl-calm .workload-overview-status-clients:not(:has(.wl-now-client-chip:nth-child(2))) + .workload-overview-status-total { display: none; }
  .workload-view.wl-calm .workload-overview-status-total { background: transparent; color: var(--text-secondary); box-shadow: none; }
  /* Calendar: only the day columns are shaded containers */
- .workload-view.wl-calm .workload-weekday { font-size: 0.64rem; color: var(--text-muted); }
- .workload-view.wl-calm .workload-grid { gap: 8px; }
- .workload-view.wl-calm .workload-day { background: var(--bg); border-radius: 12px; padding: 10px 12px; gap: 14px; border: 0; box-shadow: none; }
- .workload-view.wl-calm .workload-day.today { background: var(--white); outline: 0; box-shadow: 0 0 0 1px var(--border); }
+ /* The calendar: hairlines between the days and under the day names; today keeps a soft wash */
+ .workload-view.wl-calm .workload-weekdays { gap: 0; margin-bottom: 0; border-bottom: 1px solid var(--wl-calm-hair); }
+ .workload-view.wl-calm .workload-weekday { font-size: 0.62rem; color: var(--text-muted); text-align: left; padding: 6px 12px; }
+ .workload-view.wl-calm .workload-grid { gap: 0; }
+ .workload-view.wl-calm .workload-day { background: transparent; border-radius: 0; padding: 10px 12px; gap: 10px; border: 0; box-shadow: none; }
+ .workload-view.wl-calm .workload-grid.week .workload-day { min-height: 190px; padding: 10px 12px; gap: 10px; }
+ .workload-view.wl-calm .workload-grid.month .workload-day { min-height: 96px; }
+ .workload-view.wl-calm .workload-grid.week { grid-auto-rows: minmax(190px, auto); }
+ .workload-view.wl-calm .workload-grid.month { grid-auto-rows: minmax(96px, auto); }
+ .workload-view.wl-calm .workload-grid.week .workload-day:not(:nth-child(5n+1)),
+ .workload-view.wl-calm .workload-grid.month .workload-day:not(:nth-child(7n+1)) { border-left: 1px solid var(--wl-calm-hair); }
+ .workload-view.wl-calm .workload-grid.month .workload-day:nth-child(n+8) { border-top: 1px solid var(--wl-calm-hair); }
+ .workload-view.wl-calm .workload-day.today { background: color-mix(in srgb, var(--focus-ring) 6%, transparent); outline: 0; box-shadow: none; }
  .workload-view.wl-calm .workload-day.today .workload-day-num { color: var(--text-primary); }
  .workload-view.wl-calm .workload-day-num { color: var(--text-muted); font-weight: 650; }
  .workload-view.wl-calm .workload-day.is-plan-drop-target { box-shadow: inset 0 0 0 2px var(--focus-ring); }
- .workload-view.wl-calm .workload-day-card { background: transparent; border: 0; border-radius: 0; padding: 0; gap: 3px; }
+ .workload-view.wl-calm .workload-day-card { background: var(--wl-calm-tint); border: 0; border-radius: 8px; padding: 6px 8px; gap: 3px; }
  .workload-view.wl-calm .workload-day-card-head::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--sv-border-6c5ce7); flex: 0 0 6px; }
  .workload-view.wl-calm .workload-day-card.team-graphics .workload-day-card-head::before { background: var(--sv-border-d97706); }
  .workload-view.wl-calm .workload-day-card-name { font-weight: 650; color: var(--text-secondary); }
@@ -8589,8 +8617,12 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
  .workload-view.wl-calm .wl-calm-auto:disabled { opacity: 0.5; cursor: default; }
  .workload-view.wl-calm .wl-calm-auto .wl-plan-origin { color: inherit; }
  .workload-view.wl-calm .wl-calm-auto:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
- /* Needs assignment / needs a work day: one quiet row */
- .workload-view.wl-calm .workload-needs-assignment { border: 0; background: transparent; padding: 0; margin: 0 0 6px; }
+ /* Needs assignment / needs a work day: one quiet list on the same panel, the two joined by a hairline */
+ .workload-view.wl-calm .workload-needs-assignment { border: 1px solid var(--wl-calm-hair); background: var(--white); border-radius: 14px; padding: 2px 16px; margin: 0 0 12px; }
+ .workload-view.wl-calm .workload-needs-assignment.empty { display: none; }
+ .workload-view.wl-calm #wlUnassigned:not(.empty):has(+ #wlUndated:not(.empty)) { border-bottom: 0; border-radius: 14px 14px 0 0; margin-bottom: 0; padding-bottom: 0; }
+ .workload-view.wl-calm #wlUnassigned:not(.empty) + #wlUndated:not(.empty) { border-top: 0; border-radius: 0 0 14px 14px; padding-top: 0; }
+ .workload-view.wl-calm #wlUnassigned:not(.empty) + #wlUndated:not(.empty) > .workload-section-label { border-top: 1px solid var(--wl-calm-hair); border-radius: 0; }
  .workload-view.wl-calm .workload-needs-assignment .workload-section-label { display: flex; align-items: center; gap: 8px; margin: 0; padding: 8px 4px; font-size: 0.74rem; font-weight: 650; letter-spacing: 0; text-transform: none; color: var(--text-secondary); cursor: pointer; border-radius: 8px; }
  .workload-view.wl-calm .workload-needs-assignment .workload-section-label:hover { color: var(--text-primary); }
  .workload-view.wl-calm .workload-needs-assignment .workload-section-label:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }

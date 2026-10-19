@@ -598,13 +598,17 @@ jobs:
       - name: Build the split version (runner checkout only)
         if: ${{ matrix.part == 1 }}
         run: node scripts/build-index.js --force-split
-      - name: Gates on the split version, three side by side
+      - name: Split load, on its own (it counts downloads, so it gets the whole runner)
         if: ${{ matrix.part == 1 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/split-load-browser.js
+      - name: Gates on the split version, three side by side
+        if: ${{ !cancelled() && matrix.part == 1 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: |
           node scripts/ci-lanes.js --lanes=3 <<'LANES'
-          split load|node docs/syncview-design/tests/split-load-browser.js
           entry links boot|node docs/syncview-design/tests/entry-links-boot-browser.js
           client phone review|node docs/syncview-design/tests/client-phone-review-browser.js
           staff calendar expanded|node docs/syncview-design/tests/staff-calendar-expanded-browser.js
@@ -618,13 +622,17 @@ jobs:
       - name: Build with everyone on the parts (runner checkout only)
         if: ${{ matrix.part == 2 }}
         run: node scripts/build-index.js --force-split=parts
-      - name: Gates with everyone on the parts, three side by side
+      - name: Split load, on its own (it counts downloads, so it gets the whole runner)
         if: ${{ matrix.part == 2 }}
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/split-load-browser.js
+      - name: Gates with everyone on the parts, three side by side
+        if: ${{ !cancelled() && matrix.part == 2 }}
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: |
           node scripts/ci-lanes.js --lanes=3 <<'LANES'
-          split load|node docs/syncview-design/tests/split-load-browser.js
           entry links boot|node docs/syncview-design/tests/entry-links-boot-browser.js
           client phone review|node docs/syncview-design/tests/client-phone-review-browser.js
           staff calendar expanded|node docs/syncview-design/tests/staff-calendar-expanded-browser.js

@@ -85,26 +85,48 @@
                     var rsCal = rsV === '' || rsV === 'calendar' || rsV === 'analytics' || rsV === 'brief';
                     var rsKnown = Array.isArray(rsSeen) && rsSeen.indexOf(rsC) >= 0;
                     var rsHelp = false;
+                    var rsOff = false;
                     // The other list this browser keeps (188, sv-rs-on-clients, written by every switch read, staff pages
                     // too, and keyed by the client's slug, so any spelling of the link finds it): a first visit to a link
-                    // whose client that list names, or every client, paints in the saved theme too.
+                    // whose client that list names, or every client, paints in the saved theme too. A list that was read
+                    // and does not name the client says it was read as off.
                     if (rsC) {
                         try {
                             var rsH = JSON.parse(localStorage.getItem('sv-rs-on-clients') || 'null');
                             if (rsH && typeof rsH === 'object') {
                                 rsHelp = rsH.help === true;
-                                if (!rsKnown) rsKnown = rsH.all === true || (Array.isArray(rsH.clients) && typeof cvSlugOf === 'function' && rsH.clients.indexOf(cvSlugOf(rsC)) >= 0);
+                                var rsOn = rsH.all === true || (Array.isArray(rsH.clients) && typeof cvSlugOf === 'function' && rsH.clients.indexOf(cvSlugOf(rsC)) >= 0);
+                                if (!rsKnown) rsKnown = rsOn;
+                                if (!rsOn) rsOff = true;
                             }
                         } catch (e) {}
                     }
+                    // A browser that has never read the switch (a client's first visit, or a link nothing has named) used
+                    // to show the small check card, then the old calendar's loader, then the old list, then a blank, and
+                    // only then the review page (session Dawn, 2026-10-18). The page is on for every client today, so
+                    // an explicit calendar link in a browser that has no answer yet draws the review page's shape too,
+                    // in LIGHT (a guess never grants the saved theme: sv-rs-paint-guess). The read still decides: off
+                    // takes the shape away (_syncviewRsPaintRemember in 260) and the old page shows, as before.
+                    var rsGuess = false;
+                    if (rsC && rsV === 'calendar' && !rsKnown && !rsOff) {
+                        try { rsGuess = localStorage.getItem('sv-analytics-shown') !== '1'; } catch (e) { rsGuess = true; }
+                        if (rsGuess) { rsKnown = true; rsHelp = true; }
+                    }
                     if (rsC && rsCal && rsKnown) {
                         de.classList.add('sv-rs-paint');
+                        if (rsGuess) de.classList.add('sv-rs-paint-guess');
                         // The page's "?" button, when this browser last saw it shown: the loading shape leaves room for it.
                         if (rsHelp) de.classList.add('sv-rs-paint-help');
                         // A client link always opens on Review when opened fresh (_calResolveInitialView in 134 decides the same way).
                         var rsTab = 'review';
                         if ((rsV === '' || rsV === 'calendar' || rsV === 'analytics') && rsTab === 'review') de.classList.add('sv-rs-paint-stage');
-                        if (localStorage.getItem('syncview_theme') === 'dark') de.setAttribute('data-theme', 'dark');
+                        // The last page this browser drew for this client had nothing waiting (195 keeps the list): the
+                        // loading shape is that page's, a short line and one card, not a video and buttons it will not have.
+                        try {
+                            var rsE = JSON.parse(localStorage.getItem('syncview_rs_empty_v1') || '[]');
+                            if (Array.isArray(rsE) && rsE.indexOf(rsC) >= 0 && de.classList.contains('sv-rs-paint-stage')) de.classList.add('sv-rs-paint-empty');
+                        } catch (e) {}
+                        if (!rsGuess && localStorage.getItem('syncview_theme') === 'dark') de.setAttribute('data-theme', 'dark');
                     }
                 } catch (e) {}
                 return;

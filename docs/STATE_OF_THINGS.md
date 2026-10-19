@@ -18,6 +18,14 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Client link loading screen, second pass (session Dawn, 2026-10-18): PR open
+
+Owner: the loading screen "still looks horrible, even on mobile". Measured on the live site, then fixed (OPEN_REPAIRS 437): a first
+visit draws one review-shaped screen in light instead of four different ones; placeholders can be seen in light and dark; a client
+whose last page had nothing waiting gets that page's shape; the shape follows the phone (checked at six sizes); the page's code
+downloads beside the link check. Test: `node test/client-link-dark-first-paint-browser.js`. Supersedes point (4) of the Dusk
+section below for links with an explicit `v=calendar`. Not done: first paint on slow 4G waits for the 1.5 MB page (build change).
+
 ## Client link in a dark browser (session Dusk, 2026-10-18): PR open
 
 Owner report: with dark saved, opening the client review showed a white loading screen, not in the page's shape. Four

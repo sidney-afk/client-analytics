@@ -179,7 +179,11 @@ async function recordRefresh(browser, origin, opt) {
       await fx.sleep(600);
       const log = await t.page.evaluate(() => window.__fpLog || []);
       expect(log.length && log.every(f => !f.dark), 'never seen: light on every frame');
-      expect(!log.some(f => f.veil), 'never seen: no review-shaped loading screen');
+      // A link no list names draws the review page's shape as a GUESS while the switch is read (session Dawn,
+      // 2026-10-18: a first visit used to show four different screens first). It is light, and a switch that reads
+      // off takes it away: the old page shows with no loading layer and no guess left behind.
+      const end = await t.page.evaluate(() => ({ veil: !!document.getElementById('svRsBootVeil'), classes: Array.from(document.documentElement.classList).filter(c => c.indexOf('sv-rs-paint') === 0) }));
+      expect(!end.veil && !end.classes.length, 'never seen: once the switch reads off, no loading layer or guess is left on the old page (' + JSON.stringify(end) + ')');
       await t.ctx.close();
     }
   } catch (e) {

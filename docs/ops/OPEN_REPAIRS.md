@@ -33604,3 +33604,19 @@ Physical iPhone Safari toolbar, notch/home indicator, software keyboard, product
 **Approval-message follow-up (same entry):** the fixed bottom approval message could put Undo over staff Finish in landscape. On the phone review session it now uses the safe top edge and a 44 px Undo target; the browser test checks that Finish is uncovered. The gallery retains the actual before and after state.
 
 **Startup and surrounding-controls follow-up (same entry):** an intermittent WebKit rejection was traced to the background Samples recovery task reading shared staff state before that startup script loaded. It now uses the calendar recovery task's early-state guard; the repair race suite verifies that queue loading still inspects and retains repair debt afterwards. Wide-landscape staff navigation also inherited 30–36 px desktop targets; this review view now enlarges them to 44 px and the phone matrix checks the surrounding controls too. No save authority or receipt guard changes.
+
+## 442. [2026-10-18, BUILT, NOT MERGED] The client link's loading screen still looked bad after 2222: four screens on a first visit, near-invisible placeholders, the wrong shape for an empty client and for most phones (session Dawn)
+
+Owner report, 2026-10-18 about 19:40 UTC: the loading screen of the client review link "still looks horrible, even on mobile". Measured frame by frame on the live site (test client only, read only; Chromium and WebKit; 390, 430 and 1440 wide; light and dark; fast and throttled slow 4G; first and repeat visit). Causes and fixes:
+
+- **First visit showed four screens before the page** (small check card, the old calendar's loader, the old list of posts, a blank). The head script only drew the review shape for a link this browser remembered. An explicit calendar link nothing says is off now draws the review shape, in light, from the first frame (`sv-rs-paint-guess`); a switch that reads off takes it away and the old page shows as before. A guess never grants the saved theme.
+- **Placeholders were the page's own colour in light** (contrast 1.0; 1.05 in dark), so the screen looked empty. Bars on the page are one step darker, bars on a card a pale grey, the sheen calmer.
+- **A client with nothing waiting saw a video and buttons the page never has.** 195 now remembers per link (`syncview_rs_empty_v1`) that the last settled Review was empty; the next visit draws that page's shape (a short line and one card).
+- **Phone sizes other than 390x844 were off.** The loading screen hard-coded one phone: card 644 px, video 388 px, buttons stacked. At 430 the buttons share a row and the video is taller; on a short phone (360x640) the card was 90 px too tall; on a tablet the tabs were 380 px too short. Now sized like the page (video 46vh, card as tall as its content, buttons wrap); checked at six phone sizes, a tablet and four desktop sizes, all within 6 px.
+- **The page's code started downloading only after the switch answer.** It now starts beside the link check (the answer takes 1.5 to 3.7 s live).
+- **Left alone:** the first paint on slow 4G waits for the 1.5 MB page (all CSS is inline before the body); that needs a build change.
+
+Test: `node test/client-link-dark-first-paint-browser.js` (fails on main, passes here). `test/first-paint-theme-browser.js` had one assertion for the old behaviour (a never-seen link shows no review shape) and now asserts the guess is dropped cleanly when the switch reads off.
+
+**Way back:** revert the pull request.
+

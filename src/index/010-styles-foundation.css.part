@@ -1801,7 +1801,7 @@
         .sv-rs-boot-who { display: flex; align-items: flex-end; gap: 12px; }
         .sv-rs-boot-r { display: flex; align-items: center; gap: 10px; }
         .sv-rs-boot-tabs { width: 311px; height: 38px; border-radius: 99px; background: var(--border-light); padding: 4px; box-sizing: border-box; }
-        .sv-rs-boot-tabs span { display: block; width: 98px; height: 100%; border-radius: 99px; background: var(--surface-raised); }
+        .sv-rs-boot-tabs span { display: block; width: 76px; height: 100%; border-radius: 99px; background: var(--surface-raised); }
         .sv-rs-boot-round { width: 38px; height: 38px; flex: none; border-radius: 50%; background: var(--border-light); }
         /* The "?" button, drawn only where this browser last saw the page's help button shown (html.sv-rs-paint-help, set
            by the head script from the same hint); the live page shows it, and it moves the tabs left (session Dusk). */
@@ -1832,27 +1832,55 @@
         .sv-rs-boot-chat { display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
         .sv-rs-boot-chathead { display: flex; align-items: center; gap: 12px; height: 62px; padding: 0 16px; border-bottom: 1px solid var(--border-light); box-sizing: border-box; }
         .sv-rs-boot-chatfoot { padding: 10px; border-top: 1px solid var(--border-light); }
+        /* Placeholder tones (session Dawn, 2026-10-18). The shared skeleton base is --bg, the page's own background, so in
+           light every bar that sits on the page rather than on a card was the page's colour and the loading screen looked
+           empty (contrast 1.0). Bars on the page take one step darker, bars on a card a pale grey, and dark gets a calm
+           sheen instead of a bright sweep. The .sv-skeleton rule sets its own variables, so these name the bars. */
+        .sv-rs-boot .sv-skeleton { --sv-skel-base: var(--border); --sv-skel-sheen: var(--surface-hover); }
+        .sv-rs-boot-card .sv-skeleton, .sv-rs-boot-chat .sv-skeleton, .sv-rs-boot-chip.is-cur .sv-skeleton, .sv-rs-boot-ecard .sv-skeleton { --sv-skel-base: var(--border-light); --sv-skel-sheen: color-mix(in srgb, var(--surface-raised) 55%, transparent); }
+        html[data-theme="dark"] .sv-rs-boot .sv-skeleton { --sv-skel-base: var(--border-light); --sv-skel-sheen: var(--border); }
+        html[data-theme="dark"] .sv-rs-boot-card .sv-skeleton, html[data-theme="dark"] .sv-rs-boot-chat .sv-skeleton, html[data-theme="dark"] .sv-rs-boot-chip.is-cur .sv-skeleton, html[data-theme="dark"] .sv-rs-boot-ecard .sv-skeleton { --sv-skel-base: var(--border-light); --sv-skel-sheen: var(--border); }
+        /* A client whose last page had nothing waiting (html.sv-rs-paint-empty, from the head script): the page is a short
+           line and one centred card, so that is what is drawn, not a video and buttons it will not have. */
+        .sv-rs-boot-empty { display: none; }
+        .sv-rs-boot-ecard { width: min(100%, 560px); box-sizing: border-box; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 18px; padding: 36px 32px 28px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+        .sv-rs-boot-eico { width: 52px; height: 52px; flex: none; }
+        .sv-rs-boot-et { height: 29px; flex: none; display: flex; align-items: center; justify-content: center; }
+        .sv-rs-boot-ep { height: 22px; width: 100%; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; }
+        .sv-rs-boot-ep > :last-child { display: none; }
+        html.sv-rs-paint-empty .sv-rs-boot-stage, html.sv-rs-paint-empty .sv-rs-boot-chips { display: none; }
+        html.sv-rs-paint-empty .sv-rs-boot-strip { height: 38px; }
+        html.sv-rs-paint-empty .sv-rs-boot-empty { display: flex; flex: 1 1 auto; min-height: 0; align-items: center; justify-content: center; }
+        @media (min-width: 861px) { html.sv-rs-paint-empty .sv-rs-boot-tabs { width: 288px; } }
+        @media (max-width: 620px) { .sv-rs-boot-ep { height: 45px; } .sv-rs-boot-ep > :last-child { display: block; } }
         @media (max-width: 1240px) { .sv-rs-boot-stage { grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; } }
         @media (max-width: 860px) {
             html.sv-rs-paint .sv-rs-boot { gap: 12px; padding-top: 8px; }
             .sv-rs-boot-hdr { height: auto; flex-direction: column; align-items: flex-start; gap: 12px; padding-top: 0; }
             .sv-rs-boot-who { height: 38px; align-items: center; }
-            .sv-rs-boot-tabs { width: 306px; max-width: calc(100vw - 84px); }
-            html.sv-rs-paint-help .sv-rs-boot-tabs { max-width: calc(100vw - 132px); }
+            .sv-rs-boot-r { width: 100%; }
+            .sv-rs-boot-tabs { flex: 1 1 auto; width: auto; min-width: 0; }
+            .sv-rs-boot-tabs span { width: calc((100% - 8px) / 4); }
             .sv-rs-boot-strip { height: 87px; flex-direction: column; align-items: flex-start; gap: 9px; }
             .sv-rs-boot-count { margin-top: 3px; }
             .sv-rs-boot-chips { width: 100%; padding-left: 0; }
             .sv-rs-boot-chip { flex-basis: 190px; }
             .sv-rs-boot-stage { display: flex; flex-direction: column; gap: 12px; flex: none; }
-            .sv-rs-boot-card { flex: none; height: 644px; gap: 0; padding: 14px 10px 16px; }
+            /* The phone page's sizes follow the screen, not one phone (session Dawn): the video is 46vh tall (width 46vh x 9/16,
+               centred in a box of min(46vh, 420px)), the card is as tall as what is in it, and the two answer buttons share a
+               row where the card is wide enough (430 px and up) and stack where it is not (390), as the page's own do. */
+            .sv-rs-boot-card { flex: none; height: auto; gap: 0; padding: 14px 10px 12px; }
             .sv-rs-boot-top { flex-direction: column; align-items: flex-start; height: auto; gap: 16px; padding-left: 0; }
             .sv-rs-boot-steps { position: static; transform: none; gap: 12px; }
             .sv-rs-boot-s1 { width: 80px; }
             .sv-rs-boot-s2 { width: 106px; }
             .sv-rs-boot-s3 { width: 93px; }
-            .sv-rs-boot-media { flex: none; height: 388px; margin-top: 10px; }
-            .sv-rs-boot-acts { flex-direction: column; gap: 4px; padding: 10px 0 0; }
+            .sv-rs-boot-media { flex: none; height: min(46vh, 420px); margin-top: 10px; }
+            .sv-rs-boot-video { top: 50%; bottom: auto; transform: translate(-50%, -50%); width: min(100%, calc(46vh * 0.5625)); max-width: none; }
+            .sv-rs-boot-acts { flex-wrap: wrap; gap: 4px 6px; padding: 10px 0 59px; }
             .sv-rs-boot-chat { height: 420px; flex: none; }
+            html.sv-rs-paint-empty .sv-rs-boot-strip { height: 31px; }
+            html.sv-rs-paint-empty .sv-rs-boot-empty { align-items: flex-start; padding-top: 24px; flex: none; }
         }
         .client-profile-boot-skeleton { display: flex; flex-direction: column; gap: 16px; }
         .client-profile-boot-skeleton .detail-hero { min-height: 112px; margin-bottom: 0; }

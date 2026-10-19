@@ -24,6 +24,8 @@ import { guideIndex, guideReply, latestGuides } from "./guides.mjs";
 import { STUDIO_BUCKET, studioLatest } from "./studio.mjs";
 import { TOOLKIT_NAMES, toolkitLatest } from "./studio.mjs";
 import { clientRecord, feedbackNote, feedbackNotes } from "./filmingrecord.mjs";
+import { videoCards } from "./videocards.mjs";
+import { lookup as frameLookup, tokenSource as frameTokenSource } from "../frameio-view/logic.mjs";
 import { brainChange, clientBrain, clientStyle, filmingPlan, findClient, listClients } from "./clientinfo.ts";
 import type { Asker } from "./clientinfo.ts";
 import { studioProfile, studioProfileSave } from "./studioprofile.ts";
@@ -368,6 +370,21 @@ const TOOLS = [
     name: "client_record",
     description: "A short summary of a client's filming pipeline record: the latest idea batch number, and each saved pipeline file (config.json, ideas.json, filming_plans/... and the rest) with its version and when and by whom it was last saved. No file contents. Read only.",
     inputSchema: { type: "object", required: ["client"], additionalProperties: false, properties: { client: { type: "string", description: "The client's name as SyncView shows it." } } },
+  },
+  {
+    name: "video_cards",
+    description: "Everything needed to do a client's tweaks, read straight from SyncView, for example \"do the tweaks for videos 7, 8 and 12 of (client)\". For each video: its batch, number, title, brief (usually the script or the editor's notes), status, every note and change request on it (who, when, done or not, and for Frame.io notes the time in the video), the latest edit link, the raw footage folder, the filming plan Doc, links to the card in SyncView, and a direct download link for the latest edit when it is on Frame.io. Leave videos out to get the newest batch. If the client name matches more than one client, or the batch matches more than one batch, it asks which. Read only: it never changes a card.",
+    inputSchema: {
+      type: "object",
+      required: ["client"],
+      additionalProperties: false,
+      properties: {
+        client: { type: "string", description: "The client's name as SyncView shows it." },
+        videos: { type: "array", items: { type: "integer" }, description: "Optional: the video numbers, e.g. [7, 8, 12]. Leave out for every video of the batch." },
+        batch: { type: "string", description: "Optional: which batch, by words from its name or its date (e.g. \"19 Oct\"), or \"latest\". Leave out to use the newest batch that has those videos." },
+        frameio: { type: "boolean", description: "Optional, default true: also read the Frame.io notes (with the time in the video) and a download link. Set false for a quicker answer without them." },
+      },
+    },
   },
   {
     name: "feedback_note",
@@ -1309,6 +1326,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   }
 
   if (name === "client_record") return await clientRecord(recordDeps(), String(args.client || ""));
+  if (name === "video_cards") return await videoCards(videoCardDeps(), args);
   if (name === "feedback_note") return await feedbackNote(recordDeps(), args, author);
   if (name === "feedback_notes") return await feedbackNotes(recordDeps(), args, { member, teamLink: isTeamLink(member) });
 
@@ -1428,6 +1446,50 @@ function recordDeps() {
       const { data, error } = await db().from("filming_plans").select("client_slug,client_name");
       if (error) throw fail("the client list", error);
       return new Map((data || []).map((r) => [String(r.client_slug), String(r.client_name)]));
+    },
+  };
+}
+
+// video_cards (videocards.mjs): read only. The card, work item, batch and
+// note tables (service role), and Frame.io through the same read-only lookup
+// the "Watch here" player uses (../frameio-view/logic.mjs, token from the
+// frameio-token key keeper; the token is never returned or logged).
+let frameTokens: ReturnType<typeof frameTokenSource> | null = null;
+const frameResolved = new Map();
+function videoCardDeps() {
+  const fail = (what: string, e: { message?: string } | null) => new Error(`Could not read ${what}: ${e?.message || "no answer"}`);
+  const supabaseUrl = String(Deno.env.get("SUPABASE_URL") || "").replace(/\/+$/, "");
+  const brokerKey = String(Deno.env.get("FRAMEIO_BROKER_KEY") || "").trim();
+  const clientId = String(Deno.env.get("FRAMEIO_CLIENT_ID") || "").trim();
+  return {
+    findClient: (q: string) => findClient(db(), q),
+    batches: async (slug: string) => {
+      const { data, error } = await db().from("batches").select("id,name,status,purpose,created_at,footage_folder_url,filming_doc_url,delivery_folder_url").eq("client_slug", slug);
+      if (error) throw fail("the batches", error);
+      return data || [];
+    },
+    deliverables: async (slug: string) => {
+      const { data, error } = await db().from("deliverables").select("id,batch_id,kind,title,brief,status,status_at,file_url,card_id,updated_at").eq("client_slug", slug).eq("kind", "video").limit(5000);
+      if (error) throw fail("the work items", error);
+      return data || [];
+    },
+    cards: async (slug: string) => {
+      const { data, error } = await db().from("calendar_posts").select("id,name,status,video_status,asset_url,video_tweaks,tweaks,video_deliverable_id,scheduled_date,updated_at").eq("client", slug).limit(5000);
+      if (error) throw fail("the calendar cards", error);
+      return data || [];
+    },
+    comments: async (ids: string[]) => {
+      if (!ids.length) return [];
+      const { data, error } = await db().from("production_comments")
+        .select("id,native_comment_id,deliverable_id,parent_id,author_name,role,body,audience,component,is_tweak,round,resolved_at,deleted_at,source_created_at,created_at")
+        .in("deliverable_id", ids).is("deleted_at", null).limit(5000);
+      if (error) throw fail("the notes", error);
+      return data || [];
+    },
+    frameio: async (link: string) => {
+      if (!supabaseUrl || brokerKey.length < 32 || !clientId) throw new Error("Frame.io is not connected to this connector yet.");
+      if (!frameTokens) frameTokens = frameTokenSource({ fetchFn: fetch, brokerUrl: supabaseUrl + "/functions/v1/frameio-token", brokerKey });
+      return await frameLookup(link, { fetchFn: fetch, getToken: () => frameTokens!.get(), dropToken: () => frameTokens!.drop(), clientId, now: Date.now, cache: frameResolved }, { part: "all" });
     },
   };
 }

@@ -23,8 +23,8 @@ line is older than a week, re-check it before relying on it.
 Owner report: on a part with open change requests, picking "Approve to Kasper" or "Approve to client" opened a second
 pop-up ("Tweaks resolved, where to next?", with a checklist and a plain Approve). Now the pick is the answer: every open
 change request on the part is marked done in the same save, with a toast "N change requests marked done" and Undo
-(OPEN_REPAIRS 438). The plain Approve is gone from the chooser; the chooser now only opens for Notes "Mark done" on the
-last open request (Kasper approval / Client approval / Mark done). The Notes panel opens at the newest message and stays
+(OPEN_REPAIRS 440). The manager's Review tab never offers a plain Approve; the chooser now only opens for Notes "Mark done" on the
+last open request, where a review pass restored its four options (Kasper approval / Client approval / Approve / Mark done) as on main. The Notes panel opens at the newest message and stays
 there. Test: `node test/review-stage-one-question-browser.js`. Other places that ask twice are listed in the PR for the
 owner to decide (the card's status pills still leave open requests open; the client Sheet "Approve this post?" confirm).
 

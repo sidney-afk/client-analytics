@@ -4,6 +4,7 @@
   "unit": [
     "ci-changes.js",
     "ci-runner-seats.js",
+    "ci-lanes.js",
     "workflow-plain-scalars.js",
     "ci-shards-wired.js",
     "ef-auto-deploy.js",
@@ -1824,6 +1825,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and token, the frame viewer's generated clip and posters), no hosted credentials and no live data. Checks the client link with the new review page switched on: one header on Review, Sheet, Month and Week, the toggle never moving, no Analytics, no frame or scroll on Review, the Frame.io player on the video step, and the old page with the switch off.",
       "reproduce": "node test/review-stage-client-layout-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "review-stage-with-editors-row-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Checks Kasper's Review Session rows at 1440 and 390 wide, light and dark: the With the editors rows read Client then Title on one never-wrapped first line, the second line is only the date (Today, Yesterday, the weekday, 29 Sept, a year only when not this year) in the muted grey and not orange, Ping editor is still there, and the Waiting rows share the first line.",
+      "reproduce": "node test/review-stage-with-editors-row-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

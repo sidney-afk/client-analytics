@@ -38,6 +38,12 @@ on:
       - 'docs/ops/DENO_TYPECHECK_BASELINE.json'
       - '.github/workflows/edge-function-type-ratchet.yml'
 
+# A newer push to the same pull request replaces the run it supersedes (session
+# Express, 2026-10-19). Pushes to main are never cancelled: their group is the commit.
+concurrency:
+  group: edge-function-type-ratchet-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   ratchet:
     name: Edge Function type ratchet

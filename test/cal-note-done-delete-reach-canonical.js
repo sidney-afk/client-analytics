@@ -131,7 +131,7 @@ const tick = () => new Promise(r => setImmediate(r));
     await tick();
     assert(w.reloadPanel().every(c => c.done), 'legacy-only cards still mark done');
   }
-  // 5. OPEN_REPAIRS 438 review: with no pop-up in the way, a second press on the same part while the requests are
+  // 5. OPEN_REPAIRS 440 review: with no pop-up in the way, a second press on the same part while the requests are
   //    still being resolved must not resolve and send twice; a refused send closes nothing more than the old pop-up did.
   {
     const w = world();

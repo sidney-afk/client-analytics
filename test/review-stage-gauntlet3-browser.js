@@ -189,6 +189,12 @@ async function regressions(browser, origin, role, width) {
     await inS(t.page, '#capTa').fill('Thrown away by Escape'); await inS(t.page, '#capTa').press('Escape');
     await inS(t.page, '#editBtn').click();
     assert.equal(await inS(t.page, '#capTa').inputValue(), before, 'Escape kept the thrown away words');
+    // Escape pressed after focus left the box (the stage's own Escape) discards too.
+    await inS(t.page, '#capTa').fill('Thrown away by Escape elsewhere');
+    await inS(t.page, '#capTa').evaluate(ta => { const b = [...ta.getRootNode().querySelectorAll('button')].find(x => !/^cap/.test(x.id || '') && x.offsetParent); if (b) b.focus(); });
+    await t.page.keyboard.press('Escape');
+    await inS(t.page, '#editBtn').click();
+    assert.equal(await inS(t.page, '#capTa').inputValue(), before, 'Escape outside the box kept the thrown away words');
   });
   if (role === 'client') await runCase(browser, origin, role, width, 'refused caption edit does not outlive the approval that follows', async t => {
     await step(t, 'caption'); await inS(t.page, '#editBtn').click();

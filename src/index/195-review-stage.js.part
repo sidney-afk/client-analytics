@@ -2650,7 +2650,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             if (R.S.qOpen) { _rsQueueClose(); const bb = _rsQ('qBtn'); if (bb) bb.focus({ preventScroll: true }); return; }
             if (R.S.menu) { R.S.menu = ''; _rsDecide(); }
             else if (R.S.note.part) _rsClearChange(false, R.S.note.where === 'stage');
-            else if (R.S.editing) { R.S.editing = ''; _rsRender({ force: true }); }
+            else if (R.S.editing) { _rsEditDiscard(R.S.curId + '|' + R.S.editing); _rsRender({ force: true }); }   // Escape anywhere discards the typed edit, as Cancel does
             return;
         }
         if (tag === 'textarea' || tag === 'input' || (e.target.closest && e.target.closest('.fv-player'))) return;

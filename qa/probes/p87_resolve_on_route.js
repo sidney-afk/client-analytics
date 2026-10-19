@@ -1,13 +1,12 @@
-// p87 — selective resolve-on-route + the 3-route / checklist / ✕-close chooser.
+// p87 — resolve-on-route: the Notes chooser (Kasper / Client / Mark done / ✕) and the Review tab's no-question send.
 // Drives the REAL app (sidneylaruel) headless against the live backend.
 //
-//   A) Notes "mark done" on the ONLY open change-request → chooser (no checklist,
-//      because there's nothing to choose between) → the new "Approve" route sends
-//      the caption straight to Approved and marks the change-request done.
-//   B) SMM Review-tab "Approve & send" on a component with TWO open change-requests
-//      → chooser shows a 2-item checklist → SMM un-ticks one → route to Kasper:
-//      the TICKED one is resolved, the UN-ticked one stays open (selective),
-//      caption routes to Kasper Approval. (This is the redundancy fix.)
+//   A) Notes "mark done" on the ONLY open change-request → chooser (no checklist, no plain
+//      Approve) → the Client route sends the caption to Client Approval and marks the
+//      change-request done.
+//   B) SMM Review-tab "Approve to Kasper" on a component with TWO open change-requests
+//      → NO chooser (the pick is the answer, Settle 2026-10-18): BOTH are resolved,
+//      caption routes to Kasper Approval.
 //   C) ✕ close is non-destructive: it closes the chooser without applying
 //      anything, so the change-request stays open and the status is unchanged.
 const Q = require('./lib.js');
@@ -47,14 +46,14 @@ async function cleanup(pid) {
         hasApprove: !!document.getElementById('resolveDestApprove'),
         hasKasper: !!document.getElementById('resolveDestKasper'),
         hasClient: !!document.getElementById('resolveDestClient'),
-        checklistHidden: document.getElementById('resolveDestChecklist').hidden };
+        hasChecklist: !!document.getElementById('resolveDestChecklist') };
     }, { pid: PIDA, id: TA });
     S.ok(oa && oa.active === true, 'A: marking the only open change-request opens the chooser');
-    S.ok(oa.hasApprove && oa.hasKasper && oa.hasClient, 'A: chooser offers all three routes (Kasper / Client / Approve)');
-    S.ok(oa.checklistHidden === true, 'A: one open change-request → no checklist (nothing to choose)');
-    await smm.evaluate(() => { const b = document.getElementById('resolveDestApprove'); if (b) b.click(); });
-    let rA = await Q.pollRaw(PIDA, x => x.caption_status === 'Approved', 'caption_status,caption_tweaks', 15000);
-    S.ok(rA.caption_status === 'Approved', 'A: the new "Approve" route sends caption → Approved');
+    S.ok(!oa.hasApprove && oa.hasKasper && oa.hasClient, 'A: chooser offers Kasper / Client and no plain Approve');
+    S.ok(oa.hasChecklist === false, 'A: no checklist (one request, implied by the route)');
+    await smm.evaluate(() => { const b = document.getElementById('resolveDestClient'); if (b) b.click(); });
+    let rA = await Q.pollRaw(PIDA, x => x.caption_status === 'Client Approval', 'caption_status,caption_tweaks', 15000);
+    S.ok(rA.caption_status === 'Client Approval', 'A: the Client route sends caption → Client Approval');
     S.ok((await isDone(PIDA, TA)) === true, 'A: the change-request is marked done by the route');
 
     // ───────────────────── B: Review-tab send, 2 open, selective ──────────────
@@ -66,23 +65,12 @@ async function cleanup(pid) {
 
     const ob = await smm.evaluate((a) => {
       try { calState.view = 'smmreview'; _calReviewApprove(a.pid, 'caption', 'kasper'); } catch (e) { return 'ERR ' + e.message; }
-      const cl = document.getElementById('resolveDestChecklist');
-      const inputs = [...cl.querySelectorAll('input[data-rd-id]')];
-      return { active: !!document.getElementById('resolveDestOverlay').classList.contains('active'),
-        checklistHidden: cl.hidden, count: inputs.length, ids: inputs.map(i => i.getAttribute('data-rd-id')) };
+      return { active: !!document.getElementById('resolveDestOverlay').classList.contains('active') };
     }, { pid: PIDB });
-    S.ok(ob && ob.active === true, 'B: SMM Review approve with open change-requests opens the chooser');
-    S.ok(ob.checklistHidden === false && ob.count === 2, 'B: two open change-requests → checklist lists both');
-    // un-tick the FIRST, keep the second, then route to Kasper
-    await smm.evaluate((a) => {
-      const i = document.querySelector('#resolveDestChecklist input[data-rd-id="' + a.id + '"]');
-      if (i) i.checked = false;
-      const b = document.getElementById('resolveDestKasper'); if (b) b.click();
-    }, { id: TB1 });
+    S.ok(ob && ob.active === false, 'B: SMM Review approve with open change-requests opens NO chooser');
     let rB = await Q.pollRaw(PIDB, x => x.caption_status === 'Kasper Approval', 'caption_status,caption_tweaks', 15000);
-    S.ok(rB.caption_status === 'Kasper Approval', 'B: routing sends caption → Kasper Approval');
-    S.ok((await isDone(PIDB, TB2)) === true, 'B: the TICKED change-request is resolved');
-    S.ok((await isDone(PIDB, TB1)) === false, 'B: the UN-ticked change-request stays open (selective resolve)');
+    S.ok(rB.caption_status === 'Kasper Approval', 'B: the send routes caption → Kasper Approval');
+    S.ok((await isDone(PIDB, TB1)) === true && (await isDone(PIDB, TB2)) === true, 'B: BOTH open change-requests are marked done by the send');
 
     // ─────────────────────── C: ✕ close is non-destructive ─────────────────────
     await Q.up(Object.assign({ id: PIDC, name: 'RR-C ' + TS, platforms: 'instagram', scheduled_date: '2026-06-29',

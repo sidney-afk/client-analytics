@@ -48,12 +48,11 @@
     </div>
 </div>
 
-<!-- Resolve-and-route chooser. Opened when the SMM routes a component onward —
-     either by marking the last open change-request done (Notes modal) or by
-     approving it in the Review tab. It resolves the open change-requests she
-     ticks and routes the component to Kasper, the client, or straight to
-     Approved. The ✕ (and a backdrop click) just close it — closing is
-     non-destructive, since nothing is applied until a route is picked. -->
+<!-- Resolve-and-route chooser. Opened only when the SMM marks the LAST open change-request on a part
+     done in the Notes modal: that single request is marked done and the part goes to Kasper or the client
+     (or nowhere, with "Mark done"). The Review tab no longer opens it: its Kasper / client pick is the answer.
+     The ✕ (and a backdrop click) just close it — closing is non-destructive, since nothing is applied until a
+     route is picked. -->
 <div class="confirm-overlay" id="resolveDestOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)_calDismissResolveDest()">
     <div class="confirm-box resolve-dest-box">
         <button type="button" class="resolve-dest-close" id="resolveDestClose" aria-label="Close" title="Close" onclick="_calDismissResolveDest()">
@@ -62,12 +61,10 @@
         <div id="resolveDestMain">
             <div class="confirm-box-title">Tweaks resolved — where to next?</div>
             <div class="confirm-box-msg" id="resolveDestMsg">Send this for approval.</div>
-            <div class="resolve-dest-checklist" id="resolveDestChecklist" hidden></div>
             <div class="confirm-box-actions resolve-dest-actions">
                 <button class="brief-action-btn" type="button" id="resolveDestKasper">Kasper approval</button>
                 <button class="brief-action-btn" type="button" id="resolveDestClient">Client approval</button>
-                <button class="brief-action-btn" type="button" id="resolveDestApprove">Approve</button>
-            </div>
+                            </div>
             <button type="button" class="resolve-dest-stay" id="resolveDestStay" title="Mark these tweaks as done. The card stays in its stage.">Mark done — don’t change the status</button>
         </div>
     </div>

@@ -111,7 +111,7 @@ function parity(name, cal, sxr, note) {
 
     // ── CASE 3 — "Mark done" on the LAST open change-request opens the chooser ──
     // THE bug the user found: in the SMM view, resolving the final change-request
-    // must open the route chooser (Kasper / Client / Approve / Stay). Calendar
+    // must open the route chooser (Kasper / Client / Mark done). Calendar
     // defers to the chooser; samples just flips done and the comment vanishes.
     try {
       dismissOverlay();
@@ -131,7 +131,8 @@ function parity(name, cal, sxr, note) {
       R.markDoneChooser = { cal: calChooser, sxr: sxrChooser };
     } catch (e) { R.markDoneChooser = { err: e.message }; }
 
-    // ── CASE 4 — REVIEW-TAB "Approve" with open change-requests opens the chooser ──
+    // ── CASE 4 — REVIEW-TAB "Approve to Kasper" with open change-requests asks NOTHING ──
+    // The manager's pick IS the answer (Settle, 2026-10-18): no chooser, the open requests are marked done.
     // _calReviewMode()/_sxrReviewMode() are 'smm' only when view==='smmreview'.
     try {
       dismissOverlay();
@@ -140,13 +141,15 @@ function parity(name, cal, sxr, note) {
       calState.posts = [pc]; calState.view = 'smmreview';
       try { _calReviewApprove(pc.id, 'video', 'kasper'); } catch (e) { R._raCalErr = e.message; }
       const calChooser = overlayActive(); dismissOverlay();
+      const calDone = !!((pc.video_comments || pc.comments || [])[0] || {}).done;
 
       const cmtS = { role: 'client', is_tweak: true, body: 'fix it' };
       const ps = mkPost('ra_sxr', { video_status: 'For SMM Approval', videoComments: [cmtS] });
       sxrState.posts = [ps]; sxrState.view = 'smmreview';
       try { _sxrReviewApprove(ps.id, 'video', 'kasper'); } catch (e) { R._raSxrErr = e.message; }
       const sxrChooser = overlayActive(); dismissOverlay();
-      R.reviewApproveChooser = { cal: calChooser, sxr: sxrChooser };
+      const sxrDone = !!((ps.video_comments || ps.comments || [])[0] || {}).done;
+      R.reviewApproveChooser = { cal: calChooser + '/done:' + calDone, sxr: sxrChooser + '/done:' + sxrDone };
     } catch (e) { R.reviewApproveChooser = { err: e.message }; }
 
     // ── CASE 5 — STRUCTURAL: the resolve-chooser machinery exists at all ──
@@ -174,8 +177,8 @@ function parity(name, cal, sxr, note) {
     'resolving the LAST change-request must open Kasper/Client/Approve/Stay — THE reported bug');
 
   if (out.reviewApproveChooser.err) console.log('  ERR reviewApproveChooser:', out.reviewApproveChooser.err);
-  else parity('Review-tab Approve → resolve chooser', out.reviewApproveChooser.cal, out.reviewApproveChooser.sxr,
-    'approving a component that still has open change-requests must open the chooser too');
+  else parity('Review-tab Approve → no chooser, requests done', out.reviewApproveChooser.cal, out.reviewApproveChooser.sxr,
+    'approving a component that still has open change-requests must behave the same on both surfaces (no chooser, requests marked done)');
 
   console.log('\n  Structural — resolve-chooser functions present:');
   for (const f of out.chooserFns) {

@@ -30,6 +30,10 @@
  * It is the staff save path (a client link goes to _calUpsertFetchClientLink and never reaches it); it now sends a
  * staff save to calendar-card-write when calendar_card_write_clients lists the client. The requests above are unchanged.
  *
+ * OPEN_REPAIRS 438 (2026-10-18): only the _calReviewApprove and _sxrReviewApprove hashes were re-pinned. The change is in
+ * their staff-only (smm) branch (open change requests are marked done by the send instead of asking in a pop-up);
+ * a client link never reaches it (_calCanResolveComment is SMM-only) and the recorded client requests are unchanged.
+ *
  * OPEN_REPAIRS 429 (2026-10-17): only the _calReviewRequestTweak and _sxrReviewRequestTweak hashes were re-pinned.
  * A request-changes on a LINKED part now keeps its status push when the client-comment front door is unavailable
  * (it used to skip it, so the work item never moved). The fixture cards here take the front door or have no work

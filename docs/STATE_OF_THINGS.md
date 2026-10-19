@@ -18,7 +18,6 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
-<<<<<<< HEAD
 ## Client link loading screen, second pass (session Dawn, 2026-10-18): PR open
 
 Owner: the loading screen "still looks horrible, even on mobile". Measured on the live site, then fixed (OPEN_REPAIRS 442): a first
@@ -44,7 +43,7 @@ failed; Firefox, WebKit and an additional installed-Chrome check played the same
 or proof of this unmerged candidate. The disposable card is archived through the app, both native work items were
 read back in Backlog, and the three original test cards are unchanged. Lighthouse owns review and merge.
 Findings, limits and exact reruns: [Checkpoint report](audits/2026-10-18-checkpoint-review.md).
-=======
+
 ## Approve and Ask for a change answer at once (session Swift, 2026-10-19): PR open
 
 Owner request: nothing may slow the moment someone approves, sends on or asks for a change. Measured in the offline fixture
@@ -54,7 +53,6 @@ the pressed button showed only a spinner on its old words until the server answe
 while the same part is still saving used to be lost and is now queued and sent when that save ends. The two writes of a save (status
 write, then card write) stay in their order. Test: `node test/review-stage-instant-browser.js` (fails on main). OPEN_REPAIRS 445.
 Still to do: re-measure on the live site with the test client after merge.
->>>>>>> origin/swift-instant-answers
 
 ## Client link in a dark browser (session Dusk, 2026-10-18): PR open
 

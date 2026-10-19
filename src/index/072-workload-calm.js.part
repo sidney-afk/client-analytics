@@ -309,14 +309,14 @@ import { svWorkloadCalmOn, svWorkloadCalmPending } from './188-review-stage-swit
     function wlCalmGroupOpen(key) { return _openGroups.has(key); }
 
     // ── The flat popover (editor totals, status pills, the matrix chips, the phone list) ────────────────────────────
-    /* No box around any section: a header line with one "Open →" link, then the same rows the
+    /* No box around any section: a header line with one "Linear →" link (SyncView's own Linear page), then the same rows the
        day uses, each with its feedback notes beneath. `o.tweakBox(s)` is the loading placeholder the feedback read fills. */
     function wlCalmPopoverHtml(o) {
         const link = (href, text, extra) => '<a class="wl-calm-link" href="' + wlEscape(href) + '" target="_blank" rel="noopener noreferrer"' + (extra || '') + '>' + text + '</a>';
         const head = '<div class="wl-calm-pop-head">'
             + '<span class="wl-calm-pop-title">' + wlEscape(o.headerTitle || '') + '</span>'
             + '<span class="wl-calm-pop-links">'
-            + (o.parentSyncUrl ? link(o.parentSyncUrl, 'Open →') : '')
+            + (o.parentSyncUrl ? link(o.parentSyncUrl, 'Linear →') : '')
             + '</span>'
             + '<button type="button" class="workload-popover-close" data-wl-popover-close="1" aria-label="Close">' + WL_CALM_ICON.close + '</button>'
             + '</div>';

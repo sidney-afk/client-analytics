@@ -2,7 +2,7 @@
 
 /*
  * EVERY INTERACTION A PERSON HAS ON THE CALM WORKLOAD CALENDAR, in a real browser (all backend answered by mocks,
- * fictional data). Each pill and chip opens the right popover, the popover has ONE link ("Open →") and no Frame.io
+ * fictional data). Each pill and chip opens the right popover, the popover has ONE link ("Linear →") and no Frame.io
  * line, it closes three ways, Needs assignment folds, the tucked-away View menu works, week navigation works, light and
  * dark, 1440 and 390 wide, and nothing logs a console error. The same click for a member NOT on the switch still shows
  * "Templates" and the Frame.io line, unchanged.
@@ -44,20 +44,20 @@ async function openAll(h, label) {
     expect(links <= 1, label + ': ' + i + ' header has at most one link (saw ' + links + ')');
     if (links === 1) {
       withLink++;
-      expect((await pop.locator('.wl-calm-pop-head a').innerText()).trim() === 'Open →', label + ': ' + i + ' the one link reads "Open →"');
+      expect((await pop.locator('.wl-calm-pop-head a').innerText()).trim() === 'Linear →', label + ': ' + i + ' the one link reads "Linear →"');
       const href = await pop.locator('.wl-calm-pop-head a').getAttribute('href');
       expect(/[?&]prod=1&(d|batch)=/.test(href), label + ': ' + i + ' it points at SyncView Production (' + href + ')');
       expect(await pop.locator('.wl-calm-pop-head a').getAttribute('target') === '_blank', label + ': ' + i + ' it opens in a new tab');
     }
     const t = await pop.innerText();
-    expect(!/Templates/.test(t) && !/Frame\.io/i.test(t) && !/Linear/.test(t), label + ': ' + i + ' no Templates, Frame.io or Linear text');
+    expect(!/Templates/.test(t) && !/Frame\.io/i.test(t), label + ': ' + i + ' no Templates or Frame.io text');
     expect(await pop.locator('.wl-calm-frame, .wl-tweak-frame-note, .workload-popover-templates').count() === 0, label + ': ' + i + ' none of those elements');
     await pop.locator('[data-wl-popover-close]').click();
     await settle(p);
     expect(await p.locator('#wlPopover.open').count() === 0, label + ': ' + i + ' the X closes it');
     opened++;
   }
-  expect(withLink >= 1, label + ': at least one popover carried the Open → link');
+  expect(withLink >= 1, label + ': at least one popover carried the Linear → link');
   return opened;
 }
 

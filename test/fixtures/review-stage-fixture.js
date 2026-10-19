@@ -173,6 +173,7 @@ async function open(browser, origin, opt) {
       state.writeAttempts++;
       // A slow or failing card save, switched at run time by a test (state.writeDelay ms, state.writeFail count).
       if (state.writeHang) return new Promise(() => {});   // a server that never answers
+      state.upsertAt = (state.upsertAt || []).concat(Date.now());
       if (state.writeDelay) await sleep(state.writeDelay);
       if (state.writeOffline) return route.abort('internetdisconnected');
       if (state.writeFail > 0) { state.writeFail--; return json({ ok: false, error: 'fixture_unavailable', message: 'The fixture refused this save.' }, 503); }
@@ -200,6 +201,7 @@ async function open(browser, origin, opt) {
       if (opt.nativeReceipts && state.writeDelay) await sleep(state.writeDelay);
       if (opt.nativeReceipts && state.writeFail > 0) { state.writeFail--; return json({ ok: false, error: 'fixture_unavailable', message: 'The fixture refused this save.' }, 503); }
       let b = {}; try { b = JSON.parse(r.postData() || '{}'); } catch (e) {}
+      if (state.gatewayDelay) await sleep(state.gatewayDelay);   // a slow status write (state.gatewayDelay ms, set at run time)
       state.gateway.push(r.postData() || '');
       if (opt.nativeReceipts) {
         const row = state.nativeRows[b.id];

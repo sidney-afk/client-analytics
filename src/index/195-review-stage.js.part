@@ -1107,7 +1107,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsFreshState() {
         return { curId: null, step: '', note: _rsBlankNote(), editing: '', editText: '', fold: false, saved: null,
-            menu: '', exp: {}, edOpen: false, qOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, retryText: {}, capSending: {}, slow: {}, pressed: {}, ready: {}, actAt: {}, seen: {}, told: {}, keepK: null, drafts: {}, editDrafts: {}, editBase: {}, editSaving: {}, editErrors: {}, draftsLoaded: false, moved: null, stageTitle: '' };
+            menu: '', exp: {}, edOpen: false, qOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, retryText: {}, capSending: {}, noteQ: {}, slow: {}, pressed: {}, ready: {}, actAt: {}, seen: {}, told: {}, keepK: null, drafts: {}, editDrafts: {}, editBase: {}, editSaving: {}, editErrors: {}, draftsLoaded: false, moved: null, stageTitle: '' };
     }
 
     /* ---------- the model: one shape for every person ---------- */
@@ -1176,6 +1176,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 const n = _calReviewState.sendingNotes && _calReviewState.sendingNotes[post.id + '|' + comp];
                 if (n && _calReviewState.saving[post.id + '|' + comp] && !all.some(x => x.c.id && x.c.id === n.id)) all.push({ c: Object.assign({ role: _calCommentRole(), sending: true }, n), comp });
             });
+        }
+        if (R.S && R.S.noteQ) {
+            comps.forEach(comp => (R.S.noteQ[post.id + '|' + comp] || []).forEach(n => all.push({ c: { id: n.id, body: n.body, created_at: n.created_at, role: mode === 'kasper' ? 'kasper' : _calCommentRole(), sending: true, audience: mode === 'client' || n.vis === 'client' ? 'client' : 'internal' }, comp })));
         }
         all.sort((a, b) => String(a.c.created_at || '').localeCompare(String(b.c.created_at || '')));
         return all.map(({ c, comp }) => {
@@ -1987,7 +1990,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     const RS_SPIN = '<span class="spin" aria-hidden="true"></span>';
     function _rsSplit(x, busy) {
         const k = x.key, n = _rsLname(k), open = !busy && R.S.menu === k;
-        const label = busy === 'client' ? 'Approve to client' : busy === 'aat' ? 'Approve after tweaks' : R.mode === 'smm' ? 'Approve to Kasper' : 'Approve the ' + n;
+        // While the save runs the pressed button already says the result (past tense, with its spinner), so the click is answered
+        // at once; a refused save puts the part back and says so (speed pass, session Swift).
+        const label = busy === 'client' ? 'Approved to client' : busy === 'aat' ? 'Approved after tweaks' : busy === 'ok' ? (R.mode === 'smm' ? 'Approved to Kasper' : 'Approved') : R.mode === 'smm' ? 'Approve to Kasper' : 'Approve the ' + n;
         const alt = R.mode === 'smm' ? ['client', RI.skip + 'Approve to client'] : ['aat', RI.aat + 'Approve after tweaks'];
         const menu = open ? '<div class="apmenu" role="menu"><button role="menuitem" type="button" data-alt="' + alt[0] + '" data-for="' + k + '">' + alt[1] + '</button></div>' : '';
         const on = busy === 'ok' || busy === 'client' || busy === 'aat';
@@ -1998,9 +2003,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsActions(x, busy) {
         const n = _rsLname(x.key);
         const ok = busy === 'ok' || (R.mode === 'client' && busy === 'client');
-        const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + 'Approve the ' + n + '</button>' : _rsSplit(x, busy);
+        const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + (ok ? 'Approved' : 'Approve the ' + n) + '</button>' : _rsSplit(x, busy);
         const chg = busy === 'chg', fr = busy === 'frame';
-        return approve + '<button class="b-ask' + (chg ? ' busy' : '') + '" type="button" data-chg="' + x.key + '"' + _rsBusyAttr(busy, chg) + '>' + (chg ? RS_SPIN : RI.back) + 'Ask for a change</button>'
+        return approve + '<button class="b-ask' + (chg ? ' busy' : '') + '" type="button" data-chg="' + x.key + '"' + _rsBusyAttr(busy, chg) + '>' + (chg ? RS_SPIN : RI.back) + (chg ? 'Change asked' : 'Ask for a change') + '</button>'
             + (R.mode === 'kasper' && x.key === 'video' ? '<button class="b-frame' + (fr ? ' busy' : '') + '" type="button" data-frame="' + x.key + '"' + _rsBusyAttr(busy, fr) + ' title="Your notes are in Frame.io: sends the change without typing">' + (fr ? RS_SPIN : RI.frame) + 'Tweaks are on Frame</button>' : '');
     }
     function _rsDecide() {
@@ -2035,7 +2040,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (S.editing === x.key) d = '<span class="dst busy">' + RI.pen + 'Editing the ' + n + '</span>';
         else if (_rsWriting(x) && S.note.where === 'stage') d = null;
         else if (_rsWriting(x)) d = '<span class="dst wr">' + RI.pen + 'Writing a change to the ' + n + ' in the conversation</span>';
-        else if (saving) d = _rsActions(x, S.pressed[m.id + '|' + x.key] || 'ok');
+        // The pressed button names its result only while the save is the one that button started. A note or an edit
+        // saving on a waiting part leaves the buttons as they were (waiting, disabled), never reading "Approved"
+        // (review of #2235); on a part already answered, the answer shows.
+        else if (saving && (S.pressed[m.id + '|' + x.key] || x.st === 'wait')) d = _rsActions(x, S.pressed[m.id + '|' + x.key] || 'wait');
         else if (x.st === 'ok' && R.mode === 'smm') d = '<span class="dst ok"><span class="ck' + (x.route === 'client' ? ' tocl' : '') + '">' + (x.route === 'client' ? RI.skip : RI.check) + '</span>Approved to ' + (x.route === 'client' ? 'client' : 'Kasper') + '</span><button class="qlink o" type="button" data-again="' + x.key + '">Change my mind</button>';
         else if (x.st === 'ok') d = '<span class="dst ok"><span class="ck">' + (x.dec === 'aat' ? RI.aat : RI.check) + '</span>' + (x.dec === 'aat' ? 'Approved after tweaks' : 'Approved') + (x.when ? ' <span class="when">' + _re(_rsWhen(x.when)) + '</span>' : '') + '</span><button class="qlink o" type="button" data-again="' + x.key + '">Change my mind</button>';
         else if (x.st === 'chg' && x.frame) d = '<span class="dst chg"><span class="ck chg">' + RI.frame + '</span>Tweaks are on Frame</span>' + (m.post.asset_url ? '<a class="rlink" href="' + _re(m.post.asset_url) + '" target="_blank" rel="noopener noreferrer">' + RI.ext + 'Your notes in Frame.io</a>' : '');
@@ -2237,7 +2245,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             if (!x || x.st === 'wait' || _rsError(cur, from)) return;
             const nx = _rsNextOpen(cur, from);
             if (nx) _rsSetStep(nx);
-        }, 650);
+        }, 400);
     }
     function _rsItem(m) { return m.item; }
     /* A save on the stage always ends on screen (owner feedback 2026-10-17 23:40, session Curtain Nine). The old
@@ -2266,10 +2274,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             if (!seen) {
                 if (_rsSaving(cur, comp)) { seen = true; t0 = Date.now(); }
                 else if (_rsError(cur, comp)) { _rsRender(); return; }
-                else { if (Date.now() - t0 < RS_PRE_MS) setTimeout(tick, 200); return; }
+                else { if (Date.now() - t0 < RS_PRE_MS) setTimeout(tick, 50); return; }
             }
             if (!_rsSaving(cur, comp)) {
-                delete S.slow[key];
+                delete S.slow[key]; delete S.pressed[key];
                 const part = (cur.parts || []).find(p => p.key === comp);
                 const st = part ? part.st : '';
                 const landed = !want || (want === 'ok' ? st === 'ok' : (st === 'chg' || st === 'tweak'));
@@ -2278,9 +2286,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 return;
             }
             if (!S.slow[key] && Date.now() - t0 >= RS_SLOW_MS) { S.slow[key] = true; _rsRender(); }
-            setTimeout(tick, 200);
+            setTimeout(tick, 50);
         };
-        setTimeout(tick, 200);
+        setTimeout(tick, 50);
     }
     function _rsApprove(m, comp, how) {
         // The button was drawn before a refresh said the part is no longer waiting: nothing to save; the stage says so.
@@ -2329,6 +2337,28 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (opts.where === 'stage') _rsAdvance(m, comp);
     }
     function _rsSendNoteTo(m, comp, text, vis) {
+        const nkey = m.id + '|' + comp;
+        if (!_rsSaving(m, comp) && !(R.S.noteQ[nkey] || []).length) { _rsSendNoteNow(m, comp, text, vis); return; }
+        // The part is still saving (the person just answered it): the old save paths ignore a note sent now and the
+        // words would be lost. The note shows in the conversation at once, "Sending…", and goes the moment that save
+        // ends, in the order it was written.
+        const S = R.S, q = S.noteQ[nkey] || (S.noteQ[nkey] = []);
+        q.push({ id: 'q' + Date.now() + '_' + q.length, body: text, vis, created_at: new Date().toISOString() });
+        const drain = () => {
+            if (R.S !== S) return;   // the page was remounted
+            const cur = _rsModelById(m.id) || m;
+            if (_rsSaving(cur, comp)) { setTimeout(drain, 40); return; }
+            const nx = (S.noteQ[nkey] || [])[0];
+            if (!nx) { delete S.noteQ[nkey]; return; }
+            S.noteQ[nkey].shift();
+            _rsSendNoteNow(cur, comp, nx.body, nx.vis);
+            if (!S.noteQ[nkey].length) delete S.noteQ[nkey]; else setTimeout(drain, 40);
+            _rsRender();
+        };
+        drain();
+    }
+    function _rsSendNoteNow(m, comp, text, vis) {
+        delete R.S.pressed[m.id + '|' + comp];   // a stale "Approved" must not label this note's save
         if (R.mode === 'kasper') {
             if (m.sample) { window._sxrKasperState.drafts[m.id + '|' + comp] = text; window._sxrKasperAddCommentComp(m.id, comp); return; }
             const it = _rsItem(m);
@@ -2526,7 +2556,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 const t0 = Date.now(), pkey = m.id + '|' + k;
                 const approve = () => {
                     if (R.S !== S) return;
-                    if (_calReviewState.saving[pkey] && Date.now() - t0 < RS_PRE_MS) { setTimeout(approve, 150); return; }
+                    if (_calReviewState.saving[pkey] && Date.now() - t0 < RS_PRE_MS) { setTimeout(approve, 40); return; }
                     const cur = _rsModelById(m.id);
                     const x = cur && cur.parts.find(p => p.key === k);
                     if (x && x.st === 'wait') _rsApprove(cur, k, '');

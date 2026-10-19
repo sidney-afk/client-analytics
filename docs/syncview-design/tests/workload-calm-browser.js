@@ -133,11 +133,42 @@ async function pickDate(page, iso) {
     h.state.dueWrites.length = 0;
     await p.locator(`.workload-day[data-wl-day="${WED}"] .workload-day-card-total`).first().click();
     await settle(p);
+    expect(await p.evaluate(() => { const m = {}; document.querySelectorAll('[id]').forEach(e => { m[e.id] = (m[e.id] || 0) + 1; }); return Object.values(m).every(n => n === 1); }), 'an open client group and the popover on the same videos share no element id');
     await p.locator('#wlPopover .wl-calm-row [data-sv-date-trigger]').first().click();
     await pickDate(p, '2026-09-22');
     expect(h.state.dueWrites.length === 1, 'a due date edited in the popover saved exactly once (saw ' + h.state.dueWrites.length + ')');
     expect(h.state.pageErrors.length === 0, 'no page errors: ' + h.state.pageErrors[0]);
   } finally { await h.close(); }
+
+  // ── A visit after one that saw the member named: a loader holds the page while the switch read is on its way ──
+  for (const answer of ['listed', 'unreadable']) {
+    h = await F.launchCalmBoard({ calm: true });
+    try {
+      const p = h.page;
+      await p.waitForTimeout(600);
+      console.log('--- the held page, switch read ' + (answer === 'listed' ? 'answers' : 'fails'));
+      await h.context.route('**/rest/v1/syncview_runtime_flags**review_stage_client_pages**', async route => {
+        await new Promise(r => setTimeout(r, 2200));
+        if (answer === 'unreadable') return route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([F.CALM_FLAG]) });
+      });
+      await p.goto('http://127.0.0.1:' + h.server.address().port + '/#workload', { waitUntil: 'domcontentloaded' });
+      await p.waitForSelector('.workload-view', { timeout: 20000 });
+      await p.waitForTimeout(900);
+      const during = await p.evaluate(() => ({
+        hold: document.querySelector('.workload-view').classList.contains('wl-calm-hold'),
+        bar: getComputedStyle(document.querySelector('.workload-toolbar')).visibility,
+        cards: document.querySelectorAll('.workload-day-card-chip').length,
+      }));
+      expect(during.hold && during.bar === 'hidden' && during.cards === 0, 'while the read is on its way: a loader, no old toolbar, no old calendar (saw ' + JSON.stringify(during) + ')');
+      await p.waitForFunction(() => document.querySelectorAll('.workload-day-card-chip').length > 0, null, { timeout: 15000 });
+      await p.waitForTimeout(600);
+      const calm = await p.evaluate(() => document.querySelector('.workload-view').classList.contains('wl-calm'));
+      const held = await p.evaluate(() => document.querySelector('.workload-view').classList.contains('wl-calm-hold'));
+      expect(calm === (answer === 'listed') && !held, 'afterwards: ' + (answer === 'listed' ? 'the calm calendar' : 'the old calendar') + ', loader gone');
+      expect(h.state.pageErrors.length === 0, 'no page errors: ' + h.state.pageErrors[0]);
+    } finally { await h.close(); }
+  }
 
   // ── Phone ──────────────────────────────────────────────────────────────────
   h = await F.launchCalmBoard({ calm: true, viewport: { width: 390, height: 844 } });

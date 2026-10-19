@@ -246,9 +246,10 @@ import { svWorkloadCalmOn, svWorkloadCalmPending } from './188-review-stage-swit
        plan". The control is the shared branded date picker's own markup (a trigger inside [data-sv-date-picker] with a
        type=date input), so keyboard, Escape and focus behave as everywhere else; the save is the old delegated change
        handler, reached through [data-wl-due-issue]. */
-    function wlCalmDueHtml(s, planDate, canEdit) {
+    function wlCalmDueHtml(s, planDate, canEdit, idPrefix) {
         const id = String(s.id || '');
-        const dateId = 'wlDueDate_' + id.replace(/[^A-Za-z0-9_-]/g, '_');
+        // A day's open group and the popover can show the same video at once: their control ids must differ.
+        const dateId = (idPrefix || 'wlDueDate_') + id.replace(/[^A-Za-z0-9_-]/g, '_');
         const tag = wlDeadlineTagHtml(s.dueDate, planDate);
         if (wlIsTweaksNeeded(s)) return '<span class="wl-calm-due is-fixed">' + tag + '</span>';
         const savingDue = _wlDueWriteInFlight.has(id);
@@ -296,11 +297,11 @@ import { svWorkloadCalmOn, svWorkloadCalmPending } from './188-review-stage-swit
         return '<div class="workload-plan-item wl-calm-row' + (canDrag ? '' : ' is-readonly') + '" tabindex="-1" data-wl-issue-id="' + wlEscape(id) + '" data-wl-parent-id="' + wlEscape(s.parentId || '') + '" data-wl-assignee-id="' + wlEscape(s.assigneeId || '') + '" data-wl-client="' + wlEscape(s.clientName || '') + '" data-wl-date="' + wlEscape(dayISO) + '">'
             + '<div class="wl-calm-row-top">' + title + wlWorkloadBadgeHtml(s, true) + client
             + '<span class="wl-calm-tools">' + cal + linear + (o.drag ? wlIssueDragHandleHtml(id, canDrag) : '') + '</span></div>'
-            + '<div class="wl-calm-row-due">' + wlCalmDueHtml(s, planDate, canEditDue) + origin + auto + '</div>'
+            + '<div class="wl-calm-row-due">' + wlCalmDueHtml(s, planDate, canEditDue, o.idPrefix) + origin + auto + '</div>'
             + '</div>';
     }
     function wlCalmRowsHtml(subs, dayISO) {
-        return (subs || []).map(s => wlCalmRowHtml(s, { dayISO, planDate: dayISO || wlDisplayDate(s), drag: true })).join('');
+        return (subs || []).map(s => wlCalmRowHtml(s, { dayISO, planDate: dayISO || wlDisplayDate(s), drag: true, idPrefix: 'wlDueDay_' })).join('');
     }
 
     // ── Which client groups are open ────────────────────────────────────────────────────────────────────────────────

@@ -75,7 +75,7 @@ async function capture(h) {
   for (const scenario of SCENARIOS) {
     const h = await F.launchCalmBoard(scenario.options);
     try {
-      results.push({ scenario, got: await capture(h), calmNodes: await h.page.evaluate(() => document.querySelectorAll('.wl-calm, [data-wl-calm-view-btn], [data-wl-calm-toggle], #wlCalmViewMenu').length), errors: h.state.pageErrors });
+      results.push({ scenario, got: await capture(h), flagReads: await h.page.evaluate(() => performance.getEntriesByType('resource').map(e => e.name).filter(n => /workload_calm_staff/.test(n))), calmNodes: await h.page.evaluate(() => document.querySelectorAll('.wl-calm, [data-wl-calm-view-btn], [data-wl-calm-toggle], #wlCalmViewMenu').length), errors: h.state.pageErrors });
     } finally { await h.close(); }
   }
   if (WRITE) {
@@ -85,8 +85,11 @@ async function capture(h) {
     return;
   }
   const golden = JSON.parse(fs.readFileSync(GOLDEN, 'utf8'));
-  for (const { scenario, got, calmNodes, errors } of results) {
+  for (const { scenario, got, flagReads, calmNodes, errors } of results) {
     console.log('--- ' + scenario.name);
+    // The switch rides the one request that already reads the other page switches: no read of its own at boot.
+    // (svFetchRetryOnce asks a second time after a refused answer, as it always has for these switches.)
+    expect(flagReads.length === (scenario.options.flagResponse && scenario.options.flagResponse.status >= 500 ? 2 : 1) && flagReads.every(u => /review_stage_client_pages/.test(u)), scenario.name + ': the switch is read in the existing batched request, with no read of its own (saw ' + flagReads.length + ')');
     expect(errors.length === 0, scenario.name + ': page errors ' + errors[0]);
     expect(calmNodes === 0, scenario.name + ': the Calm view left a trace on an unlisted page');
     for (const key of Object.keys(golden)) {

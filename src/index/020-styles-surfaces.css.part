@@ -8471,8 +8471,8 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
     staff members named by the workload_calm_staff switch; nothing here reaches anyone else. One level of container, spacing
     and a subtle shade instead of frames, muted secondary text, colour only for overdue (red) and due soon (amber). ── */
  .workload-view.wl-calm { --wl-calm-gap: 14px; --wl-calm-hair: var(--border-light); }
- .workload-view.wl-calm.wl-calm-hold > :not(.workload-calendar-module),
- .workload-view.wl-calm.wl-calm-hold .workload-calendar-module > :not(#wlBody) { visibility: hidden; }
+ .workload-view.wl-calm-hold > :not(.workload-calendar-module),
+ .workload-view.wl-calm-hold .workload-calendar-module > :not(#wlBody) { visibility: hidden; }
  .workload-view.wl-calm svg { flex-shrink: 0; }
  /* Text that can go */
  .workload-view.wl-calm .workload-calendar-heading h2,

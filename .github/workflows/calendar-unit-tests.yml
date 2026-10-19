@@ -100,7 +100,7 @@ jobs:
       group: ${{ github.event_name == 'pull_request' && format('pr-runner-seat-phone-{0}-{1}', matrix.width, matrix.part) || format('calendar-unit-tests-{0}-staff-phone-rules-{1}', github.run_id, strategy.job-index) }}
       cancel-in-progress: false
       queue: max
-    timeout-minutes: 25
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -347,7 +347,7 @@ jobs:
       group: ${{ github.event_name == 'pull_request' && format('pr-runner-seat-entry-{0}', matrix.part) || format('calendar-unit-tests-{0}-entry-links-boot-{1}', github.run_id, strategy.job-index) }}
       cancel-in-progress: false
       queue: max
-    timeout-minutes: 25
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -472,7 +472,7 @@ jobs:
     # Two parts, three suites side by side in each (2026-10-19, session Express). As one serial job the guards
     # took 19 to 26 minutes and were cancelled at the old 20 and 35 minute limits as suites were added; a part
     # now takes about 5 minutes. Add a new guard as a line in the shorter part.
-    timeout-minutes: 25
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -578,7 +578,7 @@ jobs:
       group: ${{ github.event_name == 'pull_request' && format('pr-runner-seat-split-{0}', matrix.part) || format('calendar-unit-tests-{0}-split-preview-{1}', github.run_id, strategy.job-index) }}
       cancel-in-progress: false
       queue: max
-    timeout-minutes: 20
+    timeout-minutes: 12
     strategy:
       fail-fast: false
       matrix:

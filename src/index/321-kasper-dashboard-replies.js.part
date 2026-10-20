@@ -41,7 +41,7 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
 import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
 import { _caRender, _kasperEnsureAllTabCounts, _kasperRenderReplies } from './323-kasper-dashboard-tail.js';
 import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './330-kasper-review-history.js';
-import { svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svStaffNoAnalytics } from './188-review-stage-switch.js';
+import { svRsKasperFast, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svStaffNoAnalytics } from './188-review-stage-switch.js';
     /* The Samples subtab was folded into Review (samples are listed in the
        Review queue) and then removed. Links that still name it, including
        urgent pings already sent, open Review instead of failing. */
@@ -70,6 +70,10 @@ import { svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svStaffNoAnalytics }
     const KASPER_HISTORY_CAP = 200;
     const KASPER_SUBTAB_KEY = 'syncview_kasper_subtab_v1';
     const KASPER_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;   // sanity bound; staleness is fine, ancient data is not
+    // Fast boot (kasper_fast_boot): a saved list older than this is not drawn as if it were current. Showing yesterday's 15
+    // cards for the seconds the fresh read takes, then dropping to the real 2, read as wrong numbers (owner, 2026-10-20);
+    // the loader holds instead. A list this fresh is still drawn at once.
+    const KASPER_FAST_FRESH_MS = 3 * 60 * 1000;
     // "Last week's editor labour" never changes once a week has passed, so
     // cache the workflow response in localStorage. The cache survives across
     // page reloads (until the user clicks Refresh or the calendar crosses
@@ -603,7 +607,8 @@ import { svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svStaffNoAnalytics }
             if (!raw) return;
             const parsed = JSON.parse(raw);
             if (!parsed || typeof parsed !== 'object') return;
-            const stale = !parsed.savedAt || Date.now() - parsed.savedAt > KASPER_CACHE_MAX_AGE_MS;
+            let stale = !parsed.savedAt || Date.now() - parsed.savedAt > KASPER_CACHE_MAX_AGE_MS;
+            if (!stale && Date.now() - parsed.savedAt > KASPER_FAST_FRESH_MS && svRsKasperFast()) stale = true;
             // Display state expires after 24h, but a native-acknowledged source
             // repair is durable debt. Hydrate only those repair subsets from an
             // aged cache so a fresh queue load cannot erase them.

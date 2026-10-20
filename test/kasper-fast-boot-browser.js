@@ -173,6 +173,21 @@ const newTab = (browser, origin, o) => open(browser, origin, Object.assign({ sta
       await t.ctx.close();
     }
 
+    // ---------- the old #kasper/samples address is the Review Session: it still starts early ----------
+    {
+      console.log('--- #kasper/samples ---');
+      const t = await newTab(browser, origin, { fast: true });
+      await boot(t, origin);
+      await stageUp(t.page);
+      await sleep(1500);
+      await again(t, origin, { hash: 'kasper/samples', flags: 600, posts: 1500, noCache: true });
+      await sleep(1200);
+      const posts = first(t.state, /calendar_posts/);
+      const code = first(t.state, /reviewstage/);
+      expect(code > 0 && code - posts <= 100, 'the review page\'s code is requested at page start for the old samples address (' + (code - posts) + ' ms after the list)');
+      await t.ctx.close();
+    }
+
     // ---------- a slow player switch (3.6 s): the first video is still warmed when it arrives ----------
     {
       console.log('--- slow player switch ---');

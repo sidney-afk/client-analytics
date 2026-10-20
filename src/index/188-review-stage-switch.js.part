@@ -371,10 +371,10 @@ import { currentNav } from './065-core-nav-intake-state.js';
             const nav = hash ? hash.split('/')[0] : String(stateNav || '');
             if (nav !== 'kasper') return;
             // Only the Review Session needs them: another tool's address (#kasper/hiring-process, #kasper/replies ...), or
-            // a reload that restores another tool, opens without them.
+            // a reload that restores another tool, opens without them. Old aliases (#kasper/samples) count as Review.
             let sub = hash ? (hash.split('/')[1] || '') : '';
             if (!hash) { try { sub = localStorage.getItem('syncview_kasper_subtab_v1') || ''; } catch (e) { sub = ''; } }
-            if (sub && sub !== 'review') return;
+            if (sub && sub !== 'review' && sub !== 'samples') return;   // 'samples' is the old name of the Review Session (_kasperResolveSubtab)
             svArea('reviewstage').catch(() => {});
             svFrameFlagWait(0);
         } catch (e) {}

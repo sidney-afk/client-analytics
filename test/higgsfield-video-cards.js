@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The Synchro connector's "video_cards" tool: per video card, the batch, number,
+// The Synchro connector's studio_action tool, action "review_notes" (videocards.mjs): per video card, the batch, number,
 // title, brief, status, every note (card, SyncLinear, Frame.io with the time in
 // the video), the latest edit link, the raw footage folder and a download link.
 // Read only. Offline: the database reads and Frame.io are mocked; every name and
@@ -265,16 +265,40 @@ const parse = (text) => JSON.parse(text.slice(text.indexOf('\n') + 1));
     assert.ok(/more than 2 Frame\.io notes; only the first 2 are listed/.test(b.videos[0].frameio_problem), b.videos[0].frameio_problem);
   }
 
-  // Wiring: the tool is listed, routed, read only, and reuses the Frame.io lookup.
+  // studio_action: one tool, "review_notes" is its first action and answers what videoCards answers.
+  const sa = await import(path.join(dir, 'studioaction.mjs'));
+  assert.deepStrictEqual(sa.ACTION_NAMES, ['review_notes']);
+  const saDeps = { reviewNotes: () => deps() };
+  const direct = await v.videoCards(deps(), { client: 'Test', videos: [7, 8] });
+  assert.strictEqual(await sa.studioAction(saDeps, 'review_notes', { client: 'Test', videos: [7, 8] }), direct);
+  assert.strictEqual(await sa.studioAction(saDeps, 'Review notes', JSON.stringify({ client: 'Test', videos: [7, 8] })), direct, 'loose action name and JSON-text args');
+  let reply = await sa.studioAction(saDeps, 'make_coffee', {});
+  assert.ok(reply.startsWith('Unknown studio action "make_coffee". Studio actions:\n- review_notes: '), reply);
+  assert.ok(/args: client \(/.test(reply), 'lists the args in plain words');
+  assert.strictEqual(who.outcomeOf('studio_action', reply).ok, false, 'an unknown action is logged as not done');
+  reply = await sa.studioAction(saDeps, '', {});
+  assert.ok(reply.startsWith('Give an action.'), reply);
+  assert.strictEqual(who.outcomeOf('studio_action', reply).ok, false);
+  assert.ok(sa.TOOL_DESCRIPTION.includes('review_notes') && /New studio features are added here as actions/.test(sa.TOOL_DESCRIPTION));
+  assert.ok((await sa.studioAction(saDeps, 'constructor', {})).startsWith('Unknown studio action'), 'no prototype keys as actions');
+  // The activity row names the action and finds the client inside args.
+  const row = who.activityRow({ member: 'Pat', tool: 'studio_action', args: { action: 'Review notes', args: { client: 'Test Client' }, summary: 'tweaks for 7 and 8' }, ok: true });
+  assert.strictEqual(row.tool, 'studio_action');
+  assert.strictEqual(row.summary, '[review_notes] tweaks for 7 and 8');
+  assert.strictEqual(row.client, 'Test Client');
+  assert.strictEqual(who.activityRow({ member: 'Pat', tool: 'studio_action', args: {}, ok: false }).summary, '[no action]');
+  assert.strictEqual(who.activityRow({ member: 'Pat', tool: 'client_brain', args: { summary: 'x' }, ok: true }).summary, 'x', 'other tools unchanged');
+
+  // Wiring: studio_action is listed and routed, video_cards is not a tool, read only, and reuses the Frame.io lookup.
   const index = read('index.ts');
-  assert.ok(/name: "video_cards"/.test(index), 'tool listed');
-  assert.ok(/if \(name === "video_cards"\) return await videoCards\(videoCardDeps\(\), args\)/.test(index), 'tool routed');
+  assert.ok(/name: "studio_action"/.test(index), 'tool listed');
+  assert.ok(!/name: "video_cards"/.test(index), 'no separate video_cards tool');
+  assert.ok(/if \(name === "studio_action"\) return await studioAction\(\{ reviewNotes: videoCardDeps \}, args\.action, args\.args\)/.test(index), 'tool routed');
   assert.ok(/from "\.\.\/frameio-view\/logic\.mjs"/.test(index), 'reuses the Watch here Frame.io lookup');
   const depsSrc = index.slice(index.indexOf('function videoCardDeps()'), index.indexOf('// One fp_settings value'));
   assert.ok(depsSrc.length > 100);
   assert.ok(!/\.(insert|update|upsert|delete|rpc)\(/.test(depsSrc), 'video_cards deps never write');
-  const mod = read('videocards.mjs');
-  assert.ok(!/\b(insert|upsert)\(|\.delete\(/.test(mod), 'videocards.mjs never writes');
+  for (const f of ['videocards.mjs', 'studioaction.mjs']) assert.ok(!/\b(insert|upsert)\(|\.delete\(/.test(read(f)), f + ' never writes');
   assert.ok(who.FAILURE_OPENINGS.includes('Which batch?'));
 
   console.log('higgsfield-video-cards: ok');

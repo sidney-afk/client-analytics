@@ -86,12 +86,17 @@ export function cleanSummary(raw) {
 // links already carry the person's name in member_name.
 export function activityRow({ member, tool, args, ok, error }) {
   const a = args && typeof args === "object" && !Array.isArray(args) ? args : {};
+  // studio_action: the client sits inside args, and the action name leads the
+  // summary ("[review_notes] ...") so the daily check can tell actions apart.
+  const inner = tool === "studio_action" && a.args && typeof a.args === "object" && !Array.isArray(a.args) ? a.args : {};
+  const action = tool === "studio_action" ? cleanLine(typeof a.action === "string" ? a.action : "", 40).toLowerCase().replace(/[\s-]+/g, "_") : "";
+  const said = cleanSummary(a.summary);
   return {
     member_name: cleanLine(String(member ?? ""), 80),
     who: isTeamLink(member) ? (cleanWho(a.who) || null) : null,
     tool: cleanLine(String(tool ?? ""), 60),
-    client: cleanLine(a.client, 120) || null,
-    summary: cleanSummary(a.summary) || null,
+    client: cleanLine(a.client, 120) || cleanLine(inner.client, 120) || null,
+    summary: tool === "studio_action" ? cleanSummary(`[${action || "no action"}] ${said}`) : (said || null),
     ok: ok === true,
     error: ok === true ? null : (cleanLine(String(error ?? ""), 300) || "error"),
   };

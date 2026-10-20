@@ -24,7 +24,7 @@ import { guideIndex, guideReply, latestGuides } from "./guides.mjs";
 import { STUDIO_BUCKET, studioLatest } from "./studio.mjs";
 import { TOOLKIT_NAMES, toolkitLatest } from "./studio.mjs";
 import { clientRecord, feedbackNote, feedbackNotes } from "./filmingrecord.mjs";
-import { videoCards } from "./videocards.mjs";
+import { ACTION_NAMES as STUDIO_ACTION_NAMES, TOOL_DESCRIPTION as STUDIO_TOOL_DESCRIPTION, studioAction } from "./studioaction.mjs";
 import { lookup as frameLookup, tokenSource as frameTokenSource } from "../frameio-view/logic.mjs";
 import { brainChange, clientBrain, clientStyle, filmingPlan, findClient, listClients } from "./clientinfo.ts";
 import type { Asker } from "./clientinfo.ts";
@@ -372,17 +372,15 @@ const TOOLS = [
     inputSchema: { type: "object", required: ["client"], additionalProperties: false, properties: { client: { type: "string", description: "The client's name as SyncView shows it." } } },
   },
   {
-    name: "video_cards",
-    description: "Everything needed to do a client's tweaks, read straight from SyncView, for example \"do the tweaks for videos 7, 8 and 12 of (client)\". For each video: its batch, number, title, brief (usually the script or the editor's notes), status, every note and change request on it (who, when, done or not, and for Frame.io notes the time in the video), the latest edit link, the raw footage folder, the filming plan Doc, links to the card in SyncView, and a direct download link for the latest edit when it is on Frame.io. Leave videos out to get the newest batch. If the client name matches more than one client, or the batch matches more than one batch, it asks which. Read only: it never changes a card.",
+    name: "studio_action",
+    description: STUDIO_TOOL_DESCRIPTION,
     inputSchema: {
       type: "object",
-      required: ["client"],
+      required: ["action"],
       additionalProperties: false,
       properties: {
-        client: { type: "string", description: "The client's name as SyncView shows it." },
-        videos: { type: "array", items: { type: "integer" }, description: "Optional: the video numbers, e.g. [7, 8, 12]. Leave out for every video of the batch." },
-        batch: { type: "string", description: "Optional: which batch, by words from its name or its date (e.g. \"19 Oct\"), or \"latest\". Leave out to use the newest batch that has those videos." },
-        frameio: { type: "boolean", description: "Optional, default true: also read the Frame.io notes (with the time in the video) and a download link. Set false for a quicker answer without them." },
+        action: { type: "string", description: "Which studio feature: " + STUDIO_ACTION_NAMES.join(", ") + "." },
+        args: { type: "object", description: "That action's arguments, for example { \"client\": \"<name>\", \"videos\": [7, 8, 12] } for review_notes.", additionalProperties: true },
       },
     },
   },
@@ -1326,7 +1324,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   }
 
   if (name === "client_record") return await clientRecord(recordDeps(), String(args.client || ""));
-  if (name === "video_cards") return await videoCards(videoCardDeps(), args);
+  if (name === "studio_action") return await studioAction({ reviewNotes: videoCardDeps }, args.action, args.args);
   if (name === "feedback_note") return await feedbackNote(recordDeps(), args, author);
   if (name === "feedback_notes") return await feedbackNotes(recordDeps(), args, { member, teamLink: isTeamLink(member) });
 
@@ -1450,7 +1448,7 @@ function recordDeps() {
   };
 }
 
-// video_cards (videocards.mjs): read only. The card, work item, batch and
+// studio_action "review_notes" (videocards.mjs): read only. The card, work item, batch and
 // note tables (service role), and Frame.io through the same read-only lookup
 // the "Watch here" player uses (../frameio-view/logic.mjs, token from the
 // frameio-token key keeper; the token is never returned or logged).

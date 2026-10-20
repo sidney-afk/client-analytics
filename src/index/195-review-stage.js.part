@@ -931,7 +931,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .rs.l2 .ql .chipp.cur{background:color-mix(in srgb,var(--accent) 13%,var(--surface-raised));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 48%,transparent)}
 .rs.l2 .ql .chipp.urgc.cur{background:color-mix(in srgb,var(--urgent) 11%,var(--surface-raised));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--urgent) 48%,transparent)}
 .edw{position:relative;flex-shrink:0}
-.edw .chipp.hb{padding-right:46px}
+.edw .chipp.hb,.rs.l2 .ql .edw .chipp.hb{padding-right:50px}
 .edping{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--chgb);color:var(--chg-fg);box-shadow:inset 0 0 0 1px var(--chgrow-line);transition:background .14s}
 .edping svg{width:14px;height:14px}
 .edping:hover:not(:disabled),.edping:focus-visible{background:var(--chgb-h)}
@@ -1528,7 +1528,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsMount(container, mode, key) {
         const fresh = !R.host || !R.host.isConnected || R.mode !== mode || R.key !== key;
-        if (R.mode !== mode || R.key !== key) { R.S = _rsFreshState(); R.chatKey = null; }
+        if (R.mode !== mode || R.key !== key) { R.S = _rsFreshState(); R.chatKey = null; R.listCur = R.stripCur = undefined; }
         R.mode = mode; R.key = key;
         // The client link's page sits above the calendar (its header heads every tab); the others below it.
         const above = mode === 'client';
@@ -1567,7 +1567,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const dark = document.documentElement.getAttribute('data-theme') === 'dark';
         R.host.setAttribute('data-theme', dark ? 'dark' : 'light');
         const b = _rsQ('rsTheme');
-        if (b) { b.innerHTML = dark ? RI.sun : RI.moon; const l = dark ? 'Switch to light mode' : 'Switch to dark mode'; b.setAttribute('aria-label', l); b.title = l; }
+        if (b && b.__rsDark !== dark) { b.__rsDark = dark; b.innerHTML = dark ? RI.sun : RI.moon; const l = dark ? 'Switch to light mode' : 'Switch to dark mode'; b.setAttribute('aria-label', l); b.title = l; }
     }
     function _rsWire() {
         const tabs = _rsQ('rsTabs');
@@ -1798,6 +1798,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!rs) return;
         const n = m.thread.length, prev = R.chatKey || null;
         R.chatKey = { id: m.id, n };
+        if (prev && prev.id === m.id && n === prev.n && rs.classList.contains('calm')) return;
         rs.classList.remove('calm', 'grow', 'xpost');
         void rs.offsetWidth;
         rs.classList.add(!prev ? 'calm' : prev.id !== m.id ? 'xpost' : n > prev.n ? 'grow' : 'calm');
@@ -1818,6 +1819,65 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
        part or the post changes. A region is rewritten only when its markup changed, and an image already decoded on
        screen is moved into the new markup instead of being loaded again (a fresh <img> paints blank for a frame).
        Answers whether it rewrote. */
+    /* A calm refresh (owner, 2026-10-20: a background refresh must never flicker a button or move what the person is
+       looking at). A region is rewritten only when what is on screen differs from the new markup, or the post it was
+       built for changed (its handlers hold that post). The same markup over the same post is left alone, so a poll that
+       found nothing new touches nothing: no new nodes, no lost hover, focus or scroll. Answers whether it rewrote. */
+    function _rsCalm(el, html, m) {
+        if (!el) return false;
+        const key = m ? m.id + '|' + String((m.post && m.post.updated_at) || '') : '';
+        const t = document.createElement('template');
+        t.innerHTML = html;
+        if (el.__rsKey === key && el.innerHTML === t.innerHTML) return false;
+        el.innerHTML = html;
+        el.__rsKey = key;
+        return true;
+    }
+    /* The same, for a list of cards: only the cards whose markup changed are replaced, new ones are added, gone ones
+       removed; every other card stays the very same element, so nothing under the pointer or the keyboard is torn down.
+       Answers the elements that were added (the caller gives them their handlers); none when nothing changed. */
+    function _rsPatch(el, html) {
+        if (el.__rsHtml === html) return [];
+        // A detached element of this document, not a template's: a picture moved through a template's own document is loaded again.
+        const t = document.createElement('div');
+        t.innerHTML = html;
+        const added = [];
+        const keyOf = (n, i) => n.nodeType !== 1 ? 't' + i : n.getAttribute('data-id') ? 'd:' + n.getAttribute('data-id') : n.getAttribute('data-reopen') ? 'r:' + n.getAttribute('data-reopen') : n.id ? '#' + n.id : n.classList.contains('sk-grp') ? 'g' + i : 'i' + i + n.tagName;
+        const walk = (oldP, newP) => {
+            const olds = new Map();
+            Array.from(oldP.childNodes).forEach((n, i) => olds.set(keyOf(n, i), n));
+            const placed = new Set();
+            let prev = null;
+            Array.from(newP.childNodes).forEach((nn, i) => {
+                const on = olds.get(keyOf(nn, i));
+                let cur = nn;
+                if (on && !placed.has(on)) {
+                    if (on.nodeType !== 1 || nn.nodeType !== 1) { if (on.nodeType === nn.nodeType && on.textContent === nn.textContent) cur = on; }
+                    else if (on.outerHTML === nn.outerHTML) cur = on;
+                    else if (on.classList.contains('sk-grp') && nn.classList.contains('sk-grp')) { walk(on, nn); cur = on; }
+                    else {
+                        // A picture already decoded on screen is moved into the new card instead of being loaded again.
+                        const have = new Map();
+                        on.querySelectorAll('img[src]').forEach(im => { if (im.complete && im.naturalWidth && !have.has(im.getAttribute('src'))) have.set(im.getAttribute('src'), im); });
+                        nn.querySelectorAll('img[src]').forEach(im => { const o = have.get(im.getAttribute('src')); if (o) { o.className = im.className; im.replaceWith(o); have.delete(im.getAttribute('src')); } });
+                    }
+                }
+                if (cur === nn) added.push(nn);
+                placed.add(cur);
+                const want = prev ? prev.nextSibling : oldP.firstChild;
+                if (cur !== want) oldP.insertBefore(cur, want);
+                prev = cur;
+            });
+            Array.from(oldP.childNodes).forEach(n => { if (!placed.has(n)) n.remove(); });
+        };
+        walk(el, t);
+        el.__rsHtml = html;
+        return added;
+    }
+    // Calls f on each element of `nodes` that matches `sel`, and on each one inside them.
+    function _rsEachIn(nodes, sel, f) {
+        nodes.forEach(n => { if (n.nodeType !== 1) return; if (n.matches(sel)) f(n); n.querySelectorAll(sel).forEach(f); });
+    }
     function _rsPut(el, html) {
         if (!el) return false;
         if (el.__rsHtml === html) return false;
@@ -1852,14 +1912,14 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const cur = _rsCur();
         const sl = _rsQ('skList'), sh = _rsQ('skHead');
         const keep = sl.scrollLeft;
-        let fresh = false;
+        let added = [];
         if (R.mode !== 'kasper') {
             const q = _rsQueue();
             const open = q.filter(x => !_rsAnswered(x)).length;
             const done = R.mode === 'client' ? 'You can still change your mind' : 'Approve sends to Kasper';
             _rsPut(sh, '<b class="num">' + (open ? open + ' waiting for you' : 'Nothing else waiting') + '</b><span class="num">' + (open ? (R.mode === 'smm' ? 'Approve sends to Kasper' : '') : done) + '</span>');
             const fin = (calState.posts || []).filter(p => R.S.finished.has(p.id)).map(p => _rsModel(p, R.mode, null));
-            fresh = _rsPut(sl, q.map(m => _rsChip(m, cur)).join('') + (fin.length ? '<span class="sk-sep" aria-hidden="true"></span>' + fin.map(m => {
+            added = _rsPatch(sl, q.map(m => _rsChip(m, cur)).join('') + (fin.length ? '<span class="sk-sep" aria-hidden="true"></span>' + fin.map(m => {
                 const ch = m.parts.some(x => x.st === 'chg');
                 return '<button class="chipp done" type="button" data-reopen="' + _re(m.id) + '" title="Open it again" aria-label="' + _re(m.title) + ', done. Open it again">' + _rsChipImg(m) + '<span class="cx"><span class="cn">' + _re(m.title) + '</span>' + _rsDots(m) + '</span><span class="dk' + (ch ? ' chg' : '') + '">' + (ch ? RI.back : RI.check) + '</span></button>';
             }).join('') : ''));
@@ -1869,25 +1929,25 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             // No "9 to review" and no section labels on the strip (owner feedback 2026-10-17 23:20): a small list button
             // with the count opens his sections as a list (_rsQueuePanel).
             sh.className = 'sk-head k';
-            sh.innerHTML = '<button class="qbtn" type="button" id="qBtn" aria-haspopup="dialog" aria-expanded="' + !!R.S.qOpen + '" aria-controls="qPanel" aria-label="Your review list, ' + open + ' to review" title="Your review list">' + RI.list + (open ? '<b class="qb num">' + open + '</b>' : '') + '</button>';
-            const qb = _rsQ('qBtn');
-            if (qb) qb.addEventListener('click', (e) => { e.stopPropagation(); R.S.qOpen = !R.S.qOpen; _rsQueuePanel(); });
+            if (_rsPut(sh, '<button class="qbtn" type="button" id="qBtn" aria-haspopup="dialog" aria-expanded="' + !!R.S.qOpen + '" aria-controls="qPanel" aria-label="Your review list, ' + open + ' to review" title="Your review list">' + RI.list + (open ? '<b class="qb num">' + open + '</b>' : '') + '</button>')) {
+                const qb = _rsQ('qBtn');
+                if (qb) qb.addEventListener('click', (e) => { e.stopPropagation(); R.S.qOpen = !R.S.qOpen; _rsQueuePanel(); });
+            }
             const h = [];
             if (k.urgent.length) h.push('<div class="sk-grp">' + k.urgent.map(m => _rsChip(m, cur)).join('') + '</div>');
             if (k.waiting.length) h.push('<div class="sk-grp">' + k.waiting.map(m => _rsChip(m, cur)).join('') + '</div>');
             if (k.tweaks.length) h.push('<div class="sk-grp"><button class="sk-lab" type="button" id="edTog" aria-expanded="' + !!R.S.edOpen + '"><span class="r">With the editors <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg></span><span class="c num">' + k.tweaks.length + ' tweaks pending</span></button>' + (R.S.edOpen || (cur && cur.sec === 'tweaks') ? k.tweaks.map(m => _rsChip(m, cur)).join('') : '') + '</div>');
-            fresh = _rsPut(sl, h.join('<span class="sk-sep" aria-hidden="true"></span>'));
-            const t = _rsQ('edTog');
-            if (t && fresh) t.addEventListener('click', () => { R.S.edOpen = !R.S.edOpen; _rsStrip(); });
+            added = _rsPatch(sl, h.join('<span class="sk-sep" aria-hidden="true"></span>'));
+            _rsEachIn(added, '#edTog', t => t.addEventListener('click', () => { R.S.edOpen = !R.S.edOpen; _rsStrip(); }));
         }
-        if (fresh) {
-            sl.querySelectorAll('[data-id]').forEach(b => b.addEventListener('click', () => _rsGo(b.dataset.id)));
-            sl.querySelectorAll('[data-reopen]').forEach(b => b.addEventListener('click', () => { R.S.finished.delete(b.dataset.reopen); _rsGo(b.dataset.reopen); }));
-        }
+        _rsEachIn(added, '[data-id]', b => b.addEventListener('click', () => _rsGo(b.dataset.id)));
+        _rsEachIn(added, '[data-reopen]', b => b.addEventListener('click', () => { R.S.finished.delete(b.dataset.reopen); _rsGo(b.dataset.reopen); }));
         if (R.mode === 'kasper') _rsQueuePanel();
         sl.scrollLeft = keep;
         const c = sl.querySelector('.cur');
-        if (c) { const l = c.offsetLeft, r = l + c.offsetWidth; if (l < sl.scrollLeft || r > sl.scrollLeft + sl.clientWidth) sl.scrollLeft = Math.max(0, l - 40); }
+        const curId = cur ? cur.id : null, moved = R.stripCur !== curId;
+        R.stripCur = curId;
+        if (c && moved) { const l = c.offsetLeft, r = l + c.offsetWidth; if (l < sl.scrollLeft || r > sl.scrollLeft + sl.clientWidth) sl.scrollLeft = Math.max(0, l - 40); }
         _rsStripEdge();
     }
     function _rsStripEdge() {
@@ -1943,21 +2003,21 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (R.mode === 'kasper') {
             // One row (owner feedback 2026-10-17 23:20, session Curtain Seven): "Client · Title", no initials badge; the
             // round ("Back after tweaks, round 3") and an urgent ping sit beside the date at the stage's top left.
-            _rsQ('side').innerHTML = '<div class="sd-t"><h2>' + (m.client ? _re(m.client) + '<span class="sep"> · </span>' : '') + _re(m.title) + (m.sample ? '<b class="tag">Sample</b>' : '') + '</h2></div>';
+            _rsCalm(_rsQ('side'), '<div class="sd-t"><h2>' + (m.client ? _re(m.client) + '<span class="sep"> · </span>' : '') + _re(m.title) + (m.sample ? '<b class="tag">Sample</b>' : '') + '</h2></div>', m);
             const extra = (m.flag ? '<span class="sdn flag">' + RI.bell + _re(m.flag) + '</span>' : '') + (m.note ? '<span class="sdn">' + _re(m.note) + '</span>' : '');
-            d.innerHTML = (m.date ? RI.cal + _re(m.date) : '') + extra;
+            _rsCalm(d, (m.date ? RI.cal + _re(m.date) : '') + extra, m);
             d.hidden = !m.date && !extra;
             return;
         }
-        _rsQ('side').innerHTML = '<div class="sd-t"><h2>' + _re(m.title) + '</h2></div>';
-        d.innerHTML = m.date ? RI.cal + _re(m.date) : '';
+        _rsCalm(_rsQ('side'), '<div class="sd-t"><h2>' + _re(m.title) + '</h2></div>', m);
+        _rsCalm(d, m.date ? RI.cal + _re(m.date) : '', m);
         d.hidden = !m.date;
     }
     function _rsWriting(x) { return R.S.note.part === x.key; }
     function _rsStCls(x) { if (_rsWriting(x)) return ' wr'; if (x.st === 'ok') return ' ok'; if (x.st === 'chg' || x.st === 'tweak') return ' chg'; return ''; }
     function _rsStepper(m) {
         const S = R.S;
-        _rsQ('stepper').innerHTML = m.parts.map((x, i) => {
+        const stepHtml = m.parts.map((x, i) => {
             const on = x.key === S.step;
             const mark = x.st === 'ok' && !_rsWriting(x) ? RI.check : (x.st === 'chg' || x.st === 'tweak') && !_rsWriting(x) ? RI.back : _rsWriting(x) ? '' : (i + 1);
             const prev = i ? m.parts[i - 1] : null;
@@ -1967,6 +2027,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             return (i ? '<li class="ln' + (prev.st === 'ok' ? ' ok' : '') + '" aria-hidden="true"></li>' : '')
                 + '<li><button class="stp' + (on ? ' on' : '') + _rsStCls(x) + '" type="button" data-step="' + x.key + '" style="' + _rsPv(x.key) + '" aria-current="' + (on ? 'step' : 'false') + '" title="' + RS_PART[x.key] + ', ' + label + '"><span class="sd">' + mark + '</span>' + RS_PART[x.key] + sv + '</button></li>';
         }).join('');
+        if (!_rsCalm(_rsQ('stepper'), stepHtml, m)) return;
         _rsQ('stepper').querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => _rsSetStep(b.dataset.step)));
     }
     // One soft glow on the next part to answer, the first time the page shows, and never again in this visit.
@@ -2251,23 +2312,23 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const elsew = _rsElsewhere(m, x) || (!x && m.parts.length === 0 ? 'Your team took this post back to work on it.' : '');
         const note = elsew ? '<div class="elsew" role="status" id="elsew"><span>' + _re(elsew) + '</span>' + (m.gone || !x ? '<button class="mv" type="button" id="moveOn">Next post</button>' : '') + '</div>' : '';
         const bindMove = () => { const b = _rsQ('moveOn'); if (b) b.addEventListener('click', () => _rsMoveOn(m)); };
-        if (!x) { el.innerHTML = note; bindMove(); return; }
+        if (!x) { if (_rsCalm(el, note, m)) bindMove(); return; }
         let d;
         if (m.gone) {
             // Words typed on the stage stay on screen: the conversation's box takes them (review of #2207).
             if (S.note.part && S.note.where === 'stage') { S.note.where = 'chat'; _rsChat(m); }
-            el.innerHTML = note; bindMove(); return;
+            if (_rsCalm(el, note, m)) bindMove();
+            return;
         }
         if (!_rsActive(m)) {
-            el.innerHTML = '<div class="dwrap"><div class="dec' + (x.st === 'ok' ? ' is-ok' : ' is-chg') + '">' + _rsInactiveD(m, x) + '</div></div><div class="drow2 both"><span class="held">' + RI.clock + _re(m.note) + '</span>' + _rsPingHtml(m) + '</div>';
-            _rsBindPing(m, el);
+            if (_rsCalm(el, '<div class="dwrap"><div class="dec' + (x.st === 'ok' ? ' is-ok' : ' is-chg') + '">' + _rsInactiveD(m, x) + '</div></div><div class="drow2 both"><span class="held">' + RI.clock + _re(m.note) + '</span>' + _rsPingHtml(m) + '</div>', m)) _rsBindPing(m, el);
             return;
         }
         const ad = _rsActiveD(m, x);
         d = ad.d;
-        el.innerHTML = note + '<div class="dwrap">' + (d === null ? _rsComposer(m) : '<div class="dec' + ad.dc + '" id="dec">' + d + '</div>') + '</div>'
+        if (!_rsCalm(el, note + '<div class="dwrap">' + (d === null ? _rsComposer(m) : '<div class="dec' + ad.dc + '" id="dec">' + d + '</div>') + '</div>'
             + _rsSaveIssues(m, x.key)
-            + '<div class="drow2"><div class="dfin">' + _rsFinishHtml(m) + '</div></div>';
+            + '<div class="drow2"><div class="dfin">' + _rsFinishHtml(m) + '</div></div>', m)) return;
         _rsBindDecide(m, el);
         _rsBindFinish(m, el);
         if (d === null) _rsBindComposer(el);
@@ -2351,7 +2412,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             : R.mode === 'smm'
                 ? '<span class="avs"><span class="av cl">' + _re(String(calState.client || '?').charAt(0)) + '</span><span class="av kp">K</span></span><span class="who"><b>Conversation</b><span>' + _re(calState.client || '') + ' (client), the editors and Kasper</span></span>'
                 : '<span class="avs"><span class="av">' + _re(String(m.client || '?').charAt(0)) + '</span><span class="av l">E</span></span><span class="who"><b>The team</b><span>' + _re(m.client) + '’s SMM and editors. The client does not see this.</span></span>';
-        c.innerHTML = '<div class="ch-head">' + head + '</div><div class="ch-scroll" id="tscroll">' + th + '</div><div class="ch-foot">' + foot + '</div>';
+        if (!_rsCalm(c, '<div class="ch-head">' + head + '</div><div class="ch-scroll" id="tscroll">' + th + '</div><div class="ch-foot">' + foot + '</div>', m)) return;
         const fb = _rsQ('foldBtn'); if (fb) fb.addEventListener('click', () => { S.fold = !S.fold; _rsChat(m); });
         c.querySelectorAll('[data-delete-note]').forEach(b => b.addEventListener('click', () => window._calDeleteComment(b.dataset.deleteNote, m.id)));
         // "Show all" on a long note: only this bubble opens, the thread keeps its place.
@@ -2370,24 +2431,26 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsBindComposer(root) {
         const S = R.S;
+        // Looked up inside the region being bound, never in the whole page: the stage and the conversation can both hold a box for a moment, and a button bound in the other one is lost when that one is replaced.
+        const q = (id) => root.querySelector('#' + id);
         root.querySelectorAll('[data-sg]').forEach(b => b.addEventListener('click', () => _rsStartChange(b.dataset.sg, 'chat')));
         root.querySelectorAll('[data-vis]').forEach(b => b.addEventListener('click', () => { S.note.vis = b.dataset.vis; _rsRender({ force: true }); _rsFocusTa(); }));
-        const cx = _rsQ('chipX'); if (cx) cx.addEventListener('click', () => _rsClearChange(true, false));
-        const cc = _rsQ('cmpCancel'); if (cc) cc.addEventListener('click', () => _rsClearChange(false, true));
-        const nb = _rsQ('noteBtn'); if (nb) nb.addEventListener('click', () => _rsSendNote(true));
+        const cx = q('chipX'); if (cx) cx.addEventListener('click', () => _rsClearChange(true, false));
+        const cc = q('cmpCancel'); if (cc) cc.addEventListener('click', () => _rsClearChange(false, true));
+        const nb = q('noteBtn'); if (nb) nb.addEventListener('click', () => _rsSendNote(true));
         root.querySelectorAll('[data-pc]').forEach(b => b.addEventListener('click', () => { const S2 = R.S; if (S2.note.part === b.dataset.pc) _rsClearChange(true, false); else { S2.note.part = b.dataset.pc; S2.note.where = 'chat'; S2.note.aat = false; const pm = _rsCur(), px = pm && pm.parts.find(p => p.key === b.dataset.pc); S2.note.was = px ? px.st : ''; _rsPersistCur(); _rsRender({ force: true }); _rsFocusTa(); } }));
-        const mb = _rsQ('cmtBtn'); if (mb) mb.addEventListener('click', () => _rsSendNote(true));
-        const sb = _rsQ('sendBtn'); if (sb) sb.addEventListener('click', () => _rsSendNote(!S.note.part));
-        const ta = _rsQ('ta');
+        const mb = q('cmtBtn'); if (mb) mb.addEventListener('click', () => _rsSendNote(true));
+        const sb = q('sendBtn'); if (sb) sb.addEventListener('click', () => _rsSendNote(!S.note.part));
+        const ta = q('ta');
         if (!ta) return;
         const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(160, ta.scrollHeight + 2) + 'px'; };
         ta.addEventListener('input', () => {
             S.note.text = ta.value;
             _rsPersistCur();
             const has = !!ta.value.trim();
-            const cp = _rsQ('compose'); if (cp) cp.classList.toggle('typed', has);
-            const s = _rsQ('sendBtn'); if (s) s.disabled = !has || (R.mode === 'client' && S.note.where !== 'stage' && !S.note.part);
-            const cm = _rsQ('cmtBtn'); if (cm) cm.disabled = !has;
+            const cp = q('compose'); if (cp) cp.classList.toggle('typed', has);
+            const s = q('sendBtn'); if (s) s.disabled = !has || (R.mode === 'client' && S.note.where !== 'stage' && !S.note.part);
+            const cm = q('cmtBtn'); if (cm) cm.disabled = !has;
             grow();
         });
         ta.addEventListener('keydown', (e) => {
@@ -2944,19 +3007,24 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             ? '<button class="ql-g" type="button" id="edTog" aria-expanded="' + !!R.S.edOpen + '"><span class="r">With the editors <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg></span><span class="c num">' + k.tweaks.length + ' tweaks pending</span></button>'
                 + (R.S.edOpen || (cur && cur.sec === 'tweaks') ? k.tweaks.map(m => _rsL2EdRow(m, cur)).join('') : '')
             : '';
-        const fresh = _rsPut(list, (rows || (k.tweaks.length ? '' : '<div class="ql-empty">Nothing is waiting on you.</div>')) + eds);
-        if (fresh) {
+        const added = _rsPatch(list, (rows || (k.tweaks.length ? '' : '<div class="ql-empty">Nothing is waiting on you.</div>')) + eds);
+        if (added.length) {
             list.scrollTop = keep;
-            list.querySelectorAll('[data-id]').forEach(b => b.addEventListener('click', () => _rsGo(b.dataset.id)));
-            list.querySelectorAll('[data-ping]').forEach(b => b.addEventListener('click', (e) => _rsL2Ping(k.tweaks.find(x => x.id === b.dataset.ping), e)));
+            _rsEachIn(added, '[data-id]', b => b.addEventListener('click', () => _rsGo(b.dataset.id)));
+            // The model is looked up when the bell is pressed, not when the row was drawn: a row that stays across refreshes keeps its handler.
+            _rsEachIn(added, '[data-ping]', b => b.addEventListener('click', (e) => _rsL2Ping(_rsKasperModels().tweaks.find(x => x.id === b.dataset.ping), e)));
+            _rsEachIn(added, '#edTog', t => t.addEventListener('click', () => { R.S.edOpen = !R.S.edOpen; _rsL2List(true); }));
             const t = _rsQ('edTog');
-            if (t) t.addEventListener('click', () => { R.S.edOpen = !R.S.edOpen; _rsL2List(true); });
             if (still && t && tg0) list.scrollTop = keep + (t.getBoundingClientRect().top - tgTop0);
             // The row that had the keyboard keeps it when the list is drawn again (the card changed under it).
-            if (hadFocus) { const c = list.querySelector('[data-id][aria-current="true"]') || list.querySelector('[data-id]'); if (c) c.focus({ preventScroll: true }); }
+            if (hadFocus && !(R.root.activeElement && R.root.activeElement.closest && R.root.activeElement.closest('#qlList'))) { const c = list.querySelector('[data-id][aria-current="true"]') || list.querySelector('[data-id]'); if (c) c.focus({ preventScroll: true }); }
         }
         const c = list.querySelector('[aria-current="true"]');
-        if (c && !still) {
+        // Brought into view only when the card on stage is a different one (or the first draw): a refresh that finds the
+        // same card on stage must not pull a list the person scrolled back to it.
+        const curId = cur ? cur.id : null, moved = R.listCur !== curId;
+        if (!still) R.listCur = curId;
+        if (c && !still && moved) {
             const t = c.offsetTop - list.offsetTop, b = t + c.offsetHeight;
             if (t < list.scrollTop + 4) list.scrollTop = Math.max(0, t - 8);
             else if (b > list.scrollTop + list.clientHeight - 4) list.scrollTop = b - list.clientHeight + 8;
@@ -3110,30 +3178,31 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!m || !g) return;
         const S = R.S, noteEl = _rsQ('l2note'), act = _rsQ('l2a');
         const card = _rsElsewhere(m, null) || (!m.parts.length ? 'Your team took this post back to work on it.' : '');
-        noteEl.innerHTML = card ? '<div class="elsew" role="status" id="elsew"><span>' + _re(card) + '</span>' + (m.gone || !m.parts.length ? '<button class="mv" type="button" id="moveOn">Next post</button>' : '') + '</div>' : '';
-        const mv = _rsQ('moveOn'); if (mv) mv.addEventListener('click', () => _rsMoveOn(m));
+        if (_rsCalm(noteEl, card ? '<div class="elsew" role="status" id="elsew"><span>' + _re(card) + '</span>' + (m.gone || !m.parts.length ? '<button class="mv" type="button" id="moveOn">Next post</button>' : '') + '</div>' : '', m)) {
+            const mv = _rsQ('moveOn'); if (mv) mv.addEventListener('click', () => _rsMoveOn(m));
+        }
         const slots = Array.from(g.querySelectorAll('.pn-d'));
         if (m.gone) {
             // Words typed on the stage stay on screen: the conversation's box takes them (review of #2207).
             if (S.note.part && S.note.where === 'stage') { S.note.where = 'chat'; _rsChat(m); }
-            slots.forEach(el => { el.innerHTML = ''; });
-            act.innerHTML = '';
+            slots.forEach(el => { _rsCalm(el, '', m); });
+            _rsCalm(act, '', m);
             return;
         }
         const active = _rsActive(m);
         m.parts.forEach(x => {
             const el = g.querySelector('.pn-d[data-pd="' + x.key + '"]');
             if (!el) return;
-            if (!active || x.kept) { el.innerHTML = '<div class="dwrap"><div class="dec' + (x.st === 'ok' ? ' is-ok' : ' is-chg') + '">' + _rsInactiveD(m, x) + (x.kept && x.st === 'ok' ? _rsL2UndoHtml(m, x) : '') + '</div></div>'; _rsL2BindUndo(el); return; }
+            if (!active || x.kept) { if (_rsCalm(el, '<div class="dwrap"><div class="dec' + (x.st === 'ok' ? ' is-ok' : ' is-chg') + '">' + _rsInactiveD(m, x) + (x.kept && x.st === 'ok' ? _rsL2UndoHtml(m, x) : '') + '</div></div>', m)) _rsL2BindUndo(el); return; }
             const elsew = card ? '' : _rsElsewhere(m, x);
             const note = elsew ? '<div class="elsew" role="status"><span>' + _re(elsew) + '</span></div>' : '';
             const ad = _rsActiveD(m, x);
-            el.innerHTML = note + '<div class="dwrap">' + (ad.d === null ? _rsComposer(m) : '<div class="dec' + ad.dc + '">' + ad.d + '</div>') + '</div>' + _rsSaveIssue(m, x.key, x.key);
+            if (!_rsCalm(el, note + '<div class="dwrap">' + (ad.d === null ? _rsComposer(m) : '<div class="dec' + ad.dc + '">' + ad.d + '</div>') + '</div>' + _rsSaveIssue(m, x.key, x.key), m)) return;
             _rsBindDecide(m, el);
             if (ad.d === null) _rsBindComposer(el);
         });
-        if (active) { act.innerHTML = _rsFinishHtml(m); _rsBindFinish(m, act); }
-        else { act.innerHTML = '<span class="held">' + RI.clock + _re(m.note) + '</span>' + _rsPingHtml(m); _rsBindPing(m, act); }
+        if (active) { if (_rsCalm(act, _rsFinishHtml(m), m)) _rsBindFinish(m, act); }
+        else if (_rsCalm(act, '<span class="held">' + RI.clock + _re(m.note) + '</span>' + _rsPingHtml(m), m)) _rsBindPing(m, act);
     }
     function _rsL2Render(m) {
         R.S.hinted = true;

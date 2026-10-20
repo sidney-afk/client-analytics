@@ -1857,6 +1857,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-calm-refresh-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Checks that a background refresh writes nothing into Kasper's review page and the client link's review page when nothing changed, keeps the scrolled list and conversation where they were, replaces only the changed card in the strip, and that the editor bell does not cover the title.",
+      "reproduce": "node test/review-calm-refresh-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-staff-layout-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

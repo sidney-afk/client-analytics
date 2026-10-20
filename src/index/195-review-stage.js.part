@@ -985,13 +985,15 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .pn-d .dec:has(>.b-ask)>.b-frame{grid-column:1;grid-row:1;justify-self:start}
 .pn-d .dec:has(>.b-ask)>.split{grid-column:2;grid-row:1;justify-self:center}
 .pn-d .dec:has(>.b-ask)>.b-ask{grid-column:3;grid-row:1;justify-self:end}
-.pn-d .split>.b-ok{height:auto;min-height:38px;padding:5px 42px 5px 12px;font-size:.8rem;line-height:1.15;text-align:left;white-space:normal}
+.pn-d .split>.b-ok{height:auto;min-height:38px;padding:5px 42px 5px 12px;font-size:.8rem;line-height:1.15;text-align:left;white-space:nowrap}
 .pn-d .split>.sarr{width:32px}
-.pn-d .b-ask,.pn-d .b-frame{height:auto;min-height:38px;padding:5px 8px;font-size:.74rem;line-height:1.15;text-align:center;white-space:normal;justify-content:center}
-@container (max-width:380px){.pn-d .dec:has(>.b-ask){grid-template-columns:minmax(0,.85fr) minmax(0,1.3fr) minmax(0,.85fr);column-gap:5px}.pn-d .b-ask svg,.pn-d .b-frame svg,.pn-d .split>.b-ok svg{display:none}.pn-d .split>.b-ok{padding:4px 34px 4px 8px;font-size:.76rem}.pn-d .split>.sarr{width:28px}.pn-d .b-ask,.pn-d .b-frame{padding:4px 3px;font-size:.7rem}.pn-d .split{max-width:100%}}
-/* A part too narrow for three labels (three parts side by side): Frame and Ask for a change shrink to their icons. Their
-   text stays in the page (font-size 0), so the accessible names and the title tooltips are unchanged. */
-@container (max-width:240px){.pn-d .dec:has(>.b-ask){grid-template-columns:34px minmax(0,1fr) 34px}.pn-d .b-ask,.pn-d .b-frame{font-size:0;gap:0;width:34px;padding:0}.pn-d .b-ask svg,.pn-d .b-frame svg{display:block;width:15px;height:15px}.pn-d .split{justify-self:stretch}.pn-d .split>.b-ok{width:100%}}
+.pn-d .b-ask,.pn-d .b-frame{height:auto;min-height:38px;padding:5px 8px;font-size:.74rem;line-height:1.15;text-align:center;white-space:nowrap;justify-content:center}
+.pn-d .ls{display:none}
+/* Every label stays on ONE line (owner feedback 2026-10-20): where the part's column is too narrow for the long labels
+   the short ones show, and where even those do not fit, Frame and Ask for a change shrink to their icons. The long text
+   is always the button's accessible name (aria-label) and its tooltip. */
+@container (max-width:460px){.pn-d .lf{display:none}.pn-d .ls{display:inline}.pn-d .dec:has(>.b-ask){column-gap:5px}.pn-d .b-ask svg,.pn-d .b-frame svg{display:none}.pn-d .split>.b-ok{padding:4px 34px 4px 10px;font-size:.78rem}.pn-d .split>.sarr{width:28px}.pn-d .b-ask,.pn-d .b-frame{padding:4px 5px;font-size:.72rem}.pn-d .split>.b-ok svg{display:none}}
+@container (max-width:300px){.pn-d .dec:has(>.b-ask){grid-template-columns:34px minmax(0,1fr) 34px}.pn-d .b-ask,.pn-d .b-frame{width:34px;padding:0}.pn-d .b-ask .ls,.pn-d .b-frame .ls{display:none}.pn-d .b-ask svg,.pn-d .b-frame svg{display:block;width:15px;height:15px}.pn-d .split{justify-self:stretch}.pn-d .split>.b-ok{width:100%}}
 .pn-d .b-ok:not(.split>.b-ok){white-space:normal;text-align:left;line-height:1.15;height:auto;min-height:38px;font-size:.8rem}
 .pn-d .dwrap .compose{width:100%}
 .pn-d .cmp-foot{flex-wrap:wrap}
@@ -2119,8 +2121,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const alt = R.mode === 'smm' ? ['client', RI.skip + 'Approve to client'] : ['aat', RI.aat + 'Approve after tweaks'];
         const menu = open ? '<div class="apmenu" role="menu"><button role="menuitem" type="button" data-alt="' + alt[0] + '" data-for="' + k + '">' + alt[1] + '</button></div>' : '';
         const on = busy === 'ok' || busy === 'client' || busy === 'aat';
-        return '<div class="split' + (open ? ' open' : '') + (on ? ' busy' : '') + '"><button class="b-ok' + (on ? ' busy' : '') + '" type="button" data-ok="' + k + '"' + _rsBusyAttr(busy, on) + '>' + (on ? RS_SPIN : RI.check) + label + '</button><button class="sarr" type="button" data-menu="' + k + '" aria-haspopup="menu" aria-expanded="' + open + '" aria-label="Other ways to approve the ' + n + '" title="' + (R.mode === 'smm' ? 'Approve to client' : 'Approve after tweaks') + '"' + (busy ? ' disabled' : '') + '>' + RI.down + '</button>' + menu + '</div>';
+        return '<div class="split' + (open ? ' open' : '') + (on ? ' busy' : '') + '"><button class="b-ok' + (on ? ' busy' : '') + '" type="button" data-ok="' + k + '"' + _rsLblAttr(label) + _rsBusyAttr(busy, on) + '>' + (on ? RS_SPIN : RI.check) + _rsLbl(label, on ? 'Approved' : 'Approve') + '</button><button class="sarr" type="button" data-menu="' + k + '" aria-haspopup="menu" aria-expanded="' + open + '" aria-label="Other ways to approve the ' + n + '" title="' + (R.mode === 'smm' ? 'Approve to client' : 'Approve after tweaks') + '"' + (busy ? ' disabled' : '') + '>' + RI.down + '</button>' + menu + '</div>';
     }
+    // In Kasper's all-parts layout a button's label has a long and a short form (the part's column decides which shows,
+    // so a label is never on two lines) and the long one is its accessible name.
+    function _rsLbl(full, short) { return R.l2 ? '<span class="lf">' + full + '</span><span class="ls" aria-hidden="true">' + short + '</span>' : full; }
+    function _rsLblAttr(full) { return R.l2 ? ' aria-label="' + full + '"' : ''; }
     function _rsBusyAttr(busy, on) { return busy ? (on ? ' aria-busy="true"' : '') + ' disabled' : ''; }
     // The decision buttons; with `busy` (what was pressed) the pressed one spins and every one waits.
     function _rsActions(x, busy) {
@@ -2128,8 +2134,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const ok = busy === 'ok' || (R.mode === 'client' && busy === 'client');
         const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + (ok ? 'Approved' : 'Approve the ' + n) + '</button>' : _rsSplit(x, busy);
         const chg = busy === 'chg', fr = busy === 'frame';
-        return approve + '<button class="b-ask' + (chg ? ' busy' : '') + '" type="button"' + (R.l2 ? ' title="Ask for a change"' : '') + ' data-chg="' + x.key + '"' + _rsBusyAttr(busy, chg) + '>' + (chg ? RS_SPIN : RI.back) + (chg ? 'Change asked' : 'Ask for a change') + '</button>'
-            + (R.mode === 'kasper' && x.key === 'video' ? '<button class="b-frame' + (fr ? ' busy' : '') + '" type="button" data-frame="' + x.key + '"' + _rsBusyAttr(busy, fr) + ' title="Your notes are in Frame.io: sends the change without typing">' + (fr ? RS_SPIN : RI.frame) + 'Tweaks are on Frame</button>' : '');
+        return approve + '<button class="b-ask' + (chg ? ' busy' : '') + '" type="button"' + (R.l2 ? ' title="Ask for a change"' : '') + ' data-chg="' + x.key + '"' + _rsLblAttr(chg ? 'Change asked' : 'Ask for a change') + _rsBusyAttr(busy, chg) + '>' + (chg ? RS_SPIN : RI.back) + (chg ? _rsLbl('Change asked', 'Asked') : _rsLbl('Ask for a change', 'Ask for change')) + '</button>'
+            + (R.mode === 'kasper' && x.key === 'video' ? '<button class="b-frame' + (fr ? ' busy' : '') + '" type="button" data-frame="' + x.key + '"' + _rsBusyAttr(busy, fr) + ' title="Your notes are in Frame.io: sends the change without typing"' + _rsLblAttr('Tweaks are on Frame') + '>' + (fr ? RS_SPIN : RI.frame) + _rsLbl('Tweaks are on Frame', 'Frame tweaks') + '</button>' : '');
     }
     /* The pieces of the decision row, shared by the one-part-at-a-time page and Kasper's all-parts layout (session
        Easel, 2026-10-20): what a part answered by someone else reads, who can be pinged, the active part's buttons or

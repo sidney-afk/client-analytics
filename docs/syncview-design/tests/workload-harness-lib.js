@@ -161,6 +161,10 @@ function parentRow(overrides) {
  *                 notes read through `production-comments`). Off by default, which
  *                 leaves every existing suite exactly as it was. The Calm view's
  *                 suites turn it on.
+ *   holdNative    hold the `native_snapshot` read open until `state.releaseNative()`;
+ *                 `state.holdNativeRead()` re-arms it (before a reload or a tab return).
+ *   nativeMeta    extra top-level fields on the `native_snapshot` answer (e.g. { plans_dropped: 2 }); `state.nativeMeta` changes it later.
+ *                 `state.failNative = 500` makes the next native reads fail with that status.
  *   flagRows      extra `syncview_runtime_flags` rows ({ key, value }) beside the
  *                 due-date authority row.
  *   flagResponse  { status, body } replaces the answer to the page-switch read (the one
@@ -194,6 +198,13 @@ async function launchWorkloadHarness(options) {
   };
   state.holdIssuesRead = () => { state.holdIssues = new Promise(resolve => { state.releaseIssues = resolve; }); };
   if (opts.holdIssues) state.holdIssuesRead();
+  // Same for the board's CURRENT read (`nativeSnapshot`): the saved-plan sidecar's native_snapshot answer.
+  state.nativeMeta = opts.nativeMeta || null;
+  state.failNative = 0;
+  state.holdNative = null;
+  state.releaseNative = null;
+  state.holdNativeRead = () => { state.holdNative = new Promise(resolve => { state.releaseNative = resolve; }); };
+  if (opts.holdNative) state.holdNativeRead();
   /* HOLDING THE BOARD IN ITS FAST FIRST PAINT.
    * `wlLoadSnapshot` awaits the issues AND the saved-plan read together, then
    * fast-paints with `planLoading` true, and only ADOPTS the plans after the
@@ -379,12 +390,15 @@ async function launchWorkloadHarness(options) {
       return route.fulfill({ status: 501, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'snapshot_cache_unavailable' }) });
     }
     if (opts.nativeSnapshot && body.action === 'native_snapshot') {
+      state.nativeReads = (state.nativeReads || 0) + 1;
+      if (state.holdNative) await state.holdNative;
+      if (state.failNative) return route.fulfill({ status: state.failNative, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'native_snapshot_failed' }) });
       const rows = state.issues.map(nativeRowFor);
       return route.fulfill({
         status: 200, contentType: 'application/json',
         body: JSON.stringify({
           ok: true, contract: 'workload-native-snapshot-v1', complete: true, count: rows.length,
-          authority: { video: 'syncview', graphics: 'syncview' }, legacy_teams: [], rows,
+          authority: { video: 'syncview', graphics: 'syncview' }, legacy_teams: [], rows, ...(state.nativeMeta || {}),
           roster: [EDITOR_1, EDITOR_2].map(m => ({ id: m.id, native_id: 'nat-' + m.id, name: m.name, team: 'video' })).concat([{ id: DESIGNER_1.id, native_id: 'nat-' + DESIGNER_1.id, name: DESIGNER_1.name, team: 'graphics' }]),
           plans: [...state.plans].map(([issue_id, plan_date]) => ({ issue_id, storage_issue_id: issue_id, client: slugOf(((state.issues.find(r => r.id === issue_id) || {}).client_name)), plan_date })),
         }),

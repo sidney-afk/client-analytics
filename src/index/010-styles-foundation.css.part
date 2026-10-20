@@ -507,6 +507,7 @@
             --sv-fg-0d9488: #0d9488;
             --sv-fg-0f766e: #0f766e;
             --sv-fg-5e6ad2: #5e6ad2;
+            --wl-calm-person: #6d28d9;
             --sv-fg-611f69: #611f69;
             --sv-fg-6b6b66: #6b6b66;
             --sv-fg-6b6b67: #6b6b67;
@@ -1089,6 +1090,7 @@
             --sv-fg-0d9488: #9edbd2;
             --sv-fg-0f766e: #b7e8e1;
             --sv-fg-5e6ad2: #c4c9ec;
+            --wl-calm-person: #cdb8ff;
             --sv-fg-611f69: #c5b1ca;
             --sv-fg-6b6b66: #c8cac9;
             --sv-fg-6b6b67: #c8caca;

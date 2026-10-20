@@ -33723,6 +33723,11 @@ Test: `node test/client-link-dark-first-paint-browser.js` (fails on main, passes
 
 **Way back:** the imported rows carry `backfill_tag` and `import_run_id` (`review-note-backfill-<since>`); revert the pull request for the script itself.
 
+## 456. [2026-10-20, FIXED] A yellow "saved work days come back in a moment" line flashed on every hard refresh of Workload (session Calm Five)
+
+On a hard refresh the board is painted from the saved browser copy while the live read is on its way, and `renderWorkloadPlanStatus` printed "Showing the board from HH:MM while it updates. Saved work days and editing come back in a moment." in the warning colour for the second the read took, then removed it. It read as something missing and was not. The sentence now waits a 4 second grace period from the moment the saved copy was painted (`cachedBoardPaintedMs`), so it appears only for a read that is genuinely slow; a read that fails still says "Couldn't update..." at once, and dropped or unmatched saved days keep their own lines. Shared code, so the flag-off Workload gets the same fix. Test: `docs/syncview-design/tests/workload-calm-five-browser.js`; `qa/workload-native/cached-board-browser.js` now expects the sentence after the grace period, not immediately.
+
+The same round restored the small plan-origin mark (carried over, planned automatically, pinned, loading, deadline fallback) on each Calm client row, muted, with its existing tooltip, and gave editor and designer names a purple tint so they are not read as clients.
 ## 454. [2026-10-20, BUILT, NOT MERGED] The Production write browser gate failed one run in twelve, in a different phase each time (session Anchor)
 
 - **Asked by:** the supervisor. `docs/syncview-design/tests/prod-write-gateway-browser.js` (fully offline) failed about 1 run in 12 locally and twice in CI in one day, each time in another section (`inplace_link`, `due_receipt`, `inplace_save`, `description_markdown`, `calendar_native_intake`). Reproduced at 3 to 6 copies at once, 3 to 6 reds in 48 runs; instrumented the page's repaints to find the cause instead of widening a wait.

@@ -214,7 +214,10 @@ function identity(verifiedAt) {
     {
       const d = new Date();
       const day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-      const saved = JSON.stringify({ v: 2, who: MEMBER.id + '|' + MEMBER.role, at: Date.now(), day,
+      // The shape number the app writes, read from its source so the next bump cannot break this test.
+      const savedV = Number((fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index', '097-today.js.part'), 'utf8').match(/const TDY_SAVED_V = (\d+);/) || [])[1]);
+      if (!savedV) throw new Error('TDY_SAVED_V not found in 097-today.js.part');
+      const saved = JSON.stringify({ v: savedV, who: MEMBER.id + '|' + MEMBER.role, at: Date.now(), day,
         html: '<div class="tdy-top"><h1 class="tdy-date">Gate day</h1></div><p class="tdy-big">GATE-SAVED-MARKER</p>' });
       const watch = () => {
         window.__sawEarly = false;

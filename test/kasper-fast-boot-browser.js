@@ -34,12 +34,14 @@ const WATCH = () => {
 };
 
 // One visit to Kasper's tab on t.page (the roster is merged by hand, as the other Kasper tests do).
-async function boot(t, origin, hash) {
+async function boot(t, origin, hash, lateRoster) {
   await t.page.addInitScript(WATCH);
   await t.page.goto(origin + '/index.html#' + (hash || 'kasper'), { waitUntil: 'domcontentloaded' });
   await t.page.waitForFunction(() => typeof navTo === 'function', null, { timeout: 30000 });
-  await t.page.evaluate(name => { try { _syncviewStaffIdentityVerified = true; } catch (e) {} try { wlMergeClientsFromSheet([name]); } catch (e) {} navTo('kasper'); }, CLIENT);
+  // lateRoster: the client list (the Clients Info sheet) reaches this page that many ms after the tab opens, as it does live.
+  await t.page.evaluate(([name, late]) => { try { _syncviewStaffIdentityVerified = true; } catch (e) {} if (!late) { try { wlMergeClientsFromSheet([name]); } catch (e) {} } navTo('kasper'); if (late) setTimeout(() => { try { wlMergeClientsFromSheet([name]); } catch (e) {} }, late); }, [CLIENT, delays_late(lateRoster)]);
 }
+function delays_late(x) { return Number(x) || 0; }
 // A second visit in the same browser (same storage: the cards and the hint of the first one are still there).
 async function again(t, origin, delays) {
   await t.page.close();
@@ -55,7 +57,11 @@ async function again(t, origin, delays) {
   if (delays && delays.posts) t.state.postsDelay = delays.posts;
   // No saved list in this browser: the first card appears only when the list has loaded.
   if (delays && delays.noCache) await t.page.addInitScript(() => { try { localStorage.removeItem('syncview_kasper_review_cache_v1'); } catch (e) {} });
-  await boot(t, origin, delays && delays.hash);
+  if (delays && delays.chips) await t.page.addInitScript(() => {
+    window.__chips = [];
+    setInterval(() => { const h = document.getElementById('svReviewStage'); const r = h && h.shadowRoot; if (!r || h.hidden) return; const n = r.querySelectorAll('#skList .chipp').length; const L = window.__chips; if (!L.length || L[L.length - 1] !== n) L.push(n); }, 15);
+  });
+  await boot(t, origin, delays && delays.hash, delays && delays.lateRoster);
 }
 const stageUp = page => page.waitForFunction(() => { const h = document.getElementById('svReviewStage'); const r = h && h.shadowRoot; return !!(r && !h.hidden && r.querySelectorAll('.pn, #stepper > *').length); }, null, { timeout: 30000 });
 const first = (state, re) => { const hit = (state.reqLog || []).find(x => re.test(x.path + (x.key ? '?' + x.key : ''))); return hit ? hit.t : 0; };
@@ -240,6 +246,64 @@ const newTab = (browser, origin, o) => open(browser, origin, Object.assign({ sta
       expect(warmed, 'the first video address was asked for after the slow switch answered, with no one pressing anything');
       await t.ctx.close();
     }
+
+    // ---------- the list draws once: no shrinking while the client list arrives during the refresh ----------
+    for (const [label, opt, wantShrink] of [['flag off', {}, true], ['flag on', { fast: true }, false]]) {
+      console.log('--- the list while the client list arrives mid-refresh, ' + label + ' ---');
+      const t = await newTab(browser, origin, Object.assign({ extraCards: 3 }, opt));
+      await boot(t, origin);
+      await stageUp(t.page);
+      await sleep(1500);
+      // The second visit: the saved list shows at once, the refresh takes 1.5 s, the client list lands 0.7 s in.
+      await again(t, origin, { posts: 1500, lateRoster: 700, chips: true });
+      await sleep(5500);
+      const chips = await t.page.evaluate(() => window.__chips);
+      const full = Math.max.apply(null, chips);
+      const shrank = chips.slice(chips.indexOf(full)).some(n => n < full);
+      console.log('     chips on the list over time: ' + chips.join(' > '));
+      expect(shrank === wantShrink, label + ': the list ' + (wantShrink ? 'shrinks and comes back while the client list arrives, as today' : 'never shrinks while the client list arrives (' + chips.join(' > ') + ')'));
+      expect(chips[chips.length - 1] === full, label + ': it ends with every card');
+      expect(t.errors.length === 0, label + ': no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    }
+
+    // ---------- pressing next or back finds the video already warm ----------
+    const switchMs = {};
+    for (const [label, opt] of [['off', {}], ['on', { fast: true }]]) {
+      console.log('--- next card, flag ' + label + ' ---');
+      const t = await newTab(browser, origin, opt);
+      t.state.cards.forEach((c, i) => { c.asset_url = 'https://f.io/FixtureClip' + (i + 1); });
+      t.state.viewDelay = 900;   // a slow video address, as live
+      await boot(t, origin);
+      await stageUp(t.page);
+      await t.page.waitForFunction(() => { const r = document.getElementById('svReviewStage').shadowRoot; const v = r.querySelector('.fv-video'); return !!v && v.readyState >= 2; }, null, { timeout: 30000 });
+      await sleep(2500);
+      const asked = (t.state.reqLog || []).filter(x => /frameio-view/.test(x.path)).length;
+      console.log('     Frame.io reads (address + comments per card) by then: ' + asked);
+      if (label === 'on') expect(asked >= 4, 'on: the next card\'s video address and comments were asked for while the first card was on stage (' + asked + ')');
+      else expect(asked === 2, 'off (control): only the card on stage has its video address and comments asked for (' + asked + ')');
+      // Press the second card in the list and time how long until its video can play.
+      const ms = await t.page.evaluate(async () => {
+        const r = document.getElementById('svReviewStage').shadowRoot;
+        const chips = r.querySelectorAll('#skList .chipp');
+        const before = r.querySelector('.fv-player');
+        const t0 = performance.now();
+        chips[1].click();
+        for (let i = 0; i < 400; i++) {
+          await new Promise(res => setTimeout(res, 20));
+          const p = r.querySelector('.fv-player'), v = p && p.querySelector('video');
+          // The new card's own player (the old one is replaced), with its video ready to play.
+          if (p && p !== before && v && v.readyState >= 2 && p.getAttribute('data-state') !== 'loading') return Math.round(performance.now() - t0);
+        }
+        return -1;
+      });
+      switchMs[label] = ms;
+      console.log('     press next to video ready: ' + ms + ' ms');
+      expect(ms > 0, label + ': the second card\'s video became ready');
+      expect(t.errors.length === 0, label + ': no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    }
+    expect(switchMs.on > 0 && switchMs.on < switchMs.off - 400, 'next card: the video is ready sooner with the flag on (' + switchMs.on + ' ms vs ' + switchMs.off + ' ms)');
   } finally {
     await browser.close();
     server.close();

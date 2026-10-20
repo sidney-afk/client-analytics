@@ -27,6 +27,8 @@ card's video is warmed while the list loads, and a second visit shows a loader i
 `node test/kasper-fast-boot-browser.js`. Not measured on the live site (OPEN_REPAIRS 470). The calendar reads behind the list
 (about 2.4 s) are the next lever and are untouched.
 
+Follow-up (OPEN_REPAIRS 471, same switch): the list no longer shrinks and comes back while the client list arrives during the refresh, and the posts before and after the one on stage have their video warmed, so next and back play sooner.
+
 ## Manager's Review tab asks once (session Settle, 2026-10-18): PR open
 
 Owner report: on a part with open change requests, picking "Approve to Kasper" or "Approve to client" opened a second

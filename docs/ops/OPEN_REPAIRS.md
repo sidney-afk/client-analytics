@@ -33804,3 +33804,10 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 - **Proven.** `test/review-stage-gauntlet3-browser.js`, case "Sheet Notes door click lost to a re-render": now one real click, no retry, a repaint forced on the press, asserting the dialog opens and the open action ran exactly once. Before the change: 0 of 9 pass (3 browsers by 3 widths). After: 9 of 9.
 
 **Way back:** revert the pull request.
+
+## 464. Unit runner cut off its own output under load (test-suite-routing 110 !== 147)
+
+- **Seen:** `test/test-suite-routing.js` failed in CI on #2259 (2026-10-20) and intermittently in local runs: it counted fewer NOT_RUN lines than required profiles (103 to 128 of 147).
+- **Cause:** `test/run-all.js` ended with `process.exit()` right after `console.log`. Node writes to a pipe asynchronously, so exiting at once can drop output still queued. Under load the routing test, which reads that output through a pipe, saw only part of it.
+- **Fix:** set `process.exitCode` and let Node exit on its own, so the output is flushed. The exit code is unchanged (a failing suite still exits 1).
+- **Proof:** 8 parallel runs on main: 4 failed. After the fix: 16 parallel runs, 0 failed. Full unit lane still exits 1 when a suite fails.

@@ -59,4 +59,7 @@ if (failures.length) {
 } else {
   console.log(`\nAll ${files.length} classified unit suites passed; ${plan.deferred.length} required profiles NOT_RUN in this lane ✅`);
 }
-process.exit(failures.length ? 1 : 0);
+// Set the exit code and let Node exit on its own: process.exit() right after
+// console.log can cut off output still queued for a pipe, which made the
+// routing test see only part of the NOT_RUN lines under load.
+process.exitCode = failures.length ? 1 : 0;

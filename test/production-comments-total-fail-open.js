@@ -283,7 +283,7 @@ async function call(extra = {}) {
      */
     const INDEX = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
     const moduleStart = INDEX.indexOf('const _prodComments = (() => {');
-    const apiLine = INDEX.indexOf('return { clear, ensure, refresh, retry, loadOlder, signIn, render, find, adopt, readCanonical };', moduleStart);
+    const apiLine = INDEX.indexOf('return { clear, ensure, refresh, retry, loadOlder, signIn, render, find, adopt, readCanonical, rows };', moduleStart);
     const moduleEnd = INDEX.indexOf('})();', apiLine);
     assert.ok(moduleStart > 0 && apiLine > moduleStart && moduleEnd > apiLine, 'could not locate the comments module');
     const MODULE = INDEX.slice(moduleStart, moduleEnd + '})();'.length);

@@ -33686,6 +33686,15 @@ Test: `node test/client-link-dark-first-paint-browser.js` (fails on main, passes
 
 **Way back:** revert the pull request.
 
+## 450. [2026-10-19, BUILT, NOT MERGED] Replying to a client's note in Notes failed for good with "Not sent" (session Thread)
+
+**What the owner saw:** a reply to a client's note on a native card showed "Not sent. Tap to retry", and retry failed again. The server refused it as `comment_parent_not_found` (409).
+
+**Cause:** the client's words existed twice, under two ids and two timestamps: once in the card's own comment list (the id the client page minted at the first attempt) and once in `production_comments` (a second id, minted when the gateway write ran minutes later). Because the timestamps differ, the canonical-covers-legacy check (body + author + time) fails and the card keeps drawing its own list, so the panel offered the card-list id as the parent. The server only knows `id` and `native_comment_id`, so no retry could succeed.
+
+**Fix (browser only; production-write unchanged, nothing to re-pin):** `_prodServerParentRef` names the canonical twin (same words and role, a root note) when the parent id is unknown to the canonical thread; used by the Calendar and Samples comment sends. An id the server knows is sent unchanged. Held retries re-read the parent at send time, so a stuck reply sends on its next Retry once the page is reloaded.
+
+**Test:** `test/reply-parent-server-id.js` feeds a card-list id that differs from the canonical id and timestamp, the shape real data has.
 ## 449. [2026-10-19, BUILT, NOT MERGED] Calm Workload day cards: editor no longer looks like a client row, every client row has a dot, count pills on the header row (session Calm Four)
 
 - **Asked by the owner** after looking at the week calendar: the editor name had a dot just like the client rows, some client rows had no dot at all, and the overdue / tweaks / in progress pills sat on a line of their own.

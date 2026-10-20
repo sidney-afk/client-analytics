@@ -8566,7 +8566,10 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
  /* The editor is a muted rounded-square initial (like the Team workload avatars), never a dot, so a person and a client row differ at a glance. */
  .workload-view.wl-calm .workload-day-card-head { flex-wrap: wrap; row-gap: 2px; }
  .workload-view.wl-calm .workload-day-card-badge { display: inline-flex; align-items: center; justify-content: center; width: 1.25em; height: 1.25em; border-radius: 5px; background: var(--bg); color: var(--text-secondary); font-size: 0.66rem; font-weight: 800; line-height: 1; flex: 0 0 auto; text-transform: uppercase; }
- .workload-view.wl-calm .workload-day-card-name { flex: 1 1 4.5em; font-weight: 700; color: var(--text-primary); }
+ .workload-view.wl-calm { --wl-calm-person: #6d28d9; }
+ html[data-theme="dark"] .workload-view.wl-calm { --wl-calm-person: #cdb8ff; }
+ .workload-view.wl-calm .workload-day-card-name { flex: 1 1 4.5em; font-weight: 700; color: var(--wl-calm-person); }
+ .workload-view.wl-calm .workload-day-card-badge { color: var(--wl-calm-person); }
  .workload-view.wl-calm .workload-day-card-status.is-in-head { flex: 0 1 auto; flex-wrap: nowrap; gap: 2px; }
  .workload-view.wl-calm .workload-day-card-total { flex: 0 0 auto; margin-left: auto; }
  .workload-view.wl-calm .workload-day-card-total { background: transparent; box-shadow: none; padding: 1px 4px; color: var(--text-muted); font-weight: 650; }
@@ -8582,7 +8585,10 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
  .workload-view.wl-calm .workload-day-card-chip-main { flex: 1; }
  .workload-view.wl-calm .workload-day-card-chip-count { color: var(--text-muted); font-weight: 600; }
  .workload-view.wl-calm .workload-day-card-chip-meta { margin-left: auto; flex-wrap: nowrap; }
- .workload-view.wl-calm .workload-day-card-chip-meta .wl-plan-origin, .workload-view.wl-calm .workload-day-card-chip-meta .wl-workload-group { display: none; }
+ .workload-view.wl-calm .workload-day-card-chip-meta .wl-workload-group { display: none; }
+ /* The plan-origin mark (carried over / planned automatically / pinned) stays on the client row, small and muted; its tooltip says which. */
+ .workload-view.wl-calm .workload-day-card-chip-meta .wl-plan-origin { opacity: 0.72; }
+ .workload-view.wl-calm .workload-day-card-chip-meta .wl-plan-origin svg { width: 11px; height: 11px; }
  .workload-view.wl-calm .workload-day-card-chip .workload-drag-handle, .workload-view.wl-calm .wl-calm-row .workload-drag-handle { opacity: 0; transition: opacity 0.1s; }
  .workload-view.wl-calm .workload-day-card-chip:hover .workload-drag-handle, .workload-view.wl-calm .wl-calm-row:hover .workload-drag-handle, .workload-view.wl-calm .workload-drag-handle:focus-visible { opacity: 0.7; }
  .workload-view.wl-calm .wl-deadline-summary.is-green, .workload-view.wl-calm .wl-deadline-summary.is-neutral { --wl-proximity-dot: var(--text-muted); color: var(--text-muted); }

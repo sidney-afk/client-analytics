@@ -33873,3 +33873,13 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 - **Not done / known.** A client list that arrives after the read has finished still waits for the next refresh (as before). The warm-up is held 45 s and is not renewed on a long stay on one card, so a slow next press after that is as before.
 
 **Way back:** delete the `kasper_fast_boot` row, or revert the pull request.
+
+## 472. [2026-10-20, PR OPEN, behind `kasper_fast_boot`] Kasper's tab drew an old saved list as if it were current (session Quick, follow-up to 471)
+
+- **Owner report (2026-10-20, after 471 was live).** The page was slow to load; Kasper's tab then showed 15 to 17 cards waiting for review for several seconds before it updated. The real queue read by SQL at the time was 2 cards with a part at Kasper Approval.
+- **Cause.** The tab keeps the last list in the browser and draws it at once (up to 24 hours old, `KASPER_CACHE_MAX_AGE_MS`), then replaces it when the fresh read lands (about 2.4 s, longer on a slow connection). With the fast boot the saved list is drawn sooner and the fresh read is repeated when the client list grows (471), so an old list stays on screen longer. Not measured live; the Wi-Fi may add to it.
+- **Changed, only while `kasper_fast_boot` is on for the person.** `321` `_kasperHydrateCache`: a saved list older than 3 minutes is treated as stale (not drawn); the loader holds until the fresh read lands. A list under 3 minutes old is still drawn at once. Flag off: unchanged (24 hours).
+- **Proven.** `test/kasper-fast-boot-browser.js`: flag off 30-minute-old list drawn during the fresh read; flag on not drawn; flag on 1-minute-old list drawn.
+- **Cost, stated plainly.** On a visit after a few minutes away the tab shows the loader (about the length of the fresh read) instead of an old list. If the owner prefers the old list back with a clear "updating" mark, that is one constant and a label.
+
+**Way back:** delete the `kasper_fast_boot` row, or revert the pull request.

@@ -57,6 +57,8 @@ async function again(t, origin, delays) {
   if (delays && delays.posts) t.state.postsDelay = delays.posts;
   // No saved list in this browser: the first card appears only when the list has loaded.
   if (delays && delays.noCache) await t.page.addInitScript(() => { try { localStorage.removeItem('syncview_kasper_review_cache_v1'); } catch (e) {} });
+  // ageCache: the saved list is that many minutes old (this browser last opened the tab that long ago).
+  if (delays && delays.ageCache) await t.page.addInitScript(min => { try { const k = 'syncview_kasper_review_cache_v1', c = JSON.parse(localStorage.getItem(k) || 'null'); if (c) { c.savedAt = Date.now() - min * 60000; localStorage.setItem(k, JSON.stringify(c)); } } catch (e) {} }, delays.ageCache);
   if (delays && delays.chips) await t.page.addInitScript(() => {
     window.__chips = [];
     setInterval(() => { const h = document.getElementById('svReviewStage'); const r = h && h.shadowRoot; if (!r || h.hidden) return; const n = r.querySelectorAll('#skList .chipp').length; const L = window.__chips; if (!L.length || L[L.length - 1] !== n) L.push(n); }, 15);
@@ -263,6 +265,25 @@ const newTab = (browser, origin, o) => open(browser, origin, Object.assign({ sta
       console.log('     chips on the list over time: ' + chips.join(' > '));
       expect(shrank === wantShrink, label + ': the list ' + (wantShrink ? 'shrinks and comes back while the client list arrives, as today' : 'never shrinks while the client list arrives (' + chips.join(' > ') + ')'));
       expect(chips[chips.length - 1] === full, label + ': it ends with every card');
+      expect(t.errors.length === 0, label + ': no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    }
+
+
+    // ---------- an old saved list is not drawn as if it were current ----------
+    for (const [label, opt, ageMin, wantEarly] of [['flag off, list 30 minutes old', {}, 30, true], ['flag on, list 30 minutes old', { fast: true }, 30, false], ['flag on, list 1 minute old', { fast: true }, 1, true]]) {
+      console.log('--- saved list age, ' + label + ' ---');
+      const t = await newTab(browser, origin, opt);
+      await boot(t, origin);
+      await stageUp(t.page);
+      await sleep(1500);
+      await again(t, origin, { posts: 2500, ageCache: ageMin, chips: true });
+      await sleep(1200);
+      const early = await t.page.evaluate(() => (window.__chips || []).some(n => n > 0));
+      await sleep(4500);
+      const chips = await t.page.evaluate(() => window.__chips);
+      expect(early === wantEarly, label + ': the saved list ' + (wantEarly ? 'is drawn while the fresh read runs' : 'is not drawn while the fresh read runs (loader instead)'));
+      expect(chips[chips.length - 1] > 0, label + ': the fresh list ends on screen');
       expect(t.errors.length === 0, label + ': no page errors (' + t.errors.join(' | ') + ')');
       await t.ctx.close();
     }

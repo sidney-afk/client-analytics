@@ -940,6 +940,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _msgStartLive();
     }
     window._msgMountPage = _msgMountPage;
+    // A reload on /messages can reach navTo('messages') before this file has run (a slow or busy device): the router
+    // then left an empty #msgPage shell, found no mount function, and nothing came back to fill it unless the sign-in
+    // happened to change afterwards, so the person saw a blank Messages page. Fill it now that the mount exists.
+    {
+        const lateShell = document.getElementById('msgPage');
+        if (lateShell && !lateShell.querySelector('.msg-page-body')) _msgMountPage(lateShell);
+    }
     /* The same inbox inside the Kasper tab, under its one header (323, while the new review page is on for this
        person): no page head and no Close button, the tab bar is the way out. A repaint keeps a reply being typed. */
     function _msgMountEmbedded(root) {

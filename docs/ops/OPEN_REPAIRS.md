@@ -33753,3 +33753,12 @@ The same round restored the small plan-origin mark (carried over, planned automa
 - **Test.** The gate now dispatches the Escape so the restore starts during its dispatch, throws the strip to 0 as a redraw would, and asserts it returns to 300; and that a key pressed after the restore began still ends it. The first check fails on the old code in both themes.
 
 **Way back:** revert the pull request.
+
+## 458. [2026-10-20, BUILT, NOT MERGED] A reload on the Messages page could show an empty page, because the router ran before the Messages code (session Compass Three)
+
+- **Asked by:** the supervisor. `docs/syncview-design/tests/messages-inbox-browser.js` failed `F: a reload on the Messages page comes back to it` in 9 to 12 of 30 runs at 6 copies at once.
+- **Cause, one app race, no test fault.** The app loads as a row of script files. On a reload at `/messages` the router (`navTo('messages')`) can run before the file holding the Messages code (`326`) has run. It checks `typeof window._msgMountPage === 'function'`, finds none and leaves an empty `#msgPage` shell. When the Messages file ran later it only exported its functions; the shell was filled again only if the staff sign-in refreshed afterwards, and in the failing runs it did not. Measured with timestamps: router at 494 ms, Messages code at 597 ms, no sign-in refresh after, page still empty after 30 s. A person on a slow or busy device who reloaded on Messages (or opened a bookmark to it) saw the Messages title area gone and a blank page: no list, no Close button, until they clicked another tab and back.
+- **Changed.** `src/index/326-core-messages-inbox.js.part`: when the Messages code runs and finds an empty `#msgPage` shell, it mounts the page into it.
+- **Test.** The gate now answers the file that holds the Messages code 2.5 s late on a reload at `#messages`, which forces the order, and asserts the conversations still appear (fails on the old code every time, passes on the new). Before: 8 of 30 runs red on this check at 6 copies; after: 0 of 30.
+
+**Way back:** revert the pull request.

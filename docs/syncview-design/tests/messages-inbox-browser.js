@@ -228,6 +228,21 @@ async function markUnread(page){
     // clean /messages path the live site redirects, so use its hash form).
     await page.goto(S.origin + '/index.html#messages', { waitUntil: 'domcontentloaded' });
     check(await until(() => page.evaluate(() => typeof currentNav !== 'undefined' && currentNav === 'messages' && document.querySelectorAll('#msgPage .msg-conv').length === 2), 30000), 'F: a reload on the Messages page comes back to it');
+    // The same reload when the router reaches the Messages page BEFORE the Messages code has run (a slow or busy device:
+    // the app is loaded as a row of script files). Forced here instead of waited for: the file that holds the Messages
+    // code is answered late, so the router finds no mount function and leaves an empty shell. Once the code has run
+    // the page must be drawn, whether or not the sign-in refreshes again afterwards.
+    let heldChunk = 0;
+    await page.route('**/js/sv-*.js', async route => {
+      const res = await route.fetch();
+      const body = await res.text();
+      if (/window\._msgMountPage\s*=\s*_msgMountPage/.test(body)) { heldChunk++; await sleep(2500); }
+      await route.fulfill({ response: res, body });
+    });
+    await page.goto(S.origin + '/index.html#messages', { waitUntil: 'domcontentloaded' });
+    check(await until(() => page.evaluate(() => typeof currentNav !== 'undefined' && currentNav === 'messages' && document.querySelectorAll('#msgPage .msg-conv').length === 2), 30000), 'F: a reload that reaches Messages before the Messages code has run still shows the conversations (late chunks held: ' + heldChunk + ')');
+    await page.unroute('**/js/sv-*.js');
+    check(heldChunk >= 1, 'F: setup: the file holding the Messages code was really answered late (' + heldChunk + ')');
     await page.click('#navCalendar');
     check(await until(() => page.evaluate(() => currentNav === 'calendar' && !document.getElementById('msgPage'))), 'F: clicking another tab leaves the Messages page');
 

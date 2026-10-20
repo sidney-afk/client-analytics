@@ -98,7 +98,10 @@ async function visit(browser,server,{local={},holdLive=false,ghost=false,failV2W
   await v.run.page.waitForFunction(()=>wlState.cachedBoardAt!=null&&wlState.allActiveSubs.length>0,{},{timeout:12000});
   let s=await v.state();
   ok(s.ghost&&s.names.includes('Old Display Name'),'a 1-hour-old cached board is painted immediately (stale card and old name visible)');
-  ok(/Showing the board from \d\d:\d\d while it updates/.test(s.notice),'and it says so: "'+s.notice.split('\n')[0]+'"');
+  ok(!/Showing the board from/.test(s.notice),'a read that is merely on its way does not print a warning (it flashed and vanished on every hard refresh)');
+  await v.run.page.waitForFunction(()=>/Showing the board from \d\d:\d\d while it updates/.test((document.getElementById('wlPlanStatus')||{}).innerText||''),{},{timeout:9000});
+  s=await v.state();
+  ok(/Showing the board from \d\d:\d\d while it updates/.test(s.notice),'a read that is still out after the grace period does say so: "'+s.notice.split('\n')[0]+'"');
   ok(s.panel.includes('Zero Work Editor'),'the zero-work ("Free") editor is in the Team workload panel on the cached first paint: '+s.panel.join(', '));
   const cachedPanel=s.panel;
   await v.shot('cached-1h-while-updating.png');

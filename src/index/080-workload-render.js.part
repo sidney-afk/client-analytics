@@ -178,6 +178,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         if (cachedIssues && !wlState.issueSnapshot.length) {
             wlState.planLoading = true;
             wlState.cachedBoardAt = cache.fetchedAt;
+            wlState.cachedBoardPaintedMs = _wlNowMs();
             // The roster saved with it, so the Team workload panel has its final
             // rows (zero-work "Free" editors included) from the first frame. The
             // live snapshot replaces it; a cache without one leaves it 'unknown'.
@@ -2058,6 +2059,20 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
             + ' Those cards are placed automatically; check them before planning around them.';
     }
 
+    const WL_CACHED_NOTICE_GRACE_MS = 4000;
+    let _wlCachedNoticeTimer = null;
+    function _wlNowMs() {
+        try { return performance.now(); } catch (e) { return 0; }
+    }
+    function _wlScheduleCachedNotice() {
+        if (_wlCachedNoticeTimer !== null) return;
+        const wait = Math.max(50, WL_CACHED_NOTICE_GRACE_MS - (_wlNowMs() - (Number(wlState.cachedBoardPaintedMs) || 0)) + 50);
+        _wlCachedNoticeTimer = setTimeout(() => {
+            _wlCachedNoticeTimer = null;
+            try { if (document.querySelector('.workload-view') && wlState.cachedBoardAt != null) renderWorkloadPlanStatus(); } catch (e) {}
+        }, wait);
+    }
+
     function renderWorkloadPlanStatus() {
         const el = document.getElementById('wlPlanStatus');
         if (!el) return;
@@ -2110,9 +2125,16 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
             const time = at.toDateString() === new Date().toDateString()
                 ? hhmm : at.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + hhmm;
             const updating = wlState.loading || status === 'loading' || status === 'refreshing';
-            notices.push(updating
-                ? 'Showing the board from ' + time + ' while it updates. Saved work days and editing come back in a moment.'
-                : 'Couldn’t update. Showing the board from ' + time + '. Saved work days and editing are off until it refreshes. Try Refresh.');
+            if (!updating) {
+                notices.push('Couldn’t update. Showing the board from ' + time + '. Saved work days and editing are off until it refreshes. Try Refresh.');
+            } else if (_wlNowMs() - (Number(wlState.cachedBoardPaintedMs) || 0) >= WL_CACHED_NOTICE_GRACE_MS) {
+                notices.push('Showing the board from ' + time + ' while it updates. Saved work days and editing come back in a moment.');
+            } else {
+                /* A read that is simply on its way is not a problem, and saying so in the warning colour for the second
+                   it takes (every hard refresh) read as "something is missing" and then vanished. The sentence is for a
+                   read that is slow enough to matter; a read that fails says so at once, above. */
+                _wlScheduleCachedNotice();
+            }
         }
 
         const droppedText = wlDroppedPlanWarningText(wlState.nativePlansDropped);

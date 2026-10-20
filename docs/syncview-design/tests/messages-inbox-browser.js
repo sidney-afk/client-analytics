@@ -588,6 +588,21 @@ async function markUnread(page){
             check(await opened(), `${tag}: Messages opens a third time`);
             await pg.keyboard.press('Escape');
             await back('Escape');
+            // Deterministic form of the race behind "the strip is back at the start after Escape": the Escape that closes
+            // Messages is still bubbling when the restore starts, and it must not count as the person taking over. Right
+            // after that Escape (same task, before any timer) the strip is thrown back to 0 as a Calendar redraw would;
+            // the restore has to put it back to 300. A key pressed AFTER the restore started (still running) must still end it.
+            check(await opened(), `${tag}: Messages opens a fourth time`);
+            await pg.evaluate(() => document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })));
+            check(await until(() => pg.evaluate(() => !document.getElementById('msgPage') && currentNav === 'calendar' && !!document.querySelector('.cal-organizer-strip')), 8000), `${tag}: Escape (dispatched): Messages closes`);
+            // Throw the strip back to 0 for a second, as a Calendar redraw would, then stop and let the restore (if it is still running) win.
+            await pg.evaluate(async () => { const t = Date.now(); while (Date.now() - t < 1000) { const st = document.querySelector('.cal-organizer-strip'); if (st) st.scrollLeft = 0; await new Promise(r => setTimeout(r, 20)); } });
+            check(await until(() => pg.evaluate(() => Math.abs(((document.querySelector('.cal-organizer-strip') || {}).scrollLeft || 0) - 300) <= 6), 6000), `${tag}: Escape (dispatched): the strip is put back to 300 although the Escape was still bubbling`);
+            await pg.keyboard.press('Shift');
+            await pg.evaluate(() => { const st = document.querySelector('.cal-organizer-strip'); st.scrollLeft = 17; });
+            await pg.waitForTimeout(600);
+            check(await pg.evaluate(() => Math.round((document.querySelector('.cal-organizer-strip') || {}).scrollLeft || 0)) === 17, `${tag}: a key pressed after the restore began ends it (the person's own scroll is left alone)`);
+            await pg.evaluate(() => { const st = document.querySelector('.cal-organizer-strip'); if (st) st.scrollLeft = 300; window.scrollTo(0, 100); });
           }
           // 4. browser Back
           check(await opened(), `${tag}: Messages opens once more`);

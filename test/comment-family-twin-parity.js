@@ -252,6 +252,7 @@ for (const row of FAMILY) {
    classifies it, which is the point. */
 const EXCLUDED = {
     _prodCanonicalCommentGate: 'the gate itself',
+    _noteReviewGoesToGateway: 'routing choice for the review-page note; the Calendar review page has no Samples twin',
     _writeUiCardCommentLifecycle: 'shared write-UI plumbing, not a per-surface operation',
     _writeUiCurrentCardCommentForResolve: 'the same, on the resolve path',
     /* Samples-only, and deliberately NOT asserted as missing twins: the two

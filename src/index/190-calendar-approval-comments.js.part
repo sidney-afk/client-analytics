@@ -44,7 +44,7 @@ import {
   _calShowApprovedAfterTweaks, _notesMarkSeen
 } from './180-calendar-native-post-media.js';
 import { _calCrqBegin, _calCrqDone, _calCrqFailed, _calCrqHeld, _calCrqResend, _calCrqResolve } from './185-client-review-queue.js';
-import { _prodCanonicalCommentGate, _prodCardCommentsPending, _prodComments, _prodCommentsSkeletonHtml, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
+import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodCardCommentsPending, _prodComments, _prodCommentsSkeletonHtml, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-onboarding-staff-controls.js';
 import { svRsCalOn, svRsCalPending, svRsCalSync, svRsClientReviewOn } from './188-review-stage-switch.js';
@@ -2167,6 +2167,17 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         try { _calRefreshCommentsBtn(pid); } catch (e) {}
         try { window.dispatchEvent(new CustomEvent('sv-note-outbox', { detail: { pid } })); } catch (e) {}
     }
+    /* Staff: the card's comments are linked to production. A client link: the
+       verified client write context for this Calendar card (the read gate says
+       "not linked" for every client Calendar card, because canonical client
+       reads are Samples-only, but the client write is a separate predicate). */
+    async function _noteReviewGoesToGateway(pid, comp) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post || !(comp === 'video' || comp === 'graphic')) return false;
+        if (_isClientLink) return !!(await _prodClientCommentGatewayContext('calendar', post, comp));
+        const gate = _prodCanonicalCommentGate(post, comp);
+        return !!(gate && gate.linked);
+    }
     /* Send (or re-send) one waiting note. Never awaited by a click. */
     function _noteOutboxSend(id) {
         const first = _noteOutboxGet(id);
@@ -2180,7 +2191,12 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             if (!entry) return false;
             let ok = false, error = '';
             try {
-                if (entry.kind === 'review-comment') ok = await _calReviewCommentSend(entry);
+                /* A plain review note on a card whose comments live in production
+                   goes through the same gateway write as a Notes note, with the
+                   id it already has. The card-row-only save left it with no
+                   production row, so the note showed in review but not in Notes,
+                   and typing it again there made a second copy under a new id. */
+                if (entry.kind === 'review-comment' && !(await _noteReviewGoesToGateway(pid, entry.comp))) ok = await _calReviewCommentSend(entry);
                 else {
                     if (entry.surface === 'msg' && typeof window._msgBeforeNoteSend === 'function') await window._msgBeforeNoteSend(entry);
                     ok = await _calAppendComment(pid, entry.parent_id || null, entry.body, {

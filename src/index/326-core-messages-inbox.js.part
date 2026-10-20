@@ -825,6 +825,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     // scroll-into-view runs, a refresh re-draws the strip) and any of them can move a place the person just got back.
     // The first thing the person does themselves (wheel, touch, key, press) ends it.
     function _msgApplyScroll(r, tries) {
+        if (r.stop) return;   // the person took over while this tick was already waiting: leave their place alone
         const content = document.getElementById('content');
         if (content && content.children.length && !document.getElementById('msgPage')) {
             const bySig = new Map();
@@ -836,6 +837,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             if (r.scrollY && Math.abs(window.scrollY - r.scrollY) > 1) window.scrollTo({ top: r.scrollY, behavior: 'instant' });
         }
         if (tries < 60 && !r.stop) setTimeout(() => _msgApplyScroll(r, tries + 1), 100);
+        else if (r.off) r.off();
     }
     function _msgRestore(push) {
         const r = _msgReturn; _msgReturn = null;
@@ -847,8 +849,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }
         navTo(nav, push);
         if (r && (r.scrollY || r.scrollers.length)) {
-            const stop = () => { r.stop = true; };
-            ['wheel', 'touchstart', 'keydown', 'mousedown'].forEach(t => window.addEventListener(t, stop, { once: true, passive: true }));
+            // The press that CAUSED this restore (Escape, the Close button) is still travelling up to the window when
+            // it runs, and a listener added now would catch it and end the restore at once, leaving the strip to
+            // whatever the Calendar's next redraw gives (back at the start). So an event that began before the
+            // restore did is not the person taking over. Listeners are taken off again when the restore is over.
+            const t0 = performance.now(), types = ['wheel', 'touchstart', 'keydown', 'mousedown'];
+            const off = () => types.forEach(t => window.removeEventListener(t, stop));
+            const stop = ev => { if (ev && ev.timeStamp <= t0) return; r.stop = true; off(); };
+            r.off = off;
+            types.forEach(t => window.addEventListener(t, stop, { passive: true }));
             _msgApplyScroll(r, 0);
         }
     }

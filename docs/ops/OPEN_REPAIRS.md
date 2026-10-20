@@ -33686,6 +33686,14 @@ Test: `node test/client-link-dark-first-paint-browser.js` (fails on main, passes
 
 **Way back:** revert the pull request.
 
+## 452. [2026-10-19, BUILT, NOT MERGED] A plain note written on the review page never reached the comment store, so it was typed again and saved twice under two ids (session Thread)
+
+**Cause:** a plain (not change-request) note sent from the review page was saved to the card row only, never through the production-write comment add, even on a card whose comments live in production. It showed in review but had no production row, so Notes did not show it as canonical; the client typed it again in Notes, and that second copy (new id, later time) was the only one the server knew. Measured read-only since 2026-10-01: 57 client notes on 12 linked cards exist only in the card row, and 2 of them have a same-words twin in production.
+
+**Fix:** `_noteOutboxSend` sends a review note on a linked video or thumbnail part through the gateway add with the note's own id (`_noteReviewGoesToGateway`); caption, title and unlinked cards keep the card-row save. The "canonical covers legacy" match is left strict on purpose: it protects against lossy replacement, and the reply fix (#2243) already maps the parent. Notes already stuck as card-row-only are not back-filled here.
+
+**Test:** `test/review-note-one-id.js`.
+
 ## 450. [2026-10-19, BUILT, NOT MERGED] Replying to a client's note in Notes failed for good with "Not sent" (session Thread)
 
 **What the owner saw:** a reply to a client's note on a native card showed "Not sent. Tap to retry", and retry failed again. The server refused it as `comment_parent_not_found` (409).
@@ -33715,6 +33723,11 @@ Test: `node test/client-link-dark-first-paint-browser.js` (fails on main, passes
 
 **Way back:** the imported rows carry `backfill_tag` and `import_run_id` (`review-note-backfill-<since>`); revert the pull request for the script itself.
 
+## 456. [2026-10-20, FIXED] A yellow "saved work days come back in a moment" line flashed on every hard refresh of Workload (session Calm Five)
+
+On a hard refresh the board is painted from the saved browser copy while the live read is on its way, and `renderWorkloadPlanStatus` printed "Showing the board from HH:MM while it updates. Saved work days and editing come back in a moment." in the warning colour for the second the read took, then removed it. It read as something missing and was not. The sentence now waits a 4 second grace period from the moment the saved copy was painted (`cachedBoardPaintedMs`), so it appears only for a read that is genuinely slow; a read that fails still says "Couldn't update..." at once, and dropped or unmatched saved days keep their own lines. Shared code, so the flag-off Workload gets the same fix. Test: `docs/syncview-design/tests/workload-calm-five-browser.js`; `qa/workload-native/cached-board-browser.js` now expects the sentence after the grace period, not immediately.
+
+The same round restored the small plan-origin mark (carried over, planned automatically, pinned, loading, deadline fallback) on each Calm client row, muted, with its existing tooltip, and gave editor and designer names a purple tint so they are not read as clients.
 ## 454. [2026-10-20, BUILT, NOT MERGED] The Production write browser gate failed one run in twelve, in a different phase each time (session Anchor)
 
 - **Asked by:** the supervisor. `docs/syncview-design/tests/prod-write-gateway-browser.js` (fully offline) failed about 1 run in 12 locally and twice in CI in one day, each time in another section (`inplace_link`, `due_receipt`, `inplace_save`, `description_markdown`, `calendar_native_intake`). Reproduced at 3 to 6 copies at once, 3 to 6 reds in 48 runs; instrumented the page's repaints to find the cause instead of widening a wait.
@@ -33732,3 +33745,11 @@ Test: `node test/client-link-dark-first-paint-browser.js` (fails on main, passes
 - **Tests.** `test/review-stage-kasper-layout2-browser.js` (new, `browser-guards` part 1): flag off, someone else, wrong shape, 1100 and 390 wide are today's page; on: list, counts, bubbles, keyboard, all parts, saves per part, vertical and wide layouts, Finish and Close, resize across the limit. `test/fixtures/review-stage-fixture.js` gained `layout2`, `orient`, `thumbs` and `extraCards`.
 
 **Way back:** delete the `review_stage_kasper_layout2` row (today's page on the next load), or revert the pull request.
+## 457. [2026-10-20, BUILT, NOT MERGED] The Calendar strip jumped back to the start after closing Messages with Escape or the Close button (session Compass Three)
+
+- **Asked by:** the supervisor. `docs/syncview-design/tests/messages-inbox-browser.js` failed intermittently in CI on two unrelated pull requests: after leaving Messages by Escape or browser Back, the Calendar organizer strip came back at 0 instead of 300.
+- **Cause, one app race, no test fault.** `_msgRestore` puts the Calendar places back and watches for the person taking over (wheel, touch, key, press), which ends the restore. Those listeners were added while the very Escape or click that caused the restore was still bubbling to the window, so that event ended the restore at once and the strip was left wherever the Calendar's own redraw put it (0). Whether the redraw ran before or after the restore's first pass depended on machine speed, hence intermittent. A person hit it as the strip jumping back to the start after closing Messages with Escape or the Close button. Two smaller faults in the same place: the listeners were never taken off, and a restore tick already waiting still moved the strip after the person had taken over.
+- **Changed.** `src/index/326-core-messages-inbox.js.part`: an event that began before the restore (timeStamp at or before its start) is not the person taking over; the listeners are removed when the restore ends or is taken over; a waiting tick returns at once when the restore was taken over.
+- **Test.** The gate now dispatches the Escape so the restore starts during its dispatch, throws the strip to 0 as a redraw would, and asserts it returns to 300; and that a key pressed after the restore began still ends it. The first check fails on the old code in both themes.
+
+**Way back:** revert the pull request.

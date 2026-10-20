@@ -74,6 +74,7 @@
         // identity, so a refresh sends its version and reuses it on "unchanged".
         snapshotMemo: null,
         snapshotV2Unavailable: false,                // 400/501 from v2: use the v1 action for this page
+        cachedBoardPaintedMs: 0,                    // performance.now() when that copy was painted; the "while it updates" sentence waits a grace period from here
         cachedBoardAt: null,                        // set while the board shows the localStorage copy, not a live snapshot
         sourceSyncedAt: null,                      // newest workload_issues.synced_at represented by this snapshot
         loading: false,

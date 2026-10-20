@@ -31,6 +31,7 @@
     "higgsfield-client-questions.js",
     "higgsfield-client-brain.js",
     "higgsfield-private-ip.js",
+    "higgsfield-video-cards.js",
     "pipeline-pass.js",
     "pipeline-store.js",
     "pages-deploy-source-unreadable.js",

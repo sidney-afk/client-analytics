@@ -33829,7 +33829,7 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 
 **Way back:** revert the pull request; the row's `staff` list keeps working.
 
-## 467. [2026-10-20, BUILT, NOT MERGED] A caption sent back for tweaks never showed on Today (session Quill)
+## 469. [2026-10-20, BUILT, NOT MERGED] A caption sent back for tweaks never showed on Today (session Quill)
 
 - **Asked by:** the owner: when captions are in tweaks needed, they should appear in the Today list, in the Captioning section, to the right.
 - **Gap, measured on `origin/main`:** Today's staff list "Captions to write" (`_tdyJobs`, `src/index/097-today.js.part`) picked only posts with an EMPTY caption inside the 14-day window. The read did not even fetch `caption_status` or `caption_tweaks`, so a written caption the client or Kasper sent back for tweaks was on no Today list at all.

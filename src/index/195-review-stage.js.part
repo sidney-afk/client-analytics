@@ -280,7 +280,16 @@ svg{display:block;flex-shrink:0}
 .b-edit svg{width:12px;height:12px}
 .b-edit:hover{background:var(--fill);box-shadow:inset 0 0 0 1px var(--text-secondary)}
 .tcard.wc{width:min(100cqw,480px);height:100cqh;max-height:none;display:flex;flex-direction:column;padding:26px 28px 22px}
-.tcard.wc .tc-main{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin}   /* a long caption scrolls inside the card; its footer stays put (client gauntlet 2) */
+.tcard.wc .tc-main{flex:1;min-height:0;overflow-y:auto}   /* a long caption scrolls inside the card; its footer stays put (client gauntlet 2) */
+/* The caption box's scrollbar (owner feedback 2026-10-20): thin, rounded, themed, no arrow buttons, inset from the card's edge.
+   The standard scrollbar-width is NOT set here on purpose: in Chromium it replaces these rules with the system's own bar,
+   arrows and all (Firefox, which has no ::-webkit-scrollbar, gets the standard properties from the app-wide block). */
+.tc-main::-webkit-scrollbar{width:8px;height:8px;background:transparent}
+.tc-main::-webkit-scrollbar-track,.tc-main::-webkit-scrollbar-corner{background:transparent;margin:4px 0}
+.tc-main::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:99px;border:2px solid transparent;background-clip:padding-box}
+.tc-main::-webkit-scrollbar-thumb:hover{background:var(--scroll-thumb-hover);background-clip:padding-box}
+.tc-main::-webkit-scrollbar-button{display:none;width:0;height:0}
+@supports not selector(::-webkit-scrollbar){.tc-main{scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent;padding-right:4px}}
 .tc-lbl{display:flex;align-items:center;gap:7px;font-size:.74rem;font-weight:700;color:var(--pi)}
 .tc-foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--hair);font-size:.74rem;color:var(--text-secondary)}
 .tc-h:empty{display:none}
@@ -904,20 +913,29 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     /* Kasper's second layout (session Easel, 2026-10-20): added to the page's styles only when that layout is on, so the
        old layout's stylesheet is untouched. Tokens only, no colours of its own. */
     const RS_CSS_L2 = `
-.rs.l2 .stage,.rs.l2 .stage.land{grid-template-columns:256px minmax(0,1fr) 360px;grid-template-rows:auto minmax(0,1fr);column-gap:20px;row-gap:12px}
+.rs.l2 .stage,.rs.l2 .stage.land{grid-template-columns:256px minmax(0,1fr) 360px;grid-template-rows:minmax(0,1fr);column-gap:20px;row-gap:0}
 .rs.l2 .stage.is-empty{display:grid}
-.rs.l2 .recap{grid-column:2/4;grid-row:1/3}
-.rs.l2 .ql{grid-column:1;grid-row:1/3;display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--surface-raised);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow-stage);overflow:hidden}
-.rs.l2 .stage .side{grid-column:2;grid-row:1}
-.rs.l2 .stage .theatre{grid-column:2;grid-row:2}
-.rs.l2 .stage .chat{grid-column:3;grid-row:1/3}
+.rs.l2 .recap{grid-column:2/4;grid-row:1}
+.rs.l2 .ql{grid-column:1;grid-row:1;display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--surface-raised);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow-stage);overflow:hidden}
+.rs.l2 .stage .theatre{grid-column:2;grid-row:1}
+.rs.l2 .stage .chat{grid-column:3;grid-row:1}
 .ql-h{display:flex;align-items:baseline;gap:8px;padding:14px 16px 8px;flex-shrink:0}
 .ql-h b{font-size:1.5rem;font-weight:800;letter-spacing:-.03em;line-height:1}
 .ql-h span{font-size:.8rem;font-weight:700;color:var(--text-secondary)}
-.ql-l{flex:1 1 auto;min-height:0;overflow-y:auto;padding:2px 8px 10px;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent;position:relative}
-.rs.l2 .ql .chipp{width:100%;height:56px;flex-shrink:0}
-.rs.l2 .ql .chipp.cur{background:var(--fill);box-shadow:inset 3px 0 0 var(--accent)}
-.rs.l2 .ql .chipp.urgc.cur{box-shadow:inset 3px 0 0 var(--urgent)}
+.ql-l{flex:1 1 auto;min-height:0;overflow-y:auto;padding:2px 8px 10px;display:flex;flex-direction:column;gap:2px;position:relative}
+.rs.l2 .ql .chipp{width:100%;height:88px;flex-shrink:0;gap:12px;padding:8px 10px 8px 8px;border-radius:14px}
+.rs.l2 .ql .chipp .sl{width:72px;height:72px}
+.rs.l2 .ql .chipp .si{width:41px;height:72px;border-radius:7px}
+.rs.l2 .ql .chipp .si.l{width:72px;height:41px}
+/* The selected card: its whole rounded row tinted with the accent and edged by a fine accent line (no bracket on the edge). */
+.rs.l2 .ql .chipp.cur{background:color-mix(in srgb,var(--accent) 13%,var(--surface-raised));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 48%,transparent)}
+.rs.l2 .ql .chipp.urgc.cur{background:color-mix(in srgb,var(--urgent) 11%,var(--surface-raised));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--urgent) 48%,transparent)}
+.edw{position:relative;flex-shrink:0}
+.edw .chipp.hb{padding-right:46px}
+.edping{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--chgb);color:var(--chg-fg);box-shadow:inset 0 0 0 1px var(--chgrow-line);transition:background .14s}
+.edping svg{width:14px;height:14px}
+.edping:hover:not(:disabled),.edping:focus-visible{background:var(--chgb-h)}
+.edping.sent{background:var(--ok-soft);color:var(--ok-ink);box-shadow:inset 0 0 0 1px var(--ok-line);cursor:default}
 .rs.l2 .ql .chipp .ub{display:inline-flex;color:var(--urgent);flex-shrink:0}
 .rs.l2 .ql .chipp .cn{font-size:.82rem}
 .ql-g{display:flex;flex-direction:column;gap:1px;margin-top:6px;padding:10px 8px 6px;border-top:1px solid var(--hair);border-radius:0 0 10px 10px;font-size:.74rem;font-weight:800;color:var(--text-secondary);text-align:left;flex-shrink:0}
@@ -927,8 +945,17 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .ql-g .chev{width:12px;height:12px;transition:transform .18s var(--ease)}
 .ql-g[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .ql-empty{padding:18px 10px;font-size:.82rem;font-weight:600;color:var(--text-secondary)}
-.rs.l2 .l2h{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:38px;flex-shrink:0}
-.rs.l2 .sdate{position:static;height:auto;max-width:none;min-width:0;padding:0 2px;overflow:hidden}
+.rs.l2 .l2h{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;flex-shrink:0}
+.rs.l2 .l2t{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.rs.l2 .l2t .side{display:block;padding:0;min-width:0}
+.rs.l2 .l2t .side .sd-t h2{font-size:1.2rem;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rs.l2 .sdate{position:static;height:auto;max-width:none;min-width:0;padding:0 2px;overflow:hidden;font-size:.74rem;white-space:nowrap}
+.closew{position:relative;display:inline-flex}
+.closew .tip{position:absolute;top:calc(100% + 8px);right:0;z-index:30;width:236px;padding:9px 11px;border-radius:10px;background:var(--text-primary);color:var(--surface-raised);font-size:.74rem;font-weight:600;line-height:1.4;text-align:left;box-shadow:0 10px 28px rgba(0,0,0,.28);opacity:0;visibility:hidden;transform:translateY(-3px);transition:opacity .14s,transform .14s,visibility 0s .14s;pointer-events:none}
+.closew:hover .tip,.closew:focus-within .tip{opacity:1;visibility:visible;transform:none;transition:opacity .14s .3s,transform .14s .3s,visibility 0s .3s}
+.b-undo{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;margin-left:auto;border-radius:8px;font-size:.76rem;font-weight:700;color:var(--ok-ink);transition:background .14s}
+.b-undo svg{width:12px;height:12px}
+.b-undo:hover,.b-undo:focus-visible{background:var(--okb)}
 .rs.l2 .l2a{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .rs.l2 .l2a .held{margin-right:6px}
 .rs.l2 .flash{right:auto;left:50%;top:9px;transform:translate(-50%,-4px)}
@@ -951,12 +978,20 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .pn-d .dwrap{justify-content:stretch}
 .pn-d .dec{justify-content:flex-start;width:100%;gap:6px}
 .pn-d .dst{white-space:normal}
-.pn-d .split{display:flex;flex:1 1 100%}
-.pn-d .split>.b-ok{flex:1;min-width:0;justify-content:center;white-space:normal;text-align:left;line-height:1.15;height:auto;min-height:42px;padding:6px 40px 6px 12px;font-size:.82rem}
-.pn-d .split>.sarr{width:34px}
-.pn-d .b-ok:not(.split>.b-ok){white-space:normal;text-align:left;line-height:1.15;height:auto;min-height:42px;font-size:.82rem}
-.l2-land .pn-video .pn-d .split{flex:2 1 0}
-.pn-d .b-ask,.pn-d .b-frame{flex:1 1 0;min-width:0;justify-content:center;height:auto;min-height:42px;padding:6px 8px;white-space:normal;text-align:center;line-height:1.15;font-size:.78rem}
+.pn-d{container-type:inline-size}
+/* One compact row per part: Tweaks are on Frame left, Approve centred (with its caret), Ask for a change right. */
+.pn-d .dec:has(>.b-ask){display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;justify-content:normal;column-gap:8px;flex-wrap:nowrap}
+.pn-d .dec:has(>.b-ask)>.b-frame{grid-column:1;grid-row:1;justify-self:start}
+.pn-d .dec:has(>.b-ask)>.split{grid-column:2;grid-row:1;justify-self:center}
+.pn-d .dec:has(>.b-ask)>.b-ask{grid-column:3;grid-row:1;justify-self:end}
+.pn-d .split>.b-ok{height:auto;min-height:38px;padding:5px 42px 5px 12px;font-size:.8rem;line-height:1.15;text-align:left;white-space:normal}
+.pn-d .split>.sarr{width:32px}
+.pn-d .b-ask,.pn-d .b-frame{height:auto;min-height:38px;padding:5px 8px;font-size:.74rem;line-height:1.15;text-align:center;white-space:normal;justify-content:center}
+@container (max-width:380px){.pn-d .dec:has(>.b-ask){grid-template-columns:minmax(0,.85fr) minmax(0,1.3fr) minmax(0,.85fr);column-gap:5px}.pn-d .b-ask svg,.pn-d .b-frame svg,.pn-d .split>.b-ok svg{display:none}.pn-d .split>.b-ok{padding:4px 34px 4px 8px;font-size:.76rem}.pn-d .split>.sarr{width:28px}.pn-d .b-ask,.pn-d .b-frame{padding:4px 3px;font-size:.7rem}.pn-d .split{max-width:100%}}
+/* A part too narrow for three labels (three parts side by side): Frame and Ask for a change shrink to their icons. Their
+   text stays in the page (font-size 0), so the accessible names and the title tooltips are unchanged. */
+@container (max-width:240px){.pn-d .dec:has(>.b-ask){grid-template-columns:34px minmax(0,1fr) 34px}.pn-d .b-ask,.pn-d .b-frame{font-size:0;gap:0;width:34px;padding:0}.pn-d .b-ask svg,.pn-d .b-frame svg{display:block;width:15px;height:15px}.pn-d .split{justify-self:stretch}.pn-d .split>.b-ok{width:100%}}
+.pn-d .b-ok:not(.split>.b-ok){white-space:normal;text-align:left;line-height:1.15;height:auto;min-height:38px;font-size:.8rem}
 .pn-d .dwrap .compose{width:100%}
 .pn-d .cmp-foot{flex-wrap:wrap}
 .pn-d .elsew{margin:0 0 6px}
@@ -1437,9 +1472,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             return '<div class="rs in-kasper l2"><div class="app" id="rsApp">'
                 + '<main class="stage" id="stage">'
                 + '<aside class="ql" id="ql" aria-label="Cards waiting for your review"><div class="ql-h" id="qlHead"></div><div class="ql-l" id="qlList"></div></aside>'
-                + '<aside class="side" id="side" aria-label="This post"></aside>'
                 + '<section class="theatre" id="theatre" aria-label="Review this post"><div class="card">'
-                + '<div class="l2h"><div class="sdate" id="sdate"></div><div class="l2a" id="l2a"></div></div>'
+                + '<div class="l2h"><div class="l2t"><aside class="side" id="side" aria-label="This post"></aside><div class="sdate" id="sdate"></div></div><div class="l2a" id="l2a"></div></div>'
                 + '<div class="flash" id="flash" role="status"></div>'
                 + '<div id="l2note"></div><div class="l2g" id="l2g"></div>'
                 + '</div></section>'
@@ -2093,7 +2127,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const ok = busy === 'ok' || (R.mode === 'client' && busy === 'client');
         const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + (ok ? 'Approved' : 'Approve the ' + n) + '</button>' : _rsSplit(x, busy);
         const chg = busy === 'chg', fr = busy === 'frame';
-        return approve + '<button class="b-ask' + (chg ? ' busy' : '') + '" type="button" data-chg="' + x.key + '"' + _rsBusyAttr(busy, chg) + '>' + (chg ? RS_SPIN : RI.back) + (chg ? 'Change asked' : 'Ask for a change') + '</button>'
+        return approve + '<button class="b-ask' + (chg ? ' busy' : '') + '" type="button"' + (R.l2 ? ' title="Ask for a change"' : '') + ' data-chg="' + x.key + '"' + _rsBusyAttr(busy, chg) + '>' + (chg ? RS_SPIN : RI.back) + (chg ? 'Change asked' : 'Ask for a change') + '</button>'
             + (R.mode === 'kasper' && x.key === 'video' ? '<button class="b-frame' + (fr ? ' busy' : '') + '" type="button" data-frame="' + x.key + '"' + _rsBusyAttr(busy, fr) + ' title="Your notes are in Frame.io: sends the change without typing">' + (fr ? RS_SPIN : RI.frame) + 'Tweaks are on Frame</button>' : '');
     }
     /* The pieces of the decision row, shared by the one-part-at-a-time page and Kasper's all-parts layout (session
@@ -2140,6 +2174,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     // Finish reviewing and Close card. On the client link Finish stays off, with a short "Saving…", while any part's
     // answer is still being sent: it lights up when the save lands or fails (an answer is never lost to a quick Finish
     // and a closed tab).
+    // What Close card really does (_kasperClose): it only hides the card, it writes no answer and approves nothing.
+    const RS_CLOSE_TIP = 'Hides this card from your list, on every device, without approving or changing anything. It comes back if someone writes on it.';
     function _rsFinishHtml(m) {
         const S = R.S, parts = m.parts, left = parts.filter(p => p.st === 'wait').length;
         const sending = R.mode !== 'smm' && Object.keys(RS_PART).some(k => _rsSaving(m, k));
@@ -2148,7 +2184,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!all) delete S.ready[m.id];
         const glow = all ? ' ready" style="animation-delay:-' + (Date.now() - S.ready[m.id]) + 'ms' : '';
         return '<button class="finish' + glow + '" type="button" id="finishBtn"' + (all ? '' : ' disabled') + '>' + RI.check + 'Finish reviewing' + (all ? '' : sending ? ' <span class="fc num" id="finishWait">Saving…</span>' : ' <span class="fc num">' + (parts.length - left) + ' of ' + parts.length + '</span>') + '</button>'
-            + (R.mode === 'kasper' && !m.gone ? '<button class="btn-quiet" type="button" id="closeBtn"' + (sending ? ' disabled' : '') + '>Close card</button>' : '');
+            + (R.mode === 'kasper' && !m.gone ? (R.l2
+                ? '<span class="closew"><button class="btn-quiet" type="button" id="closeBtn" aria-describedby="closeTip"' + (sending ? ' disabled' : '') + '>Close card</button><span class="tip" id="closeTip" role="tooltip">' + RS_CLOSE_TIP + '</span></span>'
+                : '<button class="btn-quiet" type="button" id="closeBtn"' + (sending ? ' disabled' : '') + '>Close card</button>') : '');
     }
     function _rsBindFinish(m, root) {
         const fb = root.querySelector('#finishBtn'); if (fb) fb.addEventListener('click', _rsFinish);
@@ -2425,6 +2463,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         else if (R.mode === 'smm') window._calReviewApprove(m.id, comp, how === 'client' ? 'client' : 'kasper');
         else if (m.sample) window._sxrKasperApproveComp(m.id, comp);
         else window._kasperApproveComp(m.id, comp, 'client');
+        if (R.mode === 'kasper' && R.l2) _rsL2UndoArm(m.id, comp);
         _rsRender({ force: true });
         _rsWatch(m, comp, RS_PART[comp] + (R.mode === 'smm' ? ' approved to ' + (how === 'client' ? 'the client' : 'Kasper') : ' approved, saved'), R.mode === 'client' ? 'ok' : '');
         _rsAdvance(m, comp);
@@ -2830,7 +2869,19 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             : '<span class="cm' + (urg ? ' urg' : '') + '">' + (urg ? '<span class="ub" title="' + _re(m.flag) + '">' + RI.bell + '</span>' : '') + '<span>' + _re(m.client) + '</span>' + (m.sample ? '<b class="tag">Sample</b>' : '') + _rsDots(m) + '</span>';
         return '<button class="chipp k ql-r' + (on ? ' cur' : '') + (urg ? ' urgc' : '') + (m.sec === 'tweaks' ? ' edc' : '') + '" type="button" data-id="' + _re(m.id) + '" tabindex="' + (on ? '0' : '-1') + '" aria-current="' + !!on + '" title="' + _re(m.client + ': ' + m.title) + '">' + _rsChipImg(m) + '<span class="cx">' + head + meta + '</span></button>';
     }
-    function _rsL2List() {
+    // The bell on a card with the editors: the same urgent ping the held card's "Ping editor" sends (_rsPingHtml), shown
+    // only where that ping can go (the video is at Tweaks Needed and has an editor to reach).
+    function _rsL2CanPing(m) { try { return m.sec === 'tweaks' && !!_calShowUrgent(m.post, 'video'); } catch (e) { return false; } }
+    function _rsL2EdRow(m, cur) {
+        const row = _rsL2Row(m, cur);
+        if (!_rsL2CanPing(m)) return row;
+        const sent = !!R.S.pinged[m.id];
+        return '<div class="edw">' + row.replace('class="chipp k', 'class="chipp k hb')
+            + '<button class="edping' + (sent ? ' sent' : '') + '" type="button" data-ping="' + _re(m.id) + '"' + (sent ? ' disabled' : '') + ' aria-label="' + (sent ? 'Editor pinged about ' : 'Ping the editor about ') + _re(m.title) + '" title="' + (sent ? 'Editor pinged' : 'Ping the editor for urgent tweaks') + '">' + (sent ? RI.check : RI.bell) + '</button></div>';
+    }
+    // `still`: the list is drawn again for a reason that is not a different card (opening or closing With the editors):
+    // it must not move, so the current card is not scrolled back into view and the toggle keeps its place on screen.
+    function _rsL2List(still) {
         const ql = _rsQ('ql'), list = _rsQ('qlList'), head = _rsQ('qlHead');
         if (!ql || !list || !head) return;
         const cur = _rsCur(), k = _rsKasperModels();
@@ -2839,22 +2890,32 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const a = R.root.activeElement;
         const hadFocus = !!(a && a.closest && a.closest('#qlList'));
         const keep = list.scrollTop;
+        const tg0 = _rsQ('edTog'), tgTop0 = tg0 ? tg0.getBoundingClientRect().top : 0;
         const rows = k.urgent.concat(k.waiting).map(m => _rsL2Row(m, cur)).join('');
         const eds = k.tweaks.length
             ? '<button class="ql-g" type="button" id="edTog" aria-expanded="' + !!R.S.edOpen + '"><span class="r">With the editors <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg></span><span class="c num">' + k.tweaks.length + ' tweaks pending</span></button>'
-                + (R.S.edOpen || (cur && cur.sec === 'tweaks') ? k.tweaks.map(m => _rsL2Row(m, cur)).join('') : '')
+                + (R.S.edOpen || (cur && cur.sec === 'tweaks') ? k.tweaks.map(m => _rsL2EdRow(m, cur)).join('') : '')
             : '';
         const fresh = _rsPut(list, (rows || (k.tweaks.length ? '' : '<div class="ql-empty">Nothing is waiting on you.</div>')) + eds);
         if (fresh) {
             list.scrollTop = keep;
             list.querySelectorAll('[data-id]').forEach(b => b.addEventListener('click', () => _rsGo(b.dataset.id)));
+            list.querySelectorAll('[data-ping]').forEach(b => b.addEventListener('click', (e) => {
+                const m = k.tweaks.find(x => x.id === b.dataset.ping);
+                if (!m) return;
+                R.S.pinged[m.id] = true;
+                if (m.sample) window._sxrKasperSendUrgentSlack(e, m.id); else window._kasperSendUrgentSlack(e, m.id);
+                _rsL2List(true);
+                const cur = _rsCur(); if (cur && cur.id === m.id) _rsDecide();
+            }));
             const t = _rsQ('edTog');
-            if (t) t.addEventListener('click', () => { R.S.edOpen = !R.S.edOpen; _rsL2List(); });
+            if (t) t.addEventListener('click', () => { R.S.edOpen = !R.S.edOpen; _rsL2List(true); });
+            if (still && t && tg0) list.scrollTop = keep + (t.getBoundingClientRect().top - tgTop0);
             // The row that had the keyboard keeps it when the list is drawn again (the card changed under it).
             if (hadFocus) { const c = list.querySelector('[data-id][aria-current="true"]') || list.querySelector('[data-id]'); if (c) c.focus({ preventScroll: true }); }
         }
         const c = list.querySelector('[aria-current="true"]');
-        if (c) {
+        if (c && !still) {
             const t = c.offsetTop - list.offsetTop, b = t + c.offsetHeight;
             if (t < list.scrollTop + 4) list.scrollTop = Math.max(0, t - 8);
             else if (b > list.scrollTop + list.clientHeight - 4) list.scrollTop = b - list.clientHeight + 8;
@@ -2965,6 +3026,38 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const xb = tc.querySelector('[data-exp]');
         if (xb) xb.addEventListener('click', () => { S.exp[m.id + k] = !S.exp[m.id + k]; _rsL2Text(m, x); });
     }
+    /* Undo after Approve (owner request 2026-10-20). The old page's Undo is the toast the approve itself raises (330 and
+       290: "Video approved, sent to client" with Undo, six seconds, restoring the snapshot the approve took, in the
+       sheet too). In this layout the toast sits where the buttons now are and the card is redrawn under it, so the same
+       Undo is also drawn on the approved part's row. It is that toast's own button that is pressed: one action, one
+       time window, and it is shown only while the toast's button is on screen. */
+    const RS_UNDO_GIVE_UP = 5000;
+    let _rsUndoTick = 0;
+    function _rsToastUndo() { return document.querySelector('.sv-toast .sv-toast-action'); }
+    function _rsL2UndoArm(id, key) {
+        R.S.undo = { id, key, at: Date.now(), seen: false };
+        clearInterval(_rsUndoTick);
+        _rsUndoTick = setInterval(() => {
+            const u = R.S && R.S.undo;
+            if (!u || !R.host || R.host.hidden) { clearInterval(_rsUndoTick); return; }
+            const on = !!_rsToastUndo();
+            if (on && !u.seen) { u.seen = true; _rsDecide(); }
+            else if (!on && (u.seen || Date.now() - u.at > RS_UNDO_GIVE_UP)) { R.S.undo = null; clearInterval(_rsUndoTick); _rsDecide(); }
+        }, 250);
+    }
+    function _rsL2UndoHtml(m, x) {
+        const u = R.S.undo;
+        return u && u.seen && u.id === m.id && u.key === x.key && R.mode === 'kasper'
+            ? '<button class="b-undo" type="button" data-undo="' + x.key + '" aria-label="Undo approving the ' + _rsLname(x.key) + '">' + RI.back + 'Undo</button>' : '';
+    }
+    function _rsL2BindUndo(el) {
+        el.querySelectorAll('[data-undo]').forEach(b => b.addEventListener('click', () => {
+            const t = _rsToastUndo();
+            R.S.undo = null; clearInterval(_rsUndoTick);
+            if (t) t.click();
+            _rsDecide();
+        }));
+    }
     function _rsL2Decide() {
         const m = _rsL2M(), g = _rsQ('l2g');
         if (!m || !g) return;
@@ -2984,7 +3077,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         m.parts.forEach(x => {
             const el = g.querySelector('.pn-d[data-pd="' + x.key + '"]');
             if (!el) return;
-            if (!active || x.kept) { el.innerHTML = '<div class="dwrap"><div class="dec' + (x.st === 'ok' ? ' is-ok' : ' is-chg') + '">' + _rsInactiveD(m, x) + '</div></div>'; return; }
+            if (!active || x.kept) { el.innerHTML = '<div class="dwrap"><div class="dec' + (x.st === 'ok' ? ' is-ok' : ' is-chg') + '">' + _rsInactiveD(m, x) + (x.kept && x.st === 'ok' ? _rsL2UndoHtml(m, x) : '') + '</div></div>'; _rsL2BindUndo(el); return; }
             const elsew = card ? '' : _rsElsewhere(m, x);
             const note = elsew ? '<div class="elsew" role="status"><span>' + _re(elsew) + '</span></div>' : '';
             const ad = _rsActiveD(m, x);

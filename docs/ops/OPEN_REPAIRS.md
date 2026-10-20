@@ -33819,3 +33819,12 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 - **Cause:** `test/run-all.js` ended with `process.exit()` right after `console.log`. Node writes to a pipe asynchronously, so exiting at once can drop output still queued. Under load the routing test, which reads that output through a pipe, saw only part of it.
 - **Fix:** set `process.exitCode` and let Node exit on its own, so the output is flushed. The exit code is unchanged (a failing suite still exits 1).
 - **Proof:** 8 parallel runs on main: 4 failed. After the fix: 16 parallel runs, 0 failed. Full unit lane still exits 1 when a suite fails.
+
+## 466. [2026-10-20, BUILT, NOT MERGED] The calm Workload switch could only list people, so a new team member would have missed it (session Calm Six)
+
+- **Asked by:** the owner made the calm Workload calendar live for everybody. The switch `workload_calm_staff` only accepted `{ "staff": [...] }`, so the live row had to list every active team member as a stopgap, and anyone added later would have kept the old calendar until someone edited the row.
+- **Changed.** `src/index/188-review-stage-switch.js.part` only. The row now also accepts `{ "all": true }`, alone or together with `staff`: every signed-in staff member gets the calm calendar, never the client link. Only the exact boolean `true` counts. The anti-flash hint (`sv-wl-calm-staff`) stores a `*` marker for an `all` answer, so the loader holds for any signed-in staff member on the next visit. A `*` entry inside `staff` is not a wildcard. The comment block that documents the switch is updated. Missing, unreadable or wrong-shaped rows still mean the old calendar, and the old `{ "staff": [...] }` shape behaves as before.
+- **Proven.** New `docs/syncview-design/tests/workload-calm-all-browser.js` (registered in `calendar-unit-tests.yml`): the decision code run against stubs (all:true on for any signed-in staff, off on the client link and before the server names the user, wrong shapes off, old shape unchanged, hint marker and loader hold) and the real page in a browser (all:true with nobody listed is calm, old shape still works, wrong shapes stay old, the loader is held for an all:true browser while the read is slow). The existing calm suites still pass.
+- **Not done here.** The live row is not changed by this entry; Lighthouse sets it to `{ "all": true }` after this merges and deploys.
+
+**Way back:** revert the pull request; the row's `staff` list keeps working.

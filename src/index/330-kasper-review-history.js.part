@@ -768,8 +768,8 @@ import { svRsKasperFast, svRsKasperOn, svRsKasperPaint, svRsKasperPending } from
         // the card to be tried again (the next paint, or the switch arriving).
         Promise.resolve(svFrameFlagWait(3000)).then(() => {
             if (svFrameFlagWait(0) !== null || _kasperWarmedId === post.id) return;
-            _kasperWarmedId = post.id;
-            try { svFrameWarm(post); } catch (e) {}
+            // Marked only when a warm-up really started: a switch that is off (or later turned on) tries again.
+            try { if (svFrameWarm(post)) _kasperWarmedId = post.id; } catch (e) {}
         });
     }
     window.addEventListener('sv-frame-switch', () => { if (_kasperWarmQueue && svRsKasperFast()) _kasperWarmFirstVideo(_kasperWarmQueue); });

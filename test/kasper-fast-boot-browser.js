@@ -214,6 +214,18 @@ const newTab = (browser, origin, o) => open(browser, origin, Object.assign({ sta
       await t.ctx.close();
     }
 
+    // ---------- the warm-up only counts once it started: svFrameWarm says whether it did ----------
+    {
+      console.log('--- svFrameWarm result ---');
+      const t = await newTab(browser, origin, { fast: true });
+      await boot(t, origin);
+      await stageUp(t.page);
+      await sleep(1500);
+      const r = await t.page.evaluate(() => { const p = (_kasperState.items || []).map(i => i.post || i).find(x => x && x.id); return { on: p ? svFrameWarm(p) : 'nopost', off: svFrameWarm({ id: 'x', client: 'someone-not-listed', video_url: '' }) }; });
+      expect(r.on === true && r.off === false, 'svFrameWarm reports true when a warm-up started and false when the switch does not enable the card (' + JSON.stringify(r) + ')');
+      await t.ctx.close();
+    }
+
     // ---------- a slow player switch (3.6 s): the first video is still warmed when it arrives ----------
     {
       console.log('--- slow player switch ---');

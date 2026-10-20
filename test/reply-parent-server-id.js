@@ -8,6 +8,7 @@
    created_at; earlier fixtures reused one id for both, so they never met it. */
 const fs = require('fs');
 const path = require('path');
+const { stripBlockComments } = require('./helpers/strip-comments');
 const { extractFunction } = require('./helpers/extract-function.js');
 const INDEX = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 let failures = 0;
@@ -15,7 +16,7 @@ const ok = (c, m) => { console.log((c ? '  ok  ' : 'FAIL  ') + m); if (!c) failu
 
 const src = extractFunction(INDEX, '_prodServerParentRef');
 let canon = [];
-ok(!/_prodComments/.test(src.replace(/\/\*[\s\S]*?\*\//g, '')), 'mapping lives in the always-loaded part and needs no lazy module');
+ok(!/_prodComments/.test(stripBlockComments(src)), 'mapping lives in the always-loaded part and needs no lazy module');
 const fn0 = new Function(src + '; return _prodServerParentRef;')();
 const fn = (d, p, l) => fn0(canon, p, l);
 

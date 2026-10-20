@@ -46,6 +46,8 @@ async function again(t, origin, delays) {
   t.page = await t.ctx.newPage();
   t.page.on('pageerror', e => t.errors.push(String(e.message || e).slice(0, 200)));
   t.state.reqLog = [];
+  if (delays && delays.frameFlag) await t.ctx.route('**/rest/v1/syncview_runtime_flags?select=value&key=eq.frame_viewer_clients*', async route => { await sleep(delays.frameFlag); await route.fallback(); });
+  if (delays && delays.noHint) await t.page.addInitScript(() => { try { localStorage.removeItem('sv-kasper-fast'); } catch (e) {} });
   if (delays && delays.flags) await t.ctx.route('**/rest/v1/syncview_runtime_flags*', async route => { await sleep(delays.flags); await route.fallback(); });
   if (delays && delays.posts) t.state.postsDelay = delays.posts;
   // No saved list in this browser: the first card appears only when the list has loaded.
@@ -125,6 +127,34 @@ const newTab = (browser, origin, o) => open(browser, origin, Object.assign({ sta
       const old = await t.page.evaluate(() => window.__oldList);
       expect(old === wantOld, label + ': the old page\'s list ' + (wantOld ? 'is drawn first while the switch is read, as today' : 'is never drawn first, the loader holds instead'));
       expect(t.errors.length === 0, label + ': no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    }
+    // ---------- right after the rollout: no hint yet, the live answer arrives while the list is still loading ----------
+    {
+      console.log('--- no hint yet: the pill that showed before the answer goes when it arrives ---');
+      const t = await newTab(browser, origin, { fast: true });
+      await boot(t, origin);
+      await stageUp(t.page);
+      await sleep(1500);
+      await again(t, origin, { flags: 700, posts: 3500, noHint: true });
+      await sleep(2200);
+      const pill = await t.page.evaluate(() => { const p = document.getElementById('kasperReviewRefreshPill'); return { there: !!p, hidden: p ? p.hidden : null, loading: _kasperState.loading }; });
+      expect(pill.loading === true && pill.hidden === true, 'the list is still loading and the pill is hidden once the live answer says fast boot (' + JSON.stringify(pill) + ')');
+      await t.ctx.close();
+    }
+
+    // ---------- a slow player switch (3.6 s): the first video is still warmed when it arrives ----------
+    {
+      console.log('--- slow player switch ---');
+      const t = await newTab(browser, origin, { fast: true });
+      await boot(t, origin);
+      await stageUp(t.page);
+      await sleep(1500);
+      await again(t, origin, { frameFlag: 3600 });
+      await stageUp(t.page);
+      await sleep(6500);
+      const warmed = first(t.state, /frameio-view/) > 0;
+      expect(warmed, 'the first video address was asked for after the slow switch answered, with no one pressing anything');
       await t.ctx.close();
     }
   } finally {

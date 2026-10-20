@@ -627,6 +627,11 @@ import { currentNav } from './065-core-nav-intake-state.js';
         }
         if (document.getElementById('calView') && calState && calState.client) _calRenderBody({ preserveScroll: true });
         if (document.getElementById('kasperContent')) svRsKasperHeadSync();
-        if (document.getElementById('kasperReviewBody')) _kasperPaintReview();
+        if (document.getElementById('kasperReviewBody')) {
+            // The live answer says fast boot: a pill that showed before it arrived goes.
+            const pill = document.getElementById('kasperReviewRefreshPill');
+            if (pill && !pill.hidden && svRsKasperFast()) pill.hidden = true;
+            _kasperPaintReview();
+        }
     });
 export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLayout2On, svRsKasperBoot, svRsKasperFast, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsKasperPending, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };

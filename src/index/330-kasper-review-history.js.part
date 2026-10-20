@@ -758,13 +758,21 @@ import { svRsKasperFast, svRsKasperOn, svRsKasperPaint, svRsKasperPending } from
     // The first card's video address and first bytes, fetched ahead of the card on stage (the same warm-up a hover gives a
     // door), once per card. Waits for the player's switch, which the fast boot started at page start.
     let _kasperWarmedId = '';
+    let _kasperWarmQueue = null;
     function _kasperWarmFirstVideo(queue) {
+        _kasperWarmQueue = queue;
         const first = (queue || []).find(it => it && it.post && !it._sxr);
         const post = first && first.post;
         if (!post || !post.id || post.id === _kasperWarmedId) return;
-        _kasperWarmedId = post.id;
-        Promise.resolve(svFrameFlagWait(3000)).then(() => { try { svFrameWarm(post); } catch (e) {} });
+        // Marked warmed only once the player's switch has been read and the warm-up could start: a slow read leaves
+        // the card to be tried again (the next paint, or the switch arriving).
+        Promise.resolve(svFrameFlagWait(3000)).then(() => {
+            if (svFrameFlagWait(0) !== null || _kasperWarmedId === post.id) return;
+            _kasperWarmedId = post.id;
+            try { svFrameWarm(post); } catch (e) {}
+        });
     }
+    window.addEventListener('sv-frame-switch', () => { if (_kasperWarmQueue && svRsKasperFast()) _kasperWarmFirstVideo(_kasperWarmQueue); });
 
     let _kasperPaintRetry = null;
     function _kasperPaintReviewNow() {

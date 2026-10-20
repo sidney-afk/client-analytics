@@ -74,6 +74,17 @@ async function setupSmm(browser, origin, role, width) {
     return t;
   } catch (e) { await t.ctx.close(); throw e; }
 }
+// Open a card's Notes dialog the way a client does: click its Notes door and, if the dialog did not open, click again.
+// The Sheet re-renders its body while the card list settles; a click that lands inside that re-render is dropped by the
+// browser (the pressed door is gone before the release), so one click is not a guarantee. Each try waits for the composer.
+async function openNotes(t, id) {
+  const door = t.page.locator('[data-comments-btn="' + id + '"]').filter({ visible: true }).first();
+  const box = t.page.locator('#calCommentComposer');
+  for (let tries = 1; ; tries++) {
+    await door.click();
+    try { await box.waitFor({ state: 'visible', timeout: 3000 }); return box; } catch (e) { if (tries >= 4) throw e; }
+  }
+}
 async function runCase(browser, origin, role, width, label, fn, more) {
   if (process.env.G3_CASE && !label.includes(process.env.G3_CASE)) return;
   let t;
@@ -437,9 +448,7 @@ async function auxiliary(browser, origin, role, width) {
     await t.page.evaluate(() => onCalViewChange('organizer'));
     const door = t.page.locator('[data-comments-btn]').filter({ visible: true }).first();
     const id = await door.getAttribute('data-comments-btn'), row = t.state.cards.find(c => c.id === id);
-    await door.click();
-    const box = t.page.locator('#calCommentComposer');
-    await box.waitFor({ state: 'visible' });
+    const box = await openNotes(t, id);
     await t.page.evaluate(() => _calSetComposeComp('caption'));
     // Hold the lookup open ourselves, so the window is not left to timing.
     await t.page.evaluate(id => { const p = calState.posts.find(x => x.id === id); window.__heldPost = p; _prodCrosswalkRunStart(p); _calRenderCommentsModal({ keepFocus: true }); }, id);
@@ -451,15 +460,24 @@ async function auxiliary(browser, origin, role, width) {
     await t.page.evaluate(() => { _prodCrosswalkRunEnd(window.__heldPost); _calRenderCommentsModal({ keepFocus: true }); });
     await until(() => JSON.parse(row.caption_tweaks || '[]').some(n => n.body === 'Pending words'), 'Enter pressed during the lookup was dropped');
   });
+  if (role === 'client') await runCase(browser, origin, role, width, 'Sheet Notes door click lost to a re-render', async t => {
+    // Force the slow ordering: the Sheet body re-renders at the instant the door is pressed, so that first click is dropped.
+    await t.page.evaluate(() => onCalViewChange('organizer'));
+    const door = t.page.locator('[data-comments-btn]').filter({ visible: true }).first();
+    const id = await door.getAttribute('data-comments-btn');
+    await sleep(1500);
+    await t.page.evaluate(() => { window.__rerendered = 0; document.addEventListener('pointerdown', () => { window.__rerendered++; _calRenderBody(); }, { capture: true, once: true }); });
+    const box = await openNotes(t, id);
+    assert.equal(await t.page.evaluate(() => window.__rerendered), 1, 'the forced re-render did not run');
+    assert.ok(await box.isVisible(), 'Notes dialog did not open after the dropped click');
+  });
   if (role === 'client') await runCase(browser, origin, role, width, 'Sheet Notes dialog reply and delete', async t => {
     await t.page.evaluate(() => onCalViewChange('organizer'));
     const door = t.page.locator('[data-comments-btn]').filter({ visible: true }).first();
     const id = await door.getAttribute('data-comments-btn');
-    await door.click();
     const row = t.state.cards.find(c => c.id === id);
     assert.ok(row, 'Notes door must name a loaded fixture card');
-    const box = t.page.locator('#calCommentComposer');
-    await box.waitFor({ state: 'visible' });
+    const box = await openNotes(t, id);
     await t.page.evaluate(() => _calSetComposeComp('caption'));
     await box.fill('A root note 日本語'); await box.press('Enter');
     await until(() => JSON.parse(row.caption_tweaks || '[]').some(n => n.body === 'A root note 日本語'), 'root note not saved');
@@ -486,9 +504,7 @@ async function dialogMatrix(browser, origin, role, width) {
       const door = t.page.locator('[data-comments-btn]').filter({ visible: true }).first();
       const id = await door.getAttribute('data-comments-btn'), row = t.state.cards.find(c => c.id === id);
       assert.ok(row);
-      await door.click();
-      const box = t.page.locator('#calCommentComposer');
-      await box.waitFor({ state: 'visible' });
+      const box = await openNotes(t, id);
       await t.page.evaluate(() => _calSetComposeComp('caption'));
       await box.fill('Dialog root words'); await box.press('Enter');
       await until(() => JSON.parse(row.caption_tweaks || '[]').some(n => n.body === 'Dialog root words'), 'dialog root missing');

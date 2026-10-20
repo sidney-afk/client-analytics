@@ -33785,3 +33785,13 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 - **Proven.** The old test with only that 1.2 s delay added fails every time; the new test passes. 16 copies at once: 9 of 16 red before, 0 of 16 after.
 
 **Way back:** revert the pull request.
+
+## 462. [2026-10-20, BUILT, NOT MERGED] The Gauntlet Three "Notes dialog no-video reply" case timed out once on webkit 1920 (session Echo)
+
+- **Asked by:** the supervisor. Main commit c54c8fb6, CI run 39391382730, leg "review-gauntlet-three (webkit, 1920)": one case of 336 failed with "locator.waitFor: Timeout 15000ms exceeded"; the previous main commit passed.
+- **Cause, a test that trusted one click, not the reply paths.** The failing wait is the one for the Notes composer, which runs BEFORE the no-video condition is applied, so neither #2243 (reply parent id) nor #2245 (gateway notes) was involved. The test clicked the card's Notes door once. The Sheet re-renders its body a few times just after it opens (measured: two re-renders 80 to 150 ms after the doors first appear), and a click whose press lands in one of those re-renders is dropped by the browser because the pressed door is gone before the release; the dialog then never opens. Forced and measured on webkit and chromium: a re-render on the press leaves the dialog closed every time.
+- **Can a real client hit it?** Only as a lost click on the Notes door in the first fraction of a second after the Sheet appears; clicking again opens it. No reply, note or save is lost or hangs. The app was left alone.
+- **Changed.** `test/review-stage-gauntlet3-browser.js`: one `openNotes` helper clicks the door and, if the composer does not appear within 3 s, clicks again (up to 4 tries), used by the three Notes-dialog cases. Every assertion is unchanged. New case "Sheet Notes door click lost to a re-render" forces the slow ordering (re-render on the press).
+- **Proven.** New case with the old single click: fails on webkit and chromium. With the helper: passes on webkit, chromium, firefox. Before the change I could not reproduce the CI failure in 12 runs of the single case plus 6 full client 1920 dialog runs side by side with three times the CPU count (all green); after, 6 full client 1920 dialog runs at once: 36 of 36 passed in each.
+
+**Way back:** revert the pull request.

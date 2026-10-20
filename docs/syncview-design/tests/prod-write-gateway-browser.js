@@ -1341,6 +1341,23 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     'an unmapped member was offered as an assignee candidate');
 
     phase('description_markdown');
+    /* The 6.5 s "briefs loaded" timer is wall-clock: it fires once per load, at a
+       moment no test step chose, and used to repaint the whole pane under
+       whatever the step was doing -- which is why a slow runner reported a
+       different failing phase every time. A silent call must not repaint at all. */
+    const silentBriefsRepaint = await page.evaluate(async () => {
+      const root = document.getElementById('prodRoot');
+      const marker = document.createElement('i');
+      marker.setAttribute('data-test-briefs-marker', '1');
+      root.appendChild(marker);
+      _prodState.briefsLoaded = false;
+      await _prodLoadBriefs({ silent: true });
+      const kept = !!root.querySelector('[data-test-briefs-marker]');
+      marker.remove();
+      return { kept, loaded: _prodState.briefsLoaded };
+    });
+    expect(silentBriefsRepaint.kept && silentBriefsRepaint.loaded === true,
+      'a silent briefs-loaded call repainted the Production pane (or did not mark briefs loaded): ' + JSON.stringify(silentBriefsRepaint));
     await page.evaluate(() => _prodOpenDeliverable('gra-description-parent'));
     await page.waitForFunction(() => _prodDescriptionState('gra-description-parent')?.status === 'ready');
     expect(descriptionReads.some(read => read.id === 'gra-description-parent'
@@ -2156,6 +2173,37 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     const beforeNewGatewayWrites = writes.length;
     await page.evaluate(async () => { await _calOpenNativePost(); });
     await page.waitForSelector('#calNativePostOverlay input[name="calNativeBatchChoice"][value="new"]');
+    /* A RE-RENDER THAT LANDS WHILE SOMEONE IS TYPING MUST NOT TAKE THE CURSOR.
+       The editor list and the post counts arrive from the network after the
+       dialog is open and repaint the whole body. This used to be a timing
+       lottery in this suite (the repaint landed between `fill` and the next
+       measurement on a slow runner, a few milliseconds wide); it is forced
+       here instead, so it is a fact about the dialog and not about the clock. */
+    const keptFocus = await page.evaluate(() => {
+      const input = document.querySelector('#calNativePostOverlay .cal-native-name-input');
+      input.focus();
+      input.value = 'Typing in progress';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.setSelectionRange(6, 9);
+      _calRenderNativePostChoice();
+      const now = document.activeElement;
+      return {
+        same: !!now && now.classList.contains('cal-native-name-input'),
+        value: now && now.value,
+        start: now && now.selectionStart,
+        end: now && now.selectionEnd,
+        replaced: now !== input,
+      };
+    });
+    expect(keptFocus.same && keptFocus.replaced && keptFocus.value === 'Typing in progress'
+      && keptFocus.start === 6 && keptFocus.end === 9,
+    'a Create Post repaint while typing a post name lost the focus, the text or the selection: ' + JSON.stringify(keptFocus));
+    await page.evaluate(() => {
+      const input = document.querySelector('#calNativePostOverlay .cal-native-name-input');
+      input.value = '';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.blur();
+    });
     expect(await page.locator('#calNativePostOverlay input[value="new"]').isChecked()
       && await page.locator('#calNativePostOverlay input[value="batch"]').count() === 0,
     'Calendar Create Post did not fall back to a new batch when no active batch exists');

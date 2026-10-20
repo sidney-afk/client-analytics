@@ -120,6 +120,12 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
 
                Scoped to the board. A field focused somewhere else on the page
                is not this surface's business and must not freeze it. */
+            /* The link card is mounted on <body>, outside #prodRoot, so a field
+               focused inside it fails the `root.contains` test below -- yet a
+               repaint replaces the link the card is editing, and its Apply then
+               finds the link detached and drops the edit. An open card counts. */
+            const linkCard = document.getElementById('prodDescLinkPop');
+            if (linkCard && !linkCard.hidden) return true;
             const el = document.activeElement;
             if (!el) return false;
             const typing = el.tagName === 'INPUT'

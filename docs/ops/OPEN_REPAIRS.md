@@ -33684,3 +33684,9 @@ Test: `node test/client-link-dark-first-paint-browser.js` (fails on main, passes
 - **Tests.** `test/ci-changes.js` (review decisions), `test/ci-runner-seats.js` (the PR form, the nine legs off pull requests, the main alert).
 
 **Way back:** revert the pull request.
+
+## 453. [2026-10-20, BUILT, NOT RUN] Back-fill of client review-page notes that never reached production_comments (session Thread)
+
+`scripts/review-note-backfill.js` finds client root notes on linked video or thumbnail parts that exist only in the card row (see 452) and adds them through the F42 planner and the idempotent `production_comment_card_import` RPC. Dry run by default; `--apply` also needs `F42_CONFIRM_CARD_COMMENT_IMPORT=IMPORT_CARD_COMMENTS`. A note production already holds (same id, or exactly one same-words root within 15 minutes) is skipped; more than one match is skipped as ambiguous. The RPC stores the note under its composite `pc_card_` id and keeps the note's own id in provenance (the established mapping). Read-only measurement of the same rule on 2026-10-20: 165 client root notes since 2026-10-01, 116 already in production, 2 with a twin, 0 ambiguous, 47 to add on 11 cards. Owner runs `--apply`. Test: `test/review-note-backfill.js`.
+
+**Way back:** the imported rows carry `backfill_tag` and `import_run_id` (`review-note-backfill-<since>`); revert the pull request for the script itself.

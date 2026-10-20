@@ -935,6 +935,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .edping{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--chgb);color:var(--chg-fg);box-shadow:inset 0 0 0 1px var(--chgrow-line);transition:background .14s}
 .edping svg{width:14px;height:14px}
 .edping:hover:not(:disabled),.edping:focus-visible{background:var(--chgb-h)}
+.edping.busy{opacity:.55;cursor:progress}
 .edping.sent{background:var(--ok-soft);color:var(--ok-ink);box-shadow:inset 0 0 0 1px var(--ok-line);cursor:default}
 .rs.l2 .ql .chipp .ub{display:inline-flex;color:var(--urgent);flex-shrink:0}
 .rs.l2 .ql .chipp .cn{font-size:.82rem}
@@ -951,7 +952,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .rs.l2 .l2t .side .sd-t h2{font-size:1.2rem;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rs.l2 .sdate{position:static;height:auto;max-width:none;min-width:0;padding:0 2px;overflow:hidden;font-size:.74rem;white-space:nowrap}
 .closew{position:relative;display:inline-flex}
-.closew .tip{position:absolute;top:calc(100% + 8px);right:0;z-index:30;width:236px;padding:9px 11px;border-radius:10px;background:var(--text-primary);color:var(--surface-raised);font-size:.74rem;font-weight:600;line-height:1.4;text-align:left;box-shadow:0 10px 28px rgba(0,0,0,.28);opacity:0;visibility:hidden;transform:translateY(-3px);transition:opacity .14s,transform .14s,visibility 0s .14s;pointer-events:none}
+.closew .tip{position:absolute;top:calc(100% + 8px);right:0;z-index:30;width:236px;padding:9px 11px;border-radius:10px;background:var(--text-primary);color:var(--surface-raised);font-size:.74rem;font-weight:600;line-height:1.4;text-align:left;box-shadow:var(--shadow-md);opacity:0;visibility:hidden;transform:translateY(-3px);transition:opacity .14s,transform .14s,visibility 0s .14s;pointer-events:none}
 .closew:hover .tip,.closew:focus-within .tip{opacity:1;visibility:visible;transform:none;transition:opacity .14s .3s,transform .14s .3s,visibility 0s .3s}
 .b-undo{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;margin-left:auto;border-radius:8px;font-size:.76rem;font-weight:700;color:var(--ok-ink);transition:background .14s}
 .b-undo svg{width:12px;height:12px}
@@ -2872,12 +2873,34 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     // The bell on a card with the editors: the same urgent ping the held card's "Ping editor" sends (_rsPingHtml), shown
     // only where that ping can go (the video is at Tweaks Needed and has an editor to reach).
     function _rsL2CanPing(m) { try { return m.sec === 'tweaks' && !!_calShowUrgent(m.post, 'video'); } catch (e) { return false; } }
+    /* The bell. The dispatcher reports through the button it is given (Sending..., Sent, Queued, back to URGENT on a refusal;
+       it leaves the button alone when the confirmation is cancelled), so it is given a button of its own that is never
+       on screen, and the bell follows what that button ends up saying: a cancel or a refusal leaves the bell ready to be
+       pressed again, and only a real send turns it into Editor pinged. The bell itself is not replaced while it works. */
+    function _rsL2Ping(m, e) {
+        if (!m || (R.S.pinging && R.S.pinging[m.id])) return;
+        const proxy = document.createElement('button');
+        proxy.type = 'button'; proxy.textContent = 'URGENT';
+        const id = m.id;
+        const sync = () => {
+            const st = R.S.pinging || (R.S.pinging = {});
+            if (proxy.dataset.urgentSent === '1') {
+                R.S.pinged[id] = true; delete st[id]; obs.disconnect();
+            } else if (proxy.disabled) st[id] = proxy.textContent || 'Sending…';
+            else delete st[id];
+            if (R.host && !R.host.hidden && R.l2) { _rsL2List(true); const cur = _rsCur(); if (cur && cur.id === id) _rsDecide(); }
+        };
+        const obs = new MutationObserver(sync);
+        obs.observe(proxy, { attributes: true, childList: true, characterData: true, subtree: true });
+        const ev = { preventDefault() {}, stopPropagation() {}, currentTarget: proxy };
+        if (m.sample) window._sxrKasperSendUrgentSlack(ev, id); else window._kasperSendUrgentSlack(ev, id);
+    }
     function _rsL2EdRow(m, cur) {
         const row = _rsL2Row(m, cur);
         if (!_rsL2CanPing(m)) return row;
-        const sent = !!R.S.pinged[m.id];
+        const sent = !!R.S.pinged[m.id], work = !sent && R.S.pinging && R.S.pinging[m.id];
         return '<div class="edw">' + row.replace('class="chipp k', 'class="chipp k hb')
-            + '<button class="edping' + (sent ? ' sent' : '') + '" type="button" data-ping="' + _re(m.id) + '"' + (sent ? ' disabled' : '') + ' aria-label="' + (sent ? 'Editor pinged about ' : 'Ping the editor about ') + _re(m.title) + '" title="' + (sent ? 'Editor pinged' : 'Ping the editor for urgent tweaks') + '">' + (sent ? RI.check : RI.bell) + '</button></div>';
+            + '<button class="edping' + (sent ? ' sent' : work ? ' busy' : '') + '" type="button" data-ping="' + _re(m.id) + '"' + (sent || work ? ' disabled' : '') + (work ? ' aria-busy="true"' : '') + ' aria-label="' + (sent ? 'Editor pinged about ' : 'Ping the editor about ') + _re(m.title) + '" title="' + (sent ? 'Editor pinged' : work ? _re(work) : 'Ping the editor for urgent tweaks') + '">' + (sent ? RI.check : RI.bell) + '</button></div>';
     }
     // `still`: the list is drawn again for a reason that is not a different card (opening or closing With the editors):
     // it must not move, so the current card is not scrolled back into view and the toggle keeps its place on screen.
@@ -2900,14 +2923,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (fresh) {
             list.scrollTop = keep;
             list.querySelectorAll('[data-id]').forEach(b => b.addEventListener('click', () => _rsGo(b.dataset.id)));
-            list.querySelectorAll('[data-ping]').forEach(b => b.addEventListener('click', (e) => {
-                const m = k.tweaks.find(x => x.id === b.dataset.ping);
-                if (!m) return;
-                R.S.pinged[m.id] = true;
-                if (m.sample) window._sxrKasperSendUrgentSlack(e, m.id); else window._kasperSendUrgentSlack(e, m.id);
-                _rsL2List(true);
-                const cur = _rsCur(); if (cur && cur.id === m.id) _rsDecide();
-            }));
+            list.querySelectorAll('[data-ping]').forEach(b => b.addEventListener('click', (e) => _rsL2Ping(k.tweaks.find(x => x.id === b.dataset.ping), e)));
             const t = _rsQ('edTog');
             if (t) t.addEventListener('click', () => { R.S.edOpen = !R.S.edOpen; _rsL2List(true); });
             if (still && t && tg0) list.scrollTop = keep + (t.getBoundingClientRect().top - tgTop0);
@@ -3033,16 +3049,22 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
        time window, and it is shown only while the toast's button is on screen. */
     const RS_UNDO_GIVE_UP = 5000;
     let _rsUndoTick = 0;
-    function _rsToastUndo() { return document.querySelector('.sv-toast .sv-toast-action'); }
+    // The toast raised by THIS approve (330 and 290 register it by card and part): never whichever toast is current, so
+    // approving a second part inside the first one's six seconds cannot give the second part's Undo the first one's action.
+    function _rsUndoToast(u) {
+        const el = (window._svUndoToasts || {})[u.id + '|' + u.key];
+        return el && el !== u.old && el.isConnected && el.querySelector('.sv-toast-action') ? el : null;
+    }
     function _rsL2UndoArm(id, key) {
-        R.S.undo = { id, key, at: Date.now(), seen: false };
+        const old = (window._svUndoToasts || {})[id + '|' + key] || null;   // an earlier approve of this very part (undone, then approved again)
+        R.S.undo = { id, key, at: Date.now(), seen: false, old, el: null };
         clearInterval(_rsUndoTick);
         _rsUndoTick = setInterval(() => {
             const u = R.S && R.S.undo;
             if (!u || !R.host || R.host.hidden) { clearInterval(_rsUndoTick); return; }
-            const on = !!_rsToastUndo();
-            if (on && !u.seen) { u.seen = true; _rsDecide(); }
-            else if (!on && (u.seen || Date.now() - u.at > RS_UNDO_GIVE_UP)) { R.S.undo = null; clearInterval(_rsUndoTick); _rsDecide(); }
+            const el = _rsUndoToast(u);
+            if (el && !u.seen) { u.seen = true; u.el = el; _rsDecide(); }
+            else if (!el && (u.seen || Date.now() - u.at > RS_UNDO_GIVE_UP)) { R.S.undo = null; clearInterval(_rsUndoTick); _rsDecide(); }
         }, 250);
     }
     function _rsL2UndoHtml(m, x) {
@@ -3052,7 +3074,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsL2BindUndo(el) {
         el.querySelectorAll('[data-undo]').forEach(b => b.addEventListener('click', () => {
-            const t = _rsToastUndo();
+            const u = R.S.undo, t = u && u.el && u.el.isConnected ? u.el.querySelector('.sv-toast-action') : null;
             R.S.undo = null; clearInterval(_rsUndoTick);
             if (t) t.click();
             _rsDecide();

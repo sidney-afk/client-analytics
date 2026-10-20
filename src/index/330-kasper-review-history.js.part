@@ -1805,6 +1805,8 @@ import { svRsKasperOn, svRsKasperPaint } from './188-review-stage-switch.js';
                 _kasperRepaintCard(pid);
             }
             showToast(COMP_LABELS[comp] + ' approved — sent to client', { actionLabel: 'Undo', onAction: () => _kasperUndoApprove(pid, _undoCtx) });
+            // The Review Session's own Undo names THIS toast, never whichever one is current (it holds one per card and part).
+            (window._svUndoToasts = window._svUndoToasts || {})[pid + '|' + comp] = Array.from(document.querySelectorAll('.sv-toast')).pop() || null;
         } catch (e) {
             if (!item.post._writeUiRetrySourceAt) Object.assign(item.post, prev);
             else _kasperPersistCache();

@@ -271,9 +271,24 @@ async function titles(page) { return (await look(page)).heading; }
     L = await look(t.page);
     expect(L.panes.video && L.panes.video.approve && !/Approved/.test(L.panes.video.text) && /^0|0 of 3/.test(L.finishText.replace(/\s+/g, ' ').trim().replace('Finish reviewing ', '')), 'the video is back to waiting for its answer: Approve is there again, Finish counts 0 of 3 (' + L.finishText.replace(/\s+/g, ' ').trim() + ')');
     expect(!(await inS(t.page, '[data-undo]').count()), 'the Undo button is gone after it is used');
-    // and with nobody pressing it, it goes when the toast does
+    // two approvals inside one toast window: each Undo is its own decision's
+    await inS(t.page, '[data-ok="graphic"]').click();
+    for (let i = 0; i < 80 && !(await inS(t.page, '[data-undo="graphic"]').count()); i++) { await answerConfirm(t.page); await sleep(100); }
+    await inS(t.page, '[data-ok="caption"]').click();
+    for (let i = 0; i < 80 && !t.state.upserts.some(u => u.id === 'rs1' && u.caption_status === 'Client Approval'); i++) { await answerConfirm(t.page); await sleep(100); }
+    await inS(t.page, '[data-undo="caption"]').waitFor({ timeout: 8000 });
+    expect(!(await inS(t.page, '[data-undo="graphic"]').count()), 'the first part\'s Undo gave way to the second\'s');
+    u0 = t.state.upserts.length;
+    await inS(t.page, '[data-undo="caption"]').click();
+    for (let i = 0; i < 80 && !t.state.upserts.slice(u0).some(u => u.id === 'rs1' && u.caption_status === 'Kasper Approval'); i++) { await answerConfirm(t.page); await sleep(100); }
+    await sleep(1200);
+    const card = t.state.cards.find(c => c.id === 'rs1');
+    expect(card.caption_status === 'Kasper Approval' && card.graphic_status === 'Client Approval', 'Undo on the second part reverted the second part only; the first stays approved (' + card.graphic_status + ' / ' + card.caption_status + ')');
+    L = await look(t.page);
+    expect(L.panes.caption && L.panes.caption.approve && /Approved/.test(L.panes.graphic.text), 'the caption is waiting again and the thumbnail still reads Approved');
     await inS(t.page, '[data-ok="caption"]').click();
     for (let i = 0; i < 80 && !(await inS(t.page, '[data-undo="caption"]').count()); i++) { await answerConfirm(t.page); await sleep(100); }
+    // and with nobody pressing it, it goes when the toast does
     expect(await inS(t.page, '[data-undo="caption"]').count() === 1, 'approving the caption shows its own Undo');
     await sleep(7500);
     expect(!(await inS(t.page, '[data-undo]').count()) && await t.page.locator('.sv-toast').count() === 0, 'once the toast is gone the Undo is gone with it');
@@ -293,7 +308,6 @@ async function titles(page) { return (await look(page)).heading; }
         it.post.linear_issue_id = ''; it.post.video_deliverable_id = 'del_' + id;
       });
       window.__pings = [];
-      window._kasperSendUrgentSlack = function (e, id) { window.__pings.push(id); };
       _kasperPaintReview();
     });
     await sleep(900);
@@ -316,11 +330,26 @@ async function titles(page) { return (await look(page)).heading; }
     const orange = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; const i = document.createElement('i'); i.style.color = 'var(--chg-fg)'; r.appendChild(i); const c = getComputedStyle(i).color; i.remove(); return c; });
     expect(col === orange, 'the bell is the page\'s orange (' + col + ')');
     const cur0 = (await look(t.page)).heading;
+    // cancel: the real dispatcher asks first; cancelling leaves the bell ready, nothing marked sent
     await inS(t.page, '[data-ping]').first().click();
+    await t.page.waitForFunction(() => document.getElementById('confirmOverlay').classList.contains('active'), null, { timeout: 5000 });
+    await t.page.evaluate(() => dismissConfirm());
     await sleep(500);
-    expect(await t.page.evaluate(() => window.__pings.length) === 1, 'pressing it sends the existing urgent ping for that card');
+    expect(await inS(t.page, '[data-ping]').count() === 2 && await inS(t.page, '[data-ping].sent').count() === 0 && !(await inS(t.page, '[data-ping]').first().isDisabled()), 'cancelling the confirmation leaves the bell active, not marked sent');
+    // a refusal (the dispatcher puts its button back to URGENT) is retryable too
+    await t.page.evaluate(() => { window._kasperSendUrgentSlack = function (e, id) { window.__pings.push(id); const b = e.currentTarget; b.disabled = true; b.textContent = 'Sending\u2026'; setTimeout(() => { b.disabled = false; b.textContent = 'URGENT'; }, 200); }; });
+    await inS(t.page, '[data-ping]').first().click();
+    await sleep(80);
+    expect(await inS(t.page, '[data-ping]').first().isDisabled() && await inS(t.page, '[data-ping].sent').count() === 0, 'while it sends the bell waits');
+    await sleep(500);
+    expect(!(await inS(t.page, '[data-ping]').first().isDisabled()) && await inS(t.page, '[data-ping].sent').count() === 0, 'a refused or failed send leaves the bell active to try again');
+    // success: the dispatcher marks its button sent
+    await t.page.evaluate(() => { window._kasperSendUrgentSlack = function (e, id) { window.__pings.push(id); const b = e.currentTarget; b.disabled = true; b.textContent = 'Sending\u2026'; setTimeout(() => { b.textContent = 'Sent'; b.dataset.urgentSent = '1'; }, 200); }; });
+    await inS(t.page, '[data-ping]').first().click();
+    await sleep(700);
+    expect(await t.page.evaluate(() => window.__pings.length) === 2, 'pressing it calls the existing urgent ping for that card');
     expect((await look(t.page)).heading === cur0, 'and does not open the card');
-    expect(await inS(t.page, '[data-ping].sent').count() === 1 && await inS(t.page, '[data-ping].sent').isDisabled(), 'the bell then reads as sent');
+    expect(await inS(t.page, '[data-ping].sent').count() === 1 && await inS(t.page, '[data-ping].sent').isDisabled(), 'only a real send turns the bell into sent');
     await inS(t.page, '#edTog').click();
     await sleep(500);
     const p2 = await pos();

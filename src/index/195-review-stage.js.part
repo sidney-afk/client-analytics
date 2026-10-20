@@ -2295,14 +2295,16 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     // The part's decision buttons and the change box: one click handler each, on the row that holds them.
     function _rsBindDecide(m, el) {
         const S = R.S;
-        el.querySelectorAll('[data-ok]').forEach(b => b.addEventListener('click', () => _rsApprove(m, b.dataset.ok, R.mode === 'smm' ? 'kasper' : '')));
+        // A button that stays across refreshes (_rsCalm) keeps its handler, so the post is looked up when it is pressed, never held from when the button was drawn: a refresh replaces the post's objects.
+        const cur = () => _rsModelById(m.id) || m;
+        el.querySelectorAll('[data-ok]').forEach(b => b.addEventListener('click', () => _rsApprove(cur(), b.dataset.ok, R.mode === 'smm' ? 'kasper' : '')));
         el.querySelectorAll('[data-alt]').forEach(b => b.addEventListener('click', (e) => {
             e.stopPropagation(); S.menu = '';
-            if (b.dataset.alt === 'client') _rsApprove(m, b.dataset.for, 'client');
+            if (b.dataset.alt === 'client') _rsApprove(cur(), b.dataset.for, 'client');
             else _rsStartChange(b.dataset.for, 'stage', true);
         }));
         el.querySelectorAll('[data-menu]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); S.menu = S.menu === b.dataset.menu ? '' : b.dataset.menu; _rsDecide(); }));
-        el.querySelectorAll('[data-frame]').forEach(b => b.addEventListener('click', () => _rsSendChange(m, b.dataset.frame, RS_FRAME_NOTE, { where: 'stage' })));
+        el.querySelectorAll('[data-frame]').forEach(b => b.addEventListener('click', () => _rsSendChange(cur(), b.dataset.frame, RS_FRAME_NOTE, { where: 'stage' })));
         el.querySelectorAll('[data-chg]').forEach(b => b.addEventListener('click', () => _rsStartChange(b.dataset.chg, 'stage')));
         el.querySelectorAll('[data-again]').forEach(b => b.addEventListener('click', () => _rsStartChange(b.dataset.again, 'stage')));
         el.querySelectorAll('[data-retry]').forEach(b => b.addEventListener('click', () => { const f = S.retry[m.id + '|' + b.dataset.retry]; if (f) f(); }));
@@ -2315,7 +2317,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const el = _rsQ('drow');
         const elsew = _rsElsewhere(m, x) || (!x && m.parts.length === 0 ? 'Your team took this post back to work on it.' : '');
         const note = elsew ? '<div class="elsew" role="status" id="elsew"><span>' + _re(elsew) + '</span>' + (m.gone || !x ? '<button class="mv" type="button" id="moveOn">Next post</button>' : '') + '</div>' : '';
-        const bindMove = () => { const b = _rsQ('moveOn'); if (b) b.addEventListener('click', () => _rsMoveOn(m)); };
+        const bindMove = () => { const b = _rsQ('moveOn'); if (b) b.addEventListener('click', () => _rsMoveOn(_rsModelById(m.id) || m)); };
         if (!x) { if (_rsCalm(el, note, m)) bindMove(); return; }
         let d;
         if (m.gone) {
@@ -2417,7 +2419,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 ? '<span class="avs"><span class="av cl">' + _re(String(calState.client || '?').charAt(0)) + '</span><span class="av kp">K</span></span><span class="who"><b>Conversation</b><span>' + _re(calState.client || '') + ' (client), the editors and Kasper</span></span>'
                 : '<span class="avs"><span class="av">' + _re(String(m.client || '?').charAt(0)) + '</span><span class="av l">E</span></span><span class="who"><b>The team</b><span>' + _re(m.client) + '’s SMM and editors. The client does not see this.</span></span>';
         if (!_rsCalm(c, '<div class="ch-head">' + head + '</div><div class="ch-scroll" id="tscroll">' + th + '</div><div class="ch-foot">' + foot + '</div>', m)) return;
-        const fb = _rsQ('foldBtn'); if (fb) fb.addEventListener('click', () => { S.fold = !S.fold; _rsChat(m); });
+        const fb = _rsQ('foldBtn'); if (fb) fb.addEventListener('click', () => { S.fold = !S.fold; _rsChat(_rsModelById(m.id) || m); });
         c.querySelectorAll('[data-delete-note]').forEach(b => b.addEventListener('click', () => window._calDeleteComment(b.dataset.deleteNote, m.id)));
         // "Show all" on a long note: only this bubble opens, the thread keeps its place.
         c.querySelectorAll('[data-more]').forEach(b => b.addEventListener('click', () => {
@@ -3183,7 +3185,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const S = R.S, noteEl = _rsQ('l2note'), act = _rsQ('l2a');
         const card = _rsElsewhere(m, null) || (!m.parts.length ? 'Your team took this post back to work on it.' : '');
         if (_rsCalm(noteEl, card ? '<div class="elsew" role="status" id="elsew"><span>' + _re(card) + '</span>' + (m.gone || !m.parts.length ? '<button class="mv" type="button" id="moveOn">Next post</button>' : '') + '</div>' : '', m)) {
-            const mv = _rsQ('moveOn'); if (mv) mv.addEventListener('click', () => _rsMoveOn(m));
+            const mv = _rsQ('moveOn'); if (mv) mv.addEventListener('click', () => _rsMoveOn(_rsModelById(m.id) || m));
         }
         const slots = Array.from(g.querySelectorAll('.pn-d'));
         if (m.gone) {

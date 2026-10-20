@@ -66,6 +66,11 @@ const WATCH = `(() => {
       await t.page.evaluate(async () => { await _kasperLoadReview(true); await new Promise(x => setTimeout(x, 900)); });
       const gone2 = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; return { top: r.getElementById('qlList').scrollTop, rows: r.querySelectorAll('#qlList [data-id]').length }; });
       expect(gone2.rows === before.rows - 1 && gone2.top === before.top, 'a card removed by a refresh: the list keeps its place (' + before.rows + ' -> ' + gone2.rows + ' cards, ' + before.top + ' -> ' + gone2.top + ' px)');
+      // A button that stayed across refreshes still acts on the current post (its handler is not held from when it was drawn).
+      const nUp = t.state.upserts.length, nGw = (t.state.gateway || []).length;
+      await t.page.evaluate(() => document.getElementById('svReviewStage').shadowRoot.querySelector('[data-ok]').click());
+      await sleep(2500);
+      expect(t.state.upserts.length > nUp || (t.state.gateway || []).length > nGw || (t.state.native && Object.keys(t.state.native).length > 0), 'after refreshes, Approve on a button that was kept still saves');
       // The bell sits beside the title: the title's right edge ends before the bell's left edge.
       expect(t.errors.length === 0, 'no page errors (' + t.errors.join(' | ') + ')');
       await t.ctx.close();

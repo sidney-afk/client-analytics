@@ -222,11 +222,8 @@
     "collab-settings-reconcile.js",
     "comment-add-canonical-gate-routing.js",
     "comment-family-twin-parity.js",
-<<<<<<< HEAD
     "reply-parent-server-id.js",
-=======
     "review-note-backfill.js",
->>>>>>> origin/main
     "comment-resolve-defer.js",
     "comment-strip-is-honest.js",
     "component-feedback-read.js",

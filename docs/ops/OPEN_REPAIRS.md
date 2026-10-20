@@ -33736,3 +33736,12 @@ The same round restored the small plan-origin mark (carried over, planned automa
 - **Tests.** The gate itself now forces both races deterministically: a silent briefs call must leave the pane untouched (phase `description_markdown`), and a forced Create Post repaint must keep the focused post-name field, its text and its selection (phase `calendar_native_intake`). Both fail on the old code. Before: 3 reds in 48 runs at 6 copies (6 in 48 on an earlier batch), 2 in 15 at 3 copies. After: 0 in 48 at 6 copies, 15 of 15 at 3 copies, and 40 of 40 in a row.
 
 **Way back:** revert the pull request.
+
+## 457. [2026-10-20, BUILT, NOT MERGED] The Calendar strip jumped back to the start after closing Messages with Escape or the Close button (session Compass Three)
+
+- **Asked by:** the supervisor. `docs/syncview-design/tests/messages-inbox-browser.js` failed intermittently in CI on two unrelated pull requests: after leaving Messages by Escape or browser Back, the Calendar organizer strip came back at 0 instead of 300.
+- **Cause, one app race, no test fault.** `_msgRestore` puts the Calendar places back and watches for the person taking over (wheel, touch, key, press), which ends the restore. Those listeners were added while the very Escape or click that caused the restore was still bubbling to the window, so that event ended the restore at once and the strip was left wherever the Calendar's own redraw put it (0). Whether the redraw ran before or after the restore's first pass depended on machine speed, hence intermittent. A person hit it as the strip jumping back to the start after closing Messages with Escape or the Close button. Two smaller faults in the same place: the listeners were never taken off, and a restore tick already waiting still moved the strip after the person had taken over.
+- **Changed.** `src/index/326-core-messages-inbox.js.part`: an event that began before the restore (timeStamp at or before its start) is not the person taking over; the listeners are removed when the restore ends or is taken over; a waiting tick returns at once when the restore was taken over.
+- **Test.** The gate now dispatches the Escape so the restore starts during its dispatch, throws the strip to 0 as a redraw would, and asserts it returns to 300; and that a key pressed after the restore began still ends it. The first check fails on the old code in both themes.
+
+**Way back:** revert the pull request.

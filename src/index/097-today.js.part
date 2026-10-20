@@ -6,7 +6,7 @@ import {
 } from './098-smm-clients.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, SMM_WEEKLY_REPORTS_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _srpState } from './112-smm-weekly-reports.js';
-import { calClientSlug } from './130-calendar-model-cache.js';
+import { _calCommentsForView, calClientSlug } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _svSkel } from './133-core-loading-skeletons.js';
 import { _calV2Client } from './150-calendar-hydration-import.js';
@@ -48,7 +48,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     // changes (2: the client chips), so a copy saved by older code is never
     // painted and then visibly reshaped by the fresh read; the boot shell
     // (030-body-shell) checks the same number.
-    const TDY_SAVED_V = 2;
+    const TDY_SAVED_V = 3;
     const TDY_RT_DEBOUNCE_MS = 1500;
     const TDY_OPEN = ['todo', 'in_progress', 'tweak', 'smm_approval'];
     const TDY_PAST_EDIT = ['smm_approval', 'kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted'];
@@ -313,6 +313,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
                    it is fixed, however far off or past its date. A failed read
                    leaves the list empty, Today never breaks over it. */
                 _tdyRest('calendar_posts', 'select=id,client,name,scheduled_date,status,caption_status,caption_tweaks,video_deliverable_id,graphic_deliverable_id'
+                    + '&scheduled_date=gte.0001-01-01&scheduled_date=lte.9999-12-31'   // every date; also keeps this read shaped like Today's own, which the boot harness tells apart from a Calendar read
                     + '&caption_status=eq.' + encodeURIComponent('Tweaks Needed') + '&status=not.in.(Archived,Posted,Scheduled)&order=client.asc,id.asc').catch(() => [])
             ]);
             reads.catch(() => {});
@@ -461,7 +462,13 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         let list = [];
         try { list = JSON.parse(String(p.caption_tweaks || '')); } catch (e) { return ''; }
         if (!Array.isArray(list)) return '';
-        const open = list.filter(c => c && !c.done && c.is_tweak !== false && String(c.body || '').trim());
+        /* Same visibility rule the Calendar card uses (_calCommentsForView):
+           a deleted or audit-hidden note is never shown. If that function is
+           not there, show nothing rather than risk a hidden note. */
+        if (typeof _calCommentsForView !== 'function') return '';
+        let seen = [];
+        try { seen = _calCommentsForView({ caption_comments: list.filter(c => c && c.id) }, 'caption'); } catch (e) { return ''; }
+        const open = seen.filter(c => !c.done && (typeof c.is_tweak === 'boolean' ? c.is_tweak : true) && String(c.body || '').trim());
         open.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
         const line = open.length ? String(open[0].body).trim().split(/\r?\n/)[0].trim() : '';
         return line.length > 90 ? line.slice(0, 89) + '\u2026' : line;

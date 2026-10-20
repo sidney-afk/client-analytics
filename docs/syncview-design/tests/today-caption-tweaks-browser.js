@@ -27,6 +27,8 @@ function check(cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!
     const r = await page.evaluate(() => {
       const iso = n => _tdyIso(_tdyDays(n));
       const notes = JSON.stringify([
+        { id: 'h1', body: 'HIDDEN newest note', is_tweak: true, done: false, hidden: true, created_at: '2026-02-01T10:00:00Z' },
+        { id: 'h2', body: 'DELETED newer note', is_tweak: true, done: false, deleted: true, created_at: '2026-02-02T10:00:00Z' },
         { id: 'n1', body: 'Old note, already done', is_tweak: true, done: true, created_at: '2026-01-01T10:00:00Z' },
         { id: 'n2', body: 'Shorten the opening line\nand drop the hashtags', is_tweak: true, done: false, created_at: '2026-01-02T10:00:00Z' },
         { id: 'n3', body: 'Older open note', is_tweak: true, done: false, created_at: '2026-01-01T12:00:00Z' }
@@ -59,6 +61,7 @@ function check(cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!
       }));
       return { rows, rings: [...host.querySelectorAll('.tdy-rg')].map(n => n.getAttribute('aria-label')), overflow: document.documentElement.scrollWidth > innerWidth + 1, html: host.innerHTML };
     });
+    check(!/HIDDEN|DELETED/.test(r.html), 'a hidden or deleted newest note is never shown');
     const titles = r.rows.map(x => x.title);
     check(titles.includes('Post tw-in-window') && titles.includes('Post tw-far'), 'tweaks-needed captions show in Captions to write, also past the 14-day window (' + titles.join() + ')');
     check(!titles.includes('Post approved1'), 'an approved caption does not show');

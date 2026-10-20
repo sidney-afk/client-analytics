@@ -33686,6 +33686,12 @@ Test: `node test/client-link-dark-first-paint-browser.js` (fails on main, passes
 **Fix (browser only; production-write unchanged, nothing to re-pin):** `_prodServerParentRef` names the canonical twin (same words and role, a root note) when the parent id is unknown to the canonical thread; used by the Calendar and Samples comment sends. An id the server knows is sent unchanged. Held retries re-read the parent at send time, so a stuck reply sends on its next Retry once the page is reloaded.
 
 **Test:** `test/reply-parent-server-id.js` feeds a card-list id that differs from the canonical id and timestamp, the shape real data has.
+## 449. [2026-10-19, BUILT, NOT MERGED] Calm Workload day cards: editor no longer looks like a client row, every client row has a dot, count pills on the header row (session Calm Four)
+
+- **Asked by the owner** after looking at the week calendar: the editor name had a dot just like the client rows, some client rows had no dot at all, and the overdue / tweaks / in progress pills sat on a line of their own.
+- **Why some rows had no dot.** The dot on a client row is the deadline-buffer dot (`wlGroupDeadlineHtml`). It was missing in two cases. (1) Every item in the group has three or more working days of buffer ("green"): Calm hid that dot on purpose (`.wl-deadline-summary.is-green { display: none }`). (2) The group has no single tone, either because its items mix different buffers or because at least one has no due date: the helper returned an empty string, so nothing was drawn, in the old view too.
+- **Changed, Calm only.** The editor is now a muted rounded-square initial badge (same look as the Team workload avatars) with the name a little stronger than the client rows; the dot before the name is gone. Green rows now show a neutral grey dot, and a mixed or no-deadline group gets the same grey dot (tooltip carries the deadline text). The three count pills moved onto the editor header row, between the name and the load ("N" or "5/4 · 1 over"); the header wraps if a name is long. The flag-off Workload markup is byte-identical (the old-view golden in `workload-calm-off-browser.js` still matches, and it now also fails on any badge or grey dot leaking out).
+- **Tests.** `workload-calm-browser.js` asserts a badge and no dot before every editor name, a visible dot on every client row, and the pills inside the header row between the name and the load.
 ## 451. [2026-10-19, BUILT, NOT MERGED] Pull request checks took hours: the Gauntlet Three ran nine legs on one shared seat (session Pitstop)
 
 - **Asked by the owner:** two small pull requests waited over four hours. Measured on #2238: the Gauntlet Three (#2237) ran nine engine and width legs one after another on one seat shared by every open pull request, 140 minutes of seat time per pull request; guards seat 1 carried about 24 minutes more.
@@ -33693,3 +33699,9 @@ Test: `node test/client-link-dark-first-paint-browser.js` (fails on main, passes
 - **Tests.** `test/ci-changes.js` (review decisions), `test/ci-runner-seats.js` (the PR form, the nine legs off pull requests, the main alert).
 
 **Way back:** revert the pull request.
+
+## 453. [2026-10-20, BUILT, NOT RUN] Back-fill of client review-page notes that never reached production_comments (session Thread)
+
+`scripts/review-note-backfill.js` finds client root notes on linked video or thumbnail parts that exist only in the card row (see 452) and adds them through the F42 planner and the idempotent `production_comment_card_import` RPC. Dry run by default; `--apply` also needs `F42_CONFIRM_CARD_COMMENT_IMPORT=IMPORT_CARD_COMMENTS`. A note production already holds (same id, or exactly one same-words root within 15 minutes) is skipped; more than one match is skipped as ambiguous. The RPC stores the note under its composite `pc_card_` id and keeps the note's own id in provenance (the established mapping). Read-only measurement of the same rule on 2026-10-20: 165 client root notes since 2026-10-01, 116 already in production, 2 with a twin, 0 ambiguous, 47 to add on 11 cards. Owner runs `--apply`. Test: `test/review-note-backfill.js`.
+
+**Way back:** the imported rows carry `backfill_tag` and `import_run_id` (`review-note-backfill-<since>`); revert the pull request for the script itself.

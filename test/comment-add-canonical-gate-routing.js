@@ -122,6 +122,7 @@ function harness(sources) {
     _prodClientCommentGatewayContext: async () => host.frontDoor,
     _prodCanonicalCommentGate: () => host.gate,
     _prodVerifiedClientCommentMutationContext: () => host.mutationContext,
+    _prodServerParentRef: (canon, parent) => parent, _prodComments: { rows: () => [] }, _calCommentsFor: () => [], _sxrCommentsFor: () => [],
     _writeUiGatewayWithRepair: async (intent, repair) => {
       host.gateway.push({ intent, repair });
       return { ok: true, native_committed: true };

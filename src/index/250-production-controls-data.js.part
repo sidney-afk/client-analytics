@@ -2328,7 +2328,19 @@ import {
             // bulk-preload skeletons without fetching body text.
             _prodState.briefsLoaded = true;
             _prodState.briefsLoading = false;
-            if (!opts || !opts.silent || _prodState.view === 'detail') _prodRender();
+            /* A SILENT CALL DOES NOT REPAINT. The flag above is read in exactly one
+               place, when a description state is first created, so flipping it
+               changes nothing that is already on screen -- the repaint that used
+               to follow redrew an identical pane. It was not harmless: the
+               timer that calls this (6.5 s after every load) fired at a moment
+               nobody chose, and `_prodRender` rebuilds `#prodRoot` wholesale, so a reader who had started editing a
+               description or was applying a link-card edit in that instant lost
+               the node under their hands (the link card's Apply found its link
+               detached and discarded the edit; focus fell to the page). The
+               browser gate saw it as a different failing phase on every red,
+               because the timer is wall-clock and the phase it lands in depends
+               only on how slowly the machine ran. */
+            if (!opts || !opts.silent) _prodRender();
         }
         function _prodSetTeam(team) {
             _prodCaptureListScroll();

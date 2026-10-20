@@ -125,6 +125,7 @@ async function runCase({ gateway, saveOk }) {
     _writeUiNativeStatus: value => String(value || '').trim().toLowerCase().replace(/\s+/g, '_'),
     _writeUiTeam: component => component === 'graphic' ? 'graphics' : 'video',
     _writeUiBuildSourceRepair: () => ({}),
+    _prodServerParentRef: (canon, parent) => parent, _prodComments: { rows: () => [] },
     _writeUiGatewayWithRepair: async intent => {
       events.push('gateway');
       gatewayCalls.push(intent);
@@ -320,6 +321,7 @@ async function runReviewTweakCase({
     _writeUiNativeId: () => '',
     _writeUiTeam: component => component === 'graphic' ? 'graphics' : 'video',
     _writeUiBuildSourceRepair: () => ({}),
+    _prodServerParentRef: (canon, parent) => parent, _prodComments: { rows: () => [] },
     _writeUiGatewayWithRepair: async intent => {
       events.push('gateway:comment');
       gatewayCalls.push(intent);
@@ -402,6 +404,7 @@ async function runKasperTweakCase({ gateway, saveOk }) {
     _writeUiNativeStatus: value => String(value || '').trim().toLowerCase().replace(/\s+/g, '_'),
     _writeUiTeam: component => component === 'graphic' ? 'graphics' : 'video',
     _writeUiBuildSourceRepair: () => ({}),
+    _prodServerParentRef: (canon, parent) => parent, _prodComments: { rows: () => [] },
     _writeUiGatewayWithRepair: async intent => {
       events.push('gateway:' + intent.operation);
       gatewayCalls.push(intent);

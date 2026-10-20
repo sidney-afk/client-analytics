@@ -1085,6 +1085,32 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
        copies: set containment let ONE canonical row "cover" all N, and the
        replacement then silently dropped the duplicates. An empty legacy array
        is trivially covered. */
+    /* The id the SERVER knows a reply's parent by. A note the card still
+       shows from its own comment list (the canonical projection holds the
+       card back when the two timestamps differ) keeps the id the page gave
+       it, which production_comments may never have seen: the same words
+       were saved a second time under another id. A reply naming that id was
+       refused for good (comment_parent_not_found). When the id is unknown
+       to the canonical thread, name the canonical twin: same words, same
+       author and role, a root note, taken once. Otherwise the id is sent
+       unchanged and the server decides. */
+    function _prodServerParentRef(canon, parentId, legacyRows) {
+        const ref = String(parentId || '');
+        canon = Array.isArray(canon) ? canon : [];
+        if (!ref) return ref;
+        if (!canon.length || canon.some(r => r && (String(r.id) === ref || String(r.native_comment_id || '') === ref))) return ref;
+        const legacy = (Array.isArray(legacyRows) ? legacyRows : []).find(r => r && String(r.id) === ref);
+        if (!legacy) return ref;
+        const eq = (x, y) => !x || !y || String(x) === String(y);
+        const ms = (r) => Date.parse(r.source_created_at || r.created_at || '');
+        const near = (r) => { const x = ms(r), y = ms(legacy); return !isFinite(x) || !isFinite(y) || Math.abs(x - y) <= 15 * 60 * 1000; };
+        const legacyIds = new Set((legacyRows || []).map(r => r && String(r.id)));
+        const twins = canon.filter(r => r && !r.parent_id && !legacyIds.has(String(r.id))
+            && String(r.body || '') === String(legacy.body || '') && String(r.role || '') === String(legacy.role || '')
+            && eq(r.author, legacy.author) && eq(r.component, legacy.component) && eq(r.audience, legacy.audience) && near(r));
+        // Exactly one match, or the id is left alone and the refusal stays honest.
+        return twins.length === 1 ? String(twins[0].id) : ref;
+    }
     function _prodCanonicalCoversLegacy(canonicalRows, legacyRows) {
         const legacy = Array.isArray(legacyRows) ? legacyRows : [];
         if (!legacy.length) return true;
@@ -3628,7 +3654,7 @@ export {
   _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calTitleEngaged, _calTitlePillShown,
   _calUnionCommentCell, _calUpsertFetch, _calUpsertFetchPinned, _calUpsertHeaders,
   _clientCommentGatewayOn, _kasperUrgentPingOn, _kasperUrgentPingOnLive,
-  _prodCanonicalCoversLegacy, _prodCardBindingToken, _prodCommentAddRoutesLegacy,
+  _prodCanonicalCoversLegacy, _prodServerParentRef, _prodCardBindingToken, _prodCommentAddRoutesLegacy,
   _prodCrosswalkVerdict, _prodLegacyReadIncomplete, _prodLegacyUnrepresentableState,
   _prodMarkLegacyReadIncomplete, _prodResolveCardCrosswalk, _prodRootAudienceClientRows,
   _prodStripEphemeralCanonicalPosts, 

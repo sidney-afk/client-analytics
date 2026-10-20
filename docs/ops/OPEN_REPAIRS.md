@@ -33686,5 +33686,10 @@ Test: `node test/client-link-dark-first-paint-browser.js` (fails on main, passes
 **Fix (browser only; production-write unchanged, nothing to re-pin):** `_prodServerParentRef` names the canonical twin (same words and role, a root note) when the parent id is unknown to the canonical thread; used by the Calendar and Samples comment sends. An id the server knows is sent unchanged. Held retries re-read the parent at send time, so a stuck reply sends on its next Retry once the page is reloaded.
 
 **Test:** `test/reply-parent-server-id.js` feeds a card-list id that differs from the canonical id and timestamp, the shape real data has.
+## 451. [2026-10-19, BUILT, NOT MERGED] Pull request checks took hours: the Gauntlet Three ran nine legs on one shared seat (session Pitstop)
+
+- **Asked by the owner:** two small pull requests waited over four hours. Measured on #2238: the Gauntlet Three (#2237) ran nine engine and width legs one after another on one seat shared by every open pull request, 140 minutes of seat time per pull request; guards seat 1 carried about 24 minutes more.
+- **Changed.** On a pull request the Gauntlet runs only when the review page can change (`review` in `scripts/ci-changes.js`), as one job on chromium at 1440 with its three halves side by side (`review-gauntlet-pr`); the review phones are gated the same way and moved to the lighter guards seat. Every push to main runs all nine legs (three at a time) and every suite. Paging on a red main run is left to the owner (no new notification added). Still 14 seats. Audit of every check: `docs/ops/CI_CHECKS.md`.
+- **Tests.** `test/ci-changes.js` (review decisions), `test/ci-runner-seats.js` (the PR form, the nine legs off pull requests, the main alert).
 
 **Way back:** revert the pull request.

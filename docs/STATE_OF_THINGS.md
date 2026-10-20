@@ -18,6 +18,18 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Connector studio_action, first action review_notes (session Reel, 2026-10-19): PR #2244 open
+
+Owner's decision: one general Synchro connector tool, `studio_action(action, args)`, for every studio feature. New studio
+features are added as actions (`supabase/functions/higgsfield-mcp/studioaction.mjs`), never as new tools, so nobody has to
+press "Refresh tool list" again. An unknown action answers with the list. The `hf_activity` summary starts with `[action]`.
+First action `review_notes` (args client, videos?, batch?, frameio?), so a studio session can "do the tweaks for videos 7, 8
+and 12" of a client straight from SyncView. Per video: batch, number, title, brief, status, every note (SyncView card and
+SyncLinear, shown once; Frame.io with the time in the video), latest edit link, raw footage folder, filming plan Doc, card
+links, and a Frame.io download link for the latest edit (through `frameio-view/logic.mjs`). Writes nothing. Test:
+`node test/higgsfield-video-cards.js`. After deploy: "Refresh tool list" once (lessons rule 4) and one live call on the test
+client. A `tweaks` row in `hf_guides` is suggested in the PR for the connector supervisor to insert.
+
 ## Client link loading screen, second pass (session Dawn, 2026-10-18): PR open
 
 Owner: the loading screen "still looks horrible, even on mobile". Measured on the live site, then fixed (OPEN_REPAIRS 442): a first

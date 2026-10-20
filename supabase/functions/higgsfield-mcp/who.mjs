@@ -86,12 +86,17 @@ export function cleanSummary(raw) {
 // links already carry the person's name in member_name.
 export function activityRow({ member, tool, args, ok, error }) {
   const a = args && typeof args === "object" && !Array.isArray(args) ? args : {};
+  // studio_action: the client sits inside args, and the action name leads the
+  // summary ("[review_notes] ...") so the daily check can tell actions apart.
+  const inner = tool === "studio_action" && a.args && typeof a.args === "object" && !Array.isArray(a.args) ? a.args : {};
+  const action = tool === "studio_action" ? cleanLine(typeof a.action === "string" ? a.action : "", 40).toLowerCase().replace(/[\s-]+/g, "_") : "";
+  const said = cleanSummary(a.summary);
   return {
     member_name: cleanLine(String(member ?? ""), 80),
     who: isTeamLink(member) ? (cleanWho(a.who) || null) : null,
     tool: cleanLine(String(tool ?? ""), 60),
-    client: cleanLine(a.client, 120) || null,
-    summary: cleanSummary(a.summary) || null,
+    client: cleanLine(a.client, 120) || cleanLine(inner.client, 120) || null,
+    summary: tool === "studio_action" ? cleanSummary(`[${action || "no action"}] ${said}`) : (said || null),
     ok: ok === true,
     error: ok === true ? null : (cleanLine(String(error ?? ""), 300) || "error"),
   };
@@ -112,7 +117,7 @@ export const FAILURE_OPENINGS = [
   "No models in", "This recipe runs on", "At most ", "Which client?",
   "The Synchro Brain is not connected", "Skipped:", "Stopped:", "Something went wrong",
   "Transcription is not switched on", "That WAV is compressed",
-  "No guide called", "The filming plan is only", "Tell me your first name first",
+  "No guide called", "The filming plan is only", "Tell me your first name first", "Which batch?",
 ];
 const LINE_TOOLS = new Set(["check_job", "check_video", "check_jobs", "wait_for_job", "run_recipe"]);
 

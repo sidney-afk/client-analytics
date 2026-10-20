@@ -66,7 +66,7 @@ function findOrphans({ cards, canonicalByDeliverable, since, exclude }) {
   const skip = new Set(exclude || []);
   for (const card of cards || []) {
     if (skip.has(card.id)) continue;
-    const row = { id: card.id, client: card.client, client_slug: card.client_slug,
+    const row = { id: card.id, client: card.client, client_slug: card.client_slug || card.client,
       video_deliverable_id: card.video_deliverable_id, graphic_deliverable_id: card.graphic_deliverable_id };
     let any = false;
     for (const [part, field] of Object.entries(PARTS)) {
@@ -181,7 +181,7 @@ async function run(argv = process.argv.slice(2), env = process.env, deps = {}) {
   const since = clean(args.since) || '2026-10-01';
   const exclude = clean(args['exclude-card'] === true ? '' : args['exclude-card']).split(',').map(clean).filter(Boolean);
   const cards = deps.cards || await getAll(config, fetchImpl, 'calendar_posts',
-    'id,client,client_slug,video_deliverable_id,graphic_deliverable_id,video_tweaks,graphic_tweaks',
+    'id,client,video_deliverable_id,graphic_deliverable_id,video_tweaks,graphic_tweaks',
     '&or=(video_tweaks.not.is.null,graphic_tweaks.not.is.null)');
   const deliverables = deps.deliverables || await getAll(config, fetchImpl, 'deliverables', 'id,client_slug,team,origin,card_id');
   const canonical = deps.canonical || await getAll(config, fetchImpl, 'production_comments',

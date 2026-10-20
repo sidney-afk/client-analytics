@@ -1782,7 +1782,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         clearTimeout(_rsWarmTimer);
         _rsWarmTimer = setTimeout(() => {
             try {
-                if (!svRsKasperFast() || !R.host || R.host.hidden || R.S.curId !== m.id) return;
+                if (!svRsKasperFast() || !R.host || R.host.hidden || R.S.curId !== m.id) { if (_rsWarmFor === m.id) _rsWarmFor = ''; return; }
                 const q = _rsQueue(), i = q.findIndex(x => x.id === m.id);
                 if (i < 0) return;
                 // A warm-up that could not start (the player's switch is still being read) is tried again at the next draw, which the switch arriving causes.

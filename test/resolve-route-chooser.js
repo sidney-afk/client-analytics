@@ -1,17 +1,16 @@
 'use strict';
 /*
- * Resolve-and-route chooser — selective resolve-on-route + the 3-route / ✕-close
- * redesign. Static-structure checks against the real index.html; the behaviour is
- * proven end-to-end by qa/probes (p62 Notes chooser, p57 SMM review, and the new
- * resolve-on-send probe).
+ * Resolve-and-route chooser. Static-structure checks against the real index.html; the behaviour is proven
+ * end-to-end by qa/probes (p62 Notes chooser, p57 SMM review) and test/review-stage-one-question-browser.js (the
+ * manager's Review tab with open change requests).
  *
  * WHAT THIS GUARDS
  *   • Routing a component onward resolves the open change-requests so they don't
  *     linger in Notes demanding a second, redundant "mark done".
- *   • The resolve is SELECTIVE — only the change-requests the SMM ticks are
- *     marked done; un-ticked ones stay open (the 2+-open case).
- *   • The chooser offers three routes (Kasper / client / Approved) and a ✕ close
- *     that confirms first; the old Cancel button is gone.
+ *   • The Review tab never opens the chooser: the manager's Kasper / client pick IS the answer, every open request on
+ *     the part is marked done in the same send (toast with Undo; Settle, 2026-10-18).
+ *   • The chooser (now only the Notes "mark done" on the LAST open request) offers three routes (Kasper / client / Approve), a
+ *     "Mark done" that routes nowhere, and a ✕ close. No checklist.
  *   • Plain conversation comments (is_tweak false) are NEVER auto-resolved.
  *
  * Run:  node test/resolve-route-chooser.js   (exit 0 = all good)
@@ -40,12 +39,12 @@ const check = (label, got, want) => {
 const overlayAt = INDEX.indexOf('id="resolveDestOverlay"');
 const gateAt = INDEX.indexOf('<!-- Password gate', overlayAt);
 const overlay = INDEX.slice(overlayAt, gateAt > overlayAt ? gateAt : overlayAt + 3000);
-console.log('— chooser markup: 3 routes + ✕ close, no Cancel —');
+console.log('— chooser markup: 3 routes (Kasper / client / Approve) + Mark done + ✕ close, no Cancel, no checklist —');
 check('has a Kasper route button',  /id="resolveDestKasper"/.test(overlay), true);
 check('has a Client route button',  /id="resolveDestClient"/.test(overlay), true);
-check('has an Approve route button (new third route)', /id="resolveDestApprove"/.test(overlay), true);
+check('has an Approve route button (the Notes chooser keeps all four options)', /id="resolveDestApprove"/.test(overlay), true);
 check('has a ✕ close button',       /id="resolveDestClose"/.test(overlay), true);
-check('has a change-request checklist container', /id="resolveDestChecklist"/.test(overlay), true);
+check('has NO change-request checklist container', /id="resolveDestChecklist"/.test(overlay), false);
 check('the old Cancel button is gone', /onclick="_calDismissResolveDest\(\)">Cancel</.test(overlay), false);
 check('no discard-confirm screen — ✕ just closes (same in both tabs)', /id="resolveDestDiscard"/.test(overlay), false);
 check('✕ button just dismisses the chooser', /id="resolveDestClose"[\s\S]*?onclick="_calDismissResolveDest\(\)"/.test(overlay), true);
@@ -57,7 +56,7 @@ check('backdrop click just dismisses the chooser', /if\(event\.target===this&&th
 check('backdrop dismiss requires the press to have begun on the backdrop, not just the click landing there', /data-backdrop-dismiss/.test(overlay), true);
 
 // ---- status mapping: Approve → Approved ----
-console.log('\n— status mapping: Approve → Approved —');
+console.log('\n— status mapping (the helper still maps old queued retries that carry "approved") —');
 const autoStatus = grabFunc('_calApplyAutoStatus');
 /* The mapping moved into _calAutoResolveDestStatus on 2026-09-05, because
    _calResolveLastTweak has to know where the route is going BEFORE it resolves
@@ -67,7 +66,7 @@ const autoStatus = grabFunc('_calApplyAutoStatus');
    stronger than the two checks it replaces. */
 const autoDest = new Function(grabFunc('_calAutoResolveDestStatus') + '\nreturn _calAutoResolveDestStatus;')();
 check('the router asks the shared helper', /_calAutoResolveDestStatus\(dest\)/.test(autoStatus), true);
-check('smm_resolved_last maps dest "approved" → Approved', autoDest('approved'), 'Approved');
+check('an old queued retry carrying dest "approved" still maps → Approved', autoDest('approved'), 'Approved');
 check('still maps "kasper" → Kasper Approval', autoDest('kasper'), 'Kasper Approval');
 check('and "client" → Client Approval', autoDest('client'), 'Client Approval');
 
@@ -81,13 +80,17 @@ const openFn = grabFunc('_calOpenTweaksForComp');
 check('open list = undone, undeleted, non-reply change-requests (is_tweak only)',
   /!c\.parent_id && !c\.deleted && !c\.done && _calMsgIsTweak\(c\)/.test(openFn), true);
 
-// ---- Review-tab send resolves via the chooser ----
-console.log('\n— Review-tab "Approve & send" resolves open change-requests —');
+// ---- Review-tab send resolves with NO chooser ----
+console.log('\n— Review-tab "Approve to Kasper / client" resolves open change-requests without a second question —');
 const approve = grabFunc('_calReviewApprove');
-check('SMM + open change-requests opens the chooser',
-  /_calReviewMode\(\) === 'smm' && _calCanResolveComment\(\)[\s\S]*?_calOpenTweaksForComp\(post, comp\)[\s\S]*?_calShowResolveDest/.test(approve), true);
-check('chooser resolves ticked, THEN runs the real approve',
-  /_calResolveTweaksDone\(post, comp, ids\);[\s\S]*?_calReviewApplyApprove\(pid, comp, pickDest(?:, resolvedBefore)?\)/.test(approve), true);
+check('SMM + open change-requests never opens the chooser', /_calShowResolveDest/.test(approve), false);
+check('SMM + open change-requests resolves every open one, THEN runs the real approve',
+  /_calReviewMode\(\) === 'smm' && _calCanResolveComment\(\)[\s\S]*?_calOpenTweaksForComp\(post, comp\)[\s\S]*?open\.map\(t => t\.id\)[\s\S]*?_calResolveTweaksDone\(post, comp, ids\);[\s\S]*?_calReviewApplyApprove\(pid, comp, pickDest(?:, resolvedBefore(?:, told)?)?\)/.test(approve), true);
+check('the destination is the manager\'s own pick: client, else Kasper (never "approved")',
+  /const pickDest = dest === 'client' \? 'client' : 'kasper';/.test(approve), true);
+check('a refused approve is checked BEFORE any request is marked done',
+  /_calReviewBlockReason\(post, comp, _calSmmApproveTo\(pickDest\)\)[\s\S]*?_calResolveTweaksDone\(post, comp, ids\)/.test(approve), true);
+check('the send tells the manager how many were marked done, with Undo', /_calTellTweaksDone/.test(approve) && /actionLabel: 'Undo'/.test(grabFunc('_calTellTweaksDone')), true);
 check('no open change-requests → routes directly (unchanged path)',
   /_calReviewApplyApprove\(pid, comp, dest\);/.test(approve), true);
 const apply = grabFunc('_calReviewApplyApprove');
@@ -101,7 +104,7 @@ const apply = grabFunc('_calReviewApplyApprove');
 const smmDest = new Function(grabFunc('_calSmmApproveTo') + '\nreturn _calSmmApproveTo;')();
 check('apply routes the SMM dest through the shared helper', /_calSmmApproveTo\(dest\)/.test(apply), true);
 check("routes 'client' to Client Approval", smmDest('client'), 'Client Approval');
-check("routes 'approved' to Approved", smmDest('approved'), 'Approved');
+check("an old queued retry carrying 'approved' still routes to Approved", smmDest('approved'), 'Approved');
 check('routes anything else to Kasper Approval', smmDest('kasper'), 'Kasper Approval');
 /* And the chooser's route is NOT this rule. On an unrecognised destination the
    chooser goes to the CLIENT and the approve-onward goes to Kasper, which is why
@@ -110,31 +113,27 @@ check('routes anything else to Kasper Approval', smmDest('kasper'), 'Kasper Appr
 check('the two destination rules genuinely differ on an unrecognised dest',
   autoDest('') === 'Client Approval' && smmDest('') === 'Kasper Approval', true);
 
-// ---- checklist only when there is a real choice (2+) ----
-console.log('\n— checklist shows only when there is a real choice (2+ open) —');
+// ---- no checklist: the one request is implied by the route ----
+console.log('\n— the chooser has no checklist (it only ever holds the one last request) —');
 const show = grabFunc('_calShowResolveDest');
-check('renders the checklist when 2+ open', /openTweaks\.length >= 2/.test(show), true);
-check('hides the checklist otherwise', /checklist\.hidden = true/.test(show), true);
-check('ticked ids = checked rows, or all open when the checklist is hidden',
-  /checklist\.hidden\) return openTweaks\.map\(t => t\.id\)/.test(show), true);
+check('no checklist code in the chooser', /checklist|resolve-dest-check/.test(show), false);
+check('the Approve button is wired in the chooser', /resolveDestApprove/.test(show) && /aBtn\.onclick = \(\) => pick\('approved'\)/.test(show), true);
+check('picks resolve every request passed in', /const allIds = \(\) => openTweaks\.map\(t => t\.id\)/.test(show), true);
 
 // ---- "Mark done — don't change the status" (resolve without routing) ----
 console.log('\n— "Mark done" escape: resolve the change-request without moving the status —');
 check('chooser markup has the no-route action', /id="resolveDestStay"/.test(overlay), true);
-check('the no-route action is NOT a fourth route button (it sits outside the route row)',
+check('the no-route action is NOT a third route button (it sits outside the route row)',
   /resolve-dest-actions[\s\S]*?id="resolveDestApprove"[\s\S]*?<\/div>\s*<button[^>]*id="resolveDestStay"/.test(overlay), true);
 check('stay button resolves with dest "stay"', /resolveDestStay[\s\S]*?pick\('stay'\)/.test(show), true);
 const resolveLast = grabFunc('_calResolveLastTweak');
 check('Notes path resolves but SKIPS the status flip on "stay"',
   /destPick !== 'stay'\) _calApplyAutoStatus/.test(resolveLast), true);
-check('Review path resolves but SKIPS the approve on "stay" (repaint only)',
-  /pickDest === 'stay'\)[\s\S]*?_calReviewRepaintCard[\s\S]*?\} else \{[\s\S]*?_calReviewApplyApprove/.test(approve), true);
 
-// ---- ✕ closes outright in BOTH tabs; "don't change status" stays Notes-only ----
-console.log('\n— ✕ closes outright everywhere; the status-stay option is Notes-only —');
-check('Review opens the chooser with fromReview:true', /openTweaks: open,\s*fromReview: true,/.test(approve), true);
-check('Notes opens the chooser with fromReview:false', /openTweaks: root \? \[root\] : \[\],\s*fromReview: false,/.test(resolveLast), true);
-check('chooser hides the "don\'t change status" option when fromReview (Review)', /stayBtn\.hidden = !!opts\.fromReview/.test(show), true);
+// ---- ✕ closes outright; the chooser is Notes-only ----
+console.log('\n— ✕ closes outright; only Notes opens the chooser —');
+check('Notes opens the chooser with the one last request', /openTweaks: root \? \[root\] : \[\],/.test(resolveLast), true);
+check('the Review tab no longer passes fromReview (the chooser is Notes-only)', /fromReview/.test(INDEX), false);
 check('no close-confirm machinery remains (_calResolveDestRequestClose removed)', /_calResolveDestRequestClose/.test(INDEX), false);
 check('no confirm-on-close flag remains (_calResolveDestConfirmClose removed)', /_calResolveDestConfirmClose/.test(INDEX), false);
 const dismiss = grabFunc('_calDismissResolveDest');

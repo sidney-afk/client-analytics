@@ -18,6 +18,16 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Manager's Review tab asks once (session Settle, 2026-10-18): PR open
+
+Owner report: on a part with open change requests, picking "Approve to Kasper" or "Approve to client" opened a second
+pop-up ("Tweaks resolved, where to next?", with a checklist and a plain Approve). Now the pick is the answer: every open
+change request on the part is marked done in the same save, with a toast "N change requests marked done" and Undo
+(OPEN_REPAIRS 447). The manager's Review tab never offers a plain Approve; the chooser now only opens for Notes "Mark done" on the
+last open request, where a review pass restored its four options (Kasper approval / Client approval / Approve / Mark done) as on main. The Notes panel opens at the newest message and stays
+there. Test: `node test/review-stage-one-question-browser.js`. Other places that ask twice are listed in the PR for the
+owner to decide (the card's status pills still leave open requests open; the client Sheet "Approve this post?" confirm).
+
 ## Connector studio_action, first action review_notes (session Reel, 2026-10-19): PR #2244 open
 
 Owner's decision: one general Synchro connector tool, `studio_action(action, args)`, for every studio feature. New studio

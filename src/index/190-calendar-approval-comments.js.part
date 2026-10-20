@@ -735,14 +735,13 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         });
     }
 
-    /* Review-tab "Approve & send". When the SMM routes a component that still
-       carries open change-requests, resolve them as part of the send — otherwise
-       they linger in Notes demanding a second, redundant "mark done" (the exact
-       redundancy this addresses). The chooser lets her tick which are actually
-       handled (un-ticking any that aren't) and pick where it goes next: Kasper,
-       the client, or straight to Approved. With NO open change-requests it routes
-       directly, exactly as before — so status-only approvals are unchanged. The
-       client surface never resolves tweaks (_calCanResolveComment is SMM-only). */
+    /* Review-tab "Approve to Kasper / to client". The SMM's pick of Kasper or the client IS the answer: when the part
+       still carries open change-requests they are marked done as part of the same send (sending a new version answers
+       them), with no second pop-up (Settle, 2026-10-18; it used to ask "Tweaks resolved, where to next?" right after the
+       SMM had already chosen where). The writes are exactly the ones the old pop-up made with every request ticked: the
+       same canonical or card-JSON resolve, then the same approve. A toast says how many were marked done and offers
+       Undo, which reopens exactly those. With NO open change-requests it routes directly, exactly as before. The client
+       surface never resolves tweaks (_calCanResolveComment is SMM-only). */
     function _calReviewApprove(pid, comp, dest) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
@@ -751,73 +750,97 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             if (open.length) {
                 const key = pid + '|' + comp;
                 if (_calReviewState.saving[key]) return;
-                _calShowResolveDest({
-                    comp: comp,
-                    recommend: dest === 'client' ? 'client' : (dest === 'approved' ? 'approved' : 'kasper'),
-                    reason: _calResolveDestReason(post, comp),
-                    openTweaks: open,
-                    fromReview: true,
-                    onChoose: (pickDest, ids) => {
-                        /* Refuse BEFORE anything is mutated. _calReviewApplyApprove
-                           runs the same check, but by then _calResolveTweaksDone
-                           has already marked the ticked requests done and staged
-                           them -- so a refused approve would leave the thread
-                           resolved and the status where it was, which is the one
-                           outcome nobody asked for. */
-                        if (pickDest !== 'stay') {
-                            const _blocked = _calReviewBlockReason(post, comp, _calSmmApproveTo(pickDest));
-                            if (_blocked) {
-                                showNotify('Nothing to review yet', _blocked
-                                    + ' Nothing was changed — the change requests are still open.');
-                                return;
-                            }
-                        }
-                        const resolvedBefore = {
-                            video_comments: post.video_comments,
-                            graphic_comments: post.graphic_comments,
-                            caption_comments: post.caption_comments,
-                            title_comments: post.title_comments
-                        };
-                        // Resolve the ticked change-requests. If the SMM chose
-                        // "don't change the status" (dest 'stay') it's a plain
-                        // mark-done — flush + repaint, no approve. Otherwise run the
-                        // real approve, so the tweaks JSON and the status flip ride
-                        // the same flush.
-                        /* OPEN_REPAIRS: Mender. On a card whose notes are read from
-                           the canonical thread, marking done here used to flip only
-                           the legacy copy, so the Notes panel showed the requests
-                           open again on the next read. Resolve them canonically
-                           first, exactly as _calResolveLastTweak does, and stop if
-                           any resolve is refused. */
-                        if (_prodCanonicalCommentGate(post, comp).linked) {
-                            _calReviewResolveCanonical(post, comp, ids, pickDest).then(ok => {
-                                if (!ok) return;
-                                if (pickDest === 'stay') {
-                                    _calRefreshCommentsBtn(pid);
-                                    _calUpdateCardStatusDisplay(pid);
-                                    _calReviewRepaintCard(pid);
-                                } else {
-                                    _calReviewApplyApprove(pid, comp, pickDest, resolvedBefore);
-                                }
-                            });
-                            return;
-                        }
-                        if (_calCanonicalCrosswalkPending(post, comp)) return;
-                        _calResolveTweaksDone(post, comp, ids);
-                        if (pickDest === 'stay') {
-                            _calWatchNoteSave(pid);
-                            _calRefreshCommentsBtn(pid);
-                            _calUpdateCardStatusDisplay(pid);
-                            _calReviewRepaintCard(pid);
-                        } else {
-                            _calReviewApplyApprove(pid, comp, pickDest, resolvedBefore);
-                        }
-                    }
-                });
+                const pickDest = dest === 'client' ? 'client' : 'kasper';
+                const ids = open.map(t => t.id);
+                /* Refuse BEFORE anything is mutated. _calReviewApplyApprove
+                   runs the same check, but by then _calResolveTweaksDone
+                   has already marked the requests done and staged
+                   them -- so a refused approve would leave the thread
+                   resolved and the status where it was, which is the one
+                   outcome nobody asked for. */
+                const _blocked = _calReviewBlockReason(post, comp, _calSmmApproveTo(pickDest));
+                if (_blocked) {
+                    showNotify('Nothing to review yet', _blocked
+                        + ' Nothing was changed — the change requests are still open.');
+                    return;
+                }
+                const resolvedBefore = {
+                    video_comments: post.video_comments,
+                    graphic_comments: post.graphic_comments,
+                    caption_comments: post.caption_comments,
+                    title_comments: post.title_comments
+                };
+                // The toast waits for the server's answer, so it never says "done" for a send that was refused.
+                const told = () => _calTellTweaksDone(pid, comp, ids);
+                /* OPEN_REPAIRS: Mender. On a card whose notes are read from
+                   the canonical thread, marking done here used to flip only
+                   the legacy copy, so the Notes panel showed the requests
+                   open again on the next read. Resolve them canonically
+                   first, exactly as _calResolveLastTweak does, and stop if
+                   any resolve is refused. */
+                if (_prodCanonicalCommentGate(post, comp).linked) {
+                    /* The old pop-up kept a second press out while the requests were being resolved; with no pop-up the
+                       "saving" flag is not up until the resolves are done, so a double press would resolve twice and
+                       send twice (two saves, two toasts). Hold the part until the approve has taken over. */
+                    const closing = _calReviewState.closing || (_calReviewState.closing = {});
+                    if (closing[key]) return;
+                    closing[key] = true;
+                    _calReviewResolveCanonical(post, comp, ids, pickDest).then(ok => {
+                        if (!ok) return;
+                        _calReviewApplyApprove(pid, comp, pickDest, resolvedBefore, told);
+                    }).finally(() => { delete closing[key]; });
+                    return;
+                }
+                if (_calCanonicalCrosswalkPending(post, comp)) return;
+                _calResolveTweaksDone(post, comp, ids);
+                _calReviewApplyApprove(pid, comp, pickDest, resolvedBefore, told);
                 return;
             }
         }
         _calReviewApplyApprove(pid, comp, dest);
+    }
+    /* The toast after a send that marked change-requests done: "N change requests marked done" with Undo for a few
+       seconds. Undo reopens exactly those requests (only the ones still done), the same way Notes' Reopen does. */
+    function _calTellTweaksDone(pid, comp, ids) {
+        const n = ids.length;
+        showToast(n + ' change request' + (n === 1 ? '' : 's') + ' marked done', {
+            actionLabel: 'Undo',
+            duration: 6000,
+            onAction: () => { _calReopenTweaks(pid, comp, ids); }
+        });
+    }
+    async function _calReopenTweaks(pid, comp, ids) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post || !Array.isArray(ids) || !ids.length) return false;
+        const want = new Set(ids);
+        const list = _calCommentsFor(post, comp);
+        const done = (Array.isArray(list) ? list : []).filter(c => c && !c.parent_id && want.has(c.id) && c.done && !c.deleted);
+        if (!done.length) return false;
+        if (_prodCanonicalCommentGate(post, comp).linked) {
+            for (const comment of done) {
+                const receipt = await _writeUiCommitCardCommentLifecycle('calendar', post, comp, comment, 'unresolve');
+                if (!receipt) return false;
+            }
+            await _writeUiPersistCanonicalCommentProjection('calendar', post, comp);
+        } else {
+            if (_calCanonicalCrosswalkPending(post, comp)) return false;
+            const at = new Date().toISOString();
+            const all = comp === 'video'
+                ? (Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post))
+                : _calCommentsFor(post, comp).slice();
+            for (const c of all) {
+                if (c && !c.parent_id && want.has(c.id) && c.done) { c.done = false; c.done_at = ''; c.done_by = ''; c.updated_at = at; }
+            }
+            _calSetCommentsFor(post, comp, all);
+            if (comp === 'video') post.comments = all;
+            _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [comp + '_tweaks']: _calStringifyComments(all) });
+            _calWatchNoteSave(pid);
+        }
+        _calRefreshCommentsBtn(pid);
+        _calUpdateCardStatusDisplay(pid);
+        _calReviewRepaintCard(pid);
+        if (_calOpenCommentsPid === pid) { _calCaptureModalDrafts(); _calRenderCommentsModal({ keepFocus: true }); }
+        return true;
     }
     async function _calReviewResolveCanonical(post, comp, ids, dest) {
         for (const id of (Array.isArray(ids) ? ids : [])) {
@@ -841,7 +864,8 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         showNotify('Notes are still loading', 'Nothing was changed. Try again in a moment.');
         return true;
     }
-    function _calReviewApplyApprove(pid, comp, dest, resolvedBefore) {
+    // onSaved (optional): called once the server has confirmed the save, never after a refused one.
+    function _calReviewApplyApprove(pid, comp, dest, resolvedBefore, onSaved) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const key = pid + '|' + comp;
@@ -947,6 +971,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             if (mode === 'client') _calCrqDone(pid, comp);
             if (clearsCard) _calReviewRemoveCard(pid);
             else _calReviewRepaintCard(pid);
+            if (typeof onSaved === 'function') onSaved();
         });
     }
 
@@ -2599,6 +2624,8 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         document.body.classList.add('cal-modal-open');
         _calNotesStageSync(post);
         _calCommentsLayerOpen(pid);
+        const _calNm = document.getElementById('calCommentsModal');
+        if (_calNm) _calNm.removeAttribute('data-feed-pid');   // a fresh opening starts at the newest message
         _calRenderCommentsModal();
         // Auto-scroll the feed to the latest message and focus the composer.
         setTimeout(() => {
@@ -2944,7 +2971,11 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             )
             : '';
 
-        const prevFeed = document.getElementById('calCommentsFeed');
+        /* The conversation opens at its newest message and stays there while new ones arrive, unless the reader has
+           scrolled up (Settle, 2026-10-18). Every redraw (the notes read landing, the Frame.io comments, a send) used to
+           reset the feed to the top unless the caller asked to keep the focus, so a long thread opened part way up.
+           A feed left by ANOTHER card (or by an earlier opening of this one) does not count as a place to keep. */
+        const prevFeed = modal.getAttribute('data-feed-pid') === pid ? document.getElementById('calCommentsFeed') : null;
         const keep = !!(opts && opts.keepFocus);
         const hadFocus = !!(document.activeElement && document.activeElement.id === 'calCommentComposer');
         const atBottom = !prevFeed || prevFeed.scrollHeight - prevFeed.scrollTop - prevFeed.clientHeight < 40;
@@ -2964,9 +2995,18 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             </div>
             ${_calComposerHtml(post, comments)}`;
         _svPhoneNotesPresentation();
-        if (keep) {
+        modal.setAttribute('data-feed-pid', pid);
+        {
             const feed = document.getElementById('calCommentsFeed');
-            if (feed) feed.scrollTop = atBottom ? feed.scrollHeight : prevTop;
+            if (feed) {
+                feed.scrollTop = atBottom ? feed.scrollHeight : prevTop;
+                // Fonts and images settle a frame later and make the thread taller: follow it down, but only if the
+                // reader has not moved the feed in the meantime.
+                if (atBottom) requestAnimationFrame(() => {
+                    const f = document.getElementById('calCommentsFeed');
+                    if (f && f === feed && f.scrollHeight - f.scrollTop - f.clientHeight < 40) f.scrollTop = f.scrollHeight;
+                });
+            }
         }
         if (_calEnterWhenReady) {
             const queuedBtn = modal.querySelector('.cal-cm-send');
@@ -3724,7 +3764,6 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         opts = opts || {};
         const overlay = document.getElementById('resolveDestOverlay');
         const msg = document.getElementById('resolveDestMsg');
-        const checklist = document.getElementById('resolveDestChecklist');
         const kBtn = document.getElementById('resolveDestKasper');
         const cBtn = document.getElementById('resolveDestClient');
         const aBtn = document.getElementById('resolveDestApprove');
@@ -3733,29 +3772,10 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         // resolve everything, so the caller still completes.
         if (!overlay || !kBtn || !cBtn || !aBtn) { if (opts.onChoose) opts.onChoose(opts.recommend || 'client', openTweaks.map(t => t.id)); return; }
         const compLabel = (COMP_LABELS[opts.comp] || 'this').toLowerCase();
-        // The checklist earns its keep only when there's a genuine choice (2+
-        // open). With one, the single change-request is implied by the route, so
-        // we hide it and resolve that one — no extra friction.
-        if (checklist) {
-            if (openTweaks.length >= 2) {
-                checklist.innerHTML = openTweaks.map(t => {
-                    const body = String(t.body || '').replace(/\s+/g, ' ').trim();
-                    const short = body.length > 90 ? body.slice(0, 88) + '…' : (body || '(no message)');
-                    const who = t.role === 'kasper' ? 'Kasper' : (t.role === 'client' ? 'Client' : (_calNoteAuthorName(t, 'Note')));
-                    const rd = t.round ? ('Tweak #' + t.round) : 'Tweak';
-                    return '<label class="resolve-dest-check"><input type="checkbox" data-rd-id="' + _calEscAttr(t.id) + '" checked>'
-                        + '<span><span class="rd-round">' + _calEsc(rd) + '</span> · ' + _calEsc(who) + ' — ' + _calEsc(short) + '</span></label>';
-                }).join('');
-                checklist.hidden = false;
-            } else {
-                checklist.innerHTML = '';
-                checklist.hidden = true;
-            }
-        }
-        const n = openTweaks.length;
-        const lead = n >= 2 ? 'Tick the change requests you’ve handled — they’ll be marked done. '
-                   : n === 1 ? 'This change request will be marked done. '
-                   : '';
+        /* Only the Notes "mark done" on the LAST open change-request opens this (the Review tab no longer asks: its
+           Kasper / client pick is the answer), so there is exactly one request and the route implies it. There is no
+           plain "Approve" (the manager only sends to Kasper or the client). */
+        const lead = openTweaks.length === 1 ? 'This change request will be marked done. ' : '';
         const toKasper = opts.recommend === 'kasper';
         const toApproved = opts.recommend === 'approved';
         if (msg) msg.textContent = lead + 'Then send the ' + compLabel + ' onward: '
@@ -3767,25 +3787,17 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         kBtn.classList.toggle('primary', toKasper);
         cBtn.classList.toggle('primary', !toKasper && !toApproved);
         aBtn.classList.toggle('primary', toApproved);
-        // Which change-requests to resolve on a pick: the ticked rows, or — when
-        // the checklist is hidden (≤1 open) — every open one passed in.
-        const tickedIds = () => {
-            if (!checklist || checklist.hidden) return openTweaks.map(t => t.id);
-            return Array.from(checklist.querySelectorAll('input[data-rd-id]'))
-                .filter(i => i.checked).map(i => i.getAttribute('data-rd-id'));
-        };
+        const allIds = () => openTweaks.map(t => t.id);
         _calResolveDestCb = (typeof opts.onChoose === 'function') ? opts.onChoose : null;
-        const pick = (dest) => { const cb = _calResolveDestCb; const ids = tickedIds(); _calDismissResolveDest(); if (cb) cb(dest, ids); };
+        const pick = (dest) => { const cb = _calResolveDestCb; const ids = allIds(); _calDismissResolveDest(); if (cb) cb(dest, ids); };
         kBtn.onclick = () => pick('kasper');
         cBtn.onclick = () => pick('client');
         aBtn.onclick = () => pick('approved');
-        // "Mark done — don't change the status": resolve the ticked change-requests
+        // "Mark done — don't change the status": resolve the change-request
         // but route nowhere (dest 'stay'). The same plain resolve every non-last
-        // comment already gets — just reachable for the last one too. Only offered
-        // from Notes: the Review tab's "Approve & send" is inherently a route, so
-        // a "don't change the status" escape doesn't belong there.
+        // comment already gets — just reachable for the last one too.
         const stayBtn = document.getElementById('resolveDestStay');
-        if (stayBtn) { stayBtn.hidden = !!opts.fromReview; stayBtn.onclick = () => pick('stay'); }
+        if (stayBtn) { stayBtn.hidden = false; stayBtn.onclick = () => pick('stay'); }
         overlay.classList.add('active');
         svLayerOverlay('cal-resolvedest', '#resolveDestOverlay', '#resolveDestOverlay .confirm-box', () => _calDismissResolveDest(), { openClass: 'active' });
     }
@@ -3812,7 +3824,6 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             recommend: _calResolveDestRecommend(post, comp),
             reason: _calResolveDestReason(post, comp),
             openTweaks: root ? [root] : [],
-            fromReview: false,
             onChoose: async (destPick, ids) => {
                 /* Refuse BEFORE anything is resolved. _calApplyAutoStatus below
                    now returns false for an empty component, and its callers

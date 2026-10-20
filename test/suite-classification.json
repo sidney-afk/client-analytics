@@ -1966,6 +1966,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-one-question-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Checks the manager's Review tab on parts with open change requests: Approve to Kasper or to the client opens no 'where to next' pop-up, marks every open request done in the same single save, shows 'N change requests marked done' with an Undo that reopens exactly those, shows no toast after a refused save, offers no plain Approve; the Notes 'Mark done' on the last request still asks once (Kasper approval, Client approval, Mark done; no checklist); and the Notes panel opens at the newest message of a long conversation, stays there when a message arrives, and does not move a reader who scrolled up.",
+      "reproduce": "node test/review-stage-one-question-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-client-composer-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

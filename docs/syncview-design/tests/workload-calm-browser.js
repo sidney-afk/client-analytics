@@ -78,6 +78,37 @@ async function pickDate(page, iso) {
     await p.locator(un + ' [data-wl-calm-toggle]').click();
     expect(await p.locator(un + ' .wl-loose-clients').isHidden(), 'and it closes again');
 
+    console.log('--- day cards: editor badge, a dot on every client row, pills on the header row');
+    const cards = await p.evaluate(() => [...document.querySelectorAll('.workload-grid.week .workload-day-card')].map(c => {
+      const head = c.querySelector('.workload-day-card-head');
+      const badge = head.querySelector('.workload-day-card-badge');
+      const pseudo = getComputedStyle(head, '::before').content;
+      const rows = [...c.querySelectorAll('.workload-day-card-chip')].map(r => {
+        const d = r.querySelector('.wl-deadline-summary .wl-deadline-dot');
+        const box = d && d.getBoundingClientRect();
+        return !!d && box.width > 0 && getComputedStyle(d).backgroundColor !== 'rgba(0, 0, 0, 0)';
+      });
+      const pills = [...c.querySelectorAll('.wl-day-status-pill')];
+      const total = head.querySelector('.workload-day-card-total').getBoundingClientRect();
+      const name = head.querySelector('.workload-day-card-name').getBoundingClientRect();
+      return {
+        badge: badge ? badge.textContent : null,
+        name: head.querySelector('.workload-day-card-name').textContent,
+        noDot: pseudo === 'none' || pseudo === 'normal' || pseudo === '""',
+        rows,
+        pills: pills.length,
+        pillsInHead: pills.every(x => head.contains(x)),
+        pillsBetween: pills.every(x => { const r = x.getBoundingClientRect(); return Math.abs(r.top - name.top) < 14 && r.left >= name.left && r.right <= total.right; }),
+        separateStatusRow: !!c.querySelector(':scope > .workload-day-card-status'),
+      };
+    }));
+    expect(cards.length >= 5, 'the week shows day cards (saw ' + cards.length + ')');
+    expect(cards.every(c => c.badge === c.name.charAt(0).toUpperCase()), 'every editor name starts with a rounded-square initial badge');
+    expect(cards.every(c => c.noDot), 'no dot before any editor name');
+    expect(cards.every(c => c.rows.length > 0 && c.rows.every(Boolean)), 'every client row has a visible status dot');
+    expect(cards.some(c => c.pills > 0), 'today carries count pills');
+    expect(cards.every(c => c.pillsInHead && c.pillsBetween && !c.separateStatusRow), 'the count pills share the editor header row, between the name and the load');
+
     console.log('--- one click from the pill to everything');
     const grp = `summary[data-wl-date="${WED}"][data-wl-client="Client A"]`;
     await p.locator(grp).first().click();

@@ -1767,7 +1767,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (empty) { _rsStageOff(); _rsRecap(); return; }
         R.S.shown = m.id;
         m.parts.forEach(x => { if (x.st === 'wait') R.S.seen[m.id + '|' + x.key] = 1; });
-        if (R.l2) { _rsL2Render(m); return; }
+        if (R.l2) { _rsL2Render(m); _rsWarmNeighbours(m); return; }
         _rsSide(m); _rsStepper(m); _rsMedia(m); _rsCard(m); _rsDecide(); _rsChatCalm(m); _rsChat(m);
         if (!R.S.hinted) _rsHint(m);
         _rsWarmNeighbours(m);
@@ -1785,7 +1785,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 if (!svRsKasperFast() || !R.host || R.host.hidden || R.S.curId !== m.id) return;
                 const q = _rsQueue(), i = q.findIndex(x => x.id === m.id);
                 if (i < 0) return;
-                [q[i + 1], q[i - 1]].forEach(n => { if (n && !n.sample && n.post) svFrameWarm(n.post); });
+                // A warm-up that could not start (the player's switch is still being read) is tried again at the next draw, which the switch arriving causes.
+                [q[i + 1], q[i - 1]].forEach(n => { if (n && !n.sample && n.post && !svFrameWarm(n.post)) _rsWarmFor = ''; });
             } catch (e) {}
         }, 700);
     }

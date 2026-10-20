@@ -1813,7 +1813,7 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
                     // but Kasper still gets the confirmation + Undo (the calendar's
                     // toast shows in BOTH branches; without it a partial approve
                     // gave no feedback and no way back).
-                    if (typeof showToast === 'function') showToast(COMP_LABELS[comp] + ' approved — sent to client', { actionLabel: 'Undo', onAction: () => _sxrKasperUndoApprove(it, comp, prevStatus, null) });
+                    if (typeof showToast === 'function') showToast(COMP_LABELS[comp] + ' approved — sent to client', { actionLabel: 'Undo', onAction: () => _sxrKasperUndoApprove(it, comp, prevStatus, null) }); (window._svUndoToasts = window._svUndoToasts || {})[pid + '|' + comp] = Array.from(document.querySelectorAll('.sv-toast')).pop() || null;
                     return false;
                 }
                 const entry = _sxrKasperHistoryEntryFromPost(p, it.client, it.slug, new Date().toISOString());
@@ -1821,7 +1821,7 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
                 const removed = it;
                 _sxrKasperState.items = _sxrKasperState.items.filter(x => x.post.id !== pid);
                 _sxrKasperRenderQueue();
-                if (typeof showToast === 'function') showToast(COMP_LABELS[comp] + ' approved — sent to client', { actionLabel: 'Undo', onAction: () => _sxrKasperUndoApprove(removed, comp, prevStatus, entry.id) });
+                if (typeof showToast === 'function') showToast(COMP_LABELS[comp] + ' approved — sent to client', { actionLabel: 'Undo', onAction: () => _sxrKasperUndoApprove(removed, comp, prevStatus, entry.id) }); (window._svUndoToasts = window._svUndoToasts || {})[pid + '|' + comp] = Array.from(document.querySelectorAll('.sv-toast')).pop() || null;
                 return true;
             });
     }

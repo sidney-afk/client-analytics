@@ -31,10 +31,12 @@ import { currentNav } from './065-core-nav-intake-state.js';
                                     name of the signed-in staff member), and it only changes the layout of a page that
                                     switch already shows: it needs review_stage_kasper_staff to list the same person, and
                                     it applies on wide screens only (1360 px and up). Missing, unreadable or the wrong shape: today's layout.
-         workload_calm_staff        { "staff": [...] }: the calm Workload calendar (session Calm, 2026-10-18), only for the
-                                    signed-in staff member whose id or full name is listed. A design preview the owner
-                                    tweaks before anyone else sees it. Missing, unreadable or the wrong shape: the
-                                    Workload calendar exactly as it was.
+         workload_calm_staff        { "staff": [...] } and/or { "all": true }: the calm Workload calendar (session Calm,
+                                    2026-10-18). "staff" lists the signed-in staff members (id or full name) who get it;
+                                    { "all": true } gives it to every signed-in staff member, so a new team member needs
+                                    no edit (session Calm Six, 2026-10-20). Only the exact boolean true counts. Never the
+                                    client link. Missing, unreadable or the wrong shape: the Workload calendar exactly
+                                    as it was.
          analytics_hidden           { "hidden": false } brings Analytics back for everyone (the staff bar's Analytics
                                     tab, the client link's Analytics / Content Calendar toggle). Missing, unreadable,
                                     { "hidden": true } or any other shape: Analytics is hidden (owner, 2026-10-17
@@ -43,7 +45,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
     const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2'];
     const RS_FLAG_TIMEOUT_MS = 4000;
     const RS_FLAG_RETRY_MS = 30000;
-    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), layout2: new Set(), help: '', analytics: false };
+    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), help: '', analytics: false };
     let _rsFlagPromise = null;
     let _rsFlagTriedAt = 0;
     let _rsFlagFailed = false;
@@ -57,7 +59,8 @@ import { currentNav } from './065-core-nav-intake-state.js';
         const s = by.review_stage_kasper_staff;
         const staff = okObj(s) && Array.isArray(s.staff) ? s.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
         const w = by.workload_calm_staff;
-        const calm = okObj(w) && Array.isArray(w.staff) ? w.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
+        const calm = okObj(w) && Array.isArray(w.staff) ? w.staff.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*').map(x => x.trim().toLowerCase()) : [];
+        const calmAll = okObj(w) && w.all === true;
         const l2 = by.review_stage_kasper_layout2;
         const layout2 = okObj(l2) && Array.isArray(l2.staff) ? l2.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
         const h = by.review_help_video_url;
@@ -69,6 +72,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
             clients: new Set(members.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
             staff: new Set(staff),
             calm: new Set(calm),
+            calmAll,
             layout2: new Set(layout2),
             help,
             // Only the exact { "hidden": false } shows Analytics.
@@ -87,7 +91,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
             if (!Array.isArray(rows)) throw new Error('shape');
             const next = _rsParse(rows);
             // Analytics shown, or hidden where this browser last saw it shown: the open page draws again too.
-            const changed = next.all || next.clients.size || next.staff.size || next.calm.size || next.layout2.size || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
+            const changed = next.all || next.clients.size || next.staff.size || next.calm.size || next.calmAll || next.layout2.size || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
             _rsFlags = next;
             _rsHintSave(next);
             _wlCalmHintSave(next);
@@ -96,7 +100,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
             // Something switched on: the open page draws again, now as the new page.
             if (changed) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
         } catch (e) {
-            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), layout2: new Set(), help: '', analytics: false };
+            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), help: '', analytics: false };
             _rsFlagFailed = true;
             _rsAnalyticsSync();
             _rsFlagPromise = null;
@@ -329,18 +333,28 @@ import { currentNav } from './065-core-nav-intake-state.js';
         const id = String(m.id || '').trim().toLowerCase(), name = String(m.name || '').trim().toLowerCase();
         return (!!id && set.has(id)) || (!!name && set.has(name));
     }
+    // { "all": true } reaches any signed-in staff member (the server has said who), never the client link.
+    function _rsCalmWho(set, all) {
+        if (all) {
+            let who = null;
+            try { who = _syncviewStaffIdentityForHeaders(); } catch (e) { who = null; }
+            return !!(who && who.member);
+        }
+        return _rsListed(set);
+    }
     function svWorkloadCalmOn() {
         _rsPrime();
-        if (!_rsFlags.loaded || !_rsFlags.calm.size || _isClientLink) return false;
-        return _rsListed(_rsFlags.calm);
+        if (!_rsFlags.loaded || _isClientLink) return false;
+        if (!_rsFlags.calmAll && !_rsFlags.calm.size) return false;
+        return _rsCalmWho(_rsFlags.calm, _rsFlags.calmAll);
     }
     /* The last list this browser saw, kept only to avoid a flash: while the read is still on its way and the list named
        this person last time, Workload holds a loader instead of painting the old calendar and then swapping. The hint
-       never turns the calm calendar on by itself (only the live answer does), and a read that fails or names nobody
+       never turns the calm calendar on by itself; a '*' entry marks an { "all": true } answer (only the live answer does), and a read that fails or names nobody
        clears it, so an unreadable switch ends on the old calendar. */
     const WL_CALM_HINT_KEY = 'sv-wl-calm-staff';
     function _wlCalmHintSave(f) {
-        try { if (f.calm.size) localStorage.setItem(WL_CALM_HINT_KEY, JSON.stringify(Array.from(f.calm))); else localStorage.removeItem(WL_CALM_HINT_KEY); } catch (e) {}
+        try { if (f.calm.size || f.calmAll) localStorage.setItem(WL_CALM_HINT_KEY, JSON.stringify(f.calmAll ? ['*'].concat(Array.from(f.calm)) : Array.from(f.calm))); else localStorage.removeItem(WL_CALM_HINT_KEY); } catch (e) {}
     }
     function _wlCalmHintSet() {
         try {
@@ -348,7 +362,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
             return Array.isArray(h) ? new Set(h.filter(x => typeof x === 'string')) : null;
         } catch (e) { return null; }
     }
-    function _wlCalmHintHas() { const set = _wlCalmHintSet(); return !!set && set.size > 0 && _rsListed(set); }
+    function _wlCalmHintHas() { const set = _wlCalmHintSet(); return !!set && set.size > 0 && _rsCalmWho(set, set.has('*')); }
     let _wlCalmPendingShown = false;
     function svWorkloadCalmPending() {
         if (_isClientLink || _rsFlags.loaded || _rsFlagFailed) return false;

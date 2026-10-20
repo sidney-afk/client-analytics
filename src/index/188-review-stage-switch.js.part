@@ -5,7 +5,7 @@ import { _calRuntimeFlagRawMembers, _calRuntimeFlagSlug } from './120-calendar-f
 import { _calSetFocusRequest, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calRenderBody } from './160-calendar-organize-ui.js';
 import { _isClientLink, _syncviewClientEntryCapability } from './260-production-refresh-boot.js';
-import { _kasperPaintReview } from './305-core-kasper-shared.js';
+import { _kasperPaintReview, _kasperState } from './305-core-kasper-shared.js';
 import { svFrameFlagWait } from './187-frame-viewer.js';
 import { navTo } from './092-core-submit-form-navigation.js';
 import { currentNav } from './065-core-nav-intake-state.js';
@@ -370,6 +370,11 @@ import { currentNav } from './065-core-nav-intake-state.js';
             const hash = String(hashRaw || '').toLowerCase();
             const nav = hash ? hash.split('/')[0] : String(stateNav || '');
             if (nav !== 'kasper') return;
+            // Only the Review Session needs them: another tool's address (#kasper/hiring-process, #kasper/replies ...), or
+            // a reload that restores another tool, opens without them.
+            let sub = hash ? (hash.split('/')[1] || '') : '';
+            if (!hash) { try { sub = localStorage.getItem('syncview_kasper_subtab_v1') || ''; } catch (e) { sub = ''; } }
+            if (sub && sub !== 'review') return;
             svArea('reviewstage').catch(() => {});
             svFrameFlagWait(0);
         } catch (e) {}
@@ -631,6 +636,8 @@ import { currentNav } from './065-core-nav-intake-state.js';
             // The live answer says fast boot: a pill that showed before it arrived goes.
             const pill = document.getElementById('kasperReviewRefreshPill');
             if (pill && !pill.hidden && svRsKasperFast()) pill.hidden = true;
+            // The live answer took fast boot away (a hint said yes, the row says no): a refresh already running shows its pill.
+            else if (pill && pill.hidden && !svRsKasperFast() && _kasperState.loading && (_kasperState.items.length || _kasperState.history.length)) pill.hidden = false;
             _kasperPaintReview();
         }
     });

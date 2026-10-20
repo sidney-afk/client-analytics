@@ -261,7 +261,7 @@ async function open(browser, origin, opt) {
       // opt.layout2: Kasper's second layout (all parts at once, a list on the left) for the signed-in staff member.
       if (opt.layout2) values.review_stage_kasper_layout2 = opt.layout2 === true ? { staff: [STAFF.id] } : opt.layout2;
       // opt.fast: Kasper's fast boot (kasper_fast_boot) for the signed-in staff member, or a given value.
-      if (opt.fast) values.kasper_fast_boot = opt.fast === true ? { staff: [STAFF.id] } : opt.fast;
+      if (opt.fast && !state.dropFast) values.kasper_fast_boot = opt.fast === true ? { staff: [STAFF.id] } : opt.fast;   // state.dropFast: taken away at run time
       if (opt.help) values.review_help_video_url = { url: opt.help };
       // 'shownFresh': the same answer in a browser that has never seen Analytics shown.
       if (opt.analytics === 'shown' || opt.analytics === 'shownFresh') values.analytics_hidden = { hidden: false };

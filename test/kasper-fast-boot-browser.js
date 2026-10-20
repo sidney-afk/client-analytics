@@ -34,9 +34,9 @@ const WATCH = () => {
 };
 
 // One visit to Kasper's tab on t.page (the roster is merged by hand, as the other Kasper tests do).
-async function boot(t, origin) {
+async function boot(t, origin, hash) {
   await t.page.addInitScript(WATCH);
-  await t.page.goto(origin + '/index.html#kasper', { waitUntil: 'domcontentloaded' });
+  await t.page.goto(origin + '/index.html#' + (hash || 'kasper'), { waitUntil: 'domcontentloaded' });
   await t.page.waitForFunction(() => typeof navTo === 'function', null, { timeout: 30000 });
   await t.page.evaluate(name => { try { _syncviewStaffIdentityVerified = true; } catch (e) {} try { wlMergeClientsFromSheet([name]); } catch (e) {} navTo('kasper'); }, CLIENT);
 }
@@ -46,13 +46,15 @@ async function again(t, origin, delays) {
   t.page = await t.ctx.newPage();
   t.page.on('pageerror', e => t.errors.push(String(e.message || e).slice(0, 200)));
   t.state.reqLog = [];
+  // The live switch read no longer lists the person (a hint from an earlier visit still does).
+  if (delays && delays.dropFast) { t.state.dropFast = true; await t.ctx.route('**/rest/v1/syncview_runtime_flags?select=key,value*', async route => { await sleep(delays.dropFast); await route.fallback(); }); }
   if (delays && delays.frameFlag) await t.ctx.route('**/rest/v1/syncview_runtime_flags?select=value&key=eq.frame_viewer_clients*', async route => { await sleep(delays.frameFlag); await route.fallback(); });
   if (delays && delays.noHint) await t.page.addInitScript(() => { try { localStorage.removeItem('sv-kasper-fast'); } catch (e) {} });
   if (delays && delays.flags) await t.ctx.route('**/rest/v1/syncview_runtime_flags*', async route => { await sleep(delays.flags); await route.fallback(); });
   if (delays && delays.posts) t.state.postsDelay = delays.posts;
   // No saved list in this browser: the first card appears only when the list has loaded.
   if (delays && delays.noCache) await t.page.addInitScript(() => { try { localStorage.removeItem('syncview_kasper_review_cache_v1'); } catch (e) {} });
-  await boot(t, origin);
+  await boot(t, origin, delays && delays.hash);
 }
 const stageUp = page => page.waitForFunction(() => { const h = document.getElementById('svReviewStage'); const r = h && h.shadowRoot; return !!(r && !h.hidden && r.querySelectorAll('.pn, #stepper > *').length); }, null, { timeout: 30000 });
 const first = (state, re) => { const hit = (state.reqLog || []).find(x => re.test(x.path + (x.key ? '?' + x.key : ''))); return hit ? hit.t : 0; };
@@ -140,6 +142,34 @@ const newTab = (browser, origin, o) => open(browser, origin, Object.assign({ sta
       await sleep(2200);
       const pill = await t.page.evaluate(() => { const p = document.getElementById('kasperReviewRefreshPill'); return { there: !!p, hidden: p ? p.hidden : null, loading: _kasperState.loading }; });
       expect(pill.loading === true && pill.hidden === true, 'the list is still loading and the pill is hidden once the live answer says fast boot (' + JSON.stringify(pill) + ')');
+      await t.ctx.close();
+    }
+
+    // ---------- the live answer takes fast boot away: the pill of a refresh already running comes back ----------
+    {
+      console.log('--- hint says yes, live answer says no ---');
+      const t = await newTab(browser, origin, { fast: true });
+      await boot(t, origin);
+      await stageUp(t.page);
+      await sleep(1500);
+      await again(t, origin, { dropFast: 700, posts: 3500 });
+      await sleep(2200);
+      const pill = await t.page.evaluate(() => { const p = document.getElementById('kasperReviewRefreshPill'); return { hidden: p ? p.hidden : null, loading: _kasperState.loading }; });
+      expect(pill.loading === true && pill.hidden === false, 'the refresh is still running and its pill is back once the live answer says no (' + JSON.stringify(pill) + ')');
+      await t.ctx.close();
+    }
+
+    // ---------- another Kasper tool's address does not start the review page's download ----------
+    {
+      console.log('--- #kasper/hiring-process ---');
+      const t = await newTab(browser, origin, { fast: true });
+      await boot(t, origin);
+      await stageUp(t.page);
+      await sleep(1500);
+      await again(t, origin, { hash: 'kasper/hiring-process' });
+      await sleep(400);
+      const early = first(t.state, /reviewstage/);
+      expect(!early, 'the review page\'s code is not requested at page start for another tool\'s address');
       await t.ctx.close();
     }
 

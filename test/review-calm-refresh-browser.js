@@ -60,6 +60,12 @@ const WATCH = `(() => {
       const after = await t.page.evaluate(() => ({ top: document.getElementById('svReviewStage').shadowRoot.getElementById('qlList').scrollTop, w: window.__w.adds }));
       expect(after.top === before.top, 'a refresh keeps the scrolled list where it was (' + before.top + ' -> ' + after.top + ')');
       expect(Object.keys(after.w).length === 0, 'a refresh with nothing new writes no nodes into the page (' + JSON.stringify(after.w) + ')');
+      // A card another person finished leaves the list: nothing is added, but the list must still stay where it was.
+      const gone = t.state.cards.find(c => c.id === 'rx3');
+      Object.assign(gone, { video_status: 'Client Approval', graphic_status: 'Client Approval', caption_status: 'Client Approval', status: 'Client Approval', updated_at: new Date().toISOString() });
+      await t.page.evaluate(async () => { await _kasperLoadReview(true); await new Promise(x => setTimeout(x, 900)); });
+      const gone2 = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; return { top: r.getElementById('qlList').scrollTop, rows: r.querySelectorAll('#qlList [data-id]').length }; });
+      expect(gone2.rows === before.rows - 1 && gone2.top === before.top, 'a card removed by a refresh: the list keeps its place (' + before.rows + ' -> ' + gone2.rows + ' cards, ' + before.top + ' -> ' + gone2.top + ' px)');
       // The bell sits beside the title: the title's right edge ends before the bell's left edge.
       expect(t.errors.length === 0, 'no page errors (' + t.errors.join(' | ') + ')');
       await t.ctx.close();

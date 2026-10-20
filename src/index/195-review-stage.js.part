@@ -1835,13 +1835,17 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     /* The same, for a list of cards: only the cards whose markup changed are replaced, new ones are added, gone ones
        removed; every other card stays the very same element, so nothing under the pointer or the keyboard is torn down.
-       Answers the elements that were added (the caller gives them their handlers); none when nothing changed. */
+       Answers the elements that were added (the caller gives them their handlers); `.changed` says whether the list was
+       touched at all (a card only removed adds nothing but still moves what is below it). */
     function _rsPatch(el, html) {
-        if (el.__rsHtml === html) return [];
+        const none = [];
+        none.changed = false;
+        if (el.__rsHtml === html) return none;
         // A detached element of this document, not a template's: a picture moved through a template's own document is loaded again.
         const t = document.createElement('div');
         t.innerHTML = html;
         const added = [];
+        added.changed = false;
         const keyOf = (n, i) => n.nodeType !== 1 ? 't' + i : n.getAttribute('data-id') ? 'd:' + n.getAttribute('data-id') : n.getAttribute('data-reopen') ? 'r:' + n.getAttribute('data-reopen') : n.id ? '#' + n.id : n.classList.contains('sk-grp') ? 'g' + i : 'i' + i + n.tagName;
         const walk = (oldP, newP) => {
             const olds = new Map();
@@ -1862,13 +1866,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                         nn.querySelectorAll('img[src]').forEach(im => { const o = have.get(im.getAttribute('src')); if (o) { o.className = im.className; im.replaceWith(o); have.delete(im.getAttribute('src')); } });
                     }
                 }
-                if (cur === nn) added.push(nn);
+                if (cur === nn) { added.push(nn); added.changed = true; }
                 placed.add(cur);
                 const want = prev ? prev.nextSibling : oldP.firstChild;
-                if (cur !== want) oldP.insertBefore(cur, want);
+                if (cur !== want) { oldP.insertBefore(cur, want); added.changed = true; }
                 prev = cur;
             });
-            Array.from(oldP.childNodes).forEach(n => { if (!placed.has(n)) n.remove(); });
+            Array.from(oldP.childNodes).forEach(n => { if (!placed.has(n)) { n.remove(); added.changed = true; } });
         };
         walk(el, t);
         el.__rsHtml = html;
@@ -3008,7 +3012,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 + (R.S.edOpen || (cur && cur.sec === 'tweaks') ? k.tweaks.map(m => _rsL2EdRow(m, cur)).join('') : '')
             : '';
         const added = _rsPatch(list, (rows || (k.tweaks.length ? '' : '<div class="ql-empty">Nothing is waiting on you.</div>')) + eds);
-        if (added.length) {
+        if (added.changed) {
             list.scrollTop = keep;
             _rsEachIn(added, '[data-id]', b => b.addEventListener('click', () => _rsGo(b.dataset.id)));
             // The model is looked up when the bell is pressed, not when the row was drawn: a row that stays across refreshes keeps its handler.

@@ -5,7 +5,7 @@ import { _calRuntimeFlagRawMembers, _calRuntimeFlagSlug } from './120-calendar-f
 import { _calSetFocusRequest, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calRenderBody } from './160-calendar-organize-ui.js';
 import { _isClientLink, _syncviewClientEntryCapability } from './260-production-refresh-boot.js';
-import { _kasperPaintReview } from './305-core-kasper-shared.js';
+import { _kasperPaintReview, _kasperState } from './305-core-kasper-shared.js';
 import { svFrameFlagWait } from './187-frame-viewer.js';
 import { navTo } from './092-core-submit-form-navigation.js';
 import { currentNav } from './065-core-nav-intake-state.js';
@@ -31,6 +31,11 @@ import { currentNav } from './065-core-nav-intake-state.js';
                                     name of the signed-in staff member), and it only changes the layout of a page that
                                     switch already shows: it needs review_stage_kasper_staff to list the same person, and
                                     it applies on wide screens only (1360 px and up). Missing, unreadable or the wrong shape: today's layout.
+         kasper_fast_boot           { "staff": [...] }: Kasper's tab boots fast (session Quick, 2026-10-20): no "Refreshing"
+                                    pill, the player's switch and the review page's code are fetched at boot instead of when
+                                    the first card paints, and the first card's video is warmed while the list is still
+                                    loading. Same listing rule as the switches above (id or full name). Missing, unreadable
+                                    or the wrong shape: Kasper's tab exactly as it was.
          workload_calm_staff        { "staff": [...] } and/or { "all": true }: the calm Workload calendar (session Calm,
                                     2026-10-18). "staff" lists the signed-in staff members (id or full name) who get it;
                                     { "all": true } gives it to every signed-in staff member, so a new team member needs
@@ -42,10 +47,10 @@ import { currentNav } from './065-core-nav-intake-state.js';
                                     { "hidden": true } or any other shape: Analytics is hidden (owner, 2026-10-17
                                     23:20, session Curtain Seven). Read at boot, in the same request as the switches.
        The lists live only in the database, never in this repository. */
-    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2'];
+    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot'];
     const RS_FLAG_TIMEOUT_MS = 4000;
     const RS_FLAG_RETRY_MS = 30000;
-    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), help: '', analytics: false };
+    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), help: '', analytics: false };
     let _rsFlagPromise = null;
     let _rsFlagTriedAt = 0;
     let _rsFlagFailed = false;
@@ -63,6 +68,8 @@ import { currentNav } from './065-core-nav-intake-state.js';
         const calmAll = okObj(w) && w.all === true;
         const l2 = by.review_stage_kasper_layout2;
         const layout2 = okObj(l2) && Array.isArray(l2.staff) ? l2.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
+        const fb = by.kasper_fast_boot;
+        const fast = okObj(fb) && Array.isArray(fb.staff) ? fb.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
         const h = by.review_help_video_url;
         const help = okObj(h) && typeof h.url === 'string' && /^https:\/\//i.test(h.url.trim()) ? h.url.trim() : '';
         const a = by.analytics_hidden;
@@ -74,6 +81,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
             calm: new Set(calm),
             calmAll,
             layout2: new Set(layout2),
+            fast: new Set(fast),
             help,
             // Only the exact { "hidden": false } shows Analytics.
             analytics: okObj(a) && a.hidden === false,
@@ -91,16 +99,17 @@ import { currentNav } from './065-core-nav-intake-state.js';
             if (!Array.isArray(rows)) throw new Error('shape');
             const next = _rsParse(rows);
             // Analytics shown, or hidden where this browser last saw it shown: the open page draws again too.
-            const changed = next.all || next.clients.size || next.staff.size || next.calm.size || next.calmAll || next.layout2.size || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
+            const changed = next.all || next.clients.size || next.staff.size || next.calm.size || next.calmAll || next.layout2.size || next.fast.size || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
             _rsFlags = next;
             _rsHintSave(next);
             _wlCalmHintSave(next);
+            _rsKasperFastHintSave(next);
             _rsFlagFailed = false;
             _rsAnalyticsSync();
             // Something switched on: the open page draws again, now as the new page.
             if (changed) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
         } catch (e) {
-            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), help: '', analytics: false };
+            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), help: '', analytics: false };
             _rsFlagFailed = true;
             _rsAnalyticsSync();
             _rsFlagPromise = null;
@@ -112,6 +121,10 @@ import { currentNav } from './065-core-nav-intake-state.js';
             if (_wlCalmPendingShown) {
                 _wlCalmPendingShown = false;
                 if (!svWorkloadCalmOn()) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
+            }
+            if (_rsKasperPendingShown) {
+                _rsKasperPendingShown = false;
+                if (!svRsKasperOn()) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
             }
             if (_rsPendingShown) {
                 _rsPendingShown = false;
@@ -321,6 +334,61 @@ import { currentNav } from './065-core-nav-intake-state.js';
     function svRsKasperLayout2On() {
         if (!svRsKasperOn() || !_rsFlags.layout2.size) return false;
         return _rsListed(_rsFlags.layout2);
+    }
+    /* FAST BOOT FOR KASPER'S TAB (session Quick, 2026-10-20), behind kasper_fast_boot { "staff": [...] }. The last list
+       this browser saw is kept as a hint, so the first second of a visit already knows whether this person is on it
+       (the live answer takes 1.5 to 3.7 s). The hint only ever turns the speed-ups on; it never shows a page by itself,
+       and a read that fails or names nobody clears it. */
+    const RS_KASPER_FAST_KEY = 'sv-kasper-fast';
+    // The hint holds both lists: who gets the fast boot, and who the review page's own switch named (the loader below
+    // only helps where that page will really come).
+    function _rsKasperFastHintSave(f) {
+        try { if (f.fast.size) localStorage.setItem(RS_KASPER_FAST_KEY, JSON.stringify({ fast: Array.from(f.fast), stage: Array.from(f.staff) })); else localStorage.removeItem(RS_KASPER_FAST_KEY); } catch (e) {}
+    }
+    function _rsKasperFastHintHas(key) {
+        try {
+            const h = JSON.parse(localStorage.getItem(RS_KASPER_FAST_KEY) || 'null');
+            const list = h && Array.isArray(h[key || 'fast']) ? h[key || 'fast'] : [];
+            return list.length > 0 && _rsListed(new Set(list.filter(x => typeof x === 'string')));
+        } catch (e) { return false; }
+    }
+    // Is the fast boot on for the signed-in staff member? The live answer once it is in, the hint until then.
+    function svRsKasperFast() {
+        if (_isClientLink) return false;
+        _rsPrime();
+        if (_rsFlags.loaded) return _rsFlags.fast.size > 0 && _rsListed(_rsFlags.fast);
+        // An unreadable switch is an answer of no for this visit; the hint stays for the next one.
+        return !_rsFlagFailed && _rsKasperFastHintHas();
+    }
+    // Called once at boot (260), after the server has said who is signed in and the route is read: on Kasper's tab, start the slow parts now (the
+    // review page's code and the player's switch) instead of when the first card paints after the list has loaded.
+    function svRsKasperBoot(hashRaw, stateNav) {
+        try {
+            if (_isClientLink || !svRsKasperFast()) return;
+            // Where this page is about to open: the address's own route, else the tab a reload keeps in the history entry.
+            // Never the saved tab: a bare address opens Today whatever the last visit used.
+            const hash = String(hashRaw || '').toLowerCase();
+            const nav = hash ? hash.split('/')[0] : String(stateNav || '');
+            if (nav !== 'kasper') return;
+            // Only the Review Session needs them: another tool's address (#kasper/hiring-process, #kasper/replies ...), or
+            // a reload that restores another tool, opens without them. Old aliases (#kasper/samples) count as Review.
+            let sub = hash ? (hash.split('/')[1] || '') : '';
+            if (!sub) { try { sub = localStorage.getItem('syncview_kasper_subtab_v1') || ''; } catch (e) { sub = ''; } }
+            if (sub && sub !== 'review' && sub !== 'samples') return;   // 'samples' is the old name of the Review Session (_kasperResolveSubtab)
+            // The review page's code only if the last read named this person for it too (else it can never mount here).
+            if (_rsKasperFastHintHas('stage')) svArea('reviewstage').catch(() => {});
+            svFrameFlagWait(0);
+        } catch (e) {}
+    }
+    // While the switch read is still on its way and the hint says the new page is coming for this person, the list holds
+    // its loader instead of drawing the old page and then swapping (the same idea as svWorkloadCalmPending).
+    let _rsKasperPendingShown = false;
+    function svRsKasperPending() {
+        if (_isClientLink || _rsFlags.loaded || _rsFlagFailed) return false;
+        _rsPrime();
+        if (!_rsFlagPromise || !_rsKasperFastHintHas('fast') || !_rsKasperFastHintHas('stage')) return false;
+        _rsKasperPendingShown = true;
+        return true;
     }
     /* THE CALM WORKLOAD CALENDAR (session Calm, 2026-10-18): on only for the staff member workload_calm_staff names, by
        id or full name, exactly as Kasper's switch above. Until the switch has been read, or the server has said who is
@@ -565,6 +633,13 @@ import { currentNav } from './065-core-nav-intake-state.js';
         }
         if (document.getElementById('calView') && calState && calState.client) _calRenderBody({ preserveScroll: true });
         if (document.getElementById('kasperContent')) svRsKasperHeadSync();
-        if (document.getElementById('kasperReviewBody')) _kasperPaintReview();
+        if (document.getElementById('kasperReviewBody')) {
+            // The live answer says fast boot: a pill that showed before it arrived goes.
+            const pill = document.getElementById('kasperReviewRefreshPill');
+            if (pill && !pill.hidden && svRsKasperFast()) pill.hidden = true;
+            // The live answer took fast boot away (a hint said yes, the row says no): a refresh already running shows its pill.
+            else if (pill && pill.hidden && !svRsKasperFast() && _kasperState.loading && (_kasperState.items.length || _kasperState.history.length)) pill.hidden = false;
+            _kasperPaintReview();
+        }
     });
-export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLayout2On, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };
+export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLayout2On, svRsKasperBoot, svRsKasperFast, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsKasperPending, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };

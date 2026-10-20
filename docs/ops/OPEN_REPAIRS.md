@@ -33852,3 +33852,14 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 - **Not done here.** Editors' own Today queue is unchanged (they work deliverables, not caption parts).
 
 **Way back:** revert the pull request.
+
+## 469. [2026-10-20, BUILT, NOT MERGED] Kasper's tab boots fast: no refresh pill, player and review page start early, first video warmed (session Quick)
+
+- **Asked by:** the owner: the "Refreshing" pill shows a lot and is not needed any more, the video player loads late (mostly after a hard refresh), and the tab must boot fast on a normal and on a hard refresh.
+- **Found (code reading plus the offline fixture; not measured on the live site).** (1) The review page's code (174 KB) was fetched only when the switch answer came back (1.5 to 3.7 s live). (2) The player's own switch (`frame_viewer_clients`) was read only when the first card painted, so its round trip sat in front of the video address. (3) The first card's video address was asked for only when the stage mounted. (4) A second visit drew the old page, then swapped to the new one. (5) The pill showed on every refresh that had cards on screen (entry, tab focus, polls).
+- **Changed, behind the new switch `kasper_fast_boot` `{ "staff": [...] }` (same id or full name rule; missing, unreadable or wrong shape: exactly as before).** `188`: the switch rides in the existing one request; a browser hint (`sv-kasper-fast`) knows the answer in the first second; `svRsKasperBoot` (called once at boot from `260`, on Kasper's route only) starts the review page's code and the player's switch at once; `svRsKasperPending` holds the loader instead of the old page while the answer is on its way. `330`: no pill; the first waiting card's video address and first bytes are warmed when the list first paints, once per card.
+- **Proven.** New `test/kasper-fast-boot-browser.js` (18 checks, registered in `calendar-unit-tests.yml`): pill on and off, someone else, wrong shape; start order with slow switch and list reads (video address 1.55 s vs 2.18 s after the list was asked for; review page code at page start vs after the switch answer); second visit shows no old page. `review-stage-kasper-layout2-browser.js` (188) and `review-stage-browser.js` still pass.
+- **Not done here.** The live row is not created by this entry; Lighthouse inserts `kasper_fast_boot` for Sidney first. The calendars read behind the list (about 2.4 s median, `docs/audits/2026-09-23-speed-map.md`) is not touched. No live timings: measure on the live site with Sidney's account after the flag is on.
+
+**Way back:** delete the `kasper_fast_boot` row, or revert the pull request.
+

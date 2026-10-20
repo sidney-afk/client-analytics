@@ -501,11 +501,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 
     // The Notes button of a card whose Notes will hold the player: warm the video and its comments like the play doors.
     function svFrameWarm(post) {
-        if (_isClientLink) return;
+        if (_isClientLink) return false;
         const link = svFrameStageFor(post);
-        if (!link) return;
+        if (!link) return false;
         const rec = _fvGetVideo(link, post.id, false);
         if (!rec.comments) rec.comments = _fvFetchComments(link);
+        return true;   // a warm-up started (false: the switch does not enable this card's client)
     }
     function svFrameTime(sec) {
         const s = Math.max(0, Math.floor(Number(sec) || 0));

@@ -80,7 +80,7 @@ import {
 import { SXR_CACHE_PREFIX, _sxrAbortActiveLoad, _sxrNextLoadSeq, sxrState } from './270-samples-model.js';
 import { _sxrFlushAllPending, _sxrLinearOutboxTimer, _sxrSetLinearOutboxTimer, mountSxrClientView } from './280-samples-cards-notes.js';
 import { _sxrV2Teardown, _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
-import { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svStaffNoAnalytics } from './188-review-stage-switch.js';
+import { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsKasperBoot, svStaffNoAnalytics } from './188-review-stage-switch.js';
 import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js';
         function _prodManualRefresh() {
             // The press must be visibly acknowledged: the refresh itself is a
@@ -2032,6 +2032,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             }, 8000);
             const qp = new URLSearchParams(svRoute.search());
             const hashRaw = decodeURIComponent(svRoute.hash().replace('#',''));
+            svRsKasperBoot(hashRaw, history.state && history.state.nav);   // Kasper's fast boot (188): its slow parts start now, not when the first card paints
             const hashRoute = hashRaw.split('?')[0];
             // >>> SXR_BEGIN
             // Samples (Review) refresh/deep-link landing. Its own backend (no

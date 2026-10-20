@@ -131,6 +131,8 @@ async function open(browser, origin, opt) {
   if (opt.analytics === 'shown') await page.addInitScript(() => { try { localStorage.setItem('sv-analytics-shown', '1'); } catch (e) {} });
   await ctx.route('**/*', async route => {
     const r = route.request(); const u = new URL(r.url());
+    // opt.reqLog: every request's time, path and (for the switch read) keys, in state.reqLog, for a test of what starts when.
+    if (opt.reqLog) (state.reqLog || (state.reqLog = [])).push({ t: Date.now(), path: u.pathname, key: u.searchParams.get('key') || '' });
     if (opt.stageSource && r.url().startsWith(origin + '/js/') && /\/sv-\d+-reviewstage-[a-f0-9]+\.js$/.test(u.pathname)) return route.fulfill({ status: 200, contentType: 'application/javascript', body: opt.stageSource });
     if (r.url().startsWith(origin)) return route.continue();
     const json = (body, status) => {
@@ -255,9 +257,11 @@ async function open(browser, origin, opt) {
         client_comment_gateway_enabled: { enabled: true }, prod_authority: { video: 'syncview', graphics: 'syncview' },
         frame_viewer_clients: opt.frame === 'off' ? { clients: [] } : { all: true },
       };
-      if (opt.flags === 'on') { values.review_stage_client_pages = { clients: [SLUG] }; values.review_stage_kasper_staff = { staff: [STAFF.id] }; }
+      if (opt.flags === 'on') { values.review_stage_client_pages = { clients: [SLUG] }; if (!opt.noKasperStage) values.review_stage_kasper_staff = { staff: [STAFF.id] }; }
       // opt.layout2: Kasper's second layout (all parts at once, a list on the left) for the signed-in staff member.
       if (opt.layout2) values.review_stage_kasper_layout2 = opt.layout2 === true ? { staff: [STAFF.id] } : opt.layout2;
+      // opt.fast: Kasper's fast boot (kasper_fast_boot) for the signed-in staff member, or a given value.
+      if (opt.fast && !state.dropFast) values.kasper_fast_boot = opt.fast === true ? { staff: [STAFF.id] } : opt.fast;   // state.dropFast: taken away at run time
       if (opt.help) values.review_help_video_url = { url: opt.help };
       // 'shownFresh': the same answer in a browser that has never seen Analytics shown.
       if (opt.analytics === 'shown' || opt.analytics === 'shownFresh') values.analytics_hidden = { hidden: false };

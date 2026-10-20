@@ -51,6 +51,7 @@ async function again(t, origin, delays) {
   if (delays && delays.frameFlag) await t.ctx.route('**/rest/v1/syncview_runtime_flags?select=value&key=eq.frame_viewer_clients*', async route => { await sleep(delays.frameFlag); await route.fallback(); });
   if (delays && delays.noHint) await t.page.addInitScript(() => { try { localStorage.removeItem('sv-kasper-fast'); } catch (e) {} });
   if (delays && delays.flags) await t.ctx.route('**/rest/v1/syncview_runtime_flags*', async route => { await sleep(delays.flags); await route.fallback(); });
+  if (delays && delays.subtab) await t.page.addInitScript(sub => { try { localStorage.setItem('syncview_kasper_subtab_v1', sub); } catch (e) {} }, delays.subtab);
   if (delays && delays.posts) t.state.postsDelay = delays.posts;
   // No saved list in this browser: the first card appears only when the list has loaded.
   if (delays && delays.noCache) await t.page.addInitScript(() => { try { localStorage.removeItem('syncview_kasper_review_cache_v1'); } catch (e) {} });
@@ -170,6 +171,19 @@ const newTab = (browser, origin, o) => open(browser, origin, Object.assign({ sta
       await sleep(400);
       const early = first(t.state, /reviewstage/);
       expect(!early, 'the review page\'s code is not requested at page start for another tool\'s address');
+      await t.ctx.close();
+    }
+
+    // ---------- a bare #kasper opens the tool this browser last used: a saved other tool starts nothing early ----------
+    {
+      console.log('--- bare #kasper, saved tool is Hiring Process ---');
+      const t = await newTab(browser, origin, { fast: true });
+      await boot(t, origin);
+      await stageUp(t.page);
+      await sleep(1500);
+      await again(t, origin, { flags: 600, posts: 1500, subtab: 'hiring-process' });
+      await sleep(400);
+      expect(!first(t.state, /reviewstage/), 'the review page\'s code is not requested at page start when the saved tool is another one');
       await t.ctx.close();
     }
 

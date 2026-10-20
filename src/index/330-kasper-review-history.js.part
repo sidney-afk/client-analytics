@@ -53,8 +53,8 @@ import {
 import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
 import { _kasperRenderReplies } from './323-kasper-dashboard-tail.js';
 import { _kedPaint } from './340-kasper-editors-board.js';
-import { svFrameWatchBtnHtml } from './187-frame-viewer.js';
-import { svRsKasperOn, svRsKasperPaint } from './188-review-stage-switch.js';
+import { svFrameFlagWait, svFrameWarm, svFrameWatchBtnHtml } from './187-frame-viewer.js';
+import { svRsKasperFast, svRsKasperOn, svRsKasperPaint, svRsKasperPending } from './188-review-stage-switch.js';
     async function _kasperRenderReview() {
         const root = document.getElementById('kasperContent');
         if (!root) return;
@@ -95,7 +95,7 @@ import { svRsKasperOn, svRsKasperPaint } from './188-review-stage-switch.js';
         // across the app — plus the spinning Refresh button.
         const hasContent = _kasperState.items.length > 0 || _kasperState.history.length > 0;
         if (!hasContent && body) body.innerHTML = _svLoadingSkeletonHtml('kasper', { label: 'Loading Kasper review' });
-        else { const pill = document.getElementById('kasperReviewRefreshPill'); if (pill) pill.hidden = false; }
+        else if (!svRsKasperFast()) { const pill = document.getElementById('kasperReviewRefreshPill'); if (pill) pill.hidden = false; }   // no pill on the fast boot (owner, 2026-10-20)
 
         _kasperState.loading = true;
         _kasperState.error = null;
@@ -755,6 +755,17 @@ import { svRsKasperOn, svRsKasperPaint } from './188-review-stage-switch.js';
         return _sxrKasperRenderHistorySection('Approved samples');
     }
 
+    // The first card's video address and first bytes, fetched ahead of the card on stage (the same warm-up a hover gives a
+    // door), once per card. Waits for the player's switch, which the fast boot started at page start.
+    let _kasperWarmedId = '';
+    function _kasperWarmFirstVideo(queue) {
+        const first = (queue || []).find(it => it && it.post && !it._sxr);
+        const post = first && first.post;
+        if (!post || !post.id || post.id === _kasperWarmedId) return;
+        _kasperWarmedId = post.id;
+        Promise.resolve(svFrameFlagWait(3000)).then(() => { try { svFrameWarm(post); } catch (e) {} });
+    }
+
     let _kasperPaintRetry = null;
     function _kasperPaintReviewNow() {
         const body = document.getElementById('kasperReviewBody');
@@ -792,11 +803,15 @@ import { svRsKasperOn, svRsKasperPaint } from './188-review-stage-switch.js';
         if (tabCount) tabCount.textContent = String(openCount);
         // The new review page (188/195), when its switch names the signed-in staff member: it takes the queue,
         // and this body keeps only the notices above it (save alerts, freshness, what could not be read).
+        // Fast boot: the first card's video is asked for while the list is still being drawn.
+        if (svRsKasperFast()) _kasperWarmFirstVideo(urgent.concat(waiting));
         if (svRsKasperPaint({ urgent, waiting, tweaks })) {
             if (_kasperState.lastLoaded && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
             body.innerHTML = _kasperRenderFreshnessNote() + _kasperRenderSaveAlerts() + _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + _kasperRenderUnlistedNotice() + _kasperRenderQueueErrorNotice();
             return;
         }
+        // The switch read is on its way and this person is on the new page's list: a loader, not the old page for a second.
+        if (svRsKasperPending()) { body.innerHTML = _svLoadingSkeletonHtml('kasper', { label: 'Loading Kasper review' }); return; }
         // Waiting section uses the same collapsible-style head as Tweaks
         // pending and Approved history so the three buckets feel like
         // siblings rather than "the main queue plus two add-ons". Waiting

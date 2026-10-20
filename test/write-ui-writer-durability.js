@@ -63,6 +63,7 @@ const context = {
   _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
   _writeUiIntentId: (surface, op, parts) => [surface, op].concat(parts || []).join(':'),
   _writeUiGatewayPost: async intent => { calls.push(intent); return { ok: true, native_committed: true }; },
+  _prodServerParentRef: (canon, parent) => parent, _prodComments: { rows: () => [] }, _calCommentsFor: () => [], _sxrCommentsFor: () => [],
   _writeUiGatewayWithRepair: async intent => { calls.push(intent); return { ok: true, native_committed: true }; },
   Date,
 };

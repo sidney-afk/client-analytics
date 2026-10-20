@@ -343,6 +343,7 @@ const UNBOUND = { state: 'mismatch', fields: ['card_id'], card_unbound: true };
       _isClientLink: true,
       _writeUiUseGatewayWhenReady: async () => host.useGateway,
       _prodClientCommentGatewayContext: async () => host.contextResult,
+      _prodServerParentRef: (canon, parent) => parent, _prodComments: { rows: () => [] }, _calCommentsFor: () => [], _sxrCommentsFor: () => [],
       _writeUiGatewayWithRepair: async (intent, repair) => {
         host.gateway.push({ intent, repair });
         return { ok: true, native_committed: true };

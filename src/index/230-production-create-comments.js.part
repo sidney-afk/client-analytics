@@ -2070,7 +2070,11 @@ import {
                 const moreError = state.moreError ? '<div class="prod-comment-state is-error">' + _calEsc(state.moreError) + ' <button class="prod-comment-state-action" type="button" onclick="_prodComments.loadOlder(' + _jsAttrArg(id) + ')">Retry</button></div>' : '';
                 return refreshError + '<div class="prod-comment-feed" data-prod-comments-state="ready">' + rows + '</div>' + moreError + more + feedback;
             }
-            return { clear, ensure, refresh, retry, loadOlder, signIn, render, find, adopt, readCanonical };
+            function rows(id) {
+                const state = stateFor(id);
+                return state && Array.isArray(state.items) ? state.items : [];
+            }
+            return { clear, ensure, refresh, retry, loadOlder, signIn, render, find, adopt, readCanonical, rows };
         })();
         function _prodCanonicalCardComment(row) {
             const c = _prodCommentNormalize(row);

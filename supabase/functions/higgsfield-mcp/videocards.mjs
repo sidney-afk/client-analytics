@@ -87,14 +87,33 @@ export function parseVideos(raw) {
   return [...out].filter((n) => n >= 1).sort((a, b) => a - b);
 }
 
-// The card's notes are a JSON list on the card (video_tweaks; older cards use tweaks).
-function cardNotes(card) {
-  const raw = clean(card && (card.video_tweaks || card.tweaks));
-  if (!raw.startsWith("[")) return [];
-  let list;
-  try { list = JSON.parse(raw); } catch { return []; }
-  if (!Array.isArray(list)) return [];
-  return list.filter((n) => n && typeof n === "object" && !n.deleted && !n.hidden && clean(n.body)).map((n) => ({
+// Legacy note rules, the same ones the comment feedback reader uses
+// (../production-comments/feedback.mjs, sourceComment): a note is deleted when
+// deleted, is_deleted (true, 1, "true", "1", "yes") or deleted_at says so; done
+// when done, resolved or resolved_at says so; a note stored in a *_tweaks
+// column counts as a change request even when is_tweak is missing or false.
+const truthy = (v) => v === true || v === 1 || ["true", "1", "yes"].includes(clean(v).toLowerCase());
+export const noteDeleted = (n) => truthy(n.deleted) || truthy(n.is_deleted) || !!clean(n.deleted_at);
+export const noteDone = (n) => truthy(n.done) || truthy(n.resolved) || !!clean(n.resolved_at);
+export const LEGACY_AUTHOR = "Older note kept from before notes were per person";
+
+// The card's notes: a JSON list in video_tweaks (older cards: tweaks). Plain
+// text there is an older single note; it comes back as one change request,
+// the way the Calendar shows it.
+export function cardNotes(card) {
+  const fromVideo = clean(card && card.video_tweaks);
+  const field = fromVideo ? "video_tweaks" : "tweaks";
+  const raw = fromVideo || clean(card && card.tweaks);
+  if (!raw) return [];
+  let list = null;
+  if (raw.startsWith("[")) {
+    try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) list = parsed; } catch { /* plain text below */ }
+  }
+  if (!list) {
+    return [{ id: "", from: "SyncView card", who: LEGACY_AUTHOR, role: "", when: "", at: "", text: raw, tweak: true, round: null, done: false, reply_to: null, for_client: false, legacy_text: true }];
+  }
+  return list.filter((n) => n && typeof n === "object" && !noteDeleted(n) && !truthy(n.hidden)
+    && (!clean(n.component) || clean(n.component) === "video") && clean(n.body)).map((n) => ({
     id: clean(n.id),
     from: "SyncView card",
     who: clean(n.author) || "someone",
@@ -102,9 +121,10 @@ function cardNotes(card) {
     when: time(n.created_at),
     at: clean(n.created_at),
     text: clean(n.body),
-    tweak: n.is_tweak === true,
+    // Stored in a *_tweaks column: a change request (same rule as the feedback reader).
+    tweak: n.is_tweak === true || /_tweaks$/.test(field),
     round: Number.isInteger(n.round) ? n.round : null,
-    done: n.done === true,
+    done: noteDone(n),
     reply_to: clean(n.parent_id) || null,
     for_client: clean(n.audience) === "client",
   }));
@@ -191,23 +211,43 @@ export async function videoCards(deps, args) {
   const allBatches = [...batches].sort(byNew);
   const batchById = new Map(allBatches.map((b) => [b.id, b]));
   const cardById = new Map(cards.map((c) => [c.id, c]));
-  const cardByItem = new Map(cards.filter((c) => c.video_deliverable_id).map((c) => [c.video_deliverable_id, c]));
+  // Cards that point back at each work item (a card can carry a stale link).
+  const backTo = new Map();
+  for (const c of cards) {
+    const id = clean(c.video_deliverable_id);
+    if (!id) continue;
+    if (!backTo.has(id)) backTo.set(id, []);
+    backTo.get(id).push(c);
+  }
 
   // One entry per video work item (canceled and duplicate ones left out), plus
   // older cards that have no work item, so nothing SyncView shows is missed.
+  // A card is joined to a work item only when the two point at each other:
+  // the work item's card_id names the card AND the card's video_deliverable_id
+  // names the work item. With no card_id, only a single card pointing back counts.
   const videos = [];
   for (const d of items) {
     if (d.kind !== "video" || d.status === "canceled" || d.status === "duplicate") continue;
-    const card = cardByItem.get(d.id) || (d.card_id ? cardById.get(d.card_id) : null) || null;
+    const back = backTo.get(d.id) || [];
+    let card = null, cardProblem = "";
+    if (clean(d.card_id)) {
+      const c = cardById.get(clean(d.card_id));
+      if (c && clean(c.video_deliverable_id) === d.id) card = c;
+      else cardProblem = "The work item and its Calendar card do not point at each other, so the card's status, notes and edit link are left out. Check the card in SyncLinear.";
+    } else if (back.length === 1) {
+      card = back[0];
+    } else if (back.length > 1) {
+      cardProblem = "More than one Calendar card points at this work item, so none is used. Check the card in SyncLinear.";
+    }
     const num = videoNumber(d.title, card && card.name);
-    videos.push({ item: d, card, batch: batchById.get(d.batch_id) || null, num });
+    videos.push({ item: d, card, cardProblem, batch: batchById.get(d.batch_id) || null, num });
   }
-  const linked = new Set(videos.map((v) => v.card && v.card.id).filter(Boolean));
   for (const c of cards) {
-    if (linked.has(c.id) || /archived/i.test(clean(c.status))) continue;
+    // Only cards with no work item at all; a card pointing at a work item is never shown on its own.
+    if (clean(c.video_deliverable_id) || /archived/i.test(clean(c.status))) continue;
     const num = videoNumber(c.name);
     if (num === null) continue;
-    videos.push({ item: null, card: c, batch: null, num });
+    videos.push({ item: null, card: c, cardProblem: "", batch: null, num });
   }
 
   // Which batch: the one asked for; otherwise, for each number, the newest
@@ -297,8 +337,10 @@ export async function videoCards(deps, args) {
       synclinear: d ? `${SYNCVIEW}/?prod=1&d=${encodeURIComponent(d.id)}#production` : null,
       download: null,
     };
+    if (v.cardProblem) card.card_problem = v.cardProblem;
     if (frame && frame.error) card.frameio_problem = frame.error;
     else if (frame && frame.comments_error) card.frameio_problem = "The Frame.io notes could not be read this time; the video link still works.";
+    else if (frame && frame.comments_truncated) card.frameio_problem = `This video has more than ${fnotes.length} Frame.io notes; only the first ${fnotes.length} are listed. Open latest_edit in Frame.io to see the rest.`;
     if (frame && frame.video) {
       const r = frame.video.renditions || {};
       card.download = {

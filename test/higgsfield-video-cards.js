@@ -180,6 +180,91 @@ const parse = (text) => JSON.parse(text.slice(text.indexOf('\n') + 1));
   assert.ok(out.length <= v.MAX_CHARS + 200, 'stays inside the answer limit');
   assert.ok(body.notes.some((n) => n.includes('[cut]') && n.includes('video 7')));
 
+  // Review finding 1: a card is joined only when both links agree.
+  {
+    const dd = deps();
+    // d7 names card p7; a stale card p7old also points back at d7 and comes first.
+    const stale = { ...CARDS[0], id: 'p7old', video_status: 'Approved', asset_url: 'https://f.io/STALE999', video_tweaks: '' };
+    dd.cards = async () => [stale, ...CARDS];
+    dd.deliverables = async () => ITEMS.map((x) => (x.id === 'd7' ? { ...x, card_id: 'p7' } : x));
+    let b = parse(await v.videoCards(dd, { client: 'Test', videos: [7] }));
+    assert.strictEqual(b.videos[0].syncview_card.endsWith('/p7'), true, 'the card the work item names wins over a stale back link');
+    assert.strictEqual(b.videos[0].latest_edit, 'https://f.io/abcDEF12');
+    assert.strictEqual(b.videos.length, 1, 'the stale card is not shown on its own');
+    // card_id names a card that points elsewhere: no card is joined, and it says so.
+    dd.deliverables = async () => ITEMS.map((x) => (x.id === 'd7' ? { ...x, card_id: 'p8' } : x));
+    b = parse(await v.videoCards(dd, { client: 'Test', videos: [7] }));
+    assert.strictEqual(b.videos[0].syncview_card, null);
+    assert.strictEqual(b.videos[0].latest_edit, null);
+    assert.ok(/do not point at each other/.test(b.videos[0].card_problem));
+    assert.strictEqual(b.videos[0].brief, 'Script: say hello. Raw footage at 1:33.', 'the work item itself still answers');
+    // No card_id and two cards pointing back: none is picked (no reliance on row order).
+    dd.deliverables = async () => ITEMS;
+    b = parse(await v.videoCards(dd, { client: 'Test', videos: [7] }));
+    assert.strictEqual(b.videos[0].syncview_card, null);
+    assert.ok(/More than one Calendar card/.test(b.videos[0].card_problem));
+  }
+
+  // Review finding 2: legacy flags. A note in a *_tweaks column is a change
+  // request even with is_tweak false or missing; resolved / resolved_at / "true" mean done.
+  {
+    const notes = v.cardNotes({ video_tweaks: JSON.stringify([
+      { id: 'a', body: 'no flag', created_at: '2026-10-01T00:00:00Z' },
+      { id: 'b', body: 'stale false', is_tweak: false, created_at: '2026-10-02T00:00:00Z' },
+      { id: 'c', body: 'resolved flag', resolved: true, created_at: '2026-10-03T00:00:00Z' },
+      { id: 'd', body: 'resolved at', resolved_at: '2026-10-04T00:00:00Z', created_at: '2026-10-03T00:00:00Z' },
+      { id: 'e', body: 'string done', done: 'true', created_at: '2026-10-03T00:00:00Z' },
+      { id: 'f', body: 'graphic note', component: 'graphic', created_at: '2026-10-03T00:00:00Z' },
+    ]) });
+    assert.deepStrictEqual(notes.map((n) => [n.id, n.tweak, n.done]), [['a', true, false], ['b', true, false], ['c', true, true], ['d', true, true], ['e', true, true]]);
+    const dd = deps({ noFrame: true });
+    dd.cards = async () => [{ ...CARDS[0], video_tweaks: JSON.stringify([{ id: 'a', body: 'no flag' }, { id: 'c', body: 'resolved', resolved: 1 }]) }, CARDS[1]];
+    dd.comments = async () => [];
+    const b = parse(await v.videoCards(dd, { client: 'Test', videos: [7] }));
+    assert.strictEqual(b.videos[0].open_tweaks, 1);
+  }
+
+  // Review finding 3: plain text in the column is an older single note, not nothing.
+  {
+    const legacy = v.cardNotes({ video_tweaks: '', tweaks: 'Make the intro faster' });
+    assert.strictEqual(legacy.length, 1);
+    assert.strictEqual(legacy[0].text, 'Make the intro faster');
+    assert.strictEqual(legacy[0].tweak, true);
+    assert.strictEqual(legacy[0].done, false);
+    assert.strictEqual(legacy[0].legacy_text, true);
+    assert.strictEqual(legacy[0].who, v.LEGACY_AUTHOR);
+    assert.strictEqual(v.cardNotes({ video_tweaks: '[not json' })[0].text, '[not json', 'unreadable JSON is kept as text too');
+    assert.deepStrictEqual(v.cardNotes({ video_tweaks: '', tweaks: '' }), []);
+  }
+
+  // Review finding 4: every tombstone shape hides the note.
+  {
+    const notes = v.cardNotes({ video_tweaks: JSON.stringify([
+      { id: 'a', body: 'gone 1', is_deleted: true },
+      { id: 'b', body: 'gone 2', deleted_at: '2026-10-01T00:00:00Z' },
+      { id: 'c', body: 'gone 3', deleted: 'yes' },
+      { id: 'd', body: 'gone 4', hidden: 1 },
+      { id: 'e', body: 'kept', deleted: false, is_deleted: 0 },
+    ]) });
+    assert.deepStrictEqual(notes.map((n) => n.id), ['e']);
+  }
+  // The rules above are the feedback reader's; fail loudly if that reader changes them.
+  {
+    const fb = fs.readFileSync(path.join(root, 'supabase', 'functions', 'production-comments', 'feedback.mjs'), 'utf8');
+    assert.ok(fb.includes("const deleted = truthy(raw.deleted) || truthy(raw.is_deleted) || !!clean(raw.deleted_at);"), 'feedback.mjs tombstone rule unchanged');
+    assert.ok(fb.includes("const resolved = truthy(raw.done) || truthy(raw.resolved) || !!clean(raw.resolved_at);"), 'feedback.mjs done rule unchanged');
+    assert.ok(fb.includes("raw.is_tweak === true || /_tweaks$/.test(field) ? true"), 'feedback.mjs tweak rule unchanged');
+    assert.ok(fb.includes("['true', '1', 'yes'].includes(clean(value).toLowerCase())"), 'feedback.mjs truthy rule unchanged');
+  }
+
+  // Review finding 5: a cut Frame.io list says so.
+  {
+    const dd = deps();
+    dd.frameio = async () => ({ ...FRAME, comments_truncated: true });
+    const b = parse(await v.videoCards(dd, { client: 'Test', videos: [7] }));
+    assert.ok(/more than 2 Frame\.io notes; only the first 2 are listed/.test(b.videos[0].frameio_problem), b.videos[0].frameio_problem);
+  }
+
   // Wiring: the tool is listed, routed, read only, and reuses the Frame.io lookup.
   const index = read('index.ts');
   assert.ok(/name: "video_cards"/.test(index), 'tool listed');

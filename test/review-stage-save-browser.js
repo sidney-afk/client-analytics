@@ -98,19 +98,17 @@ async function until(t, fn, ms) { const t0 = Date.now(); while (Date.now() - t0 
     expect(t.errors.length === 0, '3: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
 
-    // 4. an approve that first asks which open change requests to resolve (the chooser), then a refused save
-    console.log('--- SMM: approve with an open change request (the chooser), then a refused save ---');
+    // 4. an approve on a part with an open change request: no question (the pick is the answer), then a refused save
+    console.log('--- SMM: approve with an open change request (no pop-up), then a refused save ---');
     t = await openSmm(browser, origin, ['video', 'caption'], c => {
       c.video_tweaks = JSON.stringify([{ id: 'tw1', parent_id: null, author: 'Team Member', role: 'smm', is_tweak: true, audience: 'internal', body: 'Tighten the intro.', created_at: '2026-10-12T16:12:00.000Z', updated_at: '2026-10-12T16:12:00.000Z', done: false, done_at: '', done_by: '' }]);
     });
-    await inS(t.page, '[data-ok="video"]').click();
-    const chooser = await until(t, async () => t.page.evaluate(() => { const o = document.getElementById('resolveDestOverlay'); return !!(o && o.classList.contains('active')); }), 3000);
-    expect(chooser >= 0, '4: the chooser for the open change request opens');
-    await sleep(1500);   // the person reads the chooser; the save has not started
     t.state.writeFail = 1;
-    await t.page.locator('#resolveDestKasper').click();
+    await inS(t.page, '[data-ok="video"]').click();
+    await sleep(600);
+    expect(!(await t.page.evaluate(() => { const o = document.getElementById('resolveDestOverlay'); return !!(o && o.classList.contains('active')); })), '4: no "where to next" pop-up opens (the pick of Kasper is the answer)');
     took = await until(t, async () => await inS(t.page, '[data-retry="video"]').count() > 0, 6000);
-    expect(took >= 0, '4: a refused save after the chooser still shows its reason and Try again (' + took + ' ms)');
+    expect(took >= 0, '4: a refused save with an open change request still shows its reason and Try again (' + took + ' ms)');
     expect(t.errors.length === 0, '4: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
 

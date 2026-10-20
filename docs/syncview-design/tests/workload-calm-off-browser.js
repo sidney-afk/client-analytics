@@ -75,7 +75,7 @@ async function capture(h) {
   for (const scenario of SCENARIOS) {
     const h = await F.launchCalmBoard(scenario.options);
     try {
-      results.push({ scenario, got: await capture(h), flagReads: await h.page.evaluate(() => performance.getEntriesByType('resource').map(e => e.name).filter(n => /workload_calm_staff/.test(n))), calmNodes: await h.page.evaluate(() => document.querySelectorAll('.wl-calm, [data-wl-calm-view-btn], [data-wl-calm-toggle], #wlCalmViewMenu').length), errors: h.state.pageErrors });
+      results.push({ scenario, got: await capture(h), flagReads: await h.page.evaluate(() => performance.getEntriesByType('resource').map(e => e.name).filter(n => /workload_calm_staff/.test(n))), calmNodes: await h.page.evaluate(() => document.querySelectorAll('.wl-calm, [data-wl-calm-view-btn], [data-wl-calm-toggle], #wlCalmViewMenu, .workload-day-card-badge, .workload-day-card-status.is-in-head, .wl-deadline-summary.is-neutral').length), errors: h.state.pageErrors });
     } finally { await h.close(); }
   }
   if (WRITE) {

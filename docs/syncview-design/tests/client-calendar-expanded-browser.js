@@ -92,10 +92,16 @@ async function shot(page, label) {
 async function run(browser, origin, width) {
   const timezoneId = 'America/Guatemala';
   const ctx = await browser.newContext({ viewport: { width, height: heightFor(width, arg('height')) }, isMobile: width < 768, hasTouch: width < 768, reducedMotion: 'reduce', colorScheme: requestedTheme, locale: 'en-US', timezoneId });
+  // Freeze the browser clock at one instant (timers keep running) and derive
+  // every "today" below from that same instant, so crossing local midnight
+  // mid-run cannot move Today between building the fixture and painting it.
+  // CAL_TEST_FIXED_TIME overrides the instant (used to prove 23:59:59 holds).
+  const fixedNow = new Date(process.env.CAL_TEST_FIXED_TIME || '2026-03-18T12:00:00-06:00');
+  await ctx.clock.setFixedTime(fixedNow);
   // The CI host can already be tomorrow while this browser is still today.
   // Use the browser's zone for the populated fixture; empty Today is exercised
   // separately below, so neither state depends on when CI happens to run.
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: timezoneId, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()).map(part => [part.type, part.value]));
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: timezoneId, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(fixedNow).map(part => [part.type, part.value]));
   const fixtureDate = [parts.year, parts.month, parts.day].join('-');
   const row = { ...BASE_ROW, id: 'p_phone_fixture_1', name: 'A little change. A better day.', scheduled_date: fixtureDate, cta: 'Save this for later.', thumbnail_url: 'https://drive.google.com/file/d/fixture_thumbnail_asset/view', video_deliverable_id: '00000000-0000-4000-a000-000000000001', graphic_deliverable_id: '00000000-0000-4000-a000-000000000002' };
   const finished = { ...row, id: 'p_phone_fixture_2', name: 'Make room for what matters.', thumbnail_url: origin + '/__fixture_unavailable.png', order_index: 2, status: 'Approved', video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Approved' };

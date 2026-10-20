@@ -2890,6 +2890,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!ar) ar = img('bigthumbImg');
         const hasVideo = m.parts.some(x => x.key === 'video');
         const land = hasVideo && (ar ? ar > 1.05 : !!m.land);
+        const was = g.className;
         g.classList.toggle('l2-land', land);
         g.classList.toggle('l2-port', !land);
         // The grid: one column per part (the video's a little wider) when side by side; otherwise one column per part
@@ -2897,7 +2898,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // buttons of the parts line up whatever each one needs.
         g.style.setProperty('--l2c', String(Math.max(1, m.parts.length - 1)));
         g.style.setProperty('--l2cols', m.parts.map(x => x.key === 'video' ? 'minmax(0,1.35fr)' : 'minmax(0,1fr)').join(' '));
-        _rsFit();
+        if (g.className !== was) _rsFit();   // the picture's box changed shape: size the player to it
     }
     function _rsFvDblClick(fvh) {
         fvh.addEventListener('dblclick', (e) => {

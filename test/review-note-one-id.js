@@ -13,10 +13,11 @@ const INDEX = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 let failures = 0;
 const ok = (c, m) => { console.log((c ? '  ok  ' : 'FAIL  ') + m); if (!c) failures++; };
 
-async function run(linked, comp) {
+async function run(linked, comp, client, clientCtx) {
   const calls = [];
   const store = { c_mvfmnt0w_6bfz9: { id: 'c_mvfmnt0w_6bfz9', pid: 'p1', comp, kind: 'review-comment', surface: 'review', parent_id: null, body: 'Same q', audience: 'client', state: 'sending' } };
   const env = {
+    _isClientLink: !!client, _prodClientCommentGatewayContext: async () => (clientCtx ? { card_id: 'x' } : null),
     calState: { posts: [{ id: 'p1' }] },
     _prodCanonicalCommentGate: () => ({ linked }),
     _noteOutboxGet: id => store[id], _noteOutboxSet: (id, v) => Object.assign(store[id], v), _noteOutboxDrop: id => { delete store[id]; },
@@ -27,7 +28,7 @@ async function run(linked, comp) {
     _writeUiFailureSentence: e => String(e), _writeUiRecordFailure: () => {}
   };
   const names = Object.keys(env);
-  const src = extractFunction(INDEX, '_noteReviewGoesToGateway') + '\n' + extractFunction(INDEX, '_noteOutboxSend') + '; return _noteOutboxSend;';
+  const src = 'async ' + extractFunction(INDEX, '_noteReviewGoesToGateway').replace(/^async\s+/, '') + '\n' + extractFunction(INDEX, '_noteOutboxSend') + '; return _noteOutboxSend;';
   const send = new Function(...names, src)(...names.map(n => env[n]));
   await send('c_mvfmnt0w_6bfz9');
   return calls;
@@ -39,5 +40,9 @@ async function run(linked, comp) {
   ok(c.length === 1 && c[0][0] === 'cardrow', 'unlinked card: unchanged card-row save');
   c = await run(true, 'caption');
   ok(c.length === 1 && c[0][0] === 'cardrow', 'caption/title: unchanged');
+  c = await run(false, 'video', true, true);
+  ok(c.length === 1 && c[0][0] === 'gateway', 'client link (read gate says not linked), verified write context: gateway');
+  c = await run(false, 'video', true, false);
+  ok(c.length === 1 && c[0][0] === 'cardrow', 'client link without a verified write context: card-row save');
   process.exit(failures ? 1 : 0);
 })();

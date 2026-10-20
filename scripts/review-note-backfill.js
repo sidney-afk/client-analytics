@@ -24,7 +24,10 @@
  * DEFAULT IS A DRY RUN. It reads only, and prints counts per card id (no
  * names, no text). --apply needs F42_CONFIRM_CARD_COMMENT_IMPORT=IMPORT_CARD_COMMENTS.
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
- * Usage: node scripts/review-note-backfill.js [--since 2026-10-01] [--apply]
+ * Usage: node scripts/review-note-backfill.js [--since 2026-10-01] [--exclude-card id,id] [--apply]
+ *        node scripts/review-note-backfill.js --rollback review-note-backfill-<since> [--apply]
+ * Rollback deletes only rows of that run (import_run_id) and refuses the whole
+ * thing if any gained a reply, edit, resolve, delete or version change.
  */
 const { planSurface } = require('./f42-card-comment-import');
 
@@ -35,11 +38,13 @@ const PARTS = { video: 'video_tweaks', graphic: 'graphic_tweaks' };
 
 const clean = v => String(v == null ? '' : v).trim();
 
+/* { list, malformed }: an empty column is an empty list; anything populated
+   that is not a JSON array is MALFORMED, never silently empty. */
 function parseList(value) {
-  if (Array.isArray(value)) return value;
-  const text = clean(value);
-  if (!text.startsWith('[')) return [];
-  try { const out = JSON.parse(text); return Array.isArray(out) ? out : []; } catch (e) { return []; }
+  if (Array.isArray(value)) return { list: value, malformed: false };
+  if (value == null || !clean(value)) return { list: [], malformed: false };
+  if (typeof value !== 'string') return { list: [], malformed: true };
+  try { const out = JSON.parse(value); return Array.isArray(out) ? { list: out, malformed: false } : { list: [], malformed: true }; } catch (e) { return { list: [], malformed: true }; }
 }
 
 function twinsOf(note, part, canonical) {
@@ -53,20 +58,25 @@ function twinsOf(note, part, canonical) {
 
 /* Pure: cards, deliverables and canonical rows in; the orphan notes out, as
    card-shaped rows holding only those notes so the F42 planner can plan them. */
-function findOrphans({ cards, canonicalByDeliverable, since }) {
+function findOrphans({ cards, canonicalByDeliverable, since, exclude }) {
   const counts = { notes_seen: 0, already_in_production: 0, has_twin: 0, ambiguous_twin: 0, orphan: 0 };
   const perCard = {};
   const rows = [];
+  const malformed = [];
+  const skip = new Set(exclude || []);
   for (const card of cards || []) {
+    if (skip.has(card.id)) continue;
     const row = { id: card.id, client: card.client, client_slug: card.client_slug,
       video_deliverable_id: card.video_deliverable_id, graphic_deliverable_id: card.graphic_deliverable_id };
     let any = false;
     for (const [part, field] of Object.entries(PARTS)) {
+      const parsed = parseList(card[field]);
+      if (parsed.malformed) { malformed.push({ card_id: card.id, part }); continue; }
       const deliverable = clean(card[part + '_deliverable_id']);
       if (!deliverable) continue;
       const canonical = (canonicalByDeliverable && canonicalByDeliverable.get(deliverable)) || [];
       const keep = [];
-      for (const note of parseList(card[field])) {
+      for (const note of parsed.list) {
         if (!note || clean(note.role) !== 'client' || clean(note.parent_id) || note.deleted === true || note.hidden === true) continue;
         if (since && clean(note.created_at) < since) continue;
         counts.notes_seen++;
@@ -81,11 +91,11 @@ function findOrphans({ cards, canonicalByDeliverable, since }) {
     }
     if (any) rows.push(row);
   }
-  return { rows, counts, perCard };
+  return { rows, counts, perCard, malformed };
 }
 
-function plan({ cards, deliverables, canonicalByDeliverable, since, importRunId }) {
-  const found = findOrphans({ cards, canonicalByDeliverable, since });
+function plan({ cards, deliverables, canonicalByDeliverable, since, importRunId, exclude }) {
+  const found = findOrphans({ cards, canonicalByDeliverable, since, exclude });
   const deliverablesById = new Map((deliverables || []).map(d => [clean(d.id), d]));
   const planned = planSurface(found.rows, { surface: 'calendar', importRunId, deliverablesById });
   return { ...found, planned };
@@ -104,6 +114,60 @@ async function getAll(config, fetchImpl, table, select, filter) {
   }
 }
 
+/* Pure: which rows of a run may be deleted. A row that gained any later
+   activity (a reply, an edit, a resolve, a delete, a version bump) is
+   refused, and one refusal stops the whole rollback. */
+function rollbackVerdict(rows, replyParentIds) {
+  const replied = new Set(replyParentIds || []);
+  const refused = [];
+  for (const r of rows) {
+    const reasons = [];
+    if (replied.has(r.id)) reasons.push('has_reply');
+    if (clean(r.edited_at)) reasons.push('edited');
+    if (clean(r.resolved_at)) reasons.push('resolved');
+    if (clean(r.deleted_at)) reasons.push('deleted');
+    if (Number(r.version) !== 1) reasons.push('version_changed');
+    if (reasons.length) refused.push({ id: r.id, reasons });
+  }
+  return { deletable: rows.length - refused.length, refused };
+}
+const ROLLBACK_MAX = 500;
+
+async function rollback(args, env, config, fetchImpl, deps, out) {
+  const runId = clean(args.rollback);
+  if (!/^review-note-backfill-[0-9-]+$/.test(runId)) throw new Error('--rollback needs a run id like review-note-backfill-2026-10-01');
+  const apply = args.apply === true;
+  if (apply && clean(env[CONFIRM_ENV]) !== CONFIRM_TOKEN) throw new Error(`--apply needs ${CONFIRM_ENV}=${CONFIRM_TOKEN}`);
+  const rows = deps.runRows || await getAll(config, fetchImpl, 'production_comments',
+    'id,version,edited_at,resolved_at,deleted_at', `&import_run_id=eq.${encodeURIComponent(runId)}&backfill_tag=eq.f42-card-thread`);
+  if (rows.length > ROLLBACK_MAX) throw new Error(`rollback refused: ${rows.length} rows is more than ${ROLLBACK_MAX}`);
+  const ids = rows.map(r => r.id);
+  const replies = deps.replyParents || (ids.length ? (await getAll(config, fetchImpl, 'production_comments', 'parent_id',
+    `&parent_id=in.(${ids.map(i => '"' + i + '"').join(',')})`)).map(r => r.parent_id) : []);
+  const verdict = rollbackVerdict(rows, replies);
+  out(`mode: ROLLBACK ${apply ? 'APPLY' : 'dry run (nothing deleted)'}`);
+  out(`run: ${runId}`);
+  out(`rows_of_this_run: ${rows.length}`);
+  out(`deletable: ${verdict.deletable}`);
+  out(`refused: ${verdict.refused.length}`);
+  verdict.refused.forEach(x => out(`refused ${x.id}: ${x.reasons.join(',')}`));
+  if (verdict.refused.length) throw new Error('rollback refused: some rows gained later activity; nothing deleted');
+  if (!apply) return verdict;
+  const del = deps.deleteOne || (async id => {
+    for (const url of [
+      `${config.url}/rest/v1/production_comment_card_links?production_comment_id=eq.${encodeURIComponent(id)}`,
+      `${config.url}/rest/v1/production_comments?id=eq.${encodeURIComponent(id)}&import_run_id=eq.${encodeURIComponent(runId)}&version=eq.1`,
+    ]) {
+      const res = await fetchImpl(url, { method: 'DELETE', headers: { apikey: config.key, Authorization: `Bearer ${config.key}` } });
+      if (!res.ok) throw new Error(`delete_${res.status}`);
+    }
+  });
+  let deleted = 0;
+  for (const id of ids) { await del(id); deleted++; }
+  out(`deleted: ${deleted}`);
+  return verdict;
+}
+
 async function run(argv = process.argv.slice(2), env = process.env, deps = {}) {
   const args = {};
   for (let i = 0; i < argv.length; i++) if (argv[i].startsWith('--')) args[argv[i].slice(2)] = argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true;
@@ -112,16 +176,19 @@ async function run(argv = process.argv.slice(2), env = process.env, deps = {}) {
   const config = { url: clean(env.SUPABASE_URL).replace(/\/$/, ''), key: clean(env.SUPABASE_SERVICE_ROLE_KEY) };
   if (!config.url || !config.key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required');
   const fetchImpl = deps.fetch || globalThis.fetch;
+  const out = deps.out || (s => process.stdout.write(s + '\n'));
+  if (args.rollback) return rollback(args, env, config, fetchImpl, deps, out);
   const since = clean(args.since) || '2026-10-01';
+  const exclude = clean(args['exclude-card'] === true ? '' : args['exclude-card']).split(',').map(clean).filter(Boolean);
   const cards = deps.cards || await getAll(config, fetchImpl, 'calendar_posts',
-    'id,client,client_slug,video_deliverable_id,graphic_deliverable_id,video_tweaks,graphic_tweaks', '&video_tweaks=not.is.null');
+    'id,client,client_slug,video_deliverable_id,graphic_deliverable_id,video_tweaks,graphic_tweaks',
+    '&or=(video_tweaks.not.is.null,graphic_tweaks.not.is.null)');
   const deliverables = deps.deliverables || await getAll(config, fetchImpl, 'deliverables', 'id,client_slug,team,origin,card_id');
   const canonical = deps.canonical || await getAll(config, fetchImpl, 'production_comments',
     'id,native_comment_id,deliverable_id,parent_id,body,role,audience,component,source_created_at,created_at');
   const canonicalByDeliverable = new Map();
   canonical.forEach(r => { const k = clean(r.deliverable_id); if (!canonicalByDeliverable.has(k)) canonicalByDeliverable.set(k, []); canonicalByDeliverable.get(k).push(r); });
-  const result = plan({ cards, deliverables, canonicalByDeliverable, since, importRunId: 'review-note-backfill-' + since });
-  const out = deps.out || (s => process.stdout.write(s + '\n'));
+  const result = plan({ cards, deliverables, canonicalByDeliverable, since, exclude, importRunId: 'review-note-backfill-' + since });
   out(`mode: ${apply ? 'APPLY' : 'dry run (nothing written)'}`);
   out(`since: ${since}`);
   Object.entries(result.counts).forEach(([k, v]) => out(`${k}: ${v}`));
@@ -130,6 +197,10 @@ async function run(argv = process.argv.slice(2), env = process.env, deps = {}) {
   const perCard = {};
   result.planned.imports.forEach(i => { perCard[i.link.card_id] = (perCard[i.link.card_id] || 0) + 1; });
   Object.keys(perCard).sort().forEach(id => out(`card ${id}: ${perCard[id]}`));
+  out(`excluded_cards: ${exclude.length}`);
+  out(`malformed_columns: ${result.malformed.length}`);
+  result.malformed.forEach(m => out(`malformed ${m.card_id} ${m.part}: not a JSON array; fix or --exclude-card`));
+  if (result.malformed.length) throw new Error('malformed comment columns block --apply; fix them or exclude those cards');
   if (result.planned.conflicts.length) throw new Error('plan has conflicts; nothing applied');
   if (!apply) return result;
   const rpc = deps.importOne || (async (link, comment, event) => {
@@ -149,4 +220,4 @@ async function run(argv = process.argv.slice(2), env = process.env, deps = {}) {
 
 if (require.main === module) run().catch(e => { console.error(String(e && e.message || e)); process.exit(1); });
 
-module.exports = { findOrphans, plan, run, twinsOf };
+module.exports = { findOrphans, plan, run, twinsOf, rollbackVerdict };

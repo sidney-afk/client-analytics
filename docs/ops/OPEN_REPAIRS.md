@@ -33836,3 +33836,11 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 - **Not done here.** The live row is not changed by this entry; Lighthouse sets it to `{ "all": true }` after this merges and deploys.
 
 **Way back:** revert the pull request; the row's `staff` list keeps working.
+
+## 468. [2026-10-20, BUILT, NOT MERGED] Kasper layout 2: every button label in a part's row stays on one line (session Easel Three)
+
+- **Asked by:** the owner, from the two-part card screenshot of #2261: "Tweaks are on Frame" ran to three lines and "Approve the caption" and "Ask for a change" to two.
+- **Changed (`src/index/195-review-stage.js.part`, second layout only).** The three labels no longer wrap. Each has a long and a short form (Approve the video / Approve, Ask for a change / Ask for change, Tweaks are on Frame / Frame tweaks, and Approved / Asked while saving); the part's own column width decides: long above 460 px, short up to 300 px, and below that Frame and Ask for a change shrink to their icons. The long text is always the button's `aria-label` (and Frame and Ask keep their tooltips), so accessible names are unchanged. Approve stays centred in all three forms.
+- **Proven.** `test/review-stage-kasper-layout2-browser.js` (188 checks): at 1440 x 900 and 1920 x 1080, for one-, two- and three-part cards, every visible label is a single line inside its button, no button grows tall, the long name is the accessible name, buttons stay inside the part's row and Approve is centred.
+
+**Way back:** revert the pull request.

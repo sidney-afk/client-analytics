@@ -51,7 +51,7 @@ function look(page) {
     r.querySelectorAll('#l2g .pn').forEach(p => {
       const k = p.dataset.part, m = p.querySelector('.pn-m'), d = p.querySelector('.pn-d');
       const media = m.querySelector('.rs-fv:not([hidden]) .fv-player, .player.rs-novid, .bigthumb, .tcard');
-      panes[k] = { m: box(m), d: box(d), media: box(media), mediaVisible: vis(media), approve: !!d.querySelector('[data-ok="' + k + '"]'), okBox: box(d.querySelector('[data-ok="' + k + '"]')), askBox: box(d.querySelector('[data-chg="' + k + '"]')), frameBox: box(d.querySelector('[data-frame="' + k + '"]')), askName: ((d.querySelector('[data-chg="' + k + '"]') || {}).textContent || '').trim(), approveVisible: vis(d.querySelector('[data-ok="' + k + '"]')), ask: !!d.querySelector('[data-chg="' + k + '"]'), askVisible: vis(d.querySelector('[data-chg="' + k + '"]')), text: d.textContent.replace(/\s+/g, ' ').trim() };
+      panes[k] = { m: box(m), d: box(d), media: box(media), mediaVisible: vis(media), approve: !!d.querySelector('[data-ok="' + k + '"]'), okBox: box(d.querySelector('[data-ok="' + k + '"]')), askBox: box(d.querySelector('[data-chg="' + k + '"]')), frameBox: box(d.querySelector('[data-frame="' + k + '"]')), askName: ((d.querySelector('[data-chg="' + k + '"]') || { getAttribute() { return ''; } }).getAttribute('aria-label') || ''), approveVisible: vis(d.querySelector('[data-ok="' + k + '"]')), ask: !!d.querySelector('[data-chg="' + k + '"]'), askVisible: vis(d.querySelector('[data-chg="' + k + '"]')), text: d.textContent.replace(/\s+/g, ' ').trim() };
     });
     const rows = Array.from(r.querySelectorAll('#qlList [data-id]')).map(b => ({
       id: b.dataset.id, cur: b.getAttribute('aria-current') === 'true', title: (b.querySelector('.cn') || {}).textContent || '',
@@ -417,6 +417,51 @@ async function titles(page) { return (await look(page)).heading; }
     expect(L.orient === 'land' && Object.keys(L.panes).length === 4, 'a YouTube card: four parts, the video across the top (' + Object.keys(L.panes).join(',') + ')');
     expect(Object.keys(L.panes).every(k => L.panes[k].mediaVisible), 'every one of its parts shows');
     await t.ctx.close();
+
+    // ---------- every button label is on ONE line, at every width, for one, two and three parts ----------
+    console.log('--- one-line labels ---');
+    const oneLine = page => page.evaluate(() => {
+      const r = document.getElementById('svReviewStage').shadowRoot;
+      const out = [];
+      r.querySelectorAll('#l2g .pn-d').forEach(d => {
+        const pr = d.getBoundingClientRect();
+        d.querySelectorAll('[data-ok],[data-chg],[data-frame]').forEach(b => {
+          const k = b.hasAttribute('data-ok') ? 'approve' : b.hasAttribute('data-chg') ? 'ask' : 'frame';
+          const bb = b.getBoundingClientRect();
+          const span = Array.from(b.querySelectorAll('.lf,.ls')).find(x => getComputedStyle(x).display !== 'none');
+          let lines = 0, spill = false;
+          if (span) {
+            const rg = document.createRange(); rg.selectNodeContents(span);
+            lines = new Set(Array.from(rg.getClientRects()).map(q => Math.round(q.top))).size;
+            spill = span.getBoundingClientRect().right > bb.right + 1 || span.getBoundingClientRect().left < bb.left - 1;
+          }
+          out.push({ part: d.dataset.pd, k, w: Math.round(bb.width), h: Math.round(bb.height), lines, iconOnly: !span, spill, inRow: bb.x >= pr.x - 1 && bb.right <= pr.right + 1, aria: b.getAttribute('aria-label') || '', mid: (bb.x + bb.right) / 2, pmid: (pr.x + pr.right) / 2 });
+        });
+      });
+      return out;
+    });
+    const FULL = { approve: /^(Approve the (video|thumbnail|caption)|Approved)/, ask: /^(Ask for a change|Change asked)$/, frame: /^Tweaks are on Frame$/ };
+    for (const [w, h] of [[1440, 900], [1920, 1080]]) {
+      t = await openKasper(browser, origin, { layout2: true, width: w, height: h });
+      const row3 = t.state.cards.find(c => c.id === 'rs3');
+      Object.assign(row3, { graphic_status: 'Client Approval', caption_status: 'Client Approval', updated_at: new Date().toISOString() });
+      await t.page.evaluate(async () => { await _kasperLoadReview(true); });
+      await sleep(1500);
+      for (const [label, id, parts] of [['three parts', 'rs1', 3], ['two parts', 'rs2', 2], ['one part', 'rs3', 1]]) {
+        await inS(t.page, '#qlList [data-id="' + id + '"]').click();
+        await sleep(1500);
+        const B = await oneLine(t.page);
+        const tag = w + 'x' + h + ', ' + label;
+        expect(new Set(B.map(x => x.part)).size === parts, tag + ': ' + parts + ' part row(s) (' + B.length + ' buttons)');
+        expect(B.every(x => x.iconOnly || (x.lines === 1 && !x.spill)), tag + ': every visible label is on one line and inside its button (' + B.filter(x => !x.iconOnly && (x.lines !== 1 || x.spill)).map(x => x.part + '/' + x.k + ' ' + x.lines).join(', ') + ')');
+        expect(B.every(x => x.iconOnly ? x.w <= 40 : x.h < 60), tag + ': no button grew tall');
+        expect(B.every(x => FULL[x.k].test(x.aria)), tag + ': the long text is always the accessible name (' + B.map(x => x.aria).join(' | ') + ')');
+        expect(B.every(x => x.inRow), tag + ': every button stays inside its part\'s row');
+        expect(B.filter(x => x.k === 'approve').every(x => Math.abs(x.mid - x.pmid) < 10), tag + ': Approve stays centred');
+      }
+      expect(t.errors.length === 0, w + ': no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    }
 
     // ---------- 1280, 1920, dark ----------
     for (const [w, h, dark] of [[1366, 768, false], [1920, 1080, false], [1440, 900, true]]) {

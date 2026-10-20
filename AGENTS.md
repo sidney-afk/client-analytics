@@ -323,7 +323,9 @@ two or more, up to 41): serious P1 points kept arriving at about one per round
 in the deep PRs, and smaller P2 points at about 0.9 per round. So:
 
 - UI, display and flagged feature PRs stop at **2 rounds**. Leftover P2 points
-  go to `docs/ops/OPEN_REPAIRS.md` as follow-ups, not into more fixes.
+  go to `docs/ops/OPEN_REPAIRS.md` as follow-ups, not into more fixes. A P1 fix
+  pushed in round 2 still gets one re-check of that commit, and a UI PR that
+  also changes saving or permissions counts as the next kind, not this one.
 - PRs that change saving, permissions, migrations or Edge Functions have **no
   fixed cap**: keep going only while a round returns a P1 about lost data, wrong
   saves or permissions, and stop at the first round without one.

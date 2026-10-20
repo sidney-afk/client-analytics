@@ -114,14 +114,14 @@ const newTab = (browser, origin, o) => open(browser, origin, Object.assign({ sta
     expect(timing.on.video < timing.off.video - 300, 'the first card\'s video address is asked for sooner with the flag on (' + timing.on.video + ' ms vs ' + timing.off.video + ' ms after the list was asked for)');
 
     // ---------- a second visit: a loader, not the old page first ----------
-    for (const [label, opt, wantOld] of [['flag off', {}, true], ['flag on', { fast: true }, false]]) {
+    for (const [label, opt, wantOld] of [['flag off', {}, true], ['flag on', { fast: true }, false], ['flag on, review page switch off for this person', { fast: true, noKasperStage: true }, true]]) {
       console.log('--- second visit, ' + label + ' ---');
       const t = await newTab(browser, origin, opt);
       await boot(t, origin);
-      await stageUp(t.page);
+      await (opt.noKasperStage ? sleep(3000) : stageUp(t.page));
       await sleep(1500);
       await again(t, origin, { flags: 1500 });
-      await stageUp(t.page);
+      await (opt.noKasperStage ? sleep(5000) : stageUp(t.page));
       const old = await t.page.evaluate(() => window.__oldList);
       expect(old === wantOld, label + ': the old page\'s list ' + (wantOld ? 'is drawn first while the switch is read, as today' : 'is never drawn first, the loader holds instead'));
       expect(t.errors.length === 0, label + ': no page errors (' + t.errors.join(' | ') + ')');

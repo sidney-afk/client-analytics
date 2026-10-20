@@ -340,13 +340,16 @@ import { currentNav } from './065-core-nav-intake-state.js';
        (the live answer takes 1.5 to 3.7 s). The hint only ever turns the speed-ups on; it never shows a page by itself,
        and a read that fails or names nobody clears it. */
     const RS_KASPER_FAST_KEY = 'sv-kasper-fast';
+    // The hint holds both lists: who gets the fast boot, and who the review page's own switch named (the loader below
+    // only helps where that page will really come).
     function _rsKasperFastHintSave(f) {
-        try { if (f.fast.size) localStorage.setItem(RS_KASPER_FAST_KEY, JSON.stringify(Array.from(f.fast))); else localStorage.removeItem(RS_KASPER_FAST_KEY); } catch (e) {}
+        try { if (f.fast.size) localStorage.setItem(RS_KASPER_FAST_KEY, JSON.stringify({ fast: Array.from(f.fast), stage: Array.from(f.staff) })); else localStorage.removeItem(RS_KASPER_FAST_KEY); } catch (e) {}
     }
-    function _rsKasperFastHintHas() {
+    function _rsKasperFastHintHas(key) {
         try {
             const h = JSON.parse(localStorage.getItem(RS_KASPER_FAST_KEY) || 'null');
-            return Array.isArray(h) && h.length > 0 && _rsListed(new Set(h.filter(x => typeof x === 'string')));
+            const list = h && Array.isArray(h[key || 'fast']) ? h[key || 'fast'] : [];
+            return list.length > 0 && _rsListed(new Set(list.filter(x => typeof x === 'string')));
         } catch (e) { return false; }
     }
     // Is the fast boot on for the signed-in staff member? The live answer once it is in, the hint until then.
@@ -377,7 +380,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
     function svRsKasperPending() {
         if (_isClientLink || _rsFlags.loaded || _rsFlagFailed) return false;
         _rsPrime();
-        if (!_rsFlagPromise || !_rsKasperFastHintHas()) return false;
+        if (!_rsFlagPromise || !_rsKasperFastHintHas('fast') || !_rsKasperFastHintHas('stage')) return false;
         _rsKasperPendingShown = true;
         return true;
     }

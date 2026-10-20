@@ -257,7 +257,7 @@ async function open(browser, origin, opt) {
         client_comment_gateway_enabled: { enabled: true }, prod_authority: { video: 'syncview', graphics: 'syncview' },
         frame_viewer_clients: opt.frame === 'off' ? { clients: [] } : { all: true },
       };
-      if (opt.flags === 'on') { values.review_stage_client_pages = { clients: [SLUG] }; values.review_stage_kasper_staff = { staff: [STAFF.id] }; }
+      if (opt.flags === 'on') { values.review_stage_client_pages = { clients: [SLUG] }; if (!opt.noKasperStage) values.review_stage_kasper_staff = { staff: [STAFF.id] }; }
       // opt.layout2: Kasper's second layout (all parts at once, a list on the left) for the signed-in staff member.
       if (opt.layout2) values.review_stage_kasper_layout2 = opt.layout2 === true ? { staff: [STAFF.id] } : opt.layout2;
       // opt.fast: Kasper's fast boot (kasper_fast_boot) for the signed-in staff member, or a given value.

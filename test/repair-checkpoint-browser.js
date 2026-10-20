@@ -84,6 +84,11 @@ ${helpers}
             } else {
               await a.evaluate(() => { window.r=record(); window.outcome=_writeUiGatewayWithRepair({},r).then(ack=>({ack}),e=>({error:e.code})); });
               await a.evaluate(() => sent);
+              // Page b must SEE page a's checkpoint before it acts on it. WebKit shows one page's localStorage write to
+              // another page a moment late; a cleanup run in that gap finds no row, correctly reports nothing to delete
+              // (true) and fails these cases without any code being wrong (seen 3 times in 3600 forced runs, rows 0 and
+              // the foreground lock held).
+              await b.waitForFunction(() => _writeUiRepairJournalRead().rows.length > 0, null, { timeout: 10000 });
               if(mode==='cleanup-during-flight') {
                 const cleared=await b.evaluate(()=>_writeUiCompleteSourceRepairRefs([{key:record().key,token:record().token}]));
                 assert.equal(cleared,false,'source cleanup must not delete a checkpoint under a foreground save');

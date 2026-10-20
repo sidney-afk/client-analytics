@@ -11,7 +11,10 @@
  *   - every part of the card on stage together, each with its own Approve and Ask for a change; a vertical video puts
  *     them side by side, a wide one puts the video across the top and the others below it, decided from the video's
  *     real shape (then the thumbnail's);
- *   - Finish reviewing and Close card at the top right of the card, no row of their own;
+ *   - Finish reviewing and Close card at the top right of the card, no row of their own, with the card's title and its
+ *     date line at the top left of that row (round 2, 2026-10-20), and a tooltip on Close card;
+ *   - one compact row of buttons per part: Tweaks are on Frame left, Approve centred, Ask for a change right;
+ *   - Undo on an approved part's row (the toast's own Undo), the editors' bell, no scroll jump on With the editors;
  *   - the saves are the old page's: approve, ask for a change, change my mind, finish, close.
  * EASEL_SHOTS=<dir> also writes screenshots (fixture data only).
  */
@@ -48,7 +51,7 @@ function look(page) {
     r.querySelectorAll('#l2g .pn').forEach(p => {
       const k = p.dataset.part, m = p.querySelector('.pn-m'), d = p.querySelector('.pn-d');
       const media = m.querySelector('.rs-fv:not([hidden]) .fv-player, .player.rs-novid, .bigthumb, .tcard');
-      panes[k] = { m: box(m), d: box(d), media: box(media), mediaVisible: vis(media), approve: !!d.querySelector('[data-ok="' + k + '"]'), approveVisible: vis(d.querySelector('[data-ok="' + k + '"]')), ask: !!d.querySelector('[data-chg="' + k + '"]'), askVisible: vis(d.querySelector('[data-chg="' + k + '"]')), text: d.textContent.replace(/\s+/g, ' ').trim() };
+      panes[k] = { m: box(m), d: box(d), media: box(media), mediaVisible: vis(media), approve: !!d.querySelector('[data-ok="' + k + '"]'), okBox: box(d.querySelector('[data-ok="' + k + '"]')), askBox: box(d.querySelector('[data-chg="' + k + '"]')), frameBox: box(d.querySelector('[data-frame="' + k + '"]')), askName: ((d.querySelector('[data-chg="' + k + '"]') || {}).textContent || '').trim(), approveVisible: vis(d.querySelector('[data-ok="' + k + '"]')), ask: !!d.querySelector('[data-chg="' + k + '"]'), askVisible: vis(d.querySelector('[data-chg="' + k + '"]')), text: d.textContent.replace(/\s+/g, ' ').trim() };
     });
     const rows = Array.from(r.querySelectorAll('#qlList [data-id]')).map(b => ({
       id: b.dataset.id, cur: b.getAttribute('aria-current') === 'true', title: (b.querySelector('.cn') || {}).textContent || '',
@@ -63,7 +66,7 @@ function look(page) {
       ql: vis(q('#ql')), qlBox: box(q('#ql')), count: (q('#qlHead') || {}).textContent || '', rows, list: list ? { sh: list.scrollHeight, ch: list.clientHeight, top: list.scrollTop, oy: getComputedStyle(list).overflowY } : null,
       heading: (q('#side h2') || {}).textContent || '', panes, orient: g ? (g.classList.contains('l2-land') ? 'land' : g.classList.contains('l2-port') ? 'port' : '') : '',
       finish: box(q('#finishBtn')), close: box(q('#closeBtn')), finishText: (q('#finishBtn') || {}).textContent || '', finishDisabled: q('#finishBtn') ? q('#finishBtn').disabled : null,
-      act: box(act), card: box(q('.card')), sdate: box(q('#sdate')), stage: box(q('#stage')), chat: box(q('#chat')),
+      act: box(act), card: box(q('.card')), sdate: box(q('#sdate')), h2: box(q('#side h2')), l2h: box(q('.l2h')), closeTip: (q('#closeTip') || {}).textContent || '', closeDesc: (q('#closeBtn') || { getAttribute() { return ''; } }).getAttribute('aria-describedby'), stage: box(q('#stage')), chat: box(q('#chat')),
       focus: r.activeElement && r.activeElement.dataset ? r.activeElement.dataset.id || '' : '',
       css: Array.from(r.querySelectorAll('style')).map(s => s.textContent).join('').includes('.ql-h{'),
       pageScroll: { w: document.scrollingElement.scrollWidth, cw: document.scrollingElement.clientWidth },
@@ -127,6 +130,38 @@ async function titles(page) { return (await look(page)).heading; }
     expect(Math.abs((L.finish.y + L.finish.h / 2) - (L.close.y + L.close.h / 2)) < 2 && L.finish.y < L.panes.video.m.y, 'they share one row, at the top of the card, above the parts');
     expect(L.card.r - L.close.r < 40 && L.close.r <= L.card.r, 'aligned to the right edge of the card (' + Math.round(L.card.r - L.close.r) + ' px from it)');
     expect(/0 of 3/.test(L.finishText.replace(/\s+/g, ' ')) && L.finishDisabled === true, 'Finish reviewing reads 0 of 3 and waits');
+    // round 2: the card's title in the panel's header, one compact row of buttons per part, the tooltip
+    expect(L.h2 && L.sdate && L.l2h && L.h2.y >= L.l2h.y - 1 && L.sdate.y >= L.h2.b - 2 && L.sdate.y - L.h2.b < 12, 'the title is at the top left of the panel header with the date and round line just below it');
+    expect(L.h2.x < L.finish.x && L.h2.y < L.panes.video.m.y && L.h2.b <= L.panes.video.m.y && !(await inS(t.page, '.stage > .side').count()), 'the title is in the panel\'s own top row, not on a row above the panel');
+    expect(/Back after tweaks|First review/.test(await inS(t.page, '#sdate').textContent()) && L.sdate.h < 24, 'the date and round text is one small line');
+    for (const k of keys) {
+      const P = L.panes[k];
+      expect(P.okBox && P.askBox && P.askName === 'Ask for a change' && P.askBox.x > P.okBox.r - 1, k + ': Approve is left of Ask for a change, which keeps its name');
+      expect(Math.abs((P.okBox.y + P.okBox.h / 2) - (P.askBox.y + P.askBox.h / 2)) < 4 && P.d.h < 60, k + ': both are on ONE compact row (' + Math.round(P.d.h) + ' px tall)');
+      const mid = (P.okBox.x + P.okBox.r) / 2, pm = (P.d.x + P.d.r) / 2;
+      expect(Math.abs(mid - pm) < 8, k + ': Approve is centred under its preview (' + Math.round(mid - pm) + ' px off)');
+    }
+    expect(L.panes.video.frameBox && L.panes.video.frameBox.r <= L.panes.video.okBox.x + 1 && Math.abs((L.panes.video.frameBox.y + L.panes.video.frameBox.h / 2) - (L.panes.video.okBox.y + L.panes.video.okBox.h / 2)) < 4, 'the video\'s row reads Tweaks are on Frame, Approve, Ask for a change, left to right');
+    expect(!L.panes.graphic.frameBox && !L.panes.caption.frameBox, 'a part with no Frame link keeps Approve centred anyway');
+    expect(L.closeDesc === 'closeTip' && /without approving or changing anything/.test(L.closeTip), 'Close card has a description: ' + L.closeTip);
+    expect(await inS(t.page, '#closeTip').evaluate(e => getComputedStyle(e).visibility === 'hidden'), 'the tooltip is hidden until hover or focus');
+    await inS(t.page, '#closeBtn').hover();
+    await sleep(700);
+    expect(await inS(t.page, '#closeTip').evaluate(e => getComputedStyle(e).visibility === 'visible' && getComputedStyle(e).opacity === '1'), 'hovering Close card shows the tooltip');
+    await t.page.mouse.move(5, 5);
+    await inS(t.page, '#closeBtn').focus();
+    await t.page.keyboard.press('Shift+Tab'); await t.page.keyboard.press('Tab');
+    await sleep(700);
+    expect(await inS(t.page, '#closeTip').evaluate(e => getComputedStyle(e).visibility === 'visible'), 'keyboard focus on Close card shows it too');
+    await inS(t.page, '#closeBtn').evaluate(e => e.blur());
+    // the caption box's scrollbar (global, every review page): the thin rounded themed one, not the system's with arrows
+    const sb = await inS(t.page, '.tc-main').first().evaluate(e => ({ sw: getComputedStyle(e).scrollbarWidth, w: getComputedStyle(e, '::-webkit-scrollbar').width, btn: getComputedStyle(e, '::-webkit-scrollbar-button').display, rad: getComputedStyle(e, '::-webkit-scrollbar-thumb').borderRadius }));
+    expect(sb.sw === 'auto' && sb.w === '8px' && sb.btn === 'none' && parseFloat(sb.rad) > 20, 'the caption box scrollbar is the thin rounded one with no arrow buttons, and the standard scrollbar-width that would bring the system bar back is not set (' + JSON.stringify(sb) + ')');
+    // the list: thumbnails are big, the selected card is a tint and a line, not an edge bracket
+    const th = await inS(t.page, '#qlList .chipp .si').first().boundingBox();
+    expect(th && th.height >= 70, 'the list thumbnails are bigger than the old 44 px (' + Math.round(th.height) + ' px)');
+    const cs = await inS(t.page, '#qlList .chipp.cur').evaluate(e => { const c = getComputedStyle(e); return { bg: c.backgroundColor, sh: c.boxShadow }; });
+    expect(cs.bg !== 'rgba(0, 0, 0, 0)' && /0px 0px 0px 1px inset/.test(cs.sh) && !/3px 0px 0px/.test(cs.sh), 'the selected card is a tinted rounded row with a fine line, no left bracket (' + cs.sh + ')');
     await shot(t, 'portrait-1440');
 
     // ---------- the list: click, keyboard, scroll ----------
@@ -136,6 +171,7 @@ async function titles(page) { return (await look(page)).heading; }
     L = await look(t.page);
     expect(L.heading.endsWith(second.title) && L.rows.find(r => r.cur).id === second.id, 'a click on a row opens that card and marks it (' + L.heading + ')');
     expect(L.rows.find(r => r.cur).tab === '0' && L.rows.filter(r => r.tab === '0').length === 1, 'only the current row is a tab stop');
+    expect(L.panes.video.media.h > 560 && L.panes.video.media.h >= L.panes.video.m.h - 8, 'a two-part card: the video fills its box, bigger than the 527 px it was (' + Math.round(L.panes.video.media.h) + ' px of ' + Math.round(L.panes.video.m.h) + ')');
     await inS(t.page, '#qlList [data-id="' + second.id + '"]').focus();
     await t.page.keyboard.press('ArrowDown');
     await sleep(700);
@@ -215,6 +251,112 @@ async function titles(page) { return (await look(page)).heading; }
     expect(t.errors.length === 0, 'saves: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
 
+    // ---------- Undo after Approve (owner request 2026-10-20) ----------
+    console.log('--- Undo ---');
+    t = await openKasper(browser, origin, { layout2: true, width: 1440, height: 900 });
+    expect(!(await inS(t.page, '[data-undo]').count()), 'no Undo before anything is approved');
+    let u0 = t.state.upserts.length;
+    await inS(t.page, '[data-ok="video"]').click();
+    for (let i = 0; i < 80 && !t.state.upserts.slice(u0).some(u => u.video_status === 'Client Approval'); i++) { await answerConfirm(t.page); await sleep(100); }
+    await inS(t.page, '[data-undo="video"]').waitFor({ timeout: 8000 });
+    L = await look(t.page);
+    expect(/Approved/.test(L.panes.video.text) && /Undo/.test(L.panes.video.text), 'the approved video reads Approved with an Undo beside it (' + L.panes.video.text + ')');
+    expect(await inS(t.page, '[data-undo="video"]').getAttribute('aria-label') === 'Undo approving the video', 'the Undo button is named');
+    expect(await t.page.locator('.sv-toast .sv-toast-action').count() === 1, 'the old page\'s toast Undo is up as well: one action, one time window');
+    u0 = t.state.upserts.length;
+    await inS(t.page, '[data-undo="video"]').click();
+    for (let i = 0; i < 80 && !t.state.upserts.slice(u0).some(u => u.id === 'rs1' && u.video_status === 'Kasper Approval'); i++) { await answerConfirm(t.page); await sleep(100); }
+    expect(t.state.upserts.slice(u0).some(u => u.id === 'rs1' && u.video_status === 'Kasper Approval'), 'Undo writes the video back to Kasper Approval');
+    await sleep(1200);
+    L = await look(t.page);
+    expect(L.panes.video && L.panes.video.approve && !/Approved/.test(L.panes.video.text) && /^0|0 of 3/.test(L.finishText.replace(/\s+/g, ' ').trim().replace('Finish reviewing ', '')), 'the video is back to waiting for its answer: Approve is there again, Finish counts 0 of 3 (' + L.finishText.replace(/\s+/g, ' ').trim() + ')');
+    expect(!(await inS(t.page, '[data-undo]').count()), 'the Undo button is gone after it is used');
+    // two approvals inside one toast window: each Undo is its own decision's
+    await inS(t.page, '[data-ok="graphic"]').click();
+    for (let i = 0; i < 80 && !(await inS(t.page, '[data-undo="graphic"]').count()); i++) { await answerConfirm(t.page); await sleep(100); }
+    await inS(t.page, '[data-ok="caption"]').click();
+    for (let i = 0; i < 80 && !t.state.upserts.some(u => u.id === 'rs1' && u.caption_status === 'Client Approval'); i++) { await answerConfirm(t.page); await sleep(100); }
+    await inS(t.page, '[data-undo="caption"]').waitFor({ timeout: 8000 });
+    expect(!(await inS(t.page, '[data-undo="graphic"]').count()), 'the first part\'s Undo gave way to the second\'s');
+    u0 = t.state.upserts.length;
+    await inS(t.page, '[data-undo="caption"]').click();
+    for (let i = 0; i < 80 && !t.state.upserts.slice(u0).some(u => u.id === 'rs1' && u.caption_status === 'Kasper Approval'); i++) { await answerConfirm(t.page); await sleep(100); }
+    await sleep(1200);
+    const card = t.state.cards.find(c => c.id === 'rs1');
+    expect(card.caption_status === 'Kasper Approval' && card.graphic_status === 'Client Approval', 'Undo on the second part reverted the second part only; the first stays approved (' + card.graphic_status + ' / ' + card.caption_status + ')');
+    L = await look(t.page);
+    expect(L.panes.caption && L.panes.caption.approve && /Approved/.test(L.panes.graphic.text), 'the caption is waiting again and the thumbnail still reads Approved');
+    await inS(t.page, '[data-ok="caption"]').click();
+    for (let i = 0; i < 80 && !(await inS(t.page, '[data-undo="caption"]').count()); i++) { await answerConfirm(t.page); await sleep(100); }
+    // and with nobody pressing it, it goes when the toast does
+    expect(await inS(t.page, '[data-undo="caption"]').count() === 1, 'approving the caption shows its own Undo');
+    await sleep(7500);
+    expect(!(await inS(t.page, '[data-undo]').count()) && await t.page.locator('.sv-toast').count() === 0, 'once the toast is gone the Undo is gone with it');
+    expect(t.errors.length === 0, 'undo: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+
+    // ---------- With the editors: no scroll jump, the bell ----------
+    console.log('--- With the editors ---');
+    t = await openKasper(browser, origin, { layout2: true, width: 1440, height: 700, extraCards: 30 });
+    await t.page.evaluate(() => {
+      ['rs4', 'rs5'].forEach((id, i) => {
+        const it = _kasperState.items.find(x => x.post.id === id);
+        if (!it) return;
+        const d = new Date(); d.setDate(d.getDate() - i); d.setHours(12, 0, 0, 0);
+        it.post.video_status = 'Tweaks Needed'; it.post.graphic_status = 'Client Approval'; it.post.caption_status = 'Client Approval';
+        it.post.kasper_finished_at = d.toISOString();
+        it.post.linear_issue_id = ''; it.post.video_deliverable_id = 'del_' + id;
+      });
+      window.__pings = [];
+      _kasperPaintReview();
+    });
+    await sleep(900);
+    expect(!(await inS(t.page, '[data-ping]').count()), 'collapsed: no bell is on screen');
+    await inS(t.page, '#qlList').evaluate(e => { e.scrollTop = 9999; });
+    await sleep(300);
+    const pos = () => t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot, l = r.querySelector('#qlList'), g = r.querySelector('#edTog'); return { top: l.scrollTop, tog: g ? Math.round(g.getBoundingClientRect().top) : null, open: g && g.getAttribute('aria-expanded') }; });
+    const p0 = await pos();
+    expect(p0.top > 100 && p0.tog !== null, 'the list is scrolled down to With the editors (' + p0.top + ')');
+    await inS(t.page, '#edTog').click();
+    await sleep(500);
+    const p1 = await pos();
+    expect(p1.open === 'true' && Math.abs(p1.top - p0.top) <= 1 && Math.abs(p1.tog - p0.tog) <= 1, 'expanding With the editors does not move the list (' + p0.top + ' to ' + p1.top + ', toggle ' + p0.tog + ' to ' + p1.tog + ')');
+    const bells = await inS(t.page, '[data-ping]').count();
+    expect(bells === 2, 'each card with the editors that can be pinged has a bell (' + bells + ')');
+    const bb = await inS(t.page, '[data-ping]').first().boundingBox();
+    const rowb = await inS(t.page, '.edw .chipp').first().boundingBox();
+    expect(bb && bb.width < 40 && bb.x > rowb.x + rowb.width / 2 && /^Ping the editor about/.test(await inS(t.page, '[data-ping]').first().getAttribute('aria-label')), 'the bell is small, at the right of its row, and named');
+    const col = await inS(t.page, '[data-ping]').first().evaluate(e => getComputedStyle(e).color);
+    const orange = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; const i = document.createElement('i'); i.style.color = 'var(--chg-fg)'; r.appendChild(i); const c = getComputedStyle(i).color; i.remove(); return c; });
+    expect(col === orange, 'the bell is the page\'s orange (' + col + ')');
+    const cur0 = (await look(t.page)).heading;
+    // cancel: the real dispatcher asks first; cancelling leaves the bell ready, nothing marked sent
+    await inS(t.page, '[data-ping]').first().click();
+    await t.page.waitForFunction(() => document.getElementById('confirmOverlay').classList.contains('active'), null, { timeout: 5000 });
+    await t.page.evaluate(() => dismissConfirm());
+    await sleep(500);
+    expect(await inS(t.page, '[data-ping]').count() === 2 && await inS(t.page, '[data-ping].sent').count() === 0 && !(await inS(t.page, '[data-ping]').first().isDisabled()), 'cancelling the confirmation leaves the bell active, not marked sent');
+    // a refusal (the dispatcher puts its button back to URGENT) is retryable too
+    await t.page.evaluate(() => { window._kasperSendUrgentSlack = function (e, id) { window.__pings.push(id); const b = e.currentTarget; b.disabled = true; b.textContent = 'Sending\u2026'; setTimeout(() => { b.disabled = false; b.textContent = 'URGENT'; }, 200); }; });
+    await inS(t.page, '[data-ping]').first().click();
+    await sleep(80);
+    expect(await inS(t.page, '[data-ping]').first().isDisabled() && await inS(t.page, '[data-ping].sent').count() === 0, 'while it sends the bell waits');
+    await sleep(500);
+    expect(!(await inS(t.page, '[data-ping]').first().isDisabled()) && await inS(t.page, '[data-ping].sent').count() === 0, 'a refused or failed send leaves the bell active to try again');
+    // success: the dispatcher marks its button sent
+    await t.page.evaluate(() => { window._kasperSendUrgentSlack = function (e, id) { window.__pings.push(id); const b = e.currentTarget; b.disabled = true; b.textContent = 'Sending\u2026'; setTimeout(() => { b.textContent = 'Sent'; b.dataset.urgentSent = '1'; }, 200); }; });
+    await inS(t.page, '[data-ping]').first().click();
+    await sleep(700);
+    expect(await t.page.evaluate(() => window.__pings.length) === 2, 'pressing it calls the existing urgent ping for that card');
+    expect((await look(t.page)).heading === cur0, 'and does not open the card');
+    expect(await inS(t.page, '[data-ping].sent').count() === 1 && await inS(t.page, '[data-ping].sent').isDisabled(), 'only a real send turns the bell into sent');
+    await inS(t.page, '#edTog').click();
+    await sleep(500);
+    const p2 = await pos();
+    expect(p2.open === 'false' && Math.abs(p2.tog - p0.tog) <= 1, 'collapsing it keeps the toggle where it was too (' + p0.tog + ' to ' + p2.tog + ')');
+    expect(t.errors.length === 0, 'editors: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+
     // ---------- a scrolling list ----------
     console.log('--- a short window: the list scrolls by itself ---');
     t = await openKasper(browser, origin, { layout2: true, width: 1440, height: 700, extraCards: 30 });
@@ -241,7 +383,7 @@ async function titles(page) { return (await look(page)).heading; }
     expect(L.panes.video.m.w > L.panes.graphic.m.w * 1.8 && L.panes.video.m.b <= L.panes.graphic.m.y + 1, 'the video is across the top, the thumbnail below it');
     expect(L.panes.graphic.m.x < L.panes.caption.m.x && Math.abs(L.panes.graphic.m.y - L.panes.caption.m.y) < 2, 'the thumbnail and the caption sit side by side under the video');
     expect(Object.keys(L.panes).every(k => L.panes[k].approveVisible && L.panes[k].askVisible && L.panes[k].mediaVisible), 'every part still shows with its own buttons');
-    expect(L.panes.video.media.w > 480, 'the video is big (' + Math.round(L.panes.video.media.w) + ' px wide)');
+    expect(L.panes.video.media.w > 480 && L.panes.video.media.h > 335, 'the video is big and bigger than the old 309 px (' + Math.round(L.panes.video.media.w) + ' x ' + Math.round(L.panes.video.media.h) + ')');
     expect(!!L.finish && L.finish.y < L.panes.video.m.y && L.card.r - L.close.r < 40, 'Finish reviewing and Close card are still at the top right');
     await shot(t, 'landscape-1440');
     expect(t.errors.length === 0, 'wide, 1440: no page errors (' + t.errors.join(' | ') + ')');

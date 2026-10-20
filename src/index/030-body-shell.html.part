@@ -326,7 +326,7 @@
                 var day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
                 var who = String(id.member.id) + '|' + String(id.role || id.member.role || '').toLowerCase();
                 // Same shape number as 097-today (TDY_SAVED_V): a page saved by older code is not painted.
-                if (s.v !== 2) return;
+                if (s.v !== 3) return;
                 if (s.who !== who || s.day !== day || !(Date.now() - Number(s.at || 0) < 864e5)) return;
                 var kv = window.__svEarlyKeyVerify;
                 if (!kv || !kv.response || kv.memberId !== String(id.member.id) || kv.key !== String(id.key)) return;

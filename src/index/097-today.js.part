@@ -6,7 +6,7 @@ import {
 } from './098-smm-clients.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, SMM_WEEKLY_REPORTS_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _srpState } from './112-smm-weekly-reports.js';
-import { calClientSlug } from './130-calendar-model-cache.js';
+import { _calCommentsForView, calClientSlug } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _svSkel } from './133-core-loading-skeletons.js';
 import { _calV2Client } from './150-calendar-hydration-import.js';
@@ -48,7 +48,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     // changes (2: the client chips), so a copy saved by older code is never
     // painted and then visibly reshaped by the fresh read; the boot shell
     // (030-body-shell) checks the same number.
-    const TDY_SAVED_V = 2;
+    const TDY_SAVED_V = 3;
     const TDY_RT_DEBOUNCE_MS = 1500;
     const TDY_OPEN = ['todo', 'in_progress', 'tweak', 'smm_approval'];
     const TDY_PAST_EDIT = ['smm_approval', 'kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted'];
@@ -307,7 +307,14 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
                 _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_OPEN)),
                 _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_PAST_SMM) + '&status_at=gte.' + encodeURIComponent(monday)),
                 _tdyRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
-                    + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)&order=client.asc,id.asc')
+                    + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)&order=client.asc,id.asc'),
+                /* Captions the client or Kasper sent back. Not limited to the
+                   14-day window: a caption waiting on tweaks stays here until
+                   it is fixed, however far off or past its date. A failed read
+                   leaves the list empty, Today never breaks over it. */
+                _tdyRest('calendar_posts', 'select=id,client,name,scheduled_date,status,caption_status,caption_tweaks,video_deliverable_id,graphic_deliverable_id'
+                    + '&scheduled_date=gte.0001-01-01&scheduled_date=lte.9999-12-31'   // every date; also keeps this read shaped like Today's own, which the boot harness tells apart from a Calendar read
+                    + '&caption_status=eq.' + encodeURIComponent('Tweaks Needed') + '&status=not.in.(Archived,Posted,Scheduled)&order=client.asc,id.asc').catch(() => [])
             ]);
             reads.catch(() => {});
             const parentsP = reads.then(([o, d]) => _tdyParentIds(o.filter(_tdyFresh).concat(d)));
@@ -319,7 +326,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             const scope = new Set(clients.filter(c => String(c.kind || '').toLowerCase() !== 'test'
                 && (visible.keys.has(svClientKey(c.display_name)) || visible.keys.has(svClientKey(c.slug)))).map(c => c.slug));
             const inScope = r => scope.has(r.client_slug || r.client);
-            const [open, done, posts] = await reads;
+            const [open, done, posts, capTweaks] = await reads;
             const openIn = open.filter(r => child(r) && inScope(r) && _tdyFresh(r));
             const upload = await _tdyUploadDates(openIn.filter(r => r.status === 'smm_approval').map(r => r.id));
             // Clients Info names to { slug, name } for the chips (slug: the
@@ -331,7 +338,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             };
             const chips = list => list.map(bySlug).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
             const mineClients = { mode: visible.mode, own: chips(visible.own), also: chips(visible.also) };
-            return { names, mine: mineClients, notListed: visible.notListed, provisional: visible.provisional, clientRows: visible.provisional ? clients : null, open: openIn, upload, done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
+            return { names, mine: mineClients, notListed: visible.notListed, provisional: visible.provisional, clientRows: visible.provisional ? clients : null, open: openIn, upload, done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope), capTweaks: (capTweaks || []).filter(inScope) };
         }
         // Editors: their own queue, read alongside the clients and parents.
         const mine = 'assignee_id=eq.' + encodeURIComponent(me.id);
@@ -448,6 +455,35 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     function _tdySortByDate(rows) {
         return rows.map((x, i) => ({ x, i })).sort((a, b) => (!a.x.at - !b.x.at) || String(a.x.at).localeCompare(String(b.x.at)) || a.i - b.i).map(o => o.x);
     }
+    /* The newest change request still open on a caption: first line of its
+       text, trimmed. caption_tweaks is the JSON list the Calendar card keeps
+       (id, body, is_tweak, done, created_at). Anything unreadable gives ''. */
+    function _tdyCapNote(p) {
+        let list = [];
+        try { list = JSON.parse(String(p.caption_tweaks || '')); } catch (e) { return ''; }
+        if (!Array.isArray(list)) return '';
+        /* Same visibility rule the Calendar card uses (_calCommentsForView):
+           a deleted or audit-hidden note is never shown. If that function is
+           not there, show nothing rather than risk a hidden note. */
+        if (typeof _calCommentsForView !== 'function') return '';
+        let seen = [];
+        try { seen = _calCommentsForView({ caption_comments: list.filter(c => c && c.id) }, 'caption'); } catch (e) { return ''; }
+        const open = seen.filter(c => !c.done && (typeof c.is_tweak === 'boolean' ? c.is_tweak : true) && String(c.body || '').trim());
+        open.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+        const line = open.length ? String(open[0].body).trim().split(/\r?\n/)[0].trim() : '';
+        return line.length > 90 ? line.slice(0, 89) + '\u2026' : line;
+    }
+    /* Captions to write: caption parts sent back for tweaks come first (they
+       are somebody waiting), then the empty captions; each group by upload
+       date. A post in both groups shows once, as tweaks. */
+    function _tdyCaptionRows(d) {
+        const liveCal = p => !['Archived', 'Posted', 'Scheduled'].includes(p.status);
+        const tw = (d.capTweaks || []).filter(p => liveCal(p) && /^tweaks? needed$/i.test(String(p.caption_status || '').trim()))
+            .map(p => ({ kind: 'post', p, at: p.scheduled_date || '', tweak: _tdyCapNote(p) || true }));
+        const ids = new Set(tw.map(x => String(x.p.id)));
+        const empty = d.posts.filter(p => liveCal(p) && !String(p.caption || '').trim() && !ids.has(String(p.id))).map(p => ({ kind: 'post', p, at: p.scheduled_date || '' }));
+        return _tdySortByDate(tw).concat(_tdySortByDate(empty));
+    }
     function _tdyJobs(d) {
         const today = _tdyIso(_tdyDays(0));
         const liveCal = p => !['Archived', 'Posted', 'Scheduled'].includes(p.status);
@@ -456,7 +492,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         return [
             { key: 'approve', label: 'To approve', rows: _tdySortByDate(d.open.filter(r => r.status === 'smm_approval').map(r => ({ kind: 'del', r, at: up[String(r.id)] || '' }))) },
             { key: 'links', label: 'Missing links', rows: _tdySortByDate(d.posts.filter(p => liveCal(p) && _calSmmMediaGap(p)).map(post)) },
-            { key: 'captions', label: 'Captions to write', rows: _tdySortByDate(d.posts.filter(p => liveCal(p) && !String(p.caption || '').trim()).map(post)) },
+            { key: 'captions', label: 'Captions to write', rows: _tdyCaptionRows(d) },
             { key: 'schedule', label: 'To schedule', rows: _tdySortByDate(d.posts.filter(p => p.status === 'Approved').map(post)) },
             /* Only work items still in To Do: those are the ones Workload places
                by due date, so a past date strands them there. A tweak or an
@@ -485,7 +521,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             return `<div class="tdy-rw" data-k="d:${_calEscAttr(r.id)}">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)} ${_tdyPill(x.at, x.due)}</div></div>${card}${_tdyBtnSync(r.id, r.origin === 'calendar' ? r.card_id : '', r.client_slug)}</div>`;
         }
         const p = x.p, name = d.names[p.client] || p.client || '';
-        return `<div class="tdy-rw" data-k="p:${_calEscAttr(p.id)}">${_tdyAvatar(p.client, name)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(p.name || 'Untitled post')}</div><div class="tdy-cn">${_calEsc(name)} ${_tdyPill(x.at)}</div></div>${_tdyBtnCard('post', p.id)}${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id, p.id, p.client)}</div>`;
+        return `<div class="tdy-rw" data-k="p:${_calEscAttr(p.id)}">${_tdyAvatar(p.client, name)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(p.name || 'Untitled post')}</div><div class="tdy-cn">${_calEsc(name)} ${_tdyPill(x.at)}</div>${x.tweak && x.tweak !== true ? `<div class="tdy-cn tdy-tw-note">${_calEsc(x.tweak)}</div>` : ''}</div>${x.tweak ? '<span class="tdy-tw">Tweaks needed</span>' : ''}${_tdyBtnCard('post', p.id)}${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id, p.id, p.client)}</div>`;
     }
     function _tdyShortDate(iso) {
         const d = new Date(String(iso || '') + 'T12:00:00');
@@ -903,7 +939,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         const d = tdyState.data;
         if (!d) return;
         if (kind === 'post') {
-            const p = d.posts.find(x => x.id === id);
+            const p = d.posts.find(x => x.id === id) || (d.capTweaks || []).find(x => x.id === id);
             if (!p) return;
             _tdyCardTab(p.client, p.id);
             return;

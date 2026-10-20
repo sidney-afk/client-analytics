@@ -5439,6 +5439,7 @@
             body:has(.pocket-staff-bar) .tdy-who { min-width: 0; }
             body:has(.pocket-staff-bar) .tdy-rw > .tdy-av { grid-column: 1; grid-row: 1 / span 2; }
             body:has(.pocket-staff-bar) .tdy-rw > .tdy-who { grid-column: 2; grid-row: 1; }
+            body:has(.pocket-staff-bar) .tdy-rw > .tdy-tw { grid-column: 2; grid-row: 2; justify-self: start; align-self: center; }
             body:has(.pocket-staff-bar) .tdy-rw > .tdy-urg { grid-column: 2; grid-row: 2; justify-self: start; align-self: center; }
             body:has(.pocket-staff-bar) .tdy-tt { white-space: normal; overflow: visible; text-overflow: clip; font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; }
             body:has(.pocket-staff-bar) .tdy-cn { font-size: 12px; line-height: 1.6; }
@@ -5733,6 +5734,8 @@
         .tdy-dp.amber { background: var(--wl-progress-chip-bg); color: var(--wl-progress-chip-fg); border-color: var(--wl-progress-border); }
         .tdy-dp.soon { background: var(--border); color: var(--text-primary); border-color: var(--border); }
         .tdy-dp.none { background: transparent; color: var(--text-secondary); border-style: dashed; }
+        .tdy-tw { font-size: 0.68rem; font-weight: 800; color: var(--wl-progress-chip-fg); background: var(--wl-progress-chip-bg); border: 1px solid var(--wl-progress-border); border-radius: 6px; padding: 3px 7px; flex: none; white-space: nowrap; }
+        .tdy-tw-note { font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .tdy-urg { font-size: 0.68rem; font-weight: 800; color: var(--err-solid-fg); background: var(--dn); border-radius: 6px; padding: 3px 7px; flex: none; }
         .tdy-b { display: inline-flex; align-items: center; gap: 6px; font: 700 0.75rem 'Plus Jakarta Sans', sans-serif; color: var(--text-primary); background: var(--surface-subtle); border: 1px solid var(--border-light); border-radius: 8px; padding: 7px 10px; white-space: nowrap; cursor: pointer; flex: none; }
         .tdy-b:hover { background: var(--surface-hover); }

@@ -1839,6 +1839,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-stage-kasper-layout2-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Checks the second Kasper review layout behind its own switch: switch off, naming someone else, wrong shape, narrow windows are today's page; on, the list on the left with counts and bubbles and keyboard navigation, every part on stage with its own decisions, vertical and wide videos, Finish reviewing and Close card on the top row.",
+      "reproduce": "node test/review-stage-kasper-layout2-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-staff-layout-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

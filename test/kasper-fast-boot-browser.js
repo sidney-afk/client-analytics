@@ -174,6 +174,18 @@ const newTab = (browser, origin, o) => open(browser, origin, Object.assign({ sta
       await t.ctx.close();
     }
 
+    // ---------- fast boot on but the review page switch off for this person: the page's code is not downloaded early ----------
+    {
+      console.log('--- fast boot yes, review page switch no ---');
+      const t = await newTab(browser, origin, { fast: true, noKasperStage: true });
+      await boot(t, origin);
+      await sleep(3000);
+      await again(t, origin, { flags: 600, posts: 1500 });
+      await sleep(400);
+      expect(!first(t.state, /reviewstage/), 'the review page\'s code is not requested at page start when the review page switch is off for this person');
+      await t.ctx.close();
+    }
+
     // ---------- a bare #kasper opens the tool this browser last used: a saved other tool starts nothing early ----------
     {
       console.log('--- bare #kasper, saved tool is Hiring Process ---');

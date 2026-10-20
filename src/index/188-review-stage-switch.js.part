@@ -375,7 +375,8 @@ import { currentNav } from './065-core-nav-intake-state.js';
             let sub = hash ? (hash.split('/')[1] || '') : '';
             if (!sub) { try { sub = localStorage.getItem('syncview_kasper_subtab_v1') || ''; } catch (e) { sub = ''; } }
             if (sub && sub !== 'review' && sub !== 'samples') return;   // 'samples' is the old name of the Review Session (_kasperResolveSubtab)
-            svArea('reviewstage').catch(() => {});
+            // The review page's code only if the last read named this person for it too (else it can never mount here).
+            if (_rsKasperFastHintHas('stage')) svArea('reviewstage').catch(() => {});
             svFrameFlagWait(0);
         } catch (e) {}
     }

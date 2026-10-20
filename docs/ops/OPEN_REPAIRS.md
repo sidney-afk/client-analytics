@@ -33776,3 +33776,12 @@ The same round restored the small plan-origin mark (carried over, planned automa
 ## 460. [2026-10-20, BUILT, NOT MERGED] The expanded Client Calendar browser test failed when a CI run crossed local midnight (session Midnight)
 
 The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture must use the browser date". The fixture date was computed in Node from the wall clock before the page painted, and the browser (zone America/Guatemala) read its own wall clock later, so a run that crossed local midnight put the post on yesterday. The app was right; the test depended on when it ran. The test now freezes the browser clock with `setFixedTime` (timers keep running) at one fixed midday instant and derives the fixture date from that same instant, and the in-page "tomorrow" for the empty-Today block reads the frozen clock too. No assertion was weakened. `CAL_TEST_FIXED_TIME` overrides the instant. Proven: passes at the default instant and at 23:59:59 local; the old test fails with the Node clock skewed one day, the new one passes under the same skew.
+
+## 461. [2026-10-20, BUILT, NOT MERGED] The Kasper "New client" browser test failed once on "the new client's profile did not open" (session Roster)
+
+- **Asked by:** the supervisor. `docs/syncview-design/tests/clients-create-browser.js` failed that one check on main commit eba919d1 (CI run 39379926549, 2026-10-20 about 06:27 UTC) and passed on the next commit.
+- **Cause, a test race, not an app fault.** After Create the app closes the dialog first, then re-reads the client list, then opens the new profile (`_cnCreate`, fragment 324). The test waited for the dialog to close and read the selected client at once, so it beat the list re-read whenever the machine was busy. Reproduced: 9 of 16 runs red at 16 copies at once on 4 cores. The app order is right for a person: the profile opens a moment after the list lands, and the new row is guaranteed to be in the list it opens from.
+- **Changed.** The test waits (up to 15 s) for the selected client to become the new one before asserting, in both create cases, and the real-client case now answers the roster re-read 1.2 s late so the order is forced every run. The assertions and their messages are unchanged.
+- **Proven.** The old test with only that 1.2 s delay added fails every time; the new test passes. 16 copies at once: 9 of 16 red before, 0 of 16 after.
+
+**Way back:** revert the pull request.

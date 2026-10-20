@@ -64,12 +64,12 @@ async function open(browser, origin, role, viewport, opts) {
   await ctx.addInitScript(theme=>localStorage.setItem('syncview_theme',theme),opts.theme || 'light');
   const ob = [];
   const rows = [mk('phone-fixture', 'QA Test Client', { email: 'qa@example.invalid', instagram_handle: '@qa.test' })];
-  const ctl = { notInstalled: !!opts.notInstalled };
+  const ctl = { notInstalled: !!opts.notInstalled, listDelayMs: 0 };
   await ctx.route(u => !u.toString().startsWith(origin), async route => {
     const r = route.request(); const u = new URL(r.url());
     if (r.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
     const json = (b, status) => route.fulfill({ status: status || 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(b) });
-    if (u.pathname === '/functions/v1/analytics-read') return json({ ok: true, principal: 'staff', authority: { source: 'syncview' }, clients: rows });
+    if (u.pathname === '/functions/v1/analytics-read') { if (ctl.listDelayMs) await new Promise(r => setTimeout(r, ctl.listDelayMs)); return json({ ok: true, principal: 'staff', authority: { source: 'syncview' }, clients: rows }); }
     if (u.pathname === '/functions/v1/key-verify') return json({ ok: true, role, member: { id: 'qa_' + role, name: 'QA ' + role, role, team: null } });
     if (u.pathname === '/functions/v1/client-profile-write') {
       const b = JSON.parse(r.postData() || '{}');
@@ -122,7 +122,7 @@ async function open(browser, origin, role, viewport, opts) {
   await page.waitForFunction(() => typeof _kasperGotoTab === 'function' && document.querySelector('[data-kasper-tab="clients"]'), null, { timeout: 20000 })
     .catch(() => failures.push(`${role}: Kasper never rendered its tabs`));
   await page.waitForTimeout(1000);
-  return { ctx, page, ob, errors, failures, rows };
+  return { ctx, page, ob, errors, failures, rows, ctl };
 }
 async function openClients(s, label) {
   await s.page.evaluate(() => _kasperGotoTab('clients'));
@@ -202,6 +202,9 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
         const b = creates[0].body;
         if (!/^create-/.test(b.request_id || '') || b.display_name !== NEW_NAME || b.manager_slug !== 'managertwo' || b.email !== 'zz@example.invalid' || b.member_id !== 'qa_admin' || creates[0].key !== 'qa-admin-key') failures.push(`${label}: the create body is wrong (${JSON.stringify(b)})`);
       }
+      // The profile opens only after the create answer AND the re-read of the roster have both landed,
+      // and the dialog closes before that re-read: wait for it, never read the state at the instant it closes.
+      await s.page.waitForFunction(() => _caState.selected === 'zzthrowawaybeacon', null, { timeout: 15000 }).catch(() => {});
       const selected = await s.page.evaluate(() => _caState.selected);
       if (selected !== 'zzthrowawaybeacon') failures.push(`${label}: the new client's profile did not open (${selected})`);
       const hero = await s.page.$eval('.ca-hero h3', e => e.innerText).catch(() => '');
@@ -256,12 +259,16 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
       if (await s.page.$eval('#cnCreateBtn', b => b.disabled)) failures.push(`${label}: Create stays off for a ready real client`);
       await shot(s, 'slack-ready-1440');
       const before = s.ob.length;
+      s.ctl.listDelayMs = 1200; // the roster re-read after a create is slow: the profile must still open once it lands
       await s.page.click('#cnCreateBtn');
       await s.page.waitForFunction(() => !document.querySelector('.cn-dialog'), null, { timeout: 15000 }).catch(() => failures.push(`${label}: the dialog did not close`));
       const c = s.ob.slice(before).filter(x => x.body.action === 'create');
       if (c.length !== 1 || c[0].body.display_name !== FORM.name || c[0].body.email !== FORM.email) failures.push(`${label}: the create did not carry the form's name and email`);
       const toast = await s.page.evaluate(() => (document.querySelector('.toast, #toast, [class*="toast"]') || {}).innerText || '').catch(() => '');
       if (!/Slack channels follow/.test(toast)) failures.push(`${label}: the toast does not mention Slack (${toast})`);
+      // The toast shows before the slow roster re-read lands: wait for that re-read, then check the profile opened.
+      await s.page.waitForFunction(() => _caState.selected === 'qxnewclient', null, { timeout: 15000 }).catch(() => {});
+      if ((await s.page.evaluate(() => _caState.selected)) !== 'qxnewclient') failures.push(`${label}: after a slow roster re-read the new client's profile did not open`);
       if (s.errors.length) failures.push(`${label}: page errors: ${s.errors.join(' | ')}`);
       await s.ctx.close();
       console.log('ok   ' + label);
@@ -285,6 +292,7 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
       await s.page.waitForFunction(() => !document.querySelector('.cn-dialog'), null, { timeout: 15000 }).catch(() => failures.push(`${label}: the dialog did not close`));
       const c = s.ob.slice(before).filter(x => x.body.action === 'create');
       if (c.length !== 1 || c[0].body.display_name !== 'Qx Noemail' || String(c[0].body.email || '') !== '') failures.push(`${label}: the create did not go out with an empty email (${JSON.stringify(c.map(x => x.body))})`);
+      await s.page.waitForFunction(() => _caState.selected === 'qxnoemail', null, { timeout: 15000 }).catch(() => {});
       if ((await s.page.evaluate(() => _caState.selected)) !== 'qxnoemail') failures.push(`${label}: the new client's profile did not open`);
       if (s.errors.length) failures.push(`${label}: page errors: ${s.errors.join(' | ')}`);
       await s.ctx.close();

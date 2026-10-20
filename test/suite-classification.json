@@ -222,6 +222,7 @@
     "collab-settings-reconcile.js",
     "comment-add-canonical-gate-routing.js",
     "comment-family-twin-parity.js",
+    "review-note-backfill.js",
     "comment-resolve-defer.js",
     "comment-strip-is-honest.js",
     "component-feedback-read.js",

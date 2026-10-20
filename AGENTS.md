@@ -316,6 +316,19 @@ The only thing that makes an instant merge tempting is that the change looks
 small. Every one of the three defects found this day was in a change that looked
 small.
 
+### HOW MANY CODEX ROUNDS (owner, 2026-10-20)
+
+Measured over every PR here that Codex reviewed (845; 771 got one round, 74 got
+two or more, up to 41): serious P1 points kept arriving at about one per round
+in the deep PRs, and smaller P2 points at about 0.9 per round. So:
+
+- UI, display and flagged feature PRs stop at **2 rounds**. Leftover P2 points
+  go to `docs/ops/OPEN_REPAIRS.md` as follow-ups, not into more fixes.
+- PRs that change saving, permissions, migrations or Edge Functions have **no
+  fixed cap**: keep going only while a round returns a P1 about lost data, wrong
+  saves or permissions, and stop at the first round without one.
+- P1s about docs, CI plans and tests get one fix pass; the rest are logged.
+
 ### MEASURE WITH THE KEY THE SHIPPED CODE USES
 
 A count published in a comment, a ledger entry or a PR body is load-bearing here

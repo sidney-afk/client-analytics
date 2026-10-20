@@ -49,13 +49,12 @@ function check(name, got, want) { const ok = got === want; console.log((ok ? '  
     R.approve = runMarkDone('resolveDestApprove');
     R.stay = runMarkDone('resolveDestStay');
 
-    // Review-tab approve with an open change-request → chooser → pick client.
+    // Review-tab approve with an open change-request → NO chooser: the pick is the answer, the request is marked done.
     (function () {
       const p = mkPost('ra1'); sxrState.posts = [p]; sxrState.view = 'smmreview';
       _sxrReviewApprove(p.id, 'video', 'kasper');
       const overlay = document.getElementById('resolveDestOverlay');
       const opened = !!(overlay && overlay.classList.contains('active'));
-      const c = document.getElementById('resolveDestClient'); if (c) c.click();
       const root = (sxrState.posts[0].video_comments || [])[0];
       R.review = { opened, done: !!(root && root.done), video_status: sxrState.posts[0].video_status };
     })();
@@ -82,8 +81,9 @@ function check(name, got, want) { const ok = got === want; console.log((ok ? '  
   check('mark-done → Stay: comment resolved', out.stay.done, true);
   check('mark-done → Stay: status UNCHANGED (For SMM Approval)', out.stay.video_status, 'For SMM Approval');
   check('mark-done: overlay closes after pick', out.kasper.overlayClosed, true);
-  check('review-approve: chooser opened', out.review.opened, true);
-  check('review-approve → Client: status → Client Approval', out.review.video_status, 'Client Approval');
+  check('review-approve: NO chooser opens', out.review.opened, false);
+  check('review-approve: the open request is marked done', out.review.done, true);
+  check('review-approve → Kasper: status → Kasper Approval', out.review.video_status, 'Kasper Approval');
   check('mid-list mark-done: chooser NOT opened', out.midList.chooserOpened, false);
   check('mid-list mark-done: that one resolved in place', out.midList.firstDone, true);
   check('mid-list mark-done: status unchanged', out.midList.status, 'For SMM Approval');

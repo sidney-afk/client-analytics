@@ -2464,8 +2464,7 @@
         .confirm-box-check[hidden] { display: none; }
         .confirm-box-check input { cursor: pointer; }
 
-        /* Resolve-and-route chooser — wider, left-aligned (it can carry a
-           change-request checklist), with a corner ✕ and a 3-up route row. */
+        /* Resolve-and-route chooser — left-aligned, with a corner ✕ and a Kasper / client route row. */
         .resolve-dest-box { position: relative; max-width: 430px; text-align: left; }
         .resolve-dest-box .confirm-box-title,
         .resolve-dest-box .confirm-box-msg { text-align: left; }
@@ -2474,13 +2473,6 @@
             border: none; border-radius: 50%; background: var(--bg); color: var(--text-muted); cursor: pointer; }
         .resolve-dest-close:hover { background: var(--border); color: var(--text-primary); }
         .resolve-dest-close svg { width: 13px; height: 13px; }
-        .resolve-dest-checklist { display: flex; flex-direction: column; gap: 9px; margin: 0 0 18px;
-            max-height: 190px; overflow-y: auto; padding: 2px 2px 2px 0; }
-        .resolve-dest-checklist[hidden] { display: none; }
-        .resolve-dest-check { display: flex; align-items: flex-start; gap: 9px; font-size: 0.78rem;
-            color: var(--text-secondary); line-height: 1.4; cursor: pointer; }
-        .resolve-dest-check input { margin: 2px 0 0; cursor: pointer; flex-shrink: 0; }
-        .resolve-dest-check .rd-round { font-weight: 700; color: var(--text-primary); }
         .resolve-dest-actions { flex-wrap: wrap; }
         .resolve-dest-actions .brief-action-btn { flex: 1 1 auto; justify-content: center; }
         /* "Mark done — don't change the status": resolve without routing. A quiet

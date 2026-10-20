@@ -18,6 +18,28 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Manager's Review tab asks once (session Settle, 2026-10-18): PR open
+
+Owner report: on a part with open change requests, picking "Approve to Kasper" or "Approve to client" opened a second
+pop-up ("Tweaks resolved, where to next?", with a checklist and a plain Approve). Now the pick is the answer: every open
+change request on the part is marked done in the same save, with a toast "N change requests marked done" and Undo
+(OPEN_REPAIRS 447). The manager's Review tab never offers a plain Approve; the chooser now only opens for Notes "Mark done" on the
+last open request, where a review pass restored its four options (Kasper approval / Client approval / Approve / Mark done) as on main. The Notes panel opens at the newest message and stays
+there. Test: `node test/review-stage-one-question-browser.js`. Other places that ask twice are listed in the PR for the
+owner to decide (the card's status pills still leave open requests open; the client Sheet "Approve this post?" confirm).
+
+## Connector studio_action, first action review_notes (session Reel, 2026-10-19): PR #2244 open
+
+Owner's decision: one general Synchro connector tool, `studio_action(action, args)`, for every studio feature. New studio
+features are added as actions (`supabase/functions/higgsfield-mcp/studioaction.mjs`), never as new tools, so nobody has to
+press "Refresh tool list" again. An unknown action answers with the list. The `hf_activity` summary starts with `[action]`.
+First action `review_notes` (args client, videos?, batch?, frameio?), so a studio session can "do the tweaks for videos 7, 8
+and 12" of a client straight from SyncView. Per video: batch, number, title, brief, status, every note (SyncView card and
+SyncLinear, shown once; Frame.io with the time in the video), latest edit link, raw footage folder, filming plan Doc, card
+links, and a Frame.io download link for the latest edit (through `frameio-view/logic.mjs`). Writes nothing. Test:
+`node test/higgsfield-video-cards.js`. After deploy: "Refresh tool list" once (lessons rule 4) and one live call on the test
+client. A `tweaks` row in `hf_guides` is suggested in the PR for the connector supervisor to insert.
+
 ## Client link loading screen, second pass (session Dawn, 2026-10-18): PR open
 
 Owner: the loading screen "still looks horrible, even on mobile". Measured on the live site, then fixed (OPEN_REPAIRS 442): a first

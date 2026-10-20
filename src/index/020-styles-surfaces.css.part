@@ -8563,9 +8563,12 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
  .workload-view.wl-calm .workload-day-num { color: var(--text-muted); font-weight: 650; }
  .workload-view.wl-calm .workload-day.is-plan-drop-target { box-shadow: inset 0 0 0 2px var(--focus-ring); }
  .workload-view.wl-calm .workload-day-card { background: var(--wl-calm-tint); border: 0; border-radius: 8px; padding: 6px 8px; gap: 3px; }
- .workload-view.wl-calm .workload-day-card-head::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--sv-border-6c5ce7); flex: 0 0 6px; }
- .workload-view.wl-calm .workload-day-card.team-graphics .workload-day-card-head::before { background: var(--sv-border-d97706); }
- .workload-view.wl-calm .workload-day-card-name { font-weight: 650; color: var(--text-secondary); }
+ /* The editor is a muted rounded-square initial (like the Team workload avatars), never a dot, so a person and a client row differ at a glance. */
+ .workload-view.wl-calm .workload-day-card-head { flex-wrap: wrap; row-gap: 2px; }
+ .workload-view.wl-calm .workload-day-card-badge { display: inline-flex; align-items: center; justify-content: center; width: 1.25em; height: 1.25em; border-radius: 5px; background: var(--bg); color: var(--text-secondary); font-size: 0.66rem; font-weight: 800; line-height: 1; flex: 0 0 auto; text-transform: uppercase; }
+ .workload-view.wl-calm .workload-day-card-name { flex: 1 1 4.5em; font-weight: 700; color: var(--text-primary); }
+ .workload-view.wl-calm .workload-day-card-status.is-in-head { flex: 0 1 auto; flex-wrap: nowrap; gap: 2px; }
+ .workload-view.wl-calm .workload-day-card-total { flex: 0 0 auto; margin-left: auto; }
  .workload-view.wl-calm .workload-day-card-total { background: transparent; box-shadow: none; padding: 1px 4px; color: var(--text-muted); font-weight: 650; }
  .workload-view.wl-calm .workload-day-card-total:hover { background: var(--white); box-shadow: none; color: var(--text-primary); }
  .workload-view.wl-calm .workload-day-card-total.over-capacity { background: transparent; color: var(--wl-proximity-red); font-weight: 800; }
@@ -8582,7 +8585,7 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
  .workload-view.wl-calm .workload-day-card-chip-meta .wl-plan-origin, .workload-view.wl-calm .workload-day-card-chip-meta .wl-workload-group { display: none; }
  .workload-view.wl-calm .workload-day-card-chip .workload-drag-handle, .workload-view.wl-calm .wl-calm-row .workload-drag-handle { opacity: 0; transition: opacity 0.1s; }
  .workload-view.wl-calm .workload-day-card-chip:hover .workload-drag-handle, .workload-view.wl-calm .wl-calm-row:hover .workload-drag-handle, .workload-view.wl-calm .workload-drag-handle:focus-visible { opacity: 0.7; }
- .workload-view.wl-calm .wl-deadline-summary.is-green { display: none; }
+ .workload-view.wl-calm .wl-deadline-summary.is-green, .workload-view.wl-calm .wl-deadline-summary.is-neutral { --wl-proximity-dot: var(--text-muted); color: var(--text-muted); }
  .workload-view.wl-calm .wl-deadline-summary.is-orange .wl-deadline-dot { background: var(--wl-tweaks-accent); }
  /* The open group: the same compact list, no tree lines, no row boxes */
  .workload-view.wl-calm .workload-day-client-group[open] > .workload-day-card-items { padding-left: 12px; gap: 8px; margin: 2px 0 8px; }

@@ -266,6 +266,9 @@ const shot = (s, name) => s.page.screenshot({ path: path.join(SHOTS, name + '.pn
       if (c.length !== 1 || c[0].body.display_name !== FORM.name || c[0].body.email !== FORM.email) failures.push(`${label}: the create did not carry the form's name and email`);
       const toast = await s.page.evaluate(() => (document.querySelector('.toast, #toast, [class*="toast"]') || {}).innerText || '').catch(() => '');
       if (!/Slack channels follow/.test(toast)) failures.push(`${label}: the toast does not mention Slack (${toast})`);
+      // The toast shows before the slow roster re-read lands: wait for that re-read, then check the profile opened.
+      await s.page.waitForFunction(() => _caState.selected === 'qxnewclient', null, { timeout: 15000 }).catch(() => {});
+      if ((await s.page.evaluate(() => _caState.selected)) !== 'qxnewclient') failures.push(`${label}: after a slow roster re-read the new client's profile did not open`);
       if (s.errors.length) failures.push(`${label}: page errors: ${s.errors.join(' | ')}`);
       await s.ctx.close();
       console.log('ok   ' + label);

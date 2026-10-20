@@ -33772,3 +33772,7 @@ The same round restored the small plan-origin mark (carried over, planned automa
 - **Test.** `test/prod-description-clock-only-conflict.js` runs the real `_prodSaveDescription` against stubs: clock-only conflict retries once with the new clock and saves; a text conflict is not retried and keeps the draft; a clock that keeps moving stops after one retry. Fails on the old code, passes on the new.
 
 **Way back:** revert the pull request.
+
+## 460. [2026-10-20, BUILT, NOT MERGED] The expanded Client Calendar browser test failed when a CI run crossed local midnight (session Midnight)
+
+The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture must use the browser date". The fixture date was computed in Node from the wall clock before the page painted, and the browser (zone America/Guatemala) read its own wall clock later, so a run that crossed local midnight put the post on yesterday. The app was right; the test depended on when it ran. The test now freezes the browser clock with `setFixedTime` (timers keep running) at one fixed midday instant and derives the fixture date from that same instant, and the in-page "tomorrow" for the empty-Today block reads the frozen clock too. No assertion was weakened. `CAL_TEST_FIXED_TIME` overrides the instant. Proven: passes at the default instant and at 23:59:59 local; the old test fails with the Node clock skewed one day, the new one passes under the same skew.

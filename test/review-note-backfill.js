@@ -52,6 +52,15 @@ const v = rollbackVerdict([{ id: 'a', version: 1 }, { id: 'b', version: 2 }, { i
 assert.strictEqual(v.deletable, 1);
 assert.deepStrictEqual(v.refused.map(x => x.id), ['b', 'c', 'd']);
 
+// The Actions lane: pinned to main, production Environment, confirm only on apply modes.
+const fs = require('fs'), path = require('path');
+const wf = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'review-note-backfill.yml'), 'utf8');
+assert.ok(/environment: production/.test(wf) && /workflow_dispatch:/.test(wf));
+assert.ok(/merge-base --is-ancestor "\$RUN_COMMIT" origin\/main/.test(wf), 'pinned to a commit on main');
+assert.ok(/inputs\.mode == 'apply' \|\| inputs\.mode == 'rollback-apply'\) && inputs\.confirm \|\| ''/.test(wf), 'confirm only reaches the apply modes');
+assert.ok(!/upload-artifact/.test(wf), 'nothing is uploaded');
+assert.ok(/review-note-backfill\.js/.test(wf));
+
 (async () => {
   const lines = []; let writes = 0;
   const deps = { cards, deliverables, canonical: [...canonical.values()][0], out: s => lines.push(s), importOne: async () => { writes++; } };

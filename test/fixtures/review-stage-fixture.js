@@ -77,10 +77,17 @@ function thread(row) {
 }
 
 async function open(browser, origin, opt) {
-  const state = opt.state || { cards: cards(opt.stage).concat(opt.finished ? finished() : []), upserts: [], gateway: [], flagReads: 0, orient: 'p', writeDelay: 0, writeFail: 0, native: {}, receipts: {}, writeAttempts: 0 };
+  const state = opt.state || { cards: cards(opt.stage).concat(opt.finished ? finished() : []), upserts: [], gateway: [], flagReads: 0, orient: opt.orient || 'p', writeDelay: 0, writeFail: 0, native: {}, receipts: {}, writeAttempts: 0 };
   const stamp = () => new Date(Date.now() + Number(state.clockOffset || 0)).toISOString();
   // Gauntlet Three can share a backend across independent tabs and interrupt an actual save request.
   if (!state.attempts) state.attempts = [];
+  // opt.orient: 'l' makes the video clip wide; opt.thumbs: 'l' or 'p' gives every card a wide or a vertical thumbnail.
+  if (opt.thumbs && !opt.state) state.cards.forEach(c => { c.thumbnail_url = POSTER[opt.thumbs]; });
+  // opt.extraCards: that many more waiting posts, for a list that has to scroll.
+  if (opt.extraCards && !opt.state) {
+    const S = opt.stage === 'smm' ? 'For SMM Approval' : opt.stage === 'kasper' ? 'Kasper Approval' : 'Client Approval';
+    for (let i = 0; i < opt.extraCards; i++) state.cards.push({ id: 'rx' + i, client: SLUG, name: 'Extra post ' + (i + 1), status: S, order_index: 40 + i, updated_at: '2026-10-10T12:00:00.000Z', scheduled_date: '2026-12-' + String(1 + (i % 27)).padStart(2, '0'), video_status: S, graphic_status: S, caption_status: S, asset_url: FRAME, thumbnail_url: POSTER.p, caption: 'An extra fixture caption.', video_tweaks: '[]', graphic_tweaks: '[]', caption_tweaks: '[]', comments: [], graphic_comments: [], caption_comments: [] });
+  }
   if (opt.linkedParts) state.cards.forEach(c => { c.graphic_deliverable_id = 'fixture_graphic_' + c.id; });
   if (opt.youtube) { state.cards[0].platforms = 'youtube'; state.cards[0].title_status = opt.stage === 'kasper' ? 'Kasper Approval' : 'Client Approval'; state.cards[0].title_tweaks = '[]'; }
   if (opt.nativeReceipts && !state.nativeRows) {
@@ -249,6 +256,8 @@ async function open(browser, origin, opt) {
         frame_viewer_clients: opt.frame === 'off' ? { clients: [] } : { all: true },
       };
       if (opt.flags === 'on') { values.review_stage_client_pages = { clients: [SLUG] }; values.review_stage_kasper_staff = { staff: [STAFF.id] }; }
+      // opt.layout2: Kasper's second layout (all parts at once, a list on the left) for the signed-in staff member.
+      if (opt.layout2) values.review_stage_kasper_layout2 = opt.layout2 === true ? { staff: [STAFF.id] } : opt.layout2;
       if (opt.help) values.review_help_video_url = { url: opt.help };
       // 'shownFresh': the same answer in a browser that has never seen Analytics shown.
       if (opt.analytics === 'shown' || opt.analytics === 'shownFresh') values.analytics_hidden = { hidden: false };

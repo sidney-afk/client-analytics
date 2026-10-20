@@ -506,6 +506,7 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: |
           node scripts/ci-lanes.js --lanes=3 <<'LANES'
+          Kasper's second review layout behind review_stage_kasper_layout2 (list on the left, every part on stage, Finish at the top right, vertical and wide videos, today's page when off or narrow)|node test/review-stage-kasper-layout2-browser.js
           Staff never see Analytics while it is hidden (Home, client addresses, logo, Back and Forward open the Calendar; shown changes nothing)|node test/staff-analytics-hidden-routing-browser.js
           Review page owner feedback round 7 (Kasper list button and one-row heading, Notify client by the menu, play buttons autoplay, Analytics hidden behind analytics_hidden)|node test/review-stage-curtain-seven-browser.js
           The client review page, finishing touches (Finish waits while saving, plain not-saved words, speed button, opens on Review, thumbnails open the viewer, words kept across a reload)|node test/review-stage-finish-polish-browser.js

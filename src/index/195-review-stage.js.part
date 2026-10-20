@@ -4,7 +4,7 @@ import { _calCommentsFor, _calCommentsForView, _calSetCommentsFor, calState } fr
 import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui.js';
 import { _calReviewState } from './180-calendar-native-post-media.js';
 import { svFrameStageMount, svFrameStagePending, svFrameStageUnmount } from './187-frame-viewer.js';
-import { svRsCalOn, svRsHelpUrl, svRsToolsEl } from './188-review-stage-switch.js';
+import { svRsCalOn, svRsHelpUrl, svRsKasperLayout2On, svRsToolsEl } from './188-review-stage-switch.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
@@ -901,6 +901,69 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .cap-edit textarea,.cta{scroll-margin-block:24px}
 }
 `;
+    /* Kasper's second layout (session Easel, 2026-10-20): added to the page's styles only when that layout is on, so the
+       old layout's stylesheet is untouched. Tokens only, no colours of its own. */
+    const RS_CSS_L2 = `
+.rs.l2 .stage,.rs.l2 .stage.land{grid-template-columns:256px minmax(0,1fr) 360px;grid-template-rows:auto minmax(0,1fr);column-gap:20px;row-gap:12px}
+.rs.l2 .stage.is-empty{display:grid}
+.rs.l2 .recap{grid-column:2/4;grid-row:1/3}
+.rs.l2 .ql{grid-column:1;grid-row:1/3;display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--surface-raised);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow-stage);overflow:hidden}
+.rs.l2 .stage .side{grid-column:2;grid-row:1}
+.rs.l2 .stage .theatre{grid-column:2;grid-row:2}
+.rs.l2 .stage .chat{grid-column:3;grid-row:1/3}
+.ql-h{display:flex;align-items:baseline;gap:8px;padding:14px 16px 8px;flex-shrink:0}
+.ql-h b{font-size:1.5rem;font-weight:800;letter-spacing:-.03em;line-height:1}
+.ql-h span{font-size:.8rem;font-weight:700;color:var(--text-secondary)}
+.ql-l{flex:1 1 auto;min-height:0;overflow-y:auto;padding:2px 8px 10px;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent;position:relative}
+.rs.l2 .ql .chipp{width:100%;height:56px;flex-shrink:0}
+.rs.l2 .ql .chipp.cur{background:var(--fill);box-shadow:inset 3px 0 0 var(--accent)}
+.rs.l2 .ql .chipp.urgc.cur{box-shadow:inset 3px 0 0 var(--urgent)}
+.rs.l2 .ql .chipp .ub{display:inline-flex;color:var(--urgent);flex-shrink:0}
+.rs.l2 .ql .chipp .cn{font-size:.82rem}
+.ql-g{display:flex;flex-direction:column;gap:1px;margin-top:6px;padding:10px 8px 6px;border-top:1px solid var(--hair);border-radius:0 0 10px 10px;font-size:.74rem;font-weight:800;color:var(--text-secondary);text-align:left;flex-shrink:0}
+.ql-g:hover{color:var(--text-primary)}
+.ql-g .r{display:flex;align-items:center;gap:5px}
+.ql-g .c{font-weight:600;color:var(--label)}
+.ql-g .chev{width:12px;height:12px;transition:transform .18s var(--ease)}
+.ql-g[aria-expanded="true"] .chev{transform:rotate(-90deg)}
+.ql-empty{padding:18px 10px;font-size:.82rem;font-weight:600;color:var(--text-secondary)}
+.rs.l2 .l2h{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:38px;flex-shrink:0}
+.rs.l2 .sdate{position:static;height:auto;max-width:none;min-width:0;padding:0 2px;overflow:hidden}
+.rs.l2 .l2a{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.rs.l2 .l2a .held{margin-right:6px}
+.rs.l2 .flash{right:auto;left:50%;top:9px;transform:translate(-50%,-4px)}
+.rs.l2 .flash.on{transform:translate(-50%,0)}
+#l2note:empty{display:none}
+#l2note .elsew{margin:0}
+.rs.l2 .l2g{flex:1 1 auto;min-height:0;display:grid;column-gap:16px;row-gap:10px;transition:opacity .16s var(--ease)}
+.rs.l2 .l2g.swap{opacity:0}
+.rs.l2 .l2g.l2-port{grid-template-columns:var(--l2cols,minmax(0,1fr));grid-template-rows:minmax(0,1fr) auto}
+.rs.l2 .l2g.l2-land{grid-template-columns:repeat(var(--l2c,2),minmax(0,1fr));grid-template-rows:minmax(0,2fr) auto minmax(0,1fr) auto}
+.pn{display:contents}
+.pn-m{min-width:0;min-height:0}
+.pn-d{min-width:0}
+.l2-port .pn-m{grid-column:var(--c);grid-row:1}
+.l2-port .pn-d{grid-column:var(--c);grid-row:2}
+.l2-land .pn-video .pn-m{grid-column:1/-1;grid-row:1}
+.l2-land .pn-video .pn-d{grid-column:1/-1;grid-row:2}
+.l2-land .pn:not(.pn-video) .pn-m{grid-column:var(--o);grid-row:3}
+.l2-land .pn:not(.pn-video) .pn-d{grid-column:var(--o);grid-row:4}
+.pn-d .dwrap{justify-content:stretch}
+.pn-d .dec{justify-content:flex-start;width:100%;gap:6px}
+.pn-d .dst{white-space:normal}
+.pn-d .split{display:flex;flex:1 1 100%}
+.pn-d .split>.b-ok{flex:1;min-width:0;justify-content:center;white-space:normal;text-align:left;line-height:1.15;height:auto;min-height:42px;padding:6px 40px 6px 12px;font-size:.82rem}
+.pn-d .split>.sarr{width:34px}
+.pn-d .b-ok:not(.split>.b-ok){white-space:normal;text-align:left;line-height:1.15;height:auto;min-height:42px;font-size:.82rem}
+.l2-land .pn-video .pn-d .split{flex:2 1 0}
+.pn-d .b-ask,.pn-d .b-frame{flex:1 1 0;min-width:0;justify-content:center;height:auto;min-height:42px;padding:6px 8px;white-space:normal;text-align:center;line-height:1.15;font-size:.78rem}
+.pn-d .dwrap .compose{width:100%}
+.pn-d .cmp-foot{flex-wrap:wrap}
+.pn-d .elsew{margin:0 0 6px}
+.rs.l2 .tc-text{font-size:.96rem;line-height:1.55}
+.rs.l2 .tcard.wc{padding:18px 18px 14px;gap:10px}
+.rs.l2 .l2g.l2-port .tcard.wc{width:100cqw}
+`;
     const RS_PART = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'YouTube title' };
     const RS_CSSKEY = { video: 'video', graphic: 'thumbnail', caption: 'caption', title: 'youtube' };
     const RS_FRAME_NOTE = 'Tweaks are on Frame.';
@@ -964,8 +1027,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsBlankNote() { return { text: '', part: null, where: 'chat', vis: 'team', aat: false, was: '' }; }
     const R = {
         mode: '', key: '', host: null, root: null, ro: null, mo: null,
-        S: null, kparts: null, pending: false
+        S: null, kparts: null, pending: false, l2: false
     };
+    // Kasper's second layout needs room for the list, three parts and the conversation (below this: today's page).
+    const RS_L2_MIN = 1360;
     /* Unsent change-request words survive a reload (session Rail, 2026-10-18). Client link only. Kept in this browser
        under one key per client link: { postId: { text, part, vis, at } }. Cleared when sent, when the post leaves the
        list, and after 7 days. Every read and write is guarded: with storage blocked the page works as before, the
@@ -1367,6 +1432,21 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             + right + '</div></header>';
     }
     function _rsShellHtml() {
+        if (R.mode === 'kasper' && R.l2) {
+            // Kasper's second layout: a list on the left, every part of the card on stage, the conversation on the right.
+            return '<div class="rs in-kasper l2"><div class="app" id="rsApp">'
+                + '<main class="stage" id="stage">'
+                + '<aside class="ql" id="ql" aria-label="Cards waiting for your review"><div class="ql-h" id="qlHead"></div><div class="ql-l" id="qlList"></div></aside>'
+                + '<aside class="side" id="side" aria-label="This post"></aside>'
+                + '<section class="theatre" id="theatre" aria-label="Review this post"><div class="card">'
+                + '<div class="l2h"><div class="sdate" id="sdate"></div><div class="l2a" id="l2a"></div></div>'
+                + '<div class="flash" id="flash" role="status"></div>'
+                + '<div id="l2note"></div><div class="l2g" id="l2g"></div>'
+                + '</div></section>'
+                + '<aside class="chat" id="chat" aria-label="Conversation"></aside>'
+                + '<section class="recap" id="recap" hidden></section>'
+                + '</main></div></div>';
+        }
         return '<div class="rs' + (R.mode === 'kasper' ? ' in-kasper' : R.mode === 'client' ? ' client' : ' smm') + '"><div class="app" id="rsApp">' + _rsHeaderHtml()
             + '<nav class="strip" id="strip" aria-label="Posts waiting for review"><div class="sk-head" id="skHead"></div><div class="sk-list" id="skList"></div>'
             + (R.mode === 'kasper' ? '<div class="qp" id="qPanel" role="dialog" aria-label="Your review list" hidden></div>' : '') + '</nav>'
@@ -1427,8 +1507,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const tools = svRsToolsEl();
         if (above && tools.parentNode !== R.host) R.host.appendChild(tools);
         else if (!above && tools.parentNode === R.host) tools.remove();
-        if (fresh || !R.root.getElementById('rsApp') || R.root.getElementById('rsApp').getAttribute('data-mode') !== mode) {
-            R.root.innerHTML = '<style>' + RS_CSS + RS_CSS_TOKENS + '</style><style id="rsFvCss">' + _rsPlayerCss() + '</style>' + _rsShellHtml();
+        const l2 = mode === 'kasper' && !!R.l2;
+        if (fresh || !R.root.getElementById('rsApp') || R.root.getElementById('rsApp').getAttribute('data-mode') !== mode || (R.shellL2 !== undefined && R.shellL2 !== l2)) {
+            // The layout switched under an open page (the window crossed the width limit): the player goes with the old shell.
+            if (R.shellL2 !== undefined && R.shellL2 !== l2) _rsStageOff();
+            R.shellL2 = l2;
+            R.root.innerHTML = '<style>' + RS_CSS + RS_CSS_TOKENS + (l2 ? RS_CSS_L2 : '') + '</style><style id="rsFvCss">' + _rsPlayerCss() + '</style>' + _rsShellHtml();
             _rsQ('rsApp').setAttribute('data-mode', mode);
             _rsWire();
         }
@@ -1461,7 +1545,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // The strip: the ordinary mouse wheel moves it sideways while the pointer is over it (owner, 2026-10-16).
         // A trackpad's sideways swipe already scrolls it; the page scrolls on when the strip has nowhere to go.
         const sl = _rsQ('skList');
-        sl.addEventListener('wheel', (e) => {
+        if (sl) sl.addEventListener('wheel', (e) => {
             if (e.ctrlKey || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
             const step = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * sl.clientWidth : e.deltaY;
             const max = sl.scrollWidth - sl.clientWidth;
@@ -1472,8 +1556,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         }, { passive: false });
         // More posts to the right: the strip fades out before the header's right margin instead of cutting a post at
         // the edge (client page, session Curtain Three).
-        sl.addEventListener('scroll', _rsStripEdge, { passive: true });
-        if (typeof ResizeObserver !== 'undefined') new ResizeObserver(_rsStripEdge).observe(sl);
+        if (sl) sl.addEventListener('scroll', _rsStripEdge, { passive: true });
+        if (sl && typeof ResizeObserver !== 'undefined') new ResizeObserver(_rsStripEdge).observe(sl);
         R.root.addEventListener('keydown', _rsKeys);
         const settle = () => { if (R.pending && !_rsTyping()) { R.pending = false; _rsRender(); } };
         R.root.addEventListener('pointerdown', () => { R.pressing = true; R.pressSeq = (R.pressSeq || 0) + 1; }, true);
@@ -1492,16 +1576,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // A video on the stage goes full screen on a double click, as in an ordinary player (owner feedback 2026-10-17
         // 23:20): the player's own full screen button does it, and a second double click comes back out.
         const fvh = _rsQ('fvHost');
-        if (fvh) fvh.addEventListener('dblclick', (e) => {
-            if (e.target.closest('.fv-controls,.fv-stage-foot,button,a,input,.fv-trouble,.fv-state')) return;
-            const fb = fvh.querySelector('.fv-full');
-            if (!fb) return;
-            e.preventDefault();
-            fb.click();
-        });
+        if (fvh) _rsFvDblClick(fvh);
         if (R.ro) R.ro.disconnect();
         R.ro = new ResizeObserver(() => _rsFit());
-        R.ro.observe(_rsQ('view'));
+        if (_rsQ('view')) R.ro.observe(_rsQ('view'));
         if (!R.mo) {
             const release = () => { R.pressing = false; if (R.pending && !_rsTyping()) _rsRender(); };
             document.addEventListener('pointercancel', release, true);
@@ -1652,6 +1730,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (empty) { _rsStageOff(); _rsRecap(); return; }
         R.S.shown = m.id;
         m.parts.forEach(x => { if (x.st === 'wait') R.S.seen[m.id + '|' + x.key] = 1; });
+        if (R.l2) { _rsL2Render(m); return; }
         _rsSide(m); _rsStepper(m); _rsMedia(m); _rsCard(m); _rsDecide(); _rsChatCalm(m); _rsChat(m);
         if (!R.S.hinted) _rsHint(m);
     }
@@ -1713,6 +1792,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         return '<button class="chipp k' + (on ? ' cur' : '') + (m.sec === 'urgent' ? ' urgc' : '') + (m.sec === 'tweaks' ? ' edc' : '') + '" type="button" data-id="' + _re(m.id) + '" aria-current="' + on + '" title="' + _re(m.client + ': ' + m.title) + '">' + _rsChipImg(m) + '<span class="cx">' + (m.sec === 'tweaks' ? _rsKRowHead(m) + _rsKRowMeta(m) : _rsKRowMeta(m) + _rsKRowHead(m)) + '</span></button>';
     }
     function _rsStrip() {
+        if (R.l2) { _rsL2List(); return; }
         const cur = _rsCur();
         const sl = _rsQ('skList'), sh = _rsQ('skHead');
         const keep = sl.scrollLeft;
@@ -1850,53 +1930,60 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         v.className = 'view k-' + k;
         const host = _rsQ('fvHost');
         if (k === 'video') {
-            let on = false;
-            if (!m.sample) {
-                try { on = svFrameStageMount(host, m.post, m.thumb); } catch (e) { on = false; }
-            }
-            if (on) {
-                _rsStageFor = m.id;
-                host.hidden = false;
-                if (!host.querySelector(':scope > .mpill')) host.insertAdjacentHTML('afterbegin', '<span class="mpill" style="--pc:var(--pd-video)"><i></i>Video</span>');
-                _rsFit();
-            } else {
-                _rsStageOff();
-                v.classList.add('novid');
-                const nv = _rsQ('novid');
-                nv.classList.toggle('land', m.land);
-                const img = _rsQ('poster');
-                if (m.thumb) { if (img.getAttribute('src') !== m.thumb) img.src = m.thumb; img.hidden = false; } else { img.removeAttribute('src'); img.hidden = true; }
-                const url = String(m.post.asset_url || '').trim();
-                // Until the player's switch is read (the first second of a first load), the poster alone: the
-                // "Watch the video" fallback would show and then give way to the player (owner report 2026-10-18,
-                // session Curtain Ten: a huge black play button for the first second).
-                let wait = false;
-                try { wait = !m.sample && svFrameStagePending(m.post); } catch (e) { wait = false; }
-                nv.classList.toggle('wait', wait);
-                _rsQ('novidMsg').innerHTML = wait ? '' : /^https?:\/\//i.test(url)
-                    ? '<span>This video opens in a new tab.</span><a href="' + _re(url) + '" target="_blank" rel="noopener noreferrer">' + RI.play + 'Watch the video</a>'
-                    : '<span>No video yet.</span>';
-            }
+            _rsMediaVideo(m, v, host);
         } else {
             if (_rsStageFor) {
                 // leave the player loaded (switching back is instant) but stop the sound
                 try { const vid = host.querySelector('video'); if (vid && !vid.paused) vid.pause(); } catch (e) {}
             }
         }
-        if (k === 'thumb') {
-            const bt = _rsQ('bigthumb'), img = _rsQ('bigthumbImg'), tf = _rsQ('tframe');
-            bt.classList.toggle('land', m.land);
-            if (m.thumb) {
-                tf.hidden = true; img.hidden = false;
-                if (img.getAttribute('src') !== m.thumb) {
-                    img.onload = () => { if (img.naturalWidth) bt.classList.toggle('land', img.naturalWidth > img.naturalHeight * 1.05); };
-                    img.src = m.thumb;
-                }
-            } else {
-                img.hidden = true; img.removeAttribute('src');
-                tf.hidden = false;
-                tf.innerHTML = m.tframe ? '<span>The thumbnail is in Frame.io.</span><a href="' + _re(m.tframe) + '" target="_blank" rel="noopener noreferrer">' + RI.ext + 'Open the thumbnail</a>' : '<span>No thumbnail yet.</span>';
+        if (k === 'thumb') _rsMediaThumb(m);
+    }
+    function _rsMediaVideo(m, v, host) {
+        v.classList.remove('novid');
+        let on = false;
+        if (!m.sample) {
+            try { on = svFrameStageMount(host, m.post, m.thumb); } catch (e) { on = false; }
+        }
+        if (on) {
+            _rsStageFor = m.id;
+            host.hidden = false;
+            if (!host.querySelector(':scope > .mpill')) host.insertAdjacentHTML('afterbegin', '<span class="mpill" style="--pc:var(--pd-video)"><i></i>Video</span>');
+            _rsFit();
+        } else {
+            _rsStageOff();
+            v.classList.add('novid');
+            const nv = _rsQ('novid');
+            nv.classList.toggle('land', m.land);
+            const img = _rsQ('poster');
+            if (m.thumb) { if (img.getAttribute('src') !== m.thumb) img.src = m.thumb; img.hidden = false; } else { img.removeAttribute('src'); img.hidden = true; }
+            const url = String(m.post.asset_url || '').trim();
+            // Until the player's switch is read (the first second of a first load), the poster alone: the
+            // "Watch the video" fallback would show and then give way to the player (owner report 2026-10-18,
+            // session Curtain Ten: a huge black play button for the first second).
+            let wait = false;
+            try { wait = !m.sample && svFrameStagePending(m.post); } catch (e) { wait = false; }
+            nv.classList.toggle('wait', wait);
+            _rsQ('novidMsg').innerHTML = wait ? '' : /^https?:\/\//i.test(url)
+                ? '<span>This video opens in a new tab.</span><a href="' + _re(url) + '" target="_blank" rel="noopener noreferrer">' + RI.play + 'Watch the video</a>'
+                : '<span>No video yet.</span>';
+        }
+    }
+    function _rsMediaThumb(m) {
+        const bt = _rsQ('bigthumb'), img = _rsQ('bigthumbImg'), tf = _rsQ('tframe');
+        bt.classList.toggle('land', m.land);
+        // Kasper's second layout draws every part on every redraw: a thumbnail already on screen keeps its own shape.
+        if (R.l2 && m.thumb && img.complete && img.naturalWidth && img.getAttribute('src') === m.thumb) bt.classList.toggle('land', img.naturalWidth > img.naturalHeight * 1.05);
+        if (m.thumb) {
+            tf.hidden = true; img.hidden = false;
+            if (img.getAttribute('src') !== m.thumb) {
+                img.onload = () => { if (img.naturalWidth) bt.classList.toggle('land', img.naturalWidth > img.naturalHeight * 1.05); };
+                img.src = m.thumb;
             }
+        } else {
+            img.hidden = true; img.removeAttribute('src');
+            tf.hidden = false;
+            tf.innerHTML = m.tframe ? '<span>The thumbnail is in Frame.io.</span><a href="' + _re(m.tframe) + '" target="_blank" rel="noopener noreferrer">' + RI.ext + 'Open the thumbnail</a>' : '<span>No thumbnail yet.</span>';
         }
     }
     function _rsSetStep(k) {
@@ -1911,7 +1998,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     /* Change what is on stage: only the media fades (out, the change, back in); everything around it stays put. */
     let _rsSwapT = null;
     function _rsSwap(apply) {
-        const v = _rsQ('view');
+        const v = _rsQ(R.l2 ? 'l2g' : 'view');
         if (!v || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) { apply(); _rsRender({ force: true }); return; }
         if (_rsSwapT) { clearTimeout(_rsSwapT.t); _rsSwapT.apply(); }
         v.classList.add('swap');
@@ -1920,7 +2007,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             _rsSwapT = null;
             apply();
             _rsRender({ force: true });
-            const nv = _rsQ('view'); if (!nv) return;
+            const nv = _rsQ(R.l2 ? 'l2g' : 'view'); if (!nv) return;
             nv.classList.add('swap');
             requestAnimationFrame(() => requestAnimationFrame(() => nv.classList.remove('swap')));
         }, 150);
@@ -1976,15 +2063,16 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     /* Save problems on this post, whichever part is on stage (the stage moves on to the next part while a save
        runs): a refused save says why, with Try again; a save with no answer after a few seconds says so. */
-    function _rsSaveIssues(m, onStage) {
+    function _rsSaveIssue(m, k, onStage) {
         const S = R.S;
-        return m.parts.map(p => {
-            const k = p.key, key = m.id + '|' + k, err = _rsError(m, k), editError = S.editErrors[key];
-            const who = k === onStage ? '' : RS_PART[k] + ': ';
-            if (err) return '<div class="err" role="alert" data-err="' + k + '"><div>' + _re(who + 'Not saved. ' + (R.mode === 'client' ? _calCrqClientWords(err).text : err)) + (!editError && S.retryText[key] ? '<details><summary>Your unsent words</summary><div class="tc-text">' + _re(S.retryText[key]) + '</div></details>' : '') + '</div>' + (!editError && S.retry[key] ? '<button class="retry" type="button" data-retry="' + k + '">Try again</button>' : '') + '</div>';
-            if (S.slow[key] && _rsSaving(m, k)) return '<div class="err slow" role="status" data-slow="' + k + '">' + _re(who) + 'Still waiting for the server. Nothing is lost: it finishes here on its own.</div>';
-            return '';
-        }).join('');
+        const key = m.id + '|' + k, err = _rsError(m, k), editError = S.editErrors[key];
+        const who = k === onStage ? '' : RS_PART[k] + ': ';
+        if (err) return '<div class="err" role="alert" data-err="' + k + '"><div>' + _re(who + 'Not saved. ' + (R.mode === 'client' ? _calCrqClientWords(err).text : err)) + (!editError && S.retryText[key] ? '<details><summary>Your unsent words</summary><div class="tc-text">' + _re(S.retryText[key]) + '</div></details>' : '') + '</div>' + (!editError && S.retry[key] ? '<button class="retry" type="button" data-retry="' + k + '">Try again</button>' : '') + '</div>';
+        if (S.slow[key] && _rsSaving(m, k)) return '<div class="err slow" role="status" data-slow="' + k + '">' + _re(who) + 'Still waiting for the server. Nothing is lost: it finishes here on its own.</div>';
+        return '';
+    }
+    function _rsSaveIssues(m, onStage) {
+        return m.parts.map(p => _rsSaveIssue(m, p.key, onStage)).join('');
     }
     // A small spinner in place of a button's icon while its save runs (owner feedback 2026-10-17: no "Saving..." text).
     const RS_SPIN = '<span class="spin" aria-hidden="true"></span>';
@@ -2008,34 +2096,27 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         return approve + '<button class="b-ask' + (chg ? ' busy' : '') + '" type="button" data-chg="' + x.key + '"' + _rsBusyAttr(busy, chg) + '>' + (chg ? RS_SPIN : RI.back) + (chg ? 'Change asked' : 'Ask for a change') + '</button>'
             + (R.mode === 'kasper' && x.key === 'video' ? '<button class="b-frame' + (fr ? ' busy' : '') + '" type="button" data-frame="' + x.key + '"' + _rsBusyAttr(busy, fr) + ' title="Your notes are in Frame.io: sends the change without typing">' + (fr ? RS_SPIN : RI.frame) + 'Tweaks are on Frame</button>' : '');
     }
-    function _rsDecide() {
-        const m = _rsCur();
-        if (!m) return;
-        const S = R.S, x = m.parts.find(p => p.key === S.step);
-        const el = _rsQ('drow');
-        const elsew = _rsElsewhere(m, x) || (!x && m.parts.length === 0 ? 'Your team took this post back to work on it.' : '');
-        const note = elsew ? '<div class="elsew" role="status" id="elsew"><span>' + _re(elsew) + '</span>' + (m.gone || !x ? '<button class="mv" type="button" id="moveOn">Next post</button>' : '') + '</div>' : '';
-        const bindMove = () => { const b = _rsQ('moveOn'); if (b) b.addEventListener('click', () => _rsMoveOn(m)); };
-        if (!x) { el.innerHTML = note; bindMove(); return; }
-        const n = _rsLname(x.key);
+    /* The pieces of the decision row, shared by the one-part-at-a-time page and Kasper's all-parts layout (session
+       Easel, 2026-10-20): what a part answered by someone else reads, who can be pinged, the active part's buttons or
+       status, and Finish reviewing with Close card. Each returns what the old row drew, unchanged. */
+    function _rsInactiveD(m, x) {
+        return x.st === 'ok'
+            ? '<span class="dst ok"><span class="ck">' + RI.check + '</span>Approved</span>'
+            : '<span class="dst chg"><span class="ck chg">' + (x.frame ? RI.frame : RI.back) + '</span>' + (x.frame ? 'Tweaks are on Frame' : 'Change asked') + '</span>' + (x.frame && m.post.asset_url ? '<a class="rlink" href="' + _re(m.post.asset_url) + '" target="_blank" rel="noopener noreferrer">' + RI.ext + 'Your notes in Frame.io</a>' : '');
+    }
+    function _rsPingHtml(m) {
+        const canPing = (() => { try { return _calShowUrgent(m.post, 'video'); } catch (e) { return false; } })();
+        const pg = R.S.pinged[m.id];
+        return canPing ? (pg ? '<span class="b-soft sent">' + RI.check + 'Editor pinged</span>' : '<button class="b-soft" type="button" id="pingBtn">' + RI.bell + 'Ping editor</button>') : '';
+    }
+    function _rsBindPing(m, root) {
+        const pb = root.querySelector('#pingBtn');
+        if (pb) pb.addEventListener('click', (e) => { R.S.pinged[m.id] = true; if (m.sample) window._sxrKasperSendUrgentSlack(e, m.id); else window._kasperSendUrgentSlack(e, m.id); _rsDecide(); });
+    }
+    // The active part's row: `d` is its buttons or its status (null: the change box takes its place), `dc` the status colour.
+    function _rsActiveD(m, x) {
+        const S = R.S, n = _rsLname(x.key);
         let d;
-        if (m.gone) {
-            // Words typed on the stage stay on screen: the conversation's box takes them (review of #2207).
-            if (S.note.part && S.note.where === 'stage') { S.note.where = 'chat'; _rsChat(m); }
-            el.innerHTML = note; bindMove(); return;
-        }
-        if (!_rsActive(m)) {
-            d = x.st === 'ok'
-                ? '<span class="dst ok"><span class="ck">' + RI.check + '</span>Approved</span>'
-                : '<span class="dst chg"><span class="ck chg">' + (x.frame ? RI.frame : RI.back) + '</span>' + (x.frame ? 'Tweaks are on Frame' : 'Change asked') + '</span>' + (x.frame && m.post.asset_url ? '<a class="rlink" href="' + _re(m.post.asset_url) + '" target="_blank" rel="noopener noreferrer">' + RI.ext + 'Your notes in Frame.io</a>' : '');
-            const canPing = (() => { try { return _calShowUrgent(m.post, 'video'); } catch (e) { return false; } })();
-            const pg = S.pinged[m.id];
-            el.innerHTML = '<div class="dwrap"><div class="dec' + (x.st === 'ok' ? ' is-ok' : ' is-chg') + '">' + d + '</div></div><div class="drow2 both"><span class="held">' + RI.clock + _re(m.note) + '</span>'
-                + (canPing ? (pg ? '<span class="b-soft sent">' + RI.check + 'Editor pinged</span>' : '<button class="b-soft" type="button" id="pingBtn">' + RI.bell + 'Ping editor</button>') : '') + '</div>';
-            const pb = _rsQ('pingBtn');
-            if (pb) pb.addEventListener('click', (e) => { S.pinged[m.id] = true; if (m.sample) window._sxrKasperSendUrgentSlack(e, m.id); else window._kasperSendUrgentSlack(e, m.id); _rsDecide(); });
-            return;
-        }
         const saving = _rsSaving(m, x.key);
         if (S.editing === x.key) d = '<span class="dst busy">' + RI.pen + 'Editing the ' + n + '</span>';
         else if (_rsWriting(x) && S.note.where === 'stage') d = null;
@@ -2053,19 +2134,38 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         } else {
             d = _rsActions(x, '');
         }
-        const parts = m.parts, left = parts.filter(p => p.st === 'wait').length;
-        // On the client link Finish reviewing stays off, with a short "Saving…", while any part's answer is still being
-        // sent: it lights up when the save lands or fails (an answer is never lost to a quick Finish and a closed tab).
+        const dc = x.st === 'ok' && d && !S.editing && !saving ? ' is-ok' : (x.st === 'chg' || x.st === 'tweak') && d && !S.editing && !saving ? ' is-chg' : '';
+        return { d, dc, saving };
+    }
+    // Finish reviewing and Close card. On the client link Finish stays off, with a short "Saving…", while any part's
+    // answer is still being sent: it lights up when the save lands or fails (an answer is never lost to a quick Finish
+    // and a closed tab).
+    function _rsFinishHtml(m) {
+        const S = R.S, parts = m.parts, left = parts.filter(p => p.st === 'wait').length;
         const sending = R.mode !== 'smm' && Object.keys(RS_PART).some(k => _rsSaving(m, k));
         const all = !left && !sending;
         if (all && !S.ready[m.id]) S.ready[m.id] = Date.now();
         if (!all) delete S.ready[m.id];
         const glow = all ? ' ready" style="animation-delay:-' + (Date.now() - S.ready[m.id]) + 'ms' : '';
-        const dc = x.st === 'ok' && d && !S.editing && !saving ? ' is-ok' : (x.st === 'chg' || x.st === 'tweak') && d && !S.editing && !saving ? ' is-chg' : '';
-        el.innerHTML = note + '<div class="dwrap">' + (d === null ? _rsComposer(m) : '<div class="dec' + dc + '" id="dec">' + d + '</div>') + '</div>'
-            + _rsSaveIssues(m, x.key)
-            + '<div class="drow2"><div class="dfin"><button class="finish' + glow + '" type="button" id="finishBtn"' + (all ? '' : ' disabled') + '>' + RI.check + 'Finish reviewing' + (all ? '' : sending ? ' <span class="fc num" id="finishWait">Saving…</span>' : ' <span class="fc num">' + (parts.length - left) + ' of ' + parts.length + '</span>') + '</button>'
-            + (R.mode === 'kasper' && !m.gone ? '<button class="btn-quiet" type="button" id="closeBtn"' + (sending ? ' disabled' : '') + '>Close card</button>' : '') + '</div></div>';
+        return '<button class="finish' + glow + '" type="button" id="finishBtn"' + (all ? '' : ' disabled') + '>' + RI.check + 'Finish reviewing' + (all ? '' : sending ? ' <span class="fc num" id="finishWait">Saving…</span>' : ' <span class="fc num">' + (parts.length - left) + ' of ' + parts.length + '</span>') + '</button>'
+            + (R.mode === 'kasper' && !m.gone ? '<button class="btn-quiet" type="button" id="closeBtn"' + (sending ? ' disabled' : '') + '>Close card</button>' : '');
+    }
+    function _rsBindFinish(m, root) {
+        const fb = root.querySelector('#finishBtn'); if (fb) fb.addEventListener('click', _rsFinish);
+        const cb = root.querySelector('#closeBtn'); if (cb) cb.addEventListener('click', () => {
+            // An explicit close leaves the card; the kept-card rule is only for a background list change.
+            const S = R.S;
+            S.keepK = null; S.curId = null; S.note = _rsBlankNote();
+            ['urgent', 'waiting', 'tweaks'].forEach(sec => {
+                if (R.kparts && R.kparts[sec]) R.kparts[sec] = R.kparts[sec].filter(it => it.post.id !== m.id);
+            });
+            if (m.sample) window._sxrKasperClose(m.id); else window._kasperClose(m.id);
+            _rsRender({ force: true });
+        });
+    }
+    // The part's decision buttons and the change box: one click handler each, on the row that holds them.
+    function _rsBindDecide(m, el) {
+        const S = R.S;
         el.querySelectorAll('[data-ok]').forEach(b => b.addEventListener('click', () => _rsApprove(m, b.dataset.ok, R.mode === 'smm' ? 'kasper' : '')));
         el.querySelectorAll('[data-alt]').forEach(b => b.addEventListener('click', (e) => {
             e.stopPropagation(); S.menu = '';
@@ -2076,17 +2176,36 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         el.querySelectorAll('[data-frame]').forEach(b => b.addEventListener('click', () => _rsSendChange(m, b.dataset.frame, RS_FRAME_NOTE, { where: 'stage' })));
         el.querySelectorAll('[data-chg]').forEach(b => b.addEventListener('click', () => _rsStartChange(b.dataset.chg, 'stage')));
         el.querySelectorAll('[data-again]').forEach(b => b.addEventListener('click', () => _rsStartChange(b.dataset.again, 'stage')));
-        const fb = _rsQ('finishBtn'); if (fb) fb.addEventListener('click', _rsFinish);
-        const cb = _rsQ('closeBtn'); if (cb) cb.addEventListener('click', () => {
-            // An explicit close leaves the card; the kept-card rule is only for a background list change.
-            S.keepK = null; S.curId = null; S.note = _rsBlankNote();
-            ['urgent', 'waiting', 'tweaks'].forEach(sec => {
-                if (R.kparts && R.kparts[sec]) R.kparts[sec] = R.kparts[sec].filter(it => it.post.id !== m.id);
-            });
-            if (m.sample) window._sxrKasperClose(m.id); else window._kasperClose(m.id);
-            _rsRender({ force: true });
-        });
         el.querySelectorAll('[data-retry]').forEach(b => b.addEventListener('click', () => { const f = S.retry[m.id + '|' + b.dataset.retry]; if (f) f(); }));
+    }
+    function _rsDecide() {
+        if (R.l2) { _rsL2Decide(); return; }
+        const m = _rsCur();
+        if (!m) return;
+        const S = R.S, x = m.parts.find(p => p.key === S.step);
+        const el = _rsQ('drow');
+        const elsew = _rsElsewhere(m, x) || (!x && m.parts.length === 0 ? 'Your team took this post back to work on it.' : '');
+        const note = elsew ? '<div class="elsew" role="status" id="elsew"><span>' + _re(elsew) + '</span>' + (m.gone || !x ? '<button class="mv" type="button" id="moveOn">Next post</button>' : '') + '</div>' : '';
+        const bindMove = () => { const b = _rsQ('moveOn'); if (b) b.addEventListener('click', () => _rsMoveOn(m)); };
+        if (!x) { el.innerHTML = note; bindMove(); return; }
+        let d;
+        if (m.gone) {
+            // Words typed on the stage stay on screen: the conversation's box takes them (review of #2207).
+            if (S.note.part && S.note.where === 'stage') { S.note.where = 'chat'; _rsChat(m); }
+            el.innerHTML = note; bindMove(); return;
+        }
+        if (!_rsActive(m)) {
+            el.innerHTML = '<div class="dwrap"><div class="dec' + (x.st === 'ok' ? ' is-ok' : ' is-chg') + '">' + _rsInactiveD(m, x) + '</div></div><div class="drow2 both"><span class="held">' + RI.clock + _re(m.note) + '</span>' + _rsPingHtml(m) + '</div>';
+            _rsBindPing(m, el);
+            return;
+        }
+        const ad = _rsActiveD(m, x);
+        d = ad.d;
+        el.innerHTML = note + '<div class="dwrap">' + (d === null ? _rsComposer(m) : '<div class="dec' + ad.dc + '" id="dec">' + d + '</div>') + '</div>'
+            + _rsSaveIssues(m, x.key)
+            + '<div class="drow2"><div class="dfin">' + _rsFinishHtml(m) + '</div></div>';
+        _rsBindDecide(m, el);
+        _rsBindFinish(m, el);
         if (d === null) _rsBindComposer(el);
     }
     function _rsComposer(m) {
@@ -2237,6 +2356,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const f = _rsQ('flash'); if (f) { f.textContent = text; clearTimeout(_rsFT); _rsFT = setTimeout(() => { f.textContent = ''; }, 2600); }
     }
     function _rsAdvance(m, from) {
+        if (R.l2) return;   // every part is on stage: there is no next step to move to
         setTimeout(() => {
             const cur = _rsCur();
             if (!cur || cur.id !== m.id || R.S.step !== from || R.S.note.part || R.S.editing) return;
@@ -2653,17 +2773,242 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             else if (R.S.editing) { _rsEditDiscard(R.S.curId + '|' + R.S.editing); _rsRender({ force: true }); }   // Escape anywhere discards the typed edit, as Cancel does
             return;
         }
+        if (R.l2) {
+            // Kasper's second layout has no steps: Up and Down move through the list on the left.
+            if (!e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.target.closest && e.target.closest('#qlList')) _rsL2ListKey(e);
+            return;
+        }
         if (tag === 'textarea' || tag === 'input' || (e.target.closest && e.target.closest('.fv-player'))) return;
         const m = _rsCur(); if (!m) return;
         const keys = m.parts.map(x => x.key), i = keys.indexOf(R.S.step);
         if (e.key === 'ArrowRight' && i < keys.length - 1) { _rsSetStep(keys[i + 1]); e.preventDefault(); }
         if (e.key === 'ArrowLeft' && i > 0) { _rsSetStep(keys[i - 1]); e.preventDefault(); }
     }
+    /* ---------- Kasper's second layout (session Easel, 2026-10-20) ----------
+       Behind review_stage_kasper_layout2 (188), wide screens only. Everything that SAVES is the code above, unchanged:
+       the same buttons, handlers, notes, undo and reload notice. Only what is drawn differs:
+         - the strip and the "Waiting for your review" dropdown become one always-visible list on the left;
+         - every part of the card is on stage at once (video, thumbnail, caption), each with its own buttons;
+         - a vertical video puts the parts side by side, a wide one puts the video on top and the other parts below;
+         - Finish reviewing and Close card sit at the top right of the card, not in a row of their own. */
+    /* A part Kasper approves leaves the card's list of parts (the old page's step bar loses it too). With every part on
+       stage that would pull the picture out from under him, so this layout keeps each part it has shown for this card:
+       an approved one stays, read only, marked Approved, and Finish reviewing counts it. */
+    const RS_L2_ORDER = ['video', 'graphic', 'caption', 'title'];
+    function _rsL2Model(m) {
+        const S = R.S, seen = S.l2 || (S.l2 = {}), rec = seen[m.id] || (seen[m.id] = []);
+        m.parts.forEach(x => { if (rec.indexOf(x.key) < 0) rec.push(x.key); });
+        const keys = rec.slice().sort((a, b) => RS_L2_ORDER.indexOf(a) - RS_L2_ORDER.indexOf(b));
+        // A part the model no longer returns is shown as what the card says it is: approved only if it really moved
+        // past Kasper, its true state if someone sent it to tweaks; one that is neither (media removed while at
+        // Kasper Approval) is dropped, so it is neither marked Approved nor counted as answered.
+        const parts = [];
+        keys.forEach(k => {
+            const live = m.parts.find(p => p.key === k);
+            if (live) { parts.push(live); return; }
+            const s = _calNormStatus((m.post && m.post[k + '_status']) || '');
+            if (s === 'Client Approval' || s === 'Approved' || s === 'Scheduled' || s === 'Posted') parts.push({ key: k, st: 'ok', kept: true });
+            else if (s === 'Tweaks Needed') {
+                const aat = _rsCsv(m.post.kasper_approved_after_tweaks).has(k);
+                parts.push(aat ? { key: k, st: 'ok', dec: 'aat', kept: true } : { key: k, st: 'chg', frame: _rsLastTweakIsFrame(m.post, k, m.item), kept: true });
+            }
+        });
+        return Object.assign({}, m, { parts });
+    }
+    function _rsL2M() { const m = _rsCur(); return m ? _rsL2Model(m) : null; }
+    function _rsL2Wanted() {
+        let wide = false;
+        try { wide = !!window.matchMedia && window.matchMedia('(min-width:' + RS_L2_MIN + 'px)').matches; } catch (e) { wide = false; }
+        return wide && svRsKasperLayout2On();
+    }
+    // The list: urgent, then waiting (the count at the top is these two), then the cards with the editors.
+    function _rsL2Row(m, cur) {
+        const on = cur && m.id === cur.id;
+        const urg = m.sec === 'urgent';
+        const head = m.sec === 'tweaks' ? _rsKRowHead(m) : '<span class="cn">' + _re(m.title) + '</span>';
+        const meta = m.sec === 'tweaks' ? _rsKRowMeta(m)
+            : '<span class="cm' + (urg ? ' urg' : '') + '">' + (urg ? '<span class="ub" title="' + _re(m.flag) + '">' + RI.bell + '</span>' : '') + '<span>' + _re(m.client) + '</span>' + (m.sample ? '<b class="tag">Sample</b>' : '') + _rsDots(m) + '</span>';
+        return '<button class="chipp k ql-r' + (on ? ' cur' : '') + (urg ? ' urgc' : '') + (m.sec === 'tweaks' ? ' edc' : '') + '" type="button" data-id="' + _re(m.id) + '" tabindex="' + (on ? '0' : '-1') + '" aria-current="' + !!on + '" title="' + _re(m.client + ': ' + m.title) + '">' + _rsChipImg(m) + '<span class="cx">' + head + meta + '</span></button>';
+    }
+    function _rsL2List() {
+        const ql = _rsQ('ql'), list = _rsQ('qlList'), head = _rsQ('qlHead');
+        if (!ql || !list || !head) return;
+        const cur = _rsCur(), k = _rsKasperModels();
+        const open = k.urgent.length + k.waiting.length;
+        _rsPut(head, '<b class="num">' + open + '</b> <span>' + (open === 1 ? 'card to review' : 'cards to review') + '</span>');
+        const a = R.root.activeElement;
+        const hadFocus = !!(a && a.closest && a.closest('#qlList'));
+        const keep = list.scrollTop;
+        const rows = k.urgent.concat(k.waiting).map(m => _rsL2Row(m, cur)).join('');
+        const eds = k.tweaks.length
+            ? '<button class="ql-g" type="button" id="edTog" aria-expanded="' + !!R.S.edOpen + '"><span class="r">With the editors <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg></span><span class="c num">' + k.tweaks.length + ' tweaks pending</span></button>'
+                + (R.S.edOpen || (cur && cur.sec === 'tweaks') ? k.tweaks.map(m => _rsL2Row(m, cur)).join('') : '')
+            : '';
+        const fresh = _rsPut(list, (rows || (k.tweaks.length ? '' : '<div class="ql-empty">Nothing is waiting on you.</div>')) + eds);
+        if (fresh) {
+            list.scrollTop = keep;
+            list.querySelectorAll('[data-id]').forEach(b => b.addEventListener('click', () => _rsGo(b.dataset.id)));
+            const t = _rsQ('edTog');
+            if (t) t.addEventListener('click', () => { R.S.edOpen = !R.S.edOpen; _rsL2List(); });
+            // The row that had the keyboard keeps it when the list is drawn again (the card changed under it).
+            if (hadFocus) { const c = list.querySelector('[data-id][aria-current="true"]') || list.querySelector('[data-id]'); if (c) c.focus({ preventScroll: true }); }
+        }
+        const c = list.querySelector('[aria-current="true"]');
+        if (c) {
+            const t = c.offsetTop - list.offsetTop, b = t + c.offsetHeight;
+            if (t < list.scrollTop + 4) list.scrollTop = Math.max(0, t - 8);
+            else if (b > list.scrollTop + list.clientHeight - 4) list.scrollTop = b - list.clientHeight + 8;
+        }
+    }
+    // Up and Down in the list open the card above or below; Home and End the first and the last.
+    function _rsL2ListKey(e) {
+        const rows = Array.from(R.root.querySelectorAll('#qlList [data-id]'));
+        const at = rows.indexOf(e.target.closest('[data-id]'));
+        if (!rows.length) return false;
+        let to = -1;
+        if (e.key === 'ArrowDown') to = at < 0 ? 0 : Math.min(rows.length - 1, at + 1);
+        else if (e.key === 'ArrowUp') to = at < 0 ? 0 : Math.max(0, at - 1);
+        else if (e.key === 'Home') to = 0;
+        else if (e.key === 'End') to = rows.length - 1;
+        else return false;
+        e.preventDefault();
+        const b = rows[to];
+        if (b && at !== to) { b.focus({ preventScroll: false }); _rsGo(b.dataset.id); }
+        return true;
+    }
+    // One pane per part. Built once per post and set of parts, so the player is never torn down by a redraw.
+    function _rsL2Skel(m) {
+        let other = 0;
+        return m.parts.map((x, i) => {
+            const k = x.key, kind = _rsKind(k);
+            if (kind !== 'video') other++;
+            const inner = kind === 'video'
+                ? '<div class="rs-fv" id="fvHost"></div><div class="player rs-novid" id="novid"><img class="poster" id="poster" alt=""><div class="vignette"></div><span class="mpill" style="--pc:var(--pd-video)"><i></i>Video</span><div class="nv" id="novidMsg"></div></div>'
+                : kind === 'thumb'
+                    ? '<div class="bigthumb" id="bigthumb"><img id="bigthumbImg" alt="The thumbnail at full size"><span class="mpill" style="--pc:var(--pd-thumbnail)"><i></i>Thumbnail</span><div class="tframe" id="tframe" hidden></div></div>'
+                    : '<div class="tcard" id="tcard-' + k + '"></div>';
+            return '<section class="pn pn-' + kind + '" data-part="' + k + '" style="' + _rsPv(k) + ';--c:' + (i + 1) + ';--o:' + (kind === 'video' ? 1 : other) + '" aria-label="' + RS_PART[k] + '"><div class="pn-m view k-' + kind + '"' + (kind === 'video' ? ' id="view"' : '') + '><div class="mbox">' + inner + '</div></div><div class="pn-d" data-pd="' + k + '"></div></section>';
+        }).join('');
+    }
+    // Portrait video: the parts side by side. Landscape: the video across the top, the others below it. The video's own
+    // shape decides once it is known (its player, or its poster), then the thumbnail's; until then a vertical card,
+    // unless it is a YouTube card (wide by nature).
+    function _rsL2Orient() {
+        const g = _rsQ('l2g'), m = _rsL2M();
+        if (!g || !m) return;
+        let ar = 0;
+        const host = _rsQ('fvHost');
+        if (host && host.firstElementChild) { const v = parseFloat(host.style.getPropertyValue('--fv-ar')); if (v > 0) ar = v; }
+        const img = id => { const i = _rsQ(id); return i && !i.hidden && i.getAttribute('src') && i.naturalWidth ? i.naturalWidth / i.naturalHeight : 0; };
+        if (!ar) ar = img('poster');
+        if (!ar) ar = img('bigthumbImg');
+        const hasVideo = m.parts.some(x => x.key === 'video');
+        const land = hasVideo && (ar ? ar > 1.05 : !!m.land);
+        const was = g.className;
+        g.classList.toggle('l2-land', land);
+        g.classList.toggle('l2-port', !land);
+        // The grid: one column per part (the video's a little wider) when side by side; otherwise one column per part
+        // below the video. Each part's picture sits in the first row and its buttons in the row under it, so the
+        // buttons of the parts line up whatever each one needs.
+        g.style.setProperty('--l2c', String(Math.max(1, m.parts.length - 1)));
+        g.style.setProperty('--l2cols', m.parts.map(x => x.key === 'video' ? 'minmax(0,1.35fr)' : 'minmax(0,1fr)').join(' '));
+        if (g.className !== was) _rsFit();   // the picture's box changed shape: size the player to it
+    }
+    function _rsFvDblClick(fvh) {
+        fvh.addEventListener('dblclick', (e) => {
+            if (e.target.closest('.fv-controls,.fv-stage-foot,button,a,input,.fv-trouble,.fv-state')) return;
+            const fb = fvh.querySelector('.fv-full');
+            if (!fb) return;
+            e.preventDefault();
+            fb.click();
+        });
+    }
+    function _rsL2Panes(m) {
+        const g = _rsQ('l2g');
+        const sig = m.id + '|' + m.parts.map(x => x.key).join(',');
+        if (g.__rsSig !== sig) {
+            _rsStageOff();
+            g.__rsSig = sig;
+            g.innerHTML = _rsL2Skel(m);
+            const fvh = _rsQ('fvHost');
+            if (fvh) {
+                _rsFvDblClick(fvh);
+                if (R.mo2) R.mo2.disconnect();
+                R.mo2 = new MutationObserver(() => _rsL2Orient());
+                R.mo2.observe(fvh, { attributes: true, attributeFilter: ['data-orient', 'style'] });
+            }
+            const v = _rsQ('view');
+            if (v && R.ro) R.ro.observe(v);
+            ['poster', 'bigthumbImg'].forEach(id => { const i = _rsQ(id); if (i) i.addEventListener('load', _rsL2Orient); });
+        }
+        if (m.parts.some(x => x.key === 'video')) _rsMediaVideo(m, _rsQ('view'), _rsQ('fvHost'));
+        if (m.parts.some(x => x.key === 'graphic')) _rsMediaThumb(m);
+        m.parts.forEach(x => { if (_rsKind(x.key) === 'text') _rsL2Text(m, x); });
+        _rsL2Orient();
+    }
+    function _rsL2Text(m, x) {
+        const S = R.S, k = x.key, tc = _rsQ('tcard-' + k);
+        if (!tc) return;
+        const yt = k === 'title';
+        const fold = x.st === 'ok' && !yt;
+        const open = !!S.exp[m.id + k];
+        const text = yt ? m.ytitle : m.caption;
+        let body;
+        if (yt) body = '<div class="tc-yt"><div class="ytimg">' + (m.thumb ? '<img alt="" src="' + _re(m.thumb) + '">' : '') + '</div><div class="ytx"><div class="ytt">' + _re(text) + '</div><div class="ytm">' + _re(m.client) + '</div></div></div>';
+        else body = '<div class="tc-text' + (fold && !open ? ' clamp' : '') + '">' + (text ? _re(text) : '<span style="color:var(--text-secondary)">No caption yet.</span>') + '</div>';
+        const foot = fold
+            ? '<div class="tc-foot num"><button class="expand" type="button" data-exp="' + k + '" aria-expanded="' + open + '">' + RI.down + (open ? 'Collapse' : 'Expand the caption') + '</button><span>' + text.length + ' characters</span></div>'
+            : '<div class="tc-foot num">' + text.length + ' characters</div>';
+        const html = yt ? body : '<div class="tc-main"><span class="tc-lbl" style="' + _rsPv(k) + '">' + _rsDot(k) + 'Caption</span>' + body + '</div>' + foot;
+        tc.className = yt ? 'tcard' : 'tcard wc';
+        if (!_rsPut(tc, html)) return;
+        const xb = tc.querySelector('[data-exp]');
+        if (xb) xb.addEventListener('click', () => { S.exp[m.id + k] = !S.exp[m.id + k]; _rsL2Text(m, x); });
+    }
+    function _rsL2Decide() {
+        const m = _rsL2M(), g = _rsQ('l2g');
+        if (!m || !g) return;
+        const S = R.S, noteEl = _rsQ('l2note'), act = _rsQ('l2a');
+        const card = _rsElsewhere(m, null) || (!m.parts.length ? 'Your team took this post back to work on it.' : '');
+        noteEl.innerHTML = card ? '<div class="elsew" role="status" id="elsew"><span>' + _re(card) + '</span>' + (m.gone || !m.parts.length ? '<button class="mv" type="button" id="moveOn">Next post</button>' : '') + '</div>' : '';
+        const mv = _rsQ('moveOn'); if (mv) mv.addEventListener('click', () => _rsMoveOn(m));
+        const slots = Array.from(g.querySelectorAll('.pn-d'));
+        if (m.gone) {
+            // Words typed on the stage stay on screen: the conversation's box takes them (review of #2207).
+            if (S.note.part && S.note.where === 'stage') { S.note.where = 'chat'; _rsChat(m); }
+            slots.forEach(el => { el.innerHTML = ''; });
+            act.innerHTML = '';
+            return;
+        }
+        const active = _rsActive(m);
+        m.parts.forEach(x => {
+            const el = g.querySelector('.pn-d[data-pd="' + x.key + '"]');
+            if (!el) return;
+            if (!active || x.kept) { el.innerHTML = '<div class="dwrap"><div class="dec' + (x.st === 'ok' ? ' is-ok' : ' is-chg') + '">' + _rsInactiveD(m, x) + '</div></div>'; return; }
+            const elsew = card ? '' : _rsElsewhere(m, x);
+            const note = elsew ? '<div class="elsew" role="status"><span>' + _re(elsew) + '</span></div>' : '';
+            const ad = _rsActiveD(m, x);
+            el.innerHTML = note + '<div class="dwrap">' + (ad.d === null ? _rsComposer(m) : '<div class="dec' + ad.dc + '">' + ad.d + '</div>') + '</div>' + _rsSaveIssue(m, x.key, x.key);
+            _rsBindDecide(m, el);
+            if (ad.d === null) _rsBindComposer(el);
+        });
+        if (active) { act.innerHTML = _rsFinishHtml(m); _rsBindFinish(m, act); }
+        else { act.innerHTML = '<span class="held">' + RI.clock + _re(m.note) + '</span>' + _rsPingHtml(m); _rsBindPing(m, act); }
+    }
+    function _rsL2Render(m) {
+        R.S.hinted = true;
+        _rsSide(m);
+        _rsL2Panes(_rsL2Model(m));
+        _rsL2Decide();
+        _rsChatCalm(m);
+        _rsChat(m);
+    }
     /* ---------- the area's door ---------- */
     function _rsCalDraw() {
         const cv = document.getElementById('calView');
         if (!cv) return;
         const mode = _isClientLink ? 'client' : 'smm';
+        R.l2 = false;
         _rsMount(cv, mode, mode + '|' + (calState.client || ''));
         // The client link on Sheet, Month or Week (or while its cards load): the header only, the calendar below it.
         // The client page's Review while its cards load: its own skeleton, never the old calendar's loader.
@@ -2681,6 +3026,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (!body) return;
         R.kparts = parts || { urgent: [], waiting: [], tweaks: [] };
         R.bar = false;
+        R.l2 = _rsL2Wanted();
         _rsMount(body, 'kasper', 'kasper');
         _rsRender();
     }
@@ -2689,4 +3035,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     // The player's own switch (frame_viewer_clients) arriving, or changing, draws the stage again.
     window.addEventListener('sv-frame-switch', () => { if (R.host && !R.host.hidden && R.S) _rsRender(); });
+    // Kasper's second layout follows the window: crossing the width limit draws the page again in the other layout.
+    try {
+        const mq = window.matchMedia('(min-width:' + RS_L2_MIN + 'px)');
+        const again = () => { if (R.host && !R.host.hidden && R.mode === 'kasper' && R.kparts && (R.l2 || svRsKasperLayout2On())) _rsKasperDraw(R.kparts); };
+        if (mq.addEventListener) mq.addEventListener('change', again); else if (mq.addListener) mq.addListener(again);
+    } catch (e) {}
     svAreaRegister('reviewstage', { cal: _rsCalDraw, calHide: _rsCalHide, kasper: _rsKasperDraw, kasperHide: _rsKasperHide });

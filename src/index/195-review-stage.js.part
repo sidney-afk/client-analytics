@@ -3,8 +3,8 @@ import { _calComponentsFor, _calIsYouTubeCard, _calNormStatus } from './120-cale
 import { _calCommentsFor, _calCommentsForView, _calSetCommentsFor, calState } from './130-calendar-model-cache.js';
 import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui.js';
 import { _calReviewState } from './180-calendar-native-post-media.js';
-import { svFrameStageMount, svFrameStagePending, svFrameStageUnmount } from './187-frame-viewer.js';
-import { svRsCalOn, svRsHelpUrl, svRsKasperLayout2On, svRsToolsEl } from './188-review-stage-switch.js';
+import { svFrameStageMount, svFrameStagePending, svFrameStageUnmount, svFrameWarm } from './187-frame-viewer.js';
+import { svRsCalOn, svRsHelpUrl, svRsKasperFast, svRsKasperLayout2On, svRsToolsEl } from './188-review-stage-switch.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
@@ -1767,9 +1767,28 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (empty) { _rsStageOff(); _rsRecap(); return; }
         R.S.shown = m.id;
         m.parts.forEach(x => { if (x.st === 'wait') R.S.seen[m.id + '|' + x.key] = 1; });
-        if (R.l2) { _rsL2Render(m); return; }
+        if (R.l2) { _rsL2Render(m); _rsWarmNeighbours(m); return; }
         _rsSide(m); _rsStepper(m); _rsMedia(m); _rsCard(m); _rsDecide(); _rsChatCalm(m); _rsChat(m);
         if (!R.S.hinted) _rsHint(m);
+        _rsWarmNeighbours(m);
+    }
+    /* Kasper's fast boot (kasper_fast_boot): once a post has been on stage for a moment, the posts before and after it in his
+       list get their video address and first bytes asked for, so pressing next or back finds the player already warm (the
+       same warm-up a hover gives a door, held 45 s). Once per post on stage; the wait lets the video on stage load first. */
+    let _rsWarmFor = '', _rsWarmTimer = 0;
+    function _rsWarmNeighbours(m) {
+        if (R.mode !== 'kasper' || !m || m.id === _rsWarmFor) return;
+        _rsWarmFor = m.id;
+        clearTimeout(_rsWarmTimer);
+        _rsWarmTimer = setTimeout(() => {
+            try {
+                if (!svRsKasperFast() || !R.host || R.host.hidden || R.S.curId !== m.id) { if (_rsWarmFor === m.id) _rsWarmFor = ''; return; }
+                const q = _rsQueue(), i = q.findIndex(x => x.id === m.id);
+                if (i < 0) return;
+                // A warm-up that could not start (the player's switch is still being read) is tried again at the next draw, which the switch arriving causes.
+                [q[i + 1], q[i - 1]].forEach(n => { if (n && !n.sample && n.post && !svFrameWarm(n.post)) _rsWarmFor = ''; });
+            } catch (e) {}
+        }, 700);
     }
     /* The conversation is drawn again on every change, so its entrance animations would replay and the whole panel
        would fade out and in. Same post, same messages: no animation. A new message on this post: only it rises.

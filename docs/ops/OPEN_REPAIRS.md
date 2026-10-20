@@ -33863,3 +33863,13 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 
 **Way back:** delete the `kasper_fast_boot` row, or revert the pull request.
 
+
+## 471. [2026-10-20, PR OPEN, behind `kasper_fast_boot`] Kasper's review list drew, shrank and came back; next and back cards load their video slowly (session Quick, follow-up)
+
+- **Owner report (2026-10-20).** With the fast boot on, the list of cards to review showed one thing, changed, then seemed to change back. Switching cards sometimes took a while before the video played.
+- **Cause (reproduced offline).** The tab reads the list as soon as it opens, before the client list (Clients Info sheet) has finished arriving. When the client list grows during that read, the answer is missing clients the saved list had, and `_kasperLoadReviewRun` painted it (10 cards down to 1) before its own repeat read (`rosterAtStart` check, OPEN_REPAIRS 316) brought them back. The fast boot starts the read earlier, so it hits this window more often. Other repaints on the way (the SMM names landing, the switch answer) keep the same cards and are not the cause.
+- **Changed, only while `kasper_fast_boot` is on for the person.** `330`: a read that finished after the client list grew is not drawn or saved; the repeat read starts at once and the cards on screen stay as they were. `195`: once a post has been on stage 0.7 s, the posts before and after it in Kasper's list get their video address, comments and first bytes asked for (`svFrameWarm`, held 45 s), once per post on stage. Flag off: unchanged.
+- **Measured (offline, `test/kasper-fast-boot-browser.js`, 41 checks).** Chips on the list over a second visit with the client list landing mid-refresh: flag off 10 > 1 > 10, flag on a steady 10. Press next to the video ready, with a 900 ms video address: 1106 ms off, 170 ms on. Live timings still to be taken with Sidney's account.
+- **Not done / known.** A client list that arrives after the read has finished still waits for the next refresh (as before). The warm-up is held 45 s and is not renewed on a long stay on one card, so a slow next press after that is as before.
+
+**Way back:** delete the `kasper_fast_boot` row, or revert the pull request.

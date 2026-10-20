@@ -173,6 +173,7 @@ async function open(browser, origin, opt) {
       return json({ ok: true });
     }
     if (p === '/functions/v1/frameio-view') {
+      if (state.viewDelay) await sleep(state.viewDelay);   // a slow video address (run-time, ms), as the live read can be
       // Windows WebKit's media loader bypasses Playwright routing. Serve its generated H.264 fixture on loopback.
       const media = opt.phoneMedia ? origin + '/test/fixtures/review-stage-phone-clip.mp4' : MEDIA;
       return json({ ok: true, video: { url: media, renditions: { efficient: media, high_quality: media, original: media }, expires_at: new Date(Date.now() + 3600000).toISOString(), name: 'Fixture clip.mp4', file_id: 'f1', duration_seconds: 12, fps: 24 }, comments: [], comments_error: '', open_url: 'https://next.frame.io/share/00000000-0000-4000-8000-000000000001', fetched_at: new Date().toISOString() });

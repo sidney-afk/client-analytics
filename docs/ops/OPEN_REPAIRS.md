@@ -33686,6 +33686,14 @@ Test: `node test/client-link-dark-first-paint-browser.js` (fails on main, passes
 
 **Way back:** revert the pull request.
 
+## 452. [2026-10-19, BUILT, NOT MERGED] A plain note written on the review page never reached the comment store, so it was typed again and saved twice under two ids (session Thread)
+
+**Cause:** a plain (not change-request) note sent from the review page was saved to the card row only, never through the production-write comment add, even on a card whose comments live in production. It showed in review but had no production row, so Notes did not show it as canonical; the client typed it again in Notes, and that second copy (new id, later time) was the only one the server knew. Measured read-only since 2026-10-01: 57 client notes on 12 linked cards exist only in the card row, and 2 of them have a same-words twin in production.
+
+**Fix:** `_noteOutboxSend` sends a review note on a linked video or thumbnail part through the gateway add with the note's own id (`_noteReviewGoesToGateway`); caption, title and unlinked cards keep the card-row save. The "canonical covers legacy" match is left strict on purpose: it protects against lossy replacement, and the reply fix (#2243) already maps the parent. Notes already stuck as card-row-only are not back-filled here.
+
+**Test:** `test/review-note-one-id.js`.
+
 ## 450. [2026-10-19, BUILT, NOT MERGED] Replying to a client's note in Notes failed for good with "Not sent" (session Thread)
 
 **What the owner saw:** a reply to a client's note on a native card showed "Not sent. Tap to retry", and retry failed again. The server refused it as `comment_parent_not_found` (409).

@@ -380,6 +380,30 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                         { disabled: state.videoEditorStatus === 'loading' || !editorItems.length,
                           onchange: '_calSetNativePostEditor()' })}
                 </div>` : '';
+        /* A RE-RENDER MUST NOT TAKE THE FOCUS WITH IT. This replaces the whole
+           modal body, and it is called from places the person did not trigger:
+           the editor list and the post counts arrive from the network after the
+           dialog is already open (up to the 4 s editor-pool bound). Someone who
+           had started typing a post or batch name lost the cursor when that
+           landed and the rest of their keystrokes went nowhere (what they had
+           typed survived, it lives in state; the focus did not). The focused
+           control is found again by a stable key and given its selection back.
+           Inline, not a helper, so the function stays self-contained. */
+        let focusKept = null;
+        try {
+            const el = document.activeElement;
+            if (el && modal.contains(el)) {
+                if (el.id) focusKept = { sel: '#' + CSS.escape(el.id) };
+                else if (el.classList.contains('cal-native-name-input')) {
+                    focusKept = { sel: '.cal-native-name-input', index: Array.prototype.indexOf.call(modal.querySelectorAll('.cal-native-name-input'), el) };
+                } else if (el.type === 'radio' && el.name) {
+                    focusKept = { sel: 'input[name="' + CSS.escape(el.name) + '"][value="' + CSS.escape(el.value) + '"]' };
+                }
+                if (focusKept && typeof el.selectionStart === 'number') {
+                    focusKept.start = el.selectionStart; focusKept.end = el.selectionEnd; focusKept.dir = el.selectionDirection || 'none';
+                }
+            }
+        } catch (e) { focusKept = null; }
         modal.innerHTML = `
             <div class="cal-import-head">
                 <button class="cal-import-x" type="button" onclick="_calCloseNativePost()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
@@ -422,6 +446,16 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                 <button class="cal-import-btn-ghost" type="button" onclick="_calCloseNativePost()">Cancel</button>
                 <button class="cal-import-btn-primary" type="button" id="calNativePostCreate" onclick="_calSubmitNativePost()">Create post</button>
             </div>`;
+        if (focusKept) {
+            try {
+                const found = modal.querySelectorAll(focusKept.sel);
+                const target = focusKept.index == null ? found[0] : found[focusKept.index];
+                if (target && !target.disabled) {
+                    target.focus({ preventScroll: true });
+                    if (focusKept.start != null && typeof target.setSelectionRange === 'function') target.setSelectionRange(focusKept.start, focusKept.end, focusKept.dir);
+                }
+            } catch (e) {}
+        }
         /*
          * The ends, on the FIRST paint.
          *

@@ -132,6 +132,8 @@ async function installRoutes(ctx, origin, state) {
     if (state.fakeSupabase && /supabase-js/.test(r.url())) return route.fulfill({ status: 200, contentType: 'application/javascript', headers: CORS, body: FAKE_SUPABASE });
     if (p === '/functions/v1/frameio-view') {
       let body = {}; try { body = JSON.parse(r.postData() || '{}'); } catch (_) {}
+      // FRAMEIO_VIEWER_ROUTE_LAG (ms): a loaded runner delivers a request to this handler late. Proof knob only.
+      if (process.env.FRAMEIO_VIEWER_ROUTE_LAG && body.part === 'comments') await sleep(Number(process.env.FRAMEIO_VIEWER_ROUTE_LAG));
       state.calls.push({ body, key: r.headers()['x-syncview-key'] || '', clientToken: r.headers()['x-syncview-client-token'] || '', method: r.method(), part: body.part || '', at: Date.now() });
       const n = state.calls.length;
       if (state.serverModel) {
@@ -728,13 +730,24 @@ async function startTimes(browser, origin, label) {
     await page.locator('.cal-card[data-pid="v1"] .cal-card-thumb').hover({ position: { x: 6, y: 6 } });
     await page.locator(ICON).waitFor({ state: 'attached', timeout: 8000 });
     await sleep(300);
-    if (scenario !== 'click only') { await page.locator(ICON).hover(); await sleep(400); }
+    await page.evaluate(() => { window.__fvIssued = []; const f = window.fetch; window.fetch = function (u, o) { try { if (/frameio-view/.test(String(u && u.url || u))) window.__fvIssued.push(JSON.parse((o && o.body) || '{}').part || ''); } catch (e) {} return f.apply(this, arguments); }; });
+    if (scenario !== 'click only') {
+      await page.locator(ICON).hover(); await sleep(400);
+      // The page issued both reads from the hover (seen at its own fetch, so it does not depend on how late a loaded
+      // runner hands each request to the route), then wait until both have arrived at the fixture before pressing.
+      const issued = await page.evaluate(() => window.__fvIssued.slice());
+      expect(issued.includes('video') && issued.includes('comments'), `fast start: the hover itself issues the video read and the comments read (${issued.join(',')})`);
+      const until = Date.now() + 8000;
+      while (state.calls.length < 2 && Date.now() < until) await sleep(25);
+    }
     const callsBefore = state.calls.length;
     const t0 = Date.now();
     await page.locator(ICON).click({ force: true });
-    const firstCall = state.calls.length > callsBefore ? state.calls[callsBefore].at - t0 : 99999;
     await page.waitForFunction(() => { const v = document.querySelector('#calNotesStage .fv-video'); return v && v.readyState >= 2 && v.videoWidth > 0; }, null, { polling: 16, timeout: 20000 });
     const ms = Date.now() - t0;
+    // Read after the frame is up: a loaded runner can hand the first request to the route late, and the press is
+    // known to have sent it (the first frame cannot appear without it) when no hover did.
+    const firstCall = state.calls.length > callsBefore ? state.calls[callsBefore].at - t0 : (callsBefore === 0 ? 99999 : 0);
     out[scenario] = { ms, callsBeforeClick: callsBefore, firstCallMs: firstCall < 0 ? 0 : firstCall, callsAfterClick: state.calls.length - callsBefore, src: await page.evaluate(() => document.querySelector('#calNotesStage .fv-video').getAttribute('src')) };
     await ctx.close();
   }

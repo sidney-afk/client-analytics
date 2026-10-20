@@ -33805,6 +33805,14 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 
 **Way back:** revert the pull request.
 
+## 465. [2026-10-20, BUILT, NOT MERGED] The Watch here "fast start" checks failed once in CI because the test counted requests before the runner had delivered them (session Hover)
+
+- **Asked by:** the supervisor, after main commit b2e04331 (a test-only change) failed "pointing at the icon already asks for the video and the comments (1 requests before the click)" and "the click itself asks for nothing more".
+- **Cause.** Not the app. On hover the viewer (`svFrameIntent`, `src/index/187-frame-viewer.js.part`) starts the video read and the comments read in the same tick, in parallel, after its 120 ms pointer delay. The test slept 400 ms and then counted requests as the fixture's route handler logged them. On a loaded runner the handler can receive the second request late, so the count read 1, and the second then landed after the press and was counted as the click's own request. A real user is not affected: both reads leave the page together.
+- **Changed.** `test/frameio-viewer-browser.js` only. The hover scenario now records the page's own fetch calls and asserts both reads were issued from the hover (a new check), then waits for both to reach the fixture before pressing. The existing assertions are unchanged. The click-only first-request timing is read after the first frame instead of immediately after the press. A proof knob, `FRAMEIO_VIEWER_ROUTE_LAG` (ms, comments only), delays the fixture's handler.
+- **Proven.** With the lag set to 900 ms and 6 parallel runs: old test failed both checks in 6 of 6, new test passed all fast-start count checks in 6 of 6 (0 failures). Without the lag the old test did not reproduce in 12 parallel runs.
+
+**Way back:** revert the pull request.
 ## 464. Unit runner cut off its own output under load (test-suite-routing 110 !== 147)
 
 - **Seen:** `test/test-suite-routing.js` failed in CI on #2259 (2026-10-20) and intermittently in local runs: it counted fewer NOT_RUN lines than required profiles (103 to 128 of 147).

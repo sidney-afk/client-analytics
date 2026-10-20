@@ -33853,7 +33853,7 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 
 **Way back:** revert the pull request.
 
-## 469. [2026-10-20, BUILT, NOT MERGED] Kasper's tab boots fast: no refresh pill, player and review page start early, first video warmed (session Quick)
+## 470. [2026-10-20, MERGED (#2265), SWITCH NOT YET ON] Kasper's tab boots fast: no refresh pill, player and review page start early, first video warmed (session Quick)
 
 - **Asked by:** the owner: the "Refreshing" pill shows a lot and is not needed any more, the video player loads late (mostly after a hard refresh), and the tab must boot fast on a normal and on a hard refresh.
 - **Found (code reading plus the offline fixture; not measured on the live site).** (1) The review page's code (174 KB) was fetched only when the switch answer came back (1.5 to 3.7 s live). (2) The player's own switch (`frame_viewer_clients`) was read only when the first card painted, so its round trip sat in front of the video address. (3) The first card's video address was asked for only when the stage mounted. (4) A second visit drew the old page, then swapped to the new one. (5) The pill showed on every refresh that had cards on screen (entry, tab focus, polls).

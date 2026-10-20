@@ -24,7 +24,7 @@ Owner: the refresh pill shows too often and is not needed, the video player load
 tab must boot fast. Behind the new switch `syncview_runtime_flags.kasper_fast_boot` `{ "staff": [...] }` (off until the row exists,
 Lighthouse inserts it for Sidney first): no pill, the review page's code and the player's switch start at page start, the first
 card's video is warmed while the list loads, and a second visit shows a loader instead of the old page first. Offline test:
-`node test/kasper-fast-boot-browser.js`. Not measured on the live site (OPEN_REPAIRS 469). The calendar reads behind the list
+`node test/kasper-fast-boot-browser.js`. Not measured on the live site (OPEN_REPAIRS 470). The calendar reads behind the list
 (about 2.4 s) are the next lever and are untouched.
 
 ## Manager's Review tab asks once (session Settle, 2026-10-18): PR open

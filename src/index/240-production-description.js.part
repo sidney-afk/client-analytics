@@ -2270,7 +2270,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
                 _prodDescriptionImageOpen(event);
             });
         }
-        async function _prodSaveDescription(event, id) {
+        async function _prodSaveDescription(event, id, healedClock) {
             if (event) {
                 event.preventDefault();
                 event.stopPropagation();
@@ -2377,7 +2377,6 @@ import { _prodRender } from './260-production-refresh-boot.js';
                 _prodRender();
                 _prodFocusDescriptionControl(id, 'edit');
             } catch (error) {
-                _writeUiRecordFailure('production', 'description', error, { id: String(id) });
                 /* A write_conflict hands back the row that won. For a batch
                    parent that is a BATCH carrying `description`, not a
                    deliverable carrying `brief` -- reading the wrong field would
@@ -2393,6 +2392,38 @@ import { _prodRender } from './260-production-refresh-boot.js';
                     ? (error && error.batch && typeof error.batchDescription === 'string' ? error.batch : null)
                     : (error && error.row
                         && Object.prototype.hasOwnProperty.call(error.row, 'brief') ? error.row : null);
+                /* THE CLOCK MOVED, THE TEXT DID NOT (OPEN_REPAIRS 459).
+                   The save is compared on updated_at, and a server-side job
+                   bumps that clock without touching the text: the thumbnail
+                   titles job stamps a freshly created card about 30 to 60
+                   seconds after Create Post, with outcome plan_empty and the
+                   description unchanged. A person who saves in that window was
+                   refused with write_conflict, was told the description
+                   "changed elsewhere", and had to press Save a second time.
+                   When the row that won carries exactly the text this draft
+                   was started from, nobody else's words are at stake, so adopt
+                   the new clock and send the same draft once more. Any other
+                   difference is a real concurrent edit and falls through to
+                   the existing review-and-save-again path. Once only, so a
+                   clock that keeps moving cannot loop. */
+                const winnerText = serverRow ? _prodDescriptionText(
+                    parentConflict ? error.batchDescription : serverRow.brief
+                ) : null;
+                if (serverRow && !healedClock
+                    && String(error && error.code || '') === 'write_conflict'
+                    && winnerText === previous.baseline) {
+                    state.value = winnerText;
+                    state.baseline = winnerText;
+                    state.hasValue = true;
+                    state.status = 'ready';
+                    state.sourceUpdatedAt = serverRow.updated_at || state.sourceUpdatedAt;
+                    if (parentConflict) _prodSyncBatchDescriptionRow(id, winnerText, serverRow.updated_at);
+                    else _prodSyncDescriptionRow(id, serverRow.brief, serverRow.updated_at);
+                    state.saving = false;
+                    state.requestId = '';
+                    return _prodSaveDescription(null, id, true);
+                }
+                _writeUiRecordFailure('production', 'description', error, { id: String(id) });
                 if (serverRow) {
                     state.value = _prodDescriptionText(
                         parentConflict ? error.batchDescription : serverRow.brief

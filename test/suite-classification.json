@@ -542,6 +542,7 @@
     "prod-description-image-paste.js",
     "prod-description-images.js",
     "prod-description-native-brief-media.js",
+    "prod-description-clock-only-conflict.js",
     "prod-description-rich-editor.js",
     "prod-description-scope-gate.js",
     "prod-detail-scroll-key.js",

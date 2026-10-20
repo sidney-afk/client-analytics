@@ -309,6 +309,33 @@ async function titles(page) { return (await look(page)).heading; }
     expect(L.l2 && L.ql && L.heading.endsWith(open1.title) && L.rows.length === 7, 'wide again: the second layout, same card');
     expect(t.errors.length === 0, 'resize: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
+
+    // ---------- a part that stops being returned is shown as what the card says it is ----------
+    console.log('--- remembered parts that leave the list ---');
+    for (const kind of ['removed', 'tweaks']) {
+      t = await openKasper(browser, origin, { layout2: true, width: 1440, height: 900 });
+      await inS(t.page, '[data-ok="video"]').click();
+      for (let i = 0; i < 80 && !t.state.cards.find(c => c.id === 'rs1').video_status.startsWith('Client'); i++) { await answerConfirm(t.page); await sleep(100); }
+      await sleep(900);
+      L = await look(t.page);
+      expect(/Approved/.test(L.panes.video.text) && /1 of 3/.test(L.finishText.replace(/\s+/g, ' ')), kind + ': the approved video is remembered on stage');
+      const row = t.state.cards.find(c => c.id === 'rs1');
+      if (kind === 'removed') Object.assign(row, { graphic_status: 'Kasper Approval', thumbnail_url: '', graphic_deliverable_id: '', graphic_url: '', updated_at: new Date().toISOString() });
+      else Object.assign(row, { graphic_status: 'Tweaks Needed', updated_at: new Date().toISOString() });
+      await t.page.evaluate(async () => { await _kasperLoadReview(true); });
+      await sleep(1800);
+      L = await look(t.page);
+      const g = L.panes.graphic;
+      const fin = L.finishText.replace(/\s+/g, ' ');
+      if (kind === 'removed') {
+        expect(!g || !/Approved/.test(g.text), 'removed: the thumbnail is not marked Approved');
+        expect(/1 of 2/.test(fin), 'removed: Finish does not count the thumbnail as answered (' + fin.trim() + ')');
+      } else {
+        expect(!!g && /Change asked/.test(g.text) && !/Approved/.test(g.text), 'tweaks: the thumbnail shows its true state, not Approved (' + (g && g.text) + ')');
+      }
+      expect(t.errors.length === 0, kind + ': no page errors');
+      await t.ctx.close();
+    }
   } catch (e) {
     expect(false, 'stopped: ' + String(e && e.stack || e).split('\n').slice(0, 4).join(' | '));
   }

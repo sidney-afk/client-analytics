@@ -2799,7 +2799,21 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const S = R.S, seen = S.l2 || (S.l2 = {}), rec = seen[m.id] || (seen[m.id] = []);
         m.parts.forEach(x => { if (rec.indexOf(x.key) < 0) rec.push(x.key); });
         const keys = rec.slice().sort((a, b) => RS_L2_ORDER.indexOf(a) - RS_L2_ORDER.indexOf(b));
-        return Object.assign({}, m, { parts: keys.map(k => m.parts.find(p => p.key === k) || { key: k, st: 'ok', kept: true }) });
+        // A part the model no longer returns is shown as what the card says it is: approved only if it really moved
+        // past Kasper, its true state if someone sent it to tweaks; one that is neither (media removed while at
+        // Kasper Approval) is dropped, so it is neither marked Approved nor counted as answered.
+        const parts = [];
+        keys.forEach(k => {
+            const live = m.parts.find(p => p.key === k);
+            if (live) { parts.push(live); return; }
+            const s = _calNormStatus((m.post && m.post[k + '_status']) || '');
+            if (s === 'Client Approval' || s === 'Approved' || s === 'Scheduled' || s === 'Posted') parts.push({ key: k, st: 'ok', kept: true });
+            else if (s === 'Tweaks Needed') {
+                const aat = _rsCsv(m.post.kasper_approved_after_tweaks).has(k);
+                parts.push(aat ? { key: k, st: 'ok', dec: 'aat', kept: true } : { key: k, st: 'chg', frame: _rsLastTweakIsFrame(m.post, k, m.item), kept: true });
+            }
+        });
+        return Object.assign({}, m, { parts });
     }
     function _rsL2M() { const m = _rsCur(); return m ? _rsL2Model(m) : null; }
     function _rsL2Wanted() {

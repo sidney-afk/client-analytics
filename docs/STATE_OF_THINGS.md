@@ -191,6 +191,11 @@ shape is the old page; the lists live only in the database):
   clients. (Not named `..._clients`: several browser tests answer every `_clients` key with "on".)
 - `review_stage_kasper_staff` `{ "staff": [...] }`: Kasper's Review Session, only for the signed-in staff member whose
   roster id or full name is listed.
+- `review_stage_kasper_layout2` `{ "staff": [...] }`: Kasper's Review Session in its second layout (session Easel, 2026-10-20: a list of
+  waiting cards on the left, every part of the card on stage at once, Finish reviewing and Close card at the top right). Same
+  listing rule as the switch above, and it needs that switch to list the same person (it only changes the layout of a page that
+  switch already shows). Wide screens only (1360 px and up); narrower, or missing, unreadable or any other shape: today's page.
+  Default off; the owner turns it on for himself.
 - `review_help_video_url` `{ "url": "https://..." }`: the tutorial video behind the client page's "?". Empty or missing
   hides the button. The video is made later by another session.
 - `analytics_hidden` `{ "hidden": false }` brings Analytics back for everyone (session Curtain Seven, 2026-10-17).

@@ -25,6 +25,12 @@ import { currentNav } from './065-core-nav-intake-state.js';
          review_help_video_url      { "url": "..." }: whether the "?" shows on the client page. It opens the public
                                     start page (/start#review) in a new tab; the address itself is no longer played.
                                     Empty or missing hides the button.
+         review_stage_kasper_layout2 { "staff": [...] }: Kasper's Review Session in its second layout (session Easel,
+                                    2026-10-20): every part of the card on stage at once, one always-visible list of
+                                    waiting cards on the left. Same listing rule as review_stage_kasper_staff (id or full
+                                    name of the signed-in staff member), and it only changes the layout of a page that
+                                    switch already shows: it needs review_stage_kasper_staff to list the same person, and
+                                    it applies on wide screens only (1360 px and up). Missing, unreadable or the wrong shape: today's layout.
          workload_calm_staff        { "staff": [...] }: the calm Workload calendar (session Calm, 2026-10-18), only for the
                                     signed-in staff member whose id or full name is listed. A design preview the owner
                                     tweaks before anyone else sees it. Missing, unreadable or the wrong shape: the
@@ -34,10 +40,10 @@ import { currentNav } from './065-core-nav-intake-state.js';
                                     { "hidden": true } or any other shape: Analytics is hidden (owner, 2026-10-17
                                     23:20, session Curtain Seven). Read at boot, in the same request as the switches.
        The lists live only in the database, never in this repository. */
-    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff'];
+    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2'];
     const RS_FLAG_TIMEOUT_MS = 4000;
     const RS_FLAG_RETRY_MS = 30000;
-    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), help: '', analytics: false };
+    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), layout2: new Set(), help: '', analytics: false };
     let _rsFlagPromise = null;
     let _rsFlagTriedAt = 0;
     let _rsFlagFailed = false;
@@ -52,6 +58,8 @@ import { currentNav } from './065-core-nav-intake-state.js';
         const staff = okObj(s) && Array.isArray(s.staff) ? s.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
         const w = by.workload_calm_staff;
         const calm = okObj(w) && Array.isArray(w.staff) ? w.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
+        const l2 = by.review_stage_kasper_layout2;
+        const layout2 = okObj(l2) && Array.isArray(l2.staff) ? l2.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
         const h = by.review_help_video_url;
         const help = okObj(h) && typeof h.url === 'string' && /^https:\/\//i.test(h.url.trim()) ? h.url.trim() : '';
         const a = by.analytics_hidden;
@@ -61,6 +69,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
             clients: new Set(members.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
             staff: new Set(staff),
             calm: new Set(calm),
+            layout2: new Set(layout2),
             help,
             // Only the exact { "hidden": false } shows Analytics.
             analytics: okObj(a) && a.hidden === false,
@@ -78,7 +87,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
             if (!Array.isArray(rows)) throw new Error('shape');
             const next = _rsParse(rows);
             // Analytics shown, or hidden where this browser last saw it shown: the open page draws again too.
-            const changed = next.all || next.clients.size || next.staff.size || next.calm.size || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
+            const changed = next.all || next.clients.size || next.staff.size || next.calm.size || next.layout2.size || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
             _rsFlags = next;
             _rsHintSave(next);
             _wlCalmHintSave(next);
@@ -87,7 +96,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
             // Something switched on: the open page draws again, now as the new page.
             if (changed) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
         } catch (e) {
-            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), help: '', analytics: false };
+            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), layout2: new Set(), help: '', analytics: false };
             _rsFlagFailed = true;
             _rsAnalyticsSync();
             _rsFlagPromise = null;
@@ -302,6 +311,12 @@ import { currentNav } from './065-core-nav-intake-state.js';
         if (!m) return false;
         const id = String(m.id || '').trim().toLowerCase(), name = String(m.name || '').trim().toLowerCase();
         return (!!id && _rsFlags.staff.has(id)) || (!!name && _rsFlags.staff.has(name));
+    }
+    // Kasper's second layout (all parts at once, a list on the left): only where his Review Session is already on, and
+    // only for the staff member review_stage_kasper_layout2 names. Until both are read the answer is no: today's layout.
+    function svRsKasperLayout2On() {
+        if (!svRsKasperOn() || !_rsFlags.layout2.size) return false;
+        return _rsListed(_rsFlags.layout2);
     }
     /* THE CALM WORKLOAD CALENDAR (session Calm, 2026-10-18): on only for the staff member workload_calm_staff names, by
        id or full name, exactly as Kasper's switch above. Until the switch has been read, or the server has said who is
@@ -538,4 +553,4 @@ import { currentNav } from './065-core-nav-intake-state.js';
         if (document.getElementById('kasperContent')) svRsKasperHeadSync();
         if (document.getElementById('kasperReviewBody')) _kasperPaintReview();
     });
-export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };
+export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLayout2On, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };

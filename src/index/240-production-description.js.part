@@ -1761,6 +1761,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
           if (now) done(); else _prodDescLinkPop.timer = setTimeout(done, 250);
         }
         function _prodDescLinkPopHideSoon() { _prodDescLinkPopHide(false); }
+        // PORT-DELTA: the wired page closes a keyboard-opened view card on focus-out (the artifact left it open).
         function _prodDescLinkPopWire() {
           if (_prodDescLinkPop.wired || typeof document === 'undefined') return;
           _prodDescLinkPop.wired = true;
@@ -1781,6 +1782,14 @@ import { _prodRender } from './260-production-refresh-boot.js';
           document.addEventListener('focusin', event => {
             const anchor = event.target && event.target.closest ? event.target.closest(PROD_DESC_LINK_SCOPE + ' a') : null;
             if (anchor && !_prodDescLinkPop.editing) _prodDescLinkPopShow(anchor, false);
+          });
+          /* A view card opened by keyboard focus closes when focus leaves the link
+             (unless it moves into the card itself, or the card is being edited). */
+          document.addEventListener('focusout', event => {
+            const anchor = event.target && event.target.closest ? event.target.closest(PROD_DESC_LINK_SCOPE + ' a') : null;
+            if (!anchor || _prodDescLinkPop.editing || _prodDescLinkPop.anchor !== anchor) return;
+            if (event.relatedTarget && _prodDescLinkPop.el && _prodDescLinkPop.el.contains(event.relatedTarget)) return;
+            _prodDescLinkPopHideSoon();
           });
           document.addEventListener('mousedown', event => {
             if (!_prodDescLinkPop.el || _prodDescLinkPop.el.hidden) return;

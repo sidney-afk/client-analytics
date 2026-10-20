@@ -123,9 +123,11 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             /* The link card is mounted on <body>, outside #prodRoot, so a field
                focused inside it fails the `root.contains` test below -- yet a
                repaint replaces the link the card is editing, and its Apply then
-               finds the link detached and drops the edit. An open card counts. */
+               finds the link detached and drops the edit. Only a card in EDIT mode counts:
+               a view-only card (opened by hover or keyboard focus) edits nothing and
+               must not freeze the refresh. */
             const linkCard = document.getElementById('prodDescLinkPop');
-            if (linkCard && !linkCard.hidden) return true;
+            if (linkCard && !linkCard.hidden && linkCard.classList.contains('is-editing')) return true;
             const el = document.activeElement;
             if (!el) return false;
             const typing = el.tagName === 'INPUT'

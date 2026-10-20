@@ -1610,7 +1610,12 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     expect((await page.locator('#prodDescLinkPop .prod-linkpop-url').textContent()) === 'linked.example'
       && await page.locator('#prodDescLinkPop [data-prod-linkpop="edit"]').isVisible(),
     'hovering a link did not show its card with Edit');
+    /* A view-only card must not freeze the background refresh; an editing one must. */
+    expect(await page.evaluate(() => { const ed = document.activeElement; ed.blur(); const busy = _prodRefreshBusy(); ed.focus(); return busy; }) === false,
+      'a view-only link card made the Production refresh busy');
     await page.locator('#prodDescLinkPop [data-prod-linkpop="edit"]').click();
+    expect(await page.evaluate(() => { const ed = document.activeElement; ed.blur(); const busy = _prodRefreshBusy(); ed.focus(); return busy; }) === true,
+      'a link card in edit mode did not make the Production refresh busy');
     await page.locator('#prodDescLinkPop [data-prod-linkpop-text]').fill('the brief');
     await page.locator('#prodDescLinkPop [data-prod-linkpop-href]').fill('https://brief.example/x');
     await page.locator('#prodDescLinkPop .prod-linkpop-apply').click();
@@ -1620,6 +1625,13 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     expect(/\[the brief\]\(https:\/\/brief\.example\/x\) https:\/\/example\.com\/page$/.test(linkedDraft)
       && await page.locator('#prodDescLinkPop').isHidden(),
     'editing a link through its card did not rewrite the Markdown: ' + JSON.stringify(linkedDraft));
+    // A view card opened by keyboard focus closes when focus leaves the link.
+    await page.evaluate(() => {
+      const a = document.querySelector('[data-prod-description-control="rich"] a');
+      _prodDescLinkPopShow(a, false);
+      a.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+    });
+    await page.waitForSelector('#prodDescLinkPop', { state: 'hidden', timeout: 10000 });
     // A background render keeps the caret and does not move the pane.
     phase('inplace_render');
     await page.evaluate(() => {

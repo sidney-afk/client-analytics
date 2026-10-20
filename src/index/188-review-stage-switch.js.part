@@ -354,16 +354,18 @@ import { currentNav } from './065-core-nav-intake-state.js';
         if (_isClientLink) return false;
         _rsPrime();
         if (_rsFlags.loaded) return _rsFlags.fast.size > 0 && _rsListed(_rsFlags.fast);
-        return _rsKasperFastHintHas();
+        // An unreadable switch is an answer of no for this visit; the hint stays for the next one.
+        return !_rsFlagFailed && _rsKasperFastHintHas();
     }
-    // Called once at boot, after the server has said who is signed in: on Kasper's tab, start the slow parts now (the
+    // Called once at boot (260), after the server has said who is signed in and the route is read: on Kasper's tab, start the slow parts now (the
     // review page's code and the player's switch) instead of when the first card paints after the list has loaded.
-    function svRsKasperBoot() {
+    function svRsKasperBoot(hashRaw, stateNav) {
         try {
             if (_isClientLink || !svRsKasperFast()) return;
-            // Where this page is about to open: the address's own route, else where the last visit left off (the boot's own order).
-            const hash = String(location.hash || '').replace(/^#/, '').toLowerCase();
-            const nav = hash ? hash.split('/')[0] : String((history.state && history.state.nav) || localStorage.getItem('syncview_nav') || '');
+            // Where this page is about to open: the address's own route, else the tab a reload keeps in the history entry.
+            // Never the saved tab: a bare address opens Today whatever the last visit used.
+            const hash = String(hashRaw || '').toLowerCase();
+            const nav = hash ? hash.split('/')[0] : String(stateNav || '');
             if (nav !== 'kasper') return;
             svArea('reviewstage').catch(() => {});
             svFrameFlagWait(0);

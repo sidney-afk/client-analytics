@@ -735,6 +735,8 @@ async function startTimes(browser, origin, label) {
       await page.locator(ICON).hover(); await sleep(400);
       // The page issued both reads from the hover (seen at its own fetch, so it does not depend on how late a loaded
       // runner hands each request to the route), then wait until both have arrived at the fixture before pressing.
+      // The 120 ms hover timer can run late on a CPU-starved renderer: wait (bounded) for the page to issue both reads before snapshotting.
+      await page.waitForFunction(() => window.__fvIssued.length >= 2, null, { timeout: 5000 }).catch(() => {});
       const issued = await page.evaluate(() => window.__fvIssued.slice());
       expect(issued.includes('video') && issued.includes('comments'), `fast start: the hover itself issues the video read and the comments read (${issued.join(',')})`);
       const until = Date.now() + 8000;

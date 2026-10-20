@@ -467,9 +467,15 @@ async function auxiliary(browser, origin, role, width) {
     const id = await door.getAttribute('data-comments-btn');
     await sleep(1500);
     await t.page.evaluate(() => { window.__rerendered = 0; document.addEventListener('pointerdown', () => { window.__rerendered++; _calRenderBody(); }, { capture: true, once: true }); });
-    const box = await openNotes(t, id);
+    await t.page.evaluate(() => { window.__opened = 0; const f = window.openCalComments; window.openCalComments = function () { window.__opened++; return f.apply(this, arguments); }; });
+    // One real click, no retry: the app itself must keep the press alive across the re-render.
+    await door.click();
+    const box = t.page.locator('#calCommentComposer');
+    await box.waitFor({ state: 'visible', timeout: 3000 });
+    await sleep(400);
     assert.equal(await t.page.evaluate(() => window.__rerendered), 1, 'the forced re-render did not run');
-    assert.ok(await box.isVisible(), 'Notes dialog did not open after the dropped click');
+    assert.equal(await t.page.evaluate(() => window.__opened), 1, 'the Notes door action must fire exactly once');
+    assert.ok(await box.isVisible(), 'Notes dialog did not open on the first click');
   });
   if (role === 'client') await runCase(browser, origin, role, width, 'Sheet Notes dialog reply and delete', async t => {
     await t.page.evaluate(() => onCalViewChange('organizer'));

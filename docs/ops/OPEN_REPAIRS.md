@@ -33795,3 +33795,12 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 - **Proven.** New case with the old single click: fails on webkit and chromium. With the helper: passes on webkit, chromium, firefox. Before the change I could not reproduce the CI failure in 12 runs of the single case plus 6 full client 1920 dialog runs side by side with three times the CPU count (all green); after, 6 full client 1920 dialog runs at once: 36 of 36 passed in each.
 
 **Way back:** revert the pull request.
+
+## 463. [2026-10-20, BUILT, NOT MERGED] A first click on a Sheet card door could be dropped by a body re-render (session Latch)
+
+- **Asked by:** the supervisor, following #2257 (OPEN_REPAIRS 462), which made the test click again but left the app dropping the click.
+- **Cause.** The Calendar Sheet body (`_calRenderBody`) repaints a few times 80 to 150 ms after the doors first appear. A press whose mouse-down lands before a repaint and whose release lands after it is dropped by the browser, because the pressed element was replaced. A real person's first click on a card's Notes door right after the Sheet paints could do nothing; a second click worked.
+- **Changed.** `src/index/160-calendar-organize-ui.js.part`: while a press that began inside `#calBody` is still down, `_calRenderBody` does not repaint. It remembers one merged request (scroll kept only if every caller asked for it, skip-if-unchanged only if every caller asked for it) and runs it once, just after the click following the release. A `patchOnly` caller gets its usual "false, defer" answer. A press that never reports a release (pointer cancel, drag end, window blur) ends the hold, and a 2.5 s timer is the last backstop. No door action is replayed or re-dispatched: the original click lands on the original element, so it fires exactly once. Focus and caret preservation (`_calRenderNativePostChoice`, #2247) is untouched because the repaint still runs the same way, only later.
+- **Proven.** `test/review-stage-gauntlet3-browser.js`, case "Sheet Notes door click lost to a re-render": now one real click, no retry, a repaint forced on the press, asserting the dialog opens and the open action ran exactly once. Before the change: 0 of 9 pass (3 browsers by 3 widths). After: 9 of 9.
+
+**Way back:** revert the pull request.

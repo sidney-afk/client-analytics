@@ -1738,9 +1738,48 @@ import { svRsCalSync, svRsToolsAdopt, svRsToolsDrop } from './188-review-stage-s
         });
         return { held: held.size, html: shown };
     }
+    /* A press that lands before a body repaint and releases after it is dropped
+       by the browser (the pressed element was replaced), so the first click on
+       a card door right after the Sheet paints could do nothing. While a press
+       that began inside the body is still down, a repaint waits: it runs once,
+       just after the click has been delivered. A patchOnly caller is told
+       false (its usual "defer" answer) and keeps its own retry. */
+    const _calPress = { down: false, pending: null, timer: 0, wired: false };
+    function _calPressEnd() {
+        if (!_calPress.down) return;
+        _calPress.down = false;
+        clearTimeout(_calPress.timer);
+        setTimeout(_calPressFlush, 0);   // after the click that follows the release
+    }
+    function _calPressFlush() {
+        if (_calPress.down || !_calPress.pending) return;
+        const o = _calPress.pending; _calPress.pending = null;
+        try { _calRenderBody(o); } catch (e) { console.error(e); }
+    }
+    function _calPressWire() {
+        if (_calPress.wired) return;
+        _calPress.wired = true;
+        document.addEventListener('pointerdown', (e) => {
+            const b = document.getElementById('calBody');
+            if (!b || !(e.target instanceof Node) || !b.contains(e.target)) return;
+            _calPress.down = true;
+            clearTimeout(_calPress.timer);
+            _calPress.timer = setTimeout(_calPressEnd, 2500);   // never hold a repaint for a press that never reports its release
+        }, true);
+        ['pointerup', 'pointercancel', 'dragend', 'blur'].forEach(n => (n === 'blur' ? window : document).addEventListener(n, _calPressEnd, true));
+    }
     function _calRenderBody(opts) {
         const body = document.getElementById('calBody');
         if (!body) return;
+        _calPressWire();
+        if (_calPress.down && body.isConnected) {
+            const prev = _calPress.pending, o = opts || {};
+            _calPress.pending = {
+                preserveScroll: !!o.preserveScroll && (!prev || !!prev.preserveScroll),
+                skipIfUnchanged: !!o.skipIfUnchanged && (!prev || !!prev.skipIfUnchanged),
+            };
+            return o.patchOnly ? false : undefined;
+        }
         svRsCalSync();   // the new review page (188) shows or steps aside with every paint
         const lastPaint = _calLastBodyPaint;
         _calLastBodyPaint = { el: null, view: null, html: null };   // early returns below repaint without it

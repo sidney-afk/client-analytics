@@ -2621,7 +2621,7 @@
         .sv-note-outbox button.sv-note-outbox-discard { font-weight: 500; color: var(--text-secondary); }
         .is-outbox-failed.cal-cm-row, .is-outbox-failed.cal-review-comment, .msg-b.is-outbox-failed { box-shadow: inset 2px 0 0 var(--dn); }
         .cal-cm-actions { position: absolute; right: 16px; top: 4px; display: flex; gap: 2px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 2px; box-shadow: 0 2px 6px var(--sv-shadow-rgba-0-0-0-0_06); opacity: 0; pointer-events: none; transition: opacity 0.12s; }
-        .cal-cm-row:hover .cal-cm-actions, .cal-cm-row:focus-within .cal-cm-actions { opacity: 1; pointer-events: auto; }
+        .cal-cm-row:hover .cal-cm-actions, .cal-cm-row:focus-within .cal-cm-actions { opacity: 1; }
         .cal-cm-action { background: transparent; border: none; border-radius: 5px; padding: 5px 7px; cursor: pointer; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; font-family: inherit; }
         .cal-cm-action:hover { background: var(--bg); color: var(--text-primary); }
         .cal-cm-action:disabled { opacity: 0.45; cursor: progress; }
@@ -8638,8 +8638,9 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
  .workload-view.wl-calm .wl-deadline-tag.is-green { color: var(--sv-fg-16a34a); --wl-proximity-dot: var(--wl-proximity-green); }
  .workload-view.wl-calm .wl-deadline-tag { font-weight: 800; }
  @media (hover: hover) {
-   .workload-view.wl-calm .wl-calm-row .wl-calm-auto { display: none; }
-   .workload-view.wl-calm .wl-calm-row:hover .wl-calm-auto, .workload-view.wl-calm .wl-calm-row:focus-within .wl-calm-auto { display: inline-flex; }
+   .workload-view.wl-calm .wl-calm-row { position: relative; }
+   .workload-view.wl-calm .wl-calm-row .wl-calm-auto { position: absolute; right: 0; bottom: 0; opacity: 0; background: var(--bg); transition: opacity 0.1s; }
+   .workload-view.wl-calm .wl-calm-row:hover .wl-calm-auto, .workload-view.wl-calm .wl-calm-row:focus-within .wl-calm-auto { opacity: 1; }
  }
  /* Needs assignment / needs a work day: one quiet list on the same panel, the two joined by a hairline */
  .workload-view.wl-calm .workload-needs-assignment { border: 1px solid var(--wl-calm-hair); background: var(--white); border-radius: 14px; padding: 2px 16px; margin: 0 0 12px; }

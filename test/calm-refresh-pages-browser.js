@@ -24,6 +24,32 @@ async function workload(calm) {
       renderWorkloadAll();
       await new Promise(res => setTimeout(res, 300));
       const kept = [...document.querySelectorAll(sel)].filter(e => e.__m).length;
+      // A control removed ahead of the focused one: the focused node must stay
+      // the same person's (matched by id, not by position).
+      let keyed = null;
+      const body0 = document.getElementById('wlBody');
+      for (const el of body0.querySelectorAll('[data-wl-assignee-id]')) {
+        const card = el.closest('.workload-day-card');
+        if (!card || el !== card.querySelector('[data-wl-assignee-id]')) continue;
+        const sibs = [...card.parentElement.children].filter(c => c.classList.contains('workload-day-card'));
+        if (sibs.length >= 2 && sibs[1] === card) { keyed = { el, first: sibs[0] }; break; }
+      }
+      let order = null;
+      if (keyed) {
+        const focusTarget = keyed.el.matches('button,a,[tabindex]') ? keyed.el : (keyed.el.querySelector('button,a,[tabindex]') || keyed.el);
+        if (!focusTarget.hasAttribute('tabindex') && !focusTarget.matches('button,a')) focusTarget.setAttribute('tabindex', '0');
+        focusTarget.focus();
+        const focusedBefore = document.activeElement === focusTarget;
+        const id = keyed.el.getAttribute('data-wl-assignee-id');
+        const t = document.createElement('template');
+        t.innerHTML = body0.innerHTML;
+        const path = []; for (let n = keyed.first; n && n !== body0; n = n.parentElement) path.unshift([...n.parentElement.children].indexOf(n));
+        let g = t.content; for (const i of path) g = g.children[i];
+        g.remove();
+        svCalmHtml(body0, t.innerHTML);
+        order = { focusedBefore, tag: focusTarget.tagName, sameNode: document.activeElement === focusTarget, sameIssue: document.activeElement.getAttribute('data-wl-assignee-id') === id };
+      }
+      renderWorkloadAll();
       // A real change: the board must equal a fresh drawing of the same state.
       wlState.team = 'video';
       renderWorkloadAll();
@@ -34,11 +60,12 @@ async function workload(calm) {
       document.getElementById('wlOverviewRows').innerHTML = '';
       renderWorkloadAll();
       const fresh = strip(body) + '|' + strip(document.getElementById('wlOverviewRows'));
-      return { total, kept, same: patched === fresh };
+      return { total, kept, order, same: patched === fresh };
     });
     const label = calm ? 'calm' : 'classic';
     ok(r.total > 100, label + ' Workload has a real board (' + r.total + ' nodes)');
     ok(r.kept === r.total, label + ' Workload: an unchanged refresh keeps every node (' + r.kept + ' of ' + r.total + ')');
+    ok(r.order && r.order.sameNode && r.order.sameIssue, label + ' Workload: a control removed ahead of the focused one leaves focus on the same person (' + JSON.stringify(r.order) + ')');
     ok(r.same, label + ' Workload: a refresh that changes something equals a fresh drawing');
   } finally { await h.close(); }
 }

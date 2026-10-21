@@ -1335,7 +1335,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   }
 
   if (name === "client_record") return await clientRecord(recordDeps(), String(args.client || ""));
-  if (name === "studio_action") return await studioAction({ reviewNotes: videoCardDeps }, args.action, args.args);
+  if (name === "studio_action") return await studioAction({ reviewNotes: videoCardDeps, tools: () => sharedToolDeps(author) }, args.action, args.args);
   if (name === "feedback_note") return await feedbackNote(recordDeps(), args, author);
   if (name === "feedback_notes") return await feedbackNotes(recordDeps(), args, { member, teamLink: isTeamLink(member) });
 
@@ -1415,6 +1415,33 @@ function studioStore() {
 
 // The filming pipeline record and notes (fp_files, fp_batch_counter,
 // fp_feedback_notes: service role only). client_record never reads a body.
+function sharedToolDeps(author: string) {
+  const fail = (what: string, e: { message?: string } | null) => new Error(`Could not ${what}: ${e?.message || "no answer"}`);
+  return {
+    author,
+    get: async (name: string) => {
+      const { data, error } = await db().from("hf_tools").select("*").eq("name", name).maybeSingle();
+      if (error) throw fail("read the shared tools", error);
+      return data;
+    },
+    insert: async (row: JsonMap) => {
+      const { error } = await db().from("hf_tools").insert(row);
+      if (error) throw fail("save the shared tool", error);
+    },
+    update: async (name: string, patch: JsonMap) => {
+      const { error } = await db().from("hf_tools").update(patch).eq("name", name);
+      if (error) throw fail("update the shared tool", error);
+    },
+    list: async (client: string | null) => {
+      let q = db().from("hf_tools").select("name,what,use,client,member,status,created_at,updated_at");
+      if (client) q = q.ilike("client", client);
+      const { data, error } = await q.order("updated_at", { ascending: false }).limit(200);
+      if (error) throw fail("read the shared tools", error);
+      return data || [];
+    },
+  };
+}
+
 function recordDeps() {
   const fail = (what: string, e: { message?: string } | null) => new Error(`Could not read ${what}: ${e?.message || "no answer"}`);
   return {

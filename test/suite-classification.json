@@ -1865,6 +1865,14 @@
       "ci": "representative"
     },
     {
+      "file": "calm-refresh-pages-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared Workload and Production fixtures: fictional client, issues and staff members), no hosted credentials and no live data. Checks that a background refresh rebuilds nothing on Workload (calm and classic) and Production when nothing changed, keeps the scrolled list and focused button, and that a Workload refresh with a real change equals a fresh drawing.",
+      "reproduce": "node test/calm-refresh-pages-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-staff-layout-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

@@ -517,6 +517,7 @@ jobs:
           Staff pages first paint, frame by frame (header never moves, no bare Loading line, phone title bar first)|node test/staff-first-paint-browser.js
           A Kasper sub-tab address opens even when the later script files are slow|node test/kasper-deep-link-split-race-browser.js
           A background refresh never moves the review pages (scrolled list and conversation stay, nothing rebuilt when nothing changed, only the changed card replaced, the editor bell beside the title)|node test/review-calm-refresh-browser.js
+          A background refresh rebuilds nothing on Workload and Production when nothing changed (list scroll and focus stay, a real change equals a fresh drawing)|node test/calm-refresh-pages-browser.js
           New review page behind its switches (client link, SMM Review tab, Kasper Review Session; old page when off)|node test/review-stage-browser.js
           Finish reviewing draws the eye once every part is answered (slow breathing ring, still with reduced motion)|node test/review-stage-finish-browser.js
           Client review message box and caption edits (part chips, comment or change request, the caption itself changes, thin scrollbars)|node test/review-stage-client-composer-browser.js

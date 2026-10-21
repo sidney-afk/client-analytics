@@ -666,37 +666,85 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
        the differences are written: a row is matched by its key (data-k, or
        data-tdy-key on controls), other nodes by tag in order. An unchanged
        row keeps its node and is never touched. */
+    const TDY_KEY_ATTRS = ['data-wl-issue-id', 'data-wl-issue-open', 'data-wl-due-issue', 'data-wl-plan-clear', 'data-wl-assignee-id', 'data-wl-parent-id', 'data-wl-calm-key', 'data-wl-day'];
     function _tdyKey(n) {
-        return n.nodeType === 1 ? (n.getAttribute('data-k') || n.getAttribute('data-tdy-key') || '') : '';
+        if (n.nodeType !== 1) return '';
+        const own = n.getAttribute('data-k') || n.getAttribute('data-tdy-key');
+        if (own) return own;
+        /* Workload cards, rows and their controls: matched by what they ARE
+           (the issue, the person, the day), so a card that moves keeps its
+           node and a focused control never turns into another issue's. */
+        for (const a of TDY_KEY_ATTRS) {
+            const v = n.getAttribute(a);
+            if (v) return a + '=' + v;
+        }
+        /* Wrappers that carry no id themselves take the first id inside them. */
+        if (n.classList.contains('workload-plan-item-wrap')) {
+            const c = n.querySelector('[data-wl-issue-id]');
+            if (c) return 'wrap=' + c.getAttribute('data-wl-issue-id');
+        } else if (n.classList.contains('workload-day-card')) {
+            const c = n.querySelector('[data-wl-assignee-id]');
+            if (c) return 'card=' + c.getAttribute('data-wl-assignee-id');
+        }
+        return '';
     }
     function _tdySameKind(a, b) {
         return a.nodeType === b.nodeType && (a.nodeType !== 1 || (a.tagName === b.tagName && _tdyKey(a) === _tdyKey(b)));
     }
     function _tdyMorphNode(a, b) {
         if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
-        for (const at of [...a.attributes]) if (!b.hasAttribute(at.name)) a.removeAttribute(at.name);
-        for (const at of [...b.attributes]) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
+        /* A section the person opened or closed stays as they left it:
+           `open` is theirs, not the page's. */
+        const keepOpen = a.tagName === 'DETAILS';
+        for (const at of [...a.attributes]) if (!b.hasAttribute(at.name) && !(keepOpen && at.name === 'open')) a.removeAttribute(at.name);
+        for (const at of [...b.attributes]) {
+            if (keepOpen && at.name === 'open') continue;
+            if (a.getAttribute(at.name) !== at.value) {
+                /* An input whose saved value changed takes the new value too
+                   (the attribute alone no longer moves a value that was ever
+                   typed or picked), unless the person is in it right now. */
+                if (at.name === 'value' && a.tagName === 'INPUT' && a !== document.activeElement && !/^(checkbox|radio|file)$/i.test(a.type)) a.value = at.value;
+                a.setAttribute(at.name, at.value);
+            }
+        }
         _tdyMorphChildren(a, b);
     }
     function _tdyMorphChildren(from, to) {
         const old = [...from.childNodes];
         const keyed = new Map();
         const plain = [];
-        old.forEach(n => { const k = _tdyKey(n); if (k) keyed.set(k, n); else plain.push(n); });
+        old.forEach(n => { const k = _tdyKey(n); if (k) { if (!keyed.has(k)) keyed.set(k, []); keyed.get(k).push(n); } else plain.push(n); });
         let pi = 0;
-        let ref = from.firstChild;
+        /* First decide which old node answers each new one, then drop the old
+           nodes nothing answers to, THEN place what is left. Dropping first
+           matters: moving a node that is still in the page (to make room
+           before a stale one) takes focus away from it. */
+        const plan = [];
+        const used = new Set();
         for (const nn of [...to.childNodes]) {
             const k = _tdyKey(nn);
             let match = null;
-            if (k) { const o = keyed.get(k); if (o && _tdySameKind(o, nn)) { match = o; keyed.delete(k); } }
+            if (k) { const q = keyed.get(k); const at = q ? q.findIndex(o => _tdySameKind(o, nn)) : -1; if (at >= 0) match = q.splice(at, 1)[0]; }
             else {
                 for (let j = pi; j < plain.length; j++) if (_tdySameKind(plain[j], nn)) { match = plain[j]; pi = j + 1; break; }
             }
+            if (match) used.add(match);
+            plan.push([match, nn]);
+        }
+        for (const n of old) if (!used.has(n)) from.removeChild(n);
+        let ref = from.firstChild;
+        /* Moving a node that holds focus drops the focus; put it back. */
+        const heldFocus = from.contains(document.activeElement) && document.activeElement !== document.body ? document.activeElement : null;
+        for (const [found, nn] of plan) {
+            let match = found;
             if (match) _tdyMorphNode(match, nn); else match = nn;
             if (match === ref) ref = ref.nextSibling;
             else from.insertBefore(match, ref);
         }
         while (ref) { const next = ref.nextSibling; from.removeChild(ref); ref = next; }
+        if (heldFocus && heldFocus.isConnected && document.activeElement !== heldFocus) {
+            try { heldFocus.focus({ preventScroll: true }); } catch (e) {}
+        }
     }
     function _tdyPatch(root, html) {
         if (_tdyBootNodes) {
@@ -708,6 +756,21 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         const t = document.createElement('template');
         t.innerHTML = html;
         _tdyMorphChildren(root, t.content);
+    }
+    /* The same in-place update for any other page whose background refresh
+       redraws a whole region (owner, 2026-10-20: a refresh must never move or
+       flicker what is on screen). Only what differs is written; a node that
+       did not change keeps its place, focus, hover and scroll. */
+    function svCalmHtml(el, html) {
+        const t = document.createElement('template');
+        t.innerHTML = html;
+        _tdyMorphChildren(el, t.content);
+    }
+    /* Write a region: in place when it already holds a drawing, plainly when it
+       is empty (first draw) or holds a loading shape. */
+    function svCalmSet(el, html) {
+        if (el.firstElementChild && !el.querySelector('.sv-skeleton-line,.sv-skeleton-pill,.wl-signed-out,.workload-error')) svCalmHtml(el, html);
+        else el.innerHTML = html;
     }
     function _tdyPaint() {
         _tdyDropOldDay();
@@ -974,6 +1037,6 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         mountTodayView
     });
 export {
-  _tdyPurgeSensitiveState, _tdyTeardown, mountTodayView, renderTodayView, tdyMyClientNames,
+  _tdyPurgeSensitiveState, _tdyTeardown, mountTodayView, renderTodayView, svCalmHtml, svCalmSet, tdyMyClientNames,
   tdySetClientsInfoReady
 };

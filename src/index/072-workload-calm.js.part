@@ -1,5 +1,6 @@
 import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { wlState } from './066-core-workload-state.js';
+import { svCalmSet } from './097-today.js';
 import { _wlDueWriteInFlight, _wlPlanWriteInFlight, wlLinearEditingEnabled, wlPlanEditingEnabled } from './067-workload-board-source.js';
 import {
   wlDeadlineTagHtml, wlIsTweaksNeeded, wlIssueDragHandleHtml, wlPlanOriginHtml, wlWorkloadBadgeHtml
@@ -220,7 +221,7 @@ import { svWorkloadCalmOn, svWorkloadCalmPending } from './188-review-stage-swit
                 ? '<a class="wl-calm-loose-item" href="' + wlEscape(url) + '" target="_blank" rel="noopener noreferrer" aria-label="' + wlEscape(accessible) + '">' + dot + label + '</a>'
                 : '<span class="wl-calm-loose-item">' + dot + label + '</span>';
         };
-        chipsEl.innerHTML = clients.map(client => {
+        svCalmSet(chipsEl, clients.map(client => {
             const parents = [...client.parents.values()];
             const many = parents.length > 1;
             const body = parents.map(group => {
@@ -233,7 +234,7 @@ import { svWorkloadCalmOn, svWorkloadCalmPending } from './188-review-stage-swit
             const head = '<div class="wl-calm-loose-head"><span class="wl-calm-loose-client">' + wlEscape(client.clientName || 'No client') + '</span>'
                 + '<span class="wl-calm-loose-n">' + client.subs.length + '</span>' + (!many && parents[0] ? link(parents[0].parent) : '') + '</div>';
             return '<section class="wl-calm-loose-block" aria-label="' + wlEscape(client.clientName || 'No client') + '">' + head + body + '</section>';
-        }).join('');
+        }).join(''));
         chipsEl.__wlLooseSig = '';
         const count = stripEl.querySelector('[data-wl-calm-count]');
         if (count) count.textContent = String(filtered.length);

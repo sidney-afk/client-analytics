@@ -2621,7 +2621,7 @@
         .sv-note-outbox button.sv-note-outbox-discard { font-weight: 500; color: var(--text-secondary); }
         .is-outbox-failed.cal-cm-row, .is-outbox-failed.cal-review-comment, .msg-b.is-outbox-failed { box-shadow: inset 2px 0 0 var(--dn); }
         .cal-cm-actions { position: absolute; right: 16px; top: 4px; display: flex; gap: 2px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 2px; box-shadow: 0 2px 6px var(--sv-shadow-rgba-0-0-0-0_06); opacity: 0; pointer-events: none; transition: opacity 0.12s; }
-        .cal-cm-row:hover .cal-cm-actions, .cal-cm-row:focus-within .cal-cm-actions { opacity: 1; }
+        .cal-cm-row:hover .cal-cm-actions, .cal-cm-row:focus-within .cal-cm-actions { opacity: 1; pointer-events: auto; }
         .cal-cm-action { background: transparent; border: none; border-radius: 5px; padding: 5px 7px; cursor: pointer; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; font-family: inherit; }
         .cal-cm-action:hover { background: var(--bg); color: var(--text-primary); }
         .cal-cm-action:disabled { opacity: 0.45; cursor: progress; }

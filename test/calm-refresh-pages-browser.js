@@ -118,8 +118,18 @@ async function production() {
     await U.openProduction(page, server.address().port, '/?prod=1', { allowSkeleton: true });
     await page.waitForTimeout(2500);
     const r = await page.evaluate(async () => {
-      _prodRender();
-      await new Promise(res => setTimeout(res, 300));
+      // Let the page settle first (a slow machine is still loading): draw
+      // until two draws in a row come out the same.
+      let prevKey = null;
+      let settleDiff = '';
+      for (let i = 0; i < 40; i++) {
+        _prodRender();
+        await new Promise(res => setTimeout(res, 400));
+        const k = document.getElementById('prodRoot').__prodKey;
+        if (k && k === prevKey) break;
+        if (i === 39 && k && prevKey) { let d = 0; while (k[d] === prevKey[d]) d++; settleDiff = 'at ' + d + ': ' + prevKey.slice(Math.max(0, d - 60), d + 60) + ' => ' + k.slice(Math.max(0, d - 60), d + 60); }
+        prevKey = k;
+      }
       const sel = '#prodRoot *';
       document.querySelectorAll(sel).forEach(e => { e.__m = 1; });
       const total = document.querySelectorAll(sel).length;
@@ -134,10 +144,11 @@ async function production() {
         kept: [...document.querySelectorAll(sel)].filter(e => e.__m).length,
         scroll: document.querySelector('.prod-listwrap') ? document.querySelector('.prod-listwrap').scrollTop : -1,
         focusKept: document.activeElement === btn,
+        settleDiff,
       };
     });
     ok(r.total > 100, 'Production has a real list (' + r.total + ' nodes)');
-    ok(r.kept === r.total, 'Production: an unchanged refresh keeps every node (' + r.kept + ' of ' + r.total + ')');
+    ok(r.kept === r.total, 'Production: an unchanged refresh keeps every node (' + r.kept + ' of ' + r.total + ') ' + r.settleDiff);
     ok(r.scroll === 200, 'Production: the list stays where it was scrolled (' + r.scroll + ')');
     ok(r.focusKept, 'Production: the focused button stays focused');
   } finally { await browser.close(); server.close(); }

@@ -821,7 +821,19 @@ import { svRsKasperFast, svRsKasperOn, svRsKasperPaint, svRsKasperPending } from
         if (svRsKasperFast()) _kasperWarmFirstVideo(urgent.concat(waiting));
         if (svRsKasperPaint({ urgent, waiting, tweaks })) {
             if (_kasperState.lastLoaded && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
-            body.innerHTML = _kasperRenderFreshnessNote() + _kasperRenderSaveAlerts() + _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + _kasperRenderUnlistedNotice() + _kasperRenderQueueErrorNotice();
+            // The notices above the page are drawn again on every refresh, and the freshness note fades in each time it is
+            // written, which read as a flicker. The notices are written only when they changed; a new "Updated" time only
+            // changes the words of the note that is already there.
+            const fresh = _kasperRenderFreshnessNote();
+            const rest = _kasperRenderSaveAlerts() + _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + _kasperRenderUnlistedNotice() + _kasperRenderQueueErrorNotice();
+            const freshEl = body.querySelector('[data-kasper-fresh]');
+            if (body.__kRest === rest && !!freshEl === !!fresh && (body.__kNode ? body.firstElementChild === body.__kNode : body.childElementCount === 0)) {
+                if (freshEl) { const tpl = document.createElement('template'); tpl.innerHTML = fresh; const txt = tpl.content.textContent; if (freshEl.textContent !== txt) freshEl.textContent = txt; }
+            } else {
+                body.innerHTML = fresh + rest;
+                body.__kRest = rest;
+                body.__kNode = body.firstElementChild;
+            }
             return;
         }
         // The switch read is on its way and this person is on the new page's list: a loader, not the old page for a second.

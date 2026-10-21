@@ -8633,9 +8633,10 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
  .workload-view.wl-calm .workload-day-card-name, .workload-view.wl-calm .workload-day-card-chip-name { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
  .workload-view.wl-calm .workload-day-card-chip-main { align-items: flex-start; min-width: 0; }
  .workload-view.wl-calm .workload-day-card-total { font-size: 0.66rem; }
- .workload-view.wl-calm .workload-day-card-total.over-capacity { background: var(--wl-proximity-red); color: var(--sv-fg-fff); border-radius: 999px; padding: 1px 8px; font-weight: 800; }
- .workload-view.wl-calm .workload-day-card-total.over-capacity:hover { background: var(--wl-proximity-red); color: var(--sv-fg-fff); filter: brightness(0.92); }
+ .workload-view.wl-calm .workload-day-card-total.over-capacity { background: var(--wl-overdue-accent); color: var(--wl-status-fg); border-radius: 999px; padding: 1px 8px; font-weight: 800; }
+ .workload-view.wl-calm .workload-day-card-total.over-capacity:hover { background: var(--wl-overdue-accent-hover); color: var(--wl-status-fg); }
  .workload-view.wl-calm .wl-deadline-tag.is-green { color: var(--sv-fg-16a34a); --wl-proximity-dot: var(--wl-proximity-green); }
+ .workload-view.wl-calm .wl-deadline-tag.is-green::before { background: var(--wl-proximity-dot); }
  .workload-view.wl-calm .wl-deadline-tag { font-weight: 800; }
  @media (hover: hover) {
    .workload-view.wl-calm .wl-calm-row { position: relative; }

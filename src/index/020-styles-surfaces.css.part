@@ -8629,6 +8629,20 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
  .workload-view.wl-calm .wl-calm-auto:disabled { opacity: 0.5; cursor: default; }
  .workload-view.wl-calm .wl-calm-auto .wl-plan-origin { color: inherit; }
  .workload-view.wl-calm .wl-calm-auto:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+ /* Manager feedback 2026-10-21: names wrap instead of being cut, the over-capacity count is a solid pill again, the buffer reads at a glance, and "Use automatic plan" only shows when the video is pointed at (always on touch screens). */
+ .workload-view.wl-calm .workload-day-card-name, .workload-view.wl-calm .workload-day-card-chip-name { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+ .workload-view.wl-calm .workload-day-card-chip-main { align-items: flex-start; min-width: 0; }
+ .workload-view.wl-calm .workload-day-card-total { font-size: 0.66rem; }
+ .workload-view.wl-calm .workload-day-card-total.over-capacity { background: var(--wl-overdue-accent); color: var(--wl-status-fg); border-radius: 999px; padding: 1px 8px; font-weight: 800; }
+ .workload-view.wl-calm .workload-day-card-total.over-capacity:hover { background: var(--wl-overdue-accent-hover); color: var(--wl-status-fg); }
+ .workload-view.wl-calm .wl-deadline-tag.is-green { color: var(--sv-fg-16a34a); --wl-proximity-dot: var(--wl-proximity-green); }
+ .workload-view.wl-calm .wl-deadline-tag.is-green::before { background: var(--wl-proximity-dot); }
+ .workload-view.wl-calm .wl-deadline-tag { font-weight: 800; }
+ @media (hover: hover) {
+   .workload-view.wl-calm .wl-calm-row { position: relative; }
+   .workload-view.wl-calm .wl-calm-row .wl-calm-auto { position: absolute; right: 0; bottom: 0; opacity: 0; background: var(--bg); transition: opacity 0.1s; }
+   .workload-view.wl-calm .wl-calm-row:hover .wl-calm-auto, .workload-view.wl-calm .wl-calm-row:focus-within .wl-calm-auto { opacity: 1; }
+ }
  /* Needs assignment / needs a work day: one quiet list on the same panel, the two joined by a hairline */
  .workload-view.wl-calm .workload-needs-assignment { border: 1px solid var(--wl-calm-hair); background: var(--white); border-radius: 14px; padding: 2px 16px; margin: 0 0 12px; }
  .workload-view.wl-calm .workload-needs-assignment.empty { display: none; }

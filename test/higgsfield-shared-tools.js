@@ -60,6 +60,10 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
     '-----BEGIN RSA PRIVATE KEY-----',
     'Authorization: Bearer ' + 'c'.repeat(40),
     'API_KEY=abcdefghijklmnop1234',
+    'HIGGSFIELD_KEY=abcdefghijklmnop1234',
+    'GOOGLE_AI_KEY=abcdefghijklmnop1234',
+    'AWS_SECRET_ACCESS_KEY=abcdefghijklmnop1234',
+    'MY_API_KEY: "abcdefghijklmnop1234"',
     'export SECRET_TOKEN=abcdefghijklmnop1234',
   ];
   for (const k of fakeKeys) {

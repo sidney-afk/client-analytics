@@ -13,9 +13,9 @@ const LIST_LIMIT = 60;
 
 // A bundle that looks like it holds a key is refused before anything is written.
 const SECRET_PATTERNS = [
-  /\b(?:password|passwd|api[_-]?key|secret|token)\w*["']?\s*[:=]\s*["'][^"'\s]{12,}["']/i,
+  /(?:password|passwd|api[_-]?key|secret|token|[_-]key)\w*["']?\s*[:=]\s*["'][^"'\s]{12,}["']/i,
   // Unquoted .env and shell style values: API_KEY=abcdefghijklmnop1234
-  /\b(?:password|passwd|api[_-]?key|secret|token)\w*\s*[:=]\s*[^\s"'`(){}\[\],;]{12,}/i,
+  /(?:password|passwd|api[_-]?key|secret|token|[_-]key)\w*\s*[:=]\s*[^\s"'`(){}\[\],;]{12,}/i,
   /\b(?:sk|pk|rk|ghp|gho|ghs|github_pat|xox[abprs])[-_][A-Za-z0-9_-]{16,}/,
   /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}/,
   /\bAKIA[0-9A-Z]{16}\b/,

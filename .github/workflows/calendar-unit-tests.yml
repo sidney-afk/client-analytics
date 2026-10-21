@@ -76,7 +76,7 @@ jobs:
     # everything. A push to main or a manual run always runs everything. A
     # skipped job reports success, and `calendar-ci-result` at the bottom is the
     # one check that sums the run up.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       browser: ${{ steps.files.outputs.browser }}
@@ -105,7 +105,7 @@ jobs:
     # test/ci-shards-wired.js checks that nothing is dropped or run twice.
     needs: changes
     if: needs.changes.outputs.phone == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # One of the fourteen pull-request runner seats (see the top of this file).
     concurrency:
       group: ${{ github.event_name == 'pull_request' && format('pr-runner-seat-phone-{0}-{1}', matrix.width, matrix.part) || format('calendar-unit-tests-{0}-staff-phone-rules-{1}', github.run_id, strategy.job-index) }}
@@ -158,7 +158,7 @@ jobs:
 
 
   unit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # One of the fourteen pull-request runner seats (see the top of this file).
     concurrency:
       group: ${{ github.event_name == 'pull_request' && format('pr-runner-seat-unit-{0}', matrix.shard) || format('calendar-unit-tests-{0}-unit-{1}', github.run_id, strategy.job-index) }}
@@ -237,7 +237,7 @@ jobs:
     # or a false red. The tree-mode baseline in PRE_FLIP_HEALTH_CHECK.md is the
     # backstop for anything a skipped run would have missed.
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -296,7 +296,7 @@ jobs:
     # parser and the `unit` job is dependency-free. package.json is
     # content-pinned (F27 closure, leave-evidence fingerprint), so acorn is
     # installed into a temp prefix at an exact version and never declared.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -352,7 +352,7 @@ jobs:
     # names every broken suite.
     needs: changes
     if: needs.changes.outputs.browser == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # One of the fourteen pull-request runner seats (see the top of this file).
     concurrency:
       group: ${{ github.event_name == 'pull_request' && format('pr-runner-seat-entry-{0}', matrix.part) || format('calendar-unit-tests-{0}-entry-links-boot-{1}', github.run_id, strategy.job-index) }}
@@ -475,7 +475,7 @@ jobs:
     # fails when a browser test is added that no workflow runs.
     needs: changes
     if: needs.changes.outputs.browser == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # One of the fourteen pull-request runner seats (see the top of this file).
     concurrency:
       group: ${{ github.event_name == 'pull_request' && format('pr-runner-seat-guards-{0}', matrix.part) || format('calendar-unit-tests-{0}-browser-guards-{1}', github.run_id, strategy.job-index) }}
@@ -591,7 +591,7 @@ jobs:
     # loaded with 24 minutes per pull request any more.
     needs: changes
     if: needs.changes.outputs.review == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     concurrency:
       group: ${{ github.event_name == 'pull_request' && 'pr-runner-seat-guards-2' || format('calendar-unit-tests-{0}-review-stage-phones-{1}', github.run_id, strategy.job-index) }}
       cancel-in-progress: false
@@ -623,7 +623,7 @@ jobs:
   repair-checkpoint:
     needs: changes
     if: needs.changes.outputs.browser == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Share a guards seat: this adds coverage without taking another production runner.
     concurrency:
       group: ${{ github.event_name == 'pull_request' && 'pr-runner-seat-guards-1' || format('calendar-unit-tests-{0}-repair-checkpoint-{1}', github.run_id, strategy.job-index) }}
@@ -656,7 +656,7 @@ jobs:
     # the parts; they ran one after the other in one 13-minute job.
     needs: changes
     if: needs.changes.outputs.browser == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # One of the fourteen pull-request runner seats (see the top of this file).
     concurrency:
       group: ${{ github.event_name == 'pull_request' && format('pr-runner-seat-split-{0}', matrix.part) || format('calendar-unit-tests-{0}-split-preview-{1}', github.run_id, strategy.job-index) }}
@@ -727,7 +727,7 @@ jobs:
 
   f27-team-rollback-proof:
     if: contains(github.event.head_commit.message || '', 'F27') || github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     services:
       postgres:
@@ -793,7 +793,7 @@ jobs:
     # (review-gauntlet-three below).
     needs: changes
     if: github.event_name == 'pull_request' && needs.changes.outputs.review == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Guards seat 1 holds browser-guards part 1 (about 9 min) and repair-checkpoint
     # (about 2 min); this adds about 6 to 7 min on a review pull request only.
     concurrency:
@@ -830,7 +830,7 @@ jobs:
     # Main has no seats, so three legs run at a time (about 50 min, not 2 h 20).
     needs: changes
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -875,7 +875,7 @@ jobs:
     # does not need is skipped, and its matrix names never appear.
     if: always()
     needs: [changes, unit, identity-exposure, module-check, entry-links-boot, browser-guards, review-stage-phones, repair-checkpoint, split-preview, staff-phone-rules, f27-team-rollback-proof, review-gauntlet-pr, review-gauntlet-three]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Every job passed, or was not needed by this change

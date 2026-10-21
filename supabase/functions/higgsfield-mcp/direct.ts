@@ -159,9 +159,15 @@ function images(inputs: JsonMap): string[] {
 
 // Edits send no input_fidelity: the 2.5 snapshots keep the source at full
 // fidelity on their own and refuse the parameter outright.
-// OpenAI output tokens by quality for a square / non-square image (published
-// gpt-image table); "auto" size is priced as non-square, the larger of the two.
-const OPENAI_OUT: Record<string, [number, number]> = { low: [272, 408], medium: [1056, 1584], high: [4160, 6240] };
+// Output tokens by quality for a square / non-square image, set from the
+// logged actual charges (2026-10-21: about 4x below OpenAI's published table;
+// high 1024x1536 cost about $0.042, medium about $0.011, low about $0.006) with
+// roughly 1.5x headroom so the reservation still covers the real charge. A
+// square image is priced like a tall one: OpenAI's 2.5 calculator gives a
+// square high image more tokens (1,756) than the tall ones logged, so the
+// smaller square figure used to under-reserve.
+// "auto" size is priced as non-square, the larger of the two.
+const OPENAI_OUT: Record<string, [number, number]> = { low: [300, 300], medium: [550, 550], high: [2100, 2100] };
 // Reservation ceilings. A prompt is capped at MAX_PROMPT_CHARS and never
 // tokenizes to more than one token per character, so textTokens() is a true
 // upper bound; input images are priced at a generous per-image ceiling and

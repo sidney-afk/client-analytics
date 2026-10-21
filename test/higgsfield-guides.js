@@ -60,7 +60,7 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
 
   // Wiring: the tool, the read, start_here's list, and the instruction to use it.
   const idx = read('index.ts');
-  assert.ok(/import \{ guideIndex, guideReply, latestGuides \} from "\.\/guides\.mjs";/.test(idx));
+  assert.ok(/import \{ findGuide, guideIndex, guideReply, latestGuides \} from "\.\/guides\.mjs";/.test(idx));
   assert.ok(/name: "guide",/.test(idx), 'the guide tool is offered');
   assert.ok(/if \(name === "guide"\) \{\n\s*try \{\n\s*return guideReply\(await readGuides\(\), args\.topic\);/.test(idx), 'the tool answers from the table');
   assert.ok(/from\("hf_guides"\)\.select\("topic,body,created_at"\)/.test(idx), 'reads hf_guides');

@@ -33895,7 +33895,7 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 
 **Way back:** revert the pull request.
 
-## 474. [2026-10-21, PR OPEN] A background refresh rebuilt the whole Workload board and the whole Production list even when nothing had changed (session Calm)
+## 474. [2026-10-21, FIXED in #2271] A background refresh rebuilt the whole Workload board and the whole Production list even when nothing had changed (session Calm)
 
 - **Owner request (2026-10-20).** A refresh should never flicker, jump or unfocus anything, anywhere on the site.
 - **Measured offline before the change (mocked backend).** Workload (calm view): an unchanged redraw rebuilt 637 of 744 nodes (the board body, the overview rows, the unassigned and undated strips, the editor menu). Production: an unchanged redraw rebuilt all 37,472 nodes of the list (scroll and focus were put back by hand afterwards, but hover, playing video and any open control were lost, and the page paid for the rebuild).

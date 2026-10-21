@@ -62,11 +62,14 @@ export async function toolList(deps, args) {
   const client = text(args.client, 80);
   const rows = await deps.list(client || null);
   if (!rows.length) return client ? `No shared tools for "${client}" yet.` : "No shared tools saved yet.";
-  const shown = rows.slice(0, LIST_LIMIT);
+  const offset = Math.max(0, Math.floor(Number(args.offset)) || 0);
+  const shown = rows.slice(offset, offset + LIST_LIMIT);
+  if (!shown.length) return `No shared tools from number ${offset + 1}: there are ${rows.length}.`;
   const lines = shown.map((r) =>
     `- ${r.name}: ${r.what} | use: ${r.use} | client: ${r.client || "any"} | made by ${r.member} | ${r.status} | ${when(r.updated_at || r.created_at)}`);
-  const more = rows.length > shown.length ? `\n(${rows.length - shown.length} more; ask for one client to narrow it.)` : "";
-  return `Shared tools (${rows.length}), newest first:\n${lines.join("\n")}${more}\nGet one with tool_get {name}.`;
+  const left = rows.length - (offset + shown.length);
+  const more = left > 0 ? `\n(${left} more: call tool_list again with offset ${offset + shown.length}.)` : "";
+  return `Shared tools ${offset + 1} to ${offset + shown.length} of ${rows.length}, newest first:\n${lines.join("\n")}${more}\nGet one with tool_get {name}.`;
 }
 
 export async function toolGet(deps, args) {

@@ -1435,7 +1435,7 @@ function sharedToolDeps(author: string) {
     list: async (client: string | null) => {
       let q = db().from("hf_tools").select("name,what,use,client,member,status,created_at,updated_at");
       if (client) q = q.ilike("client", client);
-      const { data, error } = await q.order("updated_at", { ascending: false }).limit(200);
+      const { data, error } = await q.order("updated_at", { ascending: false }).limit(1000);
       if (error) throw fail("read the shared tools", error);
       return data || [];
     },

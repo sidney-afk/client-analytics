@@ -73,6 +73,15 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
   // Ordinary code is not mistaken for a key.
   assert.strictEqual((await run('Ana', 'tool_save', { ...good, name: 'plain', bundle: 'token = next_token(line)\nkey_count = 3' })).slice(0, 5), 'Saved');
 
+  // Paging: nothing past the first 60 is hidden.
+  for (let n = 0; n < 70; n++) table.set('page-' + String(n).padStart(2, '0'), { name: 'page-' + n, what: 'w', use: 'u', client: null, member: 'Ana', status: 'new', updated_at: '2026-10-21T10:00:00Z' });
+  const p1 = await run('Bo', 'tool_list', {});
+  assert.ok(/offset 60/.test(p1) && !p1.includes('page-69'));
+  const p2 = await run('Bo', 'tool_list', { offset: 60 });
+  assert.ok(p2.includes('page-69') && !/more: call/.test(p2));
+  assert.ok(/^No shared tools from number/.test(await run('Bo', 'tool_list', { offset: 500 })));
+  for (let n = 0; n < 70; n++) table.delete('page-' + String(n).padStart(2, '0'));
+
   // Every refusal counts as a failure in the activity log; the team link must name who saves.
   const who = await import(path.join(dir, 'who.mjs'));
   for (const bad of [

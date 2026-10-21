@@ -37,7 +37,7 @@ export const STUDIO_ACTIONS = {
   },
   tool_list: {
     does: "List the shared tools and client kits: name, what it is, when to use it, client, who made it, status, when. Read only.",
-    args: { client: "only tools for this client (optional)" },
+    args: { client: "only tools for this client (optional)", offset: "start from this number when the list says there are more (optional)" },
     run: (deps, args) => toolList(deps.tools(), args),
   },
   tool_get: {

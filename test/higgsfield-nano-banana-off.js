@@ -74,6 +74,8 @@ const OFF = 'Nano Banana is switched off for the team. GPT Image does the same j
   // The card stays close to the real charge (high 1024x1536 cost about $0.042 in the log), not 4x above it.
   const tall = d.directEstimate('openai/gpt-image', { prompt: 'p', size: '1024x1536', quality: 'high' });
   assert.ok(tall.usd >= 0.042 && tall.usd < 0.08, 'a tall high-quality image is quoted near its real charge: ' + tall.usd);
+  const square = d.directEstimate('openai/gpt-image', { prompt: 'p', size: '1024x1024', quality: 'high' });
+  assert.ok(square.usd >= 1756 * 30e-6, 'a square high-quality image reserves at least the 1,756 tokens OpenAI counts: ' + square.usd);
 
   // index.ts wiring.
   const src = read('index.ts');

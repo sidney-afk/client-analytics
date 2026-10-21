@@ -989,6 +989,6 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         mountTodayView
     });
 export {
-  _tdyPurgeSensitiveState, _tdyTeardown, mountTodayView, renderTodayView, tdyMyClientNames,
+  _tdyPurgeSensitiveState, _tdyTeardown, mountTodayView, renderTodayView, svCalmHtml, svCalmSet, tdyMyClientNames,
   tdySetClientsInfoReady
 };

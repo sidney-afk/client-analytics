@@ -1,6 +1,7 @@
 import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { showNotify } from './040-shared-briefs.js';
+import { svCalmHtml, svCalmSet } from './097-today.js';
 import { WL_DEADLINE_PREF_KEY, WL_VIEW_PREF_KEY, wlState } from './066-core-workload-state.js';
 import {
   WL_LINEAR_WRITE_TIMEOUT_MS, WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS,
@@ -2375,7 +2376,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         const boardHtml = wlState.viewMode === 'week'
             ? (wlState.showDeadlines ? renderWeekDeadlineTimeline() : renderWeekGrid())
             : renderMonthGrid();
-        if (typeof svCalmHtml === 'function' && bodyEl.firstElementChild && !bodyEl.querySelector('.sv-skeleton-line,.wl-signed-out,.workload-error')) svCalmHtml(bodyEl, boardHtml);
+        if (bodyEl.firstElementChild && !bodyEl.querySelector('.sv-skeleton-line,.wl-signed-out,.workload-error')) svCalmHtml(bodyEl, boardHtml);
         else bodyEl.innerHTML = boardHtml;
     }
 

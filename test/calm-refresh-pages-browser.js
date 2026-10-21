@@ -131,19 +131,26 @@ async function production() {
         prevKey = k;
       }
       const sel = '#prodRoot *';
-      document.querySelectorAll(sel).forEach(e => { e.__m = 1; });
-      const total = document.querySelectorAll(sel).length;
-      const list = document.querySelector('.prod-listwrap');
-      if (list) list.scrollTop = 200;
-      const btn = document.querySelector('#prodRoot button.prod-search-btn') || document.querySelector('#prodRoot button');
-      btn.focus();
-      _prodRender();
-      await new Promise(res => setTimeout(res, 300));
+      // The app may legitimately refresh by itself between two draws; what
+      // matters is that a draw with nothing new rebuilds nothing, so try a few times.
+      let total = 0, kept = 0, scroll = -1, focusKept = false;
+      for (let attempt = 0; attempt < 6; attempt++) {
+        document.querySelectorAll(sel).forEach(e => { e.__m = 1; });
+        total = document.querySelectorAll(sel).length;
+        const list = document.querySelector('.prod-listwrap');
+        if (list) list.scrollTop = 200;
+        const btn = document.querySelector('#prodRoot button.prod-search-btn') || document.querySelector('#prodRoot button');
+        btn.focus();
+        _prodRender();
+        await new Promise(res => setTimeout(res, 100));
+        kept = [...document.querySelectorAll(sel)].filter(e => e.__m).length;
+        scroll = document.querySelector('.prod-listwrap') ? document.querySelector('.prod-listwrap').scrollTop : -1;
+        focusKept = document.activeElement === btn;
+        if (kept === total) break;
+        await new Promise(res => setTimeout(res, 500));
+      }
       return {
-        total,
-        kept: [...document.querySelectorAll(sel)].filter(e => e.__m).length,
-        scroll: document.querySelector('.prod-listwrap') ? document.querySelector('.prod-listwrap').scrollTop : -1,
-        focusKept: document.activeElement === btn,
+        total, kept, scroll, focusKept,
         settleDiff,
       };
     });

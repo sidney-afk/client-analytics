@@ -2376,8 +2376,13 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         const boardHtml = wlState.viewMode === 'week'
             ? (wlState.showDeadlines ? renderWeekDeadlineTimeline() : renderWeekGrid())
             : renderMonthGrid();
-        if (bodyEl.firstElementChild && !bodyEl.querySelector('.sv-skeleton-line,.wl-signed-out,.workload-error')) svCalmHtml(bodyEl, boardHtml);
+        /* A refresh of the same view is patched in place; changing the view,
+           the week or month, or a filter is the person's own move and is
+           drawn fresh, as before. */
+        const viewSig = [wlState.viewMode, wlState.showDeadlines, wlState.weekStart, wlState.year, wlState.month, wlState.team, wlState.editor, wlState.client].join('|');
+        if (bodyEl.__wlViewSig === viewSig && bodyEl.firstElementChild && !bodyEl.querySelector('.sv-skeleton-line,.wl-signed-out,.workload-error')) svCalmHtml(bodyEl, boardHtml);
         else bodyEl.innerHTML = boardHtml;
+        bodyEl.__wlViewSig = viewSig;
     }
 
     /* Thumb phone agenda is a presentation of the existing board. The board

@@ -50,6 +50,43 @@ async function workload(calm) {
         order = { focusedBefore, tag: focusTarget.tagName, sameNode: document.activeElement === focusTarget, sameIssue: document.activeElement.getAttribute('data-wl-assignee-id') === id };
       }
       renderWorkloadAll();
+      // Two retained cards swap places: focus stays on the focused control.
+      let swap = null;
+      {
+        const cards = [...body0.querySelectorAll('.workload-day-card')];
+        const day = cards.length >= 2 && cards[0].parentElement === cards[1].parentElement ? cards[0].parentElement : null;
+        const btn = day && cards[0].querySelector('button');
+        if (btn) {
+          btn.focus();
+          const t2 = document.createElement('template');
+          t2.innerHTML = body0.innerHTML;
+          const path2 = []; for (let n = cards[0]; n && n !== body0; n = n.parentElement) path2.unshift([...n.parentElement.children].indexOf(n));
+          let g2 = t2.content; for (const i of path2) g2 = g2.children[i];
+          g2.parentElement.insertBefore(g2.nextElementSibling, g2);
+          svCalmHtml(body0, t2.innerHTML);
+          swap = { moved: [...day.children].indexOf(cards[0]) > [...day.children].indexOf(cards[1]), focus: document.activeElement === btn };
+        }
+      }
+      // An opened section stays open, and a retained date input follows a changed value.
+      let keep = null;
+      {
+        const det = body0.querySelector('details');
+        if (det) {
+          det.open = true;
+          const html = body0.innerHTML.replace(/(<details[^>]*?) open(=""|)(?=[ >])/g, '$1');
+          svCalmHtml(body0, html);
+          keep = { open: det.open };
+        }
+        const inp = body0.querySelector('input[type=date]');
+        if (inp) {
+          inp.value = '2030-01-01';
+          const html2 = body0.innerHTML.replace(/(<input[^>]*type="date"[^>]*?) value="[^"]*"/, '$1 value="2031-02-03"');
+          svCalmHtml(body0, html2);
+          keep = Object.assign(keep || {}, { date: inp.value });
+        }
+      }
+      document.getElementById('wlBody').innerHTML = '';
+      renderWorkloadAll();
       // A real change: the board must equal a fresh drawing of the same state.
       wlState.team = 'video';
       renderWorkloadAll();
@@ -60,12 +97,14 @@ async function workload(calm) {
       document.getElementById('wlOverviewRows').innerHTML = '';
       renderWorkloadAll();
       const fresh = strip(body) + '|' + strip(document.getElementById('wlOverviewRows'));
-      return { total, kept, order, same: patched === fresh };
+      return { total, kept, order, swap, keep, same: patched === fresh };
     });
     const label = calm ? 'calm' : 'classic';
     ok(r.total > 100, label + ' Workload has a real board (' + r.total + ' nodes)');
     ok(r.kept === r.total, label + ' Workload: an unchanged refresh keeps every node (' + r.kept + ' of ' + r.total + ')');
     ok(r.order && r.order.sameNode && r.order.sameIssue, label + ' Workload: a control removed ahead of the focused one leaves focus on the same person (' + JSON.stringify(r.order) + ')');
+    ok(r.swap && r.swap.moved && r.swap.focus, label + ' Workload: two cards that swap places keep focus on the control (' + JSON.stringify(r.swap) + ')');
+    ok(!r.keep || ((r.keep.open === undefined || r.keep.open === true) && (r.keep.date === undefined || r.keep.date === '2031-02-03')), label + ' Workload: an opened section stays open and a changed date reaches the input (' + JSON.stringify(r.keep) + ')');
     ok(r.same, label + ' Workload: a refresh that changes something equals a fresh drawing');
   } finally { await h.close(); }
 }

@@ -693,8 +693,20 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     }
     function _tdyMorphNode(a, b) {
         if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
-        for (const at of [...a.attributes]) if (!b.hasAttribute(at.name)) a.removeAttribute(at.name);
-        for (const at of [...b.attributes]) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
+        /* A section the person opened or closed stays as they left it:
+           `open` is theirs, not the page's. */
+        const keepOpen = a.tagName === 'DETAILS';
+        for (const at of [...a.attributes]) if (!b.hasAttribute(at.name) && !(keepOpen && at.name === 'open')) a.removeAttribute(at.name);
+        for (const at of [...b.attributes]) {
+            if (keepOpen && at.name === 'open') continue;
+            if (a.getAttribute(at.name) !== at.value) {
+                /* An input whose saved value changed takes the new value too
+                   (the attribute alone no longer moves a value that was ever
+                   typed or picked), unless the person is in it right now. */
+                if (at.name === 'value' && a.tagName === 'INPUT' && a !== document.activeElement && !/^(checkbox|radio|file)$/i.test(a.type)) a.value = at.value;
+                a.setAttribute(at.name, at.value);
+            }
+        }
         _tdyMorphChildren(a, b);
     }
     function _tdyMorphChildren(from, to) {
@@ -721,6 +733,8 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         }
         for (const n of old) if (!used.has(n)) from.removeChild(n);
         let ref = from.firstChild;
+        /* Moving a node that holds focus drops the focus; put it back. */
+        const heldFocus = from.contains(document.activeElement) && document.activeElement !== document.body ? document.activeElement : null;
         for (const [found, nn] of plan) {
             let match = found;
             if (match) _tdyMorphNode(match, nn); else match = nn;
@@ -728,6 +742,9 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             else from.insertBefore(match, ref);
         }
         while (ref) { const next = ref.nextSibling; from.removeChild(ref); ref = next; }
+        if (heldFocus && heldFocus.isConnected && document.activeElement !== heldFocus) {
+            try { heldFocus.focus({ preventScroll: true }); } catch (e) {}
+        }
     }
     function _tdyPatch(root, html) {
         if (_tdyBootNodes) {

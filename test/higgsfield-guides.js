@@ -78,9 +78,9 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
 
   // thumbnail_workflow serves the live thumbnails guide, so a guide change reaches it too,
   // and the built-in fallback never tells the team to make loose copies.
-  const idx = fs.readFileSync(path.join(dir, 'index.ts'), 'utf8');
-  assert.ok(/name === "thumbnail_workflow"\) \{[\s\S]{0,400}guideReply\(rows, "thumbnails"\)/.test(idx), 'thumbnail_workflow reads the live guide');
-  const fb = idx.slice(idx.indexOf('const THUMBNAIL_WORKFLOW'), idx.indexOf('const INSTRUCTIONS'));
+  const mcpSrc = fs.readFileSync(path.join(dir, 'index.ts'), 'utf8');
+  assert.ok(/name === "thumbnail_workflow"\) \{[\s\S]{0,400}guideReply\(rows, "thumbnails"\)/.test(mcpSrc), 'thumbnail_workflow reads the live guide');
+  const fb = mcpSrc.slice(mcpSrc.indexOf('const THUMBNAIL_WORKFLOW'), mcpSrc.indexOf('const INSTRUCTIONS'));
   assert.ok(!/copy-design\\` with/.test(fb) && /original editable file/.test(fb), 'fallback works in the original file');
 
   console.log('higgsfield-guides: newest version wins, list and fallbacks, read-only table ✅');

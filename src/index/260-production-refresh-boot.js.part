@@ -762,7 +762,30 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             _prodListRowBudget = (!root.querySelector('.prod-row') && !_prodState.listScrollTop && !_prodState.focusRow)
                 ? _prodFirstScreenRows() : Infinity;
             try {
-                root.innerHTML = _prodSidebar() + '<div class="prod-main">' + _prodBackToCardStrip() + _prodTopbar() + '<div class="prod-content">' + _prodBody() + '</div></div>';
+                const prodHtml = _prodSidebar() + '<div class="prod-main">' + _prodBackToCardStrip() + _prodTopbar() + '<div class="prod-content">' + _prodBody() + '</div></div>';
+                /* A background refresh must not rebuild the page (owner,
+                   2026-10-20). When the markup is exactly what is already
+                   drawn, nothing is written, so rows, hover, focus, playing
+                   video and scroll stay where they are. A real change still
+                   rewrites the page (measured: patching this page node by
+                   node costs about three times more than rewriting it). */
+                /* "updated 3s ago" changes every second by itself (the ticker
+                   rewrites it in place); the page is compared without it. */
+                const prodKey = prodHtml.replace(/(data-prod-freshness-age[^>]*>)[^<]*/, '$1').replace(/data-prod-tip="updated [^"|]*\|/g, 'data-prod-tip="updated|');
+                if (prodKey === root.__prodKey && root.firstElementChild) {
+                    const tipNew = /data-prod-tip="(updated [^"|]*)\|/.exec(prodHtml);
+                    const tipNode = root.querySelector('[data-prod-tip^="updated "]');
+                    if (tipNew && tipNode) {
+                        const old = tipNode.getAttribute('data-prod-tip') || '';
+                        const rest = old.indexOf('|') >= 0 ? old.slice(old.indexOf('|')) : '';
+                        const fresh = tipNew[1].replace(/&amp;/g, '&') + rest;
+                        if (old !== fresh) tipNode.setAttribute('data-prod-tip', fresh);
+                    }
+                    _prodSyncFreshnessControl();
+                } else {
+                    root.innerHTML = prodHtml;
+                }
+                root.__prodKey = prodKey;
             } finally {
                 _prodListRowBudget = Infinity;
             }

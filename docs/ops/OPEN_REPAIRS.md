@@ -33884,13 +33884,24 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 
 **Way back:** delete the `kasper_fast_boot` row, or revert the pull request.
 
-## 473. [2026-10-20, PR OPEN] A background refresh moved the page: list and conversation jumped, buttons flickered; the editor bell covered the title (session Calm)
+## 473. [2026-10-20, FIXED in #2270] A background refresh moved the page: list and conversation jumped, buttons flickered; the editor bell covered the title (session Calm)
 
 - **Owner report (2026-10-20).** Every background refresh made the buttons flicker and sent the "cards to review" list back to the top; a refresh should never unfocus or move anything, on Kasper's tab, on the client review page, and everywhere else. Also: the orange bell on a card with the editors sat on top of the title and cut the text.
 - **Measured offline before the change (mocked backend, 21 cards).** Kasper's list scrolled to 400 px went back to 0 on a refresh that found nothing new, and 12 to 20 nodes in the card's header, buttons and conversation were thrown away and rebuilt. On the client link, the strip went from 300 px to 93 px and the conversation from 0 to 79 px when another post changed, and 82 nodes were rebuilt.
 - **Cause.** The list pulled the card on stage back into view on every draw, not only when the card changed; the stage's text, the decision buttons, the stepper and the conversation were rewritten on every draw even when their markup was identical (and the conversation scrolled itself to the bottom); Kasper's notice line rewrote and faded in again each time; the bell's padding rule lost to a more specific rule, so the title ran under the bell.
 - **Changed (195, 330, no switch, all review pages).** `_rsCalm`: a region is rewritten only when what is on screen differs from the new markup or the post it was built for changed. `_rsPatch`: the strip and Kasper's list replace only the cards that changed. The list is scrolled to the card on stage only when the card on stage is another one. Kasper's freshness note changes its words in place. The bell row has the padding it was meant to have.
 - **Proven.** `node test/review-calm-refresh-browser.js` (22 checks: Kasper at 1440, client link at 1440 and 390, the bell); it fails 10 checks on the code before this change.
-- **Not covered (follow-up).** Other pages (Calendar, Today, Production, Workload, Messages) were not measured in this change.
+- **Follow-up done in 474.** Calendar and Today were measured and already update in place (existing suites); Workload and Production are 474. Messages and Samples are not measured.
+
+**Way back:** revert the pull request.
+
+## 474. [2026-10-21, PR OPEN] A background refresh rebuilt the whole Workload board and the whole Production list even when nothing had changed (session Calm)
+
+- **Owner request (2026-10-20).** A refresh should never flicker, jump or unfocus anything, anywhere on the site.
+- **Measured offline before the change (mocked backend).** Workload (calm view): an unchanged redraw rebuilt 637 of 744 nodes (the board body, the overview rows, the unassigned and undated strips, the editor menu). Production: an unchanged redraw rebuilt all 37,472 nodes of the list (scroll and focus were put back by hand afterwards, but hover, playing video and any open control were lost, and the page paid for the rebuild).
+- **Already fine (measured, no change).** Today patches in place since 2026-10-07 (`_tdyPatch`); the Calendar has its own invisible-refresh suite (`calendar-refresh-scroll-browser.js`, 16 checks, passes).
+- **Changed (072, 080, 097, 260; no switch).** `svCalmHtml` / `svCalmSet` (097) write only what differs, reusing Today's keyed patch. Workload uses it for the board body, the overview rows, the loose-issue strips and the editor menu (first draws and loading shapes are still written plainly). Production writes nothing when its markup is unchanged, comparing it without the "updated Ns ago" words, which the existing ticker keeps current; a real change still rewrites the list (patching it node by node measured about three times slower than rewriting it, so that was left alone).
+- **Proven.** `node test/calm-refresh-pages-browser.js` (10 checks); on the old code Workload keeps 107 of 744 nodes and Production 0 of 37,472, after: all. The calm Workload suites, the Calendar refresh suite and the Production suites listed in the PR still pass.
+- **Not covered (follow-up).** Messages, Samples and Time off were not measured. A Production refresh that does change something still rewrites the list.
 
 **Way back:** revert the pull request.

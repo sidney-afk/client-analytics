@@ -709,6 +709,21 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
         t.innerHTML = html;
         _tdyMorphChildren(root, t.content);
     }
+    /* The same in-place update for any other page whose background refresh
+       redraws a whole region (owner, 2026-10-20: a refresh must never move or
+       flicker what is on screen). Only what differs is written; a node that
+       did not change keeps its place, focus, hover and scroll. */
+    function svCalmHtml(el, html) {
+        const t = document.createElement('template');
+        t.innerHTML = html;
+        _tdyMorphChildren(el, t.content);
+    }
+    /* Write a region: in place when it already holds a drawing, plainly when it
+       is empty (first draw) or holds a loading shape. */
+    function svCalmSet(el, html) {
+        if (el.firstElementChild && !el.querySelector('.sv-skeleton-line,.sv-skeleton-pill,.wl-signed-out,.workload-error')) svCalmHtml(el, html);
+        else el.innerHTML = html;
+    }
     function _tdyPaint() {
         _tdyDropOldDay();
         const root = document.getElementById('tdyRoot');

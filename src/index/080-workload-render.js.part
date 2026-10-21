@@ -1759,9 +1759,9 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
 
         const editorMenu = document.querySelector('[data-wl-dropdown-menu="editor"]');
         if (editorMenu) {
-            editorMenu.innerHTML = editorItems.map(([id, name]) =>
+            svCalmSet(editorMenu, editorItems.map(([id, name]) =>
                 `<button type="button" class="dropdown-item${id === wlState.editor ? ' active' : ''}" data-wl-dropdown-item="editor" data-wl-value="${wlEscape(id)}" data-wl-label="${wlEscape(name)}">${wlEscape(name)}</button>`
-            ).join('');
+            ).join(''));
         }
 
         const editorLabel = document.querySelector('[data-wl-dropdown-trigger="editor"] [data-wl-dropdown-label]');
@@ -2372,9 +2372,11 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
             bodyEl.innerHTML = _svLoadingSkeletonHtml('workload');
             return;
         }
-        bodyEl.innerHTML = wlState.viewMode === 'week'
+        const boardHtml = wlState.viewMode === 'week'
             ? (wlState.showDeadlines ? renderWeekDeadlineTimeline() : renderWeekGrid())
             : renderMonthGrid();
+        if (typeof svCalmHtml === 'function' && bodyEl.firstElementChild && !bodyEl.querySelector('.sv-skeleton-line,.wl-signed-out,.workload-error')) svCalmHtml(bodyEl, boardHtml);
+        else bodyEl.innerHTML = boardHtml;
     }
 
     /* Thumb phone agenda is a presentation of the existing board. The board
@@ -2807,7 +2809,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
             </div>`;
         };
 
-        rowsEl.innerHTML = editors.map(editor => {
+        svCalmSet(rowsEl, editors.map(editor => {
             const capacity = wlEditorCapacity(editor.teamKey, editor.teamName);
             const days = editor.units === 0 ? 0 : Math.max(1, Math.ceil(editor.units / capacity));
             const capacityClass = days <= 1 ? 'free' : (days <= 2 ? 'light' : (days <= 4 ? 'busy' : 'full'));
@@ -2832,7 +2834,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
                 </button>
                 ${statusSpecs.map(spec => statusCellHtml(editor, spec)).join('')}
             </div>`;
-        }).join('');
+        }).join(''));
     }
 
     // Editor workload — ranks every current video editor by how busy they are

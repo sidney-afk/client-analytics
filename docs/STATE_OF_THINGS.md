@@ -18,6 +18,17 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView project, 2026-10-21): what is live since the 2026-10-17 block below
+
+Checked against main and `syncview_runtime_flags` on 2026-10-21 04:30 UTC. Counts only.
+
+- **Review page** is on for every client and for Kasper (`review_stage_client_pages` = all), since 2026-10-18. Kasper layout 2 is on for Sidney's two ids and Kasper (`review_stage_kasper_layout2`, #2261 and #2264, Undo about 6 s after Approve until Kasper has feedback).
+- **Card saver** `calendar-card-write` is on for every client's staff saves (`calendar_card_write_clients` = `{"all": true, ...}`) since 2026-10-21 00:02 UTC, after 34 clean watcher runs. A 3-hourly watcher reads the logs and the write-refusal log; any refused or failed save rolls it back to the test client plus Sidney's two clients. Client review links still save through `calendar-upsert`.
+- **Calm refresh, no switch:** a background refresh no longer moves, flickers or unfocuses the page on the review pages (#2270) and Workload and Production (#2271). Today and Calendar were measured and already behave. Not covered: Messages, Samples, Time off (OPEN_REPAIRS 474).
+- **Kasper fast boot** (`kasper_fast_boot`, #2265, #2268, #2269): on for Sidney's two ids only; Kasper is added when Sidney says.
+- **Today** shows captions sent back for tweaks (#2263). **Workload calm view** is on for staff (`workload_calm_staff`).
+- Everything above is live; the supervisor lane is the SyncView project (Lighthouse stopped 2026-10-20 17:50 UTC). Dated detail: `synchro-pipelines/supervisor/history/syncview/`.
+
 ## Kasper's tab boots fast, behind `kasper_fast_boot` (session Quick, 2026-10-20): merged (#2265), switch on for Sidney's two ids only, Kasper next
 
 Owner: the refresh pill shows too often and is not needed, the video player loads late (mostly after a hard refresh), and the

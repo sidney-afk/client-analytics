@@ -20,7 +20,7 @@ import { CATALOG } from "./catalog.ts";
 import { QUESTION_TOOL, offerKey } from "./questions.mjs";
 import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, cleanWho, isTeamLink, logActivity, outcomeOf, teamTools, whoRefusal } from "./who.mjs";
 import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
-import { guideIndex, guideReply, latestGuides } from "./guides.mjs";
+import { findGuide, guideIndex, guideReply, latestGuides } from "./guides.mjs";
 import { STUDIO_BUCKET, studioLatest } from "./studio.mjs";
 import { TOOLKIT_NAMES, toolkitLatest } from "./studio.mjs";
 import { clientRecord, feedbackNote, feedbackNotes } from "./filmingrecord.mjs";
@@ -91,9 +91,9 @@ const THUMBNAIL_WORKFLOW = `You help the agency's graphic designer turn client s
 
 Tools you use:
 - **Synchro Higgsfield** connector: \`clients\`, \`client_style\`, \`client_filming_plan\`, \`get_upload_link\`, \`import_file\`, \`recipe_plan\`, \`run_recipe\`, \`wait_for_job\`.
-- **Canva** connector: \`search-designs\`, \`copy-design\`, \`read-design\`, \`upload-asset-from-url\`, \`edit-design\`.
+- **Canva** connector: \`search-designs\`, \`read-design\`, \`upload-asset-from-url\`, \`edit-design\` (including its duplicate-page step).
 
-Never spend money or save a Canva design without her yes.
+Never spend money or save a Canva design without her yes. Duplicating a page is the one exception: Canva saves it the moment it is made, so her request for a thumbnail counts as the yes for duplicating only.
 
 ## 1. Client and screenshots
 
@@ -118,21 +118,25 @@ Ask: "Do you have the titles, or should I write them?"
   3. \`client_style\` for the client's voice and title style (words only; it never decides fonts or colours).
   4. Write 2 or 3 title options per video in that voice, similar in length to the client's existing titles (they must fit the same text box). Let her pick or edit.
 
-## 4. Canva
+## 4. Canva: always inside the client's original editable file
+
+Every thumbnail is a new page inside the client's original editable design file. Never a loose copy, never a new separate design.
 
 1. \`search-designs\` for the client's editable thumbnail design. The team names these with the client's initials, in several orders: \`XX_Editable_IG_Thumbnail\`, \`XX_Editable_IG_ReelThumbnail\`, \`XX-IG-Thumbnail-Editable\`, or "<Client> - Thumbnails" (first-name initial + last-name initial, e.g. "Jane Doe" is JD). Search "Editable" and "Thumbnail" as well as the client's name, match the initials, and prefer the one with the most pages and the latest edit (the live file grows a page per thumbnail). Never use a design whose title starts with TEST or says "by Claude": those are old experiments. Name the design you picked and use it; only ask if two real candidates match the initials.
-2. \`read-design\` with \`page_metadata\` to find the page count; the last page is the latest style. Use that page unless she names another.
+2. \`read-design\` with \`page_metadata\` to find the page count; the last page is the latest style. Duplicate that page unless she names another; it is the style page for the whole batch.
 3. For each screenshot:
-   1. \`copy-design\` with the design id and \`page_numbers: [last page]\` (one copy per thumbnail; the same page cannot be repeated in one copy).
+   1. Duplicate the style page inside that same design file (never \`copy-design\`, which makes a loose file). Read the design again to find the new page and work only on it; never edit the original style page.
    2. \`upload-asset-from-url\` with the screenshot link.
    3. \`read-design\` with \`open_transaction: true\` and fields \`design_content\`, \`thumbnails\`. The background photo is usually the largest image element covering the page; the title is the text element.
-   4. \`edit-design\` with \`keep_open\`: \`update_fill\` on the photo element with the new asset, \`find_and_replace_text\` on the title (find = the old title exactly), and \`update_title\` to "<Client> thumbnail <n> - <short title>".
+   4. \`edit-design\` with \`keep_open\`: \`update_fill\` on the photo element with the new asset, \`find_and_replace_text\` on the title (find = the old title exactly). Do not rename the whole design file.
    5. Show her the preview. If the photo framing or text fit is off, fix it (\`crop_media\`, \`resize_element\`, \`format_text\` font size) and show again.
-4. When she approves all previews, \`commit\` each one. Give her the list of edit links, numbered like the screenshots.
+4. Save (\`commit\`) a page's edits only after she says ok to its preview. Give her the link to the file and the page number of each thumbnail, numbered like the screenshots.
 
 ## Rules
 
-- Fonts, colours and layout always come from the client's latest Canva page, never from the Synchro Brain. Only the photo and title change.
+- Fonts, colours and layout always come from the client's chosen style page in the original file, never from the Synchro Brain. Only the photo and title change.
+- Never delete pages, reorder pages, or touch other pages of the file unless she asks.
+- If duplicating the page fails, tell her which screenshot and why, and stop to ask. Never fall back to a loose copy or a new design without her saying so. Trying once more is fine.
 - If a step fails, say which screenshot and why, and continue with the rest.
 - State every price before spending, and the total at the end.`;
 
@@ -1290,7 +1294,14 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
     return `${recipe.name}: started ${images.length} image(s) at ${money(est.usd)} each.\n${lines.join("\n")}\n\nCheck them all with check_jobs in about 30 seconds.`;
   }
 
-  if (name === "thumbnail_workflow") return THUMBNAIL_WORKFLOW;
+  if (name === "thumbnail_workflow") {
+    // The live guide row wins, so a guide change reaches this tool too; the built-in text is the fallback.
+    try {
+      const rows = await readGuides();
+      if (findGuide(latestGuides(rows), "thumbnails")) return guideReply(rows, "thumbnails");
+    } catch (_) { /* fall back */ }
+    return THUMBNAIL_WORKFLOW;
+  }
   if (name === "clients") return await listClients(db());
   if (name === "client_filming_plan") return await filmingPlan(db(), String(args.client || ""), String(args.month || ""));
   if (name === "client_style") return await clientStyle(db(), String(args.client || ""));

@@ -1137,7 +1137,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   const author = authorFor(member, args.who);
   // On the shared team link a brain save must name the person; refused before
   // anything is read or written.
-  const refusal = whoRefusal(member, name, args.who);
+  const refusal = whoRefusal(member, name, args.who, args);
   if (refusal) return refusal;
   const inputsOf = (): JsonMap => (args.inputs && typeof args.inputs === "object" && !Array.isArray(args.inputs) ? args.inputs as JsonMap : {});
 

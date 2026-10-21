@@ -25,7 +25,7 @@ export const STUDIO_ACTIONS = {
     run: (deps, args) => videoCards(deps.reviewNotes(), args),
   },
   tool_save: {
-    does: "Save a client kit or a tool you made so every teammate's Claude gets it. Saving the same name again replaces your own version. Refused if the text looks like it holds a key.",
+    does: "Save a client kit or a tool you made so every teammate's Claude gets it. Saving the same name again replaces your own version. Refused if the text looks like it holds a key. On the shared team link, pass who (first name) or nothing is saved.",
     args: {
       name: "short lowercase name, e.g. kit-<client> (required)",
       what: "one line saying what it is (required)",

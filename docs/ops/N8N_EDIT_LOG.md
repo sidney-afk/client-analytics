@@ -422,3 +422,11 @@ Why: a separate test page (synchrosocial.com/educators, not built yet) books on 
 Read and found no change needed: Booking Recovery Heartbeat (`a2sJJ3oZMefASPl2`; counts Facebook paid rows by ad name, not by calendar). Not read: Kasper Ad Performance Daily Pull (it filters on the doctor calendar and campaign names; educator bookings may need a campaign-name rule in the panel).
 Tested: not run end to end yet, because the page and the iClosed question do not exist. Two of the diffs were checked line by line. The first full test uses test traffic after the page ships (`?utm_source=test`, a plus-address email, no phone), and its result goes in the Ads tracker.
 Undo: restore each "before" version above in n8n's workflow history and publish.
+
+## 2026-10-21 Educators page: the saved fit answer is labelled "Where are you today?" (owner's go in the request, Ads lane)
+Why: the educator page's iClosed question "Which fits you?" was replaced by a new question "Where are you today?" (identifier where-are-you-today) on the educator event only. The two workflows that store the page's answer now print the new label in the lead notes. Label text only; no logic, calendar or answer check changed. Nothing in n8n reads the old question id or its position.
+- Sales, Doctors Partial Lead Capture (`8nq6jGbpmCDZxnQz`), Code node "Authenticate + Normalize": before `c05a1df4-6cb4-4adb-8bc1-58a5ceef62e1`, after `e611bfee-1108-4098-aedb-1251248e3676`. Diff checked: one string.
+- Sales, Doctors Instant Booking Link (`cM3G9REliKpwicnR`), Code node "Authenticate + Normalize": before `cc73e41e-22ed-4f0b-9a06-1415bbc3f3e8`, after `14e43579-b3e2-4532-8d55-4cca381f1954`. Diff checked: one string.
+Left alone: Meta CAPI and Booking Recovery Dispatch still point educator links at /educators, which forwards to the new address with the query kept.
+Tested: not run end to end yet (first full test waits for the owner's go, test traffic only).
+Undo: restore each "before" version in n8n's workflow history and publish.

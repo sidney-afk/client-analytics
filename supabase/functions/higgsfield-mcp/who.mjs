@@ -54,8 +54,12 @@ export function teamTools(tools, member) {
 
 // The refusal text when this call must not run, or "" when it may. Personal
 // links never need "who": they already name the person.
-export function whoRefusal(member, tool, who) {
-  if (!isTeamLink(member) || !WHO_REQUIRED_TOOLS.has(tool)) return "";
+// studio_action is one tool for many actions; its saving action tool_save needs
+// the name too (args is the tool's arguments, so the action can be read).
+export const WHO_REQUIRED_ACTIONS = new Set(["tool_save"]);
+export function whoRefusal(member, tool, who, args) {
+  const action = tool === "studio_action" && args && typeof args.action === "string" ? args.action.trim().toLowerCase().replace(/[\s-]+/g, "_") : "";
+  if (!isTeamLink(member) || !(WHO_REQUIRED_TOOLS.has(tool) || WHO_REQUIRED_ACTIONS.has(action))) return "";
   // A name needs at least one letter: "-" or "." is not a person.
   return /\p{L}/u.test(cleanWho(who)) ? "" : WHO_REQUIRED_REPLY;
 }

@@ -11,6 +11,7 @@
 // parts, so a unit test can run it; index.ts passes in each action's deps.
 
 import { videoCards } from "./videocards.mjs";
+import { toolGet, toolList, toolSave } from "./sharedtools.mjs";
 
 export const STUDIO_ACTIONS = {
   review_notes: {
@@ -22,6 +23,27 @@ export const STUDIO_ACTIONS = {
       frameio: "false for a quicker answer without Frame.io notes and download link (optional, default true)",
     },
     run: (deps, args) => videoCards(deps.reviewNotes(), args),
+  },
+  tool_save: {
+    does: "Save a client kit or a tool you made so every teammate's Claude gets it. Saving the same name again replaces your own version. Refused if the text looks like it holds a key. On the shared team link, pass who (first name) or nothing is saved.",
+    args: {
+      name: "short lowercase name, e.g. kit-<client> (required)",
+      what: "one line saying what it is (required)",
+      use: "when and how to use it (required)",
+      client: "the client it is for (optional)",
+      bundle: "the tool's text, up to 20,000 characters (required)",
+    },
+    run: (deps, args) => toolSave(deps.tools(), args),
+  },
+  tool_list: {
+    does: "List the shared tools and client kits: name, what it is, when to use it, client, who made it, status, when. Read only.",
+    args: { client: "only tools for this client (optional)", offset: "start from this number when the list says there are more (optional)" },
+    run: (deps, args) => toolList(deps.tools(), args),
+  },
+  tool_get: {
+    does: "Get one shared tool's full text (the latest version). Read only.",
+    args: { name: "the tool's name from tool_list (required)" },
+    run: (deps, args) => toolGet(deps.tools(), args),
   },
 };
 

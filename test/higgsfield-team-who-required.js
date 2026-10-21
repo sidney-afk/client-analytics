@@ -48,7 +48,7 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
   // call never reaches brainChange or studioProfileSave (nothing is written).
   const idx = read('index.ts');
   assert.ok(/import \{[^}]*\bwhoRefusal\b[^}]*\} from "\.\/who\.mjs";/.test(idx), 'index.ts imports whoRefusal');
-  const check = idx.indexOf('const refusal = whoRefusal(member, name, args.who);\n  if (refusal) return refusal;');
+  const check = idx.indexOf('const refusal = whoRefusal(member, name, args.who, args);\n  if (refusal) return refusal;');
   assert.ok(check > 0, 'the refusal is returned before the handler runs');
   const firstHandler = idx.indexOf('if (name === "start_here")');
   const brainSave = idx.indexOf('if (name === "brain_change") return await brainChange(');

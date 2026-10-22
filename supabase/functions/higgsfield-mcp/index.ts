@@ -18,6 +18,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
 import { DOCS_URL, parseDocs } from "./catalogparse.mjs";
+import { imageSize } from "./imagesize.mjs";
 import { QUESTION_TOOL, offerKey } from "./questions.mjs";
 import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, cleanWho, isTeamLink, logActivity, outcomeOf, teamTools, whoRefusal } from "./who.mjs";
 import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
@@ -652,6 +653,13 @@ function rateFor(text: string, res: string): number {
   const pool = named.flatMap(all);
   return Math.max(0, ...(pool.length ? pool : all(text)));
 }
+function tokenRateFor(text: string, res: string): number {
+  const group = "(?:\\d{3,4}p|4k)";
+  for (const m of text.matchAll(new RegExp(`\\$\\s?(\\d+(?:\\.\\d+)?)\\s+at\\s+(${group}(?:\\s*(?:,|or|and)\\s*${group})*)`, "gi"))) {
+    if (new RegExp(`(^|[^\\d])${res}`, "i").test(m[2])) return Number(m[1]);
+  }
+  return 0;
+}
 async function describedPrice(model: string, inputs: JsonMap, text: string): Promise<{ usd: number } | { error: string }> {
   const unreadable = { error: `Higgsfield described the price in a way the connector cannot read: "${text.slice(0, 600)}"` };
   const schema = BY_ID.get(model)?.schema as Schema | undefined;
@@ -661,7 +669,11 @@ async function describedPrice(model: string, inputs: JsonMap, text: string): Pro
     const est = directEstimate("openai/gpt-image", { ...inputs, quality: q, size: "auto" });
     return "error" in est ? unreadable : { usd: Math.round(est.usd * 1.1 * 10000) / 10000 };
   }
-  const rate = rateFor(text, res);
+  // Seedance 2.5 words it as "Each 1,000 video tokens costs $0.0214 at 480p or
+  // 720p and $0.0234 at 1080p" after a per-second summary that also names
+  // resolutions, so the token rate is read from that sentence only.
+  const tokenSentence = /1,000 video tokens costs/i.test(text) ? text.slice(text.search(/1,000 video tokens costs/i)) : "";
+  const rate = tokenRateFor(tokenSentence, res) || rateFor(text, res);
   if (!(rate > 0)) return unreadable;
   const links = [inputs.video_url, ...(Array.isArray(inputs.video_urls) ? inputs.video_urls : [])].filter(Boolean).map(String);
   // One at a time, so a request with many reference videos never holds more
@@ -674,15 +686,24 @@ async function describedPrice(model: string, inputs: JsonMap, text: string): Pro
   const output = asked > 0 ? asked : main;
   // Input seconds count only when the sentence bills input video; output
   // seconds unless it bills input video alone.
-  const billsInput = /input video seconds|second of input video|combined input|input and output|input \+ output/i.test(text);
+  const billsInput = /input video seconds|input video duration|second of input video|combined input|input and output|input \+ output/i.test(text);
   const inputOnly = /second of input video/i.test(text) && !/generated|output/i.test(text);
   const seconds = (billsInput ? input : 0) + (inputOnly ? 0 : output);
   let usd: number;
   if (/video tokens/i.test(text)) {
     const short = SHORT_SIDE[res];
     if (!short) return unreadable;
-    const [a, b] = String(inputs.aspect_ratio || "16:9").split(":").map(Number);
-    const ratio = a > 0 && b > 0 ? Math.max(a, b) / Math.min(a, b) : 16 / 9;
+    // The frame: the shape asked for; else, for a model whose output follows
+    // the source image, the image's own shape (read from its first bytes; 21:9,
+    // the widest, when it cannot be read, so the card is never below the
+    // charge); else 16:9, which has the same area as 9:16.
+    let ratio = 16 / 9;
+    if (inputs.aspect_ratio) {
+      const [a, b] = String(inputs.aspect_ratio).split(":").map(Number);
+      if (a > 0 && b > 0) ratio = Math.max(a, b) / Math.min(a, b);
+    } else if (typeof inputs.image_url === "string" && !schema?.properties?.aspect_ratio) {
+      ratio = (await imageRatio(inputs.image_url)) ?? 21 / 9;
+    }
     const tokens = Math.ceil((seconds * short * Math.round(short * ratio) * 24) / 1024);
     usd = (tokens / 1000) * rate;
   } else if (/second/i.test(text)) {
@@ -699,6 +720,31 @@ async function describedPrice(model: string, inputs: JsonMap, text: string): Pro
     return { error: `The price read from Higgsfield's description works out to ${money(perSecond)} per second of video, far above the usual range (under ${money(MAX_USD_PER_SECOND)}), so the connector will not quote or charge it. Tell the account owner. Higgsfield's description: "${text.slice(0, 600)}"` };
   }
   return { usd: quoted };
+}
+
+// Long side over short side of an image link, from its first 64 KB, or null.
+async function imageRatio(link: string): Promise<number | null> {
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  try {
+    const res = await safeFetch(link);
+    if (typeof res === "string" || !res.ok || !res.body) return null;
+    reader = res.body.getReader();
+    let buf = new Uint8Array(0);
+    while (buf.length < 65536) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const next = new Uint8Array(buf.length + value.length);
+      next.set(buf); next.set(value, buf.length);
+      buf = next;
+      const size = imageSize(buf);
+      if (size) return Math.max(size.w, size.h) / Math.min(size.w, size.h);
+    }
+    return null;
+  } catch (_) {
+    return null;
+  } finally {
+    await reader?.cancel().catch(() => {});
+  }
 }
 
 // Length in seconds of an MP4/MOV, read from moov/mvhd by walking the box

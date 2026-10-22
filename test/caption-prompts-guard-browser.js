@@ -211,13 +211,13 @@ function ok(cond, msg) {
     for (const mode of ['http500', 'malformed']) {
       state.flag = mode;
       s = await save(mode);
-      ok(s.saves === 0 && s.n8n.length === 0 && s.reads === 3, mode + ': the read is retried (3 fresh reads), the save is HELD, nothing sent to the function or n8n');
+      ok(s.saves === 0 && s.n8n.length === 0 && s.reads === 4, mode + ': the read is retried (4 fresh reads), the save is HELD, nothing sent to the function or n8n');
     }
     state.flag = 'hang';
     const t0 = Date.now();
     s = await save('hang');
     if (state.hang) state.hang();
-    ok(s.saves === 0 && s.n8n.length === 0 && Date.now() - t0 < 12000, 'a flag read that never answers times out and holds the save (' + (Date.now() - t0) + ' ms)');
+    ok(s.saves === 0 && s.n8n.length === 0 && Date.now() - t0 < 20000, 'a flag read that never answers times out and holds the save (' + (Date.now() - t0) + ' ms)');
     const fk = state.flagUrls.map(q => Array.from(new URLSearchParams(q).keys()).sort().join(','));
     ok(fk.length > 5 && fk.every(k => k === 'key,limit,select') && state.flagUrls.every(q => !/_t=/.test(q) && new URLSearchParams(q).get('key') === 'eq.settings_ef_clients'),
       'every settings-flag read (' + fk.length + ') has exactly select, key, limit and no cache-buster');

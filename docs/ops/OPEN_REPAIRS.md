@@ -33905,3 +33905,7 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 - **Not covered (follow-up).** Messages, Samples and Time off were not measured. A Production refresh that does change something still rewrites the list.
 
 **Way back:** revert the pull request.
+
+## 475. [2026-10-22, FIXED in this change] Saving held when the page's "is saving on" check was slow
+
+On 2026-10-22 at 15:13 UTC a staff save on one real client was refused three times with `authority_unavailable` (reason `calendar_flag_timeout`): the page's own read of the saving switch did not answer within two seconds, three times in a row. No Edge Function errored, every server save in the window was 200, and the change went through on the next try. The card saver watcher rolled the switch back to three clients as its rule says. The check now waits four seconds per read and tries four times (worst case about 18 seconds, inside the 20 second save limit); a held save still stays in the outbox. Browser-only change; the guard tests for Calendar, Samples and caption prompts now expect four reads.

@@ -481,3 +481,8 @@ Why: the launch test (22 Oct) showed a reschedule in iClosed reached no n8n work
 - iClosed: the owner added a webhook for "Call rescheduled" to that address (22 Oct, about 22:15 UTC).
 Tested: dry run with pinned data (execution 676097, educator call moved to a later day: took the educator restart; nothing sent). A live reschedule of a test booking at 22:19 UTC did NOT reach the workflow; being checked with the owner.
 Undo: unpublish or archive `lpnLIPUFSo7bURWf` and remove the iClosed webhook.
+
+### 2026-10-22: Call Rescheduled webhook path fixed, live test passed
+
+- Workflow `lpnLIPUFSo7bURWf`: the webhook path changed from `iclosed-call-rescheduled` to `iclosed-call-reschedule`, to match the address saved in iClosed. Published version `8cced4a3-08ed-48a9-8248-9a324873ad80`.
+- Live test: a test educator call was moved in iClosed at 22:52 UTC. Execution 676137 ran green and restarted the educator nurture (execution 676138). The test call was then cancelled.

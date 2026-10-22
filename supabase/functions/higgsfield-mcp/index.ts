@@ -17,6 +17,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
+import { DOCS_URL, parseDocs } from "./catalogparse.mjs";
 import { QUESTION_TOOL, offerKey } from "./questions.mjs";
 import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, cleanWho, isTeamLink, logActivity, outcomeOf, teamTools, whoRefusal } from "./who.mjs";
 import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
@@ -81,8 +82,41 @@ const GO_TO: Pick[] = [
   { task: "Product and ad images", picks: ["marketing-studio/image/sunburst", "marketing-studio/image/flare"] },
 ];
 
-const ALL_MODELS = [...DIRECT_MODELS, ...CATALOG];
-const BY_ID = new Map(ALL_MODELS.map((m) => [m.id, m]));
+let ALL_MODELS = [...DIRECT_MODELS, ...CATALOG];
+let BY_ID = new Map(ALL_MODELS.map((m) => [m.id, m]));
+
+// The model list adapts by itself (Sidney, 2026-10-22: new Higgsfield models and
+// settings must reach the team with nobody lifting a finger). catalog.ts is only
+// the starting copy; every few hours a call re-reads Higgsfield's public docs
+// and swaps in what it finds. Prices are never stored: each quote asks
+// Higgsfield's estimate endpoint live. Safety nets stay: a docs reply that
+// does not look like the docs is ignored, models are only added or updated
+// (never dropped), every new model still gets a price card, the per-second
+// ceiling and the monthly cap, and any failure keeps the list we already have.
+const CATALOG_TTL_MS = 6 * 60 * 60 * 1000;
+const CATALOG_RETRY_MS = 30 * 60 * 1000;
+let catalogDueAt = 0;
+let catalogRefresh: Promise<void> | null = null;
+function refreshCatalog(): Promise<void> {
+  if (Date.now() < catalogDueAt) return Promise.resolve();
+  catalogRefresh ??= (async () => {
+    catalogDueAt = Date.now() + CATALOG_RETRY_MS;
+    try {
+      const res = await fetch(DOCS_URL, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) return;
+      const fresh = parseDocs(await res.text()) as typeof CATALOG;
+      // A docs page that parses to far fewer models than we know is a format
+      // change, not a real list: keep what we have.
+      if (fresh.length < CATALOG.length * 0.8) return;
+      const byId = new Map<string, (typeof CATALOG)[number]>(CATALOG.map((m) => [m.id, m]));
+      for (const m of fresh) byId.set(m.id, m);
+      ALL_MODELS = [...DIRECT_MODELS, ...byId.values()];
+      BY_ID = new Map(ALL_MODELS.map((m) => [m.id, m]));
+      catalogDueAt = Date.now() + CATALOG_TTL_MS;
+    } catch (_) { /* keep the list we have */ }
+  })().finally(() => { catalogRefresh = null; });
+  return catalogRefresh;
+}
 
 // The thumbnail batch workflow for the graphic designer, served by the
 // connector itself so nothing has to be installed besides this connector and
@@ -1122,6 +1156,7 @@ function voiceDeps(author: string) {
 // ---- Tool handlers -------------------------------------------------------
 
 async function callTool(name: string, args: JsonMap, member: string): Promise<string> {
+  await refreshCatalog();
   // A malformed cap stops new spending only; job checks, details and imports keep working.
   const BAD_CAP = "The monthly budget setting (HF_MONTHLY_CAP_USD) is not a valid dollar amount, so nothing new can be made. Ask the account owner.";
   const cap = CAP_USD ?? 0;

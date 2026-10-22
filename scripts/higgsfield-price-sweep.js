@@ -33,9 +33,9 @@ function sample(field, type) {
       if (m) inputs[m[1]] = sample(m[1], m[2]);
     }
     const t = await call('price_check', { model: id, inputs });
-    if (/cannot read/.test(t)) bad.push(`${id}: ${t.split('\n')[0].slice(0, 240)}`);
+    if (/cannot read|will not quote/.test(t)) bad.push(`${id}: ${t.split('\n')[0].slice(0, 240)}`);
   }));
-  console.log(`${ids.size} models checked, ${bad.length} with a price description the connector cannot read.`);
+  console.log(`${ids.size} models checked, ${bad.length} the connector cannot read or refuses to quote (a reading far above the usual range).`);
   for (const b of bad.sort()) console.log('- ' + b);
   process.exit(bad.length ? 1 : 0);
 })();

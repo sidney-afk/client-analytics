@@ -610,6 +610,7 @@ async function estimate(model: string, inputs: JsonMap): Promise<{ usd: number }
 // a 16:9 frame when the shape is unknown (same area as 9:16). Anything else
 // returns an error, and Claude may then quote its own reading (see max_usd).
 const VIDEO_BUDGET_S = 30;
+const MAX_USD_PER_SECOND = 2.5;
 const SHORT_SIDE: Record<string, number> = { "480p": 480, "540p": 540, "720p": 720, "1080p": 1080, "1440p": 1440, "2k": 1440, "4k": 2160 };
 function rateFor(text: string, res: string): number {
   const all = (t: string) => [...t.matchAll(/\$\s?(\d+(?:\.\d+)?)/g)].map((m) => Number(m[1])).filter((n) => n > 0);
@@ -653,7 +654,17 @@ async function describedPrice(model: string, inputs: JsonMap, text: string): Pro
   } else if (/second/i.test(text)) {
     usd = rate * seconds;
   } else return unreadable;
-  return { usd: Math.round(usd * 1.1 * 10000) / 10000 };
+  const quoted = Math.round(usd * 1.1 * 10000) / 10000;
+  // Safeguard (2026-10-22): Seedance 2.5 was read at about $11 per second,
+  // 30 times its sibling, and the quote went to the team unchallenged. Every
+  // video price seen live is under $2 per second (Seedance 2.0 4K is the top
+  // at about $1.7), so a reading above the ceiling is refused, with the
+  // sentence shown, instead of quoted or charged.
+  const perSecond = quoted / Math.max(1, seconds);
+  if (perSecond > MAX_USD_PER_SECOND) {
+    return { error: `The price read from Higgsfield's description works out to ${money(perSecond)} per second of video, far above the usual range (under ${money(MAX_USD_PER_SECOND)}), so the connector will not quote or charge it. Tell the account owner. Higgsfield's description: "${text.slice(0, 600)}"` };
+  }
+  return { usd: quoted };
 }
 
 // Length in seconds of an MP4/MOV, read from moov/mvhd by walking the box

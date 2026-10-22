@@ -1196,7 +1196,8 @@ export const CATALOG: CatalogModel[] = [
     "resolution": {
      "enum": [
       "480p",
-      "720p"
+      "720p",
+      "1080p"
      ],
      "type": "string",
      "default": "720p"
@@ -1283,7 +1284,8 @@ export const CATALOG: CatalogModel[] = [
     "resolution": {
      "enum": [
       "480p",
-      "720p"
+      "720p",
+      "1080p"
      ],
      "type": "string",
      "default": "720p"
@@ -1353,7 +1355,8 @@ export const CATALOG: CatalogModel[] = [
     "resolution": {
      "enum": [
       "480p",
-      "720p"
+      "720p",
+      "1080p"
      ],
      "type": "string",
      "default": "720p"
@@ -1441,7 +1444,8 @@ export const CATALOG: CatalogModel[] = [
     "resolution": {
      "enum": [
       "480p",
-      "720p"
+      "720p",
+      "1080p"
      ],
      "type": "string",
      "default": "720p"
@@ -1524,7 +1528,8 @@ export const CATALOG: CatalogModel[] = [
     "resolution": {
      "enum": [
       "480p",
-      "720p"
+      "720p",
+      "1080p"
      ],
      "type": "string",
      "default": "720p"
@@ -1837,6 +1842,85 @@ export const CATALOG: CatalogModel[] = [
   }
  },
  {
+  "id": "higgsfield/ads-studio/v1.0",
+  "name": "Ads Studio — Generate ads",
+  "category": "marketing-image",
+  "notes": [
+   "Submit one request with your brief. Ad concepts are prepared automatically, then rendered as images; no separate preparation or generate call is required.",
+   "batch_size selects 1–8 ad concepts. Each concept produces one image, so a fully successful batch returns batch_size images.",
+   "Rendering uses GPT Image 2.5 Flare with fixed 2k resolution and high quality. Exact dimensions depend on aspect_ratio. quality, resolution, renderer and fallback model are not public inputs.",
+   "All outputs in a batch use the requested aspect_ratio. Omitting it selects 1:1. The value auto is not supported.",
+   "Set HF_API_KEY_ID and HF_API_KEY_SECRET to your API credentials. Set a unique IDEMPOTENCY_KEY for each intended generation; reuse it only when retrying that same request."
+  ],
+  "schema": {
+   "type": "object",
+   "required": [
+    "prompt"
+   ],
+   "properties": {
+    "niche": {
+     "type": "string",
+     "default": "",
+     "maxLength": 1000
+    },
+    "prompt": {
+     "type": "string",
+     "pattern": "\\S",
+     "maxLength": 8000,
+     "minLength": 1
+    },
+    "language": {
+     "type": "string",
+     "default": "",
+     "maxLength": 80
+    },
+    "batch_size": {
+     "type": "integer",
+     "default": 1,
+     "maximum": 8,
+     "minimum": 1
+    },
+    "image_urls": {
+     "type": "array",
+     "items": {
+      "type": "string",
+      "pattern": "^https?://",
+      "maxLength": 8192,
+      "minLength": 1
+     },
+     "default": [],
+     "maxItems": 10
+    },
+    "aspect_ratio": {
+     "enum": [
+      "1:1",
+      "4:5",
+      "5:4",
+      "16:9",
+      "9:16",
+      "4:3",
+      "3:4",
+      "21:9",
+      "3:2",
+      "2:3",
+      "2:1",
+      "1:2",
+      "3:1",
+      "1:3"
+     ],
+     "type": "string",
+     "default": "1:1"
+    },
+    "target_audience": {
+     "type": "string",
+     "default": "",
+     "maxLength": 2000
+    }
+   },
+   "additionalProperties": false
+  }
+ },
+ {
   "id": "higgsfield/cinema-studio/4.0",
   "name": "Cinema Studio 4.0 — Generate",
   "category": "cinematic-video",
@@ -2118,7 +2202,8 @@ export const CATALOG: CatalogModel[] = [
     "resolution": {
      "enum": [
       "720p",
-      "480p"
+      "480p",
+      "1080p"
      ],
      "type": "string",
      "default": "720p"
@@ -2169,7 +2254,66 @@ export const CATALOG: CatalogModel[] = [
     "resolution": {
      "enum": [
       "720p",
-      "480p"
+      "480p",
+      "1080p"
+     ],
+     "type": "string",
+     "default": "720p"
+    }
+   },
+   "additionalProperties": false
+  }
+ },
+ {
+  "id": "higgsfield/genjutsu/restyle/v1.0",
+  "name": "Genjutsu — Restyle",
+  "category": "video-restyle",
+  "notes": [
+   "Restyle changes the visual style of a source video while retaining its motion, shot composition, and source audio. Each request produces one video.",
+   "Select a current style from GET /models/higgsfield/genjutsu/restyle/v1.0/presets and send its UUID as preset_id. The example UUID below is illustrative of a published preset; fetch the current catalog before submitting.",
+   "The source must be at least 4 seconds and no larger than 200 MiB. Videos longer than 30 seconds are trimmed to their first 30 seconds, including audio.",
+   "Character references are optional: omit image_urls or send [] to restyle the existing source subjects. Supply up to 5 character images to guide their appearance.",
+   "Defaults apply to omitted optional fields. Use [] or an empty string where appropriate; null is not accepted.",
+   "Output framing is derived from the source and animation cadence can depend on the selected style. Exact output duration and FPS may differ from the source."
+  ],
+  "schema": {
+   "type": "object",
+   "required": [
+    "video_url",
+    "preset_id"
+   ],
+   "properties": {
+    "prompt": {
+     "type": "string",
+     "default": "",
+     "maxLength": 10000
+    },
+    "preset_id": {
+     "type": "string",
+     "format": "uuid"
+    },
+    "video_url": {
+     "type": "string",
+     "format": "uri",
+     "minLength": 1,
+     "description": "Source video, 4–30 seconds. Longer videos are trimmed to 30 seconds."
+    },
+    "image_urls": {
+     "type": "array",
+     "items": {
+      "type": "string",
+      "format": "uri",
+      "minLength": 1
+     },
+     "default": [],
+     "maxItems": 5,
+     "description": "Optional character references. Leave empty to restyle the source frame."
+    },
+    "resolution": {
+     "enum": [
+      "480p",
+      "720p",
+      "1080p"
      ],
      "type": "string",
      "default": "720p"

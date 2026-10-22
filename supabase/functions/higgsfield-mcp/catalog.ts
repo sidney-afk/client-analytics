@@ -2265,64 +2265,6 @@ export const CATALOG: CatalogModel[] = [
   }
  },
  {
-  "id": "higgsfield/genjutsu/restyle/v1.0",
-  "name": "Genjutsu — Restyle",
-  "category": "video-restyle",
-  "notes": [
-   "Restyle changes the visual style of a source video while retaining its motion, shot composition, and source audio. Each request produces one video.",
-   "Select a current style from GET /models/higgsfield/genjutsu/restyle/v1.0/presets and send its UUID as preset_id. The example UUID below is illustrative of a published preset; fetch the current catalog before submitting.",
-   "The source must be at least 4 seconds and no larger than 200 MiB. Videos longer than 30 seconds are trimmed to their first 30 seconds, including audio.",
-   "Character references are optional: omit image_urls or send [] to restyle the existing source subjects. Supply up to 5 character images to guide their appearance.",
-   "Defaults apply to omitted optional fields. Use [] or an empty string where appropriate; null is not accepted.",
-   "Output framing is derived from the source and animation cadence can depend on the selected style. Exact output duration and FPS may differ from the source."
-  ],
-  "schema": {
-   "type": "object",
-   "required": [
-    "video_url",
-    "preset_id"
-   ],
-   "properties": {
-    "prompt": {
-     "type": "string",
-     "default": "",
-     "maxLength": 10000
-    },
-    "preset_id": {
-     "type": "string",
-     "format": "uuid"
-    },
-    "video_url": {
-     "type": "string",
-     "format": "uri",
-     "minLength": 1,
-     "description": "Source video, 4–30 seconds. Longer videos are trimmed to 30 seconds."
-    },
-    "image_urls": {
-     "type": "array",
-     "items": {
-      "type": "string",
-      "format": "uri",
-      "minLength": 1
-     },
-     "default": [],
-     "maxItems": 5,
-     "description": "Optional character references. Leave empty to restyle the source frame."
-    },
-    "resolution": {
-     "enum": [
-      "480p",
-      "720p",
-      "1080p"
-     ],
-     "type": "string",
-     "default": "720p"
-    }
-   },
-   "additionalProperties": false
-  }
- },
- {
   "id": "ideogram/v4.0",
   "name": "Ideogram 4.0 — Generate",
   "category": "text-to-image",

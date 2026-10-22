@@ -3048,7 +3048,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     /* THE ONE SHARED SEND STEP FOR EVERY CALENDAR SAVE (n8n exit, PR 2).
 
        Staff and Kasper saves never reach n8n. Before every write this asks the
-       runtime flag AGAIN, with a read of its own (bounded to two seconds, never
+       runtime flag AGAIN, with a read of its own (bounded to four seconds, never
        reused, never shared with another write), so a client removed from the
        flag is refused on the very next write, and a suspended tab or dropped
        realtime channel cannot keep an old allow. A flag that cannot be read,
@@ -3064,8 +3064,8 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
        buttons go through this same step and keep EXACTLY today's routing and
        request. Every write made from a client link therefore takes the
        untouched legacy branch below, byte for byte what it was. */
-    const CAL_WRITE_FLAG_READ_MS = 2000;
-    const CAL_WRITE_FLAG_READ_TRIES = 3;
+    const CAL_WRITE_FLAG_READ_MS = 4000;
+    const CAL_WRITE_FLAG_READ_TRIES = 4;
     function _calWriteHeldError(code, message) {
         const error = new Error(message);
         /* Recordable codes only: the refusal log's code list lives in a deployed

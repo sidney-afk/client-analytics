@@ -198,8 +198,8 @@ function ok(cond, msg) {
     for (const mode of ['http500', 'malformed', 'absent']) {
       state.flag = mode;
       r = await window_(mode, () => save('a', 'card-9'));
-      ok(!r.result.sent && r.result.held && r.ef === 0 && r.n8n.length === 0 && r.reads === 3,
-        mode + ': the read is retried (3 fresh reads), the save is HELD, nothing sent to the function or n8n');
+      ok(!r.result.sent && r.result.held && r.ef === 0 && r.n8n.length === 0 && r.reads === 4,
+        mode + ': the read is retried (4 fresh reads), the save is HELD, nothing sent to the function or n8n');
     }
 
     // 7. A flag read that never answers times out and holds.
@@ -209,7 +209,7 @@ function ok(cond, msg) {
     if (state.flagHang) state.flagHang();
     ok(!r.result.sent && r.result.held && r.result.code === 'authority_unavailable' && r.ef === 0 && r.n8n.length === 0,
       'a flag read that never answers times out and holds the save (' + (Date.now() - t0) + ' ms for 3 bounded tries)');
-    ok(Date.now() - t0 < 12000, 'each read is bounded (about two seconds), not open ended');
+    ok(Date.now() - t0 < 20000, 'each read is bounded (about four seconds), not open ended');
 
     // 8. Reorder: one function POST after a fresh read; paused or held rejects; never n8n.
     const reorder = (n) => page.evaluate(async ({ slug, n }) => {

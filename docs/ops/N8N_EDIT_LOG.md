@@ -461,3 +461,10 @@ Why: bookings on `educator-strategy-call` reached the same handler as /doctors a
 - Preview: a throwaway workflow (`ovnsyauVqjBuOTNf`) sent the educator confirmation and all six emails once to the owner's own plus-address (execution 675898, all seven delivered to the Primary inbox), then was archived.
 - NOT done, waiting for the owner: the switch. `Sales — Call Booked (iClosed)` (`xoPqojySDriQ8Mzh`, live `6cca8532`) must pass `event_slug` in "Start Normal Funnel". Until then the handler always sees an empty slug and educator bookings still get the /doctors emails.
 Undo: restore `fd551429-581e-4765-8c95-a2b093156336` on the handler and publish; archive `lU5RlPUBsmlMsFSf`.
+
+## 2026-10-22 Educator call emails switched on: the router passes the calendar (owner's go in the thread, Ads lane)
+Why: the owner read the preview and said to switch on now (entry above built everything but this).
+- Sales, Call Booked (iClosed) (`xoPqojySDriQ8Mzh`), node "Start Normal Funnel": before `6cca8532-9840-4f5b-b2d3-7ce4d930935d`, after `73723410-f331-4c14-b002-489259d4657f` (published). Adds the `event_slug` input, filled from "Normalize Booking". Version diff checked: only that field and its schema entry. Handler `ghpbQQJizAnR6p2b` confirmed still on `811f4f65`.
+- Effect: `educator-strategy-call` bookings now get the educator confirmation, text wording and pre-call emails (`lU5RlPUBsmlMsFSf`). /doctors and /apply bookings carry their own slug and take the unchanged path.
+Tested: not yet end to end; the owner's planned full test booking (book, reschedule, cancel) is the first live run.
+Undo: restore `6cca8532-9840-4f5b-b2d3-7ce4d930935d` on the router and publish.

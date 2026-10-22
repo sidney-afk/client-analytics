@@ -122,6 +122,9 @@ Both branches do the same dance:
    (AI branch also sets `is_ai_client=true`), create **deal** in the default
    pipeline at stage `appointmentscheduled`, save `deal_id` on the contact.
    Returning lead → no new deal, short re-confirmation email only.
+   Exception (since 2026-10-22, owner's choice): in **Normal Sales — Booking Handler** a booking
+   from the owner's own plus-address test email skips the HubSpot search, contact and deal; its
+   email, text, Kasper alert and nurture still run (`docs/ops/N8N_EDIT_LOG.md`, 2026-10-22).
 2. **Confirmation email** (Gmail, "Synchro Social"): normal =
    "You're booked, {first_name}" (accept-the-invite + 1B-views pitch);
    AI = "You're booked, {first_name}. Here's what happens next."

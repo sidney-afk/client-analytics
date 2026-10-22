@@ -23,11 +23,12 @@ const src = fs.readFileSync(path.join(dir, 'index.ts'), 'utf8');
 
 (async () => {
   const from = src.indexOf('const VIDEO_BUDGET_S');
-  const to = src.indexOf('// Length in seconds of an MP4/MOV');
+  const to = src.indexOf('// Long side over short side');
   assert.ok(from > 0 && to > from, 'describedPrice is where this test expects it');
   const body = stripTypeScriptTypes(src.slice(from, to).replace(/^const SHORT_SIDE: Record<string, number>/m, 'const SHORT_SIDE'));
-  const make = (schema) => new Function('BY_ID', 'directEstimate', 'videoSeconds', 'money', body + '\nreturn describedPrice;')(
-    new Map([['m/x', { schema }]]), () => ({ usd: 0.05 }), async () => null, (n) => '$' + Number(n).toFixed(2));
+  const imageShapes = { 'https://img/wide': 21 / 9, 'https://img/tall': 16 / 9 };
+  const make = (schema) => new Function('BY_ID', 'directEstimate', 'videoSeconds', 'money', 'imageRatio', body + '\nreturn describedPrice;')(
+    new Map([['m/x', { schema }]]), () => ({ usd: 0.05 }), async () => null, (n) => '$' + Number(n).toFixed(2), async (link) => (link in imageShapes ? imageShapes[link] : null));
   const schema = { properties: { resolution: { default: '720p' }, duration: { default: 5 } } };
   const priced = make(schema);
 
@@ -50,6 +51,20 @@ const src = fs.readFileSync(path.join(dir, 'index.ts'), 'utf8');
   assert.ok(near(await priced('m/x', { duration: 5, resolution: '720p' }, s25), 2.54), 'Seedance 2.5, 5 s at 720p, is about $2.31 plus the 10% margin: ' + JSON.stringify(await priced('m/x', { duration: 5, resolution: '720p' }, s25)));
   assert.ok(near(await priced('m/x', { duration: 5, resolution: '480p' }, s25), 1.13), 'and 5 s at 480p about $1.03 plus the margin');
   assert.ok(near(await priced('m/x', { duration: 5, resolution: '1080p' }, s25), 6.26), 'and 5 s at 1080p about $6.26 with the margin');
+
+  // Source-framed models (no aspect_ratio setting) are priced on the image's own shape.
+  const framed = (img) => priced('m/x', { duration: 5, resolution: '720p', image_url: img }, s25);
+  assert.ok(near(await framed('https://img/tall'), 2.54), 'a 16:9 or 9:16 image: about $2.54: ' + JSON.stringify(await framed('https://img/tall')));
+  assert.ok(near(await framed('https://img/wide'), 3.34), 'a 21:9 image: about $3.34, not the 16:9 price');
+  assert.ok(near(await framed('https://img/unreadable'), 3.34), 'an unreadable image is quoted at the widest shape, never below the charge');
+  const { imageSize } = await import(path.join(dir, 'imagesize.mjs'));
+  const png = (w, h) => { const b = new Uint8Array(32); b.set([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]); new DataView(b.buffer).setUint32(16, w); new DataView(b.buffer).setUint32(20, h); return b; };
+  assert.deepStrictEqual(imageSize(png(1680, 720)), { w: 1680, h: 720 }, 'PNG size is read');
+  const jpg = new Uint8Array(40); jpg.set([0xff, 0xd8, 0xff, 0xe0, 0, 4, 0, 0, 0xff, 0xc0, 0, 11, 8, 0x04, 0x38, 0x07, 0x80, 3]);
+  assert.deepStrictEqual(imageSize(jpg), { w: 1920, h: 1080 }, 'JPEG size is read');
+  const gif = new Uint8Array(32); gif.set([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x40, 0x01, 0xf0, 0x00]);
+  assert.deepStrictEqual(imageSize(gif), { w: 320, h: 240 }, 'GIF size is read');
+  assert.strictEqual(imageSize(new Uint8Array(40)), null, 'unknown bytes give null');
 
   const cat = fs.readFileSync(path.join(dir, 'catalog.ts'), 'utf8');
   const list = JSON.parse(cat.slice(cat.indexOf('= [') + 2, cat.lastIndexOf('];') + 1));

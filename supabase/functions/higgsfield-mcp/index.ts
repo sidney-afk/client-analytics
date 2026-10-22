@@ -18,6 +18,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
 import { DOCS_URL, parseDocs } from "./catalogparse.mjs";
+import { imageSize } from "./imagesize.mjs";
 import { QUESTION_TOOL, offerKey } from "./questions.mjs";
 import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, cleanWho, isTeamLink, logActivity, outcomeOf, teamTools, whoRefusal } from "./who.mjs";
 import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
@@ -692,8 +693,17 @@ async function describedPrice(model: string, inputs: JsonMap, text: string): Pro
   if (/video tokens/i.test(text)) {
     const short = SHORT_SIDE[res];
     if (!short) return unreadable;
-    const [a, b] = String(inputs.aspect_ratio || "16:9").split(":").map(Number);
-    const ratio = a > 0 && b > 0 ? Math.max(a, b) / Math.min(a, b) : 16 / 9;
+    // The frame: the shape asked for; else, for a model whose output follows
+    // the source image, the image's own shape (read from its first bytes; 21:9,
+    // the widest, when it cannot be read, so the card is never below the
+    // charge); else 16:9, which has the same area as 9:16.
+    let ratio = 16 / 9;
+    if (inputs.aspect_ratio) {
+      const [a, b] = String(inputs.aspect_ratio).split(":").map(Number);
+      if (a > 0 && b > 0) ratio = Math.max(a, b) / Math.min(a, b);
+    } else if (typeof inputs.image_url === "string" && !schema?.properties?.aspect_ratio) {
+      ratio = (await imageRatio(inputs.image_url)) ?? 21 / 9;
+    }
     const tokens = Math.ceil((seconds * short * Math.round(short * ratio) * 24) / 1024);
     usd = (tokens / 1000) * rate;
   } else if (/second/i.test(text)) {
@@ -710,6 +720,31 @@ async function describedPrice(model: string, inputs: JsonMap, text: string): Pro
     return { error: `The price read from Higgsfield's description works out to ${money(perSecond)} per second of video, far above the usual range (under ${money(MAX_USD_PER_SECOND)}), so the connector will not quote or charge it. Tell the account owner. Higgsfield's description: "${text.slice(0, 600)}"` };
   }
   return { usd: quoted };
+}
+
+// Long side over short side of an image link, from its first 64 KB, or null.
+async function imageRatio(link: string): Promise<number | null> {
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  try {
+    const res = await safeFetch(link);
+    if (typeof res === "string" || !res.ok || !res.body) return null;
+    reader = res.body.getReader();
+    let buf = new Uint8Array(0);
+    while (buf.length < 65536) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const next = new Uint8Array(buf.length + value.length);
+      next.set(buf); next.set(value, buf.length);
+      buf = next;
+      const size = imageSize(buf);
+      if (size) return Math.max(size.w, size.h) / Math.min(size.w, size.h);
+    }
+    return null;
+  } catch (_) {
+    return null;
+  } finally {
+    await reader?.cancel().catch(() => {});
+  }
 }
 
 // Length in seconds of an MP4/MOV, read from moov/mvhd by walking the box

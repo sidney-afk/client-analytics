@@ -43,6 +43,14 @@ const src = fs.readFileSync(path.join(dir, 'index.ts'), 'utf8');
   assert.ok(/will not quote or charge it/.test(bad.error) && bad.error.includes(wild), 'and the refusal shows Higgsfield\'s sentence');
   assert.ok(!/cannot read/.test(bad.error), 'it is not the "work it out yourself" path, which would let a guess through');
 
+  // Seedance 2.5's real sentence (read live 2026-10-22): the per second summary
+  // and the token rates are both in it, and the token rate is the one to use.
+  const s25 = 'For 16:9 video without video input, your request costs roughly $0.2056 per second of generated video at 480p, $0.4622 at 720p, and $1.1372 at 1080p. Each 1,000 video tokens costs $0.0214 at 480p or 720p and $0.0234 at 1080p. Billable video tokens = ceil(output height \u00d7 output width \u00d7 (input video duration + generated video duration) \u00d7 24 / 1024). Image and audio references do not count as video input. Actual pricing depends on output dimensions and billable duration.';
+  const near = (got, want) => 'usd' in got && Math.abs(got.usd - want) < 0.02;
+  assert.ok(near(await priced('m/x', { duration: 5, resolution: '720p' }, s25), 2.54), 'Seedance 2.5, 5 s at 720p, is about $2.31 plus the 10% margin: ' + JSON.stringify(await priced('m/x', { duration: 5, resolution: '720p' }, s25)));
+  assert.ok(near(await priced('m/x', { duration: 5, resolution: '480p' }, s25), 1.13), 'and 5 s at 480p about $1.03 plus the margin');
+  assert.ok(near(await priced('m/x', { duration: 5, resolution: '1080p' }, s25), 6.26), 'and 5 s at 1080p about $6.26 with the margin');
+
   const cat = fs.readFileSync(path.join(dir, 'catalog.ts'), 'utf8');
   const list = JSON.parse(cat.slice(cat.indexOf('= [') + 2, cat.lastIndexOf('];') + 1));
   for (const kind of ['image-to-video', 'text-to-video', 'reference-to-video', 'video-edit', 'video-extend']) {

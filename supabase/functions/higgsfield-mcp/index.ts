@@ -652,6 +652,13 @@ function rateFor(text: string, res: string): number {
   const pool = named.flatMap(all);
   return Math.max(0, ...(pool.length ? pool : all(text)));
 }
+function tokenRateFor(text: string, res: string): number {
+  const group = "(?:\\d{3,4}p|4k)";
+  for (const m of text.matchAll(new RegExp(`\\$\\s?(\\d+(?:\\.\\d+)?)\\s+at\\s+(${group}(?:\\s*(?:,|or|and)\\s*${group})*)`, "gi"))) {
+    if (new RegExp(`(^|[^\\d])${res}`, "i").test(m[2])) return Number(m[1]);
+  }
+  return 0;
+}
 async function describedPrice(model: string, inputs: JsonMap, text: string): Promise<{ usd: number } | { error: string }> {
   const unreadable = { error: `Higgsfield described the price in a way the connector cannot read: "${text.slice(0, 600)}"` };
   const schema = BY_ID.get(model)?.schema as Schema | undefined;
@@ -661,7 +668,11 @@ async function describedPrice(model: string, inputs: JsonMap, text: string): Pro
     const est = directEstimate("openai/gpt-image", { ...inputs, quality: q, size: "auto" });
     return "error" in est ? unreadable : { usd: Math.round(est.usd * 1.1 * 10000) / 10000 };
   }
-  const rate = rateFor(text, res);
+  // Seedance 2.5 words it as "Each 1,000 video tokens costs $0.0214 at 480p or
+  // 720p and $0.0234 at 1080p" after a per-second summary that also names
+  // resolutions, so the token rate is read from that sentence only.
+  const tokenSentence = /1,000 video tokens costs/i.test(text) ? text.slice(text.search(/1,000 video tokens costs/i)) : "";
+  const rate = tokenRateFor(tokenSentence, res) || rateFor(text, res);
   if (!(rate > 0)) return unreadable;
   const links = [inputs.video_url, ...(Array.isArray(inputs.video_urls) ? inputs.video_urls : [])].filter(Boolean).map(String);
   // One at a time, so a request with many reference videos never holds more
@@ -674,7 +685,7 @@ async function describedPrice(model: string, inputs: JsonMap, text: string): Pro
   const output = asked > 0 ? asked : main;
   // Input seconds count only when the sentence bills input video; output
   // seconds unless it bills input video alone.
-  const billsInput = /input video seconds|second of input video|combined input|input and output|input \+ output/i.test(text);
+  const billsInput = /input video seconds|input video duration|second of input video|combined input|input and output|input \+ output/i.test(text);
   const inputOnly = /second of input video/i.test(text) && !/generated|output/i.test(text);
   const seconds = (billsInput ? input : 0) + (inputOnly ? 0 : output);
   let usd: number;

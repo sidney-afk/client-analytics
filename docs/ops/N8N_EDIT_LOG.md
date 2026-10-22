@@ -468,3 +468,9 @@ Why: the owner read the preview and said to switch on now (entry above built eve
 - Effect: `educator-strategy-call` bookings now get the educator confirmation, text wording and pre-call emails (`lU5RlPUBsmlMsFSf`). /doctors and /apply bookings carry their own slug and take the unchanged path.
 Tested: not yet end to end; the owner's planned full test booking (book, reschedule, cancel) is the first live run.
 Undo: restore `6cca8532-9840-4f5b-b2d3-7ce4d930935d` on the router and publish.
+
+## 2026-10-22 Recovery reminder text goes even after the booking-link text (owner's go in the thread, Ads lane)
+Why: the launch test of the Doctors who teach page (22 Oct) showed that a lead who submits but does not book got the 3 minute booking-link text and then never the 30 minute reminder text: the instant link stamps `sms_sent_at`, so the sender treated the lead as already texted (execution 676018 stopped at "Send SMS?"). The owner chose to let the reminder text go too, at most two texts per lead.
+- Sales, Booking Recovery Dispatch (`nQ4vnZ8bmG3E3Lor`), Code node "Select Due": before `bbb6da3b-fed5-4231-acca-a163b493acfa`, after `d7af558d-2f77-4722-a230-b08ce29d5cab` (published). A text is still owed when the only text so far is the booking-link text (`sms_sent_at` equals `raw.instant_sent_at` and `raw.instant_sms` is yes). Once the reminder goes, `sms_sent_at` changes and no third text is possible. Quiet hours, opt-out, consent and the booked check are unchanged. Applies to every calendar that uses the instant link (doctors and doctors who teach).
+Tested: saved code read back from n8n and compared (identical apart from a trailing newline); run locally on four sample rows (booking-link text only: email and text; reminder already sent: email only; no text yet: both; no consent: email only). Live test on a test lead follows in the Ads tracker.
+Undo: restore `bbb6da3b-fed5-4231-acca-a163b493acfa` in n8n's workflow history and publish.

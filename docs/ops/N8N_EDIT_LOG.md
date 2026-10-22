@@ -430,3 +430,9 @@ Why: the educator page's iClosed question "Which fits you?" was replaced by a ne
 Left alone: Meta CAPI and Booking Recovery Dispatch still point educator links at /educators, which forwards to the new address with the query kept.
 Tested: not run end to end yet (first full test waits for the owner's go, test traffic only).
 Undo: restore each "before" version in n8n's workflow history and publish.
+
+## 2026-10-22 Meta CAPI: educator bookings get the new page address and their own label (owner's go in the request, Ads lane)
+Why: the doctors-who-teach page moved from /educators, and every booking carried the same `content_name`, so Meta could not count bookings from the new page apart from /doctors.
+- Sales, Booked Call to Meta CAPI (`s8lsPpKqWYhscLPV`), Code node "Authenticate + Evaluate": before `9ae0c6e0-8865-4e7d-a568-521d65f0be3b`, after `6404214a-d39e-4338-8993-932213e5a39c` (published). `educator-strategy-call` now maps to `https://synchrosocial.com/doctors-who-teach` and its Schedule carries `content_name: educator_call_booked`; every other calendar keeps `acquisition_call_booked`. Nothing else changed. An intermediate version `79e49b88-6518-44a8-97c6-058724741069` saved the new code in a stray nested field (no behaviour change) and was replaced within two minutes.
+Tested: two manual runs with a test booking on the educator calendar (executions 675887 on the stray version, 675888 on the final): skipped as test, nothing sent to Meta; the final run's payload shows the new address and label.
+Undo: restore `9ae0c6e0-8865-4e7d-a568-521d65f0be3b` in n8n's workflow history and publish.

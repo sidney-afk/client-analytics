@@ -42,8 +42,8 @@ every time a bug reaches the team; never rewrite old rows.
     A described price above $2.50 per second of video is refused with
     Higgsfield's sentence shown (the dearest real tier, Seedance 2.0 4K, is about
     $1.7). And `.github/workflows/higgsfield-catalog-watch.yml` compares the model
-    list and settings with Higgsfield's live docs every day and goes red on any
-    difference; fix with `node scripts/higgsfield-catalog.js`. The connector also
+    list and settings with Higgsfield's live docs when run (by hand or by the daily
+    learning check) and goes red on any difference; fix with `node scripts/higgsfield-catalog.js`. The connector also
     re-reads those docs itself every few hours (`catalogparse.mjs`), so a new model
     or setting reaches the team without a deploy; the watch then only says the
     starting copy in `catalog.ts` is behind. Prices were never stored: every quote

@@ -9,7 +9,7 @@
  *   node scripts/higgsfield-catalog.js <file>     use a saved copy instead
  *   node scripts/higgsfield-catalog.js --check    write nothing; exit 1 and list every
  *                                                 model or setting that differs from the
- *                                                 committed catalog (the daily watch)
+ *                                                 committed catalog (the catalog watch)
  */
 'use strict';
 const fs = require('fs');

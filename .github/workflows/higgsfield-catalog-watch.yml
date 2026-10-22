@@ -6,17 +6,19 @@ run-name: ${{ github.workflow }} (${{ github.event_name }})
 # catalog.ts is generated from the docs and goes stale silently: the docs
 # changed shape on 2026-10-22, the generator read no models, and Seedance 2.5
 # was missing its 1080p option (plus two new models) until a person noticed.
-# This reads the live docs every day and goes red, listing every model or
-# setting that differs, so a stale catalog is seen the same day. Fix: run
-# `node scripts/higgsfield-catalog.js`, commit catalog.ts, open a PR.
+# Run by hand (Run workflow) or by the Connector supervisor's daily check, it
+# reads the live docs and goes red, listing every model or setting that
+# differs. Fix: run `node scripts/higgsfield-catalog.js`, commit catalog.ts,
+# open a PR. The connector itself re-reads the docs every few hours, so a stale
+# catalog.ts no longer reaches the team; this only says the starting copy is
+# behind. It has no schedule of its own: scheduled workflows must be on the
+# database timer (test/github-dispatch-timer.js), which is not worth a
+# migration for a check the daily learning check can run.
 #
 # It checks the model list and settings. Prices are guarded inside the
-# connector (a reading above the per-second ceiling is refused); comparing
-# live prices needs Higgsfield's key, which this lane does not hold.
+# connector (a reading above the per-second ceiling is refused).
 
 on:
-  schedule:
-    - cron: '17 6 * * *'
   workflow_dispatch:
 
 permissions:

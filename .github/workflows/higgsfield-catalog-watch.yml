@@ -1,0 +1,45 @@
+name: Higgsfield catalog watch
+run-name: ${{ github.workflow }} (${{ github.event_name }})
+
+# Does the connector's model list still match Higgsfield's public docs?
+#
+# catalog.ts is generated from the docs and goes stale silently: the docs
+# changed shape on 2026-10-22, the generator read no models, and Seedance 2.5
+# was missing its 1080p option (plus two new models) until a person noticed.
+# Run by hand (Run workflow) or by the Connector supervisor's daily check, it
+# reads the live docs and goes red, listing every model or setting that
+# differs. Fix: run `node scripts/higgsfield-catalog.js`, commit catalog.ts,
+# open a PR. The connector itself re-reads the docs every few hours, so a stale
+# catalog.ts no longer reaches the team; this only says the starting copy is
+# behind. It has no schedule of its own: scheduled workflows must be on the
+# database timer (test/github-dispatch-timer.js), which is not worth a
+# migration for a check the daily learning check can run.
+#
+# It checks the model list and settings. Prices are guarded inside the
+# connector (a reading above the per-second ceiling is refused).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compare the catalog with Higgsfield's docs
+        run: |
+          set -o pipefail
+          node scripts/higgsfield-catalog.js --check | tee "$RUNNER_TEMP/catalog-watch.txt"
+        env:
+          NODE_NO_WARNINGS: '1'
+      - name: Summary
+        if: always()
+        run: |
+          { echo '### Higgsfield catalog watch'; echo '```'; cat "$RUNNER_TEMP/catalog-watch.txt" 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

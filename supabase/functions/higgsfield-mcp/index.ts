@@ -17,6 +17,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
+import { DOCS_URL, parseDocs } from "./catalogparse.mjs";
 import { QUESTION_TOOL, offerKey } from "./questions.mjs";
 import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, cleanWho, isTeamLink, logActivity, outcomeOf, teamTools, whoRefusal } from "./who.mjs";
 import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
@@ -81,8 +82,41 @@ const GO_TO: Pick[] = [
   { task: "Product and ad images", picks: ["marketing-studio/image/sunburst", "marketing-studio/image/flare"] },
 ];
 
-const ALL_MODELS = [...DIRECT_MODELS, ...CATALOG];
-const BY_ID = new Map(ALL_MODELS.map((m) => [m.id, m]));
+let ALL_MODELS = [...DIRECT_MODELS, ...CATALOG];
+let BY_ID = new Map(ALL_MODELS.map((m) => [m.id, m]));
+
+// The model list adapts by itself (Sidney, 2026-10-22: new Higgsfield models and
+// settings must reach the team with nobody lifting a finger). catalog.ts is only
+// the starting copy; every few hours a call re-reads Higgsfield's public docs
+// and swaps in what it finds. Prices are never stored: each quote asks
+// Higgsfield's estimate endpoint live. Safety nets stay: a docs reply that
+// does not look like the docs is ignored, models are only added or updated
+// (never dropped), every new model still gets a price card, the per-second
+// ceiling and the monthly cap, and any failure keeps the list we already have.
+const CATALOG_TTL_MS = 6 * 60 * 60 * 1000;
+const CATALOG_RETRY_MS = 30 * 60 * 1000;
+let catalogDueAt = 0;
+let catalogRefresh: Promise<void> | null = null;
+function refreshCatalog(): Promise<void> {
+  if (Date.now() < catalogDueAt) return Promise.resolve();
+  catalogRefresh ??= (async () => {
+    catalogDueAt = Date.now() + CATALOG_RETRY_MS;
+    try {
+      const res = await fetch(DOCS_URL, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) return;
+      const fresh = parseDocs(await res.text()) as typeof CATALOG;
+      // A docs page that parses to far fewer models than we know is a format
+      // change, not a real list: keep what we have.
+      if (fresh.length < CATALOG.length * 0.8) return;
+      const byId = new Map<string, (typeof CATALOG)[number]>(CATALOG.map((m) => [m.id, m]));
+      for (const m of fresh) byId.set(m.id, m);
+      ALL_MODELS = [...DIRECT_MODELS, ...byId.values()];
+      BY_ID = new Map(ALL_MODELS.map((m) => [m.id, m]));
+      catalogDueAt = Date.now() + CATALOG_TTL_MS;
+    } catch (_) { /* keep the list we have */ }
+  })().finally(() => { catalogRefresh = null; });
+  return catalogRefresh;
+}
 
 // The thumbnail batch workflow for the graphic designer, served by the
 // connector itself so nothing has to be installed besides this connector and
@@ -610,6 +644,7 @@ async function estimate(model: string, inputs: JsonMap): Promise<{ usd: number }
 // a 16:9 frame when the shape is unknown (same area as 9:16). Anything else
 // returns an error, and Claude may then quote its own reading (see max_usd).
 const VIDEO_BUDGET_S = 30;
+const MAX_USD_PER_SECOND = 2.5;
 const SHORT_SIDE: Record<string, number> = { "480p": 480, "540p": 540, "720p": 720, "1080p": 1080, "1440p": 1440, "2k": 1440, "4k": 2160 };
 function rateFor(text: string, res: string): number {
   const all = (t: string) => [...t.matchAll(/\$\s?(\d+(?:\.\d+)?)/g)].map((m) => Number(m[1])).filter((n) => n > 0);
@@ -653,7 +688,17 @@ async function describedPrice(model: string, inputs: JsonMap, text: string): Pro
   } else if (/second/i.test(text)) {
     usd = rate * seconds;
   } else return unreadable;
-  return { usd: Math.round(usd * 1.1 * 10000) / 10000 };
+  const quoted = Math.round(usd * 1.1 * 10000) / 10000;
+  // Safeguard (2026-10-22): Seedance 2.5 was read at about $11 per second,
+  // 30 times its sibling, and the quote went to the team unchallenged. Every
+  // video price seen live is under $2 per second (Seedance 2.0 4K is the top
+  // at about $1.7), so a reading above the ceiling is refused, with the
+  // sentence shown, instead of quoted or charged.
+  const perSecond = quoted / Math.max(1, seconds);
+  if (perSecond > MAX_USD_PER_SECOND) {
+    return { error: `The price read from Higgsfield's description works out to ${money(perSecond)} per second of video, far above the usual range (under ${money(MAX_USD_PER_SECOND)}), so the connector will not quote or charge it. Tell the account owner. Higgsfield's description: "${text.slice(0, 600)}"` };
+  }
+  return { usd: quoted };
 }
 
 // Length in seconds of an MP4/MOV, read from moov/mvhd by walking the box
@@ -1111,6 +1156,7 @@ function voiceDeps(author: string) {
 // ---- Tool handlers -------------------------------------------------------
 
 async function callTool(name: string, args: JsonMap, member: string): Promise<string> {
+  await refreshCatalog();
   // A malformed cap stops new spending only; job checks, details and imports keep working.
   const BAD_CAP = "The monthly budget setting (HF_MONTHLY_CAP_USD) is not a valid dollar amount, so nothing new can be made. Ask the account owner.";
   const cap = CAP_USD ?? 0;

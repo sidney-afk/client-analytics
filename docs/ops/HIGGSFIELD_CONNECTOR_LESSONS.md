@@ -38,6 +38,17 @@ every time a bug reaches the team; never rewrite old rows.
 10. **Match what people type, not only the exact key.** Topic names are typed
     from memory ("broll", "b roll"), so lookups ignore case, spaces and dashes.
 
+11. **A number that reads cleanly can still be wrong, so a price has a ceiling.**
+    A described price above $2.50 per second of video is refused with
+    Higgsfield's sentence shown (the dearest real tier, Seedance 2.0 4K, is about
+    $1.7). And `.github/workflows/higgsfield-catalog-watch.yml` compares the model
+    list and settings with Higgsfield's live docs when run (by hand or by the daily
+    learning check) and goes red on any difference; fix with `node scripts/higgsfield-catalog.js`. The connector also
+    re-reads those docs itself every few hours (`catalogparse.mjs`), so a new model
+    or setting reaches the team without a deploy; the watch then only says the
+    starting copy in `catalog.ts` is behind. Prices were never stored: every quote
+    asks Higgsfield live.
+
 ## Log
 
 | Date | What broke | Why | Rule |
@@ -57,3 +68,4 @@ every time a bug reaches the team; never rewrite old rows.
 | 2026-10-16 | `guide("broll")` answered "No guide called" | The live topic is `b-roll`; the lookup only folded case and spaces. Now a topic that matches with the dashes left out (exactly one) is found too | 10 |
 | 2026-10-17 | Found in review, not reached by the team: a compressed audio stream (MP3, format 0x55) inside a RIFF/WAVE file, with a PCM-looking byte rate written in the header, was measured by `parseWavHeader` as whatever length the header claimed, so `voice_cleanup` (and the coming `studio_transcribe`) would price it far shorter than the provider bills | The parser took the header's byte rate on trust and never read the format code. Now only PCM (1) or float (3), directly or in WAVE_FORMAT_EXTENSIBLE, with a byte rate and block size that match rate x channels x bits, is measured; anything else is refused in plain words | 1 |
 | 2026-10-17 | A GPT Image result was charged ($0.01) but not saved: the person got "made and charged but could not be saved" | OpenAI returned the image, then the upload to the file host got a one-off Cloudflare 5xx and the job went straight to delivery_failed. Now the store step is tried three times, 0, 2 and 6 seconds apart (#2163). The charge stays, since OpenAI bills on generation | 1 |
+| 2026-10-22 | Seedance 2.5 was quoted at $54.91 for a 5 second clip (about 30 times its sibling), and 1080p was missing from its options; the AI editor lane refused a good model because of the price | The catalog is generated from Higgsfield's docs; the docs changed shape (schema inside a quoted block), the generator then read no models, and the catalog went stale unnoticed, so settings and 1080p were behind. The price sentence was read with no sanity limit | 11 |

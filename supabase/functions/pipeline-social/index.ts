@@ -9,7 +9,7 @@
 //
 //   POST { action, ... }   header x-pipeline-pass: <a filming pipeline pass>
 //
-//   tiktok.search    { query, sort_by?, date_posted?, region?, cursor? }
+//   tiktok.search    (slimmed to words, link, date, counts incl. views, poster) { query, sort_by?, date_posted?, region?, cursor? }
 //   youtube.search   { query, type? (shorts|videos), uploadDate?, sortBy?, region?, continuationToken? }
 //   reddit.search    { query, filter?, sort?, timeframe?, after? }
 //   reddit.subreddit { subreddit, sort?, timeframe?, cache_max_age?, after? }
@@ -27,7 +27,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { PASS_HEADER, isPassToken, passHash } from "../pipeline-google/pass.mjs";
 import { pipelineGate } from "../pipeline-google/users.mjs";
-import { BASE, CAP_KEY, buildRequest, capFrom, logLine, monthStart } from "./rules.mjs";
+import { BASE, CAP_KEY, buildRequest, capFrom, logLine, monthStart, slimResult } from "./rules.mjs";
 
 const clean = (v: unknown) => String(v == null ? "" : v).trim();
 const json = (obj: unknown, status = 200) => Response.json(obj, { status, headers: { "Cache-Control": "no-store" } });
@@ -122,7 +122,7 @@ async function handle(req: Request): Promise<Response> {
     await fail(`status ${resp.status}`);
     return json({ ok: false, error: why, status: resp.status }, resp.status === 404 ? 404 : 502);
   }
-  return json({ ok: true, action, result: data ?? text });
+  return json({ ok: true, action, result: slimResult(action, data ?? text) });
 }
 
 Deno.serve(async (req) => {

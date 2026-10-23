@@ -46,6 +46,16 @@ function ok(cond, msg) { if (!cond) { console.error('FAIL ' + msg); process.exit
   ok(m.normalizeChanges({ roam_channel_id: 'x' }).error === 'field_not_editable', 'the Roam channel is not editable');
   ok(m.normalizeChanges({ email: 5 }).error === 'bad_value' && m.normalizeChanges({}).error === 'no_changes', 'bad values and empty edits are refused');
   ok(m.normalizeChanges({ email: 'x'.repeat(m.MAX_FIELD_CHARS + 1) }).error === 'value_too_long', 'values are size-bounded');
+  // The Slack person "Notify client" tags: a member id only, tidied, or blank to clear.
+  ok(m.EDITABLE_FIELDS.includes('slack_mention_user_id'), 'the Slack person to tag is editable');
+  ok(m.normalizeChanges({ slack_mention_user_id: ' U0FIXTURE01 ' }).changes.slack_mention_user_id === 'U0FIXTURE01'
+    && m.normalizeChanges({ slack_mention_user_id: '<@U0FIXTURE01>' }).changes.slack_mention_user_id === 'U0FIXTURE01'
+    && m.normalizeChanges({ slack_mention_user_id: 'u0fixture01' }).changes.slack_mention_user_id === 'U0FIXTURE01'
+    && m.normalizeChanges({ slack_mention_user_id: 'W0GRIDUSER1' }).changes.slack_mention_user_id === 'W0GRIDUSER1', 'a pasted mention, spaces or lower case are tidied to the member id');
+  ok(m.normalizeChanges({ slack_mention_user_id: '' }).changes.slack_mention_user_id === '', 'blank clears it');
+  for (const bad of ['C0CHANNEL01', '<!channel>', '@here', 'U123', 'someone@example.test', 'U0FIX TURE01'])
+    ok(m.normalizeChanges({ slack_mention_user_id: bad }).error === 'bad_value' && m.normalizeChanges({ slack_mention_user_id: bad }).field === 'slack_mention_user_id', 'not a member id is refused: ' + bad);
+  ok(m.planSheetEdit(sheet(), 'averyfixture', loaded, { slack_mention_user_id: 'U0FIXTURE01' }).error === 'sheet_header_missing', 'while the Sheet is the main copy the field cannot be saved there (it has no column)');
 
   const fn = read('supabase/functions/client-profile-write/index.ts');
   const serve = fn.slice(fn.indexOf('Deno.serve('));

@@ -15,6 +15,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const root = path.resolve(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
@@ -151,7 +152,7 @@ const eq = (a, b, m) => { assert.deepStrictEqual(a, b, m); checks++; };
   ok(keepAt > 0 && keepAt < page.indexOf("_jsAttrArg('replace')"), 'Keep mine comes before Replace');
   ok(/_prodTtDescButtonHTML\(issue\)\s*\n?\s*\+ '<button class="prod-description-action"/.test(read('src/index/240-production-description.js.part')), '"Write title" sits right before Edit');
   ok(/' Sub-issues <span class="prod-group-count">' \+ kids\.length \+ '<\/span><\/span>' \+ ttButton/.test(read('src/index/260-production-refresh-boot.js.part')), 'the batch button sits on the right of the Sub-issues header');
-  ok(!/production-write/.test(page.replace(/\/\*[\s\S]*?\*\//g, '')), 'the page never calls production-write for this (no Section 4 change)');
+  ok(!/production-write/.test(stripBlockComments(page)), 'the page never calls production-write for this (no Section 4 change)');
 
   console.log(`thumbnail-title-buttons-source: ${checks} checks passed`);
 })().catch((e) => { console.error(e); process.exit(1); });

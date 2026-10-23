@@ -148,7 +148,7 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
 
   // ---- static wiring ----
   const fn = read('supabase/functions/thumbnail-titles/index.ts');
-  // Since 2026-10-23 (OPEN_REPAIRS 476) the plan is read by plan.ts: the connector's link reader first, then
+  // Since 2026-10-23 (OPEN_REPAIRS 481) the plan is read by plan.ts: the connector's link reader first, then
   // the service account for private plans. Still one link reader, the connector's.
   const planSrc = read('supabase/functions/thumbnail-titles/plan.ts');
   ok(planSrc.includes('from "../higgsfield-mcp/clientinfo.ts"') && /planTabs\(docId\)/.test(planSrc) && /readPlanTabs\(docId\)/.test(fn), 'reuses the connector\'s filming-plan reader');

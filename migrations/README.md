@@ -77,7 +77,7 @@ executes these files (see `README.md` › Repository layout).
   from all four roles. No Edge Function change. `test/production-comment-signal.js`
   measures it on a real PostgreSQL 16.
 
-- **`2026-10-23-thumbnail-title-buttons.sql`** is source-only until applied (OPEN_REPAIRS 476, session
+- **`2026-10-23-thumbnail-title-buttons.sql`** is source-only until applied (OPEN_REPAIRS 481, session
   Titlecard). Adds `thumbnail_title_runs` and `thumbnail_title_run_items` (one run per press of the
   Production "Thumbnail titles" / "Write title" buttons, one active run per post), the compare-and-set
   writer `thumbnail_title_manual_apply`, and lets the per-minute timer finish a run whose worker died.

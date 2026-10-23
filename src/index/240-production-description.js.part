@@ -2561,7 +2561,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
                    from a failed read, and that case is load-bearing. */
                 + '<div class="prod-description-actions">'
                 /* "Write title" beside Edit on a thumbnail sub-issue, and under the header what that run is
-                   doing for it (OPEN_REPAIRS 476, behind thumbnail_title_buttons_staff). */
+                   doing for it (OPEN_REPAIRS 481, behind thumbnail_title_buttons_staff). */
                 + _prodTtDescButtonHTML(issue)
                 + '<button class="prod-description-action" type="button" data-prod-description-control="edit" data-prod-description-edit="1" data-prod-description-ready="' + (state.status === 'ready' && !state.refreshing ? '1' : '0') + '" onclick="return _prodBeginDescriptionEdit(' + _jsAttrArg(id) + ')"' + gateAttrs + '>Edit</button>'
                 + '</div></div>' + _prodTtDescSlotHTML(issue) + body + readState + '</section>';

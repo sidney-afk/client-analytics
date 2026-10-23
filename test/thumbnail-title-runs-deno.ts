@@ -1,5 +1,5 @@
 // Drives the Production thumbnail title run (supabase/functions/thumbnail-titles/runs.ts) end to end against
-// an in-memory stand-in for the database (session Titlecard, 2026-10-23, OPEN_REPAIRS 476). The plan reader
+// an in-memory stand-in for the database (session Titlecard, 2026-10-23, OPEN_REPAIRS 481). The plan reader
 // is fed a fictional plan through a stubbed fetch, and the model is a fake that answers per post.
 //
 // Run: deno run --allow-env --allow-read --node-modules-dir=auto test/thumbnail-title-runs-deno.ts

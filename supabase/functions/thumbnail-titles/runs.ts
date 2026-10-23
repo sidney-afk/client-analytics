@@ -1,4 +1,4 @@
-// The Production thumbnail title buttons, server side (session Titlecard, 2026-10-23, OPEN_REPAIRS 476).
+// The Production thumbnail title buttons, server side (session Titlecard, 2026-10-23, OPEN_REPAIRS 481).
 //
 // Browser actions (staff key; admins and SMMs only, owner decision 2):
 //   run       {client, run_key, items:[deliverable ids], scope:"post"|"item"}  start a run, or follow the

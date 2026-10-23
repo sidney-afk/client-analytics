@@ -43,7 +43,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
                                     client link. Missing, unreadable or the wrong shape: the Workload calendar exactly
                                     as it was.
          thumbnail_title_buttons_staff { "staff": [...] }: the Production "Thumbnail titles" and "Write title" buttons
-                                    (session Titlecard, 2026-10-23, OPEN_REPAIRS 476). Same listing rule (id or full
+                                    (session Titlecard, 2026-10-23, OPEN_REPAIRS 481). Same listing rule (id or full
                                     name of the signed-in staff member). Missing, unreadable or the wrong shape: no buttons.
          analytics_hidden           { "hidden": false } brings Analytics back for everyone (the staff bar's Analytics
                                     tab, the client link's Analytics / Content Calendar toggle). Missing, unreadable,

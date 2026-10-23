@@ -1,6 +1,6 @@
 -- ef-auto-deploy: functions-cope-without-this
 -- ef-auto-deploy-applied-when: select to_regclass('public.thumbnail_title_runs') is not null and to_regprocedure('public.thumbnail_title_manual_apply(text,text,text,text,text,text,text)') is not null
--- Thumbnail title buttons in Production (session Titlecard, 2026-10-23, OPEN_REPAIRS 476). Plan and owner
+-- Thumbnail title buttons in Production (session Titlecard, 2026-10-23, OPEN_REPAIRS 481). Plan and owner
 -- decisions: docs/syncview-design/mockups/thumbnail-titles/PLAN.md.
 --
 -- A staff member (admin or SMM) presses "Thumbnail titles" on a post, or "Write title" on one thumbnail

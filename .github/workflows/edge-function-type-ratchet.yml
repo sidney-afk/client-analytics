@@ -66,7 +66,7 @@ jobs:
         # would check nothing and report a green, which is worse than having
         # no lane because it looks like one.
         run: node scripts/deno-typecheck-ratchet.js --require-deno
-      # The Production thumbnail title run (OPEN_REPAIRS 476) driven end to end against an in-memory
+      # The Production thumbnail title run (OPEN_REPAIRS 481) driven end to end against an in-memory
       # database: needs Deno, so it rides this lane rather than the Node unit job.
       - name: Thumbnail title runs (Deno, in-memory database)
         run: deno run --allow-env --allow-read --node-modules-dir=auto test/thumbnail-title-runs-deno.ts

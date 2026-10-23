@@ -1,4 +1,4 @@
-// Pure logic for the Production thumbnail title buttons (session Titlecard, 2026-10-23, OPEN_REPAIRS 476).
+// Pure logic for the Production thumbnail title buttons (session Titlecard, 2026-10-23, OPEN_REPAIRS 481).
 // No Deno or network APIs here, so test/thumbnail-title-buttons-source.js runs it under Node.
 //
 // A press of "Thumbnail titles" (a whole post) or "Write title" (one thumbnail) starts a RUN on the server.

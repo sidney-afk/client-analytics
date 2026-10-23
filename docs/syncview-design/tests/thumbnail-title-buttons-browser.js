@@ -1,6 +1,6 @@
 'use strict';
 /*
- * Thumbnail titles from the filming plan, in the browser (session Titlecard, 2026-10-23, OPEN_REPAIRS 476).
+ * Thumbnail titles from the filming plan, in the browser (session Titlecard, 2026-10-23, OPEN_REPAIRS 481).
  *
  * Fully mocked: the page is served from this checkout, every network call is answered here, and the
  * thumbnail-titles function is a small fake that walks a run through its stages. Fictional data only.

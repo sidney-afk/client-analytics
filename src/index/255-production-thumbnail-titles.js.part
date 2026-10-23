@@ -7,7 +7,7 @@ import { _prodState } from './210-production-state-writes.js';
 import { _prodCanWrite, _prodChildrenOf, _prodHideTip, _prodIssue, _prodToast, _prodWriteTeam } from './220-production-attribution-views.js';
 import { _prodRefreshDescription } from './240-production-description.js';
 import { _isClientLink, _prodRender } from './260-production-refresh-boot.js';
-        /* THUMBNAIL TITLES FROM THE FILMING PLAN (session Titlecard, 2026-10-23, OPEN_REPAIRS 476).
+        /* THUMBNAIL TITLES FROM THE FILMING PLAN (session Titlecard, 2026-10-23, OPEN_REPAIRS 481).
            Plan, mock-ups and the owner's decisions: docs/syncview-design/mockups/thumbnail-titles/.
 
            Two buttons, both behind the runtime switch thumbnail_title_buttons_staff { "staff": [...] }

@@ -36,7 +36,7 @@ new switch `thumbnail_title_buttons_staff` (absent = off). The run lives on the 
 tab by the approved rule, writes only into an empty description or the old robot "Needs info" line, and asks before
 touching anything a person wrote. With it, the background writer stops writing "Needs info" lines, private plans are
 read through the service account, and tokens are recorded per run. Needs `migrations/2026-10-23-thumbnail-title-buttons.sql`
-applied after merge. OPEN_REPAIRS 476; plan and decisions in `docs/syncview-design/mockups/thumbnail-titles/PLAN.md`.
+applied after merge. OPEN_REPAIRS 481; plan and decisions in `docs/syncview-design/mockups/thumbnail-titles/PLAN.md`.
 
 ## Kasper's tab boots fast, behind `kasper_fast_boot` (session Quick, 2026-10-20): merged (#2265), switch on for Sidney's two ids only, Kasper next
 

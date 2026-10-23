@@ -1,6 +1,6 @@
 # Thumbnail titles from the filming plan: plan
 
-Session Titlecard, written 2026-10-23 20:24 UTC (`date -u`). **Approved by the owner 2026-10-23 (all of section 10) and built in the follow-up PR (OPEN_REPAIRS 476);** the measured cost is in that entry. One change from the plan while building: the skip message says "No video N in the October plan" only when the tab's list stops before N, and "Video N not matched in the October plan" otherwise.
+Session Titlecard, written 2026-10-23 20:24 UTC (`date -u`). **Approved by the owner 2026-10-23 (all of section 10) and built in the follow-up PR (OPEN_REPAIRS 481);** the measured cost is in that entry. One change from the plan while building: the skip message says "No video N in the October plan" only when the tab's list stops before N, and "Video N not matched in the October plan" otherwise.
 
 Mock-ups in this folder, pictures in `screens/`. The mock-ups themselves ship nothing.
 

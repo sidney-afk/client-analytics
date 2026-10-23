@@ -3739,7 +3739,7 @@
         .prod-cal-d.empty { cursor: default; }
         .prod-toast { position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 8px); z-index: 10000; min-height: 34px; max-width: min(420px, calc(100vw - 32px)); padding: 8px 13px; border: 1px solid var(--prod-border); border-radius: 10px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: 0 12px 32px rgba(0,0,0,.16); font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .12s, transform .12s; }
         .prod-toast.show { opacity: 1; transform: translate(-50%, 0); }
-        /* Thumbnail titles from the filming plan (OPEN_REPAIRS 476): the buttons, the per-row state, the
+        /* Thumbnail titles from the filming plan (OPEN_REPAIRS 481): the buttons, the per-row state, the
            description slot, the lasting toast and the review sheet. Production tokens only. */
         .prod-tt-slot { display: inline-flex; margin-left: auto; }
         .prod-description-actions .prod-tt-slot { margin-left: 0; }

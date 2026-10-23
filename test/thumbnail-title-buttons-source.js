@@ -1,6 +1,6 @@
 'use strict';
 /*
- * The Production thumbnail title buttons (session Titlecard, 2026-10-23, OPEN_REPAIRS 476): the pure rules in
+ * The Production thumbnail title buttons (session Titlecard, 2026-10-23, OPEN_REPAIRS 481): the pure rules in
  * supabase/functions/thumbnail-titles/manual.mjs, and the wiring of the run, the migration and the page.
  * Fictional plans only.
  *

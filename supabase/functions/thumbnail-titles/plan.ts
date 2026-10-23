@@ -1,4 +1,4 @@
-// Reading a client's filming plan for thumbnail titles (session Titlecard, 2026-10-23, OPEN_REPAIRS 476).
+// Reading a client's filming plan for thumbnail titles (session Titlecard, 2026-10-23, OPEN_REPAIRS 481).
 //
 // First the link reader the connector uses (planTabs: works for a Doc shared "anyone with the link").
 // When that finds nothing, the Google Docs API with the service account the filming-plan-tabs function

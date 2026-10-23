@@ -1570,7 +1570,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             // kids and nothing to offer renders nothing at all.
             if (!kids.length) return '';
             /* The post's "Thumbnail titles" button sits on the right of this header, where it was empty
-               (OPEN_REPAIRS 476, behind thumbnail_title_buttons_staff). */
+               (OPEN_REPAIRS 481, behind thumbnail_title_buttons_staff). */
             const parent = kids.length ? _prodIssue(kids[0].parent) : null;
             const ttButton = parent ? _prodTtSubheadHTML(parent, kids) : '';
             return '<div class="prod-subsection" data-prod-section="subissues"><div class="prod-subhead"><span class="prod-subhead-title">' + _prodIcon('issues') + ' Sub-issues <span class="prod-group-count">' + kids.length + '</span></span>' + ttButton + '</div>' + kids.map(_prodSubIssueRowHTML).join('') + '</div>';

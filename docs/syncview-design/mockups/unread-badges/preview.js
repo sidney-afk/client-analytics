@@ -140,7 +140,7 @@
     return `<span class="svu-strip-label">Waiting for you</span>${parts || '<span class="svu-strip-calm">Nothing new</span>'}${stripFilter ? '<button type="button" class="svu-strip-clear" onclick="svUnreadPreview.filter(\'\')">Show all posts</button>' : ''}`;
   }
   function placeStrip() {
-    const bar = document.querySelector('#calView .cal-toolbar');
+    const bar = document.querySelector('#calView .cal-toolbar') || document.querySelector('#calView .thumb-collection-bar')?.previousElementSibling;
     if (!bar) return;
     let el = document.querySelector('.svu-strip');
     if (!el) { el = document.createElement('div'); el.className = 'svu-strip'; }
@@ -156,6 +156,22 @@
       const s = post ? stateOf(post) : null;
       const hit = !stripFilter || (s && (stripFilter === 'open' ? (s.open + s.change) > 0 : s[stripFilter] > 0));
       card.classList.toggle('svu-dim', !hit);
+    });
+  }
+
+  /* ---------- Phone grid tiles: small, so colour + icon + number; the long-press card says it in words ---------- */
+  function decorateTiles() {
+    document.querySelectorAll('.thumb-grid-card[data-pid]').forEach(card => {
+      const post = calState.posts.find(p => p.id === card.getAttribute('data-pid'));
+      const info = card.querySelector('.thumb-tile-info');
+      if (!post || !info) return;
+      const s = stateOf(post);
+      const mini = (k, n) => n ? `<span class="svu-chip svu-${k} svu-mini">${ICO[k === 'open' ? 'change' : k]}${n}</span>` : '';
+      const html = [mini('change', s.change), mini('comment', s.comment), mini('waiting', s.waiting), mini('open', s.open), mini('staff', s.staff), mini('kasper', s.kasper)].filter(Boolean).slice(0, 3).join('');
+      let row = info.querySelector('.svu-tile-chips');
+      if (!row && html) { row = document.createElement('span'); row.className = 'svu-tile-chips'; info.prepend(row); }
+      if (row && row.innerHTML !== html) row.innerHTML = html;
+      if (row) row.hidden = !html;
     });
   }
 
@@ -318,8 +334,14 @@
         b.insertAdjacentHTML('beforeend', `<div class="svu-b-acts"><button type="button" class="svu-btn svu-primary" onclick="_msgSetReplyTo(${_jsAttrArg(m.root_id)});document.getElementById('msgReplyBox')&&document.getElementById('msgReplyBox').focus()">${ICO.waiting}Reply</button><button type="button" class="svu-btn" onclick="svUnreadPreview.noReply('${m.id}')">No reply needed</button></div>`);
       }
     });
-    // The two conversation actions stay buttons in the head (as today), with plain words.
+    // The two conversation actions are plain buttons in the head, on a phone too (today a phone hides them behind "•••").
     root.querySelectorAll('.msg-chat-actions .msg-act').forEach(a => { if (/unread/i.test(a.textContent)) a.textContent = 'Mark unread'; });
+    const more = root.querySelector('.msg-chat-actions .thumb-msg-options');
+    if (more) {
+      const head = more.closest('.msg-chat-head');
+      more.remove();
+      if (head && !head.nextElementSibling?.classList.contains('svu-phone-acts')) head.insertAdjacentHTML('afterend', '<div class="svu-phone-acts"><button type="button" class="svu-btn" onclick="_msgMarkUnread()">Mark unread</button><button type="button" class="svu-btn" onclick="_msgOpenCard()">Open card</button></div>');
+    }
   }
   const origPaint = window._msgPaint;
   window._msgPaint = function () { const r = origPaint.apply(this, arguments); try { decorateMessages(); } catch (e) { console.warn('svu', e); } return r; };
@@ -349,7 +371,7 @@
   function markUnread(pid) { markedUnread.add(pid); refresh(); if (typeof showToast === 'function') showToast('Marked unread. It stays in your new list.'); }
   function refresh() {
     try { (calState.posts || []).forEach(p => _calRefreshCommentsBtn(p.id)); } catch (e) {}
-    placeStrip(); decorateNotes(); try { _msgPaintCounts(); _msgPaint(); } catch (e) {}
+    placeStrip(); decorateNotes(); decorateTiles(); try { _msgPaintCounts(); _msgPaint(); } catch (e) {}
   }
 
   /* ---------- styles: the proposed tokens, light and dark ---------- */
@@ -428,6 +450,17 @@
   .svu-row-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
   .svu-act svg { width: 13px; height: 13px; }
   .svu-row-chips { margin-top: 5px; }
+  .svu-chip svg { width: 11px !important; height: 11px !important; }
+  .svu-head-act { font-size: .74rem !important; padding: 6px 9px !important; white-space: nowrap; }
+  @media (max-width: 767px) {
+    .cal-cm-row:has(> .cal-cm-body-col .svu-row-acts:not([hidden])) > .cal-cm-actions { display: none !important; }
+    .svu-change-line { border-radius: 12px !important; padding: 8px 10px !important; }
+    .svu-phone-acts { display: flex; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border-light); }
+  }
+  .svu-tile-chips { display: flex; gap: 3px; flex-wrap: wrap; margin-bottom: 4px; }
+  .svu-chip.svu-mini { height: 18px; padding: 0 6px 0 4px; font-size: .66rem; box-shadow: 0 0 0 1.5px rgba(0,0,0,.25); }
+  .svu-chip.svu-mini.svu-open, .svu-chip.svu-mini.svu-waiting { background: #fff; }
+  html[data-theme="dark"] .svu-chip.svu-mini.svu-open, html[data-theme="dark"] .svu-chip.svu-mini.svu-waiting { background: #181a1f; }
   .svu-change-line { align-self: center; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; font-size: .76rem; color: var(--svu-change-ink); background: var(--svu-change-soft); border-radius: 99px; padding: 5px 6px 5px 12px; margin: 6px auto; max-width: 92%; }
   .svu-change-line svg { width: 12px; height: 12px; flex: none; }
   .svu-link { border: 0; background: var(--white); color: var(--text-primary); border-radius: 99px; padding: 3px 10px; font: inherit; font-size: .74rem; font-weight: 600; cursor: pointer; }
@@ -457,7 +490,7 @@
       };
       window.openCalComments.__svu = true;
     }
-    const mo = new MutationObserver(() => { mo.disconnect(); try { placeStrip(); decorateNotes(); } catch (e) {} mo.observe(document.body, { childList: true, subtree: true }); });
+    const mo = new MutationObserver(() => { mo.disconnect(); try { placeStrip(); decorateNotes(); decorateTiles(); } catch (e) {} mo.observe(document.body, { childList: true, subtree: true }); });
     mo.observe(document.body, { childList: true, subtree: true });
     const nb = document.getElementById('navMessages');
     if (nb && !nb.__svu) { nb.__svu = true; nb.removeAttribute('title'); nb.addEventListener('pointerenter', showButtonTip); nb.addEventListener('pointerleave', hideButtonTip); }

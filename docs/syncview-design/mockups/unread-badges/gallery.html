@@ -41,7 +41,7 @@
   .screen .why { font-size: .9rem; color: var(--muted); }
   .screen .why b { color: var(--ink); font-weight: 600; }
   .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .pair.phones { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .pair.phones { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .pair.cards { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; }
   figure { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   figure img { width: 100%; height: auto; display: block; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); }
@@ -77,8 +77,8 @@
       <h3>The number counts conversations that have something new for you.</h3>
       <p>If three posts each have a new client comment, it says 3. Change requests never count here: they live on the cards. When nothing is new but a client is still waiting for your answer, the number shows as an outlined ring instead of a filled dot. Hover the button and it lists what is waiting, in words.</p>
       <div class="pair">
-        <figure><img src="shots/after-desktop-light-header-hover.png" alt="Messages button with a blue 4 and a hover list"><figcaption>Something new: a filled count, and hovering says what it is.</figcaption></figure>
-        <figure><img src="shots/after-desktop-light-header-waiting.png" alt="Messages button with an outlined 3"><figcaption>Nothing new, but 3 clients wait for an answer: an outlined count.</figcaption></figure>
+        <figure><img src="shots/real/after-desktop-light-header-hover.png" alt="Messages button with a blue 4 and a hover list"><figcaption>Something new: a filled count, and hovering says what it is.</figcaption></figure>
+        <figure><img src="shots/real/after-desktop-light-header-waiting.png" alt="Messages button with an outlined 3"><figcaption>Nothing new, but 3 clients wait for an answer: an outlined count.</figcaption></figure>
       </div>
       <p class="rec">Recommendation: <b>yes</b>, count conversations, and use the outline for "waiting for your answer".</p>
     </article>
@@ -88,8 +88,8 @@
       <h3>Opening Notes clears "new", but a client's comment keeps saying "Waiting for your answer".</h3>
       <p>It stays that way until someone on the team replies or clicks "No reply needed". So you can read everything now and answer one message later without losing it. Mark unread is still there if you want the whole post back as new.</p>
       <div class="pair">
-        <figure><img src="shots/after-desktop-light-notes-p_waiting.png" alt="Notes with one comment marked Waiting for your answer"><figcaption>Read yesterday, still waiting: Reply and No reply needed are right under it.</figcaption></figure>
-        <figure><img src="shots/after-desktop-light-card-p_waiting.png" alt="Card footer with an outlined 1 to answer"><figcaption>On the card, an outlined "1 to answer" stays until it is answered.</figcaption></figure>
+        <figure><img src="shots/real/after-desktop-light-notes-p_waiting.png" alt="Notes with one comment marked Waiting for your answer"><figcaption>Read yesterday, still waiting: Reply and No reply needed are right under it.</figcaption></figure>
+        <figure><img src="shots/real/after-desktop-light-card-p_waiting.png" alt="Card footer with an outlined 1 to answer"><figcaption>On the card, an outlined "1 to answer" stays until it is answered.</figcaption></figure>
       </div>
       <p class="rec">Recommendation: <b>yes</b>, automatic "waiting for your answer", with Mark unread kept. A "remind me later" button can come later if needed.</p>
     </article>
@@ -99,8 +99,8 @@
       <h3>One line above the cards says what is waiting for you on this client.</h3>
       <p>Click a part of it to see only those posts, click again to see all. Looking at it marks nothing as read.</p>
       <div class="pair">
-        <figure><img src="shots/after-desktop-light-calendar.png" alt="Calendar with the summary line above the cards"><figcaption>New changes, new comments, to answer, changes not done yet.</figcaption></figure>
-        <figure><img src="shots/after-desktop-light-strip-filter.png" alt="Calendar filtered to posts with a comment to answer"><figcaption>Clicked "to answer": the other posts fade back.</figcaption></figure>
+        <figure><img src="shots/real/after-desktop-light-calendar.png" alt="Calendar with the summary line above the cards"><figcaption>New changes, new comments, to answer, changes not done yet.</figcaption></figure>
+        <figure><img src="shots/real/after-desktop-light-strip-filter.png" alt="Calendar filtered to posts with a comment to answer"><figcaption>Clicked "to answer": the other posts fade back.</figcaption></figure>
       </div>
       <p class="rec">Recommendation: <b>yes</b>, add the line.</p>
     </article>
@@ -119,12 +119,12 @@
   <section class="screen">
     <div class="section-title"><h2>1. The calendar</h2><p class="why"><b>Why it is obvious:</b> the words on each card say what is there ("2 new changes", "1 new comment"); today a single orange dot means anything.</p></div>
     <div class="before-after">
-      <figure><img src="shots/before-desktop-light-calendar.png" alt="Today's calendar"><figcaption>Today: a dot and "2 open". You cannot tell a comment from a change.</figcaption></figure>
-      <figure><img src="shots/after-desktop-light-calendar.png" alt="Proposed calendar"><figcaption>Proposed: what it is, in words, plus the summary line.</figcaption></figure>
+      <figure><img src="shots/real/before-desktop-light-calendar.png" alt="Today's calendar"><figcaption>Today: a dot and "2 open". You cannot tell a comment from a change.</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-light-calendar.png" alt="Proposed calendar"><figcaption>Proposed: what it is, in words, plus the summary line.</figcaption></figure>
     </div>
     <div class="pair">
-      <figure><img src="shots/after-desktop-light-calendar.png" alt="Calendar, light"><figcaption>Light</figcaption></figure>
-      <figure><img src="shots/after-desktop-dark-calendar.png" alt="Calendar, dark"><figcaption>Dark</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-light-calendar.png" alt="Calendar, light"><figcaption>Light</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-dark-calendar.png" alt="Calendar, dark"><figcaption>Dark</figcaption></figure>
     </div>
   </section>
 
@@ -137,63 +137,59 @@
   <section class="screen">
     <div class="section-title"><h2>3. Hover: what it is before you open it</h2><p class="why"><b>Why it is obvious:</b> each line starts with what it is ("New change", "New comment"), then who, which part and the first words.</p></div>
     <div class="pair">
-      <figure><img src="shots/after-desktop-light-hover.png" alt="Hover card, light"><figcaption>Light</figcaption></figure>
-      <figure><img src="shots/after-desktop-dark-hover.png" alt="Hover card, dark"><figcaption>Dark</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-light-hover.png" alt="Hover card, light"><figcaption>Light</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-dark-hover.png" alt="Hover card, dark"><figcaption>Dark</figcaption></figure>
     </div>
   </section>
 
   <section class="screen">
     <div class="section-title"><h2>4. Notes on a card</h2><p class="why"><b>Why it is obvious:</b> a "Needs you" line at the top, a label on each note, and the buttons that matter (Reply, No reply needed, Mark done) always on screen, not only on hover.</p></div>
     <div class="pair">
-      <figure><img src="shots/after-desktop-light-notes-p_both.png" alt="Notes with new change and comments, light"><figcaption>Two new comments waiting for an answer, one new change.</figcaption></figure>
-      <figure><img src="shots/after-desktop-dark-notes-p_both.png" alt="Notes, dark"><figcaption>Dark</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-light-notes-p_both.png" alt="Notes with new change and comments, light"><figcaption>Two new comments waiting for an answer, one new change.</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-dark-notes-p_both.png" alt="Notes, dark"><figcaption>Dark</figcaption></figure>
     </div>
     <div class="pair">
-      <figure><img src="shots/after-desktop-light-notes-p_waiting.png" alt="Notes, read but waiting, light"><figcaption>Read earlier, still waiting for an answer.</figcaption></figure>
-      <figure><img src="shots/after-desktop-dark-notes-p_waiting.png" alt="Notes, read but waiting, dark"><figcaption>Dark</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-light-notes-p_waiting.png" alt="Notes, read but waiting, light"><figcaption>Read earlier, still waiting for an answer.</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-dark-notes-p_waiting.png" alt="Notes, read but waiting, dark"><figcaption>Dark</figcaption></figure>
     </div>
   </section>
 
   <section class="screen">
     <div class="section-title"><h2>5. The Messages button</h2><p class="why"><b>Why it is obvious:</b> the number sits on the corner and never moves the icon; hovering says, in words, what the number is.</p></div>
     <div class="pair">
-      <figure><img src="shots/before-desktop-light-header.png" alt="Today's Messages button"><figcaption>Today</figcaption></figure>
-      <figure><img src="shots/after-desktop-light-header.png" alt="Proposed Messages button"><figcaption>Proposed</figcaption></figure>
+      <figure><img src="shots/real/before-desktop-light-header.png" alt="Today's Messages button"><figcaption>Today</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-light-header.png" alt="Proposed Messages button"><figcaption>Proposed</figcaption></figure>
     </div>
     <div class="pair">
-      <figure><img src="shots/after-desktop-light-header-hover.png" alt="Hover, light"><figcaption>Hover, light</figcaption></figure>
-      <figure><img src="shots/after-desktop-dark-header-hover.png" alt="Hover, dark"><figcaption>Hover, dark</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-light-header-hover.png" alt="Hover, light"><figcaption>Hover, light</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-dark-header-hover.png" alt="Hover, dark"><figcaption>Hover, dark</figcaption></figure>
     </div>
   </section>
 
   <section class="screen">
     <div class="section-title"><h2>6. The Messages list</h2><p class="why"><b>Why it is obvious:</b> three plain tabs, New, To answer and All, and each row says what is new in it.</p></div>
     <div class="pair">
-      <figure><img src="shots/after-desktop-light-messages-new.png" alt="Messages New, light"><figcaption>New</figcaption></figure>
-      <figure><img src="shots/after-desktop-dark-messages-new.png" alt="Messages New, dark"><figcaption>New, dark</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-light-messages-new.png" alt="Messages New, light"><figcaption>New</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-dark-messages-new.png" alt="Messages New, dark"><figcaption>New, dark</figcaption></figure>
     </div>
     <div class="pair">
-      <figure><img src="shots/after-desktop-light-messages-answer.png" alt="Messages To answer, light"><figcaption>To answer: only conversations where a client waits for you.</figcaption></figure>
-      <figure><img src="shots/after-desktop-dark-messages-answer.png" alt="Messages To answer, dark"><figcaption>To answer, dark</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-light-messages-answer.png" alt="Messages To answer, light"><figcaption>To answer: only conversations where a client waits for you.</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-dark-messages-answer.png" alt="Messages To answer, dark"><figcaption>To answer, dark</figcaption></figure>
     </div>
   </section>
 
   <section class="screen">
     <div class="section-title"><h2>7. A chat</h2><p class="why"><b>Why it is obvious:</b> each message says if it is new or waiting for you, Reply and No reply needed sit right under it, Mark unread and Open card are plain buttons at the top, and a change request is one orange line pointing to the card.</p></div>
     <div class="pair">
-      <figure><img src="shots/after-desktop-light-chat-p_both.png" alt="Chat, light"><figcaption>Light</figcaption></figure>
-      <figure><img src="shots/after-desktop-dark-chat-p_both.png" alt="Chat, dark"><figcaption>Dark</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-light-chat-p_both.png" alt="Chat, light"><figcaption>Light</figcaption></figure>
+      <figure><img src="shots/real/after-desktop-dark-chat-p_both.png" alt="Chat, dark"><figcaption>Dark</figcaption></figure>
     </div>
   </section>
 
   <section class="screen">
-    <div class="section-title"><h2>8. On a phone</h2><p class="why"><b>Why it is obvious:</b> the same words and colours, wrapping onto a second line when the card is narrow.</p></div>
-    <div class="pair phones">
-      <figure><img src="shots/after-phone-light-calendar.png" alt="Phone calendar, light"><figcaption>Calendar</figcaption></figure>
-      <figure><img src="shots/after-phone-dark-notes-p_both.png" alt="Phone notes, dark"><figcaption>Notes, dark</figcaption></figure>
-      <figure><img src="shots/after-phone-light-messages-new.png" alt="Phone Messages, light"><figcaption>Messages</figcaption></figure>
-      <figure><img src="shots/after-phone-dark-chat-p_both.png" alt="Phone chat, dark"><figcaption>Chat, dark</figcaption></figure>
-    </div>
+    <div class="section-title"><h2>8. On a phone</h2><p class="why"><b>Why it is obvious:</b> today a phone tile shows no notes at all. Now each tile carries the same colours, with an icon and a number, and a long press says it in words.</p></div>
+    <div class="pair phones" id="phoneLight"></div>
+    <div class="pair phones" id="phoneDark"></div>
   </section>
 
   <p class="muted">How these were made: the real page, built from the code on GitHub, served on a laptop with every server answer faked and no live data. A small switch that only the screenshot script loads adds the proposed badges. Pull request #2299 has the details.</p>
@@ -204,8 +200,13 @@
     ['p_open', 'Changes read, not done yet'], ['p_waiting', 'Read, still waiting for an answer'], ['p_staff', 'A teammate answered the client'],
     ['p_kasper', 'New from Kasper'], ['p_calm', 'Nothing for you'],
   ];
+  const PHONE = [['calendar', 'Calendar tiles'], ['hover', 'Long press on a tile'], ['notes-p_both', 'Notes'], ['messages-new', 'Messages'], ['chat-p_both', 'A chat']];
+  for (const [theme, id] of [['light', 'phoneLight'], ['dark', 'phoneDark']]) {
+    document.getElementById(id).innerHTML = PHONE.map(([k, cap]) =>
+      `<figure><img src="shots/real/after-phone-${theme}-${k}.png" alt="${cap}, ${theme}" loading="lazy"><figcaption>${cap}${theme === 'dark' ? ', dark' : ''}</figcaption></figure>`).join('');
+  }
   for (const [theme, id] of [['light', 'cardsLight'], ['dark', 'cardsDark']]) {
     document.getElementById(id).innerHTML = CASES.map(([pid, cap]) =>
-      `<figure><img src="shots/after-desktop-${theme}-card-${pid}.png" alt="${cap}, ${theme}" loading="lazy"><figcaption>${cap}${theme === 'dark' ? ', dark' : ''}</figcaption></figure>`).join('');
+      `<figure><img src="shots/real/after-desktop-${theme}-card-${pid}.png" alt="${cap}, ${theme}" loading="lazy"><figcaption>${cap}${theme === 'dark' ? ', dark' : ''}</figcaption></figure>`).join('');
   }
 </script>

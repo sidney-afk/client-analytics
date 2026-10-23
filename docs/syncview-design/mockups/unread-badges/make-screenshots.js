@@ -96,12 +96,15 @@ function seed(S) {
           for (const pid of ['p_new_change', 'p_new_comment', 'p_both', 'p_open', 'p_waiting', 'p_staff', 'p_kasper', 'p_calm']) await cardShot(page, pid, v + '-card-' + pid);
           if (!before) {
             // The hover card on the "both" card.
-            const btn = page.locator('#calView .cal-card[data-pid="p_both"] [data-comments-btn]').first();
+            const btn = page.locator(tag === 'phone' ? '#calView .cal-card[data-pid="p_both"] .thumb-tile' : '#calView .cal-card[data-pid="p_both"] [data-comments-btn]').first();
             await btn.scrollIntoViewIfNeeded();
-            await btn.hover();
+            // A phone has no hover: the same card opens on a long press, so it is opened by script there.
+            if (tag === 'phone') await btn.evaluate(el => svUnreadPreview.hoverCard('p_both', el));
+            else await btn.hover();
             await sleep(300);
             await shot(page, v + '-hover');
             await page.mouse.move(2, h - 2);
+            await page.evaluate(() => svUnreadPreview.hideHover());
             // The summary line, filtered to "to answer".
             await page.evaluate(() => { window.scrollTo(0, 0); svUnreadPreview.filter('waiting'); });
             await sleep(300);

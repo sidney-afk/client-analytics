@@ -5,9 +5,9 @@ and the Messages button, must say at once and correctly what is waiting (a clien
 both), before anything is opened, and must stay correct whatever happens (a reply, someone else's reply, a resolve, a
 read in another tab or on the phone). The Messages badge showed only after a click and pushed its icon to the left.
 
-Mockups: [`docs/syncview-design/mockups/unread-badges/index.html`](../syncview-design/mockups/unread-badges/index.html)
-(`?theme=dark` for dark; screenshots in `shots/`). Nothing below is built except the two Messages-button fixes in their
-own small PR.
+Mockups: screenshots of the real page in [`docs/syncview-design/mockups/unread-badges/gallery.html`](../syncview-design/mockups/unread-badges/gallery.html)
+(pictures in `shots/real/`, made by `make-screenshots.js`; see section 8). Nothing below is built except the
+Messages-button fixes in their own small PR (#2300).
 
 **How this was measured.** Code read on `main` at `9098505`. Both reported bugs reproduced offline in Playwright
 (`docs/syncview-design/tests/messages-badge-boot-browser.js` fails on main, passes on the fix). Live data was read

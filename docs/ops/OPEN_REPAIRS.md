@@ -33910,7 +33910,19 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 
 On 2026-10-22 at 15:13 UTC a staff save on one real client was refused three times with `authority_unavailable` (reason `calendar_flag_timeout`): the page's own read of the saving switch did not answer within two seconds, three times in a row. No Edge Function errored, every server save in the window was 200, and the change went through on the next try. The card saver watcher rolled the switch back to three clients as its rule says. The check now waits four seconds per read and tries four times (worst case about 18 seconds, inside the 20 second save limit); a held save still stays in the outbox. Browser-only change; the guard tests for Calendar, Samples and caption prompts now expect four reads.
 
-## 476. [2026-10-23, PR OPEN] Create Post: "Not assigned" in the editor picker, and an outsourced editor always suggested first (session Blank)
+## 476. [2026-10-23 20:27 UTC, BUILT, NOT MERGED] Calm Workload calendar: client-row circles grey where they should be green (session Halo)
+
+- **Owner, 2026-10-23:** "the Workload calendar circles, I don't know why they're grey when they're supposed to be green."
+- **What the circle means.** The dot before each client row on a calendar day card is the deadline-buffer dot (`wlGroupDeadlineHtml`, `069-workload-planning-helpers.js.part`). It reads the work day against the due date for every video in the row: red when the work day is on or after the due date, orange for 1 to 2 working days of buffer, green for 3 or more. A row whose videos disagree, or with a video that has no due date, has no single colour and is grey (calm view only; ledger 449). Status, posting and approval play no part.
+- **Cause.** One calm-only rule from the first calm pass (ledger 449, when green rows went from hidden to a dot) painted the green dot grey: `.wl-calm .wl-deadline-summary.is-green { --wl-proximity-dot: var(--text-muted) }`. On 2026-10-21 (#2275, "a green dot on green buffers") the manager's feedback put green back on the per-video due line (`.wl-deadline-tag.is-green`), but that pass missed the client-row dot. So in the calm view, which every staff member has, a client row with plenty of buffer looked the same as a mixed one. The old view drew it green the whole time. The data, the colour map and the refresh were all fine. The shared calm test board has no row with 3+ days of buffer, so no test saw it.
+- **Measured (read-only SQL, 2026-10-23 20:25 UTC, counts only, hand-pinned work days in the 7 days before to 28 days after today, weekends skipped, holidays not):** 37 client rows on the calendar; 8 of them have every video 3+ working days ahead and drew grey; 10 orange, 15 red, 4 mixed. The 17 green videos by status: Scheduled 4, For Kasper approval 4, Todo 3, For SMM approval 2, Tweak Needed 2, For Client approval 1, Approved 1. Rows placed by the automatic plan are not counted, so the real number of affected rows is at least this.
+- **Fix (CSS only, no switch):** the calm rule now greys only `.wl-deadline-summary.is-neutral` (mixed or no deadline). Green rows draw `--wl-proximity-green` again, in light and dark. Orange keeps its calm tweaks orange and red is unchanged.
+- **Test:** `node docs/syncview-design/tests/workload-calm-buffer-dot-browser.js` (in `calendar-unit-tests.yml`). A fictional board with one green, one orange, one red and one mixed row, checked in the old view, the calm view and calm dark. It fails on main ("saw rgb(180, 180, 174), green is rgb(15, 159, 80)") and passes with the fix. The five existing calm suites still pass.
+- **Not checked live:** this environment cannot reach syncview.synchrosocial.com, so the live page was not opened; the proof is the offline browser run plus the SQL counts.
+
+**Way back:** revert the pull request.
+
+## 478. [2026-10-23, PR OPEN] Create Post: "Not assigned" in the editor picker, and an outsourced editor always suggested first (session Blank)
 
 Stamped 2026-10-23 20:36 UTC.
 

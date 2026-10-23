@@ -34,7 +34,7 @@ Checked against main and `syncview_runtime_flags` on 2026-10-21 04:30 UTC. Count
 Calendar and Samples Create Post offer "Not assigned" (the post is created with no video editor and shows in Workload's
 Needs assignment); `production-write` accepts `unassigned: true` on video items. The setting row
 `syncview_runtime_flags.editor_suggest_last` `{ "staff": [...] }` puts the named editors last in the picker; no row, no change.
-OPEN_REPAIRS 476; tests `node test/intake-not-assigned.js`, `node test/create-post-picker.js`.
+OPEN_REPAIRS 478; tests `node test/intake-not-assigned.js`, `node test/create-post-picker.js`.
 
 ## Kasper's tab boots fast, behind `kasper_fast_boot` (session Quick, 2026-10-20): merged (#2265), switch on for Sidney's two ids only, Kasper next
 

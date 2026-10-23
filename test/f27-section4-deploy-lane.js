@@ -520,7 +520,7 @@ const CANDIDATES = new Map([
     // 382): round 0 is saved as no round, never a 500; re-pinned with ef-fingerprint.
     // Note outbox (2026-10-15, OPEN_REPAIRS 421): the Slack sender wake runs
     // after the answer (waitUntil); re-pinned with ef-fingerprint.
-    // Not assigned (2026-10-23, OPEN_REPAIRS 476): intake_create accepts
+    // Not assigned (2026-10-23, OPEN_REPAIRS 478): intake_create accepts
     // unassigned: true on video items; re-pinned with ef-fingerprint.
     source: 'c27122909c5120e988632db97a08469ec81c81534349b0539a4b55e5cda0b8f3',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',

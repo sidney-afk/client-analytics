@@ -433,7 +433,7 @@ jobs:
       # Regenerated with scripts/ef-fingerprint.js --slugs=production-write --expected-only.
       # Re-pinned again in review (raw-copy outcome never downgrades "created"; escaped-text fallback; legacy outcome).
       # (Previous pin: 07677a1f0b... -- production-write, 2026-10.)
-      # Re-pinned 2026-10-23 (session Blank, OPEN_REPAIRS 476): intake_create accepts
+      # Re-pinned 2026-10-23 (session Blank, OPEN_REPAIRS 478): intake_create accepts
       # unassigned: true on video items ("Not assigned" in Create Post). Regenerated with
       # scripts/ef-fingerprint.js --slugs=production-write --expected-only; entrypoint and
       # file count (10) unchanged.

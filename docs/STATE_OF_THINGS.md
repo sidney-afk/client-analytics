@@ -34,7 +34,7 @@ Checked against main and `syncview_runtime_flags` on 2026-10-21 04:30 UTC. Count
 The Slack alert starts with an at-mention of the client's linked Slack person (Kasper > Clients, new field "Slack
 person to tag"), so they get a real notification; with nobody linked it posts untagged, exactly as before. The
 confirm box says who is tagged. Needs `migrations/2026-10-23-client-slack-mention.sql`; the functions cope without
-it (untagged). On 2026-10-23 no client had a linked person. OPEN_REPAIRS 476 has the safe live test (the owner-only
+it (untagged). On 2026-10-23 no client had a linked person. OPEN_REPAIRS 477 has the safe live test (the owner-only
 preview to his own DM, with the test client linked to his own id).
 
 ## Kasper's tab boots fast, behind `kasper_fast_boot` (session Quick, 2026-10-20): merged (#2265), switch on for Sidney's two ids only, Kasper next

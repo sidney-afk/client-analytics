@@ -371,7 +371,7 @@ There are 46 entrypoint folders and one shared helper folder here. The live proj
 
 ## n8n
 
-The live census has **120 workflows: 76 active and 44 inactive** (2026-10-01: one more is inactive now, the Notion New Client workflow; other changes since are not recounted). Two complete list reads agreed; all 76 published active graphs were read. Active means enabled, not proven healthy. The [truth register](truth/N8N.md) holds IDs; the [phase 2 exit plan](plans/2026-09-30-n8n-exit-phase-2.md) owns decisions, evidence gates and retirement dates. Timers use the stated workflow timezone; instance timezone was not independently read. Node defaults that are absent from serialized settings are left unknown.
+The live census (re-read 2026-10-23) has **125 workflows: 56 active and 69 inactive**. The 2026-09-30 read found 120 (76 active); the difference is lanes switched off since and five workflows added. Graphs of the four added active workflows were read; the other active graphs were last read on 2026-09-30. Active means enabled, not proven healthy. The [truth register](truth/N8N.md) holds IDs; the [phase 2 exit plan](plans/2026-09-30-n8n-exit-phase-2.md) owns decisions, evidence gates and retirement dates. Timers use the stated workflow timezone; instance timezone was not independently read. Node defaults that are absent from serialized settings are left unknown.
 
 
 | Active workflow | Trigger and cadence | What it touches | Exit status |
@@ -525,6 +525,11 @@ These are absent from the current full live list. They remain linked because the
 | <!-- atlas:n8n lGwC9WWPVJtxphtf -->[`lGwC9WWPVJtxphtf`](truth/N8N.md) | Absent from current live census; retained documentary history. |
 | <!-- atlas:n8n wP0yLVDIOJph1bcM -->[`wP0yLVDIOJph1bcM`](truth/N8N.md) | Absent from current live census; retained documentary history. |
 | <!-- atlas:n8n xEhLpKwNv8uTaeAK -->[`xEhLpKwNv8uTaeAK`](truth/N8N.md) | Absent from current live census; retained documentary history. |
+| <!-- atlas:n8n lpnLIPUFSo7bURWf -->[`lpnLIPUFSo7bURWf`](https://synchrosocial.app.n8n.cloud/workflow/lpnLIPUFSo7bURWf) Sales, Call Rescheduled (iClosed) | POST webhook; instance timezone | iClosed reschedule payload, Telegram alert to Kasper, pre-call nurture restart and the Pre-Call Nurture Started table. | Added 2026-10-22; active, keep. |
+| <!-- atlas:n8n cM3G9REliKpwicnR -->[`cM3G9REliKpwicnR`](https://synchrosocial.app.n8n.cloud/workflow/cM3G9REliKpwicnR) Sales, Doctors Instant Booking Link | POST webhook; instance timezone | Doctors and educators form Submit, booking_recovery table, Gmail and Twilio. | Added 2026-10-05; active, keep. |
+| <!-- atlas:n8n lU5RlPUBsmlMsFSf -->[`lU5RlPUBsmlMsFSf`](https://synchrosocial.app.n8n.cloud/workflow/lU5RlPUBsmlMsFSf) Educators Sales, Pre-Call Nurture | Called by other workflows; no own trigger | Educator pre-call emails and the nurture tables. | Added 2026-10-22; active, keep. |
+| <!-- atlas:n8n S3fcVkml49KBxD6P -->[`S3fcVkml49KBxD6P`](https://synchrosocial.app.n8n.cloud/workflow/S3fcVkml49KBxD6P) Editor AI, Client notes from the brain | GET webhook; instance timezone | Reads one client Music section from the brain repository and returns only that. | Added 2026-10-12; active, keep. |
+| <!-- atlas:n8n 84679Qq5zhVqXfPQ -->[`84679Qq5zhVqXfPQ`](https://synchrosocial.app.n8n.cloud/workflow/84679Qq5zhVqXfPQ) Temporary text preview and delivery check | None active | Throwaway delivery check. | Inactive; marked for deletion by its own name. |
 
 
 ## Google Sheets

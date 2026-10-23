@@ -46,15 +46,22 @@ mapped Calendar/Samples component. Missing or partial source coverage is explici
 client permissions, writers and lifecycle ownership remain unchanged. Contract,
 mixed-version behavior and proof limits: `docs/features/COMPONENT_FEEDBACK.md`.
 
-> Last verified: 2026-09-23 @ 344006c5 — a re-verification of this document's checkable
-> current-state claims against the app source (`src/index/` fragments plus the built `index.html`)
-> and, where a claim was about live backend state the app depends on, against read-only Supabase
-> and n8n reads. **Five claims had drifted and are corrected in place, each marked
-> `Corrected 2026-09-23`.** What this pass did NOT re-verify, and which therefore still rests on its
-> older dated evidence: the whole "Release and stale callers" section and its F172–F185 review
-> findings, the client-entry boot candidate section, every Production/Slice-4/Slice-5 deploy
-> receipt, the measured read-path timings, and the behavioural Workload placement rules (those are
-> covered by their own test suites, not by this pass). Nothing here was re-stamped without a read.
+> Last verified: 2026-10-23 @ 7065095 — a re-verification of this document's checkable
+> current-state claims against the app source (`src/index/` fragments after `npm run build:index`),
+> with the backend facts it leans on re-read from Supabase and n8n (read-only, see the other two
+> truth docs). **One claim had drifted and is corrected in place, marked `Corrected 2026-10-23`:**
+> the size and shape of the source (73 fragments, ~118.7k lines, scripts split out of
+> `index.html`). The endpoint inventory is held to `index.html` by `test/truth-sync.js` and the
+> n8n and Supabase facts that matter to the app (Calendar, Caption and TikTok lanes now run on
+> Edge Functions with their old n8n lanes switched off; flags and Production authority on
+> SyncView) match `N8N.md` and `SUPABASE.md` as re-read today. NOT re-verified this pass: the
+> "Release and stale callers" section and its F172–F185 findings, the client-entry boot candidate
+> section, every deploy receipt, the measured timings, the dead-code scan in F1, and the
+> behavioural Workload rules (covered by their own test suites). Nothing here was re-stamped
+> without a read.
+>
+> Earlier stamp, retained for provenance: 2026-09-23 @ 344006c5 — a re-verification of the same
+> kinds of claims; its five corrections stay in place below.
 >
 > Earlier stamp, retained for provenance: 2026-08-24 @ c7f088a + scoped Kasper Ad Performance panel v2 addition (see below)
 > + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 LIVE (F37/F94/F136 assignment and transition
@@ -140,7 +147,7 @@ mixed-version behavior and proof limits: `docs/features/COMPONENT_FEEDBACK.md`.
 
 **Corrected 2026-09-21:** The external Linear dependency described below is retired. Workload and Production/Sync use native data and native write paths after the 2026-09-20 cutoff; legacy names and read-only guard branches may remain in source.
 
-One single-file SPA. **Corrected 2026-09-23: it is ~85.7k lines, not "~45.8k"** — the file has
+One single-file SPA. **Corrected 2026-10-23: the editable source is ~118.7k lines across 73 `.part` fragments in `src/index/`** (counted with `wc -l` after `npm run build:index`); the built `index.html` itself is now only ~14.9k lines because the scripts are split out into `js/sv-*.js`, so a line count of `index.html` alone no longer measures the app. **Corrected 2026-09-23: it was ~85.7k lines, not "~45.8k"** — the file has
 roughly doubled since that figure was written, so do not size any piece of work against the old
 number. Note also that `index.html` is a BUILD OUTPUT: the editable truth is the 37 ordered
 fragments in `src/index/`, assembled by `npm run build:index`. Major surfaces: content calendar, samples (SXR + legacy),

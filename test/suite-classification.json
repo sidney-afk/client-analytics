@@ -35,6 +35,7 @@
     "higgsfield-video-cards.js",
     "higgsfield-shared-tools.js",
     "pipeline-pass.js",
+    "pipeline-social.js",
     "pipeline-store.js",
     "pages-deploy-source-unreadable.js",
     "production-write-comment-round.js",

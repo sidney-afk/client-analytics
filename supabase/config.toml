@@ -224,6 +224,11 @@ verify_jwt = false
 [functions.pipeline-google]
 verify_jwt = false
 
+# pipeline-social: ScrapeCreators for the filming plan pipeline. JWT off because
+# the request carries a filming pipeline pass (x-pipeline-pass) instead.
+[functions.pipeline-social]
+verify_jwt = false
+
 # Server-to-server roster doors (n8n): JWT off because n8n is not a Supabase
 # browser client; both require ROSTER_SERVICE_KEY (32+ characters) in
 # X-Roster-Key. roster-write only writes natively once the owner flips

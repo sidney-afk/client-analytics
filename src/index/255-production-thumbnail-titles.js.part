@@ -4,7 +4,7 @@ import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
 import { svThumbTitleButtonsOn } from './188-review-stage-switch.js';
 import { _prodState } from './210-production-state-writes.js';
-import { _prodChildrenOf, _prodHideTip, _prodIssue, _prodToast, _prodWriteTeam } from './220-production-attribution-views.js';
+import { _prodCanWrite, _prodChildrenOf, _prodHideTip, _prodIssue, _prodToast, _prodWriteTeam } from './220-production-attribution-views.js';
 import { _prodRefreshDescription } from './240-production-description.js';
 import { _isClientLink, _prodRender } from './260-production-refresh-boot.js';
         /* THUMBNAIL TITLES FROM THE FILMING PLAN (session Titlecard, 2026-10-23, OPEN_REPAIRS 476).
@@ -59,14 +59,22 @@ import { _isClientLink, _prodRender } from './260-production-refresh-boot.js';
         function _prodTtMe() {
             try { const who = _syncviewStaffIdentityForHeaders(); return who && who.member ? String(who.member.name || '') : ''; } catch (e) { return ''; }
         }
-        // Admins and SMMs only (the people who may already edit a description). A designer sees the button
-        // greyed, with the reason on its label, never a hidden control.
-        function _prodTtAllowed() {
+        // The same gate as the description's Edit button: an admin or SMM, on a team Production may write
+        // (prod_authority = syncview). The server checks both again. A person it refuses sees the button greyed,
+        // with the reason on its label, never a hidden control.
+        function _prodTtRoleOk() {
             try {
                 const who = _syncviewStaffIdentityForHeaders();
                 const role = String(who && who.role || '').toLowerCase();
                 return role === 'admin' || role === 'smm';
             } catch (e) { return false; }
+        }
+        function _prodTtAllowed(issues) {
+            if (!_prodTtRoleOk()) return false;
+            return (issues || []).some(k => { try { return _prodCanWrite(k, 'description'); } catch (e) { return false; } });
+        }
+        function _prodTtRefusal() {
+            return _prodTtRoleOk() ? 'Descriptions cannot be edited here right now' : 'Only SMMs and admins can write titles';
         }
         function _prodTtFirstName(name) {
             return String(name || '').trim().split(/\s+/)[0] || 'someone';
@@ -177,8 +185,9 @@ import { _isClientLink, _prodRender } from './260-production-refresh-boot.js';
             _prodTt.toastKey = key;
             delete _prodTt.toastClosed[key];
             if (_prodTtActive(rec)) { _prodTtPaint(key); return false; }   // already going: follow it
-            if (!_prodTtAllowed()) { _prodToast('Only SMMs and admins can write titles.'); return false; }
-            const ids = scope === 'item' ? [issue.id] : _prodChildrenOf(issue.id).filter(_prodTtIsThumb).map(k => k.id);
+            const targets = scope === 'item' ? [issue] : _prodChildrenOf(issue.id).filter(_prodTtIsThumb);
+            if (!_prodTtAllowed(targets)) { _prodToast(_prodTtRefusal() + '.'); return false; }
+            const ids = targets.filter(k => { try { return _prodCanWrite(k, 'description'); } catch (e) { return false; } }).map(k => k.id);
             // The client of the thumbnails themselves (a post built from batches has no project of its own).
             const client = _prodTtClient(_prodIssue(ids[0]) || issue) || _prodTtClient(issue);
             if (!ids.length || !client || _prodTt.busy[key]) return false;
@@ -210,6 +219,7 @@ import { _isClientLink, _prodRender } from './260-production-refresh-boot.js';
                 const body = await _prodTtCall(action, rec.client, Object.assign({ run_id: rec.run.id }, extra || {}));
                 _prodTtStore(key, body, rec.client);
                 if (body.result === 'changed') _prodToast('That description changed meanwhile. Check it again.');
+                if (body.result === 'authority') _prodToast('Descriptions cannot be edited here right now. Nothing was changed.');
                 if (body.run && ['queued', 'running'].includes(body.run.state)) _prodTtPoll(key);
             } catch (e) {
                 _prodToast(e && e.code === 'nothing_to_undo' ? 'Nothing to undo.' : 'That did not save. Try again.');
@@ -249,7 +259,7 @@ import { _isClientLink, _prodRender } from './260-production-refresh-boot.js';
             const key = _prodTtKeyFor(issue);
             const rec = _prodTtRec(key);
             const thumbs = kids.filter(_prodTtIsThumb);
-            const allowed = _prodTtAllowed();
+            const allowed = _prodTtAllowed(thumbs);
             if (_prodTtActive(rec)) {
                 const c = _prodTtCounts(rec);
                 const me = _prodTtMe();
@@ -263,7 +273,7 @@ import { _isClientLink, _prodRender } from './260-production-refresh-boot.js';
                 return '<button class="prod-tt-btn is-waiting" type="button" onclick="return _prodTtOpenReview(' + _jsAttrArg(key) + ')">' + PROD_TT_EYE
                     + waiting + (waiting === 1 ? ' title waits' : ' titles wait') + ' for you</button>';
             }
-            const tip = allowed ? 'Write the thumbnail titles of this post from the filming plan' : 'Only SMMs and admins can write titles';
+            const tip = allowed ? 'Write the thumbnail titles of this post from the filming plan' : _prodTtRefusal();
             return '<button class="prod-tt-btn" type="button" data-prod-tip="' + _calEscAttr(tip) + '" aria-label="' + _calEscAttr('Thumbnail titles. ' + tip) + '"'
                 + (allowed ? '' : ' aria-disabled="true"') + ' onclick="return _prodTtStart(' + _jsAttrArg(issue.id) + ',' + _jsAttrArg('post') + ')">'
                 + PROD_TT_ICON + 'Thumbnail titles' + (thumbs.length > 1 ? ' <span class="prod-tt-count">' + thumbs.length + '</span>' : '') + '</button>';
@@ -308,8 +318,8 @@ import { _isClientLink, _prodRender } from './260-production-refresh-boot.js';
             if (_prodTtActive(rec) && it && ['waiting', 'building'].includes(it.state)) {
                 return '<button class="prod-tt-btn" type="button" aria-disabled="true"><span class="prod-tt-spin" aria-hidden="true"></span>Writing…</button>';
             }
-            const allowed = _prodTtAllowed();
-            const tip = allowed ? 'Write this thumbnail\'s title from the filming plan' : 'Only SMMs and admins can write titles';
+            const allowed = _prodTtAllowed([issue]);
+            const tip = allowed ? 'Write this thumbnail\'s title from the filming plan' : _prodTtRefusal();
             return '<button class="prod-tt-btn" type="button" data-prod-tip="' + _calEscAttr(tip) + '"' + (allowed ? '' : ' aria-disabled="true"')
                 + ' onclick="return _prodTtStart(' + _jsAttrArg(issue.id) + ',' + _jsAttrArg('item') + ')">' + PROD_TT_ICON + 'Write title</button>';
         }

@@ -122,6 +122,11 @@ const eq = (a, b, m) => { assert.deepStrictEqual(a, b, m); checks++; };
   ok(/insertError\.code === "23505"[\s\S]{0,700}following: true/.test(runs), 'a second press follows the run already going');
   ok(/thumbnail_title_runs_one_active[\s\S]{0,120}where state in \('queued', 'running', 'ask'\)/.test(sql), 'one active run per post, enforced by the database');
   ok(/coalesce\(d\.brief, ''\) is distinct from coalesce\(p_expected, ''\)[\s\S]{0,40}return 'changed'/.test(sql) && /for update;/.test(sql), 'descriptions are written by compare and set, under a row lock');
+  ok(/f\.key = 'prod_authority'[\s\S]{0,200}<> 'syncview' then\s+return 'authority'/.test(sql), 'a team Production may not write is refused in the database, fail-closed (AGENTS.md authority rule)');
+  ok(/p_action = 'write' then[\s\S]{0,200}for update;[\s\S]{0,120}return 'stopped'/.test(sql), 'an automatic write is fenced on its run still running (a Cancel wins)');
+  ok(!/attempts < 3/.test(sql) && /Number\(r\.attempts \|\| 0\) >= 3/.test(runs), 'a run killed on its third try is ended, never left holding its post');
+  ok(/briefKind\(now\) === "human" \? "human" : "ai"/.test(runs), 'after a conflict the choices follow what is there now');
+  ok(/_prodCanWrite\(k, 'description'\)/.test(read('src/index/255-production-thumbnail-titles.js.part')), 'the buttons follow the description write gate');
   ok(/'description_change'[\s\S]{0,200}'ui'[\s\S]{0,200}'thumbnail_titles_manual'/.test(sql), 'every write is in the issue\'s history under the person who pressed');
   for (const obj of ['table public.thumbnail_title_runs', 'table public.thumbnail_title_run_items', 'function public.thumbnail_title_manual_apply(text, text, text, text, text, text, text)', 'function public.thumbnail_titles_tick_needed()']) {
     ok(sql.includes(`revoke all on ${obj} from public, anon, authenticated, service_role`), 'revoked from all four roles: ' + obj);

@@ -28,6 +28,7 @@ import {
 import {
   MAX_RUN_ITEMS,
   RUN_KEY_RE,
+  briefKind,
   costCents,
   decideWrite,
   docIdFromUrl,
@@ -246,10 +247,17 @@ export async function handleManual(
     if (result === "changed") {
       // Someone edited the description since the run read it: show the new "now" and ask again.
       const { data: fresh } = await db.from("deliverables").select("brief").eq("id", deliverableId).maybeSingle();
-      Object.assign(patch, { previous_brief: clean(fresh && (fresh as Json).brief) ? String((fresh as Json).brief) : "" });
+      const now = clean(fresh && (fresh as Json).brief) ? String((fresh as Json).brief) : "";
+      Object.assign(patch, { previous_brief: now });
+      // What is there now decides the choices offered next: text a person wrote gets Keep mine / Replace,
+      // never a Use new that would drop it.
+      if (choice !== "undo") Object.assign(patch, { outcome: briefKind(now) === "human" ? "human" : "ai" });
       if (choice === "undo") Object.assign(patch, { message: "Changed since it was written, so Undo was not applied" });
     } else if (result === "gone") {
       Object.assign(patch, { state: "skipped", outcome: "gone", message: skipMessage("gone") });
+    } else if (result === "authority") {
+      // Production is read-only for this team right now: nothing written, the row keeps its state.
+      return { ...(await runPayload(db, await loadRun(db, runId, client))), result: "authority" };
     }
     await db.from("thumbnail_title_run_items").update(patch).eq("run_id", runId).eq("deliverable_id", deliverableId);
     return { ...(await runPayload(db, await loadRun(db, runId, client))), result: result || "ok" };
@@ -416,9 +424,11 @@ export async function processRun(db: SupabaseClient, runId: string, deps: { apiK
           p_deliverable_id: p.id, p_expected: before, p_text: line, p_actor: clean(run.requested_by), p_role: clean(run.requested_role), p_run_id: runId, p_action: "write",
         });
         const result = applyError ? "error" : clean(applied);
+        if (result === "stopped") return "superseded";   // cancelled, or another tab picked, while writing
         if (result === "written") await setItems(db, runId, [p.id], { state: "done", outcome: "written", title, message: title, written_text: line, previous_brief: before, proposed_text: null });
         else if (result === "changed") await setItems(db, runId, [p.id], { state: "skipped", outcome: "changed", message: skipMessage("changed") });
         else if (result === "gone") await setItems(db, runId, [p.id], { state: "skipped", outcome: "gone", message: skipMessage("gone") });
+        else if (result === "authority") await setItems(db, runId, [p.id], { state: "failed", outcome: "authority", message: skipMessage("authority"), last_error: "authority" });
         else await setItems(db, runId, [p.id], { state: "failed", outcome: "apply_failed", message: "Could not save", last_error: "apply_failed" });
       }
     }
@@ -443,13 +453,25 @@ async function pendingIds(db: SupabaseClient, runId: string): Promise<string[]> 
   return ((data || []) as Json[]).map((r) => clean(r.deliverable_id));
 }
 
-// The timer finishes runs whose worker died (lease ran out), at most three tries each.
+// The timer finishes runs whose worker died (lease ran out): resumed while tries remain, and after the third
+// ended as failed, so a dead run never keeps its post's one active slot (a later press would only follow it).
 export async function resumeStaleRuns(db: SupabaseClient, deps: { apiKey: string; model: string; ask: Asker }): Promise<number> {
   const { data, error } = await db.from("thumbnail_title_runs").select("id,attempts")
-    .in("state", ["queued", "running"]).lt("lease_until", nowIso()).lt("attempts", 3).limit(3);
+    .in("state", ["queued", "running"]).lt("lease_until", nowIso()).limit(10);
   if (error) return 0;
   let n = 0;
   for (const r of (data || []) as Json[]) {
+    if (Number(r.attempts || 0) >= 3) {
+      const runId = clean(r.id);
+      const ended = await db.from("thumbnail_title_runs")
+        .update({ state: "error", stage: "finished", error: "run_failed", lease_until: null, finished_at: nowIso(), updated_at: nowIso() })
+        .eq("id", runId).in("state", ["queued", "running"]).lt("lease_until", nowIso()).select("id");
+      if (((ended.data || []) as Json[]).length) {
+        await setItems(db, runId, await pendingIds(db, runId), { state: "failed", outcome: "run_failed", message: "Something went wrong", last_error: "run_failed" });
+        n++;
+      }
+      continue;
+    }
     // A queued run whose start was lost has no lease; it is picked up the same way once it is a minute old.
     if ((await processRun(db, clean(r.id), deps)) !== "not_claimed") n++;
   }

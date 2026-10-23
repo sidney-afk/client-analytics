@@ -78,12 +78,15 @@ grant select, insert, update, delete on table public.thumbnail_title_runs to ser
 grant select, insert, update, delete on table public.thumbnail_title_run_items to service_role;
 
 -- Write one description, only when it is still exactly p_expected (empty and null are the same). Returns
--- 'written', 'changed' (someone edited it meanwhile: nothing written) or 'gone' (not a live thumbnail).
+-- 'written', 'changed' (someone edited it meanwhile: nothing written), 'gone' (not a live thumbnail),
+-- 'authority' (the thumbnail's team is not SyncView-authoritative in prod_authority, or that flag is missing
+-- or unreadable: the same fail-closed rule as production-write's authorityFor) or 'stopped' (an automatic
+-- 'write' whose run is no longer running: a Cancel or "Use another tab" wins over a write already on its way).
 -- p_action: write | replace | above | use_new | undo, recorded in the history row.
 create or replace function public.thumbnail_title_manual_apply(
   p_deliverable_id text, p_expected text, p_text text, p_actor text, p_role text, p_run_id text, p_action text)
 returns text language plpgsql set search_path = public, pg_catalog as $$
-declare d public.deliverables%rowtype;
+declare d public.deliverables%rowtype; v_team text; v_authority text; v_run_state text;
 begin
   if p_action not in ('write', 'replace', 'above', 'use_new', 'undo') or length(coalesce(p_text, '')) > 100000 then
     raise exception 'thumbnail_title_manual_apply_invalid';
@@ -91,6 +94,20 @@ begin
   select * into d from public.deliverables where id = p_deliverable_id for update;
   if not found or d.kind <> 'thumbnail' or d.status in ('canceled', 'duplicate') then
     return 'gone';
+  end if;
+  v_team := case lower(coalesce(d.team, '')) when 'graphics' then 'graphics' when 'gra' then 'graphics' when 'thumbnail' then 'graphics'
+                                               when 'video' then 'video' when 'vid' then 'video' else '' end;
+  select lower(coalesce(f.value ->> v_team, '')) into v_authority
+    from public.syncview_runtime_flags f where f.key = 'prod_authority' and jsonb_typeof(f.value) = 'object';
+  if v_team = '' or coalesce(v_authority, '') <> 'syncview' then
+    return 'authority';
+  end if;
+  if p_action = 'write' then
+    -- Fence: the run row is locked, so a Cancel waits for this write or this write sees the Cancel.
+    select r.state into v_run_state from public.thumbnail_title_runs r where r.id = p_run_id for update;
+    if coalesce(v_run_state, '') <> 'running' then
+      return 'stopped';
+    end if;
   end if;
   if coalesce(d.brief, '') is distinct from coalesce(p_expected, '') then
     return 'changed';
@@ -106,11 +123,12 @@ begin
   return 'written';
 end $$;
 
--- The timer also wakes for a manual run whose worker stopped (its lease ran out), so every run finishes.
+-- The timer also wakes for a manual run whose worker stopped (its lease ran out), so every run finishes:
+-- resumed while tries remain, ended as failed after the third.
 create or replace function public.thumbnail_titles_tick_needed()
 returns boolean language sql stable set search_path = public, pg_catalog as $$
   select exists (select 1 from public.thumbnail_title_runs r
-                  where r.state in ('queued', 'running') and r.lease_until < now() and r.attempts < 3)
+                  where r.state in ('queued', 'running') and r.lease_until < now())
       or (exists (select 1 from public.syncview_runtime_flags f
                   where f.key = 'thumbnail_titles' and jsonb_array_length(coalesce(f.value -> 'clients', '[]'::jsonb)) > 0)
      and (exists (select 1 from public.thumbnail_title_queue q

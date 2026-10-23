@@ -202,6 +202,7 @@ export function skipMessage(outcome, vars = {}) {
     case "not_grounded": return "No title could be grounded in the plan";
     case "gone": return "This sub-issue was removed or cancelled";
     case "changed": return "Changed while writing, kept yours";
+    case "authority": return "Production is read-only for this team right now";
     case "not_thumbnail": return "Not a thumbnail";
     default: return "Skipped";
   }

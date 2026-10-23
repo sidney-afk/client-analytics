@@ -33956,6 +33956,10 @@ a real call: this sandbox has no AI key; the first real run stores the true numb
 the texts each choice writes, the service-account reader, wiring), `test/thumbnail-title-runs-deno.ts` (25
 checks: a whole post against an in-memory database, a second presser, decisions, an edit made meanwhile, a
 failing provider and Try again, a dead worker, two tabs and a pick; runs in the Edge Function type-ratchet lane),
+After the first review (Codex, 2026-10-23): the database writer also refuses a team Production may not write
+(`prod_authority` not `syncview`, or missing: fail-closed like `authorityFor`), an automatic write is fenced on its
+run still running (a Cancel wins), a run killed on its third try is ended instead of holding its post, and after a
+conflict the choices follow what the description holds now (unit 83 checks, server 31).
 `docs/syncview-design/tests/thumbnail-title-buttons-browser.js` (mocked: switch off draws nothing; a teammate's
 run is followed; a batch with a written, a review and a failed row; the toast stays; review with Escape and
 outside click; Try again; Undo; "Write title" beside Edit). Also passed here: `test/thumbnail-titles-source.js`

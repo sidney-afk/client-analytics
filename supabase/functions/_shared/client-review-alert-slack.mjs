@@ -1,4 +1,4 @@
-// The three Slack calls client-review-alert makes, with fetch injected so they
+// The Slack calls client-review-alert makes, with fetch injected so they
 // can be tested without a network. The bot token is only ever placed in the
 // Authorization header: it is never put in a URL, a log line, a response or a
 // stored row.
@@ -8,6 +8,10 @@
 //   postDirect    chat.postMessage into ONE person's direct message (the preview).
 //                 Only a user id (U... or W...) is accepted, and the answer must
 //                 come back from a direct conversation (D...) or it is refused.
+//   userInfo      users.info: the display name of the person a message will tag,
+//                 for the confirm box only. Never stored.
+//   channelHasMember  conversations.members (one page of up to 1000): is the
+//                 tagged person in the client's channel? Unknown past one page.
 
 const SLACK_TS = /^\d{10,}\.[0-9]{6}$/;
 const MAX_RESPONSE_BYTES = 16 * 1024;
@@ -71,6 +75,29 @@ export function makeSlack(fetchImpl = fetch) {
       if (r.body.ok === true && r.body.channel && typeof r.body.channel === 'object') {
         const c = r.body.channel;
         return { ok: true, name: typeof c.name === 'string' ? c.name.slice(0, 80) : null, member: c.is_member === true };
+      }
+      return { ok: false, code: mapSlackError(r.body.error) };
+    },
+
+    async userInfo(token, userId) {
+      if (!USER_ID.test(String(userId || ''))) return { ok: false, code: 'bad_user' };
+      const r = await call(fetchImpl, token, 'users.info', { user: userId }, true);
+      if (!r.transport || !r.body) return { ok: false, code: 'slack_unreachable' };
+      if (r.body.ok === true && r.body.user && typeof r.body.user === 'object') {
+        const u = r.body.user; const p = u.profile && typeof u.profile === 'object' ? u.profile : {};
+        const pick = [p.display_name, p.real_name, u.real_name, u.name].find((v) => typeof v === 'string' && v.trim());
+        return { ok: true, name: pick ? pick.trim().slice(0, 80) : null, deleted: u.deleted === true };
+      }
+      return { ok: false, code: mapSlackError(r.body.error) };
+    },
+
+    async channelHasMember(token, channelId, userId) {
+      const r = await call(fetchImpl, token, 'conversations.members', { channel: channelId, limit: '1000' }, true);
+      if (!r.transport || !r.body) return { ok: false, code: 'slack_unreachable' };
+      if (r.body.ok === true && Array.isArray(r.body.members)) {
+        if (r.body.members.includes(userId)) return { ok: true, member: true };
+        const more = r.body.response_metadata && r.body.response_metadata.next_cursor;
+        return more ? { ok: false, code: 'too_many_members' } : { ok: true, member: false };
       }
       return { ok: false, code: mapSlackError(r.body.error) };
     },

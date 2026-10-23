@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thumbnail titles: mock-up</title>
+<!-- Mock-up only (session Titlecard, 2026-10-23). Not loaded by the site. Fictional data.
+     Production styles come from prod-snapshot.css (a copy of the real ones); everything new is in
+     the <style> block below and uses only Production tokens. Open with ?theme=dark for dark. -->
+<link rel="stylesheet" href="prod-snapshot.css">
+<style>
+  html { background: #e9e9ea; }
+  html[data-theme="dark"] { background: #000; }
+  body { margin: 0; padding: 24px; font-family: "Inter Variable", "SF Pro Display", -apple-system, "Segoe UI", sans-serif; }
+  .scene { margin: 0 auto 36px; max-width: 1180px; }
+  .scene > h2 { font-size: 14px; line-height: 20px; font-weight: 600; color: #555; margin: 0 0 8px; }
+  html[data-theme="dark"] .scene > h2 { color: #aaa; }
+  .scene > h2 small { font-weight: 400; color: #888; margin-left: 8px; }
+  .frame.prod-view { height: auto; min-height: 520px; position: relative; border-radius: 10px; border: 1px solid var(--prod-border); }
+  .frame .prod-detail-inner { padding: 32px 32px 230px; }
+  .scene.phone { max-width: 390px; }
+  .scene.phone .prod-right { display: none; }
+  .scene.phone .prod-detail-inner { padding: 20px 16px 300px; }
+  .scene.phone .prod-chip, .scene.phone .prod-due { display: none; }
+  /* Phone: the result chip takes its own line under the title, so the title stays readable. */
+  .scene.phone .prod-subrow.tt-has-chip { flex-wrap: wrap; padding-bottom: 7px; }
+  .scene.phone .prod-subrow.tt-has-chip .prod-title { flex: 1 0 60%; }
+  .scene.phone .prod-subrow.tt-has-chip .tt-chip { order: 10; margin-left: 24px; max-width: calc(100% - 24px); }
+  .scene.phone .prod-description-head { flex-wrap: nowrap; }
+
+  /* ---- New: the two buttons ---- */
+  .tt-btn { margin-left: auto; min-height: 28px; border: 0; border-radius: 6px; padding: 0 8px; background: transparent; color: var(--prod-muted); font: inherit; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+  .tt-btn:hover, .tt-btn.hover { background: var(--prod-hover); color: var(--prod-strong); }
+  .tt-btn:focus-visible { outline: 2px solid var(--prod-accent); outline-offset: 1px; }
+  .tt-btn[aria-disabled="true"] { cursor: default; color: var(--prod-dim); }
+  .tt-btn .tt-count { font-variant-numeric: tabular-nums; color: var(--prod-faint); }
+  .prod-description-actions .tt-btn { margin-left: 0; }
+  .tt-spin { width: 12px; height: 12px; border-radius: 50%; border: 1.6px solid var(--prod-border); border-top-color: var(--prod-accent); animation: tt-spin .8s linear infinite; flex: none; box-sizing: border-box; }
+  @keyframes tt-spin { to { transform: rotate(360deg); } }
+
+  /* ---- New: per-row result chip on a thumbnail sub-issue row ---- */
+  .tt-chip { height: 24px; max-width: 330px; flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--prod-border); border-radius: 999px; padding: 0 9px; font-size: 12px; font-weight: 450; color: var(--prod-muted); white-space: nowrap; overflow: hidden; box-sizing: border-box; }
+  .tt-chip > span { overflow: hidden; text-overflow: ellipsis; }
+  .tt-chip svg { flex: none; }
+  .tt-chip.waiting { border-style: dashed; color: var(--prod-faint); }
+  .tt-chip.building { color: var(--prod-strong); background: linear-gradient(90deg, var(--prod-surface) 0%, var(--prod-hover) 50%, var(--prod-surface) 100%); background-size: 200% 100%; animation: tt-sheen 1.4s ease-in-out infinite; }
+  @keyframes tt-sheen { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+  .tt-chip.done { color: var(--prod-strong); border-color: color-mix(in srgb, #43bc58 55%, var(--prod-border)); }
+  .tt-chip.done svg { color: #2f9e45; }
+  html[data-theme="dark"] .tt-chip.done svg { color: #4ade80; }
+  .tt-chip.review { color: #8a5300; border-color: #e6b866; background: color-mix(in srgb, #fbbf24 10%, transparent); cursor: pointer; }
+  html[data-theme="dark"] .tt-chip.review { color: #fbbf24; border-color: #8a6a1f; }
+  .tt-chip.skipped { color: var(--prod-dim); }
+  .tt-chip.failed { color: var(--prod-danger); border-color: color-mix(in srgb, var(--prod-danger) 45%, var(--prod-border)); cursor: pointer; }
+  .tt-chip b { font-weight: 600; }
+  .prod-subrow.tt-dim { opacity: .55; }
+  .prod-subrow.tt-active { background: color-mix(in srgb, var(--prod-accent) 5%, transparent); margin: 0 -8px; padding: 0 8px; border-radius: 6px; }
+
+  /* ---- New: the run toast (stays until the run is finished, then until closed if anything needs you) ---- */
+  .tt-toast { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(470px, calc(100% - 32px)); box-sizing: border-box; border: 1px solid var(--prod-border); border-radius: 12px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: 0 12px 32px rgba(0,0,0,.16); font-size: 13px; padding: 12px 14px 12px; z-index: 5; }
+  html[data-theme="dark"] .tt-toast { box-shadow: 0 12px 32px rgba(0,0,0,.6); }
+  .tt-toast-top { display: flex; align-items: center; gap: 10px; }
+  .tt-toast-title { font-weight: 600; color: var(--prod-text); }
+  .tt-toast-sub { color: var(--prod-muted); font-size: 12px; margin-top: 2px; }
+  .tt-toast-main { flex: 1; min-width: 0; }
+  .tt-toast-x { border: 0; background: transparent; color: var(--prod-muted); width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center; cursor: pointer; }
+  .tt-bar { height: 4px; border-radius: 99px; background: var(--prod-hover); margin: 10px 0 0; overflow: hidden; }
+  .tt-bar > i { display: block; height: 100%; border-radius: 99px; background: var(--prod-accent); }
+  .tt-steps { display: flex; gap: 14px; margin-top: 9px; font-size: 12px; color: var(--prod-faint); flex-wrap: wrap; }
+  .tt-steps .on { color: var(--prod-strong); font-weight: 500; }
+  .tt-steps .ok { color: var(--prod-muted); }
+  .tt-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .tt-a { min-height: 28px; border: 1px solid var(--prod-border); border-radius: 6px; padding: 0 10px; background: var(--prod-surface); color: var(--prod-strong); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
+  .tt-a.primary { background: var(--prod-accent); border-color: var(--prod-accent); color: #fff; }
+  .tt-a.ghost { border-color: transparent; background: transparent; color: var(--prod-muted); }
+  .tt-ico-ok { color: #2f9e45; } html[data-theme="dark"] .tt-ico-ok { color: #4ade80; }
+  .tt-ico-warn { color: #b7791f; } html[data-theme="dark"] .tt-ico-warn { color: #fbbf24; }
+  .tt-ico-err { color: var(--prod-danger); }
+  .tt-tabpick { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .tt-tabpick label { display: flex; align-items: center; gap: 8px; border: 1px solid var(--prod-border); border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+  .tt-tabpick label.sel { border-color: var(--prod-accent); background: color-mix(in srgb, var(--prod-accent) 7%, transparent); }
+  .tt-tabpick small { color: var(--prod-muted); margin-left: auto; }
+
+  /* ---- New: the review sheet (before -> after) ---- */
+  .tt-sheet { position: absolute; right: 318px; top: 300px; width: 470px; border: 1px solid var(--prod-border); border-radius: 12px; background: var(--prod-surface); box-shadow: 0 16px 40px rgba(0,0,0,.18); z-index: 6; font-size: 13px; }
+  .scene.phone .tt-sheet { left: 8px; right: 8px; width: auto; top: auto; bottom: 8px; }
+  .tt-sheet-head { padding: 12px 14px; border-bottom: 1px solid var(--prod-divider); display: flex; align-items: center; gap: 8px; }
+  .tt-sheet-head b { color: var(--prod-text); }
+  .tt-sheet-item { padding: 12px 14px; border-bottom: 1px solid var(--prod-divider); }
+  .tt-sheet-item .who { font-size: 12px; color: var(--prod-muted); margin-bottom: 6px; display: flex; gap: 6px; align-items: center; }
+  .tt-ba { display: grid; grid-template-columns: 52px 1fr; gap: 4px 8px; font-size: 13px; line-height: 19px; }
+  .tt-ba .k { color: var(--prod-faint); font-size: 12px; }
+  .tt-ba .before { color: var(--prod-dim); }
+  .tt-ba .after { color: var(--prod-text); font-weight: 500; }
+  .tt-sheet-item .tt-actions { margin-top: 8px; }
+  .tt-sheet-foot { padding: 10px 14px; display: flex; gap: 6px; justify-content: flex-end; }
+
+  /* ---- New: on the sub-issue's description ---- */
+  .tt-desc-building { display: flex; align-items: center; gap: 8px; color: var(--prod-muted); font-size: 13px; min-height: 24px; }
+  .tt-skel { display: block; height: 12px; border-radius: 4px; margin-top: 8px; background: linear-gradient(90deg, var(--prod-hover) 0%, var(--prod-border-soft) 50%, var(--prod-hover) 100%); background-size: 200% 100%; animation: tt-sheen 1.4s ease-in-out infinite; }
+  .tt-note { margin-top: 8px; font-size: 12px; color: var(--prod-muted); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tt-note a { color: var(--prod-link); text-decoration: none; cursor: pointer; }
+  .tt-compare { border: 1px solid var(--prod-border); border-radius: 9px; padding: 10px 12px; background: var(--prod-surface); }
+  .tt-compare .tt-actions { margin-top: 8px; }
+  @media (prefers-reduced-motion: reduce) { .tt-spin, .tt-chip.building, .tt-skel { animation: none; } }
+</style>
+</head>
+<body>
+<div id="scenes"></div>
+<script>
+(function () {
+  var params = new URLSearchParams(location.search);
+  if (params.get('theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+  var only = params.get('scene');
+
+  var ICON = {
+    issues: '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M13.25 5.25C14.2165 5.25 15 6.0335 15 7V11.75C15 13.5449 13.5449 15 11.75 15H6.75C5.7835 15 5 14.2165 5 13.25C5 12.8358 5.33579 12.5 5.75 12.5C6.16421 12.5 6.5 12.8358 6.5 13.25C6.5 13.3881 6.61193 13.5 6.75 13.5H11.75C12.7165 13.5 13.5 12.7165 13.5 11.75V7C13.5 6.86193 13.3881 6.75 13.25 6.75C12.8358 6.75 12.5 6.41421 12.5 6C12.5 5.58579 12.8358 5.25 13.25 5.25Z"/><path fill-rule="evenodd" d="M8 1H4a3 3 0 0 0-3 3v4a3 3 0 0 0 3 3h4a3 3 0 0 0 3-3V4a3 3 0 0 0-3-3Zm0 1.5H4A1.5 1.5 0 0 0 2.5 4v4A1.5 1.5 0 0 0 4 9.5h4A1.5 1.5 0 0 0 9.5 8V4A1.5 1.5 0 0 0 8 2.5Z"/></svg>',
+    cal: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="3.5" width="11" height="10" rx="2"/><path d="M2.5 6.5h11M5.5 2.5v2M10.5 2.5v2"/></svg>',
+    // New glyph: a "T" on a card (a title on a thumbnail).
+    title: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2.2"/><path d="M5.2 6h5.6M8 6v4.6"/></svg>',
+    check: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-6.5"/></svg>',
+    checkBig: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.6"/><path d="M5.2 8.3l2 2 3.8-4.3"/></svg>',
+    warn: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 2.2 14.3 13H1.7z" stroke-linejoin="round"/><path d="M8 6.5v3M8 11.4v.1"/></svg>',
+    err: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6.6"/><path d="M8 4.8v3.8M8 11v.1"/></svg>',
+    skip: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M4 12 12 4"/></svg>',
+    eye: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8Z"/><circle cx="8" cy="8" r="1.8"/></svg>',
+    retry: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M13.2 7.1a5.3 5.3 0 1 0-.5 3.3"/><path d="M13.5 3.4v3.7H9.8"/></svg>',
+    x: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>'
+  };
+  function status(type, color) {
+    var inner = type === 'todo' ? '<rect x="1" y="1" width="12" height="12" rx="6" fill="none" stroke="' + color + '" stroke-width="1.5"/>'
+      : type === 'backlog' ? '<circle cx="7" cy="7" r="6" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-dasharray="1.4 1.74"/>'
+      : '<rect x="1" y="1" width="12" height="12" rx="6" fill="none" stroke="' + color + '" stroke-width="1.5"/><path fill="' + color + '" d="M7 3.5a3.5 3.5 0 0 1 0 7z"/>';
+    return '<span class="prod-status"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">' + inner + '</svg></span>';
+  }
+  var ST = { todo: status('todo', '#a8a8a8'), prog: status('prog', '#c6a333'), backlog: status('backlog', '#a4a8ae') };
+  function av(letter, bg) { return '<span class="prod-assign-hot"><span class="prod-avatar" style="background:' + (bg || 'var(--prod-accent)') + '">' + letter + '</span></span>'; }
+
+  var VIDEOS = [
+    ['Video 1 — Morning routine', ST.prog, 'Oct 27'],
+    ['Video 2 — Three pantry swaps', ST.prog, 'Oct 27'],
+    ['Video 3 — What I eat on a work day', ST.todo, 'Oct 29'],
+    ['Video 4 — Answering your questions', ST.todo, 'Oct 29']
+  ];
+  var THUMBS = [
+    'Thumbnail 1 — Morning routine',
+    'Thumbnail 2 — Three pantry swaps',
+    'Thumbnail 3 — What I eat on a work day',
+    'Thumbnail 4 — Answering your questions'
+  ];
+
+  function chip(state, text) {
+    var map = {
+      waiting: '<span>Waiting</span>',
+      building: '<span class="tt-spin" aria-hidden="true"></span><span>Writing title…</span>',
+      done: ICON.check + '<span><b>' + text + '</b></span>',
+      review: ICON.eye + '<span>Has a description · <b>Review</b></span>',
+      skipped: ICON.skip + '<span>' + text + '</span>',
+      failed: ICON.retry + '<span>Failed · <b>Try again</b></span>'
+    };
+    return '<span class="tt-chip ' + state + '" role="status">' + map[state] + '</span>';
+  }
+
+  function subrow(title, st, due, opts) {
+    opts = opts || {};
+    return '<div class="prod-subrow prod-subissue-row' + (opts.cls ? ' ' + opts.cls : '') + (opts.chip ? ' tt-has-chip' : '') + '">'
+      + '<span class="prod-check" aria-hidden="true"></span>' + st
+      + '<span class="prod-title"><b>' + title + '</b></span>'
+      + '<span class="prod-spacer"></span>'
+      + (opts.chip || '')
+      + '<span class="prod-chip">Demo client</span>'
+      + '<span class="prod-due">' + ICON.cal + due + '</span>'
+      + av(opts.who || 'R', opts.whoBg) + '</div>';
+  }
+
+  // thumbStates: array of [chipHtml|'' , rowClass]
+  function subIssues(btnHtml, thumbStates) {
+    var rows = VIDEOS.map(function (v) { return subrow(v[0], v[1], v[2], { cls: thumbStates ? 'tt-dim' : '', who: 'J', whoBg: '#0e9f8e' }); }).join('')
+      + THUMBS.map(function (t, i) {
+        var s = thumbStates ? thumbStates[i] : null;
+        return subrow(t, ST.todo, 'Oct 25', { chip: s ? s[0] : '', cls: s ? s[1] : '', who: 'M', whoBg: '#d4509a' });
+      }).join('');
+    return '<div class="prod-subsection" data-prod-section="subissues"><div class="prod-subhead"><span class="prod-subhead-title">' + ICON.issues + ' Sub-issues <span class="prod-group-count">8</span></span>' + btnHtml + '</div>' + rows + '</div>';
+  }
+
+  var BTN = {
+    idle: '<button class="tt-btn" type="button" title="Write the thumbnail titles of this post from the filming plan">' + ICON.title + 'Thumbnail titles</button>',
+    hover: '<button class="tt-btn hover" type="button">' + ICON.title + 'Thumbnail titles</button>',
+    running: function (n) { return '<button class="tt-btn" type="button" aria-disabled="true" aria-live="polite"><span class="tt-spin" aria-hidden="true"></span>Writing titles <span class="tt-count">' + n + ' of 4</span></button>'; },
+    waiting: '<button class="tt-btn" type="button" style="color:#8a5300">' + ICON.eye + '1 title waiting for you</button>',
+    other: '<button class="tt-btn" type="button" aria-disabled="true"><span class="tt-spin" aria-hidden="true"></span>Being written by Sam <span class="tt-count">2 of 4</span></button>'
+  };
+
+  function assets() {
+    return '<section class="prod-assets"><div class="prod-assets-head"><span class="prod-assets-title">Assets</span><span class="prod-spacer"></span><button class="prod-assets-refresh" type="button">Refresh access</button></div>'
+      + '<div class="prod-assets-list">'
+      + '<div class="prod-asset-row" data-prod-asset-slot="filming_plan"><span class="prod-asset-label">Filming plan</span><span class="prod-asset-value"><a href="#">Open document</a><span class="prod-asset-origin">from the post</span></span><span class="prod-asset-state" data-state="available">Available</span><span></span></div>'
+      + '<div class="prod-asset-row"><span class="prod-asset-label">Raw footage</span><span class="prod-asset-value"><a href="#">Drive folder</a></span><span class="prod-asset-state" data-state="available">Available</span><button class="prod-assets-action prod-asset-edit" type="button">Edit</button></div>'
+      + '<div class="prod-asset-row"><span class="prod-asset-label">Delivery folder</span><span class="prod-asset-value"><span>Not provided</span></span><span class="prod-asset-state" data-state="missing">Missing</span><button class="prod-assets-action prod-asset-edit" type="button">Edit</button></div>'
+      + '</div></section>';
+  }
+
+  function right(kind) {
+    var rows = [['Status', ST.prog + '<span>In Progress</span>'], ['Assignee', av('R') + '<span>Unassigned</span>'], ['Project', '<span>Demo client</span>'], ['Due date', '<span>Oct 29</span>']];
+    if (kind === 'thumb') rows = [['Status', ST.todo + '<span>Todo</span>'], ['Assignee', av('M', '#d4509a') + '<span>Mia</span>'], ['Project', '<span>Demo client</span>'], ['Due date', '<span>Oct 25</span>']];
+    return '<aside class="prod-right"><div class="prod-props">' + rows.map(function (r) {
+      return '<div class="prod-prop"><span class="prod-prop-label">' + r[0] + '</span><span style="display:flex;align-items:center;gap:8px">' + r[1] + '</span></div>';
+    }).join('') + '</div></aside>';
+  }
+
+  function parent(subHtml, extra) {
+    return '<div class="prod-detail"><div class="prod-detail-main"><div class="prod-detail-inner">'
+      + '<div class="prod-detail-id">Post</div>'
+      + '<h1 class="prod-detail-title">October batch — four videos</h1>'
+      + '<section class="prod-description"><div class="prod-description-head"><span class="prod-description-title">Description</span><div class="prod-description-actions"><button class="prod-description-action" type="button">Edit</button></div></div>'
+      + '<div class="prod-description-body prod-desc">Filmed Oct 18. Four videos from the October plan.</div></section>'
+      + assets() + subHtml
+      + '</div></div>' + right('parent') + (extra || '') + '</div>';
+  }
+
+  function toast(o) {
+    return '<div class="tt-toast" role="status" aria-live="polite"><div class="tt-toast-top">' + (o.icon || '<span class="tt-spin" aria-hidden="true"></span>')
+      + '<div class="tt-toast-main"><div class="tt-toast-title">' + o.title + '</div>' + (o.sub ? '<div class="tt-toast-sub">' + o.sub + '</div>' : '') + '</div>'
+      + (o.close ? '<button class="tt-toast-x" type="button" aria-label="Close">' + ICON.x + '</button>' : '') + '</div>'
+      + (o.bar != null ? '<div class="tt-bar"><i style="width:' + o.bar + '%"></i></div>' : '')
+      + (o.steps ? '<div class="tt-steps">' + o.steps + '</div>' : '')
+      + (o.body || '')
+      + (o.actions ? '<div class="tt-actions">' + o.actions + '</div>' : '') + '</div>';
+  }
+  function steps(n) {
+    var names = ['Reading the filming plan', 'Finding the batch', 'Writing titles'];
+    return names.map(function (s, i) { return '<span class="' + (i < n ? 'ok' : i === n ? 'on' : '') + '">' + (i < n ? '✓ ' : '') + s + '</span>'; }).join('');
+  }
+
+  function subIssueDetail(descBody, actionsHtml) {
+    return '<div class="prod-detail"><div class="prod-detail-main"><div class="prod-detail-inner">'
+      + '<div class="prod-detail-id">DEM-212</div>'
+      + '<div class="prod-detail-context"><span>Sub-issue of</span><button class="prod-detail-context-link" type="button">' + ST.prog + '<b>Post October batch — four videos</b></button><span class="prod-spacer"></span></div>'
+      + '<h1 class="prod-detail-title">Thumbnail 3 — What I eat on a work day</h1>'
+      + '<section class="prod-description"><div class="prod-description-head"><span class="prod-description-title">Description</span><div class="prod-description-actions">' + actionsHtml + '<button class="prod-description-action" type="button">Edit</button></div></div>'
+      + '<div class="prod-description-body prod-desc">' + descBody + '</div></section>'
+      + '<section class="prod-assets"><div class="prod-assets-head"><span class="prod-assets-title">Assets</span><span class="prod-spacer"></span></div><div class="prod-assets-list">'
+      + '<div class="prod-asset-row"><span class="prod-asset-label">Filming plan</span><span class="prod-asset-value"><a href="#">Open document</a><span class="prod-asset-origin">from the post</span></span><span class="prod-asset-state" data-state="available">Available</span><span></span></div>'
+      + '<div class="prod-asset-row"><span class="prod-asset-label">Thumbnail file</span><span class="prod-asset-value"><span>Not provided</span></span><span class="prod-asset-state" data-state="missing">Missing</span><button class="prod-assets-action prod-asset-edit" type="button">Edit</button></div>'
+      + '</div></section>'
+      + '</div></div>' + right('thumb') + '</div>';
+  }
+  var SUB_BTN = '<button class="tt-btn" type="button" title="Write this thumbnail\'s title from the filming plan">' + ICON.title + 'Write title</button>';
+  var SUB_BTN_RUN = '<button class="tt-btn" type="button" aria-disabled="true"><span class="tt-spin" aria-hidden="true"></span>Writing…</button>';
+
+  var D = '<span style="color:var(--prod-faint)">', E = '</span>';
+  var SCENES = [
+    ['p1-idle', 'Parent post: the new button on the right of the Sub-issues header', '', parent(subIssues(BTN.idle))],
+    ['p2-hover', 'Hover: same look as the Edit button, label stays visible', 'tooltip: "Write the thumbnail titles of this post from the filming plan"', parent(subIssues(BTN.hover))],
+    ['p3-reading', 'Pressed: toast appears at once, rows show Waiting', 'stage 1 of 3', parent(subIssues(BTN.running(0), [[chip('waiting'), 'tt-active'], [chip('waiting'), 'tt-active'], [chip('waiting'), 'tt-active'], [chip('waiting'), 'tt-active']]),
+      toast({ title: 'Writing 4 thumbnail titles', sub: 'Reading the filming plan…', bar: 8, steps: steps(0), actions: '<button class="tt-a ghost" type="button">Cancel</button>' }))],
+    ['p4-building', 'Building: each row shows its own state; the toast names the plan tab it chose', 'stage 3 of 3', parent(subIssues(BTN.running(2), [[chip('done', 'Morning routine that works'), ''], [chip('done', '3 pantry swaps I swear by'), ''], [chip('building'), 'tt-active'], [chip('building'), 'tt-active']]),
+      toast({ title: 'Writing thumbnail titles · 2 of 4', sub: 'From the <b>October</b> plan tab · you can close this card, it keeps going', bar: 55, steps: steps(2), actions: '<button class="tt-a" type="button">Use another tab</button><button class="tt-a ghost" type="button">Cancel</button>' }))],
+    ['p5-done', 'Finished: done, needs-you and skipped side by side; the toast stays because one row needs you', 'Undo restores the exact previous text', parent(subIssues(BTN.waiting, [[chip('done', 'Morning routine that works'), ''], [chip('done', '3 pantry swaps I swear by'), ''], [chip('review'), ''], [chip('skipped', 'No video 4 in the October plan'), '']]),
+      toast({ icon: '<span class="tt-ico-warn">' + ICON.warn + '</span>', title: '2 titles written · 1 needs your OK · 1 skipped', sub: 'Thumbnail 4: the October plan has no video 4.', close: true, actions: '<button class="tt-a primary" type="button">Review 1</button><button class="tt-a" type="button">Undo 2</button><button class="tt-a ghost" type="button">Try 4 with another tab</button>' }))],
+    ['p6-review', 'Review: before and after, nothing a person wrote is changed without a tap', 'Replace keeps the old text under the title', parent(subIssues(BTN.waiting, [[chip('done', 'Morning routine that works'), ''], [chip('done', '3 pantry swaps I swear by'), ''], [chip('review'), 'tt-active'], [chip('skipped', 'No video 4 in the October plan'), '']]),
+      '<div class="tt-sheet" role="dialog" aria-label="Review thumbnail titles"><div class="tt-sheet-head"><b>1 title needs your OK</b><span class="prod-spacer" style="flex:1"></span><button class="tt-toast-x" type="button" aria-label="Close">' + ICON.x + '</button></div>'
+      + '<div class="tt-sheet-item"><div class="who">' + ST.todo + 'Thumbnail 3 — What I eat on a work day · someone wrote this description</div><div class="tt-ba"><span class="k">Now</span><span class="before">Big text: lunch box flat-lay, keep it bright</span><span class="k">New</span><span class="after">What I eat on a work day</span></div>'
+      + '<div class="tt-actions"><button class="tt-a" type="button">Keep mine</button><button class="tt-a primary" type="button">Replace</button><button class="tt-a ghost" type="button">Add title above mine</button></div></div>'
+      + '<div class="tt-sheet-foot"><button class="tt-a ghost" type="button">Done</button></div></div>')],
+    ['p7-failed', 'A provider failure on one row: only that row retries', '', parent(subIssues(BTN.idle, [[chip('done', 'Morning routine that works'), ''], [chip('done', '3 pantry swaps I swear by'), ''], [chip('done', 'What I eat on a work day'), ''], [chip('failed'), '']]),
+      toast({ icon: '<span class="tt-ico-err">' + ICON.err + '</span>', title: '3 titles written · 1 failed', sub: 'The AI did not answer in time for Thumbnail 4.', close: true, actions: '<button class="tt-a primary" type="button">Try again</button><button class="tt-a" type="button">Undo 3</button>' }))],
+    ['p8-other', 'Someone else pressed it first: the button follows their run, no second run starts', '', parent(subIssues(BTN.other, [[chip('done', 'Morning routine that works'), ''], [chip('done', '3 pantry swaps I swear by'), ''], [chip('building'), 'tt-active'], [chip('building'), 'tt-active']]))],
+    ['p9-tabpick', 'Two plan tabs fit equally: it asks before writing anything', '', parent(subIssues(BTN.running(0), [[chip('waiting'), 'tt-active'], [chip('waiting'), 'tt-active'], [chip('waiting'), 'tt-active'], [chip('waiting'), 'tt-active']]),
+      toast({ icon: '<span class="tt-ico-warn">' + ICON.warn + '</span>', title: 'Which plan tab is this batch from?', sub: 'Two tabs could be it. Nothing has been written.', bar: 30, steps: steps(1),
+        body: '<div class="tt-tabpick"><label class="sel"><input type="radio" name="t" checked> October <small>6 videos</small></label><label><input type="radio" name="t"> October (reshoots) <small>3 videos</small></label></div>',
+        actions: '<button class="tt-a primary" type="button">Use this tab</button><button class="tt-a ghost" type="button">Cancel</button>' }))],
+    ['p10-noplan', 'No plan, or a plan that is not shared by link: the reason and the fix, nothing written', '', parent(subIssues(BTN.idle),
+      toast({ icon: '<span class="tt-ico-err">' + ICON.err + '</span>', title: 'The filming plan can\'t be opened', sub: 'It isn\'t shared by link, so SyncView can\'t read it. In the Doc: Share → General access → Anyone with the link can view. Then try again.', close: true, actions: '<button class="tt-a" type="button">Open the plan</button><button class="tt-a ghost" type="button">Try again</button>' }))],
+    ['s1-idle', 'Sub-issue: "Write title" next to Edit, on an empty description', '', subIssueDetail(D + 'Add a description…' + E, SUB_BTN)],
+    ['s2-building', 'Sub-issue while building: the description area says what it is doing', '', subIssueDetail('<div class="tt-desc-building"><span class="tt-spin"></span>Reading the October plan, finding video 3…</div><span class="tt-skel" style="width:62%"></span>', SUB_BTN_RUN)],
+    ['s3-done', 'Sub-issue result: the title is written in the description, labelled, with Undo', '', subIssueDetail('Thumbnail title (generated by AI, from the October plan): What I eat on a work day<div class="tt-note"><span class="tt-ico-ok">' + ICON.check + '</span>Written just now from video 3 of the October plan · <a>Undo</a> · <a>Use another tab</a></div>', SUB_BTN)],
+    ['s4-compare', 'Sub-issue that already has text: before and after, inline', '', subIssueDetail('<div class="tt-compare"><div class="tt-ba"><span class="k">Now</span><span class="before">Big text: lunch box flat-lay, keep it bright</span><span class="k">New</span><span class="after">What I eat on a work day</span></div><div class="tt-actions"><button class="tt-a" type="button">Keep mine</button><button class="tt-a primary" type="button">Replace</button><button class="tt-a ghost" type="button">Add title above mine</button></div></div>', SUB_BTN_RUN.replace('Writing…', 'Waiting for you'))]
+  ];
+
+  var html = SCENES.filter(function (s) { return !only || s[0] === only; }).map(function (s) {
+    return '<section class="scene" id="' + s[0] + '"><h2>' + s[1] + (s[2] ? '<small>' + s[2] + '</small>' : '') + '</h2><div class="frame prod-view">' + s[3] + '</div></section>';
+  }).join('');
+  document.getElementById('scenes').innerHTML = html;
+  if (params.get('phone')) document.querySelectorAll('.scene').forEach(function (n) { n.classList.add('phone'); });
+})();
+</script>
+</body></html>

@@ -3749,7 +3749,7 @@
         .prod-tt-btn[aria-disabled="true"] { cursor: default; color: var(--prod-faint); }
         .prod-tt-btn.is-waiting { color: var(--prod-tt-warn-ink); }
         .prod-tt-count { font-variant-numeric: tabular-nums; color: var(--prod-faint); }
-        .prod-tt-spin { width: 12px; height: 12px; border-radius: 50%; border: 1.6px solid var(--prod-border); border-top-color: var(--prod-accent); animation: prod-tt-spin .8s linear infinite; flex: none; box-sizing: border-box; display: inline-block; }
+        .prod-tt-spin { width: 12px; height: 12px; border-radius: 50%; border: 1.6px solid var(--prod-border); border-top-color: var(--prod-accent); animation: prod-tt-spin var(--sv-spin-dur) linear infinite; flex: none; box-sizing: border-box; display: inline-block; }
         @keyframes prod-tt-spin { to { transform: rotate(360deg); } }
         .prod-tt-rowslot { display: contents; }
         .prod-tt-chip { height: 24px; max-width: 330px; flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--prod-border); border-radius: 999px; padding: 0 9px; font: inherit; font-size: 12px; font-weight: 450; color: var(--prod-muted); background: transparent; white-space: nowrap; overflow: hidden; box-sizing: border-box; }
@@ -3757,7 +3757,7 @@
         .prod-tt-chip svg { flex: none; }
         .prod-tt-chip b { font-weight: 600; }
         .prod-tt-chip.is-waiting { border-style: dashed; color: var(--prod-faint); }
-        .prod-tt-chip.is-building { color: var(--prod-strong); background: linear-gradient(90deg, var(--prod-surface) 0%, var(--prod-hover) 50%, var(--prod-surface) 100%); background-size: 200% 100%; animation: prod-tt-sheen 1.4s ease-in-out infinite; }
+        .prod-tt-chip.is-building { color: var(--prod-strong); background: linear-gradient(90deg, var(--prod-surface) 0%, var(--prod-hover) 50%, var(--prod-surface) 100%); background-size: 200% 100%; animation: prod-tt-sheen var(--sv-sheen-dur) var(--sv-sheen-ease) infinite; }
         @keyframes prod-tt-sheen { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
         .prod-tt-chip.is-done { color: var(--prod-strong); border-color: var(--prod-tt-ok-line); }
         .prod-tt-chip.is-done svg, .prod-tt-ok, .prod-tt-ico.is-ok { color: var(--prod-tt-ok-ink); }
@@ -3767,7 +3767,7 @@
         .prod-tt-descslot:empty { display: none; }
         .prod-tt-descslot { margin: 0 0 8px; }
         .prod-tt-desc-building { display: flex; align-items: center; gap: 8px; color: var(--prod-muted); font-size: 13px; min-height: 24px; }
-        .prod-tt-skel { display: block; width: 62%; height: 12px; border-radius: 4px; margin-top: 6px; background: linear-gradient(90deg, var(--prod-hover) 0%, var(--prod-border-soft) 50%, var(--prod-hover) 100%); background-size: 200% 100%; animation: prod-tt-sheen 1.4s ease-in-out infinite; }
+        .prod-tt-skel { display: block; width: 62%; height: 12px; border-radius: 4px; margin-top: 6px; background: linear-gradient(90deg, var(--prod-hover) 0%, var(--prod-border-soft) 50%, var(--prod-hover) 100%); background-size: 200% 100%; animation: prod-tt-sheen var(--sv-sheen-dur) var(--sv-sheen-ease) infinite; }
         .prod-tt-note { font-size: 12px; color: var(--prod-muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
         .prod-tt-note.is-failed { color: var(--prod-danger); }
         .prod-tt-link { border: 0; background: transparent; padding: 0; font: inherit; color: var(--prod-link); cursor: pointer; }

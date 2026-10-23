@@ -66,6 +66,18 @@ const SHEET_ID_SECRET = "CLIENTS_INFO_SHEET_ID";
 const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 const ROW_COLUMNS = "slug,display_name,email,competitors,keywords,specific_keywords,content_description,instagram_handle,tiktok_handle,youtube_channel_id,slack_channel_id,creative_channel_id,upload_post_profile,postforme_account_id,extra,source,sheet_synced_at,archived_at,created_at,updated_at,updated_by";
 type JsonMap = Record<string, unknown>;
+// The Slack person "Notify client" tags (migrations/2026-10-23-client-slack-mention.sql).
+// Read only once a probe finds the column, so a save keeps working before that
+// migration is applied (saving the field itself is then refused by the
+// database function as not editable). A found column is remembered.
+let slackMentionColumnSeen = false;
+async function rowColumns(supabase: SupabaseClient): Promise<string> {
+  if (!slackMentionColumnSeen) {
+    const { error } = await supabase.from("client_profiles").select("slack_mention_user_id").limit(1);
+    slackMentionColumnSeen = !error;
+  }
+  return slackMentionColumnSeen ? ROW_COLUMNS + ",slack_mention_user_id" : ROW_COLUMNS;
+}
 
 function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), { status, headers: { ...CORS, "Content-Type": "application/json" } });
@@ -160,7 +172,7 @@ const blankToNull = (v: unknown) => (clean(v) === "" ? null : clean(v));
 async function nativeUpdate(supabase: SupabaseClient, body: JsonMap, member: { id: string; name: string }): Promise<Response> {
   const slug = clientSlug(body.slug);
   if (!slug) return json({ ok: false, error: "missing_client" }, 400);
-  const { data: row, error: rowErr } = await supabase.from("client_profiles").select(ROW_COLUMNS).eq("slug", slug).maybeSingle();
+  const { data: row, error: rowErr } = await supabase.from("client_profiles").select(await rowColumns(supabase)).eq("slug", slug).maybeSingle();
   if (rowErr) throw rowErr;
   const current = row as JsonMap | null;
   if (!current) return json({ ok: false, error: "client_profile_missing" }, 404);
@@ -186,6 +198,8 @@ async function nativeUpdate(supabase: SupabaseClient, body: JsonMap, member: { i
   });
   if (rpcErr) {
     if (String(rpcErr.message).includes("client_profile_version_conflict")) return json({ ok: false, error: "client_profile_version_conflict", row: current }, 409);
+    // A field the database cannot take yet (the Slack person, before its migration).
+    if (String(rpcErr.message).includes("client_profile_edit_field_not_editable")) return json({ ok: false, error: "field_not_editable", field: null }, 400);
     console.error("client-profile-write: native save failed", rpcErr.message);
     return json({ ok: false, error: "write_failed" }, 500);
   }

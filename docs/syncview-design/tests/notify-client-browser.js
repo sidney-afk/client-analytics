@@ -15,7 +15,11 @@
  *   - inside six hours the last-sent line is the warning, sending is still allowed and sends with
  *     confirm_recent;
  *   - a successful send closes the box and shows the toast "Alert sent"; "bot not in channel",
- *     no private channel, sending switched off, signed-out and offline stay open with a sentence.
+ *     no private channel, sending switched off, signed-out and offline stay open with a sentence;
+ *   - the tag: a linked Slack person is shown first in the message and named in one line, a linked
+ *     person outside the channel is warned about, and "nobody is tagged" is said when no one is
+ *     linked or tagging is not switched on yet; the requests still carry only action, client,
+ *     surface (and confirm_recent), never a person.
  *
  * Run:  node docs/syncview-design/tests/notify-client-browser.js
  * Pictures: set NOTIFY_CLIENT_SHOTS=<dir> to write PNGs.
@@ -163,6 +167,37 @@ async function scenario(browser, origin, label, viewport, phone, surface) {
     await page.locator('#notifyClientDialog .nc-msg-link').waitFor();
     eq((await page.locator('#notifyClientDialog .nc-msg-link').innerText()).trim(), 'Review now', L + ': an older status answer (button, no link_label) still shows Review now');
     await page.keyboard.press('Escape');
+
+    // ── The tag: who the message at-mentions. The page shows it; it never sends a person.
+    calls.length = 0;
+    mock.status = { status: 200, body: statusBody(surface, { mention: { available: true, linked: true, name: 'Pat Fixture', in_channel: true } }) };
+    await openNotify();
+    await page.locator('#notifyClientDialog [data-nc-tag="linked"]').waitFor();
+    eq((await page.locator('#notifyClientDialog .nc-msg-line').innerText()).trim(), '@Pat Fixture ' + HEADLINE[surface], L + ': the message preview starts with the mention, like the real one');
+    eq((await page.locator('#notifyClientDialog [data-nc-tag="linked"]').innerText()).trim(), 'Tags Pat Fixture so they get a Slack notification.', L + ': one line says who is tagged');
+    ok(await page.locator('#notifyClientDialog .nc-warn, #notifyClientDialog .nc-alert').count() === 0, L + ': a linked person in the channel needs no warning');
+    ok(!(await page.locator('#notifyClientDialog .nc-send').isDisabled()), L + ': Send alert is ready with a tag');
+    await shot(page, `${label}-${surface}-2b-tagged`);
+    mock.send = { status: 200, body: { ok: true, sent: true, tagged: true, receipt_saved: true } };
+    await page.locator('#notifyClientDialog .nc-send').click();
+    await page.waitForFunction(() => !document.querySelector('#notifyClientDialog[open]'));
+    eq(calls.map(c => c.body), [{ action: 'status', client: CLIENT, surface }, { action: 'send', client: CLIENT, surface, confirm_recent: false }], L + ': with a tag the page still sends only action, client and surface');
+    ok(!/Pat Fixture|U0/.test(JSON.stringify(calls.map(c => c.body))), L + ': no person, name or member id ever leaves the page');
+    for (const [over, sel, pattern] of [
+      [{ mention: { available: true, linked: true, name: 'Pat Fixture', in_channel: false } }, '[data-nc-tag="not-in-channel"]', /Pat Fixture is not in this client's channel, so the tag will not reach them/],
+      [{ mention: { available: true, linked: true, name: null, in_channel: null } }, '[data-nc-tag="linked"]', /^Tags their linked Slack person so they get a Slack notification\.$/],
+      [{ mention: { available: true, linked: false, name: null, in_channel: null } }, '[data-nc-tag="none"]', /^Nobody is tagged: this client has no linked Slack person\. An admin can add one in Kasper, Clients, "Slack person to tag"\.$/],
+      [{ mention: { available: false, linked: false, name: null, in_channel: null } }, '[data-nc-tag="unavailable"]', /^Nobody is tagged: tagging is not switched on yet\.$/],
+    ]) {
+      mock.status = { status: 200, body: statusBody(surface, over) };
+      await openNotify();
+      await page.locator('#notifyClientDialog ' + sel).waitFor();
+      ok(pattern.test((await page.locator('#notifyClientDialog ' + sel).innerText()).trim()), L + ': ' + sel + ' reads right');
+      ok(!(await page.locator('#notifyClientDialog .nc-send').isDisabled()), L + ': ' + sel + ': sending is never blocked by the tag');
+      if (!over.mention.linked) eq((await page.locator('#notifyClientDialog .nc-msg-line').innerText()).trim(), HEADLINE[surface], L + ': ' + sel + ': the message preview has no mention');
+      if (sel === '[data-nc-tag="none"]') await shot(page, `${label}-${surface}-2c-untagged`);
+      await page.keyboard.press('Escape');
+    }
 
     // ── A last alert older than six hours is one plain short line.
     calls.length = 0;

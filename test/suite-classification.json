@@ -1646,6 +1646,15 @@
       "required_for_release": true
     },
     {
+      "file": "client-slack-mention-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 17,
+      "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and CLIENT_SLACK_MENTION_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database",
+      "reproduce": "CLIENT_SLACK_MENTION_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/client-slack-mention-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
       "file": "clients-roster-sync-postgres.js",
       "route": "isolated_postgres",
       "postgres_major": 17,

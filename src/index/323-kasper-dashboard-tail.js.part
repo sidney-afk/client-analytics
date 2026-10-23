@@ -288,7 +288,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
     const CA_WRITE_URL = CAL_SUPABASE_URL + '/functions/v1/client-profile-write';
     // The core details, top of the profile, in three colour-coded cards.
     const CA_GROUPS = [
-        { key: 'team', title: 'Contact and team', tone: 'edit', fields: [['email', 'Email'], ['slack_channel_id', 'Slack channel'], ['creative_channel_id', 'Creative channel']] },
+        { key: 'team', title: 'Contact and team', tone: 'edit', fields: [['email', 'Email'], ['slack_channel_id', 'Slack channel'], ['creative_channel_id', 'Creative channel'], ['slack_mention_user_id', 'Slack person to tag']] },
         { key: 'social', title: 'Social accounts', tone: 'asks', fields: [['instagram_handle', 'Instagram'], ['tiktok_handle', 'TikTok'], ['youtube_channel_id', 'YouTube']] },
         { key: 'publish', title: 'Publishing', tone: 'music', fields: [['postforme_account_id', 'Post for Me'], ['upload_post_profile', 'Upload-Post']] },
     ];
@@ -868,6 +868,12 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
                 _caEditSay(`SyncView cannot edit the Clients Info sheet yet. Share the sheet as <b>Editor</b> with <code class="ca-sa">${_calEsc(st.service_account)}</code>, then save again. Nothing was saved.`, 'error');
                 _caPaint();
             }).catch(() => {});
+        } else if (err === 'bad_value' && json.field === 'slack_mention_user_id') {
+            // "Notify client" at-mentions this person, so only a real Slack member id is kept.
+            ed.conflictFields = ['slack_mention_user_id'];
+            _caEditSay('"Slack person to tag" needs a Slack member ID, which starts with U (for example U0123ABCD). In Slack, open the client\'s profile, click the three dots and choose "Copy member ID". Nothing was saved.', 'error');
+        } else if (err === 'field_not_editable') {
+            _caEditSay('"Slack person to tag" cannot be saved until its database update is applied. Nothing was saved.', 'error');
         } else if (err === 'saved_to_sheet_only') {
             _caEditSay('Saved to the sheet, but SyncView\'s copy did not update. The daily copy will bring it in; open the tab again later.', 'error');
         } else if (resp.status === 401 || resp.status === 403) {

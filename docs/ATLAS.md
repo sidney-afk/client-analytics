@@ -287,7 +287,7 @@ These are backend platform stores. Service access depends on platform roles; bro
 
 ## Edge functions
 
-There are 46 entrypoint folders and one shared helper folder here. The live project has **47 functions**, all with platform JWT verification false. That setting does not remove function authentication. Presence and version below are verified; live byte equality to this checkout was not attested. [The deploy manifest](ops/EF_DEPLOY_MANIFEST.md) owns release paths and source closures.
+There are 46 entrypoint folders and one shared helper folder here. The live project has **64 functions** (re-read 2026-10-23; two of them, `doctors-partial-capture` and `fp-tab-test`, are listed under live functions owned outside this repo), all with platform JWT verification false. That setting does not remove function authentication. Presence and version below are verified; live byte equality to this checkout was not attested. [The deploy manifest](ops/EF_DEPLOY_MANIFEST.md) owns release paths and source closures.
 
 
 | Function | Purpose and caller | Live presence and release lane |
@@ -452,6 +452,10 @@ The live census (re-read 2026-10-23) has **125 workflows: 56 active and 69 inact
 | <!-- atlas:n8n iYb1896sIAclGvy8 -->[`iYb1896sIAclGvy8`](https://synchrosocial.app.n8n.cloud/workflow/iYb1896sIAclGvy8) SyncView TikTok Upload, List | GET webhook; instance timezone | TikTokUpload Sheet list. | Keep; D changes polling only. |
 | <!-- atlas:n8n 4ca3li54eRFtSfXE -->[`4ca3li54eRFtSfXE`](https://synchrosocial.app.n8n.cloud/workflow/4ca3li54eRFtSfXE) SyncView TikTok Upload, Cancel | POST webhook; instance timezone | TikTokUpload Sheet cancellation state. | Keep; not proof of provider cancellation. |
 | <!-- atlas:n8n KViFEOqSRBNdCJRk -->[`KViFEOqSRBNdCJRk`](https://synchrosocial.app.n8n.cloud/workflow/KViFEOqSRBNdCJRk) SyncView Calendar, Get | GET webhook; instance timezone | Calendar Sheet fallback read. | F: browser fallback retired in source; retain live wrapper until published page and zero-call proof. |
+| <!-- atlas:n8n lpnLIPUFSo7bURWf -->[`lpnLIPUFSo7bURWf`](https://synchrosocial.app.n8n.cloud/workflow/lpnLIPUFSo7bURWf) Sales, Call Rescheduled (iClosed) | POST webhook; instance timezone | iClosed reschedule payload, Telegram alert to Kasper, pre-call nurture restart and the Pre-Call Nurture Started table. | Added 2026-10-22; active, keep. |
+| <!-- atlas:n8n cM3G9REliKpwicnR -->[`cM3G9REliKpwicnR`](https://synchrosocial.app.n8n.cloud/workflow/cM3G9REliKpwicnR) Sales, Doctors Instant Booking Link | POST webhook; instance timezone | Doctors and educators form Submit, booking_recovery table, Gmail and Twilio. | Added 2026-10-05; active, keep. |
+| <!-- atlas:n8n lU5RlPUBsmlMsFSf -->[`lU5RlPUBsmlMsFSf`](https://synchrosocial.app.n8n.cloud/workflow/lU5RlPUBsmlMsFSf) Educators Sales, Pre-Call Nurture | Called by other workflows; no own trigger | Educator pre-call emails and the nurture tables. | Added 2026-10-22; active, keep. |
+| <!-- atlas:n8n S3fcVkml49KBxD6P -->[`S3fcVkml49KBxD6P`](https://synchrosocial.app.n8n.cloud/workflow/S3fcVkml49KBxD6P) Editor AI, Client notes from the brain | GET webhook; instance timezone | Reads one client Music section from the brain repository and returns only that. | Added 2026-10-12; active, keep. |
 
 
 ### Inactive retained workflows
@@ -505,6 +509,7 @@ These 44 IDs still exist but are disabled. They are history or recovery assets, 
 | <!-- atlas:n8n Nk3pwR6Fbl4VAPqH -->[`Nk3pwR6Fbl4VAPqH`](https://synchrosocial.app.n8n.cloud/workflow/Nk3pwR6Fbl4VAPqH) | SyncView Calendar, Linear Sub-Issues | Disabled; retained, no ordinary deployment or off-date action. |
 | <!-- atlas:n8n VAqlVLk8wczPq6DQ -->[`VAqlVLk8wczPq6DQ`](https://synchrosocial.app.n8n.cloud/workflow/VAqlVLk8wczPq6DQ) | AI WORKFLOW | Disabled; retained, no ordinary deployment or off-date action. |
 | <!-- atlas:n8n vb3O0wkTK6Q7Rtro -->[`vb3O0wkTK6Q7Rtro`](https://synchrosocial.app.n8n.cloud/workflow/vb3O0wkTK6Q7Rtro) | BACKUPS | Disabled; retained, no ordinary deployment or off-date action. |
+| <!-- atlas:n8n 84679Qq5zhVqXfPQ -->[`84679Qq5zhVqXfPQ`](https://synchrosocial.app.n8n.cloud/workflow/84679Qq5zhVqXfPQ) Temporary text preview and delivery check | None active | Throwaway delivery check. | Inactive; marked for deletion by its own name. |
 
 
 ### Historical IDs still mentioned in truth
@@ -525,11 +530,6 @@ These are absent from the current full live list. They remain linked because the
 | <!-- atlas:n8n lGwC9WWPVJtxphtf -->[`lGwC9WWPVJtxphtf`](truth/N8N.md) | Absent from current live census; retained documentary history. |
 | <!-- atlas:n8n wP0yLVDIOJph1bcM -->[`wP0yLVDIOJph1bcM`](truth/N8N.md) | Absent from current live census; retained documentary history. |
 | <!-- atlas:n8n xEhLpKwNv8uTaeAK -->[`xEhLpKwNv8uTaeAK`](truth/N8N.md) | Absent from current live census; retained documentary history. |
-| <!-- atlas:n8n lpnLIPUFSo7bURWf -->[`lpnLIPUFSo7bURWf`](https://synchrosocial.app.n8n.cloud/workflow/lpnLIPUFSo7bURWf) Sales, Call Rescheduled (iClosed) | POST webhook; instance timezone | iClosed reschedule payload, Telegram alert to Kasper, pre-call nurture restart and the Pre-Call Nurture Started table. | Added 2026-10-22; active, keep. |
-| <!-- atlas:n8n cM3G9REliKpwicnR -->[`cM3G9REliKpwicnR`](https://synchrosocial.app.n8n.cloud/workflow/cM3G9REliKpwicnR) Sales, Doctors Instant Booking Link | POST webhook; instance timezone | Doctors and educators form Submit, booking_recovery table, Gmail and Twilio. | Added 2026-10-05; active, keep. |
-| <!-- atlas:n8n lU5RlPUBsmlMsFSf -->[`lU5RlPUBsmlMsFSf`](https://synchrosocial.app.n8n.cloud/workflow/lU5RlPUBsmlMsFSf) Educators Sales, Pre-Call Nurture | Called by other workflows; no own trigger | Educator pre-call emails and the nurture tables. | Added 2026-10-22; active, keep. |
-| <!-- atlas:n8n S3fcVkml49KBxD6P -->[`S3fcVkml49KBxD6P`](https://synchrosocial.app.n8n.cloud/workflow/S3fcVkml49KBxD6P) Editor AI, Client notes from the brain | GET webhook; instance timezone | Reads one client Music section from the brain repository and returns only that. | Added 2026-10-12; active, keep. |
-| <!-- atlas:n8n 84679Qq5zhVqXfPQ -->[`84679Qq5zhVqXfPQ`](https://synchrosocial.app.n8n.cloud/workflow/84679Qq5zhVqXfPQ) Temporary text preview and delivery check | None active | Throwaway delivery check. | Inactive; marked for deletion by its own name. |
 
 
 ## Google Sheets

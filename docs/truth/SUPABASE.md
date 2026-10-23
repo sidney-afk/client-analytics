@@ -403,7 +403,7 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 
 ## Edge Functions
 
-**Corrected 2026-10-23: 64 live functions** (read from the project's function list; the 47 below was the 2026-09-30 count). **Atlas catalog correction, 2026-09-30:** 47 live functions, 46 source entrypoint folders here and one shared helper folder. `fp-tab-test` has source in synchro-pipelines (`pipeline-google` moved here 2026-10-16, see below); `doctors-partial-capture` has no traced source in the four checked repo trees. `linear-inbound` and `linear-outbound` remain source-only and are absent live. [Atlas](../ATLAS.md#edge-functions) lists presence, versions and release lanes. Older release receipts below keep their original dates.
+**Corrected 2026-10-23: 64 live functions** (read from the project's function list; the 47 below was the 2026-09-30 count). **Atlas catalog correction, 2026-09-30:** 47 live functions (Atlas count updated to 64 on 2026-10-23), 46 source entrypoint folders here and one shared helper folder. `fp-tab-test` has source in synchro-pipelines (`pipeline-google` moved here 2026-10-16, see below); `doctors-partial-capture` has no traced source in the four checked repo trees. `linear-inbound` and `linear-outbound` remain source-only and are absent live. [Atlas](../ATLAS.md#edge-functions) lists presence, versions and release lanes. Older release receipts below keep their original dates.
 
 Client/staff verifier truth is also not ready for enforcement: F87 records missing request controls,
 uniform denials, bounded event retention, and explicit audit-outage behavior. F89 proves
@@ -416,7 +416,7 @@ postdated that seed had no `review_token` and `client-review-link` refused their
 `review_token_missing`. At 2026-08-04 exactly one active client was in that state.
 
 **Corrected 2026-09-23: the gap is closed on the data, though this pass did not establish which
-layer closed it.** **Corrected 2026-10-23: `client_access` holds 44 rows and none has a blank `review_token`.** A live left join of the roster against `client_access` returned, on 2026-09-23, **43 rows for 43
+layer closed it.** **Corrected 2026-10-23: `client_access` holds 44 rows, none has a blank `review_token`, and a roster-to-access anti-join returns 0 active clients without a row** (6 inactive roster entries have none). A live left join of the roster against `client_access` returned, on 2026-09-23, **43 rows for 43
 active clients, zero missing and zero blank `review_token`** — so the one affected client now has a
 token and nothing currently active is refused for `review_token_missing`. Read the "no writer at
 all" sentence as the 2026-08-04 finding, not as today's state. Whether the roster-insert trigger,

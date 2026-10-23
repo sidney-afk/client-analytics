@@ -149,7 +149,7 @@ mixed-version behavior and proof limits: `docs/features/COMPONENT_FEEDBACK.md`.
 
 One single-file SPA. **Corrected 2026-10-23: the editable source is ~118.7k lines across 73 `.part` fragments in `src/index/`** (counted with `wc -l` after `npm run build:index`); the built `index.html` itself is now only ~14.9k lines because the scripts are split out into `js/sv-*.js`, so a line count of `index.html` alone no longer measures the app. **Corrected 2026-09-23: it was ~85.7k lines, not "~45.8k"** — the file has
 roughly doubled since that figure was written, so do not size any piece of work against the old
-number. Note also that `index.html` is a BUILD OUTPUT: the editable truth is the 37 ordered
+number. Note also that `index.html` is a BUILD OUTPUT: the editable truth is the 73 ordered
 fragments in `src/index/`, assembled by `npm run build:index`. Major surfaces: content calendar, samples (SXR + legacy),
 three review flows (client / Kasper / SMM), the visible Linear mirror/work surface (internal
 `production`, `#production`, `?prod=1`), the visible Submit form (internal `linear`, `#linear`),

@@ -1,0 +1,225 @@
+<title>SyncView Phone Redesign</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: one narrow reading column; each screen is a before/after pair, the switch at the top picks phone width and theme for every pair. */
+:root{
+  --bg:#f4f4f2; --surface:#ffffff; --ink:#111110; --ink2:#5f5f5a; --muted:#9a9a94; --hair:#e4e4e0;
+  --accent:#c2410c; --ok:#15803d; --tint:rgba(17,17,16,.05);
+  --sans:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#101114;--surface:#181a1f;--ink:#f4f6f8;--ink2:#c2c7cf;--muted:#8a93a6;--hair:#2c3038;--accent:#fb923c;--ok:#4ade80;--tint:rgba(244,246,248,.06);color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#101114;--surface:#181a1f;--ink:#f4f6f8;--ink2:#c2c7cf;--muted:#8a93a6;--hair:#2c3038;--accent:#fb923c;--ok:#4ade80;--tint:rgba(244,246,248,.06);color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 64px}
+main{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:36px}
+h1{font-size:1.6rem;font-weight:800;letter-spacing:-.02em;margin:0;text-wrap:balance}
+h2{font-size:1.2rem;font-weight:750;letter-spacing:-.01em;margin:0;text-wrap:balance}
+h3{font-size:.72rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:0}
+p{margin:0;color:var(--ink2);max-width:65ch}
+ul,ol{margin:0;padding-left:1.15em;color:var(--ink2);display:flex;flex-direction:column;gap:6px;max-width:65ch}
+li b{color:var(--ink);font-weight:650}
+header{display:flex;flex-direction:column;gap:10px}
+section{display:flex;flex-direction:column;gap:14px}
+.sec-head{display:flex;flex-direction:column;gap:4px;padding-top:4px;border-top:1px solid var(--hair);padding-top:20px}
+.letter{font-size:.78rem;font-weight:800;color:var(--accent);letter-spacing:.04em}
+.decisions{display:flex;flex-direction:column;gap:0;background:var(--surface);border:1px solid var(--hair);border-radius:6px}
+.dec{display:flex;flex-direction:column;gap:2px;padding:12px 14px}
+.dec+.dec{border-top:1px solid var(--hair)}
+.dec b{font-weight:700}
+.dec span{color:var(--ink2);font-size:.9rem}
+.dec em{font-style:normal;color:var(--ok);font-weight:700}
+.controls{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 0;background:var(--bg);border-bottom:1px solid var(--hair)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.seg{display:inline-flex;border:1px solid var(--hair);border-radius:4px;overflow:hidden;background:var(--surface)}
+.seg button{font:inherit;font-size:.84rem;font-weight:650;min-height:40px;min-width:52px;padding:0 12px;border:0;background:transparent;color:var(--ink2);cursor:pointer}
+.seg button+button{border-left:1px solid var(--hair)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.seg button:focus-visible,.pair button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.controls small{color:var(--muted);font-size:.78rem}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pair figure{margin:0;display:flex;flex-direction:column;gap:6px;min-width:0}
+.pair button{padding:0;border:0;background:none;cursor:zoom-in;display:block;border-radius:6px;overflow:hidden;box-shadow:0 0 0 1px var(--hair)}
+.pair img{display:block;width:100%;height:auto;max-width:100%;background:var(--tint);aspect-ratio:var(--ar,390/844)}
+.pair figcaption{font-size:.74rem;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.pair figure.after figcaption{color:var(--accent)}
+.cap{font-size:.9rem;color:var(--ink2)}
+.shot{display:flex;flex-direction:column;gap:8px}
+.wrong li::marker{color:var(--accent)}
+.new li::marker{color:var(--ok)}
+.build ol{gap:8px}
+dialog{border:0;padding:0;background:transparent;max-width:100vw;max-height:100vh}
+dialog::backdrop{background:rgba(0,0,0,.8)}
+dialog img{display:block;max-height:92vh;max-width:96vw;height:auto;width:auto;border-radius:6px}
+dialog form{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));right:calc(10px + env(safe-area-inset-right,0px))}
+dialog form button{font:inherit;font-weight:700;min-height:44px;padding:0 16px;border-radius:4px;border:0;background:#fff;color:#111;cursor:pointer}
+.note{font-size:.84rem;color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){.pair img{transition:opacity .15s}}
+</style>
+
+<main>
+<header>
+  <h1>SyncView on a phone, redesigned</h1>
+  <p>These are pictures of the real SyncView page, built from the code and run on a phone-sized screen with made-up posts and notes. "Today" is the page as it is now. "Proposed" is the same page with the new design laid over it. Nothing is built yet. Tap any picture to see it full size.</p>
+</header>
+
+<section aria-labelledby="dh">
+  <h2 id="dh">Decisions for you</h2>
+  <div class="decisions">
+    <div class="dec"><b>1. Sheet shows a list first, with the grid one tap away</b><span>The list shows each post's status and new notes. The grid keeps the Instagram look. <em>I recommend: yes.</em></span></div>
+    <div class="dec"><b>2. A bar at the bottom with Sheet, Calendar and Review</b><span>It replaces the switch at the top and the big purple "Review posts" bar, and your thumb can reach it. <em>I recommend: yes.</em></span></div>
+    <div class="dec"><b>3. Delete moves off each note</b><span>Reply, Mark done and No reply needed stay on every note. Delete moves to a long press, so nobody deletes by accident. <em>I recommend: yes.</em></span></div>
+    <div class="dec"><b>4. Conversations as a plain list, not chat bubbles</b><span>Several people talk in one conversation (client, team, Kasper), so a name and a line read faster than coloured bubbles. <em>I recommend: the list.</em></span></div>
+    <div class="dec"><b>5. On the client's page, Approve and Ask for a change stay at the bottom of the screen</b><span>They are always under the client's thumb, whatever they are looking at. <em>I recommend: yes.</em></span></div>
+    <div class="dec"><b>6. Square corners everywhere</b><span>Buttons, badges and chips get 4 px corners, cards and panels 6 px. No pills or bubbles. <em>I recommend: yes.</em></span></div>
+  </div>
+</section>
+
+<div class="controls" role="group" aria-label="Phone size and theme">
+  <div class="seg" id="w"><button type="button" data-w="360" aria-pressed="false">360</button><button type="button" data-w="390" aria-pressed="true">390</button><button type="button" data-w="430" aria-pressed="false">430</button></div>
+  <div class="seg" id="t"><button type="button" data-t="light" aria-pressed="true">Light</button><button type="button" data-t="dark" aria-pressed="false">Dark</button></div>
+  <small>Phone width in pixels: small Android, iPhone 14, iPhone Pro Max</small>
+</div>
+
+<section aria-labelledby="a">
+  <div class="sec-head"><span class="letter">A · STAFF</span><h2 id="a">Calendar, Sheet tab</h2></div>
+  <h3>What is wrong today</h3>
+  <ul class="wrong">
+    <li>The first post starts <b>272 px down</b>, a third of the screen. Above it: a big title, Tabs, a menu, the client name, a three-way switch, "9 posts" and a grid/list switch.</li>
+    <li>Every tile repeats its title, status and full date in white text over the picture. Only <b>6 posts</b> fit on screen.</li>
+    <li>No tile shows notes (<b>0 of 9</b>), so you cannot tell which post has a new change or comment.</li>
+    <li>The list view is one post per <b>1,421 px</b> card, so you see one post per screen.</li>
+    <li>The purple "Review posts" bar at the bottom repeats the Review tab.</li>
+  </ul>
+  <h3>What changes</h3>
+  <ul class="new">
+    <li>The client name is the title. New post, Messages (with its count) and the menu are icons at the top right.</li>
+    <li>One line per post: picture, title, a coloured square with the status in words, and the date. Badges on the right show new notes.</li>
+    <li>Sheet, Calendar and Review sit in a bottom bar, with the Review count on it.</li>
+  </ul>
+  <div class="shot" data-screen="sheet"><p class="cap">The Sheet: 9 posts on one screen, with status and new notes.</p></div>
+  <div class="shot" data-screen="sheetgrid" data-before="sheet"><p class="cap">The grid, one tap away: the pictures only, with the date, a status square and one badge.</p></div>
+  <div class="shot" data-screen="detail"><p class="cap">A post opened from the Sheet: Notes near the top, statuses as plain rows.</p></div>
+  <ul class="wrong">
+    <li>Today the three statuses are full-width bars in strong grey, green and red. A red "[client] Approval" bar looks like an error.</li>
+    <li>Notes is the last line of the post, <b>1,139 px down</b>, behind three screens of scrolling.</li>
+  </ul>
+</section>
+
+<section aria-labelledby="b">
+  <div class="sec-head"><span class="letter">B · STAFF</span><h2 id="b">Notes on a post</h2></div>
+  <h3>What is wrong today</h3>
+  <ul class="wrong">
+    <li>Each note has its own box of Reply, Mark done and Delete: <b>10 boxes</b> and <b>10 Delete buttons</b> for 10 notes. Delete is as easy to hit as Reply.</li>
+    <li><b>245 words</b> on one screen. Every note carries a coloured circle, labels like "TWEAK #1" and "Team only", and the part in capitals.</li>
+    <li>The message box takes <b>173 px</b>: "About" with three part buttons, a lock button, a two-part Send button and a help line.</li>
+    <li>Nothing says what still needs you. Open changes and unanswered questions sit between old, settled notes.</li>
+  </ul>
+  <h3>What changes</h3>
+  <ul class="new">
+    <li>"Needs you" at the top: open changes and client questions nobody has answered yet. Everything else is under "Earlier".</li>
+    <li>One small icon says what each note is: orange pencil for a change, blue bubble for a comment, blue arrow for "waiting for an answer", violet eye for Kasper. Filled means new to you.</li>
+    <li>Reply, Mark done and No reply needed are plain words under the note, with no box. Long threads fold to "3 replies".</li>
+    <li>Tabs at the top filter by part (All, Video, Caption) and hide parts with no notes.</li>
+    <li>The message box is one row of three choices (part, who sees it, comment or change) and one line to type in.</li>
+  </ul>
+  <div class="shot" data-screen="notes"><p class="cap">Notes on a post with 10 notes, 2 of them new.</p></div>
+</section>
+
+<section aria-labelledby="c">
+  <div class="sec-head"><span class="letter">C · STAFF</span><h2 id="c">Messages</h2></div>
+  <h3>What is wrong today</h3>
+  <ul class="wrong">
+    <li>A conversation has two headers, one under the other: "Messages, Close, Tabs, •••", then "‹, title, •••".</li>
+    <li>Every message has up to two lines of labels before its text: name, role, part in capitals, CHANGE REQUEST, To client, time and Reply. That is <b>7 capital labels</b> and <b>12 pill shapes</b> on one screen, and only <b>5 messages</b> fit.</li>
+    <li>Each message sits in its own rounded box.</li>
+    <li>Mark unread and Open card are hidden behind "•••".</li>
+    <li>The list shows initials ("SB") instead of the post's picture. There is no "To answer" filter.</li>
+  </ul>
+  <h3>What changes</h3>
+  <ul class="new">
+    <li>The list: New, To answer and All. Each row has the post's picture, title, client, the last line and its badge.</li>
+    <li>A conversation has one header with Open card in words. Names show once per run of messages, and there are no boxes.</li>
+    <li>A client's change request shows as one orange line that opens the post, because changes are handled on the post (Beacon's rule D2).</li>
+    <li>A question waiting for an answer has Reply and No reply needed right under it. Team-only messages show a small lock.</li>
+  </ul>
+  <div class="shot" data-screen="inbox"><p class="cap">The Messages list, on "New".</p></div>
+  <div class="shot" data-screen="chat"><p class="cap">A long conversation, opened at the newest message.</p></div>
+</section>
+
+<section aria-labelledby="d">
+  <div class="sec-head"><span class="letter">D · CLIENT LINK</span><h2 id="d">The client's review page</h2></div>
+  <h3>What is wrong today</h3>
+  <ul class="wrong">
+    <li><b>35 round or pill shapes</b> on the first screen: the tabs, the three steps, the buttons and the post chips.</li>
+    <li>Approve starts <b>663 px down</b>, under the caption, so the client scrolls to answer.</li>
+    <li>The caption sits in two boxes, one inside the other. A "130 characters" line and a "Content calendar" subtitle add text the client does not need.</li>
+    <li>A greyed-out "Finish reviewing 2 of 3" button is always on screen.</li>
+    <li>The client's own messages are lilac boxes, each with a "Delete note" button.</li>
+  </ul>
+  <h3>What changes</h3>
+  <ul class="new">
+    <li>Ask for a change and Approve are in a bar fixed at the bottom of the screen. Finish reviewing joins the bar once every part has an answer.</li>
+    <li>Tabs and the three steps are flat text with a line under the current one. The caption sits straight on the page.</li>
+    <li>The conversation loses its boxes and Delete buttons (Delete moves to a long press).</li>
+  </ul>
+  <div class="shot" data-screen="review"><p class="cap">The client's page on the Caption step.</p></div>
+</section>
+
+<section aria-labelledby="e" class="build">
+  <div class="sec-head"><span class="letter">BUILD ORDER</span><h2 id="e">Small PRs, each behind a switch</h2></div>
+  <p>Each step is switched on for your two staff ids and the test client first, the same way as the calm Workload calendar. Saving works exactly as it does today. Only the look and the number of taps change.</p>
+  <ol>
+    <li><b>Shared phone look.</b> Corners, lines, the status square and the badge (icon and number), in one place. Nothing visible changes.</li>
+    <li><b>Client review page.</b> The bottom bar, flat tabs and steps, and a quieter conversation. Styles only, on the page that already exists.</li>
+    <li><b>Sheet list and the bottom bar.</b> Grid kept as the second view.</li>
+    <li><b>A post opened from the Sheet.</b> Notes near the top, statuses as rows.</li>
+    <li><b>Notes.</b> The look first. "Needs you" and No reply needed come with Beacon's Notes step.</li>
+    <li><b>Messages.</b> The list and the conversation. "To answer" comes with Beacon's Messages step.</li>
+    <li><b>Badges on the Sheet tiles and rows.</b> Comes with Beacon's step 3, when the server gives counts per kind.</li>
+    <li><b>Clean-up.</b> Remove the old phone styles once every step is on for everyone.</li>
+  </ol>
+  <p class="note">How these were made: <code>docs/syncview-design/mockups/phone-redesign/</code>. The offline test harness runs the real page with made-up data and answers every request locally. <code>preview.js</code> draws the proposed design from the page's own data, and the app never loads it.</p>
+</section>
+</main>
+
+<dialog id="big"><form method="dialog"><button type="submit">Close</button></form><img alt=""></dialog>
+
+<script>
+(function () {
+  var state = { w: '390', t: 'light' };
+  try { var s = JSON.parse(localStorage.getItem('pv-gallery') || '{}'); if (s.w) state.w = s.w; if (s.t) state.t = s.t; } catch (e) {}
+  var H = { '360': 780, '390': 844, '430': 932 };
+  var shots = [].slice.call(document.querySelectorAll('.shot'));
+  shots.forEach(function (el) {
+    var pair = document.createElement('div'); pair.className = 'pair';
+    pair.innerHTML = '<figure class="before"><button type="button" aria-label="Today, full size"><img alt="Today" loading="lazy"></button><figcaption>Today</figcaption></figure>'
+      + '<figure class="after"><button type="button" aria-label="Proposed, full size"><img alt="Proposed" loading="lazy"></button><figcaption>Proposed</figcaption></figure>';
+    el.insertBefore(pair, el.firstChild);
+  });
+  function paint() {
+    shots.forEach(function (el) {
+      var imgs = el.querySelectorAll('img');
+      var b = el.getAttribute('data-before') || el.getAttribute('data-screen');
+      imgs[0].src = 'shots/' + state.w + '-' + state.t + '-' + b + '-before.jpg';
+      imgs[1].src = 'shots/' + state.w + '-' + state.t + '-' + el.getAttribute('data-screen') + '-after.jpg';
+      el.querySelector('.pair').style.setProperty('--ar', state.w + '/' + H[state.w]);
+    });
+    [].forEach.call(document.querySelectorAll('#w button'), function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-w') === state.w)); });
+    [].forEach.call(document.querySelectorAll('#t button'), function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-t') === state.t)); });
+    try { localStorage.setItem('pv-gallery', JSON.stringify(state)); } catch (e) {}
+  }
+  document.getElementById('w').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { state.w = b.getAttribute('data-w'); paint(); } });
+  document.getElementById('t').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { state.t = b.getAttribute('data-t'); paint(); } });
+  var dlg = document.getElementById('big');
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('.pair button'); if (!b) return;
+    dlg.querySelector('img').src = b.querySelector('img').src;
+    dlg.querySelector('img').alt = b.querySelector('img').alt;
+    if (dlg.showModal) dlg.showModal();
+  });
+  dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+  paint();
+})();
+</script>

@@ -60,8 +60,22 @@ const eq = (a, b, label) => { assert.deepStrictEqual(a, b, label); passed++; };
   eq(line, { tool: 'scrapecreators.tiktok.search', summary: 'tiktok.search: morning routine' }, 'the log line names the tool and the search');
   eq(r.logLine('transcript', { site: 'youtube' }, { url: 'https://youtu.be/secretish' }).summary, 'transcript: youtube', 'a transcript is logged by site, not by link');
 
+  // ---- TikTok answers are slimmed ---------------------------------------------
+  const big = { success: true, credits_remaining: 5, cursor: 30, search_item_list: [{
+    aweme_id: '1', url: 'https://www.tiktok.com/@a/video/1', desc: 'hi #x', region: 'US', create_time_utc: '2026-10-20T15:47:09.000Z', is_ad: false,
+    statistics: { play_count: 100, digg_count: 7, comment_count: 2, share_count: 1, collect_count: 3, download_count: 9 },
+    video: { duration: 9000, download_addr: { url_list: ['https://x'.repeat(500)] } }, author: { unique_id: 'a', nickname: 'A', follower_count: 50, avatar_larger: { url_list: ['y'] } } }] };
+  const slim = r.slimResult('tiktok.search', big);
+  eq(slim.search_item_list[0], { aweme_id: '1', url: 'https://www.tiktok.com/@a/video/1', desc: 'hi #x', region: 'US', create_time_utc: '2026-10-20T15:47:09.000Z', is_ad: false, duration_ms: 9000,
+    statistics: { play_count: 100, digg_count: 7, comment_count: 2, share_count: 1, collect_count: 3 }, author: { unique_id: 'a', nickname: 'A', follower_count: 50 } }, 'a TikTok video keeps the words, link, date, counts (views) and poster only');
+  eq([slim.cursor, slim.credits_remaining], [30, 5], 'paging and credit fields are kept');
+  ok(JSON.stringify(slim).length < JSON.stringify(big).length / 3, 'the slim answer is much smaller');
+  eq(r.slimResult('reddit.search', big), big, 'other actions are passed through unchanged');
+  eq(r.slimResult('tiktok.search', 'not json'), 'not json', 'an answer that is not the expected shape passes through');
+
   // ---- The wiring in index.ts -------------------------------------------------
   ok(/isPassToken\(raw\)/.test(src) && /fp_pass_use/.test(src), 'a pass is required and looked up by its hash');
+  ok(/slimResult\(action/.test(src), 'the answer goes through slimResult');
   ok(/pipelineGate\(/.test(src), 'the filming plan list gate runs for every call');
   ok(/pass\.via !== "personal"/.test(src), 'the shared team link is refused');
   ok(/Deno\.env\.get\("SCRAPECREATORS_API_KEY"\)/.test(src) && !/fp_[a-z]+.*SCRAPECREATORS/.test(src), 'the key comes only from the Supabase secret');

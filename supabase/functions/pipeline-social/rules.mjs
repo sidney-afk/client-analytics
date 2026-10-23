@@ -139,3 +139,28 @@ export function logLine(action, req, body) {
   const what = action === "transcript" ? (req.site || "video") : str(b.query || b.subreddit).slice(0, 80);
   return { tool: "scrapecreators." + action, summary: `${action}: ${what}` };
 }
+
+// TikTok's keyword search answers about 45 KB per video (every video address,
+// avatar and ad field), over a megabyte for a page. The pipeline needs the
+// words, the link, the date, the counts (views included) and who posted it.
+export function slimResult(action, result) {
+  if (action !== "tiktok.search" || !isObj(result) || !Array.isArray(result.search_item_list)) return result;
+  const n = (v) => (typeof v === "number" ? v : null);
+  const { search_item_list: items, ...rest } = result;
+  return {
+    ...rest,
+    search_item_list: items.map((it) => {
+      const x = isObj(it) ? it : {};
+      const st = isObj(x.statistics) ? x.statistics : {};
+      const au = isObj(x.author) ? x.author : {};
+      const vi = isObj(x.video) ? x.video : {};
+      return {
+        aweme_id: x.aweme_id, url: x.url, desc: x.desc, region: x.region, create_time_utc: x.create_time_utc, is_ad: x.is_ad,
+        duration_ms: n(vi.duration),
+        statistics: { play_count: n(st.play_count), digg_count: n(st.digg_count), comment_count: n(st.comment_count),
+          share_count: n(st.share_count), collect_count: n(st.collect_count) },
+        author: { unique_id: au.unique_id, nickname: au.nickname, follower_count: n(au.follower_count) },
+      };
+    }),
+  };
+}

@@ -8,6 +8,29 @@ has changed, a small history icon sits just under the regenerate icon. It opens 
 review page's caption view: the versions, the differences highlighted, and a button that puts an older
 version back.
 
+## The chosen design (option C), as it looks
+
+The caption now, after a client edit (only the changed words are marked):
+
+![Option C, client edit, dark](screenshots/c-client-edit-dark.png)
+
+A redo with your note (mostly rewritten, so before and after are shown whole):
+
+![Option C, redo with note](screenshots/c-desktop-light.png)
+
+A small hand edit, with "Put this version back":
+
+![Option C, small edit](screenshots/c-small-edit-light.png)
+
+On a phone:
+
+<img src="screenshots/c-small-edit-phone-dark.png" width="320" alt="Option C on a phone">
+
+Where it starts: the history icon under the regenerate icon on the card:
+
+![Entry icon on the card](screenshots/entry-desktop-light.png)
+
+
 ## 1. How a caption changes today (read from the code and the live database, 2026-10-23)
 
 | Way | Code path | What saves it | Must create a version? |

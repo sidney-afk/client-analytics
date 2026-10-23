@@ -1,6 +1,7 @@
 <!doctype html>
-<!-- Unread badges, proposed design (session Beacon, 2026-10-23). Static mockup, not wired to anything.
-     Fictional data only. Open with ?theme=dark for dark. Audit and rules: docs/audits/2026-10-23-unread-badges.md -->
+<!-- Unread badges, proposed design, round 2 (session Beacon, 2026-10-23 21:12 UTC). Static mockup, not wired to
+     anything. Fictional data only. ?theme=dark for dark; ?only=<section id> shows one section (used by the
+     screenshots). Audit, rules and decisions: docs/audits/2026-10-23-unread-badges.md -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -13,11 +14,11 @@
     --surface-raised: #ffffff; --surface-hover: #f8f8f6; --surface-subtle: #f3f3f1;
     --text-primary: #111110; --text-secondary: #6b6b67; --text-muted: #b4b4ae;
     --shadow-sm: 0 1px 3px rgba(0,0,0,0.06); --shadow-md: 0 8px 30px rgba(0,0,0,0.12);
+    --overlay: rgba(0,0,0,0.25);
     --theme-toggle-bg: #ffffff; --theme-toggle-color: #6b6b67; --theme-toggle-border: #e4e4e0;
-    --cal-notes-accent-fg: #c2410c; --cal-notes-open-bg: #fff5e6;
     --cal-status-in-progress-bg: #fde047; --cal-status-in-progress-fg: #101114;
-    --cal-comp-video-dot: #ec4899; --cal-comp-caption-dot: #f59e0b;
-    /* Proposed: one colour per kind, same hue for the fill, the ink and the icon. */
+    --ok-ink: #15803d;
+    /* Proposed: one colour per kind (owner D4), the same hue for the fill, the ink and the icon. */
     --unread-change-bg: #ea580c; --unread-change-fg: #ffffff; --unread-change-ink: #c2410c; --unread-change-soft: #fff1e6;
     --unread-comment-bg: #2563eb; --unread-comment-fg: #ffffff; --unread-comment-ink: #1d4ed8; --unread-comment-soft: #eaf1ff;
     --unread-staff-bg: #3f3f46; --unread-staff-fg: #ffffff; --unread-staff-ink: #3f3f46; --unread-staff-soft: #efeff1;
@@ -30,8 +31,9 @@
     --surface-raised: #20232a; --surface-hover: #242730; --surface-subtle: #15171c;
     --text-primary: #f4f6f8; --text-secondary: #c2c7cf; --text-muted: #aeb6c2;
     --shadow-sm: 0 1px 3px rgba(0,0,0,0.35); --shadow-md: 0 10px 34px rgba(0,0,0,0.42);
+    --overlay: rgba(0,0,0,0.62);
     --theme-toggle-bg: #20232a; --theme-toggle-color: #c2c7cf; --theme-toggle-border: #343842;
-    --cal-notes-accent-fg: #fdba74; --cal-notes-open-bg: rgba(251,146,60,0.14);
+    --ok-ink: #4ade80;
     --unread-change-bg: #fb923c; --unread-change-fg: #1f1004; --unread-change-ink: #fdba74; --unread-change-soft: rgba(251,146,60,0.14);
     --unread-comment-bg: #60a5fa; --unread-comment-fg: #0b1220; --unread-comment-ink: #93c5fd; --unread-comment-soft: rgba(96,165,250,0.14);
     --unread-staff-bg: #d4d4d8; --unread-staff-fg: #18181b; --unread-staff-ink: #e4e4e7; --unread-staff-soft: rgba(212,212,216,0.12);
@@ -41,51 +43,63 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text-primary); font: 14px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  .page { max-width: 1320px; margin: 0 auto; padding: 24px 16px 64px; }
+  .page { max-width: 1320px; margin: 0 auto; padding: 24px 16px 48px; }
+  section { padding: 8px 0 28px; }
   h1 { font-size: 1.35rem; margin: 0 0 4px; letter-spacing: -0.01em; }
-  h2 { font-size: 1rem; margin: 36px 0 4px; }
-  .lead, .note { color: var(--text-secondary); margin: 0 0 14px; max-width: 760px; }
+  h2 { font-size: 1rem; margin: 18px 0 4px; }
+  .lead, .note { color: var(--text-secondary); margin: 0 0 14px; max-width: 780px; }
   .note { font-size: 0.82rem; }
   .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
   svg { display: block; }
+  html.only .page > header, html.only section:not(.show) { display: none; }
 
-  /* ---- The badge family ---- */
+  /* ---- The badge family: filled = new for you, outlined = still needs you ---- */
   .ub { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px 0 6px; border-radius: 99px; font-size: 0.7rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 1; }
   .ub svg { width: 11px; height: 11px; flex: none; }
   .ub.change { background: var(--unread-change-bg); color: var(--unread-change-fg); }
   .ub.comment { background: var(--unread-comment-bg); color: var(--unread-comment-fg); }
   .ub.staff { background: var(--unread-staff-bg); color: var(--unread-staff-fg); }
   .ub.kasper { background: var(--unread-kasper-bg); color: var(--unread-kasper-fg); }
-  /* Read but still open change requests: an outline, never a fill. Fill means "new to you". */
   .ub.open { background: transparent; color: var(--unread-change-ink); box-shadow: inset 0 0 0 1.5px var(--unread-change-bg); font-weight: 600; }
-  .ub-pair { display: inline-flex; gap: 4px; }
+  .ub.answer { background: transparent; color: var(--unread-comment-ink); box-shadow: inset 0 0 0 1.5px var(--unread-comment-bg); font-weight: 600; }
+  .ub-pair { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+  .legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px 18px; max-width: 1100px; }
+  .legend > div { display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--text-secondary); }
 
   /* ---- Calendar card (shape of .cal-card in 020) ---- */
-  .cal-card { width: 300px; background: var(--white); border: 1px solid var(--border); border-radius: 14px; overflow: visible; display: flex; flex-direction: column; position: relative; }
-  .cal-thumb { height: 150px; border-radius: 13px 13px 0 0; background: linear-gradient(155deg, #d9dce2 0%, #b8bec9 100%); position: relative; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
+  .cal-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; display: flex; flex-direction: column; position: relative; }
+  .cal-thumb { height: 92px; border-radius: 13px 13px 0 0; background: linear-gradient(155deg, #d9dce2 0%, #b8bec9 100%); }
   html[data-theme="dark"] .cal-thumb { background: linear-gradient(155deg, #202a35 0%, #151b24 100%); }
-  .cal-body { padding: 10px 12px 10px; display: flex; flex-direction: column; gap: 6px; }
-  .cal-title { font-weight: 600; font-size: 0.86rem; }
-  .cal-status { align-self: flex-start; font-size: 0.68rem; font-weight: 700; padding: 3px 8px; border-radius: 99px; background: var(--cal-status-in-progress-bg); color: var(--cal-status-in-progress-fg); }
-  .cal-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--border-light); padding: 7px 8px 7px 6px; }
-  .notes-btn { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; border-radius: 6px; padding: 3px 6px; color: var(--text-muted); font: inherit; font-size: 0.74rem; font-weight: 500; cursor: pointer; }
-  .notes-btn:hover { background: var(--bg); color: var(--text-primary); }
+  .cal-body { padding: 9px 12px 8px; display: flex; flex-direction: column; gap: 5px; }
+  .cal-title { font-weight: 600; font-size: 0.84rem; }
+  .cal-status { align-self: flex-start; font-size: 0.66rem; font-weight: 700; padding: 3px 8px; border-radius: 99px; background: var(--cal-status-in-progress-bg); color: var(--cal-status-in-progress-fg); }
+  .cal-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--border-light); padding: 7px 8px 7px 6px; min-height: 38px; }
+  .notes-btn { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; border: 0; background: transparent; border-radius: 6px; padding: 3px 6px; color: var(--text-muted); font: inherit; font-size: 0.74rem; font-weight: 500; cursor: pointer; text-align: left; }
   .notes-btn.has-new { color: var(--text-primary); font-weight: 600; }
-  .notes-btn svg { width: 13px; height: 13px; }
+  .notes-btn svg.ico { width: 13px; height: 13px; }
   .cal-date { font-size: 0.7rem; color: var(--text-muted); }
-  .card-cap { font-size: 0.74rem; color: var(--text-secondary); margin-top: 6px; width: 300px; }
+  .cap { font-size: 0.72rem; color: var(--text-secondary); padding: 6px 2px 0; }
 
-  /* ---- Hover / tap preview ---- */
-  .preview { position: absolute; left: 6px; top: calc(100% - 4px); width: 320px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-md); padding: 8px; z-index: 2; }
-  .preview h4 { margin: 2px 6px 6px; font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: none; }
+  /* ---- Calendar summary strip ---- */
+  .strip { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; max-width: 900px; }
+  .strip .lbl { font-size: 0.8rem; font-weight: 700; margin-right: 4px; }
+  .strip button { border: 1px solid var(--border); background: var(--surface-raised); border-radius: 99px; padding: 4px 10px 4px 6px; display: inline-flex; gap: 7px; align-items: center; font: inherit; font-size: 0.76rem; color: var(--text-primary); }
+  .strip button.on { box-shadow: inset 0 0 0 1.5px var(--text-primary); }
+  .strip .sep { flex: 1; }
+  .strip .muted { font-size: 0.74rem; color: var(--text-muted); }
+
+  /* ---- Preview ---- */
+  .preview { width: 340px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-md); padding: 8px; }
+  .preview h4 { margin: 2px 6px 6px; font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; }
   .pv-item { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 8px; padding: 7px 6px; border-radius: 8px; align-items: start; }
   .pv-item + .pv-item { border-top: 1px solid var(--border-light); }
-  .pv-item:hover { background: var(--surface-hover); }
   .pv-who { font-size: 0.78rem; font-weight: 600; }
   .pv-time { font-size: 0.7rem; color: var(--text-muted); }
   .pv-text { grid-column: 2 / 4; font-size: 0.78rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pv-part { color: var(--text-muted); font-weight: 500; }
-  .pv-foot { display: flex; justify-content: space-between; align-items: center; padding: 8px 6px 2px; font-size: 0.74rem; color: var(--text-secondary); }
+  .pv-sub { font-size: 0.66rem; font-weight: 700; color: var(--unread-comment-ink); }
+  .pv-foot { display: flex; justify-content: space-between; align-items: center; padding: 8px 6px 2px; font-size: 0.74rem; color: var(--text-secondary); gap: 8px; }
   .pv-foot b { color: var(--text-primary); }
   .kind-dot { width: 22px; height: 22px; border-radius: 99px; display: grid; place-items: center; grid-row: 1 / 3; }
   .kind-dot svg { width: 12px; height: 12px; }
@@ -94,33 +108,67 @@
   .kind-dot.staff { background: var(--unread-staff-soft); color: var(--unread-staff-ink); }
   .kind-dot.kasper { background: var(--unread-kasper-soft); color: var(--unread-kasper-ink); }
 
-  /* ---- Header ---- */
+  /* ---- Notes panel ---- */
+  .notes { width: 560px; max-width: 100%; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-md); display: flex; flex-direction: column; overflow: hidden; }
+  .notes-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border-light); }
+  .notes-head b { font-size: 0.92rem; }
+  .notes-tabs { display: flex; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--border-light); flex-wrap: wrap; }
+  .notes-tabs span { font-size: 0.76rem; font-weight: 600; color: var(--text-secondary); padding: 4px 10px; border-radius: 99px; display: inline-flex; gap: 6px; align-items: center; }
+  .notes-tabs span.on { background: var(--surface-subtle); color: var(--text-primary); }
+  .notes-body { padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .grp { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 4px; }
+  .thread { border: 1px solid var(--border-light); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .thread.is-new { border-color: var(--unread-change-bg); }
+  .thread.is-new.comment { border-color: var(--unread-comment-bg); }
+  .thread.waiting { box-shadow: inset 3px 0 0 var(--unread-comment-bg); }
+  .t-meta { display: flex; gap: 6px; align-items: center; font-size: 0.72rem; color: var(--text-secondary); flex-wrap: wrap; }
+  .t-meta b { color: var(--text-primary); }
+  .t-text { font-size: 0.84rem; }
+  .t-reply { margin-left: 14px; padding-left: 10px; border-left: 2px solid var(--border-light); font-size: 0.8rem; color: var(--text-secondary); }
+  .t-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+  .btn { border: 1px solid var(--border); background: var(--surface-raised); color: var(--text-primary); border-radius: 8px; padding: 5px 10px; font: inherit; font-size: 0.74rem; font-weight: 600; display: inline-flex; gap: 6px; align-items: center; }
+  .btn.primary { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
+  .btn.ghost { border-color: transparent; color: var(--text-secondary); }
+  .btn svg { width: 12px; height: 12px; }
+  .tag { font-size: 0.64rem; font-weight: 700; padding: 2px 6px; border-radius: 99px; white-space: nowrap; }
+  .tag.change { background: var(--unread-change-soft); color: var(--unread-change-ink); }
+  .tag.comment { background: var(--unread-comment-soft); color: var(--unread-comment-ink); }
+  .tag.staff { background: var(--unread-staff-soft); color: var(--unread-staff-ink); }
+  .tag.new { background: var(--unread-change-bg); color: var(--unread-change-fg); }
+  .tag.new.c { background: var(--unread-comment-bg); color: var(--unread-comment-fg); }
+  .tag.wait { background: transparent; color: var(--unread-comment-ink); box-shadow: inset 0 0 0 1.5px var(--unread-comment-bg); }
+  .tag.done { background: var(--surface-subtle); color: var(--ok-ink); }
+  .menu { width: 240px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-md); padding: 4px; }
+  .menu div { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 7px; font-size: 0.8rem; }
+  .menu div.hl { background: var(--surface-hover); }
+  .menu small { display: block; color: var(--text-muted); font-size: 0.7rem; }
+  .menu svg { width: 14px; height: 14px; margin-top: 2px; flex: none; color: var(--text-secondary); }
+
+  /* ---- Header and Messages button ---- */
   .header { height: 60px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; max-width: 760px; }
   .header-tabs { display: flex; gap: 18px; color: var(--text-secondary); font-size: 0.82rem; font-weight: 600; }
   .header-tabs .on { color: var(--text-primary); }
   .header-actions { display: flex; gap: 8px; align-items: center; position: relative; }
-  .tt { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--theme-toggle-border); background: var(--theme-toggle-bg); color: var(--theme-toggle-color); display: inline-flex; align-items: center; justify-content: center; position: relative; }
+  .tt { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--theme-toggle-border); background: var(--theme-toggle-bg); color: var(--theme-toggle-color); display: inline-flex; align-items: center; justify-content: center; position: relative; flex: none; }
   .tt .corner { position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; font-size: 0.62rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--unread-ring); font-variant-numeric: tabular-nums; }
-  .corner.change { background: var(--unread-change-bg); color: var(--unread-change-fg); }
   .corner.comment { background: var(--unread-comment-bg); color: var(--unread-comment-fg); }
   .corner.staff { background: var(--unread-staff-bg); color: var(--unread-staff-fg); }
-  .tip { position: absolute; right: 40px; top: 42px; width: 250px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-md); padding: 10px 12px; font-size: 0.78rem; z-index: 2; }
+  .corner.kasper { background: var(--unread-kasper-bg); color: var(--unread-kasper-fg); }
+  .corner.answer { background: var(--white); color: var(--unread-comment-ink); box-shadow: 0 0 0 2px var(--unread-ring), inset 0 0 0 1.5px var(--unread-comment-bg); }
+  .tip { position: absolute; right: 40px; top: 42px; width: 260px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-md); padding: 10px 12px; font-size: 0.78rem; z-index: 2; }
   .tip b { display: block; margin-bottom: 6px; }
   .tip div { display: flex; align-items: center; gap: 8px; padding: 2px 0; color: var(--text-secondary); }
-  .tip .sw { width: 8px; height: 8px; border-radius: 99px; }
-  .header-wrap { position: relative; padding-bottom: 110px; }
-  .bad { opacity: 1; }
-  .compare { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
-  .compare figure { margin: 0; display: flex; flex-direction: column; gap: 6px; align-items: center; font-size: 0.72rem; color: var(--text-secondary); }
-  .tt.old { gap: 2px; }
-  .tt.old .inline { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--unread-change-bg); color: var(--unread-change-fg); font-size: 0.66rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+  .tip .sw { width: 8px; height: 8px; border-radius: 99px; flex: none; }
+  .tip .sw.ring { background: transparent; box-shadow: inset 0 0 0 1.5px var(--unread-comment-bg); }
+  .compare { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; }
+  .compare figure { margin: 0; display: flex; flex-direction: column; gap: 6px; align-items: center; font-size: 0.72rem; color: var(--text-secondary); width: 92px; text-align: center; }
 
-  /* ---- Messages page ---- */
-  .msg { display: grid; grid-template-columns: 330px 1fr; background: var(--white); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; min-height: 520px; }
+  /* ---- Messages ---- */
+  .msg { display: grid; grid-template-columns: 340px 1fr; background: var(--white); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; min-height: 540px; }
   .msg-list { border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-  .msg-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border-light); }
+  .msg-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border-light); gap: 8px; }
   .seg { display: inline-flex; background: var(--surface-subtle); border-radius: 9px; padding: 2px; }
-  .seg button { border: 0; background: transparent; font: inherit; font-size: 0.76rem; font-weight: 600; color: var(--text-secondary); padding: 4px 10px; border-radius: 7px; }
+  .seg button { border: 0; background: transparent; font: inherit; font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); padding: 4px 9px; border-radius: 7px; white-space: nowrap; }
   .seg button.on { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
   .conv { display: grid; grid-template-columns: 40px 1fr auto; gap: 2px 10px; padding: 10px 14px; border-bottom: 1px solid var(--border-light); align-items: center; }
   .conv.sel { background: var(--surface-hover); }
@@ -132,49 +180,50 @@
   .conv.new .l { color: var(--text-primary); }
   .conv .when { font-size: 0.68rem; color: var(--text-muted); text-align: right; }
   .conv .bd { grid-column: 3; grid-row: 2; justify-self: end; }
-  .chat { display: flex; flex-direction: column; }
+  .chat { display: flex; flex-direction: column; position: relative; }
   .chat-head { padding: 12px 18px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
   .chat-head .ct { font-weight: 700; font-size: 0.9rem; }
   .chat-head .cs { font-size: 0.74rem; color: var(--text-secondary); }
   .chat-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
-  .divider { display: flex; align-items: center; gap: 10px; font-size: 0.7rem; font-weight: 700; color: var(--unread-change-ink); }
+  .divider { display: flex; align-items: center; gap: 10px; font-size: 0.7rem; font-weight: 700; color: var(--unread-comment-ink); }
   .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: 0.35; }
   .day { text-align: center; font-size: 0.68rem; color: var(--text-muted); font-weight: 600; }
-  .b { max-width: 78%; }
-  .b .meta { display: flex; gap: 6px; align-items: center; font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 3px; }
+  .b { max-width: 80%; }
+  .b .meta { display: flex; gap: 6px; align-items: center; font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 3px; flex-wrap: wrap; }
   .b .meta b { color: var(--text-primary); }
   .b .txt { background: var(--surface-subtle); border-radius: 12px; padding: 8px 11px; font-size: 0.82rem; }
   .b.me { align-self: flex-end; }
   .b.me .txt { background: var(--text-primary); color: var(--white); }
   .b.me .meta { justify-content: flex-end; }
-  .b.change .txt { box-shadow: inset 3px 0 0 var(--unread-change-bg); }
   .b.comment .txt { box-shadow: inset 3px 0 0 var(--unread-comment-bg); }
-  .tag { font-size: 0.64rem; font-weight: 700; padding: 2px 6px; border-radius: 99px; }
-  .tag.change { background: var(--unread-change-soft); color: var(--unread-change-ink); }
-  .tag.comment { background: var(--unread-comment-soft); color: var(--unread-comment-ink); }
-  .tag.staff { background: var(--unread-staff-soft); color: var(--unread-staff-ink); }
-  .tag.done { background: var(--surface-subtle); color: var(--text-secondary); }
-  .sys { align-self: center; font-size: 0.72rem; color: var(--text-muted); display: flex; gap: 6px; align-items: center; }
+  .b .acts { display: flex; gap: 6px; margin-top: 6px; }
+  .sys { align-self: center; font-size: 0.72rem; color: var(--text-muted); display: flex; gap: 6px; align-items: center; text-align: center; }
+  .sys.link { color: var(--unread-change-ink); font-weight: 600; }
   .composer { border-top: 1px solid var(--border-light); padding: 12px 18px; color: var(--text-muted); font-size: 0.8rem; }
+  .float-menu { position: absolute; right: 18px; top: 52px; z-index: 2; }
 
   /* ---- Phone ---- */
   .phone { width: 390px; max-width: 100%; background: var(--white); border: 1px solid var(--border); border-radius: 22px; overflow: hidden; }
-  .ph-bar { height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; border-bottom: 1px solid var(--border-light); font-weight: 700; }
-  .ph-card { margin: 12px; }
-  .ph-card .cal-card { width: 100%; }
+  .ph-bar { height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; border-bottom: 1px solid var(--border-light); font-weight: 700; gap: 8px; }
+  .ph-pad { padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .sheet { border-top: 1px solid var(--border); border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,0.12); background: var(--surface-raised); padding: 10px 12px 14px; }
+  .sheet .grab { width: 40px; height: 4px; border-radius: 99px; background: var(--border); margin: 0 auto 10px; }
 
   @media (max-width: 767px) {
     .msg { grid-template-columns: 1fr; }
     .msg .chat { display: none; }
     .msg-list { border-right: 0; }
     .header-tabs { display: none; }
-    .preview { position: static; width: 100%; margin-top: 8px; }
     .tip { right: 0; }
+    .preview, .notes { width: 100%; }
   }
 </style>
 <script>
-  // ?theme=dark switches the theme (used by the screenshots).
-  try { if (new URLSearchParams(location.search).get('theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) {}
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.get('theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    if (q.get('only')) { document.documentElement.classList.add('only'); addEventListener('DOMContentLoaded', () => { const s = document.getElementById(q.get('only')); if (s) s.classList.add('show'); }); }
+  } catch (e) {}
 </script>
 </head>
 <body>
@@ -184,115 +233,206 @@
   <symbol id="i-staff" viewBox="0 0 16 16"><circle cx="8" cy="5.3" r="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M3.2 13.2c.35-2.35 2.1-3.7 4.8-3.7s4.45 1.35 4.8 3.7"/></symbol>
   <symbol id="i-eye" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z"/><circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
   <symbol id="i-auto" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M8 2v3M8 11v3M2 8h3M11 8h3"/></symbol>
+  <symbol id="i-reply" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M6 4L2.5 7.5 6 11 M2.5 7.5H10a3.5 3.5 0 0 1 3.5 3.5v1"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M3 8.5l3.2 3L13 4.5"/></symbol>
+  <symbol id="i-dot" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.2" fill="currentColor"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M8 4.8V8l2.2 1.6"/></symbol>
 </svg>
 <div class="page">
-  <h1>Unread badges</h1>
-  <p class="lead">One rule everywhere: a <b>filled</b> badge means something new for you, and its colour and icon say what it is. Orange pencil is a change request, blue bubble is a comment, grey person is a staff message, violet eye is Kasper. An <b>outlined</b> orange badge means change requests you have already read that are still open. Automatic records never get a badge.</p>
+  <header>
+    <h1>Unread badges, round 2</h1>
+    <p class="lead"><b>Two places, two jobs.</b> The card's <b>Notes</b> is where change requests are worked: they stay on the card until they are Done. <b>Messages</b> is for conversation: comments, questions and replies that expect an answer. A <b>filled</b> badge means new for you. An <b>outlined</b> badge means it still needs you: orange for open changes, blue for something waiting for an answer.</p>
+  </header>
 
-  <h2 id="kinds">1. The kinds</h2>
-  <p class="note">The same badges appear on calendar cards, Samples cards, the Messages list and the Messages button.</p>
-  <div class="row" style="align-items:center">
-    <span class="ub change"><svg><use href="#i-change"/></svg>2</span><span class="note" style="margin:0 12px 0 0">Client change request</span>
-    <span class="ub comment"><svg><use href="#i-comment"/></svg>1</span><span class="note" style="margin:0 12px 0 0">Client comment</span>
-    <span class="ub-pair"><span class="ub change"><svg><use href="#i-change"/></svg>1</span><span class="ub comment"><svg><use href="#i-comment"/></svg>2</span></span><span class="note" style="margin:0 12px 0 0">Both</span>
-    <span class="ub staff"><svg><use href="#i-staff"/></svg>1</span><span class="note" style="margin:0 12px 0 0">Staff message</span>
-    <span class="ub kasper"><svg><use href="#i-eye"/></svg>1</span><span class="note" style="margin:0 12px 0 0">Kasper</span>
-    <span class="ub open">3 open</span><span class="note" style="margin:0">Read, still open</span>
-  </div>
+  <section id="kinds">
+    <h2>1. The badges</h2>
+    <div class="legend">
+      <div><span class="ub change"><svg><use href="#i-change"/></svg>2</span>New change requests (card only)</div>
+      <div><span class="ub open">3 open</span>Changes read, not Done yet (card only)</div>
+      <div><span class="ub comment"><svg><use href="#i-comment"/></svg>1</span>New client comment or question</div>
+      <div><span class="ub answer"><svg><use href="#i-reply"/></svg>1</span>Waiting for an answer</div>
+      <div><span class="ub staff"><svg><use href="#i-staff"/></svg>1</span>New staff message</div>
+      <div><span class="ub kasper"><svg><use href="#i-eye"/></svg>1</span>New from Kasper</div>
+    </div>
+  </section>
 
-  <h2 id="cards">2. Calendar and Samples cards</h2>
-  <p class="note">The Notes button keeps its place in the card footer. Today it shows one orange dot for anything new and "N open" for open change requests, and you cannot tell which is which.</p>
-  <div class="row">
-    <div><div class="cal-card"><div class="cal-thumb"></div><div class="cal-body"><div class="cal-title">Morning routine reel</div><span class="cal-status">In Progress</span></div>
-      <div class="cal-foot"><button class="notes-btn has-new"><svg><use href="#i-comment"/></svg>Notes<span class="ub change"><svg><use href="#i-change"/></svg>2</span></button><span class="cal-date">Oct 24</span></div></div>
-      <div class="card-cap">Client asked for 2 changes</div></div>
-    <div><div class="cal-card"><div class="cal-thumb"></div><div class="cal-body"><div class="cal-title">Behind the counter</div><span class="cal-status">In Progress</span></div>
-      <div class="cal-foot"><button class="notes-btn has-new"><svg><use href="#i-comment"/></svg>Notes<span class="ub comment"><svg><use href="#i-comment"/></svg>1</span></button><span class="cal-date">Oct 25</span></div></div>
-      <div class="card-cap">Client left a comment</div></div>
-    <div><div class="cal-card"><div class="cal-thumb"></div><div class="cal-body"><div class="cal-title">Team intro carousel</div><span class="cal-status">In Progress</span></div>
-      <div class="cal-foot"><button class="notes-btn has-new"><svg><use href="#i-comment"/></svg>Notes<span class="ub-pair"><span class="ub change"><svg><use href="#i-change"/></svg>1</span><span class="ub comment"><svg><use href="#i-comment"/></svg>2</span></span></button><span class="cal-date">Oct 26</span></div></div>
-      <div class="card-cap">Both: one change, two comments</div></div>
-    <div><div class="cal-card"><div class="cal-thumb"></div><div class="cal-body"><div class="cal-title">Weekend offer story</div><span class="cal-status">In Progress</span></div>
-      <div class="cal-foot"><button class="notes-btn"><svg><use href="#i-comment"/></svg>Notes<span class="ub open">2 open</span></button><span class="cal-date">Oct 27</span></div></div>
-      <div class="card-cap">Read, two change requests still open</div></div>
-  </div>
+  <section id="strip">
+    <h2>2. The calendar tells you at once</h2>
+    <p class="note">A summary line above the calendar for the client(s) on screen. Each chip filters the calendar to those posts; nothing is marked read by looking at it.</p>
+    <div class="strip"><span class="lbl">For you</span>
+      <button class="on"><span class="ub change"><svg><use href="#i-change"/></svg>3</span>new changes</button>
+      <button><span class="ub comment"><svg><use href="#i-comment"/></svg>2</span>new comments</button>
+      <button><span class="ub answer"><svg><use href="#i-reply"/></svg>1</span>to answer</button>
+      <button><span class="ub open">7 open</span>changes not done</button>
+      <span class="sep"></span><span class="muted">Updated live</span></div>
+  </section>
 
-  <h2 id="preview">3. Hover (or long-press on a phone): what it is before you open it</h2>
-  <p class="note">Up to three newest unread items, newest first: kind, who, which part, the first line and when. Clicking an item opens Notes at that message. Opening the preview does not mark anything read; opening Notes does.</p>
-  <div class="row" style="padding-bottom:230px">
-    <div class="cal-card"><div class="cal-thumb"></div><div class="cal-body"><div class="cal-title">Team intro carousel</div><span class="cal-status">In Progress</span></div>
-      <div class="cal-foot"><button class="notes-btn has-new" style="background:var(--bg)"><svg><use href="#i-comment"/></svg>Notes<span class="ub-pair"><span class="ub change"><svg><use href="#i-change"/></svg>1</span><span class="ub comment"><svg><use href="#i-comment"/></svg>2</span></span></button><span class="cal-date">Oct 26</span></div>
-      <div class="preview" role="dialog" aria-label="New on this post">
-        <h4>3 new on this post</h4>
-        <div class="pv-item"><span class="kind-dot change"><svg><use href="#i-change"/></svg></span><span class="pv-who">Client <span class="pv-part">· Video</span></span><span class="pv-time">12 min</span><span class="pv-text">Can we cut the first two seconds and start on the logo?</span></div>
-        <div class="pv-item"><span class="kind-dot comment"><svg><use href="#i-comment"/></svg></span><span class="pv-who">Client <span class="pv-part">· Caption</span></span><span class="pv-time">15 min</span><span class="pv-text">Love the second slide, great colours.</span></div>
-        <div class="pv-item"><span class="kind-dot comment"><svg><use href="#i-comment"/></svg></span><span class="pv-who">Client <span class="pv-part">· Video</span></span><span class="pv-time">1 h</span><span class="pv-text">Is the music licensed?</span></div>
-        <div class="pv-foot"><span>Also <b>1 open</b> change from before</span><span>Open Notes →</span></div>
+  <section id="cards">
+    <h2>3. Card badges, every kind and combination</h2>
+    <p class="note">Order on the button is always: changes (filled, then outlined), then comments (filled, then outlined), then staff and Kasper. At most three badges; a fourth folds into "+1".</p>
+    <div class="cards" id="cardGrid"></div>
+  </section>
+
+  <section id="preview">
+    <h2>4. Hover (long-press on a phone): what it is before you open it</h2>
+    <p class="note">Newest first, up to four lines: kind, who, which part, first words, when. Something waiting for an answer says so. Looking does not mark anything read.</p>
+    <div class="row">
+      <div class="preview" role="dialog" aria-label="On this post">
+        <h4>Team intro carousel · 4 for you</h4>
+        <div class="pv-item"><span class="kind-dot change"><svg><use href="#i-change"/></svg></span><span class="pv-who">Client <span class="pv-part">· Video · change</span></span><span class="pv-time">12 min</span><span class="pv-text">Cut the first two seconds and start on the logo.</span></div>
+        <div class="pv-item"><span class="kind-dot comment"><svg><use href="#i-comment"/></svg></span><span class="pv-who">Client <span class="pv-part">· Caption · comment</span></span><span class="pv-time">15 min</span><span class="pv-text">Love the second slide, great colours.</span></div>
+        <div class="pv-item"><span class="kind-dot comment"><svg><use href="#i-reply"/></svg></span><span class="pv-who">Client <span class="pv-part">· Video</span> <span class="pv-sub">waiting for an answer</span></span><span class="pv-time">Yesterday</span><span class="pv-text">Is the music licensed for ads as well?</span></div>
+        <div class="pv-item"><span class="kind-dot kasper"><svg><use href="#i-eye"/></svg></span><span class="pv-who">Kasper <span class="pv-part">· Video</span></span><span class="pv-time">2 h</span><span class="pv-text">Colour on the last shot is off.</span></div>
+        <div class="pv-foot"><span>Also <b>2 open</b> changes</span><span>Open Notes →</span></div>
+      </div>
+      <div class="preview" role="dialog" aria-label="On this post">
+        <h4>Weekend offer story · nothing new</h4>
+        <div class="pv-item"><span class="kind-dot change"><svg><use href="#i-change"/></svg></span><span class="pv-who">Client <span class="pv-part">· Video · open</span></span><span class="pv-time">Mon</span><span class="pv-text">Swap the end card for the new one.</span></div>
+        <div class="pv-item"><span class="kind-dot change"><svg><use href="#i-change"/></svg></span><span class="pv-who">Client <span class="pv-part">· Caption · open</span></span><span class="pv-time">Mon</span><span class="pv-text">Add the store hours.</span></div>
+        <div class="pv-foot"><span><b>2 open</b> changes, nothing new</span><span>Open Notes →</span></div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <h2 id="button">4. The Messages button</h2>
-  <p class="note">The count sits on the corner, so the icon never moves (left: today, the icon slides 9 px left, 11 px with two digits). It counts conversations with something new for you and takes the colour of the most important kind waiting: change, then comment, then staff. It is live from page load. Hover says what is waiting.</p>
-  <div class="compare">
-    <figure><span class="tt old"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="inline">3</span></span>Today</figure>
-    <figure><span class="tt"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="corner change">3</span></span>Change waiting</figure>
-    <figure><span class="tt"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="corner comment">1</span></span>Comment only</figure>
-    <figure><span class="tt"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="corner staff">12</span></span>Staff only</figure>
-    <figure><span class="tt"><svg width="15" height="15"><use href="#i-comment"/></svg></span>Nothing new</figure>
-  </div>
-  <div class="header-wrap" style="margin-top:18px">
-    <div class="header"><div class="header-tabs"><span>Today</span><span class="on">Calendar</span><span>Samples</span><span>Workload</span><span>Kasper</span></div>
-      <div class="header-actions"><span class="tt" style="background:var(--surface-hover)"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="corner change">3</span></span><span class="tt"><svg width="16" height="16"><use href="#i-staff"/></svg></span>
-        <div class="tip" role="tooltip"><b>3 conversations with something new</b>
-          <div><span class="sw" style="background:var(--unread-change-bg)"></span>2 change requests from clients</div>
-          <div><span class="sw" style="background:var(--unread-comment-bg)"></span>1 client comment</div>
-          <div><span class="sw" style="background:var(--unread-staff-bg)"></span>1 staff message</div></div></div></div>
-  </div>
-
-  <h2 id="messages">5. Messages: the list and a chat</h2>
-  <p class="note">Each row carries the same kind badges. In the chat, a line marks where the new messages start, each message says what it is, a resolved change says Done, and automatic records sit in the middle in grey with no badge.</p>
-  <div class="msg">
-    <div class="msg-list">
-      <div class="msg-head"><b>Messages</b><div class="seg"><button class="on">New · 3</button><button>All</button></div></div>
-      <div class="conv new sel"><span class="th"></span><span class="t">Sample Client A · Team intro carousel</span><span class="when">12 min</span><span class="l">Client: Can we cut the first two seconds…</span><span class="bd ub-pair"><span class="ub change"><svg><use href="#i-change"/></svg>1</span><span class="ub comment"><svg><use href="#i-comment"/></svg>2</span></span></div>
-      <div class="conv new"><span class="th"></span><span class="t">Sample Client B · Morning routine reel</span><span class="when">40 min</span><span class="l">Client: Please swap the end card</span><span class="bd"><span class="ub change"><svg><use href="#i-change"/></svg>2</span></span></div>
-      <div class="conv new"><span class="th"></span><span class="t">Sample Client C · Product close-ups</span><span class="when">2 h</span><span class="l">Robin: Footage is in the folder now</span><span class="bd"><span class="ub staff"><svg><use href="#i-staff"/></svg>1</span></span></div>
-      <div class="conv"><span class="th"></span><span class="t">Sample Client A · Weekend offer story</span><span class="when">Yesterday</span><span class="l">You: Done, new version is up</span><span class="bd"><span class="ub open">2 open</span></span></div>
-    </div>
-    <div class="chat">
-      <div class="chat-head"><div><div class="ct">Team intro carousel</div><div class="cs">Sample Client A · In Progress</div></div><span class="ub open">1 open</span></div>
-      <div class="chat-body">
-        <div class="day">Yesterday</div>
-        <div class="b change"><div class="meta"><b>Client</b><span class="tag change">Change asked · Video</span><span class="tag done">Done</span></div><div class="txt">Make the logo a bit bigger on the last slide.</div></div>
-        <div class="b me"><div class="meta"><span>You</span></div><div class="txt">Done, bigger logo is in the new cut.</div></div>
-        <div class="sys"><svg width="11" height="11"><use href="#i-auto"/></svg>Client changed the caption · automatic record, not counted</div>
-        <div class="divider">3 new</div>
-        <div class="b comment"><div class="meta"><b>Client</b><span class="tag comment">Comment · Video</span><span>1 h</span></div><div class="txt">Is the music licensed?</div></div>
-        <div class="b comment"><div class="meta"><b>Client</b><span class="tag comment">Comment · Caption</span><span>15 min</span></div><div class="txt">Love the second slide, great colours.</div></div>
-        <div class="b change"><div class="meta"><b>Client</b><span class="tag change">Change asked · Video</span><span>12 min</span></div><div class="txt">Can we cut the first two seconds and start on the logo?</div></div>
+  <section id="notes">
+    <h2>5. Notes on a card: opening it does not lose what still needs you</h2>
+    <p class="note">Opening Notes clears the "new" fill, but a change stays <b>open</b> until Done and a comment stays <b>Waiting for an answer</b> until someone on the team replies or marks it "No reply needed". What still needs you is pinned at the top.</p>
+    <div class="row">
+      <div class="notes" role="dialog" aria-label="Notes">
+        <div class="notes-head"><b>Notes · Team intro carousel</b><span class="btn ghost">Close</span></div>
+        <div class="notes-tabs"><span class="on">All</span><span>Video <span class="ub change"><svg><use href="#i-change"/></svg>1</span></span><span>Caption</span><span>Thumbnail</span></div>
+        <div class="notes-body">
+          <div class="grp">Needs you</div>
+          <div class="thread is-new"><div class="t-meta"><b>Client</b><span class="tag change">Change · Video</span><span class="tag new">New</span><span>12 min</span></div><div class="t-text">Cut the first two seconds and start on the logo.</div>
+            <div class="t-actions"><span class="btn"><svg><use href="#i-reply"/></svg>Reply</span><span class="btn"><svg><use href="#i-check"/></svg>Mark done</span></div></div>
+          <div class="thread waiting"><div class="t-meta"><b>Client</b><span class="tag comment">Comment · Video</span><span class="tag wait">Waiting for an answer</span><span>Yesterday</span></div><div class="t-text">Is the music licensed for ads as well?</div>
+            <div class="t-actions"><span class="btn primary"><svg><use href="#i-reply"/></svg>Reply</span><span class="btn">No reply needed</span><span class="btn ghost"><svg><use href="#i-dot"/></svg>Mark unread</span></div></div>
+          <div class="thread"><div class="t-meta"><b>Client</b><span class="tag change">Change · Caption</span><span>Mon</span></div><div class="t-text">Add the store hours.</div>
+            <div class="t-reply">You: On it, new caption by tomorrow.</div>
+            <div class="t-actions"><span class="btn"><svg><use href="#i-check"/></svg>Mark done</span></div></div>
+          <div class="grp">Earlier</div>
+          <div class="thread"><div class="t-meta"><b>Client</b><span class="tag comment">Comment · Caption</span><span>15 min</span></div><div class="t-text">Love the second slide, great colours.</div><div class="t-reply">Robin marked it: No reply needed.</div></div>
+          <div class="thread"><div class="t-meta"><b>Client</b><span class="tag change">Change · Video</span><span class="tag done">Done</span><span>Last week</span></div><div class="t-text">Make the logo a bit bigger.</div></div>
+        </div>
       </div>
-      <div class="composer">Reply to the client…</div>
     </div>
-  </div>
+  </section>
 
-  <h2 id="phone">6. Phone</h2>
-  <p class="note">The same badges. The Tabs menu entry for Messages carries the coloured count; a long-press on Notes shows the preview as a sheet.</p>
-  <div class="row">
-    <div class="phone">
-      <div class="ph-bar"><span>Calendar</span><span class="tt"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="corner change">3</span></span></div>
-      <div class="ph-card"><div class="cal-card"><div class="cal-thumb"></div><div class="cal-body"><div class="cal-title">Team intro carousel</div><span class="cal-status">In Progress</span></div>
-        <div class="cal-foot"><button class="notes-btn has-new"><svg><use href="#i-comment"/></svg>Notes<span class="ub-pair"><span class="ub change"><svg><use href="#i-change"/></svg>1</span><span class="ub comment"><svg><use href="#i-comment"/></svg>2</span></span></button><span class="cal-date">Oct 26</span></div></div></div>
-      <div class="ph-card"><div class="cal-card"><div class="cal-thumb" style="height:90px"></div>
-        <div class="cal-foot"><button class="notes-btn"><svg><use href="#i-comment"/></svg>Notes<span class="ub open">2 open</span></button><span class="cal-date">Oct 27</span></div></div></div>
+  <section id="later">
+    <h2>6. "I'll answer later": three ways it stays on your list</h2>
+    <p class="note"><b>Automatic:</b> a client comment or question stays "Waiting for an answer" after you read it, until anyone on the team replies or marks it "No reply needed". <b>Mark unread:</b> puts the fill back for you only. A <b>Remind me</b> action (later, optional) would bring it back at a chosen time.</p>
+    <div class="row">
+      <div class="menu" role="menu">
+        <div class="hl"><svg><use href="#i-reply"/></svg><span>Reply now</span></div>
+        <div><svg><use href="#i-dot"/></svg><span>Mark unread<small>Back to New for you only</small></span></div>
+        <div><svg><use href="#i-check"/></svg><span>No reply needed<small>Clears "Waiting" for the whole team</small></span></div>
+        <div><svg><use href="#i-clock"/></svg><span>Remind me tomorrow<small>Optional, later PR</small></span></div>
+        <div><svg><use href="#i-comment"/></svg><span>Open card</span></div>
+      </div>
+      <div class="cal-card" style="width:270px"><div class="cal-thumb"></div><div class="cal-body"><div class="cal-title">Team intro carousel</div><span class="cal-status">In Progress</span></div>
+        <div class="cal-foot"><button class="notes-btn"><svg class="ico"><use href="#i-comment"/></svg>Notes<span class="ub-pair"><span class="ub open">1 open</span><span class="ub answer"><svg><use href="#i-reply"/></svg>1</span></span></button><span class="cal-date">Oct 26</span></div>
+        <div class="cap" style="padding:0 12px 10px">After opening Notes: nothing new, one change open, one comment waiting for an answer.</div></div>
     </div>
-    <div class="phone">
-      <div class="ph-bar"><span>Messages</span><div class="seg"><button class="on">New · 3</button><button>All</button></div></div>
-      <div class="conv new"><span class="th"></span><span class="t">Team intro carousel</span><span class="when">12 min</span><span class="l">Client: Can we cut the first two…</span><span class="bd ub-pair"><span class="ub change"><svg><use href="#i-change"/></svg>1</span><span class="ub comment"><svg><use href="#i-comment"/></svg>2</span></span></div>
-      <div class="conv new"><span class="th"></span><span class="t">Morning routine reel</span><span class="when">40 min</span><span class="l">Client: Please swap the end card</span><span class="bd"><span class="ub change"><svg><use href="#i-change"/></svg>2</span></span></div>
-      <div class="conv new"><span class="th"></span><span class="t">Product close-ups</span><span class="when">2 h</span><span class="l">Robin: Footage is in the folder now</span><span class="bd"><span class="ub staff"><svg><use href="#i-staff"/></svg>1</span></span></div>
+  </section>
+
+  <section id="button">
+    <h2>7. The Messages button</h2>
+    <p class="note">Counts conversations, never change requests. Filled = conversations with something new for you, coloured by what is waiting (comment, staff, Kasper). With nothing new but answers owed, an outlined count. Hover lists both.</p>
+    <div class="compare">
+      <figure><span class="tt"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="corner comment">2</span></span>New client comment</figure>
+      <figure><span class="tt"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="corner staff">1</span></span>Staff only</figure>
+      <figure><span class="tt"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="corner kasper">1</span></span>Kasper only</figure>
+      <figure><span class="tt"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="corner answer">3</span></span>Nothing new, 3 to answer</figure>
+      <figure><span class="tt"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="corner comment">12</span></span>Two digits</figure>
+      <figure><span class="tt"><svg width="15" height="15"><use href="#i-comment"/></svg></span>Nothing</figure>
     </div>
-  </div>
+    <div style="position:relative;padding-bottom:120px;margin-top:20px">
+      <div class="header"><div class="header-tabs"><span>Today</span><span class="on">Calendar</span><span>Samples</span><span>Workload</span><span>Kasper</span></div>
+        <div class="header-actions"><span class="tt" style="background:var(--surface-hover)"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="corner comment">3</span></span><span class="tt"><svg width="16" height="16"><use href="#i-staff"/></svg></span>
+          <div class="tip" role="tooltip"><b>Messages</b>
+            <div><span class="sw" style="background:var(--unread-comment-bg)"></span>2 new client comments</div>
+            <div><span class="sw" style="background:var(--unread-staff-bg)"></span>1 new staff message</div>
+            <div><span class="sw ring"></span>2 waiting for your answer</div>
+            <div style="color:var(--text-muted)">Change requests are on the cards</div></div></div></div>
+    </div>
+  </section>
+
+  <section id="messages">
+    <h2>8. Messages: the list and a chat</h2>
+    <p class="note">Three views: <b>New</b>, <b>To answer</b>, <b>All</b>. A client change request is not a message: in the chat it shows as one line linking to the card, so the context is there without counting twice.</p>
+    <div class="msg">
+      <div class="msg-list">
+        <div class="msg-head"><b>Messages</b><div class="seg"><button class="on">New · 3</button><button>To answer · 2</button><button>All</button></div></div>
+        <div class="conv new sel"><span class="th"></span><span class="t">Sample Client A · Team intro carousel</span><span class="when">15 min</span><span class="l">Client: Love the second slide…</span><span class="bd ub-pair"><span class="ub comment"><svg><use href="#i-comment"/></svg>1</span><span class="ub answer"><svg><use href="#i-reply"/></svg>1</span></span></div>
+        <div class="conv new"><span class="th"></span><span class="t">Sample Client B · Morning routine reel</span><span class="when">40 min</span><span class="l">Client: Can we post it Friday instead?</span><span class="bd"><span class="ub comment"><svg><use href="#i-comment"/></svg>1</span></span></div>
+        <div class="conv new"><span class="th"></span><span class="t">Sample Client C · Product close-ups</span><span class="when">2 h</span><span class="l">Robin: Footage is in the folder now</span><span class="bd"><span class="ub staff"><svg><use href="#i-staff"/></svg>1</span></span></div>
+      </div>
+      <div class="chat">
+        <div class="chat-head"><div><div class="ct">Team intro carousel</div><div class="cs">Sample Client A · In Progress</div></div><span class="btn">More ▾</span></div>
+        <div class="float-menu"><div class="menu" role="menu"><div class="hl"><svg><use href="#i-dot"/></svg><span>Mark unread<small>Back to New for you only</small></span></div><div><svg><use href="#i-check"/></svg><span>No reply needed</span></div><div><svg><use href="#i-comment"/></svg><span>Open card</span></div></div></div>
+        <div class="chat-body">
+          <div class="day">Yesterday</div>
+          <div class="b comment"><div class="meta"><b>Client</b><span class="tag comment">Comment · Video</span><span class="tag wait">Waiting for an answer</span></div><div class="txt">Is the music licensed for ads as well?</div>
+            <div class="acts"><span class="btn primary"><svg><use href="#i-reply"/></svg>Reply</span><span class="btn">No reply needed</span></div></div>
+          <div class="sys link"><svg width="11" height="11"><use href="#i-change"/></svg>Client asked for 1 change on the video · see the card</div>
+          <div class="sys"><svg width="11" height="11"><use href="#i-auto"/></svg>Client changed the caption · automatic record</div>
+          <div class="divider">New</div>
+          <div class="b comment"><div class="meta"><b>Client</b><span class="tag comment">Comment · Caption</span><span>15 min</span></div><div class="txt">Love the second slide, great colours.</div></div>
+        </div>
+        <div class="composer">Reply to the client…</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="phone">
+    <h2>9. Phone</h2>
+    <p class="note">The same badges. A long-press on Notes opens the preview as a sheet; the Messages tab carries the count.</p>
+    <div class="row">
+      <div class="phone">
+        <div class="ph-bar"><span>Calendar</span><span class="tt"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="corner comment">3</span></span></div>
+        <div class="ph-pad">
+          <div class="strip" style="padding:8px 10px;gap:6px"><button class="on"><span class="ub change"><svg><use href="#i-change"/></svg>3</span>changes</button><button><span class="ub comment"><svg><use href="#i-comment"/></svg>2</span>comments</button><button><span class="ub answer"><svg><use href="#i-reply"/></svg>1</span>to answer</button></div>
+          <div class="cal-card"><div class="cal-thumb"></div><div class="cal-body"><div class="cal-title">Team intro carousel</div><span class="cal-status">In Progress</span></div>
+            <div class="cal-foot"><button class="notes-btn has-new"><svg class="ico"><use href="#i-comment"/></svg>Notes<span class="ub-pair"><span class="ub change"><svg><use href="#i-change"/></svg>1</span><span class="ub comment"><svg><use href="#i-comment"/></svg>1</span><span class="ub answer"><svg><use href="#i-reply"/></svg>1</span></span></button><span class="cal-date">Oct 26</span></div></div>
+        </div>
+        <div class="sheet"><div class="grab"></div>
+          <div class="pv-item"><span class="kind-dot change"><svg><use href="#i-change"/></svg></span><span class="pv-who">Client <span class="pv-part">· Video · change</span></span><span class="pv-time">12 min</span><span class="pv-text">Cut the first two seconds and start on the logo.</span></div>
+          <div class="pv-item"><span class="kind-dot comment"><svg><use href="#i-reply"/></svg></span><span class="pv-who">Client <span class="pv-sub">waiting for an answer</span></span><span class="pv-time">Yesterday</span><span class="pv-text">Is the music licensed for ads as well?</span></div>
+          <div class="pv-foot"><span>Also <b>1 open</b></span><span>Open Notes →</span></div></div>
+      </div>
+      <div class="phone">
+        <div class="ph-bar"><span>Messages</span><div class="seg"><button class="on">New · 3</button><button>To answer · 2</button><button>All</button></div></div>
+        <div class="conv new"><span class="th"></span><span class="t">Team intro carousel</span><span class="when">15 min</span><span class="l">Client: Love the second slide…</span><span class="bd ub-pair"><span class="ub comment"><svg><use href="#i-comment"/></svg>1</span><span class="ub answer"><svg><use href="#i-reply"/></svg>1</span></span></div>
+        <div class="conv new"><span class="th"></span><span class="t">Morning routine reel</span><span class="when">40 min</span><span class="l">Client: Can we post it Friday instead?</span><span class="bd"><span class="ub comment"><svg><use href="#i-comment"/></svg>1</span></span></div>
+        <div class="conv new"><span class="th"></span><span class="t">Product close-ups</span><span class="when">2 h</span><span class="l">Robin: Footage is in the folder now</span><span class="bd"><span class="ub staff"><svg><use href="#i-staff"/></svg>1</span></span></div>
+        <div class="ph-pad"><div class="thread waiting" style="background:var(--surface-raised)"><div class="t-meta"><b>Client</b><span class="tag wait">Waiting for an answer</span></div><div class="t-text">Is the music licensed for ads as well?</div><div class="t-actions"><span class="btn primary">Reply</span><span class="btn">No reply needed</span><span class="btn ghost">Mark unread</span></div></div></div>
+      </div>
+    </div>
+  </section>
 </div>
+<script>
+  // The card grid: every kind and combination. Static data, drawn once.
+  const I = id => `<svg><use href="#i-${id}"/></svg>`;
+  const B = {
+    c: n => `<span class="ub change">${I('change')}${n}</span>`, o: n => `<span class="ub open">${n} open</span>`,
+    m: n => `<span class="ub comment">${I('comment')}${n}</span>`, a: n => `<span class="ub answer">${I('reply')}${n}</span>`,
+    s: n => `<span class="ub staff">${I('staff')}${n}</span>`, k: n => `<span class="ub kasper">${I('eye')}${n}</span>`,
+    more: n => `<span class="ub open" style="color:var(--text-secondary);box-shadow:inset 0 0 0 1.5px var(--border)">+${n}</span>`,
+  };
+  const cards = [
+    ['Morning routine reel', [B.c(2)], 'New change requests', true],
+    ['Weekend offer story', [B.o(2)], 'Changes read, still open', false],
+    ['Team intro carousel', [B.c(1), B.o(2)], 'One new change, two open', true],
+    ['Behind the counter', [B.m(1)], 'New client comment', true],
+    ['Product close-ups', [B.a(1)], 'Read, waiting for an answer', false],
+    ['Founder story', [B.c(1), B.m(2)], 'New change and new comments', true],
+    ['Spring menu', [B.o(1), B.a(1)], 'One open change, one to answer', false],
+    ['Recipe teaser', [B.s(1)], 'New staff message', true],
+    ['Studio tour', [B.k(1)], 'New from Kasper', true],
+    ['Holiday promo', [B.c(1), B.m(1), B.more(2)], 'Four kinds at once', true],
+    ['Q&A clip', [], 'Nothing for you', false],
+  ];
+  document.getElementById('cardGrid').innerHTML = cards.map(([t, bs, cap, isNew]) => `<div><div class="cal-card"><div class="cal-thumb"></div><div class="cal-body"><div class="cal-title">${t}</div><span class="cal-status">In Progress</span></div><div class="cal-foot"><button class="notes-btn${isNew ? ' has-new' : ''}"><svg class="ico"><use href="#i-comment"/></svg>Notes${bs.length ? `<span class="ub-pair">${bs.join('')}</span>` : ''}</button><span class="cal-date">Oct 2${cards.findIndex(c => c[0] === t) % 9}</span></div></div><div class="cap">${cap}</div></div>`).join('');
+</script>
 </body>
 </html>

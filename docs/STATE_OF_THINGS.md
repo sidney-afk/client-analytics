@@ -18,6 +18,15 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView stand-in, 2026-10-23): what changed since the 2026-10-21 block below
+
+Checked against main and `syncview_runtime_flags` on 2026-10-23 22:35 UTC. Counts only.
+
+- **Card saver** went back to three clients on 2026-10-22 15:41 UTC after three staff saves were refused because the page's "is saving on" check timed out; #2281 (the check waits longer and tries more often) went live at 17:12 and `calendar_card_write_clients` is `{"all": true, ...}` again since 17:26. The 3-hourly watcher has counted 10 clean runs since.
+- **Calm Workload**: a client row's deadline dot is green again when every video has 3+ working days of buffer (#2296, live 2026-10-23 21:31, checked on the live site: 52 desktop rows and 10 phone rows correct, light and dark).
+- **Filming plan helpers**: `pipeline-google` reads company-wide files named in a setting (#2291); `pipeline-social` (ScrapeCreators: TikTok, YouTube, Reddit search, transcripts, account and channel lookups) is live (#2293, #2294, #2295).
+- **Supervisor**: a stand-in session runs the SyncView lane until 2026-10-24 night; dated detail in `synchro-pipelines/supervisor/history/syncview/`.
+
 ## Latest (SyncView project, 2026-10-21): what is live since the 2026-10-17 block below
 
 Checked against main and `syncview_runtime_flags` on 2026-10-21 04:30 UTC. Counts only.

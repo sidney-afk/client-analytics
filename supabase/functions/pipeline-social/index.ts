@@ -10,7 +10,12 @@
 //   POST { action, ... }   header x-pipeline-pass: <a filming pipeline pass>
 //
 //   tiktok.search    (slimmed to words, link, date, counts incl. views, poster) { query, sort_by?, date_posted?, region?, cursor? }
+//   tiktok.profile  { handle, cache_max_age? }                       followers, likes, video count
+//   tiktok.videos   { handle, sort_by? (latest|popular), region?, max_cursor? }   an account's recent videos (slimmed like search)
 //   youtube.search   { query, type? (shorts|videos), uploadDate?, sortBy?, region?, continuationToken? }
+//   youtube.channel { handle | channelId, cache_max_age? }           subscribers, video count
+//   youtube.channel_videos { handle | channelId, type? (shorts|videos), sort?, continuationToken? }
+//   youtube.video   { url, cache_max_age? }                          one video or Short, with its channel
 //   reddit.search    { query, filter?, sort?, timeframe?, after? }
 //   reddit.subreddit { subreddit, sort?, timeframe?, cache_max_age?, after? }
 //   transcript       { url, language? }       a TikTok, Instagram or YouTube link

@@ -73,6 +73,37 @@ const eq = (a, b, label) => { assert.deepStrictEqual(a, b, label); passed++; };
   eq(r.slimResult('reddit.search', big), big, 'other actions are passed through unchanged');
   eq(r.slimResult('tiktok.search', 'not json'), 'not json', 'an answer that is not the expected shape passes through');
 
+  // ---- Account and video lookups -----------------------------------------------
+  const tp = r.buildRequest('tiktok.profile', { handle: '@some.account_1' });
+  eq([tp.ok, tp.path, tp.query], [true, '/v1/tiktok/profile', { handle: 'some.account_1' }], 'tiktok.profile asks for one account, @ stripped');
+  const tv = r.buildRequest('tiktok.videos', { handle: 'acct', sort_by: 'popular', max_cursor: '123' });
+  eq([tv.path, tv.query], ['/v3/tiktok/profile/videos', { handle: 'acct', trim: 'true', sort_by: 'popular', max_cursor: '123' }], 'tiktok.videos asks for an account\'s videos, trimmed');
+  eq(r.buildRequest('tiktok.videos', { handle: 'a/b' }).ok, false, 'a TikTok handle cannot carry a path');
+  eq(r.buildRequest('tiktok.videos', { handle: 'acct', sort_by: 'oldest' }).ok, false, 'tiktok.videos refuses a sort outside the list');
+  const yc = r.buildRequest('youtube.channel', { handle: '@SomeChannel' });
+  eq([yc.path, yc.query], ['/v1/youtube/channel', { handle: 'SomeChannel' }], 'youtube.channel by handle');
+  const ycid = r.buildRequest('youtube.channel', { channelId: 'UC1KmNKYC1l0stjctkGswl6g' });
+  eq(ycid.query, { channelId: 'UC1KmNKYC1l0stjctkGswl6g' }, 'youtube.channel by channel id');
+  eq(r.buildRequest('youtube.channel', { channelId: 'nope' }).ok, false, 'a bad channel id is refused');
+  eq(r.buildRequest('youtube.channel', {}).ok, false, 'a channel needs a handle or an id');
+  const cs = r.buildRequest('youtube.channel_videos', { handle: 'Chan', sort: 'popular' });
+  eq([cs.path, cs.query], ['/v1/youtube/channel/shorts', { handle: 'Chan', sort: 'popular' }], 'youtube.channel_videos defaults to Shorts');
+  const cv = r.buildRequest('youtube.channel_videos', { handle: 'Chan', type: 'videos', sort: 'latest' });
+  eq([cv.path, cv.query.includeExtras, cv.query.sort], ['/v1/youtube/channel-videos', 'true', 'latest'], 'youtube.channel_videos can ask for long videos');
+  eq(r.buildRequest('youtube.channel_videos', { handle: 'Chan', sort: 'latest' }).ok, false, 'Shorts sort uses its own list (newest, popular)');
+  const yv = r.buildRequest('youtube.video', { url: 'https://www.youtube.com/watch?v=abc' });
+  eq([yv.ok, yv.path], [true, '/v1/youtube/video'], 'youtube.video takes a YouTube link');
+  eq(r.buildRequest('youtube.video', { url: 'https://www.tiktok.com/@a/video/1' }).ok, false, 'youtube.video refuses other sites');
+  ok(r.ACTIONS.includes('tiktok.videos') && r.ACTIONS.includes('youtube.video'), 'the new actions are listed');
+  const prof = r.slimResult('tiktok.profile', { success: true, credits_remaining: 9, user: { uniqueId: 'a', nickname: 'A', avatarLarger: 'https://x', secUid: 'zzz', verified: false },
+    stats: { followerCount: 10, videoCount: 0, heartCount: 0, extra: 1 }, statsV2: { followerCount: '10', videoCount: '40', heartCount: '5000' } });
+  eq([prof.user.uniqueId, prof.statsV2.videoCount, prof.statsV2.heartCount, prof.credits_remaining], ['a', '40', '5000', 9], 'a TikTok account keeps names and both count sets');
+  ok(!('avatarLarger' in prof.user) && !('secUid' in prof.user) && !('extra' in prof.stats), 'a TikTok account drops avatars, ids and extra fields');
+  const vids = r.slimResult('tiktok.videos', { success: true, max_cursor: 5, aweme_list: [{ aweme_id: '9', statistics: { play_count: 3 }, video: { duration: 1000, big: 'x'.repeat(999) } }] });
+  eq([vids.max_cursor, vids.aweme_list[0].aweme_id, vids.aweme_list[0].statistics.play_count, vids.aweme_list[0].duration_ms], [5, '9', 3, 1000], 'an account\'s videos are slimmed like a search');
+  ok(!('watchNextVideos' in r.slimResult('youtube.video', { id: 'a', channel: { handle: 'h' }, watchNextVideos: [1] })), 'a YouTube video drops the watch-next list');
+  eq(r.slimResult('youtube.video', { id: 'a', channel: { handle: 'h' }, watchNextVideos: [1] }).channel, { handle: 'h' }, 'a YouTube video keeps its channel');
+
   // ---- The wiring in index.ts -------------------------------------------------
   ok(/isPassToken\(raw\)/.test(src) && /fp_pass_use/.test(src), 'a pass is required and looked up by its hash');
   ok(/slimResult\(action/.test(src), 'the answer goes through slimResult');

@@ -20,6 +20,9 @@ const oneOf = (v, list) => (list.includes(str(v)) ? str(v) : "");
 const SUBREDDIT_RE = /^[A-Za-z0-9_]{2,21}$/;
 const REGION_RE = /^[A-Za-z]{2}$/;
 const LANG_RE = /^[A-Za-z]{2}(-[A-Za-z]{2})?$/;
+const TIKTOK_HANDLE_RE = /^[A-Za-z0-9_.]{2,40}$/;
+const YT_HANDLE_RE = /^[A-Za-z0-9_.-]{3,60}$/;
+const YT_CHANNEL_RE = /^UC[A-Za-z0-9_-]{22}$/;
 const TOKEN_RE = /^[A-Za-z0-9_=.%~+/-]{1,2000}$/;
 
 // The link of a video, by site. Only these hosts, https only, no credentials.
@@ -69,6 +72,19 @@ function query(b) {
   return { ok: true, v };
 }
 
+function tiktokHandle(b) {
+  const v = str(b.handle).replace(/^@/, "");
+  return TIKTOK_HANDLE_RE.test(v) ? { ok: true, v } : refuse("Give handle: the TikTok account name without @, letters, numbers, dots and underscores.");
+}
+
+// A YouTube channel by handle (without @) or by its channel id (UC and 22 more characters).
+function youtubeChannel(b) {
+  const id = str(b.channelId);
+  if (id) return YT_CHANNEL_RE.test(id) ? { ok: true, q: { channelId: id } } : refuse("channelId must be the channel id that starts with UC.");
+  const v = str(b.handle).replace(/^@/, "");
+  return YT_HANDLE_RE.test(v) ? { ok: true, q: { handle: v } } : refuse("Give handle (the channel name without @) or channelId.");
+}
+
 // The request for an action: { ok, path, query, counts } or a refusal.
 // counts: false only for the credit balance.
 export function buildRequest(action, body) {
@@ -103,6 +119,41 @@ export function buildRequest(action, body) {
       if (!p.ok) return p;
       return { ok: true, path: "/v1/reddit/subreddit", query: { subreddit: name, trim: "true", ...p.q }, counts: true };
     }
+    case "tiktok.profile": {
+      const h = tiktokHandle(b); if (!h.ok) return h;
+      const p = pick(b, { cache_max_age: CACHE_AGES });
+      if (!p.ok) return p;
+      return { ok: true, path: "/v1/tiktok/profile", query: { handle: h.v, ...p.q }, counts: true };
+    }
+    case "tiktok.videos": {
+      const h = tiktokHandle(b); if (!h.ok) return h;
+      const p = pick(b, { sort_by: ["latest", "popular"], region: "region", max_cursor: "token" });
+      if (!p.ok) return p;
+      return { ok: true, path: "/v3/tiktok/profile/videos", query: { handle: h.v, trim: "true", ...p.q }, counts: true };
+    }
+    case "youtube.channel": {
+      const c = youtubeChannel(b); if (!c.ok) return c;
+      const p = pick(b, { cache_max_age: CACHE_AGES });
+      if (!p.ok) return p;
+      return { ok: true, path: "/v1/youtube/channel", query: { ...c.q, ...p.q }, counts: true };
+    }
+    case "youtube.channel_videos": {
+      const c = youtubeChannel(b); if (!c.ok) return c;
+      const kind = str(b.type) || "shorts";
+      if (kind !== "videos" && kind !== "shorts") return refuse("type must be one of: videos, shorts.");
+      const p = pick(b, { sort: kind === "shorts" ? ["newest", "popular"] : ["latest", "popular"], continuationToken: "token" });
+      if (!p.ok) return p;
+      return kind === "shorts"
+        ? { ok: true, path: "/v1/youtube/channel/shorts", query: { ...c.q, ...p.q }, counts: true }
+        : { ok: true, path: "/v1/youtube/channel-videos", query: { ...c.q, includeExtras: "true", ...p.q }, counts: true };
+    }
+    case "youtube.video": {
+      const site = videoSite(b.url);
+      if (!site || site.site !== "youtube") return refuse("Give url: the https link of a YouTube video or Short.");
+      const p = pick(b, { cache_max_age: CACHE_AGES });
+      if (!p.ok) return p;
+      return { ok: true, path: "/v1/youtube/video", query: { url: str(b.url), ...p.q }, counts: true };
+    }
     case "transcript": {
       const site = videoSite(b.url);
       if (!site) return refuse("Give url: the https link of a TikTok, Instagram or YouTube video.");
@@ -114,11 +165,11 @@ export function buildRequest(action, body) {
     case "credits":
       return { ok: true, path: "/v1/account/credit-balance", query: {}, counts: false };
     default:
-      return refuse(`The action ${JSON.stringify(action)} is not available. Use tiktok.search, youtube.search, reddit.search, reddit.subreddit, transcript or credits.`);
+      return refuse(`The action ${JSON.stringify(action)} is not available. Use tiktok.search, tiktok.profile, tiktok.videos, youtube.search, youtube.channel, youtube.channel_videos, youtube.video, reddit.search, reddit.subreddit, transcript or credits.`);
   }
 }
 
-export const ACTIONS = ["tiktok.search", "youtube.search", "reddit.search", "reddit.subreddit", "transcript", "credits"];
+export const ACTIONS = ["tiktok.search", "tiktok.profile", "tiktok.videos", "youtube.search", "youtube.channel", "youtube.channel_videos", "youtube.video", "reddit.search", "reddit.subreddit", "transcript", "credits"];
 
 // The monthly cap from the setting (a number, or text of one); a bad value is the default.
 export function capFrom(value) {
@@ -136,31 +187,59 @@ export function monthStart(now = new Date()) {
 // words or the link host, never the key.
 export function logLine(action, req, body) {
   const b = isObj(body) ? body : {};
-  const what = action === "transcript" ? (req.site || "video") : str(b.query || b.subreddit).slice(0, 80);
+  const what = action === "transcript" ? (req.site || "video") : str(b.query || b.subreddit || b.handle || b.channelId).slice(0, 80);
   return { tool: "scrapecreators." + action, summary: `${action}: ${what}` };
 }
 
-// TikTok's keyword search answers about 45 KB per video (every video address,
-// avatar and ad field), over a megabyte for a page. The pipeline needs the
-// words, the link, the date, the counts (views included) and who posted it.
-export function slimResult(action, result) {
-  if (action !== "tiktok.search" || !isObj(result) || !Array.isArray(result.search_item_list)) return result;
-  const n = (v) => (typeof v === "number" ? v : null);
-  const { search_item_list: items, ...rest } = result;
+const num = (v) => (typeof v === "number" ? v : null);
+
+// One TikTok video, cut down to the words, link, date, counts (views included) and poster.
+function slimTiktokVideo(it) {
+  const x = isObj(it) ? it : {};
+  const st = isObj(x.statistics) ? x.statistics : {};
+  const au = isObj(x.author) ? x.author : {};
+  const vi = isObj(x.video) ? x.video : {};
   return {
-    ...rest,
-    search_item_list: items.map((it) => {
-      const x = isObj(it) ? it : {};
-      const st = isObj(x.statistics) ? x.statistics : {};
-      const au = isObj(x.author) ? x.author : {};
-      const vi = isObj(x.video) ? x.video : {};
-      return {
-        aweme_id: x.aweme_id, url: x.url, desc: x.desc, region: x.region, create_time_utc: x.create_time_utc, is_ad: x.is_ad,
-        duration_ms: n(vi.duration),
-        statistics: { play_count: n(st.play_count), digg_count: n(st.digg_count), comment_count: n(st.comment_count),
-          share_count: n(st.share_count), collect_count: n(st.collect_count) },
-        author: { unique_id: au.unique_id, nickname: au.nickname, follower_count: n(au.follower_count) },
-      };
-    }),
+    aweme_id: x.aweme_id, url: x.url, desc: x.desc, region: x.region, create_time_utc: x.create_time_utc, is_ad: x.is_ad,
+    duration_ms: num(vi.duration),
+    statistics: { play_count: num(st.play_count), digg_count: num(st.digg_count), comment_count: num(st.comment_count),
+      share_count: num(st.share_count), collect_count: num(st.collect_count) },
+    author: { unique_id: au.unique_id, nickname: au.nickname, follower_count: num(au.follower_count) },
   };
+}
+
+// TikTok answers about 45 KB per video (every video address, avatar and ad
+// field), over a megabyte for a page. The pipeline needs the words, the link,
+// the date, the counts (views included) and who posted it. The account and
+// video-detail answers are cut to the fields the pipeline reads.
+export function slimResult(action, result) {
+  if (!isObj(result)) return result;
+  if (action === "tiktok.search" && Array.isArray(result.search_item_list)) {
+    const { search_item_list: items, ...rest } = result;
+    return { ...rest, search_item_list: items.map(slimTiktokVideo) };
+  }
+  if (action === "tiktok.videos" && Array.isArray(result.aweme_list)) {
+    const { aweme_list: items, ...rest } = result;
+    return { ...rest, aweme_list: items.map(slimTiktokVideo) };
+  }
+  if (action === "tiktok.profile" && isObj(result.user)) {
+    const u = result.user;
+    const keep = (o, keys) => Object.fromEntries(keys.map((k) => [k, isObj(o) ? o[k] : undefined]));
+    const { user: _u, stats, statsV2, ...rest } = result;
+    return {
+      ...rest,
+      user: keep(u, ["id", "uniqueId", "nickname", "signature", "verified", "createTime", "privateAccount"]),
+      stats: keep(stats, ["followerCount", "followingCount", "heartCount", "videoCount", "diggCount", "friendCount"]),
+      statsV2: keep(statsV2, ["followerCount", "followingCount", "heartCount", "videoCount", "diggCount", "friendCount"]),
+    };
+  }
+  if (action === "youtube.video") {
+    const { watchNextVideos: _w, descriptionLinks: _d, chapters: _c, ...rest } = result;
+    return rest;
+  }
+  if (action === "youtube.channel") {
+    const { avatar: _a, banner: _b, ...rest } = result;
+    return rest;
+  }
+  return result;
 }

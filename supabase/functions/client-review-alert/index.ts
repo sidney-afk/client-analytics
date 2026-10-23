@@ -8,6 +8,8 @@
 // SLACK_BOT_TOKEN (the same bot the notify function uses) and
 // NOTIFY_PREVIEW_SLACK_USER_ID (the owner's DM for the preview action).
 // Needs migration 20261014120000_client_review_alerts.sql applied first.
+// Tags the client's linked Slack person once migrations/2026-10-23-client-slack-mention.sql
+// is applied; until then every alert posts untagged (no other change).
 // New and off by default: CLIENT_REVIEW_ALERT_LIVE=1 lets "send" post to a
 // client channel. Without it "send" answers sending_not_enabled and posts
 // nothing; status and preview still work, so the owner can look first.

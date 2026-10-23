@@ -2,16 +2,21 @@
 
 **Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
 
-> Last verified: 2026-09-23 @ 344006c5 — a live read-only re-verification (Supabase Management
-> API + SQL) of this document's countable current-state claims: the Edge Function inventory, every
-> `syncview_runtime_flags` row, the roster/enrolment 1:1, `client_access` coverage, the two event
-> ledgers' `source` breakdown, and the row counts for the tables named below. **Eight claims had
-> drifted and are corrected in place, each marked `Corrected 2026-09-23`; none were re-stamped
-> without being read.** What this pass did NOT re-verify, and which therefore still rests on its
-> older evidence: the F27 install receipts, the F88/F83/F87/F89 access findings, the Slice 4/5
-> deploy provenance, the write-contract and thumbnail-rotation behaviour, the measured read-path
-> timings, and the backup/PITR/disk/billing section (the Management API surface those need was not
-> exercised from this sandbox — see the note in that section).
+> Last verified: 2026-10-23 @ 7065095 — a live read-only re-read (Supabase list and SELECT calls
+> only, nothing written) of this document's countable current-state claims: the Edge Function
+> list, every `syncview_runtime_flags` key, the row counts of the main tables, the two event
+> ledgers' `source` breakdown, `client_access` token coverage and the frozen Workload mirror.
+> **Drift found and corrected in place, each marked `Corrected 2026-10-23`:** live Edge Functions
+> 64 (was 47), `calendar_posts` 18,429 rows, `sample_reviews` 9,152, `workload_plan` 576,
+> `deliverables` 7,626, `batches` 1,985, `db`-source ledger rows 56 + 1, runtime flag rows 45
+> (was 27), `linear_inbound_enabled` no longer exists. Confirmed unchanged: the Workload mirror
+> is still frozen at 3,836 rows with newest `synced_at` 2026-09-21 14:50:16Z, `prod_authority`
+> is SyncView for both teams, `linear_outbound_enabled` is off, `linear_legacy_parity_enabled` is
+> false, and no `client_access` row has a blank `review_token`. NOT re-verified this pass: the
+> F27 install receipts, the access findings, the Slice 4/5 deploy provenance, grants and RLS, the
+> write-contract and thumbnail-rotation behaviour, the measured read-path timings, and the
+> backup/PITR/disk/billing section. Earlier stamp (2026-09-23 @ 344006c5) covered the same
+> kinds of counts; its corrections stay in place below.
 >
 > Earlier stamp, retained for provenance: 2026-08-24 @ c7f088a + scoped 2026-09-10 re-measurement of the two event
 > ledgers (row counts and the `source` breakdown, which corrected a "100% `source='ui'`"
@@ -112,11 +117,11 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 > still reads it directly through `_prodRestRows('clients', ...)`. The other direct-use tables named
 > in F88 likewise remain separate projection work.
 
-- `calendar_posts` — main calendar store. **Corrected 2026-09-23: 12,647 rows live, not the
+- `calendar_posts` — main calendar store. **Corrected 2026-10-23: 18,429 rows live** (it was 12,647 on 2026-09-23 and the "~3.4k" before that). **Corrected 2026-09-23: 12,647 rows live, not the
   "~3.4k" this line claimed.** The store has roughly quadrupled since that count was taken; the
   TEST-share and archived-share figures that used to sit here were not re-derived this pass, so
   they are removed rather than carried forward as if measured.
-- `sample_reviews` — SXR store. **Corrected 2026-09-23: 7,318 rows live**, so "barely adopted by
+- `sample_reviews` — SXR store. **Corrected 2026-10-23: 9,152 rows live** (7,318 on 2026-09-23). **Corrected 2026-09-23: 7,318 rows live**, so "barely adopted by
   real clients" is no longer a safe reading of this table; the per-client split was not measured
   this pass. Referenced in code via `SXR_TABLE`.
 - `workload_issues` — **read-only mirror** of Linear; 3,836 rows, 2,097 of them active
@@ -136,7 +141,7 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   no foreign key or added column on the rebuildable `workload_issues` mirror. Live readback shows
   RLS with zero policies, no browser PostgREST privilege, and service-role
   SELECT/INSERT/UPDATE only; DELETE/TRUNCATE/REFERENCES/TRIGGER are explicitly revoked.
-  **Corrected 2026-09-23: the table is no longer empty — it holds 408 saved plan rows.** "Exact
+  **Corrected 2026-10-23: 576 saved plan rows now.** **Corrected 2026-09-23: the table is no longer empty — it holds 408 saved plan rows.** "Exact
   release cleanup left the table empty" described the state at release and is now history; do not
   treat an empty read as the expected one. F147 tracks which exact SQL correction artifact
   established those effective grants.
@@ -201,7 +206,7 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   old/new value plus actor/time; read both after every change. Canonical `prod_authority` sides are
   only `linear`/`syncview`. F55 remains open because several backends also accept legacy `supabase`
   while the browser rejects it; do not use that alias.
-  **Re-read live 2026-09-23 — 27 flag rows exist, and this bullet named only 5 of them.** The
+  **Corrected 2026-10-23: 45 flag rows exist now, and `linear_inbound_enabled` is no longer among them** (the Linear inbound lane is gone). The readings below are from 2026-09-23 unless restated: `prod_authority`, `linear_outbound_enabled`, `linear_legacy_parity_enabled` and `native_card_materialization` (`hold`) were re-read 2026-10-23 and match. **Re-read live 2026-09-23 — 27 flag rows exist, and this bullet named only 5 of them.** The
   material readings, all read-only:
   `prod_authority` is `{"video":"syncview","graphics":"syncview"}` (both teams SyncView-owned since
   2026-08-28; any statement anywhere in `docs/truth/` that a team is "presently Linear-authoritative"
@@ -278,7 +283,7 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   on a premise that was never true. Track B still must not be bypassable, but that is
   a requirement, not an inherited property.
 
-  `db` is the Kasper urgent ping's source. **Corrected 2026-09-23: there are 13 such rows now
+  `db` is the Kasper urgent ping's source. **Corrected 2026-10-23: 56 calendar rows and 1 sample row now, newest 2026-10-22.** **Corrected 2026-09-23: there are 13 such rows now
   (12 calendar + 1 sample), not the 3 this paragraph described**, and the newest is
   2026-09-22 19:16Z — so `db` is an ongoing writer, not the frozen set of deliberate proof rows
   the older wording implied. The original three remain what they were: one
@@ -398,7 +403,7 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 
 ## Edge Functions
 
-**Atlas catalog correction, 2026-09-30:** 47 live functions, 46 source entrypoint folders here and one shared helper folder. `fp-tab-test` has source in synchro-pipelines (`pipeline-google` moved here 2026-10-16, see below); `doctors-partial-capture` has no traced source in the four checked repo trees. `linear-inbound` and `linear-outbound` remain source-only and are absent live. [Atlas](../ATLAS.md#edge-functions) lists presence, versions and release lanes. Older release receipts below keep their original dates.
+**Corrected 2026-10-23: 64 live functions** (read from the project's function list; the 47 below was the 2026-09-30 count). **Atlas catalog correction, 2026-09-30:** 47 live functions (Atlas count updated to 64 on 2026-10-23), 46 source entrypoint folders here and one shared helper folder. `fp-tab-test` has source in synchro-pipelines (`pipeline-google` moved here 2026-10-16, see below); `doctors-partial-capture` has no traced source in the four checked repo trees. `linear-inbound` and `linear-outbound` remain source-only and are absent live. [Atlas](../ATLAS.md#edge-functions) lists presence, versions and release lanes. Older release receipts below keep their original dates.
 
 Client/staff verifier truth is also not ready for enforcement: F87 records missing request controls,
 uniform denials, bounded event retention, and explicit audit-outage behavior. F89 proves
@@ -411,7 +416,7 @@ postdated that seed had no `review_token` and `client-review-link` refused their
 `review_token_missing`. At 2026-08-04 exactly one active client was in that state.
 
 **Corrected 2026-09-23: the gap is closed on the data, though this pass did not establish which
-layer closed it.** A live left join of the roster against `client_access` returns **43 rows for 43
+layer closed it.** **Corrected 2026-10-23: `client_access` holds 44 rows, none has a blank `review_token`, and a roster-to-access anti-join returns 0 active clients without a row** (6 inactive roster entries have none). A live left join of the roster against `client_access` returned, on 2026-09-23, **43 rows for 43
 active clients, zero missing and zero blank `review_token`** — so the one affected client now has a
 token and nothing currently active is refused for `review_token_missing`. Read the "no writer at
 all" sentence as the 2026-08-04 finding, not as today's state. Whether the roster-insert trigger,
@@ -531,7 +536,7 @@ the underlying table's `linear_raw`, `brief`, `file_url` and legacy `comments` r
 view derives 24 of its 45 columns with separate `linear_raw #>> ...` extractions, and **each one
 detoasts the row's Linear document again**. Read-only anon probes
 (`qa/probes/prod_read_path_timing.js`) over the then-live 4,612-row mirror. **Scale note
-2026-09-23: `deliverables` now holds 6,766 rows (+47%) and `batches` 1,754**, so the per-page
+**Corrected 2026-10-23: `deliverables` 7,626 rows and `batches` 1,985.** 2026-09-23: `deliverables` now holds 6,766 rows (+47%) and `batches` 1,754**, so the per-page
 timings below are a shape, not a current measurement — the detoast cost they isolate is per row,
 so a fresh probe would read higher. The probe was not re-run this pass.
 

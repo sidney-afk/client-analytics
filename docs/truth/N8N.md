@@ -4,10 +4,25 @@
 
 **Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
 
-> Last verified: 2026-09-23 @ 344006c5 — a live READ-ONLY re-verification through the n8n API: a
-> full workflow census (count, active/inactive split), the active/inactive state and stored version
-> of every workflow id this document names, and the live identity of the Kasper Ad Performance pull.
-> **No workflow was edited, activated, deactivated, published or archived.** Four claims had
+> Last verified: 2026-10-23 @ 7065095 — a live READ-ONLY re-read through the n8n API: the full
+> workflow list (id, name, active flag), and the census table below was rebuilt from it. **No
+> workflow was edited, activated, deactivated, published or archived.** Drift found and corrected:
+> the live list is now **125 workflows, 56 active, 69 inactive** (it was 120/76/44 on 2026-09-30);
+> 23 workflows the table called Active are Inactive (the TikTok upload lane, the Calendar
+> Upsert/Get/Reorder/Append/Delete/Generate Caption lanes, the Caption Jobs and Caption Prompts
+> Save lanes, Kasper Queue, Comment Merge, Project Central Sheet API, TOP VIDEOS and CLIENTS
+> METRICS), and five workflows were added since (four active, one inactive temporary check).
+> The ids named in prose that are absent from the live list (`6OtjILbhkYLY6yVE`,
+> `CdCYzye6Khp6x5A6`, `BKl9OFVMb4VS2IHf`, `19ZqxaOt09KPLGx1`, `lGwC9WWPVJtxphtf`, `MJbMZ789B5ExZz9x`,
+> `DBQvKxonjhTt7rKC`, `FPQo6G2zi8WcIfa1`, `wP0yLVDIOJph1bcM`, `xEhLpKwNv8uTaeAK` and
+> `ZJOtYpQZj73DcBB1`) are archived or deleted; the live Kasper Ad Performance pull
+> `2Ax4c78jgI7roXzv` is Active. NOT re-verified this pass: every per-workflow node topology and
+> behavioural claim, the findings and standing hazards, which still rest on their older dated
+> evidence. Individual execution health was not measured.
+>
+> Earlier stamp, retained for provenance: 2026-09-23 @ 344006c5 — a live READ-ONLY re-verification
+> through the n8n API (census, state of every named id, identity of the Kasper Ad Performance pull).
+> No workflow was edited then either. Four claims had
 > drifted and are corrected in place, each marked `Corrected 2026-09-23`. What this pass did NOT
 > re-verify, and which therefore still rests on its older dated evidence: every per-workflow node
 > topology and behavioural claim below (F44's receipt contract, the Kasper pull's node graph and
@@ -45,6 +60,8 @@ The app-facing webhook surface is enumerated and machine-enforced in `docs/truth
 `linear-issue-statuses` was retired from the app (PR #1497); `ENDPOINTS.md` owns the number and
 `test/truth-sync.js` enforces it against `index.html`, so read it there rather than from this line.
 
+**Corrected 2026-10-23 (live read-only census):** **125 workflows, 56 active, 69 inactive.** Active fell from 76 mainly because the TikTok upload, Calendar and Caption lanes moved to Edge Functions and were switched off; five workflows were added (four active). The census table below is the current id set. The 2026-09-30 and 2026-09-23 counts that follow are history.
+
 **Corrected 2026-09-30 (census, owner request for n8n exit phase 2).** A live read-only census returns
 **120 workflows, 76 active, 44 inactive** in the Atlas read-only pass (2026-10-01: the Notion New Client workflow was turned off since, so 75 active and 45 inactive from that change alone; other changes since are not recounted). Two full list reads in different sort orders returned identical IDs; all 76 published active graphs, including Edge Alert Relay, were readable. Earlier seven-day execution counts in `docs/plans/2026-09-30-n8n-exit-phase-2.md` remain their own dated sample; Atlas did not remeasure execution health.
 The Calendar, Caption Prompts (Save), Sample Review (Upsert, Reorder) and Filming Plan routes moved to Supabase in phase 1
@@ -69,7 +86,7 @@ downstream Slack delivery and lacks authenticated, versioned source contracts (F
 Neither graph directly calls Linear. Deep historical per-workflow reads:
 `docs/audits/2026-07-05-n8n.md`.
 
-### Atlas census, verified 2026-09-30
+### Atlas census, re-read live 2026-10-23
 
 This is the complete current live workflow ID set. The [Atlas](../ATLAS.md#n8n) maps each active trigger, data owner and exit status. Disabled entries are retained history. `test/atlas-sync.js` checks these IDs in both directions; it does not query n8n.
 
@@ -81,12 +98,12 @@ This is the complete current live workflow ID set. The [Atlas](../ATLAS.md#n8n) 
 | `8nq6jGbpmCDZxnQz` | Active |
 | `xoPqojySDriQ8Mzh` | Active |
 | `31DnMJLU3YM89py1` | Active |
-| `rNrRCwKPGuau7sLH` | Active |
+| `rNrRCwKPGuau7sLH` | Inactive |
 | `s8lsPpKqWYhscLPV` | Active |
 | `Tfhc3vebZyG6obOg` | Active |
-| `Q4n1bagJYBkurEaI` | Active |
-| `DyVPx0neUZ94R0hJ` | Active |
-| `IjayuU6jkA21aKo3` | Active |
+| `Q4n1bagJYBkurEaI` | Inactive |
+| `DyVPx0neUZ94R0hJ` | Inactive |
+| `IjayuU6jkA21aKo3` | Inactive |
 | `eiisSbHsD1OnnNdQ` | Active |
 | `su5afuhg17V2xhgh` | Active |
 | `oi4BPg79dykdet6H` | Active |
@@ -99,7 +116,7 @@ This is the complete current live workflow ID set. The [Atlas](../ATLAS.md#n8n) 
 | `TMJFYCqgqhZUBQpl` | Active |
 | `tSQZx390d98JlHda` | Active |
 | `AWnfZXFbHFr43HuQ` | Active |
-| `qGJ7mUjml98DSiGo` | Active |
+| `qGJ7mUjml98DSiGo` | Inactive |
 | `fqoI8XrN5hpY9SOj` | Active |
 | `chwr81f1GG5tgKtV` | Active |
 | `LRf1OxhXlyv5YEyV` | Inactive |
@@ -124,7 +141,7 @@ This is the complete current live workflow ID set. The [Atlas](../ATLAS.md#n8n) 
 | `ghpbQQJizAnR6p2b` | Active |
 | `m6T2atZGGXKlDqfw` | Active |
 | `AHTwSZPubALe6OJU` | Inactive |
-| `1qZmOQPtG6rKYlK7` | Active |
+| `1qZmOQPtG6rKYlK7` | Inactive |
 | `z9Rt1Np00nfvFe6J` | Active |
 | `I6EES5l97h2fCims` | Active |
 | `BfUkVRGAOSsH3pmi` | Inactive |
@@ -137,7 +154,7 @@ This is the complete current live workflow ID set. The [Atlas](../ATLAS.md#n8n) 
 | `qllIDZPkdNAPRj0b` | Inactive |
 | `RFi70kokkNFHoRC0` | Active |
 | `OmAExq4kdDdNk1HP` | Active |
-| `FlvoUXIFwRDg8KUb` | Active |
+| `FlvoUXIFwRDg8KUb` | Inactive |
 | `310kO3OnG1yytE2D` | Active |
 | `GaYgLJy8NCPUUfw5` | Active |
 | `jlVfbg0Njxf1It7h` | Active |
@@ -160,48 +177,53 @@ This is the complete current live workflow ID set. The [Atlas](../ATLAS.md#n8n) 
 | `ukLGHr6uDJIEP1pM` | Inactive |
 | `rhDX5VfnmOylc8o7` | Active |
 | `oDZ1Oljvaig5KSLD` | Active |
-| `pWSqaqVw7dmqhYOA` | Active |
+| `pWSqaqVw7dmqhYOA` | Inactive |
 | `slqt2zCDyIc7OAmY` | Active |
 | `gPY5DL4D0n5nwius` | Active |
 | `XOT7IDFGxTwOUCCP` | Active |
 | `EUGX35UmyUgSCjWD` | Active |
 | `GP8CSZDNcy5sGdFr` | Inactive |
 | `ROx3VQ36xm58AaIM` | Inactive |
-| `o6wWaGNlIlyZFTX7` | Active |
-| `meM78zr1Gcl72c6f` | Active |
-| `iA54ipMOybicmYBh` | Active |
-| `JcekBKUzELgX4HjH` | Active |
-| `lTtZNLrQLpIZqwAY` | Active |
-| `OXd0sUoSJYMspGTF` | Active |
+| `o6wWaGNlIlyZFTX7` | Inactive |
+| `meM78zr1Gcl72c6f` | Inactive |
+| `iA54ipMOybicmYBh` | Inactive |
+| `JcekBKUzELgX4HjH` | Inactive |
+| `lTtZNLrQLpIZqwAY` | Inactive |
+| `OXd0sUoSJYMspGTF` | Inactive |
 | `yQBGgdbZPqOgn2eE` | Inactive |
 | `aw2b98wxraQTEulJ` | Inactive |
 | `G1RRkIDs6Mh7RGk8` | Inactive |
-| `5KnYvvZ33B78Khny` | Active |
-| `vwRfBZsmUMtDqbYM` | Active |
+| `5KnYvvZ33B78Khny` | Inactive |
+| `vwRfBZsmUMtDqbYM` | Inactive |
 | `7Pdp6qnkBzwXP3YG` | Inactive |
 | `gB17L9M5yYxxk6GT` | Inactive |
 | `d7Dod7OuQsVsl1CN` | Inactive |
-| `TcWOfnKd4Csdnnbv` | Active |
+| `TcWOfnKd4Csdnnbv` | Inactive |
 | `y1bEpXLggfR5HqYV` | Inactive (turned off by the owner 2026-10-01; was Active) |
 | `5S4JyVVR2CpHEv9b` | Inactive |
 | `FD2QUIOlobkdLOgs` | Active |
-| `Jr7JviDpBHee508N` | Active |
+| `Jr7JviDpBHee508N` | Inactive |
 | `fJNyB5fNCRSTYNfQ` | Inactive |
 | `6yhqWsM8RT2c7AOp` | Inactive |
 | `3hZnjXmHdNv4bttw` | Active |
-| `RGkuE8d4uJg6CPde` | Active |
-| `iYb1896sIAclGvy8` | Active |
-| `4ca3li54eRFtSfXE` | Active |
+| `RGkuE8d4uJg6CPde` | Inactive |
+| `iYb1896sIAclGvy8` | Inactive |
+| `4ca3li54eRFtSfXE` | Inactive |
 | `Nk3pwR6Fbl4VAPqH` | Inactive |
-| `KViFEOqSRBNdCJRk` | Active |
+| `KViFEOqSRBNdCJRk` | Inactive |
 | `VAqlVLk8wczPq6DQ` | Inactive |
 | `vb3O0wkTK6Q7Rtro` | Inactive |
+| `lpnLIPUFSo7bURWf` | Active |
+| `cM3G9REliKpwicnR` | Active |
+| `lU5RlPUBsmlMsFSf` | Active |
+| `S3fcVkml49KBxD6P` | Active |
+| `84679Qq5zhVqXfPQ` | Inactive |
 
 ## Known state (spot-verify before relying — n8n changes outside git)
 
 **Corrected 2026-09-21:** Linear-related schedules and write targets below must be read against the executed cutoff, not treated as instructions to restore them. Outbound and parity are off; only the inbound webhook and STEP 7 credential decision remain in the retirement boundary. Other n8n services are outside this correction.
 
-- TOP VIDEOS `DyVPx0neUZ94R0hJ` — **edited and published 2026-09-27 with the owner's go-ahead**
+- **Corrected 2026-10-23: TOP VIDEOS `DyVPx0neUZ94R0hJ` is Inactive now**; the rest of this bullet is its state when edited. TOP VIDEOS `DyVPx0neUZ94R0hJ` — **edited and published 2026-09-27 with the owner's go-ahead**
   (active version `3e1e6242-45f6-4f09-9729-69baf45d4fb3`). Two nodes now sit between "Write to
   TopVideos Sheet" and "Wait Between Rows": "Build Supabase Mirror Payload" and "Mirror to
   Supabase", which POSTs each client's appended rows to the `analytics-write` Edge Function with
@@ -397,7 +419,7 @@ This is the complete current live workflow ID set. The [Atlas](../ATLAS.md#n8n) 
   clear all three live sheets before validating/reappending; its webhooks authenticate no caller and
   it has no revision/staging/transaction/restore receipt. Keep it out of recovery workflows until
   the destructive partial-replacement finding closes.
-- `CLIENTS METRICS` workflow `Q4n1bagJYBkurEaI` is active at
+- **Corrected 2026-10-23: `CLIENTS METRICS` `Q4n1bagJYBkurEaI` is Inactive now** (off since 2026-10-06, analytics paused by the owner; the rest of this bullet is its older state). It was active at
   `b92fb693-1dd4-4ce2-a60e-98a1701c369d`; retained version
   `fb180e5f-79ee-4d49-9dec-70999b422b71` is the direct rollback. Its first scheduled production
   run (`287059`) consumed all 29 roster clients, emitted 29 unique

@@ -8,6 +8,9 @@
 // The TEST Sheet comes from fp_settings (key test_sheet).
 //   Reads (docs.get, sheets.get, sheets.values.get, drive.get): the client's
 //   own files, plus the files the pass may write.
+//   Company files: fp_settings key company_read_files (a JSON list of file
+//   ids) names company-wide files, such as the format library, that every
+//   pass may READ for any client and target. Never written.
 //   Writes: target "client" -> the ideas Sheet and the live plan Doc;
 //           target "test"   -> the TEST Sheet and the client's test Doc.
 //   drive.copy and drive.folder: never with a pass.
@@ -51,9 +54,17 @@ export function clientFiles(config) {
   };
 }
 
-export function allowedFiles(target, files, testSheet) {
+// The company files every pass may read: the fp_settings value is a JSON list
+// of ids (as an array or as text); anything unreadable means none.
+export function companyReadFiles(value) {
+  let v = value;
+  if (typeof v === "string") { try { v = JSON.parse(v); } catch (_) { return []; } }
+  return Array.isArray(v) ? v.map(idOf).filter(Boolean) : [];
+}
+
+export function allowedFiles(target, files, testSheet, companyRead = []) {
   const write = target === "client" ? [files.sheet, files.liveDoc] : [idOf(testSheet), files.testDoc];
-  const read = [files.sheet, files.liveDoc, files.testDoc, files.folder, ...write];
+  const read = [files.sheet, files.liveDoc, files.testDoc, files.folder, ...write, ...companyRead];
   return { read: new Set(read.filter(Boolean)), write: new Set(write.filter(Boolean)) };
 }
 

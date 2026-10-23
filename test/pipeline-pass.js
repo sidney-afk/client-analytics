@@ -23,6 +23,7 @@ const IDS = {
   folder: 'FAKEfolder000000000000000001',
   testSheet: 'FAKEtestSheet000000000000001',
   stranger: 'FAKEstranger0000000000000001',
+  company: 'FAKEcompanyDoc0000000000000001',
 };
 const CONFIG = {
   slug: 'example-client',
@@ -101,6 +102,20 @@ const eq = (a, b, label) => { assert.deepStrictEqual(a, b, label); passed++; };
   }
   ok(testAllowed.read.has(IDS.testSheet) && !clientAllowed.read.has(IDS.testSheet), 'the TEST Sheet is readable only by a test pass');
   eq([...rules.allowedFiles('test', rules.clientFiles({ sheet: IDS.sheet }), '').write], [], 'no test Doc and no TEST Sheet setting: a test pass writes nothing');
+
+  // Company files (fp_settings company_read_files): readable by every pass, never writable.
+  eq(rules.companyReadFiles(JSON.stringify([IDS.company, 'bad id!', 7])), [IDS.company], 'company files: a JSON text list keeps only valid ids');
+  eq(rules.companyReadFiles([IDS.company]), [IDS.company], 'company files: an array works');
+  eq(rules.companyReadFiles('not json'), [], 'company files: unreadable text means none');
+  eq(rules.companyReadFiles(null), [], 'company files: no setting means none');
+  for (const t of ['client', 'test']) {
+    const a = rules.allowedFiles(t, files, t === 'test' ? IDS.testSheet : '', [IDS.company]);
+    ok(a.read.has(IDS.company) && !a.write.has(IDS.company), `a ${t} pass reads the company file and cannot write it`);
+    ok(!a.read.has(IDS.stranger), `a ${t} pass still cannot read another file`);
+    eq(rules.checkFile('docs.get', { documentId: IDS.company }, a, t), { ok: true, fileId: IDS.company }, `a ${t} pass docs.get on the company file is allowed`);
+    ok(!rules.checkFile('docs.batchUpdate', { documentId: IDS.company }, a, t).ok, `a ${t} pass cannot batchUpdate the company file`);
+  }
+  ok(!rules.allowedFiles('client', files, '').read.has(IDS.company), 'no setting: the company file is not readable');
 
   const fileCheck = (action, body, allowed, target) => rules.checkFile(action, body, allowed, target);
   for (const action of ['docs.get', 'sheets.get', 'sheets.values.get', 'drive.get']) {

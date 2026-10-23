@@ -17,6 +17,8 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
+import { DOCS_URL, parseDocs } from "./catalogparse.mjs";
+import { imageSize } from "./imagesize.mjs";
 import { QUESTION_TOOL, offerKey } from "./questions.mjs";
 import { SERVER_INFO, SUMMARY_NOTE, TEAM_START_NOTE, activityRow, authorFor, cleanWho, isTeamLink, logActivity, outcomeOf, teamTools, whoRefusal } from "./who.mjs";
 import { VIEWER_CSP, VIEWER_HTML, VIEWER_MIME, VIEWER_URI } from "./viewer.ts";
@@ -81,8 +83,41 @@ const GO_TO: Pick[] = [
   { task: "Product and ad images", picks: ["marketing-studio/image/sunburst", "marketing-studio/image/flare"] },
 ];
 
-const ALL_MODELS = [...DIRECT_MODELS, ...CATALOG];
-const BY_ID = new Map(ALL_MODELS.map((m) => [m.id, m]));
+let ALL_MODELS = [...DIRECT_MODELS, ...CATALOG];
+let BY_ID = new Map(ALL_MODELS.map((m) => [m.id, m]));
+
+// The model list adapts by itself (Sidney, 2026-10-22: new Higgsfield models and
+// settings must reach the team with nobody lifting a finger). catalog.ts is only
+// the starting copy; every few hours a call re-reads Higgsfield's public docs
+// and swaps in what it finds. Prices are never stored: each quote asks
+// Higgsfield's estimate endpoint live. Safety nets stay: a docs reply that
+// does not look like the docs is ignored, models are only added or updated
+// (never dropped), every new model still gets a price card, the per-second
+// ceiling and the monthly cap, and any failure keeps the list we already have.
+const CATALOG_TTL_MS = 6 * 60 * 60 * 1000;
+const CATALOG_RETRY_MS = 30 * 60 * 1000;
+let catalogDueAt = 0;
+let catalogRefresh: Promise<void> | null = null;
+function refreshCatalog(): Promise<void> {
+  if (Date.now() < catalogDueAt) return Promise.resolve();
+  catalogRefresh ??= (async () => {
+    catalogDueAt = Date.now() + CATALOG_RETRY_MS;
+    try {
+      const res = await fetch(DOCS_URL, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) return;
+      const fresh = parseDocs(await res.text()) as typeof CATALOG;
+      // A docs page that parses to far fewer models than we know is a format
+      // change, not a real list: keep what we have.
+      if (fresh.length < CATALOG.length * 0.8) return;
+      const byId = new Map<string, (typeof CATALOG)[number]>(CATALOG.map((m) => [m.id, m]));
+      for (const m of fresh) byId.set(m.id, m);
+      ALL_MODELS = [...DIRECT_MODELS, ...byId.values()];
+      BY_ID = new Map(ALL_MODELS.map((m) => [m.id, m]));
+      catalogDueAt = Date.now() + CATALOG_TTL_MS;
+    } catch (_) { /* keep the list we have */ }
+  })().finally(() => { catalogRefresh = null; });
+  return catalogRefresh;
+}
 
 // The thumbnail batch workflow for the graphic designer, served by the
 // connector itself so nothing has to be installed besides this connector and
@@ -610,12 +645,20 @@ async function estimate(model: string, inputs: JsonMap): Promise<{ usd: number }
 // a 16:9 frame when the shape is unknown (same area as 9:16). Anything else
 // returns an error, and Claude may then quote its own reading (see max_usd).
 const VIDEO_BUDGET_S = 30;
+const MAX_USD_PER_SECOND = 2.5;
 const SHORT_SIDE: Record<string, number> = { "480p": 480, "540p": 540, "720p": 720, "1080p": 1080, "1440p": 1440, "2k": 1440, "4k": 2160 };
 function rateFor(text: string, res: string): number {
   const all = (t: string) => [...t.matchAll(/\$\s?(\d+(?:\.\d+)?)/g)].map((m) => Number(m[1])).filter((n) => n > 0);
   const named = text.split(/(?<=[.;])\s+|,\s+(?:or\s+|and\s+)?(?=\$|\d{3,4}p|4k)/i).filter((c) => new RegExp(`(^|[^\\d])${res.replace("k", "[kK]")}`, "i").test(c));
   const pool = named.flatMap(all);
   return Math.max(0, ...(pool.length ? pool : all(text)));
+}
+function tokenRateFor(text: string, res: string): number {
+  const group = "(?:\\d{3,4}p|4k)";
+  for (const m of text.matchAll(new RegExp(`\\$\\s?(\\d+(?:\\.\\d+)?)\\s+at\\s+(${group}(?:\\s*(?:,|or|and)\\s*${group})*)`, "gi"))) {
+    if (new RegExp(`(^|[^\\d])${res}`, "i").test(m[2])) return Number(m[1]);
+  }
+  return 0;
 }
 async function describedPrice(model: string, inputs: JsonMap, text: string): Promise<{ usd: number } | { error: string }> {
   const unreadable = { error: `Higgsfield described the price in a way the connector cannot read: "${text.slice(0, 600)}"` };
@@ -626,7 +669,11 @@ async function describedPrice(model: string, inputs: JsonMap, text: string): Pro
     const est = directEstimate("openai/gpt-image", { ...inputs, quality: q, size: "auto" });
     return "error" in est ? unreadable : { usd: Math.round(est.usd * 1.1 * 10000) / 10000 };
   }
-  const rate = rateFor(text, res);
+  // Seedance 2.5 words it as "Each 1,000 video tokens costs $0.0214 at 480p or
+  // 720p and $0.0234 at 1080p" after a per-second summary that also names
+  // resolutions, so the token rate is read from that sentence only.
+  const tokenSentence = /1,000 video tokens costs/i.test(text) ? text.slice(text.search(/1,000 video tokens costs/i)) : "";
+  const rate = tokenRateFor(tokenSentence, res) || rateFor(text, res);
   if (!(rate > 0)) return unreadable;
   const links = [inputs.video_url, ...(Array.isArray(inputs.video_urls) ? inputs.video_urls : [])].filter(Boolean).map(String);
   // One at a time, so a request with many reference videos never holds more
@@ -639,21 +686,65 @@ async function describedPrice(model: string, inputs: JsonMap, text: string): Pro
   const output = asked > 0 ? asked : main;
   // Input seconds count only when the sentence bills input video; output
   // seconds unless it bills input video alone.
-  const billsInput = /input video seconds|second of input video|combined input|input and output|input \+ output/i.test(text);
+  const billsInput = /input video seconds|input video duration|second of input video|combined input|input and output|input \+ output/i.test(text);
   const inputOnly = /second of input video/i.test(text) && !/generated|output/i.test(text);
   const seconds = (billsInput ? input : 0) + (inputOnly ? 0 : output);
   let usd: number;
   if (/video tokens/i.test(text)) {
     const short = SHORT_SIDE[res];
     if (!short) return unreadable;
-    const [a, b] = String(inputs.aspect_ratio || "16:9").split(":").map(Number);
-    const ratio = a > 0 && b > 0 ? Math.max(a, b) / Math.min(a, b) : 16 / 9;
+    // The frame: the shape asked for; else, for a model whose output follows
+    // the source image, the image's own shape (read from its first bytes; 21:9,
+    // the widest, when it cannot be read, so the card is never below the
+    // charge); else 16:9, which has the same area as 9:16.
+    let ratio = 16 / 9;
+    if (inputs.aspect_ratio) {
+      const [a, b] = String(inputs.aspect_ratio).split(":").map(Number);
+      if (a > 0 && b > 0) ratio = Math.max(a, b) / Math.min(a, b);
+    } else if (typeof inputs.image_url === "string" && !schema?.properties?.aspect_ratio) {
+      ratio = (await imageRatio(inputs.image_url)) ?? 21 / 9;
+    }
     const tokens = Math.ceil((seconds * short * Math.round(short * ratio) * 24) / 1024);
     usd = (tokens / 1000) * rate;
   } else if (/second/i.test(text)) {
     usd = rate * seconds;
   } else return unreadable;
-  return { usd: Math.round(usd * 1.1 * 10000) / 10000 };
+  const quoted = Math.round(usd * 1.1 * 10000) / 10000;
+  // Safeguard (2026-10-22): Seedance 2.5 was read at about $11 per second,
+  // 30 times its sibling, and the quote went to the team unchallenged. Every
+  // video price seen live is under $2 per second (Seedance 2.0 4K is the top
+  // at about $1.7), so a reading above the ceiling is refused, with the
+  // sentence shown, instead of quoted or charged.
+  const perSecond = quoted / Math.max(1, seconds);
+  if (perSecond > MAX_USD_PER_SECOND) {
+    return { error: `The price read from Higgsfield's description works out to ${money(perSecond)} per second of video, far above the usual range (under ${money(MAX_USD_PER_SECOND)}), so the connector will not quote or charge it. Tell the account owner. Higgsfield's description: "${text.slice(0, 600)}"` };
+  }
+  return { usd: quoted };
+}
+
+// Long side over short side of an image link, from its first 64 KB, or null.
+async function imageRatio(link: string): Promise<number | null> {
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  try {
+    const res = await safeFetch(link);
+    if (typeof res === "string" || !res.ok || !res.body) return null;
+    reader = res.body.getReader();
+    let buf = new Uint8Array(0);
+    while (buf.length < 65536) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const next = new Uint8Array(buf.length + value.length);
+      next.set(buf); next.set(value, buf.length);
+      buf = next;
+      const size = imageSize(buf);
+      if (size) return Math.max(size.w, size.h) / Math.min(size.w, size.h);
+    }
+    return null;
+  } catch (_) {
+    return null;
+  } finally {
+    await reader?.cancel().catch(() => {});
+  }
 }
 
 // Length in seconds of an MP4/MOV, read from moov/mvhd by walking the box
@@ -1111,6 +1202,7 @@ function voiceDeps(author: string) {
 // ---- Tool handlers -------------------------------------------------------
 
 async function callTool(name: string, args: JsonMap, member: string): Promise<string> {
+  await refreshCatalog();
   // A malformed cap stops new spending only; job checks, details and imports keep working.
   const BAD_CAP = "The monthly budget setting (HF_MONTHLY_CAP_USD) is not a valid dollar amount, so nothing new can be made. Ask the account owner.";
   const cap = CAP_USD ?? 0;

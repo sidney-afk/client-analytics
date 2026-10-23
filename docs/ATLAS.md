@@ -287,7 +287,7 @@ These are backend platform stores. Service access depends on platform roles; bro
 
 ## Edge functions
 
-There are 46 entrypoint folders and one shared helper folder here. The live project has **47 functions**, all with platform JWT verification false. That setting does not remove function authentication. Presence and version below are verified; live byte equality to this checkout was not attested. [The deploy manifest](ops/EF_DEPLOY_MANIFEST.md) owns release paths and source closures.
+There are 46 entrypoint folders and one shared helper folder here. The live project has **64 functions** (re-read 2026-10-23; two of them, `doctors-partial-capture` and `fp-tab-test`, are listed under live functions owned outside this repo), all with platform JWT verification false. That setting does not remove function authentication. Presence and version below are verified; live byte equality to this checkout was not attested. [The deploy manifest](ops/EF_DEPLOY_MANIFEST.md) owns release paths and source closures.
 
 
 | Function | Purpose and caller | Live presence and release lane |
@@ -364,14 +364,14 @@ There are 46 entrypoint folders and one shared helper folder here. The live proj
 
 | Live function | Owner and purpose | Deployment finding |
 | --- | --- | --- |
-| <!-- atlas:edge pipeline-google -->[`pipeline-google`](../supabase/functions/pipeline-google/index.ts) | The filming-plan pipeline reads and writes Docs, Sheets and Drive with the pipeline key (moved from synchro-pipelines 2026-10-16), or with a 6-hour filming pipeline pass from the connector's `pipeline_pass` tool, limited to one client's files and to tabs created through a pass ([rules](../supabase/functions/pipeline-google/rules.mjs)); with a pass it also reads and saves the pipeline's per-client files, takes batch numbers, saves feedback notes and hands out a Synchro Brain snapshot (the whole brain) ([store](../supabase/functions/pipeline-google/store.mjs)). | Live v26 (2026-10-16, first deploy from this repo, #2126). [deploy-edge-functions-on-merge.yml](../.github/workflows/deploy-edge-functions-on-merge.yml); fallback [deploy-single-function.yml](../.github/workflows/deploy-single-function.yml) |
+| <!-- atlas:edge pipeline-google -->[`pipeline-google`](../supabase/functions/pipeline-google/index.ts) | The filming-plan pipeline reads and writes Docs, Sheets and Drive with the pipeline key (moved from synchro-pipelines 2026-10-16), or with a 6-hour filming pipeline pass from the connector's `pipeline_pass` tool, limited to one client's files (plus any company-wide files named in the `fp_settings` key `company_read_files`, read only) and to tabs created through a pass ([rules](../supabase/functions/pipeline-google/rules.mjs)); with a pass it also reads and saves the pipeline's per-client files, takes batch numbers, saves feedback notes and hands out a Synchro Brain snapshot (the whole brain) ([store](../supabase/functions/pipeline-google/store.mjs)). | Live v26 (2026-10-16, first deploy from this repo, #2126). [deploy-edge-functions-on-merge.yml](../.github/workflows/deploy-edge-functions-on-merge.yml); fallback [deploy-single-function.yml](../.github/workflows/deploy-single-function.yml) |
 | `fp-tab-test` | [Retired test stub](https://github.com/sidney-afk/synchro-pipelines/blob/main/supabase/functions/fp-tab-test/index.ts). Returns a retired test result and no longer creates Doc tabs. | Live v5; source and live read confirm the retired stub. |
 | `doctors-partial-capture` | [Capture workflow](#n8n). Marketing doctors form relays qualified partial leads into email-only recovery. | Live v1; source read through Supabase. No source file in any of the four repo trees checked, so deploy provenance is unverified. |
 
 
 ## n8n
 
-The live census has **120 workflows: 76 active and 44 inactive** (2026-10-01: one more is inactive now, the Notion New Client workflow; other changes since are not recounted). Two complete list reads agreed; all 76 published active graphs were read. Active means enabled, not proven healthy. The [truth register](truth/N8N.md) holds IDs; the [phase 2 exit plan](plans/2026-09-30-n8n-exit-phase-2.md) owns decisions, evidence gates and retirement dates. Timers use the stated workflow timezone; instance timezone was not independently read. Node defaults that are absent from serialized settings are left unknown.
+The live census (re-read 2026-10-23) has **125 workflows: 56 active and 69 inactive**. The 2026-09-30 read found 120 (76 active); the difference is lanes switched off since and five workflows added. Graphs of the four added active workflows were read; the other active graphs were last read on 2026-09-30. Active means enabled, not proven healthy. The [truth register](truth/N8N.md) holds IDs; the [phase 2 exit plan](plans/2026-09-30-n8n-exit-phase-2.md) owns decisions, evidence gates and retirement dates. Timers use the stated workflow timezone; instance timezone was not independently read. Node defaults that are absent from serialized settings are left unknown.
 
 
 | Active workflow | Trigger and cadence | What it touches | Exit status |
@@ -453,6 +453,10 @@ The live census has **120 workflows: 76 active and 44 inactive** (2026-10-01: on
 | <!-- atlas:n8n iYb1896sIAclGvy8 -->[`iYb1896sIAclGvy8`](https://synchrosocial.app.n8n.cloud/workflow/iYb1896sIAclGvy8) SyncView TikTok Upload, List | GET webhook; instance timezone | TikTokUpload Sheet list. | Keep; D changes polling only. |
 | <!-- atlas:n8n 4ca3li54eRFtSfXE -->[`4ca3li54eRFtSfXE`](https://synchrosocial.app.n8n.cloud/workflow/4ca3li54eRFtSfXE) SyncView TikTok Upload, Cancel | POST webhook; instance timezone | TikTokUpload Sheet cancellation state. | Keep; not proof of provider cancellation. |
 | <!-- atlas:n8n KViFEOqSRBNdCJRk -->[`KViFEOqSRBNdCJRk`](https://synchrosocial.app.n8n.cloud/workflow/KViFEOqSRBNdCJRk) SyncView Calendar, Get | GET webhook; instance timezone | Calendar Sheet fallback read. | F: browser fallback retired in source; retain live wrapper until published page and zero-call proof. |
+| <!-- atlas:n8n lpnLIPUFSo7bURWf -->[`lpnLIPUFSo7bURWf`](https://synchrosocial.app.n8n.cloud/workflow/lpnLIPUFSo7bURWf) Sales, Call Rescheduled (iClosed) | POST webhook; instance timezone | iClosed reschedule payload, Telegram alert to Kasper, pre-call nurture restart and the Pre-Call Nurture Started table. | Added 2026-10-22; active, keep. |
+| <!-- atlas:n8n cM3G9REliKpwicnR -->[`cM3G9REliKpwicnR`](https://synchrosocial.app.n8n.cloud/workflow/cM3G9REliKpwicnR) Sales, Doctors Instant Booking Link | POST webhook; instance timezone | Doctors and educators form Submit, booking_recovery table, Gmail and Twilio. | Added 2026-10-05; active, keep. |
+| <!-- atlas:n8n lU5RlPUBsmlMsFSf -->[`lU5RlPUBsmlMsFSf`](https://synchrosocial.app.n8n.cloud/workflow/lU5RlPUBsmlMsFSf) Educators Sales, Pre-Call Nurture | Called by other workflows; no own trigger | Educator pre-call emails and the nurture tables. | Added 2026-10-22; active, keep. |
+| <!-- atlas:n8n S3fcVkml49KBxD6P -->[`S3fcVkml49KBxD6P`](https://synchrosocial.app.n8n.cloud/workflow/S3fcVkml49KBxD6P) Editor AI, Client notes from the brain | GET webhook; instance timezone | Reads one client Music section from the brain repository and returns only that. | Added 2026-10-12; active, keep. |
 
 
 ### Inactive retained workflows
@@ -506,6 +510,7 @@ These 44 IDs still exist but are disabled. They are history or recovery assets, 
 | <!-- atlas:n8n Nk3pwR6Fbl4VAPqH -->[`Nk3pwR6Fbl4VAPqH`](https://synchrosocial.app.n8n.cloud/workflow/Nk3pwR6Fbl4VAPqH) | SyncView Calendar, Linear Sub-Issues | Disabled; retained, no ordinary deployment or off-date action. |
 | <!-- atlas:n8n VAqlVLk8wczPq6DQ -->[`VAqlVLk8wczPq6DQ`](https://synchrosocial.app.n8n.cloud/workflow/VAqlVLk8wczPq6DQ) | AI WORKFLOW | Disabled; retained, no ordinary deployment or off-date action. |
 | <!-- atlas:n8n vb3O0wkTK6Q7Rtro -->[`vb3O0wkTK6Q7Rtro`](https://synchrosocial.app.n8n.cloud/workflow/vb3O0wkTK6Q7Rtro) | BACKUPS | Disabled; retained, no ordinary deployment or off-date action. |
+| <!-- atlas:n8n 84679Qq5zhVqXfPQ -->[`84679Qq5zhVqXfPQ`](https://synchrosocial.app.n8n.cloud/workflow/84679Qq5zhVqXfPQ) Temporary text preview and delivery check | None active | Throwaway delivery check. | Inactive; marked for deletion by its own name. |
 
 
 ### Historical IDs still mentioned in truth
@@ -620,6 +625,7 @@ There are **50 workflow files** in this checkout. The GitHub catalog includes ad
 | <!-- atlas:action .github/workflows/f27-team-rollback-proof.yml -->[`f27-team-rollback-proof.yml`](../.github/workflows/f27-team-rollback-proof.yml) | Manual, Pull request | Runs private F27 team rollback proof. |
 | <!-- atlas:action .github/workflows/f42-apply-rehearsal.yml -->[`f42-apply-rehearsal.yml`](../.github/workflows/f42-apply-rehearsal.yml) | Manual, Pull request | Runs owner-gated F42 apply rehearsal. |
 | <!-- atlas:action .github/workflows/f42-card-comment-import.yml -->[`f42-card-comment-import.yml`](../.github/workflows/f42-card-comment-import.yml) | Manual | Imports approved historical card comments. |
+| <!-- atlas:action .github/workflows/higgsfield-catalog-watch.yml -->[`higgsfield-catalog-watch.yml`](../.github/workflows/higgsfield-catalog-watch.yml) | Manual | Compares the connector's model list with Higgsfield's live docs and goes red on any difference. |
 | <!-- atlas:action .github/workflows/review-note-backfill.yml -->[`review-note-backfill.yml`](../.github/workflows/review-note-backfill.yml) | Manual | Adds client review-page notes missing from the comment store, or rolls a run back; dry run by default. |
 | <!-- atlas:action .github/workflows/graphics-f2-evidence.yml -->[`graphics-f2-evidence.yml`](../.github/workflows/graphics-f2-evidence.yml) | Manual, Pull request | Captures private graphics evidence. |
 | <!-- atlas:action .github/workflows/graphics-f2-preflight.yml -->[`graphics-f2-preflight.yml`](../.github/workflows/graphics-f2-preflight.yml) | Manual | Runs graphics read-only preflight. |

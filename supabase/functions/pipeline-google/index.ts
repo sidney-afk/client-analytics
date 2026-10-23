@@ -53,7 +53,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { PASS_HEADER, isPassToken, passHash } from "./pass.mjs";
 import { SNAPSHOT_BUCKET, STORE_ACTIONS, snapshotName, storeAction } from "./store.mjs";
 import { pipelineGate } from "./users.mjs";
-import { WRITE_ACTIONS, allowedFiles, checkDocsBatch, checkFile, checkSheetsBatch, checkValuesRange, clientFiles, createdTabIds } from "./rules.mjs";
+import { WRITE_ACTIONS, allowedFiles, companyReadFiles, checkDocsBatch, checkFile, checkSheetsBatch, checkValuesRange, clientFiles, createdTabIds } from "./rules.mjs";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/documents",
@@ -287,7 +287,9 @@ async function withPass(req: Request, raw: string): Promise<Response> {
     if (s.error) return refused("Could not read the TEST Sheet setting.", 503);
     testSheet = s.data ? s.data.value : "";
   }
-  const allowed = allowedFiles(target, clientFiles(config), testSheet);
+  const company = await sb.from("fp_settings").select("value").eq("key", "company_read_files").maybeSingle();
+  if (company.error) return refused("Could not read the company files setting.", 503);
+  const allowed = allowedFiles(target, clientFiles(config), testSheet, companyReadFiles(company.data ? company.data.value : null));
   const file = checkFile(action, b, allowed, target) as Verdict;
   if (!file.ok) return refusal(file);
   const fileId = String(file.fileId);

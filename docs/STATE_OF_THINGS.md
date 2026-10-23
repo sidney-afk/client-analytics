@@ -29,6 +29,15 @@ Checked against main and `syncview_runtime_flags` on 2026-10-21 04:30 UTC. Count
 - **Today** shows captions sent back for tweaks (#2263). **Workload calm view** is on for staff (`workload_calm_staff`).
 - Everything above is live; the supervisor lane is the SyncView project (Lighthouse stopped 2026-10-20 17:50 UTC). Dated detail: `synchro-pipelines/supervisor/history/syncview/`.
 
+## Thumbnail titles from the filming plan, buttons in Production (session Titlecard, 2026-10-23): PR open, not merged
+
+"Thumbnail titles" on a post's Sub-issues header and "Write title" beside Edit on a thumbnail sub-issue, behind the
+new switch `thumbnail_title_buttons_staff` (absent = off). The run lives on the server (one per post), picks the plan
+tab by the approved rule, writes only into an empty description or the old robot "Needs info" line, and asks before
+touching anything a person wrote. With it, the background writer stops writing "Needs info" lines, private plans are
+read through the service account, and tokens are recorded per run. Needs `migrations/2026-10-23-thumbnail-title-buttons.sql`
+applied after merge. OPEN_REPAIRS 476; plan and decisions in `docs/syncview-design/mockups/thumbnail-titles/PLAN.md`.
+
 ## Kasper's tab boots fast, behind `kasper_fast_boot` (session Quick, 2026-10-20): merged (#2265), switch on for Sidney's two ids only, Kasper next
 
 Owner: the refresh pill shows too often and is not needed, the video player loads late (mostly after a hard refresh), and the

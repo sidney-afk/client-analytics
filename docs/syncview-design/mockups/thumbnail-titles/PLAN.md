@@ -1,7 +1,8 @@
-# Thumbnail titles from the filming plan: plan (mock-ups only, nothing built)
+# Thumbnail titles from the filming plan: plan
 
-Session Titlecard, written 2026-10-23 20:24 UTC (`date -u`). Mock-ups in this folder, pictures in
-`screens/`. Nothing here ships to the site and no function, table or flag was changed.
+Session Titlecard, written 2026-10-23 20:24 UTC (`date -u`). **Approved by the owner 2026-10-23 (all of section 10) and built in the follow-up PR (OPEN_REPAIRS 476);** the measured cost is in that entry. One change from the plan while building: the skip message says "No video N in the October plan" only when the tab's list stops before N, and "Video N not matched in the October plan" otherwise.
+
+Mock-ups in this folder, pictures in `screens/`. The mock-ups themselves ship nothing.
 
 Owner's ask (2026-10-23): on a thumbnail sub-issue, a button next to **Edit** on the description
 that goes to the filming plan, finds the right batch, finds this video and writes its thumbnail title

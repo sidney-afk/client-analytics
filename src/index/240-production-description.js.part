@@ -1,3 +1,4 @@
+import { _prodTtDescButtonHTML, _prodTtDescSlotHTML } from './255-production-thumbnail-titles.js';
 import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { CAL_SUPABASE_ANON_KEY, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature, _syncviewStaffVerificationEpoch } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
@@ -2559,8 +2560,11 @@ import { _prodRender } from './260-production-refresh-boot.js';
                    Retry buttons in the two error banners are the real escape
                    from a failed read, and that case is load-bearing. */
                 + '<div class="prod-description-actions">'
+                /* "Write title" beside Edit on a thumbnail sub-issue, and under the header what that run is
+                   doing for it (OPEN_REPAIRS 476, behind thumbnail_title_buttons_staff). */
+                + _prodTtDescButtonHTML(issue)
                 + '<button class="prod-description-action" type="button" data-prod-description-control="edit" data-prod-description-edit="1" data-prod-description-ready="' + (state.status === 'ready' && !state.refreshing ? '1' : '0') + '" onclick="return _prodBeginDescriptionEdit(' + _jsAttrArg(id) + ')"' + gateAttrs + '>Edit</button>'
-                + '</div></div>' + body + readState + '</section>';
+                + '</div></div>' + _prodTtDescSlotHTML(issue) + body + readState + '</section>';
         }
         function _prodFileLinkLabel(file) {
             const raw = String(file || '').trim();
@@ -2804,3 +2808,4 @@ export {
   _prodFileLinkLabel, _prodInvalidateBatchDescriptionReads, _prodNextBatchDescriptionToken,
   _prodPlacePop, _prodRestoreDescriptionFocus, _prodRestoreFocus
 };
+export { _prodRefreshDescription };

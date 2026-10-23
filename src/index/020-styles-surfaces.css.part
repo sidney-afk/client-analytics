@@ -1509,6 +1509,9 @@
         .notify-client-dialog .nc-msg-line { font-size: 0.9rem; font-weight: 800; line-height: 1.35; }
         .notify-client-dialog .nc-msg-link { margin-top: 4px; font-size: 0.86rem; font-weight: 600; color: var(--notify-bg); text-decoration: underline; }
         .notify-client-dialog .nc-note, .notify-client-dialog .nc-last { margin-top: 12px; font-size: 0.78rem; color: var(--text-secondary); line-height: 1.45; }
+        .notify-client-dialog .nc-tag { margin-top: 12px; font-size: 0.8rem; color: var(--text-secondary); line-height: 1.45; }
+        .notify-client-dialog .nc-tag b { color: var(--text-primary); font-weight: 700; }
+        .notify-client-dialog .nc-msg-mention { padding: 0 3px; border-radius: 4px; background: rgba(29, 155, 209, .16); color: var(--notify-bg); font-weight: 700; }
         .notify-client-dialog .nc-warn, .notify-client-dialog .nc-alert { margin-top: 12px; padding: 9px 12px; border-radius: 8px;
             font-size: 0.78rem; font-weight: 600; line-height: 1.45; }
         .notify-client-dialog .nc-warn { background: var(--warn-solid-bg); color: var(--warn-solid-fg); }

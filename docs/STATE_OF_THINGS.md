@@ -29,6 +29,14 @@ Checked against main and `syncview_runtime_flags` on 2026-10-21 04:30 UTC. Count
 - **Today** shows captions sent back for tweaks (#2263). **Workload calm view** is on for staff (`workload_calm_staff`).
 - Everything above is live; the supervisor lane is the SyncView project (Lighthouse stopped 2026-10-20 17:50 UTC). Dated detail: `synchro-pipelines/supervisor/history/syncview/`.
 
+## "Notify client" tags the client (session Tagline, 2026-10-23): PR open, needs a migration
+
+The Slack alert starts with an at-mention of the client's linked Slack person (Kasper > Clients, new field "Slack
+person to tag"), so they get a real notification; with nobody linked it posts untagged, exactly as before. The
+confirm box says who is tagged. Needs `migrations/2026-10-23-client-slack-mention.sql`; the functions cope without
+it (untagged). On 2026-10-23 no client had a linked person. OPEN_REPAIRS 476 has the safe live test (the owner-only
+preview to his own DM, with the test client linked to his own id).
+
 ## Kasper's tab boots fast, behind `kasper_fast_boot` (session Quick, 2026-10-20): merged (#2265), switch on for Sidney's two ids only, Kasper next
 
 Owner: the refresh pill shows too often and is not needed, the video player loads late (mostly after a hard refresh), and the

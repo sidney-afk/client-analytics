@@ -302,8 +302,9 @@ const measure = page => page.evaluate(() => {
       const before = s.edits.length;
       await p.click('.ca-edit-btn');
       await p.waitForSelector('#caIn_email', { timeout: 3000 }).catch(() => failures.push(`${label}: Edit never opened the form`));
-      const em = await p.evaluate(() => ({ n: document.querySelectorAll('.ca-detail .ca-input').length, roam: !!document.querySelector('[data-ca-field="roam_channel_id"]'), research: document.querySelector('[data-ca-fold="research"]').open }));
-      if (em.n !== 12 || em.roam || !em.research) failures.push(`${label}: expected 12 editable fields with research open (${JSON.stringify(em)})`);
+      const em = await p.evaluate(() => ({ n: document.querySelectorAll('.ca-detail .ca-input').length, roam: !!document.querySelector('[data-ca-field="roam_channel_id"]'), research: document.querySelector('[data-ca-fold="research"]').open, tag: !!document.querySelector('[data-ca-group="team"] [data-ca-field="slack_mention_user_id"]') }));
+      // 12 profile fields plus "Slack person to tag" (Notify client's at-mention, OPEN_REPAIRS 476) in Contact and team.
+      if (em.n !== 13 || em.roam || !em.research || !em.tag) failures.push(`${label}: expected 13 editable fields (with the Slack person to tag) and research open (${JSON.stringify(em)})`);
       if (shots) { await p.waitForTimeout(3500); await p.screenshot({ path: path.join(shots, `edit-${vp.width}${sfx}.png`) }); }
       if (phone) {
         const m = await measure(p);

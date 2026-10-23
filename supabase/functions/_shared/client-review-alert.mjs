@@ -18,11 +18,19 @@
 //                       every attempt first, so "last sent" is always true.
 //   preview  admin      posts the exact same message to the owner's DM only
 //                       (NOTIFY_PREVIEW_SLACK_USER_ID), never to a channel.
-//   audit    admin      counts of active clients with no private channel and
-//                       with a channel the bot is not a member of.
+//   audit    admin      counts of active clients with no private channel, with
+//                       a channel the bot is not a member of, and with no
+//                       linked Slack person to tag.
 //
 // Needs migration 20261014120000_client_review_alerts.sql applied first. Until
 // it is, "send" answers log_unavailable and posts nothing.
+//
+// Tagging: when the client's profile names ONE Slack person
+// (client_profiles.slack_mention_user_id, a U... or W... member id that staff
+// set on the Kasper > Clients tab), the message starts with <@that id> so the
+// client gets a real Slack notification. With no id it is unchanged. Until
+// migration 2026-10-23-client-slack-mention.sql adds the column, every client
+// reads as "not linked" and nothing else changes.
 import { normalizeWriteClient } from './browser-write-auth-policy.mjs';
 import { reviewTokenAction } from './client-review-token-policy.mjs';
 
@@ -45,6 +53,10 @@ export const SURFACES = Object.freeze({
   samples: Object.freeze({ view: 'sample-reviews', headline: 'New samples are ready for your review.' }),
 });
 
+// A Slack member id: U... (or W... on Enterprise Grid). Anything else is never
+// put in a message, so a bad value can only mean "no tag", never stray markup.
+export const SLACK_USER_ID = /^[UW][A-Z0-9]{8,}$/;
+export const mentionIdOf = (value) => { const v = String(value == null ? '' : value).trim(); return SLACK_USER_ID.test(v) ? v : ''; };
 const clean = (value) => String(value == null ? '' : value).trim();
 const respond = (cors, body, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
@@ -69,14 +81,21 @@ export function buildReviewLink({ origin, displayName, surface, token }) {
 // No button: a button makes Slack call the app on every click, and an app with no
 // interactivity address answers with a warning. A link sends nothing. No name, no
 // count, no emoji. Slack wants & escaped inside a <url|text> link.
-export function buildMessage(surface, link) {
+// With a linked Slack person the message STARTS with Slack's mention syntax
+// <@U...> (in the notification text and in the block), which is what makes
+// Slack notify them; the id is checked against SLACK_USER_ID first, so only a
+// real member id is ever written inside < >. Without one the message is the same
+// as before, byte for byte.
+export function buildMessage(surface, link, mentionUserId) {
   const s = SURFACES[surface];
   if (!s) throw new Error('unknown_surface');
   const href = link.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const id = mentionIdOf(mentionUserId);
+  const tag = id ? '<@' + id + '> ' : '';
   return {
-    text: s.headline + ' ' + BUTTON_LABEL + ': ' + link,
+    text: tag + s.headline + ' ' + BUTTON_LABEL + ': ' + link,
     blocks: [
-      { type: 'section', text: { type: 'mrkdwn', text: '*' + s.headline + '*\n<' + href + '|' + BUTTON_LABEL + '>' } },
+      { type: 'section', text: { type: 'mrkdwn', text: tag + '*' + s.headline + '*\n<' + href + '|' + BUTTON_LABEL + '>' } },
     ],
   };
 }
@@ -127,7 +146,8 @@ export function buildHandler(deps) {
     if (access.error) return { fail: json({ ok: false, error: 'lookup_unavailable' }, 503) };
     const decision = reviewTokenAction(access.data || null);
     const token = decision.action === 'reuse' ? clean(decision.token) : '';
-    return { displayName: clean(client.data.display_name) || slug, channelId, token };
+    const mention = await mentionOf(db, slug);
+    return { displayName: clean(client.data.display_name) || slug, channelId, token, mentionId: mention.id, mentionAvailable: mention.available };
   }
 
   async function history(db, slug, surface) {
@@ -188,9 +208,21 @@ export function buildHandler(deps) {
           const info = await slack.channelInfo(slackToken, ctx.channelId);
           channel = { name: info.name || null, bot_member: info.ok ? info.member : (info.code === 'bot_not_in_channel' ? false : null) };
         }
+        // Who the message will tag. The name and the membership are read from
+        // Slack for this box only and never stored; either can be null when
+        // Slack does not say (a missing scope, a timeout), which never blocks.
+        const mention = { available: ctx.mentionAvailable, linked: !!ctx.mentionId, name: null, in_channel: null };
+        if (ctx.mentionId && slackToken) {
+          const who = typeof slack.userInfo === 'function' ? await slack.userInfo(slackToken, ctx.mentionId) : { ok: false };
+          if (who.ok) mention.name = who.name || null;
+          if (ctx.channelId && typeof slack.channelHasMember === 'function') {
+            const has = await slack.channelHasMember(slackToken, ctx.channelId, ctx.mentionId);
+            if (has.ok) mention.in_channel = has.member;
+          }
+        }
         return json({
           ok: true, client: slug, surface, ...previewWords(surface),
-          has_channel: !!ctx.channelId, channel, link_ready: !!ctx.token,
+          has_channel: !!ctx.channelId, channel, link_ready: !!ctx.token, mention,
           last, recent, recent_hours: RECENT_MS / 3600000,
           log_available: rows !== null, sending_enabled: deps.sendingEnabled() === true, can_preview: canPreview,
         });
@@ -198,7 +230,7 @@ export function buildHandler(deps) {
 
       if (!ctx.token) return json({ ok: false, error: 'review_token_missing' }, 409);
       const link = buildReviewLink({ origin: deps.origin() || DEFAULT_ORIGIN, displayName: ctx.displayName, surface, token: ctx.token });
-      const message = buildMessage(surface, link);
+      const message = buildMessage(surface, link, ctx.mentionId);
       if (!slackToken) return json({ ok: false, error: 'slack_not_configured' }, 503);
 
       if (action === 'preview') {
@@ -206,7 +238,7 @@ export function buildHandler(deps) {
         const out = await slack.postDirect(slackToken, previewTarget, message);
         await record(db, deps, { slug, surface, mode: 'preview', actor: actorOf(req, role), role, channelId: '', out, at: now() });
         if (out.kind !== 'sent') return json({ ok: false, error: out.code }, 502);
-        return json({ ok: true, previewed: true });
+        return json({ ok: true, previewed: true, tagged: !!ctx.mentionId });
       }
 
       // action === 'send'
@@ -232,12 +264,27 @@ export function buildHandler(deps) {
       }).eq('id', id);
       // The post already happened (or is unknown). A receipt that will not save
       // is reported, never retried into a second post.
-      if (out.kind === 'sent') return json({ ok: true, sent: true, receipt_saved: !finished.error });
+      if (out.kind === 'sent') return json({ ok: true, sent: true, tagged: !!ctx.mentionId, receipt_saved: !finished.error });
       return json({ ok: false, error: out.code, unconfirmed: out.kind === 'unknown' }, 502);
     } catch (_e) {
       return json({ ok: false, error: 'request_failed' }, 500);
     }
   };
+}
+
+// The client's linked Slack person, read on its own so a database without the
+// column (migration 2026-10-23-client-slack-mention.sql not applied yet) still
+// sends the untagged message: { id: '', available: false }. An archived profile
+// has no channel and no tag.
+async function mentionOf(db, slug) {
+  try {
+    const res = await db.from('client_profiles').select('slack_mention_user_id,archived_at').eq('slug', slug).maybeSingle();
+    if (res.error) return { id: '', available: false };
+    const row = res.data;
+    return { id: row && !row.archived_at ? mentionIdOf(row.slack_mention_user_id) : '', available: true };
+  } catch (_e) {
+    return { id: '', available: false };
+  }
 }
 
 function actorOf(req, role) {
@@ -276,7 +323,18 @@ async function audit(db, slack, token, body, json) {
     else if (!info.ok && info.code === 'bot_not_in_channel') notMember.push(clean(c.slug));
     else if (!info.ok) unchecked.push(clean(c.slug));
   }
-  const out = { ok: true, active_clients: real.length, without_channel: noChannel.length, bot_not_member: notMember.length, not_checked: unchecked.length };
-  if (body.detail === true) out.detail = { without_channel: noChannel, bot_not_member: notMember, not_checked: unchecked };
+  // Clients with no linked Slack person: their alerts post untagged. null (not
+  // 0) while the column does not exist yet, so "nobody is missing" is never claimed.
+  const mentions = await db.from('client_profiles').select('slug,slack_mention_user_id,archived_at');
+  let noMention = null;
+  if (!mentions.error) {
+    const linked = new Set((mentions.data || []).filter((p) => !p.archived_at && mentionIdOf(p.slack_mention_user_id)).map((p) => clean(p.slug)));
+    noMention = real.map((c) => clean(c.slug)).filter((slug) => !linked.has(slug));
+  }
+  const out = {
+    ok: true, active_clients: real.length, without_channel: noChannel.length, bot_not_member: notMember.length, not_checked: unchecked.length,
+    without_slack_person: noMention ? noMention.length : null, mention_available: !!noMention,
+  };
+  if (body.detail === true) out.detail = { without_channel: noChannel, bot_not_member: notMember, not_checked: unchecked, without_slack_person: noMention };
   return json(out);
 }

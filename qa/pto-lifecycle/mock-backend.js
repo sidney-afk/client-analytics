@@ -1142,10 +1142,6 @@ async function createMockBackend(options = {}) {
       // open that long sends it. Answer it as an empty inbox, as
       // kasper-admin-expanded-browser does. Its write (inbox_mark) and every
       // other POST still count as unexpected.
-      // The page now asks for the list with GET ?action=inbox; the older POST form is still answered.
-      if (method === 'GET' && url.pathname.endsWith('/functions/v1/production-comments') && url.searchParams.get('action') === 'inbox') {
-        return fulfill(route, response(200, { ok: true, scope: 'all', conversations: [] }));
-      }
       if (method === 'POST' && url.pathname.endsWith('/functions/v1/production-comments')) {
         let inboxBody = null;
         try { inboxBody = request.postDataJSON(); } catch (error) { inboxBody = null; }

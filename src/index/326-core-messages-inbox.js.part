@@ -196,7 +196,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }, { capture: true, passive: true }));
 
     /* The inbox list is a read and goes out as GET ?action=inbox, so a page that counts every POST as a write
-       (Time Off, the archive, the phone suites, Production's gate) never sees one at load. Marks stay POST.
+       (the time-off page, the archive, the phone suites, Production's gate) never sees one at load. Marks stay POST.
        An older production-comments that only takes POST answers 405: then the same read goes once as POST. */
     const MSG_INBOX_URL = MSG_URL + '?action=inbox';
     async function _msgCall(body) {
@@ -321,7 +321,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     /* The Messages button's badge is live from page load (owner, 2026-10-23: it only appeared after a click).
        Once a sign-in that may use Messages is known, the inbox is read once, a moment after the page has
        settled, as a GET (see _msgCall); that first answer starts the live refresh (realtime, other tabs, the
-       safety net). Never on a client link; on the Production tab, the Time Off and Submit forms, or in a hidden
+       safety net). Never on a client link; on the Production tab, the time-off and Submit forms, or in a hidden
        tab it waits, checking again every few seconds without asking the server anything.
        A first read that fails (network, 5xx) is tried again a few times with growing waits, so one bad
        answer does not leave the badge dead until a hover; never after a 401/403 or once Messages is off. */
@@ -329,7 +329,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     const MSG_BOOT_RETRY_MS = [3000, 10000, 30000];
     let _msgBootTimer = null, _msgBootTries = 0, _msgBootFor = '';
     const _msgBootDone = () => _msgState.loaded && !_msgState.fromCache;
-    // Staff tabs that show the Messages button. Not Production (its read-only gate), not the Time Off or Submit
+    // Staff tabs that show the Messages button. Not Production (its read-only gate), not the time-off or Submit
     // forms, not the intake or onboarding pages: there it waits until the person moves to such a tab.
     const MSG_BOOT_SKIP_NAVS = new Set(['production', 'time-off', 'linear']);
     const _msgBootPageOk = () => !MSG_BOOT_SKIP_NAVS.has(currentNav)

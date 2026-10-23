@@ -195,10 +195,14 @@ in place. Changes need nothing new: they already stay open until Done.
   mark a thread done), so no migration is needed. To check while building: that marking a comment done is allowed on
   every write path, the client link included.
 - **`created_at` only** decides "new".
-- **Rollout behind a runtime switch** (`unread_badges_v2` `{ "staff": [...] }`, Sidney's two ids first), because it
-  changes what staff see on every card.
+- **Rollout (owner's decision, 2026-10-23 22:05 UTC):** behind the runtime switch `unread_badges_v2`
+  `{ "staff": [...] }`, on for Sidney's two staff ids only, on **every** client (not limited to test clients), so he
+  tries it through his own account first. Nothing is built or switched on before he approves the mockups.
 
 ## 7. Build order (small PRs)
+
+Every visible step ships behind `unread_badges_v2`, on for Sidney's two staff ids on any client, and only after he
+approves the mockups.
 
 1. **Done, PR #2300:** the Messages button is live from page load, retries a failed first read, and the icon stays put.
 2. **Server:** per-kind counts, open and waiting counts, and preview lines in the `inbox` answer, plus the

@@ -2913,6 +2913,82 @@
             .cal-cap-tools { top: 4px; right: 4px; }
             .cal-cap-wrap:has(.cal-cap-tools) textarea.cal-fld-cap { padding-right: 54px; }
         }
+        /* ── Caption history (session Versions, 2026-10-23; the approved mock-up, option C): the icon sits just below the
+           regenerate icon, and opens this pop-up on the shared caption dialog layer. Few boxes: no lines across the
+           pop-up, no box round the caption; the note keeps squarer corners. ── */
+        .cal-cap-tools { flex-direction: column; gap: 6px; }
+        .caph { display: flex; flex-direction: column; min-height: 0; max-height: 88vh; }
+        .caph-head { display: flex; align-items: center; gap: 14px; padding: 18px 20px 4px; flex-shrink: 0; }
+        .caph-head h3 { margin: 0; font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); }
+        .caph-sp { flex: 1; }
+        .caph-x { display: inline-flex; align-items: center; justify-content: center; }
+        .caph-x svg { width: 12px; height: 12px; }
+        .caph-pill { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 11px 0 9px; border-radius: 99px; background: var(--caph-pill-bg); color: var(--caph-pill-fg); font-size: 0.78rem; font-weight: 700; white-space: nowrap; }
+        .caph-pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--caph-dot); }
+        .caph-body { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 20px 6px; display: flex; flex-direction: column; gap: 12px; }
+        .caph-steps { display: flex; align-items: flex-start; overflow-x: auto; padding: 6px 2px 10px; scrollbar-width: none; flex-shrink: 0; }
+        .caph-steps::-webkit-scrollbar { display: none; }
+        .caph-step { position: relative; flex: 1 0 118px; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; padding: 0 4px; border: 0; background: none; color: var(--text-primary); cursor: pointer; font: inherit; }
+        .caph-step::before { content: ''; position: absolute; top: 15px; left: -50%; right: 50%; height: 2px; background: var(--caph-line); }
+        .caph-step:first-child::before { display: none; }
+        .caph-sd { position: relative; width: 32px; height: 32px; border-radius: 99px; display: flex; align-items: center; justify-content: center; background: var(--white); box-shadow: 0 0 0 2px var(--caph-line); color: var(--text-secondary); }
+        .caph-sd svg { width: 14px; height: 14px; }
+        .caph-step:hover .caph-sd { color: var(--text-primary); }
+        .caph-step:focus-visible { outline: none; }
+        .caph-step:focus-visible .caph-sd { box-shadow: 0 0 0 2px var(--focus-ring); }
+        .caph-step[aria-selected="true"] .caph-sd { background: var(--caph-dot); color: var(--caph-dot-fg); box-shadow: 0 0 0 4px var(--caph-dot-ring); }
+        .caph-sl { font-size: 0.74rem; font-weight: 700; line-height: 1.25; }
+        .caph-step[aria-selected="true"] .caph-sl { color: var(--caph-pill-fg); }
+        .caph-sw { font-size: 0.68rem; color: var(--text-secondary); }
+        .caph-now { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--caph-now-fg); background: var(--caph-now-bg); box-shadow: inset 0 0 0 1px var(--caph-now-line); padding: 1px 6px; border-radius: 99px; }
+        .caph-story { display: flex; flex-direction: column; gap: 12px; }
+        .caph-story-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .caph-kind { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 700; color: var(--text-primary); }
+        .caph-kind svg { width: 12px; height: 12px; }
+        .caph-seg { margin-left: auto; display: inline-flex; padding: 3px; border-radius: 10px; background: var(--field-bg); gap: 2px; }
+        .caph-seg button { height: 28px; padding: 0 11px; border: 0; border-radius: 8px; background: none; font: inherit; font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
+        .caph-seg button[aria-pressed="true"] { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+        .caph-nav { display: inline-flex; gap: 4px; }
+        .caph-nav button { width: 32px; height: 32px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); background: var(--white); color: var(--text-secondary); cursor: pointer; }
+        .caph-nav button svg { width: 14px; height: 14px; }
+        .caph-nav button:hover:not([disabled]) { color: var(--text-primary); }
+        .caph-nav button[disabled] { color: var(--text-muted); background: var(--bg); cursor: default; }
+        .caph-nav .caph-back svg { transform: rotate(180deg); }
+        .caph-note { padding: 8px 12px; border-radius: 6px; background: var(--caph-note-bg); box-shadow: inset 0 0 0 1px var(--caph-note-line); font-size: 0.82rem; line-height: 1.45; color: var(--text-primary); overflow-wrap: anywhere; }
+        .caph-nl { display: block; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--caph-note-label); margin-bottom: 2px; }
+        .caph-cap { white-space: pre-wrap; font-size: 1rem; line-height: 1.7; color: var(--text-primary); overflow-wrap: anywhere; }
+        .caph-cap ins { text-decoration: none; background: var(--caph-ins-bg); color: var(--caph-ins-fg); border-radius: 4px; padding: 1px 2px; }
+        .caph-cap del { text-decoration: line-through; text-decoration-thickness: 1.5px; background: var(--caph-del-bg); color: var(--caph-del-fg); border-radius: 4px; padding: 1px 2px; }
+        .caph-rewrite { font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); }
+        .caph-rw-l { font-size: 0.68rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); margin-top: 2px; }
+        .caph-rw-old { color: var(--text-secondary); }
+        .caph-stale { font-size: 0.8rem; color: var(--text-primary); padding: 8px 0 0; }
+        .caph-stale button { border: 0; background: none; padding: 0; font: inherit; font-weight: 700; color: var(--text-primary); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+        .caph-wait { padding: 40px 0; text-align: center; font-size: 0.84rem; color: var(--text-secondary); }
+        .caph-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 40px 20px 46px; color: var(--text-secondary); }
+        .caph-empty b { color: var(--text-primary); font-size: 0.95rem; }
+        .caph-empty p { margin: 0; font-size: 0.84rem; }
+        .caph-empty-ic { width: 44px; height: 44px; border-radius: 99px; display: flex; align-items: center; justify-content: center; background: var(--field-bg); }
+        .caph-empty-ic svg { width: 20px; height: 20px; }
+        .caph-foot { display: flex; justify-content: flex-end; padding: 6px 20px 18px; flex-shrink: 0; }
+        .caph-restore { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 15px; border: 0; border-radius: 9px; background: var(--caph-ok-bg); color: var(--caph-ok-fg); box-shadow: inset 0 0 0 1px var(--caph-ok-line); font: inherit; font-size: 0.82rem; font-weight: 800; cursor: pointer; }
+        .caph-restore:hover:not([disabled]) { background: var(--caph-ok-bg-hover); }
+        .caph-restore[disabled] { background: var(--field-bg); color: var(--disabled-fg); box-shadow: none; cursor: default; }
+        .caph-restore svg { width: 14px; height: 14px; }
+        @media (pointer: coarse) {
+            .caph-nav button, .caph-x { width: 44px; height: 44px; }
+            .caph-seg button { height: 38px; }
+            .caph-restore { height: 44px; }
+        }
+        @media (max-width: 600px) {
+            .caph-step { flex: 0 0 84px; padding: 0 2px; }
+            .caph-sl { font-size: 0.7rem; }
+            .caph-body { padding: 8px 14px 6px; }
+            .caph-head { padding: 14px 14px 4px; }
+            .caph-foot { padding: 6px 14px calc(14px + env(safe-area-inset-bottom)); }
+            .caph-restore { flex: 1; justify-content: center; }
+        }
+        html.sv-staff-phone .cal-cap-tools { flex-direction: row; gap: 8px; }
         .cal-redo-current { white-space: pre-wrap; max-height: 28vh; overflow-y: auto; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text-secondary); font-size: 0.84rem; line-height: 1.5; overflow-wrap: anywhere; }
         .cal-redo-note { min-height: 96px; }
         /* Staff phone: the caption's actions (Generate, show more) sit in a row under the box, and a control may not

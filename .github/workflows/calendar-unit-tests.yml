@@ -440,6 +440,7 @@ jobs:
         run: |
           node scripts/ci-lanes.js --lanes=3 <<'LANES'
           Caption helper (call to action, platform, note, title ideas, hashtags, redo; desktop and phone, light and dark)|node test/caption-helper-browser.js
+          Caption history (icon behind its switch, versions, highlights, put back with Undo; desktop and phone, light and dark)|node test/caption-history-browser.js
           Two people on one Calendar card get a notice, not an overwrite (mocked)|node docs/syncview-design/tests/lost-work-conflict-browser.js
           One shared client follows the client tabs; team tabs and client links ignore it|node docs/syncview-design/tests/shared-client-browser.js
           Urgent ping uses the stamp the database holds, and a refused ping can be refreshed|node docs/syncview-design/tests/urgent-ping-fresh-round-browser.js

@@ -3266,10 +3266,39 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             return !!body && body.ok === false && (body.error === 'client_not_enabled' || body.error === 'switch_unreadable');
         } catch (e) { return false; }
     }
+    /* Caption history (session Versions, 2026-10-23): how the next save of a card's caption came about (a redo with
+       its note, a version put back), sent to calendar-card-write as caption_origin so the history can say so. It is
+       matched by the text itself: it rides only on a save whose caption is exactly that text, within two minutes, so
+       a word typed afterwards is a plain typed edit again (the function's default). It is not used up by a save,
+       so a retry of the same save still carries it. calendar-upsert never sees it. */
+    const CAL_CAP_ORIGIN_MS = 120000;
+    const _calCapOrigins = new Map();   // slug|pid -> { kind, note?, from?, text, at }
+    function _calCapOriginSlug(clientOrSlug) {
+        try { return calClientSlug(clientOrSlug); } catch (e) { return String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+    }
+    function _calCapOriginMark(clientOrSlug, pid, origin) {
+        const key = _calCapOriginSlug(clientOrSlug) + '|' + String(pid || '');
+        if (!origin || !pid) return;
+        _calCapOrigins.set(key, Object.assign({}, origin, { text: String(origin.text == null ? '' : origin.text), at: Date.now() }));
+    }
+    function _calCapOriginFor(clientOrSlug, payload) {
+        const post = payload && payload.post;
+        if (!post || typeof post !== 'object' || !Object.prototype.hasOwnProperty.call(post, 'caption')) return null;
+        const key = _calCapOriginSlug(clientOrSlug) + '|' + String(post.id || '');
+        const o = _calCapOrigins.get(key);
+        if (!o) return null;
+        if (Date.now() - o.at > CAL_CAP_ORIGIN_MS) { _calCapOrigins.delete(key); return null; }
+        if (String(post.caption == null ? '' : post.caption).trim() !== o.text.trim()) return null;
+        const out = { kind: o.kind };
+        if (o.note) out.note = o.note;
+        if (o.from != null) out.from = o.from;
+        return out;
+    }
     async function _calUpsertFetchGuarded(clientOrSlug, payload, source) {
         await _calAssertSavingOn(clientOrSlug);
         if (await _calCardWriteOn(clientOrSlug)) {
-            const resp = await _calUpsertPost(CALENDAR_CARD_WRITE_EF_URL, payload, source);
+            const origin = _calCapOriginFor(clientOrSlug, payload);
+            const resp = await _calUpsertPost(CALENDAR_CARD_WRITE_EF_URL, origin ? Object.assign({}, payload, { caption_origin: origin }) : payload, source);
             if (!(await _calCardWriteRefusedBeforeWriting(resp))) return resp;
             _calCardWriteFlag = { value: null, at: Date.now() };   // the server said off: stop asking it for 30 seconds
         }
@@ -3652,7 +3681,7 @@ export {
   _calRuntimeFlagClient, _calRuntimeFlagClients, _calRuntimeFlagRawMembers, _calRuntimeFlagSlug, _calSetCapJobBatch, _calSetCapJobPollBusy,
   _calSetCapJobPollTimer, _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
   _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calTitleEngaged, _calTitlePillShown,
-  _calUnionCommentCell, _calUpsertFetch, _calUpsertFetchPinned, _calUpsertHeaders,
+  _calCapOriginMark, _calUnionCommentCell, _calUpsertFetch, _calUpsertFetchPinned, _calUpsertHeaders,
   _clientCommentGatewayOn, _kasperUrgentPingOn, _kasperUrgentPingOnLive,
   _prodCanonicalCoversLegacy, _prodServerParentRef, _prodCardBindingToken, _prodCommentAddRoutesLegacy,
   _prodCrosswalkVerdict, _prodLegacyReadIncomplete, _prodLegacyUnrepresentableState,

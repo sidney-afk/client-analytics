@@ -29,6 +29,16 @@ Checked against main and `syncview_runtime_flags` on 2026-10-21 04:30 UTC. Count
 - **Today** shows captions sent back for tweaks (#2263). **Workload calm view** is on for staff (`workload_calm_staff`).
 - Everything above is live; the supervisor lane is the SyncView project (Lighthouse stopped 2026-10-20 17:50 UTC). Dated detail: `synchro-pipelines/supervisor/history/syncview/`.
 
+## Caption history on Calendar cards, behind `caption_history_staff` (session Versions, 2026-10-23): PR open, not merged
+
+Owner: after "Regenerate with a note" he could not see how the caption changed. Every real caption change is now kept in the
+append-only `caption_versions` (migration `migrations/2026-10-23-caption-versions.sql`, applied by hand; its trigger never
+blocks a save). A history icon under the regenerate icon opens the approved pop-up (option C): one step per version, the redo
+note, words taken out and added, and "Put this version back" through the normal caption save, with Undo. Switch
+`syncview_runtime_flags.caption_history_staff` `{ "staff": [...] }`, absent = off. Earlier changes since 2026-09-17:
+`scripts/caption-versions-backfill.sql`, by hand. OPEN_REPAIRS 477. Tests: `test/caption-versions-postgres.js`,
+`test/caption-history-logic.js`, `test/caption-history-browser.js`. Not measured on the live site yet.
+
 ## Kasper's tab boots fast, behind `kasper_fast_boot` (session Quick, 2026-10-20): merged (#2265), switch on for Sidney's two ids only, Kasper next
 
 Owner: the refresh pill shows too often and is not needed, the video player loads late (mostly after a hard refresh), and the

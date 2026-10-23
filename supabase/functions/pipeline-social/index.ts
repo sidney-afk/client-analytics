@@ -21,7 +21,8 @@
 // the filming plan list (the same gate as pipeline-google). Each call is logged
 // in hf_activity as tool "scrapecreators.<action>" with who ran it, and calls
 // count against a monthly cap (fp_settings key scrapecreators_monthly_calls,
-// default 2000; credits does not count). Refusals are plain English, ok:false.
+// default 2000; credits does not count). A call is written down before it is
+// made, so parallel calls cannot overshoot the cap. Refusals are plain English, ok:false.
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { PASS_HEADER, isPassToken, passHash } from "../pipeline-google/pass.mjs";
@@ -77,18 +78,26 @@ async function handle(req: Request): Promise<Response> {
 
   const member = String(pass.member ?? "");
   const line = logLine(action, plan, b);
-  const log = (ok: boolean, error = "") =>
-    sb.from("hf_activity").insert({ member_name: member, tool: line.tool, client: String(pass.client_slug ?? ""), summary: line.summary, ok, error: error || null })
-      .then(() => undefined, () => undefined);
+  const row = { member_name: member, tool: line.tool, client: String(pass.client_slug ?? ""), summary: line.summary };
+
+  // The call is written down BEFORE it is made, as a used call, and only then
+  // counted: parallel requests cannot all pass a count taken before any of them
+  // is written, and a call cannot be made without its row. A call that does not
+  // go through is marked failed afterwards (if that update is lost the call
+  // stays counted, which is the safe side).
+  const entry = await sb.from("hf_activity").insert({ ...row, ok: true, error: null }).select("id").single();
+  if (entry.error || !entry.data) return refused("Could not write the call down, so it was not made.", 503);
+  const entryId = entry.data.id;
+  const fail = async (error: string) => { await sb.from("hf_activity").update({ ok: false, error }).eq("id", entryId); };
 
   if (plan.counts) {
     let cap: number;
-    try { cap = capFrom(await readSetting(sb)(CAP_KEY)); } catch (_e) { return refused("Could not read the monthly limit, so the call was not made.", 503); }
+    try { cap = capFrom(await readSetting(sb)(CAP_KEY)); } catch (_e) { await fail("could not read the monthly limit"); return refused("Could not read the monthly limit, so the call was not made.", 503); }
     const used = await sb.from("hf_activity").select("id", { count: "exact", head: true })
       .like("tool", "scrapecreators.%").neq("tool", "scrapecreators.credits").eq("ok", true).gte("created_at", monthStart());
-    if (used.error) return refused("Could not count this month's calls, so the call was not made.", 503);
-    if ((used.count ?? 0) >= cap) {
-      await log(false, "monthly limit reached");
+    if (used.error) { await fail("could not count this month's calls"); return refused("Could not count this month's calls, so the call was not made.", 503); }
+    if ((used.count ?? 0) > cap) {
+      await fail("monthly limit reached");
       return refused(`The monthly ScrapeCreators limit (${cap} calls) is used up. Ask the account owner to raise it.`, 429);
     }
   }
@@ -99,7 +108,7 @@ async function handle(req: Request): Promise<Response> {
   try {
     resp = await fetch(url, { headers: { "x-api-key": key, Accept: "application/json" } });
   } catch (_e) {
-    await log(false, "no answer from ScrapeCreators");
+    await fail("no answer from ScrapeCreators");
     return refused("ScrapeCreators did not answer. Try again in a minute.", 502);
   }
   const text = await resp.text();
@@ -110,10 +119,9 @@ async function handle(req: Request): Promise<Response> {
       : resp.status === 429 ? "ScrapeCreators says too many calls at once. Wait a moment and try again."
       : resp.status === 404 ? "ScrapeCreators found nothing for that."
       : `ScrapeCreators could not do that (status ${resp.status}).`;
-    await log(false, `status ${resp.status}`);
+    await fail(`status ${resp.status}`);
     return json({ ok: false, error: why, status: resp.status }, resp.status === 404 ? 404 : 502);
   }
-  await log(true);
   return json({ ok: true, action, result: data ?? text });
 }
 

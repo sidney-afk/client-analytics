@@ -69,6 +69,10 @@ const eq = (a, b, label) => { assert.deepStrictEqual(a, b, label); passed++; };
   ok(!/json\([^)]*\bkey\b/.test(src), 'the key is never put in an answer');
   ok(/scrapecreators\.%/.test(src) && /hf_activity/.test(src), 'every call is logged in hf_activity and counted for the cap');
   ok(/monthStart\(\)/.test(src) && /CAP_KEY/.test(src), 'the cap is checked before each counted call');
+  ok(src.indexOf('.insert({ ...row, ok: true') > 0 && src.indexOf('.insert({ ...row, ok: true') < src.indexOf('await fetch(url'), 'the call is written down before ScrapeCreators is called');
+  ok(src.indexOf('.insert({ ...row, ok: true') < src.indexOf('count: "exact"'), 'the count is taken after the call is written down (parallel calls cannot overshoot the cap)');
+  ok(/Could not write the call down, so it was not made/.test(src), 'a call whose row cannot be written is not made');
+  ok(/\(used\.count \?\? 0\) > cap/.test(src), 'the count includes the call itself');
   ok(!/x-pipeline-key/.test(src), 'there is no password path, only passes');
   ok(/\[functions\.pipeline-social\]\s*verify_jwt = false/.test(fs.readFileSync(path.join(__dirname, '..', 'supabase', 'config.toml'), 'utf8')), 'config.toml: JWT off (the pass is the login)');
 

@@ -41,7 +41,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     const _msgState = {
         loading: false, loaded: false, error: '', conversations: [], scope: '',
         openId: '', replyTo: '', draft: '', sending: false, filter: 'new', lastAt: 0,
-        unavailable: false, fromCache: false, readWhenFresh: '', owner: '', epoch: 0,
+        unavailable: false, fromCache: false, readWhenFresh: '', owner: '', epoch: 0, failStatus: 0,
     };
     let _msgTimer = null;
     const _msgFallbackHooks = [];
@@ -203,7 +203,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         });
         let value = null;
         try { value = await response.json(); } catch (e) { value = null; }
-        if (!response.ok || !value || value.ok !== true) throw new Error((value && value.error) || ('HTTP ' + response.status));
+        if (!response.ok || !value || value.ok !== true) {
+            const err = new Error((value && value.error) || ('HTTP ' + response.status));
+            err.status = response.status;
+            throw err;
+        }
         return value;
     }
 
@@ -225,6 +229,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             _msgState.conversations = Array.isArray(value.conversations) ? value.conversations : [];
             _msgState.scope = String(value.scope || '');
             _msgState.error = '';
+            _msgState.failStatus = 0;
             _msgState.loaded = true;
             _msgState.fromCache = false;
             _msgState.lastAt = Date.now();
@@ -241,6 +246,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             }
         } catch (e) {
             if (stale()) return;
+            _msgState.failStatus = Number(e && e.status) || 0;
             if (e && e.message === 'invalid_deliverable_id') { _msgState.loading = false; _msgCacheClear(); _msgFallBack(); return; }
             if (_msgState.fromCache) { _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgCacheClear(); }
             _msgState.error = 'Messages could not load. Try again in a moment.';
@@ -306,18 +312,28 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        Once a sign-in that may use Messages is known, the inbox is read once, a moment after the page has
        settled; that first answer starts the live refresh (realtime, other tabs, the safety net). Never on the
        Production tab (its read-only gate allows no POST it did not ask for), on a client link, or in a hidden
-       tab: then it waits, checking again every few seconds without asking the server anything. */
+       tab: then it waits, checking again every few seconds without asking the server anything.
+       A first read that fails (network, 5xx) is tried again a few times with growing waits, so one bad
+       answer does not leave the badge dead until a hover; never after a 401/403 or once Messages is off. */
     const MSG_BOOT_WAIT_MS = 1500;
-    let _msgBootTimer = null;
-    function _msgBootLoad() {
+    const MSG_BOOT_RETRY_MS = [3000, 10000, 30000];
+    let _msgBootTimer = null, _msgBootTries = 0, _msgBootFor = '';
+    const _msgBootDone = () => _msgState.loaded && !_msgState.fromCache;
+    function _msgBootLoad(wait) {
+        if (_msgBootFor !== _msgMyId()) { _msgBootFor = _msgMyId(); _msgBootTries = 0; }
         if (_msgBootTimer) return;
-        _msgBootTimer = setTimeout(() => {
+        _msgBootTimer = setTimeout(async () => {
             _msgBootTimer = null;
-            if (!_msgCanUse() || _msgState.unavailable || _isClientLink) return;
-            if ((_msgState.loaded && !_msgState.fromCache) || _msgState.loading) return;
-            if (document.hidden || currentNav === 'production') { _msgBootLoad(); return; }
-            _msgLoad(false);
-        }, MSG_BOOT_WAIT_MS);
+            if (!_msgCanUse() || _msgState.unavailable || _isClientLink || _msgBootDone()) return;
+            // Hidden, on Production, or another read already on its way: look again later, asking nothing.
+            if (document.hidden || currentNav === 'production' || _msgState.loading) { _msgBootLoad(); return; }
+            const asker = _msgMyId();
+            await _msgLoad(false);
+            if (_msgBootDone() || _msgState.unavailable || asker !== _msgMyId()) return;
+            if (_msgState.failStatus === 401 || _msgState.failStatus === 403) return;
+            if (_msgBootTries >= MSG_BOOT_RETRY_MS.length) return;
+            _msgBootLoad(MSG_BOOT_RETRY_MS[_msgBootTries++]);
+        }, wait || MSG_BOOT_WAIT_MS);
     }
 
     /* ── Drawing ── */

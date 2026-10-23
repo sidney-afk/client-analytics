@@ -5,6 +5,8 @@
  *   B  the badge sits on the button's corner: the speech-bubble icon does not move when it appears, the
  *      button keeps its size, and the count stays readable, in light and dark, at desktop and phone widths
  *   C  the Production tab still makes no inbox call it was not asked for
+ *   D  a first read that fails (503) is tried again by itself and the badge appears without a click
+ *   E  a first read refused with 403 is not tried again
  * With SCREENSHOTS=<dir>, the header at 1440 is captured there in light and dark.
  */
 const fs = require('fs');
@@ -19,11 +21,14 @@ const SHOTS = process.env.SCREENSHOTS || '';
   const S = await createEnv();
   let inboxCalls = 0;
   let unread = 0;
+  let failNext = [];   // statuses to answer the next inbox calls with, in order, before answering normally
   try {
     await S.ctx.route('**/functions/v1/production-comments', async route => {
       let body = {}; try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
       if (route.request().method() === 'OPTIONS' || body.action !== 'inbox') return route.fallback();
       inboxCalls++;
+      const fail = failNext.shift();
+      if (fail) return route.fulfill({ status: fail, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ ok: false, error: 'fixture_' + fail }) });
       return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ ok: true, scope: 'all', conversations: [
         { post_id: 'p_new', client_slug: 'fixtureclient', client_name: 'Fixture Client', title: 'Fixture reel', thumbnail_url: '', asset_url: '', status: 'In Progress',
           last_at: '2026-10-23T09:00:00.000Z', last_author: 'Fixture Client', last_author_member_id: '', last_role: 'client', last_body: 'Can we cut the intro?', unread },
@@ -85,6 +90,35 @@ const SHOTS = process.env.SCREENSHOTS || '';
     await S.openProduction(prod);
     await sleep(2500);
     check(inboxCalls === callsBefore, 'C: the Production tab makes no inbox call it was not asked for (' + (inboxCalls - callsBefore) + ')');
+
+    // D: the first automatic read answers 503; the retry brings the badge, no hover or click
+    {
+      failNext = [503];
+      const n0 = inboxCalls;
+      const pg = await S.newPage();
+      await pg.setViewportSize({ width: 1440, height: 900 });
+      await S.openCalendar(pg);
+      await pg.mouse.move(700, 700);
+      check(await until(async () => (await badge(pg)).shown, 15000), 'D: after a failed first read (503) the badge still appears without a click (calls: ' + (inboxCalls - n0) + ')');
+      check(inboxCalls - n0 === 2, 'D: one failed read, then one retry that worked (' + (inboxCalls - n0) + ')');
+      await sleep(3500);
+      check(inboxCalls - n0 === 2, 'D: no further boot retries once it worked (' + (inboxCalls - n0) + ')');
+      await pg.close();
+    }
+    // E: refused (403): no retry
+    {
+      failNext = [403, 403, 403, 403];
+      const n0 = inboxCalls;
+      const pg = await S.newPage();
+      await pg.setViewportSize({ width: 1440, height: 900 });
+      await S.openCalendar(pg);
+      await pg.mouse.move(700, 700);
+      check(await until(() => inboxCalls > n0, 8000), 'E: the first automatic read is made');
+      await sleep(5000);
+      check(inboxCalls - n0 === 1, 'E: a 403 is not tried again (' + (inboxCalls - n0) + ')');
+      failNext = [];
+      await pg.close();
+    }
 
     check(page.errors.length === 0, 'no page errors ' + JSON.stringify(page.errors));
   } catch (e) {

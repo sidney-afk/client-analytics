@@ -25,6 +25,9 @@ for (const theme of ['light', 'dark']) {
 shots.push(['a-picker-open-light', 'option-a-side-by-side.html', { theme: 'light', state: 'open', old: 3 }, DESK]);
 shots.push(['b-compare-now-light', 'option-b-inline-list.html', { theme: 'light', v: 1, cmp: 'now' }, DESK]);
 shots.push(['c-client-edit-dark', 'option-c-steps.html', { theme: 'dark', v: 4 }, DESK]);
+shots.push(['c-small-edit-light', 'option-c-steps.html', { theme: 'light', v: 3 }, DESK]);
+shots.push(['c-small-edit-phone-dark', 'option-c-steps.html', { theme: 'dark', v: 3 }, PHONE]);
+shots.push(['c-redo-before-open-light', 'option-c-steps.html', { theme: 'light', v: 2, earlier: 'open' }, DESK]);
 shots.push(['empty-light', 'option-c-steps.html', { theme: 'light', state: 'empty' }, DESK]);
 shots.push(['empty-phone-dark', 'option-c-steps.html', { theme: 'dark', state: 'empty' }, PHONE]);
 shots.push(['restored-toast-light', 'entry-point.html', { theme: 'light', state: 'restored' }, { width: 900, height: 560 }]);

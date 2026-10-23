@@ -82,7 +82,7 @@
   /* mode: 'inline' (both marks), 'old' (only what was taken out), 'new' (only what was added) */
   function diffHtml(a, b, mode) {
     if (mode === 'inline' && changedShare(a, b) > 0.6) {
-      return '<div class="rewrite"><b>Mostly rewritten</b>, so it is shown whole instead of word by word.</div>' +
+      return '<div class="rewrite"><b>Mostly rewritten</b></div>' +
         '<div class="rw-l">Before</div><div class="rw-old">' + esc(a) + '</div><div class="rw-l">After</div><div>' + esc(b) + '</div>';
     }
     return regions(a, b).map(r => {
@@ -98,6 +98,8 @@
   function howHtml(v, opts) {
     opts = opts || {};
     const h = HOW[v.how];
+    if (opts.kindOnly) return '<div class="how"><span class="kind">' + ICONS[h.icon] + esc(h.label) + '</span></div>' +
+      (v.note ? '<div class="note"><span class="nl">Note</span>' + esc(v.note) + '</div>' : '');
     return '<div class="how"><span class="kind">' + ICONS[h.icon] + esc(h.label) + '</span>' +
       '<span><b>' + esc(v.who) + '</b></span><span class="dot">·</span><span>' + esc(v.when) + '</span>' +
       (opts.current ? '<span class="dot">·</span><span>in the caption now</span>' : '') + '</div>' +

@@ -3,41 +3,42 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Caption history, option C: step by step (calm)</title>
+<title>Caption history, option C: step by step</title>
+<!-- Owner's review, 2026-10-23: same layout, minus text that repeats: no subtitle (post and date), no who and when
+     beside the kind (the step strip shows them), no "in the caption now" (the strip's Now says it), no Close
+     button (the X closes). -->
 <link rel="stylesheet" href="shared.css">
 <style>
-  /* Owner's review, 2026-10-23: keep only what helps the decision. Each fact appears once: who and when live in the
-     step strip, so the body shows only the note (for a redo) and the caption. No subtitle, no pill, no Close button
-     (the X closes), no word counts, no colour legend, no box inside the box. */
-  .hx { width: min(780px, calc(100vw - 48px)); }
-  .hx-head { align-items: center; border-bottom: 0; padding-bottom: 4px; }
-  .hx-body { padding-top: 8px; display: flex; flex-direction: column; gap: 14px; }
-  .hx-foot { border-top: 0; padding-top: 4px; padding-bottom: 18px; justify-content: flex-end; }
-  .steps { display: flex; align-items: flex-start; overflow-x: auto; padding: 4px 2px 6px; scrollbar-width: none; }
-  .step { position: relative; flex: 1 0 120px; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; padding: 0 4px; }
-  .step::before { content: ''; position: absolute; top: 15px; left: -50%; right: 50%; height: 2px; background: var(--tl-line); }
+  .hx { width: min(820px, calc(100vw - 48px)); }
+  .hx-head { align-items: center; }
+  /* The step strip: oldest on the left, newest on the right, one stop per version (the review page's step bar idea) */
+  .steps { display: flex; align-items: flex-start; gap: 0; overflow-x: auto; padding: 4px 2px 14px; margin-bottom: 4px; scrollbar-width: none; }
+  .step { position: relative; flex: 1 0 128px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 0 4px; }
+  .step::before { content: ''; position: absolute; top: 15px; left: -50%; right: 50%; height: 2px; background: var(--tl-line); z-index: 0; }
   .step:first-child::before { display: none; }
-  .step .sd { position: relative; width: 32px; height: 32px; border-radius: 99px; display: flex; align-items: center; justify-content: center; background: var(--white); box-shadow: 0 0 0 2px var(--tl-line); color: var(--text-secondary); }
+  .step .sd { position: relative; z-index: 1; width: 32px; height: 32px; border-radius: 99px; display: flex; align-items: center; justify-content: center; background: var(--white); box-shadow: 0 0 0 2px var(--tl-line); color: var(--text-secondary); }
   .step .sd svg { width: 14px; height: 14px; }
-  .step:hover .sd { color: var(--text-primary); }
-  .step[aria-selected="true"] .sd { background: var(--pd-caption); color: var(--white); box-shadow: 0 0 0 4px var(--pt-caption); }
-  .step .sl { font-size: .76rem; font-weight: 700; line-height: 1.25; }
-  .step[aria-selected="true"] .sl { color: var(--pi-caption); }
-  .step .sw { font-size: .7rem; color: var(--text-secondary); }
-  .step .nowp { font-size: .62rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--ok-ink); }
-  .note { margin-top: 0; }
-  .text-h { display: flex; justify-content: flex-end; margin-bottom: -6px; }
-  .quiet-toggle { font-size: .74rem; font-weight: 600; color: var(--text-secondary); padding: 4px 6px; border-radius: 7px; }
-  .quiet-toggle:hover { color: var(--text-primary); background: var(--fill); }
-  .rw { font-size: .74rem; color: var(--text-secondary); margin-bottom: 6px; }
-  .rw button { font-size: .74rem; font-weight: 700; color: var(--text-primary); text-decoration: underline; text-underline-offset: 2px; padding: 0; }
-  .earlier { color: var(--text-secondary); padding: 10px 12px; border-radius: 10px; background: var(--surface-subtle); margin-bottom: 12px; }
-  .empty { padding: 36px 24px 44px; }
+  .step[aria-current="true"] .sd { background: var(--pd-caption); color: var(--white); box-shadow: 0 0 0 4px var(--pt-caption); }
+  .step .sl { font-size: .74rem; font-weight: 700; line-height: 1.25; }
+  .step .sw { font-size: .68rem; color: var(--text-secondary); }
+  .step[aria-current="true"] .sl { color: var(--pi-caption); }
+  .step .nowp { font-size: .62rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--ok-ink); background: var(--ok-soft); box-shadow: inset 0 0 0 1px var(--ok-line); padding: 1px 6px; border-radius: 99px; }
+  .story { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px 18px; border-radius: 14px; background: var(--surface-subtle); box-shadow: 0 0 0 1px var(--border-light); }
+  .story-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .story-h .sp { flex: 1; }
+  .nav { display: inline-flex; gap: 4px; }
+  .nav button { width: 32px; height: 32px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-secondary); box-shadow: inset 0 0 0 1px var(--border); background: var(--white); }
+  .nav button svg { width: 14px; height: 14px; }
+  .nav button[disabled] { opacity: .45; cursor: default; }
+  .nav .back svg { transform: rotate(180deg); }
+  .delta { font-size: .76rem; color: var(--text-secondary); }
+  .delta b { color: var(--text-primary); }
   @media (max-width: 600px) {
     .hx { width: 100%; }
     .step { flex: 0 0 84px; padding: 0 2px; }
-    .step .sl { font-size: .72rem; }
-    .hx-foot .btn-dark { flex: 1; justify-content: center; }
+    .step .sl { font-size: .7rem; }
+    .story { padding: 12px 12px 14px; }
+    .nav button { width: 44px; height: 44px; }
   }
 </style>
 </head>
@@ -46,40 +47,31 @@
 <script src="shared.js"></script>
 <script>
 (function () {
-  const { q, VERSIONS, ICONS, HOW, esc, diffHtml, changedShare } = window.CH;
+  const { q, VERSIONS, ICONS, HOW, esc, diffHtml, counts, howHtml, shell, EMPTY } = window.CH;
+  const state = q.get('state') || 'default';
   const app = document.getElementById('app');
-  const frame = (body, foot) =>
-    '<div class="backdrop" aria-hidden="true">' + '<div class="ghost-card"></div>'.repeat(5) + '</div><div class="scrim"></div>' +
-    '<div class="hx" role="dialog" aria-modal="true" aria-labelledby="hxT"><div class="hx-head"><h3 id="hxT">Caption history</h3><span class="sp"></span>' +
-    '<button class="hx-x" aria-label="Close">' + ICONS.x + '</button></div><div class="hx-body">' + body + '</div>' +
-    (foot ? '<div class="hx-foot">' + foot + '</div>' : '') + '</div><div class="mock-tag">Mockup, not live</div>';
-  if (q.get('state') === 'empty') {
-    app.innerHTML = frame('<div class="empty"><span class="ic">' + ICONS.history + '</span><b>No earlier versions yet</b><p>Every change to this caption is kept here from now on.</p></div>', '');
+  if (state === 'empty') {
+    app.innerHTML = shell('Caption history', '', EMPTY, '');
     return;
   }
   const latest = VERSIONS[VERSIONS.length - 1];
   const sel = VERSIONS[Number(q.get('v') || 2) - 1];
   const prev = VERSIONS[sel.id - 2];
   const clean = q.get('view') === 'clean';
-  const earlierOpen = q.get('earlier') === 'open';
   const short = { generated: 'Generated', redo: 'Redo with note', typed: 'Edited', client: 'Client edit', restored: 'Put back' };
   const strip = '<div class="steps" role="tablist" aria-label="Versions, oldest first">' + VERSIONS.map(v =>
-    '<button class="step" role="tab" aria-selected="' + (v.id === sel.id) + '" title="' + esc(HOW[v.how].label) + '"><span class="sd">' + ICONS[HOW[v.how].icon] + '</span>' +
+    '<button class="step" role="tab" aria-current="' + (v.id === sel.id) + '" aria-selected="' + (v.id === sel.id) + '"><span class="sd">' + ICONS[HOW[v.how].icon] + '</span>' +
     '<span class="sl">' + esc(short[v.how]) + '</span><span class="sw">' + esc(v.who) + ' · ' + esc(v.when.replace(/^\w+ /, '')) + '</span>' +
     (v.id === latest.id ? '<span class="nowp">Now</span>' : '') + '</button>').join('') + '</div>';
-  const note = sel.note ? '<div class="note"><span class="nl">Your note</span>' + esc(sel.note) + '</div>' : '';
-  let text;
-  if (!prev) text = '<div class="cap">' + esc(sel.text) + '</div>';
-  else if (changedShare(prev.text, sel.text) > 0.6) {
-    // A rewrite: word marks would cover everything, so show the new text clean and keep the old one a click away.
-    text = '<div class="rw">Rewritten. <button aria-expanded="' + earlierOpen + '">' + (earlierOpen ? 'Hide' : 'Show') + ' the version before</button></div>' +
-      (earlierOpen ? '<div class="cap earlier">' + esc(prev.text) + '</div>' : '') + '<div class="cap">' + esc(sel.text) + '</div>';
-  } else {
-    text = '<div class="text-h"><button class="quiet-toggle" aria-pressed="' + !clean + '">' + (clean ? 'Show changes' : 'Hide changes') + '</button></div>' +
-      '<div class="cap">' + (clean ? esc(sel.text) : diffHtml(prev.text, sel.text, 'inline')) + '</div>';
-  }
-  const foot = sel.id === latest.id ? '' : '<button class="btn-dark">' + ICONS.restore + 'Put this version back</button>';
-  app.innerHTML = frame(strip + note + text, foot);
+  const c = prev ? counts(prev.text, sel.text) : null;
+  const story = '<div class="story">' + howHtml(sel, { kindOnly: true }) +
+    '<div class="story-h">' + (c ? '<span class="delta">What this changed: <b>+' + c.ins + '</b> words, <b>−' + c.del + '</b> words</span>' : '<span class="delta">The first version</span>') +
+    '<span class="sp"></span><div class="seg" role="group" aria-label="Show"><button aria-pressed="' + !clean + '">Changes</button><button aria-pressed="' + clean + '">Clean text</button></div>' +
+    '<span class="nav"><button class="back" aria-label="Older version"' + (sel.id === 1 ? ' disabled' : '') + '>' + ICONS.arrow + '</button><button aria-label="Newer version"' + (sel.id === latest.id ? ' disabled' : '') + '>' + ICONS.arrow + '</button></span></div>' +
+    '<div class="cap">' + (prev && !clean ? diffHtml(prev.text, sel.text, 'inline') : esc(sel.text)) + '</div></div>';
+  app.innerHTML = shell('Caption history', '', strip + story,
+    '<span class="legend"><span><i class="ld"></i>Taken out</span><span><i class="li"></i>Added</span></span><span class="sp"></span>' +
+    '<button class="btn-dark"' + (sel.id === latest.id ? ' disabled' : '') + '>' + ICONS.restore + (sel.id === latest.id ? 'This is the caption now' : 'Put this version back') + '</button>');
 })();
 </script>
 </body>

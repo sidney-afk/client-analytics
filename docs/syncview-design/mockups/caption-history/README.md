@@ -117,16 +117,14 @@ versions, and C can offer "Compare with now" later if that is wanted.
 Screenshots: `screenshots/` (light and dark, desktop 1280 and phone 390). Made with
 `node docs/syncview-design/mockups/caption-history/make-screenshots.js`, offline Chromium, no network.
 
-## Owner's review (2026-10-23): C chosen, with less visual noise
+## Owner's review (2026-10-23): C chosen, minus repeated text
 
-The owner picked C and asked for less noise. Each fact now appears once, so C was redrawn without:
-the subtitle (post name and date), the "Caption" pill, the who and when line under the strip (the step
-strip already says it), "in the caption now" (the strip's Now says it), the word counts, the colour legend,
-the arrow buttons (click a step instead), the Close button (the X closes), the box inside the box, and the
-disabled button on the current version (there is no button when there is nothing to put back). A rewrite
-shows the new text clean with "Show the version before"; a small edit shows the marked words with
-"Hide changes". The general rule (say each thing once, remove what another element already says) is a
-candidate line for `docs/features/UI_DESIGN_STANDARDS.md`, for the supervisor to decide.
+The owner picked C and asked to remove text that says the same thing twice, keeping the layout. Removed:
+the subtitle (post name, date, "oldest on the left"), the who and when beside the kind of change (the step
+strip shows them), "in the caption now" (the strip's Now says it), and the Close button (the X closes).
+Kept: the Caption pill, the box, the word counts, Changes / Clean text, the arrows, the colour key and the
+restore button. A first attempt that also removed those was too bare; the noise the owner means is
+repeated text, not controls.
 
 ## What was not checked
 

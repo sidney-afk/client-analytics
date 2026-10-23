@@ -198,7 +198,7 @@ check('deliverable projection paginates by primary-key keyset, not offset, and n
 check('preview read helper strips duplicate limit and offset params', prodBlock.includes('!/^limit=|^offset=/.test(p)'));
 check('preview callers pass page sizes explicitly', /_prodRestRows\(\s*'production_deliverables_browser_v1'[\s\S]{0,1200}1000,\s*50/.test(prodBlock) && /_prodRestRows\('deliverable_events'[\s\S]{0,220}, 30, 2\)/.test(prodBlock));
 const explicitMutationMethods = [...prodBlock.matchAll(/['"`](POST|PUT|PATCH|DELETE)['"`]/g)].map(match => match[1]);
-check('preview block limits POSTs to protected reads, guarded creation, and authority-gated native writes', explicitMutationMethods.length === 11
+check('preview block limits POSTs to protected reads, guarded creation, and authority-gated native writes', explicitMutationMethods.length === 12
   && explicitMutationMethods.every(method => method === 'POST')
   && /async function _prodEnsureAssigneeOptions\(id, force\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,700}action: 'assignee_options',[\s\S]{0,120}surface: 'production'/.test(prodBlock)
   && /fetch\(PROD_COMMENTS_EF_URL,[\s\S]{0,180}method: 'POST'/.test(prodBlock)
@@ -224,6 +224,12 @@ check('preview block limits POSTs to protected reads, guarded creation, and auth
   && /async function _prodLoadCreateOptions\(force\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,700}action: 'create_options',[\s\S]{0,120}surface: 'production'/.test(prodBlock)
   && /function _prodCreatePayload\(draft\)[\s\S]{0,160}operation: 'create',[\s\S]{0,100}surface: 'production'/.test(prodBlock)
   && /async function _prodPostCreatePayload\(payload\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'/.test(prodBlock)
+  /* The twelfth POST, added 2026-10-23 (OPEN_REPAIRS 481): the thumbnail title
+     buttons. Its own function, thumbnail-titles, under the same staff headers;
+     the server refuses anyone but an admin or SMM and any team that is not
+     SyncView-authoritative, and the browser shows the buttons only behind
+     thumbnail_title_buttons_staff and the description write gate. */
+  && /async function _prodTtCall\(action, client, extra\)[\s\S]{0,120}fetch\(THUMBNAIL_TITLES_EF_URL, \{[\s\S]{0,40}method: 'POST'/.test(prodBlock)
   && /async function _prodGatewayWrite\(issue, operation[\s\S]*?_prodCanWrite\(issue, operation\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,180}method: 'POST'/.test(prodBlock));
 check('preview block has no Supabase write helpers', !/\.(insert|update|upsert|rpc)\s*\(/.test(prodBlock));
 check('topbar has no New issue button (only draft recovery) plus the F95 freshness control, and no scaffold Refresh pill',

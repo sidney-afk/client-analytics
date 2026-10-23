@@ -1,0 +1,211 @@
+<title>Unread Badges Preview</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+  /* Layout: one reading column of decisions, then a running sequence of screens, light and dark side by side. */
+  :root {
+    --bg: #f6f6f3; --panel: #ffffff; --ink: #121211; --muted: #64645f; --line: #e3e3de;
+    --change: #ea580c; --comment: #2563eb; --staff: #3f3f46; --kasper: #6c5ce7; --ok: #15803d;
+    --display: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f1013; --panel: #17191e; --ink: #f2f4f7; --muted: #aab1bd; --line: #2b2f37;
+    --change: #fb923c; --comment: #60a5fa; --staff: #d4d4d8; --kasper: #a094f8; --ok: #4ade80; color-scheme: dark; } }
+  :root[data-theme="dark"] {
+    --bg: #0f1013; --panel: #17191e; --ink: #f2f4f7; --muted: #aab1bd; --line: #2b2f37;
+    --change: #fb923c; --comment: #60a5fa; --staff: #d4d4d8; --kasper: #a094f8; --ok: #4ade80; color-scheme: dark; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 36px; }
+  h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+  h1 { font-size: 1.9rem; }
+  h2 { font-size: 1.3rem; }
+  h3 { font-size: 1.05rem; }
+  p { margin: 0; max-width: 68ch; }
+  .muted { color: var(--muted); }
+  .intro { display: flex; flex-direction: column; gap: 10px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: .86rem; color: var(--muted); }
+  .sw { display: inline-flex; align-items: center; gap: 6px; }
+  .sw i { width: 12px; height: 12px; border-radius: 99px; display: inline-block; }
+  .sw i.o { background: transparent !important; box-shadow: inset 0 0 0 2px var(--change); }
+  .sw i.ob { background: transparent !important; box-shadow: inset 0 0 0 2px var(--comment); }
+  .decisions { display: flex; flex-direction: column; gap: 22px; }
+  .decision { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  .decision .tag { font: 600 .72rem/1 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .rec { font-weight: 600; }
+  .rec b { color: var(--ok); }
+  .decided { display: flex; flex-direction: column; gap: 6px; font-size: .92rem; }
+  .decided li { margin-left: 18px; }
+  .screen { display: flex; flex-direction: column; gap: 10px; }
+  .screen .why { font-size: .9rem; color: var(--muted); }
+  .screen .why b { color: var(--ink); font-weight: 600; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .pair.phones { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .pair.cards { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; }
+  figure { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  figure img { width: 100%; height: auto; display: block; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); }
+  figcaption { font-size: .82rem; color: var(--muted); }
+  .section-title { display: flex; flex-direction: column; gap: 4px; padding-top: 6px; border-top: 1px solid var(--line); }
+  .before-after { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  a { color: inherit; }
+  @media (max-width: 760px) {
+    .pair, .before-after { grid-template-columns: 1fr; }
+    .pair.phones, .pair.cards { grid-template-columns: 1fr 1fr; }
+    h1 { font-size: 1.5rem; }
+  }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <h1>Unread badges, as they would look in SyncView</h1>
+    <p>Every picture below is the real SyncView page, run on a laptop with made-up posts and notes, with the proposed badges switched on for the screenshot only. Nothing is live yet.</p>
+    <div class="legend">
+      <span class="sw"><i style="background:var(--change)"></i>Orange: a change request</span>
+      <span class="sw"><i style="background:var(--comment)"></i>Blue: a client comment</span>
+      <span class="sw"><i style="background:var(--staff)"></i>Grey: someone on the team</span>
+      <span class="sw"><i style="background:var(--kasper)"></i>Violet: Kasper</span>
+      <span class="sw"><i class="o"></i>Outline: read, but still needs doing</span>
+    </div>
+  </header>
+
+  <section class="decisions" aria-labelledby="dec">
+    <h2 id="dec">Three things to decide</h2>
+
+    <article class="decision" id="d1">
+      <span class="tag">Decision 1 · The number on the Messages button</span>
+      <h3>The number counts conversations that have something new for you.</h3>
+      <p>If three posts each have a new client comment, it says 3. Change requests never count here: they live on the cards. When nothing is new but a client is still waiting for your answer, the number shows as an outlined ring instead of a filled dot. Hover the button and it lists what is waiting, in words.</p>
+      <div class="pair">
+        <figure><img src="shots/after-desktop-light-header-hover.png" alt="Messages button with a blue 4 and a hover list"><figcaption>Something new: a filled count, and hovering says what it is.</figcaption></figure>
+        <figure><img src="shots/after-desktop-light-header-waiting.png" alt="Messages button with an outlined 3"><figcaption>Nothing new, but 3 clients wait for an answer: an outlined count.</figcaption></figure>
+      </div>
+      <p class="rec">Recommendation: <b>yes</b>, count conversations, and use the outline for "waiting for your answer".</p>
+    </article>
+
+    <article class="decision" id="d7">
+      <span class="tag">Decision 2 · Answering later</span>
+      <h3>Opening Notes clears "new", but a client's comment keeps saying "Waiting for your answer".</h3>
+      <p>It stays that way until someone on the team replies or clicks "No reply needed". So you can read everything now and answer one message later without losing it. Mark unread is still there if you want the whole post back as new.</p>
+      <div class="pair">
+        <figure><img src="shots/after-desktop-light-notes-p_waiting.png" alt="Notes with one comment marked Waiting for your answer"><figcaption>Read yesterday, still waiting: Reply and No reply needed are right under it.</figcaption></figure>
+        <figure><img src="shots/after-desktop-light-card-p_waiting.png" alt="Card footer with an outlined 1 to answer"><figcaption>On the card, an outlined "1 to answer" stays until it is answered.</figcaption></figure>
+      </div>
+      <p class="rec">Recommendation: <b>yes</b>, automatic "waiting for your answer", with Mark unread kept. A "remind me later" button can come later if needed.</p>
+    </article>
+
+    <article class="decision" id="d9">
+      <span class="tag">Decision 3 · A summary line above the calendar</span>
+      <h3>One line above the cards says what is waiting for you on this client.</h3>
+      <p>Click a part of it to see only those posts, click again to see all. Looking at it marks nothing as read.</p>
+      <div class="pair">
+        <figure><img src="shots/after-desktop-light-calendar.png" alt="Calendar with the summary line above the cards"><figcaption>New changes, new comments, to answer, changes not done yet.</figcaption></figure>
+        <figure><img src="shots/after-desktop-light-strip-filter.png" alt="Calendar filtered to posts with a comment to answer"><figcaption>Clicked "to answer": the other posts fade back.</figcaption></figure>
+      </div>
+      <p class="rec">Recommendation: <b>yes</b>, add the line.</p>
+    </article>
+
+    <div class="decided">
+      <h3>Already decided by you</h3>
+      <ul>
+        <li>Change requests stay out of Messages. In a chat they show as one line with an Open card button.</li>
+        <li>The post's SMM and admins see "waiting for your answer". One reply from anyone on the team clears it for everyone.</li>
+        <li>Reading on your phone clears the laptop within 30 seconds.</li>
+        <li>The colours above, one "read" for everything, and a teammate's reply to a client counts for you in grey.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="screen">
+    <div class="section-title"><h2>1. The calendar</h2><p class="why"><b>Why it is obvious:</b> the words on each card say what is there ("2 new changes", "1 new comment"); today a single orange dot means anything.</p></div>
+    <div class="before-after">
+      <figure><img src="shots/before-desktop-light-calendar.png" alt="Today's calendar"><figcaption>Today: a dot and "2 open". You cannot tell a comment from a change.</figcaption></figure>
+      <figure><img src="shots/after-desktop-light-calendar.png" alt="Proposed calendar"><figcaption>Proposed: what it is, in words, plus the summary line.</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="shots/after-desktop-light-calendar.png" alt="Calendar, light"><figcaption>Light</figcaption></figure>
+      <figure><img src="shots/after-desktop-dark-calendar.png" alt="Calendar, dark"><figcaption>Dark</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="screen">
+    <div class="section-title"><h2>2. Every kind on a card</h2><p class="why"><b>Why it is obvious:</b> a filled colour means new, an outline means read but not finished, and each one says its own name.</p></div>
+    <div class="pair cards" id="cardsLight"></div>
+    <div class="pair cards" id="cardsDark"></div>
+  </section>
+
+  <section class="screen">
+    <div class="section-title"><h2>3. Hover: what it is before you open it</h2><p class="why"><b>Why it is obvious:</b> each line starts with what it is ("New change", "New comment"), then who, which part and the first words.</p></div>
+    <div class="pair">
+      <figure><img src="shots/after-desktop-light-hover.png" alt="Hover card, light"><figcaption>Light</figcaption></figure>
+      <figure><img src="shots/after-desktop-dark-hover.png" alt="Hover card, dark"><figcaption>Dark</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="screen">
+    <div class="section-title"><h2>4. Notes on a card</h2><p class="why"><b>Why it is obvious:</b> a "Needs you" line at the top, a label on each note, and the buttons that matter (Reply, No reply needed, Mark done) always on screen, not only on hover.</p></div>
+    <div class="pair">
+      <figure><img src="shots/after-desktop-light-notes-p_both.png" alt="Notes with new change and comments, light"><figcaption>Two new comments waiting for an answer, one new change.</figcaption></figure>
+      <figure><img src="shots/after-desktop-dark-notes-p_both.png" alt="Notes, dark"><figcaption>Dark</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="shots/after-desktop-light-notes-p_waiting.png" alt="Notes, read but waiting, light"><figcaption>Read earlier, still waiting for an answer.</figcaption></figure>
+      <figure><img src="shots/after-desktop-dark-notes-p_waiting.png" alt="Notes, read but waiting, dark"><figcaption>Dark</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="screen">
+    <div class="section-title"><h2>5. The Messages button</h2><p class="why"><b>Why it is obvious:</b> the number sits on the corner and never moves the icon; hovering says, in words, what the number is.</p></div>
+    <div class="pair">
+      <figure><img src="shots/before-desktop-light-header.png" alt="Today's Messages button"><figcaption>Today</figcaption></figure>
+      <figure><img src="shots/after-desktop-light-header.png" alt="Proposed Messages button"><figcaption>Proposed</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="shots/after-desktop-light-header-hover.png" alt="Hover, light"><figcaption>Hover, light</figcaption></figure>
+      <figure><img src="shots/after-desktop-dark-header-hover.png" alt="Hover, dark"><figcaption>Hover, dark</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="screen">
+    <div class="section-title"><h2>6. The Messages list</h2><p class="why"><b>Why it is obvious:</b> three plain tabs, New, To answer and All, and each row says what is new in it.</p></div>
+    <div class="pair">
+      <figure><img src="shots/after-desktop-light-messages-new.png" alt="Messages New, light"><figcaption>New</figcaption></figure>
+      <figure><img src="shots/after-desktop-dark-messages-new.png" alt="Messages New, dark"><figcaption>New, dark</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="shots/after-desktop-light-messages-answer.png" alt="Messages To answer, light"><figcaption>To answer: only conversations where a client waits for you.</figcaption></figure>
+      <figure><img src="shots/after-desktop-dark-messages-answer.png" alt="Messages To answer, dark"><figcaption>To answer, dark</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="screen">
+    <div class="section-title"><h2>7. A chat</h2><p class="why"><b>Why it is obvious:</b> each message says if it is new or waiting for you, Reply and No reply needed sit right under it, Mark unread and Open card are plain buttons at the top, and a change request is one orange line pointing to the card.</p></div>
+    <div class="pair">
+      <figure><img src="shots/after-desktop-light-chat-p_both.png" alt="Chat, light"><figcaption>Light</figcaption></figure>
+      <figure><img src="shots/after-desktop-dark-chat-p_both.png" alt="Chat, dark"><figcaption>Dark</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="screen">
+    <div class="section-title"><h2>8. On a phone</h2><p class="why"><b>Why it is obvious:</b> the same words and colours, wrapping onto a second line when the card is narrow.</p></div>
+    <div class="pair phones">
+      <figure><img src="shots/after-phone-light-calendar.png" alt="Phone calendar, light"><figcaption>Calendar</figcaption></figure>
+      <figure><img src="shots/after-phone-dark-notes-p_both.png" alt="Phone notes, dark"><figcaption>Notes, dark</figcaption></figure>
+      <figure><img src="shots/after-phone-light-messages-new.png" alt="Phone Messages, light"><figcaption>Messages</figcaption></figure>
+      <figure><img src="shots/after-phone-dark-chat-p_both.png" alt="Phone chat, dark"><figcaption>Chat, dark</figcaption></figure>
+    </div>
+  </section>
+
+  <p class="muted">How these were made: the real page, built from the code on GitHub, served on a laptop with every server answer faked and no live data. A small switch that only the screenshot script loads adds the proposed badges. Pull request #2299 has the details.</p>
+</div>
+<script>
+  const CASES = [
+    ['p_new_change', 'New change requests'], ['p_new_comment', 'A new comment'], ['p_both', 'A new change and new comments'],
+    ['p_open', 'Changes read, not done yet'], ['p_waiting', 'Read, still waiting for an answer'], ['p_staff', 'A teammate answered the client'],
+    ['p_kasper', 'New from Kasper'], ['p_calm', 'Nothing for you'],
+  ];
+  for (const [theme, id] of [['light', 'cardsLight'], ['dark', 'cardsDark']]) {
+    document.getElementById(id).innerHTML = CASES.map(([pid, cap]) =>
+      `<figure><img src="shots/after-desktop-${theme}-card-${pid}.png" alt="${cap}, ${theme}" loading="lazy"><figcaption>${cap}${theme === 'dark' ? ', dark' : ''}</figcaption></figure>`).join('');
+  }
+</script>

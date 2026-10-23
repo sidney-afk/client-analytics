@@ -217,17 +217,21 @@ in place. Changes need nothing new: they already stay open until Done.
 ## 8. Decisions
 
 **Settled by the owner (2026-10-23):** D3 phone read clears the laptop within 30 s; D4 colours; D5 one read record; D6
-another staff member's reply counts for you, in grey.
+another staff member's reply counts for you, in grey. **Round 3 (21:40 UTC): D2 yes** (change requests stay out of
+Messages) and **D8 yes** (the post's SMM and admins see "waiting for an answer").
+
+**Round 3 mockups are the real page.** The hand-drawn page was replaced by screenshots of the real SyncView build,
+served offline by the test harness with fictional notes (`fixture.js`), with the proposed design applied by a
+local-only script (`preview.js`) that only `make-screenshots.js` loads. The app's own code is unchanged. The
+gallery (`gallery.html`, also published as one page for the owner) puts D1, D7 and D9 first, each with the screenshot
+that shows it. The words on the badges were made literal for someone seeing them for the first time ("2 new changes",
+"1 new comment", "1 to answer", "2 changes open", "1 from team", "1 from Kasper"), and every action (Reply, No reply
+needed, Mark done, Mark unread, Open card) is a visible button, never behind a menu.
 
 **Still open, each with a recommendation:**
 - **D1. What the Messages number counts.** Recommendation: conversations with something new for you (filled). When
   nothing is new but answers are owed, an outlined count of those. Never change requests. (Mockup section 7.)
-- **D2. Do client change requests belong in Messages?** Recommendation: **no**. They stay on the card, where they are
-  worked, and the 2026-10-14 rule stays. Messages shows them only as a link line in the chat. The card badge and the
-  new calendar summary line make sure nothing is missed from the calendar.
 - **D7. Answering later.** Recommendation: **A**. Every client comment shows "Waiting for an answer" until someone on
   the team replies or marks "No reply needed". "Mark unread" stays as the personal fallback. Remind me waits until A has
   been tried.
-- **D8. Who sees "waiting".** Recommendation: the post's SMM and admins. Any team reply, or "No reply needed", clears it
-  for all of them.
 - **D9. The calendar summary line.** Recommendation: yes, above the calendar, filtering on click (mockup section 2).

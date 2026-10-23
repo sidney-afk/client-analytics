@@ -573,6 +573,7 @@ jobs:
           Calm Workload for everyone (workload_calm_staff all:true, hint holds the loader, old staff list still works)|node docs/syncview-design/tests/workload-calm-all-browser.js
           Calm Workload, every click (pills, chips, one Open link, close three ways, folds, filters, weeks, dark, phone)|node docs/syncview-design/tests/workload-calm-interactions-browser.js
           Calm Workload, no flashing warning on refresh, plan-origin marks, editor name colour|node docs/syncview-design/tests/workload-calm-five-browser.js
+          Calm Workload, a client row with 3+ days of buffer keeps its green dot (red, orange, mixed grey, dark)|node docs/syncview-design/tests/workload-calm-buffer-dot-browser.js
           Production list scrolls inside its frame|node docs/syncview-design/tests/prod-list-scroll-containment.js
           Instagram cover image|node test/instagram-cover-browser.js
           Calendar and Samples link boxes, Escape and Enter|node test/calendar-link-box-keys-browser.js

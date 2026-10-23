@@ -36,7 +36,7 @@ append-only `caption_versions` (migration `migrations/2026-10-23-caption-version
 blocks a save). A history icon under the regenerate icon opens the approved pop-up (option C): one step per version, the redo
 note, words taken out and added, and "Put this version back" through the normal caption save, with Undo. Switch
 `syncview_runtime_flags.caption_history_staff` `{ "staff": [...] }`, absent = off. Earlier changes since 2026-09-17:
-`scripts/caption-versions-backfill.sql`, by hand. OPEN_REPAIRS 477. Tests: `test/caption-versions-postgres.js`,
+`scripts/caption-versions-backfill.sql`, by hand. OPEN_REPAIRS 482. Tests: `test/caption-versions-postgres.js`,
 `test/caption-history-logic.js`, `test/caption-history-browser.js`. Not measured on the live site yet.
 
 ## Kasper's tab boots fast, behind `kasper_fast_boot` (session Quick, 2026-10-20): merged (#2265), switch on for Sidney's two ids only, Kasper next

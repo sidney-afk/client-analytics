@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caption history, the entry point on the card</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  body { padding: 28px; }
+  .row { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+  .cap-label { font-size: .7rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--label); margin: 0 0 8px; }
+  .card { width: 380px; background: var(--white); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+  .thumb { height: 150px; background: linear-gradient(135deg, var(--well), var(--fill)); }
+  .cbody { padding: 12px 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .ttl { font-weight: 800; font-size: .95rem; }
+  .pills { display: flex; gap: 6px; }
+  .pill { height: 24px; padding: 0 9px; border-radius: 99px; background: var(--fill); font-size: .72rem; font-weight: 700; display: inline-flex; align-items: center; color: var(--text-secondary); }
+  /* the real caption box: .cal-cap-wrap + textarea.cal-fld-cap, tools in the top right corner */
+  .wrap { position: relative; }
+  .ta { white-space: pre-wrap; font-size: .82rem; line-height: 1.5; padding: 8px 38px 8px 9px; border: 1px solid var(--border); border-radius: 9px; background: var(--white); color: var(--text-primary); max-height: 180px; overflow: hidden; }
+  .tools { position: absolute; top: 7px; right: 7px; display: flex; flex-direction: column; gap: 6px; }
+  .ic { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); position: relative; }
+  .ic svg { width: 13px; height: 13px; }
+  .ic.hover { color: var(--text-primary); border-color: var(--text-muted); }
+  .tip { position: absolute; right: 32px; top: 50%; transform: translateY(-50%); white-space: nowrap; background: var(--text-primary); color: var(--white); font-size: .72rem; font-weight: 700; padding: 5px 8px; border-radius: 7px; }
+  .toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 12px; background: var(--text-primary); color: var(--white); padding: 10px 10px 10px 14px; border-radius: 12px; font-size: .82rem; font-weight: 700; box-shadow: var(--shadow-md); }
+  .toast button { background: rgba(127,127,127,.25); padding: 5px 10px; border-radius: 8px; font-weight: 800; }
+  .caption-note { font-size: .74rem; color: var(--text-secondary); max-width: 380px; margin-top: 8px; line-height: 1.45; }
+  /* staff phone: the icons join the row under the box, 44px targets (qa/staff-phone-rules-browser.js) */
+  .phone .card { width: 100%; }
+  .phone .ta { padding-right: 9px; }
+  .phone .under { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+  .phone .under .ic { width: 44px; height: 44px; }
+  .phone .under .ic svg { width: 20px; height: 20px; }
+  .phone .under .gen { margin-right: auto; height: 44px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: 99px; background: var(--fill); font-size: .78rem; font-weight: 700; color: var(--text-secondary); }
+  @media (max-width: 600px) { body { padding: 12px; } .desk { display: none; } }
+  @media (min-width: 601px) { .phone { display: none; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="shared.js"></script>
+<script>
+(function () {
+  const { q, VERSIONS, ICONS, esc } = window.CH;
+  const state = q.get('state') || 'default';
+  const now = VERSIONS[VERSIONS.length - 1];
+  const redo = '<span class="ic" aria-label="Regenerate with a note">' + ICONS.redo + '</span>';
+  const hist = (hover) => '<span class="ic' + (hover ? ' hover' : '') + '" aria-label="Caption history">' + ICONS.history + (hover ? '<span class="tip">Caption history · 4 versions</span>' : '') + '</span>';
+  function card(withHistory, hover) {
+    return '<div class="card"><div class="thumb"></div><div class="cbody"><div class="ttl">Warm up routine</div><div class="pills"><span class="pill">Video</span><span class="pill">Caption</span></div>' +
+      '<div class="wrap"><div class="ta">' + esc(now.text) + '</div><span class="tools">' + redo + (withHistory ? hist(hover) : '') + '</span></div></div></div>';
+  }
+  const desk = '<div class="desk row">' +
+    '<div><p class="cap-label">Caption never changed: no icon</p>' + card(false) + '<p class="caption-note">Only the regenerate icon, exactly as today.</p></div>' +
+    '<div><p class="cap-label">Caption has changed: history icon under it</p>' + card(true, true) + '<p class="caption-note">Same size and look as the regenerate icon, right below it. The label says how many versions there are.</p></div>' +
+    '</div>';
+  const phone = '<div class="phone"><p class="cap-label">Staff phone</p><div class="card"><div class="thumb"></div><div class="cbody"><div class="ttl">Warm up routine</div>' +
+    '<div class="ta">' + esc(now.text) + '</div><div class="under"><span class="gen">Show more</span>' + redo + hist(false) + '</div></div></div></div>';
+  document.getElementById('app').innerHTML = desk + phone +
+    (state === 'restored' ? '<div class="toast">Version 2 is back in the caption<button>Undo</button></div>' : '') + '<div class="mock-tag">Mockup, not live</div>';
+})();
+</script>
+</body>
+</html>

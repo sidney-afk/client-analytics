@@ -1,0 +1,150 @@
+/* Caption history mockups (session Versions, 2026-10-23). NOT shipped: static design only.
+   Colour tokens are copied from the review page's stylesheet (src/index/195-review-stage.js.part, RS_CSS),
+   so the history modal reads as the same family as the review page's caption view. */
+@font-face { font-family: 'Plus Jakarta Sans'; src: url('../../../../start/assets/plus-jakarta-sans.woff2') format('woff2'); font-weight: 200 800; }
+:root {
+  --white:#ffffff; --bg:#f4f4f2; --border:#e4e4e0; --border-light:#ededea;
+  --surface-raised:#ffffff; --surface-hover:#f8f8f6; --surface-subtle:#f3f3f1;
+  --text-primary:#111110; --text-secondary:#6b6b67; --text-muted:#b4b4ae;
+  --focus-ring:#6c5ce7; --accent:#6c5ce7; --accent-soft:#f3e8ff; --accent-ink:#6d28d9;
+  --shadow-md:0 8px 30px rgba(0,0,0,0.12);
+  --field-bg:#f3f3f1; --field-bg-hover:#ebebe8;
+  --ok-solid-bg:#16a34a; --ok-solid-fg:#ffffff; --ok-soft:#f0fdf4; --ok-ink:#166534; --ok-line:#c5efd5;
+  --warn-soft:#fff7ed; --warn-ink:#9a3412;
+  --fill:#ebebe8; --fill-hover:#e4e4e0; --label:#8f8f8a; --hair:#e4e4e0;
+  --deck:#ffffff; --well:#ecece8; --well-line:#e1e1dc;
+  --okb:#dcfce7; --okb-fg:#14532d; --okb-line:#86efac; --okb-h:#bbf7d0;
+  --pd-caption:#0d9488; --pt-caption:#ccfbf1; --pi-caption:#115e59;
+  --sendb:#111110; --sendb-fg:#ffffff;
+  --you-bub:#ece8ff; --you-bub-line:#ddd6fe;
+  --tl-line:#c9c9c2; --tl-dot:#9d9d95;
+  /* diff marks: green = words added, red = words taken out (one meaning, one colour) */
+  --ins-bg:#dcfce7; --ins-fg:#14532d; --del-bg:#fee2e2; --del-fg:#991b1b;
+  --scrim:rgba(17,17,16,.32);
+  color-scheme: light;
+}
+html[data-theme="dark"] {
+  --white:#181a1f; --bg:#0b0c0f; --border:#2c3038; --border-light:#23272e;
+  --surface-raised:#20232a; --surface-hover:#242730; --surface-subtle:#16191f;
+  --text-primary:#f4f6f8; --text-secondary:#b4bac4; --text-muted:#8e96a3;
+  --focus-ring:#8b7cf6; --accent:#8b7cf6; --accent-soft:#2a2440; --accent-ink:#c4b5fd;
+  --shadow-md:0 10px 34px rgba(0,0,0,0.42);
+  --field-bg:#20242c; --field-bg-hover:#252b35;
+  --ok-solid-bg:#4ade80; --ok-solid-fg:#0b1f12; --ok-soft:#12361f; --ok-ink:#86efac; --ok-line:#1f5a33;
+  --warn-soft:#3a2210; --warn-ink:#fdba74;
+  --fill:#262a33; --fill-hover:#2e333d; --label:#8e96a3; --hair:#2c3038;
+  --deck:#1c1f26; --well:#14161b; --well-line:#23272f;
+  --okb:rgba(74,222,128,.15); --okb-fg:#86efac; --okb-line:rgba(74,222,128,.42); --okb-h:rgba(74,222,128,.24);
+  --pd-caption:#2dd4bf; --pt-caption:rgba(45,212,191,.15); --pi-caption:#99f6e4;
+  --sendb:#f4f6f8; --sendb-fg:#101114;
+  --you-bub:rgba(139,124,246,.2); --you-bub-line:rgba(139,124,246,.3);
+  --tl-line:#3a3f4a; --tl-dot:#5f6675;
+  --ins-bg:rgba(74,222,128,.18); --ins-fg:#bbf7d0; --del-bg:rgba(248,113,113,.18); --del-fg:#fecaca;
+  --scrim:rgba(0,0,0,.6);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text-primary); font-size: 14px; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* The page behind the modal: a dimmed strip of calendar cards, enough to show it is a pop-up over the Calendar. */
+.backdrop { position: fixed; inset: 0; padding: 28px; display: flex; gap: 18px; overflow: hidden; }
+.ghost-card { flex: 0 0 300px; height: 520px; border-radius: 14px; background: var(--white); border: 1px solid var(--border); }
+.scrim { position: fixed; inset: 0; background: var(--scrim); }
+
+/* The modal shell (same radius, shadow and header rhythm as the Calendar's caption dialogs) */
+.hx { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(1040px, calc(100vw - 48px)); max-height: calc(100vh - 48px); display: flex; flex-direction: column; background: var(--white); border-radius: 18px; box-shadow: var(--shadow-md), 0 0 0 1px var(--border); overflow: hidden; }
+.hx-head { display: flex; align-items: flex-start; gap: 14px; padding: 18px 20px 14px; border-bottom: 1px solid var(--hair); }
+.hx-head h3 { margin: 0; font-size: 1.05rem; font-weight: 800; letter-spacing: -.01em; }
+.hx-head p { margin: 3px 0 0; font-size: .8rem; color: var(--text-secondary); }
+.hx-head .sp { flex: 1; }
+.hx-x { width: 32px; height: 32px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-secondary); }
+.hx-x:hover { background: var(--fill); color: var(--text-primary); }
+.hx-x svg { width: 14px; height: 14px; }
+.hx-body { flex: 1; min-height: 0; overflow: auto; padding: 18px 20px; }
+.hx-foot { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-top: 1px solid var(--hair); }
+.hx-foot .hint { font-size: .76rem; color: var(--text-secondary); }
+.hx-foot .sp { flex: 1; }
+
+/* Part tag (the review page's caption pill) */
+.ptag { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 11px 0 9px; border-radius: 99px; background: var(--pt-caption); color: var(--pi-caption); font-size: .78rem; font-weight: 700; white-space: nowrap; }
+.pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--pd-caption); }
+
+/* Buttons (review page: btn-dark is the green action, btn-quiet the plain one) */
+.btn-dark { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 15px; background: var(--okb); color: var(--okb-fg); box-shadow: inset 0 0 0 1px var(--okb-line); border-radius: 9px; font-size: .82rem; font-weight: 800; white-space: nowrap; }
+.btn-dark:hover { background: var(--okb-h); }
+.btn-dark svg { width: 14px; height: 14px; }
+.btn-dark[disabled] { background: var(--fill); color: var(--text-secondary); box-shadow: none; cursor: default; }
+.btn-quiet { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 13px; border-radius: 9px; color: var(--text-secondary); font-size: .82rem; font-weight: 600; }
+.btn-quiet:hover { background: var(--fill); color: var(--text-primary); }
+.b-edit { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 9px; background: var(--deck); box-shadow: inset 0 0 0 1px var(--border); font-size: .78rem; font-weight: 700; }
+
+/* The who / when / how line, and the note that caused a regenerate */
+.how { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .78rem; color: var(--text-secondary); }
+.how b { color: var(--text-primary); font-weight: 700; }
+.how .kind { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px 0 7px; border-radius: 99px; background: var(--fill); color: var(--text-primary); font-weight: 700; font-size: .74rem; }
+.how .kind svg { width: 12px; height: 12px; }
+.how .dot { opacity: .5; }
+.note { margin-top: 8px; padding: 8px 12px; border-radius: 12px; background: var(--you-bub); box-shadow: inset 0 0 0 1px var(--you-bub-line); font-size: .82rem; line-height: 1.45; }
+.note .nl { display: block; font-size: .68rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--accent-ink); margin-bottom: 2px; }
+
+/* Caption text, at the review page's reading size, and the diff marks */
+.cap { white-space: pre-wrap; font-size: 1rem; line-height: 1.7; overflow-wrap: anywhere; }
+.cap ins { text-decoration: none; background: var(--ins-bg); color: var(--ins-fg); border-radius: 4px; padding: 1px 2px; }
+.cap del { text-decoration: line-through; text-decoration-thickness: 1.5px; background: var(--del-bg); color: var(--del-fg); border-radius: 4px; padding: 1px 2px; }
+.legend { display: inline-flex; gap: 12px; font-size: .74rem; color: var(--text-secondary); align-items: center; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.legend .li { background: var(--ins-bg); box-shadow: inset 0 0 0 1px var(--okb-line); }
+.legend .ld { background: var(--del-bg); }
+
+/* Segmented control (the review page's tab look) */
+.seg { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--fill); gap: 2px; }
+.seg button { height: 28px; padding: 0 11px; border-radius: 8px; font-size: .76rem; font-weight: 700; color: var(--text-secondary); }
+.seg button[aria-pressed="true"] { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+
+/* Branded select (sv-select look: no native dropdown) */
+.sel { position: relative; }
+.sel-btn { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px 0 12px; border-radius: 9px; background: var(--field-bg); font-size: .8rem; font-weight: 700; min-width: 0; max-width: 100%; }
+.sel-btn:hover { background: var(--field-bg-hover); }
+.sel-btn .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sel-btn svg { width: 12px; height: 12px; flex-shrink: 0; color: var(--text-secondary); }
+.sel-list { position: absolute; top: 40px; left: 0; z-index: 5; min-width: 320px; padding: 5px; border-radius: 12px; background: var(--surface-raised); box-shadow: var(--shadow-md), 0 0 0 1px var(--border); }
+.sel-opt { display: flex; flex-direction: column; gap: 1px; padding: 8px 10px; border-radius: 8px; font-size: .8rem; }
+.sel-opt small { color: var(--text-secondary); font-size: .72rem; }
+.sel-opt[aria-selected="true"] { background: var(--accent-soft); }
+.sel-opt.hover { background: var(--fill); }
+.sel-opt[aria-disabled="true"] { color: var(--text-muted); }
+
+/* Empty state */
+.empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 56px 24px; color: var(--text-secondary); }
+.empty .ic { width: 44px; height: 44px; border-radius: 99px; display: flex; align-items: center; justify-content: center; background: var(--fill); color: var(--text-secondary); }
+.empty .ic svg { width: 20px; height: 20px; }
+.empty b { color: var(--text-primary); font-size: .95rem; }
+.empty p { margin: 0; max-width: 46ch; font-size: .84rem; line-height: 1.5; }
+
+/* Mockup label in the corner of every screenshot, so a picture is never mistaken for the live site */
+.mock-tag { position: fixed; right: 10px; bottom: 8px; font-size: 10px; font-weight: 700; letter-spacing: .04em; color: var(--text-muted); text-transform: uppercase; z-index: 50; }
+
+/* Phone: the modal becomes a full-height sheet (the Calendar's phone dialogs do the same) */
+@media (max-width: 600px) {
+  .backdrop { padding: 12px; }
+  .hx { left: 0; right: 0; top: auto; bottom: 0; transform: none; width: 100%; max-height: calc(100vh - 28px); border-radius: 18px 18px 0 0; }
+  .hx-head { padding: 14px 14px 12px; }
+  .hx-body { padding: 14px; }
+  .hx-foot { padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); flex-wrap: wrap; }
+  .hx-foot .hint { display: none; }
+  .hx-x { width: 44px; height: 44px; margin: -6px -8px 0 0; }
+  .btn-dark, .btn-quiet { height: 44px; }
+  .btn-dark { flex: 1; justify-content: center; }
+  .sel-btn { height: 44px; }
+  .seg button { height: 38px; }
+  .cap { font-size: .95rem; }
+  .mock-tag { top: 4px; bottom: auto; right: 8px; }
+}
+
+/* A caption that was mostly rewritten: shown whole, before then after, with a plain line saying why */
+.cap .rewrite { display: block; white-space: normal; font-size: .78rem; color: var(--warn-ink); background: var(--warn-soft); padding: 7px 10px; border-radius: 9px; margin-bottom: 10px; }
+.cap .rw-l { display: block; white-space: normal; font-size: .68rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--label); margin: 4px 0 2px; }
+.cap .rw-old { color: var(--text-secondary); margin-bottom: 10px; }

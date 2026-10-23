@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caption history, option B: one column and a list</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  .hx-body { display: grid; grid-template-columns: 290px minmax(0,1fr); padding: 0; }
+  .rail { border-right: 1px solid var(--hair); padding: 12px; overflow: auto; display: flex; flex-direction: column; gap: 4px; background: var(--surface-subtle); }
+  .rail .rl { font-size: .7rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--label); padding: 4px 8px 6px; }
+  .ver { display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 10px; border-radius: 10px; width: 100%; }
+  .ver:hover { background: var(--fill); }
+  .ver[aria-current="true"] { background: var(--white); box-shadow: 0 0 0 1px var(--border), 0 1px 3px rgba(0,0,0,.05); }
+  .ver .vi { flex-shrink: 0; width: 26px; height: 26px; border-radius: 99px; display: flex; align-items: center; justify-content: center; background: var(--fill); color: var(--text-secondary); }
+  .ver[aria-current="true"] .vi { background: var(--pt-caption); color: var(--pi-caption); }
+  .ver .vi svg { width: 13px; height: 13px; }
+  .ver .vt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .ver .vt b { font-size: .8rem; }
+  .ver .vt span { font-size: .72rem; color: var(--text-secondary); }
+  .ver .vt q { font-size: .74rem; color: var(--accent-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ver .vt .ch { font-size: .7rem; color: var(--text-muted); }
+  .ver .now { margin-left: auto; font-size: .66rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--ok-ink); background: var(--ok-soft); box-shadow: inset 0 0 0 1px var(--ok-line); padding: 2px 6px; border-radius: 99px; flex-shrink: 0; }
+  .main { padding: 18px 22px; overflow: auto; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .main-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .main-h .sp { flex: 1; }
+  .main-h .cmp { font-size: .76rem; color: var(--text-secondary); }
+  .txt { padding: 16px 18px; border-radius: 14px; background: var(--surface-subtle); box-shadow: 0 0 0 1px var(--border-light); }
+  .phone-pick { display: none; }
+  @media (max-width: 600px) {
+    .hx-body { display: block; padding: 0; }
+    .rail { display: none; }
+    .phone-pick { display: block; padding: 12px 14px 0; }
+    .phone-pick .sel-btn { width: 100%; justify-content: space-between; }
+    .main { padding: 12px 14px 16px; }
+    .txt { padding: 12px 14px; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="shared.js"></script>
+<script>
+(function () {
+  const { q, VERSIONS, ICONS, HOW, esc, diffHtml, counts, howHtml, shell, EMPTY } = window.CH;
+  const state = q.get('state') || 'default';
+  const app = document.getElementById('app');
+  if (state === 'empty') {
+    app.innerHTML = shell('Caption history', 'Post: Warm up routine · Thu 22 Oct', EMPTY, '<span class="sp"></span><button class="btn-quiet">Close</button>');
+    document.querySelector('.hx-body').style.display = 'block';
+    return;
+  }
+  const latest = VERSIONS[VERSIONS.length - 1];
+  const sel = VERSIONS[Number(q.get('v') || 2) - 1];
+  const cmpNow = q.get('cmp') === 'now';
+  const base = cmpNow ? sel : VERSIONS[sel.id - 2];        // "what this change did": the version before it, then this one
+  const target = cmpNow ? latest : sel;
+  const rail = '<nav class="rail" aria-label="Versions"><div class="rl">' + VERSIONS.length + ' versions</div>' + VERSIONS.slice().reverse().map((v, i, arr) => {
+    const prev = VERSIONS[v.id - 2];
+    const c = prev ? counts(prev.text, v.text) : null;
+    return '<button class="ver" aria-current="' + (v.id === sel.id) + '"><span class="vi">' + ICONS[HOW[v.how].icon] + '</span><span class="vt"><b>' + esc(HOW[v.how].label) + '</b>' +
+      '<span>' + esc(v.who) + ' · ' + esc(v.when) + '</span>' + (v.note ? '<q>' + esc(v.note) + '</q>' : '') +
+      '<span class="ch">' + (c ? '+' + c.ins + ' / −' + c.del + ' words' : 'First version') + '</span></span>' +
+      (v.id === latest.id ? '<span class="now">Now</span>' : '') + '</button>';
+  }).join('') + '</nav>';
+  const phonePick = '<div class="phone-pick"><div class="sel"><button class="sel-btn" aria-haspopup="listbox"><span class="t">Version ' + sel.id + ' of ' + VERSIONS.length + ' · ' + esc(HOW[sel.how].label) + '</span>' + ICONS.chev + '</button></div></div>';
+  const main = '<div class="main">' + howHtml(sel, { current: sel.id === latest.id }) +
+    '<div class="main-h"><div class="seg" role="group" aria-label="Compare with"><button aria-pressed="' + !cmpNow + '">What this change did</button><button aria-pressed="' + cmpNow + '">Compare with now</button></div>' +
+    '<span class="sp"></span><span class="legend"><span><i class="ld"></i>Taken out</span><span><i class="li"></i>Added</span></span></div>' +
+    '<div class="cmp">' + (cmpNow ? 'Red is in version ' + sel.id + ' but not in the caption now; green is in the caption now.' : 'Version ' + base.id + ' → version ' + sel.id) + '</div>' +
+    '<div class="txt"><div class="cap">' + diffHtml(base.text, target.text, 'inline') + '</div></div></div>';
+  app.innerHTML = shell('Caption history', 'Post: Warm up routine · Thu 22 Oct', phonePick + rail + main,
+    '<span class="hint">Putting a version back saves it as a new version. Nothing here is ever deleted.</span><span class="sp"></span><button class="btn-quiet">Close</button>' +
+    '<button class="btn-dark"' + (sel.id === latest.id ? ' disabled' : '') + '>' + ICONS.restore + 'Put version ' + sel.id + ' back</button>');
+  /* The phone picker lives inside the body above the main column. */
+  if (matchMedia('(max-width: 600px)').matches) { const b = document.querySelector('.hx-body'); b.prepend(document.querySelector('.phone-pick')); }
+})();
+</script>
+</body>
+</html>

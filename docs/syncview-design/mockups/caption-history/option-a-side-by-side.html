@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caption history, option A: side by side</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  .cols { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px; }
+  .col { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; border-radius: 14px; background: var(--surface-subtle); box-shadow: 0 0 0 1px var(--border-light); min-width: 0; }
+  .col.now { background: var(--deck); box-shadow: 0 0 0 1px var(--border); }
+  .col-h { display: flex; align-items: center; gap: 8px; }
+  .col-h .lbl { font-size: .7rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--label); }
+  .col-h .sp { flex: 1; }
+  .col-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--hair); display: flex; align-items: center; gap: 10px; }
+  .summary { font-size: .76rem; color: var(--text-secondary); }
+  .summary b { color: var(--text-primary); }
+  .bar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .bar .sp { flex: 1; }
+  @media (max-width: 600px) {
+    .cols { grid-template-columns: 1fr; gap: 12px; }
+    .col { padding: 12px; }
+    .sel-list { min-width: 0; width: calc(100vw - 52px); }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="shared.js"></script>
+<script>
+(function () {
+  const { q, VERSIONS, ICONS, esc, diffHtml, counts, howHtml, shell, EMPTY, HOW } = window.CH;
+  const state = q.get('state') || 'default';
+  const app = document.getElementById('app');
+  if (state === 'empty') {
+    app.innerHTML = shell('Caption history', 'Post: Warm up routine · Thu 22 Oct', EMPTY,
+      '<span class="sp"></span><button class="btn-quiet">Close</button>');
+    return;
+  }
+  const latest = VERSIONS[VERSIONS.length - 1];
+  // Opens on the latest change: the version before it on the left, the caption now on the right.
+  const now = VERSIONS[Number(q.get('new') || latest.id) - 1];
+  const old = VERSIONS[Number(q.get('old') || now.id - 1) - 1];
+  const c = counts(old.text, now.text);
+  function picker(v, side, open) {
+    const label = (v.id === latest.id ? 'Now · ' : 'Version ' + v.id + ' · ') + HOW[v.how].label;
+    let list = '';
+    if (open) {
+      list = '<div class="sel-list" role="listbox">' + VERSIONS.slice().reverse().map(x => {
+        const isNow = x.id === latest.id;
+        return '<div class="sel-opt' + (x.id === 3 ? ' hover' : '') + '" role="option" aria-selected="' + (x.id === v.id) + '"' + (isNow ? ' aria-disabled="true"' : '') + '>' +
+          '<span>Version ' + x.id + ' · ' + esc(HOW[x.how].label) + (isNow ? ' (now)' : '') + '</span><small>' + esc(x.who) + ' · ' + esc(x.when) + (x.note ? ' · “' + esc(x.note) + '”' : '') + '</small></div>';
+      }).join('') + '</div>';
+    }
+    return '<div class="sel"><button class="sel-btn" aria-haspopup="listbox" aria-expanded="' + !!open + '"><span class="t">' + esc(label) + '</span>' + ICONS.chev + '</button>' + list + '</div>';
+  }
+  const body =
+    '<div class="bar"><span class="summary"><b>' + c.ins + '</b> words added, <b>' + c.del + '</b> taken out between these two versions</span><span class="sp"></span>' +
+    '<span class="legend"><span><i class="ld"></i>Taken out</span><span><i class="li"></i>Added</span></span></div>' +
+    '<div class="cols">' +
+      '<section class="col"><div class="col-h"><span class="lbl">Older</span><span class="sp"></span>' + picker(old, 'old', state === 'open') + '</div>' +
+        howHtml(old) + '<div class="cap">' + diffHtml(old.text, now.text, 'old') + '</div>' +
+        '<div class="col-foot"><button class="btn-dark">' + ICONS.restore + 'Put this version back</button></div></section>' +
+      '<section class="col now"><div class="col-h"><span class="lbl">Newer</span><span class="sp"></span>' + picker(now, 'new', false) + '</div>' +
+        howHtml(now, { current: now.id === latest.id }) + '<div class="cap">' + diffHtml(old.text, now.text, 'new') + '</div></section>' +
+    '</div>';
+  app.innerHTML = shell('Caption history', 'Post: Warm up routine · Thu 22 Oct · 4 versions', body,
+    '<span class="hint">Putting a version back saves it as a new version. Nothing in this list is ever deleted.</span><span class="sp"></span><button class="btn-quiet">Close</button>');
+})();
+</script>
+</body>
+</html>

@@ -33909,3 +33909,14 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 ## 475. [2026-10-22, FIXED in this change] Saving held when the page's "is saving on" check was slow
 
 On 2026-10-22 at 15:13 UTC a staff save on one real client was refused three times with `authority_unavailable` (reason `calendar_flag_timeout`): the page's own read of the saving switch did not answer within two seconds, three times in a row. No Edge Function errored, every server save in the window was 200, and the change went through on the next try. The card saver watcher rolled the switch back to three clients as its rule says. The check now waits four seconds per read and tries four times (worst case about 18 seconds, inside the 20 second save limit); a held save still stays in the outbox. Browser-only change; the guard tests for Calendar, Samples and caption prompts now expect four reads.
+
+## 480. [2026-10-23 20:45 UTC, AUDIT AND MOCKUPS, NOT BUILT] Unread badges disagree between cards, Messages and devices (session Beacon)
+
+Owner request 2026-10-23: the notes badges on the Calendar, Samples and client review sheets, and the Messages badge, must say what is waiting (client comment, client change request, or both) before anything is opened, and stay correct across replies, resolves, tabs and devices. Full audit, rule table, build order and decisions: `docs/audits/2026-10-23-unread-badges.md`; mockups `docs/syncview-design/mockups/unread-badges/`.
+
+- **Three read states that never meet:** card dots per browser (`syncview_notes_seen_v1`, by role), Messages per person on the server (`message_reads`), Kasper per browser (`syncview_kasper_seen_at_v1`).
+- **Measured live (read-only, counts only):** 1,715 of 1,737 resolved notes have `updated_at` after `created_at`, and the card dot compares `updated_at`, so a resolve makes the note "new" again elsewhere. `message_reads` has 12 rows from 1 person. 227 of 1,779 notes in the last 30 days carry a member id.
+- **Other findings:** the card dot cannot tell comment from change request; automatic caption records light it; it is by role not person; the client Review page never marks notes seen; a client change request with no staff answer raises the card dot but not the Messages badge (owner decision of 2026-10-14, D2 asks to reverse it).
+- **Nothing built here** except the two Messages-button fixes in OPEN_REPAIRS 479.
+
+**Way back:** nothing to revert (documents only).

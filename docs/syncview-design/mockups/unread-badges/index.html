@@ -1,0 +1,298 @@
+<!doctype html>
+<!-- Unread badges, proposed design (session Beacon, 2026-10-23). Static mockup, not wired to anything.
+     Fictional data only. Open with ?theme=dark for dark. Audit and rules: docs/audits/2026-10-23-unread-badges.md -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unread badges · mockup</title>
+<style>
+  /* Theme tokens copied from src/index/010-styles-foundation.css.part (light, then dark). */
+  :root {
+    --white: #ffffff; --bg: #f4f4f2; --border: #e4e4e0; --border-light: #ededea;
+    --surface-raised: #ffffff; --surface-hover: #f8f8f6; --surface-subtle: #f3f3f1;
+    --text-primary: #111110; --text-secondary: #6b6b67; --text-muted: #b4b4ae;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.06); --shadow-md: 0 8px 30px rgba(0,0,0,0.12);
+    --theme-toggle-bg: #ffffff; --theme-toggle-color: #6b6b67; --theme-toggle-border: #e4e4e0;
+    --cal-notes-accent-fg: #c2410c; --cal-notes-open-bg: #fff5e6;
+    --cal-status-in-progress-bg: #fde047; --cal-status-in-progress-fg: #101114;
+    --cal-comp-video-dot: #ec4899; --cal-comp-caption-dot: #f59e0b;
+    /* Proposed: one colour per kind, same hue for the fill, the ink and the icon. */
+    --unread-change-bg: #ea580c; --unread-change-fg: #ffffff; --unread-change-ink: #c2410c; --unread-change-soft: #fff1e6;
+    --unread-comment-bg: #2563eb; --unread-comment-fg: #ffffff; --unread-comment-ink: #1d4ed8; --unread-comment-soft: #eaf1ff;
+    --unread-staff-bg: #3f3f46; --unread-staff-fg: #ffffff; --unread-staff-ink: #3f3f46; --unread-staff-soft: #efeff1;
+    --unread-kasper-bg: #6c5ce7; --unread-kasper-fg: #ffffff; --unread-kasper-ink: #5a4bd1; --unread-kasper-soft: #f0eeff;
+    --unread-ring: #ffffff;
+    color-scheme: light;
+  }
+  html[data-theme="dark"] {
+    --white: #181a1f; --bg: #101114; --border: #343842; --border-light: #282c34;
+    --surface-raised: #20232a; --surface-hover: #242730; --surface-subtle: #15171c;
+    --text-primary: #f4f6f8; --text-secondary: #c2c7cf; --text-muted: #aeb6c2;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.35); --shadow-md: 0 10px 34px rgba(0,0,0,0.42);
+    --theme-toggle-bg: #20232a; --theme-toggle-color: #c2c7cf; --theme-toggle-border: #343842;
+    --cal-notes-accent-fg: #fdba74; --cal-notes-open-bg: rgba(251,146,60,0.14);
+    --unread-change-bg: #fb923c; --unread-change-fg: #1f1004; --unread-change-ink: #fdba74; --unread-change-soft: rgba(251,146,60,0.14);
+    --unread-comment-bg: #60a5fa; --unread-comment-fg: #0b1220; --unread-comment-ink: #93c5fd; --unread-comment-soft: rgba(96,165,250,0.14);
+    --unread-staff-bg: #d4d4d8; --unread-staff-fg: #18181b; --unread-staff-ink: #e4e4e7; --unread-staff-soft: rgba(212,212,216,0.12);
+    --unread-kasper-bg: #a094f8; --unread-kasper-fg: #140f33; --unread-kasper-ink: #c3b5ff; --unread-kasper-soft: rgba(160,148,248,0.16);
+    --unread-ring: #181a1f;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text-primary); font: 14px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .page { max-width: 1320px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.35rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 1rem; margin: 36px 0 4px; }
+  .lead, .note { color: var(--text-secondary); margin: 0 0 14px; max-width: 760px; }
+  .note { font-size: 0.82rem; }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  svg { display: block; }
+
+  /* ---- The badge family ---- */
+  .ub { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px 0 6px; border-radius: 99px; font-size: 0.7rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 1; }
+  .ub svg { width: 11px; height: 11px; flex: none; }
+  .ub.change { background: var(--unread-change-bg); color: var(--unread-change-fg); }
+  .ub.comment { background: var(--unread-comment-bg); color: var(--unread-comment-fg); }
+  .ub.staff { background: var(--unread-staff-bg); color: var(--unread-staff-fg); }
+  .ub.kasper { background: var(--unread-kasper-bg); color: var(--unread-kasper-fg); }
+  /* Read but still open change requests: an outline, never a fill. Fill means "new to you". */
+  .ub.open { background: transparent; color: var(--unread-change-ink); box-shadow: inset 0 0 0 1.5px var(--unread-change-bg); font-weight: 600; }
+  .ub-pair { display: inline-flex; gap: 4px; }
+
+  /* ---- Calendar card (shape of .cal-card in 020) ---- */
+  .cal-card { width: 300px; background: var(--white); border: 1px solid var(--border); border-radius: 14px; overflow: visible; display: flex; flex-direction: column; position: relative; }
+  .cal-thumb { height: 150px; border-radius: 13px 13px 0 0; background: linear-gradient(155deg, #d9dce2 0%, #b8bec9 100%); position: relative; }
+  html[data-theme="dark"] .cal-thumb { background: linear-gradient(155deg, #202a35 0%, #151b24 100%); }
+  .cal-body { padding: 10px 12px 10px; display: flex; flex-direction: column; gap: 6px; }
+  .cal-title { font-weight: 600; font-size: 0.86rem; }
+  .cal-status { align-self: flex-start; font-size: 0.68rem; font-weight: 700; padding: 3px 8px; border-radius: 99px; background: var(--cal-status-in-progress-bg); color: var(--cal-status-in-progress-fg); }
+  .cal-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--border-light); padding: 7px 8px 7px 6px; }
+  .notes-btn { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; border-radius: 6px; padding: 3px 6px; color: var(--text-muted); font: inherit; font-size: 0.74rem; font-weight: 500; cursor: pointer; }
+  .notes-btn:hover { background: var(--bg); color: var(--text-primary); }
+  .notes-btn.has-new { color: var(--text-primary); font-weight: 600; }
+  .notes-btn svg { width: 13px; height: 13px; }
+  .cal-date { font-size: 0.7rem; color: var(--text-muted); }
+  .card-cap { font-size: 0.74rem; color: var(--text-secondary); margin-top: 6px; width: 300px; }
+
+  /* ---- Hover / tap preview ---- */
+  .preview { position: absolute; left: 6px; top: calc(100% - 4px); width: 320px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-md); padding: 8px; z-index: 2; }
+  .preview h4 { margin: 2px 6px 6px; font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: none; }
+  .pv-item { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 8px; padding: 7px 6px; border-radius: 8px; align-items: start; }
+  .pv-item + .pv-item { border-top: 1px solid var(--border-light); }
+  .pv-item:hover { background: var(--surface-hover); }
+  .pv-who { font-size: 0.78rem; font-weight: 600; }
+  .pv-time { font-size: 0.7rem; color: var(--text-muted); }
+  .pv-text { grid-column: 2 / 4; font-size: 0.78rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pv-part { color: var(--text-muted); font-weight: 500; }
+  .pv-foot { display: flex; justify-content: space-between; align-items: center; padding: 8px 6px 2px; font-size: 0.74rem; color: var(--text-secondary); }
+  .pv-foot b { color: var(--text-primary); }
+  .kind-dot { width: 22px; height: 22px; border-radius: 99px; display: grid; place-items: center; grid-row: 1 / 3; }
+  .kind-dot svg { width: 12px; height: 12px; }
+  .kind-dot.change { background: var(--unread-change-soft); color: var(--unread-change-ink); }
+  .kind-dot.comment { background: var(--unread-comment-soft); color: var(--unread-comment-ink); }
+  .kind-dot.staff { background: var(--unread-staff-soft); color: var(--unread-staff-ink); }
+  .kind-dot.kasper { background: var(--unread-kasper-soft); color: var(--unread-kasper-ink); }
+
+  /* ---- Header ---- */
+  .header { height: 60px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; max-width: 760px; }
+  .header-tabs { display: flex; gap: 18px; color: var(--text-secondary); font-size: 0.82rem; font-weight: 600; }
+  .header-tabs .on { color: var(--text-primary); }
+  .header-actions { display: flex; gap: 8px; align-items: center; position: relative; }
+  .tt { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--theme-toggle-border); background: var(--theme-toggle-bg); color: var(--theme-toggle-color); display: inline-flex; align-items: center; justify-content: center; position: relative; }
+  .tt .corner { position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; font-size: 0.62rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--unread-ring); font-variant-numeric: tabular-nums; }
+  .corner.change { background: var(--unread-change-bg); color: var(--unread-change-fg); }
+  .corner.comment { background: var(--unread-comment-bg); color: var(--unread-comment-fg); }
+  .corner.staff { background: var(--unread-staff-bg); color: var(--unread-staff-fg); }
+  .tip { position: absolute; right: 40px; top: 42px; width: 250px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-md); padding: 10px 12px; font-size: 0.78rem; z-index: 2; }
+  .tip b { display: block; margin-bottom: 6px; }
+  .tip div { display: flex; align-items: center; gap: 8px; padding: 2px 0; color: var(--text-secondary); }
+  .tip .sw { width: 8px; height: 8px; border-radius: 99px; }
+  .header-wrap { position: relative; padding-bottom: 110px; }
+  .bad { opacity: 1; }
+  .compare { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+  .compare figure { margin: 0; display: flex; flex-direction: column; gap: 6px; align-items: center; font-size: 0.72rem; color: var(--text-secondary); }
+  .tt.old { gap: 2px; }
+  .tt.old .inline { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--unread-change-bg); color: var(--unread-change-fg); font-size: 0.66rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+
+  /* ---- Messages page ---- */
+  .msg { display: grid; grid-template-columns: 330px 1fr; background: var(--white); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; min-height: 520px; }
+  .msg-list { border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  .msg-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border-light); }
+  .seg { display: inline-flex; background: var(--surface-subtle); border-radius: 9px; padding: 2px; }
+  .seg button { border: 0; background: transparent; font: inherit; font-size: 0.76rem; font-weight: 600; color: var(--text-secondary); padding: 4px 10px; border-radius: 7px; }
+  .seg button.on { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+  .conv { display: grid; grid-template-columns: 40px 1fr auto; gap: 2px 10px; padding: 10px 14px; border-bottom: 1px solid var(--border-light); align-items: center; }
+  .conv.sel { background: var(--surface-hover); }
+  .conv .th { width: 40px; height: 40px; border-radius: 8px; background: linear-gradient(155deg, #d9dce2 0%, #b8bec9 100%); grid-row: 1 / 3; }
+  html[data-theme="dark"] .conv .th { background: linear-gradient(155deg, #202a35 0%, #151b24 100%); }
+  .conv .t { font-size: 0.82rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .conv.new .t { font-weight: 700; }
+  .conv .l { font-size: 0.76rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; grid-column: 2 / 3; }
+  .conv.new .l { color: var(--text-primary); }
+  .conv .when { font-size: 0.68rem; color: var(--text-muted); text-align: right; }
+  .conv .bd { grid-column: 3; grid-row: 2; justify-self: end; }
+  .chat { display: flex; flex-direction: column; }
+  .chat-head { padding: 12px 18px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .chat-head .ct { font-weight: 700; font-size: 0.9rem; }
+  .chat-head .cs { font-size: 0.74rem; color: var(--text-secondary); }
+  .chat-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+  .divider { display: flex; align-items: center; gap: 10px; font-size: 0.7rem; font-weight: 700; color: var(--unread-change-ink); }
+  .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: 0.35; }
+  .day { text-align: center; font-size: 0.68rem; color: var(--text-muted); font-weight: 600; }
+  .b { max-width: 78%; }
+  .b .meta { display: flex; gap: 6px; align-items: center; font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 3px; }
+  .b .meta b { color: var(--text-primary); }
+  .b .txt { background: var(--surface-subtle); border-radius: 12px; padding: 8px 11px; font-size: 0.82rem; }
+  .b.me { align-self: flex-end; }
+  .b.me .txt { background: var(--text-primary); color: var(--white); }
+  .b.me .meta { justify-content: flex-end; }
+  .b.change .txt { box-shadow: inset 3px 0 0 var(--unread-change-bg); }
+  .b.comment .txt { box-shadow: inset 3px 0 0 var(--unread-comment-bg); }
+  .tag { font-size: 0.64rem; font-weight: 700; padding: 2px 6px; border-radius: 99px; }
+  .tag.change { background: var(--unread-change-soft); color: var(--unread-change-ink); }
+  .tag.comment { background: var(--unread-comment-soft); color: var(--unread-comment-ink); }
+  .tag.staff { background: var(--unread-staff-soft); color: var(--unread-staff-ink); }
+  .tag.done { background: var(--surface-subtle); color: var(--text-secondary); }
+  .sys { align-self: center; font-size: 0.72rem; color: var(--text-muted); display: flex; gap: 6px; align-items: center; }
+  .composer { border-top: 1px solid var(--border-light); padding: 12px 18px; color: var(--text-muted); font-size: 0.8rem; }
+
+  /* ---- Phone ---- */
+  .phone { width: 390px; max-width: 100%; background: var(--white); border: 1px solid var(--border); border-radius: 22px; overflow: hidden; }
+  .ph-bar { height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; border-bottom: 1px solid var(--border-light); font-weight: 700; }
+  .ph-card { margin: 12px; }
+  .ph-card .cal-card { width: 100%; }
+
+  @media (max-width: 767px) {
+    .msg { grid-template-columns: 1fr; }
+    .msg .chat { display: none; }
+    .msg-list { border-right: 0; }
+    .header-tabs { display: none; }
+    .preview { position: static; width: 100%; margin-top: 8px; }
+    .tip { right: 0; }
+  }
+</style>
+<script>
+  // ?theme=dark switches the theme (used by the screenshots).
+  try { if (new URLSearchParams(location.search).get('theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) {}
+</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-comment" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></symbol>
+  <symbol id="i-change" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M10.5 2.5l3 3L6 13H3v-3z M9 4l3 3"/></symbol>
+  <symbol id="i-staff" viewBox="0 0 16 16"><circle cx="8" cy="5.3" r="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M3.2 13.2c.35-2.35 2.1-3.7 4.8-3.7s4.45 1.35 4.8 3.7"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z"/><circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="i-auto" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M8 2v3M8 11v3M2 8h3M11 8h3"/></symbol>
+</svg>
+<div class="page">
+  <h1>Unread badges</h1>
+  <p class="lead">One rule everywhere: a <b>filled</b> badge means something new for you, and its colour and icon say what it is. Orange pencil is a change request, blue bubble is a comment, grey person is a staff message, violet eye is Kasper. An <b>outlined</b> orange badge means change requests you have already read that are still open. Automatic records never get a badge.</p>
+
+  <h2 id="kinds">1. The kinds</h2>
+  <p class="note">The same badges appear on calendar cards, Samples cards, the Messages list and the Messages button.</p>
+  <div class="row" style="align-items:center">
+    <span class="ub change"><svg><use href="#i-change"/></svg>2</span><span class="note" style="margin:0 12px 0 0">Client change request</span>
+    <span class="ub comment"><svg><use href="#i-comment"/></svg>1</span><span class="note" style="margin:0 12px 0 0">Client comment</span>
+    <span class="ub-pair"><span class="ub change"><svg><use href="#i-change"/></svg>1</span><span class="ub comment"><svg><use href="#i-comment"/></svg>2</span></span><span class="note" style="margin:0 12px 0 0">Both</span>
+    <span class="ub staff"><svg><use href="#i-staff"/></svg>1</span><span class="note" style="margin:0 12px 0 0">Staff message</span>
+    <span class="ub kasper"><svg><use href="#i-eye"/></svg>1</span><span class="note" style="margin:0 12px 0 0">Kasper</span>
+    <span class="ub open">3 open</span><span class="note" style="margin:0">Read, still open</span>
+  </div>
+
+  <h2 id="cards">2. Calendar and Samples cards</h2>
+  <p class="note">The Notes button keeps its place in the card footer. Today it shows one orange dot for anything new and "N open" for open change requests, and you cannot tell which is which.</p>
+  <div class="row">
+    <div><div class="cal-card"><div class="cal-thumb"></div><div class="cal-body"><div class="cal-title">Morning routine reel</div><span class="cal-status">In Progress</span></div>
+      <div class="cal-foot"><button class="notes-btn has-new"><svg><use href="#i-comment"/></svg>Notes<span class="ub change"><svg><use href="#i-change"/></svg>2</span></button><span class="cal-date">Oct 24</span></div></div>
+      <div class="card-cap">Client asked for 2 changes</div></div>
+    <div><div class="cal-card"><div class="cal-thumb"></div><div class="cal-body"><div class="cal-title">Behind the counter</div><span class="cal-status">In Progress</span></div>
+      <div class="cal-foot"><button class="notes-btn has-new"><svg><use href="#i-comment"/></svg>Notes<span class="ub comment"><svg><use href="#i-comment"/></svg>1</span></button><span class="cal-date">Oct 25</span></div></div>
+      <div class="card-cap">Client left a comment</div></div>
+    <div><div class="cal-card"><div class="cal-thumb"></div><div class="cal-body"><div class="cal-title">Team intro carousel</div><span class="cal-status">In Progress</span></div>
+      <div class="cal-foot"><button class="notes-btn has-new"><svg><use href="#i-comment"/></svg>Notes<span class="ub-pair"><span class="ub change"><svg><use href="#i-change"/></svg>1</span><span class="ub comment"><svg><use href="#i-comment"/></svg>2</span></span></button><span class="cal-date">Oct 26</span></div></div>
+      <div class="card-cap">Both: one change, two comments</div></div>
+    <div><div class="cal-card"><div class="cal-thumb"></div><div class="cal-body"><div class="cal-title">Weekend offer story</div><span class="cal-status">In Progress</span></div>
+      <div class="cal-foot"><button class="notes-btn"><svg><use href="#i-comment"/></svg>Notes<span class="ub open">2 open</span></button><span class="cal-date">Oct 27</span></div></div>
+      <div class="card-cap">Read, two change requests still open</div></div>
+  </div>
+
+  <h2 id="preview">3. Hover (or long-press on a phone): what it is before you open it</h2>
+  <p class="note">Up to three newest unread items, newest first: kind, who, which part, the first line and when. Clicking an item opens Notes at that message. Opening the preview does not mark anything read; opening Notes does.</p>
+  <div class="row" style="padding-bottom:230px">
+    <div class="cal-card"><div class="cal-thumb"></div><div class="cal-body"><div class="cal-title">Team intro carousel</div><span class="cal-status">In Progress</span></div>
+      <div class="cal-foot"><button class="notes-btn has-new" style="background:var(--bg)"><svg><use href="#i-comment"/></svg>Notes<span class="ub-pair"><span class="ub change"><svg><use href="#i-change"/></svg>1</span><span class="ub comment"><svg><use href="#i-comment"/></svg>2</span></span></button><span class="cal-date">Oct 26</span></div>
+      <div class="preview" role="dialog" aria-label="New on this post">
+        <h4>3 new on this post</h4>
+        <div class="pv-item"><span class="kind-dot change"><svg><use href="#i-change"/></svg></span><span class="pv-who">Client <span class="pv-part">· Video</span></span><span class="pv-time">12 min</span><span class="pv-text">Can we cut the first two seconds and start on the logo?</span></div>
+        <div class="pv-item"><span class="kind-dot comment"><svg><use href="#i-comment"/></svg></span><span class="pv-who">Client <span class="pv-part">· Caption</span></span><span class="pv-time">15 min</span><span class="pv-text">Love the second slide, great colours.</span></div>
+        <div class="pv-item"><span class="kind-dot comment"><svg><use href="#i-comment"/></svg></span><span class="pv-who">Client <span class="pv-part">· Video</span></span><span class="pv-time">1 h</span><span class="pv-text">Is the music licensed?</span></div>
+        <div class="pv-foot"><span>Also <b>1 open</b> change from before</span><span>Open Notes →</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h2 id="button">4. The Messages button</h2>
+  <p class="note">The count sits on the corner, so the icon never moves (left: today, the icon slides 9 px left, 11 px with two digits). It counts conversations with something new for you and takes the colour of the most important kind waiting: change, then comment, then staff. It is live from page load. Hover says what is waiting.</p>
+  <div class="compare">
+    <figure><span class="tt old"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="inline">3</span></span>Today</figure>
+    <figure><span class="tt"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="corner change">3</span></span>Change waiting</figure>
+    <figure><span class="tt"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="corner comment">1</span></span>Comment only</figure>
+    <figure><span class="tt"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="corner staff">12</span></span>Staff only</figure>
+    <figure><span class="tt"><svg width="15" height="15"><use href="#i-comment"/></svg></span>Nothing new</figure>
+  </div>
+  <div class="header-wrap" style="margin-top:18px">
+    <div class="header"><div class="header-tabs"><span>Today</span><span class="on">Calendar</span><span>Samples</span><span>Workload</span><span>Kasper</span></div>
+      <div class="header-actions"><span class="tt" style="background:var(--surface-hover)"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="corner change">3</span></span><span class="tt"><svg width="16" height="16"><use href="#i-staff"/></svg></span>
+        <div class="tip" role="tooltip"><b>3 conversations with something new</b>
+          <div><span class="sw" style="background:var(--unread-change-bg)"></span>2 change requests from clients</div>
+          <div><span class="sw" style="background:var(--unread-comment-bg)"></span>1 client comment</div>
+          <div><span class="sw" style="background:var(--unread-staff-bg)"></span>1 staff message</div></div></div></div>
+  </div>
+
+  <h2 id="messages">5. Messages: the list and a chat</h2>
+  <p class="note">Each row carries the same kind badges. In the chat, a line marks where the new messages start, each message says what it is, a resolved change says Done, and automatic records sit in the middle in grey with no badge.</p>
+  <div class="msg">
+    <div class="msg-list">
+      <div class="msg-head"><b>Messages</b><div class="seg"><button class="on">New · 3</button><button>All</button></div></div>
+      <div class="conv new sel"><span class="th"></span><span class="t">Sample Client A · Team intro carousel</span><span class="when">12 min</span><span class="l">Client: Can we cut the first two seconds…</span><span class="bd ub-pair"><span class="ub change"><svg><use href="#i-change"/></svg>1</span><span class="ub comment"><svg><use href="#i-comment"/></svg>2</span></span></div>
+      <div class="conv new"><span class="th"></span><span class="t">Sample Client B · Morning routine reel</span><span class="when">40 min</span><span class="l">Client: Please swap the end card</span><span class="bd"><span class="ub change"><svg><use href="#i-change"/></svg>2</span></span></div>
+      <div class="conv new"><span class="th"></span><span class="t">Sample Client C · Product close-ups</span><span class="when">2 h</span><span class="l">Robin: Footage is in the folder now</span><span class="bd"><span class="ub staff"><svg><use href="#i-staff"/></svg>1</span></span></div>
+      <div class="conv"><span class="th"></span><span class="t">Sample Client A · Weekend offer story</span><span class="when">Yesterday</span><span class="l">You: Done, new version is up</span><span class="bd"><span class="ub open">2 open</span></span></div>
+    </div>
+    <div class="chat">
+      <div class="chat-head"><div><div class="ct">Team intro carousel</div><div class="cs">Sample Client A · In Progress</div></div><span class="ub open">1 open</span></div>
+      <div class="chat-body">
+        <div class="day">Yesterday</div>
+        <div class="b change"><div class="meta"><b>Client</b><span class="tag change">Change asked · Video</span><span class="tag done">Done</span></div><div class="txt">Make the logo a bit bigger on the last slide.</div></div>
+        <div class="b me"><div class="meta"><span>You</span></div><div class="txt">Done, bigger logo is in the new cut.</div></div>
+        <div class="sys"><svg width="11" height="11"><use href="#i-auto"/></svg>Client changed the caption · automatic record, not counted</div>
+        <div class="divider">3 new</div>
+        <div class="b comment"><div class="meta"><b>Client</b><span class="tag comment">Comment · Video</span><span>1 h</span></div><div class="txt">Is the music licensed?</div></div>
+        <div class="b comment"><div class="meta"><b>Client</b><span class="tag comment">Comment · Caption</span><span>15 min</span></div><div class="txt">Love the second slide, great colours.</div></div>
+        <div class="b change"><div class="meta"><b>Client</b><span class="tag change">Change asked · Video</span><span>12 min</span></div><div class="txt">Can we cut the first two seconds and start on the logo?</div></div>
+      </div>
+      <div class="composer">Reply to the client…</div>
+    </div>
+  </div>
+
+  <h2 id="phone">6. Phone</h2>
+  <p class="note">The same badges. The Tabs menu entry for Messages carries the coloured count; a long-press on Notes shows the preview as a sheet.</p>
+  <div class="row">
+    <div class="phone">
+      <div class="ph-bar"><span>Calendar</span><span class="tt"><svg width="15" height="15"><use href="#i-comment"/></svg><span class="corner change">3</span></span></div>
+      <div class="ph-card"><div class="cal-card"><div class="cal-thumb"></div><div class="cal-body"><div class="cal-title">Team intro carousel</div><span class="cal-status">In Progress</span></div>
+        <div class="cal-foot"><button class="notes-btn has-new"><svg><use href="#i-comment"/></svg>Notes<span class="ub-pair"><span class="ub change"><svg><use href="#i-change"/></svg>1</span><span class="ub comment"><svg><use href="#i-comment"/></svg>2</span></span></button><span class="cal-date">Oct 26</span></div></div></div>
+      <div class="ph-card"><div class="cal-card"><div class="cal-thumb" style="height:90px"></div>
+        <div class="cal-foot"><button class="notes-btn"><svg><use href="#i-comment"/></svg>Notes<span class="ub open">2 open</span></button><span class="cal-date">Oct 27</span></div></div></div>
+    </div>
+    <div class="phone">
+      <div class="ph-bar"><span>Messages</span><div class="seg"><button class="on">New · 3</button><button>All</button></div></div>
+      <div class="conv new"><span class="th"></span><span class="t">Team intro carousel</span><span class="when">12 min</span><span class="l">Client: Can we cut the first two…</span><span class="bd ub-pair"><span class="ub change"><svg><use href="#i-change"/></svg>1</span><span class="ub comment"><svg><use href="#i-comment"/></svg>2</span></span></div>
+      <div class="conv new"><span class="th"></span><span class="t">Morning routine reel</span><span class="when">40 min</span><span class="l">Client: Please swap the end card</span><span class="bd"><span class="ub change"><svg><use href="#i-change"/></svg>2</span></span></div>
+      <div class="conv new"><span class="th"></span><span class="t">Product close-ups</span><span class="when">2 h</span><span class="l">Robin: Footage is in the folder now</span><span class="bd"><span class="ub staff"><svg><use href="#i-staff"/></svg>1</span></span></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

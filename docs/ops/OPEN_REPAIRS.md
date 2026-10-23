@@ -33909,3 +33909,16 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 ## 475. [2026-10-22, FIXED in this change] Saving held when the page's "is saving on" check was slow
 
 On 2026-10-22 at 15:13 UTC a staff save on one real client was refused three times with `authority_unavailable` (reason `calendar_flag_timeout`): the page's own read of the saving switch did not answer within two seconds, three times in a row. No Edge Function errored, every server save in the window was 200, and the change went through on the next try. The card saver watcher rolled the switch back to three clients as its rule says. The check now waits four seconds per read and tries four times (worst case about 18 seconds, inside the 20 second save limit); a held save still stays in the outbox. Browser-only change; the guard tests for Calendar, Samples and caption prompts now expect four reads.
+
+## 479. [2026-10-23 20:45 UTC, BUILT, NOT MERGED] The Messages badge appeared only after a click, and pushed its icon to the left (session Beacon)
+
+Owner report 2026-10-23: the Messages button's unread badge only shows after clicking Messages, and when it shows it moves the speech-bubble icon. (Number 479 because 476 is claimed by #2296 and 477 and 478 may be claimed by the two mockup PRs opened the same hour.)
+
+- **Cause 1.** The inbox was read only when the pointer reached the Messages button or Messages opened ("never at page load", OPEN_REPAIRS 443), and its live refresh starts only after that first read.
+- **Cause 2.** The sign-in check (`100`) calls `_msgOnIdentity()` when it answers, but it usually answers before the Messages script chunk has run; the call threw inside a `try` and nothing started. Measured offline: it never ran on a normal Calendar load.
+- **Cause 3 (the shift).** The count was an inline item beside the icon in a fixed 34 px centred button: the icon moved 9 px left with one digit, 11 px with two.
+- **Fix (no switch).** `_msgBootLoad` reads the inbox once, 1.5 s after a sign-in that may use Messages is known, and the Messages code starts it itself when it loads after the sign-in. Never on the Production tab (its read-only gate), on a client link, or in a hidden tab (it waits and checks again locally). The first answer starts the existing live refresh. The count now sits on the button's top-right corner with a ring in the header colour.
+- **Tests.** New `node docs/syncview-design/tests/messages-badge-boot-browser.js` (fails on main: no inbox call, icon offset -9 and -11 px; passes with the fix), wired into `calendar-unit-tests.yml`. `messages-inbox-browser.js` check O asserted the old "no call at page load" rule; it now asserts the new rule as strictly (exactly one call after load, none added by hover or open). Still passing: messages-inbox, messages-new-view, messages-day-divider, note-send-outbox, prod-write-gateway, prod-boot-budget, prod-readonly-smoke, popup-behaviour.
+- **Not checked live:** this environment cannot reach syncview.synchrosocial.com.
+
+**Way back:** revert the pull request.

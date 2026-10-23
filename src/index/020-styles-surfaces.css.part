@@ -2791,6 +2791,8 @@
         .msg-conv.is-skeleton .msg-thumb { border-radius: 7px; }
         .msg-b-text.msg-skel { border-color: transparent; }
         .msg-nav-btn { position: relative; }
+        /* The count sits on the button's top-right corner, so the icon never moves when it appears (2026-10-23). */
+        .msg-nav-btn > .msg-unread { position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 0.62rem; line-height: 1; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--white); pointer-events: none; }
         .msg-nav-btn[hidden] { display: none; }
         .msg-nav-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
         /* The Messages page uses the whole width under the header. */

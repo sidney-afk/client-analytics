@@ -510,7 +510,8 @@ async function markUnread(page){
         check(!left.loaded && left.n === 0 && !left.loading && !left.saved, 'N: an answer that lands after sign-out is dropped and not saved (' + JSON.stringify(left) + ')');
         await pg.close();
       }
-      // O: nothing is asked at page load; the call starts when the pointer reaches the button.
+      // O: the badge is live from page load (owner, 2026-10-23): one inbox call shortly after load, with no
+      // hover or click, and neither the pointer reaching the button nor opening Messages starts a second one.
       {
         inboxDelay = 0;
         const pg = await S.newPage();
@@ -519,10 +520,13 @@ async function markUnread(page){
         await pg.evaluate(() => sessionStorage.clear());
         const n0 = inboxCalls;
         await goHome(pg);
-        await sleep(2500);
-        check(inboxCalls === n0, 'O: no inbox call at page load (' + (inboxCalls - n0) + ')');
+        await pg.mouse.move(600, 600);
+        check(await until(() => inboxCalls > n0, 6000), 'O: one inbox call after page load, with no hover or click');
+        await sleep(1000);
+        check(inboxCalls === n0 + 1, 'O: exactly one call at page load (' + (inboxCalls - n0) + ')');
         await pg.hover('#navMessages');
-        check(await until(() => inboxCalls > n0, 3000), 'O: the call starts when the pointer reaches the Messages button');
+        await sleep(500);
+        check(inboxCalls === n0 + 1, 'O: the pointer reaching the button does not start a second call (' + (inboxCalls - n0) + ')');
         await pg.click('#navMessages');
         await pg.evaluate(() => _msgSetFilter('all'));   // these checks are about the list itself; the switch opens on New
         check(await until(() => pg.evaluate(() => !!document.querySelector('#msgPage [data-msg-conv="p_t1"]')), 3000), 'O: opening afterwards shows the list');

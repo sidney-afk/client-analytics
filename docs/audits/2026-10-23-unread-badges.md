@@ -109,7 +109,7 @@ is shared by the team and clears only when the work is done: a change marked Don
 
 | Kind | Who writes it | New (filled) | Still needs you (outlined) | Where it counts |
 |---|---|---|---|---|
-| Client change request | client, `is_tweak` true (missing counts as a change) | orange pencil | orange "N open" until Done | **card only** (Notes, the card badge, the calendar summary) |
+| Client change request | client, `is_tweak` true (missing counts as a change) | orange pencil | orange "N open" until Done | **card only** (Notes and the card badge) |
 | Client comment or question | client, `is_tweak` false | blue bubble | blue reply arrow, "waiting for an answer", until a team reply or "No reply needed" | card **and** Messages |
 | A client reply inside a change-request thread | client | orange (it belongs to the change) | the change stays open | card only |
 | Staff message | any staff member who is not you (member id; by name when the note has none) | grey person | no waiting state (staff ask each other directly) | card and Messages |
@@ -131,7 +131,7 @@ is shared by the team and clears only when the work is done: a change marked Don
 | A note is deleted or hidden | stops counting at once | stops counting at once |
 | You open Notes on a card | everything on that post is read for you, on the server | **unchanged**: open changes and waiting comments stay pinned under "Needs you" |
 | You open the conversation in Messages | read for you (one read record, D5) | unchanged |
-| You open the hover preview, or look at the calendar summary | nothing changes | nothing changes |
+| You open the hover preview | nothing changes | nothing changes |
 | You reply | read up to your reply | your reply answers the comment |
 | Mark unread | back to new for you only | unchanged |
 | No read record yet | only the last 14 days count | waiting is not limited to 14 days, but only comments written after this ships start waiting (no backlog of old comments) |
@@ -154,29 +154,48 @@ in place. Changes need nothing new: they already stay open until Done.
 
 | Situation | How fast it updates |
 |---|---|
-| A new note anywhere | realtime on the cards (channels already open) triggers one summary read, at most one per 5 s; the card, the calendar summary, the Messages list and the header repaint from that one answer |
+| A new note anywhere | realtime on the cards (channels already open) triggers one summary read, at most one per 5 s; the card, the Messages list and the header repaint from that one answer |
 | Read, answered, Done or "No reply needed" in another tab of this browser | BroadcastChannel ping, immediate |
 | The same on the phone or another computer | when that tab is looked at again (immediate), otherwise within 30 s (safety net lowered from 60 s) |
 | Page load | the badge is drawn from the first read, 1.5 s after sign-in, with a retry if it fails (PR #2300) |
 
-### What each place shows
+### What each place shows (round 4, 2026-10-23 23:35 UTC, desktop)
 
-- **Calendar summary line** (new): "For you: N new changes · N new comments · N to answer · N changes open", for the
-  clients on screen. Each chip filters the calendar to those posts.
-- **Card Notes button:** in this order: new changes (filled orange), open changes (outlined orange), new comments
-  (filled blue), comments to answer (outlined blue), staff (grey), Kasper (violet). At most three badges; the rest fold
-  into "+N".
-- **Hover (desktop) or long-press (phone):** up to four lines, newest first: kind, who, part, first words, when, and
-  "waiting for an answer" where it applies; "Also N open". Clicking a line opens Notes at that note.
-- **Notes:** a "Needs you" group at the top (new changes, open changes, comments waiting for an answer), then
-  "Earlier". Each waiting comment has Reply, "No reply needed" and "Mark unread".
-- **Messages button:** counts conversations, never change requests. A filled count of conversations with something new
-  for you, in the colour of what is waiting (comment, then staff, then Kasper). When nothing is new but answers are owed,
-  an outlined count. Hover lists both, and says changes are on the cards.
-- **Messages list:** New, To answer, All. Per-row kind badges.
-- **Chat:** a "New" line; each message tagged (Comment · Video, Internal); a waiting comment has Reply and "No reply
-  needed"; a client's change request appears as one line linking to the card ("Client asked for 1 change on the video ·
-  see the card"), never as a message that counts; automatic records are grey lines.
+These rules (kinds, new versus waiting, what clears what) are also the source for the phone design, which session Palm
+does separately; only the desktop look below is this audit's.
+
+- **Card Notes button:** no words, only icon and number. Every NEW kind is one square segment of a single strip, in a
+  fixed order: change (orange), comment (blue), team (grey), Kasper (violet). What is read but still needs you (a change
+  not done, a comment to answer) follows as a second, outlined strip. At most four segments in all; more fold into
+  "+N". This holds for any number of kinds: the strip only grows to four segments.
+- **Hover:** opens at once (no delay), one line per note, newest first: icon, who, what ("Change request", "Comment",
+  "Waiting for your answer", "Reply to the client", "Team note") and part, the time, then the first words. A footer says
+  how many changes are still not done.
+- **Notes:** the conversation stays in time order and opens at the newest note. "Needs you" is pinned under the title:
+  one line per thing that needs you (new change, new comment, new from Kasper or the team, waiting for your answer,
+  change not done), each jumping to its note, plus "Mark unread". The notes themselves: no avatars, no boxes, a hairline
+  between threads, a thin colour line for the kind, replies indented under what they answer, quiet small-caps labels
+  ("NEW", "WAITING FOR YOUR ANSWER", "NOT DONE", "TEAM ONLY"), and the actions that matter on the note itself: Reply and
+  No reply needed on a waiting comment, Reply and Mark done on a change. Automatic records are one quiet line.
+- **Messages button:** a square count on the corner, filled for conversations with something new, outlined when only
+  answers are owed. Hover says it in words and that change requests are on the cards.
+- **Messages inbox:** New, To answer and All as plain underlined tabs. One row per conversation with hairlines: the
+  post's name first, the client under it, the last real message (never a change request), and the same badge strip.
+- **Conversation:** a flat log, no bubbles: who, part and time on one line, the words under it, a thin colour line for
+  the kind, "Team only" the one tag kept. A waiting comment carries Reply and No reply needed. A client's change request
+  is one orange line, "The client asked for a change on the video. Change requests are handled on the card", with Open
+  card. Mark unread and Open card stay plain buttons in the head.
+- **Style throughout:** square or near-square corners (2 px), no pills or bubbles, hairlines instead of frames, colour
+  only where it means a kind, the calm Workload's small-caps labels and the client review page's quiet surfaces.
+
+### From the earlier Notes and Messages draft (#2054)
+
+Kept: one thread shown in both Notes and Messages; every note about one part (video, thumbnail, caption); the small
+"Team only" tag; replies under the note they answer; a conversation leaves the inbox once its post is posted; Mark
+unread. Already built since: the inbox for all staff, the per-person read marks (`message_reads`), the quiet composer.
+Dropped here: the chat bubbles and the "To client" tag on every staff note (it is the default, so it is noise), the
+fold-to-"n replies" rail (indent and hairline instead), and the client-side "new messages" strip (client links are not
+in this round). The privacy move of team notes out of the card columns is a separate piece of work and is unchanged.
 
 ## 6. Technical design (proposed)
 
@@ -185,7 +204,7 @@ in place. Changes need nothing new: they already stay open until Done.
   `created_at`, waiting). The browser never works out kinds itself.
 - **Messages keeps hiding change requests**: today's rule from 2026-10-14, now on purpose. The only addition is the
   one-line link in the chat.
-- **Cards and the calendar summary read the same answer** through a new read-only action (for example
+- **Cards read the same answer** through a new read-only action (for example
   `unread_for_posts`: a client slug in, the per-post summary out). `_calHasUnreadNotes` and `syncview_notes_seen_v1`
   stay only for client links.
 - **One read record per person** (D5): opening Notes calls `inbox_mark` (per person, per post), and the
@@ -207,7 +226,7 @@ approves the mockups.
 1. **Done, PR #2300:** the Messages button is live from page load, retries a failed first read, and the icon stays put.
 2. **Server:** per-kind counts, open and waiting counts, and preview lines in the `inbox` answer, plus the
    `unread_for_posts` action; tests in `test/messages-inbox-scope.js`. Auto-deploys, no migration, nothing visible.
-3. **Calendar cards and the summary line:** read the server summary for staff; opening Notes marks read on the
+3. **Calendar cards:** read the server summary for staff; opening Notes marks read on the
    server; per-kind badges, outlines and the hover preview. Behind the switch.
 4. **Notes:** the "Needs you" group, "No reply needed" and "Mark unread" on comments. Behind the switch.
 5. **Messages:** New, To answer and All; kind badges; the coloured corner count, the outline and the hover; the
@@ -232,10 +251,12 @@ that shows it. The words on the badges were made literal for someone seeing them
 "1 new comment", "1 to answer", "2 changes open", "1 from team", "1 from Kasper"), and every action (Reply, No reply
 needed, Mark done, Mark unread, Open card) is a visible button, never behind a menu.
 
-**Still open, each with a recommendation:**
-- **D1. What the Messages number counts.** Recommendation: conversations with something new for you (filled). When
-  nothing is new but answers are owed, an outlined count of those. Never change requests. (Mockup section 7.)
-- **D7. Answering later.** Recommendation: **A**. Every client comment shows "Waiting for an answer" until someone on
-  the team replies or marks "No reply needed". "Mark unread" stays as the personal fallback. Remind me waits until A has
-  been tried.
-- **D9. The calendar summary line.** Recommendation: yes, above the calendar, filtering on click (mockup section 2).
+**Round 4 (23:27 UTC): D1 yes, D7 yes, D9 no** (no summary line above the calendar; removed). Card badges carry no
+words: icon and number only, with the wording in the hover. The new desktop round restyles Notes, the Messages inbox
+and a long conversation in the calm language (square corners, hairlines, no bubbles). The phone is handed to session
+Palm and follows the rules above.
+
+**Still open, with a recommendation:**
+- **D10. Three or more kinds on one card.** Recommendation: one strip of joined square segments in a fixed order (change,
+  comment, team, Kasper), outlined segments after it for what is read but still needs you, at most four segments, then
+  "+N" (gallery section 1).

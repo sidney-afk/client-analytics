@@ -78,76 +78,68 @@ function seed(S) {
     await shot(page, name, { clip: { x: box.x - 4, y: top, width: box.width + 8, height: Math.max(40, bottom - top) } });
   };
   try {
+    // Round 4: desktop only (the phone is designed in another session), the proposed design only.
     for (const theme of ['light', 'dark']) {
-      for (const [w, h, tag] of [[1440, 900, 'desktop'], [390, 844, 'phone']]) {
-        for (const before of [true, false]) {
-          const v = (before ? 'before' : 'after') + '-' + tag + '-' + theme;
-          if (ONLY && !v.includes(ONLY)) continue;
-          const page = await S.newPage();
-          await page.setViewportSize({ width: w, height: h });
-          await page.addInitScript(t => { try { localStorage.setItem('syncview_theme', t); } catch (e) {} }, theme);
-          await S.openCalendar(page);
-          await page.evaluate(t => document.documentElement.setAttribute('data-theme', t), theme);
-          if (!before) { await page.addScriptTag({ content: PREVIEW }); await page.evaluate(() => svUnreadPreview.apply()); }
-          await page.mouse.move(2, h - 2);
-          await sleep(2600);   // the inbox's first read (1.5 s after sign-in) lands, so the header count is live
-          await shot(page, v + '-calendar');
-          // Card footers, one per case.
-          for (const pid of ['p_new_change', 'p_new_comment', 'p_both', 'p_open', 'p_waiting', 'p_staff', 'p_kasper', 'p_calm']) await cardShot(page, pid, v + '-card-' + pid);
-          if (!before) {
-            // The hover card on the "both" card.
-            const btn = page.locator(tag === 'phone' ? '#calView .cal-card[data-pid="p_both"] .thumb-tile' : '#calView .cal-card[data-pid="p_both"] [data-comments-btn]').first();
-            await btn.scrollIntoViewIfNeeded();
-            // A phone has no hover: the same card opens on a long press, so it is opened by script there.
-            if (tag === 'phone') await btn.evaluate(el => svUnreadPreview.hoverCard('p_both', el));
-            else await btn.hover();
-            await sleep(300);
-            await shot(page, v + '-hover');
-            await page.mouse.move(2, h - 2);
-            await page.evaluate(() => svUnreadPreview.hideHover());
-            // The summary line, filtered to "to answer".
-            await page.evaluate(() => { window.scrollTo(0, 0); svUnreadPreview.filter('waiting'); });
-            await sleep(300);
-            await shot(page, v + '-strip-filter');
-            await page.evaluate(() => svUnreadPreview.filter(''));
-          }
-          // The Messages button, and its hover.
-          await page.evaluate(() => window.scrollTo(0, 0));
-          if (tag === 'desktop') {
-            await shot(page, v + '-header', { clip: { x: w - 420, y: 0, width: 420, height: 64 } });
-            if (!before) { await page.hover('#navMessages'); await sleep(250); await shot(page, v + '-header-hover', { clip: { x: w - 420, y: 0, width: 420, height: 260 } }); await page.mouse.move(2, h - 2); }
-          }
-          // Messages: the list (New, To answer, All) and a chat.
-          await page.evaluate(() => _msgOpenPage());
-          await sleep(1500);
-          await shot(page, v + '-messages-new');
-          if (!before) { await page.evaluate(() => _msgSetFilter('answer')); await sleep(300); await shot(page, v + '-messages-answer'); }
-          await page.evaluate(() => _msgSetFilter('all')); await sleep(300);
-          await shot(page, v + '-messages-all');
-          await page.click('#msgPage [data-msg-conv="p_both"]');
-          await sleep(1200);
-          await shot(page, v + '-chat-p_both');
-          if (!before) {
-            // Nothing new any more, but answers are still owed: the button shows an outlined count.
-            await page.evaluate(() => { _msgState.conversations.forEach(c => { c.last_read_at = new Date().toISOString(); }); _msgPaintCounts(); _msgPaint(); });
-            await sleep(200);
-            if (tag === 'desktop') await shot(page, v + '-header-waiting', { clip: { x: w - 420, y: 0, width: 420, height: 64 } });
-          }
-          // Back to the Calendar for Notes.
-          await page.evaluate(() => { if (document.getElementById('msgPage')) _msgClose(); navTo('calendar'); });
-          await sleep(900);
-          // Notes on the "both" card (two new, one waiting) and on the "waiting" card (read, still waiting).
-          for (const pid of ['p_both', 'p_waiting']) {
-            await page.evaluate(id => openCalComments(id), pid);
-            await sleep(900);
-            await shot(page, v + '-notes-' + pid);
-            await page.keyboard.press('Escape');
-            await sleep(400);
-          }
-          if (page.errors.length) console.log('page errors', v, page.errors);
-          await page.close();
-        }
+      const w = 1440, h = 900, v = 'r4-' + theme;
+      if (ONLY && !v.includes(ONLY)) continue;
+      const page = await S.newPage();
+      await page.setViewportSize({ width: w, height: h });
+      await page.addInitScript(t => { try { localStorage.setItem('syncview_theme', t); } catch (e) {} }, theme);
+      await S.openCalendar(page);
+      await page.evaluate(t => document.documentElement.setAttribute('data-theme', t), theme);
+      await page.addScriptTag({ content: PREVIEW });
+      await page.evaluate(() => svUnreadPreview.apply());
+      await page.mouse.move(2, h - 2);
+      await sleep(2600);   // the inbox's first read lands, so the header count is live
+      await shot(page, v + '-calendar');
+      for (const pid of ['p_new_change', 'p_new_comment', 'p_both', 'p_open', 'p_waiting', 'p_staff', 'p_kasper', 'p_calm', 'p_four', 'p_long']) await cardShot(page, pid, v + '-card-' + pid);
+      // The hover on the card with four kinds at once.
+      const wrap = page.locator('#calView .cal-card[data-pid="p_four"] .svu-foot').first();
+      await wrap.scrollIntoViewIfNeeded();
+      await wrap.hover();
+      await sleep(250);
+      await shot(page, v + '-hover');
+      await page.mouse.move(2, h - 2);
+      await page.evaluate(() => svUnreadPreview.hideHover());
+      // The Messages button, its hover.
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await shot(page, v + '-header', { clip: { x: w - 420, y: 0, width: 420, height: 64 } });
+      await page.hover('#navMessages'); await sleep(250);
+      await shot(page, v + '-header-hover', { clip: { x: w - 420, y: 0, width: 420, height: 270 } });
+      await page.mouse.move(2, h - 2); await page.evaluate(() => svUnreadPreview.hideButtonTip());
+      // Messages: New, To answer, then a long conversation and a short one.
+      await page.evaluate(() => _msgOpenPage());
+      await sleep(1500);
+      await shot(page, v + '-messages-new');
+      await page.evaluate(() => _msgSetFilter('answer')); await sleep(300);
+      await shot(page, v + '-messages-answer');
+      await page.evaluate(() => _msgSetFilter('all')); await sleep(300);
+      for (const pid of ['p_long', 'p_both']) {
+        await page.click(`#msgPage [data-msg-conv="${pid}"]`);
+        await sleep(1200);
+        await shot(page, v + '-chat-' + pid);
       }
+      // Nothing new any more, answers still owed: the outlined count.
+      await page.evaluate(() => { _msgState.conversations.forEach(c => { c.last_read_at = new Date().toISOString(); }); _msgPaintCounts(); _msgPaint(); });
+      await sleep(200);
+      await shot(page, v + '-header-waiting', { clip: { x: w - 420, y: 0, width: 420, height: 64 } });
+      // Back to the Calendar for Notes: a busy post and a long one (scrolled to the top too).
+      await page.evaluate(() => { if (document.getElementById('msgPage')) _msgClose(); navTo('calendar'); });
+      await sleep(900);
+      for (const pid of ['p_four', 'p_long']) {
+        await page.evaluate(id => openCalComments(id), pid);
+        await sleep(900);
+        await shot(page, v + '-notes-' + pid);
+        if (pid === 'p_long') {
+          await page.evaluate(() => { const f = document.getElementById('calCommentsFeed'); if (f) f.scrollTop = 0; });
+          await sleep(200);
+          await shot(page, v + '-notes-p_long-top');
+        }
+        await page.keyboard.press('Escape');
+        await sleep(400);
+      }
+      if (page.errors.length) console.log('page errors', v, page.errors);
+      await page.close();
     }
     console.log(done.length + ' screenshots in ' + path.relative(process.cwd(), OUT));
   } finally {

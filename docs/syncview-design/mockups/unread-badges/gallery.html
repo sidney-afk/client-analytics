@@ -3,210 +3,173 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap">
 <style>
-  /* Layout: one reading column of decisions, then a running sequence of screens, light and dark side by side. */
+  /* Layout: one reading column for what is decided and what is left, then the screens in order, light and dark side by side. Square corners, hairlines, no cards in cards. */
   :root {
     --bg: #f6f6f3; --panel: #ffffff; --ink: #121211; --muted: #64645f; --line: #e3e3de;
-    --change: #ea580c; --comment: #2563eb; --staff: #3f3f46; --kasper: #6c5ce7; --ok: #15803d;
+    --change: #d9480f; --comment: #2563eb; --staff: #52525b; --kasper: #6c5ce7; --ok: #15803d;
     --display: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
     --bg: #0f1013; --panel: #17191e; --ink: #f2f4f7; --muted: #aab1bd; --line: #2b2f37;
-    --change: #fb923c; --comment: #60a5fa; --staff: #d4d4d8; --kasper: #a094f8; --ok: #4ade80; color-scheme: dark; } }
+    --change: #fb923c; --comment: #60a5fa; --staff: #a1a1aa; --kasper: #a094f8; --ok: #4ade80; color-scheme: dark; } }
   :root[data-theme="dark"] {
     --bg: #0f1013; --panel: #17191e; --ink: #f2f4f7; --muted: #aab1bd; --line: #2b2f37;
-    --change: #fb923c; --comment: #60a5fa; --staff: #d4d4d8; --kasper: #a094f8; --ok: #4ade80; color-scheme: dark; }
+    --change: #fb923c; --comment: #60a5fa; --staff: #a1a1aa; --kasper: #a094f8; --ok: #4ade80; color-scheme: dark; }
   body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
-  .wrap { max-width: 1180px; margin: 0 auto; padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 36px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 34px; }
   h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
-  h1 { font-size: 1.9rem; }
-  h2 { font-size: 1.3rem; }
-  h3 { font-size: 1.05rem; }
-  p { margin: 0; max-width: 68ch; }
+  h1 { font-size: 1.85rem; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 1rem; }
+  p { margin: 0; max-width: 70ch; }
+  ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
   .muted { color: var(--muted); }
   .intro { display: flex; flex-direction: column; gap: 10px; }
-  .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: .86rem; color: var(--muted); }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: .86rem; color: var(--muted); }
   .sw { display: inline-flex; align-items: center; gap: 6px; }
-  .sw i { width: 12px; height: 12px; border-radius: 99px; display: inline-block; }
-  .sw i.o { background: transparent !important; box-shadow: inset 0 0 0 2px var(--change); }
-  .sw i.ob { background: transparent !important; box-shadow: inset 0 0 0 2px var(--comment); }
-  .decisions { display: flex; flex-direction: column; gap: 22px; }
-  .decision { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
-  .decision .tag { font: 600 .72rem/1 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .sw i { width: 12px; height: 12px; display: inline-block; }
+  .sw i.o { background: transparent !important; box-shadow: inset 0 0 0 1px var(--muted); }
+  .block { background: var(--panel); border: 1px solid var(--line); padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+  .block .tag { font: 700 .7rem/1 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
   .rec { font-weight: 600; }
   .rec b { color: var(--ok); }
-  .decided { display: flex; flex-direction: column; gap: 6px; font-size: .92rem; }
-  .decided li { margin-left: 18px; }
   .screen { display: flex; flex-direction: column; gap: 10px; }
-  .screen .why { font-size: .9rem; color: var(--muted); }
-  .screen .why b { color: var(--ink); font-weight: 600; }
+  .section-title { display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .why { font-size: .9rem; color: var(--muted); }
+  .why b { color: var(--ink); font-weight: 600; }
   .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .pair.phones { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .pair.cards { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; }
+  .cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: start; }
   figure { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-  figure img { width: 100%; height: auto; display: block; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); }
+  figure img { width: 100%; height: auto; display: block; border: 1px solid var(--line); background: var(--panel); }
   figcaption { font-size: .82rem; color: var(--muted); }
-  .section-title { display: flex; flex-direction: column; gap: 4px; padding-top: 6px; border-top: 1px solid var(--line); }
-  .before-after { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  a { color: inherit; }
   @media (max-width: 760px) {
-    .pair, .before-after { grid-template-columns: 1fr; }
-    .pair.phones, .pair.cards { grid-template-columns: 1fr 1fr; }
+    .pair { grid-template-columns: 1fr; }
+    .cards { grid-template-columns: 1fr 1fr; }
     h1 { font-size: 1.5rem; }
   }
 </style>
 
 <div class="wrap">
   <header class="intro">
-    <h1>Unread badges, as they would look in SyncView</h1>
-    <p>Every picture below is the real SyncView page, run on a laptop with made-up posts and notes, with the proposed badges switched on for the screenshot only. Nothing is live yet.</p>
+    <h1>Unread badges, round 4: Notes and Messages, calmer</h1>
+    <p>Every picture is the real SyncView page on a laptop, with made-up posts and notes and the proposal switched on for the screenshot only. Nothing is live. This round is desktop only; the phone is being designed in its own session, from the same rules.</p>
     <div class="legend">
-      <span class="sw"><i style="background:var(--change)"></i>Orange: a change request</span>
-      <span class="sw"><i style="background:var(--comment)"></i>Blue: a client comment</span>
-      <span class="sw"><i style="background:var(--staff)"></i>Grey: someone on the team</span>
-      <span class="sw"><i style="background:var(--kasper)"></i>Violet: Kasper</span>
-      <span class="sw"><i class="o"></i>Outline: read, but still needs doing</span>
+      <span class="sw"><i style="background:var(--change)"></i>Change request</span>
+      <span class="sw"><i style="background:var(--comment)"></i>Client comment</span>
+      <span class="sw"><i style="background:var(--staff)"></i>Someone on the team</span>
+      <span class="sw"><i style="background:var(--kasper)"></i>Kasper</span>
+      <span class="sw"><i class="o"></i>Outline: read, still needs you</span>
     </div>
   </header>
 
-  <section class="decisions" aria-labelledby="dec">
-    <h2 id="dec">Three things to decide</h2>
+  <section class="block" aria-labelledby="left">
+    <span class="tag">One choice left</span>
+    <h3 id="left">How a card shows three or more kinds at once</h3>
+    <p>Each new kind is one square segment with its icon and number, joined into one strip in a fixed order: change, comment, team, Kasper. What you have read but still need to do (a change not done, a comment to answer) follows as a second, outlined strip. A card shows at most four segments; anything beyond becomes "+1". No words on the card: hover the strip and it lists who and what, at once.</p>
+    <div class="pair">
+      <figure><img src="shots/real/r4-light-card-p_four.png" alt="Card with four kinds"><figcaption>Four kinds at once: one strip, four segments.</figcaption></figure>
+      <figure><img src="shots/real/r4-light-hover.png" alt="Hover on that card"><figcaption>Hover: who, what, which part, the first words.</figcaption></figure>
+    </div>
+    <p class="rec">Recommendation: <b>yes</b>, one strip in a fixed order, at most four segments.</p>
+  </section>
 
-    <article class="decision" id="d1">
-      <span class="tag">Decision 1 · The number on the Messages button</span>
-      <h3>The number counts conversations that have something new for you.</h3>
-      <p>If three posts each have a new client comment, it says 3. Change requests never count here: they live on the cards. When nothing is new but a client is still waiting for your answer, the number shows as an outlined ring instead of a filled dot. Hover the button and it lists what is waiting, in words.</p>
-      <div class="pair">
-        <figure><img src="shots/real/after-desktop-light-header-hover.png" alt="Messages button with a blue 4 and a hover list"><figcaption>Something new: a filled count, and hovering says what it is.</figcaption></figure>
-        <figure><img src="shots/real/after-desktop-light-header-waiting.png" alt="Messages button with an outlined 3"><figcaption>Nothing new, but 3 clients wait for an answer: an outlined count.</figcaption></figure>
-      </div>
-      <p class="rec">Recommendation: <b>yes</b>, count conversations, and use the outline for "waiting for your answer".</p>
-    </article>
+  <section class="block">
+    <span class="tag">Already decided by you</span>
+    <ul>
+      <li>The Messages number counts conversations with something new; an outlined number when only answers are owed. Change requests never count there.</li>
+      <li>A client's comment stays "Waiting for your answer" until someone replies or clicks "No reply needed".</li>
+      <li>No summary line above the calendar (removed).</li>
+      <li>Change requests stay on the card; the post's SMM and admins see "waiting for your answer"; one read for everything; reading on the phone clears the laptop within 30 seconds.</li>
+      <li>Switched on first for your two accounts only, on any client, once you approve these pictures.</li>
+    </ul>
+  </section>
 
-    <article class="decision" id="d7">
-      <span class="tag">Decision 2 · Answering later</span>
-      <h3>Opening Notes clears "new", but a client's comment keeps saying "Waiting for your answer".</h3>
-      <p>It stays that way until someone on the team replies or clicks "No reply needed". So you can read everything now and answer one message later without losing it. Mark unread is still there if you want the whole post back as new.</p>
-      <div class="pair">
-        <figure><img src="shots/real/after-desktop-light-notes-p_waiting.png" alt="Notes with one comment marked Waiting for your answer"><figcaption>Read yesterday, still waiting: Reply and No reply needed are right under it.</figcaption></figure>
-        <figure><img src="shots/real/after-desktop-light-card-p_waiting.png" alt="Card footer with an outlined 1 to answer"><figcaption>On the card, an outlined "1 to answer" stays until it is answered.</figcaption></figure>
-      </div>
-      <p class="rec">Recommendation: <b>yes</b>, automatic "waiting for your answer", with Mark unread kept. A "remind me later" button can come later if needed.</p>
-    </article>
+  <section class="screen">
+    <div class="section-title"><h2>1. Card badges</h2><p class="why"><b>Why it is obvious:</b> the colour and icon say the kind, the number says how many; filled is new, outlined is waiting on you. Nothing else is written on the card.</p></div>
+    <div class="cards" id="cardsLight"></div>
+    <div class="cards" id="cardsDark"></div>
+  </section>
 
-    <article class="decision" id="d9">
-      <span class="tag">Decision 3 · A summary line above the calendar</span>
-      <h3>One line above the cards says what is waiting for you on this client.</h3>
-      <p>Click a part of it to see only those posts, click again to see all. Looking at it marks nothing as read.</p>
-      <div class="pair">
-        <figure><img src="shots/real/after-desktop-light-calendar.png" alt="Calendar with the summary line above the cards"><figcaption>New changes, new comments, to answer, changes not done yet.</figcaption></figure>
-        <figure><img src="shots/real/after-desktop-light-strip-filter.png" alt="Calendar filtered to posts with a comment to answer"><figcaption>Clicked "to answer": the other posts fade back.</figcaption></figure>
-      </div>
-      <p class="rec">Recommendation: <b>yes</b>, add the line.</p>
-    </article>
-
-    <div class="decided">
-      <h3>Already decided by you</h3>
-      <ul>
-        <li>Change requests stay out of Messages. In a chat they show as one line with an Open card button.</li>
-        <li>The post's SMM and admins see "waiting for your answer". One reply from anyone on the team clears it for everyone.</li>
-        <li>Reading on your phone clears the laptop within 30 seconds.</li>
-        <li>The colours above, one "read" for everything, and a teammate's reply to a client counts for you in grey.</li>
-      </ul>
+  <section class="screen">
+    <div class="section-title"><h2>2. Hover on a card</h2><p class="why"><b>Why it is obvious:</b> one line per note, starting with who wrote it and what it is; it opens instantly, no delay.</p></div>
+    <div class="pair">
+      <figure><img src="shots/real/r4-light-hover.png" alt="Hover, light"><figcaption>Light</figcaption></figure>
+      <figure><img src="shots/real/r4-dark-hover.png" alt="Hover, dark"><figcaption>Dark</figcaption></figure>
     </div>
   </section>
 
   <section class="screen">
-    <div class="section-title"><h2>1. The calendar</h2><p class="why"><b>Why it is obvious:</b> the words on each card say what is there ("2 new changes", "1 new comment"); today a single orange dot means anything.</p></div>
-    <div class="before-after">
-      <figure><img src="shots/real/before-desktop-light-calendar.png" alt="Today's calendar"><figcaption>Today: a dot and "2 open". You cannot tell a comment from a change.</figcaption></figure>
-      <figure><img src="shots/real/after-desktop-light-calendar.png" alt="Proposed calendar"><figcaption>Proposed: what it is, in words, plus the summary line.</figcaption></figure>
+    <div class="section-title"><h2>3. Notes on a card</h2><p class="why"><b>Why it is obvious:</b> "Needs you" sits under the title and each line jumps to its note; below, the conversation in time order, one hairline between notes, a thin colour line for the kind, and Reply, No reply needed or Mark done right under the note that needs it.</p></div>
+    <div class="pair">
+      <figure><img src="shots/real/r4-light-notes-p_four.png" alt="Notes on a busy post, light"><figcaption>A busy post: four things need you.</figcaption></figure>
+      <figure><img src="shots/real/r4-dark-notes-p_four.png" alt="Notes on a busy post, dark"><figcaption>Dark</figcaption></figure>
     </div>
     <div class="pair">
-      <figure><img src="shots/real/after-desktop-light-calendar.png" alt="Calendar, light"><figcaption>Light</figcaption></figure>
-      <figure><img src="shots/real/after-desktop-dark-calendar.png" alt="Calendar, dark"><figcaption>Dark</figcaption></figure>
+      <figure><img src="shots/real/r4-light-notes-p_long-top.png" alt="A long conversation from the start, light"><figcaption>A long conversation, from the start: replies sit indented under what they answer.</figcaption></figure>
+      <figure><img src="shots/real/r4-light-notes-p_long.png" alt="A long conversation at the newest note, light"><figcaption>The same conversation where it opens, at the newest note.</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="shots/real/r4-dark-notes-p_long-top.png" alt="Long conversation, dark"><figcaption>Dark</figcaption></figure>
+      <figure><img src="shots/real/r4-dark-notes-p_long.png" alt="Long conversation newest, dark"><figcaption>Dark</figcaption></figure>
     </div>
   </section>
 
   <section class="screen">
-    <div class="section-title"><h2>2. Every kind on a card</h2><p class="why"><b>Why it is obvious:</b> a filled colour means new, an outline means read but not finished, and each one says its own name.</p></div>
-    <div class="pair cards" id="cardsLight"></div>
-    <div class="pair cards" id="cardsDark"></div>
-  </section>
-
-  <section class="screen">
-    <div class="section-title"><h2>3. Hover: what it is before you open it</h2><p class="why"><b>Why it is obvious:</b> each line starts with what it is ("New change", "New comment"), then who, which part and the first words.</p></div>
+    <div class="section-title"><h2>4. The Messages button</h2><p class="why"><b>Why it is obvious:</b> a square number on the corner that never moves the icon; hover says, in words, what it is counting.</p></div>
     <div class="pair">
-      <figure><img src="shots/real/after-desktop-light-hover.png" alt="Hover card, light"><figcaption>Light</figcaption></figure>
-      <figure><img src="shots/real/after-desktop-dark-hover.png" alt="Hover card, dark"><figcaption>Dark</figcaption></figure>
+      <figure><img src="shots/real/r4-light-header-hover.png" alt="Button hover, light"><figcaption>Something new: filled number and the list in words.</figcaption></figure>
+      <figure><img src="shots/real/r4-light-header-waiting.png" alt="Button, only answers owed"><figcaption>Nothing new but answers owed: an outlined number.</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="shots/real/r4-dark-header-hover.png" alt="Button hover, dark"><figcaption>Dark</figcaption></figure>
+      <figure><img src="shots/real/before-desktop-light-header.png" alt="Today's button"><figcaption>Today, for comparison.</figcaption></figure>
     </div>
   </section>
 
   <section class="screen">
-    <div class="section-title"><h2>4. Notes on a card</h2><p class="why"><b>Why it is obvious:</b> a "Needs you" line at the top, a label on each note, and the buttons that matter (Reply, No reply needed, Mark done) always on screen, not only on hover.</p></div>
+    <div class="section-title"><h2>5. The Messages inbox</h2><p class="why"><b>Why it is obvious:</b> three plain tabs (New, To answer, All) underlined like the rest of SyncView, one line of hairline per conversation, the post's name first, and the same badge strip as the cards.</p></div>
     <div class="pair">
-      <figure><img src="shots/real/after-desktop-light-notes-p_both.png" alt="Notes with new change and comments, light"><figcaption>Two new comments waiting for an answer, one new change.</figcaption></figure>
-      <figure><img src="shots/real/after-desktop-dark-notes-p_both.png" alt="Notes, dark"><figcaption>Dark</figcaption></figure>
+      <figure><img src="shots/real/r4-light-messages-new.png" alt="Inbox New, light"><figcaption>New</figcaption></figure>
+      <figure><img src="shots/real/r4-dark-messages-new.png" alt="Inbox New, dark"><figcaption>New, dark</figcaption></figure>
     </div>
     <div class="pair">
-      <figure><img src="shots/real/after-desktop-light-notes-p_waiting.png" alt="Notes, read but waiting, light"><figcaption>Read earlier, still waiting for an answer.</figcaption></figure>
-      <figure><img src="shots/real/after-desktop-dark-notes-p_waiting.png" alt="Notes, read but waiting, dark"><figcaption>Dark</figcaption></figure>
-    </div>
-  </section>
-
-  <section class="screen">
-    <div class="section-title"><h2>5. The Messages button</h2><p class="why"><b>Why it is obvious:</b> the number sits on the corner and never moves the icon; hovering says, in words, what the number is.</p></div>
-    <div class="pair">
-      <figure><img src="shots/real/before-desktop-light-header.png" alt="Today's Messages button"><figcaption>Today</figcaption></figure>
-      <figure><img src="shots/real/after-desktop-light-header.png" alt="Proposed Messages button"><figcaption>Proposed</figcaption></figure>
-    </div>
-    <div class="pair">
-      <figure><img src="shots/real/after-desktop-light-header-hover.png" alt="Hover, light"><figcaption>Hover, light</figcaption></figure>
-      <figure><img src="shots/real/after-desktop-dark-header-hover.png" alt="Hover, dark"><figcaption>Hover, dark</figcaption></figure>
+      <figure><img src="shots/real/r4-light-messages-answer.png" alt="Inbox To answer, light"><figcaption>To answer: only conversations where a client waits for you.</figcaption></figure>
+      <figure><img src="shots/real/r4-dark-messages-answer.png" alt="Inbox To answer, dark"><figcaption>To answer, dark</figcaption></figure>
     </div>
   </section>
 
   <section class="screen">
-    <div class="section-title"><h2>6. The Messages list</h2><p class="why"><b>Why it is obvious:</b> three plain tabs, New, To answer and All, and each row says what is new in it.</p></div>
+    <div class="section-title"><h2>6. A conversation</h2><p class="why"><b>Why it is obvious:</b> no bubbles, a flat log like a document: who, which part and when on one line, the words under it, a thin colour line for the kind. "Team only" is the one label kept, because it matters. A change request is one orange line pointing to the card.</p></div>
     <div class="pair">
-      <figure><img src="shots/real/after-desktop-light-messages-new.png" alt="Messages New, light"><figcaption>New</figcaption></figure>
-      <figure><img src="shots/real/after-desktop-dark-messages-new.png" alt="Messages New, dark"><figcaption>New, dark</figcaption></figure>
+      <figure><img src="shots/real/r4-light-chat-p_long.png" alt="Long conversation, light"><figcaption>A long conversation over two days.</figcaption></figure>
+      <figure><img src="shots/real/r4-dark-chat-p_long.png" alt="Long conversation, dark"><figcaption>Dark</figcaption></figure>
     </div>
     <div class="pair">
-      <figure><img src="shots/real/after-desktop-light-messages-answer.png" alt="Messages To answer, light"><figcaption>To answer: only conversations where a client waits for you.</figcaption></figure>
-      <figure><img src="shots/real/after-desktop-dark-messages-answer.png" alt="Messages To answer, dark"><figcaption>To answer, dark</figcaption></figure>
-    </div>
-  </section>
-
-  <section class="screen">
-    <div class="section-title"><h2>7. A chat</h2><p class="why"><b>Why it is obvious:</b> each message says if it is new or waiting for you, Reply and No reply needed sit right under it, Mark unread and Open card are plain buttons at the top, and a change request is one orange line pointing to the card.</p></div>
-    <div class="pair">
-      <figure><img src="shots/real/after-desktop-light-chat-p_both.png" alt="Chat, light"><figcaption>Light</figcaption></figure>
-      <figure><img src="shots/real/after-desktop-dark-chat-p_both.png" alt="Chat, dark"><figcaption>Dark</figcaption></figure>
+      <figure><img src="shots/real/r4-light-chat-p_both.png" alt="Short conversation, light"><figcaption>A short one: two comments waiting, one change request.</figcaption></figure>
+      <figure><img src="shots/real/r4-dark-chat-p_both.png" alt="Short conversation, dark"><figcaption>Dark</figcaption></figure>
     </div>
   </section>
 
   <section class="screen">
-    <div class="section-title"><h2>8. On a phone</h2><p class="why"><b>Why it is obvious:</b> today a phone tile shows no notes at all. Now each tile carries the same colours, with an icon and a number, and a long press says it in words.</p></div>
-    <div class="pair phones" id="phoneLight"></div>
-    <div class="pair phones" id="phoneDark"></div>
+    <div class="section-title"><h2>7. Today, for comparison</h2></div>
+    <div class="pair">
+      <figure><img src="shots/real/before-desktop-light-notes-p_both.png" alt="Today's Notes"><figcaption>Today's Notes: avatars, a dot, actions only on hover.</figcaption></figure>
+      <figure><img src="shots/real/before-desktop-light-chat-p_both.png" alt="Today's chat"><figcaption>Today's chat: rounded bubbles.</figcaption></figure>
+    </div>
   </section>
 
-  <p class="muted">How these were made: the real page, built from the code on GitHub, served on a laptop with every server answer faked and no live data. A small switch that only the screenshot script loads adds the proposed badges. Pull request #2299 has the details.</p>
+  <p class="muted">How these were made: the real page, built from the code on GitHub, served on a laptop with every server answer faked and no live data. A small switch that only the screenshot script loads adds the proposal. Pull request #2299 has the details.</p>
 </div>
 <script>
   const CASES = [
-    ['p_new_change', 'New change requests'], ['p_new_comment', 'A new comment'], ['p_both', 'A new change and new comments'],
-    ['p_open', 'Changes read, not done yet'], ['p_waiting', 'Read, still waiting for an answer'], ['p_staff', 'A teammate answered the client'],
+    ['p_new_change', 'New change requests'], ['p_new_comment', 'A new comment'], ['p_both', 'A change and comments'],
+    ['p_four', 'Four kinds at once'], ['p_long', 'New, plus one not done'],
+    ['p_open', 'Read, changes not done'], ['p_waiting', 'Read, a comment to answer'], ['p_staff', 'A teammate replied'],
     ['p_kasper', 'New from Kasper'], ['p_calm', 'Nothing for you'],
   ];
-  const PHONE = [['calendar', 'Calendar tiles'], ['hover', 'Long press on a tile'], ['notes-p_both', 'Notes'], ['messages-new', 'Messages'], ['chat-p_both', 'A chat']];
-  for (const [theme, id] of [['light', 'phoneLight'], ['dark', 'phoneDark']]) {
-    document.getElementById(id).innerHTML = PHONE.map(([k, cap]) =>
-      `<figure><img src="shots/real/after-phone-${theme}-${k}.png" alt="${cap}, ${theme}" loading="lazy"><figcaption>${cap}${theme === 'dark' ? ', dark' : ''}</figcaption></figure>`).join('');
-  }
   for (const [theme, id] of [['light', 'cardsLight'], ['dark', 'cardsDark']]) {
     document.getElementById(id).innerHTML = CASES.map(([pid, cap]) =>
-      `<figure><img src="shots/real/after-desktop-${theme}-card-${pid}.png" alt="${cap}, ${theme}" loading="lazy"><figcaption>${cap}${theme === 'dark' ? ', dark' : ''}</figcaption></figure>`).join('');
+      `<figure><img src="shots/real/r4-${theme}-card-${pid}.png" alt="${cap}, ${theme}" loading="lazy"><figcaption>${cap}${theme === 'dark' ? ', dark' : ''}</figcaption></figure>`).join('');
   }
 </script>

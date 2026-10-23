@@ -1,4 +1,4 @@
-/* Unread badges preview (session Beacon, 2026-10-23). LOCAL ONLY: loaded into the real page by make-screenshots.js,
+/* Unread badges preview, round 4 (session Beacon, 2026-10-23). LOCAL ONLY, DESKTOP: loaded into the real page by make-screenshots.js,
    never by the app. It swaps a few of today's renderers for the proposed design so the screenshots show the real
    Calendar card, Notes panel, Messages button, list and chat. Nothing here writes anywhere: "No reply needed" and
    "Mark unread" only change this page's memory. The real build computes the same states on the server. */
@@ -67,176 +67,153 @@
     return s;
   }
 
-  /* ---------- the badge words ---------- */
+  /* ---------- icons ---------- */
   const ICO = {
-    change: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5l3 3L6 13H3v-3z"/></svg>',
-    comment: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>',
-    waiting: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4L2.5 7.5 6 11 M2.5 7.5H10a3.5 3.5 0 0 1 3.5 3.5v1"/></svg>',
-    staff: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="8" cy="5.3" r="2.5"/><path stroke-linecap="round" d="M3.2 13.2c.35-2.35 2.1-3.7 4.8-3.7s4.45 1.35 4.8 3.7"/></svg>',
-    kasper: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z"/><circle cx="8" cy="8" r="2.2"/></svg>',
+    change: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5l3 3L6 13H3v-3z"/></svg>',
+    comment: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M2.5 3.5h11v8H7l-3 2.5V11.5H2.5z"/></svg>',
+    waiting: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4L2.5 7.5 6 11 M2.5 7.5H10a3.5 3.5 0 0 1 3.5 3.5v1"/></svg>',
+    staff: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="5.3" r="2.5"/><path stroke-linecap="round" d="M3.2 13.2c.35-2.35 2.1-3.7 4.8-3.7s4.45 1.35 4.8 3.7"/></svg>',
+    kasper: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z"/><circle cx="8" cy="8" r="2.2"/></svg>',
   };
+  ICO.open = ICO.change;
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
-  const WORDS = {
-    change: n => plural(n, 'new change', 'new changes'),
-    open: n => plural(n, 'change open', 'changes open'),
-    comment: n => plural(n, 'new comment', 'new comments'),
-    waiting: n => n + ' to answer',
-    staff: n => n + ' from team',
-    kasper: n => n + ' from Kasper',
+  const SAY = {
+    change: n => plural(n, 'new change request', 'new change requests'), open: n => plural(n, 'change request not done yet', 'change requests not done yet'),
+    comment: n => plural(n, 'new comment from the client', 'new comments from the client'), waiting: n => plural(n, 'comment waiting for your answer', 'comments waiting for your answer'),
+    staff: n => plural(n, 'new message from the team', 'new messages from the team'), kasper: n => plural(n, 'new message from Kasper', 'new messages from Kasper'),
   };
-  const chip = (kind, n, extra) => `<span class="svu-chip svu-${kind}${extra || ''}">${ICO[kind === 'open' ? 'change' : kind]}${WORDS[kind](n)}</span>`;
-  function chipsFor(s, max) {
-    const order = [['change', s.change], ['open', s.open], ['comment', s.comment], ['waiting', s.waiting], ['staff', s.staff], ['kasper', s.kasper]].filter(x => x[1] > 0);
-    const shown = order.slice(0, max).map(([k, n]) => chip(k, n));
-    if (order.length > max) shown.push(`<span class="svu-chip svu-more">+${order.length - max} more</span>`);
-    return shown.join('');
+
+  /* ---------- the badge: one square strip, icon + number only ----------
+     Rule for any number of kinds: NEW kinds are joined segments of one strip (change, comment, team, Kasper, in
+     that order); what is read but still needs you (changes not done, comments to answer) follows as outlined
+     segments of a second strip. At most four segments in all; the rest fold into "+N". The words are in the hover. */
+  function badgeHtml(s, max) {
+    const filled = [['change', s.change], ['comment', s.comment], ['staff', s.staff], ['kasper', s.kasper]].filter(x => x[1] > 0);
+    const outlined = [['open', s.open], ['waiting', s.waiting]].filter(x => x[1] > 0);
+    const all = filled.map(x => x.concat('f')).concat(outlined.map(x => x.concat('o')));
+    const limit = max || 4;
+    const shown = all.length > limit ? all.slice(0, limit - 1) : all;
+    const rest = all.length - shown.length;
+    const seg = ([k, n]) => `<span class="svu-seg svu-${k}" aria-label="${SAY[k](n)}">${ICO[k]}<b>${n}</b></span>`;
+    const f = shown.filter(x => x[2] === 'f'), o = shown.filter(x => x[2] === 'o');
+    return (f.length ? `<span class="svu-strip-f">${f.map(seg).join('')}</span>` : '')
+      + (o.length ? `<span class="svu-strip-o">${o.map(seg).join('')}</span>` : '')
+      + (rest ? `<span class="svu-strip-more">+${rest}</span>` : '');
   }
 
   /* ---------- Calendar card: the Notes button ---------- */
-  const NOTES_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>';
+  const NOTES_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11v8H7l-3 2.5V11.5H2.5z"/></svg>';
   function notesBtnHtml(post, pid) {
     const s = stateOf(post);
     const any = s.change + s.comment + s.staff + s.kasper > 0;
-    const chips = chipsFor(s, 3);
-    return `<span class="cal-foot-tweaks svu-foot" data-comments-wrap="${pid}"><button type="button" class="cal-comments-btn svu-notes${any ? ' svu-has-new' : ''}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" onpointerenter="svUnreadPreview.hoverCard('${pid}', this)" onpointerleave="svUnreadPreview.hideHover()" aria-label="Notes">${NOTES_ICO}<span class="cal-comments-label">Notes</span></button>${chips ? `<span class="svu-chips" onclick="openCalComments('${pid}')">${chips}</span>` : ''}</span>`;
+    const strip = badgeHtml(s);
+    return `<span class="cal-foot-tweaks svu-foot" data-comments-wrap="${pid}" onpointerenter="svUnreadPreview.hoverCard('${pid}', this)" onpointerleave="svUnreadPreview.hideHover()"><button type="button" class="cal-comments-btn svu-notes${any ? ' svu-has-new' : ''}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" aria-label="Notes">${NOTES_ICO}<span class="cal-comments-label">Notes</span></button>${strip ? `<span class="svu-strips" onclick="openCalComments('${pid}')">${strip}</span>` : ''}</span>`;
   }
 
-  /* ---------- the hover card ---------- */
+  /* ---------- the hover: who and what, at once ---------- */
   const WHO = m => isClient(m) ? 'Client' : (role(m) === 'kasper' ? 'Kasper' : String(m.author || 'Team').split(' ')[0]);
-  const KIND_LINE = { change: 'New change', comment: 'New comment', waiting: 'Waiting for your answer', staff: 'From the team', kasper: 'From Kasper' };
+  const WHAT = { change: 'Change request', comment: 'Comment', waiting: 'Waiting for your answer', staff: 'Team note', kasper: 'Team note' };
+  const whatOf = (kind, m) => (kind === 'staff' || kind === 'kasper') && String(m.audience || '') === 'client' ? 'Reply to the client' : WHAT[kind];
   function hoverHtml(post) {
     const s = stateOf(post);
-    const items = s.items.slice(0, 4).map(({ kind, n }) => `<div class="svu-pv-item"><span class="svu-pv-dot svu-${kind}">${ICO[kind]}</span><div class="svu-pv-main"><div class="svu-pv-top"><b>${_calEsc(KIND_LINE[kind])}</b><span>${_calEsc(WHO(n.m))} · ${_calEsc(LABEL(n.comp))}</span><span class="svu-pv-time">${_calEsc(_calFmtCommentTime(n.m.created_at))}</span></div><div class="svu-pv-text">${_calEsc(n.m.body || '')}</div></div></div>`).join('');
-    const foot = s.open ? `<span>Also <b>${plural(s.open, 'change', 'changes')}</b> still open</span>` : '<span></span>';
-    return `<div class="svu-pv-head">${_calEsc(post.name || 'Post')}</div>${items || '<div class="svu-pv-empty">Nothing new</div>'}<div class="svu-pv-foot">${foot}<span class="svu-pv-open">Click to open Notes</span></div>`;
+    const lines = s.items.slice(0, 5).map(({ kind, n }) => `<div class="svu-pv-row svu-k-${kind}"><span class="svu-pv-ico">${ICO[kind]}</span><span class="svu-pv-who">${_calEsc(WHO(n.m))}</span><span class="svu-pv-what">${_calEsc(whatOf(kind, n.m))} · ${_calEsc(LABEL(n.comp))}</span><span class="svu-pv-time">${_calEsc(_calFmtCommentTime(n.m.created_at))}</span><span class="svu-pv-text">${_calEsc(n.m.body || '')}</span></div>`).join('');
+    const more = s.items.length > 5 ? `<div class="svu-pv-foot">${s.items.length - 5} more in Notes</div>` : '';
+    const open = s.open ? `<div class="svu-pv-foot">${SAY.open(s.open)}</div>` : '';
+    return (lines || '<div class="svu-pv-empty">Nothing new</div>') + more + open;
   }
   let hoverEl = null;
   function hoverCard(pid, anchor) {
     const post = calState.posts.find(p => p.id === pid);
     if (!post) return;
     hideHover();
+    const s = stateOf(post);
+    if (!s.items.length && !s.open) return;
     hoverEl = document.createElement('div');
     hoverEl.className = 'svu-pv';
     hoverEl.setAttribute('role', 'tooltip');
     hoverEl.innerHTML = hoverHtml(post);
     document.body.appendChild(hoverEl);
     const r = anchor.getBoundingClientRect();
-    const w = Math.min(360, innerWidth - 24);
+    const w = Math.min(380, innerWidth - 24);
     hoverEl.style.width = w + 'px';
     hoverEl.style.left = Math.max(12, Math.min(r.left, innerWidth - w - 12)) + 'px';
     const h = hoverEl.offsetHeight;
-    hoverEl.style.top = (r.top - h - 8 > 8 ? r.top - h - 8 : r.bottom + 8) + 'px';
+    hoverEl.style.top = (r.top - h - 6 > 8 ? r.top - h - 6 : r.bottom + 6) + 'px';
   }
   function hideHover() { if (hoverEl) { hoverEl.remove(); hoverEl = null; } }
 
-  /* ---------- Calendar summary line ---------- */
-  let stripFilter = '';
-  function stripHtml() {
-    const t = { change: 0, comment: 0, waiting: 0, open: 0 };
-    for (const p of calState.posts || []) { const s = stateOf(p); t.change += s.change; t.comment += s.comment; t.waiting += s.waiting + 0; t.open += s.open + s.change; }
-    const b = (k, n, words) => n ? `<button type="button" class="svu-strip-btn${stripFilter === k ? ' is-on' : ''}" onclick="svUnreadPreview.filter('${k}')"><span class="svu-chip svu-${k}">${ICO[k === 'open' ? 'change' : k]}${n}</span>${words}</button>` : '';
-    const parts = [b('change', t.change, t.change === 1 ? 'new change' : 'new changes'), b('comment', t.comment, t.comment === 1 ? 'new comment' : 'new comments'),
-      b('waiting', t.waiting, 'to answer'), b('open', t.open, t.open === 1 ? 'change not done yet' : 'changes not done yet')].filter(Boolean).join('');
-    return `<span class="svu-strip-label">Waiting for you</span>${parts || '<span class="svu-strip-calm">Nothing new</span>'}${stripFilter ? '<button type="button" class="svu-strip-clear" onclick="svUnreadPreview.filter(\'\')">Show all posts</button>' : ''}`;
-  }
-  function placeStrip() {
-    const bar = document.querySelector('#calView .cal-toolbar') || document.querySelector('#calView .thumb-collection-bar')?.previousElementSibling;
-    if (!bar) return;
-    let el = document.querySelector('.svu-strip');
-    if (!el) { el = document.createElement('div'); el.className = 'svu-strip'; }
-    if (el.previousElementSibling !== bar) bar.after(el);
-    const html = stripHtml();
-    if (el.innerHTML !== html) el.innerHTML = html;
-    applyFilter();
-  }
-  function filter(k) { stripFilter = stripFilter === k ? '' : k; placeStrip(); }
-  function applyFilter() {
-    document.querySelectorAll('#calView .cal-card[data-pid]').forEach(card => {
-      const post = calState.posts.find(p => p.id === card.getAttribute('data-pid'));
-      const s = post ? stateOf(post) : null;
-      const hit = !stripFilter || (s && (stripFilter === 'open' ? (s.open + s.change) > 0 : s[stripFilter] > 0));
-      card.classList.toggle('svu-dim', !hit);
-    });
-  }
-
-  /* ---------- Phone grid tiles: small, so colour + icon + number; the long-press card says it in words ---------- */
-  function decorateTiles() {
-    document.querySelectorAll('.thumb-grid-card[data-pid]').forEach(card => {
-      const post = calState.posts.find(p => p.id === card.getAttribute('data-pid'));
-      const info = card.querySelector('.thumb-tile-info');
-      if (!post || !info) return;
-      const s = stateOf(post);
-      const mini = (k, n) => n ? `<span class="svu-chip svu-${k} svu-mini">${ICO[k === 'open' ? 'change' : k]}${n}</span>` : '';
-      const html = [mini('change', s.change), mini('comment', s.comment), mini('waiting', s.waiting), mini('open', s.open), mini('staff', s.staff), mini('kasper', s.kasper)].filter(Boolean).slice(0, 3).join('');
-      let row = info.querySelector('.svu-tile-chips');
-      if (!row && html) { row = document.createElement('span'); row.className = 'svu-tile-chips'; info.prepend(row); }
-      if (row && row.innerHTML !== html) row.innerHTML = html;
-      if (row) row.hidden = !html;
-    });
-  }
-
   /* ---------- Notes panel ---------- */
-  let notesSnap = null; // the state just before Notes opened (opening clears "new")
+  let notesSnap = null;   // the state just before Notes opened (opening clears "new")
+  function kindClass(n) { const k = kindOf(n); return k; }
   function decorateNotes() {
     const modal = document.getElementById('calCommentsModal');
     if (!modal || !notesSnap) return;
     const post = calState.posts.find(p => p.id === notesSnap.pid);
-    if (!post) return;
+    const feed = modal.querySelector('.cal-comments-feed');
+    if (!post || !feed) return;
     const live = stateOf(post, notesSnap.seen);
-    const feed = modal.querySelector('.cal-cm-thread') && modal.querySelector('.cal-cm-thread').parentElement;
-    if (!feed) return;
-    // The bar at the top: what still needs you, with the card-level action.
+    const notes = notesOf(post);
+    // "Needs you", pinned under the title: each line jumps to its note.
     const need = [];
-    if (live.change) need.push(chip('change', live.change));
-    const openRead = live.openIds.size - live.change;
-    if (openRead > 0) need.push(chip('open', openRead));
-    if (live.comment) need.push(chip('comment', live.comment));
-    const wait = [...live.waitingIds].filter(id => !live.newIds.has(id)).length;
-    if (wait) need.push(chip('waiting', wait));
-    if (live.staff) need.push(chip('staff', live.staff));
-    if (live.kasper) need.push(chip('kasper', live.kasper));
+    for (const n of notes) {
+      const id = n.m.id;
+      if (n.m !== n.root) continue;
+      if (live.newIds.has(id) || live.waitingIds.has(id) || live.openIds.has(id)) {
+        const k = live.waitingIds.has(id) ? 'waiting' : (live.newIds.has(id) ? kindOf(n) : 'open');
+        const label = live.waitingIds.has(id) ? 'Waiting for your answer' : live.newIds.has(id) ? (k === 'change' ? 'New change request' : k === 'comment' ? 'New comment' : k === 'kasper' ? 'New from Kasper' : 'New from the team') : 'Change request not done';
+        need.push({ id, k, label, n });
+      }
+    }
+    for (const n of notes) if (n.m !== n.root && live.newIds.has(n.m.id) && !need.some(x => x.id === n.root.id)) need.push({ id: n.root.id, k: kindOf(n), label: 'New reply', n });
     let bar = modal.querySelector('.svu-need');
-    const barHtml = `<div class="svu-need-row"><b>Needs you</b>${need.join('') || '<span class="svu-need-calm">Nothing. All caught up.</span>'}</div><button type="button" class="cal-cm-action svu-act" onclick="svUnreadPreview.markUnread('${post.id}')">${ICO.comment}<span>Mark unread</span></button>`;
-    if (!bar) { bar = document.createElement('div'); bar.className = 'svu-need'; feed.prepend(bar); }
+    const barHtml = need.length
+      ? `<div class="svu-need-head"><span>Needs you</span><button type="button" class="svu-text-btn" onclick="svUnreadPreview.markUnread('${post.id}')">Mark unread</button></div>` + need.slice(0, 4).map(x => `<button type="button" class="svu-need-row svu-k-${x.k}" onclick="svUnreadPreview.jump('${x.id}')"><span class="svu-need-ico">${ICO[x.k] || ICO.comment}</span><span class="svu-need-label">${_calEsc(x.label)}</span><span class="svu-need-text">${_calEsc(WHO(x.n.m))} · ${_calEsc(x.n.m.body || '')}</span><span class="svu-need-part">${_calEsc(LABEL(x.n.comp))}</span></button>`).join('') + (need.length > 4 ? `<div class="svu-need-more">${need.length - 4} more below</div>` : '')
+      : `<div class="svu-need-head"><span>Nothing needs you on this post</span><button type="button" class="svu-text-btn" onclick="svUnreadPreview.markUnread('${post.id}')">Mark unread</button></div>`;
+    if (!bar) { bar = document.createElement('div'); bar.className = 'svu-need'; feed.before(bar); }
     if (bar.innerHTML !== barHtml) bar.innerHTML = barHtml;
-    // Each thread: what it is, in words, and its actions on the row itself.
-    feed.querySelectorAll('.cal-cm-thread[data-thread]').forEach(th => {
-      const id = th.getAttribute('data-thread');
-      const row = th.querySelector(`.cal-cm-row[data-cm-row="${CSS.escape(id)}"]`);
-      if (!row) return;
-      const n = notesOf(post).find(x => x.m.id === id);
+    // Each note: a thin colour rule for what it is, quiet words, and the actions that matter, always on screen.
+    modal.querySelectorAll('.cal-cm-row[data-cm-row]').forEach(row => {
+      const id = row.getAttribute('data-cm-row');
+      const n = notes.find(x => x.m.id === id);
       if (!n) return;
-      const k = kindOf(n);
+      const k = isAuto(n.m) ? 'auto' : kindOf(n);
+      row.setAttribute('data-svu-kind', k);
       const tags = [];
-      if (live.newIds.has(id)) tags.push(`<span class="svu-tag svu-${k}">${k === 'comment' ? 'New comment' : k === 'kasper' ? 'New from Kasper' : 'New'}</span>`);
-      else if (k === 'comment' && isClient(n.m)) tags.push('<span class="svu-tag svu-plain">Comment</span>');
-      if (live.waitingIds.has(id)) tags.push('<span class="svu-tag svu-waiting-o">Waiting for your answer</span>');
-      if (live.openIds.has(id) && !live.newIds.has(id)) tags.push('<span class="svu-tag svu-open-o">Not done yet</span>');
-      if (noReply.has(id)) tags.push('<span class="svu-tag svu-plain">No reply needed</span>');
+      if (live.newIds.has(id)) tags.push(`<span class="svu-tag svu-t-${k}">New</span>`);
+      if (live.waitingIds.has(id)) tags.push('<span class="svu-tag svu-t-waiting">Waiting for your answer</span>');
+      if (live.openIds.has(id) && !live.newIds.has(id)) tags.push('<span class="svu-tag svu-t-open">Not done</span>');
+      if (noReply.has(id)) tags.push('<span class="svu-tag svu-t-plain">No reply needed</span>');
+      if (isAuto(n.m)) {
+        tags.push('<span class="svu-tag svu-t-plain">Automatic record</span>');
+        const b = row.querySelector('.cal-cm-row-body');
+        if (b && !b.hasAttribute('data-svu-auto')) { b.setAttribute('data-svu-auto', '1'); b.textContent = 'Changed the caption.'; }
+      }
       const html = tags.join('');
       const head = row.querySelector('.cal-cm-head-line');
       let holder = row.querySelector('.svu-tags');
-      if (!holder && head) { holder = document.createElement('div'); holder.className = 'svu-tags'; head.after(holder); }
+      if (!holder && head) { holder = document.createElement('span'); holder.className = 'svu-tags'; head.insertBefore(holder, head.querySelector('.cal-cm-time')); }
       if (holder && holder.innerHTML !== html) holder.innerHTML = html;
-      if (holder) holder.hidden = !html;
-      th.classList.toggle('svu-th-waiting', live.waitingIds.has(id));
-      th.classList.toggle('svu-th-new', live.newIds.has(id));
-      // The actions that matter now, always on screen under the text (not only on hover).
+      const q = JSON.stringify(id).replace(/"/g, '&quot;');
       const want = live.waitingIds.has(id)
-        ? `<button type="button" class="svu-btn svu-primary" onclick="_calBeginReply(${JSON.stringify(id).replace(/"/g, '&quot;')})">${ICO.waiting}Reply</button><button type="button" class="svu-btn" onclick="svUnreadPreview.noReply('${id}')">No reply needed</button>`
-        : (live.openIds.has(id) ? `<button type="button" class="svu-btn" onclick="_calBeginReply(${JSON.stringify(id).replace(/"/g, '&quot;')})">${ICO.waiting}Reply</button><button type="button" class="svu-btn" onclick="_calToggleCommentDone(${JSON.stringify(id).replace(/"/g, '&quot;')})">Mark done</button>` : '');
-      let actRow = row.querySelector('.svu-row-acts');
+        ? `<button type="button" class="svu-btn svu-primary" onclick="_calBeginReply(${q})">Reply</button><button type="button" class="svu-text-btn" onclick="svUnreadPreview.noReply('${id}')">No reply needed</button>`
+        : (live.openIds.has(id) ? `<button type="button" class="svu-btn" onclick="_calBeginReply(${q})">Reply</button><button type="button" class="svu-text-btn" onclick="_calToggleCommentDone(${q})">Mark done</button>` : '');
+      let act = row.querySelector('.svu-row-acts');
       const body = row.querySelector('.cal-cm-row-body');
-      if (!actRow && body && want) { actRow = document.createElement('div'); actRow.className = 'svu-row-acts'; body.after(actRow); }
-      if (actRow && actRow.innerHTML !== want) actRow.innerHTML = want;
-      if (actRow) actRow.hidden = !want;
+      if (!act && body && want) { act = document.createElement('div'); act.className = 'svu-row-acts'; body.after(act); }
+      if (act && act.innerHTML !== want) act.innerHTML = want;
+      if (act) act.hidden = !want;
     });
+  }
+  function jump(id) {
+    const row = document.querySelector(`#calCommentsModal .cal-cm-row[data-cm-row="${CSS.escape(id)}"]`);
+    if (!row) return;
+    row.scrollIntoView({ block: 'center' });
+    row.classList.add('svu-flash'); setTimeout(() => row.classList.remove('svu-flash'), 1200);
   }
 
   /* ---------- Messages ---------- */
-  // A conversation's state, from its messages and the person's read mark (the mock sends `last_read_at`).
   function convState(c) {
-    const s = { comment: 0, staff: 0, kasper: 0, waiting: 0, newIds: new Set(), waitingIds: new Set() };
+    const s = { comment: 0, staff: 0, kasper: 0, waiting: 0, newIds: new Set(), waitingIds: new Set(), open: 0, change: 0 };
     const msgs = Array.isArray(c.messages) ? c.messages : [];
     const seen = markedUnread.has(c.post_id) ? '' : String(c.last_read_at || '');
     const byId = new Map(msgs.map(m => [m.id, m]));
@@ -253,26 +230,24 @@
     s.newTotal = s.comment + s.staff + s.kasper;
     return s;
   }
-  const origListHtml = window._msgListHtml;
+  const isChangeMsg = (m, byId) => { const root = byId.get(m.root_id) || m; return isClient(m) && isTweak(root) && isClient(root); };
   window._msgListHtml = function () {
     const f = _msgState.filter;
     const keep = c => { const s = convState(c); return f === 'all' || c.post_id === _msgState.openId || (f === 'answer' ? s.waitingIds.size > 0 : s.newTotal > 0); };
     const list = _msgState.conversations.filter(keep);
-    if (!list.length) return `<div class="msg-list-empty">${f === 'answer' ? 'Nothing waiting for your answer' : f === 'new' ? 'No new messages' : 'No conversations yet.'}</div>`;
+    if (!list.length) return `<div class="msg-list-empty">${f === 'answer' ? 'Nothing is waiting for your answer' : f === 'new' ? 'Nothing new' : 'No conversations yet'}</div>`;
     return list.map(c => {
       const s = convState(c);
       const byId = new Map((c.messages || []).map(m => [m.id, m]));
-      const last = (c.messages || []).filter(m => !isAuto(m) && !(isClient(m) && isTweak(byId.get(m.root_id) || m) && isClient(byId.get(m.root_id) || m))).slice(-1)[0] || {};
+      const last = (c.messages || []).filter(m => !isAuto(m) && !isChangeMsg(m, byId)).slice(-1)[0] || {};
       const who = isMine(last) ? 'You' : WHO(last);
-      const chips = [s.comment && chip('comment', s.comment), s.waiting && chip('waiting', s.waiting), s.staff && chip('staff', s.staff), s.kasper && chip('kasper', s.kasper)].filter(Boolean).join('');
-      return `<button type="button" class="msg-conv${c.post_id === _msgState.openId ? ' is-active' : ''}${s.newTotal ? ' is-unread' : ''}" data-msg-conv="${_calEscAttr(c.post_id)}" onclick="_msgOpen(${_jsAttrArg(c.post_id)})">
-        ${_msgThumb(c)}
-        <span class="msg-conv-main">
-          <span class="msg-conv-top"><span class="msg-conv-client">${_calEsc(_msgClientName(c))}</span><span class="msg-conv-time">${_calEsc(_calFmtCommentTime(last.created_at || c.last_at))}</span></span>
-          <span class="msg-conv-sub">${_calEsc(c.title || 'Untitled post')}</span>
-          <span class="msg-conv-last">${_calEsc(who + ': ' + (last.body || ''))}</span>
-          ${chips ? `<span class="svu-chips svu-row-chips">${chips}</span>` : ''}
+      return `<button type="button" class="msg-conv svu-conv${c.post_id === _msgState.openId ? ' is-active' : ''}${s.newTotal ? ' is-unread' : ''}" data-msg-conv="${_calEscAttr(c.post_id)}" onclick="_msgOpen(${_jsAttrArg(c.post_id)})">
+        <span class="svu-conv-main">
+          <span class="svu-conv-top"><span class="svu-conv-title">${_calEsc(c.title || 'Untitled post')}</span><span class="svu-conv-time">${_calEsc(_calFmtCommentTime(last.created_at || c.last_at))}</span></span>
+          <span class="svu-conv-client">${_calEsc(_msgClientName(c))}</span>
+          <span class="svu-conv-last">${_calEsc(who + ': ' + (last.body || ''))}</span>
         </span>
+        <span class="svu-conv-badge">${badgeHtml(s, 3)}</span>
       </button>`;
     }).join('');
   };
@@ -280,34 +255,27 @@
   window._msgSetFilter = function (f) { _msgState.filter = f === 'all' ? 'all' : f === 'answer' ? 'answer' : 'new'; _msgPaint(); };
   window._msgPaintCounts = function () {
     if (_msgState.unavailable) return;
-    let newConvs = 0, waitConvs = 0, k = { comment: 0, staff: 0, kasper: 0 };
+    let newConvs = 0, waitConvs = 0; const k = { comment: 0, staff: 0, kasper: 0 };
     for (const c of _msgState.conversations) { const s = convState(c); if (s.newTotal) newConvs++; if (s.waitingIds.size) waitConvs++; k.comment += s.comment; k.staff += s.staff; k.kasper += s.kasper; }
     const kind = k.comment ? 'comment' : k.staff ? 'staff' : k.kasper ? 'kasper' : 'waiting';
     document.querySelectorAll('[data-msg-count]').forEach(el => {
       const n = newConvs || waitConvs;
       el.textContent = String(n);
       el.hidden = n === 0;
-      el.className = 'msg-unread svu-count svu-count-' + (newConvs ? kind : 'waiting-o');
+      el.className = 'msg-unread svu-count svu-count-' + (newConvs ? kind : 'waiting');
     });
-    document.querySelectorAll('[data-kasper-count="replies"]').forEach(el => { el.textContent = String(newConvs); el.classList.toggle('is-unread', newConvs > 0); });
     window.__svuCounts = { newConvs, waitConvs, k };
   };
   function decorateMessages() {
     const root = document.querySelector('#msgPage [data-msg-root], #msgPage .msg-page-body');
     if (!root) return;
-    // Three views: New, To answer, All.
     const filters = root.querySelector('.msg-filters');
     if (filters && !filters.querySelector('[data-svu-answer]')) {
       const waitConvs = _msgState.conversations.filter(c => convState(c).waitingIds.size > 0).length;
-      const btn = document.createElement('button');
-      btn.type = 'button'; btn.setAttribute('data-svu-answer', '1');
-      btn.textContent = 'To answer' + (waitConvs ? ' · ' + waitConvs : '');
-      btn.onclick = () => _msgSetFilter('answer');
-      const all = filters.lastElementChild;
-      filters.insertBefore(btn, all);
-      [...filters.children].forEach(b => b.classList.toggle('is-active', (b === btn && _msgState.filter === 'answer') || (b.textContent.startsWith('New') && _msgState.filter === 'new') || (b === all && _msgState.filter === 'all')));
+      const newConvs = _msgUnreadConversations();
+      filters.innerHTML = [['new', 'New', newConvs], ['answer', 'To answer', waitConvs], ['all', 'All', 0]].map(([k, t, n]) =>
+        `<button type="button" data-svu-${k}="1" class="${_msgState.filter === k ? 'is-active' : ''}" aria-pressed="${_msgState.filter === k}" onclick="_msgSetFilter('${k}')">${t}${n ? ` <span>${n}</span>` : ''}</button>`).join('');
     }
-    // The chat: what each message is, in words; actions on the message itself; changes as a line to the card.
     const c = _msgState.conversations.find(x => x.post_id === _msgState.openId);
     if (!c || !Array.isArray(c.messages)) return;
     const s = convState(c);
@@ -317,31 +285,27 @@
       b.setAttribute('data-svu', '1');
       const m = byId.get(b.getAttribute('data-msg-id'));
       if (!m) return;
-      const rootM = byId.get(m.root_id) || m;
-      if (isClient(m) && isTweak(rootM) && isClient(rootM)) {
-        if (m === rootM) b.outerHTML = `<div class="svu-change-line">${ICO.change}<span>Client asked for a change on the ${_calEsc(String(LABEL(m.component || 'video')).toLowerCase())}. Changes are handled on the card.</span><button type="button" class="svu-link" onclick="_msgOpenCard()">Open card</button></div>`;
+      if (isChangeMsg(m, byId)) {
+        if (m.root_id === m.id) b.outerHTML = `<div class="svu-change-line">${ICO.change}<span>The client asked for a change on the ${_calEsc(String(LABEL(m.component || 'video')).toLowerCase())}. Change requests are handled on the card.</span><button type="button" class="svu-text-btn" onclick="_msgOpenCard()">Open card</button></div>`;
         else b.remove();
         return;
       }
+      const k = isAuto(m) ? 'auto' : isMine(m) ? 'me' : isClient(m) ? 'comment' : role(m) === 'kasper' ? 'kasper' : 'staff';
+      b.setAttribute('data-svu-kind', k);
       const meta = b.querySelector('.msg-b-meta');
       const tags = [];
-      if (s.newIds.has(m.id)) tags.push(`<span class="svu-tag svu-${isClient(m) ? 'comment' : role(m) === 'kasper' ? 'kasper' : 'staff'}">New</span>`);
-      if (s.waitingIds.has(m.id)) tags.push('<span class="svu-tag svu-waiting-o">Waiting for your answer</span>');
-      if (noReply.has(m.id)) tags.push('<span class="svu-tag svu-plain">No reply needed</span>');
-      if (meta && tags.length) meta.insertAdjacentHTML('beforeend', tags.join(''));
-      if (s.waitingIds.has(m.id)) {
-        b.classList.add('svu-b-waiting');
-        b.insertAdjacentHTML('beforeend', `<div class="svu-b-acts"><button type="button" class="svu-btn svu-primary" onclick="_msgSetReplyTo(${_jsAttrArg(m.root_id)});document.getElementById('msgReplyBox')&&document.getElementById('msgReplyBox').focus()">${ICO.waiting}Reply</button><button type="button" class="svu-btn" onclick="svUnreadPreview.noReply('${m.id}')">No reply needed</button></div>`);
+      if (s.newIds.has(m.id)) tags.push(`<span class="svu-tag svu-t-${k}">New</span>`);
+      if (s.waitingIds.has(m.id)) tags.push('<span class="svu-tag svu-t-waiting">Waiting for your answer</span>');
+      if (noReply.has(m.id)) tags.push('<span class="svu-tag svu-t-plain">No reply needed</span>');
+      if (isAuto(m)) {
+        tags.push('<span class="svu-tag svu-t-plain">Automatic record</span>');
+        const t = b.querySelector('.msg-b-text');
+        if (t) t.textContent = 'Changed the caption.';
       }
+      if (meta && tags.length) meta.insertAdjacentHTML('beforeend', tags.join(''));
+      if (s.waitingIds.has(m.id)) b.insertAdjacentHTML('beforeend', `<div class="svu-row-acts"><button type="button" class="svu-btn svu-primary" onclick="_msgSetReplyTo(${_jsAttrArg(m.root_id)});document.getElementById('msgReplyBox')&&document.getElementById('msgReplyBox').focus()">Reply</button><button type="button" class="svu-text-btn" onclick="svUnreadPreview.noReply('${m.id}')">No reply needed</button></div>`);
     });
-    // The two conversation actions are plain buttons in the head, on a phone too (today a phone hides them behind "•••").
     root.querySelectorAll('.msg-chat-actions .msg-act').forEach(a => { if (/unread/i.test(a.textContent)) a.textContent = 'Mark unread'; });
-    const more = root.querySelector('.msg-chat-actions .thumb-msg-options');
-    if (more) {
-      const head = more.closest('.msg-chat-head');
-      more.remove();
-      if (head && !head.nextElementSibling?.classList.contains('svu-phone-acts')) head.insertAdjacentHTML('afterend', '<div class="svu-phone-acts"><button type="button" class="svu-btn" onclick="_msgMarkUnread()">Mark unread</button><button type="button" class="svu-btn" onclick="_msgOpenCard()">Open card</button></div>');
-    }
   }
   const origPaint = window._msgPaint;
   window._msgPaint = function () { const r = origPaint.apply(this, arguments); try { decorateMessages(); } catch (e) { console.warn('svu', e); } return r; };
@@ -355,124 +319,171 @@
     if (!btn) return;
     btnTip = document.createElement('div');
     btnTip.className = 'svu-pv svu-btn-tip';
-    const line = (cls, text) => `<div class="svu-tip-line"><span class="svu-tip-sw ${cls}"></span>${text}</div>`;
-    btnTip.innerHTML = `<div class="svu-pv-head">Messages</div>${c.newConvs ? line('svu-comment', plural(c.newConvs, 'conversation', 'conversations') + ' with something new') : ''}${c.k.comment ? line('svu-comment', plural(c.k.comment, 'new client comment', 'new client comments')) : ''}${c.k.staff ? line('svu-staff', plural(c.k.staff, 'new message', 'new messages') + ' from the team') : ''}${c.k.kasper ? line('svu-kasper', plural(c.k.kasper, 'new message', 'new messages') + ' from Kasper') : ''}${c.waitConvs ? line('svu-waiting-o', plural(c.waitConvs, 'client is', 'clients are') + ' waiting for your answer') : ''}<div class="svu-tip-note">Change requests are not here: they are on the cards.</div>`;
+    const line = (k, text) => `<div class="svu-pv-row svu-k-${k} svu-tip-row"><span class="svu-pv-ico">${ICO[k]}</span><span class="svu-tip-text">${text}</span></div>`;
+    btnTip.innerHTML = `<div class="svu-tip-head">${c.newConvs ? plural(c.newConvs, 'conversation has', 'conversations have') + ' something new' : 'Nothing new'}</div>`
+      + (c.k.comment ? line('comment', SAY.comment(c.k.comment)) : '') + (c.k.staff ? line('staff', SAY.staff(c.k.staff)) : '') + (c.k.kasper ? line('kasper', SAY.kasper(c.k.kasper)) : '')
+      + (c.waitConvs ? line('waiting', plural(c.waitConvs, 'client is', 'clients are') + ' waiting for your answer') : '')
+      + '<div class="svu-pv-foot">Change requests are on the cards, not here.</div>';
     document.body.appendChild(btnTip);
     const r = btn.getBoundingClientRect();
-    const w = Math.min(320, innerWidth - 24);
+    const w = Math.min(330, innerWidth - 24);
     btnTip.style.width = w + 'px';
     btnTip.style.left = Math.max(12, Math.min(r.right - w, innerWidth - w - 12)) + 'px';
-    btnTip.style.top = (r.bottom + 8) + 'px';
+    btnTip.style.top = (r.bottom + 6) + 'px';
   }
   function hideButtonTip() { if (btnTip) { btnTip.remove(); btnTip = null; } }
 
   /* ---------- actions (this page only) ---------- */
   function noReplyAction(id) { noReply.add(id); refresh(); }
-  function markUnread(pid) { markedUnread.add(pid); refresh(); if (typeof showToast === 'function') showToast('Marked unread. It stays in your new list.'); }
+  function markUnread(pid) { markedUnread.add(pid); refresh(); if (typeof showToast === 'function') showToast('Marked unread'); }
   function refresh() {
     try { (calState.posts || []).forEach(p => _calRefreshCommentsBtn(p.id)); } catch (e) {}
-    placeStrip(); decorateNotes(); decorateTiles(); try { _msgPaintCounts(); _msgPaint(); } catch (e) {}
+    decorateNotes(); try { _msgPaintCounts(); _msgPaint(); } catch (e) {}
   }
 
-  /* ---------- styles: the proposed tokens, light and dark ---------- */
+  /* ---------- styles: calm, square, quiet (the calm Workload and the client review page) ---------- */
   const CSS_TEXT = `
-  :root { --svu-change: #ea580c; --svu-change-fg: #fff; --svu-change-ink: #c2410c; --svu-change-soft: #fff1e6;
-    --svu-comment: #2563eb; --svu-comment-fg: #fff; --svu-comment-ink: #1d4ed8; --svu-comment-soft: #eaf1ff;
-    --svu-staff: #3f3f46; --svu-staff-fg: #fff; --svu-staff-ink: #3f3f46; --svu-staff-soft: #efeff1;
-    --svu-kasper: #6c5ce7; --svu-kasper-fg: #fff; --svu-kasper-ink: #5a4bd1; --svu-kasper-soft: #f0eeff; }
-  html[data-theme="dark"] { --svu-change: #fb923c; --svu-change-fg: #1f1004; --svu-change-ink: #fdba74; --svu-change-soft: rgba(251,146,60,.16);
-    --svu-comment: #60a5fa; --svu-comment-fg: #0b1220; --svu-comment-ink: #93c5fd; --svu-comment-soft: rgba(96,165,250,.16);
-    --svu-staff: #d4d4d8; --svu-staff-fg: #18181b; --svu-staff-ink: #e4e4e7; --svu-staff-soft: rgba(212,212,216,.14);
-    --svu-kasper: #a094f8; --svu-kasper-fg: #140f33; --svu-kasper-ink: #c3b5ff; --svu-kasper-soft: rgba(160,148,248,.18); }
-  .svu-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+  :root { --svu-change: #d9480f; --svu-change-ink: #c2410c; --svu-comment: #2563eb; --svu-comment-ink: #1d4ed8; --svu-staff: #52525b; --svu-staff-ink: #3f3f46;
+    --svu-kasper: #6c5ce7; --svu-kasper-ink: #5a4bd1; --svu-on: #fff; --svu-hair: var(--border-light); --svu-tint: color-mix(in srgb, var(--bg) 60%, transparent); --svu-r: 2px; }
+  html[data-theme="dark"] { --svu-change: #fb923c; --svu-change-ink: #fdba74; --svu-comment: #60a5fa; --svu-comment-ink: #93c5fd; --svu-staff: #a1a1aa; --svu-staff-ink: #d4d4d8;
+    --svu-kasper: #a094f8; --svu-kasper-ink: #c3b5ff; --svu-on: #101114; --svu-tint: color-mix(in srgb, var(--text-primary) 4%, transparent); }
+  /* the badge */
+  .svu-foot { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .cal-comments-btn.svu-notes.svu-has-new { color: var(--text-primary); font-weight: 600; }
   .cal-comments-btn.svu-notes.svu-has-new svg { opacity: 1; }
-  .svu-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; cursor: pointer; }
-  .svu-chip { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px 0 6px; border-radius: 99px; font-size: 0.68rem; font-weight: 700; white-space: nowrap; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: 0; }
-  .svu-chip svg { width: 11px; height: 11px; flex: none; }
-  .svu-chip.svu-change { background: var(--svu-change); color: var(--svu-change-fg); }
-  .svu-chip.svu-comment { background: var(--svu-comment); color: var(--svu-comment-fg); }
-  .svu-chip.svu-staff { background: var(--svu-staff); color: var(--svu-staff-fg); }
-  .svu-chip.svu-kasper { background: var(--svu-kasper); color: var(--svu-kasper-fg); }
-  .svu-chip.svu-open { background: transparent; color: var(--svu-change-ink); box-shadow: inset 0 0 0 1.5px var(--svu-change); font-weight: 600; }
-  .svu-chip.svu-waiting { background: transparent; color: var(--svu-comment-ink); box-shadow: inset 0 0 0 1.5px var(--svu-comment); font-weight: 600; }
-  .svu-chip.svu-more { background: var(--surface-subtle, #f3f3f1); color: var(--text-secondary); font-weight: 600; }
-  .svu-dim { opacity: .3; transition: opacity .15s; }
-  .svu-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0 2px; padding: 8px 12px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; }
-  .svu-strip-label { font-size: .8rem; font-weight: 700; color: var(--text-primary); margin-right: 4px; }
-  .svu-strip-btn { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); border-radius: 99px; padding: 3px 11px 3px 4px; font: inherit; font-size: .78rem; font-weight: 500; cursor: pointer; }
-  .svu-strip-btn:hover { background: var(--surface-hover); }
-  .svu-strip-btn.is-on { box-shadow: inset 0 0 0 1.5px var(--text-primary); }
-  .svu-strip-calm { font-size: .78rem; color: var(--text-secondary); }
-  .svu-strip-clear { margin-left: auto; border: 0; background: transparent; color: var(--text-secondary); font: inherit; font-size: .76rem; text-decoration: underline; cursor: pointer; }
-  .svu-pv { position: fixed; z-index: 9999; background: var(--surface-raised, var(--white)); color: var(--text-primary); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-md); padding: 8px; font-size: .8rem; }
-  .svu-pv-head { font-size: .74rem; font-weight: 700; color: var(--text-secondary); padding: 2px 6px 6px; }
-  .svu-pv-item { display: flex; gap: 9px; padding: 7px 6px; border-top: 1px solid var(--border-light); }
-  .svu-pv-dot { width: 24px; height: 24px; border-radius: 99px; display: grid; place-items: center; flex: none; }
-  .svu-pv-dot svg { width: 13px; height: 13px; }
-  .svu-pv-dot.svu-change { background: var(--svu-change-soft); color: var(--svu-change-ink); }
-  .svu-pv-dot.svu-comment, .svu-pv-dot.svu-waiting { background: var(--svu-comment-soft); color: var(--svu-comment-ink); }
-  .svu-pv-dot.svu-staff { background: var(--svu-staff-soft); color: var(--svu-staff-ink); }
-  .svu-pv-dot.svu-kasper { background: var(--svu-kasper-soft); color: var(--svu-kasper-ink); }
-  .svu-pv-main { min-width: 0; flex: 1; }
-  .svu-pv-top { display: flex; gap: 6px; align-items: baseline; font-size: .76rem; color: var(--text-secondary); }
-  .svu-pv-top b { color: var(--text-primary); }
-  .svu-pv-time { margin-left: auto; color: var(--text-muted); font-size: .7rem; white-space: nowrap; }
-  .svu-pv-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); margin-top: 1px; }
-  .svu-pv-foot { display: flex; justify-content: space-between; gap: 8px; padding: 8px 6px 2px; border-top: 1px solid var(--border-light); color: var(--text-secondary); font-size: .74rem; }
-  .svu-pv-foot b { color: var(--text-primary); }
-  .svu-pv-empty { padding: 6px; color: var(--text-secondary); }
-  .svu-tip-line { display: flex; align-items: center; gap: 8px; padding: 3px 6px; color: var(--text-primary); }
-  .svu-tip-sw { width: 9px; height: 9px; border-radius: 99px; flex: none; }
-  .svu-tip-sw.svu-comment { background: var(--svu-comment); } .svu-tip-sw.svu-staff { background: var(--svu-staff); } .svu-tip-sw.svu-kasper { background: var(--svu-kasper); }
-  .svu-tip-sw.svu-waiting-o { box-shadow: inset 0 0 0 2px var(--svu-comment); }
-  .svu-tip-note { padding: 6px 6px 2px; margin-top: 4px; border-top: 1px solid var(--border-light); color: var(--text-secondary); font-size: .74rem; }
-  .msg-nav-btn > .svu-count { box-shadow: 0 0 0 2px var(--white); }
-  .msg-unread.svu-count-comment { background: var(--svu-comment); color: var(--svu-comment-fg); }
-  .msg-unread.svu-count-staff { background: var(--svu-staff); color: var(--svu-staff-fg); }
-  .msg-unread.svu-count-kasper { background: var(--svu-kasper); color: var(--svu-kasper-fg); }
-  .msg-unread.svu-count-waiting-o { background: var(--white); color: var(--svu-comment-ink); box-shadow: 0 0 0 2px var(--white), inset 0 0 0 1.5px var(--svu-comment); }
-  .svu-need { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 12px; margin: 0 0 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-subtle, var(--bg)); }
-  .svu-need-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: .8rem; }
-  .svu-need-row b { margin-right: 4px; }
-  .svu-need-calm { color: var(--text-secondary); }
-  .svu-tag { font-size: .66rem; font-weight: 700; padding: 2px 7px; border-radius: 99px; white-space: nowrap; line-height: 1.4; }
-  .svu-tag.svu-change { background: var(--svu-change); color: var(--svu-change-fg); }
-  .svu-tag.svu-comment { background: var(--svu-comment); color: var(--svu-comment-fg); }
-  .svu-tag.svu-staff { background: var(--svu-staff); color: var(--svu-staff-fg); }
-  .svu-tag.svu-kasper { background: var(--svu-kasper); color: var(--svu-kasper-fg); }
-  .svu-tag.svu-waiting-o { color: var(--svu-comment-ink); box-shadow: inset 0 0 0 1.5px var(--svu-comment); }
-  .svu-tag.svu-open-o { color: var(--svu-change-ink); box-shadow: inset 0 0 0 1.5px var(--svu-change); }
-  .svu-tag.svu-plain { background: var(--surface-subtle, var(--bg)); color: var(--text-secondary); }
-  .svu-th-waiting { box-shadow: inset 3px 0 0 var(--svu-comment); border-radius: 8px; }
-  .svu-th-new .cal-cm-row-body { font-weight: 600; }
-  .svu-tags { display: flex; gap: 4px; flex-wrap: wrap; margin: 3px 0 2px; }
-  .svu-row-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
-  .svu-act svg { width: 13px; height: 13px; }
-  .svu-row-chips { margin-top: 5px; }
-  .svu-chip svg { width: 11px !important; height: 11px !important; }
-  .svu-head-act { font-size: .74rem !important; padding: 6px 9px !important; white-space: nowrap; }
-  @media (max-width: 767px) {
-    .cal-cm-row:has(> .cal-cm-body-col .svu-row-acts:not([hidden])) > .cal-cm-actions { display: none !important; }
-    .svu-change-line { border-radius: 12px !important; padding: 8px 10px !important; }
-    .svu-phone-acts { display: flex; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border-light); }
-  }
-  .svu-tile-chips { display: flex; gap: 3px; flex-wrap: wrap; margin-bottom: 4px; }
-  .svu-chip.svu-mini { height: 18px; padding: 0 6px 0 4px; font-size: .66rem; box-shadow: 0 0 0 1.5px rgba(0,0,0,.25); }
-  .svu-chip.svu-mini.svu-open, .svu-chip.svu-mini.svu-waiting { background: #fff; }
-  html[data-theme="dark"] .svu-chip.svu-mini.svu-open, html[data-theme="dark"] .svu-chip.svu-mini.svu-waiting { background: #181a1f; }
-  .svu-change-line { align-self: center; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; font-size: .76rem; color: var(--svu-change-ink); background: var(--svu-change-soft); border-radius: 99px; padding: 5px 6px 5px 12px; margin: 6px auto; max-width: 92%; }
-  .svu-change-line svg { width: 12px; height: 12px; flex: none; }
-  .svu-link { border: 0; background: var(--white); color: var(--text-primary); border-radius: 99px; padding: 3px 10px; font: inherit; font-size: .74rem; font-weight: 600; cursor: pointer; }
-  .svu-b-waiting .msg-b-text { box-shadow: inset 3px 0 0 var(--svu-comment); }
-  .svu-b-acts { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
-  .svu-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); border-radius: 8px; padding: 5px 11px; font: inherit; font-size: .76rem; font-weight: 600; cursor: pointer; }
-  .svu-btn svg { width: 12px; height: 12px; }
+  .svu-strips { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+  .svu-strip-f, .svu-strip-o { display: inline-flex; border-radius: var(--svu-r); overflow: hidden; }
+  .svu-seg { display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 6px 0 5px; font-size: .7rem; line-height: 1; font-variant-numeric: tabular-nums; }
+  .svu-seg b { font-weight: 700; }
+  .svu-seg svg { width: 11px; height: 11px; flex: none; }
+  .svu-strip-f .svu-seg { color: var(--svu-on); }
+  .svu-strip-f .svu-seg + .svu-seg { box-shadow: inset 1px 0 0 color-mix(in srgb, var(--svu-on) 35%, transparent); }
+  .svu-strip-f .svu-change { background: var(--svu-change); } .svu-strip-f .svu-comment { background: var(--svu-comment); }
+  .svu-strip-f .svu-staff { background: var(--svu-staff); } .svu-strip-f .svu-kasper { background: var(--svu-kasper); }
+  .svu-strip-o { box-shadow: inset 0 0 0 1px var(--border); }
+  .svu-strip-o .svu-seg + .svu-seg { box-shadow: inset 1px 0 0 var(--border); }
+  .svu-strip-o .svu-open { color: var(--svu-change-ink); } .svu-strip-o .svu-waiting { color: var(--svu-comment-ink); }
+  .svu-strip-more { font-size: .7rem; font-weight: 700; color: var(--text-secondary); padding: 0 2px; }
+  /* the hover */
+  .svu-pv { position: fixed; z-index: 9999; background: var(--white); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--svu-r); box-shadow: 0 10px 30px rgba(0,0,0,.14); padding: 4px 0; font-size: .78rem; }
+  .svu-pv-row { display: grid; grid-template-columns: 16px auto 1fr auto; column-gap: 8px; row-gap: 1px; align-items: baseline; padding: 7px 12px; }
+  .svu-pv-row + .svu-pv-row { border-top: 1px solid var(--svu-hair); }
+  .svu-pv-ico svg { width: 12px; height: 12px; display: block; transform: translateY(2px); }
+  .svu-k-change .svu-pv-ico, .svu-k-open .svu-pv-ico { color: var(--svu-change-ink); } .svu-k-comment .svu-pv-ico, .svu-k-waiting .svu-pv-ico { color: var(--svu-comment-ink); }
+  .svu-k-staff .svu-pv-ico { color: var(--svu-staff-ink); } .svu-k-kasper .svu-pv-ico { color: var(--svu-kasper-ink); }
+  .svu-pv-who { font-weight: 700; }
+  .svu-pv-what { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .svu-pv-time { color: var(--text-muted); font-size: .7rem; }
+  .svu-pv-text { grid-column: 2 / 5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
+  .svu-pv-foot, .svu-pv-empty { padding: 7px 12px 5px; border-top: 1px solid var(--svu-hair); color: var(--text-secondary); font-size: .74rem; }
+  .svu-tip-head { padding: 6px 12px 6px; font-weight: 700; }
+  .svu-tip-row { grid-template-columns: 16px 1fr; border-top: 1px solid var(--svu-hair); }
+  .svu-tip-text { color: var(--text-primary); }
+  /* the Messages button count: square */
+  .msg-nav-btn > .msg-unread.svu-count { border-radius: var(--svu-r); box-shadow: 0 0 0 2px var(--white); }
+  .msg-unread.svu-count-comment { background: var(--svu-comment); color: var(--svu-on); } .msg-unread.svu-count-staff { background: var(--svu-staff); color: var(--svu-on); }
+  .msg-unread.svu-count-kasper { background: var(--svu-kasper); color: var(--svu-on); }
+  .msg-unread.svu-count-waiting { background: var(--white); color: var(--svu-comment-ink); box-shadow: 0 0 0 2px var(--white), inset 0 0 0 1px var(--svu-comment); }
+  /* buttons and tags: square, quiet */
+  .svu-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); border-radius: var(--svu-r); padding: 4px 10px; font: inherit; font-size: .74rem; font-weight: 600; cursor: pointer; }
   .svu-btn.svu-primary { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
-  .svu-b-waiting .msg-b-reply { display: none; }
+  .svu-text-btn { border: 0; background: transparent; color: var(--text-secondary); font: inherit; font-size: .74rem; font-weight: 600; padding: 4px 6px; cursor: pointer; border-radius: var(--svu-r); }
+  .svu-text-btn:hover { color: var(--text-primary); background: var(--svu-tint); }
+  .svu-tags { display: inline-flex; gap: 6px; align-items: baseline; }
+  .svu-tag { font-size: .62rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; line-height: 1.5; }
+  .svu-t-change { color: var(--svu-change-ink); } .svu-t-comment { color: var(--svu-comment-ink); } .svu-t-staff { color: var(--svu-staff-ink); } .svu-t-kasper { color: var(--svu-kasper-ink); }
+  .svu-t-waiting { color: var(--svu-comment-ink); box-shadow: inset 0 0 0 1px var(--svu-comment); padding: 0 5px; border-radius: var(--svu-r); }
+  .svu-t-open { color: var(--svu-change-ink); box-shadow: inset 0 0 0 1px var(--svu-change); padding: 0 5px; border-radius: var(--svu-r); }
+  .svu-t-plain { color: var(--text-muted); }
+  .svu-row-acts { display: flex; gap: 4px; align-items: center; margin-top: 8px; }
+
+  /* ---- Notes, calm ---- */
+  html.svu4 .cal-comments-modal { border-radius: var(--svu-r) !important; }
+  html.svu4 .cal-comments-modal *:not(.svu-seg):not(.cal-comments-close) { border-radius: var(--svu-r); }
+  html.svu4 .cal-comments-head { padding-bottom: 10px; }
+  html.svu4 .svu-need { border-top: 1px solid var(--svu-hair); border-bottom: 1px solid var(--svu-hair); padding: 6px 0 4px; }
+  html.svu4 .svu-need-head { display: flex; justify-content: space-between; align-items: center; padding: 0 20px 2px; font-size: .62rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-muted); }
+  html.svu4 .svu-need-row { display: grid; grid-template-columns: 14px auto 1fr auto; gap: 8px; align-items: baseline; width: 100%; border: 0; background: transparent; text-align: left; font: inherit; font-size: .78rem; padding: 5px 20px; cursor: pointer; color: var(--text-primary); }
+  html.svu4 .svu-need-row:hover { background: var(--svu-tint); }
+  html.svu4 .svu-need-ico svg { width: 12px; height: 12px; display: block; transform: translateY(2px); }
+  html.svu4 .svu-need-row.svu-k-change .svu-need-ico, html.svu4 .svu-need-row.svu-k-open .svu-need-ico { color: var(--svu-change-ink); }
+  html.svu4 .svu-need-row.svu-k-comment .svu-need-ico, html.svu4 .svu-need-row.svu-k-waiting .svu-need-ico { color: var(--svu-comment-ink); }
+  html.svu4 .svu-need-row.svu-k-staff .svu-need-ico { color: var(--svu-staff-ink); } html.svu4 .svu-need-row.svu-k-kasper .svu-need-ico { color: var(--svu-kasper-ink); }
+  html.svu4 .svu-need-label { font-weight: 700; white-space: nowrap; }
+  html.svu4 .svu-need-text { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  html.svu4 .svu-need-part, html.svu4 .svu-need-more { color: var(--text-muted); font-size: .7rem; }
+  html.svu4 .svu-need-more { padding: 2px 20px 4px; }
+  html.svu4 .cal-cm-thread { border: 0; border-top: 1px solid var(--svu-hair); background: transparent; box-shadow: none; padding: 12px 0 10px; margin: 0; }
+  html.svu4 .cal-comments-feed-inner > .cal-cm-thread:first-child { border-top: 0; }
+  html.svu4 .cal-cm-avatar { display: none; }
+  html.svu4 .cal-cm-row { padding-left: 12px; box-shadow: inset 2px 0 0 var(--svu-hair); background: transparent; }
+  html.svu4 .cal-cm-row[data-svu-kind="change"] { box-shadow: inset 2px 0 0 var(--svu-change); }
+  html.svu4 .cal-cm-row[data-svu-kind="comment"] { box-shadow: inset 2px 0 0 var(--svu-comment); }
+  html.svu4 .cal-cm-row[data-svu-kind="kasper"] { box-shadow: inset 2px 0 0 var(--svu-kasper); }
+  html.svu4 .cal-cm-row[data-svu-kind="staff"] { box-shadow: inset 2px 0 0 var(--svu-staff); }
+  html.svu4 .cal-cm-row[data-svu-kind="auto"] { box-shadow: none; opacity: .75; }
+  html.svu4 .cal-cm-row.svu-flash { background: var(--svu-tint); }
+  html.svu4 .cal-cm-row.is-reply { margin-left: 18px; }
+  html.svu4 .cal-cm-head-line { gap: 8px; align-items: baseline; }
+  html.svu4 .cal-cm-author { font-weight: 700; }
+  html.svu4 .cal-cm-time, html.svu4 .cal-cm-comp-label { color: var(--text-muted); font-weight: 500; font-size: .7rem; letter-spacing: 0; text-transform: none; }
+  html.svu4 .cal-cm-type-tag, html.svu4 .cal-cm-to-tag { background: transparent !important; padding: 0 !important; font-size: .62rem; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted) !important; box-shadow: none; }
+  html.svu4 .cal-cm-type-tag.is-tweak { color: var(--svu-change-ink) !important; }
+  html.svu4 .cal-cm-row-body { font-size: .86rem; line-height: 1.5; }
+  html.svu4 .cal-cm-replies { border-left: 0; }
+  html.svu4 .cal-cm-rail { display: none; }
+  html.svu4 .cal-cm-composer, html.svu4 .cal-cm-composer textarea { border-radius: var(--svu-r) !important; }
+
+  /* ---- Messages, calm ---- */
+  html.svu4 #msgPage *:not(.svu-seg):not(.msg-unread) { border-radius: var(--svu-r); }
+  html.svu4 #msgPage .msg-inbox { border-radius: var(--svu-r); }
+  html.svu4 #msgPage .msg-filters { display: flex; gap: 18px; background: transparent; border: 0; border-bottom: 1px solid var(--svu-hair); padding: 0 16px; margin: 0; box-shadow: none; }
+  html.svu4 #msgPage .msg-filters button { flex: none; background: transparent !important; border: 0; box-shadow: none !important; padding: 12px 0 10px; color: var(--text-secondary); font-weight: 600; font-size: .8rem; border-radius: 0; }
+  html.svu4 #msgPage .msg-filters button span { color: var(--text-muted); font-weight: 600; margin-left: 2px; }
+  html.svu4 #msgPage .msg-filters button.is-active { color: var(--text-primary); box-shadow: inset 0 -2px 0 var(--text-primary) !important; }
+  html.svu4 #msgPage .svu-conv { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border: 0; border-bottom: 1px solid var(--svu-hair); background: transparent; width: 100%; text-align: left; }
+  html.svu4 #msgPage .svu-conv:hover { background: var(--svu-tint); }
+  html.svu4 #msgPage .svu-conv.is-active { background: var(--svu-tint); box-shadow: inset 2px 0 0 var(--text-primary); }
+  html.svu4 .svu-conv-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+  html.svu4 .svu-conv-top { display: flex; justify-content: space-between; gap: 10px; }
+  html.svu4 .svu-conv-title { font-size: .84rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  html.svu4 .svu-conv.is-unread .svu-conv-title { font-weight: 800; }
+  html.svu4 .svu-conv-time { font-size: .7rem; color: var(--text-muted); white-space: nowrap; }
+  html.svu4 .svu-conv-client { font-size: .7rem; color: var(--text-muted); }
+  html.svu4 .svu-conv-last { font-size: .78rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  html.svu4 .svu-conv.is-unread .svu-conv-last { color: var(--text-primary); }
+  html.svu4 .svu-conv-badge { align-self: center; display: inline-flex; gap: 4px; }
+  html.svu4 #msgPage .msg-chat-head { border-bottom: 1px solid var(--svu-hair); }
+  html.svu4 #msgPage .msg-chat-head .msg-thumb { display: none; }
+  html.svu4 #msgPage .msg-act { border-radius: var(--svu-r); }
+  html.svu4 #msgPage .msg-bubbles { background: var(--white); padding: 4px 24px 16px; gap: 0; }
+  html.svu4 #msgPage .msg-day { text-align: left; font-size: .62rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-muted); padding: 18px 0 6px; background: transparent; }
+  html.svu4 #msgPage .msg-b { max-width: none; width: 100%; align-self: stretch; padding: 10px 0 10px 12px; border-top: 1px solid var(--svu-hair); box-shadow: inset 2px 0 0 var(--svu-hair); margin: 0; }
+  html.svu4 #msgPage .msg-b[data-svu-kind="comment"] { box-shadow: inset 2px 0 0 var(--svu-comment); }
+  html.svu4 #msgPage .msg-b[data-svu-kind="staff"] { box-shadow: inset 2px 0 0 var(--svu-staff); }
+  html.svu4 #msgPage .msg-b[data-svu-kind="kasper"] { box-shadow: inset 2px 0 0 var(--svu-kasper); }
+  html.svu4 #msgPage .msg-b[data-svu-kind="me"] { box-shadow: inset 2px 0 0 var(--text-primary); }
+  html.svu4 #msgPage .msg-b[data-svu-kind="auto"] { box-shadow: none; opacity: .7; }
+  html.svu4 #msgPage .msg-b.is-me { align-self: stretch; }
+  html.svu4 #msgPage .msg-b.is-reply { margin-left: 18px; width: calc(100% - 18px); }
+  html.svu4 #msgPage .msg-b-meta { justify-content: flex-start !important; gap: 8px; align-items: baseline; font-size: .7rem; color: var(--text-muted); }
+  html.svu4 #msgPage .msg-b-meta b { color: var(--text-primary); font-size: .8rem; }
+  html.svu4 #msgPage .msg-b-text, html.svu4 #msgPage .msg-b.is-me .msg-b-text { background: transparent !important; color: var(--text-primary) !important; padding: 2px 0 0 !important; box-shadow: none !important; font-size: .86rem; line-height: 1.5; max-width: 70ch; }
+  html.svu4 #msgPage .msg-b .cal-cm-type-tag, html.svu4 #msgPage .msg-b .cal-cm-to-tag { background: transparent !important; padding: 0 !important; font-size: .62rem; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted) !important; }
+  html.svu4 #msgPage .msg-b-reply { display: none; }
+  html.svu4 #msgPage .msg-b-text { border: 0 !important; }
+  html.svu4 #msgPage .msg-b-meta b + span:not([class]) { display: none; }
+  html.svu4 #msgPage .cal-cm-to-tag.is-client, html.svu4 .cal-comments-modal .cal-cm-to-tag.is-client { display: none; }
+  html.svu4 #msgPage .msg-reply-cap .cal-cm-to-tag { display: none; }
+  html.svu4 #msgPage .thumb-msg-new { color: var(--svu-comment-ink); }
+  html.svu4 .svu-change-line { display: flex; align-items: baseline; gap: 8px; padding: 10px 0 10px 12px; border-top: 1px solid var(--svu-hair); box-shadow: inset 2px 0 0 var(--svu-change); color: var(--svu-change-ink); font-size: .8rem; width: 100%; }
+  html.svu4 .svu-change-line svg { width: 12px; height: 12px; flex: none; transform: translateY(1px); }
+  html.svu4 .svu-change-line .svu-text-btn { margin-left: auto; color: var(--text-primary); }
+  html.svu4 #msgPage .msg-reply { border-top: 1px solid var(--svu-hair); }
   `;
 
   function apply() {
+    document.documentElement.classList.add('svu4');
     if (!document.getElementById('svu-style')) {
       const st = document.createElement('style'); st.id = 'svu-style'; st.textContent = CSS_TEXT; document.head.appendChild(st);
     }
@@ -480,7 +491,6 @@
     const origOpen = window.openCalComments;
     if (!origOpen.__svu) {
       window.openCalComments = function (pid) {
-        const post = calState.posts.find(p => p.id === pid);
         notesSnap = { pid, seen: markedUnread.has(pid) ? '' : (_notesGetSeen(pid) || '') };
         markedUnread.delete(pid);
         hideHover();
@@ -490,12 +500,12 @@
       };
       window.openCalComments.__svu = true;
     }
-    const mo = new MutationObserver(() => { mo.disconnect(); try { placeStrip(); decorateNotes(); decorateTiles(); } catch (e) {} mo.observe(document.body, { childList: true, subtree: true }); });
+    const mo = new MutationObserver(() => { mo.disconnect(); try { decorateNotes(); } catch (e) {} mo.observe(document.body, { childList: true, subtree: true }); });
     mo.observe(document.body, { childList: true, subtree: true });
     const nb = document.getElementById('navMessages');
     if (nb && !nb.__svu) { nb.__svu = true; nb.removeAttribute('title'); nb.addEventListener('pointerenter', showButtonTip); nb.addEventListener('pointerleave', hideButtonTip); }
     refresh();
   }
 
-  window.svUnreadPreview = { apply, hoverCard, hideHover, filter, noReply: noReplyAction, markUnread, showButtonTip, hideButtonTip, stateOf, refresh };
+  window.svUnreadPreview = { apply, hoverCard, hideHover, noReply: noReplyAction, markUnread, jump, showButtonTip, hideButtonTip, stateOf, refresh };
 })();

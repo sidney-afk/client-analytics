@@ -486,3 +486,11 @@ Undo: unpublish or archive `lpnLIPUFSo7bURWf` and remove the iClosed webhook.
 
 - Workflow `lpnLIPUFSo7bURWf`: the webhook path changed from `iclosed-call-rescheduled` to `iclosed-call-reschedule`, to match the address saved in iClosed. Published version `8cced4a3-08ed-48a9-8248-9a324873ad80`.
 - Live test: a test educator call was moved in iClosed at 22:52 UTC. Execution 676137 ran green and restarted the educator nurture (execution 676138). The test call was then cancelled.
+
+### 2026-10-23: Cancel check by email, plain-text recovery emails
+
+Approved by the owner on 23 Oct after an inbox check of the 22 Oct test run.
+
+- Educator and normal pre-call nurture (`lU5RlPUBsmlMsFSf`, `310kO3OnG1yytE2D`): every "Check Cancellation" step now matches by email only, not email plus call time. Any cancellation recorded after the sequence started stops it. Before, a call that was moved and then cancelled at its new time kept getting emails. Published versions `e14ec6a8` and `1a26451c`. The AI nurture is unchanged.
+- Instant booking link (`cM3G9REliKpwicnR`, "Send Instant Email") and recovery dispatch (`nQ4vnZ8bmG3E3Lor`, "Send Recovery Email (Human)"): sent as plain text (the approved wording, no logo or signature table), because the HTML version landed in Gmail's Promotions tab. Published versions `129d49ea` and `b4523217`. The older non-human recovery email is unchanged.
+- Live test: one unbooked educator lead and one educator booking cancelled the same day, on 23 Oct at about 15:35 UTC. The inbox result is added below once the emails have arrived.

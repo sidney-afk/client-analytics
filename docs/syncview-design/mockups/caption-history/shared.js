@@ -111,7 +111,7 @@
       '<div class="hx-head"><span class="ptag"><span class="pdot"></span>Caption</span><div><h3 id="hxT">' + esc(title) + '</h3><p>' + esc(sub) + '</p></div><span class="sp"></span>' +
       '<button class="hx-x" aria-label="Close">' + ICONS.x + '</button></div>' +
       '<div class="hx-body">' + body + '</div>' +
-      '<div class="hx-foot">' + foot + '</div></div><div class="mock-tag">Mockup, not live</div>';
+      (foot ? '<div class="hx-foot">' + foot + '</div>' : '') + '</div><div class="mock-tag">Mockup, not live</div>';
   }
   const EMPTY = '<div class="empty"><span class="ic">' + ICONS.history + '</span><b>No earlier versions yet</b>' +
     '<p>This caption has not changed since it was first written. From now on, every change (typed, regenerated, or edited by the client) is kept here, and any of them can be put back.</p></div>';

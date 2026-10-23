@@ -149,6 +149,12 @@ Kept: the Caption pill, the box, the word counts, Changes / Clean text, the arro
 restore button. A first attempt that also removed those was too bare; the noise the owner means is
 repeated text, not controls.
 
+Second round (same day): Changes / Clean text and the arrows moved top right, on the same line as the kind of
+change (the space above them was empty); no word counts; no Taken out / Added key (the colours are obvious);
+as few boxes as possible (no box round the caption, the kind is plain text, no lines across the pop-up,
+"Mostly rewritten" is plain text); the note has squarer corners; and no button on the version that is already
+the caption.
+
 ## What was not checked
 
 This environment cannot reach `syncview.synchrosocial.com`, so nothing was looked at on the live site. The

@@ -6,7 +6,10 @@
 <title>Caption history, option C: step by step</title>
 <!-- Owner's review, 2026-10-23: same layout, minus text that repeats: no subtitle (post and date), no who and when
      beside the kind (the step strip shows them), no "in the caption now" (the strip's Now says it), no Close
-     button (the X closes). -->
+     button (the X closes). Second round: Changes / Clean text and the arrows sit top right on the line of the
+     kind of change; no word counts; no Taken out / Added key; as few boxes as possible (no box round the
+     caption, the kind is plain text, no lines across the pop-up, "Mostly rewritten" is plain text); the note has
+     squarer corners; no button on the version that is already the caption (the strip's Now says it). -->
 <link rel="stylesheet" href="shared.css">
 <style>
   .hx { width: min(820px, calc(100vw - 48px)); }
@@ -23,7 +26,12 @@
   .step .sw { font-size: .68rem; color: var(--text-secondary); }
   .step[aria-current="true"] .sl { color: var(--pi-caption); }
   .step .nowp { font-size: .62rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--ok-ink); background: var(--ok-soft); box-shadow: inset 0 0 0 1px var(--ok-line); padding: 1px 6px; border-radius: 99px; }
-  .story { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px 18px; border-radius: 14px; background: var(--surface-subtle); box-shadow: 0 0 0 1px var(--border-light); }
+  .hx-head, .hx-foot { border: 0; }
+  .hx-foot { justify-content: flex-end; padding-top: 4px; padding-bottom: 18px; }
+  .story { display: flex; flex-direction: column; gap: 12px; padding-top: 6px; }
+  .story .how .kind { background: none; padding: 0; height: auto; font-size: .8rem; }
+  .note { margin-top: 0; border-radius: 6px; }
+  .cap .rewrite { background: none; padding: 0; margin-bottom: 6px; color: var(--text-secondary); font-size: .76rem; }
   .story-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .story-h .sp { flex: 1; }
   .nav { display: inline-flex; gap: 4px; }
@@ -31,13 +39,10 @@
   .nav button svg { width: 14px; height: 14px; }
   .nav button[disabled] { opacity: .45; cursor: default; }
   .nav .back svg { transform: rotate(180deg); }
-  .delta { font-size: .76rem; color: var(--text-secondary); }
-  .delta b { color: var(--text-primary); }
   @media (max-width: 600px) {
     .hx { width: 100%; }
     .step { flex: 0 0 84px; padding: 0 2px; }
     .step .sl { font-size: .7rem; }
-    .story { padding: 12px 12px 14px; }
     .nav button { width: 44px; height: 44px; }
   }
 </style>
@@ -63,15 +68,14 @@
     '<button class="step" role="tab" aria-current="' + (v.id === sel.id) + '" aria-selected="' + (v.id === sel.id) + '"><span class="sd">' + ICONS[HOW[v.how].icon] + '</span>' +
     '<span class="sl">' + esc(short[v.how]) + '</span><span class="sw">' + esc(v.who) + ' · ' + esc(v.when.replace(/^\w+ /, '')) + '</span>' +
     (v.id === latest.id ? '<span class="nowp">Now</span>' : '') + '</button>').join('') + '</div>';
-  const c = prev ? counts(prev.text, sel.text) : null;
-  const story = '<div class="story">' + howHtml(sel, { kindOnly: true }) +
-    '<div class="story-h">' + (c ? '<span class="delta">What this changed: <b>+' + c.ins + '</b> words, <b>−' + c.del + '</b> words</span>' : '<span class="delta">The first version</span>') +
-    '<span class="sp"></span><div class="seg" role="group" aria-label="Show"><button aria-pressed="' + !clean + '">Changes</button><button aria-pressed="' + clean + '">Clean text</button></div>' +
+  const kind = '<span class="how"><span class="kind">' + ICONS[HOW[sel.how].icon] + esc(HOW[sel.how].label) + '</span></span>';
+  const story = '<div class="story">' +
+    '<div class="story-h">' + kind + '<span class="sp"></span><div class="seg" role="group" aria-label="Show"><button aria-pressed="' + !clean + '">Changes</button><button aria-pressed="' + clean + '">Clean text</button></div>' +
     '<span class="nav"><button class="back" aria-label="Older version"' + (sel.id === 1 ? ' disabled' : '') + '>' + ICONS.arrow + '</button><button aria-label="Newer version"' + (sel.id === latest.id ? ' disabled' : '') + '>' + ICONS.arrow + '</button></span></div>' +
+    (sel.note ? '<div class="note"><span class="nl">Note</span>' + esc(sel.note) + '</div>' : '') +
     '<div class="cap">' + (prev && !clean ? diffHtml(prev.text, sel.text, 'inline') : esc(sel.text)) + '</div></div>';
   app.innerHTML = shell('Caption history', '', strip + story,
-    '<span class="legend"><span><i class="ld"></i>Taken out</span><span><i class="li"></i>Added</span></span><span class="sp"></span>' +
-    '<button class="btn-dark"' + (sel.id === latest.id ? ' disabled' : '') + '>' + ICONS.restore + (sel.id === latest.id ? 'This is the caption now' : 'Put this version back') + '</button>');
+    sel.id === latest.id ? '' : '<button class="btn-dark">' + ICONS.restore + 'Put this version back</button>');
 })();
 </script>
 </body>

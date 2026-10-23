@@ -1077,7 +1077,7 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
         // (owner 2026-08-19: the parent must mention it is a sample).
         return name + (surface === 'sxr' ? ' · Samples · ' : ' · ') + formatted;
     }
-    function _linearIntakeItems(mode, videos, requestId, surface, videoAssigneeId) {
+    function _linearIntakeItems(mode, videos, requestId, surface, videoAssigneeId, videoUnassigned) {
         const safeRequest = String(requestId || '').replace(/[^a-z0-9]+/gi, '').toLowerCase().slice(-28);
         // Samples children are titled 'Sample Video N' (owner 2026-08-19); the
         // gateway composes the graphics half and prefixes it the same way.
@@ -1100,12 +1100,16 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
                Omitted entirely when nothing was chosen, which keeps the payload
                byte-identical to the pre-picker shape. */
             const chosenEditor = String(videoAssigneeId || '');
+            /* "Not assigned" (owner 2026-10-23) rides the same way, as
+               `unassigned: true`, and only when asked for. */
+            const nobody = videoUnassigned === true && !chosenEditor;
             if (mode === 'video' || mode === 'both') items.push({
                 team: 'video', videoNumber: number, title: named(titlePrefix + 'Video ' + number),
                 brief: _linearVideoBrief(video || {}), due_date: video && video.dueDate || null,
                 status: PROD_CREATED_STATUS, card_id: cardId, sort_key: index,
                 ...(postName ? { name: postName } : {}),
-                ...(chosenEditor ? { assignee_id: chosenEditor } : {})
+                ...(chosenEditor ? { assignee_id: chosenEditor } : {}),
+                ...(nobody ? { unassigned: true } : {})
             });
             if (mode === 'thumbnail' || mode === 'both') items.push({
                 team: 'graphics', videoNumber: number, brief: _linearThumbnailBrief(video || {}),

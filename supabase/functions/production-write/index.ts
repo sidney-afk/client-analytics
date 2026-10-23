@@ -6525,6 +6525,15 @@ async function handleIntakeCreate(
     if (clean(item.assignee_id) && normalizeTeam(item.team) !== "video") {
       throw new GatewayError(400, "intake_assignee_override_not_allowed", { item_index: index });
     }
+    // "Not assigned" (owner 2026-10-23): a VIDEO item may ask for nobody,
+    // spelled exactly `unassigned: true`, and never beside a named editor.
+    if (item.unassigned !== undefined
+        && (item.unassigned !== true || normalizeTeam(item.team) !== "video")) {
+      throw new GatewayError(400, "intake_assignee_override_not_allowed", { item_index: index });
+    }
+    if (item.unassigned === true && clean(item.assignee_id)) {
+      throw new GatewayError(400, "intake_assignee_override_conflict", { item_index: index });
+    }
     /* The optional post name (owner 2026-09-07). Refused rather than
        truncated when it is too long: the name becomes a title people read and
        search by, and a silently shortened one is a lie about what was asked
@@ -6785,6 +6794,23 @@ async function handleIntakeCreate(
     }
     requestedByTeam[team] = requested;
   }
+  /*
+   * NOBODY IS A CHOICE TOO (owner 2026-10-23): the Create Post picker offers
+   * "Not assigned", and the post is then created with no video editor, so it
+   * lands in Workload's "Needs assignment" instead of on whoever is freest.
+   * All of a request's video items must say so, or none: half "nobody" and
+   * half "automatic" is a malformed submission, refused like two editors.
+   */
+  const unassignedByTeam: Record<string, boolean> = {};
+  for (let index = 0; index < items.length; index++) {
+    if (items[index].unassigned === true) unassignedByTeam[normalizeTeam(items[index].team)] = true;
+  }
+  for (const team of Object.keys(unassignedByTeam)) {
+    const mixed = items.findIndex(item => normalizeTeam(item.team) === team && item.unassigned !== true);
+    if (requestedByTeam[team] || mixed >= 0) {
+      throw new GatewayError(400, "intake_assignee_override_conflict", { item_index: Math.max(mixed, 0) });
+    }
+  }
   // The lane is the one resolved above for this request: an accepted native
   // manifest/receipt keeps its epoch on replay whatever the flags say now.
   for (const team of Object.keys(requestedByTeam)) {
@@ -6818,6 +6844,8 @@ async function handleIntakeCreate(
      */
     assigneeByTeam[team] = gatewayAssignees.size === 1
       ? [...gatewayAssignees][0]
+      : unassignedByTeam[team]
+        ? ""
       : requestedByTeam[team]
         ? requestedByTeam[team]
         : mirrorAssignees.size === 1
@@ -6969,7 +6997,7 @@ async function handleIntakeCreate(
       brief: brief || null,
       status,
       status_at: sourceEditedAt,
-      assignee_id: assigneeId,
+      assignee_id: assigneeId || null,
       due_date: clean(item.due_date) || null,
       priority,
       origin: intakePurpose,

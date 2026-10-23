@@ -29,6 +29,13 @@ Checked against main and `syncview_runtime_flags` on 2026-10-21 04:30 UTC. Count
 - **Today** shows captions sent back for tweaks (#2263). **Workload calm view** is on for staff (`workload_calm_staff`).
 - Everything above is live; the supervisor lane is the SyncView project (Lighthouse stopped 2026-10-20 17:50 UTC). Dated detail: `synchro-pipelines/supervisor/history/syncview/`.
 
+## Create Post: "Not assigned", and an editor suggested last (session Blank, 2026-10-23): PR open
+
+Calendar and Samples Create Post offer "Not assigned" (the post is created with no video editor and shows in Workload's
+Needs assignment); `production-write` accepts `unassigned: true` on video items. The setting row
+`syncview_runtime_flags.editor_suggest_last` `{ "staff": [...] }` puts the named editors last in the picker; no row, no change.
+OPEN_REPAIRS 476; tests `node test/intake-not-assigned.js`, `node test/create-post-picker.js`.
+
 ## Kasper's tab boots fast, behind `kasper_fast_boot` (session Quick, 2026-10-20): merged (#2265), switch on for Sidney's two ids only, Kasper next
 
 Owner: the refresh pill shows too often and is not needed, the video player loads late (mostly after a hard refresh), and the

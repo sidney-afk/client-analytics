@@ -2822,6 +2822,9 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
      */
     const CAL_NATIVE_LIVE_VIDEO_STATUSES = ['todo', 'in_progress', 'tweak'];
     const CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS = 4000;
+    /* "Not assigned" (owner 2026-10-23): the picker's value for nobody. Never a
+       roster id; the dialog sends it as `unassigned: true` on the video items. */
+    const CAL_NATIVE_EDITOR_NONE = '__not_assigned__';
     /* GATEWAY FIRST. The picker used to read the roster and the open-load
        counts straight out of PostgREST, which forced the browser to reproduce
        the gateway's eligibility rule (a non-null Linear mapping) in order to
@@ -3522,7 +3525,8 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         // sv-select writes the chosen value into a hidden input named by its id.
         const input = document.getElementById('calNativeEditor');
         const chosen = String(input && input.value || '');
-        if (chosen && !(state.videoEditors || []).some(editor => editor.id === chosen)) return;
+        if (chosen && chosen !== CAL_NATIVE_EDITOR_NONE
+            && !(state.videoEditors || []).some(editor => editor.id === chosen)) return;
         // Preserve the batch radio the same way the mode switch does, since
         // this also re-renders the whole dialog body.
         const selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
@@ -3649,7 +3653,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
     });
 export {
   CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS, CAL_NATIVE_BATCH_FILTER_MIN,
-  CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS, CAL_NATIVE_NAME_MAX, CAL_NATIVE_TITLE_SEPARATOR,
+  CAL_NATIVE_EDITOR_NONE, CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS, CAL_NATIVE_NAME_MAX, CAL_NATIVE_TITLE_SEPARATOR,
   _calAutoResolveDestStatus, _calAutosizeTextareas, _calAwaitCardSave, _calClientFieldEditBlocked, _calClientMayEditText,
   _calCloseNativePost, _calCloseStatusMenu, _calFlushCardSave, _calForceThumbRefresh,
   _calInsertLocalBlankCard, _calLivePreviewThumb, _calNativeBatchCompatible,

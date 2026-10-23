@@ -643,8 +643,11 @@ const result = {
     /* 2026-08-24: the item builder gained the chosen video editor, and the
        signature gained it too -- a different editor is a different submission
        and must not resume a saved job that named somebody else. */
-    && createPost.includes('items: _linearIntakeItems(mode, videos, requestId, surface, videoAssigneeId)')
+    /* 2026-10-23: and "Not assigned", which rides beside it and joins the
+       signature only when chosen, so every older saved job keeps its shape. */
+    && createPost.includes('items: _linearIntakeItems(mode, videos, requestId, surface, videoAssigneeId, videoUnassigned)')
     && createPost.includes('video_assignee_id: videoAssigneeId,')
+    && createPost.includes('...(videoUnassigned ? { video_unassigned: true } : {}),')
     /* 2026-08-20: the signature gained post_count, so a saved 3-post job can
        never resume under a 12-post request. Pinned as the full head rather
        than relaxed, so a future edit that drops the count is caught here. */

@@ -19,8 +19,8 @@ async function main(){
   staff.resetScenario();const context=await browser.newContext({viewport:{width,height:844},hasTouch:true,isMobile:true,reducedMotion:'reduce'});
   await staff.installBackend(context);await seedStaffGate(context);await context.addInitScript(t=>localStorage.setItem('syncview_theme',t),theme);
   const rows=conversations(),calls=[];
-  await context.route('**/functions/v1/production-comments',async route=>{
-   const body=JSON.parse(route.request().postData()||'{}');calls.push(body);
+  await context.route('**/functions/v1/production-comments{,?*}',async route=>{
+   const body=route.request().method()==='GET'?{action:new URL(route.request().url()).searchParams.get('action')}:JSON.parse(route.request().postData()||'{}');calls.push(body);
    if(body.action==='inbox_mark'){const c=rows.find(c=>c.post_id===body.post_id);if(c)c.unread=body.state==='unread'?1:0;return route.fulfill({json:{ok:true}});}
    if(body.action==='inbox')return route.fulfill({json:{ok:true,conversations:JSON.parse(JSON.stringify(rows)),scope:'all'}});
    return route.fulfill({json:{ok:false,error:'Fictional refusal'},status:409});

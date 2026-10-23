@@ -7,6 +7,8 @@
  *   C  the Production tab still makes no inbox call it was not asked for
  *   D  a first read that fails (503) is tried again by itself and the badge appears without a click
  *   E  a first read refused with 403 is not tried again
+ *   F  the automatic read is a GET (every page treats a POST it did not ask for as a write), and the Time Off
+ *      page makes none
  * With SCREENSHOTS=<dir>, the header at 1440 is captured there in light and dark.
  */
 const fs = require('fs');
@@ -21,12 +23,15 @@ const SHOTS = process.env.SCREENSHOTS || '';
   const S = await createEnv();
   let inboxCalls = 0;
   let unread = 0;
-  let failNext = [];   // statuses to answer the next inbox calls with, in order, before answering normally
+  let failNext = [];
+  const inboxMethods = [];   // statuses to answer the next inbox calls with, in order, before answering normally
   try {
-    await S.ctx.route('**/functions/v1/production-comments', async route => {
+    await S.ctx.route('**/functions/v1/production-comments{,?*}', async route => {
       let body = {}; try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+      if (route.request().method() === 'GET') body = { action: new URL(route.request().url()).searchParams.get('action') || '' };   // the inbox list is read with GET ?action=inbox
       if (route.request().method() === 'OPTIONS' || body.action !== 'inbox') return route.fallback();
       inboxCalls++;
+      inboxMethods.push(route.request().method());
       const fail = failNext.shift();
       if (fail) return route.fulfill({ status: fail, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ ok: false, error: 'fixture_' + fail }) });
       return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ ok: true, scope: 'all', conversations: [
@@ -117,6 +122,31 @@ const SHOTS = process.env.SCREENSHOTS || '';
       await sleep(5000);
       check(inboxCalls - n0 === 1, 'E: a 403 is not tried again (' + (inboxCalls - n0) + ')');
       failNext = [];
+      await pg.close();
+    }
+
+    // F: GET only, and nothing on the Time Off page
+    check(inboxMethods.length > 0 && inboxMethods.every(m => m === 'GET'), 'F: every automatic inbox read was a GET (' + [...new Set(inboxMethods)].join(',') + ')');
+    {
+      const pg = await S.newPage();
+      await pg.setViewportSize({ width: 1440, height: 900 });
+      // Time Off is on for this page (as pto-ui-polish's fixture answers the pto_v1 switch), so it stays there.
+      await pg.route('**/rest/v1/syncview_runtime_flags*', r => /pto_v1/.test(r.request().url())
+        ? r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify([{ value: { mode: 'on' } }]) })
+        : r.fallback());
+      await pg.goto(S.origin + '/index.html#time-off', { waitUntil: 'domcontentloaded' });
+      await pg.waitForFunction(() => typeof navTo === 'function' && typeof _syncviewStaffCan === 'function', null, { timeout: 30000 });
+      await pg.evaluate(() => { _syncviewStaffIdentityVerified = true; try { _ptoSetFlagValue({ mode: 'on' }); } catch (e) {} navTo('time-off', false); });
+      const onTimeOff = await pg.evaluate(() => currentNav);
+      // (This fixture turns Time Off on only after load, so the page passed through Home first: count from here,
+      // and only this page's own requests: the first page is still open and refreshes on its own.)
+      await sleep(300);
+      let mine = 0;
+      pg.on('request', r => { if (/\/functions\/v1\/production-comments/.test(r.url()) && r.method() !== 'OPTIONS') mine++; });
+      await sleep(4000);
+      check(onTimeOff !== 'time-off' || mine === 0, 'F: while on the Time Off page no inbox read starts (' + onTimeOff + ', ' + mine + ')');
+      const stillOn = await pg.evaluate(() => currentNav);
+      check(onTimeOff === 'time-off' && stillOn === 'time-off', 'F: the page really was on Time Off the whole time (' + onTimeOff + ' -> ' + stillOn + ')');
       await pg.close();
     }
 

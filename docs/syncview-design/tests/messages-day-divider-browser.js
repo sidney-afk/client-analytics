@@ -26,8 +26,9 @@ const MSGS = [
 async function run(width) {
   const S = await createEnv({ context: { timezoneId: 'America/Guatemala', viewport: { width, height: 900 }, isMobile: width < 500, hasTouch: width < 500 } });
   try {
-    await S.ctx.route('**/functions/v1/production-comments', async route => {
+    await S.ctx.route('**/functions/v1/production-comments{,?*}', async route => {
       let body = {}; try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+      if (route.request().method() === 'GET') body = { action: new URL(route.request().url()).searchParams.get('action') || '' };   // the inbox list is read with GET ?action=inbox
       if (route.request().method() === 'OPTIONS' || (body.action !== 'inbox' && body.action !== 'inbox_mark')) return route.fallback();
       const reply = obj => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(obj) });
       if (body.action === 'inbox_mark') return reply({ ok: true, post_id: body.post_id, last_read_at: '2026-10-20T00:00:00.000Z' });

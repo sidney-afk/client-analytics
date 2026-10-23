@@ -167,8 +167,8 @@ async function open(browser, origin, opt) {
       return json(b.slug === SLUG && b.token === TOKEN ? { ok: true, valid: true, allowed: true, slug: SLUG, display_name: CLIENT, view: b.view, strict: true, active: true, protocol: 'syncview-client-entry-v1' } : { ok: true, valid: false, allowed: false, error: 'invalid_client_link' });
     }
     // The Messages inbox (opt.inbox: a list of fictional conversations); without it the inbox is empty.
-    if (p === '/functions/v1/production-comments' && r.method() === 'POST' && opt.inbox) {
-      let b = {}; try { b = JSON.parse(r.postData() || '{}'); } catch (e) {}
+    if (p === '/functions/v1/production-comments' && (r.method() === 'POST' || r.method() === 'GET') && opt.inbox) {
+      let b = {}; try { b = r.method() === 'GET' ? { action: u.searchParams.get('action') } : JSON.parse(r.postData() || '{}'); } catch (e) {}
       if (b.action === 'inbox') return json({ ok: true, scope: 'all', conversations: opt.inbox });
       return json({ ok: true });
     }

@@ -258,4 +258,18 @@ const itemOf = (db: Db, id: string) => db.t.thumbnail_title_run_items.find((r) =
   ok(again.following === false && db.t.thumbnail_title_runs.length === 2, "a new press starts a fresh run");
 }
 
+// 8. A press that names another client's active run is refused, never handed that run.
+{
+  const db = seed();
+  db.t.deliverables.push({ id: "th-b", title: "Thumbnail 1 — Other", brief: "Other client's text", kind: "thumbnail", status: "todo", batch_id: "bat_b", card_id: "card-b", created_at: "2026-10-20T10:00:00.000Z", client_slug: "other-client" });
+  await handleManual(db as never, "run", { run_key: "post:shared", items: ["th-b"] }, "other-client", who, () => {});
+  let refused = "";
+  let leaked: Row | null = null;
+  try {
+    leaked = await handleManual(db as never, "run", { run_key: "post:shared", items: ["th-1"] }, "demo-fixture", who, () => {}) as Row;
+  } catch (e) { refused = `${(e as RunError).status}:${(e as RunError).message}`; }
+  ok(leaked === null && refused === "409:run_active", "another client's active run with the same key is not returned");
+  ok(db.t.thumbnail_title_runs.length === 1, "and no second run is made");
+}
+
 console.log(`thumbnail-title-runs-deno: ${checks} checks passed`);

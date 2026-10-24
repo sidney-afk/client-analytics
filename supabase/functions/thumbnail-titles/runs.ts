@@ -146,9 +146,11 @@ export async function handleManual(
     if (missingTable(insertError)) throw new RunError(503, "not_ready");
     if (insertError && insertError.code === "23505") {
       // One run per post at a time: a second press, from anyone, follows the run already going.
+      // Only this client's run: the key comes from the browser, so another client's run is never returned.
       const { data: active } = await db.from("thumbnail_title_runs").select("*")
-        .eq("run_key", key).in("state", ACTIVE).order("created_at", { ascending: false }).limit(1);
+        .eq("run_key", key).eq("client_slug", client).in("state", ACTIVE).order("created_at", { ascending: false }).limit(1);
       const run = ((active || []) as Json[])[0] || null;
+      if (!run) throw new RunError(409, "run_active");
       return { ...(await runPayload(db, run)), following: true };
     }
     if (insertError || !created) throw new RunError(500, "run_create");

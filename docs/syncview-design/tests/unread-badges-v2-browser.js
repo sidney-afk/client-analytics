@@ -26,6 +26,12 @@
  *      under one, has no Reply in Notes or in Messages while the reply already written still shows; the whole Notes
  *      row on a card (button, gap, bubbles) opens Notes; a note on its way shows a spinner, never "Sending"; a
  *      message's attachments show in Messages as in Notes.
+ *   J. Round 8 (owner, 2026-10-24): something new is the picture with a small count on its top right corner and
+ *      nothing else, read-but-open stays the plain number, never both; the card hover is as wide as its lines need;
+ *      no underline on any action, even on hover; no "Waiting for your answer" and no "Mark unread" anywhere; in
+ *      Messages the actions sit at the bottom left under the words and cover nobody's words, replies sit indented
+ *      under what they answer on a thread line (two levels, then "replying to <first name>"), and the header ends
+ *      with Open card then a plain ×; Notes shows its thread line too.
  *   F. No page error.
  *   G. Only a page the switch is on for asks the inbox for pictures (the Slack lookups are opt-in).
  */
@@ -69,6 +75,10 @@ async function run(flagValue) {
       Object.assign(note({ id: 'm_team', min: 30, author: 'Fixture Editor', author_member_id: 'ed1', role: 'editor', audience: 'internal', body: 'Export is up.' }), { component: 'video', is_tweak: false }),
       Object.assign(note({ id: 'm_team2', min: 29, author: 'Fixture Editor', author_member_id: 'ed1', role: 'editor', audience: 'internal', body: 'Same export, now with captions.' }), { component: 'video', is_tweak: false, attachments: [{ name: 'export-v2.mp4', url: 'https://example.invalid/export-v2.mp4' }] }),
       Object.assign(note({ id: 'm_kasper', min: 40, author: 'Kasper', role: 'kasper', audience: 'internal', is_tweak: true, body: 'Colour on the last shot is warm.' }), { component: 'video' }),
+      // Round 8: a thread three deep under the question (all yours, so no count changes).
+      Object.assign(note({ id: 'm_reply', parent_id: 'n_question', min: 19, author: 'Browser Staff', author_member_id: 'm1', role: 'admin', body: 'Yes, Friday works.' }), { component: 'video' }),
+      Object.assign(note({ id: 'm_reply2', parent_id: 'm_reply', min: 18, author: 'Browser Staff', author_member_id: 'm1', role: 'admin', body: 'I will have it ready.' }), { component: 'video', root_id: 'n_question' }),
+      Object.assign(note({ id: 'm_reply3', parent_id: 'm_reply2', min: 17, author: 'Browser Staff', author_member_id: 'm1', role: 'admin', body: 'Thanks.' }), { component: 'video', root_id: 'n_question' }),
       Object.assign(note({ id: 'm_mine', min: 25, author: 'Browser Staff', author_member_id: 'm1', role: 'admin', audience: 'internal', body: 'Thanks, checking now.' }), { component: 'caption', is_tweak: false })]
       .sort((a, b) => a.created_at.localeCompare(b.created_at)) };
   await S.ctx.route('**/functions/v1/production-comments{,?*}', async route => {
@@ -128,9 +138,9 @@ const cardState = page => page.evaluate(() => {
     ok(st.on && st.v2, 'C. switch naming the member: the round-5 look is on');
     const client = st.bubbles.find(b => b.img);
     ok(client && client.img === CLIENT_PIC, 'C. the client bubble has the client picture from the inbox answer');
-    ok(client && client.nums.join() === 'svu-n-change:3', 'C. all three new client notes count on the client bubble, coloured as a change request');
+    ok(client && client.nums.join() === 'svu-corner svu-n-change:3', 'C. all three new client notes count on the client bubble, coloured as a change request: ' + (client && client.nums.join()));
     const team = st.bubbles.find(b => b.initials);
-    ok(team && team.initials === 'FE' && team.nums.join() === 'svu-n-staff:1', 'C. a teammate with no picture shows initials and a grey number');
+    ok(team && team.initials === 'FE' && team.nums.join() === 'svu-corner svu-n-staff:1', 'C. a teammate with no picture shows initials and a grey number');
     await page.hover('.cal-foot-tweaks[data-comments-wrap="p_t1"] .svu-strips');
     await sleep(150);
     const hover = await page.evaluate(() => ({
@@ -140,6 +150,18 @@ const cardState = page => page.evaluate(() => {
     }));
     ok(hover.who.join() === 'Bartholomew-Maximilian,Casey,Fixture,Casey' && hover.text[1] === 'Cut the first two seconds.', 'C. the hover is picture, first name and the note, newest first: ' + hover.who.join(', '));
     ok(hover.noise === 0, 'C. the hover has no date, no kind label and no footer');
+    // Round 8: something new is a small count on the picture's top right corner, alone; the hover fits its lines.
+    const corner = await page.evaluate(() => {
+      const bub = [...document.querySelectorAll('.cal-foot-tweaks[data-comments-wrap="p_t1"] .svu-bub')].find(b => b.querySelector('img'));
+      const nums = bub ? [...bub.querySelectorAll('.svu-num')] : [], av = bub && bub.querySelector('.svu-bub-av');
+      const n = nums[0] && nums[0].getBoundingClientRect(), a = av && av.getBoundingClientRect();
+      const pv = document.querySelector('.svu-pv');
+      const texts = pv ? [...pv.querySelectorAll('.svu-pv-text')] : [];
+      return { count: nums.length, onCorner: !!(n && a && n.left > a.left + a.width / 2 && n.top < a.top + 2 && n.bottom < a.top + a.height / 2 + 4),
+        pvWidth: pv ? Math.round(pv.getBoundingClientRect().width) : 0, clipped: texts.filter(t => t.scrollWidth > t.clientWidth + 1).map(t => getComputedStyle(t).textOverflow) };
+    });
+    ok(corner.count === 1 && corner.onCorner, 'J. something new is one small count on the picture\'s top right corner, nothing beside it ' + JSON.stringify(corner));
+    ok(corner.pvWidth > 0 && corner.pvWidth <= 360 && (corner.pvWidth < 360 || corner.clipped.length > 0) && corner.clipped.every(t => t === 'ellipsis'), 'J. the card hover is as wide as its lines need, at most 360 px, a longer line ends in an ellipsis ' + JSON.stringify(corner));
     await page.mouse.move(5, 5);
 
     await page.evaluate(() => openCalComments('p_t1'));
@@ -156,8 +178,8 @@ const cardState = page => page.evaluate(() => {
     }), row);
     ok(notes.box === 0, 'D. no "Needs you" box and no action row under a note');
     ok(notes.author === 'Casey' && notes.time === '20m ago', 'D. first name and a relative time: ' + notes.author + ', ' + notes.time);
-    ok(notes.waitingTag && notes.tools.includes('Reply') && notes.tools.includes('No reply needed'), 'D. the waiting comment\'s hover toolbar has Reply and No reply needed: ' + notes.tools.join(', '));
-    ok(notes.unread, 'D. "Mark unread" is one quiet word in the Notes head');
+    ok(!notes.waitingTag && notes.tools.includes('Reply') && notes.tools.includes('No reply needed'), 'D. the comment waiting for an answer has Reply and No reply needed, and no status word (round 8): ' + notes.tools.join(', '));
+    ok(!notes.unread, 'J. no "Mark unread" in the Notes head');
     // Round 7: make one note's last line run under where the toolbar sits, so the room case is exercised.
     await page.evaluate(() => {
       const row = document.querySelector('#calCommentsModal .cal-cm-row[data-cm-row="n_long"]');
@@ -217,7 +239,22 @@ const cardState = page => page.evaluate(() => {
     }));
     ok(notesE.lock && !notesE.teamWord, 'H. Notes: "Team only" is a lock with its meaning on hover');
     ok(notesE.tweak === 'Change request', 'H. Notes: a change request reads "Change request" (' + notesE.tweak + ')');
-    ok(notesE.qTags.join() === 'Waiting for your answer', 'H. Notes: "Waiting for your answer" stands alone, without "New" (' + notesE.qTags.join() + ')');
+    ok(notesE.qTags.join() === 'New', 'J. Notes: a comment waiting for an answer carries no "Waiting for your answer", just New (' + notesE.qTags.join() + ')');
+    await page.hover('#calCommentsModal .cal-cm-row[data-cm-row="n_change"] .cal-cm-row-body').catch(() => {});
+    await sleep(150);
+    await page.hover('#calCommentsModal .cal-cm-row[data-cm-row="n_change"] .cal-cm-action').catch(() => {});
+    await sleep(150);
+    const notesJ = await page.evaluate(() => ({
+      underline: [...document.querySelectorAll('#calCommentsModal .cal-cm-action')].filter(a => a.matches(':hover') || true).map(a => getComputedStyle(a).textDecorationLine).filter(d => d !== 'none'),
+      hovered: (() => { const a = document.querySelector('#calCommentsModal .cal-cm-row[data-cm-row="n_change"] .cal-cm-action:hover'); return a ? getComputedStyle(a).textDecorationLine : 'not hovered'; })(),
+      waiting: /Waiting for your answer/i.test(document.getElementById('calCommentsModal').innerText),
+      markUnread: /Mark unread/i.test(document.getElementById('calCommentsModal').innerText),
+      rail: (() => { const r = document.querySelector('#calCommentsModal .cal-cm-rail'); return r ? getComputedStyle(r).display : 'missing'; })(),
+    }));
+    ok(notesJ.hovered === 'none' && notesJ.underline.length === 0, 'J. Notes: no action is underlined, not even the one under the pointer ' + JSON.stringify(notesJ));
+    ok(!notesJ.waiting && !notesJ.markUnread, 'J. Notes: no "Waiting for your answer" and no "Mark unread" anywhere');
+    ok(notesJ.rail === 'block', 'J. Notes: replies hang on a thin thread line, as in Messages (' + notesJ.rail + ')');
+    await page.mouse.move(5, 5);
     const writes = await page.evaluate(() => new Promise(resolve => {
       const feed = document.querySelector('#calCommentsModal .cal-comments-feed');
       let n = 0;
@@ -317,7 +354,7 @@ const cardState = page => page.evaluate(() => {
     ok(e.days.length >= 1 && e.days.every(d => d === 'Today'), 'H. day lines say "Today": ' + e.days.join(', '));
     ok(e.newTags === 0, 'H. no "New" tag on each message');
     ok(/^Casey asked for a change on the video/.test(e.line.trim()) && !/handled on the card/.test(e.line), 'H. the change-request line is one quiet line: ' + e.line.trim());
-    ok(e.acts.join() === 'Mark unread,Open card' && e.thumb === 'none', 'H. header actions are words and an empty thumbnail is not drawn ' + JSON.stringify([e.acts, e.thumb]));
+    ok(e.acts.join() === 'Open card' && e.thumb === 'none', 'J. the header has no "Mark unread", Open card is a word, an empty thumbnail is not drawn ' + JSON.stringify([e.acts, e.thumb]));
     ok(e.cap === '' || e.cap.split(/\s+/).length === 1, 'H. the reply caption uses the first name: ' + e.cap);
     ok(e.cont && !e.contFirst, 'H. a follow-up by the same person within five minutes drops its picture and name');
     const m7 = await page.evaluate(() => {
@@ -330,22 +367,80 @@ const cardState = page => page.evaluate(() => {
     const msgPlaced = [];
     for (const id of ['m_team', 'm_team2', 'n_question']) {
       const sel = `#msgPage .msg-b[data-msg-id="${id}"]`;
+      await page.mouse.move(5, 5);
+      await sleep(120);
+      const before = await page.evaluate(sel => { const r = document.querySelector(sel).getBoundingClientRect(); return [Math.round(r.top), Math.round(r.height)].join(); }, sel);
       await page.hover(sel + ' .msg-b-text').catch(() => {});
+      await sleep(120);
+      const after = await page.evaluate(sel => { const r = document.querySelector(sel).getBoundingClientRect(); return [Math.round(r.top), Math.round(r.height)].join(); }, sel);
+      if (before !== after) msgPlaced.push(id + ': the row moved on hover ' + before + ' -> ' + after);
       await sleep(180);
       msgPlaced.push(await page.evaluate(([sel, id]) => {
         const b = document.querySelector(sel), bar = b && b.querySelector('.svu-msg-acts');
         if (!bar || getComputedStyle(bar).opacity === '0') return id + ': not shown';
         const x = bar.getBoundingClientRect(), r = b.getBoundingClientRect();
-        const range = document.createRange(); range.selectNodeContents(b.querySelector('.msg-b-text'));
-        const covers = [...range.getClientRects()].some(t => t.width && t.left < x.right && t.right > x.left && t.top < x.bottom && t.bottom > x.top);
-        const bottom = r.bottom - x.bottom, right = r.right - x.right;
-        return covers ? id + ': covers the text' : (bottom < 0 || bottom > 14 || right < 0 || right > 30) ? id + ': not at the bottom right ' + [bottom, right] : '';
+        // Round 8: at the bottom left, under the words, aligned with them, and over nobody's words (this message's or the
+        // next one's).
+        const text = b.querySelector('.msg-b-text').getBoundingClientRect();
+        const all = [...document.querySelectorAll('#msgPage .msg-b .msg-b-text, #msgPage .msg-b .msg-b-meta')];
+        const range = document.createRange();
+        const covers = all.some(el => { range.selectNodeContents(el); return [...range.getClientRects()].some(t => t.width && t.left < x.right && t.right > x.left && t.top < x.bottom && t.bottom > x.top); });
+        // Inside the hovered row (its hover background), and at least 8 px above the next row.
+        const rows = [...document.querySelectorAll('#msgPage .msg-b, #msgPage .svu-change-line')];
+        const next = rows[rows.indexOf(b) + 1], nr = next && next.getBoundingClientRect();
+        const inside = x.top >= r.top - 0.5 && x.bottom <= r.bottom + 0.5 && x.left >= r.left - 0.5 && x.right <= r.right + 0.5;
+        if (covers) return id + ': covers words';
+        if (Math.abs(x.left - text.left) > 2 || x.top < text.bottom - 2) return id + ': not at the bottom left under the words ' + [Math.round(x.left - text.left), Math.round(x.top - text.bottom)];
+        if (!inside) return id + ': outside its row ' + [Math.round(x.bottom - r.bottom)];
+        if (nr && nr.top - x.bottom < 8) return id + ': only ' + Math.round(nr.top - x.bottom) + ' px above the next row';
+        return '';
       }, [sel, id]));
     }
-    ok(msgPlaced.every(x => x === ''), 'I. Messages: the hover actions sit at the bottom right and never cover the text ' + msgPlaced.filter(Boolean).join('; '));
+    ok(msgPlaced.every(x => x === ''), 'J. Messages: the hover actions sit at the bottom left, under the words, inside their row, 8 px or more above the next row, covering nobody\'s words ' + msgPlaced.filter(Boolean).join('; '));
     const sendingText = await page.evaluate(() => /Sending…|Sending\.\.\./.test(document.body.innerText));
     ok(!sendingText, 'I. no "Sending…" text anywhere on the page');
-    ok(head.avLeft < 40 && Math.abs(head.avTop - head.nameTop) <= 8, 'E. your own picture sits at the left, beside your name (top ' + head.avTop + ' vs ' + head.nameTop + ', left ' + head.avLeft + ')');
+    await page.hover('#msgPage .msg-b[data-msg-id="n_question"] .msg-b-text').catch(() => {});
+    await page.hover('#msgPage .msg-b[data-msg-id="n_question"] .svu-msg-acts button').catch(() => {});
+    await sleep(150);
+    const j = await page.evaluate(() => {
+      const el = id => document.querySelector(`#msgPage .msg-b[data-msg-id="${id}"]`);
+      const root = el('n_question'), r1 = el('m_reply'), r2 = el('m_reply2'), r3 = el('m_reply3');
+      const box1 = r1 && r1.parentElement, box2 = r2 && r2.parentElement;
+      const head = document.querySelector('#msgPage .msg-chat-head'), x = head && head.querySelector('.svu-chat-close');
+      const acts = head ? [...head.querySelectorAll('.msg-chat-actions > *')].map(b => b.classList.contains('svu-chat-close') ? '×' : b.textContent.trim()) : [];
+      const pageClose = document.querySelector('#msgPage .msg-page-head .msg-close');
+      const hb = document.querySelector('#msgPage .msg-b[data-msg-id="n_question"] .svu-msg-acts button:hover');
+      return {
+        thread1: !!(box1 && box1.matches('.svu-replies.svu-depth-1') && box1.previousElementSibling === root),
+        line: box1 ? getComputedStyle(box1, '::before').width : '',
+        thread2: !!(box2 && box2.matches('.svu-replies.svu-depth-2') && box2.parentElement === box1),
+        flat3: !!(r3 && r3.parentElement === box2 && /replying to \S+/.test((r3.querySelector('.svu-replying') || {}).textContent || '')),
+        indent: r1 && root ? Math.round(r1.querySelector('.msg-b-text').getBoundingClientRect().left - root.querySelector('.msg-b-text').getBoundingClientRect().left) : 0,
+        acts, xRight: x && head ? Math.round(head.getBoundingClientRect().right - x.getBoundingClientRect().right) : -1,
+        xBox: x ? [getComputedStyle(x).borderTopWidth, getComputedStyle(x).backgroundColor, x.textContent.trim()] : null,
+        pageClose: pageClose ? getComputedStyle(pageClose).visibility : 'missing',
+        underline: hb ? getComputedStyle(hb).textDecorationLine : 'not hovered',
+        words: /Waiting for your answer|Mark unread/i.test(document.getElementById('msgPage').innerText),
+      };
+    });
+    ok(j.thread1 && j.thread2 && j.flat3 && j.indent > 20 && j.line === '2px', 'J. Messages: replies sit indented under what they answer on a thread line, two levels, then "replying to" ' + JSON.stringify(j));
+    ok(j.acts.join() === 'Open card,×' && j.xRight >= 0 && j.xRight <= 24 && j.xBox && j.xBox[0] === '0px' && j.xBox[2] === '' && j.pageClose === 'hidden', 'J. Messages header: Open card, then a plain × at the far right; the page Close steps aside ' + JSON.stringify(j));
+    // A repaint while a reply is being typed replaces only the list's contents (326): the threads come back.
+    await page.focus('#msgReplyBox').catch(() => {});
+    await page.keyboard.type('x');
+    await page.evaluate(() => _msgPaint());
+    await sleep(200);
+    const typed = await page.evaluate(() => { const r1 = document.querySelector('#msgPage .msg-b[data-msg-id="m_reply"]'); return !!(r1 && r1.parentElement.matches('.svu-replies.svu-depth-1')); });
+    ok(typed, 'J. Messages: replies stay threaded after a repaint made while a reply is being typed');
+    await page.evaluate(() => { const t = document.getElementById('msgReplyBox'); if (t) t.value = ''; t && t.blur(); });
+        ok(j.underline === 'none' && !j.words, 'J. Messages: no underline on hover, no "Waiting for your answer", no "Mark unread" ' + JSON.stringify([j.underline, j.words]));
+    await page.evaluate(() => _msgBack());
+    await sleep(250);
+    const backClose = await page.evaluate(() => { const b = document.querySelector('#msgPage .msg-page-head .msg-close'); return b ? getComputedStyle(b).visibility : 'missing'; });
+    ok(backClose === 'visible', 'J. Messages: back on the list, the page\'s own Close (a plain ×) is there again (' + backClose + ')');
+    await page.evaluate(() => _msgOpen('p_t1'));
+    await sleep(400);
+        ok(head.avLeft < 40 && Math.abs(head.avTop - head.nameTop) <= 8, 'E. your own picture sits at the left, beside your name (top ' + head.avTop + ' vs ' + head.nameTop + ', left ' + head.avLeft + ')');
     ok(h.inboxCalls.some(b => b.pictures === 1 && b.via === 'GET'), 'G. with the switch on, the inbox read (GET) asks for pictures');
     ok(h.errors.length === 0, 'F. switch on: no page error' + (h.errors.length ? ' ' + h.errors.join(' | ') : ''));
   } finally { await h.S.close(); }

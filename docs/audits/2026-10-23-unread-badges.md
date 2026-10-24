@@ -159,6 +159,31 @@ in place. Changes need nothing new: they already stay open until Done.
 | The same on the phone or another computer | when that tab is looked at again (immediate), otherwise within 30 s (safety net lowered from 60 s) |
 | Page load | the badge is drawn from the first read, 1.5 s after sign-in, with a retry if it fails (PR #2300) |
 
+### What each place shows (round 5, 2026-10-24 01:11 UTC, desktop, replaces round 4's look)
+
+The owner asked directly for rounded shapes, a bubble per person instead of kind icons, and Notes and Messages that
+look and work like Slack. The rules above (kinds, new versus waiting, what clears what) are unchanged; only the look is.
+
+- **Card Notes button:** one round picture per person who wrote something that needs you, with a round number next to
+  it. The number's colour is the kind (change orange, comment blue, team grey, Kasper violet): filled when new, outlined
+  when read but still needing you. One person with two kinds shows both numbers beside the one picture. At most three
+  people, most urgent first (change, comment, Kasper, team), then "+N". Hover is unchanged except that each line starts
+  with the person's picture.
+- **Pictures:** staff and Kasper use their Slack profile photo (`team_members.slack_user_id`, fetched and cached
+  server-side, never from the browser); a client's picture is the client's logo; a plain initial when neither exists.
+  The mockups use made-up drawings because the repository is public.
+- **Notes and the Messages chat, Slack-like:** a 36 px rounded-square picture on the left, the name in bold, the time
+  and part next to it, the words under it; a light hover background per message with the actions in a small floating
+  toolbar; replies under what they answer with smaller pictures; a day line between days; a rounded message box at the
+  bottom with a green Send. Kept from ours: "Needs you" pinned at the top, the "New" and "Waiting for your answer" tags,
+  Reply / No reply needed / Mark done right under the note, "Team only", the orange change-request line in Messages.
+- **Messages inbox, Slack-like:** a picture per conversation, the post's name in bold when unread, the last message
+  under it, the same people bubbles on the right; tabs are quiet text tabs with the active one shaded.
+- **Messages button:** a round count on the corner (filled for new, outlined when only answers are owed), still
+  positioned so it never moves the icon.
+- **Style throughout:** rounded corners (6 to 10 px; pills for numbers and tags), hairlines, colour only where it
+  means a kind.
+
 ### What each place shows (round 4, 2026-10-23 23:35 UTC, desktop)
 
 These rules (kinds, new versus waiting, what clears what) are also the source for the phone design, which session Palm
@@ -256,7 +281,9 @@ words: icon and number only, with the wording in the hover. The new desktop roun
 and a long conversation in the calm language (square corners, hairlines, no bubbles). The phone is handed to session
 Palm and follows the rules above.
 
+**Round 5 (2026-10-24 01:11 UTC, the owner directly):** no rectangles; one rounded picture per person with a coloured
+number; Notes and Messages styled like Slack; every gallery picture opens full screen. This replaces D10's strip.
+
 **Still open, with a recommendation:**
-- **D10. Three or more kinds on one card.** Recommendation: one strip of joined square segments in a fixed order (change,
-  comment, team, Kasper), outlined segments after it for what is read but still needs you, at most four segments, then
-  "+N" (gallery section 1).
+- **D10 (restated). Four or more people on one card.** Recommendation: at most three people bubbles, most urgent first
+  (change, comment, Kasper, team), then "+N"; the hover lists everyone (gallery, "One choice left").

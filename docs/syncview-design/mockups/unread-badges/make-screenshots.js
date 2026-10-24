@@ -80,7 +80,7 @@ function seed(S) {
   try {
     // Round 4: desktop only (the phone is designed in another session), the proposed design only.
     for (const theme of ['light', 'dark']) {
-      const w = 1440, h = 900, v = 'r4-' + theme;
+      const w = 1440, h = 900, v = 'r5-' + theme;
       if (ONLY && !v.includes(ONLY)) continue;
       const page = await S.newPage();
       await page.setViewportSize({ width: w, height: h });

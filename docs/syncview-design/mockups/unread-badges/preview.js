@@ -1,4 +1,4 @@
-/* Unread badges preview, round 4 (session Beacon, 2026-10-23). LOCAL ONLY, DESKTOP: loaded into the real page by make-screenshots.js,
+/* Unread badges preview, round 5 (session Beacon, 2026-10-24). LOCAL ONLY, DESKTOP: loaded into the real page by make-screenshots.js,
    never by the app. It swaps a few of today's renderers for the proposed design so the screenshots show the real
    Calendar card, Notes panel, Messages button, list and chat. Nothing here writes anywhere: "No reply needed" and
    "Mark unread" only change this page's memory. The real build computes the same states on the server. */
@@ -76,6 +76,25 @@
     kasper: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z"/><circle cx="8" cy="8" r="2.2"/></svg>',
   };
   ICO.open = ICO.change;
+  /* Fictional picture avatars. In the real build a staff member's comes from their Slack profile photo and a client's
+     from the client's logo; these stand in because the repository is public. */
+  const hueOf = name => { let h = 0; for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+  const AV = new Map();
+  function avatarSrc(m) {
+    const key = isClient(m) ? 'client' : String(m && m.author || 'Team');
+    if (AV.has(key)) return AV.get(key);
+    let svg;
+    if (key === 'client') {
+      svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#0f766e"/><circle cx="32" cy="32" r="17" fill="none" stroke="#99f6e4" stroke-width="5"/><circle cx="32" cy="32" r="6" fill="#99f6e4"/></svg>';
+    } else {
+      const h = role(m) === 'kasper' ? 262 : hueOf(key);
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${h},60%,70%)"/><stop offset="1" stop-color="hsl(${(h + 35) % 360},55%,48%)"/></linearGradient></defs><rect width="64" height="64" fill="url(#g)"/><circle cx="32" cy="25" r="12" fill="hsl(${h},45%,93%)"/><path d="M9 66c2-15 11-22 23-22s21 7 23 22z" fill="hsl(${h},45%,93%)"/></svg>`;
+    }
+    const src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    AV.set(key, src);
+    return src;
+  }
+  const avatar = (m, cls) => `<img class="${cls || 'svu-av'}" src="${avatarSrc(m)}" alt="">`;
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
   const SAY = {
     change: n => plural(n, 'new change request', 'new change requests'), open: n => plural(n, 'change request not done yet', 'change requests not done yet'),
@@ -83,30 +102,45 @@
     staff: n => plural(n, 'new message from the team', 'new messages from the team'), kasper: n => plural(n, 'new message from Kasper', 'new messages from Kasper'),
   };
 
-  /* ---------- the badge: one square strip, icon + number only ----------
-     Rule for any number of kinds: NEW kinds are joined segments of one strip (change, comment, team, Kasper, in
-     that order); what is read but still needs you (changes not done, comments to answer) follows as outlined
-     segments of a second strip. At most four segments in all; the rest fold into "+N". The words are in the hover. */
-  function badgeHtml(s, max) {
-    const filled = [['change', s.change], ['comment', s.comment], ['staff', s.staff], ['kasper', s.kasper]].filter(x => x[1] > 0);
-    const outlined = [['open', s.open], ['waiting', s.waiting]].filter(x => x[1] > 0);
-    const all = filled.map(x => x.concat('f')).concat(outlined.map(x => x.concat('o')));
-    const limit = max || 4;
-    const shown = all.length > limit ? all.slice(0, limit - 1) : all;
-    const rest = all.length - shown.length;
-    const seg = ([k, n]) => `<span class="svu-seg svu-${k}" aria-label="${SAY[k](n)}">${ICO[k]}<b>${n}</b></span>`;
-    const f = shown.filter(x => x[2] === 'f'), o = shown.filter(x => x[2] === 'o');
-    return (f.length ? `<span class="svu-strip-f">${f.map(seg).join('')}</span>` : '')
-      + (o.length ? `<span class="svu-strip-o">${o.map(seg).join('')}</span>` : '')
-      + (rest ? `<span class="svu-strip-more">+${rest}</span>` : '');
+  /* ---------- the badge: one bubble per person ----------
+     Each person with something for you gets their picture in a round bubble with a number beside it. The number's
+     colour says what it is: filled orange = new change request, blue = new comment, grey = new from the team,
+     violet = Kasper; an outlined number = read, but still needs you (a change not done, a comment to answer).
+     Newest first, at most three people, then "+N". The hover says it in words. */
+  const RANK = { change: 4, comment: 3, kasper: 2, staff: 1 };
+  function peopleOf(post, live) {
+    const s = live || stateOf(post);
+    const notes = notesOf(post);
+    const by = new Map();
+    const get = m => { const k = isClient(m) ? 'client' : String(m.author || 'Team'); if (!by.has(k)) by.set(k, { m, nNew: 0, kind: '', nOut: 0, outKind: '', last: '' }); return by.get(k); };
+    for (const it of s.items) {
+      if (it.kind === 'waiting') continue;
+      const g = get(it.n.m); g.nNew++; if (!g.kind || RANK[it.kind] > RANK[g.kind]) g.kind = it.kind;
+      if (String(it.n.m.created_at) > g.last) g.last = String(it.n.m.created_at);
+    }
+    for (const n of notes) {
+      if (n.m !== n.root || s.newIds.has(n.m.id)) continue;
+      const out = s.waitingIds.has(n.m.id) ? 'waiting' : (s.openIds.has(n.m.id) ? 'open' : '');
+      if (!out) continue;
+      const g = get(n.m); g.nOut++; if (!g.outKind || out === 'open') g.outKind = out;
+      if (String(n.m.created_at) > g.last) g.last = String(n.m.created_at);
+    }
+    return [...by.values()].sort((x, y) => (y.nNew > 0) - (x.nNew > 0) || y.last.localeCompare(x.last));
   }
+  function bubblesHtml(people, max) {
+    const limit = max || 3;
+    const shown = people.slice(0, limit), rest = people.length - shown.length;
+    return shown.map(g => `<span class="svu-bub">${avatar(g.m, 'svu-bub-av')}${g.nNew ? `<b class="svu-num svu-n-${g.kind}">${g.nNew}</b>` : ''}${g.nOut ? `<b class="svu-num svu-o-${g.outKind}">${g.nOut}</b>` : ''}</span>`).join('')
+      + (rest ? `<span class="svu-bub-more">+${rest}</span>` : '');
+  }
+  function badgeHtml(s, max, post) { return post ? bubblesHtml(peopleOf(post, s), max) : ''; }
 
   /* ---------- Calendar card: the Notes button ---------- */
   const NOTES_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11v8H7l-3 2.5V11.5H2.5z"/></svg>';
   function notesBtnHtml(post, pid) {
     const s = stateOf(post);
     const any = s.change + s.comment + s.staff + s.kasper > 0;
-    const strip = badgeHtml(s);
+    const strip = badgeHtml(s, 3, post);
     return `<span class="cal-foot-tweaks svu-foot" data-comments-wrap="${pid}" onpointerenter="svUnreadPreview.hoverCard('${pid}', this)" onpointerleave="svUnreadPreview.hideHover()"><button type="button" class="cal-comments-btn svu-notes${any ? ' svu-has-new' : ''}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" aria-label="Notes">${NOTES_ICO}<span class="cal-comments-label">Notes</span></button>${strip ? `<span class="svu-strips" onclick="openCalComments('${pid}')">${strip}</span>` : ''}</span>`;
   }
 
@@ -116,7 +150,7 @@
   const whatOf = (kind, m) => (kind === 'staff' || kind === 'kasper') && String(m.audience || '') === 'client' ? 'Reply to the client' : WHAT[kind];
   function hoverHtml(post) {
     const s = stateOf(post);
-    const lines = s.items.slice(0, 5).map(({ kind, n }) => `<div class="svu-pv-row svu-k-${kind}"><span class="svu-pv-ico">${ICO[kind]}</span><span class="svu-pv-who">${_calEsc(WHO(n.m))}</span><span class="svu-pv-what">${_calEsc(whatOf(kind, n.m))} · ${_calEsc(LABEL(n.comp))}</span><span class="svu-pv-time">${_calEsc(_calFmtCommentTime(n.m.created_at))}</span><span class="svu-pv-text">${_calEsc(n.m.body || '')}</span></div>`).join('');
+    const lines = s.items.slice(0, 5).map(({ kind, n }) => `<div class="svu-pv-row svu-k-${kind}"><span class="svu-pv-ico">${avatar(n.m, 'svu-pv-av')}</span><span class="svu-pv-who">${_calEsc(WHO(n.m))}</span><span class="svu-pv-what">${_calEsc(whatOf(kind, n.m))} · ${_calEsc(LABEL(n.comp))}</span><span class="svu-pv-time">${_calEsc(_calFmtCommentTime(n.m.created_at))}</span><span class="svu-pv-text">${_calEsc(n.m.body || '')}</span></div>`).join('');
     const more = s.items.length > 5 ? `<div class="svu-pv-foot">${s.items.length - 5} more in Notes</div>` : '';
     const open = s.open ? `<div class="svu-pv-foot">${SAY.open(s.open)}</div>` : '';
     return (lines || '<div class="svu-pv-empty">Nothing new</div>') + more + open;
@@ -178,6 +212,8 @@
       if (!n) return;
       const k = isAuto(n.m) ? 'auto' : kindOf(n);
       row.setAttribute('data-svu-kind', k);
+      const av = row.querySelector('.cal-cm-avatar');
+      if (av && !av.querySelector('img')) av.innerHTML = avatar(n.m, 'svu-slack-av');
       const tags = [];
       if (live.newIds.has(id)) tags.push(`<span class="svu-tag svu-t-${k}">New</span>`);
       if (live.waitingIds.has(id)) tags.push('<span class="svu-tag svu-t-waiting">Waiting for your answer</span>');
@@ -230,6 +266,20 @@
     s.newTotal = s.comment + s.staff + s.kasper;
     return s;
   }
+  // The badge on an inbox row: one bubble per person with something new, numbers in the kind's colour.
+  function convBubbles(c, s) {
+    const by = new Map();
+    for (const m of c.messages || []) {
+      if (!s.newIds.has(m.id) && !s.waitingIds.has(m.id)) continue;
+      const k = isClient(m) ? 'client' : String(m.author || 'Team');
+      if (!by.has(k)) by.set(k, { m, nNew: 0, kind: '', nOut: 0, outKind: '', last: '' });
+      const g = by.get(k);
+      if (s.newIds.has(m.id)) { g.nNew++; const kk = isClient(m) ? 'comment' : role(m) === 'kasper' ? 'kasper' : 'staff'; if (!g.kind || RANK[kk] > RANK[g.kind]) g.kind = kk; }
+      else { g.nOut++; g.outKind = 'waiting'; }
+      if (String(m.created_at) > g.last) g.last = String(m.created_at);
+    }
+    return bubblesHtml([...by.values()].sort((x, y) => (y.nNew > 0) - (x.nNew > 0) || y.last.localeCompare(x.last)), 2);
+  }
   const isChangeMsg = (m, byId) => { const root = byId.get(m.root_id) || m; return isClient(m) && isTweak(root) && isClient(root); };
   window._msgListHtml = function () {
     const f = _msgState.filter;
@@ -242,12 +292,13 @@
       const last = (c.messages || []).filter(m => !isAuto(m) && !isChangeMsg(m, byId)).slice(-1)[0] || {};
       const who = isMine(last) ? 'You' : WHO(last);
       return `<button type="button" class="msg-conv svu-conv${c.post_id === _msgState.openId ? ' is-active' : ''}${s.newTotal ? ' is-unread' : ''}" data-msg-conv="${_calEscAttr(c.post_id)}" onclick="_msgOpen(${_jsAttrArg(c.post_id)})">
+        ${avatar({ role: 'client' }, 'svu-conv-av')}
         <span class="svu-conv-main">
           <span class="svu-conv-top"><span class="svu-conv-title">${_calEsc(c.title || 'Untitled post')}</span><span class="svu-conv-time">${_calEsc(_calFmtCommentTime(last.created_at || c.last_at))}</span></span>
           <span class="svu-conv-client">${_calEsc(_msgClientName(c))}</span>
           <span class="svu-conv-last">${_calEsc(who + ': ' + (last.body || ''))}</span>
         </span>
-        <span class="svu-conv-badge">${badgeHtml(s, 3)}</span>
+        <span class="svu-conv-badge">${convBubbles(c, s)}</span>
       </button>`;
     }).join('');
   };
@@ -286,12 +337,13 @@
       const m = byId.get(b.getAttribute('data-msg-id'));
       if (!m) return;
       if (isChangeMsg(m, byId)) {
-        if (m.root_id === m.id) b.outerHTML = `<div class="svu-change-line">${ICO.change}<span>The client asked for a change on the ${_calEsc(String(LABEL(m.component || 'video')).toLowerCase())}. Change requests are handled on the card.</span><button type="button" class="svu-text-btn" onclick="_msgOpenCard()">Open card</button></div>`;
+        if (m.root_id === m.id) b.outerHTML = `<div class="svu-change-line">${avatar(m, 'svu-line-av')}<span>The client asked for a change on the ${_calEsc(String(LABEL(m.component || 'video')).toLowerCase())}. Change requests are handled on the card.</span><button type="button" class="svu-text-btn" onclick="_msgOpenCard()">Open card</button></div>`;
         else b.remove();
         return;
       }
       const k = isAuto(m) ? 'auto' : isMine(m) ? 'me' : isClient(m) ? 'comment' : role(m) === 'kasper' ? 'kasper' : 'staff';
       b.setAttribute('data-svu-kind', k);
+      if (!b.querySelector('.svu-slack-av')) b.insertAdjacentHTML('afterbegin', avatar(isMine(m) ? { author: 'You' } : m, 'svu-slack-av'));
       const meta = b.querySelector('.msg-b-meta');
       const tags = [];
       if (s.newIds.has(m.id)) tags.push(`<span class="svu-tag svu-t-${k}">New</span>`);
@@ -341,149 +393,165 @@
     decorateNotes(); try { _msgPaintCounts(); _msgPaint(); } catch (e) {}
   }
 
-  /* ---------- styles: calm, square, quiet (the calm Workload and the client review page) ---------- */
+  /* ---------- styles: Slack-like and rounded (owner, 2026-10-24), our colours on the numbers and tags ---------- */
   const CSS_TEXT = `
-  :root { --svu-change: #d9480f; --svu-change-ink: #c2410c; --svu-comment: #2563eb; --svu-comment-ink: #1d4ed8; --svu-staff: #52525b; --svu-staff-ink: #3f3f46;
-    --svu-kasper: #6c5ce7; --svu-kasper-ink: #5a4bd1; --svu-on: #fff; --svu-hair: var(--border-light); --svu-tint: color-mix(in srgb, var(--bg) 60%, transparent); --svu-r: 2px; }
-  html[data-theme="dark"] { --svu-change: #fb923c; --svu-change-ink: #fdba74; --svu-comment: #60a5fa; --svu-comment-ink: #93c5fd; --svu-staff: #a1a1aa; --svu-staff-ink: #d4d4d8;
-    --svu-kasper: #a094f8; --svu-kasper-ink: #c3b5ff; --svu-on: #101114; --svu-tint: color-mix(in srgb, var(--text-primary) 4%, transparent); }
-  /* the badge */
-  .svu-foot { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  :root { --svu-change: #e8590c; --svu-change-ink: #c2410c; --svu-change-soft: #fff1e6; --svu-comment: #1d6ae5; --svu-comment-ink: #1d4ed8; --svu-comment-soft: #e8f0fe;
+    --svu-staff: #616061; --svu-staff-ink: #3f3f46; --svu-staff-soft: #f0f0f1; --svu-kasper: #6c5ce7; --svu-kasper-ink: #5a4bd1; --svu-kasper-soft: #f0eeff;
+    --svu-on: #fff; --svu-hover: #f8f8f8; --svu-send: #007a5a; --svu-send-on: #fff; --svu-link: #1264a3; --svu-hair: var(--border-light); }
+  html[data-theme="dark"] { --svu-change: #fb923c; --svu-change-ink: #fdba74; --svu-change-soft: rgba(251,146,60,.16); --svu-comment: #60a5fa; --svu-comment-ink: #93c5fd; --svu-comment-soft: rgba(96,165,250,.16);
+    --svu-staff: #a1a1aa; --svu-staff-ink: #d4d4d8; --svu-staff-soft: rgba(212,212,216,.14); --svu-kasper: #a094f8; --svu-kasper-ink: #c3b5ff; --svu-kasper-soft: rgba(160,148,248,.18);
+    --svu-on: #101114; --svu-hover: rgba(255,255,255,.04); --svu-send: #2bac76; --svu-send-on: #0b1a12; --svu-link: #6fb3f5; }
+  /* the badge: people bubbles with a coloured number */
+  .svu-foot { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .cal-comments-btn.svu-notes.svu-has-new { color: var(--text-primary); font-weight: 600; }
   .cal-comments-btn.svu-notes.svu-has-new svg { opacity: 1; }
-  .svu-strips { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
-  .svu-strip-f, .svu-strip-o { display: inline-flex; border-radius: var(--svu-r); overflow: hidden; }
-  .svu-seg { display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 6px 0 5px; font-size: .7rem; line-height: 1; font-variant-numeric: tabular-nums; }
-  .svu-seg b { font-weight: 700; }
-  .svu-seg svg { width: 11px; height: 11px; flex: none; }
-  .svu-strip-f .svu-seg { color: var(--svu-on); }
-  .svu-strip-f .svu-seg + .svu-seg { box-shadow: inset 1px 0 0 color-mix(in srgb, var(--svu-on) 35%, transparent); }
-  .svu-strip-f .svu-change { background: var(--svu-change); } .svu-strip-f .svu-comment { background: var(--svu-comment); }
-  .svu-strip-f .svu-staff { background: var(--svu-staff); } .svu-strip-f .svu-kasper { background: var(--svu-kasper); }
-  .svu-strip-o { box-shadow: inset 0 0 0 1px var(--border); }
-  .svu-strip-o .svu-seg + .svu-seg { box-shadow: inset 1px 0 0 var(--border); }
-  .svu-strip-o .svu-open { color: var(--svu-change-ink); } .svu-strip-o .svu-waiting { color: var(--svu-comment-ink); }
-  .svu-strip-more { font-size: .7rem; font-weight: 700; color: var(--text-secondary); padding: 0 2px; }
+  .svu-strips { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+  .svu-bub { display: inline-flex; align-items: center; gap: 3px; }
+  .svu-bub-av { width: 22px; height: 22px; border-radius: 50%; display: block; box-shadow: 0 0 0 2px var(--white); }
+  .svu-num { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; display: inline-flex; align-items: center; justify-content: center; font-size: .68rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--svu-on); }
+  .svu-n-change { background: var(--svu-change); } .svu-n-comment { background: var(--svu-comment); } .svu-n-staff { background: var(--svu-staff); } .svu-n-kasper { background: var(--svu-kasper); }
+  .svu-o-open { background: transparent; color: var(--svu-change-ink); box-shadow: inset 0 0 0 1.5px var(--svu-change); }
+  .svu-o-waiting { background: transparent; color: var(--svu-comment-ink); box-shadow: inset 0 0 0 1.5px var(--svu-comment); }
+  .svu-bub-more { font-size: .72rem; font-weight: 700; color: var(--text-secondary); }
   /* the hover */
-  .svu-pv { position: fixed; z-index: 9999; background: var(--white); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--svu-r); box-shadow: 0 10px 30px rgba(0,0,0,.14); padding: 4px 0; font-size: .78rem; }
-  .svu-pv-row { display: grid; grid-template-columns: 16px auto 1fr auto; column-gap: 8px; row-gap: 1px; align-items: baseline; padding: 7px 12px; }
-  .svu-pv-row + .svu-pv-row { border-top: 1px solid var(--svu-hair); }
-  .svu-pv-ico svg { width: 12px; height: 12px; display: block; transform: translateY(2px); }
-  .svu-k-change .svu-pv-ico, .svu-k-open .svu-pv-ico { color: var(--svu-change-ink); } .svu-k-comment .svu-pv-ico, .svu-k-waiting .svu-pv-ico { color: var(--svu-comment-ink); }
-  .svu-k-staff .svu-pv-ico { color: var(--svu-staff-ink); } .svu-k-kasper .svu-pv-ico { color: var(--svu-kasper-ink); }
-  .svu-pv-who { font-weight: 700; }
-  .svu-pv-what { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .svu-pv-time { color: var(--text-muted); font-size: .7rem; }
+  .svu-pv { position: fixed; z-index: 9999; background: var(--white); color: var(--text-primary); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,.16); padding: 6px 0; font-size: .8rem; }
+  .svu-pv-row { display: grid; grid-template-columns: 28px auto 1fr auto; column-gap: 8px; row-gap: 1px; align-items: baseline; padding: 7px 12px; }
+  .svu-pv-ico { grid-row: 1 / 3; align-self: start; }
+  .svu-pv-av { width: 28px; height: 28px; border-radius: 6px; display: block; }
+  .svu-pv-ico svg { width: 14px; height: 14px; display: block; transform: translateY(3px); }
+  .svu-k-change .svu-pv-what { color: var(--svu-change-ink); } .svu-k-comment .svu-pv-what, .svu-k-waiting .svu-pv-what { color: var(--svu-comment-ink); }
+  .svu-k-kasper .svu-pv-what { color: var(--svu-kasper-ink); }
+  .svu-k-staff .svu-pv-ico, .svu-k-staff .svu-pv-what { color: var(--svu-staff-ink); } .svu-k-kasper .svu-pv-ico { color: var(--svu-kasper-ink); }
+  .svu-k-comment .svu-pv-ico, .svu-k-waiting .svu-pv-ico { color: var(--svu-comment-ink); }
+  .svu-pv-who { font-weight: 800; }
+  .svu-pv-what { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .svu-pv-time { color: var(--text-muted); font-size: .72rem; }
   .svu-pv-text { grid-column: 2 / 5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
-  .svu-pv-foot, .svu-pv-empty { padding: 7px 12px 5px; border-top: 1px solid var(--svu-hair); color: var(--text-secondary); font-size: .74rem; }
-  .svu-tip-head { padding: 6px 12px 6px; font-weight: 700; }
-  .svu-tip-row { grid-template-columns: 16px 1fr; border-top: 1px solid var(--svu-hair); }
+  .svu-pv-foot, .svu-pv-empty { padding: 7px 12px 4px; border-top: 1px solid var(--svu-hair); color: var(--text-secondary); font-size: .76rem; }
+  .svu-tip-head { padding: 6px 12px 6px; font-weight: 800; }
+  .svu-tip-row { grid-template-columns: 16px 1fr; }
+  .svu-tip-row .svu-pv-ico { grid-row: auto; }
   .svu-tip-text { color: var(--text-primary); }
-  /* the Messages button count: square */
-  .msg-nav-btn > .msg-unread.svu-count { border-radius: var(--svu-r); box-shadow: 0 0 0 2px var(--white); }
+  /* the Messages button count: a round pill */
+  .msg-nav-btn > .msg-unread.svu-count { border-radius: 99px; box-shadow: 0 0 0 2px var(--white); }
   .msg-unread.svu-count-comment { background: var(--svu-comment); color: var(--svu-on); } .msg-unread.svu-count-staff { background: var(--svu-staff); color: var(--svu-on); }
   .msg-unread.svu-count-kasper { background: var(--svu-kasper); color: var(--svu-on); }
-  .msg-unread.svu-count-waiting { background: var(--white); color: var(--svu-comment-ink); box-shadow: 0 0 0 2px var(--white), inset 0 0 0 1px var(--svu-comment); }
-  /* buttons and tags: square, quiet */
-  .svu-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); border-radius: var(--svu-r); padding: 4px 10px; font: inherit; font-size: .74rem; font-weight: 600; cursor: pointer; }
-  .svu-btn.svu-primary { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
-  .svu-text-btn { border: 0; background: transparent; color: var(--text-secondary); font: inherit; font-size: .74rem; font-weight: 600; padding: 4px 6px; cursor: pointer; border-radius: var(--svu-r); }
-  .svu-text-btn:hover { color: var(--text-primary); background: var(--svu-tint); }
-  .svu-tags { display: inline-flex; gap: 6px; align-items: baseline; }
-  .svu-tag { font-size: .62rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; line-height: 1.5; }
-  .svu-t-change { color: var(--svu-change-ink); } .svu-t-comment { color: var(--svu-comment-ink); } .svu-t-staff { color: var(--svu-staff-ink); } .svu-t-kasper { color: var(--svu-kasper-ink); }
-  .svu-t-waiting { color: var(--svu-comment-ink); box-shadow: inset 0 0 0 1px var(--svu-comment); padding: 0 5px; border-radius: var(--svu-r); }
-  .svu-t-open { color: var(--svu-change-ink); box-shadow: inset 0 0 0 1px var(--svu-change); padding: 0 5px; border-radius: var(--svu-r); }
-  .svu-t-plain { color: var(--text-muted); }
-  .svu-row-acts { display: flex; gap: 4px; align-items: center; margin-top: 8px; }
+  .msg-unread.svu-count-waiting { background: var(--white); color: var(--svu-comment-ink); box-shadow: 0 0 0 2px var(--white), inset 0 0 0 1.5px var(--svu-comment); }
+  /* buttons and tags */
+  .svu-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); border-radius: 6px; padding: 4px 12px; font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; }
+  .svu-btn:hover { background: var(--svu-hover); }
+  .svu-btn.svu-primary { background: var(--svu-send); color: var(--svu-send-on); border-color: var(--svu-send); }
+  .svu-text-btn { border: 0; background: transparent; color: var(--svu-link); font: inherit; font-size: .78rem; font-weight: 600; padding: 4px 6px; cursor: pointer; border-radius: 6px; }
+  .svu-text-btn:hover { background: var(--svu-hover); text-decoration: underline; }
+  .svu-tags { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .svu-tag { font-size: .68rem; font-weight: 700; line-height: 1; padding: 3px 7px; border-radius: 99px; }
+  .svu-t-change { background: var(--svu-change); color: var(--svu-on); } .svu-t-comment { background: var(--svu-comment); color: var(--svu-on); }
+  .svu-t-staff { background: var(--svu-staff); color: var(--svu-on); } .svu-t-kasper { background: var(--svu-kasper); color: var(--svu-on); }
+  .svu-t-me { background: var(--svu-staff-soft); color: var(--svu-staff-ink); }
+  .svu-t-waiting { background: var(--svu-comment-soft); color: var(--svu-comment-ink); }
+  .svu-t-open { background: var(--svu-change-soft); color: var(--svu-change-ink); }
+  .svu-t-plain { background: var(--svu-staff-soft); color: var(--text-secondary); }
+  .svu-row-acts { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
 
-  /* ---- Notes, calm ---- */
-  html.svu4 .cal-comments-modal { border-radius: var(--svu-r) !important; }
-  html.svu4 .cal-comments-modal *:not(.svu-seg):not(.cal-comments-close) { border-radius: var(--svu-r); }
-  html.svu4 .cal-comments-head { padding-bottom: 10px; }
-  html.svu4 .svu-need { border-top: 1px solid var(--svu-hair); border-bottom: 1px solid var(--svu-hair); padding: 6px 0 4px; }
-  html.svu4 .svu-need-head { display: flex; justify-content: space-between; align-items: center; padding: 0 20px 2px; font-size: .62rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-muted); }
-  html.svu4 .svu-need-row { display: grid; grid-template-columns: 14px auto 1fr auto; gap: 8px; align-items: baseline; width: 100%; border: 0; background: transparent; text-align: left; font: inherit; font-size: .78rem; padding: 5px 20px; cursor: pointer; color: var(--text-primary); }
-  html.svu4 .svu-need-row:hover { background: var(--svu-tint); }
-  html.svu4 .svu-need-ico svg { width: 12px; height: 12px; display: block; transform: translateY(2px); }
-  html.svu4 .svu-need-row.svu-k-change .svu-need-ico, html.svu4 .svu-need-row.svu-k-open .svu-need-ico { color: var(--svu-change-ink); }
-  html.svu4 .svu-need-row.svu-k-comment .svu-need-ico, html.svu4 .svu-need-row.svu-k-waiting .svu-need-ico { color: var(--svu-comment-ink); }
-  html.svu4 .svu-need-row.svu-k-staff .svu-need-ico { color: var(--svu-staff-ink); } html.svu4 .svu-need-row.svu-k-kasper .svu-need-ico { color: var(--svu-kasper-ink); }
-  html.svu4 .svu-need-label { font-weight: 700; white-space: nowrap; }
-  html.svu4 .svu-need-text { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  html.svu4 .svu-need-part, html.svu4 .svu-need-more { color: var(--text-muted); font-size: .7rem; }
-  html.svu4 .svu-need-more { padding: 2px 20px 4px; }
-  html.svu4 .cal-cm-thread { border: 0; border-top: 1px solid var(--svu-hair); background: transparent; box-shadow: none; padding: 12px 0 10px; margin: 0; }
-  html.svu4 .cal-comments-feed-inner > .cal-cm-thread:first-child { border-top: 0; }
-  html.svu4 .cal-cm-avatar { display: none; }
-  html.svu4 .cal-cm-row { padding-left: 12px; box-shadow: inset 2px 0 0 var(--svu-hair); background: transparent; }
-  html.svu4 .cal-cm-row[data-svu-kind="change"] { box-shadow: inset 2px 0 0 var(--svu-change); }
-  html.svu4 .cal-cm-row[data-svu-kind="comment"] { box-shadow: inset 2px 0 0 var(--svu-comment); }
-  html.svu4 .cal-cm-row[data-svu-kind="kasper"] { box-shadow: inset 2px 0 0 var(--svu-kasper); }
-  html.svu4 .cal-cm-row[data-svu-kind="staff"] { box-shadow: inset 2px 0 0 var(--svu-staff); }
-  html.svu4 .cal-cm-row[data-svu-kind="auto"] { box-shadow: none; opacity: .75; }
-  html.svu4 .cal-cm-row.svu-flash { background: var(--svu-tint); }
-  html.svu4 .cal-cm-row.is-reply { margin-left: 18px; }
-  html.svu4 .cal-cm-head-line { gap: 8px; align-items: baseline; }
-  html.svu4 .cal-cm-author { font-weight: 700; }
-  html.svu4 .cal-cm-time, html.svu4 .cal-cm-comp-label { color: var(--text-muted); font-weight: 500; font-size: .7rem; letter-spacing: 0; text-transform: none; }
-  html.svu4 .cal-cm-type-tag, html.svu4 .cal-cm-to-tag { background: transparent !important; padding: 0 !important; font-size: .62rem; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted) !important; box-shadow: none; }
-  html.svu4 .cal-cm-type-tag.is-tweak { color: var(--svu-change-ink) !important; }
-  html.svu4 .cal-cm-row-body { font-size: .86rem; line-height: 1.5; }
-  html.svu4 .cal-cm-replies { border-left: 0; }
-  html.svu4 .cal-cm-rail { display: none; }
-  html.svu4 .cal-cm-composer, html.svu4 .cal-cm-composer textarea { border-radius: var(--svu-r) !important; }
+  /* ---- Notes on a card, Slack-like ---- */
+  html.svu5 .svu-need { margin: 10px 16px 4px; padding: 8px 4px 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); }
+  html.svu5 .svu-need-head { display: flex; justify-content: space-between; align-items: center; padding: 0 10px 4px; font-size: .78rem; font-weight: 800; color: var(--text-primary); }
+  html.svu5 .svu-need-row { display: grid; grid-template-columns: 16px auto 1fr auto; gap: 8px; align-items: baseline; width: 100%; border: 0; background: transparent; text-align: left; font: inherit; font-size: .8rem; padding: 5px 10px; cursor: pointer; color: var(--text-primary); border-radius: 6px; }
+  html.svu5 .svu-need-row:hover { background: var(--svu-hover); }
+  html.svu5 .svu-need-ico svg { width: 13px; height: 13px; display: block; transform: translateY(2px); }
+  html.svu5 .svu-need-row.svu-k-change .svu-need-ico, html.svu5 .svu-need-row.svu-k-open .svu-need-ico { color: var(--svu-change-ink); }
+  html.svu5 .svu-need-row.svu-k-comment .svu-need-ico, html.svu5 .svu-need-row.svu-k-waiting .svu-need-ico { color: var(--svu-comment-ink); }
+  html.svu5 .svu-need-row.svu-k-staff .svu-need-ico { color: var(--svu-staff-ink); } html.svu5 .svu-need-row.svu-k-kasper .svu-need-ico { color: var(--svu-kasper-ink); }
+  html.svu5 .svu-need-label { font-weight: 700; white-space: nowrap; }
+  html.svu5 .svu-need-text { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  html.svu5 .svu-need-part, html.svu5 .svu-need-more { color: var(--text-muted); font-size: .72rem; }
+  html.svu5 .svu-need-more { padding: 2px 10px 2px; }
+  html.svu5 .cal-cm-thread { border: 0; background: transparent; box-shadow: none; padding: 0; margin: 0; }
+  html.svu5 .cal-cm-row { padding: 8px 20px 8px 20px; border-radius: 0; background: transparent; position: relative; column-gap: 10px; }
+  html.svu5 .cal-cm-row:hover { background: var(--svu-hover); }
+  html.svu5 .cal-cm-row.svu-flash { background: var(--svu-comment-soft); }
+  html.svu5 .cal-cm-avatar { width: 36px; height: 36px; border-radius: 8px; overflow: hidden; padding: 0; background: transparent; flex: none; }
+  html.svu5 .svu-slack-av { width: 36px; height: 36px; border-radius: 8px; display: block; }
+  html.svu5 .cal-cm-row.is-reply { padding-left: 66px; }
+  html.svu5 .cal-cm-row.is-reply .cal-cm-avatar, html.svu5 .cal-cm-row.is-reply .cal-cm-avatar .svu-slack-av { width: 24px; height: 24px; border-radius: 6px; }
+  html.svu5 .cal-cm-head-line { gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  html.svu5 .cal-cm-author { font-weight: 800; font-size: .92rem; }
+  html.svu5 .cal-cm-time { color: var(--text-muted); font-weight: 500; font-size: .72rem; }
+  html.svu5 .cal-cm-comp-label { color: var(--text-muted); font-weight: 600; font-size: .7rem; letter-spacing: 0; text-transform: none; margin-left: auto; }
+  html.svu5 .cal-cm-type-tag { background: var(--svu-change-soft) !important; color: var(--svu-change-ink) !important; border-radius: 99px; padding: 2px 7px !important; font-size: .66rem; }
+  html.svu5 .cal-cm-to-tag { background: var(--svu-staff-soft) !important; color: var(--text-secondary) !important; border-radius: 99px; padding: 2px 7px !important; font-size: .66rem; }
+  html.svu5 .cal-cm-to-tag.is-client { display: none; }
+  html.svu5 .cal-cm-row-body { font-size: .9rem; line-height: 1.46; color: var(--text-primary); }
+  html.svu5 .svu-tags { margin: 2px 0 2px; }
+  /* Slack's hover toolbar: a small floating box at the top right of the message */
+  html.svu5 .cal-cm-actions { position: absolute; top: -14px; right: 18px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.08); padding: 2px; gap: 0; }
+  html.svu5 .cal-cm-action { border-radius: 6px; }
+  /* "N replies" under a thread, with who replied */
+  html.svu5 .cal-cm-replies { border: 0; margin: 0; padding: 0; }
+  html.svu5 .cal-cm-rail { display: none; }
+  html.svu5 .cal-cm-more-replies { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 6px 66px; padding: 4px 8px 4px 4px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--svu-link); font: inherit; font-size: .78rem; font-weight: 800; cursor: pointer; }
+  html.svu5 .cal-cm-more-replies:hover { border-color: var(--border); background: var(--white); }
+  html.svu5 .cal-cm-more-replies img { width: 22px; height: 22px; border-radius: 5px; }
+  html.svu5 .cal-cm-more-replies .svu-last { color: var(--text-muted); font-weight: 500; }
+  /* the message box, like Slack's */
+  html.svu5 .cal-cm-composer { border: 1px solid var(--border) !important; border-radius: 10px !important; background: var(--white) !important; box-shadow: none !important; }
+  html.svu5 .cal-cm-composer:focus-within { border-color: var(--text-secondary) !important; }
+  html.svu5 .cal-cm-composer textarea { border-radius: 10px !important; }
+  html.svu5 .cal-cm-send { background: var(--svu-send) !important; color: var(--svu-send-on) !important; border-radius: 6px !important; }
+  html.svu5 .cal-cm-send:disabled { background: var(--svu-staff-soft) !important; color: var(--text-muted) !important; }
+  html.svu5 .cal-cm-send-more { border-radius: 6px !important; }
 
-  /* ---- Messages, calm ---- */
-  html.svu4 #msgPage *:not(.svu-seg):not(.msg-unread) { border-radius: var(--svu-r); }
-  html.svu4 #msgPage .msg-inbox { border-radius: var(--svu-r); }
-  html.svu4 #msgPage .msg-filters { display: flex; gap: 18px; background: transparent; border: 0; border-bottom: 1px solid var(--svu-hair); padding: 0 16px; margin: 0; box-shadow: none; }
-  html.svu4 #msgPage .msg-filters button { flex: none; background: transparent !important; border: 0; box-shadow: none !important; padding: 12px 0 10px; color: var(--text-secondary); font-weight: 600; font-size: .8rem; border-radius: 0; }
-  html.svu4 #msgPage .msg-filters button span { color: var(--text-muted); font-weight: 600; margin-left: 2px; }
-  html.svu4 #msgPage .msg-filters button.is-active { color: var(--text-primary); box-shadow: inset 0 -2px 0 var(--text-primary) !important; }
-  html.svu4 #msgPage .svu-conv { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border: 0; border-bottom: 1px solid var(--svu-hair); background: transparent; width: 100%; text-align: left; }
-  html.svu4 #msgPage .svu-conv:hover { background: var(--svu-tint); }
-  html.svu4 #msgPage .svu-conv.is-active { background: var(--svu-tint); box-shadow: inset 2px 0 0 var(--text-primary); }
-  html.svu4 .svu-conv-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-  html.svu4 .svu-conv-top { display: flex; justify-content: space-between; gap: 10px; }
-  html.svu4 .svu-conv-title { font-size: .84rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  html.svu4 .svu-conv.is-unread .svu-conv-title { font-weight: 800; }
-  html.svu4 .svu-conv-time { font-size: .7rem; color: var(--text-muted); white-space: nowrap; }
-  html.svu4 .svu-conv-client { font-size: .7rem; color: var(--text-muted); }
-  html.svu4 .svu-conv-last { font-size: .78rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  html.svu4 .svu-conv.is-unread .svu-conv-last { color: var(--text-primary); }
-  html.svu4 .svu-conv-badge { align-self: center; display: inline-flex; gap: 4px; }
-  html.svu4 #msgPage .msg-chat-head { border-bottom: 1px solid var(--svu-hair); }
-  html.svu4 #msgPage .msg-chat-head .msg-thumb { display: none; }
-  html.svu4 #msgPage .msg-act { border-radius: var(--svu-r); }
-  html.svu4 #msgPage .msg-bubbles { background: var(--white); padding: 4px 24px 16px; gap: 0; }
-  html.svu4 #msgPage .msg-day { text-align: left; font-size: .62rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-muted); padding: 18px 0 6px; background: transparent; }
-  html.svu4 #msgPage .msg-b { max-width: none; width: 100%; align-self: stretch; padding: 10px 0 10px 12px; border-top: 1px solid var(--svu-hair); box-shadow: inset 2px 0 0 var(--svu-hair); margin: 0; }
-  html.svu4 #msgPage .msg-b[data-svu-kind="comment"] { box-shadow: inset 2px 0 0 var(--svu-comment); }
-  html.svu4 #msgPage .msg-b[data-svu-kind="staff"] { box-shadow: inset 2px 0 0 var(--svu-staff); }
-  html.svu4 #msgPage .msg-b[data-svu-kind="kasper"] { box-shadow: inset 2px 0 0 var(--svu-kasper); }
-  html.svu4 #msgPage .msg-b[data-svu-kind="me"] { box-shadow: inset 2px 0 0 var(--text-primary); }
-  html.svu4 #msgPage .msg-b[data-svu-kind="auto"] { box-shadow: none; opacity: .7; }
-  html.svu4 #msgPage .msg-b.is-me { align-self: stretch; }
-  html.svu4 #msgPage .msg-b.is-reply { margin-left: 18px; width: calc(100% - 18px); }
-  html.svu4 #msgPage .msg-b-meta { justify-content: flex-start !important; gap: 8px; align-items: baseline; font-size: .7rem; color: var(--text-muted); }
-  html.svu4 #msgPage .msg-b-meta b { color: var(--text-primary); font-size: .8rem; }
-  html.svu4 #msgPage .msg-b-text, html.svu4 #msgPage .msg-b.is-me .msg-b-text { background: transparent !important; color: var(--text-primary) !important; padding: 2px 0 0 !important; box-shadow: none !important; font-size: .86rem; line-height: 1.5; max-width: 70ch; }
-  html.svu4 #msgPage .msg-b .cal-cm-type-tag, html.svu4 #msgPage .msg-b .cal-cm-to-tag { background: transparent !important; padding: 0 !important; font-size: .62rem; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted) !important; }
-  html.svu4 #msgPage .msg-b-reply { display: none; }
-  html.svu4 #msgPage .msg-b-text { border: 0 !important; }
-  html.svu4 #msgPage .msg-b-meta b + span:not([class]) { display: none; }
-  html.svu4 #msgPage .cal-cm-to-tag.is-client, html.svu4 .cal-comments-modal .cal-cm-to-tag.is-client { display: none; }
-  html.svu4 #msgPage .msg-reply-cap .cal-cm-to-tag { display: none; }
-  html.svu4 #msgPage .thumb-msg-new { color: var(--svu-comment-ink); }
-  html.svu4 .svu-change-line { display: flex; align-items: baseline; gap: 8px; padding: 10px 0 10px 12px; border-top: 1px solid var(--svu-hair); box-shadow: inset 2px 0 0 var(--svu-change); color: var(--svu-change-ink); font-size: .8rem; width: 100%; }
-  html.svu4 .svu-change-line svg { width: 12px; height: 12px; flex: none; transform: translateY(1px); }
-  html.svu4 .svu-change-line .svu-text-btn { margin-left: auto; color: var(--text-primary); }
-  html.svu4 #msgPage .msg-reply { border-top: 1px solid var(--svu-hair); }
+  /* ---- Messages, Slack-like ---- */
+  html.svu5 #msgPage .msg-filters { display: flex; gap: 4px; background: transparent; border: 0; padding: 8px 10px; margin: 0; box-shadow: none; }
+  html.svu5 #msgPage .msg-filters button { flex: none; background: transparent !important; border: 0; box-shadow: none !important; padding: 5px 10px; color: var(--text-secondary); font-weight: 700; font-size: .8rem; border-radius: 6px; }
+  html.svu5 #msgPage .msg-filters button span { color: var(--text-muted); font-weight: 700; margin-left: 2px; }
+  html.svu5 #msgPage .msg-filters button.is-active { background: var(--svu-staff-soft) !important; color: var(--text-primary); }
+  html.svu5 #msgPage .svu-conv { display: flex; gap: 10px; align-items: center; padding: 8px 10px; margin: 1px 8px; width: calc(100% - 16px); border: 0; border-radius: 8px; background: transparent; text-align: left; }
+  html.svu5 #msgPage .svu-conv:hover { background: var(--svu-hover); }
+  html.svu5 #msgPage .svu-conv.is-active { background: var(--svu-comment-soft); }
+  html.svu5 .svu-conv-av { width: 36px; height: 36px; border-radius: 8px; flex: none; }
+  html.svu5 .svu-conv-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+  html.svu5 .svu-conv-top { display: flex; justify-content: space-between; gap: 10px; }
+  html.svu5 .svu-conv-title { font-size: .86rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  html.svu5 .svu-conv.is-unread .svu-conv-title { font-weight: 800; }
+  html.svu5 .svu-conv-time { font-size: .7rem; color: var(--text-muted); white-space: nowrap; }
+  html.svu5 .svu-conv-client { display: none; }
+  html.svu5 .svu-conv-last { font-size: .78rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  html.svu5 .svu-conv.is-unread .svu-conv-last { color: var(--text-primary); }
+  html.svu5 .svu-conv-badge { display: inline-flex; gap: 6px; }
+  html.svu5 #msgPage .msg-chat-head { border-bottom: 1px solid var(--svu-hair); }
+  html.svu5 #msgPage .msg-act { border-radius: 6px; }
+  html.svu5 #msgPage .msg-bubbles { background: var(--white); padding: 8px 0 16px; gap: 0; }
+  html.svu5 #msgPage .msg-day { display: flex; align-items: center; gap: 12px; margin: 14px 0 6px; background: transparent; font-size: .74rem; font-weight: 700; color: var(--text-primary); }
+  html.svu5 #msgPage .msg-day::before, html.svu5 #msgPage .msg-day::after { content: ''; flex: 1; border-top: 1px solid var(--svu-hair); }
+  html.svu5 #msgPage .msg-b { display: grid; grid-template-columns: 36px 1fr; column-gap: 10px; max-width: none; width: 100%; align-self: stretch; padding: 8px 24px; margin: 0; border-radius: 0; }
+  html.svu5 #msgPage .msg-b:hover { background: var(--svu-hover); }
+  html.svu5 #msgPage .msg-b > :not(.svu-slack-av) { grid-column: 2; }
+  html.svu5 #msgPage .msg-b > .svu-slack-av { grid-column: 1; grid-row: 1 / span 4; width: 36px; height: 36px; border-radius: 8px; }
+  html.svu5 #msgPage .msg-b.is-me { align-self: stretch; }
+  html.svu5 #msgPage .msg-b.is-reply { padding-left: 70px; grid-template-columns: 24px 1fr; }
+  html.svu5 #msgPage .msg-b.is-reply > .svu-slack-av { width: 24px; height: 24px; border-radius: 6px; }
+  html.svu5 #msgPage .msg-b-meta { justify-content: flex-start !important; gap: 8px; align-items: baseline; font-size: .72rem; color: var(--text-muted); flex-wrap: wrap; }
+  html.svu5 #msgPage .msg-b-meta b { color: var(--text-primary); font-size: .9rem; font-weight: 800; }
+  html.svu5 #msgPage .msg-b-meta b + span:not([class]) { display: none; }
+  html.svu5 #msgPage .msg-b-meta > * { margin-left: 0 !important; }
+  html.svu5 #msgPage .msg-b-text, html.svu5 #msgPage .msg-b.is-me .msg-b-text { background: transparent !important; color: var(--text-primary) !important; padding: 1px 0 0 !important; border: 0 !important; box-shadow: none !important; border-radius: 0 !important; font-size: .9rem; line-height: 1.46; max-width: 72ch; }
+  html.svu5 #msgPage .cal-cm-to-tag { background: var(--svu-staff-soft) !important; color: var(--text-secondary) !important; border-radius: 99px; padding: 2px 7px !important; font-size: .66rem; }
+  html.svu5 #msgPage .cal-cm-to-tag.is-client, html.svu5 #msgPage .msg-reply-cap .cal-cm-to-tag { display: none; }
+  html.svu5 #msgPage .msg-b-reply { display: none; }
+  html.svu5 #msgPage .thumb-msg-new { color: #e01e5a; }
+  html.svu5 .svu-change-line { display: flex; align-items: center; gap: 10px; margin: 6px 24px; padding: 8px 12px; border-radius: 8px; background: var(--svu-change-soft); color: var(--svu-change-ink); font-size: .82rem; font-weight: 600; }
+  html.svu5 .svu-line-av { width: 22px; height: 22px; border-radius: 6px; }
+  html.svu5 .svu-change-line .svu-text-btn { margin-left: auto; }
+  html.svu5 #msgPage .msg-reply { border-top: 0; padding: 0 24px 16px; }
+  html.svu5 #msgPage .msg-reply .cal-cm-composer { border: 1px solid var(--border) !important; border-radius: 10px !important; background: var(--white) !important; }
+  html.svu5 #msgPage .msg-reply .cal-cm-composer textarea { background: transparent !important; border: 0 !important; }
+  html.svu5 #msgPage .msg-reply .cal-cm-send { background: var(--svu-send) !important; color: var(--svu-send-on) !important; border-radius: 6px !important; }
+  html.svu5 #msgPage .msg-reply .cal-cm-send:disabled { background: var(--svu-staff-soft) !important; color: var(--text-muted) !important; }
   `;
 
   function apply() {
-    document.documentElement.classList.add('svu4');
+    document.documentElement.classList.add('svu5');
     if (!document.getElementById('svu-style')) {
       const st = document.createElement('style'); st.id = 'svu-style'; st.textContent = CSS_TEXT; document.head.appendChild(st);
     }

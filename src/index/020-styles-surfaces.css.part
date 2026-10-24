@@ -2622,11 +2622,10 @@
         @media (prefers-reduced-motion: reduce) { .sv-note-outbox-dot { animation: none; } }
         /* The shared "busy" spinner (040 svSpinHtml / svSpinButton): a small ring in the text colour of what holds it.
            Round 7 (owner, 2026-10-24): a send never shows the words "Sending…"; this turns in their place. */
-        .sv-spin { display: inline-block; flex: none; width: 14px; height: 14px; box-sizing: border-box; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; opacity: 0.75; vertical-align: -2px; animation: sv-spin-turn 0.7s linear infinite; }
+        .sv-spin { display: inline-block; flex: none; width: 14px; height: 14px; box-sizing: border-box; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; opacity: 0.75; vertical-align: -2px; animation: sv-spin-turn var(--sv-spin-dur) linear infinite; }
         .sv-spin.is-lg { width: 18px; height: 18px; vertical-align: -4px; }
         @keyframes sv-spin-turn { to { transform: rotate(360deg); } }
-        @keyframes sv-spin-pulse { from { opacity: 0.3; } to { opacity: 0.9; } }
-        @media (prefers-reduced-motion: reduce) { .sv-spin { animation: sv-spin-pulse 1s ease-in-out infinite alternate; border-right-color: currentColor; } }
+        /* Reduced motion slows it with every other spinner (--sv-spin-dur, 010). */
         .sv-note-outbox button { font: inherit; font-weight: 700; color: inherit; background: none; border: 0; padding: 8px 2px; margin: -8px 0; min-height: 40px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
         .sv-note-outbox button.sv-note-outbox-discard { font-weight: 500; color: var(--text-secondary); }
         .is-outbox-failed.cal-cm-row, .is-outbox-failed.cal-review-comment, .msg-b.is-outbox-failed { box-shadow: inset 2px 0 0 var(--dn); }

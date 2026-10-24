@@ -51,6 +51,15 @@ Calendar and Samples Create Post offer "Not assigned" (the post is created with 
 Needs assignment); `production-write` accepts `unassigned: true` on video items. The setting row
 `syncview_runtime_flags.editor_suggest_last` `{ "staff": [...] }` puts the named editors last in the picker; no row, no change.
 OPEN_REPAIRS 478; tests `node test/intake-not-assigned.js`, `node test/create-post-picker.js`.
+## Caption history on Calendar cards, behind `caption_history_staff` (session Versions, 2026-10-23): PR open, not merged
+
+Owner: after "Regenerate with a note" he could not see how the caption changed. Every real caption change is now kept in the
+append-only `caption_versions` (migration `migrations/2026-10-23-caption-versions.sql`, applied by hand; its trigger never
+blocks a save). A history icon under the regenerate icon opens the approved pop-up (option C): one step per version, the redo
+note, words taken out and added, and "Put this version back" through the normal caption save, with Undo. Switch
+`syncview_runtime_flags.caption_history_staff` `{ "staff": [...] }`, absent = off. Earlier changes since 2026-09-17:
+`scripts/caption-versions-backfill.sql`, by hand. OPEN_REPAIRS 482. Tests: `test/caption-versions-postgres.js`,
+`test/caption-history-logic.js`, `test/caption-history-browser.js`. Not measured on the live site yet.
 ## Thumbnail titles from the filming plan, buttons in Production (session Titlecard, 2026-10-23): PR open, not merged
 
 "Thumbnail titles" on a post's Sub-issues header and "Write title" beside Edit on a thumbnail sub-issue, behind the

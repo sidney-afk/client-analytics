@@ -23,6 +23,8 @@
 //
 //   GET  ?action=cta_get&client=<slug>              -> { ok, client, options }   the client's call-to-action keywords
 //   POST { action: "cta_save", client, options }   -> { ok, client, options }   saves them (the caption prompt editor)
+//   GET  ?action=caption_history&client=<slug>&post=<id>        -> the card's caption versions (history pop-up)
+//   GET  ?action=caption_history_index&client=<slug>&ids=<ids> -> which of those cards' captions have changed
 //     The list lives in caption_cta_options, closed to every browser role: only this function reads and writes it.
 //
 // The page only calls this when the runtime switch caption_generate_ef_clients lists the client (default: n8n).
@@ -52,6 +54,9 @@ import {
 } from "./logic.mjs";
 import { WRITING_RULES } from "./writing-rules.mjs";
 import { apifyActorInput, mediaUrlFromApify } from "./apify.mjs";
+import {
+  historyAnswer, historyIndex, MAX_ROWS as HISTORY_MAX_ROWS, parseIds as parseHistoryIds, tableMissing as historyTableMissing,
+} from "./history.mjs";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -426,6 +431,52 @@ async function ctaAction(supabaseUrl: string, serviceKey: string, req: Request, 
   }
 }
 
+// Caption history (migrations/2026-10-23-caption-versions.sql), read by the Calendar's history pop-up. Before the
+// migration is applied both answer { ok: true, available: false } and the page shows no history icon.
+//   ?action=caption_history&client=<slug>&post=<id>[&field=caption_alt]  -> { ok, available, versions }
+//   ?action=caption_history_index&client=<slug>&ids=<id,id,...>          -> { ok, available, changed: [id] }
+async function historyAction(supabaseUrl: string, serviceKey: string, q: URLSearchParams, action: string): Promise<Response> {
+  const client = normalizeBrowserWriteClient(q.get("client"));
+  if (!client) return json({ ok: false, error: "client required" }, 400);
+  const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+  try {
+    if (action === "caption_history_index") {
+      const ids = parseHistoryIds(q.get("ids"));
+      if (!ids.length) return json({ ok: true, available: true, changed: [] });
+      const { data, error } = await db.from("caption_versions").select("post_id,kind,actor,created_at,id")
+        .eq("client", client).eq("field", "caption").in("post_id", ids)
+        .order("created_at", { ascending: true }).order("id", { ascending: true }).limit(HISTORY_MAX_ROWS * 5);
+      if (error) {
+        if (historyTableMissing(error)) return json({ ok: true, available: false, changed: [] });
+        throw error;
+      }
+      return json(historyIndex(data || []));
+    }
+    const post = clean(q.get("post"));
+    if (!/^[A-Za-z0-9_.:-]{1,200}$/.test(post)) return json({ ok: false, error: "post required" }, 400);
+    const field = q.get("field") === "caption_alt" ? "caption_alt" : "caption";
+    const { data, error } = await db.from("caption_versions")
+      .select("id,kind,text,note,restored_from,actor,actor_role,created_at")
+      .eq("client", client).eq("post_id", post).eq("field", field)
+      .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(HISTORY_MAX_ROWS);
+    if (error) {
+      if (historyTableMissing(error)) return json({ ok: true, available: false, versions: [] });
+      throw error;
+    }
+    // The client's own caption notes, to tell a client edit from another unmarked save. A failed read only
+    // means those saves keep the plain "Saved" label.
+    let noteTimes: string[] = [];
+    const { data: ev } = await db.from("calendar_post_events").select("ts")
+      .eq("client", client).eq("post_id", post).eq("component", "caption").eq("role", "client")
+      .order("ts", { ascending: false }).limit(200);
+    if (Array.isArray(ev)) noteTimes = ev.map((e) => String((e as { ts?: string }).ts || ""));
+    return json(historyAnswer(data || [], noteTimes));
+  } catch (e) {
+    console.warn("[caption-generate] caption history read failed", (e as { code?: string } | null)?.code || "");
+    return json({ ok: false, error: "Could not read the caption history. Try again." }, 500);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST" && req.method !== "GET") return json({ ok: false, error: "method not allowed" }, 405);
@@ -438,8 +489,11 @@ Deno.serve(async (req) => {
   if (!auth.ok) return json({ ok: false, error: "unauthorized" }, staffAuthFailureStatus(auth));
 
   if (req.method === "GET") {
-    // The only read: the client's call to action choices (?action=cta_get&client=...), sent as a GET so that opening the box writes nothing.
+    // Reads only, sent as a GET so that opening a box writes nothing: the client's call to action choices
+    // (?action=cta_get&client=...) and the caption history (?action=caption_history / caption_history_index).
     const q = new URL(req.url).searchParams;
+    const action = q.get("action");
+    if (action === "caption_history" || action === "caption_history_index") return await historyAction(supabaseUrl, serviceKey, q, action);
     if (q.get("action") !== "cta_get") return json({ ok: false, error: "method not allowed" }, 405);
     return await ctaAction(supabaseUrl, serviceKey, req, { client: q.get("client") }, "cta_get");
   }

@@ -33949,6 +33949,17 @@ Stamped 2026-10-23 20:36 UTC.
 - **Owner step.** Insert the setting row (the id and SQL are in the PR, not here).
 
 **Way back:** delete the `editor_suggest_last` row (ordering only), or revert the pull request.
+## 482. [2026-10-23, PR OPEN, behind `caption_history_staff`] A redo with a note left no trace of how the caption changed (session Versions)
+
+Stamped 2026-10-23 21:46 UTC (`date -u`). Number 476 is claimed by the open #2302; check for a duplicate `## 477.` after merging.
+
+- **Owner report (2026-10-23).** After "Regenerate with a note" there was no way to see how the caption changed, or to go back. Design approved the same day (option C, `docs/syncview-design/mockups/caption-history/`, draft PR #2297).
+- **Measured before the change (read-only, live).** `calendar_post_events` never stores caption text. `card_change_journal` holds the old text of 3,378 caption changes on 621 cards since 2026-09-17, but every row is written by the service role, so it cannot say who or how, and 60% of caption changes are typing saves under 10 seconds apart. `caption_jobs` keeps the redo note only until it is pruned (14 days).
+- **Changed.** `migrations/2026-10-23-caption-versions.sql`: append-only `caption_versions`, written by an AFTER trigger on `calendar_posts` that only acts when the caption text really changed and catches every error of its own (logged as a WARNING), so it can never block a save; revokes name all four roles, service_role gets SELECT only. `calendar-card-write` tells the trigger how the caption changed (typed, redo with its note, restored) in a header on its own write. `caption-generate` gains two staff GET reads (`caption_history`, `caption_history_index`) that group typing bursts into one version. The Calendar card shows a history icon under the regenerate icon once a caption has changed, and the pop-up puts a version back through the normal caption save, with Undo (180, 188, 120). `scripts/caption-versions-backfill.sql` (by hand, re-runnable) adds the journal's earlier changes, marked "who and how not recorded".
+- **Proven offline.** `test/caption-versions-postgres.js` (a save succeeds with the version insert refused, and with the table gone; append-only; all four roles; applied read; backfill twice), `test/caption-history-logic.js`, `test/caption-history-browser.js` (switch off in three shapes and before the migration; desktop and phone, light and dark), plus the caption, card-saver and Calendar card browser suites.
+- **Not proven live.** This session could not reach the live site. That PostgREST hands the card saver's header to the trigger (`request.headers`) is measured only on the test client after the merge: one typed save and one redo on the test client, then `select kind, note from caption_versions order by id desc limit 2`.
+
+**Way back:** delete the `caption_history_staff` row (the icon goes); to stop recording, `drop trigger zz_caption_versions_capture on public.calendar_posts`; or revert the pull request.
 ## 479. [2026-10-23 20:45 UTC, BUILT, NOT MERGED] The Messages badge appeared only after a click, and pushed its icon to the left (session Beacon)
 
 Owner report 2026-10-23: the Messages button's unread badge only shows after clicking Messages, and when it shows it moves the speech-bubble icon. (Number 479 because 476 is claimed by #2296 and 477 and 478 may be claimed by the two mockup PRs opened the same hour.)

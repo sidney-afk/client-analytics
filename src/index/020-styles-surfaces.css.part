@@ -8863,6 +8863,9 @@ html.sv-unread2[data-theme="dark"] {
 .cal-comments-btn.svu-notes.svu-has-new svg { opacity: 1; }
 .svu-strips { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 .svu-bub { display: inline-flex; align-items: center; gap: 3px; }
+/* round 8: something new is a small count on the picture's top right corner */
+.svu-bub-new { position: relative; margin-right: 4px; }
+.svu-num.svu-corner { position: absolute; top: -6px; right: -8px; min-width: 15px; height: 15px; padding: 0 4px; font-size: .6rem; box-shadow: 0 0 0 2px var(--white); }
 .svu-bub-av { width: 22px; height: 22px; border-radius: 50%; display: block; box-shadow: 0 0 0 2px var(--white); }
 .svu-num { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; display: inline-flex; align-items: center; justify-content: center; font-size: .68rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--svu-on); }
 .svu-n-change { background: var(--svu-change); } .svu-n-comment { background: var(--svu-comment); } .svu-n-staff { background: var(--svu-staff); } .svu-n-kasper { background: var(--svu-kasper); }
@@ -8871,8 +8874,8 @@ html.sv-unread2[data-theme="dark"] {
 .svu-o-waiting { background: transparent; color: var(--svu-comment-ink); min-width: 0; padding: 0 2px; }
 .svu-bub-more { font-size: .72rem; font-weight: 700; color: var(--text-secondary); }
 /* the hover */
-.svu-pv { position: fixed; z-index: 9999; background: var(--white); color: var(--text-primary); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--svu-shadow); padding: 6px 0; font-size: .8rem; }
-.svu-pv-row { display: grid; grid-template-columns: 24px auto 1fr; column-gap: 8px; align-items: center; padding: 5px 12px; }
+.svu-pv { position: fixed; z-index: 9999; width: max-content; max-width: min(360px, calc(100vw - 24px)); background: var(--white); color: var(--text-primary); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--svu-shadow); padding: 6px 0; font-size: .8rem; }
+.svu-pv-row { display: grid; grid-template-columns: 24px auto minmax(0, 1fr); column-gap: 8px; align-items: center; padding: 5px 12px; }
 .svu-pv-av { width: 24px; height: 24px; border-radius: 6px; display: block; }
 .svu-pv-ico svg { width: 14px; height: 14px; display: block; }
 .svu-pv-who { font-weight: 700; white-space: nowrap; }
@@ -8895,7 +8898,7 @@ html.sv-unread2[data-theme="dark"] {
 .svu-btn:hover { background: var(--svu-hover); }
 .svu-btn.svu-primary { background: var(--svu-send); color: var(--svu-send-on); border-color: var(--svu-send); }
 .svu-text-btn { border: 0; background: transparent; color: var(--svu-link); font: inherit; font-size: .78rem; font-weight: 600; padding: 4px 6px; cursor: pointer; border-radius: 6px; }
-.svu-text-btn:hover { background: var(--svu-hover); text-decoration: underline; }
+.svu-text-btn:hover { background: var(--svu-hover); text-decoration: none; }
 .svu-tags { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 
 /* ---- Notes on a card, Slack-like ---- */
@@ -8919,7 +8922,7 @@ html.sv-unread2 .svu-tags { margin: 2px 0 2px; }
 /* Slack's hover toolbar: a small floating box at the top right of the message */
 /* "N replies" under a thread, with who replied */
 html.sv-unread2 .cal-cm-replies { border: 0; margin: 0; padding: 0; }
-html.sv-unread2 .cal-cm-rail { display: none; }
+html.sv-unread2 .cal-cm-rail { display: block; }   /* round 8: the thin thread line is back, matching Messages (owner: like Reddit) */
 html.sv-unread2 .cal-cm-more-replies { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 6px 66px; padding: 4px 8px 4px 4px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--svu-link); font: inherit; font-size: .78rem; font-weight: 800; cursor: pointer; }
 html.sv-unread2 .cal-cm-more-replies:hover { border-color: var(--border); background: var(--white); }
 html.sv-unread2 .cal-cm-more-replies img { width: 22px; height: 22px; border-radius: 5px; }
@@ -8982,11 +8985,11 @@ html.sv-unread2 .cal-cm-row.is-reply .cal-cm-avatar .svu-initial { font-size: .6
    relative; your own messages keep the picture beside the name. */
 html.sv-unread2 .cal-cm-actions { top: auto; bottom: 9px; right: 20px; background: var(--svu-hover-solid); border: 0; box-shadow: none; padding: 0 0 0 12px; gap: 12px; }
 html.sv-unread2 .cal-cm-action, html.sv-unread2 .cal-cm-action:hover, html.sv-unread2 .cal-cm-action.is-danger:hover { background: transparent; border: 0; border-radius: 0; padding: 0; color: var(--text-muted); font-size: .74rem; font-weight: 600; }
-html.sv-unread2 .cal-cm-action:hover { color: var(--text-primary); text-decoration: underline; }
+html.sv-unread2 .cal-cm-action:hover, html.sv-unread2 .cal-cm-action:focus-visible { color: var(--text-primary); text-decoration: none; }   /* round 8: colour only, never underlined */
 html.sv-unread2 .cal-cm-action.is-danger:hover { color: var(--svu-change-ink); }
 html.sv-unread2 .cal-cm-action svg { display: none; }
 html.sv-unread2 .svu-head-unread { margin-left: auto; margin-right: 8px; border: 0; background: transparent; padding: 0; font: inherit; font-size: .76rem; font-weight: 600; color: var(--text-muted); cursor: pointer; }
-html.sv-unread2 .svu-head-unread:hover { color: var(--text-primary); text-decoration: underline; }
+html.sv-unread2 .svu-head-unread:hover { color: var(--text-primary); text-decoration: none; }
 html.sv-unread2 #msgPage .msg-b, html.sv-unread2 #msgPage .msg-b.is-me { position: relative; align-items: start; justify-items: stretch; }
 html.sv-unread2 #msgPage .msg-b-meta { width: 100%; }
 html.sv-unread2 #msgPage .msg-b-meta > .cal-cm-comp-label { margin-left: auto !important; color: var(--text-muted); font-size: .72rem; font-weight: 500; letter-spacing: 0; text-transform: none; }
@@ -8994,10 +8997,11 @@ html.sv-unread2 .svu-lock { display: inline-flex; align-items: center; color: va
 html.sv-unread2 .svu-lock svg { width: 12px; height: 12px; }
 html.sv-unread2 .svu-kind-change { color: var(--svu-change-ink); font-size: .74rem; font-weight: 600; }
 html.sv-unread2 #msgPage .svu-time { color: var(--text-muted); }
-html.sv-unread2 .svu-msg-acts { position: absolute; bottom: 10px; right: 24px; display: flex; gap: 12px; padding-left: 12px; background: var(--svu-hover-solid); opacity: 0; pointer-events: none; }
+/* Round 8: Reply / No reply needed at the bottom left, under the words, in the space between two messages. */
+html.sv-unread2 .svu-msg-acts { position: absolute; z-index: 2; grid-column: 2; bottom: -8px; left: 0; display: flex; gap: 12px; padding: 0 8px 0 0; line-height: 16px; background: var(--svu-hover-solid); opacity: 0; pointer-events: none; }
 html.sv-unread2 #msgPage .msg-b:hover .svu-msg-acts, html.sv-unread2 #msgPage .msg-b:focus-within .svu-msg-acts { opacity: 1; pointer-events: auto; }
 html.sv-unread2 .svu-msg-acts button { border: 0; background: transparent; padding: 0; font: inherit; font-size: .74rem; font-weight: 600; color: var(--text-muted); cursor: pointer; }
-html.sv-unread2 .svu-msg-acts button:hover, html.sv-unread2 .svu-msg-acts button:focus-visible { color: var(--text-primary); text-decoration: underline; }
+html.sv-unread2 .svu-msg-acts button:hover, html.sv-unread2 .svu-msg-acts button:focus-visible { color: var(--text-primary); text-decoration: none; }
 html.sv-unread2 #msgPage .svu-bub, html.sv-unread2 #msgPage .svu-bub-more { cursor: help; }
 /* Round 6 E (owner's rule swept over Messages and Notes): status words are quiet coloured words, never filled pills;
    the header's actions are words; an empty thumbnail is not drawn; one red "New" line marks where the unread part
@@ -9010,7 +9014,7 @@ html.sv-unread2 #msgPage .svu-bub, html.sv-unread2 #msgPage .svu-bub-more { curs
 html.sv-unread2 .cal-cm-type-tag.is-tweak { background: transparent !important; color: var(--svu-change-ink) !important; padding: 0 !important; text-transform: none; letter-spacing: 0; font-size: .74rem; font-weight: 600; }
 html.sv-unread2 #msgPage .msg-chat-head .msg-thumb.is-empty { display: none; }
 html.sv-unread2 #msgPage .msg-act { border: 0; background: transparent; box-shadow: none; padding: 0 2px; color: var(--text-muted); font-size: .76rem; font-weight: 600; }
-html.sv-unread2 #msgPage .msg-act:hover { background: transparent; color: var(--text-primary); text-decoration: underline; }
+html.sv-unread2 #msgPage .msg-act:hover { background: transparent; color: var(--text-primary); text-decoration: none; }
 html.sv-unread2 #msgPage .msg-chat-actions { gap: 14px; }
 html.sv-unread2 #msgPage .thumb-msg-new { display: flex; align-items: center; gap: 8px; margin: 8px 24px 2px; padding: 0; background: transparent; border: 0; color: var(--svu-unread-line); font-size: .7rem; font-weight: 700; }
 html.sv-unread2 #msgPage .thumb-msg-new::before { content: ''; flex: 1; border-top: 1px solid currentColor; }
@@ -9020,7 +9024,7 @@ html.sv-unread2 .svu-change-line .svu-time { color: var(--text-muted); font-size
 html.sv-unread2 .svu-change-line .svu-text-btn { margin-left: auto; color: var(--text-muted); font-size: .74rem; padding: 0; }
 html.sv-unread2 .svu-change-line .svu-text-btn:hover { background: transparent; color: var(--text-primary); }
 html.sv-unread2 .svu-line-av { width: 20px; height: 20px; border-radius: 5px; }
-html.sv-unread2 #msgPage .msg-b.svu-cont { padding-top: 0; margin-top: -6px; }
+html.sv-unread2 #msgPage .msg-b.svu-cont { padding-top: 8px; margin-top: 0; }   /* round 8: room for the actions above it */
 html.sv-unread2 #msgPage .msg-b.svu-cont > .svu-slack-av { display: none; }
 html.sv-unread2 #msgPage .msg-b.svu-cont > .msg-b-meta { display: none; }
 html.sv-unread2 #msgPage .msg-reply { padding-top: 8px; }
@@ -9030,5 +9034,20 @@ html.sv-unread2 .cal-cm-row .cal-cm-head-line > .cal-cm-comp-label { position: a
    a word and adds no space anywhere else. */
 html.sv-unread2 .cal-cm-row.svu-bar-room { padding-bottom: 28px; }
 html.sv-unread2 #msgPage .msg-b.svu-bar-room { padding-bottom: 30px; }
+/* Round 8 (owner, 2026-10-24): threads like Reddit, as in Notes: replies indented under what they answer, on a thin
+   line; at most two levels, then "replying to <first name>". The header: Open card as a word, then a plain × at the far
+   right (the page's own Close steps aside while a conversation is open). */
+html.sv-unread2 #msgPage .svu-replies { position: relative; margin-left: 46px; }
+html.sv-unread2 #msgPage .svu-replies::before { content: ''; position: absolute; left: -4px; top: 0; bottom: 8px; width: 2px; border-radius: 2px; background: var(--border); }
+html.sv-unread2 #msgPage .svu-replies .msg-b { grid-template-columns: 26px 1fr; padding-left: 20px; }
+html.sv-unread2 #msgPage .svu-replies .svu-slack-av { width: 26px; height: 26px; }
+html.sv-unread2 .svu-replying { color: var(--text-muted); font-size: .72rem; }
+html.sv-unread2 .svu-chat-close { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-left: 4px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); cursor: pointer; }
+html.sv-unread2 .svu-chat-close:hover, html.sv-unread2 .svu-chat-close:focus-visible { background: var(--svu-hover); color: var(--text-primary); }
+html.sv-unread2 .svu-chat-close svg { width: 14px; height: 14px; }
+html.sv-unread2 #msgPage.svu-has-chat .msg-page-head .msg-close { visibility: hidden; }
+html.sv-unread2 #msgPage .msg-page-head .msg-close { border: 0; background: transparent; box-shadow: none; font-size: 0; gap: 0; padding: 5px; color: var(--text-muted); }
+html.sv-unread2 #msgPage .msg-page-head .msg-close svg { width: 14px; height: 14px; }
+html.sv-unread2 #msgPage .msg-page-head .msg-close:hover { color: var(--text-primary); background: var(--svu-hover); }
 html.sv-unread2 .sv-note-outbox.is-sending { margin-top: 2px; color: var(--text-muted); }
 html.sv-unread2 #msgPage .msg-b .svu-msg-files { grid-column: 2; margin-top: 2px; }

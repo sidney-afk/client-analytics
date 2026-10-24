@@ -34234,3 +34234,24 @@ back the old function (including its "Needs info" lines).
     - lowers the ratchet to the list above.
   - It fails on main.
   - Pictures: `docs/syncview-design/proofs/no-sending-words/`, every control in its busy state, switch off (before) and on (after), light and dark. Made by `shots.js` in that folder.
+
+## 494. [2026-10-24 19:13 UTC, BUILT, NOT MERGED] Round-8 unread badges: the owner's eight points from live use (session Beacon)
+
+- **Owner, 2026-10-24, round 8 (relayed by the supervisor).** Staff side only, all behind `unread_badges_v2`.
+- **Card badges (327 `_svuBubblesHtml`):**
+  - Something new is the person's picture with a small count on its top right corner (`.svu-corner`), and nothing else.
+  - Nothing new but still needs you is the plain coloured number beside the picture.
+  - Never both at once: new wins. "+N" is unchanged.
+- **Card hover:** as wide as its lines need, at most 360 px; a longer line ends in "…". It was a fixed 380 px.
+- **No underline** on any Notes or Messages action, even on hover: colour only.
+- **No "Waiting for your answer"** anywhere: Notes, Messages, the bubbles' hover text, the Messages button tip and the empty state. A comment carries no status word; a change request keeps "Change request".
+- **No "Mark unread"** in the Notes head or the Messages header.
+- **Messages:**
+  - Reply and No reply needed sit at the bottom left, under the words, in the space between two messages; they cover nobody's words.
+  - Threads like Reddit (327 `_svuThreadMessages`): a reply sits indented under the message it answers, on a thin thread line. Two levels at most, then "replying to <first name>". Top-level messages keep their order and day lines, and the "New messages" line stays before the first new message.
+  - Notes shows its thread line again, so the two match.
+  - Header: "Open card" as a word, then a plain × at the far right. The page's own Close steps aside while a conversation is open.
+- **Proof:**
+  - `docs/syncview-design/tests/unread-badges-v2-browser.js` has a new section J and round 8's changes to C, D and H. On the code before this change, 15 checks fail.
+  - Before and after screenshots, light and dark, are in `docs/syncview-design/proofs/unread-badges-r8/` (`shots.js` there). The before pictures are from the code on main at the time.
+- **Numbering:** 493 is left for session Porch.

@@ -425,8 +425,22 @@ const cardState = page => page.evaluate(() => {
     });
     ok(j.thread1 && j.thread2 && j.flat3 && j.indent > 20 && j.line === '2px', 'J. Messages: replies sit indented under what they answer on a thread line, two levels, then "replying to" ' + JSON.stringify(j));
     ok(j.acts.join() === 'Open card,×' && j.xRight >= 0 && j.xRight <= 24 && j.xBox && j.xBox[0] === '0px' && j.xBox[2] === '' && j.pageClose === 'hidden', 'J. Messages header: Open card, then a plain × at the far right; the page Close steps aside ' + JSON.stringify(j));
-    ok(j.underline === 'none' && !j.words, 'J. Messages: no underline on hover, no "Waiting for your answer", no "Mark unread" ' + JSON.stringify([j.underline, j.words]));
-    ok(head.avLeft < 40 && Math.abs(head.avTop - head.nameTop) <= 8, 'E. your own picture sits at the left, beside your name (top ' + head.avTop + ' vs ' + head.nameTop + ', left ' + head.avLeft + ')');
+    // A repaint while a reply is being typed replaces only the list's contents (326): the threads come back.
+    await page.focus('#msgReplyBox').catch(() => {});
+    await page.keyboard.type('x');
+    await page.evaluate(() => _msgPaint());
+    await sleep(200);
+    const typed = await page.evaluate(() => { const r1 = document.querySelector('#msgPage .msg-b[data-msg-id="m_reply"]'); return !!(r1 && r1.parentElement.matches('.svu-replies.svu-depth-1')); });
+    ok(typed, 'J. Messages: replies stay threaded after a repaint made while a reply is being typed');
+    await page.evaluate(() => { const t = document.getElementById('msgReplyBox'); if (t) t.value = ''; t && t.blur(); });
+        ok(j.underline === 'none' && !j.words, 'J. Messages: no underline on hover, no "Waiting for your answer", no "Mark unread" ' + JSON.stringify([j.underline, j.words]));
+    await page.evaluate(() => _msgBack());
+    await sleep(250);
+    const backClose = await page.evaluate(() => { const b = document.querySelector('#msgPage .msg-page-head .msg-close'); return b ? getComputedStyle(b).visibility : 'missing'; });
+    ok(backClose === 'visible', 'J. Messages: back on the list, the page\'s own Close (a plain ×) is there again (' + backClose + ')');
+    await page.evaluate(() => _msgOpen('p_t1'));
+    await sleep(400);
+        ok(head.avLeft < 40 && Math.abs(head.avTop - head.nameTop) <= 8, 'E. your own picture sits at the left, beside your name (top ' + head.avTop + ' vs ' + head.nameTop + ', left ' + head.avLeft + ')');
     ok(h.inboxCalls.some(b => b.pictures === 1 && b.via === 'GET'), 'G. with the switch on, the inbox read (GET) asks for pictures');
     ok(h.errors.length === 0, 'F. switch on: no page error' + (h.errors.length ? ' ' + h.errors.join(' | ') : ''));
   } finally { await h.S.close(); }

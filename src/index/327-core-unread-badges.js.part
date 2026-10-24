@@ -533,6 +533,10 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
                 filters.innerHTML = [['new', 'New', newConvs], ['answer', 'To answer', waitConvs], ['all', 'All', 0]].map(([k, t, n]) =>
                     `<button type="button" data-svu-${k}="1" class="${_msgState.filter === k ? 'is-active' : ''}" aria-pressed="${_msgState.filter === k}" onclick="_msgSetFilter('${k}')">${t}${n ? ` <span>${n}</span>` : ''}</button>`).join('');
             }
+            // Round 8: the page's own Close steps aside only while a conversation (with its own ×) is open. Set before the
+            // return below, so going back to the list brings it back.
+            const page = root.closest('#msgPage');
+            if (page) page.classList.toggle('svu-has-chat', !!root.querySelector('.msg-chat-actions'));
             const c = _msgState.conversations.find(x => x.post_id === _msgState.openId);
             if (!c || !Array.isArray(c.messages)) return;
             const l = _svuLocalGet();
@@ -546,11 +550,11 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
             // Round 8: Close is a plain "×" at the header's far right, "Open card" just left of it, as a word.
             const headActs = root.querySelector('.msg-chat-actions');
             if (headActs && !headActs.querySelector('.svu-chat-close')) headActs.insertAdjacentHTML('beforeend', `<button type="button" class="svu-chat-close" onclick="_msgClose()" aria-label="Close Messages" title="Close">${SVU_X_ICO}</button>`);
-            const page = root.closest('#msgPage');
-            if (page) page.classList.toggle('svu-has-chat', !!headActs);
             // Round 8: threads like Reddit, as in Notes (before the per-message pass, which reads each one's neighbour).
             const bubblesBox = root.querySelector('#msgBubbles');
-            if (bubblesBox && !bubblesBox.hasAttribute('data-svu-threads')) { bubblesBox.setAttribute('data-svu-threads', '1'); _svuThreadMessages(bubblesBox, byId); }
+            // A repaint can replace only the box's contents (326 keeps the box while a reply is being typed), so the mark
+            // is the first message the threading saw, not an attribute on the box.
+            if (bubblesBox && bubblesBox.__svuThreaded !== bubblesBox.firstElementChild) { _svuThreadMessages(bubblesBox, byId); bubblesBox.__svuThreaded = bubblesBox.firstElementChild; }
             root.querySelectorAll('.msg-day:not([data-svu])').forEach(d => {
                 let next = d.nextElementSibling;
                 while (next && !next.matches('.msg-b[data-msg-id]')) next = next.nextElementSibling;

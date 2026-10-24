@@ -1,0 +1,563 @@
+import { svFocusKeep, svLayerOpen, svLayerRelease } from './041-core-layers.js';
+import { CAL_SUPABASE_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
+import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
+import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import { svThumbTitleButtonsOn } from './188-review-stage-switch.js';
+import { _prodState } from './210-production-state-writes.js';
+import { _prodCanWrite, _prodChildrenOf, _prodHideTip, _prodIssue, _prodToast, _prodWriteTeam } from './220-production-attribution-views.js';
+import { _prodRefreshDescription } from './240-production-description.js';
+import { _isClientLink, _prodRender } from './260-production-refresh-boot.js';
+        /* THUMBNAIL TITLES FROM THE FILMING PLAN (session Titlecard, 2026-10-23, OPEN_REPAIRS 481).
+           Plan, mock-ups and the owner's decisions: docs/syncview-design/mockups/thumbnail-titles/.
+
+           Two buttons, both behind the runtime switch thumbnail_title_buttons_staff { "staff": [...] }
+           (read in 188 with the other switches; missing means off for everyone):
+             - "Thumbnail titles" on the right of a post's "Sub-issues N" header: every thumbnail of the post.
+             - "Write title" next to Edit on one thumbnail sub-issue's description.
+           A press starts a RUN on the server (thumbnail-titles, actions run / status / decide / retry /
+           pick_tab / cancel). The run reads the plan, picks the plan tab, asks the model once, and writes a
+           title only where nothing a person wrote is lost (an empty description, or the old robot "Needs
+           info" line). Everything else waits here as a before/after with Keep mine as the default. The run
+           lives on the server, so closing the tab does not stop it; one run per post, so a second press (or a
+           second person) follows the run already going.
+
+           This file only draws and polls. Each row, the button, the description slot and the toast are
+           redrawn in place (data-prod-tt-* slots), never the whole Production page. */
+        const THUMBNAIL_TITLES_EF_URL = CAL_SUPABASE_URL + '/functions/v1/thumbnail-titles';
+        const PROD_TT_POLL_MS = 1500;
+        const PROD_TT_POLL_MAX_MS = 12 * 60 * 1000;
+        const PROD_TT_RECENT_MS = 20 * 60 * 1000;
+        const PROD_TT_ACTIVE = ['queued', 'running', 'ask'];
+        const _prodTt = { runs: {}, fetchedAt: {}, polls: {}, toastKey: '', toastClosed: {}, sheetKey: '', busy: {}, notice: {} };
+        const PROD_TT_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2.2"/><path d="M5.2 6h5.6M8 6v4.6"/></svg>';
+        const PROD_TT_CHECK = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-6.5"/></svg>';
+        const PROD_TT_EYE = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8Z"/><circle cx="8" cy="8" r="1.8"/></svg>';
+        const PROD_TT_SKIP = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M4 12 12 4"/></svg>';
+        const PROD_TT_RETRY = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M13.2 7.1a5.3 5.3 0 1 0-.5 3.3"/><path d="M13.5 3.4v3.7H9.8"/></svg>';
+        const PROD_TT_X = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
+        const PROD_TT_WARN = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 2.2 14.3 13H1.7z" stroke-linejoin="round"/><path d="M8 6.5v3M8 11.4v.1"/></svg>';
+        const PROD_TT_ERR = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6.6"/><path d="M8 4.8v3.8M8 11v.1"/></svg>';
+        const PROD_TT_OK = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6.6"/><path d="M5.2 8.3l2 2 3.8-4.3"/></svg>';
+
+        function _prodTtOn() {
+            try { return !_isClientLink && typeof svThumbTitleButtonsOn === 'function' && svThumbTitleButtonsOn(); } catch (e) { return false; }
+        }
+        function _prodTtIsThumb(issue) {
+            if (!issue || issue.syntheticBatchParent === true) return false;
+            if (_prodWriteTeam(issue.team) === 'video') return false;
+            return /^\s*(?:sample\s+)?thumbnail\b/i.test(String(issue.title || ''));
+        }
+        function _prodTtClient(issue) {
+            return String(issue && (issue.authorityProject || issue.storedClientSlug || issue.project) || '').trim();
+        }
+        function _prodTtKeyFor(issue) {
+            // One run per POST: a thumbnail's key is its parent's, so "Write title" on a sub-issue follows
+            // the post's run when one is going (and the other way round).
+            const owner = issue && issue.parent ? issue.parent : issue && issue.id;
+            return ('post:' + String(owner || '')).replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 190);
+        }
+        function _prodTtMe() {
+            try { const who = _syncviewStaffIdentityForHeaders(); return who && who.member ? String(who.member.name || '') : ''; } catch (e) { return ''; }
+        }
+        // The same gate as the description's Edit button: an admin or SMM, on a team Production may write
+        // (prod_authority = syncview). The server checks both again. A person it refuses sees the button greyed,
+        // with the reason on its label, never a hidden control.
+        function _prodTtRoleOk() {
+            try {
+                const who = _syncviewStaffIdentityForHeaders();
+                const role = String(who && who.role || '').toLowerCase();
+                return role === 'admin' || role === 'smm';
+            } catch (e) { return false; }
+        }
+        function _prodTtAllowed(issues) {
+            if (!_prodTtRoleOk()) return false;
+            return (issues || []).some(k => { try { return _prodCanWrite(k, 'description'); } catch (e) { return false; } });
+        }
+        function _prodTtRefusal() {
+            return _prodTtRoleOk() ? 'Descriptions cannot be edited here right now' : 'Only SMMs and admins can write titles';
+        }
+        function _prodTtFirstName(name) {
+            return String(name || '').trim().split(/\s+/)[0] || 'someone';
+        }
+        function _prodTtRec(key) { return _prodTt.runs[key] || null; }
+        function _prodTtActive(rec) { return !!(rec && rec.run && PROD_TT_ACTIVE.includes(rec.run.state)); }
+        function _prodTtItem(rec, id) {
+            return rec && rec.items ? rec.items.find(it => String(it.deliverable_id) === String(id)) || null : null;
+        }
+        // A finished run's chips stay on the rows for a while, and for as long as a row waits for a person.
+        function _prodTtShowsRows(rec) {
+            if (!rec || !rec.run) return false;
+            if (_prodTtActive(rec)) return true;
+            if ((rec.items || []).some(it => it.state === 'review')) return true;
+            const end = Date.parse(rec.run.finished_at || rec.run.created_at || '');
+            return Number.isFinite(end) && Date.now() - end < PROD_TT_RECENT_MS;
+        }
+        function _prodTtCounts(rec) {
+            const c = { waiting: 0, building: 0, done: 0, review: 0, skipped: 0, failed: 0, kept: 0, total: 0 };
+            (rec && rec.items || []).forEach(it => { c[it.state] = (c[it.state] || 0) + 1; c.total++; });
+            return c;
+        }
+
+        // ---- the server ------------------------------------------------------------------------------
+        async function _prodTtCall(action, client, extra) {
+            const resp = await fetch(THUMBNAIL_TITLES_EF_URL, {
+                method: 'POST',
+                headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, THUMBNAIL_TITLES_EF_URL),
+                body: JSON.stringify(Object.assign({ action, client }, extra || {})),
+            });
+            const body = await resp.json().catch(() => ({}));
+            if (!resp.ok || !body || body.ok !== true) {
+                const err = new Error(String(body && body.error || ('http_' + resp.status)));
+                err.code = String(body && body.error || ('http_' + resp.status));
+                throw err;
+            }
+            return body;
+        }
+        function _prodTtErrorText(code) {
+            const c = String(code || '');
+            if (c === 'not_ready') return 'Thumbnail titles are not set up on the server yet.';
+            if (c === 'smm_or_admin_only') return 'Only SMMs and admins can write titles.';
+            if (c === 'no_thumbnails') return 'This post has no thumbnail sub-issues to title.';
+            if (c === 'run_active') return 'Titles are already being written for this post.';
+            if (c === 'credentials_required' || c === 'invalid_staff_key') return 'Sign in again to write titles.';
+            return 'Titles could not be started. Try again in a moment.';
+        }
+        function _prodTtStore(key, body, client) {
+            const prev = _prodTt.runs[key];
+            const rec = { run: body.run || null, items: Array.isArray(body.items) ? body.items : [], client, at: Date.now() };
+            _prodTt.runs[key] = rec;
+            _prodTt.fetchedAt[key] = Date.now();
+            // A title that just landed (or was undone) changes a description: re-read the open one.
+            const before = new Map((prev && prev.items || []).map(it => [String(it.deliverable_id), it.state]));
+            rec.items.forEach(it => {
+                const was = before.get(String(it.deliverable_id));
+                if (was !== undefined && was !== it.state && (it.state === 'done' || it.state === 'kept')
+                    && _prodState && _prodState.openId === it.deliverable_id && typeof _prodRefreshDescription === 'function') {
+                    try { _prodRefreshDescription(it.deliverable_id); } catch (e) {}
+                }
+            });
+            return rec;
+        }
+        function _prodTtPoll(key) {
+            if (_prodTt.polls[key]) return;
+            const started = Date.now();
+            const tick = async () => {
+                const rec = _prodTtRec(key);
+                if (!rec || !rec.run || !['queued', 'running'].includes(rec.run.state) || Date.now() - started > PROD_TT_POLL_MAX_MS) {
+                    delete _prodTt.polls[key];
+                    return;
+                }
+                try {
+                    const body = await _prodTtCall('status', rec.client, { run_id: rec.run.id });
+                    _prodTtStore(key, body, rec.client);
+                } catch (e) { /* the next tick tries again; the toast keeps its last state */ }
+                _prodTtPaint(key);
+                _prodTt.polls[key] = setTimeout(tick, PROD_TT_POLL_MS);
+            };
+            _prodTt.polls[key] = setTimeout(tick, PROD_TT_POLL_MS);
+        }
+        // Opening a post asks once whether a run exists (someone else's, or rows still waiting for a person).
+        function _prodTtLazyStatus(key, client) {
+            if (!client || _prodTt.busy['status:' + key]) return;
+            const last = _prodTt.fetchedAt[key] || 0;
+            if (Date.now() - last < 60000) return;
+            _prodTt.busy['status:' + key] = true;
+            _prodTt.fetchedAt[key] = Date.now();
+            setTimeout(async () => {
+                try {
+                    const body = await _prodTtCall('status', client, { run_key: key });
+                    if (body.run) {
+                        _prodTtStore(key, body, client);
+                        if (['queued', 'running'].includes(body.run.state)) _prodTtPoll(key);
+                        _prodTtPaint(key);
+                    }
+                } catch (e) { /* no run, or not set up yet: the button stays as it is */ }
+                delete _prodTt.busy['status:' + key];
+            }, 0);
+        }
+
+        // ---- pressing --------------------------------------------------------------------------------
+        async function _prodTtStart(issueId, scope) {
+            const issue = _prodIssue(issueId);
+            if (!issue || !_prodTtOn()) return false;
+            const key = _prodTtKeyFor(issue);
+            const rec = _prodTtRec(key);
+            _prodTt.toastKey = key;
+            delete _prodTt.toastClosed[key];
+            if (_prodTtActive(rec)) { _prodTtPaint(key); return false; }   // already going: follow it
+            const targets = scope === 'item' ? [issue] : _prodChildrenOf(issue.id).filter(_prodTtIsThumb);
+            if (!_prodTtAllowed(targets)) { _prodToast(_prodTtRefusal() + '.'); return false; }
+            const ids = targets.filter(k => { try { return _prodCanWrite(k, 'description'); } catch (e) { return false; } }).map(k => k.id);
+            // The client of the thumbnails themselves (a post built from batches has no project of its own).
+            const client = _prodTtClient(_prodIssue(ids[0]) || issue) || _prodTtClient(issue);
+            if (!ids.length || !client || _prodTt.busy[key]) return false;
+            _prodTt.busy[key] = true;
+            // Drawn at once, before the server answers: every row says Waiting and the toast is up.
+            _prodTt.runs[key] = { run: { id: '', state: 'queued', stage: 'reading', requested_by: _prodTtMe() }, items: ids.map(id => ({ deliverable_id: id, state: 'waiting' })), client, at: Date.now(), local: true };
+            _prodTtPaint(key);
+            try {
+                const body = await _prodTtCall('run', client, { run_key: key, items: ids, scope: scope === 'item' ? 'item' : 'post' });
+                _prodTtStore(key, body, client);
+                if (body.following) _prodToast('Already running for this post. Following it.');
+                _prodTtPoll(key);
+            } catch (e) {
+                delete _prodTt.runs[key];
+                _prodTt.notice[key] = { kind: 'error', text: _prodTtErrorText(e && e.code) };
+                if (typeof _writeUiRecordFailure === 'function') _writeUiRecordFailure('production', 'thumbnail_titles_run', e, { code: String(e && e.code || '') });
+            }
+            delete _prodTt.busy[key];
+            _prodTtPaint(key);
+            return false;
+        }
+        async function _prodTtAction(key, action, extra) {
+            const rec = _prodTtRec(key);
+            if (!rec || !rec.run || !rec.run.id) return false;
+            const busyKey = key + ':' + action + ':' + (extra && extra.deliverable_id || '');
+            if (_prodTt.busy[busyKey]) return false;
+            _prodTt.busy[busyKey] = true;
+            try {
+                const body = await _prodTtCall(action, rec.client, Object.assign({ run_id: rec.run.id }, extra || {}));
+                _prodTtStore(key, body, rec.client);
+                if (body.result === 'changed') _prodToast('That description changed meanwhile. Check it again.');
+                if (body.result === 'authority') _prodToast('Descriptions cannot be edited here right now. Nothing was changed.');
+                if (body.run && ['queued', 'running'].includes(body.run.state)) _prodTtPoll(key);
+            } catch (e) {
+                _prodToast(e && e.code === 'nothing_to_undo' ? 'Nothing to undo.' : 'That did not save. Try again.');
+                if (typeof _writeUiRecordFailure === 'function') _writeUiRecordFailure('production', 'thumbnail_titles_' + action, e, { code: String(e && e.code || '') });
+            }
+            delete _prodTt.busy[busyKey];
+            _prodTtPaint(key);
+            if (_prodTt.sheetKey === key) _prodTtPaintSheet();
+            return false;
+        }
+        async function _prodTtUndoAll(key) {
+            const rec = _prodTtRec(key);
+            const done = (rec && rec.items || []).filter(it => it.state === 'done');
+            for (const it of done) await _prodTtAction(key, 'decide', { deliverable_id: it.deliverable_id, choice: 'undo' });
+            return false;
+        }
+        function _prodTtDecide(key, id, choice) { return _prodTtAction(key, 'decide', { deliverable_id: id, choice }); }
+        function _prodTtRetry(key, id) { delete _prodTt.toastClosed[key]; _prodTt.toastKey = key; return _prodTtAction(key, 'retry', { deliverable_id: id }); }
+        function _prodTtCancel(key) { return _prodTtAction(key, 'cancel'); }
+        function _prodTtPickTab(key) {
+            const picked = document.querySelector('#prodTtToast input[name="prodTtTab"]:checked');
+            if (!picked) return false;
+            const rec = _prodTtRec(key);
+            if (rec) rec.choosing = false;
+            return _prodTtAction(key, 'pick_tab', { tab_id: picked.value });
+        }
+        function _prodTtAnotherTab(key) {
+            const rec = _prodTtRec(key);
+            if (!rec || !rec.run) return false;
+            rec.choosing = true;
+            _prodTtPaintToast();
+            return false;
+        }
+
+        // ---- drawing -----------------------------------------------------------------------------------
+        function _prodTtButtonInner(issue, kids) {
+            const key = _prodTtKeyFor(issue);
+            const rec = _prodTtRec(key);
+            const thumbs = kids.filter(_prodTtIsThumb);
+            const allowed = _prodTtAllowed(thumbs);
+            if (_prodTtActive(rec)) {
+                const c = _prodTtCounts(rec);
+                const me = _prodTtMe();
+                const by = rec.run.requested_by && me && rec.run.requested_by !== me ? 'Being written by ' + _calEsc(_prodTtFirstName(rec.run.requested_by)) : 'Writing titles';
+                const label = rec.run.state === 'ask' ? 'Choose a plan tab' : by + ' <span class="prod-tt-count">' + (c.done + c.review + c.skipped + c.failed + c.kept) + ' of ' + c.total + '</span>';
+                return '<button class="prod-tt-btn" type="button" aria-live="polite" onclick="return _prodTtShowToast(' + _jsAttrArg(key) + ')">'
+                    + (rec.run.state === 'ask' ? PROD_TT_WARN : '<span class="prod-tt-spin" aria-hidden="true"></span>') + label + '</button>';
+            }
+            const waiting = (rec && rec.items || []).filter(it => it.state === 'review').length;
+            if (waiting) {
+                return '<button class="prod-tt-btn is-waiting" type="button" onclick="return _prodTtOpenReview(' + _jsAttrArg(key) + ')">' + PROD_TT_EYE
+                    + waiting + (waiting === 1 ? ' title waits' : ' titles wait') + ' for you</button>';
+            }
+            const tip = allowed ? 'Write the thumbnail titles of this post from the filming plan' : _prodTtRefusal();
+            return '<button class="prod-tt-btn" type="button" data-prod-tip="' + _calEscAttr(tip) + '" aria-label="' + _calEscAttr('Thumbnail titles. ' + tip) + '"'
+                + (allowed ? '' : ' aria-disabled="true"') + ' onclick="return _prodTtStart(' + _jsAttrArg(issue.id) + ',' + _jsAttrArg('post') + ')">'
+                + PROD_TT_ICON + 'Thumbnail titles' + (thumbs.length > 1 ? ' <span class="prod-tt-count">' + thumbs.length + '</span>' : '') + '</button>';
+        }
+        // The batch button, on the right of a post's "Sub-issues N" header (called from 260).
+        function _prodTtSubheadHTML(issue, kids) {
+            if (!issue || !_prodTtOn() || !(kids || []).some(_prodTtIsThumb)) return '';
+            const key = _prodTtKeyFor(issue);
+            if (!_prodTtRec(key)) _prodTtLazyStatus(key, _prodTtClient((kids || []).find(_prodTtIsThumb)) || _prodTtClient(issue));
+            return '<span class="prod-tt-slot" data-prod-tt-btn="' + _calEscAttr(issue.id) + '">' + _prodTtButtonInner(issue, kids) + '</span>';
+        }
+        function _prodTtChipInner(kid) {
+            const key = _prodTtKeyFor(kid);
+            const rec = _prodTtRec(key);
+            if (!_prodTtShowsRows(rec)) return '';
+            const it = _prodTtItem(rec, kid.id);
+            if (!it) return '';
+            const msg = _calEsc(String(it.message || it.title || ''));
+            const k = _jsAttrArg(key), id = _jsAttrArg(kid.id);
+            const stop = 'event.stopPropagation();';
+            if (it.state === 'waiting') return '<span class="prod-tt-chip is-waiting" role="status"><span>Waiting</span></span>';
+            if (it.state === 'building') return '<span class="prod-tt-chip is-building" role="status"><span class="prod-tt-spin" aria-hidden="true"></span><span>Writing title…</span></span>';
+            if (it.state === 'done') return '<span class="prod-tt-chip is-done" role="status" data-prod-tip="' + _calEscAttr('Written: ' + (it.title || '')) + '">' + PROD_TT_CHECK + '<span><b>' + _calEsc(it.title || 'Written') + '</b></span></span>';
+            if (it.state === 'review') return '<button type="button" class="prod-tt-chip is-review" onclick="' + stop + 'return _prodTtOpenReview(' + k + ')">' + PROD_TT_EYE + '<span>Has a description · <b>Review</b></span></button>';
+            if (it.state === 'failed') return '<button type="button" class="prod-tt-chip is-failed" onclick="' + stop + 'return _prodTtRetry(' + k + ',' + id + ')">' + PROD_TT_RETRY + '<span>Failed · <b>Try again</b></span></button>';
+            if (it.state === 'kept') return '<span class="prod-tt-chip is-skipped" role="status"><span>' + msg + '</span></span>';
+            return '<span class="prod-tt-chip is-skipped" role="status" data-prod-tip="' + _calEscAttr(String(it.message || '')) + '">' + PROD_TT_SKIP + '<span>' + msg + '</span></span>';
+        }
+        // The per-row state on a thumbnail sub-issue row (called from 260).
+        function _prodTtRowChipHTML(kid) {
+            if (!kid || !_prodTtOn() || !_prodTtIsThumb(kid)) return '';
+            return '<span class="prod-tt-rowslot" data-prod-tt-chip="' + _calEscAttr(kid.id) + '">' + _prodTtChipInner(kid) + '</span>';
+        }
+        // "Write title", next to Edit on a thumbnail sub-issue's description (called from 240).
+        function _prodTtDescButtonHTML(issue) {
+            if (!issue || !_prodTtOn() || !_prodTtIsThumb(issue)) return '';
+            return '<span class="prod-tt-slot" data-prod-tt-descbtn="' + _calEscAttr(issue.id) + '">' + _prodTtDescButtonInner(issue) + '</span>';
+        }
+        function _prodTtDescButtonInner(issue) {
+            const rec = _prodTtRec(_prodTtKeyFor(issue));
+            const it = _prodTtItem(rec, issue.id);
+            if (_prodTtActive(rec) && it && ['waiting', 'building'].includes(it.state)) {
+                return '<button class="prod-tt-btn" type="button" aria-disabled="true"><span class="prod-tt-spin" aria-hidden="true"></span>Writing…</button>';
+            }
+            const allowed = _prodTtAllowed([issue]);
+            const tip = allowed ? 'Write this thumbnail\'s title from the filming plan' : _prodTtRefusal();
+            return '<button class="prod-tt-btn" type="button" data-prod-tip="' + _calEscAttr(tip) + '"' + (allowed ? '' : ' aria-disabled="true"')
+                + ' onclick="return _prodTtStart(' + _jsAttrArg(issue.id) + ',' + _jsAttrArg('item') + ')">' + PROD_TT_ICON + 'Write title</button>';
+        }
+        // Under the description's header: what the run is doing for this thumbnail, the result with Undo, or
+        // the before/after when the description already had text (called from 240).
+        function _prodTtDescSlotHTML(issue) {
+            if (!issue || !_prodTtOn() || !_prodTtIsThumb(issue)) return '';
+            return '<div class="prod-tt-descslot" data-prod-tt-desc="' + _calEscAttr(issue.id) + '">' + _prodTtDescSlotInner(issue) + '</div>';
+        }
+        function _prodTtDescSlotInner(issue) {
+            const key = _prodTtKeyFor(issue);
+            const rec = _prodTtRec(key);
+            if (!_prodTtShowsRows(rec)) return '';
+            const it = _prodTtItem(rec, issue.id);
+            if (!it) return '';
+            const tab = rec.run && rec.run.tab_name ? _calEsc(rec.run.tab_name) : '';
+            const k = _jsAttrArg(key), id = _jsAttrArg(issue.id);
+            if (it.state === 'waiting' || it.state === 'building') {
+                const stage = rec.run.stage === 'writing' && tab ? 'Writing from the ' + tab + ' plan' + (it.video_number ? ', video ' + Number(it.video_number) : '') + '…'
+                    : rec.run.stage === 'finding' ? 'Finding the batch in the filming plan…' : 'Reading the filming plan…';
+                return '<div class="prod-tt-desc-building" role="status"><span class="prod-tt-spin" aria-hidden="true"></span>' + stage + '</div><span class="prod-tt-skel" aria-hidden="true"></span>';
+            }
+            if (it.state === 'done') {
+                return '<div class="prod-tt-note" role="status"><span class="prod-tt-ok">' + PROD_TT_CHECK + '</span>Written'
+                    + (it.video_number ? ' from video ' + Number(it.video_number) : '') + (tab ? ' of the ' + tab + ' plan' : '')
+                    + ' · <button type="button" class="prod-tt-link" onclick="return _prodTtDecide(' + k + ',' + id + ',' + _jsAttrArg('undo') + ')">Undo</button>'
+                    + ' · <button type="button" class="prod-tt-link" onclick="_prodTtShowToast(' + k + ');return _prodTtAnotherTab(' + k + ')">Use another tab</button></div>';
+            }
+            if (it.state === 'review') return _prodTtCompareHTML(key, it, false);
+            if (it.state === 'failed') {
+                return '<div class="prod-tt-note is-failed" role="status">The title could not be written. <button type="button" class="prod-tt-link" onclick="return _prodTtRetry(' + k + ',' + id + ')">Try again</button></div>';
+            }
+            return it.message ? '<div class="prod-tt-note" role="status">' + PROD_TT_SKIP + _calEsc(it.message) + '</div>' : '';
+        }
+        // Before and after. Keep mine comes first and is the default (owner decision 3).
+        function _prodTtCompareHTML(key, it, inSheet) {
+            const k = _jsAttrArg(key), id = _jsAttrArg(it.deliverable_id);
+            const kid = _prodIssue(it.deliverable_id);
+            const aiBefore = it.outcome === 'ai';
+            const who = inSheet ? '<div class="prod-tt-who">' + _calEsc(kid && kid.title || 'Thumbnail') + ' · ' + (aiBefore ? 'has an earlier AI title' : 'someone wrote this description') + '</div>' : '';
+            const actions = aiBefore
+                ? '<button type="button" class="prod-tt-a" onclick="return _prodTtDecide(' + k + ',' + id + ',' + _jsAttrArg('keep') + ')">Keep the old title</button>'
+                    + '<button type="button" class="prod-tt-a is-primary" onclick="return _prodTtDecide(' + k + ',' + id + ',' + _jsAttrArg('use_new') + ')">Use new</button>'
+                : '<button type="button" class="prod-tt-a" onclick="return _prodTtDecide(' + k + ',' + id + ',' + _jsAttrArg('keep') + ')">Keep mine</button>'
+                    + '<button type="button" class="prod-tt-a is-primary" onclick="return _prodTtDecide(' + k + ',' + id + ',' + _jsAttrArg('replace') + ')" data-prod-tip="Your text stays under the title">Replace</button>'
+                    + '<button type="button" class="prod-tt-a is-ghost" onclick="return _prodTtDecide(' + k + ',' + id + ',' + _jsAttrArg('above') + ')">Add title above mine</button>';
+            return '<div class="prod-tt-compare">' + who + '<div class="prod-tt-ba"><span class="k">Now</span><span class="before">' + _calEsc(String(it.before || '')) + '</span>'
+                + '<span class="k">New</span><span class="after">' + _calEsc(String(it.title || '')) + '</span></div><div class="prod-tt-actions">' + actions + '</div></div>';
+        }
+        function _prodTtSteps(stage) {
+            const names = [['reading', 'Reading the filming plan'], ['finding', 'Finding the batch'], ['writing', 'Writing titles']];
+            const at = Math.max(0, names.findIndex(n => n[0] === stage));
+            return '<div class="prod-tt-steps">' + names.map((n, i) => '<span class="' + (i < at ? 'is-ok' : i === at ? 'is-on' : '') + '">' + (i < at ? '✓ ' : '') + n[1] + '</span>').join('') + '</div>';
+        }
+        function _prodTtToastHTML(key) {
+            const rec = _prodTtRec(key);
+            const k = _jsAttrArg(key);
+            const close = '<button class="prod-tt-x" type="button" aria-label="Close" onclick="return _prodTtCloseToast(' + k + ')">' + PROD_TT_X + '</button>';
+            const notice = _prodTt.notice[key];
+            if (!rec && notice) {
+                return '<div class="prod-tt-top"><span class="prod-tt-ico is-err">' + PROD_TT_ERR + '</span><div class="prod-tt-main"><div class="prod-tt-title">' + _calEsc(notice.text) + '</div></div>' + close + '</div>';
+            }
+            if (!rec || !rec.run) return '';
+            const run = rec.run, c = _prodTtCounts(rec);
+            const settled = c.done + c.review + c.skipped + c.failed + c.kept;
+            const tab = run.tab_name ? '<b>' + _calEsc(run.tab_name) + '</b>' : '';
+            const choices = Array.isArray(run.tab_choices) ? run.tab_choices : [];
+            const picker = (title, sub) => '<div class="prod-tt-top"><span class="prod-tt-ico is-warn">' + PROD_TT_WARN + '</span><div class="prod-tt-main"><div class="prod-tt-title">' + title + '</div><div class="prod-tt-sub">' + sub + '</div></div>' + close + '</div>'
+                + '<div class="prod-tt-tabs" role="radiogroup" aria-label="Plan tab">' + choices.map((t, i) => '<label class="prod-tt-tab"><input type="radio" name="prodTtTab" value="' + _calEscAttr(t.id) + '"' + ((t.id === run.tab_id) || (!run.tab_id && i === 0) ? ' checked' : '') + '> <span>' + _calEsc(t.name) + '</span><small>' + Number(t.videos || 0) + ' videos</small></label>').join('') + '</div>'
+                + '<div class="prod-tt-actions"><button type="button" class="prod-tt-a is-primary" onclick="return _prodTtPickTab(' + k + ')">Use this tab</button>'
+                + '<button type="button" class="prod-tt-a is-ghost" onclick="' + (run.state === 'ask' ? 'return _prodTtCancel(' + k + ')' : 'return _prodTtStopChoosing(' + k + ')') + '">Cancel</button></div>';
+            if (run.state === 'ask') {
+                return picker('Which plan tab is this batch from?', run.error === 'two_fit' ? 'Two tabs could be it. Nothing has been written.' : 'No tab clearly holds these videos. Nothing has been written.');
+            }
+            if (rec.choosing && choices.length && !['queued', 'running'].includes(run.state)) {
+                return picker('Use another plan tab', 'Every title not settled by a person is written again from the tab you pick.');
+            }
+            if (run.state === 'queued' || run.state === 'running') {
+                const writing = run.stage === 'writing';
+                const pct = writing ? 40 + Math.round(55 * settled / Math.max(1, c.total)) : run.stage === 'finding' ? 25 : 8;
+                const title = writing ? 'Writing thumbnail titles · ' + settled + ' of ' + c.total : 'Writing ' + c.total + ' thumbnail title' + (c.total === 1 ? '' : 's');
+                const sub = writing && tab ? 'From the ' + tab + ' plan tab · you can close this card, it keeps going'
+                    : run.stage === 'finding' ? 'Finding the batch in the filming plan…' : 'Reading the filming plan…';
+                return '<div class="prod-tt-top"><span class="prod-tt-spin" aria-hidden="true"></span><div class="prod-tt-main"><div class="prod-tt-title">' + title + '</div><div class="prod-tt-sub">' + sub + '</div></div></div>'
+                    + '<div class="prod-tt-bar"><i style="width:' + pct + '%"></i></div>' + _prodTtSteps(run.stage)
+                    + '<div class="prod-tt-actions">' + (writing && run.id ? '<button type="button" class="prod-tt-a" onclick="return _prodTtAnotherTab(' + k + ')">Use another tab</button>' : '')
+                    + (run.id ? '<button type="button" class="prod-tt-a is-ghost" onclick="return _prodTtCancel(' + k + ')">Cancel</button>' : '') + '</div>';
+            }
+            if (run.state === 'error') {
+                const e = String(run.error || '');
+                const shareWith = e.startsWith('plan_unreadable:') ? e.slice('plan_unreadable:'.length) : '';
+                const text = e === 'no_plan' ? ['No filming plan is linked', 'Add the plan\'s link to this client, then try again.']
+                    : e.startsWith('plan_unreadable') ? ['The filming plan can\'t be opened', 'Share it as "Anyone with the link can view"' + (shareWith ? ', or with ' + _calEsc(shareWith) : '') + ', then try again.']
+                    : e === 'plan_empty' ? ['The filming plan has no videos yet', 'Try again once the plan for this batch is written.']
+                    : ['Titles could not be written', 'Something went wrong on the server. Try again.'];
+                return '<div class="prod-tt-top"><span class="prod-tt-ico is-err">' + PROD_TT_ERR + '</span><div class="prod-tt-main"><div class="prod-tt-title">' + text[0] + '</div><div class="prod-tt-sub">' + text[1] + '</div></div>' + close + '</div>';
+            }
+            if (run.state === 'cancelled') {
+                return '<div class="prod-tt-top"><div class="prod-tt-main"><div class="prod-tt-title">Cancelled' + (c.done ? ' · ' + c.done + ' title' + (c.done === 1 ? '' : 's') + ' already written' : '') + '</div></div>' + close + '</div>';
+            }
+            const parts = [];
+            if (c.done) parts.push(c.done + ' title' + (c.done === 1 ? '' : 's') + ' written');
+            if (c.review) parts.push(c.review + (c.review === 1 ? ' needs' : ' need') + ' your OK');
+            if (c.skipped) parts.push(c.skipped + ' skipped');
+            if (c.failed) parts.push(c.failed + ' failed');
+            const undone = (rec.items || []).filter(it => it.outcome === 'undone').length;
+            if (undone && !parts.length) parts.push(undone + ' title' + (undone === 1 ? '' : 's') + ' undone');
+            else if (c.kept && !parts.length) parts.push('Kept yours');
+            const firstSkip = (rec.items || []).find(it => it.state === 'skipped' && it.message);
+            const firstKid = firstSkip ? _prodIssue(firstSkip.deliverable_id) : null;
+            const sub = c.failed ? 'The AI did not answer for ' + c.failed + ' of them.' : firstSkip ? _calEsc((firstKid && /thumbnail\s+\d+/i.exec(firstKid.title || '') || [''])[0] + (firstKid ? ': ' : '') + firstSkip.message) : (tab ? 'From the ' + tab + ' plan tab.' : '');
+            const icon = c.failed ? '<span class="prod-tt-ico is-err">' + PROD_TT_ERR + '</span>' : c.review || c.skipped ? '<span class="prod-tt-ico is-warn">' + PROD_TT_WARN + '</span>' : '<span class="prod-tt-ico is-ok">' + PROD_TT_OK + '</span>';
+            const actions = (c.review ? '<button type="button" class="prod-tt-a is-primary" onclick="return _prodTtOpenReview(' + k + ')">Review ' + c.review + '</button>' : '')
+                + (c.failed ? '<button type="button" class="prod-tt-a is-primary" onclick="return _prodTtRetryFailed(' + k + ')">Try again</button>' : '')
+                + (c.done ? '<button type="button" class="prod-tt-a" onclick="return _prodTtUndoAll(' + k + ')">Undo ' + c.done + '</button>' : '')
+                + (choices.length > 1 ? '<button type="button" class="prod-tt-a is-ghost" onclick="return _prodTtAnotherTab(' + k + ')">Use another tab</button>' : '');
+            return '<div class="prod-tt-top">' + icon + '<div class="prod-tt-main"><div class="prod-tt-title">' + (parts.join(' · ') || 'Nothing to write') + '</div>' + (sub ? '<div class="prod-tt-sub">' + sub + '</div>' : '') + '</div>' + close + '</div>'
+                + (actions ? '<div class="prod-tt-actions">' + actions + '</div>' : '');
+        }
+        // Every failed row of the run goes again, in the same run and on the same tab.
+        function _prodTtRetryFailed(key) {
+            delete _prodTt.toastClosed[key];
+            _prodTt.toastKey = key;
+            return _prodTtAction(key, 'retry', { all: true });
+        }
+        function _prodTtShowToast(key) { _prodTt.toastKey = key; delete _prodTt.toastClosed[key]; _prodTtPaintToast(); return false; }
+        function _prodTtCloseToast(key) { _prodTt.toastClosed[key] = 1; _prodTtPaintToast(); return false; }
+        function _prodTtStopChoosing(key) { const rec = _prodTtRec(key); if (rec) rec.choosing = false; _prodTtPaintToast(); return false; }
+        let _prodTtToastHideTimer = null;
+        function _prodTtPaintToast() {
+            const key = _prodTt.toastKey;
+            let el = document.getElementById('prodTtToast');
+            const html = key && !_prodTt.toastClosed[key] ? _prodTtToastHTML(key) : '';
+            if (!html) { if (el) el.remove(); return; }
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'prodTtToast';
+                el.className = 'prod-tt-toast';
+                el.setAttribute('role', 'status');
+                el.setAttribute('aria-live', 'polite');
+                document.body.appendChild(el);
+            }
+            if (el.innerHTML !== html) {
+                const keep = typeof svFocusKeep === 'function' ? svFocusKeep(el) : () => {};
+                el.innerHTML = html;
+                keep();
+            }
+            // The toast stays until everything is finished; then it stays until closed when something needs a
+            // person (a row to review, a failure), and leaves by itself after 8 s otherwise.
+            const rec = _prodTtRec(key);
+            clearTimeout(_prodTtToastHideTimer);
+            if (rec && rec.run && rec.run.state === 'done' && !rec.choosing) {
+                const c = _prodTtCounts(rec);
+                if (!c.review && !c.failed && !c.skipped) {
+                    _prodTtToastHideTimer = setTimeout(() => { _prodTt.toastClosed[key] = 1; _prodTtPaintToast(); }, 8000);
+                }
+            }
+        }
+        function _prodTtPaint(key) {
+            const fill = (selector, fn) => {
+                document.querySelectorAll(selector).forEach(node => {
+                    const issue = _prodIssue(node.getAttribute(selector.slice(1, -1)));
+                    if (!issue) return;
+                    const html = fn(issue);
+                    if (node.innerHTML !== html) {
+                        const keep = typeof svFocusKeep === 'function' ? svFocusKeep(node) : () => {};
+                        // A hover tip whose control is redrawn under the pointer would be left behind.
+                        if (node.querySelector('[data-prod-tip]:hover')) _prodHideTip();
+                        node.innerHTML = html;
+                        keep();
+                    }
+                });
+            };
+            fill('[data-prod-tt-btn]', issue => _prodTtButtonInner(issue, _prodChildrenOf(issue.id)));
+            fill('[data-prod-tt-chip]', issue => _prodTtChipInner(issue));
+            fill('[data-prod-tt-descbtn]', issue => _prodTtDescButtonInner(issue));
+            fill('[data-prod-tt-desc]', issue => _prodTtDescSlotInner(issue));
+            if (!key || key === _prodTt.toastKey) _prodTtPaintToast();
+            if (_prodTt.sheetKey && (!key || key === _prodTt.sheetKey)) _prodTtPaintSheet();
+        }
+
+        // ---- the review sheet ----------------------------------------------------------------------------
+        function _prodTtOpenReview(key) {
+            _prodTt.sheetKey = key;
+            _prodTtPaintSheet();
+            const sheet = document.getElementById('prodTtSheet');
+            if (sheet && typeof svLayerOpen === 'function') {
+                svLayerOpen({ key: 'prod-tt-review', region: '#prodTtSheet', close: _prodTtCloseReview, isOpen: () => !!document.getElementById('prodTtSheet') });
+            }
+            const first = sheet && sheet.querySelector('.prod-tt-a');
+            if (first) { try { first.focus({ preventScroll: true }); } catch (e) {} }
+            return false;
+        }
+        function _prodTtCloseReview() {
+            _prodTt.sheetKey = '';
+            const sheet = document.getElementById('prodTtSheet');
+            if (sheet) sheet.remove();
+            if (typeof svLayerRelease === 'function') svLayerRelease('prod-tt-review', { focus: true });
+            return true;
+        }
+        function _prodTtPaintSheet() {
+            const key = _prodTt.sheetKey;
+            const rec = key ? _prodTtRec(key) : null;
+            const waiting = (rec && rec.items || []).filter(it => it.state === 'review');
+            let sheet = document.getElementById('prodTtSheet');
+            if (!key) { if (sheet) sheet.remove(); return; }
+            if (!sheet) {
+                sheet = document.createElement('div');
+                sheet.id = 'prodTtSheet';
+                sheet.className = 'prod-tt-sheet';
+                sheet.setAttribute('role', 'dialog');
+                sheet.setAttribute('aria-label', 'Review thumbnail titles');
+                document.body.appendChild(sheet);
+            }
+            const head = '<div class="prod-tt-sheet-head"><b>' + (waiting.length ? waiting.length + (waiting.length === 1 ? ' title needs' : ' titles need') + ' your OK' : 'All reviewed') + '</b><span class="prod-spacer"></span>'
+                + '<button class="prod-tt-x" type="button" aria-label="Close" onclick="_prodTtCloseReview();return false;">' + PROD_TT_X + '</button></div>';
+            const body = waiting.map(it => '<div class="prod-tt-sheet-item">' + _prodTtCompareHTML(key, it, true) + '</div>').join('');
+            const html = head + body + '<div class="prod-tt-sheet-foot"><button class="prod-tt-a is-ghost" type="button" onclick="_prodTtCloseReview();return false;">Done</button></div>';
+            if (sheet.innerHTML !== html) {
+                const keep = typeof svFocusKeep === 'function' ? svFocusKeep(sheet) : () => {};
+                sheet.innerHTML = html;
+                keep();
+            }
+        }
+        // The switch is read once per visit (188); when its answer lands after Production has drawn, draw again
+        // so the buttons appear without a reload.
+        try {
+            window.addEventListener('sv-review-stage-switch', () => {
+                if (_prodTtOn() && document.querySelector('.prod-view') && typeof _prodRender === 'function') {
+                    try { _prodRender(); } catch (e) {}
+                }
+            });
+        } catch (e) {}
+
+    // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
+    Object.assign(window, {
+        _prodTtAnotherTab, _prodTtCancel, _prodTtCloseReview, _prodTtCloseToast, _prodTtDecide,
+        _prodTtOpenReview, _prodTtPickTab, _prodTtRetry, _prodTtRetryFailed, _prodTtShowToast, _prodTtStart,
+        _prodTtStopChoosing, _prodTtUndoAll
+    });
+export { _prodTtDescButtonHTML, _prodTtDescSlotHTML, _prodTtRowChipHTML, _prodTtSubheadHTML };

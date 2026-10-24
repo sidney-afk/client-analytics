@@ -77,6 +77,14 @@ executes these files (see `README.md` › Repository layout).
   from all four roles. No Edge Function change. `test/production-comment-signal.js`
   measures it on a real PostgreSQL 16.
 
+- **`2026-10-23-thumbnail-title-buttons.sql`** is source-only until applied (OPEN_REPAIRS 481, session
+  Titlecard). Adds `thumbnail_title_runs` and `thumbnail_title_run_items` (one run per press of the
+  Production "Thumbnail titles" / "Write title" buttons, one active run per post), the compare-and-set
+  writer `thumbnail_title_manual_apply`, and lets the per-minute timer finish a run whose worker died.
+  Service role only; revokes from all four roles. Marked `functions-cope-without-this`: `thumbnail-titles`
+  deploys first and its buttons answer "not ready" until this is applied; the background writer is
+  unaffected. Applied when `to_regclass('public.thumbnail_title_runs') is not null`.
+
 - **`2026-10-10-thumbnail-titles-error-record.sql`** is source-only until applied
   (OPEN_REPAIRS 394). `thumbnail_title_apply` gains an optional `p_error` and keeps it in
   `thumbnail_title_queue.last_error`, so an item that ends `generation_failed` says why. Apply it

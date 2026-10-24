@@ -65,6 +65,8 @@ against about 850 ms offline under the same server times); a sent change request
 next one; no "Sending..." text, a spinner; a cross on hover to delete one's own note, with "Delete this note?". Switch
 `syncview_runtime_flags.review_client_polish` `{ "clients": [...] }` or `{ "all": true }`, absent = off; meant for the
 test client only until the owner widens it. OPEN_REPAIRS 490; test `node test/review-client-polish-browser.js`.
+A second PR on the same switch shows the client's notes in the staff side's round-6 quiet design (rows, day lines, quiet
+status words, Reply on hover on team comments): OPEN_REPAIRS 491, test `node test/review-client-notes-browser.js`.
 
 ## "Notify client" tags the client (session Tagline, 2026-10-23): live since 2026-10-23 23:42 UTC (#2302), migration applied
 

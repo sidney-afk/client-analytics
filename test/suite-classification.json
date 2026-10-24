@@ -2045,6 +2045,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-client-notes-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and conversation), no hosted credentials and no live data. Checks the client review page's notes behind review_client_polish: rows instead of bubbles, first names, one day line per day and no date repeated on a message, relative times with the full date in the hover, status as quiet words with an explaining hover and no fill, Reply on hover only on team comments (never a change request or one's own note) sending a plain comment on that note's part, a follow-up within five minutes without a repeated name, and the bubbles unchanged with the switch off.",
+      "reproduce": "node test/review-client-notes-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-client-polish-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

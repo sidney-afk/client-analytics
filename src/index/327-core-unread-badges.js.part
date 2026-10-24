@@ -3,7 +3,7 @@ import { _calCommentsForView, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
 import { COMP_LABELS, _notesGetSeen } from './180-calendar-native-post-media.js';
 import { svUnreadBadgesOn } from './188-review-stage-switch.js';
-import { _calFmtCommentTime, _calRefreshCommentsBtn } from './190-calendar-approval-comments.js';
+import { _calNoteAuthorName, _calRefreshCommentsBtn } from './190-calendar-approval-comments.js';
 import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId, _msgPaint, _msgState } from './326-core-messages-inbox.js';
     /* UNREAD BADGES, ROUND 5 (session Beacon, 2026-10-24; docs/audits/2026-10-23-unread-badges.md). On only for the
        staff members the runtime switch unread_badges_v2 names (188), on a desktop page; for everyone else nothing here
@@ -180,9 +180,40 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         kasper: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z"/><circle cx="8" cy="8" r="2.2"/></svg>',
     };
     SVU_ICO.open = SVU_ICO.change;
-    const _svuWho = m => _svuIsClient(m) ? 'Client' : (_svuRole(m) === 'kasper' ? 'Kasper' : String(m && m.author || 'Team').split(' ')[0]);
-    const SVU_WHAT = { change: 'Change request', comment: 'Comment', waiting: 'Waiting for your answer', staff: 'Team note', kasper: 'Team note' };
-    const _svuWhatOf = (kind, m) => (kind === 'staff' || kind === 'kasper') && String(m.audience || '') === 'client' ? 'Reply to the client' : SVU_WHAT[kind];
+    /* Round 6 (owner, 2026-10-24): as little visual noise as possible. People are shown by first name, times are
+       always relative (the day line or a hover carries the date), and every coloured number says in a hover what
+       it counts. */
+    function _svuFirst(m) {
+        if (_svuRole(m) === 'kasper') return 'Kasper';
+        let name = '';
+        try { name = _svuIsClient(m) ? String(m && m.author || '') : String(_calNoteAuthorName(m) || ''); } catch (e) { name = String(m && m.author || ''); }
+        name = name.trim();
+        return name ? name.split(/\s+/)[0] : (_svuIsClient(m) ? 'Client' : 'Team');
+    }
+    function _svuAgo(iso) {
+        const t = Date.parse(iso || '');
+        if (!isFinite(t)) return '';
+        const mins = Math.round((Date.now() - t) / 60000);
+        if (mins < 1) return 'just now';
+        if (mins < 60) return mins + 'm ago';
+        const hrs = Math.round(mins / 60);
+        if (hrs < 24) return hrs + 'h ago';
+        const days = Math.round(hrs / 24);
+        if (days < 14) return days + 'd ago';
+        if (days < 60) return Math.round(days / 7) + 'w ago';
+        if (days < 365) return Math.round(days / 30) + 'mo ago';
+        return Math.round(days / 365) + 'y ago';
+    }
+    const _svuFullDate = iso => { const t = Date.parse(iso || ''); return isFinite(t) ? new Date(t).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''; };
+    const SVU_NUM_SAY = {
+        change: n => _svuPlural(n, 'new change request', 'new change requests'),
+        comment: n => _svuPlural(n, 'new comment', 'new comments'),
+        staff: n => _svuPlural(n, 'new message from the team', 'new messages from the team'),
+        kasper: n => _svuPlural(n, 'new message from Kasper', 'new messages from Kasper'),
+        waiting: n => _svuPlural(n, 'comment waiting for your answer', 'comments waiting for your answer'),
+        open: n => _svuPlural(n, 'change request not done yet', 'change requests not done yet'),
+    };
+    const SVU_LOCK_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>';
 
     /* ---------- the badge: one bubble per person ---------- */
     function _svuPeopleOf(post, s) {
@@ -203,10 +234,15 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         const rank = g => Math.max(SVU_RANK[g.kind] || 0, g.outKind === 'open' ? 4 : g.outKind === 'waiting' ? 3 : 0);
         return [...by.values()].sort((x, y) => (y.nNew > 0) - (x.nNew > 0) || rank(y) - rank(x) || y.last.localeCompare(x.last));
     }
-    function _svuBubblesHtml(people, max, slug) {
+    // `titled`: each bubble says in a hover what it counts (the Messages list; a card has its own hover box).
+    function _svuBubblesHtml(people, max, slug, titled) {
         const shown = people.slice(0, max), rest = people.length - shown.length;
-        return shown.map(g => `<span class="svu-bub">${_svuAvatar(g.m, 'svu-bub-av', slug)}${g.nNew ? `<b class="svu-num svu-n-${g.kind}">${g.nNew}</b>` : ''}${g.nOut ? `<b class="svu-num svu-o-${g.outKind}">${g.nOut}</b>` : ''}</span>`).join('')
-            + (rest ? `<span class="svu-bub-more">+${rest}</span>` : '');
+        return shown.map(g => {
+            const said = [g.nNew ? SVU_NUM_SAY[g.kind](g.nNew) : '', g.nOut ? SVU_NUM_SAY[g.outKind](g.nOut) : ''].filter(Boolean).join(', ');
+            const title = _calEscAttr(_svuFirst(g.m) + ': ' + said);
+            return `<span class="svu-bub"${titled ? ` title="${title}"` : ''} aria-label="${title}">${_svuAvatar(g.m, 'svu-bub-av', slug)}${g.nNew ? `<b class="svu-num svu-n-${g.kind}">${g.nNew}</b>` : ''}${g.nOut ? `<b class="svu-num svu-o-${g.outKind}">${g.nOut}</b>` : ''}</span>`;
+        }).join('')
+            + (rest ? `<span class="svu-bub-more"${titled ? ` title="${_calEscAttr(_svuPlural(rest, 'more person', 'more people'))}"` : ''}>+${rest}</span>` : '');
     }
 
     /* ---------- Calendar card: the Notes button (190 hands over here) ---------- */
@@ -226,15 +262,19 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         svuHideHover();
         if (!post || !anchor || !_svuOn) return;
         const s = _svuStateOf(post);
-        if (!s.items.length && !s.open) return;
+        // Everything a bubble counts: what is new and what still needs you (a change not done), newest first.
+        const rows = s.items.map(it => it.n);
+        for (const n of s.notes) if (n.m === n.root && s.openIds.has(n.m.id) && !s.newIds.has(n.m.id)) rows.push(n);
+        rows.sort((a, b) => String(b.m.created_at).localeCompare(String(a.m.created_at)));
+        if (!rows.length) return;
         const slug = _svuPostSlug(post);
-        const lines = s.items.slice(0, 5).map(({ kind, n }) => `<div class="svu-pv-row svu-k-${kind}"><span class="svu-pv-ico">${_svuAvatar(n.m, 'svu-pv-av', slug)}</span><span class="svu-pv-who">${_calEsc(_svuWho(n.m))}</span><span class="svu-pv-what">${_calEsc(_svuWhatOf(kind, n.m))} · ${_calEsc(_svuLabel(n.comp))}</span><span class="svu-pv-time">${_calEsc(_calFmtCommentTime(n.m.created_at))}</span><span class="svu-pv-text">${_calEsc(n.m.body || '')}</span></div>`).join('');
-        const more = s.items.length > 5 ? `<div class="svu-pv-foot">${s.items.length - 5} more in Notes</div>` : '';
-        const open = s.open ? `<div class="svu-pv-foot">${SVU_SAY.open(s.open)}</div>` : '';
+        // Round 6: picture, first name, one line of the note. The bubble's colour already says what kind it is.
+        const lines = rows.slice(0, 5).map(n => `<div class="svu-pv-row"><span class="svu-pv-ico">${_svuAvatar(n.m, 'svu-pv-av', slug)}</span><span class="svu-pv-who">${_calEsc(_svuFirst(n.m))}</span><span class="svu-pv-text">${_calEsc(n.m.body || '')}</span></div>`).join('');
+        const more = rows.length > 5 ? `<div class="svu-pv-more">+${rows.length - 5} more</div>` : '';
         _svuHoverEl = document.createElement('div');
         _svuHoverEl.className = 'svu-pv';
         _svuHoverEl.setAttribute('role', 'tooltip');
-        _svuHoverEl.innerHTML = (lines || '<div class="svu-pv-empty">Nothing new</div>') + more + open;
+        _svuHoverEl.innerHTML = lines + more;
         document.body.appendChild(_svuHoverEl);
         const r = anchor.getBoundingClientRect();
         const w = Math.min(380, innerWidth - 24);
@@ -272,25 +312,20 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         const notes = live.notes;
         const slug = _svuPostSlug(post);
         const l = _svuLocalGet();
-        const need = [];
-        for (const n of notes) {
-            const id = n.m.id;
-            if (n.m !== n.root) continue;
-            if (live.newIds.has(id) || live.waitingIds.has(id) || live.openIds.has(id)) {
-                const k = live.waitingIds.has(id) ? 'waiting' : (live.newIds.has(id) ? _svuKindOf(n) : 'open');
-                const label = live.waitingIds.has(id) ? 'Waiting for your answer' : live.newIds.has(id) ? (k === 'change' ? 'New change request' : k === 'comment' ? 'New comment' : k === 'kasper' ? 'New from Kasper' : 'New from the team') : 'Change request not done';
-                need.push({ id, k, label, n });
-            }
+        // Round 6: no "Needs you" box (the tags on each note carry it); "Mark unread" is one quiet word in the head.
+        const oldBar = modal.querySelector('.svu-need');
+        if (oldBar) oldBar.remove();
+        const head = modal.querySelector('.cal-comments-head');
+        if (head && !head.querySelector('.svu-head-unread')) {
+            const close = head.querySelector('.cal-comments-close');
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'svu-head-unread';
+            btn.textContent = 'Mark unread';
+            const pid = post.id;
+            btn.addEventListener('click', () => svuMarkUnread(pid));
+            if (close) close.before(btn); else head.appendChild(btn);
         }
-        for (const n of notes) if (n.m !== n.root && live.newIds.has(n.m.id) && !need.some(x => x.id === n.root.id)) need.push({ id: n.root.id, k: _svuKindOf(n), label: 'New reply', n });
-        const pq = _jsAttrArg(post.id);
-        const head = need.length ? 'Needs you' : 'Nothing needs you on this post';
-        const barHtml = `<div class="svu-need-head"><span>${head}</span><button type="button" class="svu-text-btn" onclick="svuMarkUnread(${pq})">Mark unread</button></div>`
-            + need.slice(0, 4).map(x => `<button type="button" class="svu-need-row svu-k-${x.k}" onclick="svuJump(${_jsAttrArg(x.id)})"><span class="svu-need-ico">${SVU_ICO[x.k] || SVU_ICO.comment}</span><span class="svu-need-label">${_calEsc(x.label)}</span><span class="svu-need-text">${_calEsc(_svuWho(x.n.m))} · ${_calEsc(x.n.m.body || '')}</span><span class="svu-need-part">${_calEsc(_svuLabel(x.n.comp))}</span></button>`).join('')
-            + (need.length > 4 ? `<div class="svu-need-more">${need.length - 4} more below</div>` : '');
-        let bar = modal.querySelector('.svu-need');
-        if (!bar) { bar = document.createElement('div'); bar.className = 'svu-need'; feed.before(bar); }
-        _svuSetHtml(bar, barHtml);
         modal.querySelectorAll('.cal-cm-row[data-cm-row]').forEach(row => {
             const id = row.getAttribute('data-cm-row');
             const n = notes.find(x => x.m.id === id);
@@ -299,6 +334,15 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
             if (row.getAttribute('data-svu-kind') !== k) row.setAttribute('data-svu-kind', k);
             const av = row.querySelector('.cal-cm-avatar');
             if (av && !av.querySelector('.svu-slack-av')) av.innerHTML = _svuAvatar(n.m, 'svu-slack-av', slug);
+            const au = row.querySelector('.cal-cm-author');
+            if (au && !au.hasAttribute('data-svu-full')) {
+                const full = au.textContent.trim();
+                au.setAttribute('data-svu-full', full);
+                au.title = full;
+                au.textContent = full.split(/\s+/)[0] || full;
+            }
+            const tm = row.querySelector('.cal-cm-time');
+            if (tm && !tm.hasAttribute('data-svu-ago')) { tm.setAttribute('data-svu-ago', '1'); tm.textContent = _svuAgo(n.m.created_at); tm.title = _svuFullDate(n.m.created_at); }
             const tags = [];
             if (live.newIds.has(id)) tags.push(`<span class="svu-tag svu-t-${k}">New</span>`);
             if (live.waitingIds.has(id)) tags.push('<span class="svu-tag svu-t-waiting">Waiting for your answer</span>');
@@ -310,25 +354,21 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
             let holder = row.querySelector('.svu-tags');
             if (!holder && line) { holder = document.createElement('span'); holder.className = 'svu-tags'; line.insertBefore(holder, line.querySelector('.cal-cm-time')); }
             if (holder) _svuSetHtml(holder, html);
-            const q = _jsAttrArg(id);
-            const want = live.waitingIds.has(id)
-                ? `<button type="button" class="svu-btn svu-primary" onclick="_calBeginReply(${q})">Reply</button><button type="button" class="svu-text-btn" onclick="svuNoReply(${q})">No reply needed</button>`
-                : (live.openIds.has(id) ? `<button type="button" class="svu-btn" onclick="_calBeginReply(${q})">Reply</button><button type="button" class="svu-text-btn" onclick="_calToggleCommentDone(${q})">Mark done</button>` : '');
-            let act = row.querySelector('.svu-row-acts');
-            const body = row.querySelector('.cal-cm-row-body');
-            if (!act && body && want) { act = document.createElement('div'); act.className = 'svu-row-acts'; body.after(act); }
-            if (act) _svuSetHtml(act, want);
-            if (act) act.hidden = !want;
+            // Round 6: one set of actions, the hover toolbar (Reply, Mark done, Delete); "No reply needed" joins it on a
+            // comment waiting for an answer.
+            const bar = row.querySelector('.cal-cm-actions');
+            const nr = bar && bar.querySelector('.svu-noreply');
+            if (bar && live.waitingIds.has(id) && !nr) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'cal-cm-action svu-noreply';
+                btn.textContent = 'No reply needed';
+                btn.addEventListener('click', () => svuNoReply(id));
+                const first = bar.querySelector('.cal-cm-action');
+                if (first) first.after(btn); else bar.prepend(btn);
+            } else if (nr && !live.waitingIds.has(id)) nr.remove();
         });
     }
-    function svuJump(id) {
-        const sel = (window.CSS && CSS.escape) ? CSS.escape(id) : id;
-        const row = document.querySelector(`#calCommentsModal .cal-cm-row[data-cm-row="${sel}"]`);
-        if (!row) return;
-        row.scrollIntoView({ block: 'center' });
-        row.classList.add('svu-flash'); setTimeout(() => row.classList.remove('svu-flash'), 1200);
-    }
-
     /* ---------- Messages (326 hands over here) ---------- */
     const _svuIsChangeMsg = (m, byId) => { const root = byId.get(m.root_id) || m; return _svuIsClient(m) && _svuIsTweak(root) && root.is_tweak === true && _svuIsClient(root); };
     // New = from the first unread message the server named, minus your own, automatic records and change requests.
@@ -372,7 +412,7 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
             if (String(m.created_at) > g.last) g.last = String(m.created_at);
         }
         if (!by.size && s.newTotal) by.set('client', { m: { role: c.last_role || 'client', author: c.last_author, author_member_id: c.last_author_member_id }, nNew: s.newTotal, kind: 'comment', nOut: 0, outKind: '', last: '' });
-        return _svuBubblesHtml([...by.values()].sort((x, y) => (y.nNew > 0) - (x.nNew > 0) || y.last.localeCompare(x.last)), 2, c.client_slug);
+        return _svuBubblesHtml([...by.values()].sort((x, y) => (y.nNew > 0) - (x.nNew > 0) || y.last.localeCompare(x.last)), 2, c.client_slug, true);
     }
     function svuMsgListHtml() {
         const f = _msgState.filter;
@@ -385,11 +425,11 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
             const byId = new Map(msgs.map(m => [m.id, m]));
             const last = msgs.filter(m => !_svuIsAuto(m) && !_svuIsChangeMsg(m, byId)).slice(-1)[0]
                 || { author: c.last_author, author_member_id: c.last_author_member_id, role: c.last_role, body: c.last_body, created_at: c.last_at };
-            const who = _svuIsMine(last) ? 'You' : _svuWho(last);
+            const who = _svuIsMine(last) ? 'You' : _svuFirst(last);
             return `<button type="button" class="msg-conv svu-conv${c.post_id === _msgState.openId ? ' is-active' : ''}${s.newTotal ? ' is-unread' : ''}" data-msg-conv="${_calEscAttr(c.post_id)}" onclick="_msgOpen(${_jsAttrArg(c.post_id)})">
                 ${_svuAvatar({ role: 'client' }, 'svu-conv-av', c.client_slug)}
                 <span class="svu-conv-main">
-                    <span class="svu-conv-top"><span class="svu-conv-title">${_calEsc(c.title || 'Untitled post')}</span><span class="svu-conv-time">${_calEsc(_calFmtCommentTime(last.created_at || c.last_at))}</span></span>
+                    <span class="svu-conv-top"><span class="svu-conv-title">${_calEsc(c.title || 'Untitled post')}</span><span class="svu-conv-time">${_calEsc(_svuAgo(last.created_at || c.last_at))}</span></span>
                     <span class="svu-conv-last">${_calEsc(_msgClientName(c))} · ${_calEsc(who + ': ' + (last.body || ''))}</span>
                 </span>
                 <span class="svu-conv-badge">${_svuConvBubbles(c, s)}</span>
@@ -443,13 +483,30 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
                 b.setAttribute('data-svu-kind', k);
                 if (!b.querySelector('.svu-slack-av')) b.insertAdjacentHTML('afterbegin', _svuAvatar(m, 'svu-slack-av', c.client_slug));
                 const meta = b.querySelector('.msg-b-meta');
+                if (meta) {
+                    // Round 6: first name, no role word, a lock for "Team only", "Change request" in quiet words, the
+                    // part at the right, and a relative time (the day line above carries the date).
+                    const name = meta.querySelector('b');
+                    if (name && !_svuIsMine(m)) { name.title = name.textContent; name.textContent = _svuFirst(m); }
+                    const role = name && name.nextElementSibling;
+                    if (role && role.tagName === 'SPAN' && !role.className) role.remove();
+                    const team = meta.querySelector('.cal-cm-to-tag.is-team');
+                    if (team) team.outerHTML = `<span class="svu-lock" title="Team only: the client never sees this" aria-label="Team only">${SVU_LOCK_ICO}</span>`;
+                    const tweak = meta.querySelector('.cal-cm-type-tag.is-tweak');
+                    if (tweak) tweak.outerHTML = '<span class="svu-kind-change">Change request</span>';
+                    const time = [...meta.children].filter(x => x.tagName === 'SPAN' && !x.className).pop();
+                    if (time) { time.className = 'svu-time'; time.textContent = _svuAgo(m.created_at); time.title = _svuFullDate(m.created_at); }
+                    const part = meta.querySelector('.cal-cm-comp-label');
+                    if (part) meta.appendChild(part);
+                }
                 const tags = [];
                 if (s.newIds.has(m.id)) tags.push(`<span class="svu-tag svu-t-${k}">New</span>`);
                 if (s.waitingIds.has(m.id)) tags.push('<span class="svu-tag svu-t-waiting">Waiting for your answer</span>');
                 if (l.noReply.has(m.id)) tags.push('<span class="svu-tag svu-t-plain">No reply needed</span>');
                 if (_svuIsAuto(m)) tags.push('<span class="svu-tag svu-t-plain">Automatic record</span>');
-                if (meta && tags.length) meta.insertAdjacentHTML('beforeend', tags.join(''));
-                if (s.waitingIds.has(m.id)) b.insertAdjacentHTML('beforeend', `<div class="svu-row-acts"><button type="button" class="svu-btn svu-primary" onclick="_msgSetReplyTo(${_jsAttrArg(m.root_id)});document.getElementById('msgReplyBox')&&document.getElementById('msgReplyBox').focus()">Reply</button><button type="button" class="svu-text-btn" onclick="svuNoReply(${_jsAttrArg(m.id)})">No reply needed</button></div>`);
+                if (meta && tags.length) { const part = meta.querySelector('.cal-cm-comp-label'); if (part) part.insertAdjacentHTML('beforebegin', tags.join('')); else meta.insertAdjacentHTML('beforeend', tags.join('')); }
+                // Round 6: Reply (and No reply needed on a comment waiting for you) show on hover, as plain words.
+                b.insertAdjacentHTML('beforeend', `<div class="svu-msg-acts"><button type="button" onclick="_msgSetReplyTo(${_jsAttrArg(m.root_id)});document.getElementById('msgReplyBox')&&document.getElementById('msgReplyBox').focus()">Reply</button>${s.waitingIds.has(m.id) ? `<button type="button" onclick="svuNoReply(${_jsAttrArg(m.id)})">No reply needed</button>` : ''}</div>`);
             });
         });
     }
@@ -522,6 +579,6 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
 
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
-        svuHideHover, svuHoverCard, svuJump, svuMarkUnread, svuNoReply
+        svuHideHover, svuHoverCard, svuNoReply
     });
 export { svuActive, svuAfterMsgPaint, svuMsgListHtml, svuNotesBtnHtml, svuNotesOpening, svuPaintCounts, svuPicturesArrived, svuUnreadConversations };

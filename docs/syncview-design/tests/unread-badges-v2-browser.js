@@ -115,6 +115,14 @@ const cardState = page => page.evaluate(() => {
     }));
     ok(notes.need.includes('New change request') && notes.need.includes('Waiting for your answer') && notes.need.includes('New from the team'), 'D. "Needs you" keeps what was new: ' + notes.need.join(', '));
     ok(notes.waitingTag && notes.acts.join() === 'Reply,No reply needed', 'D. the waiting comment carries Reply and No reply needed');
+    const writes = await page.evaluate(() => new Promise(resolve => {
+      const bar = document.querySelector('#calCommentsModal .svu-need');
+      let n = 0;
+      const mo = new MutationObserver(list => { n += list.length; });
+      mo.observe(bar, { childList: true, subtree: true });
+      setTimeout(() => { mo.disconnect(); resolve(n); }, 1200);
+    }));
+    ok(writes === 0, 'D. Needs you settles: no redraw while nothing changes (' + writes + ' writes in 1.2 s)');
     await page.click('#calCommentsModal .cal-cm-row[data-cm-row="n_question"] .svu-row-acts .svu-text-btn');
     await sleep(300);
     const after = await page.evaluate(() => ({
@@ -136,8 +144,20 @@ const cardState = page => page.evaluate(() => {
     ok(msg.tabs.join() === 'New,To answer,All', 'E. Messages has New, To answer and All: ' + msg.tabs.join());
     ok(msg.img === CLIENT_PIC, 'E. the conversation row carries the client picture');
     ok(/svu-count/.test(msg.count), 'E. the Messages count is the round one');
+    const views = await page.evaluate(() => {
+      const keep = _msgState.scope;
+      const rows = scope => { _msgState.scope = scope; _msgState.openId = ''; _msgSetFilter('new'); return document.querySelectorAll('#msgPage .svu-conv').length; };
+      const reviewer = rows('all'), smm = rows('own');
+      _msgState.scope = keep; _msgSetFilter('all');
+      return { reviewer, smm };
+    }).catch(e => ({ error: String(e) }));
+    ok(views.reviewer === 0 && views.smm === 1, 'E. the reviewer view never counts a client message as new, the SMM view does ' + JSON.stringify(views));
+    await page.evaluate(() => svuMarkUnread('p_t1'));
     await page.evaluate(() => _msgOpen('p_t1'));
     await page.waitForSelector('#msgPage .svu-change-line', { timeout: 6000 }).catch(() => {});
+    await sleep(300);
+    const cleared = await page.evaluate(() => { try { return !JSON.parse(localStorage.getItem('sv-unread-v2-local')).unread.includes('p_t1'); } catch (e) { return false; } });
+    ok(cleared, 'E. opening the conversation in Messages clears this browser\'s Mark unread for it');
     const line = await page.evaluate(() => (document.querySelector('#msgPage .svu-change-line') || {}).textContent || '');
     ok(/asked for a change on the video/.test(line), 'E. the change request is one line pointing to the card');
     ok(h.inboxCalls.some(b => b.pictures === 1), 'G. with the switch on, the inbox read asks for pictures');

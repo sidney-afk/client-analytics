@@ -256,6 +256,13 @@ import { _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId, _msgPaint, _ms
         if (l.unread.delete(pid)) _svuLocalSave();
         svuHideHover();
     }
+    // Writes markup only when it differs from what this code last wrote there. Comparing with innerHTML would never
+    // settle (the browser re-serialises <path/> as <path></path>), and every write wakes the observer below.
+    function _svuSetHtml(el, html) {
+        if (el.__svuHtml === html) return;
+        el.__svuHtml = html;
+        el.innerHTML = html;
+    }
     function _svuDecorateNotes() {
         const modal = document.getElementById('calCommentsModal');
         if (!modal || !_svuNotesSnap) return;
@@ -284,7 +291,7 @@ import { _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId, _msgPaint, _ms
             + (need.length > 4 ? `<div class="svu-need-more">${need.length - 4} more below</div>` : '');
         let bar = modal.querySelector('.svu-need');
         if (!bar) { bar = document.createElement('div'); bar.className = 'svu-need'; feed.before(bar); }
-        if (bar.innerHTML !== barHtml) bar.innerHTML = barHtml;
+        _svuSetHtml(bar, barHtml);
         modal.querySelectorAll('.cal-cm-row[data-cm-row]').forEach(row => {
             const id = row.getAttribute('data-cm-row');
             const n = notes.find(x => x.m.id === id);
@@ -303,7 +310,7 @@ import { _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId, _msgPaint, _ms
             const line = row.querySelector('.cal-cm-head-line');
             let holder = row.querySelector('.svu-tags');
             if (!holder && line) { holder = document.createElement('span'); holder.className = 'svu-tags'; line.insertBefore(holder, line.querySelector('.cal-cm-time')); }
-            if (holder && holder.innerHTML !== html) holder.innerHTML = html;
+            if (holder) _svuSetHtml(holder, html);
             const q = _jsAttrArg(id);
             const want = live.waitingIds.has(id)
                 ? `<button type="button" class="svu-btn svu-primary" onclick="_calBeginReply(${q})">Reply</button><button type="button" class="svu-text-btn" onclick="svuNoReply(${q})">No reply needed</button>`
@@ -311,7 +318,7 @@ import { _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId, _msgPaint, _ms
             let act = row.querySelector('.svu-row-acts');
             const body = row.querySelector('.cal-cm-row-body');
             if (!act && body && want) { act = document.createElement('div'); act.className = 'svu-row-acts'; body.after(act); }
-            if (act && act.innerHTML !== want) act.innerHTML = want;
+            if (act) _svuSetHtml(act, want);
             if (act) act.hidden = !want;
         });
     }
@@ -339,8 +346,11 @@ import { _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId, _msgPaint, _ms
         const byId = new Map(msgs.map(m => [m.id, m]));
         const marked = l.unread.has(c.post_id);
         const start = marked ? 0 : (Number(c.unread) > 0 && c.first_unread_id ? msgs.findIndex(m => m.id === c.first_unread_id) : -1);
+        // The reviewer view (scope "all") never counts a client message as new: the server's countsAsNew (inbox.mjs).
+        const reviewer = _msgState.scope === 'all';
         msgs.forEach((m, i) => {
             if (start < 0 || i < start || _svuIsMine(m) || _svuIsAuto(m) || _svuIsChangeMsg(m, byId)) return;
+            if (reviewer && _svuIsClient(m)) return;
             const k = _svuIsClient(m) ? 'comment' : _svuRole(m) === 'kasper' ? 'kasper' : 'staff';
             s[k]++; s.newIds.add(m.id);
         });
@@ -415,8 +425,10 @@ import { _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId, _msgPaint, _ms
             }
             const c = _msgState.conversations.find(x => x.post_id === _msgState.openId);
             if (!c || !Array.isArray(c.messages)) return;
-            const s = _svuConvState(c);
             const l = _svuLocalGet();
+            // Read here: a card's "Mark unread" (kept in this browser) no longer holds it in New.
+            if (l.unread.delete(c.post_id)) { _svuLocalSave(); setTimeout(svuRefresh, 0); }
+            const s = _svuConvState(c);
             const byId = new Map(c.messages.map(m => [m.id, m]));
             root.querySelectorAll('.msg-b[data-msg-id]').forEach(b => {
                 if (b.hasAttribute('data-svu')) return;

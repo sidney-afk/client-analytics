@@ -3250,6 +3250,13 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
         return !!slug && members.some(member => _calRuntimeFlagSlug(member) === slug);
     }
     function _calUpsertPost(url, payload, source) {
+        // Caption history: only calendar-card-write learns how a caption save came about (calendar-upsert never does).
+        // Done here, not in _calUpsertFetchGuarded, so the client approve / request-changes path stays byte-identical
+        // (test/client-review-requests-unchanged-browser.js).
+        if (url === CALENDAR_CARD_WRITE_EF_URL) {
+            const origin = _calCapOriginFor(payload && payload.client, payload);
+            if (origin) payload = Object.assign({}, payload, { caption_origin: origin });
+        }
         return _calSaveFetch(url, {
             method: 'POST',
             headers: _calUpsertHeaders(source, url),
@@ -3297,8 +3304,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     async function _calUpsertFetchGuarded(clientOrSlug, payload, source) {
         await _calAssertSavingOn(clientOrSlug);
         if (await _calCardWriteOn(clientOrSlug)) {
-            const origin = _calCapOriginFor(clientOrSlug, payload);
-            const resp = await _calUpsertPost(CALENDAR_CARD_WRITE_EF_URL, origin ? Object.assign({}, payload, { caption_origin: origin }) : payload, source);
+            const resp = await _calUpsertPost(CALENDAR_CARD_WRITE_EF_URL, payload, source);
             if (!(await _calCardWriteRefusedBeforeWriting(resp))) return resp;
             _calCardWriteFlag = { value: null, at: Date.now() };   // the server said off: stop asking it for 30 seconds
         }

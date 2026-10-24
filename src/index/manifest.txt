@@ -53,6 +53,7 @@
 230-production-create-comments.js.part
 240-production-description.js.part
 250-production-controls-data.js.part
+255-production-thumbnail-titles.js.part
 260-production-refresh-boot.js.part
 270-samples-model.js.part
 280-samples-cards-notes.js.part

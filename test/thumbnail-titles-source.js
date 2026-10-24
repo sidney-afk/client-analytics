@@ -148,14 +148,21 @@ const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++; };
 
   // ---- static wiring ----
   const fn = read('supabase/functions/thumbnail-titles/index.ts');
-  ok(fn.includes('from "../higgsfield-mcp/clientinfo.ts"') && /planTabs\(docId\)/.test(fn), 'reuses the connector\'s filming-plan reader');
-  ok(!/docs\.google\.com/.test(fn), 'no second copy of the Doc reader');
-  ok(/x-thumbnail-titles-key/.test(fn) && /thumbnail_titles_key_ok/.test(fn) && fn.indexOf('thumbnail_titles_key_ok') < fn.indexOf('req.json()'), 'timer key checked before anything else');
+  // Since 2026-10-23 (OPEN_REPAIRS 481) the plan is read by plan.ts: the connector's link reader first, then
+  // the service account for private plans. Still one link reader, the connector's.
+  const planSrc = read('supabase/functions/thumbnail-titles/plan.ts');
+  ok(planSrc.includes('from "../higgsfield-mcp/clientinfo.ts"') && /planTabs\(docId\)/.test(planSrc) && /readPlanTabs\(docId\)/.test(fn), 'reuses the connector\'s filming-plan reader');
+  ok(!/docs\.google\.com/.test(fn) && !/docs\.google\.com/.test(planSrc), 'no second copy of the Doc reader');
+  const serve = fn.slice(fn.indexOf('Deno.serve('));
+  ok(/x-thumbnail-titles-key/.test(serve) && /thumbnail_titles_key_ok/.test(serve) && serve.indexOf('thumbnail_titles_key_ok') < serve.indexOf('req.json()'), 'timer key checked before anything else');
+  ok(/if \(!req\.headers\.get\("x-thumbnail-titles-key"\) && req\.headers\.get\("x-syncview-key"\)\) return await handleBrowser\(req\)/.test(serve) && /authorizeBrowserWrite\(db, req, client, "thumbnail-titles"\)/.test(fn) && /\["admin", "smm"\]\.includes\(principal\.role\)/.test(fn), 'the buttons need an admin or SMM staff key');
+  ok(/if \(state === "needs_info"\) \{[\s\S]{0,400}from\("thumbnail_title_queue"\)[\s\S]{0,300}return "needs_info";/.test(fn), 'no "Needs info" line is written into a description any more (owner decision 5)');
   ok(/security definer[\s\S]{0,200}vault\.decrypted_secrets where name = 'thumbnail_titles_key'/.test(read('migrations/2026-10-09-thumbnail-titles.sql')), 'key compared in the database');
   ok(/THUMBNAIL_TITLES_API_KEY/.test(fn) && !/sk-ant-/.test(fn), 'AI key from a secret only');
   ok(/skipped: "off"/.test(fn), 'off is a no-op');
   ok(/p_count: false/.test(fn) && /waiting_for_api_key/.test(fn), 'no AI key: titles wait without using up a try');
-  ok(/thumbnail_title_apply/.test(fn) && !/\.from\("deliverables"\)[\s\S]{0,80}\.update\(/.test(fn), 'descriptions written only through the apply function');
+  const runsSrc = read('supabase/functions/thumbnail-titles/runs.ts');
+  ok(/thumbnail_title_apply/.test(fn) && !/\.from\("deliverables"\)[\s\S]{0,80}\.update\(/.test(fn) && !/\.from\("deliverables"\)[\s\S]{0,80}\.update\(/.test(runsSrc), 'descriptions written only through the apply functions');
   const seed = read('supabase/functions/thumbnail-titles/seed.ts');
   ok(/titleStyleFacts/.test(seed) && /STYLE_EXCLUDE/.test(seed) && /\.update\(\{ default_prompt: defaultPrompt, default_source: source, default_refreshed_at: now \}\)/.test(seed) && !/[^_]prompt:\s*defaultPrompt/.test(seed), 'seed never overwrites a saved prompt');
   const prompts = read('supabase/functions/thumbnail-title-prompts/index.ts');

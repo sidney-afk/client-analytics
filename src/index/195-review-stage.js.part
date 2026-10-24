@@ -2251,8 +2251,15 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
        request keeps its box open and empty on the same part, so the next change can follow; changes sent while one is
        still saving wait their turn here and never replace each other. No "Sending..." text anywhere: one spinner. */
     const RS_CP_CHECK_MS = 650;
-    // The page's one spinner. Swap point: when the shared staff spinner (session Beacon) lands, return its markup here.
-    function _rsSpinner(label) { return '<span class="cp-spin" role="img" aria-label="' + _re(label || 'Working') + '"></span>'; }
+    // The page's one spinner: the shared one (svSpinHtml, 040, session Beacon) when it is there, else the same markup
+    // here. `cp-spin` only sizes it for this page's places (a note's header, Finish, the approve circle).
+    function _rsSpinner(label) {
+        const l = label || 'Sending';
+        let h = '';
+        try { if (typeof window.svSpinHtml === 'function') h = String(window.svSpinHtml(l) || ''); } catch (e) { h = ''; }
+        if (!/class="sv-spin/.test(h)) h = '<span class="sv-spin" role="status" aria-label="' + _re(l) + '"></span>';
+        return h.replace('class="sv-spin', 'class="cp-spin sv-spin');
+    }
     // The approve button as a circle: a spinner while the save runs, a check once it landed (`ok`: when it landed).
     function _rsCpMorph(x, ok) {
         const n = _rsLname(x.key), w = Math.max(44, Math.min(320, Number(R.S.cpW) || 180));

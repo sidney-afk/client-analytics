@@ -1509,6 +1509,9 @@
         .notify-client-dialog .nc-msg-line { font-size: 0.9rem; font-weight: 800; line-height: 1.35; }
         .notify-client-dialog .nc-msg-link { margin-top: 4px; font-size: 0.86rem; font-weight: 600; color: var(--notify-bg); text-decoration: underline; }
         .notify-client-dialog .nc-note, .notify-client-dialog .nc-last { margin-top: 12px; font-size: 0.78rem; color: var(--text-secondary); line-height: 1.45; }
+        .notify-client-dialog .nc-tag { margin-top: 12px; font-size: 0.8rem; color: var(--text-secondary); line-height: 1.45; }
+        .notify-client-dialog .nc-tag b { color: var(--text-primary); font-weight: 700; }
+        .notify-client-dialog .nc-msg-mention { color: var(--notify-bg); font-weight: 800; }
         .notify-client-dialog .nc-warn, .notify-client-dialog .nc-alert { margin-top: 12px; padding: 9px 12px; border-radius: 8px;
             font-size: 0.78rem; font-weight: 600; line-height: 1.45; }
         .notify-client-dialog .nc-warn { background: var(--warn-solid-bg); color: var(--warn-solid-fg); }
@@ -8592,7 +8595,8 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
  .workload-view.wl-calm .workload-day-card-chip-meta .wl-plan-origin svg { width: 11px; height: 11px; }
  .workload-view.wl-calm .workload-day-card-chip .workload-drag-handle, .workload-view.wl-calm .wl-calm-row .workload-drag-handle { opacity: 0; transition: opacity 0.1s; }
  .workload-view.wl-calm .workload-day-card-chip:hover .workload-drag-handle, .workload-view.wl-calm .wl-calm-row:hover .workload-drag-handle, .workload-view.wl-calm .workload-drag-handle:focus-visible { opacity: 0.7; }
- .workload-view.wl-calm .wl-deadline-summary.is-green, .workload-view.wl-calm .wl-deadline-summary.is-neutral { --wl-proximity-dot: var(--text-muted); color: var(--text-muted); }
+ /* Only a mixed or no-deadline client row is grey; a row with 3+ working days of buffer keeps its green dot (owner, 2026-10-23). */
+.workload-view.wl-calm .wl-deadline-summary.is-neutral { --wl-proximity-dot: var(--text-muted); color: var(--text-muted); }
  .workload-view.wl-calm .wl-deadline-summary.is-orange .wl-deadline-dot { background: var(--wl-tweaks-accent); }
  /* The open group: the same compact list, no tree lines, no row boxes */
  .workload-view.wl-calm .workload-day-client-group[open] > .workload-day-card-items { padding-left: 12px; gap: 8px; margin: 2px 0 8px; }

@@ -38,6 +38,19 @@ type JsonMap = Record<string, unknown>;
 // What the admin list returns: every profile field, the provenance columns,
 // and nothing internal (row_hash is a copy-job detail).
 const CLIENT_PROFILE_ADMIN_COLUMNS = "slug,display_name,email,competitors,keywords,specific_keywords,content_description,instagram_handle,tiktok_handle,youtube_channel_id,slack_channel_id,creative_channel_id,upload_post_profile,postforme_account_id,extra,source,sheet_synced_at,archived_at,created_at,updated_at,updated_by";
+// The Slack person "Notify client" tags (migrations/2026-10-23-client-slack-mention.sql).
+// Selected only once a probe finds the column, so the Clients tab keeps loading
+// before that migration is applied. A found column is remembered; a missing one
+// is asked again on the next call, so applying it needs no redeploy.
+const SLACK_MENTION_COLUMN = "slack_mention_user_id";
+let slackMentionColumnSeen = false;
+async function clientProfileAdminColumns(supabase: SupabaseClient): Promise<string> {
+  if (!slackMentionColumnSeen) {
+    const { error } = await supabase.from("client_profiles").select(SLACK_MENTION_COLUMN).limit(1);
+    slackMentionColumnSeen = !error;
+  }
+  return slackMentionColumnSeen ? CLIENT_PROFILE_ADMIN_COLUMNS + "," + SLACK_MENTION_COLUMN : CLIENT_PROFILE_ADMIN_COLUMNS;
+}
 
 function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), { status, headers: { ...CORS, "Content-Type": "application/json" } });
@@ -208,7 +221,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const staffKey = clean(req.headers.get("x-syncview-key"));
       if (!staffKey || !authorizeStaffKey(staffKey, ["admin"]).ok) return json({ ok: false, error: "unauthorized" }, 401);
       const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
-      const rows = await readAll((a, b) => supabase.from("client_profiles").select(CLIENT_PROFILE_ADMIN_COLUMNS)
+      const columns = await clientProfileAdminColumns(supabase);
+      const rows = await readAll((a, b) => supabase.from("client_profiles").select(columns)
         .order("display_name").order("slug").range(a, b));
       const { data: authority } = await supabase.from("syncview_runtime_flags").select("value")
         .eq("key", "client_profiles_authority").maybeSingle();

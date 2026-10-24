@@ -16,7 +16,18 @@ export const EDITABLE_FIELDS = Object.freeze([
   'email', 'instagram_handle', 'tiktok_handle', 'youtube_channel_id',
   'slack_channel_id', 'creative_channel_id', 'upload_post_profile', 'postforme_account_id',
   'content_description', 'keywords', 'specific_keywords', 'competitors',
+  'slack_mention_user_id',
 ]);
+// The Slack person "Notify client" tags (migrations/2026-10-23-client-slack-mention.sql).
+// A member id, as Slack's profile menu "Copy member ID" gives it. A pasted
+// <@U...> mention or a lower-case id is tidied; anything else is refused here
+// so the database constraint never has to say no.
+const SLACK_MEMBER_ID = /^[UW][A-Z0-9]{8,}$/;
+export function normalizeSlackMemberId(v) {
+  const t = text(v).replace(/^<@/, '').replace(/>$/, '').replace(/^@/, '').trim().toUpperCase();
+  if (!t) return { ok: true, value: '' };
+  return SLACK_MEMBER_ID.test(t) ? { ok: true, value: t } : { ok: false };
+}
 export const MAX_FIELD_CHARS = 20000;
 
 function text(v) {
@@ -37,8 +48,13 @@ export function normalizeChanges(raw) {
   for (const [k, v] of Object.entries(raw)) {
     if (!EDITABLE_FIELDS.includes(k)) return { ok: false, error: 'field_not_editable', field: k };
     if (v != null && typeof v !== 'string') return { ok: false, error: 'bad_value', field: k };
-    const t = text(v);
+    let t = text(v);
     if (t.length > MAX_FIELD_CHARS) return { ok: false, error: 'value_too_long', field: k };
+    if (k === 'slack_mention_user_id') {
+      const id = normalizeSlackMemberId(t);
+      if (!id.ok) return { ok: false, error: 'bad_value', field: k };
+      t = id.value;
+    }
     out[k] = t;
   }
   if (!Object.keys(out).length) return { ok: false, error: 'no_changes' };

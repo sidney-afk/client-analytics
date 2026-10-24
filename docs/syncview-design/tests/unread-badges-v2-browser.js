@@ -367,7 +367,13 @@ const cardState = page => page.evaluate(() => {
     const msgPlaced = [];
     for (const id of ['m_team', 'm_team2', 'n_question']) {
       const sel = `#msgPage .msg-b[data-msg-id="${id}"]`;
+      await page.mouse.move(5, 5);
+      await sleep(120);
+      const before = await page.evaluate(sel => { const r = document.querySelector(sel).getBoundingClientRect(); return [Math.round(r.top), Math.round(r.height)].join(); }, sel);
       await page.hover(sel + ' .msg-b-text').catch(() => {});
+      await sleep(120);
+      const after = await page.evaluate(sel => { const r = document.querySelector(sel).getBoundingClientRect(); return [Math.round(r.top), Math.round(r.height)].join(); }, sel);
+      if (before !== after) msgPlaced.push(id + ': the row moved on hover ' + before + ' -> ' + after);
       await sleep(180);
       msgPlaced.push(await page.evaluate(([sel, id]) => {
         const b = document.querySelector(sel), bar = b && b.querySelector('.svu-msg-acts');
@@ -379,10 +385,18 @@ const cardState = page => page.evaluate(() => {
         const all = [...document.querySelectorAll('#msgPage .msg-b .msg-b-text, #msgPage .msg-b .msg-b-meta')];
         const range = document.createRange();
         const covers = all.some(el => { range.selectNodeContents(el); return [...range.getClientRects()].some(t => t.width && t.left < x.right && t.right > x.left && t.top < x.bottom && t.bottom > x.top); });
-        return covers ? id + ': covers words' : (Math.abs(x.left - text.left) > 2 || x.top < text.bottom - 2) ? id + ': not at the bottom left under the words ' + [Math.round(x.left - text.left), Math.round(x.top - text.bottom)] : '';
+        // Inside the hovered row (its hover background), and at least 8 px above the next row.
+        const rows = [...document.querySelectorAll('#msgPage .msg-b, #msgPage .svu-change-line')];
+        const next = rows[rows.indexOf(b) + 1], nr = next && next.getBoundingClientRect();
+        const inside = x.top >= r.top - 0.5 && x.bottom <= r.bottom + 0.5 && x.left >= r.left - 0.5 && x.right <= r.right + 0.5;
+        if (covers) return id + ': covers words';
+        if (Math.abs(x.left - text.left) > 2 || x.top < text.bottom - 2) return id + ': not at the bottom left under the words ' + [Math.round(x.left - text.left), Math.round(x.top - text.bottom)];
+        if (!inside) return id + ': outside its row ' + [Math.round(x.bottom - r.bottom)];
+        if (nr && nr.top - x.bottom < 8) return id + ': only ' + Math.round(nr.top - x.bottom) + ' px above the next row';
+        return '';
       }, [sel, id]));
     }
-    ok(msgPlaced.every(x => x === ''), 'J. Messages: the hover actions sit at the bottom left, under the words, and cover nobody\'s words ' + msgPlaced.filter(Boolean).join('; '));
+    ok(msgPlaced.every(x => x === ''), 'J. Messages: the hover actions sit at the bottom left, under the words, inside their row, 8 px or more above the next row, covering nobody\'s words ' + msgPlaced.filter(Boolean).join('; '));
     const sendingText = await page.evaluate(() => /Sending…|Sending\.\.\./.test(document.body.innerText));
     ok(!sendingText, 'I. no "Sending…" text anywhere on the page');
     await page.hover('#msgPage .msg-b[data-msg-id="n_question"] .msg-b-text').catch(() => {});

@@ -34133,3 +34133,16 @@ back the old function (including its "Needs info" lines).
   - **Delete a note:** no "Delete note" text. A small cross at the note's top right on hover, on keyboard focus, or on a long press on touch. It asks "Delete this note?" with Delete and Cancel inside the note, then deletes with no second dialog (`_calDeleteComment` takes a `confirmed` argument).
 - **Not in this PR:** item 5 (the client's notes in the round-6 quiet design: first names, day lines, quiet status words, actions on hover). It follows as a second PR on the same switch.
 - **Proof:** `node test/review-client-polish-browser.js` (new): spinner, check, settled row, timing before and after, no wait cursor and no "Sending"/"Saving" text at any moment, a refusal, three changes in a row (typed key by key across the moment the first lands), a refused change and a dropped connection with no words lost, the stage's own box, the delete cross and its question, and the switch off.
+
+## 491. [2026-10-24 18:30 UTC, BUILT, NOT MERGED] The client's notes in the round-6 quiet design, behind `review_client_polish` (session Porch)
+
+- **What prompted it:** item 5 of the owner's list for the client review link: the client's view of comments and notes follows the staff side's round-6 rules (session Beacon, OPEN_REPAIRS 485 and 486). Same switch as 490, built on it.
+- **Built (195, client page only, switch on):**
+  - **Rows, as in Slack:** a picture, a name, a relative time ("12d ago", the full date in its hover) and the words, left-aligned for everyone, instead of chat bubbles.
+  - **Names:** a client sees the team as the team's name ("Synchro team"), as the client link always has (190 never shows a client staff names); other people by first name, the full name in the hover.
+  - **Day lines** (Today, Yesterday, the weekday within a week, then "Wed 14 Oct") carry the day; no message repeats a date. With the earlier notes opened, the newer ones carry on without a second line for the same day.
+  - **Grouping:** a follow-up by the same person within five minutes, of the same kind, drops the repeated picture and name.
+  - **Status as quiet coloured words, never pills:** "Change request" (orange) and "Done" (green), each with a hover that explains it; a handled change request greys.
+  - **Actions as words on hover** (and on focus or a long press): Reply on a comment from the team. Never on a change request (the client cannot reply to those) or on one's own note, which has the delete cross from 490. Reply turns the box into a comment on that note's part, says "Replying to …" with a cross to undo, and sends a plain comment (the post's status is untouched).
+  - **Not built:** a reply is a new message in the post's one conversation, not a threaded child (no `parent_id`), because the client save path writes top-level notes only and threading would change what staff see. The client page has no unread or "new" marks of its own today, so none were restyled.
+- **Proof:** `node test/review-client-notes-browser.js` (new); `review-client-polish-browser.js` still passes on these rows.

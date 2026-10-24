@@ -1028,7 +1028,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .cp .bb{position:relative}
 .cp-x{position:absolute;top:-10px;right:-8px;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--surface-raised);color:var(--text-secondary);box-shadow:0 0 0 1px var(--border),0 1px 3px color-mix(in srgb,var(--text-primary) 14%,transparent);opacity:0;transform:scale(.85);transition:opacity .12s,transform .12s,color .12s;pointer-events:none;z-index:1}
 .cp-x svg{width:10px;height:10px}
-.bub:hover .cp-x,.bub:focus-within .cp-x,.bub.cp-show .cp-x{opacity:1;transform:none;pointer-events:auto}
+.bub:hover .cp-x,.bub:focus-within .cp-x,.bub.cp-show .cp-x,.sl:hover .cp-x,.sl:focus-within .cp-x,.sl.cp-show .cp-x{opacity:1;transform:none;pointer-events:auto}
 .cp-x:hover,.cp-x:focus-visible{color:var(--urgent)}
 .cp-ask{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:.78rem;font-weight:600;color:var(--text-primary)}
 .cp-ask span{margin-right:4px}
@@ -1036,6 +1036,41 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .cp-yes{background:var(--urgent);color:var(--surface-raised)}
 .cp-no{color:var(--text-secondary)}
 .cp-no:hover{background:var(--fill);color:var(--text-primary)}
+/* The client's notes as quiet rows (the staff side's round 6). */
+.cp .ch-scroll{gap:0;padding:10px 8px 10px}
+.sl{display:flex;gap:10px;align-items:flex-start;padding:6px 8px;border-radius:10px;position:relative;transition:background .12s}
+.sl:hover,.sl:focus-within,.sl.cp-show{background:color-mix(in srgb,var(--fill) 55%,transparent)}
+.sl.cont{padding-top:0}
+.sl.cont .sl-av{visibility:hidden;height:4px}
+.sl-av{width:28px;height:28px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;font-size:.66rem;font-weight:800;background:var(--av-team);color:var(--av-team-fg);margin-top:1px}
+.sl-av.cl,.sl-av.me{background:var(--pt-thumbnail);color:var(--pi-thumbnail)}
+.sl-b{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px;position:relative}
+.sl-h{display:flex;align-items:baseline;gap:4px 8px;flex-wrap:wrap;font-size:.72rem;line-height:1.35;color:var(--text-secondary)}
+.sl-h b{font-size:.82rem;font-weight:700;color:var(--text-primary)}
+.sl-hc{margin-top:-1px}
+.sl-k{font-weight:600;cursor:default}
+.sl-k.chg{color:var(--chg-fg)}
+.sl-k.ok{color:var(--ok-ink)}
+.sl.handled .sl-k.chg{color:var(--text-secondary)}
+.sl-t{cursor:default}
+.sl-p{margin-left:auto;color:var(--text-secondary);cursor:default}
+.sl.me .sl-h{padding-right:18px}
+.sl-x{font-size:.86rem;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text-primary)}
+.sl.handled .sl-x,.sl.old .sl-x{color:var(--text-secondary)}
+.sl .diff{margin-top:2px}
+.sl-acts{display:inline-flex;gap:10px;opacity:0;transition:opacity .12s}
+.sl:hover .sl-acts,.sl:focus-within .sl-acts,.sl.cp-show .sl-acts{opacity:1}
+.sl-act{font:inherit;font-weight:700;color:var(--text-secondary);padding:0;background:none}
+.sl-act:hover,.sl-act:focus-visible{color:var(--text-primary);text-decoration:underline;text-underline-offset:2px}
+.sl .cp-x{top:-2px;right:-4px}
+.sl-day{display:flex;align-items:center;gap:10px;margin:10px 8px 4px;font-size:.7rem;font-weight:700;color:var(--text-secondary);cursor:default}
+.sl-day::before,.sl-day::after{content:'';flex:1;height:1px;background:var(--well-line)}
+.sl-day:first-child{margin-top:2px}
+.cl-re{display:flex;align-items:center;gap:6px;padding:8px 12px 0;font-size:.74rem;color:var(--text-secondary)}
+.cl-re b{color:var(--text-primary);font-weight:700}
+.cl-re .x{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--text-secondary)}
+.cl-re .x:hover{background:var(--fill);color:var(--text-primary)}
+.cl-re .x svg{width:10px;height:10px}
 @media (prefers-reduced-motion:reduce){.cp-spin{animation:rsBreathe 1.6s ease-in-out infinite!important;border-right-color:currentColor}.b-ok.cp-morph,.cp-ck,.dec.cp-settle{animation:none}}
 `;
     const RS_CSSKEY = { video: 'video', graphic: 'thumbnail', caption: 'caption', title: 'youtube' };
@@ -1329,7 +1364,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             let who;
             try { who = _calNoteAuthorName(c) || c.author || ''; } catch (e) { who = c.author || ''; }
             return {
-                id: String(c.id || ''), you: _rsIsMine(c, mode), who: who || (c.role === 'client' ? 'Client' : 'Team'), role: c.role || '',
+                id: String(c.id || ''), you: _rsIsMine(c, mode), who: who || (c.role === 'client' ? 'Client' : 'Team'), role: c.role || '', at: String(c.created_at || ''),
                 part: comp, time: c.sending ? (R.cp ? '' : 'Sending…') : _rsWhen(c.created_at), text: String(c.body || ''),
                 change: !!c.is_tweak, done: !!c.done, aud: c.audience || '', sending: !!c.sending || !!(pending && pending.state === 'sending'), failed: !!(pending && pending.state === 'failed'), edit: c.is_tweak ? null : _rsEditOf(c.body),
                 canDelete: mode === 'client' && !c.sending && (c.canonical ? !!c.can_delete : c.role === 'client'),
@@ -2478,10 +2513,92 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const foot = '<div class="cl-foot">'
             + '<button class="b-cmt" type="button" id="cmtBtn"' + (typed ? '' : ' disabled') + '>' + RI.send + 'Send comment</button>'
             + (keys.length ? '<button class="b-send-chg" type="button" id="sendBtn"' + (typed && k ? '' : ' disabled') + (k ? '' : ' title="Pick what it is about first"') + '>' + RI.back + chgLabel + '</button>' : '') + '</div>';
-        return '<div class="compose cl' + (k ? ' chg' : '') + (typed ? ' typed' : '') + '" id="compose"><div class="cbox">' + chips + '<div class="ta-wrap"><textarea class="cta" id="ta" rows="1" placeholder="' + _re(ph) + '" aria-label="' + _re(ph) + '"' + (paused ? ' disabled' : '') + '>' + _re(nt.text) + '</textarea></div>' + foot + '</div></div>';
+        // Polish: a reply says whom it answers, with a cross to make it a plain comment again.
+        const re = R.cp && !k && nt.re ? nt.re : null;
+        const reLine = re ? '<div class="cl-re" id="reLine">Replying to <b>' + _re(re.who) + '</b><button class="x" type="button" id="reX" aria-label="Not a reply" title="Not a reply">' + RI.x + '</button></div>' : '';
+        const ph2 = re ? 'Reply to ' + re.who : ph;
+        return '<div class="compose cl' + (k ? ' chg' : '') + (typed ? ' typed' : '') + '" id="compose"><div class="cbox">' + chips + reLine + '<div class="ta-wrap"><textarea class="cta" id="ta" rows="1" placeholder="' + _re(ph2) + '" aria-label="' + _re(ph2) + '"' + (paused ? ' disabled' : '') + '>' + _re(nt.text) + '</textarea></div>' + foot + '</div></div>';
     }
     // A note longer than this folds after a few lines behind "Show all" (a whole caption pasted as a change request).
     function _rsLongNote(text) { const t = String(text || ''); return t.length > 320 || t.split('\n').length > 7; }
+    /* POLISH, THE CLIENT'S NOTES (review_client_polish, session Porch; the staff side's round 6, session Beacon): as little
+       visual noise as possible. Messages as rows, as in Slack: a picture, a first name, a relative time (the full date
+       in its hover) and the words; a day line (Today, Yesterday, the weekday, then "Wed 14 Oct") instead of a date on
+       every message; a follow-up by the same person within five minutes shows the picture and name once. Status is a
+       quiet coloured word ("Change request", "Done") whose hover explains it, never a pill. Actions are words that show
+       on hover, focus or a long press: Reply on a comment from the team (a client never replies to a change request),
+       and the cross on one's own note. */
+    function _rsFirst(t) {
+        if (t.you) return 'You';
+        if (t.role === 'kasper') return 'Kasper';
+        const n = String(t.who || '').trim();
+        // A client link never names the staff: their notes read as the team ("Synchro team", 190), kept whole.
+        if (R.mode === 'client' && t.role !== 'client') return n || 'Team';
+        return n ? n.split(/\s+/)[0] : (t.role === 'client' ? 'Client' : 'Team');
+    }
+    function _rsAgo(iso) {
+        const t = Date.parse(iso || '');
+        if (!isFinite(t)) return '';
+        const mins = Math.round((Date.now() - t) / 60000);
+        if (mins < 1) return 'just now';
+        if (mins < 60) return mins + 'm ago';
+        const hrs = Math.round(mins / 60);
+        if (hrs < 24) return hrs + 'h ago';
+        const days = Math.round(hrs / 24);
+        if (days < 14) return days + 'd ago';
+        if (days < 60) return Math.round(days / 7) + 'w ago';
+        return Math.round(days / 30) + 'mo ago';
+    }
+    function _rsDayLabel(iso) {
+        const t = new Date(String(iso || ''));
+        if (isNaN(t)) return '';
+        const day = d => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        const diff = Math.round((day(new Date()) - day(t)) / 86400000);
+        if (diff === 0) return 'Today';
+        if (diff === 1) return 'Yesterday';
+        if (diff > 1 && diff < 7) return RS_WEEKDAYS[t.getDay()];
+        return RS_DAYS[t.getDay()] + ' ' + t.getDate() + ' ' + RS_MONTHS[t.getMonth()] + (t.getFullYear() === new Date().getFullYear() ? '' : ' ' + t.getFullYear());
+    }
+    function _rsFullDate(iso) { const t = Date.parse(iso || ''); return isFinite(t) ? new Date(t).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''; }
+    const _rsWhoKey = t => (t.you ? 'me' : String(t.role || '') + '|' + String(t.who || ''));
+    function _rsCpRows(list, old, seed) {
+        let prev = seed || null, out = '';
+        list.forEach(t => {
+            const day = _rsDayLabel(t.at);
+            if (day && (!prev || _rsDayLabel(prev.at) !== day)) { out += '<div class="sl-day" role="separator" title="' + _re(_rsFullDate(t.at).replace(/,? \d{2}:\d{2}$/, '')) + '"><span>' + _re(day) + '</span></div>'; prev = null; }
+            const cont = !!prev && _rsWhoKey(prev) === _rsWhoKey(t) && !!prev.change === !!t.change && !t.sending && !prev.sending
+                && Math.abs(Date.parse(t.at) - Date.parse(prev.at)) < 5 * 60000;
+            out += _rsCpMsg(t, old, cont);
+            prev = t;
+        });
+        return out;
+    }
+    function _rsCpMsg(t, old, cont) {
+        const S = R.S, isChg = t.change && t.part;
+        const asking = t.canDelete && t.id && S.cpDel === t.id;
+        const cpx = t.canDelete && t.id && !asking ? '<button class="cp-x" type="button" data-cp-del="' + _re(t.id) + '" aria-label="Delete note" title="Delete note">' + RI.x + '</button>' : '';
+        const cpAsk = asking ? '<div class="cp-ask" role="group" aria-label="Delete this note?"><span>Delete this note?</span><button class="cp-yes" type="button" data-cp-yes="' + _re(t.id) + '">Delete</button><button class="cp-no" type="button" data-cp-no="1">Cancel</button></div>' : '';
+        const kind = isChg ? '<span class="sl-k chg" title="' + (t.frame ? 'The notes for this change are in Frame.io' : t.you ? 'You asked your team to change this. They mark it done once it is fixed.' : 'A change asked on this part') + '">' + (t.frame ? 'Tweaks on Frame' : 'Change request') + '</span>' : '';
+        const done = t.done ? '<span class="sl-k ok" title="Your team marked this change done">Done</span>' : '';
+        const when = t.sending ? _rsSpinner('Sending') : '<span class="sl-t" title="' + _re(_rsFullDate(t.at)) + '">' + _re(_rsAgo(t.at) || t.time) + '</span>';
+        const canReply = !t.you && !t.change && !t.sending && t.id && t.role !== 'client';
+        const acts = canReply ? '<span class="sl-acts"><button class="sl-act" type="button" data-cp-reply="' + _re(t.id) + '" title="Answer ' + _re(_rsFirst(t)) + ' about the ' + _re(_rsLname(t.part || 'video')) + '">Reply</button></span>' : '';
+        const part = t.part ? '<span class="sl-p" title="About the ' + _re(_rsLname(t.part)) + '">' + RS_PART[t.part] + '</span>' : '';
+        const long = !t.edit && _rsLongNote(t.text), open = long && !!(t.id && S.exp['note:' + t.id]);
+        const more = long && t.id ? '<button class="bmore" type="button" data-more="' + _re(t.id) + '" aria-expanded="' + open + '">' + (open ? 'Show less' : 'Show all') + '</button>' : '';
+        const body = t.edit
+            ? '<div class="sl-x">' + (t.you ? 'You changed' : 'Changed') + ' the caption</div><div class="diff"><div class="new">' + _re(t.edit.now) + '</div>'
+              + (t.edit.old ? '<details class="was"><summary>Show the old caption</summary><div class="old">' + _re(t.edit.old) + '</div></details>' : '<div class="was">It had no caption before.</div>') + '</div>'
+            : '<div class="sl-x bt' + (long && t.id && !open ? ' clamp' : '') + '">' + _re(t.text) + '</div>';
+        const av = '<span class="sl-av' + (t.you ? ' me' : t.role === 'client' ? ' cl' : t.role === 'kasper' ? ' kp' : '') + '" aria-hidden="true">' + _re(t.you ? 'Y' : _rsFirst(t).charAt(0).toUpperCase()) + '</span>';
+        const name = '<b' + (!t.you && _rsFirst(t) !== String(t.who || '').trim() ? ' title="' + _re(t.who) + '"' : '') + '>' + _re(_rsFirst(t)) + '</b>';
+        const head = cont ? '' : '<div class="sl-h">' + name + kind + done + when + acts + part + '</div>';
+        // A follow-up keeps its own state words, time and actions on one quiet line beside it.
+        const contMeta = cont && (kind || done || acts || t.sending) ? '<div class="sl-h sl-hc">' + kind + done + (t.sending ? when : '') + acts + '</div>' : '';
+        return '<div class="sl' + (cont ? ' cont' : '') + (old ? ' old' : '') + (isChg ? ' chg' : '') + (isChg && t.done ? ' handled' : '') + (t.you ? ' me' : '') + (asking ? ' cp-asking' : '') + '"'
+            + (cpx || acts ? ' data-cp-note="' + _re(t.id) + '"' : '') + (cont ? ' title="' + _re(_rsFullDate(t.at)) + '"' : '') + '>' + av + '<div class="sl-b">' + cpx + head + contMeta + body + more
+            + (t.failed ? '<div class="err" role="alert">Not sent. Your words are kept here. <button type="button" class="retry" data-note-retry="' + _re(t.id) + '">Try again</button></div>' : '') + cpAsk + '</div></div>';
+    }
     function _rsBubble(t, old) {
         const isChg = t.change && t.part;
         const tag = t.part ? '<span class="tag">' + _rsDot(t.part) + RS_PART[t.part] + '</span>' : '';
@@ -2509,8 +2626,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const cut = all.length > 6 ? all.length - 4 : 0;
         const fold = all.slice(0, cut), live = all.slice(cut);
         let th = '';
-        if (fold.length) th += '<button class="fold first" type="button" id="foldBtn" aria-expanded="' + S.fold + '">' + (S.fold ? 'Hide earlier notes' : fold.length + ' earlier notes') + '</button><div class="folded' + (S.fold ? ' open' : '') + '">' + fold.map(t => _rsBubble(t, true)).join('') + '</div>';
-        th += live.map(t => _rsBubble(t)).join('');
+        const rows = (list, old) => R.cp ? _rsCpRows(list, old) : list.map(t => _rsBubble(t, old)).join('');
+        if (fold.length) th += '<button class="fold first" type="button" id="foldBtn" aria-expanded="' + S.fold + '">' + (S.fold ? 'Hide earlier notes' : fold.length + ' earlier notes') + '</button><div class="folded' + (S.fold ? ' open' : '') + '">' + rows(fold, true) + '</div>';
+        // with the earlier notes open, the newer ones carry on from them (no second line for the same day)
+        th += R.cp ? _rsCpRows(live, false, fold.length && S.fold ? fold[fold.length - 1] : null) : rows(live, false);
         if (!all.length) th = '<p class="ch-empty">No messages on this post yet. Anything you send shows up here.</p>';
         return th;
     }
@@ -2578,6 +2697,16 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         c.querySelectorAll('[data-cp-del]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); S.cpDel = b.dataset.cpDel; redraw(); const y = c.querySelector('[data-cp-yes]'); if (y) y.focus({ preventScroll: true }); }));
         c.querySelectorAll('[data-cp-yes]').forEach(b => b.addEventListener('click', () => { const id = b.dataset.cpYes; S.cpDel = null; window._calDeleteComment(id, m.id, true); redraw(); }));
         c.querySelectorAll('[data-cp-no]').forEach(b => b.addEventListener('click', () => { S.cpDel = null; redraw(); }));
+        // Reply: the box becomes a comment on that note's part, saying whom it answers (never a change request).
+        c.querySelectorAll('[data-cp-reply]').forEach(b => b.addEventListener('click', () => {
+            const cur = _rsModelById(m.id) || m, t = cur.thread.find(x => x.id === b.dataset.cpReply);
+            if (!t) return;
+            S.note.part = null; S.note.where = 'chat'; S.note.aat = false; S.note.was = '';
+            S.note.re = { id: t.id, who: _rsFirst(t), part: t.part || '' };
+            _rsPersistCur();
+            _rsRender({ force: true });
+            _rsFocusTa();
+        }));
         const ask = c.querySelector('.cp-ask');
         if (ask) ask.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); S.cpDel = null; redraw(); } });
         c.querySelectorAll('[data-cp-note]').forEach(n => {
@@ -2597,7 +2726,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const cx = q('chipX'); if (cx) cx.addEventListener('click', () => _rsClearChange(true, false));
         const cc = q('cmpCancel'); if (cc) cc.addEventListener('click', () => _rsClearChange(false, true));
         const nb = q('noteBtn'); if (nb) nb.addEventListener('click', () => _rsSendNote(true));
-        root.querySelectorAll('[data-pc]').forEach(b => b.addEventListener('click', () => { const S2 = R.S; if (S2.note.part === b.dataset.pc) _rsClearChange(true, false); else { S2.note.part = b.dataset.pc; S2.note.where = 'chat'; S2.note.aat = false; const pm = _rsCur(), px = pm && pm.parts.find(p => p.key === b.dataset.pc); S2.note.was = px ? px.st : ''; _rsPersistCur(); _rsRender({ force: true }); _rsFocusTa(); } }));
+        const rx = q('reX'); if (rx) rx.addEventListener('click', () => { S.note.re = null; _rsRender({ force: true }); _rsFocusTa(); });
+        root.querySelectorAll('[data-pc]').forEach(b => b.addEventListener('click', () => { const S2 = R.S; S2.note.re = null; if (S2.note.part === b.dataset.pc) _rsClearChange(true, false); else { S2.note.part = b.dataset.pc; S2.note.where = 'chat'; S2.note.aat = false; const pm = _rsCur(), px = pm && pm.parts.find(p => p.key === b.dataset.pc); S2.note.was = px ? px.st : ''; _rsPersistCur(); _rsRender({ force: true }); _rsFocusTa(); } }));
         const mb = q('cmtBtn'); if (mb) mb.addEventListener('click', () => _rsSendNote(true));
         const sb = q('sendBtn'); if (sb) sb.addEventListener('click', () => _rsSendNote(!S.note.part));
         const ta = q('ta');
@@ -2982,6 +3112,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             return;
         }
         const picked = S.note.part, k = asNote ? null : S.note.part, where = S.note.where, aat = S.note.aat, vis = S.note.vis, was = S.note.was;
+        const reply = !k && S.note.re && S.note.re.part && m.parts.some(p => p.key === S.note.re.part) ? S.note.re.part : '';
         S.saved = null;
         const x = k ? m.parts.find(p => p.key === k) : null;
         S.note = _rsBlankNote(); S.note.vis = vis; S.moved = null;
@@ -3009,7 +3140,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (k && R.cp) { _rsCpQueueChange(m, k, t, where); return; }
         if (k) { _rsSendChange(m, k, t, { where, aat }); return; }
         // a plain note goes on the part it is about, else the part on stage (every note belongs to a part on a card)
-        const comp = (asNote && picked && m.parts.some(p => p.key === picked)) ? picked : m.parts.some(p => p.key === S.step) ? S.step : (m.parts[0] || { key: 'video' }).key;
+        const comp = (asNote && picked && m.parts.some(p => p.key === picked)) ? picked : reply || (m.parts.some(p => p.key === S.step) ? S.step : (m.parts[0] || { key: 'video' }).key);
         _rsSendNoteTo(m, comp, t, vis);
         _rsRender({ force: true });
     }

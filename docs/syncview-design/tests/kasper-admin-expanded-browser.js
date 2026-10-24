@@ -472,6 +472,9 @@ async function open(browser,origin,width,theme) {
     // The Messages states below prove the replies view the page keeps until
     // production-comments gains the inbox; answer `inbox` as that function
     // does today, so the page falls back to it (326-core-messages-inbox).
+    // The page reads the inbox list with GET ?action=inbox first; a function without the inbox answers a GET with
+    // 405, as the deployed one does, and the page then sends the same read once as POST (answered just below).
+    if (u.pathname.endsWith('/production-comments') && q.method() === 'GET' && u.searchParams.get('action') === 'inbox') return route.fulfill({ status:405,headers:CORS,contentType:'application/json',body:JSON.stringify({ ok:false,error:'method_not_allowed' }) });
     if (u.pathname.endsWith('/production-comments') && /"action":"inbox/.test(q.postData() || '')) return route.fulfill({ status:400,headers:CORS,contentType:'application/json',body:JSON.stringify({ ok:false,error:'invalid_deliverable_id' }) });
     if (/\/rest\/v1\//.test(u.pathname)) return json([]);
     if (/\/functions\/|\/webhook\//.test(u.pathname)) return json({ ok:true,applications:[],leads:[],rows:[],daily:[],editors:[],submissions:[],pending_requests:[],admin_members:[] });

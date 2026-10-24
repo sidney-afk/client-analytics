@@ -14,6 +14,7 @@
 const fs = require('fs');
 const path = require('path');
 const root = path.resolve(__dirname, '..');
+const { stripBlockComments } = require('./helpers/strip-comments');
 const src = f => fs.readFileSync(path.join(root, 'src/index', f), 'utf8');
 let failures = 0;
 const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; console.error('FAIL  ' + m); } };
@@ -108,7 +109,7 @@ const grew = [], counts = {};
 for (const f of fs.readdirSync(path.join(root, 'src/index')).filter(f => /\.(js|html)\.part$/.test(f))) {
   let n = 0;
   // Block comments go first (their middle lines start with nothing a line test could see), then line comments.
-  for (const line of src(f).replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' ')).split('\n')) {
+  for (const line of stripBlockComments(src(f), '\n').split('\n')) {
     const t = line.trim();
     if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) continue;
     n += (line.replace(SINKS, '').match(re) || []).length;

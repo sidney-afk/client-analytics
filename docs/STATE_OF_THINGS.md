@@ -54,6 +54,14 @@ note, words taken out and added, and "Put this version back" through the normal 
 `syncview_runtime_flags.caption_history_staff` `{ "staff": [...] }`, absent = off. Earlier changes since 2026-09-17:
 `scripts/caption-versions-backfill.sql`, by hand. OPEN_REPAIRS 482. Tests: `test/caption-versions-postgres.js`,
 `test/caption-history-logic.js`, `test/caption-history-browser.js`. Not measured on the live site yet.
+## Thumbnail titles from the filming plan, buttons in Production (session Titlecard, 2026-10-23): PR open, not merged
+
+"Thumbnail titles" on a post's Sub-issues header and "Write title" beside Edit on a thumbnail sub-issue, behind the
+new switch `thumbnail_title_buttons_staff` (absent = off). The run lives on the server (one per post), picks the plan
+tab by the approved rule, writes only into an empty description or the old robot "Needs info" line, and asks before
+touching anything a person wrote. With it, the background writer stops writing "Needs info" lines, private plans are
+read through the service account, and tokens are recorded per run. Needs `migrations/2026-10-23-thumbnail-title-buttons.sql`
+applied after merge. OPEN_REPAIRS 481; plan and decisions in `docs/syncview-design/mockups/thumbnail-titles/PLAN.md`.
 
 ## Kasper's tab boots fast, behind `kasper_fast_boot` (session Quick, 2026-10-20): merged (#2265), switch on for Sidney's two ids only, Kasper next
 

@@ -46,15 +46,18 @@ import { currentNav } from './065-core-nav-intake-state.js';
                                     Versions, 2026-10-23). Same listing rule (id or full name of the signed-in staff
                                     member). Never the client link. Missing, unreadable or the wrong shape: no icon,
                                     the caption box exactly as it was.
+         thumbnail_title_buttons_staff { "staff": [...] }: the Production "Thumbnail titles" and "Write title" buttons
+                                    (session Titlecard, 2026-10-23, OPEN_REPAIRS 481). Same listing rule (id or full
+                                    name of the signed-in staff member). Missing, unreadable or the wrong shape: no buttons.
          analytics_hidden           { "hidden": false } brings Analytics back for everyone (the staff bar's Analytics
                                     tab, the client link's Analytics / Content Calendar toggle). Missing, unreadable,
                                     { "hidden": true } or any other shape: Analytics is hidden (owner, 2026-10-17
                                     23:20, session Curtain Seven). Read at boot, in the same request as the switches.
        The lists live only in the database, never in this repository. */
-    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'caption_history_staff'];
+    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'caption_history_staff', 'thumbnail_title_buttons_staff'];
     const RS_FLAG_TIMEOUT_MS = 4000;
     const RS_FLAG_RETRY_MS = 30000;
-    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), help: '', analytics: false };
+    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), help: '', analytics: false };
     let _rsFlagPromise = null;
     let _rsFlagTriedAt = 0;
     let _rsFlagFailed = false;
@@ -76,6 +79,8 @@ import { currentNav } from './065-core-nav-intake-state.js';
         const fast = okObj(fb) && Array.isArray(fb.staff) ? fb.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
         const ch = by.caption_history_staff;
         const capHist = okObj(ch) && Array.isArray(ch.staff) ? ch.staff.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*').map(x => x.trim().toLowerCase()) : [];
+        const tt = by.thumbnail_title_buttons_staff;
+        const ttb = okObj(tt) && Array.isArray(tt.staff) ? tt.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
         const h = by.review_help_video_url;
         const help = okObj(h) && typeof h.url === 'string' && /^https:\/\//i.test(h.url.trim()) ? h.url.trim() : '';
         const a = by.analytics_hidden;
@@ -89,6 +94,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
             layout2: new Set(layout2),
             fast: new Set(fast),
             capHist: new Set(capHist),
+            ttb: new Set(ttb),
             help,
             // Only the exact { "hidden": false } shows Analytics.
             analytics: okObj(a) && a.hidden === false,
@@ -106,7 +112,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
             if (!Array.isArray(rows)) throw new Error('shape');
             const next = _rsParse(rows);
             // Analytics shown, or hidden where this browser last saw it shown: the open page draws again too.
-            const changed = next.all || next.clients.size || next.staff.size || next.calm.size || next.calmAll || next.layout2.size || next.fast.size || next.capHist.size || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
+            const changed = next.all || next.clients.size || next.staff.size || next.calm.size || next.calmAll || next.layout2.size || next.fast.size || next.capHist.size || next.ttb.size || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
             _rsFlags = next;
             _rsHintSave(next);
             _wlCalmHintSave(next);
@@ -116,7 +122,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
             // Something switched on: the open page draws again, now as the new page.
             if (changed) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
         } catch (e) {
-            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), help: '', analytics: false };
+            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), help: '', analytics: false };
             _rsFlagFailed = true;
             _rsAnalyticsSync();
             _rsFlagPromise = null;
@@ -407,6 +413,12 @@ import { currentNav } from './065-core-nav-intake-state.js';
     /* THE CALM WORKLOAD CALENDAR (session Calm, 2026-10-18): on only for the staff member workload_calm_staff names, by
        id or full name, exactly as Kasper's switch above. Until the switch has been read, or the server has said who is
        signed in, the answer is no: the old calendar shows and nothing else changes. */
+    // The Production thumbnail title buttons (255): only for the staff members the switch lists.
+    function svThumbTitleButtonsOn() {
+        _rsPrime();
+        if (!_rsFlags.loaded || !_rsFlags.ttb || !_rsFlags.ttb.size || _isClientLink) return false;
+        return _rsListed(_rsFlags.ttb);
+    }
     function _rsListed(set) {
         let who = null;
         try { who = _syncviewStaffIdentityForHeaders(); } catch (e) { who = null; }
@@ -657,3 +669,4 @@ import { currentNav } from './065-core-nav-intake-state.js';
         }
     });
 export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svCaptionHistoryOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLayout2On, svRsKasperBoot, svRsKasperFast, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsKasperPending, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };
+export { svThumbTitleButtonsOn };

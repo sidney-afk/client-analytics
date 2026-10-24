@@ -49,6 +49,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-onboarding-staff-controls.js';
 import { svRsCalOn, svRsCalPending, svRsCalSync, svRsClientReviewOn } from './188-review-stage-switch.js';
 import { _calLoaderHtml } from './133-core-loading-skeletons.js';
+import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-badges.js';
     function _calHasMedia(p) {
         return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim());
     }
@@ -2566,6 +2567,8 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         return `<span class="cal-aat-badge" title="Kasper already approved this. Check the edit was made, then send it to the client."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>`;
     }
     function _calCommentsBtnHtml(post, pid) {
+        // The round-5 badges (327), for the staff members switch unread_badges_v2 names; everyone else: below, unchanged.
+        if (typeof svuActive === 'function' && svuActive()) return svuNotesBtnHtml(post, pid);
         const open = _calOpenCommentCount(post);
         const unread = _calHasUnreadNotes(post);
         const cls  = (open > 0 ? ' has-open' : '') + (unread ? ' has-unread' : '');
@@ -2632,6 +2635,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         _calComposeIsTweak = false;         // default to a plain comment
         _calComposeComp = 'video';          // Part B: picker defaults to Video
         _calShowResolved = false;           // start on the live feed, not history
+        if (typeof svuNotesOpening === 'function') svuNotesOpening(pid);            // 327 keeps what was new, for "Needs you" (switch unread_badges_v2 only)
         _notesMarkSeen(pid);                // opening = caught up; clears the unread dot
         _calNotesWarm(pid, true);           // the read the pointer already started, or a new one
         const ovl = _calEnsureCommentsOverlay();

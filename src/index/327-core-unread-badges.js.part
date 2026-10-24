@@ -1,0 +1,514 @@
+import { showToast } from './040-shared-briefs.js';
+import { currentNav } from './065-core-nav-intake-state.js';
+import { _calCommentsForView, calState } from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import { COMP_LABELS, _notesGetSeen } from './180-calendar-native-post-media.js';
+import { svUnreadBadgesOn } from './188-review-stage-switch.js';
+import { _calFmtCommentTime, _calRefreshCommentsBtn } from './190-calendar-approval-comments.js';
+import { _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId, _msgPaint, _msgState } from './326-core-messages-inbox.js';
+    /* UNREAD BADGES, ROUND 5 (session Beacon, 2026-10-24; docs/audits/2026-10-23-unread-badges.md). On only for the
+       staff members the runtime switch unread_badges_v2 names (188), on a desktop page; for everyone else nothing here
+       runs and every page is exactly as it was. The owner tries it first and tweaks it.
+
+       What it changes is how unread notes are shown, never what anything writes:
+         - a card's Notes button: one round picture per person with something for you, with a number coloured by kind
+           (orange change request, blue client comment, grey team, violet Kasper); filled = new, outlined = read but
+           still needs you (a change not done, a client comment waiting for your answer); at most three, then "+N";
+           an instant hover lists who and what;
+         - Notes on a card: "Needs you" pinned at the top, the notes laid out like Slack (picture, name, time), the
+           tags New / Waiting for your answer / Not done, and Reply, No reply needed, Mark done under the note;
+         - Messages: New, To answer and All; rows with the client's picture and the same people bubbles; the chat laid
+           out like Slack; a client's change request is one line pointing to the card (change requests live there).
+       Pictures are Slack profile photos the inbox answer carries (production-comments/pictures.mjs); without one, the
+       person's initials. "No reply needed" and the card's "Mark unread" are kept in this browser for now (the server
+       side of both is build step 2 in the audit). The styles are in 020 under html.sv-unread2. */
+
+    const SVU_LOCAL_KEY = 'sv-unread-v2-local';
+    const SVU_PICS_KEY = 'sv-unread-v2-pictures';
+    const SVU_AUTO_ROLES = new Set(['system', 'automatic', 'auto', 'bot']);
+    const SVU_CAPTION_RECORD = /^Changed the caption to:\r?\n\r?\n[\s\S]*\r?\n\r?\nIt was(?: empty\.|:\r?\n\r?\n)/;
+    const SVU_COMPS = ['video', 'graphic', 'caption', 'title'];
+    const SVU_RANK = { change: 4, comment: 3, kasper: 2, staff: 1 };
+    // var, not let: 326 can call into this file (svuAfterMsgPaint) before this line has run on a slow load, and a var
+    // reads as undefined (off) there instead of throwing.
+    var _svuOn = false;
+    let _svuLocal = null;
+
+    // Asked on every draw by 190 and 326. A changed answer (the switch read, the sign-in, phone or desktop) also
+    // switches the page's look and listeners, once, right after this draw.
+    var _svuSyncQueued = false;
+    // A draw made while this file is still loading (326 can draw Messages first on a slow device) answers no: this
+    // file's own state does not exist yet; its first sync, below, redraws.
+    function svuActive() {
+        try {
+            const want = !_msgIsPhone() && svUnreadBadgesOn();
+            if (want !== _svuOn && !_svuSyncQueued) {
+                _svuSyncQueued = true;
+                setTimeout(() => { _svuSyncQueued = false; try { _svuSync(); } catch (e) {} }, 0);
+            }
+            return want;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /* ---------- this browser's "No reply needed" and "Mark unread" ---------- */
+    function _svuLocalGet() {
+        if (_svuLocal) return _svuLocal;
+        let v = null;
+        try { v = JSON.parse(localStorage.getItem(SVU_LOCAL_KEY) || 'null'); } catch (e) { v = null; }
+        _svuLocal = {
+            noReply: new Set(v && Array.isArray(v.noReply) ? v.noReply.filter(x => typeof x === 'string') : []),
+            unread: new Set(v && Array.isArray(v.unread) ? v.unread.filter(x => typeof x === 'string') : []),
+        };
+        return _svuLocal;
+    }
+    function _svuLocalSave() {
+        const l = _svuLocalGet();
+        try { localStorage.setItem(SVU_LOCAL_KEY, JSON.stringify({ noReply: Array.from(l.noReply).slice(-500), unread: Array.from(l.unread).slice(-200) })); } catch (e) {}
+    }
+
+    /* ---------- the rules ---------- */
+    const _svuRole = m => String(m && m.role || '').toLowerCase();
+    const _svuIsClient = m => _svuRole(m) === 'client';
+    const _svuIsAuto = m => SVU_AUTO_ROLES.has(_svuRole(m)) || (_svuIsClient(m) && SVU_CAPTION_RECORD.test(String(m && m.body || '')));
+    function _svuIsMine(m) {
+        try {
+            const id = String(m && m.author_member_id || '');
+            if (id) return id === _msgMyId();
+            if (_svuIsClient(m)) return false;
+            return String(m && m.author || '').trim().toLowerCase() === String(_msgMe() || '').trim().toLowerCase();
+        } catch (e) { return false; }
+    }
+    const _svuIsTweak = m => !!m && m.is_tweak !== false;
+    const _svuLabel = c => (COMP_LABELS && COMP_LABELS[c]) || c;
+
+    // Every note on a card, with its thread root and part, oldest first.
+    function _svuNotesOf(post) {
+        const out = [];
+        for (const comp of SVU_COMPS) {
+            let list = [];
+            try { list = _calCommentsForView(post, comp) || []; } catch (e) { list = []; }
+            const byId = new Map(list.map(m => [m && m.id, m]));
+            for (const m of list) {
+                if (!m || m.deleted || m.hidden) continue;
+                const root = m.parent_id ? (byId.get(m.root_id || m.parent_id) || byId.get(m.parent_id) || m) : m;
+                out.push({ m, root, comp });
+            }
+        }
+        return out.sort((a, b) => String(a.m.created_at).localeCompare(String(b.m.created_at)));
+    }
+    function _svuKindOf(n) {
+        if (_svuIsClient(n.m)) return _svuIsTweak(n.root) && !n.root.parent_id && _svuIsClient(n.root) ? 'change' : 'comment';
+        return _svuRole(n.m) === 'kasper' ? 'kasper' : 'staff';
+    }
+    // One card for the signed-in person. `seen` is when they last opened its Notes in this browser.
+    function _svuStateOf(post, seenOverride) {
+        const l = _svuLocalGet();
+        const seen = seenOverride != null ? seenOverride : (l.unread.has(post.id) ? '' : (_notesGetSeen(post.id) || ''));
+        const notes = _svuNotesOf(post);
+        const s = { change: 0, comment: 0, staff: 0, kasper: 0, open: 0, waiting: 0, items: [], newIds: new Set(), waitingIds: new Set(), openIds: new Set(), notes };
+        for (const n of notes) {
+            if (_svuIsMine(n.m) || _svuIsAuto(n.m)) continue;
+            if (String(n.m.created_at) > seen) { const k = _svuKindOf(n); s[k]++; s.newIds.add(n.m.id); s.items.push({ kind: k, n }); }
+        }
+        for (const r of notes.filter(n => n.m === n.root)) {
+            if (_svuIsAuto(r.m)) continue;
+            if (_svuIsTweak(r.m) && !r.m.done) { s.openIds.add(r.m.id); if (!s.newIds.has(r.m.id)) s.open++; }
+            if (_svuIsClient(r.m) && !_svuIsTweak(r.m) && !r.m.done && !l.noReply.has(r.m.id)) {
+                const answered = notes.some(n => n.root === r.m && n.m !== r.m && !_svuIsClient(n.m) && !_svuIsAuto(n.m));
+                if (!answered) { s.waitingIds.add(r.m.id); if (!s.newIds.has(r.m.id)) { s.waiting++; s.items.push({ kind: 'waiting', n: r }); } }
+            }
+        }
+        s.items.sort((a, b) => String(b.n.m.created_at).localeCompare(String(a.n.m.created_at)));
+        return s;
+    }
+
+    /* ---------- pictures ---------- */
+    function _svuPictures() {
+        const live = _msgState.pictures;
+        if (live && typeof live === 'object') return live;
+        try {
+            const saved = JSON.parse(sessionStorage.getItem(SVU_PICS_KEY) || 'null');
+            if (saved && saved.member === _msgMyId() && saved.pictures && typeof saved.pictures === 'object') return saved.pictures;
+        } catch (e) {}
+        return {};
+    }
+    // The inbox answer brought pictures (326): keep them for this tab and redraw.
+    function svuPicturesArrived(pictures) {
+        if (!pictures || typeof pictures !== 'object') return;
+        try { sessionStorage.setItem(SVU_PICS_KEY, JSON.stringify({ member: _msgMyId(), pictures })); } catch (e) {}
+        if (_svuOn) svuRefresh();
+    }
+    const _svuSafeUrl = u => typeof u === 'string' && /^https:\/\/[^\s"'<>]{1,580}$/.test(u) ? u : '';
+    function _svuPictureOf(m, slug) {
+        const p = _svuPictures();
+        if (_svuIsClient(m)) return _svuSafeUrl(p.clients && p.clients[slug]);
+        const id = String(m && m.author_member_id || '');
+        if (id && p.members && p.members[id]) return _svuSafeUrl(p.members[id]);
+        const name = String(m && m.author || '').trim().toLowerCase();
+        const names = p.names || {};
+        return _svuSafeUrl(names[name] || names[name.split(/\s+/)[0]] || (_svuRole(m) === 'kasper' ? names.kasper : ''));
+    }
+    const _svuHue = name => { let h = 0; for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+    function _svuAvatar(m, cls, slug) {
+        const url = _svuPictureOf(m, slug);
+        if (url) return `<img class="${cls}" src="${_calEscAttr(url)}" alt="" loading="lazy" referrerpolicy="no-referrer">`;
+        const name = _svuIsClient(m) ? (_svuClientName(slug) || 'Client') : String(m && m.author || 'Team');
+        const letters = name.trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0).toUpperCase()).join('') || '?';
+        const h = _svuIsClient(m) ? 172 : (_svuRole(m) === 'kasper' ? 262 : _svuHue(name));
+        return `<span class="${cls} svu-initial" style="background:hsl(${h},52%,46%)" aria-hidden="true">${_calEsc(letters)}</span>`;
+    }
+    function _svuClientName(slug) {
+        try { const c = _msgState.conversations.find(x => x.client_slug === slug); if (c) return _msgClientName(c); } catch (e) {}
+        return '';
+    }
+    const _svuPostSlug = post => String(post && post.client || calState.client || '');
+
+    /* ---------- words ---------- */
+    const _svuPlural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+    const SVU_SAY = {
+        open: n => _svuPlural(n, 'change request not done yet', 'change requests not done yet'),
+        comment: n => _svuPlural(n, 'new comment from a client', 'new comments from clients'),
+        staff: n => _svuPlural(n, 'new message from the team', 'new messages from the team'),
+        kasper: n => _svuPlural(n, 'new message from Kasper', 'new messages from Kasper'),
+    };
+    const SVU_ICO = {
+        change: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5l3 3L6 13H3v-3z"/></svg>',
+        comment: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M2.5 3.5h11v8H7l-3 2.5V11.5H2.5z"/></svg>',
+        waiting: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4L2.5 7.5 6 11 M2.5 7.5H10a3.5 3.5 0 0 1 3.5 3.5v1"/></svg>',
+        staff: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="5.3" r="2.5"/><path stroke-linecap="round" d="M3.2 13.2c.35-2.35 2.1-3.7 4.8-3.7s4.45 1.35 4.8 3.7"/></svg>',
+        kasper: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z"/><circle cx="8" cy="8" r="2.2"/></svg>',
+    };
+    SVU_ICO.open = SVU_ICO.change;
+    const _svuWho = m => _svuIsClient(m) ? 'Client' : (_svuRole(m) === 'kasper' ? 'Kasper' : String(m && m.author || 'Team').split(' ')[0]);
+    const SVU_WHAT = { change: 'Change request', comment: 'Comment', waiting: 'Waiting for your answer', staff: 'Team note', kasper: 'Team note' };
+    const _svuWhatOf = (kind, m) => (kind === 'staff' || kind === 'kasper') && String(m.audience || '') === 'client' ? 'Reply to the client' : SVU_WHAT[kind];
+
+    /* ---------- the badge: one bubble per person ---------- */
+    function _svuPeopleOf(post, s) {
+        const by = new Map();
+        const get = m => { const k = _svuIsClient(m) ? 'client' : String(m.author_member_id || m.author || 'Team'); if (!by.has(k)) by.set(k, { m, nNew: 0, kind: '', nOut: 0, outKind: '', last: '' }); return by.get(k); };
+        for (const it of s.items) {
+            if (it.kind === 'waiting') continue;
+            const g = get(it.n.m); g.nNew++; if (!g.kind || SVU_RANK[it.kind] > SVU_RANK[g.kind]) g.kind = it.kind;
+            if (String(it.n.m.created_at) > g.last) g.last = String(it.n.m.created_at);
+        }
+        for (const n of s.notes) {
+            if (n.m !== n.root || s.newIds.has(n.m.id)) continue;
+            const out = s.waitingIds.has(n.m.id) ? 'waiting' : (s.openIds.has(n.m.id) ? 'open' : '');
+            if (!out) continue;
+            const g = get(n.m); g.nOut++; if (!g.outKind || out === 'open') g.outKind = out;
+            if (String(n.m.created_at) > g.last) g.last = String(n.m.created_at);
+        }
+        const rank = g => Math.max(SVU_RANK[g.kind] || 0, g.outKind === 'open' ? 4 : g.outKind === 'waiting' ? 3 : 0);
+        return [...by.values()].sort((x, y) => (y.nNew > 0) - (x.nNew > 0) || rank(y) - rank(x) || y.last.localeCompare(x.last));
+    }
+    function _svuBubblesHtml(people, max, slug) {
+        const shown = people.slice(0, max), rest = people.length - shown.length;
+        return shown.map(g => `<span class="svu-bub">${_svuAvatar(g.m, 'svu-bub-av', slug)}${g.nNew ? `<b class="svu-num svu-n-${g.kind}">${g.nNew}</b>` : ''}${g.nOut ? `<b class="svu-num svu-o-${g.outKind}">${g.nOut}</b>` : ''}</span>`).join('')
+            + (rest ? `<span class="svu-bub-more">+${rest}</span>` : '');
+    }
+
+    /* ---------- Calendar card: the Notes button (190 hands over here) ---------- */
+    const SVU_NOTES_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11v8H7l-3 2.5V11.5H2.5z"/></svg>';
+    function svuNotesBtnHtml(post, pid) {
+        const s = _svuStateOf(post);
+        const any = s.change + s.comment + s.staff + s.kasper > 0;
+        const strip = _svuBubblesHtml(_svuPeopleOf(post, s), 3, _svuPostSlug(post));
+        const q = _jsAttrArg(pid);
+        return `<span class="cal-foot-tweaks svu-foot" data-comments-wrap="${_calEscAttr(pid)}" onpointerenter="svuHoverCard(${q}, this)" onpointerleave="svuHideHover()"><button type="button" class="cal-comments-btn svu-notes${any ? ' svu-has-new' : ''}" data-comments-btn="${_calEscAttr(pid)}" onclick="openCalComments(${q})" onpointerenter="svCardNotesIntent(${q},120)" onfocus="svCardNotesIntent(${q},0)" onpointerdown="svCardNotesIntent(${q},0)" aria-label="Notes">${SVU_NOTES_ICO}<span class="cal-comments-label">Notes</span></button>${strip ? `<span class="svu-strips" onclick="openCalComments(${q})">${strip}</span>` : ''}</span>`;
+    }
+
+    /* ---------- the hover ---------- */
+    let _svuHoverEl = null;
+    function svuHoverCard(pid, anchor) {
+        const post = calState.posts.find(p => p.id === pid);
+        svuHideHover();
+        if (!post || !anchor || !_svuOn) return;
+        const s = _svuStateOf(post);
+        if (!s.items.length && !s.open) return;
+        const slug = _svuPostSlug(post);
+        const lines = s.items.slice(0, 5).map(({ kind, n }) => `<div class="svu-pv-row svu-k-${kind}"><span class="svu-pv-ico">${_svuAvatar(n.m, 'svu-pv-av', slug)}</span><span class="svu-pv-who">${_calEsc(_svuWho(n.m))}</span><span class="svu-pv-what">${_calEsc(_svuWhatOf(kind, n.m))} · ${_calEsc(_svuLabel(n.comp))}</span><span class="svu-pv-time">${_calEsc(_calFmtCommentTime(n.m.created_at))}</span><span class="svu-pv-text">${_calEsc(n.m.body || '')}</span></div>`).join('');
+        const more = s.items.length > 5 ? `<div class="svu-pv-foot">${s.items.length - 5} more in Notes</div>` : '';
+        const open = s.open ? `<div class="svu-pv-foot">${SVU_SAY.open(s.open)}</div>` : '';
+        _svuHoverEl = document.createElement('div');
+        _svuHoverEl.className = 'svu-pv';
+        _svuHoverEl.setAttribute('role', 'tooltip');
+        _svuHoverEl.innerHTML = (lines || '<div class="svu-pv-empty">Nothing new</div>') + more + open;
+        document.body.appendChild(_svuHoverEl);
+        const r = anchor.getBoundingClientRect();
+        const w = Math.min(380, innerWidth - 24);
+        _svuHoverEl.style.width = w + 'px';
+        _svuHoverEl.style.left = Math.max(12, Math.min(r.left, innerWidth - w - 12)) + 'px';
+        const h = _svuHoverEl.offsetHeight;
+        _svuHoverEl.style.top = (r.top - h - 6 > 8 ? r.top - h - 6 : r.bottom + 6) + 'px';
+    }
+    function svuHideHover() { if (_svuHoverEl) { _svuHoverEl.remove(); _svuHoverEl = null; } }
+
+    /* ---------- Notes on a card ---------- */
+    let _svuNotesSnap = null;   // what was new just before Notes opened (opening marks it seen)
+    // 190 calls this as Notes opens, before it marks the card seen.
+    function svuNotesOpening(pid) {
+        if (!_svuOn) { _svuNotesSnap = null; return; }
+        const l = _svuLocalGet();
+        _svuNotesSnap = { pid, seen: l.unread.has(pid) ? '' : (_notesGetSeen(pid) || '') };
+        if (l.unread.delete(pid)) _svuLocalSave();
+        svuHideHover();
+    }
+    function _svuDecorateNotes() {
+        const modal = document.getElementById('calCommentsModal');
+        if (!modal || !_svuNotesSnap) return;
+        const post = calState.posts.find(p => p.id === _svuNotesSnap.pid);
+        const feed = modal.querySelector('.cal-comments-feed');
+        if (!post || !feed) return;
+        const live = _svuStateOf(post, _svuNotesSnap.seen);
+        const notes = live.notes;
+        const slug = _svuPostSlug(post);
+        const l = _svuLocalGet();
+        const need = [];
+        for (const n of notes) {
+            const id = n.m.id;
+            if (n.m !== n.root) continue;
+            if (live.newIds.has(id) || live.waitingIds.has(id) || live.openIds.has(id)) {
+                const k = live.waitingIds.has(id) ? 'waiting' : (live.newIds.has(id) ? _svuKindOf(n) : 'open');
+                const label = live.waitingIds.has(id) ? 'Waiting for your answer' : live.newIds.has(id) ? (k === 'change' ? 'New change request' : k === 'comment' ? 'New comment' : k === 'kasper' ? 'New from Kasper' : 'New from the team') : 'Change request not done';
+                need.push({ id, k, label, n });
+            }
+        }
+        for (const n of notes) if (n.m !== n.root && live.newIds.has(n.m.id) && !need.some(x => x.id === n.root.id)) need.push({ id: n.root.id, k: _svuKindOf(n), label: 'New reply', n });
+        const pq = _jsAttrArg(post.id);
+        const head = need.length ? 'Needs you' : 'Nothing needs you on this post';
+        const barHtml = `<div class="svu-need-head"><span>${head}</span><button type="button" class="svu-text-btn" onclick="svuMarkUnread(${pq})">Mark unread</button></div>`
+            + need.slice(0, 4).map(x => `<button type="button" class="svu-need-row svu-k-${x.k}" onclick="svuJump(${_jsAttrArg(x.id)})"><span class="svu-need-ico">${SVU_ICO[x.k] || SVU_ICO.comment}</span><span class="svu-need-label">${_calEsc(x.label)}</span><span class="svu-need-text">${_calEsc(_svuWho(x.n.m))} · ${_calEsc(x.n.m.body || '')}</span><span class="svu-need-part">${_calEsc(_svuLabel(x.n.comp))}</span></button>`).join('')
+            + (need.length > 4 ? `<div class="svu-need-more">${need.length - 4} more below</div>` : '');
+        let bar = modal.querySelector('.svu-need');
+        if (!bar) { bar = document.createElement('div'); bar.className = 'svu-need'; feed.before(bar); }
+        if (bar.innerHTML !== barHtml) bar.innerHTML = barHtml;
+        modal.querySelectorAll('.cal-cm-row[data-cm-row]').forEach(row => {
+            const id = row.getAttribute('data-cm-row');
+            const n = notes.find(x => x.m.id === id);
+            if (!n) return;
+            const k = _svuIsAuto(n.m) ? 'auto' : _svuKindOf(n);
+            if (row.getAttribute('data-svu-kind') !== k) row.setAttribute('data-svu-kind', k);
+            const av = row.querySelector('.cal-cm-avatar');
+            if (av && !av.querySelector('.svu-slack-av')) av.innerHTML = _svuAvatar(n.m, 'svu-slack-av', slug);
+            const tags = [];
+            if (live.newIds.has(id)) tags.push(`<span class="svu-tag svu-t-${k}">New</span>`);
+            if (live.waitingIds.has(id)) tags.push('<span class="svu-tag svu-t-waiting">Waiting for your answer</span>');
+            if (live.openIds.has(id) && !live.newIds.has(id)) tags.push('<span class="svu-tag svu-t-open">Not done</span>');
+            if (l.noReply.has(id)) tags.push('<span class="svu-tag svu-t-plain">No reply needed</span>');
+            if (_svuIsAuto(n.m)) tags.push('<span class="svu-tag svu-t-plain">Automatic record</span>');
+            const html = tags.join('');
+            const line = row.querySelector('.cal-cm-head-line');
+            let holder = row.querySelector('.svu-tags');
+            if (!holder && line) { holder = document.createElement('span'); holder.className = 'svu-tags'; line.insertBefore(holder, line.querySelector('.cal-cm-time')); }
+            if (holder && holder.innerHTML !== html) holder.innerHTML = html;
+            const q = _jsAttrArg(id);
+            const want = live.waitingIds.has(id)
+                ? `<button type="button" class="svu-btn svu-primary" onclick="_calBeginReply(${q})">Reply</button><button type="button" class="svu-text-btn" onclick="svuNoReply(${q})">No reply needed</button>`
+                : (live.openIds.has(id) ? `<button type="button" class="svu-btn" onclick="_calBeginReply(${q})">Reply</button><button type="button" class="svu-text-btn" onclick="_calToggleCommentDone(${q})">Mark done</button>` : '');
+            let act = row.querySelector('.svu-row-acts');
+            const body = row.querySelector('.cal-cm-row-body');
+            if (!act && body && want) { act = document.createElement('div'); act.className = 'svu-row-acts'; body.after(act); }
+            if (act && act.innerHTML !== want) act.innerHTML = want;
+            if (act) act.hidden = !want;
+        });
+    }
+    function svuJump(id) {
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(id) : id;
+        const row = document.querySelector(`#calCommentsModal .cal-cm-row[data-cm-row="${sel}"]`);
+        if (!row) return;
+        row.scrollIntoView({ block: 'center' });
+        row.classList.add('svu-flash'); setTimeout(() => row.classList.remove('svu-flash'), 1200);
+    }
+
+    /* ---------- Messages (326 hands over here) ---------- */
+    const _svuIsChangeMsg = (m, byId) => { const root = byId.get(m.root_id) || m; return _svuIsClient(m) && _svuIsTweak(root) && root.is_tweak === true && _svuIsClient(root); };
+    // New = from the first unread message the server named, minus your own, automatic records and change requests.
+    function _svuConvState(c) {
+        const l = _svuLocalGet();
+        const s = { comment: 0, staff: 0, kasper: 0, waiting: 0, newIds: new Set(), waitingIds: new Set(), newTotal: 0 };
+        const msgs = Array.isArray(c.messages) ? c.messages : null;
+        if (!msgs) {
+            // The cached list carries no messages yet: the server's own count, as a client comment.
+            const n = l.unread.has(c.post_id) ? Math.max(1, Number(c.unread) || 0) : (Number(c.unread) || 0);
+            s.comment = n; s.newTotal = n;
+            return s;
+        }
+        const byId = new Map(msgs.map(m => [m.id, m]));
+        const marked = l.unread.has(c.post_id);
+        const start = marked ? 0 : (Number(c.unread) > 0 && c.first_unread_id ? msgs.findIndex(m => m.id === c.first_unread_id) : -1);
+        msgs.forEach((m, i) => {
+            if (start < 0 || i < start || _svuIsMine(m) || _svuIsAuto(m) || _svuIsChangeMsg(m, byId)) return;
+            const k = _svuIsClient(m) ? 'comment' : _svuRole(m) === 'kasper' ? 'kasper' : 'staff';
+            s[k]++; s.newIds.add(m.id);
+        });
+        for (const r of msgs.filter(m => m.root_id === m.id)) {
+            if (!_svuIsClient(r) || r.is_tweak === true || l.noReply.has(r.id) || _svuIsAuto(r)) continue;
+            if (!msgs.some(m => m.root_id === r.id && m !== r && !_svuIsClient(m))) { s.waitingIds.add(r.id); if (!s.newIds.has(r.id)) s.waiting++; }
+        }
+        s.newTotal = s.comment + s.staff + s.kasper;
+        return s;
+    }
+    function _svuConvBubbles(c, s) {
+        const by = new Map();
+        for (const m of Array.isArray(c.messages) ? c.messages : []) {
+            if (!s.newIds.has(m.id) && !s.waitingIds.has(m.id)) continue;
+            const k = _svuIsClient(m) ? 'client' : String(m.author_member_id || m.author || 'Team');
+            if (!by.has(k)) by.set(k, { m, nNew: 0, kind: '', nOut: 0, outKind: '', last: '' });
+            const g = by.get(k);
+            if (s.newIds.has(m.id)) { g.nNew++; const kk = _svuIsClient(m) ? 'comment' : _svuRole(m) === 'kasper' ? 'kasper' : 'staff'; if (!g.kind || SVU_RANK[kk] > SVU_RANK[g.kind]) g.kind = kk; }
+            else { g.nOut++; g.outKind = 'waiting'; }
+            if (String(m.created_at) > g.last) g.last = String(m.created_at);
+        }
+        if (!by.size && s.newTotal) by.set('client', { m: { role: c.last_role || 'client', author: c.last_author, author_member_id: c.last_author_member_id }, nNew: s.newTotal, kind: 'comment', nOut: 0, outKind: '', last: '' });
+        return _svuBubblesHtml([...by.values()].sort((x, y) => (y.nNew > 0) - (x.nNew > 0) || y.last.localeCompare(x.last)), 2, c.client_slug);
+    }
+    function svuMsgListHtml() {
+        const f = _msgState.filter;
+        const keep = c => { const s = _svuConvState(c); return f === 'all' || c.post_id === _msgState.openId || (f === 'answer' ? s.waitingIds.size > 0 : s.newTotal > 0); };
+        const list = _msgState.conversations.filter(keep);
+        if (!list.length) return `<div class="msg-list-empty">${f === 'answer' ? 'Nothing is waiting for your answer' : f === 'new' ? 'Nothing new' : 'No conversations yet'}</div>`;
+        return list.map(c => {
+            const s = _svuConvState(c);
+            const msgs = Array.isArray(c.messages) ? c.messages : [];
+            const byId = new Map(msgs.map(m => [m.id, m]));
+            const last = msgs.filter(m => !_svuIsAuto(m) && !_svuIsChangeMsg(m, byId)).slice(-1)[0]
+                || { author: c.last_author, author_member_id: c.last_author_member_id, role: c.last_role, body: c.last_body, created_at: c.last_at };
+            const who = _svuIsMine(last) ? 'You' : _svuWho(last);
+            return `<button type="button" class="msg-conv svu-conv${c.post_id === _msgState.openId ? ' is-active' : ''}${s.newTotal ? ' is-unread' : ''}" data-msg-conv="${_calEscAttr(c.post_id)}" onclick="_msgOpen(${_jsAttrArg(c.post_id)})">
+                ${_svuAvatar({ role: 'client' }, 'svu-conv-av', c.client_slug)}
+                <span class="svu-conv-main">
+                    <span class="svu-conv-top"><span class="svu-conv-title">${_calEsc(c.title || 'Untitled post')}</span><span class="svu-conv-time">${_calEsc(_calFmtCommentTime(last.created_at || c.last_at))}</span></span>
+                    <span class="svu-conv-last">${_calEsc(_msgClientName(c))} · ${_calEsc(who + ': ' + (last.body || ''))}</span>
+                </span>
+                <span class="svu-conv-badge">${_svuConvBubbles(c, s)}</span>
+            </button>`;
+        }).join('');
+    }
+    function svuUnreadConversations() { return _msgState.conversations.filter(c => _svuConvState(c).newTotal > 0).length; }
+    function svuPaintCounts() {
+        let newConvs = 0, waitConvs = 0; const k = { comment: 0, staff: 0, kasper: 0 };
+        for (const c of _msgState.conversations) { const s = _svuConvState(c); if (s.newTotal) newConvs++; if (s.waitingIds.size) waitConvs++; k.comment += s.comment; k.staff += s.staff; k.kasper += s.kasper; }
+        const kind = k.comment ? 'comment' : k.staff ? 'staff' : k.kasper ? 'kasper' : 'waiting';
+        const n = newConvs || waitConvs;
+        document.querySelectorAll('[data-kasper-count="replies"]').forEach(el => { el.textContent = String(newConvs); el.classList.toggle('is-unread', newConvs > 0); });
+        document.querySelectorAll('[data-msg-count]').forEach(el => {
+            el.textContent = String(n);
+            el.hidden = n === 0;
+            el.className = 'msg-unread svu-count svu-count-' + (newConvs ? kind : 'waiting');
+        });
+        _svuCounts = { newConvs, waitConvs, k };
+    }
+    let _svuCounts = { newConvs: 0, waitConvs: 0, k: {} };
+    // After every Messages repaint (326): the tabs, the Slack-like chat rows and the change-request line.
+    function svuAfterMsgPaint() {
+        if (!_svuOn) return;
+        document.querySelectorAll('[data-msg-root]').forEach(root => {
+            const filters = root.querySelector('.msg-filters');
+            if (filters && !filters.querySelector('[data-svu-answer]')) {
+                const waitConvs = _msgState.conversations.filter(c => _svuConvState(c).waitingIds.size > 0).length;
+                const newConvs = svuUnreadConversations();
+                filters.innerHTML = [['new', 'New', newConvs], ['answer', 'To answer', waitConvs], ['all', 'All', 0]].map(([k, t, n]) =>
+                    `<button type="button" data-svu-${k}="1" class="${_msgState.filter === k ? 'is-active' : ''}" aria-pressed="${_msgState.filter === k}" onclick="_msgSetFilter('${k}')">${t}${n ? ` <span>${n}</span>` : ''}</button>`).join('');
+            }
+            const c = _msgState.conversations.find(x => x.post_id === _msgState.openId);
+            if (!c || !Array.isArray(c.messages)) return;
+            const s = _svuConvState(c);
+            const l = _svuLocalGet();
+            const byId = new Map(c.messages.map(m => [m.id, m]));
+            root.querySelectorAll('.msg-b[data-msg-id]').forEach(b => {
+                if (b.hasAttribute('data-svu')) return;
+                b.setAttribute('data-svu', '1');
+                const m = byId.get(b.getAttribute('data-msg-id'));
+                if (!m) return;
+                if (_svuIsChangeMsg(m, byId)) {
+                    if (m.root_id === m.id) b.outerHTML = `<div class="svu-change-line">${_svuAvatar(m, 'svu-line-av', c.client_slug)}<span>The client asked for a change on the ${_calEsc(String(_svuLabel(m.component || 'video')).toLowerCase())}. Change requests are handled on the card.</span><button type="button" class="svu-text-btn" onclick="_msgOpenCard()">Open card</button></div>`;
+                    else b.remove();
+                    return;
+                }
+                const k = _svuIsAuto(m) ? 'auto' : _svuIsMine(m) ? 'me' : _svuIsClient(m) ? 'comment' : _svuRole(m) === 'kasper' ? 'kasper' : 'staff';
+                b.setAttribute('data-svu-kind', k);
+                if (!b.querySelector('.svu-slack-av')) b.insertAdjacentHTML('afterbegin', _svuAvatar(m, 'svu-slack-av', c.client_slug));
+                const meta = b.querySelector('.msg-b-meta');
+                const tags = [];
+                if (s.newIds.has(m.id)) tags.push(`<span class="svu-tag svu-t-${k}">New</span>`);
+                if (s.waitingIds.has(m.id)) tags.push('<span class="svu-tag svu-t-waiting">Waiting for your answer</span>');
+                if (l.noReply.has(m.id)) tags.push('<span class="svu-tag svu-t-plain">No reply needed</span>');
+                if (_svuIsAuto(m)) tags.push('<span class="svu-tag svu-t-plain">Automatic record</span>');
+                if (meta && tags.length) meta.insertAdjacentHTML('beforeend', tags.join(''));
+                if (s.waitingIds.has(m.id)) b.insertAdjacentHTML('beforeend', `<div class="svu-row-acts"><button type="button" class="svu-btn svu-primary" onclick="_msgSetReplyTo(${_jsAttrArg(m.root_id)});document.getElementById('msgReplyBox')&&document.getElementById('msgReplyBox').focus()">Reply</button><button type="button" class="svu-text-btn" onclick="svuNoReply(${_jsAttrArg(m.id)})">No reply needed</button></div>`);
+            });
+        });
+    }
+
+    /* ---------- the Messages button's hover ---------- */
+    let _svuBtnTip = null;
+    function _svuShowButtonTip() {
+        _svuHideButtonTip();
+        const btn = document.getElementById('navMessages');
+        if (!btn || !_svuOn) return;
+        const c = _svuCounts;
+        const line = (k, text) => `<div class="svu-pv-row svu-k-${k} svu-tip-row"><span class="svu-pv-ico">${SVU_ICO[k]}</span><span class="svu-tip-text">${text}</span></div>`;
+        _svuBtnTip = document.createElement('div');
+        _svuBtnTip.className = 'svu-pv svu-btn-tip';
+        _svuBtnTip.innerHTML = `<div class="svu-tip-head">${c.newConvs ? _svuPlural(c.newConvs, 'conversation has', 'conversations have') + ' something new' : 'Nothing new'}</div>`
+            + (c.k.comment ? line('comment', SVU_SAY.comment(c.k.comment)) : '') + (c.k.staff ? line('staff', SVU_SAY.staff(c.k.staff)) : '') + (c.k.kasper ? line('kasper', SVU_SAY.kasper(c.k.kasper)) : '')
+            + (c.waitConvs ? line('waiting', _svuPlural(c.waitConvs, 'client is', 'clients are') + ' waiting for your answer') : '')
+            + '<div class="svu-pv-foot">Change requests are on the cards, not here.</div>';
+        document.body.appendChild(_svuBtnTip);
+        const r = btn.getBoundingClientRect();
+        const w = Math.min(330, innerWidth - 24);
+        _svuBtnTip.style.width = w + 'px';
+        _svuBtnTip.style.left = Math.max(12, Math.min(r.right - w, innerWidth - w - 12)) + 'px';
+        _svuBtnTip.style.top = (r.bottom + 6) + 'px';
+    }
+    function _svuHideButtonTip() { if (_svuBtnTip) { _svuBtnTip.remove(); _svuBtnTip = null; } }
+
+    /* ---------- actions ---------- */
+    function svuNoReply(id) { const l = _svuLocalGet(); l.noReply.add(String(id)); _svuLocalSave(); svuRefresh(); }
+    function svuMarkUnread(pid) { const l = _svuLocalGet(); l.unread.add(String(pid)); _svuLocalSave(); svuRefresh(); try { showToast('Marked unread'); } catch (e) {} }
+    function svuRefresh() {
+        try { (calState.posts || []).forEach(p => _calRefreshCommentsBtn(p.id)); } catch (e) {}
+        try { _svuDecorateNotes(); } catch (e) {}
+        if (!_msgState.unavailable) { try { svuPaintCounts(); _msgPaint(); } catch (e) {} }
+    }
+
+    /* ---------- switching on and off ---------- */
+    let _svuObserver = null;
+    function _svuSync() {
+        let phone = false;
+        try { phone = _msgIsPhone(); } catch (e) { phone = false; }
+        const want = !phone && svUnreadBadgesOn();
+        if (want === _svuOn) return;
+        _svuOn = want;
+        document.documentElement.classList.toggle('sv-unread2', want);
+        const nb = document.getElementById('navMessages');
+        if (want) {
+            if (!_svuObserver && typeof MutationObserver !== 'undefined') {
+                let queued = false;
+                _svuObserver = new MutationObserver(() => {
+                    if (queued) return;
+                    queued = true;
+                    requestAnimationFrame(() => { queued = false; try { _svuDecorateNotes(); } catch (e) {} });
+                });
+                _svuObserver.observe(document.body, { childList: true, subtree: true });
+            }
+            if (nb && !nb.__svu) { nb.__svu = true; nb.addEventListener('pointerenter', _svuShowButtonTip); nb.addEventListener('pointerleave', _svuHideButtonTip); }
+            // The pictures and the Messages counts come with the inbox answer.
+            if (currentNav !== 'production') { try { _msgLoad(false); } catch (e) {} }
+        } else {
+            if (_svuObserver) { _svuObserver.disconnect(); _svuObserver = null; }
+            svuHideHover(); _svuHideButtonTip();
+        }
+        svuRefresh();
+    }
+    window.addEventListener('sv-review-stage-switch', () => { try { _svuSync(); } catch (e) {} });
+    setTimeout(() => { try { _svuSync(); } catch (e) {} }, 0);
+
+    // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
+    Object.assign(window, {
+        svuHideHover, svuHoverCard, svuJump, svuMarkUnread, svuNoReply
+    });
+export { svuActive, svuAfterMsgPaint, svuMsgListHtml, svuNotesBtnHtml, svuNotesOpening, svuPaintCounts, svuPicturesArrived, svuUnreadConversations };

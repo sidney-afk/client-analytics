@@ -11,6 +11,7 @@
     "loading-family.js",
     "pages-build-inputs.js",
     "messages-inbox-scope.js",
+    "people-pictures.js",
     "fixture-desktop-exact-replay.js",
     "browser-guards-wired.js",
     "prod-comment-restored-request-id.js",

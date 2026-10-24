@@ -444,6 +444,7 @@ jobs:
           One shared client follows the client tabs; team tabs and client links ignore it|node docs/syncview-design/tests/shared-client-browser.js
           Urgent ping uses the stamp the database holds, and a refused ping can be refreshed|node docs/syncview-design/tests/urgent-ping-fresh-round-browser.js
           Messages inbox (list, read and unread, reply through Notes, posted drops out, phone) (mocked)|node docs/syncview-design/tests/messages-inbox-browser.js
+          Round-5 unread badges only for the staff unread_badges_v2 names: people bubbles, Needs you, To answer (mocked)|node docs/syncview-design/tests/unread-badges-v2-browser.js
           Generate caption off n8n (no n8n fallback, function path, transcript box, desktop and phone)|node test/caption-generate-browser.js
           Kasper Clients tab is admin-only and read-only|node docs/syncview-design/tests/clients-admin-browser.js
           Expanded client Samples and Analytics phone states|node docs/syncview-design/tests/client-links-expanded-browser.js

@@ -1221,6 +1221,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             S.draftsLoaded = true;
             const stored = _rsStoreRead();
             Object.keys(stored).forEach(id => { if (!S.drafts[id]) S.drafts[id] = stored[id]; });
+            if (R.cp) _rsCpQRestore();
         }
         // The list may still be the saved copy from an earlier visit (calState.fromCache): it can lack a post that
         // is waiting now, so nothing is dropped until the live list has landed.
@@ -2754,11 +2755,41 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
        Each change waits for the one before it to land (the save path takes one at a time per part and would drop a
        second one sent meanwhile), then goes. If one is refused, the ones still waiting go back into the box, so no
        words are ever lost; the refused one keeps its own Try again and "Your unsent words". */
+    /* Changes still waiting their turn are kept in this browser (one key per client link, by post and part) until the
+       save path has taken them (from then on its own queue, 185, holds them). After a reload they come back into that
+       post's box, unsent, so nothing is lost and nothing goes twice. */
+    const RS_CHGQ_KEY = 'syncview_rs_chgq_v1:';
+    function _rsCpQKey() { const c = String(calState.client || '').trim().toLowerCase(); return R.mode === 'client' && c ? RS_CHGQ_KEY + c : ''; }
+    function _rsCpQRead() { try { const v = JSON.parse(localStorage.getItem(_rsCpQKey()) || '{}'); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; } }
+    function _rsCpQSave(key, q) {
+        const sk = _rsCpQKey();
+        if (!sk) return;
+        try {
+            const all = _rsCpQRead();
+            const items = (q || []).map(n => ({ body: n.body, at: n.created_at }));
+            if (items.length) all[key] = items; else delete all[key];
+            if (Object.keys(all).length) localStorage.setItem(sk, JSON.stringify(all)); else localStorage.removeItem(sk);
+        } catch (e) {}
+    }
+    // Once per visit, with the kept drafts: waiting changes from an earlier visit go back into their post's box.
+    function _rsCpQRestore() {
+        const S = R.S, all = _rsCpQRead();
+        Object.keys(all).forEach(key => {
+            const i = key.lastIndexOf('|'), pid = key.slice(0, i), k = key.slice(i + 1);
+            const words = (Array.isArray(all[key]) ? all[key] : []).map(n => String(n && n.body || '')).filter(x => x.trim());
+            if (!pid || !k || !words.length || (S.chgQ[key] || []).length) return;
+            const d = S.drafts[pid], had = d && String(d.text || '').trim() ? [d.text] : [];
+            S.drafts[pid] = { text: words.concat(had).join('\n\n'), part: k, vis: 'team', was: 'chg', aat: false, at: Date.now() };
+            _rsDraftPut(pid, S.drafts[pid]);
+            _rsCpQSave(key, []);
+        });
+    }
     function _rsCpQueueChange(m, k, text, where) {
         const S = R.S, key = m.id + '|' + k;
         S.note = Object.assign(_rsBlankNote(), { part: k, where: where === 'stage' ? 'stage' : 'chat', was: 'chg' });
         const q = S.chgQ[key] || (S.chgQ[key] = []);
         q.push({ id: 'cq' + Date.now() + '_' + q.length, body: text, created_at: new Date().toISOString() });
+        _rsCpQSave(m.id + '|' + k, q);
         if (!q.busy) _rsCpDrain(m, k);
         _rsPersistCur();
         _rsRender({ force: true });
@@ -2772,10 +2803,19 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const giveBack = (why) => {
             const rest = q.splice(0).map(n => n.body);
             delete S.chgQ[key];
+            _rsCpQSave(key, []);
             if (!rest.length) return;
+            S.cpBack[key] = true;
+            // The person moved to another post meanwhile: the words wait in this post's own kept draft, never in the
+            // box of the post on stage now.
+            if (S.curId !== m.id) {
+                const d = S.drafts[m.id], had = d && String(d.text || '').trim() ? [d.text] : [];
+                S.drafts[m.id] = { text: rest.concat(had).join('\n\n'), part: k, vis: 'team', was: 'chg', aat: false, at: Date.now() };
+                _rsDraftPut(m.id, S.drafts[m.id]);
+                return;
+            }
             const typed = String(S.note.text || '').trim();
             S.note = Object.assign(_rsBlankNote(), { part: k, where: S.note.where || 'chat', was: 'chg', text: rest.concat(typed ? [typed] : []).join('\n\n') });
-            S.cpBack[key] = true;
             // Someone typing keeps typing: the words go into the box under their hands, the caret stays at the end.
             const ta = _rsQ('ta');
             if (ta && R.root.activeElement === ta) { ta.value = S.note.text; const L = ta.value.length; try { ta.setSelectionRange(L, L); } catch (e) {} ta.dispatchEvent(new Event('input')); }
@@ -2812,6 +2852,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             }
             if (!q.length) { delete S.chgQ[key]; _rsRender(); return; }
             const nx = q.shift();
+            _rsCpQSave(key, q);
             delete S.cpBack[key];
             _rsSendChange(cur, k, nx.body, { where: '', quiet: true });
             // The save path can decline before it starts (the part moved on meanwhile): the words go back, never lost.

@@ -110,7 +110,7 @@ async function shots(browser, origin) {
       await sleep(3600);
       await t.page.screenshot({ path: name('4-change-sent'), fullPage: full });
       // the client's own note: hover, then the question
-      const own = inS(t.page, '.bub.you, .sl.me').last();
+      const own = inS(t.page, '.bub.you, .cpm.me').last();
       await own.scrollIntoViewIfNeeded();
       await own.hover(); await sleep(250);
       await t.page.screenshot({ path: name('5-note-hover'), fullPage: full });
@@ -256,6 +256,46 @@ async function shots(browser, origin) {
       await t.ctx.close();
     }
 
+    console.log('--- 2. A change still waiting its turn survives a reload ---');
+    {
+      const t = await openClient(browser, origin, {});
+      t.state.writeHang = true;   // the first change never gets an answer
+      await inS(t.page, '#ta').fill('First, still on its way.');
+      await inS(t.page, '[data-pc="graphic"]').click(); await sleep(150);
+      await inS(t.page, '#sendBtn').click(); await sleep(150);
+      await inS(t.page, '#ta').fill('Second, waiting its turn.');
+      await inS(t.page, '#sendBtn').click(); await sleep(300);
+      t.state.writeHang = false;
+      await t.page.reload({ waitUntil: 'domcontentloaded' });
+      await waitNew(t); await sleep(1500);
+      const st = await R(t.page, (r) => ({ val: (r.getElementById('ta') || {}).value || '', part: (r.querySelector('[data-pc][aria-pressed="true"]') || { dataset: {} }).dataset.pc || '' }));
+      expect(/Second, waiting its turn\./.test(st.val) && st.part === 'graphic', 'after a reload the waiting change is back in its box, on its part, unsent (' + JSON.stringify(st) + ')');
+      await t.ctx.close();
+    }
+
+    console.log('--- 2. Refused while the client is on another post: the words stay with their own post ---');
+    {
+      const t = await openClient(browser, origin, {});
+      t.state.writeDelay = 900; t.state.refusal = { code: 'fixture_refused', status: 409 };
+      await inS(t.page, '#ta').fill('Change one on the first post.');
+      await inS(t.page, '[data-pc="graphic"]').click(); await sleep(150);
+      await inS(t.page, '#sendBtn').click(); await sleep(60);
+      await inS(t.page, '#ta').fill('Change two on the first post.');
+      await inS(t.page, '#sendBtn').click(); await sleep(60);
+      // over to the third post and type there before the refusal comes back
+      await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; const c = r.querySelector('[data-id="rs3"]'); if (c) c.click(); });
+      await sleep(400);
+      await inS(t.page, '#ta').fill('A comment on the third post.');
+      await sleep(2500);
+      const third = await R(t.page, (r) => (r.getElementById('ta') || {}).value || '');
+      expect(third === 'A comment on the third post.', 'the third post\'s box keeps only its own words (' + third.replace(/\n/g, ' / ') + ')');
+      await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; const c = r.querySelector('[data-id="rs1"]'); if (c) c.click(); });
+      await sleep(600);
+      const first = await R(t.page, (r) => (r.getElementById('ta') || {}).value || '');
+      expect(/Change two on the first post\./.test(first), 'and the first post\'s box has its waiting change back (' + first.replace(/\n/g, ' / ') + ')');
+      await t.ctx.close();
+    }
+
     console.log('--- 2. On the stage: Ask for a change keeps its box open ---');
     {
       const t = await openClient(browser, origin, {});
@@ -279,7 +319,7 @@ async function shots(browser, origin) {
       const id = await own.getAttribute('data-cp-note');
       const before = await R(t.page, (r, i) => getComputedStyle(r.querySelector('[data-cp-note="' + i + '"] .cp-x')).opacity, id);
       await own.hover(); await sleep(250);
-      const hover = await R(t.page, (r, i) => { const x = r.querySelector('[data-cp-note="' + i + '"] .cp-x'), b = x.closest('.bb, .sl-b').getBoundingClientRect(), c = x.getBoundingClientRect(); return { op: getComputedStyle(x).opacity, topRight: c.right >= b.right - 4 && c.top <= b.top + 4, label: x.getAttribute('aria-label') }; }, id);
+      const hover = await R(t.page, (r, i) => { const x = r.querySelector('[data-cp-note="' + i + '"] .cp-x'), b = x.closest('.bb, .cpm-b').getBoundingClientRect(), c = x.getBoundingClientRect(); return { op: getComputedStyle(x).opacity, topRight: c.right >= b.right - 4 && c.top <= b.top + 4, label: x.getAttribute('aria-label') }; }, id);
       expect(before === '0' && hover.op === '1' && hover.topRight, 'a small cross shows at the note\'s top right on hover only (' + before + ' to ' + JSON.stringify(hover) + ')');
       await inS(t.page, '[data-cp-note="' + id + '"] .cp-x').click(); await sleep(200);
       const ask = await R(t.page, (r) => { const a = r.querySelector('.cp-ask'); return a ? a.innerText.replace(/\s+/g, ' ').trim() : ''; });

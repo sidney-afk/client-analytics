@@ -34168,3 +34168,42 @@ back the old function (including its "Needs info" lines).
   - `test/messages-inbox-scope.js`: attachments in the inbox.
   - Before and after screenshots, light and dark: `docs/syncview-design/proofs/unread-badges-r7/`, made by `shots.js` in that folder.
 - **After merge:** production-comments deploys through the merge lane, with no migration and no switch change.
+
+## 492. [2026-10-24 17:30 UTC, BUILT, NOT MERGED] No "Sending…" or "Saving…" on any of the team's screens: the shared spinner instead (session Beacon)
+
+- **Owner, 2026-10-24 (relayed by the supervisor):** yes to the follow-up of OPEN_REPAIRS 489. Sweep every remaining staff send or save state. It reaches the owner first, through the switch `unread_badges_v2`.
+- **One shared rule (040):**
+  - `svBusyHtml(words)` / `svBusyText(el, words)` show the spinner for the staff the switch names, and the words for everyone else and on any client link.
+  - The words stay in place, invisible and hidden from screen readers, with the spinner centred over them (`.sv-busy`). Whatever holds them keeps today's size, so nothing beside it moves.
+  - Only "Sending…" / "Saving…" phrases turn into the spinner; any other text passes through, escaped. So a status line that also says "Saved" or shows an error can run through it.
+  - `svBusyOn()` follows the switch's own list, so the team's phone screens get it too. Round 7's desktop-only gate is replaced.
+  - `svSpinButton` is gone: `svBusyText` covers buttons.
+- **Swept:**
+  - Production: the comment button and status, saving labels, the description, assets.
+  - Notify client: the send button.
+  - Time off: the request.
+  - Templates: the spec save and the brain send.
+  - Filming plans: the status line.
+  - Workload: due-date saving, on the board and in the popover.
+  - The weekly Slack update.
+  - Post: the saved-post status, calls to action, thumbnail prompts.
+  - Submit: the saved-job status.
+  - Hiring: the action status. Sales intake: sending the agreement.
+  - Clients: manager and edit saves.
+  - Onboarding: step buttons.
+  - Calendar and Samples on a phone: a part being saved.
+  - The urgent ping, the note outbox line, Kasper's Approve (290, 330), and the review stage for the team and Kasper (Finish reviewing, a note on its way, the conversation time).
+- **Left on purpose, held by the ratchet in `test/no-sending-words.js`:**
+  - The client review page's words (185, the client panels in 190 and 280, and the stage's client mode in 195). These are session Porch's.
+  - The saving icon's screen-reader label (170), which is never shown.
+  - The review bell's hover text (195).
+  - Every other staff file is at zero.
+- **Proof:**
+  - `test/no-sending-words.js`:
+    - runs `svBusyHtml` / `svBusyText` from their source with the switch stubbed both ways;
+    - checks each swept path;
+    - checks that every status line the ratchet treats as handled renders through the rule;
+    - checks that the busy words are hidden in both style sheets;
+    - lowers the ratchet to the list above.
+  - It fails on main.
+  - Pictures: `docs/syncview-design/proofs/no-sending-words/`, every control in its busy state, switch off (before) and on (after), light and dark. Made by `shots.js` in that folder.

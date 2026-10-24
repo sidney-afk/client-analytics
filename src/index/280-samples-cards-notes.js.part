@@ -1,7 +1,5 @@
 import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
-import {
-  _svCaptureFocus, _svRestoreFocus, showConfirm, showNotify, showToast
-} from './040-shared-briefs.js';
+import { _svCaptureFocus, _svRestoreFocus, showConfirm, showNotify, showToast, svBusyHtml } from './040-shared-briefs.js';
 import {
   _prodCommentAddRoutesLegacy, _prodRootAudienceClientRows, _writeUiAdoptRepairAck,
   _writeUiAdoptReplayStatus, _writeUiAppendRepairRef, _writeUiBindRepairAck,
@@ -977,7 +975,7 @@ import {
     }
     function _sxrReviewPanelHtml(p, comp) {
         if (_sxrStaffPhoneActive() && _sxrReviewState.saving[p.id + '|' + comp]) {
-            return `<div class="cal-review-panel" data-comp="${_sxrEscAttr(comp)}" data-state="pending"><div class="cal-review-panel-title">${_sxrEsc(COMP_LABELS[comp])}</div><div class="pocket-staff-samples-saving" role="status">Saving…</div></div>`;
+            return `<div class="cal-review-panel" data-comp="${_sxrEscAttr(comp)}" data-state="pending"><div class="cal-review-panel-title">${_sxrEsc(COMP_LABELS[comp])}</div><div class="pocket-staff-samples-saving" role="status">${svBusyHtml('Saving…')}</div></div>`;
         }
         const escId = _sxrEscAttr(p.id), escComp = _sxrEscAttr(comp);
         const subStatus = _sxrNormStatus(p[comp + '_status'] || '');

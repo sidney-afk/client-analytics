@@ -1,3 +1,4 @@
+import { svBusyHtml } from './040-shared-briefs.js';
 import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { wlState } from './066-core-workload-state.js';
 import { svCalmSet } from './097-today.js';
@@ -262,7 +263,7 @@ import { svWorkloadCalmOn, svWorkloadCalmPending } from './188-review-stage-swit
             + tag + '<span class="wl-calm-date-chev" aria-hidden="true">' + WL_CALM_ICON.chev + '</span></button>'
             + '<input class="sv-date-value" id="' + dateId + '" type="date" tabindex="-1" aria-hidden="true" value="' + wlEscape(value) + '" data-sv-today-policy="workload"' + (canEdit ? '' : ' disabled') + '>'
             + '</span>'
-            + (savingDue ? '<span class="wl-calm-saving" role="status">Saving…</span>' : '')
+            + (savingDue ? '<span class="wl-calm-saving" role="status">' + svBusyHtml('Saving…') + '</span>' : '')
             + '</span>';
     }
     function wlCalmRowHtml(s, o) {

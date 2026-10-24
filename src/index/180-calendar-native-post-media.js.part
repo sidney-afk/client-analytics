@@ -1,6 +1,6 @@
 import { svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { _writeUiRecordSaveFailure, _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
-import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
+import { showConfirm, showNotify, showToast, svBusyText } from './040-shared-briefs.js';
 import { wlAddWorkingDays, wlTodayISO } from './068-core-workload-dates.js';
 import {
   CALENDAR_REORDER_EF_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL,
@@ -552,7 +552,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const slot = document.getElementById('calNativeSavedSlot');
         if (slot) slot.innerHTML = _calNativeSavedBoxHtml();
     }
-    function _calNativeSavedSay(text) { const el = document.getElementById('calNativeSavedStatus'); if (el) el.textContent = text; }
+    function _calNativeSavedSay(text) { svBusyText(document.getElementById('calNativeSavedStatus'), text); }
     async function _calNativeSavedRestore() {
         const state = _calNativePostState;
         const work = _linearSavedWork();
@@ -2269,7 +2269,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const ctaBox = document.getElementById('calCtaTA');
         const ctaLines = ctaBox && ctaBox.getAttribute('data-loaded') === '1' ? _calCtaLines(ctaBox.value) : null;
         btn.disabled = true;
-        btn.textContent = 'Saving…';
+        svBusyText(btn, 'Saving…');
         try {
             // n8n exit, PR 3: the function only, after a fresh, bounded read of
             // settings_ef_clients. An unreadable flag holds the save, an unlisted client
@@ -2407,7 +2407,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const raw = ta.value.trim();
         const promptText = raw === _calThumbTitleDefault.trim() ? '' : raw;
         btn.disabled = true;
-        btn.textContent = 'Saving…';
+        svBusyText(btn, 'Saving…');
         try {
             const url = THUMBNAIL_TITLE_PROMPTS_EF_URL;
             const r = await _writeUiTrackSave('captions', 'thumbnail_title_prompt_save', () => ({ client_slug: calClientSlug(client) }), async () => {

@@ -1,3 +1,4 @@
+import { svBusyHtml, svBusyText } from './040-shared-briefs.js';
 import { _writeUiRecordSaveFailure, _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
 import { CAL_SUPABASE_URL, _obEsc, _obPost, _syncviewRequireStaffIdentity } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
@@ -591,7 +592,7 @@ import { _kasperRenderSalesIntake } from './321-kasper-dashboard-replies.js';
                     ${!deliveryPending && !['rejected', 'withdrawn', 'interview_booked'].includes(status) && status !== 'hold' ? '<button type="button" class="hp-action" onclick="_hpSetStatus(\'hold\')"' + actionDisabled + '>Put on hold</button>' : ''}
                     ${!deliveryPending && !['invited', 'interview_booked', 'rejected', 'withdrawn'].includes(status) ? '<button type="button" class="hp-action danger" onclick="_hpSetStatus(\'rejected\')"' + actionDisabled + '>Mark not moving forward</button>' : ''}
                 </div>
-                <div class="hp-action-status${_hpState.actionError ? ' error' : ''}" id="hpApplicationActionStatus">${_hpEsc(_hpState.actionError || _hpState.actionMessage)}</div>
+                <div class="hp-action-status${_hpState.actionError ? ' error' : ''}" id="hpApplicationActionStatus">${_hpState.actionError ? _hpEsc(_hpState.actionError) : svBusyHtml(_hpState.actionMessage)}</div>
             </div>
             <div class="hp-section">
                 <div class="hp-section-title">Answers</div>
@@ -606,7 +607,7 @@ import { _kasperRenderSalesIntake } from './321-kasper-dashboard-replies.js';
                     ${canQueue ? '<button type="button" class="hp-action primary" id="hpInviteButton" onclick="_hpQueueInvite()"' + actionDisabled + '>Send interview invite</button>' : ''}
                     ${canRetry ? '<button type="button" class="hp-action primary" id="hpRetryInviteButton" onclick="_hpRetryInvite()"' + actionDisabled + '>Retry interview invite</button>' : ''}
                 </div>
-                <div class="hp-action-status${_hpState.actionError ? ' error' : ''}" id="hpActionStatus">${_hpEsc(_hpState.actionError || _hpState.actionMessage || existingNote)}</div>
+                <div class="hp-action-status${_hpState.actionError ? ' error' : ''}" id="hpActionStatus">${_hpState.actionError ? _hpEsc(_hpState.actionError) : _hpState.actionMessage ? svBusyHtml(_hpState.actionMessage) : _hpEsc(existingNote)}</div>
             </div>
         </div>`;
     }
@@ -1121,7 +1122,7 @@ import { _kasperRenderSalesIntake } from './321-kasper-dashboard-replies.js';
                 preview_sign_url: preview.sign_url
             })
         } : { submission };
-        if (preview) btn.textContent = 'Sending agreement...';
+        if (preview) svBusyText(btn, 'Sending agreement...');
         _obPost(SALES_INTAKE_SUBMIT_URL, payload, 45000)
             .then(resp => {
                 _siAgreementPreview = null;

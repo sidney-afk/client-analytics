@@ -535,7 +535,7 @@ async function inboxCanonical(supabase: SupabaseClient, posts: JsonMap[]): Promi
   }
   const out = new Map<string, JsonMap[]>();
   const fetched = await Promise.all(chunkIds(ids).map((part) => supabase.from("production_comments")
-    .select("id,native_comment_id,deliverable_id,team,parent_id,thread_root_id,author_name,author_member_id,role,body,audience,component,is_tweak,source_created_at,created_at,deleted_at")
+    .select("id,native_comment_id,deliverable_id,team,parent_id,thread_root_id,author_name,author_member_id,role,body,attachments,audience,component,is_tweak,source_created_at,created_at,deleted_at")
     .in("deliverable_id", part)
     .is("deleted_at", null)));
   for (const { data, error } of fetched) {

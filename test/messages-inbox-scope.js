@@ -267,6 +267,16 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
   ok(!/\bgrant\b[^;]*\bto\b[^;]*\b(anon|authenticated|public)\b/i.test(migration.replace(/^\s*--.*$/gm, '').replace(/revoke[^;]*;/g, '')), 'no browser role is granted anything');
   ok(/enable row level security/.test(migration), 'row level security is on');
 
+  // Round 7: a message carries its attachments (safe links only), and a message without any carries none.
+  const filed = inbox.collectMessages({ id: 'p10', video_tweaks: JSON.stringify([
+    { id: 'f1', body: 'photos', role: 'client', created_at: '2026-10-20T10:00:00Z', attachments: [{ name: 'cover.jpg', url: 'https://example.invalid/cover.jpg' }, { name: 'bad', url: 'javascript:alert(1)' }] },
+    { id: 'f2', body: 'plain', role: 'client', created_at: '2026-10-20T10:01:00Z' }]) },
+    [{ id: 'k3', native_comment_id: 'f3', team: 'video', role: 'client', body: 'canonical photo', attachments: [{ name: 'shot.png', url: 'https://example.invalid/shot.png' }], created_at: '2026-10-20T10:02:00Z' }]);
+  const files = id => (filed.find(m => m.id === id) || {}).attachments;
+  ok(JSON.stringify(files('f1')) === JSON.stringify([{ url: 'https://example.invalid/cover.jpg', name: 'cover.jpg' }]), 'a message carries its attachments, without an unsafe link');
+  ok(files('f2') === undefined && !('attachments' in filed.find(m => m.id === 'f2')), 'a message without attachments carries none');
+  ok(files('f3') && files('f3')[0].name === 'shot.png', 'a canonical row carries its attachments too');
+
   if (failures) { console.error(`\nmessages-inbox-scope: ${failures} failed`); process.exit(1); }
   console.log('\nmessages-inbox-scope: all checks passed');
 })();

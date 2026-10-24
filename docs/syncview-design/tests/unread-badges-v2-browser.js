@@ -20,6 +20,12 @@
  *      unread" / "Open card" and an empty thumbnail is not drawn; the reply caption uses the first name; a follow-up
  *      by the same person within five minutes drops its picture and name; in Notes "Team only" is a lock, a change
  *      request reads "Change request", and "Waiting for your answer" stands alone without "New".
+ *   I. Round 7 (owner, 2026-10-24): a read change request still open is a coloured number with no ring; no "Not
+ *      done" word; the hover toolbar sits at the bottom right of a note and of a message and never covers a word of
+ *      the note (a note whose last line runs under it gets room below, the others none); a change request, and a reply
+ *      under one, has no Reply in Notes or in Messages while the reply already written still shows; the whole Notes
+ *      row on a card (button, gap, bubbles) opens Notes; a note on its way shows a spinner, never "Sending"; a
+ *      message's attachments show in Messages as in Notes.
  *   F. No page error.
  *   G. Only a page the switch is on for asks the inbox for pictures (the Slack lookups are opt-in).
  */
@@ -34,6 +40,8 @@ const NOTES = [
   // The longest header in this fixture: a long first name, "Waiting for your answer", the time; with its toolbar
   // (Reply, No reply needed, Delete) it would run under the toolbar if no room were kept for it.
   note({ id: 'n_long', min: 5, author: 'Bartholomew-Maximilian Rivera', body: 'One more: can the outro be a little longer?' }),
+  // Round 7: a reply already written under the change request (by you, so no count changes); it must still show.
+  note({ id: 'n_change_r', parent_id: 'n_change', min: 8, author: 'Browser Staff', author_member_id: 'm1', role: 'admin', body: 'Trimmed in the next cut.' }),
   note({ id: 'n_team', min: 15, author: 'Fixture Editor', author_member_id: 'ed1', role: 'editor', audience: 'internal', body: 'New export is up.' }),
 ];
 const CLIENT_PIC = 'https://pictures.example.test/client-contact.png';
@@ -59,7 +67,8 @@ async function run(flagValue) {
     unread: 2, first_unread_id: 'n_question',
     messages: [Object.assign({}, NOTES[1], { component: 'video' }), Object.assign({}, NOTES[0], { component: 'video' }),
       Object.assign(note({ id: 'm_team', min: 30, author: 'Fixture Editor', author_member_id: 'ed1', role: 'editor', audience: 'internal', body: 'Export is up.' }), { component: 'video', is_tweak: false }),
-      Object.assign(note({ id: 'm_team2', min: 29, author: 'Fixture Editor', author_member_id: 'ed1', role: 'editor', audience: 'internal', body: 'Same export, now with captions.' }), { component: 'video', is_tweak: false }),
+      Object.assign(note({ id: 'm_team2', min: 29, author: 'Fixture Editor', author_member_id: 'ed1', role: 'editor', audience: 'internal', body: 'Same export, now with captions.' }), { component: 'video', is_tweak: false, attachments: [{ name: 'export-v2.mp4', url: 'https://example.invalid/export-v2.mp4' }] }),
+      Object.assign(note({ id: 'm_kasper', min: 40, author: 'Kasper', role: 'kasper', audience: 'internal', is_tweak: true, body: 'Colour on the last shot is warm.' }), { component: 'video' }),
       Object.assign(note({ id: 'm_mine', min: 25, author: 'Browser Staff', author_member_id: 'm1', role: 'admin', audience: 'internal', body: 'Thanks, checking now.' }), { component: 'caption', is_tweak: false })]
       .sort((a, b) => a.created_at.localeCompare(b.created_at)) };
   await S.ctx.route('**/functions/v1/production-comments{,?*}', async route => {
@@ -149,25 +158,56 @@ const cardState = page => page.evaluate(() => {
     ok(notes.author === 'Casey' && notes.time === '20m ago', 'D. first name and a relative time: ' + notes.author + ', ' + notes.time);
     ok(notes.waitingTag && notes.tools.includes('Reply') && notes.tools.includes('No reply needed'), 'D. the waiting comment\'s hover toolbar has Reply and No reply needed: ' + notes.tools.join(', '));
     ok(notes.unread, 'D. "Mark unread" is one quiet word in the Notes head');
-    // The hover toolbar never covers the header: on every note (the longest header included), its box does not meet
-    // the time or any other header item while the pointer is on it.
-    const overlaps = [];
+    // Round 7: make one note's last line run under where the toolbar sits, so the room case is exercised.
+    await page.evaluate(() => {
+      const row = document.querySelector('#calCommentsModal .cal-cm-row[data-cm-row="n_long"]');
+      const body = row.querySelector('.cal-cm-row-body'), bar = row.querySelector('.cal-cm-actions');
+      const last = () => { const r = document.createRange(); r.selectNodeContents(body.firstChild); const rs = [...r.getClientRects()]; return rs[rs.length - 1]; };
+      for (let i = 0; i < 80 && last().right < bar.getBoundingClientRect().left + 20; i++) body.firstChild.nodeValue += ' more';
+    });
+    await sleep(300);
+    // The hover toolbar sits at the bottom right of every note and never covers a word of it (header or body).
+    const overlaps = [], placed = [];
     for (const id of await page.evaluate(() => [...document.querySelectorAll('#calCommentsModal .cal-cm-row[data-cm-row]')].map(r => r.getAttribute('data-cm-row')))) {
       const sel = `#calCommentsModal .cal-cm-row[data-cm-row="${id}"]`;
       await page.hover(sel + ' .cal-cm-row-body').catch(() => {});
       await sleep(180);
       const hit = await page.evaluate(sel => {
-        const bar = document.querySelector(sel + ' .cal-cm-actions');
-        if (!bar || getComputedStyle(bar).opacity === '0') return 'toolbar not shown';
-        const b = bar.getBoundingClientRect();
-        const meet = r => r.width && r.height && r.left < b.right && r.right > b.left && r.top < b.bottom && r.bottom > b.top;
-        const items = [...document.querySelectorAll(sel + ' .cal-cm-head-line > *')].filter(el => getComputedStyle(el).visibility !== 'hidden' && !el.classList.contains('cal-cm-comp-label'));
-        const bad = items.filter(el => meet(el.getBoundingClientRect())).map(el => el.className || el.tagName);
-        return bad.length ? bad.join('+') : '';
+        const row = document.querySelector(sel), bar = row && row.querySelector(':scope > .cal-cm-actions');
+        if (!bar) return { none: true };
+        if (getComputedStyle(bar).opacity === '0') return { bad: 'toolbar not shown' };
+        const b = bar.getBoundingClientRect(), r = row.getBoundingClientRect();
+        const meet = x => x.width && x.height && x.left < b.right && x.right > b.left && x.top < b.bottom && x.bottom > b.top;
+        const range = document.createRange(), bad = [];
+        const walk = document.createTreeWalker(row.querySelector('.cal-cm-body-col'), NodeFilter.SHOW_TEXT);
+        for (let t = walk.nextNode(); t; t = walk.nextNode()) {
+          if (!t.nodeValue.trim() || getComputedStyle(t.parentElement).visibility === 'hidden') continue;
+          range.selectNodeContents(t);
+          if ([...range.getClientRects()].some(meet)) bad.push(JSON.stringify(t.nodeValue.trim().slice(0, 20)));
+        }
+        return { bad: bad.join('+'), bottom: Math.round(r.bottom - b.bottom), right: Math.round(r.right - b.right), room: row.classList.contains('svu-bar-room') };
       }, sel);
-      if (hit) overlaps.push(id + ': ' + hit);
+      if (hit.none) continue;
+      if (hit.bad) overlaps.push(id + ': ' + hit.bad);
+      placed.push(Object.assign({ id }, hit));
     }
-    ok(overlaps.length === 0, 'D. the hover toolbar never covers the header (time, tags, name) on any note' + (overlaps.length ? ': ' + overlaps.join('; ') : ''));
+    ok(overlaps.length === 0 && placed.length >= 4, `I. the hover toolbar never covers a word of any note, the long one included (${placed.length} notes)` + (overlaps.length ? ': ' + overlaps.join('; ') : ''));
+    ok(placed.every(p => p.bottom >= 0 && p.bottom <= 14 && p.right >= 0 && p.right <= 28), 'I. the toolbar sits at the bottom right of each note ' + JSON.stringify(placed.map(p => [p.id, p.bottom, p.right])));
+    const room = placed.filter(p => p.room).map(p => p.id);
+    ok(room.join() === 'n_long', 'I. only the note whose last line runs under the toolbar gets room below it: ' + room.join());
+    const r7 = await page.evaluate(() => {
+      const tools = id => [...document.querySelectorAll(`#calCommentsModal .cal-cm-row[data-cm-row="${id}"] .cal-cm-actions .cal-cm-action`)].map(b => b.textContent.trim());
+      return {
+        change: tools('n_change'), reply: tools('n_change_r'), question: tools('n_question'),
+        replyShown: !!document.querySelector('#calCommentsModal .cal-cm-row[data-cm-row="n_change_r"] .cal-cm-row-body'),
+        notDone: /Not done/.test(document.querySelector('#calCommentsModal .cal-comments-feed').textContent),
+        sending: _noteOutboxStatusHtml({ id: 'x', _outbox: 'sending' }),
+      };
+    });
+    ok(!r7.change.includes('Reply') && !r7.reply.includes('Reply') && r7.question.includes('Reply'), 'I. Notes: no Reply on a change request or a reply under it; a comment keeps it ' + JSON.stringify([r7.change, r7.reply, r7.question]));
+    ok(r7.replyShown, 'I. Notes: the reply already written under the change request still shows');
+    ok(!r7.notDone, 'I. Notes: no "Not done" word');
+    ok(/class="sv-spin"/.test(r7.sending) && !/>\s*Sending/.test(r7.sending), 'I. a note on its way shows the spinner, not the word "Sending": ' + r7.sending);
     await page.mouse.move(5, 5);
     const notesE = await page.evaluate(() => ({
       lock: !!document.querySelector('#calCommentsModal .cal-cm-row[data-cm-row="n_team"] .svu-lock[title]'),
@@ -196,6 +236,24 @@ const cardState = page => page.evaluate(() => {
     }), row);
     ok(!after.waiting && after.plain && !after.tool && Array.isArray(after.stored) && after.stored.includes('n_question'), 'D. "No reply needed" takes the comment off waiting, leaves the toolbar and is kept in this browser');
 
+    // Round 7 on the card: the read change request still open is a coloured number with no ring; the gap between the
+    // Notes button and the bubbles opens Notes too.
+    await page.evaluate(() => { try { closeCalComments(); } catch (e) {} });
+    await sleep(400);
+    const card = await page.evaluate(() => {
+      const wrap = document.querySelector('.cal-foot-tweaks[data-comments-wrap="p_t1"]');
+      const o = wrap && wrap.querySelector('.svu-num.svu-o-open');
+      const cs = o && getComputedStyle(o);
+      const btn = wrap && wrap.querySelector('.cal-comments-btn'), strip = wrap && wrap.querySelector('.svu-strips');
+      const a = btn && btn.getBoundingClientRect(), z = strip && strip.getBoundingClientRect();
+      return { open: !!o, ring: cs && cs.boxShadow, fill: cs && cs.backgroundColor, gap: a && z ? { x: Math.round((a.right + z.left) / 2), y: Math.round(a.top + a.height / 2), w: Math.round(z.left - a.right) } : null };
+    });
+    ok(card.open && card.ring === 'none' && /rgba\(0, 0, 0, 0\)|transparent/.test(card.fill), 'I. a read change request still open is a coloured number with no ring and no fill ' + JSON.stringify([card.ring, card.fill]));
+    ok(card.gap && card.gap.w >= 4, 'I. there is a gap between the Notes button and the bubbles to test (' + (card.gap && card.gap.w) + ' px)');
+    if (card.gap) await page.mouse.click(card.gap.x, card.gap.y);
+    await sleep(500);
+    const opened = await page.evaluate(() => { const m = document.getElementById('calCommentsModal'); return !!(m && m.offsetParent !== null && m.querySelector('.cal-cm-row')); });
+    ok(opened, 'I. a click in the gap between the Notes button and the bubbles opens Notes');
     await page.evaluate(() => { try { closeCalComments(); } catch (e) {} _msgOpenPage(); });
     await page.waitForSelector('#msgPage .svu-conv', { timeout: 8000 }).catch(() => {});
     await page.evaluate(() => _msgSetFilter('all'));
@@ -262,6 +320,31 @@ const cardState = page => page.evaluate(() => {
     ok(e.acts.join() === 'Mark unread,Open card' && e.thumb === 'none', 'H. header actions are words and an empty thumbnail is not drawn ' + JSON.stringify([e.acts, e.thumb]));
     ok(e.cap === '' || e.cap.split(/\s+/).length === 1, 'H. the reply caption uses the first name: ' + e.cap);
     ok(e.cont && !e.contFirst, 'H. a follow-up by the same person within five minutes drops its picture and name');
+    const m7 = await page.evaluate(() => {
+      const acts = id => { const b = document.querySelector(`#msgPage .msg-b[data-msg-id="${id}"]`); return b ? [...b.querySelectorAll('.svu-msg-acts button')].map(x => x.textContent.trim()) : null; };
+      const file = document.querySelector('#msgPage .msg-b[data-msg-id="m_team2"] .svu-msg-files a');
+      return { kasper: acts('m_kasper'), team: acts('m_team'), question: acts('n_question'), file: file ? [file.textContent, file.getAttribute('href'), file.target] : null };
+    });
+    ok(m7.file && m7.file.join() === 'export-v2.mp4,https://example.invalid/export-v2.mp4,_blank', 'I. Messages: a message\'s attachment shows under its words, as in Notes ' + JSON.stringify(m7.file));
+    ok(m7.kasper && !m7.kasper.includes('Reply') && m7.team && m7.team.includes('Reply'), 'I. Messages: no Reply on a change request, a comment keeps it ' + JSON.stringify(m7));
+    const msgPlaced = [];
+    for (const id of ['m_team', 'm_team2', 'n_question']) {
+      const sel = `#msgPage .msg-b[data-msg-id="${id}"]`;
+      await page.hover(sel + ' .msg-b-text').catch(() => {});
+      await sleep(180);
+      msgPlaced.push(await page.evaluate(([sel, id]) => {
+        const b = document.querySelector(sel), bar = b && b.querySelector('.svu-msg-acts');
+        if (!bar || getComputedStyle(bar).opacity === '0') return id + ': not shown';
+        const x = bar.getBoundingClientRect(), r = b.getBoundingClientRect();
+        const range = document.createRange(); range.selectNodeContents(b.querySelector('.msg-b-text'));
+        const covers = [...range.getClientRects()].some(t => t.width && t.left < x.right && t.right > x.left && t.top < x.bottom && t.bottom > x.top);
+        const bottom = r.bottom - x.bottom, right = r.right - x.right;
+        return covers ? id + ': covers the text' : (bottom < 0 || bottom > 14 || right < 0 || right > 30) ? id + ': not at the bottom right ' + [bottom, right] : '';
+      }, [sel, id]));
+    }
+    ok(msgPlaced.every(x => x === ''), 'I. Messages: the hover actions sit at the bottom right and never cover the text ' + msgPlaced.filter(Boolean).join('; '));
+    const sendingText = await page.evaluate(() => /Sending…|Sending\.\.\./.test(document.body.innerText));
+    ok(!sendingText, 'I. no "Sending…" text anywhere on the page');
     ok(head.avLeft < 40 && Math.abs(head.avTop - head.nameTop) <= 8, 'E. your own picture sits at the left, beside your name (top ' + head.avTop + ' vs ' + head.nameTop + ', left ' + head.avLeft + ')');
     ok(h.inboxCalls.some(b => b.pictures === 1 && b.via === 'GET'), 'G. with the switch on, the inbox read (GET) asks for pictures');
     ok(h.errors.length === 0, 'F. switch on: no page error' + (h.errors.length ? ' ' + h.errors.join(' | ') : ''));

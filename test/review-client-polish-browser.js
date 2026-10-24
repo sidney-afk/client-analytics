@@ -110,12 +110,12 @@ async function shots(browser, origin) {
       await sleep(3600);
       await t.page.screenshot({ path: name('4-change-sent'), fullPage: full });
       // the client's own note: hover, then the question
-      const own = inS(t.page, '.bub.you').last();
+      const own = inS(t.page, '.bub.you, .sl.me').last();
       await own.scrollIntoViewIfNeeded();
       await own.hover(); await sleep(250);
       await t.page.screenshot({ path: name('5-note-hover'), fullPage: full });
-      if (polish && await inS(t.page, '.bub.you [data-cp-del]').count()) {
-        await inS(t.page, '.bub.you [data-cp-del]').last().click(); await sleep(250);
+      if (polish && await inS(t.page, '[data-cp-note] [data-cp-del]').count()) {
+        await inS(t.page, '[data-cp-note] [data-cp-del]').last().click(); await sleep(250);
         await t.page.screenshot({ path: name('6-note-delete-ask'), fullPage: full });
       }
       await t.ctx.close();
@@ -275,24 +275,24 @@ async function shots(browser, origin) {
       const t = await openClient(browser, origin, { thread: true });
       const txt = await R(t.page, (r) => r.getElementById('chat').innerText);
       expect(!/Delete note/.test(txt), 'no "Delete note" text under the notes');
-      const own = inS(t.page, '.bub.you[data-cp-note]').last();
+      const own = inS(t.page, '[data-cp-note]:has([data-cp-del])').last();
       const id = await own.getAttribute('data-cp-note');
-      const before = await R(t.page, (r, i) => getComputedStyle(r.querySelector('.bub[data-cp-note="' + i + '"] .cp-x')).opacity, id);
+      const before = await R(t.page, (r, i) => getComputedStyle(r.querySelector('[data-cp-note="' + i + '"] .cp-x')).opacity, id);
       await own.hover(); await sleep(250);
-      const hover = await R(t.page, (r, i) => { const x = r.querySelector('.bub[data-cp-note="' + i + '"] .cp-x'), b = x.closest('.bb').getBoundingClientRect(), c = x.getBoundingClientRect(); return { op: getComputedStyle(x).opacity, topRight: c.right >= b.right - 4 && c.top <= b.top + 4, label: x.getAttribute('aria-label') }; }, id);
+      const hover = await R(t.page, (r, i) => { const x = r.querySelector('[data-cp-note="' + i + '"] .cp-x'), b = x.closest('.bb, .sl-b').getBoundingClientRect(), c = x.getBoundingClientRect(); return { op: getComputedStyle(x).opacity, topRight: c.right >= b.right - 4 && c.top <= b.top + 4, label: x.getAttribute('aria-label') }; }, id);
       expect(before === '0' && hover.op === '1' && hover.topRight, 'a small cross shows at the note\'s top right on hover only (' + before + ' to ' + JSON.stringify(hover) + ')');
-      await inS(t.page, '.bub[data-cp-note="' + id + '"] .cp-x').click(); await sleep(200);
+      await inS(t.page, '[data-cp-note="' + id + '"] .cp-x').click(); await sleep(200);
       const ask = await R(t.page, (r) => { const a = r.querySelector('.cp-ask'); return a ? a.innerText.replace(/\s+/g, ' ').trim() : ''; });
       expect(ask === 'Delete this note? Delete Cancel', 'it asks "Delete this note?" with Delete and Cancel (' + ask + ')');
       await inS(t.page, '.cp-no').click(); await sleep(200);
-      expect(await inS(t.page, '.bub[data-cp-note="' + id + '"]').count() === 1 && !(await inS(t.page, '.cp-ask').count()), 'Cancel keeps the note');
+      expect(await inS(t.page, '[data-cp-note="' + id + '"]').count() === 1 && !(await inS(t.page, '.cp-ask').count()), 'Cancel keeps the note');
       // keyboard: the cross shows on focus too
-      const focused = await R(t.page, (r, i) => { const x = r.querySelector('.bub[data-cp-note="' + i + '"] .cp-x'); x.focus(); return getComputedStyle(x).opacity; }, id);
+      const focused = await R(t.page, (r, i) => { const x = r.querySelector('[data-cp-note="' + i + '"] .cp-x'); x.focus(); return getComputedStyle(x).opacity; }, id);
       await sleep(200);
-      const fop = await R(t.page, (r, i) => getComputedStyle(r.querySelector('.bub[data-cp-note="' + i + '"] .cp-x')).opacity, id);
+      const fop = await R(t.page, (r, i) => getComputedStyle(r.querySelector('[data-cp-note="' + i + '"] .cp-x')).opacity, id);
       expect(fop === '1', 'and on keyboard focus (' + focused + ' then ' + fop + ')');
       const n0 = t.state.upserts.length;
-      await inS(t.page, '.bub[data-cp-note="' + id + '"] .cp-x').click(); await sleep(150);
+      await inS(t.page, '[data-cp-note="' + id + '"] .cp-x').click(); await sleep(150);
       await inS(t.page, '.cp-yes').click();
       for (let i = 0; i < 60 && !t.state.upserts.slice(n0).length; i++) await sleep(100);
       const dialog = await t.page.evaluate(() => { const o = document.getElementById('confirmOverlay'); return !!(o && o.classList.contains('active')); });
@@ -300,7 +300,7 @@ async function shots(browser, origin) {
       const del = t.state.upserts.slice(n0).some(u => ['video_tweaks', 'graphic_tweaks', 'caption_tweaks'].some(col => notes(u, col).some(n => n.id === id && n.deleted)));
       expect(del, 'the note is saved as deleted');
       await sleep(500);
-      expect(await inS(t.page, '.bub[data-cp-note="' + id + '"]').count() === 0, 'and leaves the conversation');
+      expect(await inS(t.page, '[data-cp-note="' + id + '"]').count() === 0, 'and leaves the conversation');
       expect(!t.errors.length, 'no page errors (' + t.errors.join(' | ') + ')');
       await t.ctx.close();
     }

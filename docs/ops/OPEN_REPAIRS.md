@@ -34081,3 +34081,21 @@ back the old function (including its "Needs info" lines).
   - The test shows the old 500-id rule breaks that bound, and it fails against the old source.
   - It also checks that all three id reads go through `chunkIds`.
 - **After merge:** production-comments deploys through the merge lane. Kasper's next inbox read should answer 200; no switch changes.
+
+## 485. [2026-10-24 13:49 UTC, BUILT, NOT MERGED] Round-6 unread badges: less noise after the owner's first live use (session Beacon)
+
+- **Owner, 2026-10-24, after using round 5 live (relayed by the supervisor):** "as little visual noise as possible; show only the information that's needed." Every change is behind the same switch, `unread_badges_v2`. Everyone else keeps today's view.
+- **Card hover:** each row is the picture, the first name and one line of the note. The date, the "Waiting for your answer · Video" label and the "N change requests not done yet" footer are gone. The hover now also lists a change still open, so an outlined bubble is explained. No kind icon was added: the bubble's colour already says the kind.
+- **Notes:**
+  - The "Needs you" box is gone; the tags on each note carry it.
+  - Authors show by first name, with the full name on hover, and times are relative, with the full date on hover.
+  - The always-visible action row under a note is gone. The hover toolbar is the one set of actions: Reply, No reply needed (on a comment waiting for an answer), Mark done and Delete, all as plain words with no boxes or fills, even on hover.
+  - "Mark unread" is one quiet word in the Notes head.
+- **Messages conversation:**
+  - The header is the first name, a lock icon for "Team only" (with its meaning on hover), "Change request" in quiet orange words instead of a capitals pill, and a relative time instead of a full date (the day line above carries the date). The part ("Video") sits quietly at the right, and the role word ("Reviewer") is gone.
+  - Reply, plus No reply needed on a comment waiting for you, shows only on hover, as plain words.
+  - Your own picture now sits beside your name. The app's `align-items: flex-end` for your messages had pushed it to the bottom right inside the new grid.
+- **Messages list:** each badge says in a hover what it counts, for example "Casey: 1 comment waiting for your answer".
+- **Proof:**
+  - `docs/syncview-design/tests/unread-badges-v2-browser.js`, updated to round 6.
+  - Before and after screenshots of the real page, fictional data, light and dark: `docs/syncview-design/proofs/unread-badges-r6/`, made by `shots.js` in that folder.

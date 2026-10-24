@@ -497,7 +497,8 @@ import { _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId, _msgPaint, _ms
             }
             if (nb && !nb.__svu) { nb.__svu = true; nb.addEventListener('pointerenter', _svuShowButtonTip); nb.addEventListener('pointerleave', _svuHideButtonTip); }
             // The pictures and the Messages counts come with the inbox answer.
-            if (currentNav !== 'production') { try { _msgLoad(false); } catch (e) {} }
+            // A list read before the switch was (no pictures) is read again, now asking for them.
+            if (currentNav !== 'production') { try { _msgLoad(!_msgState.pictures); } catch (e) {} }
         } else {
             if (_svuObserver) { _svuObserver.disconnect(); _svuObserver = null; }
             svuHideHover(); _svuHideButtonTip();

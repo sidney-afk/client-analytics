@@ -221,7 +221,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const epoch = _msgState.epoch, asker = _msgMyId();
         const stale = () => epoch !== _msgState.epoch || asker !== _msgMyId();
         try {
-            const value = await _msgCall({ action: 'inbox' });
+            // The round-5 badges (327) also ask for people's pictures; every other read is today's.
+            const value = await _msgCall((typeof svuActive === 'function' && svuActive()) ? { action: 'inbox', pictures: 1 } : { action: 'inbox' });
             if (stale()) return;
             _msgState.conversations = Array.isArray(value.conversations) ? value.conversations : [];
             _msgState.scope = String(value.scope || '');

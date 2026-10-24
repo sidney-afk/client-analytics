@@ -12,6 +12,7 @@
  *      No reply needed, and "No reply needed" takes it off and survives a reload (this browser).
  *   E. Messages: New, To answer and All; the row carries the client's picture; the change request is one line.
  *   F. No page error.
+ *   G. Only a page the switch is on for asks the inbox for pictures (the Slack lookups are opt-in).
  */
 const { createEnv, sleep, SLUG } = require('./lost-work-lib');
 
@@ -50,7 +51,7 @@ async function run(flagValue) {
     if (r.method() === 'OPTIONS') return route.fallback();
     let b = {}; try { b = JSON.parse(r.postData() || '{}'); } catch (e) {}
     if (b.action === 'inbox') {
-      inboxCalls.push(1);
+      inboxCalls.push(b);
       return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ ok: true, scope: 'all', conversations: [conv], pictures: { members: {}, names: {}, clients: { [SLUG]: CLIENT_PIC } } }) });
     }
     if (b.action === 'inbox_mark') return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ ok: true, post_id: b.post_id, last_read_at: null }) });
@@ -80,6 +81,9 @@ const cardState = page => page.evaluate(() => {
     try {
       const st = await cardState(h.page);
       ok(st.wrap && !st.on && !st.v2 && st.bubbles.length === 0 && st.oldDot, `A/B. switch ${name}: today's Notes button, no round-5 look`);
+      await h.page.evaluate(() => _msgLoad(true));
+      await sleep(400);
+      ok(h.inboxCalls.length >= 1 && h.inboxCalls.every(b => !('pictures' in b)), `G. switch ${name}: the inbox read never asks for pictures (${h.inboxCalls.length} reads)`);
       ok(h.errors.length === 0, `F. switch ${name}: no page error` + (h.errors.length ? ' ' + h.errors.join(' | ') : ''));
     } finally { await h.S.close(); }
   }
@@ -136,7 +140,7 @@ const cardState = page => page.evaluate(() => {
     await page.waitForSelector('#msgPage .svu-change-line', { timeout: 6000 }).catch(() => {});
     const line = await page.evaluate(() => (document.querySelector('#msgPage .svu-change-line') || {}).textContent || '');
     ok(/asked for a change on the video/.test(line), 'E. the change request is one line pointing to the card');
-    ok(h.inboxCalls.length >= 1, 'C. the inbox (and its pictures) is read once the switch is on');
+    ok(h.inboxCalls.some(b => b.pictures === 1), 'G. with the switch on, the inbox read asks for pictures');
     ok(h.errors.length === 0, 'F. switch on: no page error' + (h.errors.length ? ' ' + h.errors.join(' | ') : ''));
   } finally { await h.S.close(); }
 

@@ -33952,6 +33952,7 @@ On 2026-10-22 at 15:13 UTC a staff save on one real client was refused three tim
   - **clients:** the photo of the client's Slack contact (`client_profiles.slack_mention_user_id`), which `users.info` also answers for people in shared channels.
   - **Storage and failures:** nothing is stored. The links are cached in the function's memory for 6 hours, and a cold lookup never holds the inbox longer than 1.5 s. Any failure means no pictures and never a failed inbox. Without a picture, the person's initials.
   - **No new browser read:** signed-in staff get the links with the inbox they already read.
+  - **Opt-in (supervisor review, 2026-10-24):** the function looks pictures up only when the inbox read asks (`pictures: 1`), which only a page the switch is on for does. Every other inbox read, its answer and its timing are unchanged.
 - **Not built yet:** "No reply needed" and the card's "Mark unread" are kept in the browser (localStorage `sv-unread-v2-local`), not on the server. That is build step 2 in the audit, along with the per-kind counts in the inbox answer.
 - **Proof:** `docs/syncview-design/tests/unread-badges-v2-browser.js` (switch off three ways, on, the hover, Needs you, No reply needed, Messages); `test/people-pictures.js` (fictional people, faked Slack). The Messages, Notes outbox, Calendar write gate and calm Workload suites still pass.
 - **Owner action:** none in code. The switch row, naming the owner's two staff ids, turns it on once this merges.

@@ -613,7 +613,9 @@ async function handleInbox(supabase: SupabaseClient, principal: Principal, body:
     }
     return marks;
   };
-  const [canonical, reads, pictures] = await Promise.all([inboxCanonical(supabase, posts), readsOf(), peoplePictures(supabase)]);
+  // Pictures only when the page asks (the round-5 badges, switch unread_badges_v2): every other inbox read is unchanged.
+  const wantPictures = body.pictures === true || body.pictures === 1 || body.pictures === "1";
+  const [canonical, reads, pictures] = await Promise.all([inboxCanonical(supabase, posts), readsOf(), wantPictures ? peoplePictures(supabase) : Promise.resolve(null)]);
   if (!reads) return json({ ok: false, error: "inbox_reads_unavailable" }, 503);
   const now = Date.now();
   const conversations = posts

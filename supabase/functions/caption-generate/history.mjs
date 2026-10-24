@@ -21,11 +21,13 @@ function ms(at) {
   return Number.isFinite(t) ? t : 0;
 }
 
-// rows: caption_versions rows of ONE card and ONE field, any order. clientNoteTimes: ISO times of the client's own
+// rows: caption_versions rows of ONE card and ONE field, any order (sorted here by created_at, then id). clientNoteTimes: ISO times of the client's own
 // caption notes on that card (calendar_post_events, component caption, role client).
 export function labelRows(rows, clientNoteTimes) {
   const notes = (clientNoteTimes || []).map(ms).filter(Boolean);
-  return (rows || []).slice().sort((a, b) => Number(a.id) - Number(b.id)).map((r) => {
+  // Oldest first by when the caption had that text, then by id: the hand-run backfill inserts older versions after
+  // live ones, so ids alone would put them after the caption as it is now (review of #2304).
+  return (rows || []).slice().sort((a, b) => (ms(a.created_at) - ms(b.created_at)) || (Number(a.id) - Number(b.id))).map((r) => {
     let kind = String(r.kind || "saved");
     let actor = r.actor || null;
     if (kind === "saved") {

@@ -125,19 +125,23 @@ try {
   psql(DB, viaApi({ 'x-syncview-caption-origin': b64({ k: 'typed' }) }, `update public.calendar_posts set status = 'x' where id = 'p_one'`));
   psql(DB, viaApi({ 'x-syncview-caption-origin': b64({ k: 'typed' }) }, setCaption('p_one', 'Redo caption')));
   let v = vlist('p_one');
-  assert.equal(v.length, 2, 'two real changes, two versions');
-  assert.deepEqual(v.map(x => x.kind), ['typed', 'redo']);
-  assert.equal(v[0].actor, 'QA Staff');
-  assert.equal(v[0].role, 'smm');
-  assert.equal(v[0].note, null, 'a typed save keeps no note');
-  assert.equal(v[1].note, 'shorter, a hookier first line');
+  assert.equal(v.length, 3, 'the caption it replaced, then two real changes');
+  assert.deepEqual(v.map(x => x.kind), ['backfill', 'typed', 'redo']);
+  assert.equal(v[0].text, 'First caption', 'the first change keeps the caption it replaced');
+  assert.equal(v[0].actor, null, 'who and how not recorded');
+  assert(q(`select created_at from public.caption_versions where post_id = 'p_one' order by id limit 1`).startsWith('2026-10-20 10:00:00'), 'dated by the row\'s own updated_at');
+  assert.equal(v[1].actor, 'QA Staff');
+  assert.equal(v[1].role, 'smm');
+  assert.equal(v[1].note, null, 'a typed save keeps no note');
+  assert.equal(v[2].note, 'shorter, a hookier first line');
   // Restored, naming the version it came from.
-  const firstId = q(`select min(id) from public.caption_versions where post_id = 'p_one'`);
+  const firstId = q(`select min(id) from public.caption_versions where post_id = 'p_one' and kind = 'typed'`);
   psql(DB, viaApi({ 'x-syncview-caption-origin': b64({ k: 'restored', f: Number(firstId), n: 'ignored', a: 'QA Staff', r: 'admin' }) }, setCaption('p_one', 'Typed caption')));
   v = vlist('p_one');
-  assert.equal(v[2].kind, 'restored');
-  assert.equal(String(v[2].from), firstId);
-  assert.equal(v[2].note, null, 'only a redo keeps a note');
+  assert.equal(v[3].kind, 'restored');
+  assert.equal(String(v[3].from), firstId);
+  assert.equal(v[3].note, null, 'only a redo keeps a note');
+  assert.equal(v.filter(x => x.kind === 'backfill').length, 1, 'the caption it replaced is kept once, not on every change');
 
   // An API write with no origin: "saved"; the same with the text a caption job just produced: "generated".
   psql(DB, viaApi({ 'x-client-info': 'supabase-js' }, setCaption('p_two', 'Client words')));
@@ -149,7 +153,14 @@ try {
   // No API request at all (SQL): "outside".
   psql(DB, setCaption('p_two', 'Fixed by hand'));
   v = vlist('p_two');
-  assert.deepEqual(v.map(x => x.kind), ['saved', 'generated', 'saved', 'saved', 'outside']);
+  assert.deepEqual(v.map(x => x.kind), ['backfill', 'saved', 'generated', 'saved', 'saved', 'outside']);
+  // A card whose stamp looks like a date but is not one: the change is still kept, the replaced caption dated now.
+  // (A card from before the trigger existed, so it has no version yet.)
+  q(`alter table public.calendar_posts disable trigger zz_caption_versions_capture;
+     insert into public.calendar_posts (client, id, caption, updated_at) values ('qa-client', 'p_badstamp', 'Before', '2026-13-45T99:99:99Z');
+     alter table public.calendar_posts enable trigger zz_caption_versions_capture;`);
+  psql(DB, viaApi({ 'x-syncview-caption-origin': b64({ k: 'typed' }) }, setCaption('p_badstamp', 'After')));
+  assert.deepEqual(vlist('p_badstamp').map(x => x.kind + ':' + x.text), ['backfill:Before', 'typed:After']);
   // The second-platform caption is its own field.
   psql(DB, viaApi({ 'x-syncview-caption-origin': b64({ k: 'typed' }) }, `update public.calendar_posts set caption_alt = 'Alt text' where id = 'p_two'`));
   assert.equal(vlist('p_two').pop().field, 'caption_alt');

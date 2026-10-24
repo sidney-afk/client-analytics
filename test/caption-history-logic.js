@@ -77,6 +77,14 @@ const decode = h => JSON.parse(Buffer.from(h, 'base64').toString('utf8'));
     { id: 3, kind: 'restored', text: 'same', actor: 'A', created_at: t(40) },
   ], [])).map(v => v.kind), ['generated', 'restored']);
 
+  // The hand-run backfill inserts older versions after live ones: the order is by time, not by id (review of #2304).
+  const late = h.labelRows([
+    { id: 50, kind: 'typed', text: 'live now', actor: 'A', created_at: t(100) },
+    { id: 90, kind: 'backfill', text: 'from the journal', created_at: t(0) },
+  ], []);
+  assert.deepEqual(late.map(r => r.text), ['from the journal', 'live now'], 'a backfilled older version comes first');
+  assert.equal(h.groupVersions(late).pop().text, 'live now', 'and the caption now stays the newest');
+
   // ---- historyAnswer / historyIndex ----
   const ans = h.historyAnswer(rows, []);
   assert.equal(ans.ok, true);

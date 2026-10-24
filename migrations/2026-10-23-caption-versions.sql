@@ -12,6 +12,8 @@
 --       (a bad header, the table missing, a full disk on this one insert) is caught, logged as a WARNING
 --       ("caption_versions_capture skipped: <sqlstate>") and the card save goes on. It does one small insert
 --       only when the caption text is different; every other card save returns at the first comparison.
+--       The first change it sees on a card also keeps the caption that change replaced (kind 'backfill', who and
+--       how not recorded), so the very first redo can be compared and put back.
 --   public.caption_versions_refuse_change()   refuses UPDATE, DELETE and TRUNCATE on the table.
 --
 -- HOW A ROW LEARNS HOW THE CAPTION CHANGED (kind):
@@ -117,6 +119,9 @@ declare
   v_from    bigint;
   v_actor   text;
   v_role    text;
+  v_row_kind text;
+  v_old     text;
+  v_at      timestamptz;
 begin
   -- The calendar's own settings row keeps JSON in its caption column; it is not a caption.
   if new.id = 'p_cal_settings' or coalesce(new.name, '') = '__cal_settings__' then return null; end if;
@@ -161,21 +166,40 @@ begin
 
     foreach v_field in array v_changed loop
       v_text := coalesce(case when v_field = 'caption' then new.caption else new.caption_alt end, '');
-      if v_kind = 'saved' and v_field = 'caption' and v_text <> '' then
+      v_old := case when tg_op = 'UPDATE' then coalesce(case when v_field = 'caption' then old.caption else old.caption_alt end, '') else '' end;
+      v_row_kind := v_kind;
+      if v_row_kind = 'saved' and v_field = 'caption' and v_text <> '' then
         -- caption-generate saves a first caption through calendar-upsert, which sends no origin: it is the text a
         -- caption job for this card produced in the last hour.
         begin
           if exists (select 1 from public.caption_jobs j
                      where j.client = new.client and j.post_id = new.id and j.caption = v_text
                        and j.updated_at > now() - interval '1 hour') then
-            v_kind := 'generated';
+            v_row_kind := 'generated';
           end if;
         exception when others then
           null;   -- no caption_jobs table here: the row stays "saved"
         end;
       end if;
+      -- The first change this table sees on a card keeps the caption it replaced, so the first redo can be compared
+      -- with it and put back (review of #2304). It is dated by the row's own updated_at when that is a clean timestamp
+      -- (the same rule as the backfill, so a later backfill does not add it twice), else just before this change.
+      if v_old <> '' and not exists (select 1 from public.caption_versions v
+                                     where v.client = new.client and v.post_id = new.id and v.field = v_field) then
+        v_at := clock_timestamp() - interval '1 millisecond';
+        begin
+          -- Each step on its own: a stamp that looks right but is not a date must not lose this change's version.
+          if coalesce(old.updated_at::text, '') ~ '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$' then
+            if old.updated_at::text::timestamptz < clock_timestamp() then v_at := old.updated_at::text::timestamptz; end if;
+          end if;
+        exception when others then
+          null;
+        end;
+        insert into public.caption_versions (client, post_id, field, text, kind, created_at)
+        values (new.client, new.id, v_field, v_old, 'backfill', v_at);
+      end if;
       insert into public.caption_versions (client, post_id, field, text, kind, note, restored_from, actor, actor_role)
-      values (new.client, new.id, v_field, v_text, v_kind,
+      values (new.client, new.id, v_field, v_text, v_row_kind,
               case when v_field = 'caption' then v_note end, v_from, v_actor, v_role);
     end loop;
   exception when others then

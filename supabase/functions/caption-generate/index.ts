@@ -444,7 +444,8 @@ async function historyAction(supabaseUrl: string, serviceKey: string, q: URLSear
       const ids = parseHistoryIds(q.get("ids"));
       if (!ids.length) return json({ ok: true, available: true, changed: [] });
       const { data, error } = await db.from("caption_versions").select("post_id,kind,actor,created_at,id")
-        .eq("client", client).eq("field", "caption").in("post_id", ids).order("id", { ascending: true }).limit(HISTORY_MAX_ROWS * 5);
+        .eq("client", client).eq("field", "caption").in("post_id", ids)
+        .order("created_at", { ascending: true }).order("id", { ascending: true }).limit(HISTORY_MAX_ROWS * 5);
       if (error) {
         if (historyTableMissing(error)) return json({ ok: true, available: false, changed: [] });
         throw error;
@@ -456,7 +457,8 @@ async function historyAction(supabaseUrl: string, serviceKey: string, q: URLSear
     const field = q.get("field") === "caption_alt" ? "caption_alt" : "caption";
     const { data, error } = await db.from("caption_versions")
       .select("id,kind,text,note,restored_from,actor,actor_role,created_at")
-      .eq("client", client).eq("post_id", post).eq("field", field).order("id", { ascending: false }).limit(HISTORY_MAX_ROWS);
+      .eq("client", client).eq("post_id", post).eq("field", field)
+      .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(HISTORY_MAX_ROWS);
     if (error) {
       if (historyTableMissing(error)) return json({ ok: true, available: false, versions: [] });
       throw error;

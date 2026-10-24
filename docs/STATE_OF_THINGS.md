@@ -45,6 +45,15 @@ person to tag"), so they get a real notification; with nobody linked it posts un
 confirm box says who is tagged. Needs `migrations/2026-10-23-client-slack-mention.sql`; the functions cope without
 it (untagged). On 2026-10-23 no client had a linked person. OPEN_REPAIRS 477 has the safe live test (the owner-only
 preview to his own DM, with the test client linked to his own id).
+## Caption history on Calendar cards, behind `caption_history_staff` (session Versions, 2026-10-23): PR open, not merged
+
+Owner: after "Regenerate with a note" he could not see how the caption changed. Every real caption change is now kept in the
+append-only `caption_versions` (migration `migrations/2026-10-23-caption-versions.sql`, applied by hand; its trigger never
+blocks a save). A history icon under the regenerate icon opens the approved pop-up (option C): one step per version, the redo
+note, words taken out and added, and "Put this version back" through the normal caption save, with Undo. Switch
+`syncview_runtime_flags.caption_history_staff` `{ "staff": [...] }`, absent = off. Earlier changes since 2026-09-17:
+`scripts/caption-versions-backfill.sql`, by hand. OPEN_REPAIRS 482. Tests: `test/caption-versions-postgres.js`,
+`test/caption-history-logic.js`, `test/caption-history-browser.js`. Not measured on the live site yet.
 ## Thumbnail titles from the filming plan, buttons in Production (session Titlecard, 2026-10-23): PR open, not merged
 
 "Thumbnail titles" on a post's Sub-issues header and "Write title" beside Edit on a thumbnail sub-issue, behind the

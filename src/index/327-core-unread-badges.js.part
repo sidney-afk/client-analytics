@@ -526,11 +526,13 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         for (const c of _msgState.conversations) { const s = _svuConvState(c); if (s.newTotal) newConvs++; if (s.waitingIds.size) waitConvs++; k.comment += s.comment; k.staff += s.staff; k.kasper += s.kasper; }
         const kind = k.comment ? 'comment' : k.staff ? 'staff' : k.kasper ? 'kasper' : 'waiting';
         const n = newConvs || waitConvs;
-        document.querySelectorAll('[data-kasper-count="replies"]').forEach(el => { el.textContent = String(newConvs); el.classList.toggle('is-unread', newConvs > 0); });
+        // Write only what changed, as 326 does (OPEN_REPAIRS 487).
+        document.querySelectorAll('[data-kasper-count="replies"]').forEach(el => { if (el.textContent !== String(newConvs)) el.textContent = String(newConvs); el.classList.toggle('is-unread', newConvs > 0); });
+        const cls = 'msg-unread svu-count svu-count-' + (newConvs ? kind : 'waiting');
         document.querySelectorAll('[data-msg-count]').forEach(el => {
-            el.textContent = String(n);
-            el.hidden = n === 0;
-            el.className = 'msg-unread svu-count svu-count-' + (newConvs ? kind : 'waiting');
+            if (el.textContent !== String(n)) el.textContent = String(n);
+            if (el.hidden !== (n === 0)) el.hidden = n === 0;
+            if (el.className !== cls) el.className = cls;
         });
         _svuCounts = { newConvs, waitConvs, k };
     }

@@ -34120,7 +34120,17 @@ back the old function (including its "Needs info" lines).
   - `unread-badges-v2-browser.js`, new section H (day lines, no per-message New, the quiet change line, header words, empty thumbnail, first-name caption, grouping, the Notes lock and "Change request", "Waiting" alone).
   - Screenshots `e-*` in `docs/syncview-design/proofs/unread-badges-r6/`.
 
-## 488. [2026-10-24 15:51 UTC, BUILT, NOT MERGED] Round-7 unread badges: the owner's seven points, and no "Sending…" on the team's side (session Beacon)
+## 487. [2026-10-24 15:11 UTC, BUILT, NOT MERGED] Random red staff-phone check: the Messages count rewrote itself unchanged (session Beacon)
+
+- **Symptom:** `qa/staff-phone-responsiveness.js` (CI `staff-phone-rules`) failed at random with "Caption tap scanned unrelated popups 1 !== 0" on Calendar at 390 px, light or dark.
+  - Reproduced on main 32a8ab73 in 2 of 8 Calendar results and on #2314 in 4 of 8, with the same message, so it was not that PR's code.
+- **Cause:** the phone bar (099) watches the whole page and answers any change outside the caption with a page-wide popup scan.
+  - A probe that logged every page change during the tap caught the failure on both checkouts. The only changes were the header Messages count (`.msg-unread`): its text and `hidden`, written twice.
+  - 326 `_msgPaintCounts` (and 327 `svuPaintCounts`, desktop only) set the count's text, `hidden` and, in 327, its class on every inbox read and live refresh, even to the same values. When a refresh landed during the tap, the unchanged rewrite woke the scan.
+- **Fix:** both painters write the text, `hidden` and class only when the value changes. Nothing else changed.
+- **Proof:** `test/msg-count-write-on-change.js` runs both painters, taken from the fragments, twice with the same counts and finds zero writes the second time. It checks that a changed count is still written, and it fails on the old code.
+
+## 489. [2026-10-24 15:51 UTC, BUILT, NOT MERGED] Round-7 unread badges: the owner's seven points, and no "Sending…" on the team's side (session Beacon)
 
 - **Owner, 2026-10-24 (relayed by the supervisor), round 7:** everything behind `unread_badges_v2`, staff side only. The client review page is session Porch's.
 - **Read but still needs you:** on a card, the number alone in its colour, with no ring and no fill.

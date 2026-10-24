@@ -1,6 +1,6 @@
 'use strict';
 /* no-sending-words.js -- round 7 (owner, 2026-10-24): a send never shows the words "Sending…" or "Saving…"; a small
- * spinner turns in their place (OPEN_REPAIRS 488). Source scan; the browser half is unread-badges-v2-browser.js (I).
+ * spinner turns in their place (OPEN_REPAIRS 489). Source scan; the browser half is unread-badges-v2-browser.js (I).
  *
  *   - the shared spinner exists: svSpinHtml / svSpinButton in 040, the .sv-spin rule in 020 and its copy in the review
  *     stage's shadow-root CSS (195), and svSpinHtml draws no visible words

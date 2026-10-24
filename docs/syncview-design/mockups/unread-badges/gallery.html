@@ -1,0 +1,212 @@
+<title>Unread Badges Preview</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+  /* Layout: one reading column for what is decided and what is left, then the screens in order, light and dark side by side. Rounded corners, hairlines, no cards in cards. Every picture opens full screen. */
+  :root {
+    --bg: #f6f6f3; --panel: #ffffff; --ink: #121211; --muted: #64645f; --line: #e3e3de;
+    --change: #d9480f; --comment: #2563eb; --staff: #52525b; --kasper: #6c5ce7; --ok: #15803d;
+    --display: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f1013; --panel: #17191e; --ink: #f2f4f7; --muted: #aab1bd; --line: #2b2f37;
+    --change: #fb923c; --comment: #60a5fa; --staff: #a1a1aa; --kasper: #a094f8; --ok: #4ade80; color-scheme: dark; } }
+  :root[data-theme="dark"] {
+    --bg: #0f1013; --panel: #17191e; --ink: #f2f4f7; --muted: #aab1bd; --line: #2b2f37;
+    --change: #fb923c; --comment: #60a5fa; --staff: #a1a1aa; --kasper: #a094f8; --ok: #4ade80; color-scheme: dark; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 34px; }
+  h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+  h1 { font-size: 1.85rem; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 1rem; }
+  p { margin: 0; max-width: 70ch; }
+  ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+  .muted { color: var(--muted); }
+  .intro { display: flex; flex-direction: column; gap: 10px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: .86rem; color: var(--muted); }
+  .sw { display: inline-flex; align-items: center; gap: 6px; }
+  .sw i { width: 12px; height: 12px; display: inline-block; }
+  .sw i.o { background: transparent !important; box-shadow: inset 0 0 0 1px var(--muted); }
+  .block { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+  .block .tag { font: 700 .7rem/1 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .rec { font-weight: 600; }
+  .rec b { color: var(--ok); }
+  .screen { display: flex; flex-direction: column; gap: 10px; }
+  .section-title { display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .why { font-size: .9rem; color: var(--muted); }
+  .why b { color: var(--ink); font-weight: 600; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: start; }
+  figure { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  figure img { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); cursor: zoom-in; }
+  figure img:hover { border-color: var(--muted); }
+  .sw i { border-radius: 99px; }
+  .lb { position: fixed; inset: 0; z-index: 50; background: rgba(8,9,11,.92); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; }
+  .lb.open { display: flex; }
+  .lb img { max-width: 100%; max-height: calc(100vh - 90px); object-fit: contain; border-radius: 8px; cursor: zoom-out; }
+  .lb p { color: #e7e9ee; font-size: .9rem; max-width: none; text-align: center; }
+  .lb button { position: absolute; border: 0; background: rgba(255,255,255,.12); color: #fff; width: 44px; height: 44px; border-radius: 99px; font: 600 1.3rem/1 var(--body); cursor: pointer; }
+  .lb button:hover { background: rgba(255,255,255,.22); }
+  .lb .x { top: 16px; right: 16px; } .lb .prev { left: 16px; top: 50%; } .lb .next { right: 16px; top: 50%; }
+  figcaption { font-size: .82rem; color: var(--muted); }
+  @media (max-width: 760px) {
+    .pair { grid-template-columns: 1fr; }
+    .cards { grid-template-columns: 1fr 1fr; }
+    h1 { font-size: 1.5rem; }
+  }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <h1>Unread badges, round 5: people bubbles and a Slack-style chat</h1>
+    <p>Every picture is the real SyncView page on a laptop, with made-up posts and notes and the proposal switched on for the screenshot only. Nothing is live. <b>Click any picture to see it full screen</b> (arrow keys for the next one, Escape to close).</p>
+    <p>The faces are made-up drawings, because the code is public. In the real build each bubble is the person's Slack profile photo, and a client's bubble is the client's logo.</p>
+    <div class="legend">
+      <span class="sw"><i style="background:var(--change)"></i>Change request</span>
+      <span class="sw"><i style="background:var(--comment)"></i>Client comment</span>
+      <span class="sw"><i style="background:var(--staff)"></i>Someone on the team</span>
+      <span class="sw"><i style="background:var(--kasper)"></i>Kasper</span>
+      <span class="sw"><i class="o"></i>Outlined number: read, still needs you</span>
+    </div>
+  </header>
+
+  <section class="block" aria-labelledby="left">
+    <span class="tag">What changed since round 4</span>
+    <ul>
+      <li>No more square strips: each person who wrote is a round picture, with a round number next to it. The number's colour says what kind of note it is.</li>
+      <li>Notes on a card and the Messages chat now read like Slack: picture on the left, name and time on one line, the message under it, a light hover on each message, and a rounded message box at the bottom.</li>
+      <li>Kept from ours: "Needs you" at the top, "Waiting for your answer", Reply / No reply needed / Mark done right under the note, the kind colours.</li>
+    </ul>
+  </section>
+
+  <section class="block" aria-labelledby="choice">
+    <span class="tag">One choice left</span>
+    <h3 id="choice">A card where four or more people wrote</h3>
+    <p>A card shows at most three people bubbles, most urgent first (change requests, then comments, then Kasper, then the team), and "+1" for the rest. Hover lists everyone.</p>
+    <div class="pair">
+      <figure><img src="shots/real/r5-light-card-p_four.png" alt="Card with three people"><figcaption>Three people wrote: three bubbles.</figcaption></figure>
+      <figure><img src="shots/real/r5-light-hover.png" alt="Hover on that card"><figcaption>Hover: who, what, which part, the first words.</figcaption></figure>
+    </div>
+    <p class="rec">Recommendation: <b>yes</b>, three bubbles at most, then "+N".</p>
+  </section>
+
+  <section class="screen">
+    <div class="section-title"><h2>1. Card badges</h2><p class="why"><b>Why it is familiar:</b> a face says who, the coloured number says how many and what kind; a filled number is new, an outlined one waits on you.</p></div>
+    <div class="cards" id="cardsLight"></div>
+    <div class="cards" id="cardsDark"></div>
+  </section>
+  <section class="screen">
+    <div class="section-title"><h2>2. Hover on a card</h2><p class="why"><b>Why it is familiar:</b> one line per note with the writer's picture, what it is and the first words; it opens instantly.</p></div>
+    <div class="pair">
+      <figure><img src="shots/real/r5-light-hover.png" alt="Hover, light"><figcaption>Light</figcaption></figure>
+      <figure><img src="shots/real/r5-dark-hover.png" alt="Hover, dark"><figcaption>Dark</figcaption></figure>
+    </div>
+  </section>
+  <section class="screen">
+    <div class="section-title"><h2>3. Notes on a card</h2><p class="why"><b>Why it is familiar:</b> it looks like a Slack channel: picture, name, time, message; replies tucked under what they answer; the message box sits at the bottom.</p></div>
+    <div class="pair">
+      <figure><img src="shots/real/r5-light-notes-p_four.png" alt="Busy post, light"><figcaption>A busy post: four things need you.</figcaption></figure>
+      <figure><img src="shots/real/r5-dark-notes-p_four.png" alt="Busy post, dark"><figcaption>Dark</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="shots/real/r5-light-notes-p_long-top.png" alt="Long conversation from the start"><figcaption>A long conversation, from the start.</figcaption></figure>
+      <figure><img src="shots/real/r5-light-notes-p_long.png" alt="Long conversation newest"><figcaption>The same conversation where it opens, at the newest note.</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="shots/real/r5-dark-notes-p_long-top.png" alt="Long conversation, dark"><figcaption>Dark</figcaption></figure>
+      <figure><img src="shots/real/r5-dark-notes-p_long.png" alt="Long conversation newest, dark"><figcaption>Dark</figcaption></figure>
+    </div>
+  </section>
+  <section class="screen">
+    <div class="section-title"><h2>4. The Messages button</h2><p class="why"><b>Why it is familiar:</b> a round number on the corner, like Slack's, that never moves the icon; hover says what it counts.</p></div>
+    <div class="pair">
+      <figure><img src="shots/real/r5-light-header-hover.png" alt="Button hover, light"><figcaption>Something new: a filled number and the list in words.</figcaption></figure>
+      <figure><img src="shots/real/r5-light-header-waiting.png" alt="Button, only answers owed"><figcaption>Nothing new but answers owed: an outlined number.</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="shots/real/r5-dark-header-hover.png" alt="Button hover, dark"><figcaption>Dark</figcaption></figure>
+      <figure><img src="shots/real/r5-dark-header.png" alt="Button, dark"><figcaption>Dark, at rest</figcaption></figure>
+    </div>
+  </section>
+  <section class="screen">
+    <div class="section-title"><h2>5. The Messages inbox</h2><p class="why"><b>Why it is familiar:</b> it reads like Slack's list of conversations: picture, name in bold when unread, the last message, and the same people bubbles as the cards.</p></div>
+    <div class="pair">
+      <figure><img src="shots/real/r5-light-messages-new.png" alt="Inbox New, light"><figcaption>New</figcaption></figure>
+      <figure><img src="shots/real/r5-dark-messages-new.png" alt="Inbox New, dark"><figcaption>New, dark</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="shots/real/r5-light-messages-answer.png" alt="Inbox To answer, light"><figcaption>To answer: only conversations where a client waits for you.</figcaption></figure>
+      <figure><img src="shots/real/r5-dark-messages-answer.png" alt="Inbox To answer, dark"><figcaption>To answer, dark</figcaption></figure>
+    </div>
+  </section>
+  <section class="screen">
+    <div class="section-title"><h2>6. A conversation</h2><p class="why"><b>Why it is familiar:</b> the same Slack layout as the Notes, with a day line between days and the message box at the bottom. A change request is one orange line pointing to the card.</p></div>
+    <div class="pair">
+      <figure><img src="shots/real/r5-light-chat-p_long.png" alt="Long conversation, light"><figcaption>A long conversation over two days.</figcaption></figure>
+      <figure><img src="shots/real/r5-dark-chat-p_long.png" alt="Long conversation, dark"><figcaption>Dark</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="shots/real/r5-light-chat-p_both.png" alt="Short conversation, light"><figcaption>A short one: two comments waiting, one change request.</figcaption></figure>
+      <figure><img src="shots/real/r5-dark-chat-p_both.png" alt="Short conversation, dark"><figcaption>Dark</figcaption></figure>
+    </div>
+  </section>
+  <section class="screen">
+    <div class="section-title"><h2>7. For comparison</h2></div>
+    <div class="pair">
+      <figure><img src="shots/real/r4-light-card-p_four.png" alt="Round 4 card"><figcaption>Round 4: square strips (replaced).</figcaption></figure>
+      <figure><img src="shots/real/r4-light-notes-p_four.png" alt="Round 4 notes"><figcaption>Round 4 Notes (replaced).</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="shots/real/before-desktop-light-notes-p_both.png" alt="Today's Notes"><figcaption>Today's Notes.</figcaption></figure>
+      <figure><img src="shots/real/before-desktop-light-chat-p_both.png" alt="Today's chat"><figcaption>Today's chat.</figcaption></figure>
+    </div>
+  </section>
+
+  <p class="muted">How these were made: the real page, built from the code on GitHub, served on a laptop with every server answer faked and no live data. A small switch that only the screenshot script loads adds the proposal. Pull request #2299 has the details.</p>
+</div>
+<div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="Picture, full screen">
+  <button class="x" type="button" aria-label="Close">&times;</button>
+  <button class="prev" type="button" aria-label="Previous picture">&lsaquo;</button>
+  <img alt="">
+  <p></p>
+  <button class="next" type="button" aria-label="Next picture">&rsaquo;</button>
+</div>
+<script>
+  const CASES = [
+    ['p_new_change', 'New change requests'], ['p_new_comment', 'A new comment'], ['p_both', 'A change and comments'],
+    ['p_four', 'Three people at once'], ['p_long', 'New, plus one not done'],
+    ['p_open', 'Read, changes not done'], ['p_waiting', 'Read, a comment to answer'], ['p_staff', 'A teammate replied'],
+    ['p_kasper', 'New from Kasper'], ['p_calm', 'Nothing for you'],
+  ];
+  for (const [theme, id] of [['light', 'cardsLight'], ['dark', 'cardsDark']]) {
+    document.getElementById(id).innerHTML = CASES.map(([pid, cap]) =>
+      `<figure><img src="shots/real/r5-${theme}-card-${pid}.png" alt="${cap}, ${theme}" loading="lazy"><figcaption>${cap}${theme === 'dark' ? ', dark' : ''}</figcaption></figure>`).join('');
+  }
+  const lb = document.getElementById('lb'), lbImg = lb.querySelector('img'), lbCap = lb.querySelector('p');
+  const all = () => [...document.querySelectorAll('figure img')];
+  let at = -1;
+  function show(i) {
+    const imgs = all(); at = (i + imgs.length) % imgs.length;
+    const img = imgs[at], cap = img.closest('figure').querySelector('figcaption');
+    lbImg.src = img.src; lbImg.alt = img.alt; lbCap.textContent = cap ? cap.textContent : img.alt;
+    lb.classList.add('open');
+  }
+  function close() { lb.classList.remove('open'); at = -1; }
+  document.addEventListener('click', e => {
+    const img = e.target.closest('figure img');
+    if (img) { show(all().indexOf(img)); return; }
+    if (!lb.classList.contains('open')) return;
+    if (e.target.closest('.prev')) show(at - 1);
+    else if (e.target.closest('.next')) show(at + 1);
+    else close();
+  });
+  document.addEventListener('keydown', e => {
+    if (!lb.classList.contains('open')) return;
+    if (e.key === 'Escape') close();
+    else if (e.key === 'ArrowLeft') show(at - 1);
+    else if (e.key === 'ArrowRight') show(at + 1);
+  });
+</script>

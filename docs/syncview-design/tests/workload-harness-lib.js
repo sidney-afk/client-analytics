@@ -372,6 +372,11 @@ async function launchWorkloadHarness(options) {
       });
     });
     await context.route('**/functions/v1/production-comments*', async route => {
+      // The Messages inbox list (GET ?action=inbox, read by the header badge after sign-in) is not a notes read:
+      // answer it as an empty inbox and leave it out of commentReads, which counts every deliverable's notes read.
+      if (route.request().method() === 'GET' && new URL(route.request().url()).searchParams.get('action') === 'inbox') {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, scope: 'all', conversations: [] }) });
+      }
       const body = JSON.parse(route.request().postData() || '{}');
       state.commentReads.push(body.deliverable_id);
       const list = state.comments[body.deliverable_id] || [];

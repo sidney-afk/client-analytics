@@ -247,8 +247,9 @@ async function staffLanes(view) {
         last_at: last.created_at, last_author: last.author, last_author_member_id: 'm1', last_role: 'smm', last_body: last.body, unread: 0 }];
     };
     let inboxDelay = 0;
-    await S.ctx.route('**/functions/v1/production-comments', async route => {
+    await S.ctx.route('**/functions/v1/production-comments{,?*}', async route => {
       let body = {}; try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+      if (route.request().method() === 'GET') body = { action: new URL(route.request().url()).searchParams.get('action') || '' };   // the inbox list is read with GET ?action=inbox
       if (route.request().method() === 'OPTIONS' || (body.action !== 'inbox' && body.action !== 'inbox_mark')) return route.fallback();
       if (inboxDelay) await sleep(inboxDelay);
       const reply = obj => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(obj) });

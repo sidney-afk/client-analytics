@@ -47,7 +47,7 @@ const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   // Browsers may reuse a preflight answer for 2 hours (Chrome's cap) instead of re-asking every 5 s.
   "Access-Control-Max-Age": "7200",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-syncview-key, x-syncview-actor, x-syncview-role, x-syncview-client-token",
   "Cache-Control": "no-store",
 };
@@ -276,17 +276,25 @@ function parseCursor(value: unknown): { created_at: string; id: string } | null 
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-  if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
+  // The inbox list is a read, so the page asks for it with GET ?action=inbox (owner, 2026-10-23: the
+  // Messages badge is read at page load, and every page treats a POST it did not ask for as a write).
+  // Nothing else is served over GET: marks and thread reads stay POST.
+  const inboxGet = req.method === "GET" && new URL(req.url).searchParams.get("action") === "inbox";
+  if (req.method !== "POST" && !inboxGet) return json({ ok: false, error: "method_not_allowed" }, 405);
 
   const url = clean(Deno.env.get("SUPABASE_URL"));
   const serviceKey = clean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
   if (!url || !serviceKey) return json({ ok: false, error: "service_unavailable" }, 503);
 
   let body: JsonMap;
-  try {
-    body = await req.json() as JsonMap;
-  } catch (_error) {
-    return json({ ok: false, error: "invalid_json" }, 400);
+  if (inboxGet) {
+    body = { action: "inbox" };
+  } else {
+    try {
+      body = await req.json() as JsonMap;
+    } catch (_error) {
+      return json({ ok: false, error: "invalid_json" }, 400);
+    }
   }
 
   const inboxAction = clean(body.action).toLowerCase();

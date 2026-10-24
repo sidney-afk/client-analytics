@@ -388,6 +388,13 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
                 const first = bar.querySelector('.cal-cm-action');
                 if (first) first.after(btn); else bar.prepend(btn);
             } else if (nr && !live.waitingIds.has(id)) nr.remove();
+            // The toolbar shows over the top right of the note on hover. Its exact width is kept free at the end of the
+            // header line, so a long header (name, tags, time) wraps before it and nothing moves when it appears.
+            const headLine = row.querySelector('.cal-cm-head-line');
+            if (bar && headLine) {
+                const room = Math.ceil(bar.scrollWidth) + 16 + 'px';
+                if (headLine.style.paddingRight !== room) headLine.style.paddingRight = room;
+            }
         });
     }
     /* ---------- Messages (326 hands over here) ---------- */

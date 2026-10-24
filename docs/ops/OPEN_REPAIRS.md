@@ -34112,6 +34112,7 @@ back the old function (including its "Needs info" lines).
   - **Change requests:** a client's change request is one quiet line: "<first name> asked for a change on the video · 12m ago · Open card". The explanation moved to the hover.
   - **Grouping:** a follow-up by the same person, in the same thread or both top-level, within five minutes, drops its repeated picture and name. A message waiting for your answer keeps its header.
   - **Composer:** the reply caption uses the first name.
+- **Hover toolbar never covers the header (supervisor review of #2312):** each note's header line keeps its toolbar's exact width free at the right, so a long header wraps before it and nothing moves on hover. The part label ("Video") sits in that corner when the toolbar is hidden. The browser test hovers every note, the longest header included, and fails if the toolbar's box meets any header item. Without the fix it fails on the long note.
 - **Not built (owner decision list):**
   - The Notes composer's "About the… / Team only · Video" lines are the shared composer, outside this pass.
   - The client name on each list row stays, because an admin's list spans many clients.

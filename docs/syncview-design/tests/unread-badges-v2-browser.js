@@ -31,6 +31,9 @@ const note = o => Object.assign({ parent_id: null, author: 'Casey Client', role:
 const NOTES = [
   note({ id: 'n_change', min: 10, is_tweak: true, body: 'Cut the first two seconds.' }),
   note({ id: 'n_question', min: 20, body: 'Can we post this on Friday?' }),
+  // The longest header in this fixture: a long first name, "Waiting for your answer", the time; with its toolbar
+  // (Reply, No reply needed, Delete) it would run under the toolbar if no room were kept for it.
+  note({ id: 'n_long', min: 5, author: 'Bartholomew-Maximilian Rivera', body: 'One more: can the outro be a little longer?' }),
   note({ id: 'n_team', min: 15, author: 'Fixture Editor', author_member_id: 'ed1', role: 'editor', audience: 'internal', body: 'New export is up.' }),
 ];
 const CLIENT_PIC = 'https://pictures.example.test/client-contact.png';
@@ -116,7 +119,7 @@ const cardState = page => page.evaluate(() => {
     ok(st.on && st.v2, 'C. switch naming the member: the round-5 look is on');
     const client = st.bubbles.find(b => b.img);
     ok(client && client.img === CLIENT_PIC, 'C. the client bubble has the client picture from the inbox answer');
-    ok(client && client.nums.join() === 'svu-n-change:2', 'C. both new client notes count on the client bubble, coloured as a change request');
+    ok(client && client.nums.join() === 'svu-n-change:3', 'C. all three new client notes count on the client bubble, coloured as a change request');
     const team = st.bubbles.find(b => b.initials);
     ok(team && team.initials === 'FE' && team.nums.join() === 'svu-n-staff:1', 'C. a teammate with no picture shows initials and a grey number');
     await page.hover('.cal-foot-tweaks[data-comments-wrap="p_t1"] .svu-strips');
@@ -126,7 +129,7 @@ const cardState = page => page.evaluate(() => {
       text: [...document.querySelectorAll('.svu-pv .svu-pv-row .svu-pv-text')].map(e => e.textContent),
       noise: document.querySelectorAll('.svu-pv .svu-pv-time, .svu-pv .svu-pv-what, .svu-pv .svu-pv-foot').length,
     }));
-    ok(hover.who.join() === 'Casey,Fixture,Casey' && hover.text[0] === 'Cut the first two seconds.', 'C. the hover is picture, first name and the note, newest first: ' + hover.who.join(', '));
+    ok(hover.who.join() === 'Bartholomew-Maximilian,Casey,Fixture,Casey' && hover.text[1] === 'Cut the first two seconds.', 'C. the hover is picture, first name and the note, newest first: ' + hover.who.join(', '));
     ok(hover.noise === 0, 'C. the hover has no date, no kind label and no footer');
     await page.mouse.move(5, 5);
 
@@ -146,6 +149,26 @@ const cardState = page => page.evaluate(() => {
     ok(notes.author === 'Casey' && notes.time === '20m ago', 'D. first name and a relative time: ' + notes.author + ', ' + notes.time);
     ok(notes.waitingTag && notes.tools.includes('Reply') && notes.tools.includes('No reply needed'), 'D. the waiting comment\'s hover toolbar has Reply and No reply needed: ' + notes.tools.join(', '));
     ok(notes.unread, 'D. "Mark unread" is one quiet word in the Notes head');
+    // The hover toolbar never covers the header: on every note (the longest header included), its box does not meet
+    // the time or any other header item while the pointer is on it.
+    const overlaps = [];
+    for (const id of await page.evaluate(() => [...document.querySelectorAll('#calCommentsModal .cal-cm-row[data-cm-row]')].map(r => r.getAttribute('data-cm-row')))) {
+      const sel = `#calCommentsModal .cal-cm-row[data-cm-row="${id}"]`;
+      await page.hover(sel + ' .cal-cm-row-body').catch(() => {});
+      await sleep(180);
+      const hit = await page.evaluate(sel => {
+        const bar = document.querySelector(sel + ' .cal-cm-actions');
+        if (!bar || getComputedStyle(bar).opacity === '0') return 'toolbar not shown';
+        const b = bar.getBoundingClientRect();
+        const meet = r => r.width && r.height && r.left < b.right && r.right > b.left && r.top < b.bottom && r.bottom > b.top;
+        const items = [...document.querySelectorAll(sel + ' .cal-cm-head-line > *')].filter(el => getComputedStyle(el).visibility !== 'hidden' && !el.classList.contains('cal-cm-comp-label'));
+        const bad = items.filter(el => meet(el.getBoundingClientRect())).map(el => el.className || el.tagName);
+        return bad.length ? bad.join('+') : '';
+      }, sel);
+      if (hit) overlaps.push(id + ': ' + hit);
+    }
+    ok(overlaps.length === 0, 'D. the hover toolbar never covers the header (time, tags, name) on any note' + (overlaps.length ? ': ' + overlaps.join('; ') : ''));
+    await page.mouse.move(5, 5);
     const notesE = await page.evaluate(() => ({
       lock: !!document.querySelector('#calCommentsModal .cal-cm-row[data-cm-row="n_team"] .svu-lock[title]'),
       teamWord: !!document.querySelector('#calCommentsModal .cal-cm-row[data-cm-row="n_team"] .cal-cm-head-line .cal-cm-to-tag.is-team'),

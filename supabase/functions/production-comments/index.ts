@@ -12,6 +12,7 @@ import {
   type StaffRoleKey,
 } from "../_shared/staff-role-auth.ts";
 import { timingSafeEqual } from "../_shared/staff-role-auth.ts";
+import { chunkIds } from "./chunks.mjs";
 import { readLegacyFeedback } from "./feedback.mjs";
 import { makePictureCache, picturePlan, resolvePictures } from "./pictures.mjs";
 import { buildConversation, clientKey, collectMessages, inboxScope, inboxView, isClosedPost, rosterEntryFor, unreadMark, visibleMessages } from "./inbox.mjs";
@@ -513,14 +514,9 @@ async function inboxCanonical(supabase: SupabaseClient, posts: JsonMap[]): Promi
   // scoped only to this card's client.
   const postById = new Map(posts.map((p) => [clean(p.id), p]));
   const all = [...owner.keys()];
-  // One request per 200 ids, all sent together: the database work is a few
-  // milliseconds, the time was the requests waiting for each other.
-  const chunks = <T>(list: T[]): T[][] => {
-    const out: T[][] = [];
-    for (let i = 0; i < list.length; i += 200) out.push(list.slice(i, i + 200));
-    return out;
-  };
-  const found = await Promise.all(chunks(all).map((part) => supabase.from("deliverables")
+  // One request per part (at most 200 ids and about 6 kB of URL, chunks.mjs), all sent together: the database work
+  // is a few milliseconds, the time was the requests waiting for each other.
+  const found = await Promise.all(chunkIds(all).map((part) => supabase.from("deliverables")
     .select("id,client_slug,team,card_id")
     .in("id", part)));
   const ids: string[] = [];
@@ -538,7 +534,7 @@ async function inboxCanonical(supabase: SupabaseClient, posts: JsonMap[]): Promi
     }
   }
   const out = new Map<string, JsonMap[]>();
-  const fetched = await Promise.all(chunks(ids).map((part) => supabase.from("production_comments")
+  const fetched = await Promise.all(chunkIds(ids).map((part) => supabase.from("production_comments")
     .select("id,native_comment_id,deliverable_id,team,parent_id,thread_root_id,author_name,author_member_id,role,body,audience,component,is_tweak,source_created_at,created_at,deleted_at")
     .in("deliverable_id", part)
     .is("deleted_at", null)));
@@ -611,9 +607,9 @@ async function handleInbox(supabase: SupabaseClient, principal: Principal, body:
   const ids = posts.map((p) => clean(p.id));
   // This reader's own read marks, fetched while the notes are being fetched.
   const readsOf = async (): Promise<Map<string, string> | null> => {
-    const parts: string[][] = [];
-    for (let i = 0; i < ids.length; i += 500) parts.push(ids.slice(i, i + 500));
-    const answers = await Promise.all(parts.map((part) => supabase.from("message_reads")
+    // Split like the other reads (chunks.mjs): 500 ids per part made a URL over the gateway's limit for an admin
+    // with every client in scope, so the read failed and the whole inbox answered 503 (OPEN_REPAIRS 484).
+    const answers = await Promise.all(chunkIds(ids).map((part) => supabase.from("message_reads")
       .select("post_id,last_read_at").eq("reader_id", member.id).in("post_id", part)));
     const marks = new Map<string, string>();
     for (const { data, error } of answers) {

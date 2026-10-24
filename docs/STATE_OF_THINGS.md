@@ -68,6 +68,13 @@ test client only until the owner widens it. OPEN_REPAIRS 490; test `node test/re
 A second PR on the same switch shows the client's notes in the staff side's round-6 quiet design (rows, day lines, quiet
 status words, Reply on hover on team comments): OPEN_REPAIRS 491, test `node test/review-client-notes-browser.js`.
 
+## Client review page, round 2 behind `review_client_polish` (session Porch, 2026-10-24): PR open
+
+The owner's feedback from the test client's link: a client's Reply sits under the team message it answers (no server
+change; production-write already accepts a client's parent); Approve shows its check at the click and rolls back on a
+refusal (press to check 1.8 s to 0.12 s offline with live server times); "Sent" at once; the delete cross is a bare
+cross; a grouped follow-up does not repeat "Change request". OPEN_REPAIRS 495.
+
 ## "Notify client" tags the client (session Tagline, 2026-10-23): live since 2026-10-23 23:42 UTC (#2302), migration applied
 
 The Slack alert starts with an at-mention of the client's linked Slack person (Kasper > Clients, new field "Slack

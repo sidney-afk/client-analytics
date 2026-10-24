@@ -34234,3 +34234,41 @@ back the old function (including its "Needs info" lines).
     - lowers the ratchet to the list above.
   - It fails on main.
   - Pictures: `docs/syncview-design/proofs/no-sending-words/`, every control in its busy state, switch off (before) and on (after), light and dark. Made by `shots.js` in that folder.
+
+## 495. [2026-10-24 19:40 UTC, BUILT, NOT MERGED] Client review page, round 2 behind `review_client_polish`: threaded replies, Approve at the click, a bare delete cross, no repeated "Change request" (session Porch)
+
+- **Asked by the owner** after using the test client's link (490 and 491 live there).
+- **Threading.** A client's Reply now sits under the team message it answers. The note carries `parent_id` = the thread's first message (the server keeps one level of replies). No server change: the card save keeps whole comment objects, and on a linked video or thumbnail part the review note already goes through the gateway comment add (452), which carries `parent_id`; production-write accepts a client's parent when it is a client-visible comment on the same work item.
+  - **Read-only live check, 2026-10-24.** Since 2026-10-21 every plain client note on a linked part reached `production_comments` (14 of 14). The team messages a client can see on those parts are replies inside the client's own threads, and their card ids are the canonical ids. Not written live: a client reply on a linked part (the only linked card on the test client is the owner's own).
+  - **On screen:** replies are indented under their thread, with a thin line; no day line for a reply. Reply is never offered inside a change request's thread.
+  - Browser only: `_calReviewComment(pid, comp, parentId)` (190) and the review page's send path (195).
+- **Speed.** Measured live, read-only, from the Edge Function logs over 24 hours:
+
+  | Function | Requests | p50 | p90 |
+  |---|---|---|---|
+  | production-write | 1,118 | 1.2 s | 3.3 s |
+  | calendar-upsert | 247 | 334 ms | 427 ms |
+
+  The permission read took 0.2 to 0.5 s from the sandbox. An Approve on a linked part runs the permission read, then the status write, then the card write, one after another; the comment path for a client is one write. With those times in the offline harness (median of 3):
+
+  | Moment | Before | After |
+  |---|---|---|
+  | Approve: press to the check | 1,825 ms | 120 ms, at the click |
+  | Approve: the stage moves on | 2.0 to 2.5 s | 790 ms |
+  | Change request: "Sent" shows | 530 ms | 130 ms |
+  | Comment: on screen | 130 ms | 130 ms (unchanged) |
+  | Comment: spinner | at once | only after 1.2 s |
+
+  - **How:** the result is shown optimistically, with a rollback on refusal: a refused status write puts the buttons back, and a refusal brings the stage back to the refused part with its plain reason and Try again.
+  - **Not changed:** no permission read is cached across saves, the two writes stay in order (the write path requires it), no Section 4 function was touched, and none of these paths showed a refetch after the save.
+- **The delete cross** has no circle, border or shadow: just the cross.
+- **A grouped follow-up** of the same kind no longer repeats "Change request" (the owner's screenshot: "Lets do this", then "Change request / and this").
+- **Proof:** `test/review-client-notes-browser.js` checks:
+  - the reply is saved with the thread's id and shown indented under it, with one day line per day;
+  - the follow-up does not repeat the word;
+  - the cross has no fill, border or shadow.
+
+  `test/review-client-polish-browser.js` checks:
+  - the check shows at the click, before the server answers;
+  - a slow refusal returns the stage to the part;
+  - "Sent" shows at once.

@@ -1,6 +1,5 @@
 import { _writeUiTrackSave, _prodServerParentRef } from './120-calendar-flags-write-repair.js';
-import { _svCaptureFocus, _svRestoreFocus, showNotify, showToast } from './040-shared-briefs.js';
-import { svuSpinOr } from './327-core-unread-badges.js';
+import { _svCaptureFocus, _svRestoreFocus, showNotify, showToast, svBusyHtml } from './040-shared-briefs.js';
 import { NATIVE_INTAKE_PENDING_KEY, currentNav } from './065-core-nav-intake-state.js';
 import { wlCanonicalClient, wlNormalizeClient } from './070-core-client-names.js';
 import { _navPillSync } from './092-core-submit-form-navigation.js';
@@ -1501,7 +1500,7 @@ import { svRsKasperOn } from './188-review-stage-switch.js';
         return `<div class="cal-review-panel" data-sxr-kasper-comp="${escComp}" data-state="${inTweaks ? 'tweaks' : 'pending'}">
             <div class="cal-review-panel-head"><span class="cal-review-panel-title">${_sxrEsc(COMP_LABELS[comp])}</span>${stateLabel ? `<span class="cal-review-panel-status">${_sxrEsc(stateLabel)}</span>` : ''}</div>
             <div class="cal-review-panel-preview">${preview}</div>
-            ${showApprove ? `<button type="button" class="cal-review-approve-btn cal-review-approve-main" ${(!saving && !hasDraft) ? '' : 'disabled'} data-idle-title="" title="${hasDraft ? _sxrEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_sxrKasperApproveComp('${escId}','${escComp}')">${checkIco}<span class="cal-ap-verb">${saving ? (typeof svuSpinOr === 'function' ? svuSpinOr('Saving…', 'Saving') : 'Saving…') : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>` : ''}
+            ${showApprove ? `<button type="button" class="cal-review-approve-btn cal-review-approve-main" ${(!saving && !hasDraft) ? '' : 'disabled'} data-idle-title="" title="${hasDraft ? _sxrEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_sxrKasperApproveComp('${escId}','${escComp}')">${checkIco}<span class="cal-ap-verb">${saving ? svBusyHtml('Saving…') : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>` : ''}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_sxrEscAttr(placeholder)}" oninput="_sxrKasperOnDraftInput(this,'${escId}','${escComp}')">${_sxrEsc(draft)}</textarea>
                 <div class="cal-review-tweak-actions">

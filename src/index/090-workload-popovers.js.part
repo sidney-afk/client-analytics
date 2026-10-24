@@ -1,5 +1,5 @@
 import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
-import { svAreaRegister } from './040-shared-briefs.js';
+import { svAreaRegister, svBusyHtml } from './040-shared-briefs.js';
 import { wlState } from './066-core-workload-state.js';
 import {
   WL_PLAN_READ_TIMEOUT_MS, _wlDueWriteInFlight, _wlPlanWriteInFlight, _wlV2Client, _wlV2Teardown,
@@ -773,7 +773,7 @@ import { wlCalmOn, wlCalmPopoverHtml } from './072-workload-calm.js';
                 <div class="workload-popover-plan-line">
                     <span class="workload-popover-plan-label">Due date</span>
                     ${_svDateHtml(dateId, s.dueDate || '', { placeholder: 'Choose due date', disabled: !canEditDue, todayPolicy: 'workload' })}
-                    ${savingDue ? '<span class="workload-popover-plan-saving" role="status">Saving…</span>' : ''}
+                    ${savingDue ? '<span class="workload-popover-plan-saving" role="status">' + svBusyHtml('Saving…') + '</span>' : ''}
                     ${explicitPlan ? `<button type="button" class="workload-plan-clear" data-wl-plan-clear="${wlEscape(s.id || '')}"${canEditPlan ? '' : ' disabled'}>${wlPlanOriginHtml(placementMode, false)} Use automatic plan</button>` : ''}
                 </div>
             </div>`;

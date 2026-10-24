@@ -1,5 +1,5 @@
 import { svLayerOpen, svLayerRelease, svLayerTouches } from './041-core-layers.js';
-import { clientMap, showConfirm, showNotify, showToast, svArea } from './040-shared-briefs.js';
+import { clientMap, showConfirm, showNotify, showToast, svArea, svBusyHtml } from './040-shared-briefs.js';
 import { _mrExternalLink, igUrl, ttUrl, ytUrl } from './050-market-briefs.js';
 import { WL_CLIENT_NAMES } from './070-core-client-names.js';
 import {
@@ -943,12 +943,12 @@ import { svRsCalSync, svRsToolsAdopt, svRsToolsDrop } from './188-review-stage-s
         }
         if (_notifyClient.error) body += '<p class="nc-alert" role="alert">' + _calEsc(_notifyClient.error) + '</p>';
         const canSend = !!st && !_notifyClient.loading && st.has_channel && st.link_ready && st.sending_enabled;
-        const sendLabel = busy === 'send' ? 'Sending…' : st && st.recent ? 'Send anyway' : 'Send alert';
+        const sendLabel = busy === 'send' ? svBusyHtml('Sending…') : _calEsc(st && st.recent ? 'Send anyway' : 'Send alert');
         dlg.innerHTML = `<h2 id="notifyClientTitle">Notify ${who}</h2>
             ${body}
             <div class="nc-actions">
                 <button type="button" class="nc-cancel" data-nc-act="close"${busy ? ' disabled' : ''}>Cancel</button>
-                <button type="button" class="nc-send" data-nc-act="send"${canSend && !busy ? '' : ' disabled'}>${_calEsc(sendLabel)}</button>
+                <button type="button" class="nc-send" data-nc-act="send"${canSend && !busy ? '' : ' disabled'}>${sendLabel}</button>
             </div>`;
     }
     async function notifyClientOpen(surface) {

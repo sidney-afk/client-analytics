@@ -1,4 +1,4 @@
-import { showToast, svSpinHtml } from './040-shared-briefs.js';
+import { showToast } from './040-shared-briefs.js';
 import { _calCommentsForView, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
 import { COMP_LABELS, _notesGetSeen } from './180-calendar-native-post-media.js';
@@ -49,13 +49,6 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         } catch (e) {
             return false;
         }
-    }
-
-    // Round 7 (owner, 2026-10-24): a send never shows the words "Sending…" or "Saving…". With the switch on, the shared
-    // spinner (040 svSpinHtml) stands in their place; otherwise the words, escaped, as before.
-    function svuSpinOr(words, label) {
-        try { if (svuActive()) return svSpinHtml(label || 'Sending'); } catch (e) {}
-        return _calEsc(words);
     }
 
     /* ---------- this browser's "No reply needed" and "Mark unread" ---------- */
@@ -696,4 +689,4 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
     Object.assign(window, {
         svuHideHover, svuHoverCard, svuNoReply
     });
-export { svuActive, svuAfterMsgPaint, svuMsgListHtml, svuNotesBtnHtml, svuNotesOpening, svuPaintCounts, svuPicturesArrived, svuSpinOr, svuUnreadConversations };
+export { svuActive, svuAfterMsgPaint, svuMsgListHtml, svuNotesBtnHtml, svuNotesOpening, svuPaintCounts, svuPicturesArrived, svuUnreadConversations };

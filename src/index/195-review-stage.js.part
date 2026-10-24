@@ -1,5 +1,4 @@
-import { showConfirm, showNotify, svAreaRegister, svSpinHtml } from './040-shared-briefs.js';
-import { svuActive } from './327-core-unread-badges.js';
+import { showConfirm, showNotify, svAreaRegister, svBusyHtml, svBusyOn, svSpinHtml } from './040-shared-briefs.js';
 import { _calComponentsFor, _calIsYouTubeCard, _calNormStatus } from './120-calendar-flags-write-repair.js';
 import { _calCommentsFor, _calCommentsForView, _calSetCommentsFor, calState } from './130-calendar-model-cache.js';
 import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui.js';
@@ -914,6 +913,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 }
 .sv-spin{display:inline-block;flex:none;width:12px;height:12px;box-sizing:border-box;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;opacity:.75;vertical-align:-2px;animation:sv-spin-turn .7s linear infinite}
 @keyframes sv-spin-turn{to{transform:rotate(360deg)}}
+.sv-busy{display:inline-grid;place-items:center;vertical-align:bottom}.sv-busy>*{grid-area:1/1}.sv-busy-words{visibility:hidden}
 @keyframes sv-spin-pulse{from{opacity:.3}to{opacity:.9}}
 @media (prefers-reduced-motion:reduce){.sv-spin{animation:sv-spin-pulse 1s ease-in-out infinite alternate;border-right-color:currentColor}}
 `;
@@ -1374,7 +1374,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             return {
                 id: String(c.id || ''), you: _rsIsMine(c, mode), who: who || (c.role === 'client' ? 'Client' : 'Team'), role: c.role || '', at: String(c.created_at || ''),
                 // Round 7 (switch unread_badges_v2, staff and Kasper): a spinner in place of the word "Sending…".
-                spin: !!c.sending && mode !== 'client' && typeof svuActive === 'function' && svuActive(),
+                spin: !!c.sending && mode !== 'client' && svBusyOn(),
                 part: comp, time: c.sending ? (R.cp ? '' : 'Sending…') : _rsWhen(c.created_at), text: String(c.body || ''),
                 change: !!c.is_tweak, done: !!c.done, aud: c.audience || '', sending: !!c.sending || !!(pending && pending.state === 'sending'), failed: !!(pending && pending.state === 'failed'), edit: c.is_tweak ? null : _rsEditOf(c.body),
                 canDelete: mode === 'client' && !c.sending && (c.canonical ? !!c.can_delete : c.role === 'client'),
@@ -2403,7 +2403,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (all && !S.ready[m.id]) S.ready[m.id] = Date.now();
         if (!all) delete S.ready[m.id];
         const glow = all ? ' ready" style="animation-delay:-' + (Date.now() - S.ready[m.id]) + 'ms' : '';
-        return '<button class="finish' + glow + '" type="button" id="finishBtn"' + (all ? '' : ' disabled') + '>' + RI.check + 'Finish reviewing' + (all ? '' : sending ? (R.cp ? ' <span class="fc num" id="finishWait">' + _rsSpinner('Saving your answers') + '</span>' : ' <span class="fc num" id="finishWait">Saving…</span>') : ' <span class="fc num">' + (parts.length - left) + ' of ' + parts.length + '</span>') + '</button>'
+        return '<button class="finish' + glow + '" type="button" id="finishBtn"' + (all ? '' : ' disabled') + '>' + RI.check + 'Finish reviewing' + (all ? '' : sending ? (R.cp ? ' <span class="fc num" id="finishWait">' + _rsSpinner('Saving your answers') + '</span>' : ' <span class="fc num" id="finishWait">' + (R.mode !== 'client' ? svBusyHtml('Saving…') : 'Saving…') + '</span>') : ' <span class="fc num">' + (parts.length - left) + ' of ' + parts.length + '</span>') + '</button>'
             + (R.mode === 'kasper' && !m.gone ? (R.l2
                 ? '<span class="closew"><button class="btn-quiet" type="button" id="closeBtn" aria-describedby="closeTip"' + (sending ? ' disabled' : '') + '>Close card</button><span class="tip" id="closeTip" role="tooltip">' + RS_CLOSE_TIP + '</span></span>'
                 : '<button class="btn-quiet" type="button" id="closeBtn"' + (sending ? ' disabled' : '') + '>Close card</button>') : '');
@@ -2628,7 +2628,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         return '<div class="bub ' + (t.you ? 'you' : 'team') + (old ? ' old' : '') + (isChg ? ' is-chg' : '') + (isChg && t.done ? ' handled' : '') + (asking ? ' cp-asking' : '') + '"' + (cpx ? ' data-cp-note="' + _re(t.id) + '"' : '') + '>' + av + '<div class="bb">' + cpx + '<div class="bh"><b>' + (t.you ? 'You' : _re(t.who)) + role + '</b>' + tag + kind + when + '</div>' + (t.edit
             ? '<div class="bt' + (t.sending ? ' sending' : '') + '">' + (t.you ? 'You changed' : 'Changed') + ' the caption</div><div class="diff"><div class="new">' + _re(t.edit.now) + '</div>'
               + (t.edit.old ? '<details class="was"><summary>Show the old caption</summary><div class="old">' + _re(t.edit.old) + '</div></details>' : '<div class="was">It had no caption before.</div>') + '</div>'
-            : '<div class="bt' + (t.sending ? ' sending' : '') + (long && t.id && !open ? ' clamp' : '') + '">' + _re(t.text) + '</div>') + more + (t.failed ? '<div class="err" role="alert">Not sent. Your words are kept here. <button type="button" class="retry" data-note-retry="' + _re(t.id) + '">Try again</button></div>' : t.sending && !R.cp ? '<div role="status">Sending…</div>' : '') + (vis || done || del ? '<div class="bfoot">' + vis + done + del + '</div>' : '') + cpAsk + '</div></div>';
+            : '<div class="bt' + (t.sending ? ' sending' : '') + (long && t.id && !open ? ' clamp' : '') + '">' + _re(t.text) + '</div>') + more + (t.failed ? '<div class="err" role="alert">Not sent. Your words are kept here. <button type="button" class="retry" data-note-retry="' + _re(t.id) + '">Try again</button></div>' : t.sending && !R.cp ? '<div role="status">' + (R.mode !== 'client' ? svBusyHtml('Sending…') : 'Sending…') + '</div>' : '') + (vis || done || del ? '<div class="bfoot">' + vis + done + del + '</div>' : '') + cpAsk + '</div></div>';
     }
     function _rsThreadHtml(m) {
         const S = R.S, all = m.thread;

@@ -20,6 +20,8 @@ function world(surface='calendar',store=new Map()){
  calState:{client:'Fixture',posts:[post]},sxrState:{client:'Fixture',posts:[post]},_kasperState:{items:[item],replies:[]},_sxrKasperFindItem:()=>item,
  localStorage:{getItem:k=>{if(ctx.readFailure)throw Error('storage');return store.get(k)||null;},setItem:(k,v)=>{if(ctx.writeFailure)throw Error('quota');store.set(k,v);},removeItem:k=>store.delete(k)},
  showNotify:(...x)=>notices.push(x),showConfirm:(title,text,fn)=>confirms.push(fn),
+ // 040's busy words, as everyone without the switch unread_badges_v2 sees them (no-sending-words.js covers the switch).
+ svBusyText:(el,words)=>{el.textContent=words;},
  // The pre-send read: by default the card row cannot be read, which is the permissive path the older checks cover.
  _urgentReadCardRow:async()=>ctx.cardRow||null,_calAwaitCardSave:async()=>{},_sxrAwaitCardSave:async()=>{},_calCacheWrite(){},_sxrCacheWrite(){},_calUpdateCardStatusDisplay(){},_sxrUpdateCardStatusDisplay(){},setTimeout,clearTimeout,Promise,
  _calAssertSavingOn:async()=>true,_sxrAssertSavingOn:async()=>true, _calPersistUrgentSentForPost:async(...x)=>{persisted.push(x);if(ctx.persistFailure)throw Error('save');},_sxrPersistUrgentSentForPost:async(...x)=>{persisted.push(x);if(ctx.persistFailure)throw Error('save');},

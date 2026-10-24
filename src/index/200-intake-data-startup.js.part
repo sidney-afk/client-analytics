@@ -1,4 +1,4 @@
-import { linearClientRows, showNotify } from './040-shared-briefs.js';
+import { linearClientRows, showNotify, svBusyText } from './040-shared-briefs.js';
 import { renderPins } from './050-market-briefs.js';
 import {
   LAST_LINK_KEY, LINEAR_DEFAULT_VIDEO_COUNT, LINEAR_FORM_KEY, LINEAR_INTAKE_HOLD_KEY,
@@ -921,7 +921,7 @@ import { _kasperCalCachePrune } from './305-core-kasper-shared.js';
         slot.innerHTML = _linearSavedBoxHtml();
         if (options && options.scroll) { const box = document.getElementById('linearSavedBox'); if (box && box.scrollIntoView) box.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
     }
-    function _linearSavedSay(text) { const el = document.getElementById('linearSavedStatus'); if (el) el.textContent = text; }
+    function _linearSavedSay(text) { svBusyText(document.getElementById('linearSavedStatus'), text); }
     /* The form a saved job was made from. New jobs carry it; an older job is
        rebuilt from its payload (the brief is the notes, then the asset lines). */
     function _linearFormFromSavedJob(job) {

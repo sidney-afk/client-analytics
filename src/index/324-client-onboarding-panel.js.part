@@ -1,6 +1,6 @@
 import { CAL_SUPABASE_URL, _svSelectHtml, _svSelectClose, _syncviewStaffCan, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature } from './100-onboarding-staff-controls.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
-import { showConfirm, showToast } from './040-shared-briefs.js';
+import { showConfirm, showToast, svBusyHtml } from './040-shared-briefs.js';
 import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
@@ -351,8 +351,8 @@ import { _ccEnsureIdentity } from './321-kasper-dashboard-replies.js';
             : `<label class="cb-form-label" for="cbEv_${key}">Link or ID that shows it is done (optional)</label>
                <input class="ca-input" id="cbEv_${key}" type="text" autocomplete="off" spellcheck="false" maxlength="${CB_MAX_TEXT}" value="${_calEscAttr(d.evidence || '')}" oninput="_cbDraftInput('${key}','evidence',this.value)"${busy}>`;
         const confirm = isSkip
-            ? `<button type="button" class="cc-btn primary cb-btn" onclick="_cbConfirm('${key}')"${busy}>${_cbState.busy === s.step_key ? 'Saving…' : 'Skip step'}</button>`
-            : `<button type="button" class="cc-btn primary cb-btn" onclick="_cbConfirm('${key}')"${busy}>${_cbState.busy === s.step_key ? 'Saving…' : 'Mark done'}</button>`;
+            ? `<button type="button" class="cc-btn primary cb-btn" onclick="_cbConfirm('${key}')"${busy}>${_cbState.busy === s.step_key ? svBusyHtml('Saving…') : 'Skip step'}</button>`
+            : `<button type="button" class="cc-btn primary cb-btn" onclick="_cbConfirm('${key}')"${busy}>${_cbState.busy === s.step_key ? svBusyHtml('Saving…') : 'Mark done'}</button>`;
         return `<div class="cb-form">${field}<div class="cb-form-actions">${confirm}<button type="button" class="cc-btn cb-btn" onclick="_cbCancel()"${busy}>Cancel</button></div></div>`;
     }
     function _cbStepHtml(s) {

@@ -1,7 +1,6 @@
 import { _urgentReadCardRow, _writeUiRecordSaveFailure } from './120-calendar-flags-write-repair.js';
 import { _writeUiTrackSave, _prodServerParentRef } from './120-calendar-flags-write-repair.js';
-import { _svCaptureFocus, _svRestoreFocus, showConfirm, showNotify, showToast, svSpinButton } from './040-shared-briefs.js';
-import { svuActive } from './327-core-unread-badges.js';
+import { _svCaptureFocus, _svRestoreFocus, showConfirm, showNotify, showToast, svBusyText } from './040-shared-briefs.js';
 import {
   CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL,
   URGENT_KASPER_SLACK_URL, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature,
@@ -3272,9 +3271,8 @@ import {
                 if (retainedAttempt()) { showUnknown(); return; }
                 if (dispatching) return;
                 dispatching = true;
-                // Round 7 (switch unread_badges_v2): a spinner in the button, never the word "Sending…".
-                if (btn && typeof svuActive === 'function' && svuActive()) svSpinButton(btn, true, 'Sending');
-                else if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+                // A spinner in the button for the switch's staff, never the word "Sending…" (040 svBusyText).
+                if (btn) { btn.disabled = true; svBusyText(btn, 'Sending…'); }
                 (async () => {
                     let attempted = false, knownNotSent = false, holdWritten = false, holdValue = '', nativeLane = !!native;
                     const releaseOwnHold = () => {

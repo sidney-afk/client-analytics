@@ -1,4 +1,4 @@
-import { showConfirm, svAreaApi } from './040-shared-briefs.js';
+import { showConfirm, svAreaApi, svBusyText } from './040-shared-briefs.js';
 import { currentNav } from './065-core-nav-intake-state.js';
 import { navTo } from './092-core-submit-form-navigation.js';
 import {
@@ -543,7 +543,7 @@ import { _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperSta
         if (type === 'floating_holiday' && (start !== end || allowedDays !== 1)) { _ptoShowValidation('ptoFormError', 'Choose one business date for a floating holiday.', 'ptoStartDateBtn', 'ptoStartDateBtn ptoEndDateBtn'); return; }
         if (!Number.isFinite(days) || Math.round(days * 2) !== days * 2 || (days !== allowedDays && days !== partialDayCount)) { _ptoShowValidation('ptoFormError', 'Use the full business-day count, or subtract 0.5 for one half-day endpoint.', 'ptoDays'); return; }
         button.disabled = true;
-        button.textContent = 'Sending…';
+        svBusyText(button, 'Sending…');
         try {
             await _ptoApi('request', 'POST', { type, start_date: start, end_date: end, days, note });
             form.reset();

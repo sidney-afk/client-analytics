@@ -1,5 +1,5 @@
 import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
-import { dismissConfirm, showConfirm, showNotify, showToast, svSpinHtml } from './040-shared-briefs.js';
+import { dismissConfirm, showConfirm, showNotify, showToast, svBusyHtml, svBusyOn, svSpinHtml } from './040-shared-briefs.js';
 import { svFrameFeed, svFrameFlagWait, svFrameIoLinkHtml, svFrameStageMount, svFrameWarm, svFrameStageUnmount, svFrameTileAttrs, svFrameTileLabelHtml, svFrameTime } from './187-frame-viewer.js';
 import { _svPhoneNotesPresentation } from './095-shared-client.js';
 import {
@@ -398,7 +398,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         // only an approve or a status change takes the panel over.
         const _noteSending = _noteOutboxFor(p.id, e => e.comp === comp && (e.kind === 'review-comment' || e.kind === 'request')).length > 0;
         if (_calStaffPhoneActive() && _calReviewState.saving[p.id + '|' + comp] && !_noteSending) {
-            return `<div class="cal-review-panel" data-comp="${_calEscAttr(comp)}" data-state="pending"><div class="cal-review-panel-title">${_calEsc(COMP_LABELS[comp])}</div><div class="pocket-staff-cal-saving" role="status">Saving…</div></div>`;
+            return `<div class="cal-review-panel" data-comp="${_calEscAttr(comp)}" data-state="pending"><div class="cal-review-panel-title">${_calEsc(COMP_LABELS[comp])}</div><div class="pocket-staff-cal-saving" role="status">${svBusyHtml('Saving…')}</div></div>`;
         }
         const escId = _calEscAttr(p.id);
         const escComp = _calEscAttr(comp);
@@ -2152,7 +2152,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
     function _noteOutboxStatusHtml(c) {
         if (!c || !c._outbox || c._outbox === 'sent') return '';
         // Round 7 (switch unread_badges_v2): a spinner, never the word "Sending…" (owner, 2026-10-24).
-        if (c._outbox === 'sending' && typeof svuActive === 'function' && svuActive()) return `<div class="sv-note-outbox is-sending">${svSpinHtml('Sending')}</div>`;
+        if (c._outbox === 'sending' && svBusyOn()) return `<div class="sv-note-outbox is-sending">${svSpinHtml('Sending')}</div>`;
         if (c._outbox === 'sending') return `<div class="sv-note-outbox is-sending" role="status"><span class="sv-note-outbox-dot" aria-hidden="true"></span>Sending…</div>`;
         if (c._outboxRequest) {
             return `<div class="sv-note-outbox is-failed" role="alert"><span>Not sent yet. It will be sent when the connection is back.</span>

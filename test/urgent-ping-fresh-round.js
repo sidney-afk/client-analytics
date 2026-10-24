@@ -56,6 +56,8 @@ function world(row) {
     calState: { client: 'Fixture', posts: [post] }, sxrState: { client: 'Fixture', posts: [] },
     localStorage: { getItem: k => store.get(k) || null, setItem: (k, v) => store.set(k, v), removeItem: k => store.delete(k) },
     showNotify: (...x) => notices.push(x), showConfirm: (title, text, fn) => confirms.push(fn),
+    // 040's busy words, as everyone without the switch unread_badges_v2 sees them (no-sending-words.js covers the switch).
+    svBusyText: (el, words) => { el.textContent = words; },
     _calAssertSavingOn: async () => true,
     _calPersistUrgentSentForPost: async (...x) => { persisted.push(x); },
     // The page's own failed-saves helpers run (they sit in the sliced block); the queue diagnostic is the seam to the log.

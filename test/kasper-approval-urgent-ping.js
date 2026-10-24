@@ -258,12 +258,14 @@ const DISPATCH = [
   grabFunc('_calUrgentSlackDispatch'),
 ].join('\n\n');
 const sent = { fetches: [], confirms: [], notes: [] };
-const D = new Function('URGENT_SLACK_URL', 'URGENT_KASPER_SLACK_URL', 'showConfirm', 'showNotify', 'fetch',
+// svBusyText: 040's busy words, as everyone without the switch unread_badges_v2 sees them (no-sending-words.js covers the switch).
+const D = new Function('URGENT_SLACK_URL', 'URGENT_KASPER_SLACK_URL', 'showConfirm', 'showNotify', 'fetch', 'svBusyText',
   DISPATCH + ';return _calUrgentSlackDispatch;')(
   'http://x/send-urgent-slack', 'http://x/send-urgent-kasper-slack',
   (title, bodyText, onYes, cta) => { sent.confirms.push({ title, bodyText, cta }); onYes(); },
   (t, m) => sent.notes.push({ t, m }),
   (url, opts) => { sent.fetches.push({ url, body: JSON.parse(opts.body) }); return Promise.resolve({ ok: true, json: async () => ({ ok: true }) }); },
+  (el, words) => { el.textContent = words; },
 );
 
 const fakeBtn = { dataset: {}, disabled: false, textContent: 'URGENT', classList: { _s: new Set(), add(c) { this._s.add(c); } } };

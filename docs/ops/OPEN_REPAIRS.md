@@ -34004,7 +34004,7 @@ a real plan tab. Then add the other admins and SMMs.
 Rollback: delete the switch row (buttons gone at once); the migration's rollback block; reverting the PR brings
 back the old function (including its "Needs info" lines).
 
-## 482. [2026-10-24 01:47 UTC, BUILT, NOT MERGED] Round-5 unread badges, behind a switch, for the owner first (session Beacon)
+## 483. [2026-10-24 01:47 UTC, BUILT, NOT MERGED] Round-5 unread badges, behind a switch, for the owner first (session Beacon)
 
 - **Owner, 2026-10-24:** "we're good to at least try it out ... only from my account, no one else", then "put the images right now ... every profile image of everyone, every client".
 - **What is built (desktop only):** the design approved in the round-5 mockups (OPEN_REPAIRS 480, PR #2299), in a new fragment `src/index/327-core-unread-badges.js.part` with its styles in 020 under `html.sv-unread2`:

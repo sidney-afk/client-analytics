@@ -34061,3 +34061,23 @@ back the old function (including its "Needs info" lines).
 - **Not built yet:** "No reply needed" and the card's "Mark unread" are kept in the browser (localStorage `sv-unread-v2-local`), not on the server. That is build step 2 in the audit, along with the per-kind counts in the inbox answer.
 - **Proof:** `docs/syncview-design/tests/unread-badges-v2-browser.js` (switch off three ways, on, the hover, Needs you, No reply needed, Messages); `test/people-pictures.js` (fictional people, faked Slack). The Messages, Notes outbox, Calendar write gate and calm Workload suites still pass.
 - **Owner action:** none in code. The switch row, naming the owner's two staff ids, turns it on once this merges.
+
+## 484. [2026-10-24 12:37 UTC, BUILT, NOT MERGED] Kasper's Messages inbox never loads: one read's URL was over the gateway limit (session Beacon)
+
+- **Found by the supervisor (2026-10-24):** every inbox read by Kasper's member answered 503. Reads failed twice on 21 Oct at 15:00 and five times at 17:00 (POST), then six times at 11:58 today (GET, the boot read and its retries). Each read passed the audit (`production_comment_read_audit` allow/inbox), so the failure came after it. No Postgres error was logged.
+- **Cause (measured by the supervisor):**
+  - Kasper is an admin with no roster entry, so his scope is every client: 656 open posts, with ids averaging 33 characters and reaching 40.
+  - `handleInbox` read `message_reads` with `.in("post_id", …)` in parts of 500 ids. That is about 17 kB of ids in one URL, over the gateway's ~16 kB limit.
+  - The read failed, `readsOf` returned null, and the inbox answered `503 inbox_reads_unavailable`.
+  - Smaller scopes (Sidney's admin login has a roster entry, and the SMMs') stay under the limit.
+  - This predates #2300.
+- **Fix:**
+  - A new shared helper, `production-comments/chunks.mjs` `chunkIds`, splits every `.in()` id list into parts of at most 200 ids and about 6 kB of encoded URL.
+  - The three id reads use it: `deliverables.id`, `production_comments.deliverable_id` and `message_reads.post_id`. The first two were already at 200.
+  - The client-slug `.in()` only runs for a limited scope.
+  - Nothing else changed.
+- **Proof:** `test/inbox-in-chunks.js`.
+  - With 656 fictional ids of 40 characters, no part's encoded list exceeds 8 kB; the largest part is 5,974 bytes.
+  - The test shows the old 500-id rule breaks that bound, and it fails against the old source.
+  - It also checks that all three id reads go through `chunkIds`.
+- **After merge:** production-comments deploys through the merge lane. Kasper's next inbox read should answer 200; no switch changes.

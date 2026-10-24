@@ -283,6 +283,27 @@ for(const line of [
  assert.equal(intakeWithoutNaming.split(line).length,2,'card-link line must appear exactly once: '+line.trim());
  intakeWithoutNaming=intakeWithoutNaming.replace(line,'');
 }
+// "Not assigned" (owner 2026-10-23): a video item may ask for nobody with
+// `unassigned: true`. Account for exactly these four bounded changes, each
+// present once, and keep whole-handler equality for every other byte.
+for(const [now,was] of [
+ ['    // "Not assigned" (owner 2026-10-23): a VIDEO item may ask for nobody,\n'
+  +'    // spelled exactly `unassigned: true`, and never beside a named editor.\n'
+  +'    if (item.unassigned !== undefined\n'
+  +'        && (item.unassigned !== true || normalizeTeam(item.team) !== "video")) {\n'
+  +'      throw new GatewayError(400, "intake_assignee_override_not_allowed", { item_index: index });\n'
+  +'    }\n'
+  +'    if (item.unassigned === true && clean(item.assignee_id)) {\n'
+  +'      throw new GatewayError(400, "intake_assignee_override_conflict", { item_index: index });\n'
+  +'    }\n',''],
+ [gateway.slice(gateway.indexOf('  /*\n   * NOBODY IS A CHOICE TOO'),gateway.indexOf('  // The lane is the one resolved above for this request')),''],
+ ['      : unassignedByTeam[team]\n        ? ""\n',''],
+ ['      assignee_id: assigneeId || null,\n','      assignee_id: assigneeId,\n'],
+]) {
+ assert.ok(now.length>20,'accounted "Not assigned" block is empty');
+ assert.equal(intakeWithoutNaming.split(now).length,2,'"Not assigned" block must appear exactly once: '+now.slice(0,60));
+ intakeWithoutNaming=intakeWithoutNaming.replace(now,was);
+}
 assert.equal(intakeWithoutNaming.replace(materializationBlock,'').replace(materializationField,'')
  .replace(legacyParameter,'').replace(legacyGuard,''),extractFunction(oldGateway,'handleIntakeCreate'));
 pass('#1361 survives the lift as an accounted block, with the whole-handler equality check intact around it');

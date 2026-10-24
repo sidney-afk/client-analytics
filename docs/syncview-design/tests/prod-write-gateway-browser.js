@@ -2170,6 +2170,8 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       && appendPayload.items[0].team === 'video' && appendPayload.items[1].team === 'graphics'
       && appendPayload.items[0].card_id === appendPayload.items[1].card_id,
     'Calendar append did not create a paired VID+GRA post with one shared card id');
+    expect(appendPayload.items.every(item => !Object.prototype.hasOwnProperty.call(item, 'unassigned')),
+      'a post left on the suggested editor carried "Not assigned"');
     expect(appendCalendar
       && appendCalendar.post.video_deliverable_id === appendByTeam.video.id
       && appendCalendar.post.graphic_deliverable_id === appendByTeam.graphics.id
@@ -2253,6 +2255,19 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     // Restore the untouched (empty) name so the assertions below still see the
     // auto-generated "Calendar Fixture" batch title this probe must not change.
     await dragBatchNameField.fill('');
+    /* "Not assigned" (owner 2026-10-23), chosen with real clicks on the
+       sv-select: the post is created with no video editor. */
+    await page.waitForFunction(() => _calNativePostState && _calNativePostState.videoEditorStatus !== 'loading');
+    await page.locator('#calNativeEditorBtn').click();
+    const notAssigned = page.locator('#calNativeEditorMenu [data-sv-select-option]', { hasText: 'Not assigned' });
+    expect(await notAssigned.count() === 1, 'the Create Post editor picker does not offer "Not assigned"');
+    expect(await page.evaluate(() => {
+      const labels = [...document.querySelectorAll('#calNativeEditorMenu [data-sv-select-option]')].map(o => o.dataset.label);
+      return labels.length > 1 && labels[labels.length - 1] === 'Not assigned';
+    }), '"Not assigned" is not the last choice after the editors');
+    await notAssigned.click();
+    expect(await page.locator('#calNativeEditorLabel').textContent() === 'Not assigned',
+      'picking "Not assigned" did not show on the picker');
     await page.locator('#calNativePostCreate').click();
     for (let i = 0; i < 100 && writes.length === beforeNewGatewayWrites; i++) {
       await new Promise(resolve => setTimeout(resolve, 20));
@@ -2284,6 +2299,11 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       && newCalendar.post.video_deliverable_id === newByTeam.video.id
       && newCalendar.post.graphic_deliverable_id === newByTeam.graphics.id,
     'Calendar new-batch path did not materialize from returned native IDs');
+    expect(newPayload.items[0].unassigned === true
+      && !Object.prototype.hasOwnProperty.call(newPayload.items[0], 'assignee_id')
+      && !Object.prototype.hasOwnProperty.call(newPayload.items[1], 'unassigned')
+      && !Object.prototype.hasOwnProperty.call(newPayload.items[1], 'assignee_id'),
+    '"Not assigned" did not ride the video item alone as unassigned: true: ' + JSON.stringify(newPayload.items));
     expect(networkOrder.indexOf(`gateway-response:${newPayload.request_id}`) >= 0
       && networkOrder.indexOf(`gateway-response:${newPayload.request_id}`) < networkOrder.indexOf(`calendar-upsert:${newCardId}`),
     'Calendar new-batch upsert ran before the native gateway response');

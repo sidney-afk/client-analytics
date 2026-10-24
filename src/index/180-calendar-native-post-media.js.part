@@ -42,7 +42,7 @@ import {
 } from './160-calendar-organize-ui.js';
 import {
   CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS, CAL_NATIVE_BATCH_FILTER_MIN,
-  CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS, CAL_NATIVE_NAME_MAX, CAL_NATIVE_TITLE_SEPARATOR,
+  CAL_NATIVE_EDITOR_NONE, CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS, CAL_NATIVE_NAME_MAX, CAL_NATIVE_TITLE_SEPARATOR,
   _calAutosizeTextareas, _calCloseNativePost, _calFlushCardSave, _calInsertLocalBlankCard,
   _calNativeBatchCompatible, _calNativeBatchDisplayName, _calNativeBatchLists,
   _calNativeBatchMatches, _calNativeBatchNameFor, _calNativeBatchOptionsHtml,
@@ -199,6 +199,36 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         }
         return rows.map(batch => !batch.linear_parent_ids || !Object.keys(batch.linear_parent_ids).length
             ? { ...batch, _nativeAppendTeams: nativeTeams } : batch);
+    }
+    const CAL_NATIVE_SUGGEST_LAST_TIMEOUT_MS = 2500;
+    /* SUGGESTED LAST (owner 2026-10-23). The setting row
+       syncview_runtime_flags.editor_suggest_last = { "staff": [ids] } names
+       editors who are offered last in Create Post (Calendar and Samples) however
+       few open videos they hold: the team works with them differently, so
+       "freest first" must not put them on top. No row, an unreadable row, or a
+       slow read gives [] and the order is exactly what the gateway ranked. */
+    async function _calNativeEditorSuggestLastIds() {
+        try {
+            const rows = await Promise.race([
+                _prodRestRows('syncview_runtime_flags', 'key,value', 'key=eq.editor_suggest_last', 2, 1),
+                new Promise(resolve => setTimeout(resolve, CAL_NATIVE_SUGGEST_LAST_TIMEOUT_MS, [])),
+            ]);
+            const row = Array.isArray(rows) && rows.length === 1 && rows[0] && rows[0].key === 'editor_suggest_last'
+                ? rows[0] : null;
+            const staff = row && row.value && typeof row.value === 'object' && Array.isArray(row.value.staff)
+                ? row.value.staff : [];
+            return staff.map(id => String(id == null ? '' : id).trim()).filter(Boolean);
+        } catch (error) {
+            return [];
+        }
+    }
+    /* A stable partition: everyone else keeps the gateway's order, and the
+       named editors follow in theirs. */
+    function _calNativeEditorSuggestOrder(editors, lastIds) {
+        const list = Array.isArray(editors) ? editors : [];
+        const last = new Set(Array.isArray(lastIds) ? lastIds : []);
+        if (!last.size) return list.slice();
+        return list.filter(editor => !last.has(editor.id)).concat(list.filter(editor => last.has(editor.id)));
     }
     function _calRenderNativePostChoice() {
         const state = _calNativePostState;
@@ -373,6 +403,10 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                 + (editor.openCount == null ? '' : ' — ' + (editor.openCount === 1 ? '1 open video' : editor.openCount + ' open videos'))
                 + (editor.id === state.videoEditorSuggestedId ? ' (suggested)' : ''),
         }));
+        /* "Not assigned" (owner 2026-10-23): always offered once the list has
+           settled, even when the roster read failed, because choosing nobody
+           needs no roster. Last, so the suggestion stays on top. */
+        if (state.videoEditorStatus === 'ready' || state.videoEditorStatus === 'unavailable') editorItems.push({ value: CAL_NATIVE_EDITOR_NONE, label: 'Not assigned' });
         const editorPickerHtml = (mode === 'video' || mode === 'both') ? `
                 <div class="cal-native-editor-row">
                     <label class="cal-native-editor-label" for="calNativeEditorBtn">Video editor</label>
@@ -722,7 +756,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         _calSetNativePostState({
             clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, batchMaxOrdinals: null, mode: 'both', batchChoice: null, batchFilter: '',
             batchName: '', postNames: [],
-            videoEditors: [], videoEditorId: '', videoEditorSuggestedId: '', videoEditorStatus: 'loading',
+            videoEditors: [], videoEditorId: '', videoEditorSuggestedId: '', videoEditorRankedFirstId: '', videoEditorStatus: 'loading',
         });
         _calNativeDraftRestore(_calNativePostState);
         const editorState = _calNativePostState;
@@ -735,13 +769,21 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
            Create stayed enabled, so staff could not make the choice and the
            post silently fell back to server assignment. A stall now resolves
            to the same unranked fallback a failure does. */
+        /* The suggest-last setting is read beside the pool and bounded on its
+           own, so it can reorder the list but never delay or fail it. */
+        const suggestLast = _calNativeEditorSuggestLastIds();
         Promise.race([
             _calNativeVideoEditorPool(),
             new Promise((resolve, reject) => setTimeout(reject, CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS, new Error('editor pool timed out'))),
-        ]).then(editors => {
+        ]).then(async ranked => {
+            const editors = _calNativeEditorSuggestOrder(ranked, await suggestLast);
             if (_calNativePostState !== editorState) return;
             _calNativePostState.videoEditors = editors;
             _calNativePostState.videoEditorStatus = editors.length ? 'ready' : 'unavailable';
+            /* The gateway's own first pick, kept apart from what the dialog
+               suggests: once the setting moves someone down they differ, and
+               the default may only be left unsent when it IS the gateway's. */
+            _calNativePostState.videoEditorRankedFirstId = ranked.length ? ranked[0].id : '';
             _calNativePostState.videoEditorSuggestedId = editors.length ? editors[0].id : '';
             if (!_calNativePostState.videoEditorId) _calNativePostState.videoEditorId = _calNativePostState.videoEditorSuggestedId;
             try { _calRenderNativePostChoice(); } catch (e) {}
@@ -862,11 +904,16 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
          * only payload that needs the new gateway is one that genuinely asks
          * for somebody else.
          */
-        const suggestedEditorId = String(state.videoEditorSuggestedId || '');
+        /* 2026-10-23: "the gateway's own pick" is the first editor it RANKED,
+           not the first the dialog shows. With editor_suggest_last set those
+           differ, and leaving the shown suggestion unsent would hand the post
+           to the very editor the setting moved down. */
+        const rankedFirstEditorId = String(state.videoEditorRankedFirstId || state.videoEditorSuggestedId || '');
         const chosenEditorId = String(state.videoEditorId || '');
+        const videoUnassigned = (mode === 'video' || mode === 'both') && chosenEditorId === CAL_NATIVE_EDITOR_NONE;
         const videoAssigneeId = (mode === 'video' || mode === 'both')
             && chosenEditorId
-            && chosenEditorId !== suggestedEditorId
+            && chosenEditorId !== rankedFirstEditorId
             && (state.videoEditors || []).some(editor => editor.id === chosenEditorId)
             ? chosenEditorId
             : '';
@@ -889,6 +936,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const signature = JSON.stringify({
             surface, choice, mode, post_count: postCount, client_slug: state.clientSlug,
             video_assignee_id: videoAssigneeId,
+            ...(videoUnassigned ? { video_unassigned: true } : {}),
             post_names: postNames, batch_name: choice === 'new' ? batchName : '',
             batch_id: choice === 'latest' ? String(latest.id || '') : '',
             expected_batch_updated_at: choice === 'latest' ? String(latest.updated_at || '') : '',
@@ -901,7 +949,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                 const payload = {
                     operation: 'intake_create', surface, client_slug: state.clientSlug,
                     request_id: requestId, source_edited_at: sourceEditedAt,
-                    items: _linearIntakeItems(mode, videos, requestId, surface, videoAssigneeId)
+                    items: _linearIntakeItems(mode, videos, requestId, surface, videoAssigneeId, videoUnassigned)
                 };
                 if (choice === 'latest') {
                     payload.batch_id = String(latest.id || '');
@@ -982,7 +1030,13 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                 ? result.items.map(item => String(item && item.title || '')) : [];
             const namesLanded = !askedNames.length || askedNames.every(name =>
                 writtenTitles.some(title => title.endsWith(CAL_NATIVE_TITLE_SEPARATOR + name)));
-            showNotify(surface === 'sxr' ? 'Sample created' : 'Post created', !namesLanded
+            /* "Not assigned", asked of the response like the names: a gateway
+               that predates it ignores the field and assigns the freest. */
+            const nobodyLanded = !videoUnassigned || !(result && Array.isArray(result.items) && result.items
+                .some(item => item && item.team === 'video' && item.assignee_id));
+            showNotify(surface === 'sxr' ? 'Sample created' : 'Post created', !nobodyLanded
+                ? savedWhat + ', but an editor was assigned automatically - this workspace still runs a production-write that predates "Not assigned". Unassign it in Production; tell the owner the gateway needs deploying.'
+                : !namesLanded
                 ? savedWhat + ', but the names were not applied - this workspace still runs a production-write that predates post naming. The posts are saved and numbered correctly; tell the owner the gateway needs deploying.'
                 : result && result.mirror_pending === true
                     ? savedWhat + '; the Linear mirror is still draining.'

@@ -45,6 +45,12 @@ person to tag"), so they get a real notification; with nobody linked it posts un
 confirm box says who is tagged. Needs `migrations/2026-10-23-client-slack-mention.sql`; the functions cope without
 it (untagged). On 2026-10-23 no client had a linked person. OPEN_REPAIRS 477 has the safe live test (the owner-only
 preview to his own DM, with the test client linked to his own id).
+## Create Post: "Not assigned", and an editor suggested last (session Blank, 2026-10-23): PR open
+
+Calendar and Samples Create Post offer "Not assigned" (the post is created with no video editor and shows in Workload's
+Needs assignment); `production-write` accepts `unassigned: true` on video items. The setting row
+`syncview_runtime_flags.editor_suggest_last` `{ "staff": [...] }` puts the named editors last in the picker; no row, no change.
+OPEN_REPAIRS 478; tests `node test/intake-not-assigned.js`, `node test/create-post-picker.js`.
 ## Caption history on Calendar cards, behind `caption_history_staff` (session Versions, 2026-10-23): PR open, not merged
 
 Owner: after "Regenerate with a note" he could not see how the caption changed. Every real caption change is now kept in the

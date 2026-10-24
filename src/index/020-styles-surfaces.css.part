@@ -8733,12 +8733,49 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
 /* UNREAD BADGES, ROUND 5 (session Beacon, 2026-10-24; docs/audits/2026-10-23-unread-badges.md). Only on a page whose
    html carries .sv-unread2, which 327 sets for the staff members the runtime switch unread_badges_v2 names, on desktop.
    People bubbles with a number coloured by kind, and Notes and Messages laid out like Slack. Nobody else sees any of it. */
-html.sv-unread2 { --svu-change: #e8590c; --svu-change-ink: #c2410c; --svu-change-soft: #fff1e6; --svu-comment: #1d6ae5; --svu-comment-ink: #1d4ed8; --svu-comment-soft: #e8f0fe;
-  --svu-staff: #616061; --svu-staff-ink: #3f3f46; --svu-staff-soft: #f0f0f1; --svu-kasper: #6c5ce7; --svu-kasper-ink: #5a4bd1; --svu-kasper-soft: #f0eeff;
-  --svu-on: #fff; --svu-hover: #f8f8f8; --svu-send: #007a5a; --svu-send-on: #fff; --svu-link: #1264a3; --svu-hair: var(--border-light); }
-html.sv-unread2[data-theme="dark"] { --svu-change: #fb923c; --svu-change-ink: #fdba74; --svu-change-soft: rgba(251,146,60,.16); --svu-comment: #60a5fa; --svu-comment-ink: #93c5fd; --svu-comment-soft: rgba(96,165,250,.16);
-  --svu-staff: #a1a1aa; --svu-staff-ink: #d4d4d8; --svu-staff-soft: rgba(212,212,216,.14); --svu-kasper: #a094f8; --svu-kasper-ink: #c3b5ff; --svu-kasper-soft: rgba(160,148,248,.18);
-  --svu-on: #101114; --svu-hover: rgba(255,255,255,.04); --svu-send: #2bac76; --svu-send-on: #0b1a12; --svu-link: #6fb3f5; }
+html.sv-unread2 {
+  --svu-change: #e8590c;
+  --svu-change-ink: #c2410c;
+  --svu-change-soft: #fff1e6;
+  --svu-comment: #1d6ae5;
+  --svu-comment-ink: #1d4ed8;
+  --svu-comment-soft: #e8f0fe;
+  --svu-staff: #616061;
+  --svu-staff-ink: #3f3f46;
+  --svu-staff-soft: #f0f0f1;
+  --svu-kasper: #6c5ce7;
+  --svu-kasper-ink: #5a4bd1;
+  --svu-kasper-soft: #f0eeff;
+  --svu-on: #fff;
+  --svu-hover: #f8f8f8;
+  --svu-send: #007a5a;
+  --svu-send-on: #fff;
+  --svu-link: #1264a3;
+  --svu-hair: var(--border-light);
+  --svu-shadow: 0 12px 32px rgba(0,0,0,.16);
+  --svu-shadow-sm: 0 2px 8px rgba(0,0,0,.08);
+  --svu-unread-line: #e01e5a;
+  --svu-initial-ink: #fff;
+}
+html.sv-unread2[data-theme="dark"] {
+  --svu-change: #fb923c;
+  --svu-change-ink: #fdba74;
+  --svu-change-soft: rgba(251,146,60,.16);
+  --svu-comment: #60a5fa;
+  --svu-comment-ink: #93c5fd;
+  --svu-comment-soft: rgba(96,165,250,.16);
+  --svu-staff: #a1a1aa;
+  --svu-staff-ink: #d4d4d8;
+  --svu-staff-soft: rgba(212,212,216,.14);
+  --svu-kasper: #a094f8;
+  --svu-kasper-ink: #c3b5ff;
+  --svu-kasper-soft: rgba(160,148,248,.18);
+  --svu-on: #101114;
+  --svu-hover: rgba(255,255,255,.04);
+  --svu-send: #2bac76;
+  --svu-send-on: #0b1a12;
+  --svu-link: #6fb3f5;
+}
 /* the badge: people bubbles with a coloured number */
 .svu-foot { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .cal-comments-btn.svu-notes.svu-has-new { color: var(--text-primary); font-weight: 600; }
@@ -8752,7 +8789,7 @@ html.sv-unread2[data-theme="dark"] { --svu-change: #fb923c; --svu-change-ink: #f
 .svu-o-waiting { background: transparent; color: var(--svu-comment-ink); box-shadow: inset 0 0 0 1.5px var(--svu-comment); }
 .svu-bub-more { font-size: .72rem; font-weight: 700; color: var(--text-secondary); }
 /* the hover */
-.svu-pv { position: fixed; z-index: 9999; background: var(--white); color: var(--text-primary); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,.16); padding: 6px 0; font-size: .8rem; }
+.svu-pv { position: fixed; z-index: 9999; background: var(--white); color: var(--text-primary); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--svu-shadow); padding: 6px 0; font-size: .8rem; }
 .svu-pv-row { display: grid; grid-template-columns: 28px auto 1fr auto; column-gap: 8px; row-gap: 1px; align-items: baseline; padding: 7px 12px; }
 .svu-pv-ico { grid-row: 1 / 3; align-self: start; }
 .svu-pv-av { width: 28px; height: 28px; border-radius: 6px; display: block; }
@@ -8822,7 +8859,7 @@ html.sv-unread2 .cal-cm-to-tag.is-client { display: none; }
 html.sv-unread2 .cal-cm-row-body { font-size: .9rem; line-height: 1.46; color: var(--text-primary); }
 html.sv-unread2 .svu-tags { margin: 2px 0 2px; }
 /* Slack's hover toolbar: a small floating box at the top right of the message */
-html.sv-unread2 .cal-cm-actions { position: absolute; top: -14px; right: 18px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.08); padding: 2px; gap: 0; }
+html.sv-unread2 .cal-cm-actions { position: absolute; top: -14px; right: 18px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--svu-shadow-sm); padding: 2px; gap: 0; }
 html.sv-unread2 .cal-cm-action { border-radius: 6px; }
 /* "N replies" under a thread, with who replied */
 html.sv-unread2 .cal-cm-replies { border: 0; margin: 0; padding: 0; }
@@ -8877,7 +8914,7 @@ html.sv-unread2 #msgPage .msg-b-text, html.sv-unread2 #msgPage .msg-b.is-me .msg
 html.sv-unread2 #msgPage .cal-cm-to-tag { background: var(--svu-staff-soft) !important; color: var(--text-secondary) !important; border-radius: 99px; padding: 2px 7px !important; font-size: .66rem; }
 html.sv-unread2 #msgPage .cal-cm-to-tag.is-client, html.sv-unread2 #msgPage .msg-reply-cap .cal-cm-to-tag { display: none; }
 html.sv-unread2 #msgPage .msg-b-reply { display: none; }
-html.sv-unread2 #msgPage .thumb-msg-new { color: #e01e5a; }
+html.sv-unread2 #msgPage .thumb-msg-new { color: var(--svu-unread-line); }
 html.sv-unread2 .svu-change-line { display: flex; align-items: center; gap: 10px; margin: 6px 24px; padding: 8px 12px; border-radius: 8px; background: var(--svu-change-soft); color: var(--svu-change-ink); font-size: .82rem; font-weight: 600; }
 html.sv-unread2 .svu-line-av { width: 22px; height: 22px; border-radius: 6px; }
 html.sv-unread2 .svu-change-line .svu-text-btn { margin-left: auto; }
@@ -8886,6 +8923,6 @@ html.sv-unread2 #msgPage .msg-reply .cal-cm-composer { border: 1px solid var(--b
 html.sv-unread2 #msgPage .msg-reply .cal-cm-composer textarea { background: transparent !important; border: 0 !important; }
 html.sv-unread2 #msgPage .msg-reply .cal-cm-send { background: var(--svu-send) !important; color: var(--svu-send-on) !important; border-radius: 6px !important; }
 html.sv-unread2 #msgPage .msg-reply .cal-cm-send:disabled { background: var(--svu-staff-soft) !important; color: var(--text-muted) !important; }
-html.sv-unread2 .svu-initial, .svu-initial { display: inline-flex !important; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: .62rem; letter-spacing: .01em; overflow: hidden; }
+html.sv-unread2 .svu-initial, .svu-initial { display: inline-flex !important; align-items: center; justify-content: center; color: var(--svu-initial-ink, var(--white)); font-weight: 800; font-size: .62rem; letter-spacing: .01em; overflow: hidden; }
 html.sv-unread2 .cal-cm-avatar .svu-initial, html.sv-unread2 #msgPage .svu-slack-av.svu-initial, html.sv-unread2 .svu-conv-av.svu-initial { font-size: .8rem; }
 html.sv-unread2 .cal-cm-row.is-reply .cal-cm-avatar .svu-initial { font-size: .62rem; }

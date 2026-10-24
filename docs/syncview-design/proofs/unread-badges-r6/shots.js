@@ -116,6 +116,16 @@ function seed(S) {
       await page.mouse.move(5, 5);
       await sleep(250);
       await shot(page, `${theme}-chat-end`);
+      if (TAG !== 'before') {
+        // Round 6 E: the To answer list, and the empty states.
+        await page.evaluate(() => _msgSetFilter('answer'));
+        await sleep(300);
+        await shot(page, `${theme}-list-answer`);
+        await page.evaluate(() => { window.__keep = _msgState.conversations; _msgState.conversations = []; _msgState.openId = ''; _msgSetFilter('new'); });
+        await sleep(300);
+        await shot(page, `${theme}-empty`);
+        await page.evaluate(() => { _msgState.conversations = window.__keep; _msgSetFilter('all'); });
+      }
       await page.close();
     }
   } finally { await S.close(); }

@@ -72,6 +72,7 @@
 323-kasper-dashboard-tail.js.part          kasper
 324-client-onboarding-panel.js.part       kasper
 326-core-messages-inbox.js.part            core
+327-core-unread-badges.js.part             core
 330-kasper-review-history.js.part          kasper
 340-kasper-editors-board.js.part           kasper
 345-core-tooltip-date-picker.js.part       core

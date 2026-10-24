@@ -8,6 +8,7 @@ import { _calSetFocusRequest, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
 import { _calDeriveThumb, onCalClientChange } from './160-calendar-organize-ui.js';
 import { COMP_LABELS } from './180-calendar-native-post-media.js';
+import { svuActive, svuAfterMsgPaint, svuMsgListHtml, svuPaintCounts, svuPicturesArrived, svuUnreadConversations } from './327-core-unread-badges.js';
 import {
   _CAL_LOCK_ICO, _calCommentRole, _calCommentSendPending, _calCurrentAuthor, _calCurrentAuthorId,
   _calFindCompForCommentId, _calFmtCommentTime, _calMintCommentId, _calNoteAuthorName, _noteOutboxAsComment,
@@ -41,7 +42,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     const _msgState = {
         loading: false, loaded: false, error: '', conversations: [], scope: '',
         openId: '', replyTo: '', draft: '', sending: false, filter: 'new', lastAt: 0,
-        unavailable: false, fromCache: false, readWhenFresh: '', owner: '', epoch: 0, failStatus: 0,
+        unavailable: false, fromCache: false, readWhenFresh: '', owner: '', epoch: 0, failStatus: 0, pictures: null,
     };
     let _msgTimer = null;
     const _msgFallbackHooks = [];
@@ -200,9 +201,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        An older production-comments that only takes POST answers 405: then the same read goes once as POST. */
     const MSG_INBOX_URL = MSG_URL + '?action=inbox';
     async function _msgCall(body) {
-        const isList = body && body.action === 'inbox' && Object.keys(body).length === 1;
+        // The list read, with or without the round-5 badges' pictures ask (327), goes as GET.
+        const isList = body && body.action === 'inbox' && Object.keys(body).every(k => k === 'action' || k === 'pictures');
+        const listUrl = MSG_INBOX_URL + (isList && body.pictures ? '&pictures=1' : '');
         let response = isList
-            ? await fetch(MSG_INBOX_URL, { method: 'GET', cache: 'no-store', headers: _syncviewEfHeaders({}, MSG_INBOX_URL) })
+            ? await fetch(listUrl, { method: 'GET', cache: 'no-store', headers: _syncviewEfHeaders({}, listUrl) })
             : null;
         if (!response || response.status === 405) {
             response = await fetch(MSG_URL, {
@@ -234,10 +237,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const epoch = _msgState.epoch, asker = _msgMyId();
         const stale = () => epoch !== _msgState.epoch || asker !== _msgMyId();
         try {
-            const value = await _msgCall({ action: 'inbox' });
+            // The round-5 badges (327) also ask for people's pictures; every other read is today's.
+            const value = await _msgCall((typeof svuActive === 'function' && svuActive()) ? { action: 'inbox', pictures: 1 } : { action: 'inbox' });
             if (stale()) return;
             _msgState.conversations = Array.isArray(value.conversations) ? value.conversations : [];
             _msgState.scope = String(value.scope || '');
+            if (value.pictures && typeof value.pictures === 'object') { _msgState.pictures = value.pictures; if (typeof svuPicturesArrived === 'function') svuPicturesArrived(value.pictures); }
             _msgState.error = '';
             _msgState.failStatus = 0;
             _msgState.loaded = true;
@@ -267,10 +272,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _msgPaint();
     }
     function _msgUnreadConversations() {
+        if (typeof svuActive === 'function' && svuActive()) return svuUnreadConversations();   // round-5 badges (327, switch unread_badges_v2)
         return _msgState.conversations.filter(c => Number(c.unread) > 0).length;
     }
     function _msgPaintCounts() {
         if (_msgState.unavailable) return;
+        if (_msgCanUse() && typeof svuActive === 'function' && svuActive()) { svuPaintCounts(); return; }
         const n = _msgCanUse() ? _msgUnreadConversations() : 0;
         document.querySelectorAll('[data-kasper-count="replies"]').forEach(el => {
             el.textContent = String(n);
@@ -375,6 +382,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return role === 'client' ? 'Client' : role === 'smm' ? 'SMM' : role === 'kasper' ? 'Reviewer' : '';
     }
     function _msgListHtml() {
+        if (typeof svuActive === 'function' && svuActive()) return svuMsgListHtml();
         const query=_msgIsPhone()?_msgPhone.query.trim().toLowerCase():'';
         const list=_msgState.conversations.filter(c=>(_msgState.filter!=='new'||Number(c.unread)>0||c.post_id===_msgState.openId)&&(!query||[_msgClientName(c),c.title,c.last_body].join(' ').toLowerCase().includes(query)));
         if (!list.length) {
@@ -593,6 +601,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             else bubbles.scrollTop=bubbles.scrollHeight;
         }
         _msgPhone.firstOpen=false;_msgPhoneLayout();
+        if (typeof svuAfterMsgPaint === 'function') svuAfterMsgPaint();
     }
     function _msgRenderInto(root) {
         if (!root) return;
@@ -603,7 +612,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
 
     /* ── Actions ── */
-    function _msgSetFilter(f) { _msgState.filter = f === 'all' ? 'all' : 'new'; _msgPaint(); }
+    function _msgSetFilter(f) { _msgState.filter = f === 'all' ? 'all' : (f === 'answer' && typeof svuActive === 'function' && svuActive()) ? 'answer' : 'new'; _msgPaint(); }
     function _msgSetReplyTo(rootId) {
         _msgState.replyTo = String(rootId || '');
         _msgPhoneKeepDraft();
@@ -1013,4 +1022,4 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _msgBack, _msgClose, _msgLoad, _msgMarkUnread, _msgOnDraft, _msgOnKey, _msgOpen, _msgOpenCard,
         _msgOpenPage, _msgPhoneMore, _msgPhoneSearch, _msgReply, _msgSetFilter, _msgSetReplyTo
     });
-export { _msgInboxLive, _msgMountEmbedded, _msgOnFallback, _msgOnIdentity, _msgPaintCounts };
+export { _msgBootPageOk, _msgClientName, _msgInboxLive, _msgIsPhone, _msgLoad, _msgMe, _msgMountEmbedded, _msgMyId, _msgOnFallback, _msgOnIdentity, _msgPaint, _msgPaintCounts, _msgState };

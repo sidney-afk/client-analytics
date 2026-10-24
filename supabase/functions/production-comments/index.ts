@@ -13,6 +13,7 @@ import {
 } from "../_shared/staff-role-auth.ts";
 import { timingSafeEqual } from "../_shared/staff-role-auth.ts";
 import { readLegacyFeedback } from "./feedback.mjs";
+import { makePictureCache, picturePlan, resolvePictures } from "./pictures.mjs";
 import { buildConversation, clientKey, collectMessages, inboxScope, inboxView, isClosedPost, rosterEntryFor, unreadMark, visibleMessages } from "./inbox.mjs";
 import {
   audienceAllowed,
@@ -288,7 +289,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   let body: JsonMap;
   if (inboxGet) {
-    body = { action: "inbox" };
+    // The round-5 badges ask for people's pictures on the same read (pictures.mjs).
+    body = new URL(req.url).searchParams.get("pictures") === "1" ? { action: "inbox", pictures: 1 } : { action: "inbox" };
   } else {
     try {
       body = await req.json() as JsonMap;
@@ -620,7 +622,9 @@ async function handleInbox(supabase: SupabaseClient, principal: Principal, body:
     }
     return marks;
   };
-  const [canonical, reads] = await Promise.all([inboxCanonical(supabase, posts), readsOf()]);
+  // Pictures only when the page asks (the round-5 badges, switch unread_badges_v2): every other inbox read is unchanged.
+  const wantPictures = body.pictures === true || body.pictures === 1 || body.pictures === "1";
+  const [canonical, reads, pictures] = await Promise.all([inboxCanonical(supabase, posts), readsOf(), wantPictures ? peoplePictures(supabase) : Promise.resolve(null)]);
   if (!reads) return json({ ok: false, error: "inbox_reads_unavailable" }, 503);
   const now = Date.now();
   const conversations = posts
@@ -632,6 +636,25 @@ async function handleInbox(supabase: SupabaseClient, principal: Principal, body:
     })
     .filter(Boolean)
     .sort((a, b) => String((b as JsonMap).last_at).localeCompare(String((a as JsonMap).last_at)));
-  return json({ ok: true, scope: scope === "all" ? "all" : "own", conversations });
+  return json({ ok: true, scope: scope === "all" ? "all" : "own", conversations, ...(pictures ? { pictures } : {}) });
+}
+
+// Slack profile photos for staff and client contacts (pictures.mjs), cached per instance. Any failure: no pictures.
+const pictureCache = makePictureCache();
+async function peoplePictures(supabase: SupabaseClient): Promise<JsonMap | null> {
+  const token = clean(Deno.env.get("SLACK_BOT_TOKEN"));
+  if (!token) return null;
+  try {
+    return await pictureCache.get(async () => {
+      const [staff, contacts] = await Promise.all([
+        supabase.from("team_members").select("id,name,slack_user_id,active"),
+        supabase.from("client_profiles").select("slug,slack_mention_user_id,archived_at"),
+      ]);
+      if (staff.error) throw new Error("pictures_staff_failed");
+      return await resolvePictures(picturePlan(staff.data || [], contacts.error ? [] : (contacts.data || [])), token, fetch);
+    }) as JsonMap | null;
+  } catch (_e) {
+    return null;
+  }
 }
 

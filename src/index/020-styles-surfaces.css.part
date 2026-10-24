@@ -8808,3 +8808,199 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
    .workload-popover.wl-calm-pop .wl-calm-date-btn, .workload-popover.wl-calm-pop .wl-calm-auto { min-height: 36px; }
  }
  .workload-view.wl-calm .workload-calendar-heading:has(#wlWeekendNotice[hidden]) { display: none; }
+/* UNREAD BADGES, ROUND 5 (session Beacon, 2026-10-24; docs/audits/2026-10-23-unread-badges.md). Only on a page whose
+   html carries .sv-unread2, which 327 sets for the staff members the runtime switch unread_badges_v2 names, on desktop.
+   People bubbles with a number coloured by kind, and Notes and Messages laid out like Slack. Nobody else sees any of it. */
+html.sv-unread2 {
+  --svu-change: #e8590c;
+  --svu-change-ink: #c2410c;
+  --svu-change-soft: #fff1e6;
+  --svu-comment: #1d6ae5;
+  --svu-comment-ink: #1d4ed8;
+  --svu-comment-soft: #e8f0fe;
+  --svu-staff: #616061;
+  --svu-staff-ink: #3f3f46;
+  --svu-staff-soft: #f0f0f1;
+  --svu-kasper: #6c5ce7;
+  --svu-kasper-ink: #5a4bd1;
+  --svu-kasper-soft: #f0eeff;
+  --svu-on: #fff;
+  --svu-hover: #f8f8f8;
+  --svu-send: #007a5a;
+  --svu-send-on: #fff;
+  --svu-link: #1264a3;
+  --svu-hair: var(--border-light);
+  --svu-shadow: 0 12px 32px rgba(0,0,0,.16);
+  --svu-shadow-sm: 0 2px 8px rgba(0,0,0,.08);
+  --svu-unread-line: #e01e5a;
+  --svu-initial-ink: #fff;
+}
+html.sv-unread2[data-theme="dark"] {
+  --svu-change: #fb923c;
+  --svu-change-ink: #fdba74;
+  --svu-change-soft: rgba(251,146,60,.16);
+  --svu-comment: #60a5fa;
+  --svu-comment-ink: #93c5fd;
+  --svu-comment-soft: rgba(96,165,250,.16);
+  --svu-staff: #a1a1aa;
+  --svu-staff-ink: #d4d4d8;
+  --svu-staff-soft: rgba(212,212,216,.14);
+  --svu-kasper: #a094f8;
+  --svu-kasper-ink: #c3b5ff;
+  --svu-kasper-soft: rgba(160,148,248,.18);
+  --svu-on: #101114;
+  --svu-hover: rgba(255,255,255,.04);
+  --svu-send: #2bac76;
+  --svu-send-on: #0b1a12;
+  --svu-link: #6fb3f5;
+}
+/* the badge: people bubbles with a coloured number */
+.svu-foot { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cal-comments-btn.svu-notes.svu-has-new { color: var(--text-primary); font-weight: 600; }
+.cal-comments-btn.svu-notes.svu-has-new svg { opacity: 1; }
+.svu-strips { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.svu-bub { display: inline-flex; align-items: center; gap: 3px; }
+.svu-bub-av { width: 22px; height: 22px; border-radius: 50%; display: block; box-shadow: 0 0 0 2px var(--white); }
+.svu-num { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; display: inline-flex; align-items: center; justify-content: center; font-size: .68rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--svu-on); }
+.svu-n-change { background: var(--svu-change); } .svu-n-comment { background: var(--svu-comment); } .svu-n-staff { background: var(--svu-staff); } .svu-n-kasper { background: var(--svu-kasper); }
+.svu-o-open { background: transparent; color: var(--svu-change-ink); box-shadow: inset 0 0 0 1.5px var(--svu-change); }
+.svu-o-waiting { background: transparent; color: var(--svu-comment-ink); box-shadow: inset 0 0 0 1.5px var(--svu-comment); }
+.svu-bub-more { font-size: .72rem; font-weight: 700; color: var(--text-secondary); }
+/* the hover */
+.svu-pv { position: fixed; z-index: 9999; background: var(--white); color: var(--text-primary); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--svu-shadow); padding: 6px 0; font-size: .8rem; }
+.svu-pv-row { display: grid; grid-template-columns: 28px auto 1fr auto; column-gap: 8px; row-gap: 1px; align-items: baseline; padding: 7px 12px; }
+.svu-pv-ico { grid-row: 1 / 3; align-self: start; }
+.svu-pv-av { width: 28px; height: 28px; border-radius: 6px; display: block; }
+.svu-pv-ico svg { width: 14px; height: 14px; display: block; transform: translateY(3px); }
+.svu-k-change .svu-pv-what { color: var(--svu-change-ink); } .svu-k-comment .svu-pv-what, .svu-k-waiting .svu-pv-what { color: var(--svu-comment-ink); }
+.svu-k-kasper .svu-pv-what { color: var(--svu-kasper-ink); }
+.svu-k-staff .svu-pv-ico, .svu-k-staff .svu-pv-what { color: var(--svu-staff-ink); } .svu-k-kasper .svu-pv-ico { color: var(--svu-kasper-ink); }
+.svu-k-comment .svu-pv-ico, .svu-k-waiting .svu-pv-ico { color: var(--svu-comment-ink); }
+.svu-pv-who { font-weight: 800; }
+.svu-pv-what { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.svu-pv-time { color: var(--text-muted); font-size: .72rem; }
+.svu-pv-text { grid-column: 2 / 5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
+.svu-pv-foot, .svu-pv-empty { padding: 7px 12px 4px; border-top: 1px solid var(--svu-hair); color: var(--text-secondary); font-size: .76rem; }
+.svu-tip-head { padding: 6px 12px 6px; font-weight: 800; }
+.svu-tip-row { grid-template-columns: 16px 1fr; }
+.svu-tip-row .svu-pv-ico { grid-row: auto; }
+.svu-tip-text { color: var(--text-primary); }
+/* the Messages button count: a round pill */
+.msg-nav-btn > .msg-unread.svu-count { border-radius: 99px; box-shadow: 0 0 0 2px var(--white); }
+.msg-unread.svu-count-comment { background: var(--svu-comment); color: var(--svu-on); } .msg-unread.svu-count-staff { background: var(--svu-staff); color: var(--svu-on); }
+.msg-unread.svu-count-kasper { background: var(--svu-kasper); color: var(--svu-on); }
+.msg-unread.svu-count-waiting { background: var(--white); color: var(--svu-comment-ink); box-shadow: 0 0 0 2px var(--white), inset 0 0 0 1.5px var(--svu-comment); }
+/* buttons and tags */
+.svu-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); border-radius: 6px; padding: 4px 12px; font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; }
+.svu-btn:hover { background: var(--svu-hover); }
+.svu-btn.svu-primary { background: var(--svu-send); color: var(--svu-send-on); border-color: var(--svu-send); }
+.svu-text-btn { border: 0; background: transparent; color: var(--svu-link); font: inherit; font-size: .78rem; font-weight: 600; padding: 4px 6px; cursor: pointer; border-radius: 6px; }
+.svu-text-btn:hover { background: var(--svu-hover); text-decoration: underline; }
+.svu-tags { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.svu-tag { font-size: .68rem; font-weight: 700; line-height: 1; padding: 3px 7px; border-radius: 99px; }
+.svu-t-change { background: var(--svu-change); color: var(--svu-on); } .svu-t-comment { background: var(--svu-comment); color: var(--svu-on); }
+.svu-t-staff { background: var(--svu-staff); color: var(--svu-on); } .svu-t-kasper { background: var(--svu-kasper); color: var(--svu-on); }
+.svu-t-me { background: var(--svu-staff-soft); color: var(--svu-staff-ink); }
+.svu-t-waiting { background: var(--svu-comment-soft); color: var(--svu-comment-ink); }
+.svu-t-open { background: var(--svu-change-soft); color: var(--svu-change-ink); }
+.svu-t-plain { background: var(--svu-staff-soft); color: var(--text-secondary); }
+.svu-row-acts { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+
+/* ---- Notes on a card, Slack-like ---- */
+html.sv-unread2 .svu-need { margin: 10px 16px 4px; padding: 8px 4px 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); }
+html.sv-unread2 .svu-need-head { display: flex; justify-content: space-between; align-items: center; padding: 0 10px 4px; font-size: .78rem; font-weight: 800; color: var(--text-primary); }
+html.sv-unread2 .svu-need-row { display: grid; grid-template-columns: 16px auto 1fr auto; gap: 8px; align-items: baseline; width: 100%; border: 0; background: transparent; text-align: left; font: inherit; font-size: .8rem; padding: 5px 10px; cursor: pointer; color: var(--text-primary); border-radius: 6px; }
+html.sv-unread2 .svu-need-row:hover { background: var(--svu-hover); }
+html.sv-unread2 .svu-need-ico svg { width: 13px; height: 13px; display: block; transform: translateY(2px); }
+html.sv-unread2 .svu-need-row.svu-k-change .svu-need-ico, html.sv-unread2 .svu-need-row.svu-k-open .svu-need-ico { color: var(--svu-change-ink); }
+html.sv-unread2 .svu-need-row.svu-k-comment .svu-need-ico, html.sv-unread2 .svu-need-row.svu-k-waiting .svu-need-ico { color: var(--svu-comment-ink); }
+html.sv-unread2 .svu-need-row.svu-k-staff .svu-need-ico { color: var(--svu-staff-ink); } html.sv-unread2 .svu-need-row.svu-k-kasper .svu-need-ico { color: var(--svu-kasper-ink); }
+html.sv-unread2 .svu-need-label { font-weight: 700; white-space: nowrap; }
+html.sv-unread2 .svu-need-text { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.sv-unread2 .svu-need-part, html.sv-unread2 .svu-need-more { color: var(--text-muted); font-size: .72rem; }
+html.sv-unread2 .svu-need-more { padding: 2px 10px 2px; }
+html.sv-unread2 .cal-cm-thread { border: 0; background: transparent; box-shadow: none; padding: 0; margin: 0; }
+html.sv-unread2 .cal-cm-row { padding: 8px 20px 8px 20px; border-radius: 0; background: transparent; position: relative; column-gap: 10px; }
+html.sv-unread2 .cal-cm-row:hover { background: var(--svu-hover); }
+html.sv-unread2 .cal-cm-row.svu-flash { background: var(--svu-comment-soft); }
+html.sv-unread2 .cal-cm-avatar { width: 36px; height: 36px; border-radius: 8px; overflow: hidden; padding: 0; background: transparent; flex: none; }
+html.sv-unread2 .svu-slack-av { width: 36px; height: 36px; border-radius: 8px; display: block; }
+html.sv-unread2 .cal-cm-row.is-reply { padding-left: 66px; }
+html.sv-unread2 .cal-cm-row.is-reply .cal-cm-avatar, html.sv-unread2 .cal-cm-row.is-reply .cal-cm-avatar .svu-slack-av { width: 24px; height: 24px; border-radius: 6px; }
+html.sv-unread2 .cal-cm-head-line { gap: 8px; align-items: baseline; flex-wrap: wrap; }
+html.sv-unread2 .cal-cm-author { font-weight: 800; font-size: .92rem; }
+html.sv-unread2 .cal-cm-time { color: var(--text-muted); font-weight: 500; font-size: .72rem; }
+html.sv-unread2 .cal-cm-comp-label { color: var(--text-muted); font-weight: 600; font-size: .7rem; letter-spacing: 0; text-transform: none; margin-left: auto; }
+html.sv-unread2 .cal-cm-type-tag { background: var(--svu-change-soft) !important; color: var(--svu-change-ink) !important; border-radius: 99px; padding: 2px 7px !important; font-size: .66rem; }
+html.sv-unread2 .cal-cm-to-tag { background: var(--svu-staff-soft) !important; color: var(--text-secondary) !important; border-radius: 99px; padding: 2px 7px !important; font-size: .66rem; }
+html.sv-unread2 .cal-cm-to-tag.is-client { display: none; }
+html.sv-unread2 .cal-cm-row-body { font-size: .9rem; line-height: 1.46; color: var(--text-primary); }
+html.sv-unread2 .svu-tags { margin: 2px 0 2px; }
+/* Slack's hover toolbar: a small floating box at the top right of the message */
+html.sv-unread2 .cal-cm-actions { position: absolute; top: -14px; right: 18px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--svu-shadow-sm); padding: 2px; gap: 0; }
+html.sv-unread2 .cal-cm-action { border-radius: 6px; }
+/* "N replies" under a thread, with who replied */
+html.sv-unread2 .cal-cm-replies { border: 0; margin: 0; padding: 0; }
+html.sv-unread2 .cal-cm-rail { display: none; }
+html.sv-unread2 .cal-cm-more-replies { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 6px 66px; padding: 4px 8px 4px 4px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--svu-link); font: inherit; font-size: .78rem; font-weight: 800; cursor: pointer; }
+html.sv-unread2 .cal-cm-more-replies:hover { border-color: var(--border); background: var(--white); }
+html.sv-unread2 .cal-cm-more-replies img { width: 22px; height: 22px; border-radius: 5px; }
+html.sv-unread2 .cal-cm-more-replies .svu-last { color: var(--text-muted); font-weight: 500; }
+/* the message box, like Slack's */
+html.sv-unread2 .cal-cm-composer { border: 1px solid var(--border) !important; border-radius: 10px !important; background: var(--white) !important; box-shadow: none !important; }
+html.sv-unread2 .cal-cm-composer:focus-within { border-color: var(--text-secondary) !important; }
+html.sv-unread2 .cal-cm-composer textarea { border-radius: 10px !important; }
+html.sv-unread2 .cal-cm-send { background: var(--svu-send) !important; color: var(--svu-send-on) !important; border-radius: 6px !important; }
+html.sv-unread2 .cal-cm-send:disabled { background: var(--svu-staff-soft) !important; color: var(--text-muted) !important; }
+html.sv-unread2 .cal-cm-send-more { border-radius: 6px !important; }
+
+/* ---- Messages, Slack-like ---- */
+html.sv-unread2 #msgPage .msg-filters { display: flex; gap: 4px; background: transparent; border: 0; padding: 8px 10px; margin: 0; box-shadow: none; }
+html.sv-unread2 #msgPage .msg-filters button { flex: none; background: transparent !important; border: 0; box-shadow: none !important; padding: 5px 10px; color: var(--text-secondary); font-weight: 700; font-size: .8rem; border-radius: 6px; }
+html.sv-unread2 #msgPage .msg-filters button span { color: var(--text-muted); font-weight: 700; margin-left: 2px; }
+html.sv-unread2 #msgPage .msg-filters button.is-active { background: var(--svu-staff-soft) !important; color: var(--text-primary); }
+html.sv-unread2 #msgPage .svu-conv { display: flex; gap: 10px; align-items: center; padding: 8px 10px; margin: 1px 8px; width: calc(100% - 16px); border: 0; border-radius: 8px; background: transparent; text-align: left; }
+html.sv-unread2 #msgPage .svu-conv:hover { background: var(--svu-hover); }
+html.sv-unread2 #msgPage .svu-conv.is-active { background: var(--svu-comment-soft); }
+html.sv-unread2 .svu-conv-av { width: 36px; height: 36px; border-radius: 8px; flex: none; }
+html.sv-unread2 .svu-conv-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+html.sv-unread2 .svu-conv-top { display: flex; justify-content: space-between; gap: 10px; }
+html.sv-unread2 .svu-conv-title { font-size: .86rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.sv-unread2 .svu-conv.is-unread .svu-conv-title { font-weight: 800; }
+html.sv-unread2 .svu-conv-time { font-size: .7rem; color: var(--text-muted); white-space: nowrap; }
+html.sv-unread2 .svu-conv-client { display: none; }
+html.sv-unread2 .svu-conv-last { font-size: .78rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.sv-unread2 .svu-conv.is-unread .svu-conv-last { color: var(--text-primary); }
+html.sv-unread2 .svu-conv-badge { display: inline-flex; gap: 6px; }
+html.sv-unread2 #msgPage .msg-chat-head { border-bottom: 1px solid var(--svu-hair); }
+html.sv-unread2 #msgPage .msg-act { border-radius: 6px; }
+html.sv-unread2 #msgPage .msg-bubbles { background: var(--white); padding: 8px 0 16px; gap: 0; }
+html.sv-unread2 #msgPage .msg-day { display: flex; align-items: center; gap: 12px; margin: 14px 0 6px; background: transparent; font-size: .74rem; font-weight: 700; color: var(--text-primary); }
+html.sv-unread2 #msgPage .msg-day::before, html.sv-unread2 #msgPage .msg-day::after { content: ''; flex: 1; border-top: 1px solid var(--svu-hair); }
+html.sv-unread2 #msgPage .msg-b { display: grid; grid-template-columns: 36px 1fr; column-gap: 10px; max-width: none; width: 100%; align-self: stretch; padding: 8px 24px; margin: 0; border-radius: 0; }
+html.sv-unread2 #msgPage .msg-b:hover { background: var(--svu-hover); }
+html.sv-unread2 #msgPage .msg-b > :not(.svu-slack-av) { grid-column: 2; }
+html.sv-unread2 #msgPage .msg-b > .svu-slack-av { grid-column: 1; grid-row: 1 / span 4; width: 36px; height: 36px; border-radius: 8px; }
+html.sv-unread2 #msgPage .msg-b.is-me { align-self: stretch; }
+html.sv-unread2 #msgPage .msg-b.is-reply { padding-left: 70px; grid-template-columns: 24px 1fr; }
+html.sv-unread2 #msgPage .msg-b.is-reply > .svu-slack-av { width: 24px; height: 24px; border-radius: 6px; }
+html.sv-unread2 #msgPage .msg-b-meta { justify-content: flex-start !important; gap: 8px; align-items: baseline; font-size: .72rem; color: var(--text-muted); flex-wrap: wrap; }
+html.sv-unread2 #msgPage .msg-b-meta b { color: var(--text-primary); font-size: .9rem; font-weight: 800; }
+html.sv-unread2 #msgPage .msg-b-meta b + span:not([class]) { display: none; }
+html.sv-unread2 #msgPage .msg-b-meta > * { margin-left: 0 !important; }
+html.sv-unread2 #msgPage .msg-b-text, html.sv-unread2 #msgPage .msg-b.is-me .msg-b-text { background: transparent !important; color: var(--text-primary) !important; padding: 1px 0 0 !important; border: 0 !important; box-shadow: none !important; border-radius: 0 !important; font-size: .9rem; line-height: 1.46; max-width: 72ch; }
+html.sv-unread2 #msgPage .cal-cm-to-tag { background: var(--svu-staff-soft) !important; color: var(--text-secondary) !important; border-radius: 99px; padding: 2px 7px !important; font-size: .66rem; }
+html.sv-unread2 #msgPage .cal-cm-to-tag.is-client, html.sv-unread2 #msgPage .msg-reply-cap .cal-cm-to-tag { display: none; }
+html.sv-unread2 #msgPage .msg-b-reply { display: none; }
+html.sv-unread2 #msgPage .thumb-msg-new { color: var(--svu-unread-line); }
+html.sv-unread2 .svu-change-line { display: flex; align-items: center; gap: 10px; margin: 6px 24px; padding: 8px 12px; border-radius: 8px; background: var(--svu-change-soft); color: var(--svu-change-ink); font-size: .82rem; font-weight: 600; }
+html.sv-unread2 .svu-line-av { width: 22px; height: 22px; border-radius: 6px; }
+html.sv-unread2 .svu-change-line .svu-text-btn { margin-left: auto; }
+html.sv-unread2 #msgPage .msg-reply { border-top: 0; padding: 0 24px 16px; }
+html.sv-unread2 #msgPage .msg-reply .cal-cm-composer { border: 1px solid var(--border) !important; border-radius: 10px !important; background: var(--white) !important; }
+html.sv-unread2 #msgPage .msg-reply .cal-cm-composer textarea { background: transparent !important; border: 0 !important; }
+html.sv-unread2 #msgPage .msg-reply .cal-cm-send { background: var(--svu-send) !important; color: var(--svu-send-on) !important; border-radius: 6px !important; }
+html.sv-unread2 #msgPage .msg-reply .cal-cm-send:disabled { background: var(--svu-staff-soft) !important; color: var(--text-muted) !important; }
+html.sv-unread2 .svu-initial, .svu-initial { display: inline-flex !important; align-items: center; justify-content: center; color: var(--svu-initial-ink, var(--white)); font-weight: 800; font-size: .62rem; letter-spacing: .01em; overflow: hidden; }
+html.sv-unread2 .cal-cm-avatar .svu-initial, html.sv-unread2 #msgPage .svu-slack-av.svu-initial, html.sv-unread2 .svu-conv-av.svu-initial { font-size: .8rem; }
+html.sv-unread2 .cal-cm-row.is-reply .cal-cm-avatar .svu-initial { font-size: .62rem; }

@@ -398,6 +398,7 @@ jobs:
           A click on a pop-up's backdrop never falls through to the page underneath|node docs/syncview-design/tests/backdrop-press-fallthrough-browser.js
           Messages chat day dividers follow the reader's day and read as dates|node docs/syncview-design/tests/messages-day-divider-browser.js
           Messages New and All switch, what counts as new, live badge (mocked)|node docs/syncview-design/tests/messages-new-view-browser.js
+          Messages button badge live from page load, icon stays put (mocked)|node docs/syncview-design/tests/messages-badge-boot-browser.js
           Production thumbnail titles: batch and sub-issue buttons, per-row states, toast, review, retry, undo, a teammate's run (mocked)|node docs/syncview-design/tests/thumbnail-title-buttons-browser.js
           Notes composer (comment / client / request change) and folding threads (mocked)|node docs/syncview-design/tests/notes-composer-threads-browser.js
           Calendar card "No video linked" warning stays clear of the button pile|node docs/syncview-design/tests/calendar-warn-pile-overlap-browser.js

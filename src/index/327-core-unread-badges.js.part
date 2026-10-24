@@ -1,11 +1,10 @@
 import { showToast } from './040-shared-briefs.js';
-import { currentNav } from './065-core-nav-intake-state.js';
 import { _calCommentsForView, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
 import { COMP_LABELS, _notesGetSeen } from './180-calendar-native-post-media.js';
 import { svUnreadBadgesOn } from './188-review-stage-switch.js';
 import { _calFmtCommentTime, _calRefreshCommentsBtn } from './190-calendar-approval-comments.js';
-import { _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId, _msgPaint, _msgState } from './326-core-messages-inbox.js';
+import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId, _msgPaint, _msgState } from './326-core-messages-inbox.js';
     /* UNREAD BADGES, ROUND 5 (session Beacon, 2026-10-24; docs/audits/2026-10-23-unread-badges.md). On only for the
        staff members the runtime switch unread_badges_v2 names (188), on a desktop page; for everyone else nothing here
        runs and every page is exactly as it was. The owner tries it first and tweaks it.
@@ -510,7 +509,8 @@ import { _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId, _msgPaint, _ms
             if (nb && !nb.__svu) { nb.__svu = true; nb.addEventListener('pointerenter', _svuShowButtonTip); nb.addEventListener('pointerleave', _svuHideButtonTip); }
             // The pictures and the Messages counts come with the inbox answer.
             // A list read before the switch was (no pictures) is read again, now asking for them.
-            if (currentNav !== 'production') { try { _msgLoad(!_msgState.pictures); } catch (e) {} }
+            // Same pages as the boot read (326): never on Production, Time off, Linear or the forms.
+            if (_msgBootPageOk()) { try { _msgLoad(!_msgState.pictures); } catch (e) {} }
         } else {
             if (_svuObserver) { _svuObserver.disconnect(); _svuObserver = null; }
             svuHideHover(); _svuHideButtonTip();

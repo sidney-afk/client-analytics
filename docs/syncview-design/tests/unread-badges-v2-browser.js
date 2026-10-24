@@ -49,7 +49,14 @@ async function run(flagValue) {
   await S.ctx.route('**/functions/v1/production-comments{,?*}', async route => {
     const r = route.request();
     if (r.method() === 'OPTIONS') return route.fallback();
-    let b = {}; try { b = JSON.parse(r.postData() || '{}'); } catch (e) {}
+    let b = {};
+    try {
+      if (r.method() === 'GET') {
+        const q = new URL(r.url()).searchParams;
+        b = { action: q.get('action'), via: 'GET' };
+        if (q.has('pictures')) b.pictures = Number(q.get('pictures'));
+      } else b = JSON.parse(r.postData() || '{}');
+    } catch (e) {}
     if (b.action === 'inbox') {
       inboxCalls.push(b);
       return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ ok: true, scope: 'all', conversations: [conv], pictures: { members: {}, names: {}, clients: { [SLUG]: CLIENT_PIC } } }) });
@@ -160,7 +167,7 @@ const cardState = page => page.evaluate(() => {
     ok(cleared, 'E. opening the conversation in Messages clears this browser\'s Mark unread for it');
     const line = await page.evaluate(() => (document.querySelector('#msgPage .svu-change-line') || {}).textContent || '');
     ok(/asked for a change on the video/.test(line), 'E. the change request is one line pointing to the card');
-    ok(h.inboxCalls.some(b => b.pictures === 1), 'G. with the switch on, the inbox read asks for pictures');
+    ok(h.inboxCalls.some(b => b.pictures === 1 && b.via === 'GET'), 'G. with the switch on, the inbox read (GET) asks for pictures');
     ok(h.errors.length === 0, 'F. switch on: no page error' + (h.errors.length ? ' ' + h.errors.join(' | ') : ''));
   } finally { await h.S.close(); }
 

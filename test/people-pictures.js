@@ -88,6 +88,7 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
   const src = fs.readFileSync(path.join(root, 'supabase/functions/production-comments/index.ts'), 'utf8');
   ok(/wantPictures \? peoplePictures\(supabase\) : Promise\.resolve\(null\)/.test(src) && /\.\.\.\(pictures \? \{ pictures \} : \{\}\)/.test(src), 'the inbox looks pictures up only when the page asks, and adds them only when they are there');
   ok(/const wantPictures = body\.pictures === true \|\| body\.pictures === 1 \|\| body\.pictures === "1";/.test(src), 'asking is explicit: pictures true, 1 or "1"');
+  ok(/searchParams\.get\("pictures"\) === "1" \? \{ action: "inbox", pictures: 1 \} : \{ action: "inbox" \}/.test(src), 'the GET list read asks only with pictures=1');
   ok(/catch \(_e\) \{\s*return null;/.test(src.slice(src.indexOf('async function peoplePictures'))), 'a pictures failure never fails the inbox');
   ok(!/people_pictures|insert|upsert/.test(fs.readFileSync(path.join(root, 'supabase/functions/production-comments/pictures.mjs'), 'utf8')), 'nothing is stored');
 

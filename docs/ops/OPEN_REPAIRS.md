@@ -34082,7 +34082,45 @@ back the old function (including its "Needs info" lines).
   - It also checks that all three id reads go through `chunkIds`.
 - **After merge:** production-comments deploys through the merge lane. Kasper's next inbox read should answer 200; no switch changes.
 
-## 486. [2026-10-24 13:50 UTC, BUILT, NOT MERGED, behind `caption_history_staff`] Caption history pop-up: less visual noise, and the timeline icons off their line (session Versions, follow-up to 482)
+## 485. [2026-10-24 13:49 UTC, BUILT, NOT MERGED] Round-6 unread badges: less noise after the owner's first live use (session Beacon)
+
+- **Owner, 2026-10-24, after using round 5 live (relayed by the supervisor):** "as little visual noise as possible; show only the information that's needed." Every change is behind the same switch, `unread_badges_v2`. Everyone else keeps today's view.
+- **Card hover:** each row is the picture, the first name and one line of the note. The date, the "Waiting for your answer · Video" label and the "N change requests not done yet" footer are gone. The hover now also lists a change still open, so an outlined bubble is explained. No kind icon was added: the bubble's colour already says the kind.
+- **Notes:**
+  - The "Needs you" box is gone; the tags on each note carry it.
+  - Authors show by first name, with the full name on hover, and times are relative, with the full date on hover.
+  - The always-visible action row under a note is gone. The hover toolbar is the one set of actions: Reply, No reply needed (on a comment waiting for an answer), Mark done and Delete, all as plain words with no boxes or fills, even on hover.
+  - "Mark unread" is one quiet word in the Notes head.
+- **Messages conversation:**
+  - The header is the first name, a lock icon for "Team only" (with its meaning on hover), "Change request" in quiet orange words instead of a capitals pill, and a relative time instead of a full date (the day line above carries the date). The part ("Video") sits quietly at the right, and the role word ("Reviewer") is gone.
+  - Reply, plus No reply needed on a comment waiting for you, shows only on hover, as plain words.
+  - Your own picture now sits beside your name. The app's `align-items: flex-end` for your messages had pushed it to the bottom right inside the new grid.
+- **Messages list:** each badge says in a hover what it counts, for example "Casey: 1 comment waiting for your answer".
+- **Proof:**
+  - `docs/syncview-design/tests/unread-badges-v2-browser.js`, updated to round 6.
+  - Before and after screenshots of the real page, fictional data, light and dark: `docs/syncview-design/proofs/unread-badges-r6/`, made by `shots.js` in that folder.
+
+## 486. [2026-10-24 14:20 UTC, BUILT, NOT MERGED] Round-6 unread badges, part 2: the owner's less-noise rule swept over the whole Messages page and Notes (session Beacon)
+
+- **What prompted it (supervisor's item E):** a full pass over the Messages inbox under the owner's rule (as little visual noise as possible) and the round-5 brief to mimic Slack. Run with the feedback-expansion method: each owner item became a rule, and every rule was swept over the list, filters, header, messages, day lines, change-request line, composer and empty states, in light and dark, with Notes as the sibling surface. Behind `unread_badges_v2`, on top of 485.
+- **Built:**
+  - **Status words:** quiet coloured words instead of filled pills ("Waiting for your answer", "Change request", "Not done", "New"). In Notes, "Waiting for your answer" stands alone, without "New".
+  - **Notes:** "TWEAK #1" reads "Change request" ("Change request 2" for a later round). "Team only" is the same lock as in Messages.
+  - **Conversation header:** no empty grey thumbnail; "Mark unread" and "Open card" are plain words.
+  - **Day lines:** Today, Yesterday, the weekday within a week, then "Wed 14 Oct" (the year only for another year).
+  - **"New":** no tag on each message. The existing "New messages" divider is one thin red "New" line.
+  - **Change requests:** a client's change request is one quiet line: "<first name> asked for a change on the video · 12m ago · Open card". The explanation moved to the hover.
+  - **Grouping:** a follow-up by the same person, in the same thread or both top-level, within five minutes, drops its repeated picture and name. A message waiting for your answer keeps its header.
+  - **Composer:** the reply caption uses the first name.
+- **Hover toolbar never covers the header (supervisor review of #2312):** each note's header line keeps its toolbar's exact width free at the right, so a long header wraps before it and nothing moves on hover. The part label ("Video") sits in that corner when the toolbar is hidden. The browser test hovers every note, the longest header included, and fails if the toolbar's box meets any header item. Without the fix it fails on the long note.
+- **Not built (owner decision list):**
+  - The Notes composer's "About the… / Team only · Video" lines are the shared composer, outside this pass.
+  - The client name on each list row stays, because an admin's list spans many clients.
+- **Proof:**
+  - `unread-badges-v2-browser.js`, new section H (day lines, no per-message New, the quiet change line, header words, empty thumbnail, first-name caption, grouping, the Notes lock and "Change request", "Waiting" alone).
+  - Screenshots `e-*` in `docs/syncview-design/proofs/unread-badges-r6/`.
+
+## 488. [2026-10-24 13:50 UTC, BUILT, NOT MERGED, behind `caption_history_staff`] Caption history pop-up: less visual noise, and the timeline icons off their line (session Versions, follow-up to 482)
 
 - **Owner feedback after using it live (2026-10-24).** Drop the arrows (a step is clicked instead), drop the Changes / Clean text switch (a redo always shows Before and After), drop the "Mostly rewritten" label, make the purple note box much quieter, and put every timeline icon on its line ("Earlier" sat off it). The rule behind it: as little visual noise as possible.
 - **Cause of the misaligned icons.** The steps took the width of their own text (`flex: 1 0 118px`; 84 px on a phone, where long "who · when" lines made them wider), while each connecting line was drawn as half of its own step's width, so with unequal steps it missed the icon before it; and a later step's line painted over the icon before it.

@@ -34081,3 +34081,12 @@ back the old function (including its "Needs info" lines).
   - The test shows the old 500-id rule breaks that bound, and it fails against the old source.
   - It also checks that all three id reads go through `chunkIds`.
 - **After merge:** production-comments deploys through the merge lane. Kasper's next inbox read should answer 200; no switch changes.
+
+## 486. [2026-10-24 13:50 UTC, BUILT, NOT MERGED, behind `caption_history_staff`] Caption history pop-up: less visual noise, and the timeline icons off their line (session Versions, follow-up to 482)
+
+- **Owner feedback after using it live (2026-10-24).** Drop the arrows (a step is clicked instead), drop the Changes / Clean text switch (a redo always shows Before and After), drop the "Mostly rewritten" label, make the purple note box much quieter, and put every timeline icon on its line ("Earlier" sat off it). The rule behind it: as little visual noise as possible.
+- **Cause of the misaligned icons.** The steps took the width of their own text (`flex: 1 0 118px`; 84 px on a phone, where long "who · when" lines made them wider), while each connecting line was drawn as half of its own step's width, so with unequal steps it missed the icon before it; and a later step's line painted over the icon before it.
+- **Changed (180, 020, 010; behind the same switch).** The steps are equal widths with their text wrapping inside, and each line runs from one icon's edge to the next, under the icons. No arrows, no switch, no "Mostly rewritten" label. A redo shows Before and After whole; any other change keeps its words marked. The note is a thin rule on the left with muted text, no fill and no label. The unused note colours were removed.
+- **Proven offline.** `test/caption-history-browser.js` now checks that every icon is centred on the line and every line meets the icons, that the steps are equal, that there are no arrows and no switch, that the note has no fill, a thin rule and no label, and that a redo shows Before and After with no "Mostly rewritten". Those new checks fail on the code before this change. Also passing: `dark-contrast`, `caption-helper-browser`, `popup-behaviour-browser`, `client-review-requests-unchanged-browser`, `check-modules`.
+
+**Way back:** revert the pull request; the switch `caption_history_staff` still hides all of it.

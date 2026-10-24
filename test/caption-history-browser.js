@@ -6,7 +6,9 @@
  *                changed (the index answer), just below the regenerate icon; never on a card that has not changed.
  *                Before the migration (available:false) no icon shows.
  *   THE POP-UP   The approved design (option C): one step per version, oldest on the left, newest marked Now and
- *                chosen; the kind of change above the caption with Changes / Clean text and the arrows on its right;
+ *                chosen; every icon centred on the line that joins them; the kind of change above the caption, with no
+ *                arrows and no Changes / Clean text switch (owner, 2026-10-24); a redo shows its note as a quiet line
+ *                and always Before and After whole, with no "Mostly rewritten" label;
  *                the redo note; words taken out and added marked; a mostly rewritten caption shown Before and After.
  *                No word counts, no colour key, no Close button (the X closes), no button on the newest version.
  *                Escape and the X close it and focus goes back to the icon; nothing scrolls sideways.
@@ -190,31 +192,56 @@ async function run(browser, origin, label, device, theme) {
     return { labels: steps.map(s => s.querySelector('.caph-sl').textContent), sel: steps.findIndex(s => s.getAttribute('aria-selected') === 'true'),
       nowOn: steps.findIndex(s => s.querySelector('.caph-now')), ins: document.querySelectorAll('#calPromptModal .caph-cap ins').length, del: document.querySelectorAll('#calPromptModal .caph-cap del').length,
       restore: document.querySelectorAll('#calPromptModal .caph-restore').length, close: Array.from(document.querySelectorAll('#calPromptModal button')).filter(b => b.textContent.trim() === 'Close').length,
-      x: document.querySelectorAll('#calPromptModal .caph-x').length, seg: document.querySelectorAll('#calPromptModal .caph-seg button').length, nav: document.querySelectorAll('#calPromptModal .caph-nav button').length,
-      segRight: (() => { const h = document.querySelector('#calPromptModal .caph-story-h'); const s = document.querySelector('#calPromptModal .caph-nav'); return !!h && !!s && s.getBoundingClientRect().right >= h.getBoundingClientRect().right - 2; })() };
+      x: document.querySelectorAll('#calPromptModal .caph-x').length, seg: document.querySelectorAll('#calPromptModal .caph-seg, #calPromptModal .caph-nav').length,
+      buttons: Array.from(document.querySelectorAll('#calPromptModal .caph-story button')).length,
+      // Every icon on the line: the same height, and each joining line runs from the icon before it to this one.
+      line: (() => {
+        const out = [];
+        steps.forEach((s, i) => {
+          const sd = s.querySelector('.caph-sd').getBoundingClientRect(), sr = s.getBoundingClientRect();
+          const cs = getComputedStyle(s, '::before');
+          const entry = { cy: Math.round(sd.top + sd.height / 2), w: Math.round(sr.width) };
+          if (i > 0 && cs.display !== 'none') {
+            const top = sr.top + parseFloat(cs.top), h = parseFloat(cs.height);
+            const prev = steps[i - 1].querySelector('.caph-sd').getBoundingClientRect();
+            entry.lineCy = Math.round(top + h / 2);
+            entry.lineL = Math.round(sr.left + parseFloat(cs.left));
+            entry.lineR = Math.round(sr.right - parseFloat(cs.right));
+            entry.gapL = Math.round(entry.lineL - prev.right);
+            entry.gapR = Math.round(sd.left - entry.lineR);
+          }
+          out.push(entry);
+        });
+        return out;
+      })() };
   });
   expect(st.labels.join('|') === 'Generated|Redo with note|Edited|Client edit', `${tag}: oldest on the left, newest on the right (${st.labels.join('|')})`);
   expect(st.sel === 3 && st.nowOn === 3, `${tag}: the newest version is chosen and marked Now`);
   expect(/Client edited on the review link/.test(txt) && st.ins === 1 && st.del === 1 && /DM us/.test(txt), `${tag}: the client's change shows as one word taken out and two added (${st.ins}/${st.del})`);
   expect(st.restore === 0, `${tag}: no button on the version that is already the caption`);
   expect(st.close === 0 && st.x === 1, `${tag}: no Close button; the X closes`);
-  expect(st.seg === 2 && st.nav === 2 && st.segRight, `${tag}: Changes / Clean text and the arrows sit top right of the version`);
+  expect(st.seg === 0 && st.buttons === 0, `${tag}: no arrows and no Changes / Clean text switch`);
+  const cys = st.line.map(l => l.cy), widths = st.line.map(l => l.w);
+  expect(cys.every(c => c === cys[0]) && st.line.slice(1).every(l => Math.abs(l.lineCy - cys[0]) <= 1 && Math.abs(l.gapL) <= 1 && Math.abs(l.gapR) <= 1),
+    `${tag}: every icon is centred on the line, which runs from one icon to the next (${JSON.stringify(st.line)})`);
+  expect(widths.every(w => Math.abs(w - widths[0]) <= 1), `${tag}: the steps are the same width (${widths.join(',')})`);
   expect(!/words added|taken out|What this changed|Taken out|Added/.test(txt), `${tag}: no word counts and no colour key`);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), `${tag}: nothing scrolls sideways`);
   await shot(page, `popup-now-${tag}`);
-  // Clean text, then the arrows and the steps.
-  await page.locator('#calPromptModal .caph-seg button', { hasText: 'Clean text' }).click();
-  expect(await page.evaluate(() => document.querySelectorAll('#calPromptModal .caph-cap ins, #calPromptModal .caph-cap del').length === 0), `${tag}: Clean text shows the caption with no marks`);
-  await page.locator('#calPromptModal .caph-seg button', { hasText: 'Changes' }).click();
-  await page.locator('#calPromptModal .caph-nav .caph-back').click();
+  // A step is clicked to see it.
+  await page.locator('#calPromptModal .caph-step').nth(2).click();
   txt = await modalText(page);
-  expect(/Edited by hand/.test(txt) && /Alex/.test(txt), `${tag}: the back arrow goes to the version before (Edited by hand, by Alex)`);
+  expect(/Edited by hand/.test(txt) && /Alex/.test(txt) && await page.evaluate(() => document.querySelectorAll('#calPromptModal .caph-cap ins').length > 0),
+    `${tag}: clicking a step shows that version (Edited by hand, by Alex) with its words marked`);
   expect(await page.locator('#calPromptModal .caph-restore').count() === 1, `${tag}: an older version has "Put this version back"`);
   await shot(page, `popup-edit-${tag}`);
   await page.locator('#calPromptModal .caph-step').nth(1).click();
   txt = await modalText(page);
   expect(/Regenerated with note/.test(txt) && /shorter, and a hookier first line/.test(txt) && await page.locator('#calPromptModal .caph-note').count() === 1, `${tag}: the redo shows its note`);
-  expect(/Mostly rewritten/.test(txt) && /before/i.test(txt) && /after/i.test(txt), `${tag}: a mostly rewritten caption is shown Before and After whole`);
+  const note = await page.evaluate(() => { const n = document.querySelector('#calPromptModal .caph-note'), cs = getComputedStyle(n); return { bg: cs.backgroundColor, rule: parseFloat(cs.borderLeftWidth), text: n.textContent }; });
+  expect((note.bg === 'rgba(0, 0, 0, 0)' || note.bg === 'transparent') && note.rule > 0 && note.rule <= 3 && !/^Note/i.test(note.text),
+    `${tag}: the note is quiet: no fill, a thin rule on the left, no "Note" label (${JSON.stringify(note)})`);
+  expect(!/Mostly rewritten/.test(txt) && /before/i.test(txt) && /after/i.test(txt), `${tag}: a redo is shown Before and After whole, with no "Mostly rewritten" label`);
   await shot(page, `popup-redo-${tag}`);
   // Keyboard: Home on the strip goes to the first version.
   await page.locator('#calPromptModal .caph-step[aria-selected="true"]').focus();

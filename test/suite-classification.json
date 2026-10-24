@@ -199,6 +199,7 @@
     "caption-cancel-grace.js",
     "caption-generate-source.js",
     "caption-helper-source.js",
+    "caption-history-logic.js",
     "caption-has-no-work-item.js",
     "caption-jobs-page-wiring.js",
     "caption-jobs-source.js",
@@ -1666,6 +1667,15 @@
       "required_for_release": true
     },
     {
+      "file": "caption-versions-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 17,
+      "required_inputs": "Fresh disposable PostgreSQL with PG* pointing at it and CAPTION_VERSIONS_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY; creates and drops its own database. Proves a card save still succeeds when the caption version insert fails",
+      "reproduce": "CAPTION_VERSIONS_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/caption-versions-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
       "file": "analytics-metrics-collect-postgres.js",
       "route": "isolated_postgres",
       "postgres_major": 17,
@@ -2076,6 +2086,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the Generate caption box (platform, call to action, note), the title ideas, hashtags and redo under the caption, at desktop and 390 pixel width in light and dark, and that a caption typed by a person is never overwritten.",
       "reproduce": "node test/caption-helper-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "caption-history-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the caption history icon and pop-up behind caption_history_staff (off, someone else, wrong shape, migration not applied), the steps, highlights, note and rewrite view, putting a version back with Undo through the normal save with caption_origin, the stale guard and the empty state, at desktop and 390 pixel width in light and dark.",
+      "reproduce": "node test/caption-history-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

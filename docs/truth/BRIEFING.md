@@ -2,7 +2,7 @@
 
 **Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook was switched off on 2026-09-23 (`linear_inbound_enabled` = false, re-read live 2026-09-24), and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
 
-> Last verified: 2026-10-24 @ 9f69fe4 — a LIVE read-only re-read (Supabase: every
+> Last verified: 2026-10-24 @ 9f69fe44b344876babeccb9052fa1611eb0c45f7 — a LIVE read-only re-read (Supabase: every
 > `syncview_runtime_flags` row this document names, the deployed Edge Function list and versions,
 > the four client allowlist counts; plus the built `index.html` and `src/index/` size at that
 > commit) of the same current-state claims the 2026-09-24 pass covered. FOUR DRIFTS FOUND AND

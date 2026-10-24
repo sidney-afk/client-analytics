@@ -1,4 +1,5 @@
 import { _analyticsReleaseExtras, showNotify, showToast } from './040-shared-briefs.js';
+import { svuSpinOr } from './327-core-unread-badges.js';
 import { WL_CLIENT_NAMES, wlCanonicalClient, wlNormalizeClient } from './070-core-client-names.js';
 import {
   CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svReadWithRetry,
@@ -1606,7 +1607,7 @@ import { svRsKasperFast, svRsKasperOn, svRsKasperPaint, svRsKasperPending } from
                     ${stateLabel ? `<span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>` : ''}
                 </div>
                 ${showApprove ? `<div class="cal-review-approve-split">
-                    <button type="button" class="cal-review-approve-btn cal-review-approve-main kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} data-idle-title="" title="${hasDraft ? _calEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">${saving ? 'Saving…' : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>
+                    <button type="button" class="cal-review-approve-btn cal-review-approve-main kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} data-idle-title="" title="${hasDraft ? _calEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">${saving ? (typeof svuSpinOr === 'function' ? svuSpinOr('Saving…', 'Saving') : 'Saving…') : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>
                 </div>` : ''}
                 <div class="cal-review-panel-compose">
                     <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
@@ -1662,7 +1663,7 @@ import { svRsKasperFast, svRsKasperOn, svRsKasperPaint, svRsKasperPending } from
             </div>
             <div class="cal-review-panel-preview">${previewHtml}</div>
             ${showApprove ? `<div class="cal-review-approve-split">
-                <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${approveEnabled ? '' : 'disabled'} data-idle-title="" title="${hasDraft ? _calEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">${saving ? 'Saving…' : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>
+                <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${approveEnabled ? '' : 'disabled'} data-idle-title="" title="${hasDraft ? _calEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">${saving ? (typeof svuSpinOr === 'function' ? svuSpinOr('Saving…', 'Saving') : 'Saving…') : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>
             </div>` : ''}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>

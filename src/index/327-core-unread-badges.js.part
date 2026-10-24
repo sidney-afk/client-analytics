@@ -1,4 +1,4 @@
-import { showToast } from './040-shared-briefs.js';
+import { showToast, svSpinHtml } from './040-shared-briefs.js';
 import { _calCommentsForView, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
 import { COMP_LABELS, _notesGetSeen } from './180-calendar-native-post-media.js';
@@ -11,11 +11,11 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
 
        What it changes is how unread notes are shown, never what anything writes:
          - a card's Notes button: one round picture per person with something for you, with a number coloured by kind
-           (orange change request, blue client comment, grey team, violet Kasper); filled = new, outlined = read but
-           still needs you (a change not done, a client comment waiting for your answer); at most three, then "+N";
+           (orange change request, blue client comment, grey team, violet Kasper); filled = new, a coloured number with no
+           fill (round 7) = read but still needs you (a change not done, a client comment waiting for your answer); at most three, then "+N";
            an instant hover lists who and what;
-         - Notes on a card: "Needs you" pinned at the top, the notes laid out like Slack (picture, name, time), the
-           tags New / Waiting for your answer / Not done, and Reply, No reply needed, Mark done under the note;
+         - Notes on a card: the notes laid out like Slack (picture, name, time), the tags New / Waiting for your
+           answer, and on hover at the note's bottom right Reply (comments only), No reply needed, Mark done, Delete;
          - Messages: New, To answer and All; rows with the client's picture and the same people bubbles; the chat laid
            out like Slack; a client's change request is one line pointing to the card (change requests live there).
        Pictures are Slack profile photos the inbox answer carries (production-comments/pictures.mjs); without one, the
@@ -49,6 +49,13 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         } catch (e) {
             return false;
         }
+    }
+
+    // Round 7 (owner, 2026-10-24): a send never shows the words "Sending…" or "Saving…". With the switch on, the shared
+    // spinner (040 svSpinHtml) stands in their place; otherwise the words, escaped, as before.
+    function svuSpinOr(words, label) {
+        try { if (svuActive()) return svSpinHtml(label || 'Sending'); } catch (e) {}
+        return _calEsc(words);
     }
 
     /* ---------- this browser's "No reply needed" and "Mark unread" ---------- */
@@ -264,7 +271,9 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         const any = s.change + s.comment + s.staff + s.kasper > 0;
         const strip = _svuBubblesHtml(_svuPeopleOf(post, s), 3, _svuPostSlug(post));
         const q = _jsAttrArg(pid);
-        return `<span class="cal-foot-tweaks svu-foot" data-comments-wrap="${_calEscAttr(pid)}" onpointerenter="svuHoverCard(${q}, this)" onpointerleave="svuHideHover()"><button type="button" class="cal-comments-btn svu-notes${any ? ' svu-has-new' : ''}" data-comments-btn="${_calEscAttr(pid)}" onclick="openCalComments(${q})" onpointerenter="svCardNotesIntent(${q},120)" onfocus="svCardNotesIntent(${q},0)" onpointerdown="svCardNotesIntent(${q},0)" aria-label="Notes">${SVU_NOTES_ICO}<span class="cal-comments-label">Notes</span></button>${strip ? `<span class="svu-strips" onclick="openCalComments(${q})">${strip}</span>` : ''}</span>`;
+        // Round 7: the whole row (the Notes button, the gap and the bubbles) is one click target that opens Notes; the
+        // button inside keeps the keyboard, and its click reaches this row's handler.
+        return `<span class="cal-foot-tweaks svu-foot" data-comments-wrap="${_calEscAttr(pid)}" onclick="openCalComments(${q})" onpointerenter="svuHoverCard(${q}, this)" onpointerleave="svuHideHover()"><button type="button" class="cal-comments-btn svu-notes${any ? ' svu-has-new' : ''}" data-comments-btn="${_calEscAttr(pid)}" onpointerenter="svCardNotesIntent(${q},120)" onfocus="svCardNotesIntent(${q},0)" onpointerdown="svCardNotesIntent(${q},0)" aria-label="Notes">${SVU_NOTES_ICO}<span class="cal-comments-label">Notes</span></button>${strip ? `<span class="svu-strips">${strip}</span>` : ''}</span>`;
     }
 
     /* ---------- the hover ---------- */
@@ -367,7 +376,7 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
             // "Waiting for your answer" already says it needs you, so it stands alone (round 6 E).
             if (live.waitingIds.has(id)) tags.push('<span class="svu-tag svu-t-waiting">Waiting for your answer</span>');
             else if (live.newIds.has(id)) tags.push(`<span class="svu-tag svu-t-${k}">New</span>`);
-            if (live.openIds.has(id) && !live.newIds.has(id)) tags.push('<span class="svu-tag svu-t-open">Not done</span>');
+            // Round 7: no "Not done": a change request still listed is not done; its colour says what it is.
             if (l.noReply.has(id)) tags.push('<span class="svu-tag svu-t-plain">No reply needed</span>');
             if (_svuIsAuto(n.m)) tags.push('<span class="svu-tag svu-t-plain">Automatic record</span>');
             const html = tags.join('');
@@ -378,6 +387,10 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
             // Round 6: one set of actions, the hover toolbar (Reply, Mark done, Delete); "No reply needed" joins it on a
             // comment waiting for an answer.
             const bar = row.querySelector('.cal-cm-actions');
+            // Round 7: only a comment can be answered. A change request (and a reply under one) has no Reply; its
+            // replies already written still show. Mark done and Delete stay.
+            const reply = bar && _svuIsTweak(n.root) && bar.querySelector('.cal-cm-action[onclick^="_calBeginReply"]');
+            if (reply) reply.remove();
             const nr = bar && bar.querySelector('.svu-noreply');
             if (bar && live.waitingIds.has(id) && !nr) {
                 const btn = document.createElement('button');
@@ -388,15 +401,58 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
                 const first = bar.querySelector('.cal-cm-action');
                 if (first) first.after(btn); else bar.prepend(btn);
             } else if (nr && !live.waitingIds.has(id)) nr.remove();
-            // The toolbar shows over the top right of the note on hover. Its exact width is kept free at the end of the
-            // header line, so a long header (name, tags, time) wraps before it and nothing moves when it appears.
+            if (bar && !bar.querySelector('button')) bar.remove();
+            // Round 7: the toolbar shows at the bottom right of the note (_svuFitBars). The header keeps room only for
+            // the part's name pinned in its top right corner, so a long header wraps before it.
             const headLine = row.querySelector('.cal-cm-head-line');
-            if (bar && headLine) {
-                const room = Math.ceil(bar.scrollWidth) + 16 + 'px';
-                if (headLine.style.paddingRight !== room) headLine.style.paddingRight = room;
-            }
+            const part = headLine && headLine.querySelector('.cal-cm-comp-label');
+            const room = part ? Math.ceil(part.scrollWidth) + 16 + 'px' : '';
+            if (headLine && headLine.style.paddingRight !== room) headLine.style.paddingRight = room;
         });
+        _svuFitBars(modal, '.cal-cm-row[data-cm-row]', '.cal-cm-actions', '.cal-cm-body-col');
     }
+    /* Round 7 (owner, 2026-10-24): the hover toolbar sits at the bottom right of a note or message. Where the last line
+       of its words runs under the toolbar, the note gets the toolbar's height of room at the bottom (svu-bar-room), so
+       the toolbar never covers a word; elsewhere it sits beside the last line and adds no space. All reads first, then
+       all writes. The room does not change the line's width, so this settles in one pass. */
+    function _svuLastLineRight(col, skip) {
+        let bottom = -1, right = 0;
+        const walk = document.createTreeWalker(col, NodeFilter.SHOW_TEXT);
+        const range = document.createRange();
+        for (let t = walk.nextNode(); t; t = walk.nextNode()) {
+            if (!t.nodeValue.trim() || (skip && t.parentElement && t.parentElement.closest(skip))) continue;
+            range.selectNodeContents(t);
+            for (const r of range.getClientRects()) {
+                if (!r.width || !r.height) continue;
+                if (r.bottom > bottom + 4) { bottom = r.bottom; right = r.right; }
+                else if (r.bottom > bottom - 4) right = Math.max(right, r.right);
+            }
+        }
+        return right;
+    }
+    function _svuFitBars(root, rowSel, barSel, colSel) {
+        if (!root) return;
+        const want = [];
+        root.querySelectorAll(rowSel).forEach(row => {
+            const bar = row.querySelector(barSel), col = row.querySelector(colSel);
+            if (!bar || !col) { if (row.classList.contains('svu-bar-room')) want.push([row, false]); return; }
+            const right = _svuLastLineRight(col, '.cal-cm-head-line, .msg-b-meta, ' + barSel);
+            want.push([row, right + 12 > bar.getBoundingClientRect().left]);
+        });
+        want.forEach(([row, on]) => { if (row.classList.contains('svu-bar-room') !== on) row.classList.toggle('svu-bar-room', on); });
+    }
+    let _svuFitQueued = false;
+    window.addEventListener('resize', () => {
+        if (!_svuOn || _svuFitQueued) return;
+        _svuFitQueued = true;
+        requestAnimationFrame(() => {
+            _svuFitQueued = false;
+            try {
+                _svuFitBars(document.getElementById('calCommentsModal'), '.cal-cm-row[data-cm-row]', '.cal-cm-actions', '.cal-cm-body-col');
+                _svuFitBars(document.getElementById('msgPage'), '.msg-b[data-msg-id]', '.svu-msg-acts', '.msg-b');
+            } catch (e) {}
+        });
+    });
     /* ---------- Messages (326 hands over here) ---------- */
     const _svuIsChangeMsg = (m, byId) => { const root = byId.get(m.root_id) || m; return _svuIsClient(m) && _svuIsTweak(root) && root.is_tweak === true && _svuIsClient(root); };
     // New = from the first unread message the server named, minus your own, automatic records and change requests.
@@ -555,8 +611,18 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
                 const who = x => String(x.author_member_id || '') + '|' + String(x.author || '') + '|' + String(x.role || '');
                 const sameThread = pm && (pm.root_id === m.root_id || (pm.root_id === pm.id && m.root_id === m.id));
                 if (pm && sameThread && who(pm) === who(m) && Date.parse(m.created_at) - Date.parse(pm.created_at) < 5 * 60000 && !s.waitingIds.has(m.id)) b.classList.add('svu-cont');
-                b.insertAdjacentHTML('beforeend', `<div class="svu-msg-acts"><button type="button" onclick="_msgSetReplyTo(${_jsAttrArg(m.root_id)});document.getElementById('msgReplyBox')&&document.getElementById('msgReplyBox').focus()">Reply</button>${s.waitingIds.has(m.id) ? `<button type="button" onclick="svuNoReply(${_jsAttrArg(m.id)})">No reply needed</button>` : ''}</div>`);
+                // Round 7 (spacing audit): a message's attachments show under its words, as in Notes (326 drew none).
+                const files = Array.isArray(m.attachments) ? m.attachments.filter(x => x && /^https?:\/\//i.test(String(x.url || ''))) : [];
+                const text = b.querySelector('.msg-b-text');
+                if (files.length && text && !b.querySelector('.svu-msg-files')) text.insertAdjacentHTML('afterend', '<div class="prod-comment-attachments svu-msg-files">'
+                    + files.map(x => `<a class="prod-comment-attachment" href="${_calEscAttr(x.url)}" target="_blank" rel="noopener noreferrer">${_calEsc(x.name || 'Attachment')}</a>`).join('') + '</div>');
+                // Round 7: no Reply on a change request or in its thread (only comments are answered); bottom right.
+                const tweakThread = (byId.get(m.root_id) || m).is_tweak === true;   // as 326 tags "Change request"
+                const acts = (tweakThread ? '' : `<button type="button" onclick="_msgSetReplyTo(${_jsAttrArg(m.root_id)});document.getElementById('msgReplyBox')&&document.getElementById('msgReplyBox').focus()">Reply</button>`)
+                    + (s.waitingIds.has(m.id) ? `<button type="button" onclick="svuNoReply(${_jsAttrArg(m.id)})">No reply needed</button>` : '');
+                if (acts) b.insertAdjacentHTML('beforeend', `<div class="svu-msg-acts">${acts}</div>`);
             });
+            _svuFitBars(root, '.msg-b[data-msg-id]', '.svu-msg-acts', '.msg-b');
         });
     }
 
@@ -630,4 +696,4 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
     Object.assign(window, {
         svuHideHover, svuHoverCard, svuNoReply
     });
-export { svuActive, svuAfterMsgPaint, svuMsgListHtml, svuNotesBtnHtml, svuNotesOpening, svuPaintCounts, svuPicturesArrived, svuUnreadConversations };
+export { svuActive, svuAfterMsgPaint, svuMsgListHtml, svuNotesBtnHtml, svuNotesOpening, svuPaintCounts, svuPicturesArrived, svuSpinOr, svuUnreadConversations };

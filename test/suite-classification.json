@@ -13,6 +13,7 @@
     "messages-inbox-scope.js",
     "people-pictures.js",
     "inbox-in-chunks.js",
+    "no-sending-words.js",
     "msg-count-write-on-change.js",
     "fixture-desktop-exact-replay.js",
     "browser-guards-wired.js",

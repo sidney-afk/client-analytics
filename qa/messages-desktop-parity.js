@@ -24,8 +24,8 @@ function assembled(root){
    staff.resetScenario();const ctx=await browser.newContext({viewport:{width:1440,height:900},reducedMotion:'reduce'});
    await staff.installBackend(ctx);await seedStaffGate(ctx);await ctx.addInitScript(t=>localStorage.setItem('syncview_theme',t),theme);
    await ctx.route(origin+'/',r=>r.fulfill({contentType:'text/html',body:builds[build]}));
-   await ctx.route('**/functions/v1/production-comments',r=>{
-    const b=JSON.parse(r.request().postData()||'{}');assert(['inbox','inbox_mark'].includes(b.action),'Parity may only read and mark the intercepted inbox');
+   await ctx.route('**/functions/v1/production-comments{,?*}',r=>{
+    const b=r.request().method()==='GET'?{action:new URL(r.request().url()).searchParams.get('action')}:JSON.parse(r.request().postData()||'{}');assert(['inbox','inbox_mark'].includes(b.action),'Parity may only read and mark the intercepted inbox');
     return r.fulfill({json:b.action==='inbox'?{ok:true,scope:'all',conversations:conversations()}:{ok:true}});
    });
    const p=await ctx.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.clock.setFixedTime(new Date('2026-10-15T12:00:00Z'));

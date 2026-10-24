@@ -2735,7 +2735,6 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         typed: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 2.5l3 3L6 13H3v-3z"/></svg>',
         client: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="5.5" r="2.6"/><path d="M2.8 14c.6-2.7 2.7-4.2 5.2-4.2s4.6 1.5 5.2 4.2"/></svg>',
         restore: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5 2.5 7 6 10.5"/><path d="M2.8 7H10a3.5 3.5 0 0 1 0 7H8"/></svg>',
-        arrow: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>',
         x: '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg>'
     };
     // How each version came about: the step's short label, the longer one above the caption, and its icon.
@@ -2838,10 +2837,11 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const m = String(s).match(/^(\s*)([\s\S]*?)(\s*)$/);
         return m[2] ? _calEsc(m[1]) + '<' + tag + '>' + _calEsc(m[2]) + '</' + tag + '>' + _calEsc(m[3]) : _calEsc(s);
     }
-    function _calCapHistDiffHtml(a, b) {
-        const regions = _calCapHistDiff(a, b);
-        if (_calCapHistRewritten(a, b, regions)) {
-            return '<div class="caph-rewrite">Mostly rewritten</div><div class="caph-rw-l">Before</div><div class="caph-cap caph-rw-old">' + _calEsc(a) + '</div>' +
+    // A redo with a note is always shown Before and After whole (owner, 2026-10-24); so is any mostly rewritten caption.
+    function _calCapHistDiffHtml(a, b, whole) {
+        const regions = whole ? null : _calCapHistDiff(a, b);
+        if (whole || _calCapHistRewritten(a, b, regions)) {
+            return '<div class="caph-rw-l">Before</div><div class="caph-cap caph-rw-old">' + _calEsc(a) + '</div>' +
                 '<div class="caph-rw-l">After</div><div class="caph-cap">' + _calEsc(b) + '</div>';
         }
         return '<div class="caph-cap">' + regions.map(r => r.same != null ? _calEsc(r.same)
@@ -2860,7 +2860,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const post = (calState.posts || []).find(p => p.id === pid);
         if (!post || !overlay || !modal || _isClientLink || !svCaptionHistoryOn()) return;
         const slug = calClientSlug(calState.client || '');
-        _calCapHist = { pid, slug, versions: null, sel: -1, clean: false, error: '', stale: false, busy: false };
+        _calCapHist = { pid, slug, versions: null, sel: -1, error: '', stale: false, busy: false };
         _calCapHistRender();
         overlay.classList.add('open');
         svLayerOverlay('cal-prompt', '#calPromptOverlay', '#calPromptModal', () => _calCloseCaptionPromptModal());
@@ -2907,14 +2907,11 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                     '<span class="caph-sw">' + _calEsc((who ? who + ' · ' : '') + _calCapHistWhen(x.at)) + '</span>' +
                     (i === last ? '<span class="caph-now">Now</span>' : '') + '</button>';
             }).join('') + '</div>';
-            const controls = prev
-                ? '<div class="caph-seg" role="group" aria-label="Show"><button type="button" aria-pressed="' + !st.clean + '" onclick="_calCapHistClean(false)">Changes</button><button type="button" aria-pressed="' + st.clean + '" onclick="_calCapHistClean(true)">Clean text</button></div>'
-                : '';
-            const nav = '<span class="caph-nav"><button type="button" class="caph-back" aria-label="Older version"' + (sel === 0 ? ' disabled' : '') + ' onclick="_calCapHistPick(' + (sel - 1) + ')">' + CAL_CAPH_ICONS.arrow + '</button>' +
-                '<button type="button" aria-label="Newer version"' + (sel === last ? ' disabled' : '') + ' onclick="_calCapHistPick(' + (sel + 1) + ')">' + CAL_CAPH_ICONS.arrow + '</button></span>';
-            const text = prev && !st.clean ? _calCapHistDiffHtml(prev.text, v.text) : '<div class="caph-cap">' + _calEsc(v.text) + '</div>';
-            body = steps + '<div class="caph-story" role="tabpanel"><div class="caph-story-h"><span class="caph-kind">' + CAL_CAPH_ICONS[kind[2]] + _calEsc(kind[1]) + '</span><span class="caph-sp"></span>' + controls + nav + '</div>' +
-                (v.kind === 'redo' && v.note ? '<div class="caph-note"><span class="caph-nl">Note</span>' + _calEsc(v.note) + '</div>' : '') + text +
+            // Owner, 2026-10-24 (as little visual noise as possible): no arrows (a step is clicked), no Changes / Clean
+            // text switch, no "Mostly rewritten" label, and the redo note is a quiet line, not a box.
+            const text = prev ? _calCapHistDiffHtml(prev.text, v.text, v.kind === 'redo') : '<div class="caph-cap">' + _calEsc(v.text) + '</div>';
+            body = steps + '<div class="caph-story" role="tabpanel"><div class="caph-story-h"><span class="caph-kind">' + CAL_CAPH_ICONS[kind[2]] + _calEsc(kind[1]) + '</span></div>' +
+                (v.kind === 'redo' && v.note ? '<div class="caph-note">' + _calEsc(v.note) + '</div>' : '') + text +
                 (st.stale ? '<div class="caph-stale" role="alert">The caption changed while this was open, so nothing was put back. <button type="button" onclick="_calCapHistFetch()">Show the latest</button></div>' : '') +
                 (st.error ? '<div class="caph-stale" role="alert">' + _calEsc(st.error) + '</div>' : '') + '</div>';
             if (sel !== last) foot = '<div class="caph-foot"><button type="button" class="caph-restore"' + (st.busy ? ' disabled' : '') + ' onclick="_calCapHistRestore()">' + CAL_CAPH_ICONS.restore + 'Put this version back</button></div>';
@@ -2929,7 +2926,6 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const on = document.querySelector('#calPromptModal .caph-step[aria-selected="true"]');
         if (on) { try { on.focus({ preventScroll: true }); on.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {} }
     }
-    function _calCapHistClean(on) { if (_calCapHist) { _calCapHist.clean = !!on; _calCapHistRender(); } }
     // Left and right move between versions on the step strip; Home and End go to the first and the newest.
     function _calCapHistStepKey(ev) {
         const st = _calCapHist;
@@ -3939,13 +3935,13 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
         _calArchiveSelected, _calBulkGenerateCaptions, _calCancelBulkCaption, _calCancelCaptionJob,
-        _calCapHistClean, _calCapHistFetch, _calCapHistPick, _calCapHistRestore, _calCapHistStepKey,
-        _calCaptionGenerateClick, _calCaptionTranscriptInput, _calCardSelectClick,
-        _calCloseCaptionPromptModal, _calOpenCaptionHistory, _calOpenCaptionPromptModal, _calOpenRedoPopup,
-        _calOpenThumbTitlePromptModal, _calRedoInput, _calRedoKey, _calResetCaptionPromptToDefault,
-        _calResetThumbTitlePromptToDefault, _calSaveCaptionPrompt, _calSaveThumbTitlePrompt,
-        _calSubmitCaptionTranscript, _calSubmitNativePost, _calSubmitRedo, _calToggleSelectMode,
-        addCalBlankCard, archiveCalPost, calMonthShift, calMonthToday, calWeekShift, calWeekToday
+        _calCapHistFetch, _calCapHistPick, _calCapHistRestore, _calCapHistStepKey, _calCaptionGenerateClick,
+        _calCaptionTranscriptInput, _calCardSelectClick, _calCloseCaptionPromptModal, _calOpenCaptionHistory,
+        _calOpenCaptionPromptModal, _calOpenRedoPopup, _calOpenThumbTitlePromptModal, _calRedoInput,
+        _calRedoKey, _calResetCaptionPromptToDefault, _calResetThumbTitlePromptToDefault,
+        _calSaveCaptionPrompt, _calSaveThumbTitlePrompt, _calSubmitCaptionTranscript, _calSubmitNativePost,
+        _calSubmitRedo, _calToggleSelectMode, addCalBlankCard, archiveCalPost, calMonthShift, calMonthToday,
+        calWeekShift, calWeekToday
     });
 export {
   CAL_BULK_ARCHIVE_CONCURRENCY, CAL_REORDER_GUARD_MS, COMP_LABELS, COMP_PILL_COLORS,

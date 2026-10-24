@@ -373,6 +373,31 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         el.classList.remove('show');
         setTimeout(() => { try { el.remove(); } catch (e) {} }, 220);
     }
+    /* The shared "busy" spinner (round 7, owner 2026-10-24: never the words "Sending…" or "Saving…" for a send).
+       A small ring in the text colour of whatever holds it; the label is for screen readers only. CSS: .sv-spin in
+       020. The review stage draws in a shadow root and carries its own copy of the rule (195). */
+    function svSpinHtml(label) {
+        return '<span class="sv-spin" role="status" aria-label="' + String(label || 'Sending').replace(/[&<>"']/g, ch => '&#' + ch.charCodeAt(0) + ';') + '"></span>';
+    }
+    // A button shows the spinner in place of its words while `on`, at its own width so nothing moves, and gets its
+    // words back after. A caller that writes the button's words itself afterwards may skip the `off` call.
+    function svSpinButton(btn, on, label) {
+        if (!btn) return;
+        if (on) {
+            if (btn.__svSpin && btn.querySelector('.sv-spin')) return;   // already turning (a caller may have written new words since)
+            btn.__svSpin = { html: btn.innerHTML, minWidth: btn.style.minWidth };
+            btn.style.minWidth = btn.offsetWidth + 'px';
+            btn.innerHTML = svSpinHtml(label);
+            btn.disabled = true;
+            btn.setAttribute('aria-busy', 'true');
+        } else if (btn.__svSpin) {
+            btn.innerHTML = btn.__svSpin.html;
+            btn.style.minWidth = btn.__svSpin.minWidth;
+            btn.__svSpin = null;
+            btn.disabled = false;
+            btn.removeAttribute('aria-busy');
+        }
+    }
     function showToast(msg, opts) {
         opts = opts || {};
         hideToast();
@@ -2267,6 +2292,6 @@ export {
   followersMode, followersPlat, formatHookTemplate, getActivePeriod, getMonthRow, getPeriodKey,
   getWeekRow, growthChart, hideToast, isPhrase, latestPerClient, linearClientRows, linearProjects,
   monthPrevPerClient, n, parseCSV, parseViewCount, prevPerClient, renderBriefContent,
-  renderTabSummary, savedHooks, setClientViewTab, showConfirm, showNotify, showToast, sortCol, sortDir, svArea,
+  renderTabSummary, savedHooks, setClientViewTab, showConfirm, showNotify, showToast, sortCol, sortDir, svArea, svSpinButton, svSpinHtml,
   svAreaApi, svAreaRegister, svWithArea, topVideos, viewsChart, viewsPlat, weekPrevPerClient
 };

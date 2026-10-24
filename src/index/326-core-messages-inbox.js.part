@@ -279,13 +279,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (_msgState.unavailable) return;
         if (_msgCanUse() && typeof svuActive === 'function' && svuActive()) { svuPaintCounts(); return; }
         const n = _msgCanUse() ? _msgUnreadConversations() : 0;
+        // Write only what changed: an unchanged rewrite still wakes every page-wide observer (the phone bar's popup
+        // scan among them), on each inbox refresh (OPEN_REPAIRS 487).
         document.querySelectorAll('[data-kasper-count="replies"]').forEach(el => {
-            el.textContent = String(n);
+            if (el.textContent !== String(n)) el.textContent = String(n);
             el.classList.toggle('is-unread', n > 0);
         });
         document.querySelectorAll('[data-msg-count]').forEach(el => {
-            el.textContent = String(n);
-            el.hidden = n === 0;
+            if (el.textContent !== String(n)) el.textContent = String(n);
+            if (el.hidden !== (n === 0)) el.hidden = n === 0;
         });
     }
     /* Called whenever the staff sign-in changes (100): forget the last

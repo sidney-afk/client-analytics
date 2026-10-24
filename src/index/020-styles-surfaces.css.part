@@ -2620,6 +2620,12 @@
         .sv-note-outbox-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: sv-note-outbox-pulse 1s ease-in-out infinite alternate; }
         @keyframes sv-note-outbox-pulse { from { opacity: 0.3; } to { opacity: 1; } }
         @media (prefers-reduced-motion: reduce) { .sv-note-outbox-dot { animation: none; } }
+        /* The shared "busy" spinner (040 svSpinHtml / svSpinButton): a small ring in the text colour of what holds it.
+           Round 7 (owner, 2026-10-24): a send never shows the words "Sending…"; this turns in their place. */
+        .sv-spin { display: inline-block; flex: none; width: 14px; height: 14px; box-sizing: border-box; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; opacity: 0.75; vertical-align: -2px; animation: sv-spin-turn var(--sv-spin-dur) linear infinite; }
+        .sv-spin.is-lg { width: 18px; height: 18px; vertical-align: -4px; }
+        @keyframes sv-spin-turn { to { transform: rotate(360deg); } }
+        /* Reduced motion slows it with every other spinner (--sv-spin-dur, 010). */
         .sv-note-outbox button { font: inherit; font-weight: 700; color: inherit; background: none; border: 0; padding: 8px 2px; margin: -8px 0; min-height: 40px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
         .sv-note-outbox button.sv-note-outbox-discard { font-weight: 500; color: var(--text-secondary); }
         .is-outbox-failed.cal-cm-row, .is-outbox-failed.cal-review-comment, .msg-b.is-outbox-failed { box-shadow: inset 2px 0 0 var(--dn); }
@@ -2933,10 +2939,13 @@
         .caph-body { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 20px 6px; display: flex; flex-direction: column; gap: 12px; }
         .caph-steps { display: flex; align-items: flex-start; overflow-x: auto; padding: 6px 2px 10px; scrollbar-width: none; flex-shrink: 0; }
         .caph-steps::-webkit-scrollbar { display: none; }
-        .caph-step { position: relative; flex: 1 0 118px; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; padding: 0 4px; border: 0; background: none; color: var(--text-primary); cursor: pointer; font: inherit; }
-        .caph-step::before { content: ''; position: absolute; top: 15px; left: -50%; right: 50%; height: 2px; background: var(--caph-line); }
+        .caph-step { position: relative; flex: 1 1 0; min-width: 118px; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; padding: 0 4px; border: 0; background: none; color: var(--text-primary); cursor: pointer; font: inherit; }
+        .caph-step::before { content: ''; position: absolute; z-index: 0; top: 15px; left: calc(-50% + 16px); right: calc(50% + 16px); height: 2px; background: var(--caph-line); }
+        /* Owner, 2026-10-24: every icon sits on the line. Steps are equal widths (their text wraps inside them) and the
+           line runs from one icon's edge to the next, under the icons, so no icon is crossed or pushed off it. */
+        .caph-step > .caph-sl, .caph-step > .caph-sw { max-width: 100%; overflow-wrap: anywhere; }
         .caph-step:first-child::before { display: none; }
-        .caph-sd { position: relative; width: 32px; height: 32px; border-radius: 99px; display: flex; align-items: center; justify-content: center; background: var(--white); box-shadow: 0 0 0 2px var(--caph-line); color: var(--text-secondary); }
+        .caph-sd { position: relative; z-index: 1; flex-shrink: 0; width: 32px; height: 32px; border-radius: 99px; display: flex; align-items: center; justify-content: center; background: var(--white); box-shadow: 0 0 0 2px var(--caph-line); color: var(--text-secondary); }
         .caph-sd svg { width: 14px; height: 14px; }
         .caph-step:hover .caph-sd { color: var(--text-primary); }
         .caph-step:focus-visible { outline: none; }
@@ -2950,21 +2959,10 @@
         .caph-story-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .caph-kind { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 700; color: var(--text-primary); }
         .caph-kind svg { width: 12px; height: 12px; }
-        .caph-seg { margin-left: auto; display: inline-flex; padding: 3px; border-radius: 10px; background: var(--field-bg); gap: 2px; }
-        .caph-seg button { height: 28px; padding: 0 11px; border: 0; border-radius: 8px; background: none; font: inherit; font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
-        .caph-seg button[aria-pressed="true"] { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
-        .caph-nav { display: inline-flex; gap: 4px; }
-        .caph-nav button { width: 32px; height: 32px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); background: var(--white); color: var(--text-secondary); cursor: pointer; }
-        .caph-nav button svg { width: 14px; height: 14px; }
-        .caph-nav button:hover:not([disabled]) { color: var(--text-primary); }
-        .caph-nav button[disabled] { color: var(--text-muted); background: var(--bg); cursor: default; }
-        .caph-nav .caph-back svg { transform: rotate(180deg); }
-        .caph-note { padding: 8px 12px; border-radius: 6px; background: var(--caph-note-bg); box-shadow: inset 0 0 0 1px var(--caph-note-line); font-size: 0.82rem; line-height: 1.45; color: var(--text-primary); overflow-wrap: anywhere; }
-        .caph-nl { display: block; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--caph-note-label); margin-bottom: 2px; }
+        .caph-note { padding: 1px 0 1px 10px; border-left: 2px solid var(--caph-note-line); font-size: 0.82rem; line-height: 1.45; color: var(--text-secondary); overflow-wrap: anywhere; }
         .caph-cap { white-space: pre-wrap; font-size: 1rem; line-height: 1.7; color: var(--text-primary); overflow-wrap: anywhere; }
         .caph-cap ins { text-decoration: none; background: var(--caph-ins-bg); color: var(--caph-ins-fg); border-radius: 4px; padding: 1px 2px; }
         .caph-cap del { text-decoration: line-through; text-decoration-thickness: 1.5px; background: var(--caph-del-bg); color: var(--caph-del-fg); border-radius: 4px; padding: 1px 2px; }
-        .caph-rewrite { font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); }
         .caph-rw-l { font-size: 0.68rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); margin-top: 2px; }
         .caph-rw-old { color: var(--text-secondary); }
         .caph-stale { font-size: 0.8rem; color: var(--text-primary); padding: 8px 0 0; }
@@ -2981,12 +2979,11 @@
         .caph-restore[disabled] { background: var(--field-bg); color: var(--disabled-fg); box-shadow: none; cursor: default; }
         .caph-restore svg { width: 14px; height: 14px; }
         @media (pointer: coarse) {
-            .caph-nav button, .caph-x { width: 44px; height: 44px; }
-            .caph-seg button { height: 38px; }
+            .caph-x { width: 44px; height: 44px; }
             .caph-restore { height: 44px; }
         }
         @media (max-width: 600px) {
-            .caph-step { flex: 0 0 84px; padding: 0 2px; }
+            .caph-step { flex: 0 0 92px; min-width: 92px; padding: 0 2px; }
             .caph-sl { font-size: 0.7rem; }
             .caph-body { padding: 8px 14px 6px; }
             .caph-head { padding: 14px 14px 4px; }
@@ -8857,7 +8854,7 @@ html.sv-unread2[data-theme="dark"] {
   --svu-link: #6fb3f5;
 }
 /* the badge: people bubbles with a coloured number */
-.svu-foot { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.svu-foot { display: flex; align-items: center; gap: 10px; min-width: 0; cursor: pointer; }   /* round 7: the whole row opens Notes */
 .cal-comments-btn.svu-notes.svu-has-new { color: var(--text-primary); font-weight: 600; }
 .cal-comments-btn.svu-notes.svu-has-new svg { opacity: 1; }
 .svu-strips { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
@@ -8865,8 +8862,9 @@ html.sv-unread2[data-theme="dark"] {
 .svu-bub-av { width: 22px; height: 22px; border-radius: 50%; display: block; box-shadow: 0 0 0 2px var(--white); }
 .svu-num { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; display: inline-flex; align-items: center; justify-content: center; font-size: .68rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--svu-on); }
 .svu-n-change { background: var(--svu-change); } .svu-n-comment { background: var(--svu-comment); } .svu-n-staff { background: var(--svu-staff); } .svu-n-kasper { background: var(--svu-kasper); }
-.svu-o-open { background: transparent; color: var(--svu-change-ink); box-shadow: inset 0 0 0 1.5px var(--svu-change); }
-.svu-o-waiting { background: transparent; color: var(--svu-comment-ink); box-shadow: inset 0 0 0 1.5px var(--svu-comment); }
+/* read but still needs you: the coloured number alone, no fill and no ring (round 7, owner: "seen, not answered") */
+.svu-o-open { background: transparent; color: var(--svu-change-ink); min-width: 0; padding: 0 2px; }
+.svu-o-waiting { background: transparent; color: var(--svu-comment-ink); min-width: 0; padding: 0 2px; }
 .svu-bub-more { font-size: .72rem; font-weight: 700; color: var(--text-secondary); }
 /* the hover */
 .svu-pv { position: fixed; z-index: 9999; background: var(--white); color: var(--text-primary); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--svu-shadow); padding: 6px 0; font-size: .8rem; }
@@ -8978,12 +8976,11 @@ html.sv-unread2 .cal-cm-row.is-reply .cal-cm-avatar .svu-initial { font-size: .6
 /* Round 6 (owner, 2026-10-24): less noise. One set of actions per note, on hover, as plain words (no boxes or fills,
    not even on hover); "Mark unread" is one quiet word in the Notes head; a lock stands for "Team only"; times are
    relative; your own messages keep the picture beside the name. */
-html.sv-unread2 .cal-cm-actions { top: 6px; right: 16px; background: var(--svu-hover-solid); border: 0; box-shadow: none; padding: 0 0 0 12px; gap: 12px; }
+html.sv-unread2 .cal-cm-actions { top: auto; bottom: 9px; right: 20px; background: var(--svu-hover-solid); border: 0; box-shadow: none; padding: 0 0 0 12px; gap: 12px; }
 html.sv-unread2 .cal-cm-action, html.sv-unread2 .cal-cm-action:hover, html.sv-unread2 .cal-cm-action.is-danger:hover { background: transparent; border: 0; border-radius: 0; padding: 0; color: var(--text-muted); font-size: .74rem; font-weight: 600; }
 html.sv-unread2 .cal-cm-action:hover { color: var(--text-primary); text-decoration: underline; }
 html.sv-unread2 .cal-cm-action.is-danger:hover { color: var(--svu-change-ink); }
 html.sv-unread2 .cal-cm-action svg { display: none; }
-html.sv-unread2 .cal-cm-row:hover .cal-cm-comp-label, html.sv-unread2 .cal-cm-row:focus-within .cal-cm-comp-label { visibility: hidden; }
 html.sv-unread2 .svu-head-unread { margin-left: auto; margin-right: 8px; border: 0; background: transparent; padding: 0; font: inherit; font-size: .76rem; font-weight: 600; color: var(--text-muted); cursor: pointer; }
 html.sv-unread2 .svu-head-unread:hover { color: var(--text-primary); text-decoration: underline; }
 html.sv-unread2 #msgPage .msg-b, html.sv-unread2 #msgPage .msg-b.is-me { position: relative; align-items: start; justify-items: stretch; }
@@ -8993,9 +8990,8 @@ html.sv-unread2 .svu-lock { display: inline-flex; align-items: center; color: va
 html.sv-unread2 .svu-lock svg { width: 12px; height: 12px; }
 html.sv-unread2 .svu-kind-change { color: var(--svu-change-ink); font-size: .74rem; font-weight: 600; }
 html.sv-unread2 #msgPage .svu-time { color: var(--text-muted); }
-html.sv-unread2 .svu-msg-acts { position: absolute; top: 8px; right: 24px; display: flex; gap: 12px; padding-left: 12px; background: var(--svu-hover-solid); opacity: 0; pointer-events: none; }
+html.sv-unread2 .svu-msg-acts { position: absolute; bottom: 10px; right: 24px; display: flex; gap: 12px; padding-left: 12px; background: var(--svu-hover-solid); opacity: 0; pointer-events: none; }
 html.sv-unread2 #msgPage .msg-b:hover .svu-msg-acts, html.sv-unread2 #msgPage .msg-b:focus-within .svu-msg-acts { opacity: 1; pointer-events: auto; }
-html.sv-unread2 #msgPage .msg-b:hover .msg-b-meta .cal-cm-comp-label, html.sv-unread2 #msgPage .msg-b:focus-within .msg-b-meta .cal-cm-comp-label { visibility: hidden; }
 html.sv-unread2 .svu-msg-acts button { border: 0; background: transparent; padding: 0; font: inherit; font-size: .74rem; font-weight: 600; color: var(--text-muted); cursor: pointer; }
 html.sv-unread2 .svu-msg-acts button:hover, html.sv-unread2 .svu-msg-acts button:focus-visible { color: var(--text-primary); text-decoration: underline; }
 html.sv-unread2 #msgPage .svu-bub, html.sv-unread2 #msgPage .svu-bub-more { cursor: help; }
@@ -9023,6 +9019,12 @@ html.sv-unread2 .svu-line-av { width: 20px; height: 20px; border-radius: 5px; }
 html.sv-unread2 #msgPage .msg-b.svu-cont { padding-top: 0; margin-top: -6px; }
 html.sv-unread2 #msgPage .msg-b.svu-cont > .svu-slack-av { display: none; }
 html.sv-unread2 #msgPage .msg-b.svu-cont > .msg-b-meta { display: none; }
-html.sv-unread2 #msgPage .msg-b.svu-cont .svu-msg-acts { top: 2px; }
 html.sv-unread2 #msgPage .msg-reply { padding-top: 8px; }
 html.sv-unread2 .cal-cm-row .cal-cm-head-line > .cal-cm-comp-label { position: absolute; top: 10px; right: 20px; margin: 0; }
+/* Round 7 (owner, 2026-10-24): the hover toolbar sits at the bottom right of a note or message. When the last line of
+   words runs under it, the note gets the toolbar's height of room at the bottom (327 _svuFitBars), so it never covers
+   a word and adds no space anywhere else. */
+html.sv-unread2 .cal-cm-row.svu-bar-room { padding-bottom: 28px; }
+html.sv-unread2 #msgPage .msg-b.svu-bar-room { padding-bottom: 30px; }
+html.sv-unread2 .sv-note-outbox.is-sending { margin-top: 2px; color: var(--text-muted); }
+html.sv-unread2 #msgPage .msg-b .svu-msg-files { grid-column: 2; margin-top: 2px; }

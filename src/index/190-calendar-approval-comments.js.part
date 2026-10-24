@@ -1,5 +1,5 @@
 import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
-import { dismissConfirm, showConfirm, showNotify, showToast } from './040-shared-briefs.js';
+import { dismissConfirm, showConfirm, showNotify, showToast, svSpinHtml } from './040-shared-briefs.js';
 import { svFrameFeed, svFrameFlagWait, svFrameIoLinkHtml, svFrameStageMount, svFrameWarm, svFrameStageUnmount, svFrameTileAttrs, svFrameTileLabelHtml, svFrameTime } from './187-frame-viewer.js';
 import { _svPhoneNotesPresentation } from './095-shared-client.js';
 import {
@@ -2151,6 +2151,8 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
        Retry and Discard. */
     function _noteOutboxStatusHtml(c) {
         if (!c || !c._outbox || c._outbox === 'sent') return '';
+        // Round 7 (switch unread_badges_v2): a spinner, never the word "Sending…" (owner, 2026-10-24).
+        if (c._outbox === 'sending' && typeof svuActive === 'function' && svuActive()) return `<div class="sv-note-outbox is-sending">${svSpinHtml('Sending')}</div>`;
         if (c._outbox === 'sending') return `<div class="sv-note-outbox is-sending" role="status"><span class="sv-note-outbox-dot" aria-hidden="true"></span>Sending…</div>`;
         if (c._outboxRequest) {
             return `<div class="sv-note-outbox is-failed" role="alert"><span>Not sent yet. It will be sent when the connection is back.</span>

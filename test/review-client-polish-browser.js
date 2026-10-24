@@ -64,7 +64,7 @@ async function timeApprove(browser, origin, polish) {
     new MutationObserver(() => {
       const now = performance.now() - window.__t0;
       if (!window.__t0) return;
-      if (!window.__m.busy && r.querySelector('#drow [aria-busy="true"]')) window.__m.busy = Math.round(now);
+      if (!window.__m.busy && r.querySelector(on ? '#drow .cp-morph' : '#drow [aria-busy="true"]')) window.__m.busy = Math.round(now);
       if (!window.__m.done && r.querySelector(on ? '#drow .cp-ok' : '.stp .svd')) window.__m.done = Math.round(now);
     }).observe(r, { subtree: true, childList: true, attributes: true });
     r.querySelector('#drow [data-ok]').addEventListener('pointerdown', () => { window.__t0 = performance.now(); }, { capture: true });
@@ -136,23 +136,20 @@ async function shots(browser, origin) {
       const off = await timeApprove(browser, origin, false);
       const on = await timeApprove(browser, origin, true);
       console.log('     switch off: pressed to busy ' + off.busy + ' ms, to the "Saved" mark ' + off.done + ' ms');
-      console.log('     switch on:  pressed to spinner ' + on.busy + ' ms, to the check ' + on.done + ' ms');
-      expect(on.busy != null && on.busy < 250, 'the spinner shows within the press (' + on.busy + ' ms after the press began)');
-      expect(on.done != null && off.done != null && on.done < off.done, 'the check shows sooner than the old "Saved" mark (' + on.done + ' ms against ' + off.done + ' ms)');
+      console.log('     switch on:  pressed to the circle ' + on.busy + ' ms, to the check ' + on.done + ' ms');
+      expect(on.done != null && on.done < 250, 'the check shows at the click, before the server answers (' + on.done + ' ms after the press began; the server takes about 650)');
+      expect(on.done != null && off.done != null && on.done < off.done, 'sooner than the old "Saved" mark (' + on.done + ' ms against ' + off.done + ' ms)');
     }
 
-    console.log('--- 1. Approve: the spinner, the check, the settled row, no wait cursor ---');
+    console.log('--- 1. Approve: the check at the click, the settled row, no wait cursor ---');
     {
       const t = await openClient(browser, origin, {});
       await watch(t);
       t.state.writeDelay = 900;
       await inS(t.page, '#drow [data-ok]').first().click();
       await sleep(120);
-      const busy = await R(t.page, (r) => { const b = r.querySelector('#drow .b-ok'); return b && { cls: b.className, text: b.innerText.trim(), spin: !!b.querySelector('.cp-spin'), w: Math.round(b.getBoundingClientRect().width), label: b.getAttribute('aria-label') }; });
-      expect(busy && /cp-morph/.test(busy.cls) && busy.spin && busy.text === '', 'Approve turns into a small spinner with no words (' + JSON.stringify(busy) + ')');
-      let ck = null;
-      for (let i = 0; i < 80 && !ck; i++) { await sleep(25); ck = await R(t.page, (r) => { const b = r.querySelector('#drow .cp-ok'); return b ? b.getAttribute('aria-label') : null; }); }
-      expect(ck === 'Video approved', 'then a check the moment the save lands (' + ck + ')');
+      const busy = await R(t.page, (r) => { const b = r.querySelector('#drow .b-ok'); return b && { cls: b.className, text: b.innerText.trim(), label: b.getAttribute('aria-label') }; });
+      expect(busy && /cp-morph/.test(busy.cls) && /cp-ok/.test(busy.cls) && busy.text === '' && busy.label === 'Video approved', 'Approve turns into a round check with no words at once, while the server is still working (' + JSON.stringify(busy) + ')');
       await sleep(1100);
       const settled = await R(t.page, (r) => ({ step: (r.querySelector('.stp.on') || {}).dataset && r.querySelector('.stp.on').dataset.step, ok: !!r.querySelector('.stp[data-step="video"].ok') }));
       expect(settled.ok && settled.step !== 'video', 'then the row settles: the video reads approved and the stage moves on (' + JSON.stringify(settled) + ')');
@@ -160,6 +157,25 @@ async function shots(browser, origin) {
       expect(!s.cursor.length, 'no wait or progress cursor at any moment (' + s.cursor.join(', ') + ')');
       expect(!s.text.length, 'no "Sending" or "Saving" text at any moment (' + s.text.join(', ') + ')');
       expect(!t.errors.length, 'no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    }
+
+    console.log('--- 1. Approve: a slow refusal returns to the part ---');
+    {
+      const t = await openClient(browser, origin, {});
+      // the status write takes 1.6 s and succeeds; the card write after it is refused (about 1.9 s after the click)
+      t.state.gatewayDelay = 1600;
+      await inS(t.page, '#drow [data-ok]').first().click();
+      await sleep(400);
+      t.state.refusal = { code: 'fixture_refused', status: 409 };
+      await sleep(700);
+      const moved = await R(t.page, (r) => r.querySelector('.stp.on').dataset.step);
+      await sleep(2000);
+      const st = await R(t.page, (r) => ({ step: r.querySelector('.stp.on').dataset.step, ok: !!r.querySelector('#drow [data-ok]:not([disabled])'), check: !!r.querySelector('#drow .cp-ok, .stp[data-step="video"].ok'), err: ((r.querySelector('#drow .err') || {}).innerText || '').replace(/\s+/g, ' ') }));
+      expect(moved !== 'video', 'the stage moved on after the check (' + moved + ')');
+      // The status write had already landed, so the video stays approved (the server holds it) and only the card copy
+      // is offered again; a refusal of the status write itself puts the buttons back (the next case).
+      expect(st.step === 'video' && /^Not saved\./.test(st.err) && /Try again/.test(st.err), 'the refusal brings the stage back to the video with a plain reason and Try again (' + JSON.stringify(st) + ')');
       await t.ctx.close();
     }
 
@@ -187,7 +203,8 @@ async function shots(browser, origin) {
       await sleep(120);
       let box = await R(t.page, (r) => ({ ta: !!r.getElementById('ta'), val: (r.getElementById('ta') || {}).value, pressed: (r.querySelector('[data-pc="graphic"]') || { getAttribute: () => '' }).getAttribute('aria-pressed'), spin: !!r.querySelector('#chat .cp-st .cp-spin') }));
       expect(box.ta && box.val === '' && box.pressed === 'true', 'after sending, the box stays open and empty, still on the thumbnail (' + JSON.stringify(box) + ')');
-      expect(box.spin, 'with a small spinner while it sends');
+      const sentNow = await R(t.page, (r) => (r.querySelector('#chat .cp-done') || {}).innerText || '');
+      expect(!box.spin && /Sent/.test(sentNow), 'and says Sent at once, while the server is still working (' + sentNow + ')');
       // the next two while the first is still saving, typed key by key across the moment it lands
       await inS(t.page, '#ta').pressSequentially(words[1], { delay: 30 });
       const typed = await R(t.page, (r) => (r.getElementById('ta') || {}).value);

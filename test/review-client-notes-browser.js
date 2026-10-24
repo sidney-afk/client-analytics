@@ -45,6 +45,32 @@ async function shots(browser, origin) {
       await team.scrollIntoViewIfNeeded(); await team.hover(); await sleep(250);
       await t.page.screenshot({ path: name('7-notes'), fullPage: w < 800 });
       await t.ctx.close();
+      // round 2: a reply under the team's message, two changes in a row, and the delete cross on hover
+      const u = await openClient(browser, origin, { width: w, height: h, dark, polish });
+      const fold2 = inS(u.page, '#foldBtn');
+      if (await fold2.count()) { await fold2.click(); await sleep(250); }
+      const g1 = inS(u.page, polish ? '.cpm:has([data-cp-reply])' : '.bub.team').filter({ hasText: 'Thumbnail text is bigger' });
+      if (polish && await g1.count()) {
+        await g1.hover(); await g1.locator('[data-cp-reply]').click(); await sleep(150);
+        await u.page.keyboard.type('Thanks, that works for us.'); await u.page.keyboard.press('Enter');
+      } else {
+        await inS(u.page, '#ta').fill('Thanks, that works for us.'); await inS(u.page, '[data-pc="graphic"]').click(); await sleep(100); await inS(u.page, '[data-pc="graphic"]').click(); await inS(u.page, '#cmtBtn').click();
+      }
+      await sleep(1200);
+      const repRow = inS(u.page, polish ? '.cpm' : '.bub').filter({ hasText: 'that works for us' }).last();
+      await repRow.scrollIntoViewIfNeeded(); await u.page.mouse.move(2, 2); await sleep(250);
+      await u.page.screenshot({ path: name('8-reply'), fullPage: w < 800 });
+      for (const words of ['Lets do this', 'and this']) {
+        await inS(u.page, '#ta').fill(words);
+        if (!(await inS(u.page, '[data-pc="caption"][aria-pressed="true"]').count())) await inS(u.page, '[data-pc="caption"]').click();
+        await sleep(120);
+        await inS(u.page, '#sendBtn').click();
+        await sleep(2200);
+      }
+      const mine = inS(u.page, polish ? '.cpm.me' : '.bub.you').last();
+      await mine.scrollIntoViewIfNeeded(); await mine.hover(); await sleep(250);
+      await u.page.screenshot({ path: name('9-followup-cross'), fullPage: w < 800 });
+      await u.ctx.close();
     }
   }
 }
@@ -112,8 +138,14 @@ async function shots(browser, origin) {
       let saved = null;
       for (let i = 0; i < 60 && !saved; i++) { await sleep(100); for (const u of t.state.upserts.slice(n0)) for (const col of ['video_tweaks', 'graphic_tweaks', 'caption_tweaks']) { const n = notes(u, col).find(x => /that works for us/.test(x.body)); if (n) saved = { col, n }; } }
       expect(!!saved && !saved.n.is_tweak && saved.col === 'graphic_tweaks', 'the reply is a plain comment on that note\'s part (' + (saved ? saved.col + ', change request ' + saved.n.is_tweak : 'not saved') + ')');
+      expect(!!saved && saved.n.parent_id === 'g1', 'and it is threaded: saved under the message it answers (parent ' + (saved && saved.n.parent_id) + ')');
       const card = t.state.cards.find(c => c.id === 'rs1');
       expect(card.graphic_status === 'Client Approval', 'and asks for nothing: the thumbnail is still waiting for the client');
+      await sleep(500);
+      const nest = await R(t.page, (r) => { const rows = Array.from(r.querySelectorAll('#chat .cpm')); const i = rows.findIndex(x => /Thumbnail text is bigger/.test(x.innerText)), j = rows.findIndex(x => /that works for us/.test(x.innerText)); return { i, j, rep: j >= 0 && rows[j].classList.contains('rep'), between: j > i ? rows.slice(i + 1, j).every(x => x.classList.contains('rep')) : false, indent: j >= 0 ? Math.round(rows[j].getBoundingClientRect().left - rows[i].getBoundingClientRect().left) : 0 }; });
+      expect(nest.rep && nest.between && nest.indent > 20, 'and it shows under that message, indented (' + JSON.stringify(nest) + ')');
+      const days = await R(t.page, (r) => Array.from(r.querySelectorAll('#chat .cpm-day')).map(d => d.innerText.trim()));
+      expect(new Set(days).size === days.length, 'a reply from today does not split its day: one line per day (' + days.join(', ') + ')');
       const gone = await R(t.page, (r) => !r.getElementById('reLine'));
       expect(gone, 'the box is a plain box again after sending');
       await t.ctx.close();
@@ -150,6 +182,33 @@ async function shots(browser, origin) {
       }
       const g = await R(t.page, (r) => Array.from(r.querySelectorAll('#chat .cpm.me')).map(x => (x.classList.contains('cont') ? 'cont' : 'head') + ':' + (x.querySelector('.cpm-x') || {}).textContent));
       expect(g.length >= 2 && /^head:First/.test(g[g.length - 2]) && /^cont:And a second/.test(g[g.length - 1]), 'the second message has no repeated picture or name (' + g.join(' | ') + ')');
+      await t.ctx.close();
+    }
+
+    console.log('--- a follow-up of the same kind does not repeat "Change request" ---');
+    {
+      const t = await openClient(browser, origin, { thread: false });
+      for (const w of ['Lets do this', 'and this']) {
+        await inS(t.page, '#ta').fill(w);
+        // the box stays on the thumbnail after the first change; pick it only when it is not picked already
+        if (!(await inS(t.page, '[data-pc="graphic"][aria-pressed="true"]').count())) await inS(t.page, '[data-pc="graphic"]').click();
+        await sleep(120);
+        await inS(t.page, '#sendBtn').click();
+        await sleep(2500);
+      }
+      const rows = await R(t.page, (r) => Array.from(r.querySelectorAll('#chat .cpm.me')).map(x => ({ cont: x.classList.contains('cont'), text: (x.querySelector('.cpm-x') || {}).textContent, words: x.querySelectorAll('.cpm-k.chg').length })));
+      const a = rows.find(x => x.text === 'Lets do this'), b = rows.find(x => x.text === 'and this');
+      expect(a && b && a.words === 1 && b.cont && b.words === 0, 'the first says "Change request" once; the follow-up does not repeat it (' + JSON.stringify(rows) + ')');
+      await t.ctx.close();
+    }
+
+    console.log('--- the delete cross is just a cross ---');
+    {
+      const t = await openClient(browser, origin, {});
+      const own = inS(t.page, '#chat .cpm.me[data-cp-note]').last();
+      await own.hover(); await sleep(250);
+      const x = await own.locator('.cp-x').evaluate(e => { const c = getComputedStyle(e); return { bg: c.backgroundColor, shadow: c.boxShadow, border: c.borderTopWidth, op: c.opacity }; });
+      expect(x.op === '1' && /rgba\(0, 0, 0, 0\)|transparent/.test(x.bg) && x.shadow === 'none' && x.border === '0px', 'no circle, no border, no shadow (' + JSON.stringify(x) + ')');
       await t.ctx.close();
     }
 

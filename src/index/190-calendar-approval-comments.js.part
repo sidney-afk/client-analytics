@@ -981,7 +981,9 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
        Mirrors _calReviewRequestTweak but without the Tweaks-Needed flip / Linear
        push. Client comments are client-visible; SMM comments default to internal
        (team-only) since the panel has no audience toggle. */
-    function _calReviewComment(pid, comp) {
+    // `parentId`: the client review page's Reply (195, polish): the note goes under that thread, on the card and, on a
+    // linked part, through the same gateway comment add (which already carries a parent and checks it server-side).
+    function _calReviewComment(pid, comp, parentId) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const key = pid + '|' + comp;
@@ -992,7 +994,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         // The note goes in the outbox first (its words survive a failed send
         // and a refresh), then in the thread, where it shows as "Sending…".
         const entry = _noteOutboxPut({
-            id: _calMintCommentId(), surface: 'review', kind: 'review-comment', pid, comp, parent_id: null, body,
+            id: _calMintCommentId(), surface: 'review', kind: 'review-comment', pid, comp, parent_id: parentId ? String(parentId) : null, body,
             author: _calCurrentAuthor(), author_member_id: _calCurrentAuthorId() || undefined, role,
             audience: (role === 'client') ? 'client' : 'internal', is_tweak: false,
             created_at: _now, at: Date.now(), state: 'sending'
@@ -1025,7 +1027,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         if (list.some(c => c && c.id === entry.id)) return list;
         list.push({
             id: entry.id,
-            parent_id: null,
+            parent_id: entry.parent_id || null,
             author: entry.author,
             ...(entry.author_member_id ? { author_member_id: entry.author_member_id } : {}),
             role: entry.role,

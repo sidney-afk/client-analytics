@@ -115,7 +115,7 @@ async function shots(browser, origin) {
       await own.hover(); await sleep(250);
       await t.page.screenshot({ path: name('5-note-hover'), fullPage: full });
       if (polish && await inS(t.page, '[data-cp-note] [data-cp-del]').count()) {
-        await inS(t.page, '[data-cp-note] [data-cp-del]').last().click(); await sleep(250);
+        await own.hover(); await inS(t.page, '[data-cp-note] [data-cp-del]').last().click({ force: true }); await sleep(250);
         await t.page.screenshot({ path: name('6-note-delete-ask'), fullPage: full });
       }
       await t.ctx.close();

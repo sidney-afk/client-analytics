@@ -159,6 +159,35 @@ in place. Changes need nothing new: they already stay open until Done.
 | The same on the phone or another computer | when that tab is looked at again (immediate), otherwise within 30 s (safety net lowered from 60 s) |
 | Page load | the badge is drawn from the first read, 1.5 s after sign-in, with a retry if it fails (PR #2300) |
 
+### What each place shows (round 6, 2026-10-24 14:20 UTC, desktop, live behind `unread_badges_v2`; replaces round 5's details)
+
+The owner used round 5 live on his own logins and set one rule for everything: **as little visual noise as possible;
+show only the information that's needed.** These are the rules the phone design (session Palm) should follow too.
+Built in #2312 (part 1) and #2314 (part 2); OPEN_REPAIRS 485 and 486.
+
+- **People are named by first name** everywhere (Notes, Messages, hovers, the reply caption); the full name is in the
+  hover. Pictures are each person's Slack photo; a client's is their Slack contact's; without one, initials.
+- **Times are relative** ("12m ago", "3d ago", "2w ago"); the full date is in the hover, and a conversation's day
+  lines carry the day: Today, Yesterday, the weekday within a week, then "Wed 14 Oct".
+- **Status words are quiet coloured words, never filled pills:** "Waiting for your answer" (blue), "Change request"
+  and "Not done" (orange), "New" (the kind's colour). "Waiting for your answer" stands alone (no extra "New").
+- **"Team only" is a small lock** whose hover says "Team only: the client never sees this".
+- **Actions show on hover only, as plain words** (no boxes, no fills, not even on hover): Reply, No reply needed (on a
+  comment waiting for an answer), Mark done, Delete. There is one set per note, never a second always-visible row.
+  On the phone, where there is no hover, the same words belong in the note's own menu.
+- **Card hover:** picture, first name and one line of the note. No date, no kind label, no footer. It also lists a
+  change still open, so an outlined bubble is explained.
+- **Notes:** no "Needs you" box; "Mark unread" is one quiet word in the head.
+- **Messages conversation:** the header is the first name, the lock, a quiet "Change request" when it is one, the
+  relative time, and the part (Video) quietly at the right. No role word. Your own picture sits beside your name.
+  One thin red "New" line marks where the unread part starts (no tag on each message). A client's change request is
+  one quiet line ("Casey asked for a change on the video · 12m ago · Open card"). A follow-up by the same person
+  within five minutes shows the picture and name once.
+- **Messages list:** every badge says in a hover what it counts ("Casey: 1 comment waiting for your answer"). The
+  header has no empty thumbnail, and its actions are the words "Mark unread" and "Open card".
+- **Open choices:** the card hover has no kind marker (recommend keeping it that way); the shared Notes composer lines
+  ("About the… / Team only · Video") were not part of this pass.
+
 ### What each place shows (round 5, 2026-10-24 01:11 UTC, desktop, replaces round 4's look)
 
 The owner asked directly for rounded shapes, a bubble per person instead of kind icons, and Notes and Messages that

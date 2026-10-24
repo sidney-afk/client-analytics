@@ -1026,14 +1026,14 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .cp-st svg{width:12px;height:12px}
 .cp-st.cp-done{color:var(--ok-ink);animation:rise .2s var(--ease)}
 .cp .bb{position:relative}
-.cp-x{position:absolute;top:-10px;right:-8px;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--surface-raised);color:var(--text-secondary);box-shadow:0 0 0 1px var(--border),0 1px 3px rgba(0,0,0,.14);opacity:0;transform:scale(.85);transition:opacity .12s,transform .12s,color .12s;pointer-events:none;z-index:1}
+.cp-x{position:absolute;top:-10px;right:-8px;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--surface-raised);color:var(--text-secondary);box-shadow:0 0 0 1px var(--border),0 1px 3px color-mix(in srgb,var(--text-primary) 14%,transparent);opacity:0;transform:scale(.85);transition:opacity .12s,transform .12s,color .12s;pointer-events:none;z-index:1}
 .cp-x svg{width:10px;height:10px}
 .bub:hover .cp-x,.bub:focus-within .cp-x,.bub.cp-show .cp-x{opacity:1;transform:none;pointer-events:auto}
 .cp-x:hover,.cp-x:focus-visible{color:var(--urgent)}
 .cp-ask{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:.78rem;font-weight:600;color:var(--text-primary)}
 .cp-ask span{margin-right:4px}
 .cp-ask button{font:inherit;font-weight:700;padding:3px 11px;border-radius:999px;transition:background .12s}
-.cp-yes{background:var(--urgent);color:#fff}
+.cp-yes{background:var(--urgent);color:var(--surface-raised)}
 .cp-no{color:var(--text-secondary)}
 .cp-no:hover{background:var(--fill);color:var(--text-primary)}
 @media (prefers-reduced-motion:reduce){.cp-spin{animation:rsBreathe 1.6s ease-in-out infinite!important;border-right-color:currentColor}.b-ok.cp-morph,.cp-ck,.dec.cp-settle{animation:none}}

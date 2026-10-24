@@ -34120,6 +34120,16 @@ back the old function (including its "Needs info" lines).
   - `unread-badges-v2-browser.js`, new section H (day lines, no per-message New, the quiet change line, header words, empty thumbnail, first-name caption, grouping, the Notes lock and "Change request", "Waiting" alone).
   - Screenshots `e-*` in `docs/syncview-design/proofs/unread-badges-r6/`.
 
+## 487. [2026-10-24 15:11 UTC, BUILT, NOT MERGED] Random red staff-phone check: the Messages count rewrote itself unchanged (session Beacon)
+
+- **Symptom:** `qa/staff-phone-responsiveness.js` (CI `staff-phone-rules`) failed at random with "Caption tap scanned unrelated popups 1 !== 0" on Calendar at 390 px, light or dark.
+  - Reproduced on main 32a8ab73 in 2 of 8 Calendar results and on #2314 in 4 of 8, with the same message, so it was not that PR's code.
+- **Cause:** the phone bar (099) watches the whole page and answers any change outside the caption with a page-wide popup scan.
+  - A probe that logged every page change during the tap caught the failure on both checkouts. The only changes were the header Messages count (`.msg-unread`): its text and `hidden`, written twice.
+  - 326 `_msgPaintCounts` (and 327 `svuPaintCounts`, desktop only) set the count's text, `hidden` and, in 327, its class on every inbox read and live refresh, even to the same values. When a refresh landed during the tap, the unchanged rewrite woke the scan.
+- **Fix:** both painters write the text, `hidden` and class only when the value changes. Nothing else changed.
+- **Proof:** `test/msg-count-write-on-change.js` runs both painters, taken from the fragments, twice with the same counts and finds zero writes the second time. It checks that a changed count is still written, and it fails on the old code.
+
 ## 488. [2026-10-24 13:50 UTC, BUILT, NOT MERGED, behind `caption_history_staff`] Caption history pop-up: less visual noise, and the timeline icons off their line (session Versions, follow-up to 482)
 
 - **Owner feedback after using it live (2026-10-24).** Drop the arrows (a step is clicked instead), drop the Changes / Clean text switch (a redo always shows Before and After), drop the "Mostly rewritten" label, make the purple note box much quieter, and put every timeline icon on its line ("Earlier" sat off it). The rule behind it: as little visual noise as possible.

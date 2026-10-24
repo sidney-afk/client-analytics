@@ -34131,7 +34131,7 @@ back the old function (including its "Needs info" lines).
   - The part's name stays pinned top right, and the header keeps room only for it.
 - **No Reply on a change request**, nor on a reply under one, in Notes and in Messages. Mark done and Delete stay, and replies already written still show.
   - Measured on the live table, read-only: 47 replies under change requests, 12 in the last 30 days.
-  - So this drops a path the team uses. It is put to the owner as a decision.
+  - So this drops a path the team uses. **Owner's decision, 2026-10-24 15:36 UTC (relayed by the supervisor): no Reply on change requests**, as built: Mark done and Delete stay, existing replies still show in full, and it stays behind the switch.
 - **No "Sending…" / "Saving…" on the team's send paths:** a shared spinner instead.
   - 040 `svSpinHtml(label)` / `svSpinButton(btn, on, label)`, the CSS `.sv-spin` in 020, and its copy in the review stage's shadow root (195).
   - 327 `svuSpinOr(words)` uses the spinner when the switch is on.

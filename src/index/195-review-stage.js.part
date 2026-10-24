@@ -1028,7 +1028,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .cp .bb{position:relative}
 .cp-x{position:absolute;top:-10px;right:-8px;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--surface-raised);color:var(--text-secondary);box-shadow:0 0 0 1px var(--border),0 1px 3px color-mix(in srgb,var(--text-primary) 14%,transparent);opacity:0;transform:scale(.85);transition:opacity .12s,transform .12s,color .12s;pointer-events:none;z-index:1}
 .cp-x svg{width:10px;height:10px}
-.bub:hover .cp-x,.bub:focus-within .cp-x,.bub.cp-show .cp-x,.sl:hover .cp-x,.sl:focus-within .cp-x,.sl.cp-show .cp-x{opacity:1;transform:none;pointer-events:auto}
+.bub:hover .cp-x,.bub:focus-within .cp-x,.bub.cp-show .cp-x,.cpm:hover .cp-x,.cpm:focus-within .cp-x,.cpm.cp-show .cp-x{opacity:1;transform:none;pointer-events:auto}
 .cp-x:hover,.cp-x:focus-visible{color:var(--urgent)}
 .cp-ask{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:.78rem;font-weight:600;color:var(--text-primary)}
 .cp-ask span{margin-right:4px}
@@ -1038,34 +1038,34 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .cp-no:hover{background:var(--fill);color:var(--text-primary)}
 /* The client's notes as quiet rows (the staff side's round 6). */
 .cp .ch-scroll{gap:0;padding:10px 8px 10px}
-.sl{display:flex;gap:10px;align-items:flex-start;padding:6px 8px;border-radius:10px;position:relative;transition:background .12s}
-.sl:hover,.sl:focus-within,.sl.cp-show{background:color-mix(in srgb,var(--fill) 55%,transparent)}
-.sl.cont{padding-top:0}
-.sl.cont .sl-av{visibility:hidden;height:4px}
-.sl-av{width:28px;height:28px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;font-size:.66rem;font-weight:800;background:var(--av-team);color:var(--av-team-fg);margin-top:1px}
-.sl-av.cl,.sl-av.me{background:var(--pt-thumbnail);color:var(--pi-thumbnail)}
-.sl-b{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px;position:relative}
-.sl-h{display:flex;align-items:baseline;gap:4px 8px;flex-wrap:wrap;font-size:.72rem;line-height:1.35;color:var(--text-secondary)}
-.sl-h b{font-size:.82rem;font-weight:700;color:var(--text-primary)}
-.sl-hc{margin-top:-1px}
-.sl-k{font-weight:600;cursor:default}
-.sl-k.chg{color:var(--chg-fg)}
-.sl-k.ok{color:var(--ok-ink)}
-.sl.handled .sl-k.chg{color:var(--text-secondary)}
-.sl-t{cursor:default}
-.sl-p{margin-left:auto;color:var(--text-secondary);cursor:default}
-.sl.me .sl-h{padding-right:18px}
-.sl-x{font-size:.86rem;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text-primary)}
-.sl.handled .sl-x,.sl.old .sl-x{color:var(--text-secondary)}
-.sl .diff{margin-top:2px}
-.sl-acts{display:inline-flex;gap:10px;opacity:0;transition:opacity .12s}
-.sl:hover .sl-acts,.sl:focus-within .sl-acts,.sl.cp-show .sl-acts{opacity:1}
-.sl-act{font:inherit;font-weight:700;color:var(--text-secondary);padding:0;background:none}
-.sl-act:hover,.sl-act:focus-visible{color:var(--text-primary);text-decoration:underline;text-underline-offset:2px}
-.sl .cp-x{top:-2px;right:-4px}
-.sl-day{display:flex;align-items:center;gap:10px;margin:10px 8px 4px;font-size:.7rem;font-weight:700;color:var(--text-secondary);cursor:default}
-.sl-day::before,.sl-day::after{content:'';flex:1;height:1px;background:var(--well-line)}
-.sl-day:first-child{margin-top:2px}
+.cpm{display:flex;gap:10px;align-items:flex-start;padding:6px 8px;border-radius:10px;position:relative;transition:background .12s}
+.cpm:hover,.cpm:focus-within,.cpm.cp-show{background:color-mix(in srgb,var(--fill) 55%,transparent)}
+.cpm.cont{padding-top:0}
+.cpm.cont .cpm-av{visibility:hidden;height:4px}
+.cpm-av{width:28px;height:28px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;font-size:.66rem;font-weight:800;background:var(--av-team);color:var(--av-team-fg);margin-top:1px}
+.cpm-av.cl,.cpm-av.me{background:var(--pt-thumbnail);color:var(--pi-thumbnail)}
+.cpm-b{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px;position:relative}
+.cpm-h{display:flex;align-items:baseline;gap:4px 8px;flex-wrap:wrap;font-size:.72rem;line-height:1.35;color:var(--text-secondary)}
+.cpm-h b{font-size:.82rem;font-weight:700;color:var(--text-primary)}
+.cpm-hc{margin-top:-1px}
+.cpm-k{font-weight:600;cursor:default}
+.cpm-k.chg{color:var(--chg-fg)}
+.cpm-k.ok{color:var(--ok-ink)}
+.cpm.handled .cpm-k.chg{color:var(--text-secondary)}
+.cpm-t{cursor:default}
+.cpm-p{margin-left:auto;color:var(--text-secondary);cursor:default}
+.cpm.me .cpm-h{padding-right:18px}
+.cpm-x{font-size:.86rem;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text-primary)}
+.cpm.handled .cpm-x,.cpm.old .cpm-x{color:var(--text-secondary)}
+.cpm .diff{margin-top:2px}
+.cpm-acts{display:inline-flex;gap:10px;opacity:0;transition:opacity .12s}
+.cpm:hover .cpm-acts,.cpm:focus-within .cpm-acts,.cpm.cp-show .cpm-acts{opacity:1}
+.cpm-act{font:inherit;font-weight:700;color:var(--text-secondary);padding:0;background:none}
+.cpm-act:hover,.cpm-act:focus-visible{color:var(--text-primary);text-decoration:underline;text-underline-offset:2px}
+.cpm .cp-x{top:-2px;right:-4px}
+.cpm-day{display:flex;align-items:center;gap:10px;margin:10px 8px 4px;font-size:.7rem;font-weight:700;color:var(--text-secondary);cursor:default}
+.cpm-day::before,.cpm-day::after{content:'';flex:1;height:1px;background:var(--well-line)}
+.cpm-day:first-child{margin-top:2px}
 .cl-re{display:flex;align-items:center;gap:6px;padding:8px 12px 0;font-size:.74rem;color:var(--text-secondary)}
 .cl-re b{color:var(--text-primary);font-weight:700}
 .cl-re .x{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--text-secondary)}
@@ -2565,7 +2565,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         let prev = seed || null, out = '';
         list.forEach(t => {
             const day = _rsDayLabel(t.at);
-            if (day && (!prev || _rsDayLabel(prev.at) !== day)) { out += '<div class="sl-day" role="separator" title="' + _re(_rsFullDate(t.at).replace(/,? \d{2}:\d{2}$/, '')) + '"><span>' + _re(day) + '</span></div>'; prev = null; }
+            if (day && (!prev || _rsDayLabel(prev.at) !== day)) { out += '<div class="cpm-day" role="separator" title="' + _re(_rsFullDate(t.at).replace(/,? \d{2}:\d{2}$/, '')) + '"><span>' + _re(day) + '</span></div>'; prev = null; }
             const cont = !!prev && _rsWhoKey(prev) === _rsWhoKey(t) && !!prev.change === !!t.change && !t.sending && !prev.sending
                 && Math.abs(Date.parse(t.at) - Date.parse(prev.at)) < 5 * 60000;
             out += _rsCpMsg(t, old, cont);
@@ -2578,25 +2578,25 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const asking = t.canDelete && t.id && S.cpDel === t.id;
         const cpx = t.canDelete && t.id && !asking ? '<button class="cp-x" type="button" data-cp-del="' + _re(t.id) + '" aria-label="Delete note" title="Delete note">' + RI.x + '</button>' : '';
         const cpAsk = asking ? '<div class="cp-ask" role="group" aria-label="Delete this note?"><span>Delete this note?</span><button class="cp-yes" type="button" data-cp-yes="' + _re(t.id) + '">Delete</button><button class="cp-no" type="button" data-cp-no="1">Cancel</button></div>' : '';
-        const kind = isChg ? '<span class="sl-k chg" title="' + (t.frame ? 'The notes for this change are in Frame.io' : t.you ? 'You asked your team to change this. They mark it done once it is fixed.' : 'A change asked on this part') + '">' + (t.frame ? 'Tweaks on Frame' : 'Change request') + '</span>' : '';
-        const done = t.done ? '<span class="sl-k ok" title="Your team marked this change done">Done</span>' : '';
-        const when = t.sending ? _rsSpinner('Sending') : '<span class="sl-t" title="' + _re(_rsFullDate(t.at)) + '">' + _re(_rsAgo(t.at) || t.time) + '</span>';
+        const kind = isChg ? '<span class="cpm-k chg" title="' + (t.frame ? 'The notes for this change are in Frame.io' : t.you ? 'You asked your team to change this. They mark it done once it is fixed.' : 'A change asked on this part') + '">' + (t.frame ? 'Tweaks on Frame' : 'Change request') + '</span>' : '';
+        const done = t.done ? '<span class="cpm-k ok" title="Your team marked this change done">Done</span>' : '';
+        const when = t.sending ? _rsSpinner('Sending') : '<span class="cpm-t" title="' + _re(_rsFullDate(t.at)) + '">' + _re(_rsAgo(t.at) || t.time) + '</span>';
         const canReply = !t.you && !t.change && !t.sending && t.id && t.role !== 'client';
-        const acts = canReply ? '<span class="sl-acts"><button class="sl-act" type="button" data-cp-reply="' + _re(t.id) + '" title="Answer ' + _re(_rsFirst(t)) + ' about the ' + _re(_rsLname(t.part || 'video')) + '">Reply</button></span>' : '';
-        const part = t.part ? '<span class="sl-p" title="About the ' + _re(_rsLname(t.part)) + '">' + RS_PART[t.part] + '</span>' : '';
+        const acts = canReply ? '<span class="cpm-acts"><button class="cpm-act" type="button" data-cp-reply="' + _re(t.id) + '" title="Answer ' + _re(_rsFirst(t)) + ' about the ' + _re(_rsLname(t.part || 'video')) + '">Reply</button></span>' : '';
+        const part = t.part ? '<span class="cpm-p" title="About the ' + _re(_rsLname(t.part)) + '">' + RS_PART[t.part] + '</span>' : '';
         const long = !t.edit && _rsLongNote(t.text), open = long && !!(t.id && S.exp['note:' + t.id]);
         const more = long && t.id ? '<button class="bmore" type="button" data-more="' + _re(t.id) + '" aria-expanded="' + open + '">' + (open ? 'Show less' : 'Show all') + '</button>' : '';
         const body = t.edit
-            ? '<div class="sl-x">' + (t.you ? 'You changed' : 'Changed') + ' the caption</div><div class="diff"><div class="new">' + _re(t.edit.now) + '</div>'
+            ? '<div class="cpm-x">' + (t.you ? 'You changed' : 'Changed') + ' the caption</div><div class="diff"><div class="new">' + _re(t.edit.now) + '</div>'
               + (t.edit.old ? '<details class="was"><summary>Show the old caption</summary><div class="old">' + _re(t.edit.old) + '</div></details>' : '<div class="was">It had no caption before.</div>') + '</div>'
-            : '<div class="sl-x bt' + (long && t.id && !open ? ' clamp' : '') + '">' + _re(t.text) + '</div>';
-        const av = '<span class="sl-av' + (t.you ? ' me' : t.role === 'client' ? ' cl' : t.role === 'kasper' ? ' kp' : '') + '" aria-hidden="true">' + _re(t.you ? 'Y' : _rsFirst(t).charAt(0).toUpperCase()) + '</span>';
+            : '<div class="cpm-x bt' + (long && t.id && !open ? ' clamp' : '') + '">' + _re(t.text) + '</div>';
+        const av = '<span class="cpm-av' + (t.you ? ' me' : t.role === 'client' ? ' cl' : t.role === 'kasper' ? ' kp' : '') + '" aria-hidden="true">' + _re(t.you ? 'Y' : _rsFirst(t).charAt(0).toUpperCase()) + '</span>';
         const name = '<b' + (!t.you && _rsFirst(t) !== String(t.who || '').trim() ? ' title="' + _re(t.who) + '"' : '') + '>' + _re(_rsFirst(t)) + '</b>';
-        const head = cont ? '' : '<div class="sl-h">' + name + kind + done + when + acts + part + '</div>';
+        const head = cont ? '' : '<div class="cpm-h">' + name + kind + done + when + acts + part + '</div>';
         // A follow-up keeps its own state words, time and actions on one quiet line beside it.
-        const contMeta = cont && (kind || done || acts || t.sending) ? '<div class="sl-h sl-hc">' + kind + done + (t.sending ? when : '') + acts + '</div>' : '';
-        return '<div class="sl' + (cont ? ' cont' : '') + (old ? ' old' : '') + (isChg ? ' chg' : '') + (isChg && t.done ? ' handled' : '') + (t.you ? ' me' : '') + (asking ? ' cp-asking' : '') + '"'
-            + (cpx || acts ? ' data-cp-note="' + _re(t.id) + '"' : '') + (cont ? ' title="' + _re(_rsFullDate(t.at)) + '"' : '') + '>' + av + '<div class="sl-b">' + cpx + head + contMeta + body + more
+        const contMeta = cont && (kind || done || acts || t.sending) ? '<div class="cpm-h cpm-hc">' + kind + done + (t.sending ? when : '') + acts + '</div>' : '';
+        return '<div class="cpm' + (cont ? ' cont' : '') + (old ? ' old' : '') + (isChg ? ' chg' : '') + (isChg && t.done ? ' handled' : '') + (t.you ? ' me' : '') + (asking ? ' cp-asking' : '') + '"'
+            + (cpx || acts ? ' data-cp-note="' + _re(t.id) + '"' : '') + (cont ? ' title="' + _re(_rsFullDate(t.at)) + '"' : '') + '>' + av + '<div class="cpm-b">' + cpx + head + contMeta + body + more
             + (t.failed ? '<div class="err" role="alert">Not sent. Your words are kept here. <button type="button" class="retry" data-note-retry="' + _re(t.id) + '">Try again</button></div>' : '') + cpAsk + '</div></div>';
     }
     function _rsBubble(t, old) {

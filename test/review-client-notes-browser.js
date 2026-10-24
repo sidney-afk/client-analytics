@@ -41,7 +41,7 @@ async function shots(browser, origin) {
       const t = await openClient(browser, origin, { width: w, height: h, dark, polish });
       const fold = inS(t.page, '#foldBtn');
       if (await fold.count()) { await fold.click(); await sleep(250); }
-      const team = inS(t.page, polish ? '.sl:not(.me):not(.chg)' : '.bub.team').last();
+      const team = inS(t.page, polish ? '.cpm:not(.me):not(.chg)' : '.bub.team').last();
       await team.scrollIntoViewIfNeeded(); await team.hover(); await sleep(250);
       await t.page.screenshot({ path: name('7-notes'), fullPage: w < 800 });
       await t.ctx.close();
@@ -63,11 +63,11 @@ async function shots(browser, origin) {
       await inS(t.page, '#foldBtn').click().catch(() => {});
       await sleep(250);
       const v = await R(t.page, (r) => {
-        const rows = Array.from(r.querySelectorAll('#chat .sl'));
-        const heads = rows.filter(x => !x.classList.contains('cont')).map(x => x.querySelector('.sl-h b'));
-        const words = Array.from(r.querySelectorAll('#chat .sl-k'));
-        const times = Array.from(r.querySelectorAll('#chat .sl-t'));
-        const days = Array.from(r.querySelectorAll('#chat .sl-day')).map(d => d.innerText.trim());
+        const rows = Array.from(r.querySelectorAll('#chat .cpm'));
+        const heads = rows.filter(x => !x.classList.contains('cont')).map(x => x.querySelector('.cpm-h b'));
+        const words = Array.from(r.querySelectorAll('#chat .cpm-k'));
+        const times = Array.from(r.querySelectorAll('#chat .cpm-t'));
+        const days = Array.from(r.querySelectorAll('#chat .cpm-day')).map(d => d.innerText.trim());
         return {
           rows: rows.length, bubbles: r.querySelectorAll('#chat .bub').length,
           names: heads.map(b => b.textContent + (b.title ? '(' + b.title + ')' : '')),
@@ -83,7 +83,7 @@ async function shots(browser, origin) {
       expect(v.times.length && v.times.every(x => /(ago|just now)\|hover$/.test(x)), 'each message shows a relative time, the full date in its hover: ' + v.times.slice(0, 3).join(', '));
       const dayRe = /^(Today|Yesterday|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|(Sun|Mon|Tue|Wed|Thu|Fri|Sat) \d{1,2} [A-Z][a-z]{2}( \d{4})?)$/;
       expect(v.days.length >= 2 && v.days.every(d => dayRe.test(d)) && new Set(v.days).size === v.days.length, 'one day line per day: ' + v.days.join(', '));
-      const dated = await R(t.page, (r) => Array.from(r.querySelectorAll('#chat .sl')).map(x => x.innerText).join('\n').match(/\b\d{1,2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b|\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b|Yesterday|Today/g) || []);
+      const dated = await R(t.page, (r) => Array.from(r.querySelectorAll('#chat .cpm')).map(x => x.innerText).join('\n').match(/\b\d{1,2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b|\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b|Yesterday|Today/g) || []);
       expect(!dated.length, 'no message repeats a date the day line carries (' + dated.join(', ') + ')');
       expect(!/Delete note|Sending/.test(v.chatText), 'no "Delete note" or "Sending" text');
       await t.ctx.close();
@@ -94,13 +94,13 @@ async function shots(browser, origin) {
       const t = await openClient(browser, origin, {});
       await inS(t.page, '#foldBtn').click().catch(() => {});
       await sleep(250);
-      const where = await R(t.page, (r) => Array.from(r.querySelectorAll('#chat .sl')).map(x => ({ id: x.dataset.cpNote || '', me: x.classList.contains('me'), chg: x.classList.contains('chg'), reply: !!x.querySelector('[data-cp-reply]') })));
+      const where = await R(t.page, (r) => Array.from(r.querySelectorAll('#chat .cpm')).map(x => ({ id: x.dataset.cpNote || '', me: x.classList.contains('me'), chg: x.classList.contains('chg'), reply: !!x.querySelector('[data-cp-reply]') })));
       expect(where.filter(x => x.reply).length > 0 && where.every(x => !x.reply || (!x.me && !x.chg)), 'Reply is offered on team comments and never on a change request or one\'s own note');
-      const row = inS(t.page, '#chat .sl:has([data-cp-reply])').filter({ hasText: 'Thumbnail text is bigger' });
+      const row = inS(t.page, '#chat .cpm:has([data-cp-reply])').filter({ hasText: 'Thumbnail text is bigger' });
       await t.page.mouse.move(2, 2); await sleep(200);
-      const before = await row.locator('.sl-acts').evaluate(e => getComputedStyle(e).opacity);
+      const before = await row.locator('.cpm-acts').evaluate(e => getComputedStyle(e).opacity);
       await row.hover(); await sleep(200);
-      const after = await row.locator('.sl-acts').evaluate(e => getComputedStyle(e).opacity);
+      const after = await row.locator('.cpm-acts').evaluate(e => getComputedStyle(e).opacity);
       expect(before === '0' && after === '1', 'it shows on hover only (' + before + ' to ' + after + ')');
       await row.locator('[data-cp-reply]').click(); await sleep(250);
       const box = await R(t.page, (r) => ({ line: (r.getElementById('reLine') || {}).innerText || '', ph: (r.getElementById('ta') || {}).placeholder || '', focus: r.activeElement && r.activeElement.id }));
@@ -127,7 +127,7 @@ async function shots(browser, origin) {
         await inS(t.page, '#cmtBtn').click();
         await sleep(900);
       }
-      const g = await R(t.page, (r) => Array.from(r.querySelectorAll('#chat .sl.me')).map(x => (x.classList.contains('cont') ? 'cont' : 'head') + ':' + (x.querySelector('.sl-x') || {}).textContent));
+      const g = await R(t.page, (r) => Array.from(r.querySelectorAll('#chat .cpm.me')).map(x => (x.classList.contains('cont') ? 'cont' : 'head') + ':' + (x.querySelector('.cpm-x') || {}).textContent));
       expect(g.length >= 2 && /^head:First/.test(g[g.length - 2]) && /^cont:And a second/.test(g[g.length - 1]), 'the second message has no repeated picture or name (' + g.join(' | ') + ')');
       await t.ctx.close();
     }
@@ -135,7 +135,7 @@ async function shots(browser, origin) {
     console.log('--- switch off: the bubbles as before ---');
     {
       const t = await openClient(browser, origin, { polish: false });
-      const v = await R(t.page, (r) => ({ rows: r.querySelectorAll('#chat .sl').length, bubbles: r.querySelectorAll('#chat .bub').length, days: r.querySelectorAll('#chat .sl-day').length }));
+      const v = await R(t.page, (r) => ({ rows: r.querySelectorAll('#chat .cpm').length, bubbles: r.querySelectorAll('#chat .bub').length, days: r.querySelectorAll('#chat .cpm-day').length }));
       expect(!v.rows && v.bubbles > 0 && !v.days, 'bubbles, no rows, no day lines (' + JSON.stringify(v) + ')');
       await t.ctx.close();
     }

@@ -525,6 +525,7 @@ jobs:
           New review page behind its switches (client link, SMM Review tab, Kasper Review Session; old page when off)|node test/review-stage-browser.js
           Finish reviewing draws the eye once every part is answered (slow breathing ring, still with reduced motion)|node test/review-stage-finish-browser.js
           Client review message box and caption edits (part chips, comment or change request, the caption itself changes, thin scrollbars)|node test/review-stage-client-composer-browser.js
+          Client review page polish behind its switch (Approve spinner then check, no wait cursor, a sent change keeps its box open, no Sending text, delete cross with a confirm, old page when off)|node test/review-client-polish-browser.js
           Dialogs stay open on a press that starts inside them (OPEN_REPAIRS 215)|node test/dialog-backdrop-press-browser.js
           SyncLinear work item opens its Calendar card in a new tab|node docs/syncview-design/tests/open-in-calendar-browser.js
           Calendar and Samples, an edit stays with its client|node test/calendar-edit-stays-with-its-client-browser.js

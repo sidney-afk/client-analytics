@@ -2043,6 +2043,14 @@
       "ci": "representative"
     },
     {
+      "file": "review-client-polish-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and token), no hosted credentials and no live data. Checks the client review page's polish behind review_client_polish: Approve morphs into a spinner and then a check, faster than the old Saved mark under the same simulated server times, with no wait or progress cursor and a plain message on a refusal; a sent change request keeps its box open and empty, several sent in a row all arrive in order, and a refused one loses no words; no Sending or Saving text; a delete cross on hover or focus that asks Delete this note? with Delete and Cancel; and the page unchanged with the switch off.",
+      "reproduce": "node test/review-client-polish-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-curtain-seven-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

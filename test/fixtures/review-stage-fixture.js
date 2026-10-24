@@ -258,6 +258,10 @@ async function open(browser, origin, opt) {
         client_comment_gateway_enabled: { enabled: true }, prod_authority: { video: 'syncview', graphics: 'syncview' },
         frame_viewer_clients: opt.frame === 'off' ? { clients: [] } : { all: true },
       };
+      // opt.polish: the client review page's polish (review_client_polish) for the fixture client, or a given value.
+      if (opt.polish) values.review_client_polish = opt.polish === true ? { clients: [SLUG] } : opt.polish;
+      // A slow live permission read before each save (state.authorityDelay ms, set at run time).
+      if (state.authorityDelay && keys.includes('prod_authority')) await sleep(state.authorityDelay);
       if (opt.flags === 'on') { values.review_stage_client_pages = { clients: [SLUG] }; if (!opt.noKasperStage) values.review_stage_kasper_staff = { staff: [STAFF.id] }; }
       // opt.layout2: Kasper's second layout (all parts at once, a list on the left) for the signed-in staff member.
       if (opt.layout2) values.review_stage_kasper_layout2 = opt.layout2 === true ? { staff: [STAFF.id] } : opt.layout2;

@@ -58,6 +58,14 @@ Checked against main and `syncview_runtime_flags` on 2026-10-21 04:30 UTC. Count
 - **Today** shows captions sent back for tweaks (#2263). **Workload calm view** is on for staff (`workload_calm_staff`).
 - Everything above is live; the supervisor lane is the SyncView project (Lighthouse stopped 2026-10-20 17:50 UTC). Dated detail: `synchro-pipelines/supervisor/history/syncview/`.
 
+## Client review page polish, behind `review_client_polish` (session Porch, 2026-10-24): PR open, switch row not written yet
+
+On the client review link: Approve morphs into a spinner and then a check, faster from press to check (about 700 ms
+against about 850 ms offline under the same server times); a sent change request keeps its box open and empty for the
+next one; no "Sending..." text, a spinner; a cross on hover to delete one's own note, with "Delete this note?". Switch
+`syncview_runtime_flags.review_client_polish` `{ "clients": [...] }` or `{ "all": true }`, absent = off; meant for the
+test client only until the owner widens it. OPEN_REPAIRS 490; test `node test/review-client-polish-browser.js`.
+
 ## "Notify client" tags the client (session Tagline, 2026-10-23): live since 2026-10-23 23:42 UTC (#2302), migration applied
 
 The Slack alert starts with an at-mention of the client's linked Slack person (Kasper > Clients, new field "Slack

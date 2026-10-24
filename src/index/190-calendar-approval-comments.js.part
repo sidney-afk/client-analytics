@@ -3664,7 +3664,8 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
        button-visibility rules. Deleting a root cascades into its replies
        so the thread doesn't leave orphans. If an SMM delete clears the
        last open thread, the same Client-Approval auto-status applies. */
-    function _calDeleteComment(commentId, postId) {
+    // `confirmed`: the caller already asked (the client review page's own "Delete this note?", 195), so no second dialog.
+    function _calDeleteComment(commentId, postId, confirmed) {
         const pid = postId || _calOpenCommentsPid;
         if (!pid) return;
         const post = calState.posts.find(p => p.id === pid);
@@ -3683,7 +3684,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
             : isRoot
                 ? "This deletes the message and every reply in this thread. This can't be undone."
                 : "Delete this reply? This can't be undone.";
-        showConfirm('Delete tweak?', msg, async () => {
+        const run = async () => {
             const canonicalGate = _prodCanonicalCommentGate(post, comp);
             if (canonicalGate.linked) {
                 const receipt = await _writeUiCommitCardCommentLifecycle('calendar', post, comp, target, 'delete');
@@ -3720,7 +3721,9 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
             _calCaptureModalDrafts();
             _calRenderCommentsModal();
             if (postId && svRsCalOn()) svRsCalSync();
-        }, 'Delete');
+        };
+        if (confirmed === true) run();
+        else showConfirm('Delete tweak?', msg, run, 'Delete');
     }
 
     /* Resolve-tweaks destination chooser. When the SMM closes the last open

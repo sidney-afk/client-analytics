@@ -37,8 +37,9 @@ const T = (d, h = 10) => `2026-10-${String(d).padStart(2, '0')}T${String(h).padS
   try {
     await S.ctx.route('**/rest/v1/team_members**', route => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
       body: JSON.stringify([{ id: 'm1', name: 'Browser Staff', role: 'admin', team: null, active: true }, { id: 'm7', name: 'Robin Testwell', role: 'smm', team: null, active: true }]) }));
-    await S.ctx.route('**/functions/v1/production-comments', async route => {
+    await S.ctx.route('**/functions/v1/production-comments{,?*}', async route => {
       let body = {}; try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+      if (route.request().method() === 'GET') body = { action: new URL(route.request().url()).searchParams.get('action') || '' };   // the inbox list is read with GET ?action=inbox
       if (route.request().method() === 'OPTIONS' || (body.action !== 'inbox' && body.action !== 'inbox_mark')) return route.fallback();
       const reply = obj => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(obj) });
       const list = () => convs.map(c => {

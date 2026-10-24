@@ -26,6 +26,8 @@
 // A conversation left with no visible message is dropped, and hidden
 // messages never count as unread, nor do automatic records (see countsAsNew).
 
+import { safeAttachments } from "./policy.mjs";
+
 export const COMPONENTS = ["video", "graphic", "caption", "title"];
 export const UNREAD_WINDOW_DAYS = 14; // with no read mark, older messages count as read
 const TITLES = /^(?:dr|doctor|mr|mrs|ms|miss|prof|professor)\.?\s+/;
@@ -92,6 +94,12 @@ function parseList(raw) {
 const sameName = (a, b) => clean(a).toLowerCase().replace(/\s+/g, " ") === clean(b).toLowerCase().replace(/\s+/g, " ");
 
 // Every live message on one post, oldest first: card notes plus canonical rows.
+// A message's attachments (safe http(s) links only, policy.mjs), carried only when it has some, so Messages can show
+// them as Notes does (round 7, 2026-10-24).
+function withFiles(value) {
+  const files = safeAttachments(value);
+  return files.length ? { attachments: files } : {};
+}
 export function collectMessages(post, canonicalRows) {
   const seen = new Set();
   const out = [];
@@ -120,6 +128,7 @@ export function collectMessages(post, canonicalRows) {
       is_tweak: row.is_tweak === true,
       component: clean(row.component) || (clean(row.team) === "graphics" ? "graphic" : "video"),
       created_at: clean(row.source_created_at) || clean(row.created_at),
+      ...withFiles(row.attachments),
     });
   }
   for (const comp of COMPONENTS) {
@@ -137,6 +146,7 @@ export function collectMessages(post, canonicalRows) {
         is_tweak: m.is_tweak === true,
         component: comp,
         created_at: clean(m.created_at),
+        ...withFiles(m.attachments),
       });
     }
   }

@@ -34120,6 +34120,55 @@ back the old function (including its "Needs info" lines).
   - `unread-badges-v2-browser.js`, new section H (day lines, no per-message New, the quiet change line, header words, empty thumbnail, first-name caption, grouping, the Notes lock and "Change request", "Waiting" alone).
   - Screenshots `e-*` in `docs/syncview-design/proofs/unread-badges-r6/`.
 
+## 487. [2026-10-24 15:11 UTC, BUILT, NOT MERGED] Random red staff-phone check: the Messages count rewrote itself unchanged (session Beacon)
+
+- **Symptom:** `qa/staff-phone-responsiveness.js` (CI `staff-phone-rules`) failed at random with "Caption tap scanned unrelated popups 1 !== 0" on Calendar at 390 px, light or dark.
+  - Reproduced on main 32a8ab73 in 2 of 8 Calendar results and on #2314 in 4 of 8, with the same message, so it was not that PR's code.
+- **Cause:** the phone bar (099) watches the whole page and answers any change outside the caption with a page-wide popup scan.
+  - A probe that logged every page change during the tap caught the failure on both checkouts. The only changes were the header Messages count (`.msg-unread`): its text and `hidden`, written twice.
+  - 326 `_msgPaintCounts` (and 327 `svuPaintCounts`, desktop only) set the count's text, `hidden` and, in 327, its class on every inbox read and live refresh, even to the same values. When a refresh landed during the tap, the unchanged rewrite woke the scan.
+- **Fix:** both painters write the text, `hidden` and class only when the value changes. Nothing else changed.
+- **Proof:** `test/msg-count-write-on-change.js` runs both painters, taken from the fragments, twice with the same counts and finds zero writes the second time. It checks that a changed count is still written, and it fails on the old code.
+
+## 488. [2026-10-24 13:50 UTC, BUILT, NOT MERGED, behind `caption_history_staff`] Caption history pop-up: less visual noise, and the timeline icons off their line (session Versions, follow-up to 482)
+
+- **Owner feedback after using it live (2026-10-24).** Drop the arrows (a step is clicked instead), drop the Changes / Clean text switch (a redo always shows Before and After), drop the "Mostly rewritten" label, make the purple note box much quieter, and put every timeline icon on its line ("Earlier" sat off it). The rule behind it: as little visual noise as possible.
+- **Cause of the misaligned icons.** The steps took the width of their own text (`flex: 1 0 118px`; 84 px on a phone, where long "who · when" lines made them wider), while each connecting line was drawn as half of its own step's width, so with unequal steps it missed the icon before it; and a later step's line painted over the icon before it.
+- **Changed (180, 020, 010; behind the same switch).** The steps are equal widths with their text wrapping inside, and each line runs from one icon's edge to the next, under the icons. No arrows, no switch, no "Mostly rewritten" label. A redo shows Before and After whole; any other change keeps its words marked. The note is a thin rule on the left with muted text, no fill and no label. The unused note colours were removed.
+- **Proven offline.** `test/caption-history-browser.js` now checks that every icon is centred on the line and every line meets the icons, that the steps are equal, that there are no arrows and no switch, that the note has no fill, a thin rule and no label, and that a redo shows Before and After with no "Mostly rewritten". Those new checks fail on the code before this change. Also passing: `dark-contrast`, `caption-helper-browser`, `popup-behaviour-browser`, `client-review-requests-unchanged-browser`, `check-modules`.
+
+**Way back:** revert the pull request; the switch `caption_history_staff` still hides all of it.
+
+## 489. [2026-10-24 15:51 UTC, BUILT, NOT MERGED] Round-7 unread badges: the owner's seven points, and no "Sending…" on the team's side (session Beacon)
+
+- **Owner, 2026-10-24 (relayed by the supervisor), round 7:** everything behind `unread_badges_v2`, staff side only. The client review page is session Porch's.
+- **Read but still needs you:** on a card, the number alone in its colour, with no ring and no fill.
+- **No "Not done"** on a change request. A change request still listed is not done.
+- **The hover toolbar sits at the bottom right** of a note (Notes) and of a message (Messages), no longer the top right.
+  - 327 `_svuFitBars` measures where each note's last line of words ends.
+  - Only where that line runs under the toolbar does the note get the toolbar's height of room below (`svu-bar-room`). Elsewhere it adds no space.
+  - The part's name stays pinned top right, and the header keeps room only for it.
+- **No Reply on a change request**, nor on a reply under one, in Notes and in Messages. Mark done and Delete stay, and replies already written still show.
+  - Measured on the live table, read-only: 47 replies under change requests, 12 in the last 30 days.
+  - So this drops a path the team uses. **Owner's decision, 2026-10-24 15:36 UTC (relayed by the supervisor): no Reply on change requests**, as built: Mark done and Delete stay, existing replies still show in full, and it stays behind the switch.
+- **No "Sending…" / "Saving…" on the team's send paths:** a shared spinner instead.
+  - 040 `svSpinHtml(label)` / `svSpinButton(btn, on, label)`, the CSS `.sv-spin` in 020, and its copy in the review stage's shadow root (195).
+  - 327 `svuSpinOr(words)` uses the spinner when the switch is on.
+  - Swept: the note outbox line (190 `_noteOutboxStatusHtml`: Notes and Messages, on Calendar and Samples), the urgent ping button (140), the review stage's conversation time for the team and Kasper (195), and Kasper's Approve (330, 290).
+  - The other "Sending…" / "Saving…" words on the site are held by a ratchet in `test/no-sending-words.js`: counts may only go down.
+- **Spacing check of every note and message state, light and dark:** short, long, several lines, attachments, replies, team only, automatic record.
+  - The gaps seen in multi-line notes are the note's own blank lines.
+  - Found and fixed: **Messages never showed a message's attachments**, because the inbox answer did not carry them.
+  - production-comments `inbox.mjs` now carries them (safe http(s) links only, via `policy.mjs safeAttachments`, and only when there are some), and the inbox's canonical read selects them.
+  - 327 shows them under the words, behind the switch.
+- **The whole Notes row on a card opens Notes:** the button, the gap and the bubbles. The bubbles' hover still works.
+- **Proof:**
+  - `docs/syncview-design/tests/unread-badges-v2-browser.js`, new section I. It fails 8 checks on main's code. The "never covers a word" check fails when the room rule is switched off.
+  - `test/no-sending-words.js`: a source scan plus the ratchet.
+  - `test/messages-inbox-scope.js`: attachments in the inbox.
+  - Before and after screenshots, light and dark: `docs/syncview-design/proofs/unread-badges-r7/`, made by `shots.js` in that folder.
+- **After merge:** production-comments deploys through the merge lane, with no migration and no switch change.
+
 ## 490. [2026-10-24 17:30 UTC, BUILT, NOT MERGED] Client review page polish behind `review_client_polish`: Approve animation, change box stays open, no "Sending" text, delete cross (session Porch)
 
 - **What prompted it:** the owner's list for the client review link (Calendar review stage, client mode). Everything is behind a new switch so only the test client sees it until he widens it.

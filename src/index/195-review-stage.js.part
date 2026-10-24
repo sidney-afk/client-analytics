@@ -1,4 +1,5 @@
-import { showConfirm, showNotify, svAreaRegister } from './040-shared-briefs.js';
+import { showConfirm, showNotify, svAreaRegister, svSpinHtml } from './040-shared-briefs.js';
+import { svuActive } from './327-core-unread-badges.js';
 import { _calComponentsFor, _calIsYouTubeCard, _calNormStatus } from './120-calendar-flags-write-repair.js';
 import { _calCommentsFor, _calCommentsForView, _calSetCommentsFor, calState } from './130-calendar-model-cache.js';
 import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui.js';
@@ -911,6 +912,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .send{right:6px;bottom:4px}
 .cap-edit textarea,.cta{scroll-margin-block:24px}
 }
+.sv-spin{display:inline-block;flex:none;width:12px;height:12px;box-sizing:border-box;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;opacity:.75;vertical-align:-2px;animation:sv-spin-turn .7s linear infinite}
+@keyframes sv-spin-turn{to{transform:rotate(360deg)}}
+@keyframes sv-spin-pulse{from{opacity:.3}to{opacity:.9}}
+@media (prefers-reduced-motion:reduce){.sv-spin{animation:sv-spin-pulse 1s ease-in-out infinite alternate;border-right-color:currentColor}}
 `;
     /* Kasper's second layout (session Easel, 2026-10-20): added to the page's styles only when that layout is on, so the
        old layout's stylesheet is untouched. Tokens only, no colours of its own. */
@@ -1368,6 +1373,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             try { who = _calNoteAuthorName(c) || c.author || ''; } catch (e) { who = c.author || ''; }
             return {
                 id: String(c.id || ''), you: _rsIsMine(c, mode), who: who || (c.role === 'client' ? 'Client' : 'Team'), role: c.role || '', at: String(c.created_at || ''),
+                // Round 7 (switch unread_badges_v2, staff and Kasper): a spinner in place of the word "Sending…".
+                spin: !!c.sending && mode !== 'client' && typeof svuActive === 'function' && svuActive(),
                 part: comp, time: c.sending ? (R.cp ? '' : 'Sending…') : _rsWhen(c.created_at), text: String(c.body || ''),
                 change: !!c.is_tweak, done: !!c.done, aud: c.audience || '', sending: !!c.sending || !!(pending && pending.state === 'sending'), failed: !!(pending && pending.state === 'failed'), edit: c.is_tweak ? null : _rsEditOf(c.body),
                 canDelete: mode === 'client' && !c.sending && (c.canonical ? !!c.can_delete : c.role === 'client'),
@@ -2288,14 +2295,14 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
        Approve morphs into a small spinner the moment it is pressed, turns into a check the moment the save lands, and
        the row then settles into its Approved state; a refused save puts the buttons back with the reason. A sent change
        request keeps its box open and empty on the same part, so the next change can follow; changes sent while one is
-       still saving wait their turn here and never replace each other. No "Sending..." text anywhere: one spinner. */
+       still saving wait their turn here and never replace each other. No sending or saving words anywhere: one spinner. */
     const RS_CP_CHECK_MS = 650;
     // The page's one spinner: the shared one (svSpinHtml, 040, session Beacon) when it is there, else the same markup
     // here. `cp-spin` only sizes it for this page's places (a note's header, Finish, the approve circle).
     function _rsSpinner(label) {
         const l = label || 'Sending';
         let h = '';
-        try { if (typeof window.svSpinHtml === 'function') h = String(window.svSpinHtml(l) || ''); } catch (e) { h = ''; }
+        try { h = String(svSpinHtml(l) || ''); } catch (e) { h = ''; }
         if (!/class="sv-spin/.test(h)) h = '<span class="sv-spin" role="status" aria-label="' + _re(l) + '"></span>';
         return h.replace('class="sv-spin', 'class="cp-spin sv-spin');
     }
@@ -2614,7 +2621,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const asking = R.cp && t.canDelete && t.id && R.S.cpDel === t.id;
         const cpx = R.cp && t.canDelete && t.id && !asking ? '<button class="cp-x" type="button" data-cp-del="' + _re(t.id) + '" aria-label="Delete note" title="Delete note">' + RI.x + '</button>' : '';
         const cpAsk = asking ? '<div class="cp-ask" role="group" aria-label="Delete this note?"><span>Delete this note?</span><button class="cp-yes" type="button" data-cp-yes="' + _re(t.id) + '">Delete</button><button class="cp-no" type="button" data-cp-no="1">Cancel</button></div>' : '';
-        const when = R.cp && t.sending ? _rsSpinner('Sending') : '<span>' + _re(t.time) + '</span>';
+        const when = R.cp && t.sending ? _rsSpinner('Sending') : '<span>' + (t.spin ? svSpinHtml('Sending') : _re(t.time)) + '</span>';
         const av = t.you ? '' : '<span class="av' + (t.role === 'client' ? ' cl' : t.role === 'kasper' ? ' kp' : '') + '">' + _re(String(t.who || '?').charAt(0).toUpperCase()) + '</span>';
         const long = !t.edit && _rsLongNote(t.text), open = long && !!(t.id && R.S.exp['note:' + t.id]);
         const more = long && t.id ? '<button class="bmore" type="button" data-more="' + _re(t.id) + '" aria-expanded="' + open + '">' + (open ? 'Show less' : 'Show all') + '</button>' : '';

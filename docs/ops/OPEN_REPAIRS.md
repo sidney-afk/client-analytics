@@ -33949,3 +33949,69 @@ Stamped 2026-10-23 20:36 UTC.
 - **Owner step.** Insert the setting row (the id and SQL are in the PR, not here).
 
 **Way back:** delete the `editor_suggest_last` row (ordering only), or revert the pull request.
+## 481. [2026-10-23, BUILT, NOT MERGED, NOT DEPLOYED, NOT APPLIED, SWITCH ABSENT] Thumbnail titles from the filming plan: buttons in Production (session Titlecard)
+
+**Why.** The automatic thumbnail-title writer (391, 394) runs once, when a thumbnail is created, and is usually
+too early: in the 7 days to 2026-10-23 it wrote 18 titles and 61 "Needs info" lines (24 plan empty, 20 no tab
+for the month, 17 not matched; counts from `thumbnail_title_queue`). Nothing tried again once the plan was
+written. Owner (2026-10-23): a button on a thumbnail sub-issue, and one on the post for every thumbnail at
+once, with a building state per row and a toast that stays until it is all done. Plan, mock-ups and the seven
+approved decisions: `docs/syncview-design/mockups/thumbnail-titles/PLAN.md`.
+
+**What was built.**
+- **Page** (`src/index/255-production-thumbnail-titles.js.part`, hooks in 240 and 260, styles in 010): "Thumbnail
+  titles" on the right of a post's "Sub-issues N" header, "Write title" beside Edit on a thumbnail sub-issue.
+  Per-row state (Waiting, Writing title…, the title written, Has a description · Review, the skip reason,
+  Failed · Try again), a toast that stays until the run is finished (and until closed when a row needs a person),
+  the review sheet with before and after (Keep mine first; Replace keeps the old text under the title; Add title
+  above mine; Use new for an earlier AI title), Undo, Try again, Use another tab. Admins and SMMs; a designer sees
+  the button greyed with the reason. Behind the new switch `thumbnail_title_buttons_staff` `{"staff": [...]}`
+  (absent = off), read with the other switches in 188.
+- **Server** (`supabase/functions/thumbnail-titles`: `runs.ts`, `manual.mjs`, `plan.ts`, `index.ts`): browser
+  actions `run / status / decide / retry / pick_tab / cancel` with the staff key (admin or SMM). The run works in
+  the background (`EdgeRuntime.waitUntil`), so closing the tab does not stop it; the per-minute timer finishes a
+  run whose worker died. One active run per post (a unique index): a second press, from anyone, follows it. The
+  plan tab: the latest tab dated on or before the day the batch was made (a newer tab is the plan still being
+  written), checked against the batch's video numbers, the one before it if it does not hold them, and the person
+  is asked when two fit or none does. One model call per tab for the whole post. Written at once only into an
+  empty description or the robot's own exact "Needs info" line; everything else waits for a person. Every write
+  is compare-and-set (`thumbnail_title_manual_apply`) and lands in the issue's history under the person who
+  pressed. Real token counts are stored per run.
+- **Follow-ups the owner approved with it:** the background writer no longer writes "Needs info" lines into
+  descriptions (the queue keeps the reason); plans are read with the link reader first, then the Google service
+  account the plan-tab lookup already holds, so a private plan works once shared with that account; the timer's
+  answer counts tokens.
+- **Not touched:** `production-write` (no Section 4 re-pin), the Submit tab's own writer, n8n.
+
+**Measured for cost (read only, counts only, 2026-10-23 21:30 UTC).** All 35 active clients' plans were read
+the way the button reads them: 25 give a usable tab, 8 have no tab with videos yet, 2 have two tabs that fit
+equally (the button asks). The tab the rule picks is 2.5k to 49k characters, median 20k, 90th percentile 44k.
+With a ~2.2k-character prompt that is about 6k input tokens for a median batch and 12k at the 90th percentile.
+At Sonnet 5.5's list price that is **about 2 to 5 cents per batch** (one call per post, whatever its size). Not
+a real call: this sandbox has no AI key; the first real run stores the true numbers in
+`thumbnail_title_runs.input_tokens / output_tokens`.
+
+**Tests.** `test/thumbnail-title-buttons-source.js` (78 checks: the batch rule, matching, what may be written,
+the texts each choice writes, the service-account reader, wiring), `test/thumbnail-title-runs-deno.ts` (25
+checks: a whole post against an in-memory database, a second presser, decisions, an edit made meanwhile, a
+failing provider and Try again, a dead worker, two tabs and a pick; runs in the Edge Function type-ratchet lane),
+After the first review (Codex, 2026-10-23): the database writer also refuses a team Production may not write
+(`prod_authority` not `syncview`, or missing: fail-closed like `authorityFor`), an automatic write is fenced on its
+run still running (a Cancel wins), a run killed on its third try is ended instead of holding its post, and after a
+conflict the choices follow what the description holds now (unit 83 checks, server 31).
+`docs/syncview-design/tests/thumbnail-title-buttons-browser.js` (mocked: switch off draws nothing; a teammate's
+run is followed; a batch with a written, a review and a failed row; the toast stays; review with Escape and
+outside click; Try again; Undo; "Write title" beside Edit). Also passed here: `test/thumbnail-titles-source.js`
+(197, updated for the new reader and the no-"Needs info" rule), `prod-write-gateway-browser.js`,
+`prod-boot-budget.js`, `prod-comments-browser.js`, `prod-feedback-browser.js`, `prod-a11y-focus.js`, the module,
+lazy-loading, dark-contrast and type-ratchet checks.
+
+**Release order.** 1. Merge (the function deploys on merge; the migration is marked
+`functions-cope-without-this`, and until it is applied the buttons answer "not set up on the server yet").
+2. Apply `migrations/2026-10-23-thumbnail-title-buttons.sql`; it is applied when
+`select to_regclass('public.thumbnail_title_runs') is not null` is true. 3. Insert the switch for the owner's two
+staff ids (the INSERT is in the PR, never in this file). 4. One press on the test client's post, after giving it
+a real plan tab. Then add the other admins and SMMs.
+
+Rollback: delete the switch row (buttons gone at once); the migration's rollback block; reverting the PR brings
+back the old function (including its "Needs info" lines).

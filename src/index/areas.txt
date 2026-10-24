@@ -57,6 +57,7 @@
 230-production-create-comments.js.part     synclinear
 240-production-description.js.part         synclinear
 250-production-controls-data.js.part       synclinear
+255-production-thumbnail-titles.js.part    synclinear
 260-production-refresh-boot.js.part        core
 270-samples-model.js.part                  core!
 280-samples-cards-notes.js.part            core!

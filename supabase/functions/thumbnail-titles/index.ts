@@ -27,7 +27,8 @@
 //   THUMBNAIL_TITLES_MODEL    default claude-sonnet-5-5
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
-import { planTabs, tabMonth } from "../higgsfield-mcp/clientinfo.ts";
+import { tabMonth } from "../higgsfield-mcp/clientinfo.ts";
+import { readPlanTabs } from "./plan.ts";
 import {
   clientOn,
   effectivePrompt,
@@ -56,6 +57,13 @@ import {
   userMessage,
 } from "./logic.mjs";
 import { seedDefault } from "./seed.ts";
+import { actorName, addUsage } from "./manual.mjs";
+import { type Asker, MANUAL_ACTIONS, RunError, handleManual, processRun, resumeStaleRuns } from "./runs.ts";
+import {
+  authorizeBrowserWrite,
+  browserWriteAuthResponse,
+  normalizeBrowserWriteClient,
+} from "../_shared/browser-write-auth.ts";
 
 const DEFAULT_MODEL = "claude-sonnet-5-5";
 const CLAIM_LIMIT = 40;
@@ -75,6 +83,15 @@ function clean(v: unknown): string {
 }
 
 async function apply(db: SupabaseClient, id: string, text: string, state: string, outcome: string, lastError = ""): Promise<string> {
+  // No more "Needs info" lines in descriptions (owner decision 5, 2026-10-23): the description stays
+  // empty and only the queue records why, so a person can press "Write title" once the plan is ready.
+  if (state === "needs_info") {
+    const { error } = await db.from("thumbnail_title_queue")
+      .update({ state: "needs_info", outcome, lease_until: null, last_error: lastError || null, updated_at: new Date().toISOString() })
+      .eq("deliverable_id", id).in("state", ["pending", "running"]);
+    if (error) throw new Error("apply_failed");
+    return "needs_info";
+  }
   const args = { p_deliverable_id: id, p_text: text, p_state: state, p_outcome: outcome };
   let { data, error } = await db.rpc("thumbnail_title_apply", { ...args, p_error: lastError || null });
   // Deployed before migrations/2026-10-10-thumbnail-titles-error-record.sql was applied: the database
@@ -96,7 +113,7 @@ async function fail(db: SupabaseClient, job: Job, code: string, counts: Json): P
   counts.retry_later = Number(counts.retry_later || 0) + 1;
 }
 
-type Answer = { ok: boolean; content: unknown; error: string };
+type Answer = { ok: boolean; content: unknown; error: string; usage?: unknown };
 
 async function callClaude(apiKey: string, model: string, messages: Json[], system = SYSTEM_PROMPT): Promise<Answer> {
   const ctrl = new AbortController();
@@ -115,7 +132,7 @@ async function callClaude(apiKey: string, model: string, messages: Json[], syste
     }
     if (!body || !Array.isArray(body.content)) return { ok: false, content: null, error: "answer_unreadable" };
     const stop = clean(body.stop_reason);
-    return { ok: true, content: body.content, error: stop && stop !== "end_turn" ? `stop_${stop}` : "" };
+    return { ok: true, content: body.content, error: stop && stop !== "end_turn" ? `stop_${stop}` : "", usage: body.usage };
   } catch (e) {
     const aborted = e instanceof DOMException && e.name === "AbortError";
     return { ok: false, content: null, error: aborted ? "timeout" : shortError("network", e instanceof Error ? e.name : "") };
@@ -127,19 +144,25 @@ async function callClaude(apiKey: string, model: string, messages: Json[], syste
 // One request for a month's posts. An answer with no readable list gets one
 // follow-up in the same thread asking for the JSON only; if that still has no
 // list, the reason comes back so the caller can store it.
-async function askClaude(apiKey: string, model: string, prompt: string, posts: Post[], planText: string): Promise<{ titles: Map<string, string> | null; error: string }> {
+// Token counts for the whole call (both requests when a follow-up was needed), recorded per run and
+// counted in the tick's response (owner decision 7, 2026-10-23).
+type Usage = { input: number; output: number };
+async function askClaude(apiKey: string, model: string, prompt: string, posts: Post[], planText: string): Promise<{ titles: Map<string, string> | null; error: string; usage: Usage }> {
   const keys = posts.map((p) => p.key);
+  let usage: Usage = { input: 0, output: 0 };
   const messages: Json[] = [{ role: "user", content: userMessage(prompt, posts, planText) }];
   const first = await callClaude(apiKey, model, messages);
-  if (!first.ok) return { titles: null, error: first.error };
+  usage = addUsage(usage, first.usage);
+  if (!first.ok) return { titles: null, error: first.error, usage };
   const parsed = parseTitles(first.content, keys);
-  if (parsed.ok) return { titles: parsed.titles, error: "" };
+  if (parsed.ok) return { titles: parsed.titles, error: "", usage };
   messages.push({ role: "assistant", content: first.content as Json[] }, { role: "user", content: JSON_ONLY_FOLLOWUP });
   const second = await callClaude(apiKey, model, messages);
-  if (!second.ok) return { titles: null, error: shortError(parsed.error, second.error) };
+  usage = addUsage(usage, second.usage);
+  if (!second.ok) return { titles: null, error: shortError(parsed.error, second.error), usage };
   const again = parseTitles(second.content, keys);
-  if (again.ok) return { titles: again.titles, error: "" };
-  return { titles: null, error: shortError(again.error, [first.error, second.error].filter(Boolean).join(" ")) };
+  if (again.ok) return { titles: again.titles, error: "", usage };
+  return { titles: null, error: shortError(again.error, [first.error, second.error].filter(Boolean).join(" ")), usage };
 }
 
 // The used-video check for posts that borrowed a neighbouring month's tab: one extra request per borrowed
@@ -185,8 +208,8 @@ async function runClient(db: SupabaseClient, slug: string, jobs: Job[], apiKey: 
   const docId = clean(plan && (plan as Json).doc_id);
   if (!docId) return await writeAll(live, needsInfoLine("no_plan"), "no_plan");
 
-  let tabs: Array<{ id: string; name: string; text: string }> = [];
-  try { tabs = await planTabs(docId); } catch (_e) { tabs = []; }
+  // The link reader first, then the service account (private plans, owner decision 6).
+  const tabs = (await readPlanTabs(docId)).tabs;
   if (!tabs.length) return await writeAll(live, needsInfoLine("plan_unreadable"), "plan_unreadable");
 
   const { data: promptRow } = await db.from("thumbnail_title_prompts").select("prompt,default_prompt").eq("client_slug", slug).maybeSingle();
@@ -282,6 +305,8 @@ async function runClient(db: SupabaseClient, slug: string, jobs: Job[], apiKey: 
       if (!toTitle.length) continue;
     }
     const answer = await askClaude(apiKey, model, prompt, toTitle, tab.text);
+    counts.input_tokens = Number(counts.input_tokens || 0) + answer.usage.input;
+    counts.output_tokens = Number(counts.output_tokens || 0) + answer.usage.output;
     if (!answer.titles) {
       // Counts and a code only: never a title, a plan line or a client name in the logs.
       console.warn(`thumbnail-titles: no titles for a group of ${toTitle.length} (${answer.error})`);
@@ -300,8 +325,62 @@ async function runClient(db: SupabaseClient, slug: string, jobs: Job[], apiKey: 
   }
 }
 
+// The Production buttons (runs.ts) are called from the browser with a staff key; everything else is the
+// timer, with the Vault key, exactly as before.
+const CORS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-key, x-syncview-actor, x-syncview-role, x-syncview-source, x-syncview-client-token",
+  "Cache-Control": "no-store",
+};
+function corsJson(obj: unknown, status = 200): Response {
+  return new Response(JSON.stringify(obj), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+}
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
+
+function runDeps() {
+  const apiKey = clean(Deno.env.get("THUMBNAIL_TITLES_API_KEY"));
+  const model = clean(Deno.env.get("THUMBNAIL_TITLES_MODEL")) || DEFAULT_MODEL;
+  const ask: Asker = (prompt, posts, planText) => askClaude(apiKey, model, prompt, posts as Post[], planText);
+  return { apiKey, model, ask };
+}
+
+async function handleBrowser(req: Request): Promise<Response> {
+  try {
+    const body = await req.json().catch(() => ({})) as Json;
+    const action = clean(body.action);
+    if (!MANUAL_ACTIONS.has(action)) return corsJson({ ok: false, error: "unknown action" }, 400);
+    const client = normalizeBrowserWriteClient(body.client);
+    if (!client) return corsJson({ ok: false, error: "client required" }, 400);
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    if (!supabaseUrl || !serviceKey) return corsJson({ ok: false, error: "server not configured" }, 500);
+    const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+    const principal = await authorizeBrowserWrite(db, req, client, "thumbnail-titles");
+    // Admins and SMMs only: the people who may already edit a description (owner decision 2).
+    if (principal.kind !== "staff" || !["admin", "smm"].includes(principal.role)) {
+      return corsJson({ ok: false, error: "smm_or_admin_only" }, 403);
+    }
+    const who = { name: actorName(req.headers.get("x-syncview-actor"), principal.role), role: principal.role };
+    const deps = runDeps();
+    const start = (runId: string) => {
+      const work = processRun(db, runId, deps).catch(() => "failed");
+      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime && typeof EdgeRuntime.waitUntil === "function") EdgeRuntime.waitUntil(work);
+    };
+    return corsJson(await handleManual(db, action, body, client, who, start));
+  } catch (e) {
+    const auth = browserWriteAuthResponse(e);
+    if (auth) return corsJson({ ok: false, error: auth.code }, auth.status);
+    if (e instanceof RunError) return corsJson({ ok: false, error: e.message }, e.status);
+    console.warn(`thumbnail-titles: a button request failed (${e instanceof Error ? e.name : "error"})`);
+    return corsJson({ ok: false, error: "server_error" }, 500);
+  }
+}
+
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
+  if (!req.headers.get("x-thumbnail-titles-key") && req.headers.get("x-syncview-key")) return await handleBrowser(req);
   const given = clean(req.headers.get("x-thumbnail-titles-key"));
   if (given.length < 32) return json({ ok: false, error: "unauthorized" }, 401);
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
@@ -332,10 +411,14 @@ Deno.serve(async (req) => {
     return json({ ok: true, seeded: (clients || []).length - failed, failed, ...sources });
   }
 
+  // Finish any button run whose worker stopped. Missing tables (migration not applied) are simply skipped.
+  let resumed = 0;
+  try { resumed = await resumeStaleRuns(db, runDeps()); } catch (_e) { resumed = 0; }
+
   const { data: flag } = await db.from("syncview_runtime_flags").select("value").eq("key", "thumbnail_titles").maybeSingle();
   const flagValue = (flag && (flag as Json).value) as Json | null;
   const anyOn = !!flagValue && Array.isArray(flagValue.clients) && flagValue.clients.length > 0;
-  if (!anyOn) return json({ ok: true, skipped: "off" });
+  if (!anyOn) return json({ ok: true, skipped: "off", resumed_runs: resumed });
   // Without the AI key, lines that need no AI (no plan, empty plan, no tab for the month) are still
   // written; items that need a title go back in the queue without using up a try.
   const apiKey = clean(Deno.env.get("THUMBNAIL_TITLES_API_KEY"));
@@ -366,5 +449,5 @@ Deno.serve(async (req) => {
     }
   }
   // Counts only: never a title, a slug or an id in the response or the logs.
-  return json({ ok: true, queued_new: Number(queued || 0), claimed: (claimed || []).length, clients: byClient.size, ...counts });
+  return json({ ok: true, queued_new: Number(queued || 0), claimed: (claimed || []).length, clients: byClient.size, resumed_runs: resumed, ...counts });
 });

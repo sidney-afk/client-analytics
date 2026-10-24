@@ -51,6 +51,14 @@ Calendar and Samples Create Post offer "Not assigned" (the post is created with 
 Needs assignment); `production-write` accepts `unassigned: true` on video items. The setting row
 `syncview_runtime_flags.editor_suggest_last` `{ "staff": [...] }` puts the named editors last in the picker; no row, no change.
 OPEN_REPAIRS 478; tests `node test/intake-not-assigned.js`, `node test/create-post-picker.js`.
+## Thumbnail titles from the filming plan, buttons in Production (session Titlecard, 2026-10-23): PR open, not merged
+
+"Thumbnail titles" on a post's Sub-issues header and "Write title" beside Edit on a thumbnail sub-issue, behind the
+new switch `thumbnail_title_buttons_staff` (absent = off). The run lives on the server (one per post), picks the plan
+tab by the approved rule, writes only into an empty description or the old robot "Needs info" line, and asks before
+touching anything a person wrote. With it, the background writer stops writing "Needs info" lines, private plans are
+read through the service account, and tokens are recorded per run. Needs `migrations/2026-10-23-thumbnail-title-buttons.sql`
+applied after merge. OPEN_REPAIRS 481; plan and decisions in `docs/syncview-design/mockups/thumbnail-titles/PLAN.md`.
 
 ## Kasper's tab boots fast, behind `kasper_fast_boot` (session Quick, 2026-10-20): merged (#2265), switch on for Sidney's two ids only, Kasper next
 

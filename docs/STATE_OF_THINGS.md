@@ -18,6 +18,26 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView stand-in, 2026-10-24): what went live overnight
+
+Checked against main (5e86358), the deploy lanes and `syncview_runtime_flags` on 2026-10-24 07:40 UTC. Each change had a
+read-only live test session after it went live; all passed. Counts only.
+
+- **Truth docs**: `docs/truth/BRIEFING.md`'s stamp expired at midnight and failed unit (1) on every PR; it was re-read
+  live and re-stamped (#2308). Next expiries: ENDPOINTS and LINEAR on 2026-11-06.
+- **Notify client tags the client** (#2302): 29 of the 33 clients with a private channel have a linked Slack person
+  (18 by email, 11 by channel membership); the owner's own end-to-end test on the test client passed.
+- **Thumbnail title buttons** (#2303): live 02:10, migration applied, `thumbnail_title_buttons_staff` = the owner's two ids.
+- **Messages badge from page load** (#2300): live 03:09 for all staff; `production-comments` serves the inbox list over
+  `GET ?action=inbox`. First signed-in reads 200 at about 05:00.
+- **Caption history** (#2304): live 05:12, migration applied (without its three no-op `drop trigger if exists` lines,
+  which the database tool's approval prompt could not get past), `caption_history_staff` = the owner's two ids; the
+  owner's first redo with a note was recorded correctly.
+- **Create Post "Not assigned"** (#2301): Section 4 release green 04:51 (production-write v129, deliverable-write and
+  batch-write v82); `editor_suggest_last` names the one outsourced editor.
+- **Unread badges round 5** (#2309): live 05:02, `unread_badges_v2` = the owner's two ids, desktop only; Slack photos are
+  fetched only on reads that ask for them.
+
 ## Latest (SyncView stand-in, 2026-10-23): what changed since the 2026-10-21 block below
 
 Checked against main and `syncview_runtime_flags` on 2026-10-23 22:35 UTC. Counts only.
@@ -38,20 +58,20 @@ Checked against main and `syncview_runtime_flags` on 2026-10-21 04:30 UTC. Count
 - **Today** shows captions sent back for tweaks (#2263). **Workload calm view** is on for staff (`workload_calm_staff`).
 - Everything above is live; the supervisor lane is the SyncView project (Lighthouse stopped 2026-10-20 17:50 UTC). Dated detail: `synchro-pipelines/supervisor/history/syncview/`.
 
-## "Notify client" tags the client (session Tagline, 2026-10-23): PR open, needs a migration
+## "Notify client" tags the client (session Tagline, 2026-10-23): live since 2026-10-23 23:42 UTC (#2302), migration applied
 
 The Slack alert starts with an at-mention of the client's linked Slack person (Kasper > Clients, new field "Slack
 person to tag"), so they get a real notification; with nobody linked it posts untagged, exactly as before. The
 confirm box says who is tagged. Needs `migrations/2026-10-23-client-slack-mention.sql`; the functions cope without
 it (untagged). On 2026-10-23 no client had a linked person. OPEN_REPAIRS 477 has the safe live test (the owner-only
 preview to his own DM, with the test client linked to his own id).
-## Create Post: "Not assigned", and an editor suggested last (session Blank, 2026-10-23): PR open
+## Create Post: "Not assigned", and an editor suggested last (session Blank, 2026-10-23): live since 2026-10-24 04:51 UTC (#2301), setting row on
 
 Calendar and Samples Create Post offer "Not assigned" (the post is created with no video editor and shows in Workload's
 Needs assignment); `production-write` accepts `unassigned: true` on video items. The setting row
 `syncview_runtime_flags.editor_suggest_last` `{ "staff": [...] }` puts the named editors last in the picker; no row, no change.
 OPEN_REPAIRS 478; tests `node test/intake-not-assigned.js`, `node test/create-post-picker.js`.
-## Caption history on Calendar cards, behind `caption_history_staff` (session Versions, 2026-10-23): PR open, not merged
+## Caption history on Calendar cards, behind `caption_history_staff` (session Versions, 2026-10-23): live since 2026-10-24 05:12 UTC (#2304), on for the owner's two staff ids
 
 Owner: after "Regenerate with a note" he could not see how the caption changed. Every real caption change is now kept in the
 append-only `caption_versions` (migration `migrations/2026-10-23-caption-versions.sql`, applied by hand; its trigger never
@@ -60,7 +80,7 @@ note, words taken out and added, and "Put this version back" through the normal 
 `syncview_runtime_flags.caption_history_staff` `{ "staff": [...] }`, absent = off. Earlier changes since 2026-09-17:
 `scripts/caption-versions-backfill.sql`, by hand. OPEN_REPAIRS 482. Tests: `test/caption-versions-postgres.js`,
 `test/caption-history-logic.js`, `test/caption-history-browser.js`. Not measured on the live site yet.
-## Thumbnail titles from the filming plan, buttons in Production (session Titlecard, 2026-10-23): PR open, not merged
+## Thumbnail titles from the filming plan, buttons in Production (session Titlecard, 2026-10-23): live since 2026-10-24 02:10 UTC (#2303), on for the owner's two staff ids
 
 "Thumbnail titles" on a post's Sub-issues header and "Write title" beside Edit on a thumbnail sub-issue, behind the
 new switch `thumbnail_title_buttons_staff` (absent = off). The run lives on the server (one per post), picks the plan

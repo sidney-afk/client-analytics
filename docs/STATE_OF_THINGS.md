@@ -18,6 +18,36 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView stand-in, 2026-10-24 evening): what went live during the day
+
+All of this is behind switches that name only the owner's two staff logins, or only the test client, so nothing changed
+for the team or for real clients unless it says "everyone".
+
+- **Kasper's Messages inbox (everyone, #2311):** it answered 503 on every open since at least 2026-10-21, because one
+  read sent 500 post ids in a single URL. Reads are now split (200 ids / about 6 kB). Live since 12:59 UTC, with no
+  errors since. Not yet confirmed on his own login: he has not opened it since.
+- **A random red staff-phone check (#2315):** the header Messages count rewrote unchanged values and woke the phone
+  bar's page scan. It now writes only on change.
+- **Unread badges rounds 6-8 (`unread_badges_v2`, owner's two ids; #2312, #2314, #2316, #2319, #2320):**
+  - card badge: something new is the picture with a corner count; read but open is the plain number; the hover is
+    sized to its content;
+  - Notes and Messages: first names, quiet status words, actions as plain words on hover; no "Waiting for your
+    answer", no "Needs you", no "Not done", no Mark unread; no Reply on a change request (owner's call, with 47 earlier
+    team replies under change requests measured);
+  - Messages: day lines, one "New" line, Reddit-like threads, attachments shown, a plain × close;
+  - a spinner instead of "Sending..." / "Saving..." on every staff send or save path (shared `svBusyHtml` /
+    `svBusyText`, ratchet `test/no-sending-words.js`).
+- **Caption history polish (`caption_history_staff`, #2313):** no arrows and no Changes / Clean text toggle, icons on
+  their line, no "Mostly rewritten", a quiet note.
+- **Client review page (`review_client_polish` = the test client only, row written 17:53 UTC; #2317, #2318, #2321):**
+  - Approve shows its check at the click and rolls back on a refusal, with no wait cursor;
+  - a sent change keeps its box open, and queued changes survive a reload;
+  - a spinner instead of "Sending"; a bare × with a confirm to delete;
+  - notes as quiet rows with day lines;
+  - client replies threaded under the team comment they answer (parent_id; no server change).
+  Not yet seen live: a real client's threaded reply on a linked part. Widening the switch is the owner's call; that is
+  also when the switch-off words come out and the ratchet baselines for 185, 190, 195 and 280 go down.
+
 ## Latest (SyncView stand-in, 2026-10-24): what went live overnight
 
 Checked against main (5e86358), the deploy lanes and `syncview_runtime_flags` on 2026-10-24 07:40 UTC. Each change had a
@@ -58,7 +88,7 @@ Checked against main and `syncview_runtime_flags` on 2026-10-21 04:30 UTC. Count
 - **Today** shows captions sent back for tweaks (#2263). **Workload calm view** is on for staff (`workload_calm_staff`).
 - Everything above is live; the supervisor lane is the SyncView project (Lighthouse stopped 2026-10-20 17:50 UTC). Dated detail: `synchro-pipelines/supervisor/history/syncview/`.
 
-## Client review page polish, behind `review_client_polish` (session Porch, 2026-10-24): PR open, switch row not written yet
+## Client review page polish, behind `review_client_polish` (session Porch, 2026-10-24): live since 2026-10-24 (#2317, #2318), switch row on the test client only
 
 On the client review link: Approve morphs into a spinner and then a check, faster from press to check (about 700 ms
 against about 850 ms offline under the same server times); a sent change request keeps its box open and empty for the
@@ -68,7 +98,7 @@ test client only until the owner widens it. OPEN_REPAIRS 490; test `node test/re
 A second PR on the same switch shows the client's notes in the staff side's round-6 quiet design (rows, day lines, quiet
 status words, Reply on hover on team comments): OPEN_REPAIRS 491, test `node test/review-client-notes-browser.js`.
 
-## Client review page, round 2 behind `review_client_polish` (session Porch, 2026-10-24): PR open
+## Client review page, round 2 behind `review_client_polish` (session Porch, 2026-10-24): live since 2026-10-24 20:44 UTC (#2321), test client only
 
 The owner's feedback from the test client's link: a client's Reply sits under the team message it answers (no server
 change; production-write already accepts a client's parent); Approve shows its check at the click and rolls back on a

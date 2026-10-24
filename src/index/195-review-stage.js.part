@@ -1201,6 +1201,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const c = String(calState.client || '').trim().toLowerCase();
         return R.mode === 'client' && c ? RS_DRAFT_KEY + c : '';
     }
+    // A reply's target (polish): which note it answers, by whom, and on which part. Kept with the words, so a reply
+    // saved as a draft and brought back still goes to that part as a comment (Codex on #2318).
+    function _rsReOk(re) { return re && typeof re === 'object' && typeof re.part === 'string' && re.part ? { id: String(re.id || ''), who: String(re.who || ''), part: re.part } : null; }
     function _rsStoreRead() {
         const key = _rsDraftStoreKey(), out = {};
         if (!key) return out;
@@ -1210,7 +1213,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             let stale = false;
             Object.keys(raw).forEach(id => {
                 const d = raw[id];
-                if (d && typeof d.text === 'string' && d.text.trim() && now - Number(d.at || 0) < RS_DRAFT_TTL_MS) out[id] = { text: d.text, part: d.part || null, vis: d.vis === 'client' ? 'client' : 'team', was: ['wait', 'ok', 'chg', 'tweak'].indexOf(d.was) >= 0 ? d.was : '', aat: !!d.aat, at: Number(d.at) };
+                if (d && typeof d.text === 'string' && d.text.trim() && now - Number(d.at || 0) < RS_DRAFT_TTL_MS) out[id] = { text: d.text, part: d.part || null, vis: d.vis === 'client' ? 'client' : 'team', was: ['wait', 'ok', 'chg', 'tweak'].indexOf(d.was) >= 0 ? d.was : '', aat: !!d.aat, at: Number(d.at), re: _rsReOk(d.re) };
                 else stale = true;
             });
             // Words past their 7 days are removed from storage, not just left out of the answer.
@@ -1229,7 +1232,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsDraftPut(pid, d) {
         if (!_rsDraftStoreKey() || !pid) return;
         const all = _rsStoreRead();
-        all[pid] = { text: d.text, part: d.part || null, vis: d.vis || 'team', was: d.was || '', aat: !!d.aat, at: Date.now() };
+        all[pid] = { text: d.text, part: d.part || null, vis: d.vis || 'team', was: d.was || '', aat: !!d.aat, at: Date.now(), re: _rsReOk(d.re) };
         _rsStoreWrite(all);
     }
     function _rsDraftDrop(pid) {
@@ -1243,7 +1246,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsPersistCur() {
         const S = R.S;
         if (R.mode !== 'client' || !S || !S.curId) return;
-        if (String(S.note.text || '').trim()) _rsDraftPut(S.curId, { text: S.note.text, part: S.note.part, vis: S.note.vis, was: S.note.was, aat: S.note.aat });
+        if (String(S.note.text || '').trim()) _rsDraftPut(S.curId, { text: S.note.text, part: S.note.part, vis: S.note.vis, was: S.note.was, aat: S.note.aat, re: S.note.re });
         else _rsDraftDrop(S.curId);
     }
     /* Once the list has loaded: kept words come back from storage (once), and words for a post that is no longer on
@@ -3234,7 +3237,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsStashDraft() {
         const S = R.S;
         if (!S || !S.curId) return;
-        if (String(S.note.text || '').trim()) { S.drafts[S.curId] = { text: S.note.text, part: S.note.part, vis: S.note.vis, was: S.note.was, aat: S.note.aat, at: Date.now() }; _rsDraftPut(S.curId, S.drafts[S.curId]); }
+        if (String(S.note.text || '').trim()) { S.drafts[S.curId] = { text: S.note.text, part: S.note.part, vis: S.note.vis, was: S.note.was, aat: S.note.aat, re: _rsReOk(S.note.re), at: Date.now() }; _rsDraftPut(S.curId, S.drafts[S.curId]); }
         else _rsDraftDrop(S.curId);
     }
     function _rsRestoreDraft(m) {
@@ -3247,6 +3250,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // a late note on that part (_rsSendNote), never as a request on whatever step is on stage (Codex on PR 2214).
         const px = d.part ? m.parts.find(p => p.key === d.part) : null;
         if (px) { S.note.part = d.part; S.note.where = 'chat'; S.note.was = d.was || px.st; S.note.aat = !!d.aat; }
+        else if (R.cp && d.re && m.parts.some(p => p.key === d.re.part)) { S.note.re = _rsReOk(d.re); S.note.where = 'chat'; }
     }
     function _rsGo(id) {
         const all = _rsAll();

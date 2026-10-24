@@ -119,6 +119,27 @@ async function shots(browser, origin) {
       await t.ctx.close();
     }
 
+    console.log('--- a reply kept as a draft keeps whom it answers ---');
+    {
+      const t = await openClient(browser, origin, {});
+      await inS(t.page, '#foldBtn').click().catch(() => {});
+      await sleep(250);
+      const row = inS(t.page, '#chat .cpm:has([data-cp-reply])').filter({ hasText: 'Thumbnail text is bigger' });
+      await row.hover(); await row.locator('[data-cp-reply]').click(); await sleep(200);
+      await t.page.keyboard.type('Kept for later, about the thumbnail.');
+      await sleep(300);
+      await t.page.reload({ waitUntil: 'domcontentloaded' });
+      await waitNew(t); await sleep(1500);
+      const box = await R(t.page, (r) => ({ val: (r.getElementById('ta') || {}).value || '', line: ((r.getElementById('reLine') || {}).innerText || '').replace(/\s+/g, ' ').trim() }));
+      expect(/Kept for later/.test(box.val) && /^Replying to/.test(box.line), 'after a reload the words and their reply target come back (' + box.line + ')');
+      const n0 = t.state.upserts.length;
+      await inS(t.page, '#cmtBtn').click();
+      let saved = null;
+      for (let i = 0; i < 60 && !saved; i++) { await sleep(100); for (const u of t.state.upserts.slice(n0)) for (const col of ['video_tweaks', 'graphic_tweaks', 'caption_tweaks']) { const n = notes(u, col).find(x => /Kept for later/.test(x.body)); if (n) saved = { col, n }; } }
+      expect(!!saved && saved.col === 'graphic_tweaks' && !saved.n.is_tweak, 'and it is saved as a comment on the thumbnail, not the part on stage (' + (saved ? saved.col : 'not saved') + ')');
+      await t.ctx.close();
+    }
+
     console.log('--- a follow-up within five minutes shows the name once ---');
     {
       const t = await openClient(browser, origin, { thread: false });

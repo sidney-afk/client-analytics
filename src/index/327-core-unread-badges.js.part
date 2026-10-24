@@ -12,7 +12,8 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
        What it changes is how unread notes are shown, never what anything writes:
          - a card's Notes button: one round picture per person with something for you, with a number coloured by kind
            (orange change request, blue client comment, grey team, violet Kasper); filled = new, a coloured number with no
-           fill (round 7) = read but still needs you (a change not done, a client comment waiting for your answer); at most three, then "+N";
+           fill (round 7) = read but still needs you (a change not done, a client comment to answer); round 8: new is a small
+           count on the picture's corner; at most three, then "+N";
            an instant hover lists who and what;
          - Notes on a card: the notes laid out like Slack (picture, name, time), the tags New / Waiting for your
            answer, and on hover at the note's bottom right Reply (comments only), No reply needed, Mark done, Delete;
@@ -222,9 +223,10 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         comment: n => _svuPlural(n, 'new comment', 'new comments'),
         staff: n => _svuPlural(n, 'new message from the team', 'new messages from the team'),
         kasper: n => _svuPlural(n, 'new message from Kasper', 'new messages from Kasper'),
-        waiting: n => _svuPlural(n, 'comment waiting for your answer', 'comments waiting for your answer'),
+        waiting: n => _svuPlural(n, 'comment to answer', 'comments to answer'),   // round 8: never "Waiting for your answer"
         open: n => _svuPlural(n, 'change request not done yet', 'change requests not done yet'),
     };
+    const SVU_X_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
     const SVU_LOCK_ICO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>';
 
     /* ---------- the badge: one bubble per person ---------- */
@@ -252,7 +254,10 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         return shown.map(g => {
             const said = [g.nNew ? SVU_NUM_SAY[g.kind](g.nNew) : '', g.nOut ? SVU_NUM_SAY[g.outKind](g.nOut) : ''].filter(Boolean).join(', ');
             const title = _calEscAttr(_svuFirst(g.m) + ': ' + said);
-            return `<span class="svu-bub"${titled ? ` title="${title}"` : ''} aria-label="${title}">${_svuAvatar(g.m, 'svu-bub-av', slug)}${g.nNew ? `<b class="svu-num svu-n-${g.kind}">${g.nNew}</b>` : ''}${g.nOut ? `<b class="svu-num svu-o-${g.outKind}">${g.nOut}</b>` : ''}</span>`;
+            // Round 8 (owner, 2026-10-24): something new = the picture with a small count on its top right corner, nothing
+            // else; nothing new but still needs you = the plain coloured number beside the picture. Never both: new wins.
+            const mark = g.nNew ? `<b class="svu-num svu-corner svu-n-${g.kind}">${g.nNew}</b>` : g.nOut ? `<b class="svu-num svu-o-${g.outKind}">${g.nOut}</b>` : '';
+            return `<span class="svu-bub${g.nNew ? ' svu-bub-new' : ''}"${titled ? ` title="${title}"` : ''} aria-label="${title}">${_svuAvatar(g.m, 'svu-bub-av', slug)}${mark}</span>`;
         }).join('')
             + (rest ? `<span class="svu-bub-more"${titled ? ` title="${_calEscAttr(_svuPlural(rest, 'more person', 'more people'))}"` : ''}>+${rest}</span>` : '');
     }
@@ -290,9 +295,9 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         _svuHoverEl.setAttribute('role', 'tooltip');
         _svuHoverEl.innerHTML = lines + more;
         document.body.appendChild(_svuHoverEl);
+        // Round 8: as wide as its lines need, up to a limit; a longer line ends in "…" (020 .svu-pv).
         const r = anchor.getBoundingClientRect();
-        const w = Math.min(380, innerWidth - 24);
-        _svuHoverEl.style.width = w + 'px';
+        const w = _svuHoverEl.offsetWidth;
         _svuHoverEl.style.left = Math.max(12, Math.min(r.left, innerWidth - w - 12)) + 'px';
         const h = _svuHoverEl.offsetHeight;
         _svuHoverEl.style.top = (r.top - h - 6 > 8 ? r.top - h - 6 : r.bottom + 6) + 'px';
@@ -326,20 +331,9 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         const notes = live.notes;
         const slug = _svuPostSlug(post);
         const l = _svuLocalGet();
-        // Round 6: no "Needs you" box (the tags on each note carry it); "Mark unread" is one quiet word in the head.
+        // Round 6: no "Needs you" box (the tags on each note carry it). Round 8: no "Mark unread" in the head either.
         const oldBar = modal.querySelector('.svu-need');
         if (oldBar) oldBar.remove();
-        const head = modal.querySelector('.cal-comments-head');
-        if (head && !head.querySelector('.svu-head-unread')) {
-            const close = head.querySelector('.cal-comments-close');
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'svu-head-unread';
-            btn.textContent = 'Mark unread';
-            const pid = post.id;
-            btn.addEventListener('click', () => svuMarkUnread(pid));
-            if (close) close.before(btn); else head.appendChild(btn);
-        }
         modal.querySelectorAll('.cal-cm-row[data-cm-row]').forEach(row => {
             const id = row.getAttribute('data-cm-row');
             const n = notes.find(x => x.m.id === id);
@@ -366,9 +360,8 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
             const tm = row.querySelector('.cal-cm-time');
             if (tm && !tm.hasAttribute('data-svu-ago')) { tm.setAttribute('data-svu-ago', '1'); tm.textContent = _svuAgo(n.m.created_at); tm.title = _svuFullDate(n.m.created_at); }
             const tags = [];
-            // "Waiting for your answer" already says it needs you, so it stands alone (round 6 E).
-            if (live.waitingIds.has(id)) tags.push('<span class="svu-tag svu-t-waiting">Waiting for your answer</span>');
-            else if (live.newIds.has(id)) tags.push(`<span class="svu-tag svu-t-${k}">New</span>`);
+            // Round 8: a comment waiting for you carries no status word (the To answer tab and the badge colour say it).
+            if (live.newIds.has(id)) tags.push(`<span class="svu-tag svu-t-${k}">New</span>`);
             // Round 7: no "Not done": a change request still listed is not done; its colour says what it is.
             if (l.noReply.has(id)) tags.push('<span class="svu-tag svu-t-plain">No reply needed</span>');
             if (_svuIsAuto(n.m)) tags.push('<span class="svu-tag svu-t-plain">Automatic record</span>');
@@ -442,7 +435,6 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
             _svuFitQueued = false;
             try {
                 _svuFitBars(document.getElementById('calCommentsModal'), '.cal-cm-row[data-cm-row]', '.cal-cm-actions', '.cal-cm-body-col');
-                _svuFitBars(document.getElementById('msgPage'), '.msg-b[data-msg-id]', '.svu-msg-acts', '.msg-b');
             } catch (e) {}
         });
     });
@@ -495,7 +487,7 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         const f = _msgState.filter;
         const keep = c => { const s = _svuConvState(c); return f === 'all' || c.post_id === _msgState.openId || (f === 'answer' ? s.waitingIds.size > 0 : s.newTotal > 0); };
         const list = _msgState.conversations.filter(keep);
-        if (!list.length) return `<div class="msg-list-empty">${f === 'answer' ? 'Nothing is waiting for your answer' : f === 'new' ? 'Nothing new' : 'No conversations yet'}</div>`;
+        if (!list.length) return `<div class="msg-list-empty">${f === 'answer' ? 'Nothing to answer' : f === 'new' ? 'Nothing new' : 'No conversations yet'}</div>`;
         return list.map(c => {
             const s = _svuConvState(c);
             const msgs = Array.isArray(c.messages) ? c.messages : [];
@@ -541,6 +533,10 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
                 filters.innerHTML = [['new', 'New', newConvs], ['answer', 'To answer', waitConvs], ['all', 'All', 0]].map(([k, t, n]) =>
                     `<button type="button" data-svu-${k}="1" class="${_msgState.filter === k ? 'is-active' : ''}" aria-pressed="${_msgState.filter === k}" onclick="_msgSetFilter('${k}')">${t}${n ? ` <span>${n}</span>` : ''}</button>`).join('');
             }
+            // Round 8: the page's own Close steps aside only while a conversation (with its own ×) is open. Set before the
+            // return below, so going back to the list brings it back.
+            const page = root.closest('#msgPage');
+            if (page) page.classList.toggle('svu-has-chat', !!root.querySelector('.msg-chat-actions'));
             const c = _msgState.conversations.find(x => x.post_id === _msgState.openId);
             if (!c || !Array.isArray(c.messages)) return;
             const l = _svuLocalGet();
@@ -548,9 +544,17 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
             if (l.unread.delete(c.post_id)) { _svuLocalSave(); setTimeout(svuRefresh, 0); }
             const s = _svuConvState(c);
             const byId = new Map(c.messages.map(m => [m.id, m]));
-            // Round 6 E: header actions as words ("Mark unread" as on the card), day lines as Slack names them, and the
+            // Round 8: no "Mark unread" in the header (owner, 2026-10-24); day lines as Slack names them (round 6 E); the
             // reply caption by first name.
-            root.querySelectorAll('.msg-chat-actions .msg-act').forEach(a => { if (/unread/i.test(a.textContent)) a.textContent = 'Mark unread'; });
+            root.querySelectorAll('.msg-chat-actions .msg-act').forEach(a => { if (/unread/i.test(a.textContent)) a.remove(); });
+            // Round 8: Close is a plain "×" at the header's far right, "Open card" just left of it, as a word.
+            const headActs = root.querySelector('.msg-chat-actions');
+            if (headActs && !headActs.querySelector('.svu-chat-close')) headActs.insertAdjacentHTML('beforeend', `<button type="button" class="svu-chat-close" onclick="_msgClose()" aria-label="Close Messages" title="Close">${SVU_X_ICO}</button>`);
+            // Round 8: threads like Reddit, as in Notes (before the per-message pass, which reads each one's neighbour).
+            const bubblesBox = root.querySelector('#msgBubbles');
+            // A repaint can replace only the box's contents (326 keeps the box while a reply is being typed), so the mark
+            // is the first message the threading saw, not an attribute on the box.
+            if (bubblesBox && bubblesBox.__svuThreaded !== bubblesBox.firstElementChild) { _svuThreadMessages(bubblesBox, byId); bubblesBox.__svuThreaded = bubblesBox.firstElementChild; }
             root.querySelectorAll('.msg-day:not([data-svu])').forEach(d => {
                 let next = d.nextElementSibling;
                 while (next && !next.matches('.msg-b[data-msg-id]')) next = next.nextElementSibling;
@@ -591,7 +595,6 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
                     if (part) meta.appendChild(part);
                 }
                 const tags = [];
-                if (s.waitingIds.has(m.id)) tags.push('<span class="svu-tag svu-t-waiting">Waiting for your answer</span>');
                 if (l.noReply.has(m.id)) tags.push('<span class="svu-tag svu-t-plain">No reply needed</span>');
                 if (_svuIsAuto(m)) tags.push('<span class="svu-tag svu-t-plain">Automatic record</span>');
                 if (meta && tags.length) { const part = meta.querySelector('.cal-cm-comp-label'); if (part) part.insertAdjacentHTML('beforebegin', tags.join('')); else meta.insertAdjacentHTML('beforeend', tags.join('')); }
@@ -609,14 +612,75 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
                 const text = b.querySelector('.msg-b-text');
                 if (files.length && text && !b.querySelector('.svu-msg-files')) text.insertAdjacentHTML('afterend', '<div class="prod-comment-attachments svu-msg-files">'
                     + files.map(x => `<a class="prod-comment-attachment" href="${_calEscAttr(x.url)}" target="_blank" rel="noopener noreferrer">${_calEsc(x.name || 'Attachment')}</a>`).join('') + '</div>');
-                // Round 7: no Reply on a change request or in its thread (only comments are answered); bottom right.
+                // Round 7: no Reply on a change request or in its thread (only comments are answered). Round 8: the
+                // actions sit at the bottom left, under the words (020).
                 const tweakThread = (byId.get(m.root_id) || m).is_tweak === true;   // as 326 tags "Change request"
                 const acts = (tweakThread ? '' : `<button type="button" onclick="_msgSetReplyTo(${_jsAttrArg(m.root_id)});document.getElementById('msgReplyBox')&&document.getElementById('msgReplyBox').focus()">Reply</button>`)
                     + (s.waitingIds.has(m.id) ? `<button type="button" onclick="svuNoReply(${_jsAttrArg(m.id)})">No reply needed</button>` : '');
                 if (acts) b.insertAdjacentHTML('beforeend', `<div class="svu-msg-acts">${acts}</div>`);
             });
-            _svuFitBars(root, '.msg-b[data-msg-id]', '.svu-msg-acts', '.msg-b');
         });
+    }
+    /* Round 8 (owner, 2026-10-24): a conversation reads like Reddit, and like Notes. A reply sits indented under the
+       message it answers, on a thin thread line. Two levels at most; deeper replies stay at the second level and say
+       "replying to <first name>". Top-level messages keep their order, each with its day line; the "New messages" line
+       stays in front of the first new message wherever that lands; anything else (a reply on its way) stays at the end. */
+    function _svuThreadMessages(box, byId) {
+        const kids = [...box.children];
+        const bubbles = kids.filter(el => el.matches('.msg-b[data-msg-id]') && byId.has(el.getAttribute('data-msg-id')));
+        if (!bubbles.length) return;
+        const divider = kids.find(el => el.matches('.thumb-msg-new'));
+        let firstNew = divider ? divider.nextElementSibling : null;
+        while (firstNew && !bubbles.includes(firstNew)) firstNew = firstNew.nextElementSibling;
+        const rest = kids.filter(el => !bubbles.includes(el) && !el.matches('.msg-day, .thumb-msg-new'));
+        const shown = new Set(bubbles.map(el => el.getAttribute('data-msg-id')));
+        const parentOf = id => {
+            const m = byId.get(id);
+            const p = m && (m.parent_id || (m.root_id && m.root_id !== m.id ? m.root_id : ''));
+            return p && p !== id && shown.has(p) ? p : '';
+        };
+        const children = new Map(), tops = [];
+        bubbles.forEach(el => {
+            const p = parentOf(el.getAttribute('data-msg-id'));
+            if (!p) { tops.push(el); return; }
+            if (!children.has(p)) children.set(p, []);
+            children.get(p).push(el);
+        });
+        const out = document.createDocumentFragment();
+        const place = (el, into) => { if (divider && el === firstNew) into.appendChild(divider); into.appendChild(el); };
+        const grow = (el, depth, into) => {
+            const id = el.getAttribute('data-msg-id'), kidsOf = children.get(id) || [];
+            if (!kidsOf.length) return;
+            let at = into;
+            if (depth < 2) { at = document.createElement('div'); at.className = 'svu-replies svu-depth-' + (depth + 1); into.appendChild(at); }
+            kidsOf.forEach(k => {
+                if (depth >= 2) {
+                    const pm = byId.get(id), meta = k.querySelector('.msg-b-meta');
+                    if (pm && meta && !meta.querySelector('.svu-replying')) meta.insertAdjacentHTML('beforeend', `<span class="svu-replying">replying to ${_calEsc(_svuFirst(pm))}</span>`);
+                }
+                k.classList.add('svu-in-thread');
+                place(k, at);
+                grow(k, Math.min(depth + 1, 2), at);
+            });
+        };
+        let day = '';
+        tops.forEach(el => {
+            const m = byId.get(el.getAttribute('data-msg-id'));
+            const label = _svuDayLabel(m.created_at);
+            if (label && label !== day) {
+                day = label;
+                const row = document.createElement('div');
+                row.className = 'msg-day';
+                row.setAttribute('data-svu', '1');
+                row.textContent = label;
+                row.title = _svuFullDate(m.created_at);
+                out.appendChild(row);
+            }
+            place(el, out);
+            grow(el, 0, out);
+        });
+        rest.forEach(el => out.appendChild(el));
+        box.replaceChildren(out);
     }
 
     /* ---------- the Messages button's hover ---------- */
@@ -631,7 +695,7 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         _svuBtnTip.className = 'svu-pv svu-btn-tip';
         _svuBtnTip.innerHTML = `<div class="svu-tip-head">${c.newConvs ? _svuPlural(c.newConvs, 'conversation has', 'conversations have') + ' something new' : 'Nothing new'}</div>`
             + (c.k.comment ? line('comment', SVU_SAY.comment(c.k.comment)) : '') + (c.k.staff ? line('staff', SVU_SAY.staff(c.k.staff)) : '') + (c.k.kasper ? line('kasper', SVU_SAY.kasper(c.k.kasper)) : '')
-            + (c.waitConvs ? line('waiting', _svuPlural(c.waitConvs, 'client is', 'clients are') + ' waiting for your answer') : '')
+            + (c.waitConvs ? line('waiting', _svuPlural(c.waitConvs, 'conversation', 'conversations') + ' to answer') : '')
             + '<div class="svu-pv-foot">Change requests are on the cards, not here.</div>';
         document.body.appendChild(_svuBtnTip);
         const r = btn.getBoundingClientRect();

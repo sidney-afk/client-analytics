@@ -1018,17 +1018,15 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .cp-ck{display:inline-flex;animation:cpPop .34s cubic-bezier(.3,1.6,.5,1) both;animation-delay:var(--cpd,0ms)}
 .cp-ck svg{width:18px;height:18px}
 @keyframes cpPop{from{transform:scale(.3);opacity:0}to{transform:none;opacity:1}}
-.b-ask.cp-fade{opacity:0;pointer-events:none;animation:cpFade .16s ease both}
-.b-ok.cp-ok~.b-ask.cp-fade{animation:none}
-@keyframes cpFade{from{opacity:1}to{opacity:0}}
 .dec.cp-checking{background:transparent;box-shadow:none}
 .dec.cp-settle{animation:cpSettle .3s var(--ease) both}
 @keyframes cpSettle{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
+.cp-stw{display:inline-flex;align-items:center;gap:4px 10px;flex-wrap:wrap}
 .cp-st{display:inline-flex;align-items:center;gap:6px;font-size:.74rem;font-weight:700;color:var(--text-secondary)}
 .cp-st svg{width:12px;height:12px}
 .cp-st.cp-done{color:var(--ok-ink);animation:rise .2s var(--ease)}
 .cp .bb{position:relative}
-.cp-x{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--surface-raised);color:var(--text-secondary);box-shadow:0 0 0 1px var(--border),0 1px 3px rgba(0,0,0,.14);opacity:0;transform:scale(.85);transition:opacity .12s,transform .12s,color .12s;pointer-events:none;z-index:1}
+.cp-x{position:absolute;top:-10px;right:-8px;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--surface-raised);color:var(--text-secondary);box-shadow:0 0 0 1px var(--border),0 1px 3px rgba(0,0,0,.14);opacity:0;transform:scale(.85);transition:opacity .12s,transform .12s,color .12s;pointer-events:none;z-index:1}
 .cp-x svg{width:10px;height:10px}
 .bub:hover .cp-x,.bub:focus-within .cp-x,.bub.cp-show .cp-x{opacity:1;transform:none;pointer-events:auto}
 .cp-x:hover,.cp-x:focus-visible{color:var(--urgent)}
@@ -1038,7 +1036,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .cp-yes{background:var(--urgent);color:#fff}
 .cp-no{color:var(--text-secondary)}
 .cp-no:hover{background:var(--fill);color:var(--text-primary)}
-@media (prefers-reduced-motion:reduce){.cp-spin{animation:rsBreathe 1.6s ease-in-out infinite!important;border-right-color:currentColor}.b-ok.cp-morph,.cp-ck,.dec.cp-settle,.b-ask.cp-fade{animation:none}}
+@media (prefers-reduced-motion:reduce){.cp-spin{animation:rsBreathe 1.6s ease-in-out infinite!important;border-right-color:currentColor}.b-ok.cp-morph,.cp-ck,.dec.cp-settle{animation:none}}
 `;
     const RS_CSSKEY = { video: 'video', graphic: 'thumbnail', caption: 'caption', title: 'youtube' };
     const RS_FRAME_NOTE = 'Tweaks are on Frame.';
@@ -2260,8 +2258,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const n = _rsLname(x.key), w = Math.max(44, Math.min(320, Number(R.S.cpW) || 180));
         const label = ok ? RS_PART[x.key] + ' approved' : 'Approving the ' + n;
         return '<button class="b-ok cp-morph' + (ok ? ' cp-ok' : '') + '" type="button" disabled aria-busy="' + !ok + '" aria-label="' + label + '" style="--cpw:' + w + 'px' + (ok ? ';--cpd:-' + Math.min(RS_CP_CHECK_MS, Date.now() - ok) + 'ms' : '') + '">'
-            + (ok ? '<span class="cp-ck" role="img" aria-label="' + label + '">' + RI.check + '</span>' : _rsSpinner(label)) + '</button>'
-            + '<button class="b-ask cp-fade" type="button" disabled tabindex="-1" aria-hidden="true">' + RI.back + 'Ask for a change</button>';
+            + (ok ? '<span class="cp-ck" role="img" aria-label="' + label + '">' + RI.check + '</span>' : _rsSpinner(label)) + '</button>';
     }
     // The save of an approval pressed here landed: the check shows for a moment, then the row settles.
     function _rsCpLanded(key) {
@@ -2323,7 +2320,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (S.editing === x.key) d = '<span class="dst busy">' + RI.pen + 'Editing the ' + n + '</span>';
         else if (cpOk && !_rsWriting(x)) d = _rsCpMorph(x, cpOk);
         else if (_rsWriting(x) && S.note.where === 'stage') d = null;
-        else if (_rsWriting(x)) d = '<span class="dst wr">' + RI.pen + 'Writing a change to the ' + n + ' in the conversation</span>';
+        // Polish: once a change went and the box is empty again, the part shows its answer, not "Writing a change".
+        else if (_rsWriting(x) && !(R.cp && S.cpSent[m.id + '|' + x.key] && !String(S.note.text || '').trim())) d = '<span class="dst wr">' + RI.pen + 'Writing a change to the ' + n + ' in the conversation</span>';
         // The pressed button names its result only while the save is the one that button started. A note or an edit
         // saving on a waiting part leaves the buttons as they were (waiting, disabled), never reading "Approved"
         // (review of #2235); on a part already answered, the answer shows.
@@ -2544,6 +2542,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         }
         const st = _rsQ('cpSt'), k = S.note.part;
         if (st && k) { const h = _rsCpChgState(m, k); if (h && st.innerHTML !== h) st.innerHTML = h; }
+        const ta = _rsQ('ta');
+        if (ta && k && S.cpSent[m.id + '|' + k] && !ta.value) { const ph = 'Another change to the ' + _rsLname(k) + '?'; if (ta.placeholder !== ph) { ta.placeholder = ph; ta.setAttribute('aria-label', ph); } }
     }
     function _rsBindThread(c, m) {
         const S = R.S;

@@ -123,7 +123,64 @@
       <figure><img src="after-dark-chat-end.png" alt="Conversation end, after, dark"><figcaption>After, dark</figcaption></figure>
     </div>
   </section>
-  <p class="muted">How these were made: the real page, built from the code on GitHub, served on a laptop with every server answer faked and no live data. "Before" is the code live today, "After" is the pull request in review. The next step is a full pass over the whole Messages page (list, filters, header, composer, empty states), in its own pull request.</p>
+  <section class="block">
+    <span class="tag">Part 2: the whole Messages page, same rule</span>
+    <ul>
+      <li><b>Status words are quiet coloured words</b>, never filled pills: "Waiting for your answer", "Change request", "Not done", "New". "Waiting for your answer" stands alone (no extra "New" next to it).</li>
+      <li><b>Notes:</b> "TWEAK #1" reads "Change request"; "Team only" is the same small lock as in Messages.</li>
+      <li><b>Conversation header:</b> no empty grey picture; "Mark unread" and "Open card" are plain words.</li>
+      <li><b>Day lines</b> say Today, Yesterday, the weekday, or "Wed 14 Oct", as Slack does.</li>
+      <li><b>No "New" tag on each message.</b> One thin red "New" line marks where the unread part starts, as Slack does.</li>
+      <li><b>A client's change request</b> is one quiet line: "Casey asked for a change on the video · 12m ago · Open card".</li>
+      <li><b>Two messages in a row</b> by the same person within five minutes show the picture and name once, as Slack does.</li>
+      <li><b>Reply caption</b> uses the first name ("Replying to Casey").</li>
+    </ul>
+  </section>
+  <section class="screen">
+    <div class="section-title"><h2>5. Notes, part 1 against part 2</h2></div>
+    <div class="pair">
+      <figure><img src="after-light-notes.png" alt="Notes, part 1"><figcaption>Part 1</figcaption></figure>
+      <figure><img src="e-light-notes.png" alt="Notes, part 2"><figcaption>Part 2</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="after-dark-notes.png" alt="Notes, part 1, dark"><figcaption>Part 1, dark</figcaption></figure>
+      <figure><img src="e-dark-notes.png" alt="Notes, part 2, dark"><figcaption>Part 2, dark</figcaption></figure>
+    </div>
+  </section>
+  <section class="screen">
+    <div class="section-title"><h2>6. A conversation, part 1 against part 2</h2></div>
+    <div class="pair">
+      <figure><img src="after-light-chat.png" alt="Conversation, part 1"><figcaption>Part 1</figcaption></figure>
+      <figure><img src="e-light-chat.png" alt="Conversation, part 2"><figcaption>Part 2</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="after-dark-chat.png" alt="Conversation, part 1, dark"><figcaption>Part 1, dark</figcaption></figure>
+      <figure><img src="e-dark-chat.png" alt="Conversation, part 2, dark"><figcaption>Part 2, dark</figcaption></figure>
+    </div>
+  </section>
+  <section class="screen">
+    <div class="section-title"><h2>7. The end of the conversation, part 1 against part 2</h2><p class="why">The change request is now one quiet line; the team follow-up message ("I will schedule it…") sits under the one before it.</p></div>
+    <div class="pair">
+      <figure><img src="after-light-chat-end.png" alt="Conversation end, part 1"><figcaption>Part 1</figcaption></figure>
+      <figure><img src="e-light-chat-end.png" alt="Conversation end, part 2"><figcaption>Part 2</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="after-dark-chat-end.png" alt="Conversation end, part 1, dark"><figcaption>Part 1, dark</figcaption></figure>
+      <figure><img src="e-dark-chat-end.png" alt="Conversation end, part 2, dark"><figcaption>Part 2, dark</figcaption></figure>
+    </div>
+  </section>
+  <section class="screen">
+    <div class="section-title"><h2>8. To answer, and the empty state</h2></div>
+    <div class="pair">
+      <figure><img src="e-light-list-answer.png" alt="To answer"><figcaption>To answer</figcaption></figure>
+      <figure><img src="e-dark-list-answer.png" alt="To answer, dark"><figcaption>To answer, dark</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="e-light-empty.png" alt="Empty state"><figcaption>Nothing at all</figcaption></figure>
+      <figure><img src="e-dark-empty.png" alt="Empty state, dark"><figcaption>Nothing at all, dark</figcaption></figure>
+    </div>
+  </section>
+  <p class="muted">How these were made: the real page, built from the code on GitHub, served on a laptop with every server answer faked and no live data. "Before" is the code live today, "After" is the pull request in review. Part 1 is one pull request; part 2 builds on it in a second pull request.</p>
 </div>
 <div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="Picture, full screen">
   <button class="x" type="button" aria-label="Close">&times;</button>

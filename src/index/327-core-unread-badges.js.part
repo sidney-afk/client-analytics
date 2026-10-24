@@ -204,6 +204,18 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         if (days < 365) return Math.round(days / 30) + 'mo ago';
         return Math.round(days / 365) + 'y ago';
     }
+    // Day lines (round 6 E, as Slack): Today, Yesterday, the weekday within a week, then "Thu 22 Oct" (the year only
+    // when it is not this year).
+    function _svuDayLabel(iso) {
+        const t = new Date(String(iso || ''));
+        if (isNaN(t)) return '';
+        const day = d => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        const diff = Math.round((day(new Date()) - day(t)) / 86400000);
+        if (diff === 0) return 'Today';
+        if (diff === 1) return 'Yesterday';
+        if (diff > 1 && diff < 7) return t.toLocaleDateString('en-GB', { weekday: 'long' });
+        return t.toLocaleDateString('en-GB', Object.assign({ weekday: 'short', day: 'numeric', month: 'short' }, t.getFullYear() === new Date().getFullYear() ? {} : { year: 'numeric' }));
+    }
     const _svuFullDate = iso => { const t = Date.parse(iso || ''); return isFinite(t) ? new Date(t).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''; };
     const SVU_NUM_SAY = {
         change: n => _svuPlural(n, 'new change request', 'new change requests'),
@@ -341,11 +353,20 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
                 au.title = full;
                 au.textContent = full.split(/\s+/)[0] || full;
             }
+            const tweak = row.querySelector('.cal-cm-type-tag.is-tweak');
+            if (tweak && !tweak.hasAttribute('data-svu')) {
+                const round = Number((tweak.textContent.match(/#(\d+)/) || [])[1] || 0);
+                tweak.setAttribute('data-svu', '1');
+                tweak.textContent = 'Change request' + (round > 1 ? ' ' + round : '');
+            }
+            const team = row.querySelector('.cal-cm-head-line .cal-cm-to-tag.is-team');
+            if (team) team.outerHTML = `<span class="svu-lock" title="Team only: the client never sees this" aria-label="Team only">${SVU_LOCK_ICO}</span>`;
             const tm = row.querySelector('.cal-cm-time');
             if (tm && !tm.hasAttribute('data-svu-ago')) { tm.setAttribute('data-svu-ago', '1'); tm.textContent = _svuAgo(n.m.created_at); tm.title = _svuFullDate(n.m.created_at); }
             const tags = [];
-            if (live.newIds.has(id)) tags.push(`<span class="svu-tag svu-t-${k}">New</span>`);
+            // "Waiting for your answer" already says it needs you, so it stands alone (round 6 E).
             if (live.waitingIds.has(id)) tags.push('<span class="svu-tag svu-t-waiting">Waiting for your answer</span>');
+            else if (live.newIds.has(id)) tags.push(`<span class="svu-tag svu-t-${k}">New</span>`);
             if (live.openIds.has(id) && !live.newIds.has(id)) tags.push('<span class="svu-tag svu-t-open">Not done</span>');
             if (l.noReply.has(id)) tags.push('<span class="svu-tag svu-t-plain">No reply needed</span>');
             if (_svuIsAuto(n.m)) tags.push('<span class="svu-tag svu-t-plain">Automatic record</span>');
@@ -469,13 +490,25 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
             if (l.unread.delete(c.post_id)) { _svuLocalSave(); setTimeout(svuRefresh, 0); }
             const s = _svuConvState(c);
             const byId = new Map(c.messages.map(m => [m.id, m]));
+            // Round 6 E: header actions as words ("Mark unread" as on the card), day lines as Slack names them, and the
+            // reply caption by first name.
+            root.querySelectorAll('.msg-chat-actions .msg-act').forEach(a => { if (/unread/i.test(a.textContent)) a.textContent = 'Mark unread'; });
+            root.querySelectorAll('.msg-day:not([data-svu])').forEach(d => {
+                let next = d.nextElementSibling;
+                while (next && !next.matches('.msg-b[data-msg-id]')) next = next.nextElementSibling;
+                const m = next && byId.get(next.getAttribute('data-msg-id'));
+                d.setAttribute('data-svu', '1');
+                if (m) { const label = _svuDayLabel(m.created_at); if (label) { d.title = d.textContent; d.textContent = label; } }
+            });
+            const cap = root.querySelector('.msg-reply-cap b');
+            if (cap && !cap.hasAttribute('data-svu')) { cap.setAttribute('data-svu', '1'); cap.textContent = cap.textContent.trim().split(/\s+/)[0]; }
             root.querySelectorAll('.msg-b[data-msg-id]').forEach(b => {
                 if (b.hasAttribute('data-svu')) return;
                 b.setAttribute('data-svu', '1');
                 const m = byId.get(b.getAttribute('data-msg-id'));
                 if (!m) return;
                 if (_svuIsChangeMsg(m, byId)) {
-                    if (m.root_id === m.id) b.outerHTML = `<div class="svu-change-line">${_svuAvatar(m, 'svu-line-av', c.client_slug)}<span>The client asked for a change on the ${_calEsc(String(_svuLabel(m.component || 'video')).toLowerCase())}. Change requests are handled on the card.</span><button type="button" class="svu-text-btn" onclick="_msgOpenCard()">Open card</button></div>`;
+                    if (m.root_id === m.id) b.outerHTML = `<div class="svu-change-line" title="Change requests are handled on the card">${_svuAvatar(m, 'svu-line-av', c.client_slug)}<span><b>${_calEsc(_svuFirst(m))}</b> asked for a change on the ${_calEsc(String(_svuLabel(m.component || 'video')).toLowerCase())}</span><span class="svu-time">${_calEsc(_svuAgo(m.created_at))}</span><button type="button" class="svu-text-btn" onclick="_msgOpenCard()">Open card</button></div>`;
                     else b.remove();
                     return;
                 }
@@ -489,7 +522,7 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
                     const name = meta.querySelector('b');
                     if (name && !_svuIsMine(m)) { name.title = name.textContent; name.textContent = _svuFirst(m); }
                     const role = name && name.nextElementSibling;
-                    if (role && role.tagName === 'SPAN' && !role.className) role.remove();
+                    if (role && role.tagName === 'SPAN' && !role.className && ['Client', 'SMM', 'Reviewer'].includes(role.textContent.trim())) role.remove();
                     const team = meta.querySelector('.cal-cm-to-tag.is-team');
                     if (team) team.outerHTML = `<span class="svu-lock" title="Team only: the client never sees this" aria-label="Team only">${SVU_LOCK_ICO}</span>`;
                     const tweak = meta.querySelector('.cal-cm-type-tag.is-tweak');
@@ -500,12 +533,19 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
                     if (part) meta.appendChild(part);
                 }
                 const tags = [];
-                if (s.newIds.has(m.id)) tags.push(`<span class="svu-tag svu-t-${k}">New</span>`);
                 if (s.waitingIds.has(m.id)) tags.push('<span class="svu-tag svu-t-waiting">Waiting for your answer</span>');
                 if (l.noReply.has(m.id)) tags.push('<span class="svu-tag svu-t-plain">No reply needed</span>');
                 if (_svuIsAuto(m)) tags.push('<span class="svu-tag svu-t-plain">Automatic record</span>');
                 if (meta && tags.length) { const part = meta.querySelector('.cal-cm-comp-label'); if (part) part.insertAdjacentHTML('beforebegin', tags.join('')); else meta.insertAdjacentHTML('beforeend', tags.join('')); }
                 // Round 6: Reply (and No reply needed on a comment waiting for you) show on hover, as plain words.
+                // Round 6 E, as Slack: a message right after one by the same person in the same thread, within five
+                // minutes and with no day line or divider between, drops the repeated picture and name. A message that still
+                // needs your answer keeps its header, for its tag.
+                const prev = b.previousElementSibling;
+                const pm = prev && prev.matches('.msg-b[data-msg-id]') && byId.get(prev.getAttribute('data-msg-id'));
+                const who = x => String(x.author_member_id || '') + '|' + String(x.author || '') + '|' + String(x.role || '');
+                const sameThread = pm && (pm.root_id === m.root_id || (pm.root_id === pm.id && m.root_id === m.id));
+                if (pm && sameThread && who(pm) === who(m) && Date.parse(m.created_at) - Date.parse(pm.created_at) < 5 * 60000 && !s.waitingIds.has(m.id)) b.classList.add('svu-cont');
                 b.insertAdjacentHTML('beforeend', `<div class="svu-msg-acts"><button type="button" onclick="_msgSetReplyTo(${_jsAttrArg(m.root_id)});document.getElementById('msgReplyBox')&&document.getElementById('msgReplyBox').focus()">Reply</button>${s.waitingIds.has(m.id) ? `<button type="button" onclick="svuNoReply(${_jsAttrArg(m.id)})">No reply needed</button>` : ''}</div>`);
             });
         });

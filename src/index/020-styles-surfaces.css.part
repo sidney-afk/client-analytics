@@ -8895,13 +8895,6 @@ html.sv-unread2[data-theme="dark"] {
 .svu-text-btn { border: 0; background: transparent; color: var(--svu-link); font: inherit; font-size: .78rem; font-weight: 600; padding: 4px 6px; cursor: pointer; border-radius: 6px; }
 .svu-text-btn:hover { background: var(--svu-hover); text-decoration: underline; }
 .svu-tags { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.svu-tag { font-size: .68rem; font-weight: 700; line-height: 1; padding: 3px 7px; border-radius: 99px; }
-.svu-t-change { background: var(--svu-change); color: var(--svu-on); } .svu-t-comment { background: var(--svu-comment); color: var(--svu-on); }
-.svu-t-staff { background: var(--svu-staff); color: var(--svu-on); } .svu-t-kasper { background: var(--svu-kasper); color: var(--svu-on); }
-.svu-t-me { background: var(--svu-staff-soft); color: var(--svu-staff-ink); }
-.svu-t-waiting { background: var(--svu-comment-soft); color: var(--svu-comment-ink); }
-.svu-t-open { background: var(--svu-change-soft); color: var(--svu-change-ink); }
-.svu-t-plain { background: var(--svu-staff-soft); color: var(--text-secondary); }
 
 /* ---- Notes on a card, Slack-like ---- */
 html.sv-unread2 .cal-cm-thread { border: 0; background: transparent; box-shadow: none; padding: 0; margin: 0; }
@@ -8956,7 +8949,6 @@ html.sv-unread2 .svu-conv-last { font-size: .78rem; color: var(--text-secondary)
 html.sv-unread2 .svu-conv.is-unread .svu-conv-last { color: var(--text-primary); }
 html.sv-unread2 .svu-conv-badge { display: inline-flex; gap: 6px; }
 html.sv-unread2 #msgPage .msg-chat-head { border-bottom: 1px solid var(--svu-hair); }
-html.sv-unread2 #msgPage .msg-act { border-radius: 6px; }
 html.sv-unread2 #msgPage .msg-bubbles { background: var(--white); padding: 8px 0 16px; gap: 0; }
 html.sv-unread2 #msgPage .msg-day { display: flex; align-items: center; gap: 12px; margin: 14px 0 6px; background: transparent; font-size: .74rem; font-weight: 700; color: var(--text-primary); }
 html.sv-unread2 #msgPage .msg-day::before, html.sv-unread2 #msgPage .msg-day::after { content: ''; flex: 1; border-top: 1px solid var(--svu-hair); }
@@ -8975,10 +8967,6 @@ html.sv-unread2 #msgPage .msg-b-text, html.sv-unread2 #msgPage .msg-b.is-me .msg
 html.sv-unread2 #msgPage .cal-cm-to-tag { background: var(--svu-staff-soft) !important; color: var(--text-secondary) !important; border-radius: 99px; padding: 2px 7px !important; font-size: .66rem; }
 html.sv-unread2 #msgPage .cal-cm-to-tag.is-client, html.sv-unread2 #msgPage .msg-reply-cap .cal-cm-to-tag { display: none; }
 html.sv-unread2 #msgPage .msg-b-reply { display: none; }
-html.sv-unread2 #msgPage .thumb-msg-new { color: var(--svu-unread-line); }
-html.sv-unread2 .svu-change-line { display: flex; align-items: center; gap: 10px; margin: 6px 24px; padding: 8px 12px; border-radius: 8px; background: var(--svu-change-soft); color: var(--svu-change-ink); font-size: .82rem; font-weight: 600; }
-html.sv-unread2 .svu-line-av { width: 22px; height: 22px; border-radius: 6px; }
-html.sv-unread2 .svu-change-line .svu-text-btn { margin-left: auto; }
 html.sv-unread2 #msgPage .msg-reply { border-top: 0; padding: 0 24px 16px; }
 html.sv-unread2 #msgPage .msg-reply .cal-cm-composer { border: 1px solid var(--border) !important; border-radius: 10px !important; background: var(--white) !important; }
 html.sv-unread2 #msgPage .msg-reply .cal-cm-composer textarea { background: transparent !important; border: 0 !important; }
@@ -9011,3 +8999,29 @@ html.sv-unread2 #msgPage .msg-b:hover .msg-b-meta .cal-cm-comp-label, html.sv-un
 html.sv-unread2 .svu-msg-acts button { border: 0; background: transparent; padding: 0; font: inherit; font-size: .74rem; font-weight: 600; color: var(--text-muted); cursor: pointer; }
 html.sv-unread2 .svu-msg-acts button:hover, html.sv-unread2 .svu-msg-acts button:focus-visible { color: var(--text-primary); text-decoration: underline; }
 html.sv-unread2 #msgPage .svu-bub, html.sv-unread2 #msgPage .svu-bub-more { cursor: help; }
+/* Round 6 E (owner's rule swept over Messages and Notes): status words are quiet coloured words, never filled pills;
+   the header's actions are words; an empty thumbnail is not drawn; one red "New" line marks where the unread part
+   starts (as Slack) instead of a tag on each message; the change-request line is one quiet line; a follow-up message
+   by the same person within five minutes drops its repeated picture and name. */
+.svu-tag { font-size: .72rem; font-weight: 600; line-height: 1.2; }
+.svu-t-change, .svu-t-open { color: var(--svu-change-ink); } .svu-t-comment, .svu-t-waiting { color: var(--svu-comment-ink); }
+.svu-t-staff { color: var(--svu-staff-ink); } .svu-t-kasper { color: var(--svu-kasper-ink); }
+.svu-t-me, .svu-t-plain { color: var(--text-muted); }
+html.sv-unread2 .cal-cm-type-tag.is-tweak { background: transparent !important; color: var(--svu-change-ink) !important; padding: 0 !important; text-transform: none; letter-spacing: 0; font-size: .74rem; font-weight: 600; }
+html.sv-unread2 #msgPage .msg-chat-head .msg-thumb.is-empty { display: none; }
+html.sv-unread2 #msgPage .msg-act { border: 0; background: transparent; box-shadow: none; padding: 0 2px; color: var(--text-muted); font-size: .76rem; font-weight: 600; }
+html.sv-unread2 #msgPage .msg-act:hover { background: transparent; color: var(--text-primary); text-decoration: underline; }
+html.sv-unread2 #msgPage .msg-chat-actions { gap: 14px; }
+html.sv-unread2 #msgPage .thumb-msg-new { display: flex; align-items: center; gap: 8px; margin: 8px 24px 2px; padding: 0; background: transparent; border: 0; color: var(--svu-unread-line); font-size: .7rem; font-weight: 700; }
+html.sv-unread2 #msgPage .thumb-msg-new::before { content: ''; flex: 1; border-top: 1px solid currentColor; }
+html.sv-unread2 .svu-change-line { display: flex; align-items: center; gap: 8px; margin: 2px 0; padding: 6px 24px; color: var(--text-secondary); font-size: .82rem; }
+html.sv-unread2 .svu-change-line b { color: var(--text-primary); font-weight: 700; }
+html.sv-unread2 .svu-change-line .svu-time { color: var(--text-muted); font-size: .72rem; }
+html.sv-unread2 .svu-change-line .svu-text-btn { margin-left: auto; color: var(--text-muted); font-size: .74rem; padding: 0; }
+html.sv-unread2 .svu-change-line .svu-text-btn:hover { background: transparent; color: var(--text-primary); }
+html.sv-unread2 .svu-line-av { width: 20px; height: 20px; border-radius: 5px; }
+html.sv-unread2 #msgPage .msg-b.svu-cont { padding-top: 0; margin-top: -6px; }
+html.sv-unread2 #msgPage .msg-b.svu-cont > .svu-slack-av { display: none; }
+html.sv-unread2 #msgPage .msg-b.svu-cont > .msg-b-meta { display: none; }
+html.sv-unread2 #msgPage .msg-b.svu-cont .svu-msg-acts { top: 2px; }
+html.sv-unread2 #msgPage .msg-reply { padding-top: 8px; }

@@ -35,6 +35,7 @@ function cards() {
     parts.video.push(reply(q2, Object.assign({ min: 2700, audience: 'client', body: 'Yes, that is the plan for the next cut.' }, TEAM)));
     parts.video.push(reply(q2, { min: 2690, body: 'Perfect, thank you.' }));
     parts.caption.push(msg(Object.assign({ min: 1400, audience: 'internal', body: 'Caption updated by the client, looks fine to me.' }, TEAM)));
+    parts.caption.push(msg(Object.assign({ min: 1398, audience: 'internal', body: 'I will schedule it for Friday morning.' }, TEAM)));
     parts.caption.push(msg({ min: 60, body: 'Who will post it, you or us?' }));
     parts.video.push(msg({ min: 45, body: 'The new version is great, much better light.' }));
     parts.video.push(msg({ min: 12, is_tweak: true, body: 'Last thing: end on the logo for two seconds.' }));

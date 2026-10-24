@@ -34099,3 +34099,22 @@ back the old function (including its "Needs info" lines).
 - **Proof:**
   - `docs/syncview-design/tests/unread-badges-v2-browser.js`, updated to round 6.
   - Before and after screenshots of the real page, fictional data, light and dark: `docs/syncview-design/proofs/unread-badges-r6/`, made by `shots.js` in that folder.
+
+## 486. [2026-10-24 14:20 UTC, BUILT, NOT MERGED] Round-6 unread badges, part 2: the owner's less-noise rule swept over the whole Messages page and Notes (session Beacon)
+
+- **What prompted it (supervisor's item E):** a full pass over the Messages inbox under the owner's rule (as little visual noise as possible) and the round-5 brief to mimic Slack. Run with the feedback-expansion method: each owner item became a rule, and every rule was swept over the list, filters, header, messages, day lines, change-request line, composer and empty states, in light and dark, with Notes as the sibling surface. Behind `unread_badges_v2`, on top of 485.
+- **Built:**
+  - **Status words:** quiet coloured words instead of filled pills ("Waiting for your answer", "Change request", "Not done", "New"). In Notes, "Waiting for your answer" stands alone, without "New".
+  - **Notes:** "TWEAK #1" reads "Change request" ("Change request 2" for a later round). "Team only" is the same lock as in Messages.
+  - **Conversation header:** no empty grey thumbnail; "Mark unread" and "Open card" are plain words.
+  - **Day lines:** Today, Yesterday, the weekday within a week, then "Wed 14 Oct" (the year only for another year).
+  - **"New":** no tag on each message. The existing "New messages" divider is one thin red "New" line.
+  - **Change requests:** a client's change request is one quiet line: "<first name> asked for a change on the video · 12m ago · Open card". The explanation moved to the hover.
+  - **Grouping:** a follow-up by the same person, in the same thread or both top-level, within five minutes, drops its repeated picture and name. A message waiting for your answer keeps its header.
+  - **Composer:** the reply caption uses the first name.
+- **Not built (owner decision list):**
+  - The Notes composer's "About the… / Team only · Video" lines are the shared composer, outside this pass.
+  - The client name on each list row stays, because an admin's list spans many clients.
+- **Proof:**
+  - `unread-badges-v2-browser.js`, new section H (day lines, no per-message New, the quiet change line, header words, empty thumbnail, first-name caption, grouping, the Notes lock and "Change request", "Waiting" alone).
+  - Screenshots `e-*` in `docs/syncview-design/proofs/unread-badges-r6/`.

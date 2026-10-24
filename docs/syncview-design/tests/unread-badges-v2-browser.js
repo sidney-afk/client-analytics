@@ -15,6 +15,11 @@
  *   E. Messages: New, To answer and All, each list badge says in a hover what it counts; the row carries the
  *      client's picture; the change request is one line; a message header is first name, a lock for "Team only",
  *      a relative time and the part at the right; Reply shows on hover only; your own picture sits beside your name.
+ *   H. Round 6 E (the owner's rule swept over Messages and Notes): day lines say Today / Yesterday; no "New" tag on
+ *      each message; the change-request line is one quiet line with the first name; the header actions read "Mark
+ *      unread" / "Open card" and an empty thumbnail is not drawn; the reply caption uses the first name; a follow-up
+ *      by the same person within five minutes drops its picture and name; in Notes "Team only" is a lock, a change
+ *      request reads "Change request", and "Waiting for your answer" stands alone without "New".
  *   F. No page error.
  *   G. Only a page the switch is on for asks the inbox for pictures (the Slack lookups are opt-in).
  */
@@ -51,6 +56,7 @@ async function run(flagValue) {
     unread: 2, first_unread_id: 'n_question',
     messages: [Object.assign({}, NOTES[1], { component: 'video' }), Object.assign({}, NOTES[0], { component: 'video' }),
       Object.assign(note({ id: 'm_team', min: 30, author: 'Fixture Editor', author_member_id: 'ed1', role: 'editor', audience: 'internal', body: 'Export is up.' }), { component: 'video', is_tweak: false }),
+      Object.assign(note({ id: 'm_team2', min: 29, author: 'Fixture Editor', author_member_id: 'ed1', role: 'editor', audience: 'internal', body: 'Same export, now with captions.' }), { component: 'video', is_tweak: false }),
       Object.assign(note({ id: 'm_mine', min: 25, author: 'Browser Staff', author_member_id: 'm1', role: 'admin', audience: 'internal', body: 'Thanks, checking now.' }), { component: 'caption', is_tweak: false })]
       .sort((a, b) => a.created_at.localeCompare(b.created_at)) };
   await S.ctx.route('**/functions/v1/production-comments{,?*}', async route => {
@@ -140,6 +146,15 @@ const cardState = page => page.evaluate(() => {
     ok(notes.author === 'Casey' && notes.time === '20m ago', 'D. first name and a relative time: ' + notes.author + ', ' + notes.time);
     ok(notes.waitingTag && notes.tools.includes('Reply') && notes.tools.includes('No reply needed'), 'D. the waiting comment\'s hover toolbar has Reply and No reply needed: ' + notes.tools.join(', '));
     ok(notes.unread, 'D. "Mark unread" is one quiet word in the Notes head');
+    const notesE = await page.evaluate(() => ({
+      lock: !!document.querySelector('#calCommentsModal .cal-cm-row[data-cm-row="n_team"] .svu-lock[title]'),
+      teamWord: !!document.querySelector('#calCommentsModal .cal-cm-row[data-cm-row="n_team"] .cal-cm-head-line .cal-cm-to-tag.is-team'),
+      tweak: (document.querySelector('#calCommentsModal .cal-cm-row[data-cm-row="n_change"] .cal-cm-type-tag.is-tweak') || {}).textContent,
+      qTags: [...document.querySelectorAll('#calCommentsModal .cal-cm-row[data-cm-row="n_question"] .svu-tags .svu-tag')].map(t => t.textContent),
+    }));
+    ok(notesE.lock && !notesE.teamWord, 'H. Notes: "Team only" is a lock with its meaning on hover');
+    ok(notesE.tweak === 'Change request', 'H. Notes: a change request reads "Change request" (' + notesE.tweak + ')');
+    ok(notesE.qTags.join() === 'Waiting for your answer', 'H. Notes: "Waiting for your answer" stands alone, without "New" (' + notesE.qTags.join() + ')');
     const writes = await page.evaluate(() => new Promise(resolve => {
       const feed = document.querySelector('#calCommentsModal .cal-comments-feed');
       let n = 0;
@@ -208,6 +223,22 @@ const cardState = page => page.evaluate(() => {
     });
     ok(head.name === 'Fixture' && head.lock && !head.teamWord && head.role === 0 && head.time === '30m ago' && head.partLast, 'E. a message header is first name, a lock, a relative time and the part at the right ' + JSON.stringify(head));
     ok(head.actsHidden === true && !head.replyRow, 'E. Reply shows on hover only');
+    const e = await page.evaluate(() => ({
+      days: [...document.querySelectorAll('#msgPage .msg-day')].map(d => d.textContent.trim()),
+      newTags: document.querySelectorAll('#msgPage .msg-b .svu-tag.svu-t-comment, #msgPage .msg-b .svu-tag.svu-t-staff').length,
+      line: (document.querySelector('#msgPage .svu-change-line') || {}).textContent || '',
+      acts: [...document.querySelectorAll('#msgPage .msg-chat-actions .msg-act')].map(a => a.textContent.trim()),
+      thumb: (() => { const t = document.querySelector('#msgPage .msg-chat-head .msg-thumb.is-empty'); return t ? getComputedStyle(t).display : 'none'; })(),
+      cap: (document.querySelector('#msgPage .msg-reply-cap b') || {}).textContent || '',
+      cont: !!document.querySelector('#msgPage .msg-b[data-msg-id="m_team2"].svu-cont'),
+      contFirst: !!document.querySelector('#msgPage .msg-b[data-msg-id="m_team"].svu-cont'),
+    }));
+    ok(e.days.length >= 1 && e.days.every(d => d === 'Today'), 'H. day lines say "Today": ' + e.days.join(', '));
+    ok(e.newTags === 0, 'H. no "New" tag on each message');
+    ok(/^Casey asked for a change on the video/.test(e.line.trim()) && !/handled on the card/.test(e.line), 'H. the change-request line is one quiet line: ' + e.line.trim());
+    ok(e.acts.join() === 'Mark unread,Open card' && e.thumb === 'none', 'H. header actions are words and an empty thumbnail is not drawn ' + JSON.stringify([e.acts, e.thumb]));
+    ok(e.cap === '' || e.cap.split(/\s+/).length === 1, 'H. the reply caption uses the first name: ' + e.cap);
+    ok(e.cont && !e.contFirst, 'H. a follow-up by the same person within five minutes drops its picture and name');
     ok(head.avLeft < 40 && Math.abs(head.avTop - head.nameTop) <= 8, 'E. your own picture sits at the left, beside your name (top ' + head.avTop + ' vs ' + head.nameTop + ', left ' + head.avLeft + ')');
     ok(h.inboxCalls.some(b => b.pictures === 1 && b.via === 'GET'), 'G. with the switch on, the inbox read (GET) asks for pictures');
     ok(h.errors.length === 0, 'F. switch on: no page error' + (h.errors.length ? ' ' + h.errors.join(' | ') : ''));

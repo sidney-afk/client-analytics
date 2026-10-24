@@ -5,7 +5,9 @@ import { _calCommentsFor, _calCommentsForView, _calSetCommentsFor, calState } fr
 import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui.js';
 import { _calReviewState } from './180-calendar-native-post-media.js';
 import { svFrameStageMount, svFrameStagePending, svFrameStageUnmount, svFrameWarm } from './187-frame-viewer.js';
-import { svRsCalOn, svRsHelpUrl, svRsKasperFast, svRsKasperLayout2On, svRsToolsEl } from './188-review-stage-switch.js';
+import { svRsCalOn, svRsClientPolishOn, svRsHelpUrl, svRsKasperFast, svRsKasperLayout2On, svRsToolsEl } from './188-review-stage-switch.js';
+import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
+import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
@@ -1008,6 +1010,39 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .rs.l2 .l2g.l2-port .tcard.wc{width:100cqw}
 `;
     const RS_PART = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'YouTube title' };
+    /* The client page's polish (review_client_polish, session Porch, 2026-10-24): only added to a client page the switch
+       lists. No wait or progress cursor; the approve circle, spinner and check; the change box's "Sent"; the delete cross. */
+    const RS_CSS_CP = `
+.cp .b-ok.busy,.cp .b-ask.busy,.cp .b-frame.busy,.cp .b-ok:disabled,.cp .b-ask:disabled{cursor:default}
+.cp-spin{display:inline-block;flex:none;width:16px;height:16px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;opacity:.8;animation:rsSpin .7s linear infinite;vertical-align:middle}
+.bh .cp-spin{width:10px;height:10px;border-width:1.5px;opacity:.55}
+.fc .cp-spin{width:12px;height:12px}
+.b-ok.cp-morph,.b-ok.cp-morph:disabled{width:44px;min-width:44px;height:42px;padding:0;gap:0;justify-content:center;border-radius:999px;background:var(--okb);color:var(--okb-fg);box-shadow:inset 0 0 0 1px var(--okb-line);overflow:hidden;animation:cpShrink .22s var(--ease) both}
+@keyframes cpShrink{from{width:var(--cpw);border-radius:11px}to{width:44px;border-radius:999px}}
+.b-ok.cp-ok,.b-ok.cp-ok:disabled{animation:none;background:var(--ok-ink);color:var(--surface-raised);box-shadow:none}
+.cp-ck{display:inline-flex;animation:cpPop .34s cubic-bezier(.3,1.6,.5,1) both;animation-delay:var(--cpd,0ms)}
+.cp-ck svg{width:18px;height:18px}
+@keyframes cpPop{from{transform:scale(.3);opacity:0}to{transform:none;opacity:1}}
+.dec.cp-checking{background:transparent;box-shadow:none}
+.dec.cp-settle{animation:cpSettle .3s var(--ease) both}
+@keyframes cpSettle{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
+.cp-stw{display:inline-flex;align-items:center;gap:4px 10px;flex-wrap:wrap}
+.cp-st{display:inline-flex;align-items:center;gap:6px;font-size:.74rem;font-weight:700;color:var(--text-secondary)}
+.cp-st svg{width:12px;height:12px}
+.cp-st.cp-done{color:var(--ok-ink);animation:rise .2s var(--ease)}
+.cp .bb{position:relative}
+.cp-x{position:absolute;top:-10px;right:-8px;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--surface-raised);color:var(--text-secondary);box-shadow:0 0 0 1px var(--border),0 1px 3px color-mix(in srgb,var(--text-primary) 14%,transparent);opacity:0;transform:scale(.85);transition:opacity .12s,transform .12s,color .12s;pointer-events:none;z-index:1}
+.cp-x svg{width:10px;height:10px}
+.bub:hover .cp-x,.bub:focus-within .cp-x,.bub.cp-show .cp-x{opacity:1;transform:none;pointer-events:auto}
+.cp-x:hover,.cp-x:focus-visible{color:var(--urgent)}
+.cp-ask{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:.78rem;font-weight:600;color:var(--text-primary)}
+.cp-ask span{margin-right:4px}
+.cp-ask button{font:inherit;font-weight:700;padding:3px 11px;border-radius:999px;transition:background .12s}
+.cp-yes{background:var(--urgent);color:var(--surface-raised)}
+.cp-no{color:var(--text-secondary)}
+.cp-no:hover{background:var(--fill);color:var(--text-primary)}
+@media (prefers-reduced-motion:reduce){.cp-spin{animation:rsBreathe 1.6s ease-in-out infinite!important;border-right-color:currentColor}.b-ok.cp-morph,.cp-ck,.dec.cp-settle{animation:none}}
+`;
     const RS_CSSKEY = { video: 'video', graphic: 'thumbnail', caption: 'caption', title: 'youtube' };
     const RS_FRAME_NOTE = 'Tweaks are on Frame.';
     function _rsSv(p, w) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + (w || 2.2) + '" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>'; }
@@ -1070,7 +1105,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     function _rsBlankNote() { return { text: '', part: null, where: 'chat', vis: 'team', aat: false, was: '' }; }
     const R = {
         mode: '', key: '', host: null, root: null, ro: null, mo: null,
-        S: null, kparts: null, pending: false, l2: false
+        S: null, kparts: null, pending: false, l2: false, cp: false
     };
     // Kasper's second layout needs room for the list, three parts and the conversation (below this: today's page).
     const RS_L2_MIN = 1360;
@@ -1191,6 +1226,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             S.draftsLoaded = true;
             const stored = _rsStoreRead();
             Object.keys(stored).forEach(id => { if (!S.drafts[id]) S.drafts[id] = stored[id]; });
+            if (R.cp) _rsCpQRestore();
         }
         // The list may still be the saved copy from an earlier visit (calState.fromCache): it can lack a post that
         // is waiting now, so nothing is dropped until the live list has landed.
@@ -1215,7 +1251,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsFreshState() {
         return { curId: null, step: '', note: _rsBlankNote(), editing: '', editText: '', fold: false, saved: null,
-            menu: '', exp: {}, edOpen: false, qOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, retryText: {}, capSending: {}, noteQ: {}, slow: {}, pressed: {}, ready: {}, actAt: {}, seen: {}, told: {}, keepK: null, drafts: {}, editDrafts: {}, editBase: {}, editSaving: {}, editErrors: {}, draftsLoaded: false, moved: null, stageTitle: '' };
+            menu: '', exp: {}, edOpen: false, qOpen: false, acted: new Set(), finished: new Set(), hinted: false, pinged: {}, retry: {}, retryText: {}, capSending: {}, noteQ: {}, slow: {}, pressed: {}, ready: {}, actAt: {}, seen: {}, told: {}, keepK: null, drafts: {}, editDrafts: {}, editBase: {}, editSaving: {}, editErrors: {}, draftsLoaded: false, moved: null, stageTitle: '', cpOk: {}, cpSent: {}, chgQ: {}, cpBack: {}, cpDel: null, cpW: 0 };
     }
 
     /* ---------- the model: one shape for every person ---------- */
@@ -1288,6 +1324,10 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (R.S && R.S.noteQ) {
             comps.forEach(comp => (R.S.noteQ[post.id + '|' + comp] || []).forEach(n => all.push({ c: { id: n.id, body: n.body, created_at: n.created_at, role: mode === 'kasper' ? 'kasper' : _calCommentRole(), sending: true, audience: mode === 'client' || n.vis === 'client' ? 'client' : 'internal' }, comp })));
         }
+        // the client page's queued change requests (polish): each shows from its send, in order, until it goes
+        if (R.S && R.S.chgQ) {
+            comps.forEach(comp => (R.S.chgQ[post.id + '|' + comp] || []).forEach(n => all.push({ c: { id: n.id, body: n.body, created_at: n.created_at, role: _calCommentRole(), sending: true, is_tweak: true, audience: 'client' }, comp })));
+        }
         all.sort((a, b) => String(a.c.created_at || '').localeCompare(String(b.c.created_at || '')));
         return all.map(({ c, comp }) => {
             const pending = outbox.find(e => e.id === c.id);
@@ -1297,7 +1337,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 id: String(c.id || ''), you: _rsIsMine(c, mode), who: who || (c.role === 'client' ? 'Client' : 'Team'), role: c.role || '',
                 // Round 7 (switch unread_badges_v2, staff and Kasper): a spinner in place of the word "Sending…".
                 spin: !!c.sending && mode !== 'client' && typeof svuActive === 'function' && svuActive(),
-                part: comp, time: c.sending ? 'Sending…' : _rsWhen(c.created_at), text: String(c.body || ''),
+                part: comp, time: c.sending ? (R.cp ? '' : 'Sending…') : _rsWhen(c.created_at), text: String(c.body || ''),
                 change: !!c.is_tweak, done: !!c.done, aud: c.audience || '', sending: !!c.sending || !!(pending && pending.state === 'sending'), failed: !!(pending && pending.state === 'failed'), edit: c.is_tweak ? null : _rsEditOf(c.body),
                 canDelete: mode === 'client' && !c.sending && (c.canonical ? !!c.can_delete : c.role === 'client'),
                 frame: !!c.is_tweak && String(c.body || '').trim() === RS_FRAME_NOTE
@@ -1491,7 +1531,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 + '<section class="recap" id="recap" hidden></section>'
                 + '</main></div></div>';
         }
-        return '<div class="rs' + (R.mode === 'kasper' ? ' in-kasper' : R.mode === 'client' ? ' client' : ' smm') + '"><div class="app" id="rsApp">' + _rsHeaderHtml()
+        return '<div class="rs' + (R.mode === 'kasper' ? ' in-kasper' : R.mode === 'client' ? ' client' : ' smm') + (R.cp ? ' cp' : '') + '"><div class="app" id="rsApp">' + _rsHeaderHtml()
             + '<nav class="strip" id="strip" aria-label="Posts waiting for review"><div class="sk-head" id="skHead"></div><div class="sk-list" id="skList"></div>'
             + (R.mode === 'kasper' ? '<div class="qp" id="qPanel" role="dialog" aria-label="Your review list" hidden></div>' : '') + '</nav>'
             + '<main class="stage" id="stage">'
@@ -1537,6 +1577,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const fresh = !R.host || !R.host.isConnected || R.mode !== mode || R.key !== key;
         if (R.mode !== mode || R.key !== key) { R.S = _rsFreshState(); R.chatKey = null; R.listCur = R.stripCur = undefined; }
         R.mode = mode; R.key = key;
+        // The client page's polish (review_client_polish), read once with the other switches; off everywhere else.
+        R.cp = mode === 'client' && svRsClientPolishOn(calState.client);
         // The client link's page sits above the calendar (its header heads every tab); the others below it.
         const above = mode === 'client';
         if (!R.host || R.host.parentNode !== container.parentNode || (above ? R.host.nextElementSibling : R.host.previousElementSibling) !== container) {
@@ -1552,11 +1594,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (above && tools.parentNode !== R.host) R.host.appendChild(tools);
         else if (!above && tools.parentNode === R.host) tools.remove();
         const l2 = mode === 'kasper' && !!R.l2;
-        if (fresh || !R.root.getElementById('rsApp') || R.root.getElementById('rsApp').getAttribute('data-mode') !== mode || (R.shellL2 !== undefined && R.shellL2 !== l2)) {
+        if (fresh || !R.root.getElementById('rsApp') || R.root.getElementById('rsApp').getAttribute('data-mode') !== mode || (R.shellL2 !== undefined && R.shellL2 !== l2) || R.shellCp !== R.cp) {
             // The layout switched under an open page (the window crossed the width limit): the player goes with the old shell.
             if (R.shellL2 !== undefined && R.shellL2 !== l2) _rsStageOff();
-            R.shellL2 = l2;
-            R.root.innerHTML = '<style>' + RS_CSS + RS_CSS_TOKENS + (l2 ? RS_CSS_L2 : '') + '</style><style id="rsFvCss">' + _rsPlayerCss() + '</style>' + _rsShellHtml();
+            R.shellL2 = l2; R.shellCp = R.cp;
+            R.root.innerHTML = '<style>' + RS_CSS + RS_CSS_TOKENS + (l2 ? RS_CSS_L2 : '') + (R.cp ? RS_CSS_CP : '') + '</style><style id="rsFvCss">' + _rsPlayerCss() + '</style>' + _rsShellHtml();
             _rsQ('rsApp').setAttribute('data-mode', mode);
             _rsWire();
         }
@@ -1761,7 +1803,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (R.skel) { _rsHeader(); _rsSkeleton(); return; }   // the client page's Review while its cards load
         _rsSkeletonOff();
         if (R.bar) { _rsHeader(); return; }   // Sheet, Month or Week under the client link's header: no stage
-        if (!(opts && opts.force) && _rsTyping()) { R.pending = true; _rsHeader(); _rsStrip(); return; }
+        if (!(opts && opts.force) && _rsTyping()) { R.pending = true; _rsHeader(); _rsStrip(); if (R.cp) _rsCpTypingPaint(); return; }
         R.pending = false;
         const m = _rsCur();
         _rsEmptyMemory(!m);
@@ -2195,15 +2237,51 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const S = R.S;
         const key = m.id + '|' + k, err = _rsError(m, k), editError = S.editErrors[key];
         const who = k === onStage ? '' : RS_PART[k] + ': ';
-        if (err) return '<div class="err" role="alert" data-err="' + k + '"><div>' + _re(who + 'Not saved. ' + (R.mode === 'client' ? _calCrqClientWords(err).text : err)) + (!editError && S.retryText[key] ? '<details><summary>Your unsent words</summary><div class="tc-text">' + _re(S.retryText[key]) + '</div></details>' : '') + '</div>' + (!editError && S.retry[key] ? '<button class="retry" type="button" data-retry="' + k + '">Try again</button>' : '') + '</div>';
+        if (err) return '<div class="err" role="alert" data-err="' + k + '"><div>' + _re(who + 'Not saved. ' + (R.mode === 'client' ? _rsClientWords(err) : err) + (R.cp && S.cpBack[key] ? ' Your next words are back in the box.' : '')) + (!editError && S.retryText[key] ? '<details><summary>Your unsent words</summary><div class="tc-text">' + _re(S.retryText[key]) + '</div></details>' : '') + '</div>' + (!editError && S.retry[key] ? '<button class="retry" type="button" data-retry="' + k + '">Try again</button>' : '') + '</div>';
         if (S.slow[key] && _rsSaving(m, k)) return '<div class="err slow" role="status" data-slow="' + k + '">' + _re(who) + 'Still waiting for the server. Nothing is lost: it finishes here on its own.</div>';
         return '';
+    }
+    // A refusal in a client's words. With the polish on, a sentence written for the team (a code, "send this to the
+    // owner") reads as one plain line instead; the full reason is still in the server's refusal report.
+    const RS_CP_TECH = /\bcode\b|native|owner|recogni[sz]e|HTTP|Linear|gateway|deliverable|\b\d{3}\b/i;
+    function _rsClientWords(err) {
+        const w = _calCrqClientWords(err);
+        return R.cp && !w.whole && RS_CP_TECH.test(w.text) ? 'Something went wrong on our side, so nothing changed. Please try again.' : w.text;
     }
     function _rsSaveIssues(m, onStage) {
         return m.parts.map(p => _rsSaveIssue(m, p.key, onStage)).join('');
     }
     // A small spinner in place of a button's icon while its save runs (owner feedback 2026-10-17: no "Saving..." text).
     const RS_SPIN = '<span class="spin" aria-hidden="true"></span>';
+    /* THE CLIENT PAGE'S POLISH (review_client_polish, session Porch, 2026-10-24; R.cp, the client link only).
+       Approve morphs into a small spinner the moment it is pressed, turns into a check the moment the save lands, and
+       the row then settles into its Approved state; a refused save puts the buttons back with the reason. A sent change
+       request keeps its box open and empty on the same part, so the next change can follow; changes sent while one is
+       still saving wait their turn here and never replace each other. No sending or saving words anywhere: one spinner. */
+    const RS_CP_CHECK_MS = 650;
+    // The page's one spinner: the shared one (svSpinHtml, 040, session Beacon) when it is there, else the same markup
+    // here. `cp-spin` only sizes it for this page's places (a note's header, Finish, the approve circle).
+    function _rsSpinner(label) {
+        const l = label || 'Sending';
+        let h = '';
+        try { h = String(svSpinHtml(l) || ''); } catch (e) { h = ''; }
+        if (!/class="sv-spin/.test(h)) h = '<span class="sv-spin" role="status" aria-label="' + _re(l) + '"></span>';
+        return h.replace('class="sv-spin', 'class="cp-spin sv-spin');
+    }
+    // The approve button as a circle: a spinner while the save runs, a check once it landed (`ok`: when it landed).
+    function _rsCpMorph(x, ok) {
+        const n = _rsLname(x.key), w = Math.max(44, Math.min(320, Number(R.S.cpW) || 180));
+        const label = ok ? RS_PART[x.key] + ' approved' : 'Approving the ' + n;
+        return '<button class="b-ok cp-morph' + (ok ? ' cp-ok' : '') + '" type="button" disabled aria-busy="' + !ok + '" aria-label="' + label + '" style="--cpw:' + w + 'px' + (ok ? ';--cpd:-' + Math.min(RS_CP_CHECK_MS, Date.now() - ok) + 'ms' : '') + '">'
+            + (ok ? '<span class="cp-ck" role="img" aria-label="' + label + '">' + RI.check + '</span>' : _rsSpinner(label)) + '</button>';
+    }
+    // The save of an approval pressed here landed: the check shows for a moment, then the row settles.
+    function _rsCpLanded(key) {
+        const S = R.S;
+        if (!R.cp || S.cpOk[key]) return;
+        S.cpOk[key] = Date.now();
+        setTimeout(() => { if (R.S === S) _rsRender(); }, RS_CP_CHECK_MS + 20);
+    }
     function _rsSplit(x, busy) {
         const k = x.key, n = _rsLname(k), open = !busy && R.S.menu === k;
         // While the save runs the pressed button already says the result (past tense, with its spinner), so the click is answered
@@ -2222,6 +2300,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     // The decision buttons; with `busy` (what was pressed) the pressed one spins and every one waits.
     function _rsActions(x, busy) {
         const n = _rsLname(x.key);
+        if (R.cp && (busy === 'ok' || busy === 'client')) return _rsCpMorph(x, 0);
         const ok = busy === 'ok' || (R.mode === 'client' && busy === 'client');
         const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + (ok ? 'Approved' : 'Approve the ' + n) + '</button>' : _rsSplit(x, busy);
         const chg = busy === 'chg', fr = busy === 'frame';
@@ -2250,9 +2329,14 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const S = R.S, n = _rsLname(x.key);
         let d;
         const saving = _rsSaving(m, x.key);
+        const ck = m.id + '|' + x.key;
+        if (R.cp && !saving && x.st === 'ok' && S.pressed[ck] === 'ok' && !_rsError(m, x.key)) _rsCpLanded(ck);
+        const cpOk = R.cp && S.cpOk[ck] && x.st === 'ok' && Date.now() - S.cpOk[ck] < RS_CP_CHECK_MS ? S.cpOk[ck] : 0;
         if (S.editing === x.key) d = '<span class="dst busy">' + RI.pen + 'Editing the ' + n + '</span>';
+        else if (cpOk && !_rsWriting(x)) d = _rsCpMorph(x, cpOk);
         else if (_rsWriting(x) && S.note.where === 'stage') d = null;
-        else if (_rsWriting(x)) d = '<span class="dst wr">' + RI.pen + 'Writing a change to the ' + n + ' in the conversation</span>';
+        // Polish: once a change went and the box is empty again, the part shows its answer, not "Writing a change".
+        else if (_rsWriting(x) && !(R.cp && S.cpSent[m.id + '|' + x.key] && !String(S.note.text || '').trim())) d = '<span class="dst wr">' + RI.pen + 'Writing a change to the ' + n + ' in the conversation</span>';
         // The pressed button names its result only while the save is the one that button started. A note or an edit
         // saving on a waiting part leaves the buttons as they were (waiting, disabled), never reading "Approved"
         // (review of #2235); on a part already answered, the answer shows.
@@ -2266,7 +2350,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         } else {
             d = _rsActions(x, '');
         }
-        const dc = x.st === 'ok' && d && !S.editing && !saving ? ' is-ok' : (x.st === 'chg' || x.st === 'tweak') && d && !S.editing && !saving ? ' is-chg' : '';
+        const dc = cpOk ? ' cp-checking' : x.st === 'ok' && d && !S.editing && !saving ? ' is-ok' + (R.cp && S.cpOk[ck] ? ' cp-settle' : '') : (x.st === 'chg' || x.st === 'tweak') && d && !S.editing && !saving ? ' is-chg' : '';
         return { d, dc, saving };
     }
     // Finish reviewing and Close card. On the client link Finish stays off, with a short "Saving…", while any part's
@@ -2281,7 +2365,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (all && !S.ready[m.id]) S.ready[m.id] = Date.now();
         if (!all) delete S.ready[m.id];
         const glow = all ? ' ready" style="animation-delay:-' + (Date.now() - S.ready[m.id]) + 'ms' : '';
-        return '<button class="finish' + glow + '" type="button" id="finishBtn"' + (all ? '' : ' disabled') + '>' + RI.check + 'Finish reviewing' + (all ? '' : sending ? ' <span class="fc num" id="finishWait">Saving…</span>' : ' <span class="fc num">' + (parts.length - left) + ' of ' + parts.length + '</span>') + '</button>'
+        return '<button class="finish' + glow + '" type="button" id="finishBtn"' + (all ? '' : ' disabled') + '>' + RI.check + 'Finish reviewing' + (all ? '' : sending ? (R.cp ? ' <span class="fc num" id="finishWait">' + _rsSpinner('Saving your answers') + '</span>' : ' <span class="fc num" id="finishWait">Saving…</span>') : ' <span class="fc num">' + (parts.length - left) + ' of ' + parts.length + '</span>') + '</button>'
             + (R.mode === 'kasper' && !m.gone ? (R.l2
                 ? '<span class="closew"><button class="btn-quiet" type="button" id="closeBtn" aria-describedby="closeTip"' + (sending ? ' disabled' : '') + '>Close card</button><span class="tip" id="closeTip" role="tooltip">' + RS_CLOSE_TIP + '</span></span>'
                 : '<button class="btn-quiet" type="button" id="closeBtn"' + (sending ? ' disabled' : '') + '>Close card</button>') : '');
@@ -2305,6 +2389,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         // A button that stays across refreshes (_rsCalm) keeps its handler, so the post is looked up when it is pressed, never held from when the button was drawn: a refresh replaces the post's objects.
         const cur = () => _rsModelById(m.id) || m;
         el.querySelectorAll('[data-ok]').forEach(b => b.addEventListener('click', () => _rsApprove(cur(), b.dataset.ok, R.mode === 'smm' ? 'kasper' : '')));
+        // Polish: the save's live permission read starts at the press, not the release, so the click finds it under way
+        // (the write path still reads it live for this very save; it only starts sooner). The circle starts at the button's width.
+        if (R.cp) el.querySelectorAll('[data-ok]').forEach(b => b.addEventListener('pointerdown', () => { S.cpW = b.offsetWidth; try { _writeUiRefreshAuthority(); } catch (e) {} }));
         el.querySelectorAll('[data-alt]').forEach(b => b.addEventListener('click', (e) => {
             e.stopPropagation(); S.menu = '';
             if (b.dataset.alt === 'client') _rsApprove(cur(), b.dataset.for, 'client');
@@ -2346,20 +2433,30 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         _rsBindFinish(m, el);
         if (d === null) _rsBindComposer(el);
     }
+    // Polish: what the box says about the changes it sent (a spinner while one is on its way, then "Sent").
+    function _rsCpChgState(m, k) {
+        if (!R.cp || !k) return '';
+        const S = R.S, key = m.id + '|' + k;
+        if (_rsSaving(m, k) || (S.chgQ[key] || []).length) return '<span class="cp-st">' + _rsSpinner('Sending your change') + '</span>';
+        const n = S.cpSent[key] || 0;
+        return n ? '<span class="cp-st cp-done" role="status">' + RI.check + (n > 1 ? n + ' changes sent' : 'Sent') + '</span><span class="why">Add another change, or finish reviewing.</span>' : '';
+    }
     function _rsComposer(m) {
         const S = R.S, nt = S.note, k = nt.part, chg = !!k, n = chg ? _rsLname(k) : '', typed = !!nt.text.trim();
+        const cpst = _rsCpChgState(m, k);
         const active = _rsActive(m);
         const paused = !!S.editing && !chg;
         const x = chg ? m.parts.find(p => p.key === k) : null;
         // An approved part on a client link cannot be reopened from the page: "Change my mind" is a note to the team.
         const reopenNote = R.mode === 'client' && x && x.st === 'ok';
         const ph = paused ? 'Finish the edit first'
+            : cpst && S.cpSent[m.id + '|' + k] ? 'Another change to the ' + n + '?'
             : chg ? (nt.aat ? 'What should the editor fix? It goes on to the client after.' : reopenNote ? 'What would you like changed on the ' + n + '?' : 'What should change on the ' + n + '?')
             : R.mode === 'smm' ? (nt.vis === 'client' ? 'Leave a note the client will see too' : 'Leave a note for the team')
             : R.mode === 'kasper' ? (active ? 'Message the team' : 'Message the editor') : 'Message your team';
         const why = nt.aat ? 'Approved once the editor fixes it' : reopenNote ? 'Your team will reopen it' : x && x.st === 'ok' ? 'This takes back the approval' : R.mode === 'client' ? 'Your team will edit it' : 'The editor will change it';
         const chip = chg ? '<span class="tochip">' + _rsDot(k) + (nt.where === 'chat' ? 'Change to: ' + RS_PART[k] + '<button class="x" type="button" id="chipX" aria-label="Make it a plain note" title="Make it a plain note">' + RI.x + '</button>' : (nt.aat ? 'Approve the ' + n + ' after tweaks' : 'Change to the ' + n)) + '</span>' : '';
-        const top = chg ? '<div class="cmp-top">' + chip + '<span class="why">' + why + '</span></div>' : '';
+        const top = chg ? '<div class="cmp-top">' + chip + (R.cp ? '<span class="cp-stw" id="cpSt">' : '') + (cpst || '<span class="why">' + why + '</span>') + (R.cp ? '</span>' : '') + '</div>' : '';
         const seg = R.mode === 'smm' ? (chg
             ? '<div class="seg" role="group" aria-label="Who can see the change request"><button type="button" class="on" aria-pressed="true" disabled>' + RI.lock + 'Team only</button><button type="button" disabled title="Change requests always stay with the team">' + RI.eye + 'Client can see</button></div>'
             : '<div class="seg" role="group" aria-label="Who can see the note"><button type="button" data-vis="team" class="' + (nt.vis === 'team' ? 'on' : '') + '" aria-pressed="' + (nt.vis === 'team') + '">' + RI.lock + 'Team only</button><button type="button" data-vis="client" class="' + (nt.vis === 'client' ? 'on' : '') + '" aria-pressed="' + (nt.vis === 'client') + '">' + RI.eye + 'Client can see</button></div>') : '';
@@ -2370,20 +2467,20 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             : (opts.length ? '<div class="sugg"><div class="sgl"><span>Is this a change?</span><button class="justnote" type="button" id="noteBtn">Just a note ' + RI.send + '</button></div><div class="sgp">' + opts.map(q => '<button class="sg" type="button" data-sg="' + q.key + '">' + _rsDot(q.key) + RS_PART[q.key] + (q.st === 'ok' ? '<span class="sga">, approved</span>' : '') + '</button>').join('') + '</div></div>' : '')
               + (R.mode === 'smm' ? '<div class="nfoot">' + seg + '<button class="send" type="button" id="sendBtn" aria-label="Send the note"' + (typed ? '' : ' disabled') + '>' + RI.send + '</button></div>' : '');
         const send = chg || R.mode === 'smm' ? '' : '<button class="send" type="button" id="sendBtn" aria-label="Send as a note"' + (typed ? '' : ' disabled') + '>' + RI.send + '</button>';
-        if (R.mode === 'client' && nt.where !== 'stage') return _rsClientComposer(m, opts, ph, paused, typed);
+        if (R.mode === 'client' && nt.where !== 'stage') return _rsClientComposer(m, opts, ph, paused, typed, cpst);
         return '<div class="compose' + (R.mode === 'smm' ? ' smm' : '') + (chg ? ' chg' : '') + (typed ? ' typed' : '') + '" id="compose"><div class="cbox">' + top + '<div class="ta-wrap"><textarea class="cta" id="ta" rows="1" placeholder="' + _re(ph) + '" aria-label="' + _re(ph) + '"' + (paused ? ' disabled' : '') + '>' + _re(nt.text) + '</textarea>' + send + '</div>' + foot + '</div></div>';
     }
     /* The client's message box: chips at the top left say what the message is about (one at a time; picking it again
        clears it), and two buttons at the bottom right send it. "Ask for a change" needs a part; "Send comment" asks for
        nothing and goes on the chosen part, or on the part on stage. Enter sends a change when a part is picked, a
        comment otherwise. */
-    function _rsClientComposer(m, opts, ph, paused, typed) {
+    function _rsClientComposer(m, opts, ph, paused, typed, cpst) {
         const nt = R.S.note, k = nt.part, x = k ? m.parts.find(p => p.key === k) : null;
         const reopenNote = x && x.st === 'ok';
         const keys = opts.map(q => q.key);
         if (k && keys.indexOf(k) < 0) keys.push(k);
         const chips = keys.length ? '<div class="cl-parts" role="group" aria-label="What is this about?"><span class="lbl">About</span>' + keys.map(q => '<button class="pchip" type="button" data-pc="' + q + '" aria-pressed="' + (q === k) + '"' + (q === k ? ' title="Clear: send it as a comment"' : '') + '>' + _rsDot(q) + RS_PART[q] + '<span class="px" aria-hidden="true">' + RI.x + '</span></button>').join('')
-            + (k ? '<span class="why">' + (reopenNote ? 'Your team will reopen it' : 'Your team will edit it') + '</span>' : '') + '</div>' : '';
+            + (k ? (R.cp ? '<span class="cp-stw" id="cpSt">' : '') + (cpst || '<span class="why">' + (reopenNote ? 'Your team will reopen it' : 'Your team will edit it') + '</span>') + (R.cp ? '</span>' : '') : '') + '</div>' : '';
         const chgLabel = reopenNote ? 'Send to your team' : 'Ask for a change';
         const foot = '<div class="cl-foot">'
             + '<button class="b-cmt" type="button" id="cmtBtn"' + (typed ? '' : ' disabled') + '>' + RI.send + 'Send comment</button>'
@@ -2399,18 +2496,22 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const role = R.mode === 'smm' && !t.you && t.role ? ' <span class="role">' + (t.role === 'client' ? 'client' : t.role === 'kasper' ? 'review' : '') + '</span>' : '';
         const vis = R.mode === 'smm' && !t.change && t.aud ? '<span class="vis' + (t.aud === 'client' ? ' cl' : '') + '">' + (t.aud === 'client' ? RI.eye + 'Client can see' : RI.lock + 'Team only') + '</span>' : '';
         const done = t.done ? '<span class="donec">' + RI.check + 'Done</span>' : '';
-        const del = t.canDelete && t.id ? '<button class="btn-quiet" type="button" data-delete-note="' + _re(t.id) + '">Delete note</button>' : '';
+        const del = t.canDelete && t.id && !R.cp ? '<button class="btn-quiet" type="button" data-delete-note="' + _re(t.id) + '">Delete note</button>' : '';
+        // Polish: a small cross at the note's top right on hover, focus or a long press; it asks before it deletes.
+        const asking = R.cp && t.canDelete && t.id && R.S.cpDel === t.id;
+        const cpx = R.cp && t.canDelete && t.id && !asking ? '<button class="cp-x" type="button" data-cp-del="' + _re(t.id) + '" aria-label="Delete note" title="Delete note">' + RI.x + '</button>' : '';
+        const cpAsk = asking ? '<div class="cp-ask" role="group" aria-label="Delete this note?"><span>Delete this note?</span><button class="cp-yes" type="button" data-cp-yes="' + _re(t.id) + '">Delete</button><button class="cp-no" type="button" data-cp-no="1">Cancel</button></div>' : '';
+        const when = R.cp && t.sending ? _rsSpinner('Sending') : '<span>' + (t.spin ? svSpinHtml('Sending') : _re(t.time)) + '</span>';
         const av = t.you ? '' : '<span class="av' + (t.role === 'client' ? ' cl' : t.role === 'kasper' ? ' kp' : '') + '">' + _re(String(t.who || '?').charAt(0).toUpperCase()) + '</span>';
         const long = !t.edit && _rsLongNote(t.text), open = long && !!(t.id && R.S.exp['note:' + t.id]);
         const more = long && t.id ? '<button class="bmore" type="button" data-more="' + _re(t.id) + '" aria-expanded="' + open + '">' + (open ? 'Show less' : 'Show all') + '</button>' : '';
-        return '<div class="bub ' + (t.you ? 'you' : 'team') + (old ? ' old' : '') + (isChg ? ' is-chg' : '') + (isChg && t.done ? ' handled' : '') + '">' + av + '<div class="bb"><div class="bh"><b>' + (t.you ? 'You' : _re(t.who)) + role + '</b>' + tag + kind + '<span>' + (t.spin ? svSpinHtml('Sending') : _re(t.time)) + '</span></div>' + (t.edit
+        return '<div class="bub ' + (t.you ? 'you' : 'team') + (old ? ' old' : '') + (isChg ? ' is-chg' : '') + (isChg && t.done ? ' handled' : '') + (asking ? ' cp-asking' : '') + '"' + (cpx ? ' data-cp-note="' + _re(t.id) + '"' : '') + '>' + av + '<div class="bb">' + cpx + '<div class="bh"><b>' + (t.you ? 'You' : _re(t.who)) + role + '</b>' + tag + kind + when + '</div>' + (t.edit
             ? '<div class="bt' + (t.sending ? ' sending' : '') + '">' + (t.you ? 'You changed' : 'Changed') + ' the caption</div><div class="diff"><div class="new">' + _re(t.edit.now) + '</div>'
               + (t.edit.old ? '<details class="was"><summary>Show the old caption</summary><div class="old">' + _re(t.edit.old) + '</div></details>' : '<div class="was">It had no caption before.</div>') + '</div>'
-            : '<div class="bt' + (t.sending ? ' sending' : '') + (long && t.id && !open ? ' clamp' : '') + '">' + _re(t.text) + '</div>') + more + (t.failed ? '<div class="err" role="alert">Not sent. Your words are kept here. <button type="button" class="retry" data-note-retry="' + _re(t.id) + '">Try again</button></div>' : t.sending ? '<div role="status">Sending…</div>' : '') + (vis || done || del ? '<div class="bfoot">' + vis + done + del + '</div>' : '') + '</div></div>';
+            : '<div class="bt' + (t.sending ? ' sending' : '') + (long && t.id && !open ? ' clamp' : '') + '">' + _re(t.text) + '</div>') + more + (t.failed ? '<div class="err" role="alert">Not sent. Your words are kept here. <button type="button" class="retry" data-note-retry="' + _re(t.id) + '">Try again</button></div>' : t.sending && !R.cp ? '<div role="status">Sending…</div>' : '') + (vis || done || del ? '<div class="bfoot">' + vis + done + del + '</div>' : '') + cpAsk + '</div></div>';
     }
-    function _rsChat(m) {
-        const S = R.S, c = _rsQ('chat');
-        const all = m.thread;
+    function _rsThreadHtml(m) {
+        const S = R.S, all = m.thread;
         // older, finished notes fold away; the newest four always show
         const cut = all.length > 6 ? all.length - 4 : 0;
         const fold = all.slice(0, cut), live = all.slice(cut);
@@ -2418,6 +2519,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (fold.length) th += '<button class="fold first" type="button" id="foldBtn" aria-expanded="' + S.fold + '">' + (S.fold ? 'Hide earlier notes' : fold.length + ' earlier notes') + '</button><div class="folded' + (S.fold ? ' open' : '') + '">' + fold.map(t => _rsBubble(t, true)).join('') + '</div>';
         th += live.map(t => _rsBubble(t)).join('');
         if (!all.length) th = '<p class="ch-empty">No messages on this post yet. Anything you send shows up here.</p>';
+        return th;
+    }
+    function _rsChat(m) {
+        const S = R.S, c = _rsQ('chat');
+        const th = _rsThreadHtml(m);
         const dk = !!S.note.part && S.note.where === 'stage';
         const foot = dk ? '<div class="ch-quiet">Your change shows up here when you send it.</div>' : _rsComposer(m);
         const head = R.mode === 'client'
@@ -2426,8 +2532,39 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 ? '<span class="avs"><span class="av cl">' + _re(String(calState.client || '?').charAt(0)) + '</span><span class="av kp">K</span></span><span class="who"><b>Conversation</b><span>' + _re(calState.client || '') + ' (client), the editors and Kasper</span></span>'
                 : '<span class="avs"><span class="av">' + _re(String(m.client || '?').charAt(0)) + '</span><span class="av l">E</span></span><span class="who"><b>The team</b><span>' + _re(m.client) + '’s SMM and editors. The client does not see this.</span></span>';
         if (!_rsCalm(c, '<div class="ch-head">' + head + '</div><div class="ch-scroll" id="tscroll">' + th + '</div><div class="ch-foot">' + foot + '</div>', m)) return;
+        _rsBindThread(c, m);
+        if (!dk) _rsBindComposer(c);
+        const ts = _rsQ('tscroll'); if (ts) ts.scrollTop = ts.scrollHeight;
+    }
+    /* Polish: someone typing in the box keeps it (the page waits to redraw it until they stop), but what they are waiting
+       for still shows: the conversation, the steps, and the box's own spinner turning into "Sent". */
+    function _rsCpTypingPaint() {
+        const m = _rsCur(), S = R.S;
+        if (!m || R.l2) return;
+        _rsStepper(m);
+        // the decision row (its save problems, Finish) unless the box being typed in is in it
+        const dr = _rsQ('drow');
+        if (dr && !dr.contains(R.root.activeElement)) _rsDecide();
+        const ts = _rsQ('tscroll'), c = _rsQ('chat');
+        if (ts && c) {
+            const html = _rsThreadHtml(m);
+            if (ts.__cpHtml !== html) {
+                const end = ts.scrollHeight - ts.scrollTop - ts.clientHeight < 40;
+                ts.innerHTML = html; ts.__cpHtml = html;
+                _rsBindThread(c, m);
+                if (end) ts.scrollTop = ts.scrollHeight;
+            }
+        }
+        const st = _rsQ('cpSt'), k = S.note.part;
+        if (st && k) { const h = _rsCpChgState(m, k); if (h && st.innerHTML !== h) st.innerHTML = h; }
+        const ta = _rsQ('ta');
+        if (ta && k && S.cpSent[m.id + '|' + k] && !ta.value) { const ph = 'Another change to the ' + _rsLname(k) + '?'; if (ta.placeholder !== ph) { ta.placeholder = ph; ta.setAttribute('aria-label', ph); } }
+    }
+    function _rsBindThread(c, m) {
+        const S = R.S;
         const fb = _rsQ('foldBtn'); if (fb) fb.addEventListener('click', () => { S.fold = !S.fold; _rsChat(_rsModelById(m.id) || m); });
         c.querySelectorAll('[data-delete-note]').forEach(b => b.addEventListener('click', () => window._calDeleteComment(b.dataset.deleteNote, m.id)));
+        if (R.cp) _rsCpBindDelete(c, m);
         // "Show all" on a long note: only this bubble opens, the thread keeps its place.
         c.querySelectorAll('[data-more]').forEach(b => b.addEventListener('click', () => {
             const k = 'note:' + b.dataset.more, ts0 = _rsQ('tscroll'), top = ts0 ? ts0.scrollTop : 0;
@@ -2439,8 +2576,24 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             if (ts0) ts0.scrollTop = top;
         }));
         c.querySelectorAll('[data-note-retry]').forEach(b => b.addEventListener('click', () => { _noteOutboxSend(b.dataset.noteRetry).then(() => _rsRender()); }));
-        if (!dk) _rsBindComposer(c);
-        const ts = _rsQ('tscroll'); if (ts) ts.scrollTop = ts.scrollHeight;
+    }
+    // Polish: the cross asks "Delete this note?" in the note itself; Delete deletes it (no second dialog), Cancel or
+    // Escape puts the note back. On a touch screen a long press shows the cross.
+    function _rsCpBindDelete(c, m) {
+        const S = R.S;
+        const redraw = () => _rsChat(_rsModelById(m.id) || m);
+        c.querySelectorAll('[data-cp-del]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); S.cpDel = b.dataset.cpDel; redraw(); const y = c.querySelector('[data-cp-yes]'); if (y) y.focus({ preventScroll: true }); }));
+        c.querySelectorAll('[data-cp-yes]').forEach(b => b.addEventListener('click', () => { const id = b.dataset.cpYes; S.cpDel = null; window._calDeleteComment(id, m.id, true); redraw(); }));
+        c.querySelectorAll('[data-cp-no]').forEach(b => b.addEventListener('click', () => { S.cpDel = null; redraw(); }));
+        const ask = c.querySelector('.cp-ask');
+        if (ask) ask.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); S.cpDel = null; redraw(); } });
+        c.querySelectorAll('[data-cp-note]').forEach(n => {
+            let timer = 0;
+            const stop = () => { clearTimeout(timer); timer = 0; };
+            n.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse') return; stop(); timer = setTimeout(() => { c.querySelectorAll('.bub.cp-show').forEach(x => x.classList.remove('cp-show')); n.classList.add('cp-show'); }, 450); });
+            ['pointerup', 'pointercancel', 'pointerleave', 'pointermove'].forEach(ev => n.addEventListener(ev, (e) => { if (ev !== 'pointermove' || Math.abs(e.movementX) + Math.abs(e.movementY) > 6) stop(); }));
+            n.addEventListener('contextmenu', (e) => { if (n.classList.contains('cp-show')) e.preventDefault(); });
+        });
     }
     function _rsBindComposer(root) {
         const S = R.S;
@@ -2497,15 +2650,21 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsAdvance(m, from) {
         if (R.l2) return;   // every part is on stage: there is no next step to move to
-        setTimeout(() => {
+        const S = R.S, t0 = Date.now();
+        const go = () => {
+            if (R.S !== S) return;
             const cur = _rsCur();
             if (!cur || cur.id !== m.id || R.S.step !== from || R.S.note.part || R.S.editing) return;
             // a refused save stays on its part, with its reason and Try again
             const x = cur.parts.find(p => p.key === from);
             if (!x || x.st === 'wait' || _rsError(cur, from)) return;
+            // Polish: the stage moves on once the save landed and its check has shown, never under the spinner.
+            const ok = S.cpOk[m.id + '|' + from];
+            if (R.cp && Date.now() - t0 < RS_PRE_MS && (_rsSaving(cur, from) || (ok && Date.now() - ok < RS_CP_CHECK_MS + 150))) { setTimeout(go, 40); return; }
             const nx = _rsNextOpen(cur, from);
             if (nx) _rsSetStep(nx);
-        }, 400);
+        };
+        setTimeout(go, R.cp ? 40 : 400);
     }
     function _rsItem(m) { return m.item; }
     /* A save on the stage always ends on screen (owner feedback 2026-10-17 23:40, session Curtain Nine). The old
@@ -2537,10 +2696,11 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 else { if (Date.now() - t0 < RS_PRE_MS) setTimeout(tick, 50); return; }
             }
             if (!_rsSaving(cur, comp)) {
-                delete S.slow[key]; delete S.pressed[key];
                 const part = (cur.parts || []).find(p => p.key === comp);
                 const st = part ? part.st : '';
                 const landed = !want || (want === 'ok' ? st === 'ok' : (st === 'chg' || st === 'tweak'));
+                if (R.cp && want === 'ok' && landed && S.pressed[key] === 'ok' && !_rsError(cur, comp)) _rsCpLanded(key);
+                delete S.slow[key]; delete S.pressed[key];
                 if (!_rsError(cur, comp) && landed) { delete S.retry[key]; delete S.retryText[key]; if (done) _rsFlash(done, comp, m.id, true); }
                 _rsRender();
                 return;
@@ -2593,9 +2753,121 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             _calReviewState.drafts[m.id + '|' + comp] = text;
             window._calReviewRequestTweak(m.id, comp);
         }
-        _rsRender({ force: true });
+        // A change the polish's queue sends in the background must not redraw the box under someone typing the next one.
+        if (opts.quiet) _rsRender(); else _rsRender({ force: true });
         _rsWatch(m, comp, opts.aat ? RS_PART[comp] + ' approved after tweaks' : 'Change sent', R.mode === 'client' ? 'chg' : '');
         if (opts.where === 'stage') _rsAdvance(m, comp);
+    }
+    /* Polish: a change request from the client page. The box stays open on the same part, empty, for the next change.
+       Each change waits for the one before it to land (the save path takes one at a time per part and would drop a
+       second one sent meanwhile), then goes. If one is refused, the ones still waiting go back into the box, so no
+       words are ever lost; the refused one keeps its own Try again and "Your unsent words". */
+    /* Changes still waiting their turn are kept in this browser (one key per client link, by post and part) until the
+       save path has taken them (from then on its own queue, 185, holds them). After a reload they come back into that
+       post's box, unsent, so nothing is lost and nothing goes twice. */
+    const RS_CHGQ_KEY = 'syncview_rs_chgq_v1:';
+    function _rsCpQKey() { const c = String(calState.client || '').trim().toLowerCase(); return R.mode === 'client' && c ? RS_CHGQ_KEY + c : ''; }
+    function _rsCpQRead() { try { const v = JSON.parse(localStorage.getItem(_rsCpQKey()) || '{}'); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; } }
+    function _rsCpQSave(key, q) {
+        const sk = _rsCpQKey();
+        if (!sk) return;
+        try {
+            const all = _rsCpQRead();
+            const items = (q || []).map(n => ({ body: n.body, at: n.created_at }));
+            if (items.length) all[key] = items; else delete all[key];
+            if (Object.keys(all).length) localStorage.setItem(sk, JSON.stringify(all)); else localStorage.removeItem(sk);
+        } catch (e) {}
+    }
+    // Once per visit, with the kept drafts: waiting changes from an earlier visit go back into their post's box.
+    function _rsCpQRestore() {
+        const S = R.S, all = _rsCpQRead();
+        Object.keys(all).forEach(key => {
+            const i = key.lastIndexOf('|'), pid = key.slice(0, i), k = key.slice(i + 1);
+            const words = (Array.isArray(all[key]) ? all[key] : []).map(n => String(n && n.body || '')).filter(x => x.trim());
+            if (!pid || !k || !words.length || (S.chgQ[key] || []).length) return;
+            const d = S.drafts[pid], had = d && String(d.text || '').trim() ? [d.text] : [];
+            S.drafts[pid] = { text: words.concat(had).join('\n\n'), part: k, vis: 'team', was: 'chg', aat: false, at: Date.now() };
+            _rsDraftPut(pid, S.drafts[pid]);
+            _rsCpQSave(key, []);
+        });
+    }
+    function _rsCpQueueChange(m, k, text, where) {
+        const S = R.S, key = m.id + '|' + k;
+        S.note = Object.assign(_rsBlankNote(), { part: k, where: where === 'stage' ? 'stage' : 'chat', was: 'chg' });
+        const q = S.chgQ[key] || (S.chgQ[key] = []);
+        q.push({ id: 'cq' + Date.now() + '_' + q.length, body: text, created_at: new Date().toISOString() });
+        _rsCpQSave(m.id + '|' + k, q);
+        if (!q.busy) _rsCpDrain(m, k);
+        _rsPersistCur();
+        _rsRender({ force: true });
+        _rsFocusTa();
+    }
+    function _rsCpDrain(m, k) {
+        const S = R.S, key = m.id + '|' + k, q = S.chgQ[key];
+        if (!q) return;
+        q.busy = true;
+        let sent = false;
+        const giveBack = (why) => {
+            const rest = q.splice(0).map(n => n.body);
+            delete S.chgQ[key];
+            _rsCpQSave(key, []);
+            if (!rest.length) return;
+            S.cpBack[key] = true;
+            // The person moved to another post meanwhile: the words wait in this post's own kept draft, never in the
+            // box of the post on stage now.
+            if (S.curId !== m.id) {
+                const d = S.drafts[m.id], had = d && String(d.text || '').trim() ? [d.text] : [];
+                S.drafts[m.id] = { text: rest.concat(had).join('\n\n'), part: k, vis: 'team', was: 'chg', aat: false, at: Date.now() };
+                _rsDraftPut(m.id, S.drafts[m.id]);
+                return;
+            }
+            const typed = String(S.note.text || '').trim();
+            S.note = Object.assign(_rsBlankNote(), { part: k, where: S.note.where || 'chat', was: 'chg', text: rest.concat(typed ? [typed] : []).join('\n\n') });
+            // Someone typing keeps typing: the words go into the box under their hands, the caret stays at the end.
+            const ta = _rsQ('ta');
+            if (ta && R.root.activeElement === ta) { ta.value = S.note.text; const L = ta.value.length; try { ta.setSelectionRange(L, L); } catch (e) {} ta.dispatchEvent(new Event('input')); }
+            _rsPersistCur();
+            _rsFlash(why, k);
+        };
+        // The save path keeps one change per part in flight: the one before must have landed AND left this browser's
+        // delivery ledger (a few ms after its save ends), or the next is refused as "still being confirmed".
+        const ledgerBusy = () => { try { return _linearOutboxRead().some(it => it && it.source_gate && String(it.source_gate.post_id) === String(m.id) && String(it.source_gate.component) === k); } catch (e) { return false; } };
+        let waitFrom = 0, retried = false;
+        const step = () => {
+            if (R.S !== S) return;
+            const cur = _rsModelById(m.id) || m;
+            if (_rsSaving(cur, k)) { setTimeout(step, 40); return; }
+            // A refused change still holds this part: sending again first tries that one again, then the rest follow.
+            if (!sent && q.length && _rsError(cur, k) && S.retry[key] && !retried) {
+                retried = true;
+                S.retry[key]();
+                sent = true;
+                setTimeout(step, 40);
+                return;
+            }
+            if (q.length && !(sent && _rsError(cur, k)) && ledgerBusy()) {
+                if (!waitFrom) waitFrom = Date.now();
+                if (Date.now() - waitFrom < 15000) { setTimeout(step, 40); return; }
+            }
+            waitFrom = 0;
+            if (sent) {
+                sent = false;
+                // Refused: it keeps its own words and Try again (that retry is the one the save path accepts next on this
+                // part); every change still waiting goes back into the box.
+                if (_rsError(cur, k)) { giveBack('Not sent. Your next words are back in the box.'); _rsRender(); return; }
+                S.cpSent[key] = (S.cpSent[key] || 0) + 1;
+            }
+            if (!q.length) { delete S.chgQ[key]; _rsRender(); return; }
+            const nx = q.shift();
+            _rsCpQSave(key, q);
+            delete S.cpBack[key];
+            _rsSendChange(cur, k, nx.body, { where: '', quiet: true });
+            // The save path can decline before it starts (the part moved on meanwhile): the words go back, never lost.
+            if (!_rsSaving(_rsModelById(m.id) || cur, k)) { q.unshift(nx); giveBack('Not sent. Your words are back in the box.'); _rsRender(); return; }
+            sent = true;
+            setTimeout(step, 40);
+        };
+        step();
     }
     function _rsSendNoteTo(m, comp, text, vis) {
         const nkey = m.id + '|' + comp;
@@ -2693,6 +2965,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsClearChange(refocus, drop) {
         const S = R.S;
+        if (R.cp && S.note.part && S.curId) delete S.cpSent[S.curId + '|' + S.note.part];
         if (drop) S.note.text = '';
         S.note.part = null; S.note.where = 'chat'; S.note.aat = false;
         _rsPersistCur();
@@ -2740,6 +3013,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             _rsRender({ force: true });
             return;
         }
+        if (k && R.cp) { _rsCpQueueChange(m, k, t, where); return; }
         if (k) { _rsSendChange(m, k, t, { where, aat }); return; }
         // a plain note goes on the part it is about, else the part on stage (every note belongs to a part on a card)
         const comp = (asNote && picked && m.parts.some(p => p.key === picked)) ? picked : m.parts.some(p => p.key === S.step) ? S.step : (m.parts[0] || { key: 'video' }).key;
@@ -2797,7 +3071,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             delete S.editErrors[key]; S.saved = null;
             S.editSaving[key] = true;
             const save = window._calClientReviewCaptionEdit ? window._calClientReviewCaptionEdit(m.id, t) : Promise.resolve(false);
-            _rsFlash('Saving the caption…', k);
+            if (!R.cp) _rsFlash('Saving the caption…', k);
             _rsRender({ force: true });
             save.then(ok => {
                 delete S.capSending[m.id + '|' + k];

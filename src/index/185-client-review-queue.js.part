@@ -5,7 +5,7 @@ import { _calPendingEdits, calClientSlug, calState } from './130-calendar-model-
 import { _calRenderBody } from './160-calendar-organize-ui.js';
 import { _calFlushCardSave } from './170-calendar-links-status.js';
 import { _calReviewState } from './180-calendar-native-post-media.js';
-import { svRsCalOn } from './188-review-stage-switch.js';
+import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
 import { _calMintCommentId, _calReviewRequestTweak } from './190-calendar-approval-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     /* Client review send queue: a client's Approve or Request changes is
@@ -230,6 +230,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _crqDrop(pid, comp);
         if (_crqApprovalSourcePending(entry)) _crqTellSavedSyncing();
         else if (_crqIsConnectionFailure(errorText)) _crqTellExpired(entry);
+        // The review page's polish says it on the part itself, with the words kept and Try again: no dialog on top.
+        else if (typeof svRsCalOn === 'function' && svRsCalOn() && svRsClientPolishOn(calState.client)) _crqQuiet();
         else {
             const words = _calCrqClientWords(errorText);
             _crqTell('Your ' + _crqWhat(entry) + ' was not saved', words.whole ? words.text

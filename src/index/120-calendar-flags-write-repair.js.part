@@ -28,6 +28,7 @@ import { computeSampleOverallStatus, sxrClientSlug, sxrState } from './270-sampl
 import { _sxrCommentsFor, _sxrMsgAudience, _sxrStringifyComments } from './280-samples-cards-notes.js';
 import { _sxrKasperRenderQueue } from './290-samples-writes-review.js';
 import { _kasperPaintReview } from './305-core-kasper-shared.js';
+import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
     function _calRuntimeFlagSlug(member) {
         if (typeof member !== 'string') return null;
         let slug;
@@ -2510,6 +2511,12 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             credentialsRequired && _isClientLink ? 'client_credentials_required' : code,
             error && error.status
         );
+        const offline = code === 'authority_unavailable' || /load failed|failed to fetch|network|offline|aborted|internet/i.test(code);
+        // The client review page's polish (review_client_polish) says a refusal on the part itself, in plain words,
+        // with the words kept and Try again: no staff-worded dialog on top of it. The diagnostics above still record it.
+        let reviewPolish = false;
+        try { reviewPolish = _isClientLink && !offline && calState && calState.view === 'review' && svRsCalOn() && svRsClientPolishOn(calState.client); } catch (e) { reviewPolish = false; }
+        if (reviewPolish) return;
         if (_isClientLink && typeof document !== 'undefined' && document.documentElement.classList.contains('sv-rs-client')
             && (code === 'authority_unavailable' || /load failed|failed to fetch|network|offline|aborted|internet/i.test(code))) {
             showNotify('We could not confirm this save', 'Your words are kept in this browser. Reconnect, then check this post before trying again.');

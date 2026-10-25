@@ -127,11 +127,20 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   const info = read('supabase/functions/higgsfield-mcp/clientinfo.ts');
   const code = (s) => s.replace(/\/\/.*$/gm, '');
   const brainPart = code(info.slice(info.indexOf('export async function clientBrain'), info.indexOf('export async function brainChange')));
-  assert.ok(/Promise\.all\(\[read\("brief"\), read\("audience"\), read\("focus"\), \.\.\.BRAIN_FILES\.map\(read\)\]\)/.test(brainPart), 'client_brain reads brief, audience, focus and the fixed list only');
-  assert.ok(/brainView\(\{ name: p\.client_name, brief, focus: focusFacts, facts, topic \}\)/.test(brainPart), 'focus facts are passed to brainView on their own');
+  assert.ok(/Promise\.all\(\[read\("brief"\), read\("audience"\), read\("focus"\), read\("dreams"\), \.\.\.BRAIN_FILES\.map\(read\)\]\)/.test(brainPart), 'client_brain reads brief, audience, focus, dreams and the fixed list only');
+  assert.ok(/brainView\(\{ name: p\.client_name, brief, focus: focusFacts, facts, topic, dreams \}\)/.test(brainPart), 'focus facts are passed to brainView on their own');
   assert.ok(!/history/i.test(code(info)), 'clientinfo.ts code never names history.md');
   assert.ok(!/history/i.test(code(read('supabase/functions/higgsfield-mcp/brainview.mjs'))), 'brainview.mjs never reads history');
   assert.ok(!/contents\/clients\/\$\{where\.folder\}\/\$\{file\}/.test(brainPart.replace(/read = async \(file: string\) => \{[\s\S]*?\};/, '')), 'no other file read in client_brain');
+
+  // Dreams: sent under their own not-facts heading, and on the topic "dreams".
+  const dreamsMd = "# X: dreamt by the brain\n\n*Dreamt by the brain: our read.*\n\n## Goal\n- She wants calm. [client.fixture.voice.caption-style] Hunch.\n";
+  const withDreams = brainView({ name: 'Fixture Client', brief, facts, dreams: dreamsMd });
+  assert.ok(/# Dreamt by the brain \(our read of this client, not facts/.test(withDreams) && /### Goal/.test(withDreams), 'dreams come under their own heading');
+  assert.ok(withDreams.indexOf('# Dreamt by the brain') < withDreams.indexOf('# Facts'), 'dreams sit before the facts, so they always fit');
+  assert.ok(/She wants calm/.test(brainView({ name: 'Fixture Client', brief, facts, dreams: dreamsMd, topic: 'dreams' })), 'topic dreams returns them');
+  assert.ok(/dreamt nothing/.test(brainView({ name: 'Fixture Client', brief, facts, topic: 'dreams' })), 'no dreams file says so');
+  assert.ok(!/Dreamt by the brain/.test(brainView({ name: 'Fixture Client', brief, facts })), 'no dreams, no dreams heading');
 
   // The tool tells Claude how to ask for more, and passes the topic through.
   const idx = read('supabase/functions/higgsfield-mcp/index.ts');

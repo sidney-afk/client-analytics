@@ -34294,7 +34294,7 @@ back the old function (including its "Needs info" lines).
   - a slow refusal returns the stage to the part;
   - "Sent" shows at once.
 
-## 496. [2026-10-25 01:06 UTC, BUILT, NOT MERGED] Round-9 unread badges: the Messages button, Notes reply speed, Notes without the needless skeleton (session Beacon)
+## 497. [2026-10-25 01:06 UTC, BUILT, NOT MERGED] Round-9 unread badges: the Messages button, Notes reply speed, Notes without the needless skeleton (session Beacon)
 
 Staff side only, behind the runtime switch `unread_badges_v2`. The owner's round 9:
 

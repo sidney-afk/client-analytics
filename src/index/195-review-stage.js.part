@@ -2557,12 +2557,15 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
        client has read is this browser's own mark (syncview_notes_seen_v1, 180: a last-seen time per post, the one the
        client calendar's Notes dot reads), never the staff's marks. Each post in the strip shows one picture per person
        from the team: something new since the client last looked is the picture with a small count on its corner; read
-       but still waiting for the client's answer (a team comment that has the last word in its thread, never a change
-       request) is the plain number beside it. Never both: new wins. A post's notes count as read once its conversation
+       but still waiting for the client's answer (a team comment that asks something and has the last word in its
+       thread, never a change request) is the plain number beside it. Never both: new wins. A post's notes count as read once its conversation
        is on screen; its new messages keep a quiet "New" for the rest of the visit. */
     const _rsCpAt = iso => { const t = Date.parse(iso || ''); return isFinite(t) ? t : 0; };
     function _rsCpTeam(t) { return !t.you && t.role !== 'client' && !t.sending && !t.failed && !!t.id && !t.edit; }
     function _rsCpIsNew(t, from) { return _rsCpTeam(t) && _rsCpAt(t.at) > _rsCpAt(from); }
+    // The owner's rule (2026-10-25): a read team comment waits for the client's answer only when it asks something, a
+    // question mark in its words. "New cut uploaded" never waits.
+    function _rsCpAsks(t) { return String(t && t.text || '').indexOf('?') >= 0; }
     // What this person had read when the post first came on screen on this visit (the "New" marks stay for the visit).
     function _rsCpSeenFrom(m) {
         const S = R.S, seen = S.cpSeen || (S.cpSeen = {});
@@ -2580,12 +2583,13 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const by = new Map(), get = t => { const k = _rsFirst(t); if (!by.has(k)) by.set(k, { t, nNew: 0, nOpen: 0 }); return by.get(k); };
         const list = _rsThreaded(m.thread || []);
         list.forEach(t => { if (_rsCpIsNew(t, seen)) get(t).nNew++; });
-        // A thread waits for the client's answer when its last word is a team comment (and it is not a change request).
+        // A thread waits for the client's answer when its last word is a team comment that asks something (and it is not
+        // a change request).
         const threads = new Map();
         list.forEach(t => { const r = t.rep ? t.root : t.id; if (!threads.has(r)) threads.set(r, []); threads.get(r).push(t); });
         threads.forEach(ts => {
             const root = ts[0], last = ts[ts.length - 1];
-            if (root.change || last.change || !_rsCpTeam(last) || _rsCpIsNew(last, seen)) return;
+            if (root.change || last.change || !_rsCpTeam(last) || !_rsCpAsks(last) || _rsCpIsNew(last, seen)) return;
             get(last).nOpen++;
         });
         return [...by.values()].filter(g => g.nNew || g.nOpen).sort((a, b) => (b.nNew > 0) - (a.nNew > 0) || (b.nNew + b.nOpen) - (a.nNew + a.nOpen));

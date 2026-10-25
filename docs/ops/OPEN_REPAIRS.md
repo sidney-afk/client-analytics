@@ -34374,3 +34374,9 @@ Staff side only, behind the runtime switch `unread_badges_v2`. The owner's round
 - **Reproduced:** `--inbox-delay=2000` (new, opt-in, holds each inbox answer back in the harness) fails the old wait with exactly 12 !== 6 at 430.
 - **Fix:** the test now (a) checks what is on screen at the first `.msg-conv`: either the loaded list, or only placeholder rows under New, and (b) counts once `.msg-inbox:not(.is-skeleton) .msg-conv` exists, a real condition, no sleep. `qa/messages-desktop-parity.js` had the same early wait and gets the same condition. No assertion loosened; the page is unchanged.
 - **Proof:** with the fix, `qa/staff-phone-messages.js --widths=430,390` passes three times with no delay and three times with `--inbox-delay=1500`, light and dark.
+
+## 500. [2026-10-25 16:20 UTC, BUILT, NOT MERGED] Client notes badges: a read team comment waits for the client only when it asks something (session Porch)
+
+- **The owner's rule** (2026-10-25, picked from three choices put to him after 498): on the client review page, behind `review_client_polish` (test client only), a read team comment counts as waiting for the client's answer, the plain number, only when it asks something: its words contain a question mark, it is not a change request, and the client has not answered after it in that thread. An informational note ("New cut uploaded") never counts. The "new" corner count is unchanged.
+- **Code:** one helper, `_rsCpAsks(t)` in 195 (a "?" in the message), used by `_rsCpBadge`. Browser only, same switch.
+- **Proof:** `test/review-client-badges-browser.js`: a question counts, a statement does not, a question the client answered does not, and after opening a post with a question and a statement only the question waits.

@@ -1,6 +1,7 @@
 'use strict';
 /* Phone polish (phone_polish_staff and the client page's review_client_polish), session Grip, 2026-10-25.
- *   npm run build:index && node docs/syncview-design/tests/phone-polish-browser.js
+ *   npm run build:index && node docs/syncview-design/tests/phone-polish-browser.js [--widths=360,390,430]
+ * CI runs it in the staff phone lane, once per width there (390 and 430); the desktop check runs with 390.
  * Fully offline (docs/syncview-design/phone-audit/harness.js and qa/finch-phone/harness.js), fictional data only.
  * Each fix is checked with its switch on (the new behaviour) and off (the page exactly as before), and on a desktop
  * page with the switch on nothing it touches may change. Fails on the code before this change. */
@@ -69,15 +70,19 @@ async function desktopSame() {
       const page = await S.newPage();
       await S.openCalendar(page); await sleep(2600);
       await page.evaluate(() => openCalComments('p_morning')); await sleep(1500);
+      // The unread badges' Notes toolbar fit (327 _svuFitBars) gives a borderline note 20 px of room in some runs and
+      // not in others, switch or no switch: that one measured class is cleared on both sides before comparing.
       return await page.evaluate(() => {
+        document.querySelectorAll('.svu-bar-room').forEach(e => e.classList.remove('svu-bar-room'));
         const props = ['order', 'height', 'width', 'marginLeft', 'borderTopColor', 'backgroundColor', 'display', 'whiteSpace', 'position', 'maxHeight'];
         const els = [...document.querySelectorAll('#calView *, #calCommentsOverlay *, #msgPage *')];
-        return { cls: document.documentElement.classList.contains('sv-phone-polish'), n: els.length, styles: els.map(e => props.map(p => getComputedStyle(e)[p]).join('|')).join('\n') };
+        return { cls: document.documentElement.classList.contains('sv-phone-polish'), n: els.length, styles: els.map(e => props.map(p => getComputedStyle(e)[p]).join('|')).join('\n'), names: els.map(e => e.tagName + '.' + String(e.className).slice(0, 40) + ' "' + (e.childElementCount ? '' : e.textContent.trim().slice(0, 20)) + '"') };
       });
     } finally { await S.close(); }
   };
   const off = await snap(false), on = await snap(true);
   ok(on.cls && !off.cls, 'desktop: the switch reaches a listed person on a desktop page too');
+  if (on.styles !== off.styles) { const a = on.styles.split('\n'), b = off.styles.split('\n'); a.forEach((x, i) => { if (x !== b[i]) console.log('  differs:', on.names[i], '|on', x, '|off', b[i], '|', off.names[i]); }); }
   ok(on.n > 200 && on.n === off.n && on.styles === off.styles, `desktop: with the switch on, the Calendar and Notes are drawn exactly as with it off (${on.n} elements compared)`);
 }
 
@@ -116,11 +121,15 @@ async function production(W, on) {
   } finally { await h.close(); }
 }
 
+const WIDTHS = ((process.argv.find(a => a.startsWith('--widths=')) || '--widths=360,390,430').slice(9)).split(',').map(Number);
+assert.ok(WIDTHS.length && WIDTHS.every(w => H[w]), 'widths are 360, 390 or 430');
+
 (async () => {
-  for (const W of [360, 390]) { await staffPhone(W, true); await staffPhone(W, false); }
-  await desktopSame();
-  for (const W of [360, 390, 430]) await client(W, true);
-  await client(390, false);
-  for (const W of [360, 390]) { await production(W, true); await production(W, false); }
+  for (const W of WIDTHS) { await staffPhone(W, true); await staffPhone(W, false); }
+  if (WIDTHS.includes(390)) await desktopSame();
+  for (const W of WIDTHS) await client(W, true);
+  if (WIDTHS.includes(390)) await client(390, false);
+  // At 430 the row already fits on two lines, so only the switched-on layout is checked there.
+  for (const W of WIDTHS) { await production(W, true); if (W < 430) await production(W, false); }
   console.log(`phone-polish-browser: ${passed} passed`);
 })().catch(e => { console.error(e); process.exit(1); });

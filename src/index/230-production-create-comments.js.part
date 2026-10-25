@@ -11,6 +11,7 @@ import {
 } from './120-calendar-flags-write-repair.js';
 import { _calCommentsFor, _calSetCommentsFor, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _jsAttrArg, _svDraftClear, _svDraftClearIf, _svDraftNoteHtml, _svDraftRead, _svDraftSave } from './131-core-html.js';
+import { svUnreadBadgesOn } from './188-review-stage-switch.js';
 import { _calOpenCommentsPid, _calRenderCommentsModal } from './190-calendar-approval-comments.js';
 import {
   PROD_COMMENTS_EF_URL, PROD_COMMENTS_PAGE_SIZE, PROD_COMMENTS_READ_TIMEOUT_MS,
@@ -2407,6 +2408,29 @@ import {
             const row = (long) => '<div class="cal-cm-skel-row"><span class="cal-cm-skel cal-cm-skel-avatar"></span><span class="cal-cm-skel-col"><span class="cal-cm-skel cal-cm-skel-line is-short"></span><span class="cal-cm-skel cal-cm-skel-line' + (long ? ' is-long' : '') + '"></span></span></div>';
             return '<div class="cal-cm-skeleton" role="status" aria-busy="true" aria-label="Loading notes">' + row(true) + row(false) + row(true) + '</div>';
         }
+        /* Round 9 (owner, switch unread_badges_v2, staff only): the skeleton is for a card nothing is known about yet.
+           A board refresh replaces the card's row and its read state with it, so every reopen used to start on the
+           skeleton, which then turned into the same "No notes yet" (or "All clear"). A card whose feed was last seen
+           settled and empty, for the same links and within the last few minutes, now shows that at once while the
+           background read runs; anything new is added when it arrives. Cards with rows never showed the skeleton. */
+        const PROD_NOTES_KNOWN_MS = 10 * 60 * 1000;
+        const _prodNotesKnownEmpty = new Map();
+        function _prodNotesFeedKey(post, surface) {
+            return _prodCardBindingToken(surface, post, surface === 'sxr' ? SXR_COMPONENTS : _calComponentsFor(post));
+        }
+        // The empty feed: the skeleton only while a read is running for a card not known to be empty.
+        function _prodCommentsEmptyFeedHtml(post, surface, emptyMsg) {
+            const quick = !_isClientLink && svUnreadBadgesOn();
+            if (!_prodCardCommentsPending(post, surface)) {
+                if (quick && post) _prodNotesKnownEmpty.set(String(post.id), { key: _prodNotesFeedKey(post, surface), at: Date.now() });
+                return emptyMsg;
+            }
+            const known = quick && post && _prodNotesKnownEmpty.get(String(post.id));
+            if (known && known.key === _prodNotesFeedKey(post, surface) && Date.now() - known.at < PROD_NOTES_KNOWN_MS) return emptyMsg;
+            return _prodCommentsSkeletonHtml();
+        }
+        // A feed with rows: it is no longer known to be empty.
+        function _prodCommentsFeedHasRows(post) { if (post) _prodNotesKnownEmpty.delete(String(post.id)); }
         function _prodCanonicalCommentGate(post, component) {
             const deliverableId = _writeUiNativeId(post, component);
             if (!deliverableId) return { linked: false, ready: false, client: false, status: 'unlinked' };
@@ -2804,7 +2828,7 @@ import {
     });
 export {
   _prodApplyGatewayRow, _prodBoardDragOver, _prodBoardDragStart, _prodBoardDrop,
-  _prodCanonicalCommentGate, _prodCardCommentsPending, _prodCommentsSkeletonHtml, _prodClearBoardDropFx, _prodClientCommentGatewayContext,
+  _prodCanonicalCommentGate, _prodCommentsEmptyFeedHtml, _prodCommentsFeedHasRows, _prodClearBoardDropFx, _prodClientCommentGatewayContext,
   _prodComments, _prodComposerHTML, _prodDescriptionHTML, _prodDescriptionState,
   _prodDescriptionText, _prodDueIso, _prodGatewayWrite, _prodInvalidateScopedReads,
   _prodLabelColorStyle, _prodLabelsButtonHTML, _prodLabelsPopHTML, _prodLinkify,

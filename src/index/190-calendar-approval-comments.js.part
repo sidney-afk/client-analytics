@@ -44,10 +44,10 @@ import {
   _calShowApprovedAfterTweaks, _notesMarkSeen
 } from './180-calendar-native-post-media.js';
 import { _calCrqBegin, _calCrqDone, _calCrqFailed, _calCrqHeld, _calCrqResend, _calCrqResolve } from './185-client-review-queue.js';
-import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodCardCommentsPending, _prodComments, _prodCommentsSkeletonHtml, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
+import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodComments, _prodCommentsEmptyFeedHtml, _prodCommentsFeedHasRows, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-onboarding-staff-controls.js';
-import { svRsCalOn, svRsCalPending, svRsCalSync, svRsClientReviewOn } from './188-review-stage-switch.js';
+import { svRsCalOn, svRsCalPending, svRsCalSync, svRsClientReviewOn, svUnreadBadgesOn } from './188-review-stage-switch.js';
 import { _calLoaderHtml } from './133-core-loading-skeletons.js';
 import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-badges.js';
     function _calHasMedia(p) {
@@ -2183,6 +2183,23 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         const gate = _prodCanonicalCommentGate(post, comp);
         return !!(gate && gate.linked);
     }
+    /* Round 9 (owner, switch unread_badges_v2, staff only): a note sent in the moment the card's notes are still
+       loading (the link check and the thread read that every opening runs) used to be refused with "Notes are still
+       loading". It is now taken: it shows in the thread at once, as every note does, and is sent as soon as the
+       loading ends (at most 10 s; after that the send runs and refuses as before). A read that failed still refuses. */
+    function _calNotesStillLoading(post, gate) {
+        return !_isClientLink && svUnreadBadgesOn() && !!post && _calCommentSendPending(post, gate) && gate.status !== 'error';
+    }
+    async function _calWaitNotesLoaded(pid, entry) {
+        const until = Date.now() + 10000;
+        while (Date.now() < until) {
+            const post = calState.posts.find(p => p.id === pid);
+            if (!post) return;
+            const comp = entry.parent_id ? _calFindCompForCommentId(post, entry.parent_id) : (entry.comp || 'video');
+            if (!_calNotesStillLoading(post, _prodCanonicalCommentGate(post, comp))) return;
+            await new Promise(r => setTimeout(r, 100));
+        }
+    }
     /* Send (or re-send) one waiting note. Never awaited by a click. */
     function _noteOutboxSend(id) {
         const first = _noteOutboxGet(id);
@@ -2204,6 +2221,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
                 if (entry.kind === 'review-comment' && !(await _noteReviewGoesToGateway(pid, entry.comp))) ok = await _calReviewCommentSend(entry);
                 else {
                     if (entry.surface === 'msg' && typeof window._msgBeforeNoteSend === 'function') await window._msgBeforeNoteSend(entry);
+                    await _calWaitNotesLoaded(pid, entry);
                     ok = await _calAppendComment(pid, entry.parent_id || null, entry.body, {
                         id: entry.id, comp: entry.comp || '', audience: entry.audience, isTweak: !!entry.is_tweak, background: true
                     });
@@ -2982,7 +3000,8 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         // A reply whose thread is not on screen (resolved, or history hidden)
         // still shows, on its own, so it is never out of sight while waiting.
         const strayReplies = [...outboxReplies.values()].flat().map(c => `<div class="cal-cm-thread">${renderRow(c, true, '')}</div>`).join('');
-        const feedHtml = (roots.length || strayReplies) ? threadsHtml + strayReplies : (_prodCardCommentsPending(post, 'calendar') ? _prodCommentsSkeletonHtml() : emptyMsg);
+        if (roots.length || strayReplies) _prodCommentsFeedHasRows(post);
+        const feedHtml = (roots.length || strayReplies) ? threadsHtml + strayReplies : _prodCommentsEmptyFeedHtml(post, 'calendar', emptyMsg);
 
         // History toggle (top-right): hidden unless there's something resolved.
         const histBtn = resolvedCount
@@ -3153,8 +3172,9 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
            and only sending waits: the send button stays disabled (its tooltip
            says why) and _calAppendComment refuses on the same gate. No line of
            text is added under the box: it came and went and moved the layout
-           (owner, 2026-10-16). */
-        const sendPending = _calCommentSendPending(post, canonicalGate);
+           (owner, 2026-10-16). Round 9 (switch unread_badges_v2, staff): Send no longer waits; the note is taken
+           at once and goes when the notes have loaded (_calNotesStillLoading). */
+        const sendPending = _calCommentSendPending(post, canonicalGate) && !_calNotesStillLoading(post, canonicalGate);
         // Staff starting a new thread: the audience lives INSIDE the box as one
         // icon (lock = team, eye = client) and "Request change" sits behind the
         // small arrow of the Send button, so the default (a comment to Kasper /
@@ -3333,7 +3353,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
             ? _calFindCompForCommentId(post, parentId)
             : (_calComponentsFor(post).indexOf(_calComposeComp) >= 0 ? _calComposeComp : 'video');
         const gate = _prodCanonicalCommentGate(post, comp);
-        if ((gate.linked && !gate.ready) || _calCommentSendPending(post, gate)) {
+        if (((gate.linked && !gate.ready) || _calCommentSendPending(post, gate)) && !_calNotesStillLoading(post, gate)) {
             showNotify('Notes are still loading', 'Retry the canonical thread before sending.');
             return;
         }
@@ -3514,7 +3534,13 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         // can never leak a caption/title note onto the video issue. Create-only
         // (edits/resolves/deletes never sync); audience-independent;
         // _calPostLinearComment no-ops on an unlinked issue (empty url).
-        await _calWatchNoteSave(pid, nativeCommentCommitted);
+        /* Round 9 (switch unread_badges_v2, staff): once the server holds the note (native_committed), the outbox
+           lets go of it; the card's own copy saves behind it (about 0.9 s on calendar-card-write) and still says so
+           if it fails. Before, "sending" stayed up for that save too. */
+        const cardSave = _calWatchNoteSave(pid, nativeCommentCommitted);
+        if (o.background && nativeCommentCommitted && !_isClientLink && svUnreadBadgesOn()) {
+            cardSave.catch(() => {}).then(() => { _calRefreshCommentsBtn(pid); _calUpdateCardStatusDisplay(pid); });
+        } else await cardSave;
         _calRefreshCommentsBtn(pid);
         _calUpdateCardStatusDisplay(pid);
         return true;

@@ -34309,6 +34309,42 @@ back the old function (including its "Needs info" lines).
   - With the fix, they open SyncLinear and Workload.
   - The suite is added to the browser regression lane in `calendar-unit-tests.yml`.
 
+## 497. [2026-10-25 01:06 UTC, BUILT, NOT MERGED] Round-9 unread badges: the Messages button, Notes reply speed, Notes without the needless skeleton (session Beacon)
+
+Staff side only, behind the runtime switch `unread_badges_v2`. The owner's round 9:
+
+- **The Messages button.**
+  - Its hover box ("Nothing new / 8 conversations to answer / Change requests are on the cards…") is gone (327 `_svuShowButtonTip` removed).
+  - Its badge counts conversations with something new, and nothing else: with nothing new there is no badge, however many wait for an answer (327 `svuPaintCounts`).
+  - The To answer tab inside the inbox is unchanged.
+- **Notes reply speed.** Measured live, read-only, from the Edge Function and API logs over 24 hours:
+
+  | Step of a staff note on a linked card | p50 | p90 |
+  |---|---|---|
+  | permission read (`prod_authority`) | 65 ms | 229 ms |
+  | `production-write` preflight + write | 0.19 s + 0.93 s | 0.24 s + 2.5 s |
+  | the card's own save (`calendar-card-write`) | 0.86 s | 1.17 s |
+
+  The note was always on screen at once (the note outbox), but its sending mark stayed up for all of these, one after another: about 2.0 s at p50 and 4.1 s at p90. Two things made it feel longer:
+  - **The card save.** The mark waited for the card's own save, which runs after the server already holds the note. It now goes when `production-write` answers `native_committed`; the card save runs behind it and still says so if it fails (190 `_calAppendComment`). After: about 1.2 s at p50 and 3.0 s at p90. In the mocked browser test, with a 0.3 s write and a 2.5 s card save, the mark went after 2,830 ms before and 321 ms after.
+  - **Send held while loading.** In the moment after Notes opens, while the card's link check and thread read run (about 0.2 to 2 s, and on every reopen), Send was held, and a note sent then was refused with "Notes are still loading". It is now taken at once, shown in the thread, and sent when the loading ends (at most 10 s; after that it refuses as before; a failed read still refuses) (190 `_calNotesStillLoading`, `_calWaitNotesLoaded`).
+  - **No redundant refetch.** None of the send paths re-reads the thread after a note (only edit retries do), so none was dropped. The link check and the thread read already run side by side.
+  - **No Section 4 function was touched**, and no permission read is cached.
+- **The Notes skeleton.** A board refresh replaces each card's row, and its read state with it, so almost every reopen started on the skeleton and turned into the same "No notes yet" or "All clear".
+  - A card last seen settled and empty, for the same links and within 10 minutes, now opens on that at once; the background read adds anything new when it arrives (230 `_prodCommentsEmptyFeedHtml`).
+  - The skeleton is left for a card nothing is known about yet. A card with rows never showed it.
+- **Proof:**
+  - `docs/syncview-design/tests/notes-quick-open-reply-browser.js` (new) checks, switch on:
+    - a first opening shows the skeleton, then "No notes yet";
+    - a second opening after a board refresh shows no skeleton frame;
+    - a reply written while loading is taken, shown at once and sent once, as a reply;
+    - its mark goes when the server has it.
+
+    Switch off, it checks that all of this is as before. On the code before this change, four checks fail.
+  - `unread-badges-v2-browser.js` section K: no box on hover; the badge is the new count; no badge with nothing new while a conversation waits; To answer still lists it. All fail on the old code.
+  - `test/notes-loading-skeleton.js` now follows the empty feed through `_prodCommentsEmptyFeedHtml`.
+- **Pictures:** `docs/syncview-design/proofs/unread-badges-r9/`.
+
 ## 498. [2026-10-25 01:30 UTC, BUILT, NOT MERGED] Review round 3: Kasper's Review Session gets the client page's polish (staff list), and the client page gets notes badges (session Porch)
 
 - **Asked by the owner** after rounds 1 and 2 on the test client's link (490, 491, 495).

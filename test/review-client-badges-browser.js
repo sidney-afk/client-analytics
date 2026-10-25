@@ -7,7 +7,8 @@
  * What the client has read is this browser's own mark (syncview_notes_seen_v1: a last-seen time per post), never the
  * staff's marks. On each post in the strip, one picture per person from the team:
  *   - something new since the client last looked: the picture with a small count on its corner;
- *   - read but still waiting for the client's answer (a team comment with the last word in its thread): the plain number;
+ *   - read but still waiting for the client's answer (a team comment that asks something, with the last word in its
+ *     thread; owner, 2026-10-25): the plain number. A note that asks nothing never waits;
  *   - never both (new wins), and nothing on the post that is on screen.
  * Opening a post marks its notes read (its badge goes) and its new messages carry a quiet "New".
  * Switch off: no badges. SHOTS=<dir> writes the PR screenshots (light and dark, 1440 and 390 wide).
@@ -27,11 +28,12 @@ const N = (id, body, at, extra) => Object.assign({ id, parent_id: null, author: 
 async function openClient(browser, origin, o) {
   const t = await open(browser, origin, Object.assign({ stage: 'client', flags: 'on', polish: true }, o));
   // Post 2: an older team question (read) and a new note since. Post 3: a read team question, unanswered.
-  // Post 4: a read team question the client already answered under it.
+  // Post 4: a read team question the client already answered under it. Post 5: a read team note that asks nothing.
   t.state.cards[1].video_tweaks = JSON.stringify([N('b1', 'Could you send the logo file?', '2026-10-13T09:00:00.000Z'), N('b2', 'The new cut is up.', '2026-10-20T09:00:00.000Z')]);
   t.state.cards[2].video_tweaks = JSON.stringify([N('x1', 'Which colour do you prefer?', '2026-10-01T09:00:00.000Z')]);
   t.state.cards[3].video_tweaks = JSON.stringify([N('y1', 'Morning or evening post?', '2026-10-01T09:00:00.000Z'), N('y2', 'Evening, please.', '2026-10-02T09:00:00.000Z', { role: 'client', author: CLIENT, parent_id: 'y1' })]);
-  await t.page.addInitScript(() => { try { if (!sessionStorage.getItem('fx-seeded')) { sessionStorage.setItem('fx-seeded', '1'); localStorage.setItem('syncview_notes_seen_v1', JSON.stringify({ rs2: '2026-10-15T00:00:00.000Z', rs3: '2026-10-05T00:00:00.000Z', rs4: '2026-10-05T00:00:00.000Z' })); } } catch (e) {} });
+  t.state.cards[4].video_tweaks = JSON.stringify([N('z1', 'New cut uploaded. The intro is two seconds shorter.', '2026-10-01T09:00:00.000Z')]);
+  await t.page.addInitScript(() => { try { if (!sessionStorage.getItem('fx-seeded')) { sessionStorage.setItem('fx-seeded', '1'); localStorage.setItem('syncview_notes_seen_v1', JSON.stringify({ rs2: '2026-10-15T00:00:00.000Z', rs3: '2026-10-05T00:00:00.000Z', rs4: '2026-10-05T00:00:00.000Z', rs5: '2026-10-05T00:00:00.000Z' })); } } catch (e) {} });
   await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, v: 'calendar', tab: 'review', t: TOKEN }), { waitUntil: 'domcontentloaded' });
   await waitNew(t); await sleep(1500);
   return t;
@@ -72,6 +74,7 @@ async function shots(browser, origin) {
       expect(by('rs2').corner.join() === '1' && !by('rs2').plain.length && by('rs2').pics === 1, 'post 2: one new note is the picture with a corner count, and nothing else (new wins over its waiting question)');
       expect(by('rs3').plain.join() === '1' && !by('rs3').corner.length, 'post 3: a read team question with no answer is the plain number');
       expect(!by('rs4').pics, 'post 4: a question the client answered under it needs nothing');
+      expect(!by('rs5').pics, 'post 5: a read team note that asks nothing never waits (owner, 2026-10-25: only a question counts)');
       expect(/1 new/.test(by('rs2').title || '') && /waiting for your answer/.test(by('rs3').title || ''), 'the hover says what each counts (' + by('rs2').title + ' / ' + by('rs3').title + ')');
       expect(!t.errors.length, 'no page errors (' + t.errors.join(' | ') + ')');
 
@@ -83,7 +86,7 @@ async function shots(browser, origin) {
       expect(Date.parse(seen.rs2) > Date.parse('2026-10-24T00:00:00Z'), 'this browser now marks post 2 read (' + seen.rs2 + ')');
       await inS(t.page, '.chipp[data-id="rs3"]').click(); await sleep(900);
       const back = (await chips(t.page)).find(x => x.id === 'rs2');
-      expect(!back.corner.length && back.plain.join() === '2', 'back in the strip, post 2 has nothing new; its two unanswered team notes are the plain number (' + JSON.stringify(back) + ')');
+      expect(!back.corner.length && back.plain.join() === '1', 'back in the strip, post 2 has nothing new; only its question waits, as the plain number (the statement does not) (' + JSON.stringify(back) + ')');
       await t.ctx.close();
     }
 

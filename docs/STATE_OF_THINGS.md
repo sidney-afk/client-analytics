@@ -128,7 +128,9 @@ cross; a grouped follow-up does not repeat "Change request". OPEN_REPAIRS 495.
 Kasper's Review Session gets the client page's polish (check at the click with a rollback, the change box stays open
 with "Sent" at once, a spinner only after 1.2 s, threaded replies in the team's own threads) for the staff members on
 `unread_badges_v2` only (gate `svRsKasperPolishOn`, 188). The client review page gets the staff round-8 notes badges
-behind `review_client_polish`, read from this browser's own seen marks. OPEN_REPAIRS 498.
+behind `review_client_polish`, read from this browser's own seen marks. OPEN_REPAIRS 498. Built, not merged
+(OPEN_REPAIRS 500): the owner's rule that a read team comment waits for the client (the plain number) only when it asks
+a question; an informational note never counts.
 
 ## "Notify client" tags the client (session Tagline, 2026-10-23): live since 2026-10-23 23:42 UTC (#2302), migration applied
 

@@ -9047,3 +9047,25 @@ html.sv-unread2 #msgPage .msg-page-head .msg-close svg { width: 14px; height: 14
 html.sv-unread2 #msgPage .msg-page-head .msg-close:hover { color: var(--text-primary); background: var(--svu-hover); }
 html.sv-unread2 .sv-note-outbox.is-sending { margin-top: 2px; color: var(--text-muted); }
 html.sv-unread2 #msgPage .msg-b .svu-msg-files { grid-column: 2; margin-top: 2px; }
+
+/* PHONE POLISH FOR STAFF (phone_polish_staff, session Grip, 2026-10-25; docs/syncview-design/phone-audit/). The same
+   phone design, smoother: only for the staff members the switch lists (188 puts html.sv-phone-polish on the page), and
+   only at phone width, so a desktop page never changes. */
+@media (max-width:767px) {
+ /* An opened post: Notes sits right under the statuses (it was the last line, about 1,100 px down), and the picture
+    is a little shorter, so the post's details start higher. */
+ html.sv-phone-polish.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection][data-thumb-mode=detail] .cal-card-body > .cal-card-status-row { order:1; }
+ html.sv-phone-polish.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection][data-thumb-mode=detail] .cal-card-body > .cal-card-foot { order:2; }
+ html.sv-phone-polish.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection][data-thumb-mode=detail] .cal-card-thumb { height:180px; }
+ html.sv-phone-polish.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection][data-thumb-mode=detail] .cal-card-thumb img { max-height:180px!important; }
+ /* Notes: each note's Reply / Mark done / Delete sit in a plain row (no box around them), and Delete is a quiet bin at
+    the row's far end, away from Reply. It still asks before it deletes. */
+ html.sv-phone-polish.sv-staff-phone body #calCommentsOverlay .cal-cm-actions { width:auto;border-color:transparent;background:transparent;box-shadow:none; }
+ html.sv-phone-polish.sv-staff-phone body #calCommentsOverlay .cal-cm-action.is-danger { margin-left:auto;justify-content:center;min-width:44px;color:var(--text-muted); }
+ html.sv-phone-polish.sv-staff-phone body #calCommentsOverlay .cal-cm-action.is-danger > span { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap; }
+ /* Messages: the last message shows on two lines, so a short question reads without opening it. */
+ html.sv-phone-polish.sv-staff-phone #msgPage .msg-conv-last { white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical; }
+ /* Production: the person's picture sits on the title's line, so a row never wraps to a third line on a 360 or 390 px phone. */
+ html.sv-phone-polish.fph-on[data-fph="production"] :is(.prod-row,.prod-subrow) .prod-assign-hot { order:1; }
+ html.sv-phone-polish.fph-on[data-fph="production"] :is(.prod-row,.prod-subrow) .prod-title { flex-basis:calc(100% - 104px); }
+}

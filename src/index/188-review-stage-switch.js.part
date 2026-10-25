@@ -55,6 +55,10 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
          thumbnail_title_buttons_staff { "staff": [...] }: the Production "Thumbnail titles" and "Write title" buttons
                                     (session Titlecard, 2026-10-23, OPEN_REPAIRS 481). Same listing rule (id or full
                                     name of the signed-in staff member). Missing, unreadable or the wrong shape: no buttons.
+         phone_polish_staff         { "staff": [...] }: the staff pages' phone polish (session Grip, 2026-10-25): on a phone
+                                    only (767 px and narrower), the same design made smoother. Same listing rule (id or
+                                    full name of the signed-in staff member). Never the client link. Missing, unreadable
+                                    or the wrong shape: every phone page exactly as it was. Desktop never changes.
          review_client_polish       { "clients": [...] } or { "all": true }: the client review page's polish (session Porch,
                                     2026-10-24): Approve morphs into a spinner then a check, a sent change keeps its box
                                     open and empty for the next one, a spinner instead of any "Sending" text, a cross on
@@ -66,10 +70,10 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
                                     { "hidden": true } or any other shape: Analytics is hidden (owner, 2026-10-17
                                     23:20, session Curtain Seven). Read at boot, in the same request as the switches.
        The lists live only in the database, never in this repository. */
-    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'caption_history_staff', 'unread_badges_v2', 'review_client_polish', 'thumbnail_title_buttons_staff'];
+    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'caption_history_staff', 'unread_badges_v2', 'review_client_polish', 'thumbnail_title_buttons_staff', 'phone_polish_staff'];
     const RS_FLAG_TIMEOUT_MS = 4000;
     const RS_FLAG_RETRY_MS = 30000;
-    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), unread: new Set(), cpAll: false, cp: new Set(), help: '', analytics: false };
+    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), unread: new Set(), phone: new Set(), cpAll: false, cp: new Set(), help: '', analytics: false };
     let _rsFlagPromise = null;
     let _rsFlagTriedAt = 0;
     let _rsFlagFailed = false;
@@ -95,6 +99,8 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         const capHist = okObj(ch) && Array.isArray(ch.staff) ? ch.staff.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*').map(x => x.trim().toLowerCase()) : [];
         const tt = by.thumbnail_title_buttons_staff;
         const ttb = okObj(tt) && Array.isArray(tt.staff) ? tt.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
+        const pp = by.phone_polish_staff;
+        const phone = okObj(pp) && Array.isArray(pp.staff) ? pp.staff.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*').map(x => x.trim().toLowerCase()) : [];
         const cpv = by.review_client_polish;
         const cpMembers = okObj(cpv) ? (_calRuntimeFlagRawMembers(cpv) || []) : [];
         const h = by.review_help_video_url;
@@ -110,6 +116,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             layout2: new Set(layout2),
             fast: new Set(fast),
             unread: new Set(unread),
+            phone: new Set(phone),
             capHist: new Set(capHist),
             ttb: new Set(ttb),
             cpAll: okObj(cpv) && cpv.all === true,
@@ -131,19 +138,21 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             if (!Array.isArray(rows)) throw new Error('shape');
             const next = _rsParse(rows);
             // Analytics shown, or hidden where this browser last saw it shown: the open page draws again too.
-            const changed = next.all || next.clients.size || next.staff.size || next.calm.size || next.calmAll || next.layout2.size || next.fast.size || next.capHist.size || next.ttb.size || next.unread.size || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
+            const changed = next.all || next.clients.size || next.staff.size || next.calm.size || next.calmAll || next.layout2.size || next.fast.size || next.capHist.size || next.ttb.size || next.unread.size || next.phone.size || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
             _rsFlags = next;
             _rsHintSave(next);
             _wlCalmHintSave(next);
             _rsKasperFastHintSave(next);
             _rsFlagFailed = false;
             _rsAnalyticsSync();
+            svPhonePolishSync();
             // Something switched on: the open page draws again, now as the new page.
             if (changed) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
         } catch (e) {
-            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), unread: new Set(), cpAll: false, cp: new Set(), help: '', analytics: false };
+            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), unread: new Set(), phone: new Set(), cpAll: false, cp: new Set(), help: '', analytics: false };
             _rsFlagFailed = true;
             _rsAnalyticsSync();
+            svPhonePolishSync();
             _rsFlagPromise = null;
             console.warn('[Review page] switch unreadable; the old page stays', e && e.message);
         } finally {
@@ -476,6 +485,28 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
        under what they answer. Only where his Review Session is on (review_stage_kasper_staff) and the signed-in staff
        member is on unread_badges_v2, so the owner tries it in Kasper's view first. Until both are read: no. */
     function svRsKasperPolishOn() { return svRsKasperOn() && svUnreadBadgesOn(); }
+    /* THE STAFF PAGES' PHONE POLISH (session Grip, 2026-10-25): on only for the staff members phone_polish_staff names,
+       by id or full name. Until the switch has been read, or the server has said who is signed in: no. It marks the page
+       with html.sv-phone-polish, and every rule it switches on sits inside a max-width: 767px block (020), so a desktop
+       page never changes even for a listed person. */
+    function svPhonePolishOn() {
+        _rsPrime();
+        if (!_rsFlags.loaded || _isClientLink || !_rsFlags.phone.size) return false;
+        return _rsListed(_rsFlags.phone);
+    }
+    // The switch can come back before the server has said who is signed in: ask again each second for up to 30 s.
+    let _ppRetry = 0;
+    function svPhonePolishSync() {
+        let on = false;
+        try { on = svPhonePolishOn(); } catch (e) { on = false; }
+        document.documentElement.classList.toggle('sv-phone-polish', on);
+        let who = null;
+        try { who = _syncviewStaffIdentityForHeaders(); } catch (e) { who = null; }
+        if (!on && _rsFlags.loaded && _rsFlags.phone.size && !_isClientLink && !(who && who.member) && _ppRetry < 30) {
+            _ppRetry++;
+            setTimeout(svPhonePolishSync, 1000);
+        }
+    }
     function svWorkloadCalmOn() {
         _rsPrime();
         if (!_rsFlags.loaded || _isClientLink) return false;
@@ -680,6 +711,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
        router asks svStaffNoAnalytics() itself when it lands there, so only a page that has routed is moved. */
     function _rsHasRouted() { return _syncviewNavEpoch !== 0; }
     window.addEventListener('sv-review-stage-switch', () => {
+        svPhonePolishSync();
         if (_rsFlags.loaded) _rsAnalyticsRestore();
         // A staff browser that last saw Analytics shown kept it until this read came in; the read says hidden, so the
         // person on Analytics (the overview or a client's page) moves to the Content Calendar, nobody is left there.

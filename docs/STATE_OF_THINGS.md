@@ -18,6 +18,23 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView stand-in, 2026-10-25 night): three merges
+
+Behind switches that name only the owner's two staff logins, or only the test client, except #2323 (everyone).
+
+- **A fresh tab opens what its address names (everyone, #2323, 01:25 UTC):** a card's "open in SyncLinear" button
+  sometimes showed the Calendar. The runtime-switch read moved any page still reading its starting `'home'` to the
+  Calendar while Analytics is hidden, before the boot router had routed (a slow staff key check lost the race). It now
+  moves only a page that has routed. Any fresh tab was exposed (/workload, /kasper, the bare address). OPEN_REPAIRS 496.
+- **Unread badges round 9 (`unread_badges_v2`, #2324, 01:57 UTC):** no Messages-button hover; the button counts new
+  only; a Notes reply's mark clears when production-write commits (the card copy saves behind it, a failure still
+  says so); a note sent while the notes load is taken and sent when they finish (10 s cap); a card last seen empty
+  opens without the skeleton for 10 minutes. OPEN_REPAIRS 497.
+- **Review round 3 (#2325, 02:29 UTC):** see the heading below. The client "still open" rule (a team message waits
+  until the client answers) is the owner's call: keep it, a client-side "No reply needed", or count questions only.
+- Live check (session Ninecheck): publish green, live bundle carries #2323 and #2324, no 5xx, refusals only from
+  automation, the three new browser suites pass on built main.
+
 ## Latest (SyncView stand-in, 2026-10-24 evening): what went live during the day
 
 All of this is behind switches that name only the owner's two staff logins, or only the test client, so nothing changed
@@ -105,7 +122,7 @@ change; production-write already accepts a client's parent); Approve shows its c
 refusal (press to check 1.8 s to 0.12 s offline with live server times); "Sent" at once; the delete cross is a bare
 cross; a grouped follow-up does not repeat "Change request". OPEN_REPAIRS 495.
 
-## Review round 3 (session Porch, 2026-10-25): built, not merged
+## Review round 3 (session Porch, 2026-10-25): live since 2026-10-25 02:29 UTC (#2325)
 
 Kasper's Review Session gets the client page's polish (check at the click with a rollback, the change box stays open
 with "Sent" at once, a spinner only after 1.2 s, threaded replies in the team's own threads) for the staff members on

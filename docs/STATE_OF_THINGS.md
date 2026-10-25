@@ -105,6 +105,13 @@ change; production-write already accepts a client's parent); Approve shows its c
 refusal (press to check 1.8 s to 0.12 s offline with live server times); "Sent" at once; the delete cross is a bare
 cross; a grouped follow-up does not repeat "Change request". OPEN_REPAIRS 495.
 
+## Review round 3 (session Porch, 2026-10-25): built, not merged
+
+Kasper's Review Session gets the client page's polish (check at the click with a rollback, the change box stays open
+with "Sent" at once, a spinner only after 1.2 s, threaded replies in the team's own threads) for the staff members on
+`unread_badges_v2` only (gate `svRsKasperPolishOn`, 188). The client review page gets the staff round-8 notes badges
+behind `review_client_polish`, read from this browser's own seen marks. OPEN_REPAIRS 498.
+
 ## "Notify client" tags the client (session Tagline, 2026-10-23): live since 2026-10-23 23:42 UTC (#2302), migration applied
 
 The Slack alert starts with an at-mention of the client's linked Slack person (Kasper > Clients, new field "Slack

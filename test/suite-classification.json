@@ -2061,6 +2061,22 @@
       "ci": "representative"
     },
     {
+      "file": "review-client-badges-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and conversation), no hosted credentials and no live data. Checks the client review page's notes badges behind review_client_polish, read from this browser's own seen marks: a new team note is the picture with a corner count, a read team comment still waiting for the client's answer is the plain number, never both, nothing on the post on screen, opening a post marks it read and its new note says New, and no badges with the switch off.",
+      "reproduce": "node test/review-client-badges-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "review-kasper-polish-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and conversation), no hosted credentials and no live data. Checks Kasper's Review Session with the polish for the staff members on unread_badges_v2, in his second layout: Approve shows its check at the click, settles as Approved and then Undo, and a refusal takes the check back with the reason and Try again; two change requests in a row say Sent at once, keep the box open and both arrive in order; a quick note shows no spinner; Reply only under a team-only message, saved with it as the parent and shown indented; and his page unchanged when he is not on the list.",
+      "reproduce": "node test/review-kasper-polish-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-stage-curtain-seven-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

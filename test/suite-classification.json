@@ -11,6 +11,7 @@
     "loading-family.js",
     "pages-build-inputs.js",
     "messages-inbox-scope.js",
+    "kasper-reply-parent.js",
     "people-pictures.js",
     "inbox-in-chunks.js",
     "no-sending-words.js",

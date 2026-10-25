@@ -48,10 +48,12 @@ jobs:
           node-version: '22'
       - name: Build index.html and js/ from src/index/ (build output, not committed)
         uses: ./.github/actions/build-index
-      - name: Install Playwright + Chromium
-        run: |
-          npm install
-          npx playwright install --with-deps chromium
+      - name: Install Playwright
+        run: npm install
+      - name: Install the pinned Chromium and its system libraries
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       # The Samples approve is the exception: it signs in through the real sign-in
       # card as the admin roster name, and key-verify only accepts a key whose role
       # matches that name, so this one step holds the admin key. Its result is

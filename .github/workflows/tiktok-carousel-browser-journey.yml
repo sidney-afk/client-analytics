@@ -55,25 +55,15 @@ jobs:
           node-version: '22'
       - name: Build index.html and js/ from src/index/ (build output, not committed)
         uses: ./.github/actions/build-index
-      - name: Read the pinned Playwright version
-        id: playwright-version
-        run: node -e "require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + require('./package.json').devDependencies.playwright + '\n')"
       - name: Install pinned browser-test dependencies
         run: npm install --no-package-lock
-      # Cached the way client-entry-visible-boot and production-polish-gate do it: a fresh
-      # `--with-deps` install ran past this job's 10-minute limit on 2026-10-23 (runs 40025111141
-      # and 40033800766, cancelled inside "Install Chromium" before the journey ran).
-      - name: Cache Playwright Chromium
-        id: playwright-cache
-        uses: actions/cache@v4
+      # A fresh `--with-deps` install ran past this job's 10-minute limit on 2026-10-23 (runs
+      # 40025111141 and 40033800766, cancelled inside "Install Chromium" before the journey
+      # ran). The shared action installs from caches, never waiting on the apt mirror
+      # (OPEN_REPAIRS 502).
+      - name: Install Chromium and its system libraries
+        uses: ./.github/actions/playwright-browsers
         with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ steps.playwright-version.outputs.version }}
-      - name: Install Chromium and system dependencies
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-      - name: Verify cached Chromium
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install chromium
+          browsers: chromium
       - name: Run the TikTok carousel browser journey
         run: node docs/syncview-design/tests/tiktok-carousel-browser-journey.js

@@ -51,10 +51,12 @@ jobs:
           node-version: '22'
       - name: Build index.html and js/ from src/index/ (build output, not committed)
         uses: ./.github/actions/build-index
-      - name: Install Playwright + Chromium
-        run: |
-          npm install
-          npx playwright install --with-deps chromium
+      - name: Install Playwright
+        run: npm install
+      - name: Install the pinned Chromium and its system libraries
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       - name: Run headless probes (serves app, scoped to sidneylaruel)
         env:
           PROBE_ATTEMPTS: '3'

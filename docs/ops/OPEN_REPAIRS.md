@@ -34344,3 +34344,25 @@ Staff side only, behind the runtime switch `unread_badges_v2`. The owner's round
   - `unread-badges-v2-browser.js` section K: no box on hover; the badge is the new count; no badge with nothing new while a conversation waits; To answer still lists it. All fail on the old code.
   - `test/notes-loading-skeleton.js` now follows the empty feed through `_prodCommentsEmptyFeedHtml`.
 - **Pictures:** `docs/syncview-design/proofs/unread-badges-r9/`.
+
+## 498. [2026-10-25 01:30 UTC, BUILT, NOT MERGED] Review round 3: Kasper's Review Session gets the client page's polish (staff list), and the client page gets notes badges (session Porch)
+
+- **Asked by the owner** after rounds 1 and 2 on the test client's link (490, 491, 495).
+- **Kasper, behind a staff list.** New gate `svRsKasperPolishOn()` (188): Kasper's Review Session is on and the signed-in staff member is on `unread_badges_v2` (the owner's two ids today), so the owner tries it in Kasper's view first. Nothing changes for anyone else. With it, in his second layout (every part at once, the layout all three Kasper staff use):
+  - Approve shows the check at the click (the part leaves his list at once), then settles as Approved, then Undo once the save lands; a refusal takes the check back and Approve returns with the reason and Try again.
+  - A change request says "Sent" at once and the box stays open on the same part; a second one follows the first (the same queue as the client page). "Approve after tweaks" goes as before. A change still waiting its turn is kept in this browser under his own key (`syncview_rs_chgq_v1:kasper:<staff id>`) and comes back into its post's box, unsent, after a reload (Codex on #2325).
+  - A note's spinner shows only after 1.2 s.
+  - Replies are threaded and indented, as on the client page. Kasper is offered Reply only in the team's own threads (never on a message the client can see, never inside a change request, never on a sample). The reply is a team-only card note with `parent_id` = the thread's first message: `_kasperAddCommentComp(pid, comp, parentId)` (330), browser only, no server change, no Section 4 function touched.
+  - Not covered: his first layout (one part at a time), which nobody on the list uses; there the part still leaves the stepper at the click, as before.
+- **Kasper's live timings** (read-only, Edge Function and API logs of his session on 2026-10-23, 20:00 to 22:00 UTC). One Approve on a linked part: the permission read (about 20 to 40 ms), production-write for the status (preflight about 190 ms, then p50 881 ms, p90 1,031 ms), then the card write (calendar-card-write, p50 604 ms, p90 803 ms over 84 writes). About 2.8 s from click to done. The live logs also show two card writes after some approvals (56 card writes for 36 status writes in that window, all 200); one Approve in the offline harness makes one, so no refetch was dropped.
+- **Kasper, before and after** (offline harness, server times set to those live values):
+
+  | Moment | Before | After |
+  |---|---|---|
+  | Approve: the part answers | "Approved" at 135 ms (his page already set the status in the browser first) | the check at 123 ms, Approved at 784 ms |
+  | Approve: Undo | 2.6 s, when the save lands | unchanged |
+  | Change request: answered | the box closed; "Change asked" at about 4.0 s | "Sent" at 110 ms, box still open |
+  | Note: spinner | at once | only after 1.2 s |
+
+- **Client notes badges, behind `review_client_polish`** (the staff side's round 8). What the client has read is this browser's own mark, `syncview_notes_seen_v1` (a last-seen time per post, the store the client calendar's Notes dot already uses), never the staff's marks; nothing server-side. On each post in the strip, one picture per person from the team: something new since the client last looked is the picture with a small corner count; read but still waiting for the client's answer (a team comment with the last word in its thread, never a change request) is the plain number; never both, and nothing on the post on screen. Opening a post marks it read; its new messages carry a quiet "New" for the rest of the visit.
+- **Proof:** `test/review-kasper-polish-browser.js` (Approve, refusal, two changes in a row, quick note, Reply, list off) and `test/review-client-badges-browser.js` (corner count, plain number, never both, read on open, switch off).

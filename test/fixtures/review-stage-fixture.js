@@ -260,6 +260,9 @@ async function open(browser, origin, opt) {
       };
       // opt.polish: the client review page's polish (review_client_polish) for the fixture client, or a given value.
       if (opt.polish) values.review_client_polish = opt.polish === true ? { clients: [SLUG] } : opt.polish;
+      // opt.unread: the staff badges (unread_badges_v2) for the signed-in staff member, which also gives Kasper's Review
+      // Session the polish (round 3), or a given value.
+      if (opt.unread) values.unread_badges_v2 = opt.unread === true ? { staff: [STAFF.id] } : opt.unread;
       // A slow live permission read before each save (state.authorityDelay ms, set at run time).
       if (state.authorityDelay && keys.includes('prod_authority')) await sleep(state.authorityDelay);
       if (opt.flags === 'on') { values.review_stage_client_pages = { clients: [SLUG] }; if (!opt.noKasperStage) values.review_stage_kasper_staff = { staff: [STAFF.id] }; }

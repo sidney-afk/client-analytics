@@ -45,7 +45,9 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
          unread_badges_v2           { "staff": [...] }: the round-5 unread badges, Notes and Messages (session Beacon,
                                     2026-10-24, 327). Same listing rule as the switches above (id or full name of the
                                     signed-in staff member). Never the client link. Missing, unreadable or the wrong
-                                    shape: today's badges, Notes and Messages exactly as they were.
+                                    shape: today's badges, Notes and Messages exactly as they were. It also gives
+                                    Kasper's Review Session the client page's polish (session Porch, round 3), where
+                                    review_stage_kasper_staff is on too.
          caption_history_staff      { "staff": [...] }: the caption history icon and pop-up on Calendar cards (session
                                     Versions, 2026-10-23). Same listing rule (id or full name of the signed-in staff
                                     member). Never the client link. Missing, unreadable or the wrong shape: no icon,
@@ -469,6 +471,11 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         if (!_rsFlags.loaded || _isClientLink || !_rsFlags.unread.size) return false;
         return _rsListed(_rsFlags.unread);
     }
+    /* KASPER'S REVIEW SESSION WITH THE CLIENT PAGE'S POLISH (session Porch, round 3, 2026-10-25): Approve shows its
+       check at the click, a sent change keeps its box open, "Sent" at once, a spinner only after 1.2 s, replies threaded
+       under what they answer. Only where his Review Session is on (review_stage_kasper_staff) and the signed-in staff
+       member is on unread_badges_v2, so the owner tries it in Kasper's view first. Until both are read: no. */
+    function svRsKasperPolishOn() { return svRsKasperOn() && svUnreadBadgesOn(); }
     function svWorkloadCalmOn() {
         _rsPrime();
         if (!_rsFlags.loaded || _isClientLink) return false;
@@ -709,4 +716,4 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         }
     });
 export { svUnreadBadgesOn, svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svCaptionHistoryOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLayout2On, svRsKasperBoot, svRsKasperFast, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsKasperPending, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };
-export { svThumbTitleButtonsOn, svRsClientPolishOn };
+export { svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn };

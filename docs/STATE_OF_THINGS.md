@@ -18,6 +18,29 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView stand-in, 2026-10-25 evening): phone polish round 1 live for the owner
+
+- **Phone polish round 1 (#2332, session Grip, 19:46 UTC):** the same phone design, made smoother (the owner turned
+  down the redesign mockups the same day and asked for the current design made better). Phone width only. Staff,
+  behind the new switch `phone_polish_staff`, created 19:47 UTC for the owner's two ids (copied from
+  `unread_badges_v2`, read back). Changes:
+  - Notes moved under the statuses on an opened post, and the picture is shorter (180 px).
+  - The note Delete is a quiet bin at the end of the row (still 44 px, still asks first).
+  - The Messages list shows the last message on two lines.
+  - Production rows keep the avatar on the title line.
+
+  Client page, behind `review_client_polish` (test client only):
+  - The video is shorter, so Approve and Ask for a change are on the first screen.
+  - Waiting post names show on two lines.
+  - The caption character count is gone.
+  - The note cross is 44 px.
+
+  Desktop is unchanged (computed styles identical). OPEN_REPAIRS 501. Test
+  `docs/syncview-design/tests/phone-polish-browser.js`, run in CI in staff-phone-rules part 1. Rollback: delete the
+  row or set `{"staff": []}`. Grip continues with round 2.
+- **CI browser installs:** three jobs were cancelled at their timeout on 25 Oct because `playwright install --with-deps`
+  fetched its system libraries from the apt mirror at about 96 kB/s. Session Apt is moving the installs off the mirror.
+
 ## Latest (SyncView stand-in, 2026-10-25 night): three merges
 
 Behind switches that name only the owner's two staff logins, or only the test client, except #2323 (everyone).

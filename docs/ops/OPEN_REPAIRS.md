@@ -34381,7 +34381,17 @@ Staff side only, behind the runtime switch `unread_badges_v2`. The owner's round
 - **Code:** one helper, `_rsCpAsks(t)` in 195 (a "?" in the message), used by `_rsCpBadge`. Browser only, same switch.
 - **Proof:** `test/review-client-badges-browser.js`: a question counts, a statement does not, a question the client answered does not, and after opening a post with a question and a statement only the question waits.
 
-## 501. [2026-10-25, BUILT, NOT MERGED] Browser jobs cancelled while apt-installing their system libraries from a slow Ubuntu mirror (session Apt)
+## 501. [2026-10-25 17:36 UTC, BUILT, NOT MERGED] Phone polish round 1: today's design, smoother on a phone (session Grip)
+
+- **Asked by the owner** after turning down the phone redesign (#2307): "continue in our direction from before, but just better".
+- **Audit** (offline, fictional data, 360/390/430, light and dark; `docs/syncview-design/phone-audit/README.md`), ranked by how often a person hits it. The worst: an opened post's Notes 1,139 px down; the client's Approve below the first screen on the video step (803 to 839 px); a "Delete" as big as Reply on every note; Production rows wrapping to three lines at 360 and 390. Clean: no overflow, no small taps on staff screens, no zooming inputs, the keyboard never covers the box.
+- **Staff, behind the new switch `phone_polish_staff`** = { "staff": [ids] } (188, same listing rule as `unread_badges_v2`; html.sv-phone-polish; every rule inside max-width: 767px): Notes right under the statuses in an opened post (655 px down), the post's picture 180 px instead of 235, Delete as a quiet bin at the far end of each note's actions (44 px, still asks first) with no box around them, two lines of the last message in Messages, the person's picture on the title's line in Production (rows 170 to 120 px).
+- **Client page, behind `review_client_polish`** (phone width only): the video or thumbnail a little shorter so Approve and Ask for a change are both on the first screen, a waiting post's name on two lines, no character count under the caption, the delete cross 44 px.
+- **Desktop does not change:** with the switch on, every element of the desktop Calendar, Notes and Messages has the same computed style as with it off (1,653 elements), and the desktop screenshots are pixel-identical (`docs/syncview-design/phone-audit/shots/desktop-*`).
+- **Proof:** `docs/syncview-design/tests/phone-polish-browser.js` (58 checks, switch on and off; fails on main). To turn on: `phone_polish_staff` = the owner's two staff ids.
+- **Seen, outside this PR:** on a desktop page with `unread_badges_v2` on, the Notes toolbar fit (327 `_svuFitBars`, class `svu-bar-room`) gives a note whose last line ends near the toolbar 20 px of room in some loads and not in others; the phone polish test clears that class on both sides before its desktop comparison.
+
+## 502. [2026-10-25, BUILT, NOT MERGED] Browser jobs cancelled while apt-installing their system libraries from a slow Ubuntu mirror (session Apt)
 
 - **Seen:** on 25 Oct 2026 three Calendar unit tests jobs were cancelled by their job timeout while installing browsers, before or during the tests; every test that did run had passed. `review-stage-phones` on #2329 (install 32 min), `browser-guards (1)` on #2332 (10 min), and `review-gauntlet-three (webkit, 1440)` on main 93b5dc2 (21 min; job 121251196568).
 - **Cause:** not the browser download (seconds). `playwright install --with-deps` apt-installs the system libraries from the Ubuntu mirror on every run, and the main job's log reads "Fetched 117 MB in 20min 13s (96.4 kB/s)". The eight install steps in `calendar-unit-tests.yml` cached nothing; the `ms-playwright` caches in other workflows never covered the apt half.

@@ -42,7 +42,8 @@ for the team or for real clients unless it says "everyone".
 
 - **Kasper's Messages inbox (everyone, #2311):** it answered 503 on every open since at least 2026-10-21, because one
   read sent 500 post ids in a single URL. Reads are now split (200 ids / about 6 kB). Live since 12:59 UTC, with no
-  errors since. Not yet confirmed on his own login: he has not opened it since.
+  errors since. Confirmed on his own login on 2026-10-25: 14 inbox reads between 14:03 and 14:22 UTC, all allowed and
+  200.
 - **A random red staff-phone check (#2315):** the header Messages count rewrote unchanged values and woke the phone
   bar's page scan. It now writes only on change.
 - **Unread badges rounds 6-8 (`unread_badges_v2`, owner's two ids; #2312, #2314, #2316, #2319, #2320):**

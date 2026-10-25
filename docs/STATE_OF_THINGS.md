@@ -18,7 +18,7 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
-## Latest (SyncView stand-in, 2026-10-25 evening): phone polish round 1 live for the owner
+## Latest (SyncView stand-in, 2026-10-25 evening): phone polish rounds 1 and 2 live for the owner
 
 - **Phone polish round 1 (#2332, session Grip, 19:46 UTC):** the same phone design, made smoother (the owner turned
   down the redesign mockups the same day and asked for the current design made better). Phone width only. Staff,
@@ -38,8 +38,17 @@ line is older than a week, re-check it before relying on it.
   Desktop is unchanged (computed styles identical). OPEN_REPAIRS 501. Test
   `docs/syncview-design/tests/phone-polish-browser.js`, run in CI in staff-phone-rules part 1. Rollback: delete the
   row or set `{"staff": []}`. Grip continues with round 2.
-- **CI browser installs:** three jobs were cancelled at their timeout on 25 Oct because `playwright install --with-deps`
-  fetched its system libraries from the apt mirror at about 96 kB/s. Session Apt is moving the installs off the mirror.
+- **Phone polish round 2 (#2336, 21:58 UTC, same switch):** the Sheet's first post starts higher (all 9 posts fit at
+  360 px), the empty band under each note's words is gone, and Messages' Close is a 44 px cross so the title shows
+  whole at 360. OPEN_REPAIRS 503. Grip stopped after round 2. Left alone because they would change the design or
+  wording: label wrapping in Messages, the full-width status bars, the two conversation headers, the always-shown
+  "Finish reviewing". Next: the owner tries both rounds, then widen or adjust.
+- **CI browser installs (#2333, #2335, OPEN_REPAIRS 502):** three jobs were cancelled at their timeout on 25 Oct
+  because `playwright install --with-deps` fetched its system libraries from the apt mirror at about 96 kB/s. Every
+  browser workflow now installs through `.github/actions/playwright-browsers`: the same libraries (playwright 1.56.1's
+  own list), offline from a .deb cache keyed on the runner image version, with the browsers from an ms-playwright
+  cache. Only a miss goes to the mirror. Installs went from up to 21 min to 15 to 40 s. The first scheduled runs
+  (nightlies, dawn-check) are the last proof.
 
 ## Latest (SyncView stand-in, 2026-10-25 night): three merges
 

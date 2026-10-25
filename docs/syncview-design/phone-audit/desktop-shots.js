@@ -19,7 +19,8 @@ const OUT = arg('out', path.join(__dirname, 'shots')), TAG = arg('tag', 'after')
       await page.screenshot({ path: path.join(OUT, `desktop-${theme}-calendar-${TAG}.jpg`), type: 'jpeg', quality: 70 });
       await page.evaluate(() => openCalComments('p_morning')); await sleep(2500);
       // The list scrolls to the newest note when it lands; pin it to the top so before and after compare.
-      await page.evaluate(() => document.querySelectorAll('#calCommentsOverlay *').forEach(e => { if (e.scrollHeight > e.clientHeight + 20) e.scrollTop = 0; })); await sleep(300);
+      // The unread badges' toolbar fit (327 svu-bar-room) flips one note's height between loads: cleared, as the test does.
+      await page.evaluate(() => { document.querySelectorAll('.svu-bar-room').forEach(e => e.classList.remove('svu-bar-room')); document.querySelectorAll('#calCommentsOverlay *').forEach(e => { if (e.scrollHeight > e.clientHeight + 20) e.scrollTop = 0; }); }); await sleep(300);
       await page.screenshot({ path: path.join(OUT, `desktop-${theme}-notes-${TAG}.jpg`), type: 'jpeg', quality: 70 });
       await page.close();
     }

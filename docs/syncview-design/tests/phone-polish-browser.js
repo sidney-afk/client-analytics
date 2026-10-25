@@ -17,7 +17,9 @@ const ok = (cond, msg) => { assert.ok(cond, msg); passed++; console.log('  ok', 
 async function openPost(S, page) {
   await S.openCalendar(page); await sleep(2600);
   await page.evaluate(() => onCalViewChange('organizer')); await sleep(1200);
+  const sheetTop = await page.evaluate(() => Math.round(document.querySelector('.thumb-tile').getBoundingClientRect().top));
   await page.click('[data-thumb-card=p_morning]'); await sleep(1300);
+  return sheetTop;
 }
 
 async function staffPhone(W, on) {
@@ -26,8 +28,10 @@ async function staffPhone(W, on) {
   const tag = `staff ${W} ${on ? 'on' : 'off'}:`;
   try {
     const page = await S.newPage();
-    await openPost(S, page);
+    const sheetTop = await openPost(S, page);
     ok(await page.evaluate(() => document.documentElement.classList.contains('sv-phone-polish')) === on, `${tag} the page carries the switch's class only when listed`);
+    // Round 2: the Sheet's first post starts higher (272 px before).
+    ok(on ? sheetTop <= 244 : sheetTop >= 268, `${tag} the Sheet's first post starts at ${sheetTop} px`);
     const notes = await page.evaluate(() => { const b = [...document.querySelectorAll('.cal-card-edit .cal-comments-btn')].find(x => x.checkVisibility()); return b ? Math.round(b.getBoundingClientRect().bottom) : null; });
     if (on) ok(notes !== null && notes <= H[W], `${tag} an opened post shows Notes without scrolling (bottom ${notes} <= ${H[W]})`);
     else ok(notes > H[W], `${tag} Notes is below the first screen as before (${notes})`);
@@ -41,6 +45,9 @@ async function staffPhone(W, on) {
       const word = d.querySelector('span'); return { del: word && word.getBoundingClientRect().width > 2 ? word.textContent.trim() : '', name: d.textContent.trim(), delRightGap: Math.round(r.right - dr.right), delLeftGap: reply ? Math.round(dr.left - reply.getBoundingClientRect().right) : null, delW: Math.round(dr.width), delH: Math.round(dr.height), border: cs.borderTopColor, reply: reply ? reply.innerText.trim() : '' };
     }));
     ok(rows.length >= 3, `${tag} notes with a Delete are on screen (${rows.length})`);
+    // Round 2: a note's actions sit right under its words.
+    const bands = await page.evaluate(() => [...document.querySelectorAll('#calCommentsOverlay .cal-cm-actions')].filter(a => a.checkVisibility()).map(a => { const b = a.closest('.cal-cm-row').querySelector('.cal-cm-body-col'); return Math.round(a.getBoundingClientRect().top - b.getBoundingClientRect().bottom); }));
+    ok(on ? bands.every(g => g <= 2) : bands.every(g => g >= 8), `${tag} the band between a note's words and its actions is ${on ? 'gone' : 'there as before'} (${[...new Set(bands)].join(', ')} px)`);
     if (on) {
       ok(rows.every(r => r.del === '' && r.name === 'Delete'), `${tag} Delete shows no word (its name is still "Delete" for a screen reader)`);
       ok(rows.every(r => r.delRightGap <= 4 && r.delLeftGap >= 60), `${tag} Delete sits at the row's far end, away from Reply`);
@@ -58,6 +65,12 @@ async function staffPhone(W, on) {
     await page.evaluate(() => _msgOpenPage()); await sleep(1500);
     const lines = await page.evaluate(() => { const e = document.querySelector('#msgPage [data-msg-conv="p_morning"] .msg-conv-last'); return Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight)); });
     ok(on ? lines === 2 : lines === 1, `${tag} a conversation's last message shows on ${on ? 'two lines' : 'one line'} (${lines})`);
+    // Round 2: the Messages title shows whole beside Close (on a 360 px phone it ran under the word "Close").
+    const head = await page.evaluate(() => { const h = document.querySelector('.pocket-staff-title'), c = document.querySelector('.pocket-staff-msg-close'); const hr = h.getBoundingClientRect(), cr = c.getBoundingClientRect(); return { whole: h.scrollWidth <= h.clientWidth + 1 && hr.right <= cr.left, cw: Math.round(cr.width), ch: Math.round(cr.height), name: c.getAttribute('aria-label') }; });
+    if (on) ok(head.whole && head.cw >= 44 && head.ch >= 44 && head.name === 'Close Messages', `${tag} "Messages" shows whole beside a 44 px Close (${head.cw}x${head.ch})`);
+    else if (W === 360) ok(!head.whole, `${tag} "Messages" ran under Close as before`);
+    await page.click('.pocket-staff-msg-close'); await sleep(900);
+    ok(await page.evaluate(() => { const m = document.getElementById('msgPage'); return !m || !m.checkVisibility(); }), `${tag} Close still closes Messages`);
   } finally { await S.close(); }
 }
 

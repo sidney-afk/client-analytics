@@ -9069,3 +9069,21 @@ html.sv-unread2 #msgPage .msg-b .svu-msg-files { grid-column: 2; margin-top: 2px
  html.sv-phone-polish.fph-on[data-fph="production"] :is(.prod-row,.prod-subrow) .prod-assign-hot { order:1; }
  html.sv-phone-polish.fph-on[data-fph="production"] :is(.prod-row,.prod-subrow) .prod-title { flex-basis:calc(100% - 104px); }
 }
+/* Phone polish, round 2 (phone_polish_staff, session Grip, 2026-10-25). */
+@media (max-width:767px) {
+ /* Messages: on a 360 px phone the title ran under the word "Close". Close is a plain 44 px cross (its name is still
+    "Close Messages"), and below 378 px the title is a little smaller, so "Messages" shows whole. */
+ html.sv-phone-polish.sv-staff-phone body .pocket-staff-msg-close { font-size:0;gap:0;width:44px;min-width:44px;padding:0;justify-content:center; }
+ html.sv-phone-polish.sv-staff-phone body .pocket-staff-msg-close::before { content:'\00d7';font-size:26px;line-height:1;font-weight:500; }
+ html.sv-phone-polish.sv-staff-phone body .pocket-staff-bar:has(.pocket-staff-msg-close) .pocket-staff-title { font-size:min(28px, 7.4vw); }
+ /* Notes: a note's actions sit right under its words, with no empty band between (about 17 px less per note). */
+ html.sv-phone-polish.sv-staff-phone body #calCommentsOverlay .cal-cm-row { row-gap:0; }
+ html.sv-phone-polish.sv-staff-phone body #calCommentsOverlay .cal-cm-actions { padding:0;margin-top:0;border-width:0; }
+ /* The Sheet: no empty band under the Sheet / Calendar / Review switch, and a slimmer grid / list bar, so the first
+    post starts higher. */
+ html.sv-phone-polish body:has(#calView[data-pocket-staff-phone]) #calView[data-pocket-staff-phone]:is([data-thumb-mode=grid],[data-thumb-mode=list]) > .cal-toolbar,
+ html.sv-phone-polish body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples]:is([data-thumb-mode=grid],[data-thumb-mode=list]) > .cal-toolbar { row-gap:0;margin-bottom:4px; }
+ html.sv-phone-polish.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection]:is([data-thumb-mode=grid],[data-thumb-mode=list]) .thumb-collection-bar { padding-block:4px; }
+ /* A "Refreshing" or "Couldn't refresh" notice there still gets its room. */
+ html.sv-phone-polish.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] > .cal-toolbar > .cal-toolbar-right:has(> :is(.cal-refreshing,.cal-stale-notice):not([hidden])) { margin-top:8px; }
+}

@@ -105,7 +105,7 @@ export function dreamsBlock(dreams) {
 // The one place the reply text is built. focus and facts: written facts
 // only, each { file, heading, id, body, sure? }, in reading order.
 /**
- * @param {{ name: string, brief: string, focus?: any[], facts: any[], topic?: string }} args
+ * @param {{ name: string, brief: string, focus?: any[], facts: any[], topic?: string, dreams?: string }} args
  * @returns {string}
  */
 export function brainView({ name, brief, focus = [], facts, topic = "", dreams = "" }) {

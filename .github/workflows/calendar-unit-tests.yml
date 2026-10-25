@@ -539,6 +539,7 @@ jobs:
           A client's sent caption edit is their answer for the caption step (saves, tells the team, approves once, moves on; refused save stays)|node test/review-stage-caption-send-browser.js
           The manager's Review tab asks once (no second pop-up, open change requests marked done with Undo, Notes panel opens at the newest message)|node test/review-stage-one-question-browser.js
           Today opens new tabs, SyncLinear offers Back to card|node docs/syncview-design/tests/back-to-card-browser.js
+          A new tab opens what its address names however slow the staff check (SyncLinear from a card stays SyncLinear)|node docs/syncview-design/tests/new-tab-slow-staff-check-browser.js
           Kasper hiring renders on open and reload|node test/kasper-hiring-reload-browser.js
           TikTok upload through the functions|node test/tiktok-upload-browser.js
           Instagram and TikTok switch|node test/instagram-platform-switch-browser.js

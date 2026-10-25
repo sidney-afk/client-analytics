@@ -34294,6 +34294,21 @@ back the old function (including its "Needs info" lines).
   - a slow refusal returns the stage to the part;
   - "Sent" shows at once.
 
+## 496. [2026-10-25 01:30 UTC, BUILT, NOT MERGED] A SyncLinear tab opened from a Calendar card sometimes showed the Calendar (session Linkcheck)
+
+- **Seen:** the owner, about 00:40 UTC on 2026-10-25, on a test-client card: the thumbnail's "open in SyncLinear" button opened a new tab showing the Calendar. Minutes later the same button worked.
+- **Not the link:** the button's address was right every time (`/?prod=1&d=<deliverable>&from=calendar&...#production`). The card's two deliverables had existed since 13:42 UTC the day before, so the id was known when the button was drawn.
+- **Cause:** a race in the new tab's boot.
+  - The boot router waits for the staff key check before it routes. Until then `currentNav` keeps its starting value, `'home'`.
+  - The runtime switch read (`syncview_runtime_flags`) starts earlier. When its answer lands, the `sv-review-stage-switch` handler moves anyone on Analytics to the Calendar while Analytics is hidden. It took the starting `'home'` as "on Analytics" and called `navTo('calendar')`.
+  - That navigation bumped the nav epoch, so the boot router's own `navTo('production')` then stood down.
+  - Only a slow (cold) key check loses the race, which is why it looked random. Any fresh tab was exposed, not just SyncLinear: `/workload`, `/kasper`, and the bare address (which should open Today) too.
+- **Fix:** `src/index/188-review-stage-switch.js.part` moves a page to the Calendar only after something has routed (nav epoch not 0). Before the first route nobody is on Analytics, and the boot router already asks `svStaffNoAnalytics()` when it lands on Home.
+- **Proof:** `docs/syncview-design/tests/new-tab-slow-staff-check-browser.js` holds the key check for 2.5 s while the switch read answers first.
+  - On the old code, both the SyncLinear link and a fresh Workload tab land on `/calendar`.
+  - With the fix, they open SyncLinear and Workload.
+  - The suite is added to the browser regression lane in `calendar-unit-tests.yml`.
+
 ## 498. [2026-10-25 01:30 UTC, BUILT, NOT MERGED] Review round 3: Kasper's Review Session gets the client page's polish (staff list), and the client page gets notes badges (session Porch)
 
 - **Asked by the owner** after rounds 1 and 2 on the test client's link (490, 491, 495).

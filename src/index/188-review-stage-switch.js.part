@@ -8,7 +8,7 @@ import { _isClientLink, _syncviewClientEntryCapability } from './260-production-
 import { _kasperPaintReview, _kasperState } from './305-core-kasper-shared.js';
 import { svFrameFlagWait } from './187-frame-viewer.js';
 import { navTo } from './092-core-submit-form-navigation.js';
-import { currentNav } from './065-core-nav-intake-state.js';
+import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), behind two switches. Session Marquee, 2026-10-17.
 
        This file is the small, always-loaded half: it reads the switches and answers "show the new page here?".
@@ -672,6 +672,13 @@ import { currentNav } from './065-core-nav-intake-state.js';
         const api = svAreaApi('reviewstage');
         if (api) api.kasperHide();
     }
+    /* currentNav starts as 'home' and keeps it until the boot router routes, which waits for the staff key check.
+       So a fresh tab that has not routed yet (SyncLinear opened from a card's button, /workload, the bare address)
+       also reads 'home' while that check is out, and a switch answer arriving first moved it to the Calendar: the
+       boot router then stood down and the tab never opened what its address named (session Linkcheck, 2026-10-25;
+       a cold key check is what makes it intermittent). Before the first route nobody is on Analytics, and the boot
+       router asks svStaffNoAnalytics() itself when it lands there, so only a page that has routed is moved. */
+    function _rsHasRouted() { return _syncviewNavEpoch !== 0; }
     window.addEventListener('sv-review-stage-switch', () => {
         if (_rsFlags.loaded) _rsAnalyticsRestore();
         // A staff browser that last saw Analytics shown kept it until this read came in; the read says hidden, so the
@@ -682,7 +689,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
             if (svAnalyticsHidden()) {
                 // Only Analytics itself (the overview, or a client's Analytics tab): a client's Brief or Calendar tab stays.
                 const c = history.state && history.state.client;
-                if (currentNav === 'home' && (!c || (clientViewTab[c] || 'analytics') === 'analytics')) {
+                if (currentNav === 'home' && _rsHasRouted() && (!c || (clientViewTab[c] || 'analytics') === 'analytics')) {
                     // The client the person was on rides along, as the immediate redirects in render() do.
                     if (c) _calSetFocusRequest({ client: c, cardId: null });
                     navTo('calendar', false);

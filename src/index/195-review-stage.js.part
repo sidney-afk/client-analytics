@@ -1273,6 +1273,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
        the list are dropped, from memory and from storage. An empty or still loading list never drops anything. */
     function _rsDraftsSettle(all) {
         const S = R.S;
+        // Kasper's waiting changes from an earlier visit (polish, round 3) come back into their post's box, once.
+        if (R.mode === 'kasper' && R.cp && S && !S.cpQLoaded && all.length) { S.cpQLoaded = true; _rsCpQRestore(); }
         if (R.mode !== 'client' || !S || calState.loading || !all.length) return;
         const live = new Set(all.map(x => x.id));
         if (!S.draftsLoaded) {
@@ -3011,7 +3013,15 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
        save path has taken them (from then on its own queue, 185, holds them). After a reload they come back into that
        post's box, unsent, so nothing is lost and nothing goes twice. */
     const RS_CHGQ_KEY = 'syncview_rs_chgq_v1:';
-    function _rsCpQKey() { const c = String(calState.client || '').trim().toLowerCase(); return R.mode === 'client' && c ? RS_CHGQ_KEY + c : ''; }
+    // Kasper (round 3) keeps his own, per signed-in staff member, so a reload before a save lands loses nothing (Codex
+    // on #2325).
+    function _rsCpQKey() {
+        if (R.mode === 'client') { const c = String(calState.client || '').trim().toLowerCase(); return c ? RS_CHGQ_KEY + c : ''; }
+        if (R.mode !== 'kasper') return '';
+        let me = '';
+        try { me = String(_calCurrentAuthorId() || '').trim().toLowerCase(); } catch (e) { me = ''; }
+        return me ? RS_CHGQ_KEY + 'kasper:' + me : '';
+    }
     function _rsCpQRead() { try { const v = JSON.parse(localStorage.getItem(_rsCpQKey()) || '{}'); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; } }
     function _rsCpQSave(key, q) {
         const sk = _rsCpQKey();

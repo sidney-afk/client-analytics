@@ -7,7 +7,7 @@
  * 1. Approve: the check shows at the click (the part leaves his list at once), then it settles as Approved, then Undo.
  *    A refused save takes the check back: Approve returns with the reason and Try again.
  * 2. A change request: "Sent" at once and the box stays open on the same part; a second one sent straight after also
- *    arrives, in order.
+ *    arrives, in order. A reload while the first still saves brings the waiting one back into the box, never lost.
  * 3. A note: no spinner while the save is quick (only after 1.2 s).
  * 4. Reply: under a team-only message, saved with that message as its parent, team-only, and shown under it; never on a
  *    message the client can see.
@@ -154,6 +154,32 @@ async function shots(browser, origin) {
       let got = [];
       for (let i = 0; i < 100; i++) { got = notes(t.state.cards[0], 'video_tweaks').filter(n => n.is_tweak && n.role === 'kasper').map(n => n.body); if (got.length >= 2) break; await sleep(150); }
       expect(got.join(' | ') === 'Cut the pause after the hook. | And end on the logo.', 'both changes saved, in order (' + got.join(' | ') + ')');
+      expect(!t.errors.length, 'no page errors (' + t.errors.join(' | ') + ')');
+      await t.ctx.close();
+    }
+
+    console.log('--- 2b. A reload while the first change still saves: the second comes back into the box ---');
+    {
+      const t = await openKasper(browser, origin, {});
+      t.state.gatewayDelay = 8000;   // the first change's save hangs
+      await inS(t.page, video + ' [data-chg]').first().click(); await sleep(300);
+      await inS(t.page, '#ta').first().fill('Cut the pause after the hook.');
+      await inS(t.page, '#ta').first().press('Enter'); await sleep(200);
+      await inS(t.page, '#ta').first().fill('And end on the logo.');
+      await inS(t.page, '#ta').first().press('Enter'); await sleep(300);
+      const kept = await t.page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('syncview_rs_chgq_v1:kasper:')).map(k => k + '=' + localStorage.getItem(k)).join(' | '));
+      expect(/And end on the logo\./.test(kept) && !/Cut the pause/.test(kept), 'the waiting change is kept in this browser, under his own key (' + kept.slice(0, 160) + ')');
+      t.state.gatewayDelay = 900;
+      await t.page.reload({ waitUntil: 'domcontentloaded' });
+      await t.page.waitForFunction(() => typeof navTo === 'function', null, { timeout: 30000 });
+      await t.page.evaluate(name => { try { _syncviewStaffIdentityVerified = true; } catch (e) {} try { wlMergeClientsFromSheet([name]); } catch (e) {} navTo('kasper'); }, CLIENT);
+      await t.page.waitForFunction(() => { const h = document.getElementById('svReviewStage'); const r = h && h.shadowRoot; return !!(r && r.querySelectorAll('#l2g .pn').length); }, null, { timeout: 30000 });
+      await sleep(1500);
+      const box = await R(t.page, (r) => Array.from(r.querySelectorAll('#ta')).map(x => x.value).join(' | '));
+      const sent = notes(t.state.cards[0], 'video_tweaks').some(n => n.body === 'And end on the logo.');
+      expect(/And end on the logo\./.test(box) || sent, 'after the reload the second change is back in the box, unsent, or was sent (box: ' + box + ', sent: ' + sent + ')');
+      const left = await t.page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('syncview_rs_chgq_v1:kasper:')).length);
+      expect(left === 0, 'and it is no longer waiting in storage (it cannot go twice)');
       expect(!t.errors.length, 'no page errors (' + t.errors.join(' | ') + ')');
       await t.ctx.close();
     }

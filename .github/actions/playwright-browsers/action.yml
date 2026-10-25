@@ -1,0 +1,73 @@
+name: Install the pinned browsers
+description: >-
+  Installs playwright 1.56.1 into $RUNNER_TEMP/pw and the named browser engines
+  with the system libraries they need, without waiting on the Ubuntu mirror.
+  On 2026-10-25 three browser jobs in calendar-unit-tests.yml were cancelled by
+  their timeout while `playwright install --with-deps` apt-installed those
+  libraries from a mirror serving 96 kB/s ("Fetched 117 MB in 20min 13s"); the
+  browser download itself took seconds. So the libraries playwright names for
+  these engines are checked against what the runner image already has, the
+  missing ones come from a cache of their .deb files (keyed on exactly that
+  missing set), and the browsers from a cache of ~/.cache/ms-playwright. Only a
+  cache miss goes to the mirror, once per missing set, and saves what it fetched.
+  The result is the same libraries `--with-deps` installs (playwright's own
+  list), so no test sees a different machine.
+inputs:
+  browsers:
+    description: Space-separated engines, for example `chromium` or `chromium firefox webkit`.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Install the pinned browser harness
+      shell: bash
+      env:
+        PW_BROWSERS: ${{ inputs.browsers }}
+      run: |
+        set -euo pipefail
+        npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
+        "$GITHUB_ACTION_PATH/system-deps.sh" plan
+    - name: Restore the system libraries these browsers need
+      id: debs
+      if: env.PW_DEPS_MISSING != ''
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.cache/syncview-pw-debs
+        key: ${{ env.PW_DEPS_KEY }}
+    - name: Restore the pinned browsers
+      id: browsers
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: pw-browsers-1.56.1-${{ runner.os }}-${{ env.PW_BROWSERS_KEY }}
+    - name: Install the system libraries these browsers need
+      if: env.PW_DEPS_MISSING != ''
+      shell: bash
+      env:
+        PW_DEBS_HIT: ${{ steps.debs.outputs.cache-hit }}
+      run: |
+        set -euo pipefail
+        "$GITHUB_ACTION_PATH/system-deps.sh" install
+    - name: Keep the fetched system libraries for the next run
+      if: env.PW_DEPS_MISSING != '' && env.PW_DEPS_FETCHED == 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ~/.cache/syncview-pw-debs
+        key: ${{ env.PW_DEPS_KEY }}
+    - name: Install the pinned browsers
+      shell: bash
+      env:
+        PW_BROWSERS: ${{ inputs.browsers }}
+      run: |
+        set -euo pipefail
+        start=$SECONDS
+        # No --with-deps: the step above already installed exactly that list.
+        # shellcheck disable=SC2086
+        "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install $PW_BROWSERS
+        echo "Browsers ($PW_BROWSERS) ready in $((SECONDS - start)) s"
+    - name: Keep the pinned browsers for the next run
+      if: steps.browsers.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: pw-browsers-1.56.1-${{ runner.os }}-${{ env.PW_BROWSERS_KEY }}

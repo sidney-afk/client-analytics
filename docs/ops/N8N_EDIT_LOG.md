@@ -495,3 +495,14 @@ Approved by the owner on 23 Oct after an inbox check of the 22 Oct test run.
 - Instant booking link (`cM3G9REliKpwicnR`, "Send Instant Email") and recovery dispatch (`nQ4vnZ8bmG3E3Lor`, "Send Recovery Email (Human)"): sent as plain text (the approved wording, no logo or signature table), because the HTML version landed in Gmail's Promotions tab. Published versions `129d49ea` and `b4523217`. The older non-human recovery email is unchanged.
 - Live test: one unbooked educator lead and one educator booking cancelled the same day, on 23 Oct at about 15:35 UTC. The inbox result is added below once the emails have arrived.
 - Result (23 Oct): the cancelled booking's educator nurture (execution 676707) found the cancellation at its first check (16:37 UTC) and stopped with no pre-call email sent. The unbooked lead got the instant link and the 30 minute reminder once each, as plain text, but Gmail still filed both under Promotions. Plain text alone did not move them to Primary.
+
+## 2026-10-25 Weekly backup: no repo zip, database dump first, retries on the Drive uploads (owner's go, SyncView stand-in)
+Why: "SyncView - Weekly Backup" failed on 4 and 25 Oct and crashed on 18 Oct. Google Drive refused the uploads with 403 rateLimitExceeded after the repo zip, which had grown to about 450 MB. Because "Upload Workflows JSON" stops the run on error, the database dump never ran. The last complete dump before this fix was from 18 Oct.
+- SyncView - Weekly Backup (`jlVfbg0Njxf1It7h`): before `81b902da-b8e0-4268-b5b1-57724b4dec60`, after `97a22f94-fb8b-4a0f-a470-8a8be7cf3789` (published, still active).
+  - "Download GitHub Repo Zip" and "Upload Repo Zip" are disabled, not deleted. GitHub already holds the code.
+  - The six database dump nodes ("Dump calendar_posts" to "Upload Supabase JSON") are moved to the top of the canvas, so they run first. Their settings and wiring are unchanged.
+  - Retry On Fail (5 tries, 5000 ms apart) is on for "Upload Supabase JSON", "Upload Workflows JSON" and "Upload Repo Zip".
+  - Schedule, credentials, folder ids, the Main Sheet copy and the error workflow are unchanged.
+Tested: one manual run, execution 678274, 17:09:45 to 17:10:37 UTC, status success. The workflows JSON read-back check passed. The new 2026-10-25 folder in SyncView Backups holds the database dump (49.0 MB), the n8n workflows JSON (5.6 MB, written last) and the Main Sheet copy. A second 2026-10-25 folder from the failed 06:00 run holds only a Main Sheet copy. It was left as is.
+Leftover: the workflow description and the canvas sticky note still mention the repo zip.
+Undo: restore `81b902da-b8e0-4268-b5b1-57724b4dec60` in n8n's workflow history and publish.

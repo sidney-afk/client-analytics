@@ -385,6 +385,7 @@ jobs:
           Kasper Clients profile shows onboarding checklist, resources and HubSpot state to admins only|node docs/syncview-design/tests/clients-onboarding-browser.js
           The boot flags read, the review switch read and the roster Sheets read retry once (mocked)|node test/boot-reads-retry-browser.js
           A note shows the moment it is sent and is never lost (slow server, error then retry, double click, refresh mid-send; desktop and phone) (mocked)|node docs/syncview-design/tests/note-send-outbox-browser.js
+          Notes reopen without a needless skeleton, and a reply sent while loading goes at once (switch unread_badges_v2; mocked)|node docs/syncview-design/tests/notes-quick-open-reply-browser.js
           A Calendar Retry sends the status the person chose (mocked)|node docs/syncview-design/tests/lost-work-retry-intent-browser.js
           Client Calendar Expanded layout, sections and dialogs|node docs/syncview-design/tests/client-calendar-expanded-browser.js
           TikTok queue poll backs off when quiet and resumes on a change|node test/tiktok-poll-backoff-browser.js

@@ -25,7 +25,8 @@ async function run(linked, comp, client, clientCtx) {
     _calAppendComment: async (pid, parent, body, o) => { calls.push(['gateway', o.id]); return true; },
     _calReviewCommentSend: async e => { calls.push(['cardrow', e.id]); return true; },
     _writeUiComponentHasWorkItem: () => true, _calFindCompForCommentId: () => comp,
-    _writeUiFailureSentence: e => String(e), _writeUiRecordFailure: () => {}
+    _writeUiFailureSentence: e => String(e), _writeUiRecordFailure: () => {},
+    _calWaitNotesLoaded: async () => {}
   };
   const names = Object.keys(env);
   const src = 'async ' + extractFunction(INDEX, '_noteReviewGoesToGateway').replace(/^async\s+/, '') + '\n' + extractFunction(INDEX, '_noteOutboxSend') + '; return _noteOutboxSend;';

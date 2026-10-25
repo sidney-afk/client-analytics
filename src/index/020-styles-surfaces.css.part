@@ -8881,18 +8881,12 @@ html.sv-unread2[data-theme="dark"] {
 .svu-pv-who { font-weight: 700; white-space: nowrap; }
 .svu-pv-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary); }
 .svu-pv-more { padding: 4px 12px 2px 44px; color: var(--text-muted); font-size: .74rem; }
-.svu-pv-foot { padding: 7px 12px 4px; border-top: 1px solid var(--svu-hair); color: var(--text-secondary); font-size: .76rem; }
 .svu-k-staff .svu-pv-ico { color: var(--svu-staff-ink); } .svu-k-kasper .svu-pv-ico { color: var(--svu-kasper-ink); }
 .svu-k-comment .svu-pv-ico, .svu-k-waiting .svu-pv-ico { color: var(--svu-comment-ink); }
-.svu-tip-head { padding: 6px 12px 6px; font-weight: 800; }
-.svu-tip-row { grid-template-columns: 16px 1fr; }
-.svu-tip-row .svu-pv-ico { grid-row: auto; }
-.svu-tip-text { color: var(--text-primary); }
 /* the Messages button count: a round pill */
 .msg-nav-btn > .msg-unread.svu-count { border-radius: 99px; box-shadow: 0 0 0 2px var(--white); }
 .msg-unread.svu-count-comment { background: var(--svu-comment); color: var(--svu-on); } .msg-unread.svu-count-staff { background: var(--svu-staff); color: var(--svu-on); }
 .msg-unread.svu-count-kasper { background: var(--svu-kasper); color: var(--svu-on); }
-.msg-unread.svu-count-waiting { background: var(--white); color: var(--svu-comment-ink); box-shadow: 0 0 0 2px var(--white), inset 0 0 0 1.5px var(--svu-comment); }
 /* buttons and tags */
 .svu-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); border-radius: 6px; padding: 4px 12px; font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; }
 .svu-btn:hover { background: var(--svu-hover); }

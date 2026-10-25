@@ -52,3 +52,21 @@ Staff, behind `phone_polish_staff` (phone width only): 1, 3, 4, 5, 6. Client pag
 | 7 | Two lines of the post's name |
 | 8 | No character count (Expand the caption stays) |
 | 9 | 44 x 44 |
+
+## Round 2 (session Grip, 2026-10-25, OPEN_REPAIRS 503)
+
+`audit2.js` covers what round 1 did not: the Calendar's month, week and Review views, a Messages conversation and the
+top of Notes, with `phone_polish_staff` on. Today and the Workload calendar need fixtures this harness does not serve;
+the existing phone suites (`qa/staff-phone-final-pass.js`, `qa/staff-phone-workload.js`) cover them with overlap,
+scroll and tap checks and are clean. `audit-checks.js` holds the in-page checks both audits share.
+
+| # | Where | Problem (before) | After |
+|---|---|---|---|
+| 1 | Messages, 360 px | The title "Messages" ran under the word "Close" (it needs 129 px; 102 were left) | Close is a plain 44 px cross, and below 378 px the title is a little smaller: it shows whole |
+| 2 | Notes | A 13 px empty band between every note's words and its Reply / Mark done / bin (plus a 2 px frame) | The actions sit right under the words: about 17 px less per note, so more notes per screen |
+| 3 | Sheet | The first post at 272 px; 6 posts on a 360 x 780 screen | The first post at 240 px (no empty band under the switch, a slimmer grid / list bar); all 9 fit |
+
+Seen and left alone: a Messages conversation's labels wrap to a second line for about half of the messages (name, role,
+part, tag, audience, time and Reply on one line do not fit at 360 to 430 px); shortening them would change the wording.
+
+Pictures: `shots/round2/` (before is main after round 1; after is this change), desktop pixel-identical (`shots/round2/desktop-*`).

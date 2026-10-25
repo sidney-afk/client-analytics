@@ -58,6 +58,14 @@ name: Calendar unit tests
 # gated the same way. Every push to main runs all nine legs (review-gauntlet-three)
 # and the review phones, whatever changed. Whether a red main run should page
 # anyone is an open owner decision. docs/ops/CI_CHECKS.md has the whole audit.
+#
+# Browser installs (2026-10-25, session Apt, OPEN_REPAIRS 501). Every browser job
+# installs through .github/actions/playwright-browsers, never `playwright install
+# --with-deps`: that apt-installed the system libraries from the Ubuntu mirror on
+# every run, and when the mirror served 96 kB/s three jobs hit their timeout
+# before or during the tests. The action installs the same libraries (playwright's
+# own list) from a cache of their .deb files, and the browsers from a cache of
+# ~/.cache/ms-playwright; only a cache miss goes to the mirror.
 on:
   push:
     branches: [main]
@@ -125,9 +133,9 @@ jobs:
       - name: Build index.html and js/ from src/index/ (build output, not committed)
         uses: ./.github/actions/build-index
       - name: Install the pinned browser harness
-        run: |
-          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       - name: Staff phone checks, three side by side (part 1 of 2)
         if: ${{ matrix.part == 1 }}
         env:
@@ -371,9 +379,9 @@ jobs:
       - name: Build index.html and js/ from src/index/ (build output, not committed)
         uses: ./.github/actions/build-index
       - name: Install Playwright into a temp prefix (package.json untouched)
-        run: |
-          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       - name: Entry link and client browser checks, three side by side (part 1 of 3)
         if: ${{ matrix.part == 1 }}
         env:
@@ -502,9 +510,9 @@ jobs:
       - name: Build index.html and js/ from src/index/ (build output, not committed)
         uses: ./.github/actions/build-index
       - name: Install Playwright into a temp prefix (package.json untouched)
-        run: |
-          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       - name: Browser regression guards, three side by side (part 1 of 2)
         if: ${{ matrix.part == 1 }}
         env:
@@ -615,9 +623,9 @@ jobs:
           node-version: '22'
       - uses: ./.github/actions/build-index
       - name: Install the pinned Safari and Android engines
-        run: |
-          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps webkit chromium
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: 'webkit chromium'
       - name: Client and staff review on iPhone and Android, both orientations and themes
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -648,9 +656,9 @@ jobs:
           node-version: '22'
       - uses: ./.github/actions/build-index
       - name: Install the three browser engines
-        run: |
-          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium firefox webkit
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: 'chromium firefox webkit'
       - name: Checkpoint ownership survives recovery, another tab, storage failure and reload
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -686,9 +694,9 @@ jobs:
       - name: Build index.html and js/ from src/index/ (build output, not committed)
         uses: ./.github/actions/build-index
       - name: Install Playwright into a temp prefix (package.json untouched)
-        run: |
-          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       - name: Build the split version (runner checkout only)
         if: ${{ matrix.part == 1 }}
         run: node scripts/build-index.js --force-split
@@ -822,9 +830,9 @@ jobs:
           node-version: '22'
       - uses: ./.github/actions/build-index
       - name: Install chromium
-        run: |
-          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       - name: Gauntlet Three on chromium at 1440, three halves side by side
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -864,9 +872,9 @@ jobs:
           node-version: '22'
       - uses: ./.github/actions/build-index
       - name: Install the selected browser
-        run: |
-          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps "${{ matrix.engine }}"
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: '${{ matrix.engine }}'
       - name: Review action and failure matrix
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

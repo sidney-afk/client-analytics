@@ -9,7 +9,9 @@
 // brief, identity, voice, editing, relationship, audience). focus.md (what the
 // content is focused on right now) is part of the head: always sent whole,
 // before the brief, never left out. history.md holds old
-// notes and is never read or served here.
+// notes and is never read or served here. dreams.md (what the brain dreamt:
+// our read of the client, not facts) is sent whole after the brief, under its
+// "Dreamt by the brain" heading, and on the topic "dreams".
 
 import { parseBrief } from "../brain/parse.mjs";
 
@@ -91,21 +93,31 @@ function footer(left) {
   return head + [...counts].map(([file, n]) => `${file}.md: ${n} facts (too many to list; ask with the file name, or a heading word)`).join("\n");
 }
 
+// dreams.md, capped, always under one heading that says these are not facts.
+export const DREAMS_MAX_CHARS = 6_000;
+export function dreamsBlock(dreams) {
+  const body = String(dreams || "").replace(/^# .*\n+/, "").trim();
+  if (!body) return "";
+  const cut = body.length > DREAMS_MAX_CHARS ? body.slice(0, DREAMS_MAX_CHARS).replace(/\s+\S*$/, "") + " …" : body;
+  return `# Dreamt by the brain (our read of this client, not facts; each line names the facts it came from)\n\n${cut.replace(/^## /gm, "### ")}`;
+}
+
 // The one place the reply text is built. focus and facts: written facts
 // only, each { file, heading, id, body, sure? }, in reading order.
 /**
  * @param {{ name: string, brief: string, focus?: any[], facts: any[], topic?: string }} args
  * @returns {string}
  */
-export function brainView({ name, brief, focus = [], facts, topic = "" }) {
+export function brainView({ name, brief, focus = [], facts, topic = "", dreams = "" }) {
   const sections = briefSections(brief);
   const briefText = sections.map((s) => s.text).join("\n\n");
   const t = String(topic || "").trim();
+  const dreamText = dreamsBlock(dreams);
   if (!briefText && !facts.length && !focus.length) return `${name}: the Synchro Brain has no written brief or facts yet.`;
 
   if (!t) {
     const focusBlock = focus.length ? `# Current focus\n\n${focus.map(fullFact).join("\n\n")}\n\n` : "";
-    const briefBlock = `${focusBlock}# Brief\n\n${briefText || "(no brief written yet)"}\n\n# Facts`;
+    const briefBlock = `${focusBlock}# Brief\n\n${briefText || "(no brief written yet)"}${dreamText ? "\n\n" + dreamText : ""}\n\n# Facts`;
     // The whole brain first; sent as is when it fits.
     const whole = `${name}, from the Synchro Brain: the brief and every written fact, in full.\n\n${briefBlock}\n\n${facts.length ? facts.map(fullFact).join("\n\n") : "(no written facts yet)"}`;
     if (whole.length <= BRAIN_MAX_CHARS) return whole;
@@ -114,6 +126,9 @@ export function brainView({ name, brief, focus = [], facts, topic = "" }) {
   }
 
   const want = norm(t.replace(/\.md$/i, ""));
+  if (want === "dreams" || want === "dreamt" || want === "dreamt by the brain") {
+    return dreamText ? `${name}, from the Synchro Brain:\n\n${dreamText}` : `${name}: the brain has dreamt nothing about this client yet.`;
+  }
   // With a topic, focus facts are searched like any other.
   facts = [...focus, ...facts];
 

@@ -224,9 +224,9 @@ export async function clientBrain(db: SupabaseClient, client: string, topic = ""
     if (!r.ok) throw new Error(String(r.status));
     return await r.text();
   };
-  let brief: string, audience: string, focus: string, texts: string[];
+  let brief: string, audience: string, focus: string, dreams: string, texts: string[];
   try {
-    [brief, audience, focus, ...texts] = await Promise.all([read("brief"), read("audience"), read("focus"), ...BRAIN_FILES.map(read)]);
+    [brief, audience, focus, dreams, ...texts] = await Promise.all([read("brief"), read("audience"), read("focus"), read("dreams"), ...BRAIN_FILES.map(read)]);
   } catch (e) {
     return `Could not read the Synchro Brain (${(e as Error).message}). Try again in a minute; do not answer as if ${p.client_name} had no brain facts.`;
   }
@@ -236,7 +236,7 @@ export async function clientBrain(db: SupabaseClient, client: string, topic = ""
     ...BRAIN_FILES.flatMap((f, i) => parseBrainFacts(texts[i], f)),
     ...parseAudience(audience),
   ].filter((f: { status: string; body: string }) => f.status === "written" && f.body);
-  const view = brainView({ name: p.client_name, brief, focus: focusFacts, facts, topic });
+  const view = brainView({ name: p.client_name, brief, focus: focusFacts, facts, topic, dreams });
   // A question rides only on the overview (no topic), at most one per call.
   if (!asker || String(topic || "").trim()) return view;
   const note = await questionFor(

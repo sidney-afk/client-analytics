@@ -42,10 +42,14 @@ ok(ctx.p({ ids: { caption: 'd9' }, _canonicalCommentReads: { d9: { status: 'load
 const html = ctx.h();
 ok(/aria-busy="true"/.test(html) && /role="status"/.test(html) && /cal-cm-skel-row/.test(html), 'the skeleton is announced as busy and has note-shaped rows');
 ok(!/All clear|No notes yet/.test(html), 'and says nothing about the card');
-ok((INDEX.match(/\(_prodCardCommentsPending\(post, '(?:calendar|sxr)'\) \? _prodCommentsSkeletonHtml\(\) : emptyMsg\)/g) || []).length === 2,
+// Round 9 (switch unread_badges_v2): the empty feed goes through _prodCommentsEmptyFeedHtml, which shows the skeleton
+// while pending unless the card was last seen settled and empty (docs/syncview-design/tests/notes-quick-open-reply-browser.js).
+ok((INDEX.match(/_prodCommentsEmptyFeedHtml\(post, '(?:calendar|sxr)', emptyMsg\)/g) || []).length === 2,
   'both the Calendar and the Samples Notes dialogs show it in place of the empty message');
+ok(/function _prodCommentsEmptyFeedHtml\([^)]*\) \{[\s\S]{0,900}_prodCardCommentsPending\(post, surface\)[\s\S]{0,900}return _prodCommentsSkeletonHtml\(\);/.test(INDEX),
+  'the empty feed is the skeleton while the notes are pending');
 // (Since the note outbox, a note waiting to be sent counts as a row too.)
-ok(/const threadsHtml = roots\.map\(renderThread\)\.join\(''\);[\s\S]{0,600}const feedHtml = \(roots\.length \|\| strayReplies\) \? threadsHtml \+ strayReplies : \(_prodCardCommentsPending\(post, 'calendar'\)/.test(INDEX),
+ok(/const threadsHtml = roots\.map\(renderThread\)\.join\(''\);[\s\S]{0,800}const feedHtml = \(roots\.length \|\| strayReplies\) \? threadsHtml \+ strayReplies : _prodCommentsEmptyFeedHtml\(post, 'calendar'/.test(INDEX),
   'rows already held are still shown at once; only the empty state waits');
 ok(/\.cal-cm-skel \{[^}]*sv-shimmer/.test(INDEX) && /prefers-reduced-motion: reduce\) \{ \.cal-cm-skel \{ animation: none/.test(INDEX), 'the shimmer is styled and respects reduced motion');
 console.log('\nnotes-loading-skeleton: ' + passed + ' checks passed');

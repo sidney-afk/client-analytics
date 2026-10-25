@@ -507,21 +507,20 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
     }
     function svuUnreadConversations() { return _msgState.conversations.filter(c => _svuConvState(c).newTotal > 0).length; }
     function svuPaintCounts() {
-        let newConvs = 0, waitConvs = 0; const k = { comment: 0, staff: 0, kasper: 0 };
-        for (const c of _msgState.conversations) { const s = _svuConvState(c); if (s.newTotal) newConvs++; if (s.waitingIds.size) waitConvs++; k.comment += s.comment; k.staff += s.staff; k.kasper += s.kasper; }
-        const kind = k.comment ? 'comment' : k.staff ? 'staff' : k.kasper ? 'kasper' : 'waiting';
-        const n = newConvs || waitConvs;
+        let newConvs = 0; const k = { comment: 0, staff: 0, kasper: 0 };
+        for (const c of _msgState.conversations) { const s = _svuConvState(c); if (s.newTotal) newConvs++; k.comment += s.comment; k.staff += s.staff; k.kasper += s.kasper; }
+        const kind = k.staff && !k.comment ? 'staff' : k.kasper && !k.comment ? 'kasper' : 'comment';
+        // Round 9: the button counts new only. "To answer" lives on its tab inside the inbox, never on the button.
+        const n = newConvs;
         // Write only what changed, as 326 does (OPEN_REPAIRS 487).
         document.querySelectorAll('[data-kasper-count="replies"]').forEach(el => { if (el.textContent !== String(newConvs)) el.textContent = String(newConvs); el.classList.toggle('is-unread', newConvs > 0); });
-        const cls = 'msg-unread svu-count svu-count-' + (newConvs ? kind : 'waiting');
+        const cls = 'msg-unread svu-count svu-count-' + kind;
         document.querySelectorAll('[data-msg-count]').forEach(el => {
             if (el.textContent !== String(n)) el.textContent = String(n);
             if (el.hidden !== (n === 0)) el.hidden = n === 0;
             if (el.className !== cls) el.className = cls;
         });
-        _svuCounts = { newConvs, waitConvs, k };
     }
-    let _svuCounts = { newConvs: 0, waitConvs: 0, k: {} };
     // After every Messages repaint (326): the tabs, the Slack-like chat rows and the change-request line.
     function svuAfterMsgPaint() {
         if (!_svuOn) return;
@@ -683,29 +682,6 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         box.replaceChildren(out);
     }
 
-    /* ---------- the Messages button's hover ---------- */
-    let _svuBtnTip = null;
-    function _svuShowButtonTip() {
-        _svuHideButtonTip();
-        const btn = document.getElementById('navMessages');
-        if (!btn || !_svuOn) return;
-        const c = _svuCounts;
-        const line = (k, text) => `<div class="svu-pv-row svu-k-${k} svu-tip-row"><span class="svu-pv-ico">${SVU_ICO[k]}</span><span class="svu-tip-text">${text}</span></div>`;
-        _svuBtnTip = document.createElement('div');
-        _svuBtnTip.className = 'svu-pv svu-btn-tip';
-        _svuBtnTip.innerHTML = `<div class="svu-tip-head">${c.newConvs ? _svuPlural(c.newConvs, 'conversation has', 'conversations have') + ' something new' : 'Nothing new'}</div>`
-            + (c.k.comment ? line('comment', SVU_SAY.comment(c.k.comment)) : '') + (c.k.staff ? line('staff', SVU_SAY.staff(c.k.staff)) : '') + (c.k.kasper ? line('kasper', SVU_SAY.kasper(c.k.kasper)) : '')
-            + (c.waitConvs ? line('waiting', _svuPlural(c.waitConvs, 'conversation', 'conversations') + ' to answer') : '')
-            + '<div class="svu-pv-foot">Change requests are on the cards, not here.</div>';
-        document.body.appendChild(_svuBtnTip);
-        const r = btn.getBoundingClientRect();
-        const w = Math.min(330, innerWidth - 24);
-        _svuBtnTip.style.width = w + 'px';
-        _svuBtnTip.style.left = Math.max(12, Math.min(r.right - w, innerWidth - w - 12)) + 'px';
-        _svuBtnTip.style.top = (r.bottom + 6) + 'px';
-    }
-    function _svuHideButtonTip() { if (_svuBtnTip) { _svuBtnTip.remove(); _svuBtnTip = null; } }
-
     /* ---------- actions ---------- */
     function svuNoReply(id) { const l = _svuLocalGet(); l.noReply.add(String(id)); _svuLocalSave(); svuRefresh(); }
     function svuMarkUnread(pid) { const l = _svuLocalGet(); l.unread.add(String(pid)); _svuLocalSave(); svuRefresh(); try { showToast('Marked unread'); } catch (e) {} }
@@ -724,7 +700,6 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
         if (want === _svuOn) return;
         _svuOn = want;
         document.documentElement.classList.toggle('sv-unread2', want);
-        const nb = document.getElementById('navMessages');
         if (want) {
             if (!_svuObserver && typeof MutationObserver !== 'undefined') {
                 let queued = false;
@@ -735,14 +710,13 @@ import { _msgBootPageOk, _msgClientName, _msgIsPhone, _msgLoad, _msgMe, _msgMyId
                 });
                 _svuObserver.observe(document.body, { childList: true, subtree: true });
             }
-            if (nb && !nb.__svu) { nb.__svu = true; nb.addEventListener('pointerenter', _svuShowButtonTip); nb.addEventListener('pointerleave', _svuHideButtonTip); }
             // The pictures and the Messages counts come with the inbox answer.
             // A list read before the switch was (no pictures) is read again, now asking for them.
             // Same pages as the boot read (326): never on Production, Time off, Linear or the forms.
             if (_msgBootPageOk()) { try { _msgLoad(!_msgState.pictures); } catch (e) {} }
         } else {
             if (_svuObserver) { _svuObserver.disconnect(); _svuObserver = null; }
-            svuHideHover(); _svuHideButtonTip();
+            svuHideHover();
         }
         svuRefresh();
     }

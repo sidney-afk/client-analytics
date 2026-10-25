@@ -136,6 +136,24 @@ const cardState = page => page.evaluate(() => {
     await page.waitForFunction(() => document.documentElement.classList.contains('sv-unread2') && document.querySelector('.svu-bub img'), null, { timeout: 8000 }).catch(() => {});
     const st = await cardState(page);
     ok(st.on && st.v2, 'C. switch naming the member: the round-5 look is on');
+    // Round 9: no hover box on the Messages button, and its badge counts new conversations only.
+    await page.hover('#navMessages');
+    await sleep(350);
+    const btnK = await page.evaluate(() => {
+      // The SMM view, where the client's messages count as new (the reviewer view never does).
+      const keep = _msgState.scope;
+      _msgState.scope = 'own';
+      svuPaintCounts();
+      const c = document.querySelector('[data-msg-count]');
+      const out = { tip: !!document.querySelector('.svu-btn-tip'), boxes: [...document.querySelectorAll('.svu-pv')].filter(e => e.offsetParent !== null).length,
+        text: c && !c.hidden ? c.textContent : '', newConvs: svuUnreadConversations() };
+      _msgState.scope = keep;
+      svuPaintCounts();
+      return out;
+    });
+    ok(!btnK.tip && btnK.boxes === 0, 'K. hovering the Messages button opens no box ' + JSON.stringify(btnK));
+    ok(btnK.newConvs > 0 && btnK.text === String(btnK.newConvs), 'K. the Messages badge is the number of conversations with something new ' + JSON.stringify(btnK));
+    await page.mouse.move(5, 500);
     const client = st.bubbles.find(b => b.img);
     ok(client && client.img === CLIENT_PIC, 'C. the client bubble has the client picture from the inbox answer');
     ok(client && client.nums.join() === 'svu-corner svu-n-change:3', 'C. all three new client notes count on the client bubble, coloured as a change request: ' + (client && client.nums.join()));
@@ -438,6 +456,31 @@ const cardState = page => page.evaluate(() => {
     await sleep(250);
     const backClose = await page.evaluate(() => { const b = document.querySelector('#msgPage .msg-page-head .msg-close'); return b ? getComputedStyle(b).visibility : 'missing'; });
     ok(backClose === 'visible', 'J. Messages: back on the list, the page\'s own Close (a plain ×) is there again (' + backClose + ')');
+    // Back on the list, everything read, but a question still waits for an answer: To answer counts it, the button does not.
+    const readK = await page.evaluate(() => {
+      const c = document.querySelector('[data-msg-count]');
+      // An old client question no one has answered (read long ago, so not new) in the conversation.
+      const conv = _msgState.conversations.find(x => x.post_id === 'p_t1');
+      const at = new Date(Date.now() - 3 * 86400000).toISOString();
+      conv.messages.unshift({ id: 'k_wait', root_id: 'k_wait', parent_id: null, author: 'Casey Client', role: 'client', audience: 'client', is_tweak: false, done: false, component: 'video', body: 'An old question.', created_at: at, updated_at: at });
+      const keep = _msgState.scope;
+      const per = scope => {
+        _msgState.scope = scope;
+        svuPaintCounts();
+        _msgSetFilter('answer');
+        const r = { scope, hidden: !c || c.hidden, cls: c ? c.className : '', newConvs: svuUnreadConversations(), answer: String(document.querySelectorAll('#msgPage .svu-conv').length) };
+        _msgSetFilter('all');
+        return r;
+      };
+      const views = [per('all'), per('own')];
+      conv.messages.shift();
+      _msgState.scope = keep;
+      svuPaintCounts();
+      _msgSetFilter('all');
+      return views.find(v => Number(v.answer) > 0 && v.newConvs === 0) || views[0];
+    });
+    ok(readK.newConvs === 0 && readK.hidden && !/waiting/.test(readK.cls), 'K. with nothing new the Messages button has no badge, although a conversation waits for an answer ' + JSON.stringify(readK));
+    ok(Number(readK.answer) > 0, 'K. the To answer tab still lists it (' + readK.answer + ')');
     await page.evaluate(() => _msgOpen('p_t1'));
     await sleep(400);
         ok(head.avLeft < 40 && Math.abs(head.avTop - head.nameTop) <= 8, 'E. your own picture sits at the left, beside your name (top ' + head.avTop + ' vs ' + head.nameTop + ', left ' + head.avLeft + ')');

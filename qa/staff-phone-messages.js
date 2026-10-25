@@ -5,6 +5,8 @@ const {chromium}=require('playwright'),staff=require('../docs/syncview-design/te
 const {seedStaffGate}=require('./staff-gate-seed'),captures=require('./client-phone/native-captures'),rules=require('./staff-phone-rule-checks');
 const arg=(name,fallback)=>process.argv.find(a=>a.startsWith('--'+name+'='))?.slice(name.length+3)||fallback;
 const widths=arg('widths','390,430').split(',').map(Number),out=arg('out',''),receipts=[];
+// --inbox-delay=MS holds each inbox answer back, so the loading placeholder is on screen when the list is first read (OPEN_REPAIRS 499).
+const inboxDelay=Number(arg('inbox-delay','0'))||0;
 const conversations=()=>Array.from({length:12},(_,i)=>({post_id:'message-fixture-'+i,client_slug:'sample-one',client_name:'Sample Client One',title:i?'Small step '+i:'A calmer start',thumbnail_url:'',asset_url:'',last_at:'2026-10-14T12:00:00Z',last_author:'Client',last_role:'client',last_body:'Could we show the opening hours?',unread:i%2===0?4:0,messages:Array.from({length:18},(_,j)=>({id:'note-'+i+'-'+j,root_id:'note-'+i+'-0',parent_id:j?'note-'+i+'-0':null,author:'Client',role:'client',audience:'client',component:'caption',body:j===17?'Could we show the opening hours?':'A fictional note about the next edit. '+j,created_at:'2026-10-14T10:'+String(j).padStart(2,'0')+':00Z'}))}));
 async function shot(page,name,width,theme){
  await captures.anonymizePlaceholders(page);await page.evaluate(()=>document.fonts.ready);await page.waitForTimeout(120);
@@ -22,13 +24,16 @@ async function main(){
   await context.route('**/functions/v1/production-comments{,?*}',async route=>{
    const body=route.request().method()==='GET'?{action:new URL(route.request().url()).searchParams.get('action')}:JSON.parse(route.request().postData()||'{}');calls.push(body);
    if(body.action==='inbox_mark'){const c=rows.find(c=>c.post_id===body.post_id);if(c)c.unread=body.state==='unread'?1:0;return route.fulfill({json:{ok:true}});}
-   if(body.action==='inbox')return route.fulfill({json:{ok:true,conversations:JSON.parse(JSON.stringify(rows)),scope:'all'}});
+   if(body.action==='inbox'){if(inboxDelay)await new Promise(r=>setTimeout(r,inboxDelay));return route.fulfill({json:{ok:true,conversations:JSON.parse(JSON.stringify(rows)),scope:'all'}});}
    return route.fulfill({json:{ok:false,error:'Fictional refusal'},status:409});
   });
   const p=await context.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));p.setDefaultTimeout(8000);captures.prepareCaptures(p);
   try{
    await p.goto('http://127.0.0.1:'+server.address().port);await p.waitForFunction(()=>typeof navTo==='function');await p.evaluate(()=>navTo('messages'));
-   await p.locator('.msg-conv').first().waitFor();assert.equal(await p.locator('.msg-conv').count(),6,'The inbox opens on New: only the conversations with something new');
+   // The loading placeholder draws 12 grey .msg-conv rows (is-skeleton) under a New pill; count only once the inbox answer is on screen (OPEN_REPAIRS 499).
+   const early=await p.locator('.msg-conv').first().waitFor().then(()=>p.evaluate(()=>({rows:document.querySelectorAll('.msg-conv').length,skeleton:document.querySelectorAll('.msg-conv.is-skeleton').length,newPill:document.querySelector('.msg-filters .is-active')?.textContent.trim()||''})));
+   assert(early.skeleton===0||(early.skeleton===early.rows&&/^New/.test(early.newPill)),'Before the answer only the placeholder shows, under New: '+JSON.stringify(early));
+   await p.locator('.msg-inbox:not(.is-skeleton) .msg-conv').first().waitFor();assert.equal(await p.locator('.msg-conv').count(),6,'The inbox opens on New: only the conversations with something new');
    await shot(p,'messages-unread',width,theme);await p.getByRole('button',{name:'All',exact:true}).tap();assert.equal(await p.locator('.msg-conv').count(),12);
    await shot(p,'messages-inbox',width,theme);
    const tabs=p.locator('.pocket-staff-tabs-btn').filter({visible:true});await tabs.tap();

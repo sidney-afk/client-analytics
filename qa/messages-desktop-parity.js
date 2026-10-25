@@ -30,7 +30,7 @@ function assembled(root){
    });
    const p=await ctx.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.clock.setFixedTime(new Date('2026-10-15T12:00:00Z'));
    try{
-    await p.goto(origin+'/');await p.waitForFunction(()=>typeof navTo==='function');await p.evaluate(()=>navTo('messages'));await p.locator('.msg-conv').first().waitFor();
+    await p.goto(origin+'/');await p.waitForFunction(()=>typeof navTo==='function');await p.evaluate(()=>navTo('messages'));await p.locator('.msg-inbox:not(.is-skeleton) .msg-conv').first().waitFor();
     if(screen==='thread')await p.locator('[data-msg-conv="message-fixture-0"]').click();
     await p.evaluate(()=>document.fonts.ready);await p.addStyleTag({content:'*{animation:none!important;transition:none!important;caret-color:transparent!important}'});await p.mouse.move(1439,899);await p.waitForTimeout(500);await p.evaluate(()=>document.activeElement?.blur());
     let png=await p.screenshot({fullPage:true}),streak=0;

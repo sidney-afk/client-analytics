@@ -140,6 +140,7 @@ jobs:
           The same native-icon Tabs grid on every staff phone screen|node qa/staff-phone-tabs-grid.js --widths=${{ matrix.width }}
           Phone client selection, status colours and sheet dismissal|node qa/staff-phone-round-two.js --matrix --widths=${{ matrix.width }}
           Thumb phone Messages list, threads, drafts, composer and unread markers|node qa/staff-phone-messages.js --widths=${{ matrix.width }}
+          Phone polish behind its switches (staff and client page), off as before, desktop unchanged|node docs/syncview-design/tests/phone-polish-browser.js --widths=${{ matrix.width }}
           LANES
       - name: Staff phone checks, three side by side (part 2 of 2)
         if: ${{ matrix.part == 2 }}

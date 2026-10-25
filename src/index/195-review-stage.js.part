@@ -1091,6 +1091,18 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
 .cl-re .x{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--text-secondary)}
 .cl-re .x:hover{background:var(--fill);color:var(--text-primary)}
 .cl-re .x svg{width:10px;height:10px}
+/* Phone polish (session Grip, 2026-10-25), the client page only, at phone width: the video or thumbnail is a little
+   shorter, so Approve and Ask for a change are on the first screen (Approve was 840 px down on a 390 x 844 phone);
+   the cross that deletes one's own note is a full 44 px to tap (it was 37);
+   a waiting post's name shows on two lines instead of being cut after a few letters; no character count under the
+   caption (the "Expand the caption" button stays). */
+@media (max-width:767px){
+.rs.client.cp .view:not(.k-text):not(.shape-l){height:clamp(220px,calc(100svh - 480px),480px)}
+.rs.client.cp .cp-x{width:44px;height:44px;top:-18px;right:-16px}
+.rs.client.cp .chipp .cn{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+.rs.client.cp .tc-foot.num:not(:has(button)){display:none}
+.rs.client.cp .tc-foot.num > span{display:none}
+}
 @media (prefers-reduced-motion:reduce){.cp-spin{animation:rsBreathe 1.6s ease-in-out infinite!important;border-right-color:currentColor}.b-ok.cp-morph,.cp-ck,.dec.cp-settle{animation:none}}
 `;
     const RS_CSSKEY = { video: 'video', graphic: 'thumbnail', caption: 'caption', title: 'youtube' };

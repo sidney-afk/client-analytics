@@ -30,7 +30,13 @@ plan() {
   {
     echo "PW_BROWSERS_KEY=${ImageOS:-unknown}-$browsers"
     echo "PW_DEPS_MISSING=${missing[*]}"
-    echo "PW_DEPS_KEY=pw-debs-${ImageOS:-unknown}-$(printf '%s\n' "${missing[@]}" | sha256sum | cut -c1-16)"
+    # Keyed on the image version too: a new image may update a library so that a
+    # .deb cached on the old one no longer installs offline, and a key that never
+    # changed would then send every run to the mirror (a cache key cannot be
+    # overwritten). The prefix lets a new image start from the old image's files.
+    prefix="pw-debs-${ImageOS:-unknown}-$(printf '%s\n' "${missing[@]}" | sha256sum | cut -c1-16)-"
+    echo "PW_DEPS_KEY_PREFIX=$prefix"
+    echo "PW_DEPS_KEY=$prefix${ImageVersion:-unknown}"
   } >>"$GITHUB_ENV"
 }
 
@@ -71,10 +77,14 @@ from_mirror() {
 
 install() {
   local start=$SECONDS p left=()
-  if [ "${PW_DEBS_HIT:-}" = "true" ] && from_cache; then
-    echo "System libraries installed from the cache in $((SECONDS - start)) s."
+  # PW_DEBS_MATCHED is the key the restore found: this image's, or (by prefix)
+  # an earlier image's, which is tried offline too and kept under this image's
+  # key when it installs.
+  if [ -n "${PW_DEBS_MATCHED:-}" ] && from_cache; then
+    echo "System libraries installed from the cache ($PW_DEBS_MATCHED) in $((SECONDS - start)) s."
+    [ "$PW_DEBS_MATCHED" = "$PW_DEPS_KEY" ] || echo "PW_DEPS_FETCHED=true" >>"$GITHUB_ENV"
   else
-    [ "${PW_DEBS_HIT:-}" = "true" ] && echo "::warning::The cached system libraries did not install; fetching from the mirror instead."
+    [ -n "${PW_DEBS_MATCHED:-}" ] && echo "::warning::The cached system libraries ($PW_DEBS_MATCHED) did not install offline; fetching from the mirror instead."
     from_mirror
     echo "System libraries installed from the mirror in $((SECONDS - start)) s."
   fi

@@ -62,10 +62,12 @@ jobs:
           node-version: '22'
       - name: Build index.html and js/ from src/index/ (build output, not committed)
         uses: ./.github/actions/build-index
-      - name: Install Playwright + Chromium
-        run: |
-          npm install
-          npx playwright install --with-deps chromium
+      - name: Install Playwright
+        run: npm install
+      - name: Install the pinned Chromium and its system libraries
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       - name: Master lanes — unit, parity, realtime, scenarios, tree
         env:
           SXR_COURIER: '0'   # open egress on CI runners — no curl courier needed
@@ -144,9 +146,11 @@ jobs:
           node-version: '22'
       - name: Build index.html and js/ from src/index/ (build output, not committed)
         uses: ./.github/actions/build-index
-      - name: Install Playwright + Chromium
-        run: |
-          npm install
-          npx playwright install --with-deps chromium
+      - name: Install Playwright
+        run: npm install
+      - name: Install the pinned Chromium and its system libraries
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       - name: Production preview read-only smoke
         run: node docs/syncview-design/tests/prod-readonly-smoke.js

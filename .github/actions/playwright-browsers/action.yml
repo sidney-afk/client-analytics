@@ -8,7 +8,7 @@ description: >-
   browser download itself took seconds. So the libraries playwright names for
   these engines are checked against what the runner image already has, the
   missing ones come from a cache of their .deb files (keyed on exactly that
-  missing set), and the browsers from a cache of ~/.cache/ms-playwright. Only a
+  missing set and the runner image version), and the browsers from a cache of ~/.cache/ms-playwright. Only a
   cache miss goes to the mirror, once per missing set, and saves what it fetched.
   The result is the same libraries `--with-deps` installs (playwright's own
   list), so no test sees a different machine.
@@ -34,6 +34,7 @@ runs:
       with:
         path: ~/.cache/syncview-pw-debs
         key: ${{ env.PW_DEPS_KEY }}
+        restore-keys: ${{ env.PW_DEPS_KEY_PREFIX }}
     - name: Restore the pinned browsers
       id: browsers
       uses: actions/cache/restore@v4
@@ -44,7 +45,7 @@ runs:
       if: env.PW_DEPS_MISSING != ''
       shell: bash
       env:
-        PW_DEBS_HIT: ${{ steps.debs.outputs.cache-hit }}
+        PW_DEBS_MATCHED: ${{ steps.debs.outputs.cache-matched-key }}
       run: |
         set -euo pipefail
         "$GITHUB_ACTION_PATH/system-deps.sh" install
@@ -60,6 +61,16 @@ runs:
         PW_BROWSERS: ${{ inputs.browsers }}
       run: |
         set -euo pipefail
+        # A job that also runs the repository's own playwright (npm install)
+        # must be on the same version, or the browsers below are not the ones
+        # its tests launch.
+        if [ -f node_modules/playwright/package.json ]; then
+          repo=$(node -p "require('./node_modules/playwright/package.json').version")
+          if [ "$repo" != "1.56.1" ]; then
+            echo "::error::node_modules has playwright $repo; this action installs browsers for 1.56.1. Update both together."
+            exit 1
+          fi
+        fi
         start=$SECONDS
         # No --with-deps: the step above already installed exactly that list.
         # shellcheck disable=SC2086

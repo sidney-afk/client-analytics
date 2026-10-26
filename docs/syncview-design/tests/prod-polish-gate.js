@@ -25,6 +25,7 @@ const suites = [
   ['fast', 'Today phone actions on one line', 'docs/syncview-design/tests/today-phone-actions-browser.js'],
   ['fast', 'Today upload dates: sort order and pill colours', 'docs/syncview-design/tests/today-upload-dates-browser.js'],
   ['fast', 'Today captions: tweaks needed shows, approved does not', 'docs/syncview-design/tests/today-caption-tweaks-browser.js'],
+  ['fast', 'Today: own test client shows for its SMM only', 'docs/syncview-design/tests/today-own-test-client-browser.js'],
   ['fast', 'Production structure subset', 'docs/syncview-design/tests/prod-structure-subset.js'],
   ['fast', 'Production read-only smoke', 'docs/syncview-design/tests/prod-readonly-smoke.js'],
   ['fast', 'Production comment thread', 'docs/syncview-design/tests/prod-comments-browser.js'],

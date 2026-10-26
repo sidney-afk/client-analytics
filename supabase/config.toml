@@ -259,3 +259,8 @@ verify_jwt = false
 # Frame.io viewer ("Watch here"): staff role key checked in code, read-only against Frame.io.
 [functions.frameio-view]
 verify_jwt = false
+
+# Trial reels (docs/features/TRIAL_REELS_PLAN.md): staff role key, or a client review link for read and answer,
+# checked in code, behind the trial_reels_pages switch.
+[functions.trial-reels]
+verify_jwt = false

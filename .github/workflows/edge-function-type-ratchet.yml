@@ -29,6 +29,7 @@ on:
       - 'docs/ops/DENO_TYPECHECK_BASELINE.json'
       - '.github/workflows/edge-function-type-ratchet.yml'
       - 'test/thumbnail-title-runs-deno.ts'
+      - 'test/trial-reels-function-deno.ts'
   push:
     branches:
       - main
@@ -39,6 +40,7 @@ on:
       - 'docs/ops/DENO_TYPECHECK_BASELINE.json'
       - '.github/workflows/edge-function-type-ratchet.yml'
       - 'test/thumbnail-title-runs-deno.ts'
+      - 'test/trial-reels-function-deno.ts'
 
 # A newer push to the same pull request replaces the run it supersedes (session
 # Express, 2026-10-19). Pushes to main are never cancelled: their group is the commit.
@@ -70,3 +72,6 @@ jobs:
       # database: needs Deno, so it rides this lane rather than the Node unit job.
       - name: Thumbnail title runs (Deno, in-memory database)
         run: deno run --allow-env --allow-read --node-modules-dir=auto test/thumbnail-title-runs-deno.ts
+      # The trial-reels function (docs/features/TRIAL_REELS_PLAN.md) driven end to end against an in-memory database.
+      - name: Trial reels function (Deno, in-memory database)
+        run: deno run --allow-env --allow-net=127.0.0.1 --allow-read --node-modules-dir=auto test/trial-reels-function-deno.ts

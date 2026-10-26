@@ -34528,3 +34528,13 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proof.** `test/frame-comments-in-notes-browser.js` (mocked, desktop 1440 and phone 390, light and dark; wired into calendar-unit-tests): the rows without the player, no request before paint and no stand-in rows, the five-minute keep, the one-line failure, a Drive link asks nothing, the player keeps its clickable times and asks for the video only on a second opening, and with the switch off nothing changes. 17 of its checks fail on main.
 - **Not done.** The switch row is not created (the owner or Lighthouse creates it). Comments left on earlier versions of a Frame.io version stack are not shown: `frameio-view` reads the stack's newest version only, here and in the player (a function change, if the owner wants it).
 - **Way back:** delete the switch row, or revert the pull request.
+
+## 514. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels, build PR 1 of 5: the trial-reels function and its migration (session Trials)
+
+- **What:** the SyncView half's backend, per the approved plan (#2352, OPEN_REPAIRS 513). One migration (`supabase/migrations/20261027090000_trial_reels.sql`) adds SyncView's settled columns to the studio's `studio_trial_versions` and creates `trial_reel_cards`; one new Edge Function (`trial-reels`) with the actions read, switch_set, version_link_set, version_drop, version_restore, answer, trial_start and winner_set.
+- **What it never does:** write the card's status (the page calls today's saves), write the card's one link (`file_url` / `asset_url` stay today's Production attach; for the version on the card the function only copies a link the card already carries), or touch a Section 4 function, the drift robot or the projection triggers.
+- **Switch:** `trial_reels_pages` (test client only), read by the function on every request; missing or the wrong shape is off.
+- **Proven:** `node test/trial-reels-logic.js` (57 checks) and the real function under Deno against an in-memory database, `test/trial-reels-function-deno.ts` (25 checks, run by the Edge Function type ratchet lane); `deno check` clean; the migration revokes all four roles and reads them back.
+- **Held on merge** until the migration is applied (its first line says how to tell). Nothing shows on any page until build PR 2.
+
+**Way back:** revert the PR. If the migration was applied: `drop table public.trial_reel_cards;` and drop the added columns (listed in the file's rollback note).

@@ -7,7 +7,7 @@
 // admin who is not on the roster ("all clients"), never see it. Rule 1 still
 // holds: it must be in Clients Info. Fully offline: every non-local request
 // is refused, and the page's reads go to a stubbed fetch with fictional
-// fixtures (OPEN_REPAIRS 510).
+// fixtures (OPEN_REPAIRS 511).
 
 const { chromium } = require('playwright');
 const { serveStatic } = require('./prod-test-utils');

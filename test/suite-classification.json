@@ -2180,6 +2180,14 @@
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that Sample Review client approve and request-changes saves always go to the function, with the link token, never to n8n, including a retried save pinned to n8n.",
       "reproduce": "node test/samples-client-approve-function-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
+    },
+    {
+      "file": "samples-client-link-review-stage-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that a client Samples link keeps the Samples review with the new review page switched on for every client, and that a bare link still moves to the Content Calendar.",
+      "reproduce": "node test/samples-client-link-review-stage-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
     }
   ]
 }

@@ -240,6 +240,15 @@ function isSnapshotName(value) {
   return /^syncview-track-b-\d{8}T\d{6}Z\.snapshot$/.test(clean(value));
 }
 
+// The UTC second a snapshot filename names, or NaN when it is not one.
+function snapshotNameMs(value) {
+  const match = /^syncview-track-b-(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z\.snapshot$/.exec(clean(value));
+  if (!match) return NaN;
+  const iso = `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}.000Z`;
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) && new Date(ms).toISOString() === iso ? ms : NaN;
+}
+
 function snapshotName(generatedAt) {
   const stamp = clean(generatedAt).replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
   const name = `${FILE_PREFIX}${stamp}.snapshot`;
@@ -1181,9 +1190,25 @@ async function selectLatestAuthenticatedFromDrive(token, files, {
   let latest = null;
   let validCount = 0;
   let invalidCount = 0;
+  let skippedOlderCount = 0;
   let newestCandidateValid = true;
   let first = true;
   for (const file of files || []) {
+    // Skip, without downloading, a snapshot that cannot beat the newest one
+    // already authenticated. A valid snapshot's filename must equal its
+    // authenticated generated_at to the second, so its generatedMs is at most
+    // the filename's second plus 999 ms; if that is not later than the winner,
+    // it can never be selected. The folder is never pruned, and downloading
+    // every same-corpus snapshot (about 156 MB each) grew this step by about a
+    // minute a day until the job ran past its limit (OPEN_REPAIRS 507).
+    // The newest candidate is always judged in full (the canary below).
+    if (latest && !first) {
+      const nameMs = snapshotNameMs(file && file.name);
+      if (Number.isFinite(nameMs) && nameMs + 999 <= latest.generatedMs) {
+        skippedOlderCount += 1;
+        continue;
+      }
+    }
     // Skip a snapshot of an older corpus format on its header alone: it can
     // never be selected, and downloading every one made this step take ~15 min.
     if (peek && file && file.id) {
@@ -1219,7 +1244,7 @@ async function selectLatestAuthenticatedFromDrive(token, files, {
     }
     first = false;
   }
-  return { latest, validCount, invalidCount, newestCandidateValid };
+  return { latest, validCount, invalidCount, skippedOlderCount, newestCandidateValid };
 }
 
 async function createAndUpload() {
@@ -1417,6 +1442,7 @@ async function checkFreshness() {
       age_hours: Number(freshness.ageHours.toFixed(2)),
       threshold_hours: FRESHNESS_HOURS,
       invalid_candidates: selection.invalidCount,
+      older_candidates_not_downloaded: selection.skippedOlderCount,
       receipt_candidate_added: candidates.length !== files.length,
       alert_transport: 'github_workflow_failure_email',
       shared_drive: driveContext.sharedDrive,
@@ -1455,6 +1481,7 @@ async function checkFreshness() {
     age_hours: Number.isFinite(freshness.ageHours) ? Number(freshness.ageHours.toFixed(2)) : null,
     threshold_hours: FRESHNESS_HOURS,
     invalid_candidates: selection.invalidCount,
+    older_candidates_not_downloaded: selection.skippedOlderCount,
     receipt_candidate_added: candidates.length !== files.length,
   }));
   process.exitCode = 1;
@@ -1555,6 +1582,7 @@ module.exports = {
   runOpaqueTool,
   selectAuthenticatedCandidates,
   selectLatestAuthenticatedFromDrive,
+  snapshotNameMs,
   headerIsOlderCorpus,
   readLargeFile,
   allowedDumpControlLine,

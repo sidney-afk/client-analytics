@@ -156,7 +156,7 @@ const slugRows = manifest.split(/\r?\n/).filter(line => /^\| `[a-z0-9-]+` \|/.te
 const writeDiagnosticsRow = slugRows.find(line => line.startsWith('| `write-diagnostics` |')) || '';
 // 2026-09-23: its manual release now runs through the one-function exact-SHA
 // lane, dispatch-only, and the deliberate-manual note stays on its row.
-ok(manifestCheck.status === 0 && slugRows.length === 67
+ok(manifestCheck.status === 0 && slugRows.length === 68
   && writeDiagnosticsRow.includes('[deploy-single-function]')
   && writeDiagnosticsRow.includes('| main push (auto, in order)<br>workflow_dispatch only (pinned SHA guard)<br>**Manual release note:**')
   // 2026-10-16: it deploys on merge too (its first operator release is long
@@ -165,7 +165,7 @@ ok(manifestCheck.status === 0 && slugRows.length === 67
   && writeDiagnosticsRow.includes('[deploy-on-merge]')
   && writeDiagnosticsRow.includes('--no-verify-jwt')
   && writeDiagnosticsRow.includes('WRITE_DIAGNOSTICS_ENABLED=true'),
-`generated deploy manifest is current and contains all 67 slugs (crm-leads added 2026-10-26, pipeline-social added 2026-10-23, pipeline-google added 2026-10-16, calendar-card-write added 2026-10-16, client-review-alert added 2026-10-14, frameio-view added 2026-10-14, frameio-token added 2026-10-13, calendar-auto-posted added 2026-10-10, thumbnail-title-prompts and thumbnail-titles added 2026-10-09, monitoring-watchdog-tick added 2026-10-09, caption-generate added 2026-10-09, tiktok-upload added 2026-10-07, tiktok-upload-cancel added 2026-10-07, analytics-market-research-collect 2026-10-02, analytics-top-videos-collect 2026-10-02, client-hubspot-sync added 2026-10-02, higgsfield-mcp added 2026-09-28, filming-plan-tabs 2026-09-29, caption-jobs 2026-09-30, instagram-upload 2026-09-30, roster-read and roster-write 2026-10-02, analytics-metrics-collect 2026-10-01, client-onboarding 2026-10-01) including dormant write-diagnostics on the dispatch-only one-function lane (${(manifestCheck.stderr || '').trim()})`);
+`generated deploy manifest is current and contains all 68 slugs (trial-reels added 2026-10-27, crm-leads added 2026-10-26, pipeline-social added 2026-10-23, pipeline-google added 2026-10-16, calendar-card-write added 2026-10-16, client-review-alert added 2026-10-14, frameio-view added 2026-10-14, frameio-token added 2026-10-13, calendar-auto-posted added 2026-10-10, thumbnail-title-prompts and thumbnail-titles added 2026-10-09, monitoring-watchdog-tick added 2026-10-09, caption-generate added 2026-10-09, tiktok-upload added 2026-10-07, tiktok-upload-cancel added 2026-10-07, analytics-market-research-collect 2026-10-02, analytics-top-videos-collect 2026-10-02, client-hubspot-sync added 2026-10-02, higgsfield-mcp added 2026-09-28, filming-plan-tabs 2026-09-29, caption-jobs 2026-09-30, instagram-upload 2026-09-30, roster-read and roster-write 2026-10-02, analytics-metrics-collect 2026-10-01, client-onboarding 2026-10-01) including dormant write-diagnostics on the dispatch-only one-function lane (${(manifestCheck.stderr || '').trim()})`);
 /*
  * 2026-08-08: client-review-link left the deliberate-manual set. The manual
  * lane is WHY the #1016 mint-on-demand fix sat merged-but-undeployed for five

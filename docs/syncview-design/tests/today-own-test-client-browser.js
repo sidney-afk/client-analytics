@@ -31,7 +31,8 @@ function check(cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!
         { slug: 'real-fixture', display_name: 'Real Fixture', active: true, kind: 'client' },
         { slug: 'other-fixture', display_name: 'Other Fixture', active: true, kind: 'client' },
         { slug: 'test-fixture', display_name: 'Test Fixture', active: true, kind: 'test' },
-        { slug: 'stray-test-fixture', display_name: 'Stray Test Fixture', active: true, kind: 'test' }   // listed, but not in Clients Info
+        { slug: 'stray-test-fixture', display_name: 'Stray Test Fixture', active: true, kind: 'test' },   // listed, but not in Clients Info
+        { slug: 'robin-test-fixture', display_name: 'Robin Test Fixture', active: true, kind: 'test' }   // Robin's own; only in the database-shaped case
       ];
       const managers = [
         { slug: 'tess', name: 'Tess Smm', email: 'tess@example.test', active: true, source_clients: ['Real Fixture', 'Test Fixture', 'Stray Test Fixture'] },
@@ -40,7 +41,7 @@ function check(cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!
       const emails = { m1: 'tess@example.test', m2: 'robin@example.test', m3: 'boss@example.test' };
       const del = (id, slug) => ({ id, client_slug: slug, team: 'video', kind: 'video', title: 'Item ' + id, status: 'smm_approval', status_at: now, assignee_id: null, due_date: today, origin: 'calendar', card_id: null, linear_issue_uuid: null });
       const post = (id, slug) => ({ id, client: slug, name: 'Post ' + id, scheduled_date: today, status: 'Draft', video_status: 'Kasper Approval', graphic_status: null, caption: '', asset_url: null, thumbnail_url: null, video_deliverable_id: null, graphic_deliverable_id: null });
-      const deliverables = [del('d-real', 'real-fixture'), del('d-other', 'other-fixture'), del('d-test', 'test-fixture')];
+      const deliverables = [del('d-real', 'real-fixture'), del('d-other', 'other-fixture'), del('d-test', 'test-fixture'), del('d-robin-test', 'robin-test-fixture')];
       const posts = [post('p-real', 'real-fixture'), post('p-test', 'test-fixture')];
       let who = 'm1';
       window.fetch = async (url) => {
@@ -83,6 +84,17 @@ function check(cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!
       who = 'm1'; _tdyEmailReading = null; _tdyClientRows = null;
       const v = await _tdyVisibleClients(_tdyIdentity(), clients);
       out.standIn = { own: v.own, provisional: !!v.provisional, testKey: v.keys.has(svClientKey('Test Fixture')) };
+      // Live, staff read Clients Info from the database (analytics-read,
+      // scope overview: every unarchived client_profiles row, test clients
+      // included), not from the Sheet. Feed it through the page's own path in
+      // that shape, with a second test client that only Robin's roster lists.
+      managers[1].source_clients = ['Other Fixture', 'Robin Test Fixture'];
+      const profiles = ['real-fixture', 'other-fixture', 'test-fixture', 'robin-test-fixture']
+        .map(slug => ({ slug, display_name: clients.find(c => c.slug === slug).display_name, email: '', competitors: '', keywords: '', extra: {} }));
+      _applyEssentialRows([], profiles.map(_analyticsMirrorProfileRow));
+      out.dbNames = Object.keys(clientMap).sort();
+      out.dbRobin = await run('m2');
+      out.dbTess = await run('m1');
       return out;
     });
 
@@ -93,6 +105,9 @@ function check(cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!
     check(!r.robin.showsTest && !r.robin.rows.includes('Item d-test') && r.robin.dropdown.join() === 'Other Fixture', 'Robin (does not list it): never sees the test client (' + r.robin.rows.join() + ')');
     check(r.admin.mode === 'all' && !r.admin.rows.includes('Item d-test') && !r.admin.showsTest, 'an admin not on the roster ("all clients") never sees the test client (' + r.admin.rows.join() + ')');
     check(r.admin.rows.includes('Item d-real') && r.admin.rows.includes('Item d-other'), 'the admin still sees every real client');
+    check(r.dbNames.includes('Robin Test Fixture'), 'database-shaped Clients Info carries the second test client (' + r.dbNames.join() + ')');
+    check(r.dbRobin.own.join() === 'Other Fixture,Robin Test Fixture' && r.dbRobin.rows.includes('Item d-robin-test') && r.dbRobin.dropdown.slice().sort().join() === 'Other Fixture,Robin Test Fixture', 'database-shaped: Robin\'s own roster row brings his test client onto Today and into My clients (' + r.dbRobin.own.join() + ' | ' + r.dbRobin.rows.join() + ')');
+    check(!r.dbTess.own.includes('Robin Test Fixture') && !r.dbTess.rows.includes('Item d-robin-test') && !r.dbTess.dropdown.includes('Robin Test Fixture'), 'database-shaped: Tess never sees Robin\'s test client (' + r.dbTess.rows.join() + ')');
     check(r.standIn.provisional && r.standIn.testKey && r.standIn.own.includes('Test Fixture'), 'before Clients Info loads, the clients-table stand-in gives Tess the same own test client');
   } finally {
     await browser.close();

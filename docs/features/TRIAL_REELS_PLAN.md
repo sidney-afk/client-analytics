@@ -15,8 +15,10 @@ Mockups (round 2, after the owner looked at the round 1 card on 2026-10-26; see 
   it with fictional offline data and load `real/preview.js`, which adds only the trial-reels parts:
   - `make-screenshots.js`: the staff card `card-<state>-<width>-<theme>.png` for the states `today` (no preview),
     `off`, `review`, `review-open`, `trial`, `due`, `due-open`, `winner`, `winner-open`; and the Production sub-issue
-    `prod-<state>-…png` for `today`, `review`, `review-open`, `winner`, `winner-open`. The script also measures every
-    collapsed card against today's card and fails if one differs (all equal: 770 px at 1440, 1002 px at 390).
+    `prod-<state>-…png` for `today`, `review`, `review-open`, `winner`, `winner-open`, every state in dark and light.
+    The script fails if a collapsed card is not today's height (all equal: 770 px at 1440, 1002 px at 390), if any
+    label it adds reads below 4.5:1 against what is behind it, or if a version's link does not start at the
+    Deliverable file link's left edge.
   - `make-notes-screenshots.js`: the Notes view with the real player, `notes-<A|C>-<width>-<theme>.png`. The player
     and the Frame.io comments are really read from that version's link.
 - **Review, Kasper and the winner pick:** [`trial-reels/mockups.html`](trial-reels/mockups.html) (interactive, one shared
@@ -62,7 +64,8 @@ says "Video C"); and how the Production/SyncLinear Assets look.
 | R3 | A version is named by its letter only ("Video A"), never by its hook text | card, Production, Notes (title, topic switch, version switch), client review ("Video B of 5"), Kasper's tiles, the winner pick | built; client and Kasper are an owner call (decision 1) |
 | R4 | The winner takes the one link slot: the card's Video row reads "Video C" and opens its link, the Production Deliverable file is the winner's link | card, Production, the client page after the pick | built |
 | R5 | With more than one version link, the player has a version switch and the Frame.io comments follow the version on screen | Notes view 1440 (under the player, beside Open in Frame.io) and 390 (a slim bar under the player); the client review already has its letter dots | built; Notes really reloads the version's link |
-| R6 | With the switch off, the card is today's card plus a faint switch in the Video row | card 1440 and 390 | built (`card-off-*`) |
+| R6 | With the switch off, the card is today's card plus a faint switch in the Video row; on, the switch takes the row's own muted tone, never a bright fill | card 1440 and 390 | built (`card-off-*`) |
+| R7 | Every label the trial adds reads at 4.5:1 or more in both themes; muted labels (waiting, dropped, lost) use today's N/A pill | card and Production, dark and light | built; measured by the script |
 
 **Sweep inventory** (surface × what the rules change):
 - **Staff card, Sheet (1440) and the phone card (390):** Video row "Video · 5" + tiny state ("2/4 approved", "On trial ·

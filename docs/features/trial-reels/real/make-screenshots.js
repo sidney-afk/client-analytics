@@ -45,13 +45,25 @@ const CORS = { 'access-control-allow-origin': '*' };
   const heights = {};   // today's card height per width and theme; every collapsed state must match it
   const cardHeight = page => page.evaluate(() => { const c = [...document.querySelectorAll('.cal-card, .cal-link-field')].find(n => n.offsetParent && n.classList.contains('cal-card')); const v = [...document.querySelectorAll('.cal-link-field.cal-link-post')].find(n => n.offsetParent); const host = c || (v && v.closest('[class*=sheet], [class*=card]')) || document.body; return Math.round((c ? c.getBoundingClientRect().height : host.scrollHeight) * 10) / 10; });
   let mismatches = 0;
+  // Every label the preview adds must be readable (4.5:1 or more), and every version's link must start at the
+  // Deliverable file link's left edge.
+  const check = async (page, name) => {
+    const a = await page.evaluate(() => window.svTrialPreview ? svTrialPreview.audit() : { contrast: [], lefts: [] });
+    for (const c of a.contrast) if (c.ratio < 4.5) { mismatches++; console.log('FAIL  contrast ' + name + ' "' + c.text + '": ' + c.ratio + ':1'); }
+    const low = a.contrast.length ? Math.min(...a.contrast.map(c => c.ratio)) : null;
+    if (low != null && low >= 4.5) console.log('  ok  contrast ' + name + ': ' + a.contrast.length + ' labels, lowest ' + low + ':1');
+    if (a.lefts.length > 1) {
+      const same = a.lefts.every(x => Math.abs(x - a.lefts[0]) < 1);
+      if (!same) mismatches++;
+      console.log((same ? '  ok  ' : 'FAIL  ') + 'link column ' + name + ': ' + a.lefts.join(', '));
+    }
+  };
   const save = async (page, name, clip) => { await page.screenshot(Object.assign({ path: path.join(OUT, name) }, clip ? { clip } : {})); done.push(name); };
   try {
-    for (const theme of ['light', 'dark']) {
+    for (const theme of ['dark', 'light']) {
       for (const [w, h] of [[1440, 900], [390, 844]]) {
         // ---- the card ----
         for (const state of Object.keys(STATUS)) {
-          if (theme === 'dark' && !['today', 'off', 'review', 'review-open', 'winner'].includes(state)) continue;
           for (const k of ['video_status', 'caption_status']) card[k] = STATUS[state];
           card.status = STATUS[state];
           card.asset_url = state.startsWith('winner') ? 'https://f.io/fixture-version-c' : 'https://f.io/fixture-version-a';
@@ -77,6 +89,7 @@ const CORS = { 'access-control-allow-origin': '*' };
             console.log((same ? '  ok  ' : 'FAIL  ') + 'card height ' + key + ' ' + state + ': ' + ch + ' (today ' + heights[key] + ')');
           }
           const name = 'card-' + state + '-' + w + '-' + theme + '.png';
+          await check(page, name);
           if (w >= 600) {
             const box = await page.locator('#calView .cal-card').first().boundingBox();
             await page.screenshot({ path: path.join(OUT, name), fullPage: true, clip: { x: box.x - 16, y: box.y - 16, width: box.width + 32, height: box.height + 32 } }); done.push(name);
@@ -92,7 +105,6 @@ const CORS = { 'access-control-allow-origin': '*' };
         }
         // ---- the Production sub-issue ----
         for (const state of ['today', 'review', 'review-open', 'winner', 'winner-open']) {
-          if (theme === 'dark' && !['review-open', 'winner'].includes(state)) continue;
           vid.file_url = state.startsWith('winner') ? 'https://f.io/fixture-version-c' : 'https://f.io/fixture-version-a';
           const page = await S.newPage();
           await page.setViewportSize({ width: w, height: h });
@@ -110,6 +122,7 @@ const CORS = { 'access-control-allow-origin': '*' };
           await page.mouse.move(2, h - 2);
           await sleep(400);
           const name = 'prod-' + state + '-' + w + '-' + theme + '.png';
+          await check(page, name);
           if (w >= 600) {
             const box = await page.locator('.prod-assets').first().boundingBox();
             await save(page, name, box ? { x: Math.max(0, box.x - 24), y: Math.max(0, box.y - 120), width: Math.min(w, box.width + 48), height: box.height + 200 } : undefined);
@@ -121,7 +134,7 @@ const CORS = { 'access-control-allow-origin': '*' };
         }
       }
     }
-    console.log(done.length + ' screenshots in ' + path.relative(process.cwd(), OUT) + (mismatches ? '; ' + mismatches + ' card height mismatches' : '; every collapsed card is today\'s height'));
+    console.log(done.length + ' screenshots in ' + path.relative(process.cwd(), OUT) + (mismatches ? '; ' + mismatches + ' FAILED checks' : '; every collapsed card is today\'s height, every label 4.5:1 or more, every link column aligned'));
     if (mismatches) process.exitCode = 1;
   } finally {
     await S.close();

@@ -94,6 +94,7 @@ async function run() {
         await page.waitForSelector('.cal-card[data-pid="v1"]', { timeout: 20000 });
         await page.evaluate(t => document.documentElement.setAttribute('data-theme', t), theme);
         await page.addScriptTag({ content: PREVIEW });
+        await page.evaluate(() => svTrialPreview.card('review', false));   // the same trial card behind the dialog
         for (const l of ['A', 'C']) {
           // What the switcher does: the version on screen is the card's link for the player and the comments.
           await page.evaluate(([link]) => { const p = calState.posts.find(x => x.id === 'v1'); p.asset_url = link; }, [LINK(l)]);

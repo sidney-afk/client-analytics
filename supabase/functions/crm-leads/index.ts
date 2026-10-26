@@ -209,11 +209,11 @@ async function sourceId(db: SupabaseClient, src: { name: string; kind: string } 
   if (!src) return null;
   const read = async () => must(await db.from("crm_sources").select("id").eq("name", src.name).maybeSingle());
   const have = await read();
-  if (have) return have.id;
+  if (have) return String(have.id);
   const { data, error } = await db.from("crm_sources").insert({ name: src.name, kind: src.kind }).select("id");
-  if (!error && data && data.length) return data[0].id;
+  if (!error && data && data.length) return String(data[0].id);
   const again = await read();   // a parallel ingest created it first
-  if (again) return again.id;
+  if (again) return String(again.id);
   throw new Error("write_failed");
 }
 

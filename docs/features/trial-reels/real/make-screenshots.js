@@ -5,7 +5,7 @@
  * mocked, nothing leaves the machine except the page's own web font), opens today's Calendar card and today's
  * Production sub-issue with the harness's fictional data, and loads preview.js, which adds only the trial-reels parts.
  * "card-today-*" is the same card without preview.js. The Notes view has its own script, make-notes-screenshots.js.
- * Output: card-<state>-<width>-<theme>.png and prod-<state>-<width>-<theme>.png in this folder.
+ * Output: card-<state>-<width>-<theme>.png and prod-<today|review|winner>-<width>-<theme>.png in this folder.
  * NODE_PATH must reach playwright (as for the other browser tests). */
 const fs = require('fs');
 const path = require('path');
@@ -48,14 +48,14 @@ const CORS = { 'access-control-allow-origin': '*' };
   // Every label the preview adds must be readable (4.5:1 or more), and every version's link must start at the
   // Deliverable file link's left edge.
   const check = async (page, name) => {
-    const a = await page.evaluate(() => window.svTrialPreview ? svTrialPreview.audit() : { contrast: [], lefts: [] });
+    const a = await page.evaluate(() => window.svTrialPreview ? svTrialPreview.audit() : { contrast: [], lefts: {} });
     for (const c of a.contrast) if (c.ratio < 4.5) { mismatches++; console.log('FAIL  contrast ' + name + ' "' + c.text + '": ' + c.ratio + ':1'); }
     const low = a.contrast.length ? Math.min(...a.contrast.map(c => c.ratio)) : null;
     if (low != null && low >= 4.5) console.log('  ok  contrast ' + name + ': ' + a.contrast.length + ' labels, lowest ' + low + ':1');
-    if (a.lefts.length > 1) {
-      const same = a.lefts.every(x => Math.abs(x - a.lefts[0]) < 1);
+    for (const [col, xs] of Object.entries(a.lefts || {})) {
+      const same = xs.every(x => Math.abs(x - xs[0]) < 1);
       if (!same) mismatches++;
-      console.log((same ? '  ok  ' : 'FAIL  ') + 'link column ' + name + ': ' + a.lefts.join(', '));
+      console.log((same ? '  ok  ' : 'FAIL  ') + col + ' column ' + name + ': ' + xs.join(', '));
     }
   };
   const save = async (page, name, clip) => { await page.screenshot(Object.assign({ path: path.join(OUT, name) }, clip ? { clip } : {})); done.push(name); };
@@ -104,7 +104,7 @@ const CORS = { 'access-control-allow-origin': '*' };
           await page.close();
         }
         // ---- the Production sub-issue ----
-        for (const state of ['today', 'review', 'review-open', 'winner', 'winner-open']) {
+        for (const state of ['today', 'review', 'winner']) {
           vid.file_url = state.startsWith('winner') ? 'https://f.io/fixture-version-c' : 'https://f.io/fixture-version-a';
           const page = await S.newPage();
           await page.setViewportSize({ width: w, height: h });
@@ -116,7 +116,7 @@ const CORS = { 'access-control-allow-origin': '*' };
           await sleep(800);
           if (state !== 'today') {
             await page.addScriptTag({ content: PREVIEW });
-            await page.evaluate(([s2, o]) => svTrialPreview.production(s2, o), [state.replace('-open', ''), state.endsWith('-open')]);
+            await page.evaluate(s2 => svTrialPreview.production(s2), state);
           }
           await page.evaluate(() => { const a = document.querySelector('.prod-assets'); if (a) a.scrollIntoView({ block: 'center' }); });
           await page.mouse.move(2, h - 2);
@@ -134,7 +134,7 @@ const CORS = { 'access-control-allow-origin': '*' };
         }
       }
     }
-    console.log(done.length + ' screenshots in ' + path.relative(process.cwd(), OUT) + (mismatches ? '; ' + mismatches + ' FAILED checks' : '; every collapsed card is today\'s height, every label 4.5:1 or more, every link column aligned'));
+    console.log(done.length + ' screenshots in ' + path.relative(process.cwd(), OUT) + (mismatches ? '; ' + mismatches + ' FAILED checks' : '; every collapsed card is today\'s height, every label 4.5:1 or more, every version row\'s columns aligned'));
     if (mismatches) process.exitCode = 1;
   } finally {
     await S.close();

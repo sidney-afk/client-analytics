@@ -15,10 +15,10 @@ Mockups (round 2, after the owner looked at the round 1 card on 2026-10-26; see 
   it with fictional offline data and load `real/preview.js`, which adds only the trial-reels parts:
   - `make-screenshots.js`: the staff card `card-<state>-<width>-<theme>.png` for the states `today` (no preview),
     `off`, `review`, `review-open`, `trial`, `due`, `due-open`, `winner`, `winner-open`; and the Production sub-issue
-    `prod-<state>-…png` for `today`, `review`, `review-open`, `winner`, `winner-open`, every state in dark and light.
+    `prod-<today|review|winner>-…png`, every state in dark and light.
     The script fails if a collapsed card is not today's height (all equal: 770 px at 1440, 1002 px at 390), if any
-    label it adds reads below 4.5:1 against what is behind it, or if a version's link does not start at the
-    Deliverable file link's left edge.
+    label it adds reads below 4.5:1 against what is behind it, or if the version rows' link, availability and Edit
+    columns do not line up.
   - `make-notes-screenshots.js`: the Notes view with the real player, `notes-<A|C>-<width>-<theme>.png`. The player
     and the Frame.io comments are really read from that version's link.
 - **Review, Kasper and the winner pick:** [`trial-reels/mockups.html`](trial-reels/mockups.html) (interactive, one shared
@@ -59,7 +59,7 @@ says "Video C"); and how the Production/SyncLinear Assets look.
 
 | # | Rule | Where it applies (sweep) | Outcome |
 |---|---|---|---|
-| R1 | A list of versions is collapsed by default and opens from its own row | staff card 1440 and 390; Production Assets 1440 and 390 | built in the mockups |
+| R1 | A list of versions on the card is collapsed by default and opens from the Video row's small arrow | staff card 1440 and 390 | built in the mockups. Production is not collapsed: each version is its own Deliverable file row (owner, decision 6) |
 | R2 | A collapsed trial card is exactly today's height: the switch, the count, the timer and the winner live inside today's Video row | card in every state (off, review, on trial, pick the winner, winner), 1440 and 390, light and dark | built; measured by the script (16 of 16 equal) |
 | R3 | A version is named by its letter only ("Video A"), never by its hook text | card, Production, Notes (title, topic switch, version switch), client review ("Video B of 5"), Kasper's tiles, the winner pick | built; client and Kasper are an owner call (decision 1) |
 | R4 | The winner takes the one link slot: the card's Video row reads "Video C" and opens its link, the Production Deliverable file is the winner's link | card, Production, the client page after the pick | built |
@@ -79,9 +79,10 @@ says "Video C"); and how the Production/SyncLinear Assets look.
   only the winner ("Video C: the one we are posting").
 - **Kasper, layout 2:** tiles named "Video A…E" with Approve, change and drop; **layout 1:** the client page's arrows.
   Not collapsed: they are review surfaces where every version must be seen (decision 4).
-- **Production sub-issue Assets (1440 and 390):** the Deliverable file row reads "Video A" (then "Video C") and opens
-  that link; a "Versions" row under it, "5 · 2/4 approved" or "5 · Video C won", opens one ordinary Assets row per
-  version with its link and label, read only. **The Production list rows are unchanged.**
+- **Production sub-issue Assets (1440 and 390):** today's single Deliverable file row becomes one row per version,
+  "Deliverable file · Video A" to "· Video E", each with today's Edit, today's availability state (Available, Missing…)
+  and the version's label; the version that is the card's link today is marked "on the card" (Video A, then the
+  winner). Every column lines up across the rows (measured by the script). **The Production list rows are unchanged.**
 
 **What the Production page and Section 4 carry today (read from the code):**
 - The sub-issue's Assets panel (`src/index/240-production-description.js.part`, `_prodAssetsPanelHTML`) has four slots:
@@ -92,26 +93,44 @@ says "Video C"); and how the Production/SyncLinear Assets look.
   video `file_url` onto `calendar_posts.asset_url` of the card bound by `video_deliverable_id`. The projection is one
   way: a card link edit does not write `file_url`.
 - The drift robot (`scripts/card-calendar-status-drift-check.js`) compares statuses only; it reads neither link.
-- So **the winner's link is set through `production-write`'s existing `attachment` operation** when the card has a video
-  sub-issue (it writes `file_url` and projects it onto the card, so both show "Video C"), and through today's card link
-  save when it has none. Version A's link goes in the usual way. Calling an existing operation changes nothing in the
-  Section 4 three, and the versions list is read from `trial-reels`, never from a new deliverable field: **no Section 4
-  change and no re-pin.**
+- `asset_access_read`, which checks each link's sharing (the Available / Missing state), lives inside `production-write`;
+  nothing in `_shared` holds it.
 
-**Owner decisions from this round** (each a one-liner, with the default the build will use):
-1. Hook text on the client review and Kasper: default **none**, matching the card ("Video B of 5"). Say if the client
-   should still see the hook under the video.
-2. The faint switch on the Video row: default **always visible on the test client's cards**, faint until hover. The
-   other choice is to show it only after pressing the pencil.
-3. Month, Week and phone grid tiles: default **unchanged** (no versions badge). The other choice is a small "5" on the
-   tile.
-4. Kasper's second layout: default **all versions side by side** (not collapsed), since he must see each one.
-5. A note written in Notes while Video C is on screen: default **about Video C** (it shows "Video C" on the note). The
-   other choice is a note about the video as a whole.
-6. Pasting a version's Frame.io link from the Production Assets too: default **no**, the card is the one place; the
-   Production list is read only.
-7. Clicking the collapsed Video row: default **opens the link of Video A (or the winner)**, as today's row opens its
-   link; the chevron opens the list. The other choice is that the row opens the list.
+**One store per version, both directions (owner, decision 6, 2026-10-26).** "The link from a card is always connected
+to the asset grid": a version's link pasted on the card shows in Production Assets, and one pasted in Assets shows on the
+card, as today's single link does.
+- **Every version's link lives once, in `studio_trial_versions.frame_url`.** The card's version rows and the Production
+  "Deliverable file · Video X" rows both read it and both write it through `trial-reels` `version_link_set`, with the
+  same permission as today's Production attach (the same role and team rule, checked by the function).
+- **The card's one link stays today's one link.** `deliverables.file_url` (and, through the existing projection,
+  `calendar_posts.asset_url`) always holds the link of the version that is "on the card": Video A until a winner is
+  picked, then the winner. It is written only through today's `production-write` `attachment` operation (or today's
+  card link save for a card with no video sub-issue).
+- **Editing Video A's row (while A is on the card):** `trial-reels` first calls the existing `attachment` operation with
+  the caller's own staff credentials, so `file_url` and `asset_url` take the new link as they do today; only when that
+  answers ok does it write `frame_url` for A. If `attachment` refuses, nothing changes and the row shows the refusal. If
+  the second write fails, the main link is already right and the row retries the copy. For the version on the card, the
+  page always shows `file_url` (what the card and Production really carry), so the screen can never show two links
+  that disagree, and `read` flags `main_copy_behind` if the copy lags. Editing any other version's row touches only its
+  `frame_url`.
+- **Picking the winner** copies the winner's `frame_url` into `file_url` through the same `attachment` call; Video A's
+  link stays in its own `frame_url`.
+- **Availability state per version row.** `trial-reels` carries its own copy of the Frame.io sharing check (the probe in
+  `production-write` cannot be moved to `_shared` without changing a Section 4 function), and answers each version's
+  state in `read`.
+- **What does not change:** the drift robot (it compares statuses only), the Section 4 three and their fingerprints in
+  `deploy-f27-section4-closures.yml` (`attachment` and `asset_access_read` are called as they are today), and the
+  projection RPC `production_artifact_write` and its triggers. **No Section 4 change and no re-pin.**
+
+**Owner decisions from this round (answered 2026-10-26, about 22:35 UTC):**
+1. No hook text on the client review or Kasper's views ("Video B of 5"). **Yes.**
+2. The faint switch is always visible on the Video row of the test client's cards. **Yes.**
+3. Month, Week and phone grid tiles stay unchanged. **Yes.**
+4. Kasper's second layout shows every version side by side. **Yes.**
+5. A note written while Video C is on screen is about Video C. **Yes.**
+6. **Changed by the owner:** each version is its own Deliverable file row in Production Assets, with Edit, and a link
+   pasted on either side shows on the other (one store per version; see "One store per version" above).
+7. Clicking the collapsed Video row opens the video (the winner's once picked); the small arrow opens the list. **Yes.**
 
 ## 1. What exists today (read from the code)
 
@@ -209,7 +228,7 @@ second versions table and no results table (the first draft's results table is g
    undo the other.
 5. **Status words.** SyncView uses #2349's spelling (`change asked`, with a space).
 
-### What the build PR changes in the studio function, and why it is SyncView's PR
+### What the studio function needs (the AI editor lane's follow-up PR)
 
 Three small changes to `supabase/functions/higgsfield-mcp/trialreels.mjs` (and its row handling in `index.ts`), with
 `test/higgsfield-trial-reels.js` extended for each:
@@ -226,14 +245,37 @@ Three small changes to `supabase/functions/higgsfield-mcp/trialreels.mjs` (and i
    pasted on the card by whoever uploads the versions. A row logged without `post_id` is accepted (permissive,
    AGENTS.md) and the answer says it will not show in SyncView until linked.
 
-**These belong in SyncView's build PR, not back with the studio lane.** The guard (1) only means something once
-`post_id` exists, and `post_id` only exists once the follow-up migration lands, so the migration, the three function
-changes and the `trial-reels` reader have to merge together; split across two PRs there would be a window where rows
-are linked to cards and the studio can still approve them. The changes are about forty lines in one file. The studio
-lane should review that PR and not edit `trialreels.mjs` while it is open. The build session follows
-`docs/ops/HIGGSFIELD_CONNECTOR_LESSONS.md` and makes one real cheap call on the live connector after the deploy
-(`studio_action "trial_reels"` step `list` on the test client). `higgsfield-mcp` is not a Section 4 function, so no
-re-pin.
+**Who carries them (updated 2026-10-26):** the AI editor lane, in its own follow-up PR, once the schema below is fixed
+(the supervisor's routing; it supersedes this plan's earlier "SyncView's build PR" line). Either merge order is safe:
+- the guard (1) applies only to rows with a `post_id`, and only the studio's `log` (change 3) ever sets one, so no row
+  is linked to a card before the guard exists;
+- if the studio PR lands before SyncView's migration, `log` must drop `post_id` and `deliverable_id` when the columns
+  are missing (as it already copes with a missing table), and the rows link once the migration is applied.
+The studio lane follows `docs/ops/HIGGSFIELD_CONNECTOR_LESSONS.md` and makes one real cheap call on the live connector
+after its deploy (`studio_action "trial_reels"` step `list` on the test client). `higgsfield-mcp` is not a Section 4
+function, so no re-pin. The studio never writes `frame_url` (people paste the links).
+
+### The settled schema (for both lanes)
+
+Added to `public.studio_trial_versions` by SyncView's migration (all nullable or defaulted; #2349's columns unchanged;
+service_role keeps exactly SELECT, INSERT, UPDATE; no browser role gets anything):
+
+| column | type | written by |
+|---|---|---|
+| `post_id` | text, null | studio `log` (from `video_cards`) |
+| `deliverable_id` | uuid, null | studio `log` (from `video_cards`) |
+| `frame_url` | text, null | `trial-reels` only (`version_link_set`, from the card or Production) |
+| `smm_ok_at`, `kasper_ok_at`, `client_ok_at` | timestamptz, null | `trial-reels` only |
+| `change_by`, `change_note`, `change_at` | text, text, timestamptz, null | `trial-reels` only |
+| `revision` | integer, not null, default 0 | `trial-reels` only (a new link after a change is asked) |
+| `trial_ends_at` | timestamptz, null | `trial-reels` only (`trial_start`) |
+
+Plus `create index studio_trial_versions_post_idx on public.studio_trial_versions (lower(client), post_id)`.
+`status` keeps #2349's words; SyncView writes `waiting`, `approved`, `change asked`, `dropped`, `on trial`, `winner`,
+`lost`, never `no clear winner`. The number columns (`views`, `watch_time_s`, `shares`, `saves`, `follows`) stay unused
+by SyncView. New table `public.trial_reel_cards (client text, post_id text, enabled boolean not null default false,
+winner_letter text check (winner_letter ~ '^[A-G]$'), created_at, updated_at, updated_by, primary key (client, post_id))`,
+same privileges.
 
 ## 4. Write path: one new Edge Function, `trial-reels`
 
@@ -243,7 +285,7 @@ Not a Section 4 function, so no fingerprint pin; it deploys through the merge la
 |---|---|---|
 | `read` | staff key, or a client review link for its own client | the card's switch and its versions, for one card or a list of cards. Once a winner is picked, a client link gets **only the winner** (Q8) |
 | `switch_set` | staff key | turns the card's switch on or off |
-| `version_link_set` | staff key | pastes a version's Frame.io link (Q9). On a version with a change asked, a new link bumps `revision`, clears the three OKs and the change fields, and sets `waiting`, so it goes the normal route again (Q3) |
+| `version_link_set` | staff key, with the same role and team rule as Production's attach | pastes a version's Frame.io link from the card's version row or Production's "Deliverable file · Video X" row (Q9, decision 6). For the version on the card it goes through `attachment` first (see "One store per version"). On a version with a change asked, a new link bumps `revision`, clears the three OKs and the change fields, and sets `waiting`, so it goes the normal route again (Q3) |
 | `version_drop` / `version_restore` | staff key | `dropped`, or back to `waiting` |
 | `answer` | staff key (SMM, Kasper) or the client review link, with no token, as today (Q5) | `approve`, `change` (with a note), `approve_all`; stamps the role's `*_ok_at`; returns `stage_done: true` when every non-dropped version has this role's OK |
 | `trial_start` | staff key | every `approved` version becomes `on trial`, stamps `posted_at` and `trial_ends_at` |
@@ -302,8 +344,8 @@ a stage is finished, so every existing rule, notification and sync runs unchange
 - **The client sees only the winner, once it is picked** (Q8): the review link shows "Video C: the one we are posting"
   with the winner's video, and none of the other versions.
 - **The winner posts on the card's calendar date and the card turns Posted** through today's Posted path, unchanged.
-- The production task's Assets show the one link (Video A, then the winner) and, collapsed under it, the versions with
-  their labels, read only (section 0b).
+- The production task's Assets show one "Deliverable file · Video X" row per version, each editable, and the one that
+  is on the card (Video A, then the winner) is the task's `file_url` (section 0b).
 
 ## 6. The switch: the test client only
 
@@ -357,4 +399,4 @@ a stage is finished, so every existing rule, notification and sync runs unchange
   links.
 - Q10: the SMM always picks one; no "no clear winner" on the SyncView side.
 
-**Next:** the owner looks at the round 2 pictures (`trial-reels/real/`) and the seven decisions in section 0b. No building until he has.
+**Next:** the owner has answered the seven decisions in section 0b. No building until he says go.

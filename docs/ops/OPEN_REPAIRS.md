@@ -34536,6 +34536,7 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Switch:** `trial_reels_pages`, test client only, fail closed, also enforced by the function.
 - **Owner answers (2026-10-26):** all ten questions answered and folded in (no numbers typed, the SMM picks the winner, people paste the Frame.io links, the client sees only the winner). The build PR also carries a follow-up migration on `studio_trial_versions` and three small `trialreels.mjs` changes (#2349 merged without them).
 - **Round 2 (owner's look at the card, 2026-10-26):** the versions are collapsed inside today's Video row (the card keeps its exact height, measured), named "Video A"… with no hook text, the winner takes the one link (card and Production Deliverable file, set through `production-write`'s existing `attachment`), and the Notes player gets a version switch. Pictures on the real page in `docs/features/trial-reels/real/`.
-- **Waiting on:** the owner's look at the round 2 pictures and seven one-line decisions (plan, section 0b). No building before that.
+- **Owner answers to round 2 (2026-10-26):** all seven settled; each version is its own "Deliverable file · Video X" row in Production Assets, one store per version (`frame_url`) written from the card or Production, and `file_url` stays the one link of the version on the card, written only through today's `attachment`. The schema is settled (plan, section 3) and handed to the AI editor lane for its `trialreels.mjs` follow-up.
+- **Waiting on:** the owner's go to build.
 
 **Way back:** nothing is built; close the pull request.

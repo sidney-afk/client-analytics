@@ -57,11 +57,9 @@
     .trp-notes-bar .cal-cm-aud-btn{min-width:38px}
     .fv-stage-foot.trp-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
     /* Production */
-    .trp-prod-v .prod-asset-label{padding-left:12px;font-weight:500}
-    .trp-prod-v .trp-lab{justify-self:end}
-    .trp-prod-toggle{border:0;background:none;color:inherit;font:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:0}
-    .trp-prod-toggle svg{width:10px;height:10px;transition:transform .15s}
-    .trp-prod-open .trp-prod-toggle svg{transform:rotate(180deg)}
+    .trp-prod-v .prod-asset-value{display:flex;align-items:center;gap:8px}
+    .trp-prod-v .trp-lab{margin-left:2px}
+    .trp-oncard{font-size:11px;font-weight:600;color:var(--prod-strong,inherit)}
   `;
   const CHEV = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>';
   const GO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h4v4"/><path d="M13 3 7 9"/><path d="M12 9.5V13H3V4h3.5"/></svg>';
@@ -155,42 +153,40 @@
     const quiet = document.querySelector('#calCommentsModal .cal-cm-quiet');
     if (quiet) quiet.textContent = quiet.textContent.replace(/Video$/, 'Video ' + letter);
   }
-  // Production: state 'review' | 'winner'; open: the versions list is expanded.
-  function production(state, open) {
+  // Production (owner, 2026-10-26: "more videos, more Frame deliverable rows"): each version is its own Deliverable
+  // file row, cloned from today's row with its Edit and its availability state, plus the version's label. The row of the
+  // version that is the card's link today (Video A, then the winner) is marked "on the card".
+  function production(state) {
     addCss();
     const row = document.querySelector('.prod-asset-row[data-prod-asset-slot="deliverable_file"]');
     if (!row || row.dataset.trp) return;
     row.dataset.trp = '1';
-    const a = row.querySelector('.prod-asset-value a');
-    if (a) a.textContent = state === 'winner' ? 'Video C' : 'Video A';
     const L = LABELS[state];
-    const ok = LETTERS.filter(l => L[l] === 'approved').length;
-    const live = LETTERS.filter(l => L[l] !== 'dropped').length;
-    const vrow = document.createElement('div');
-    vrow.className = 'prod-asset-row trp-prod-vrow' + (open ? ' trp-prod-open' : '');
-    vrow.innerHTML = '<span class="prod-asset-label">Versions</span><span class="prod-asset-value"><button type="button" class="trp-prod-toggle"></button></span>';
-    vrow.querySelector('button').innerHTML = (state === 'winner' ? '5 · Video C won' : '5 · ' + ok + '/' + live + ' approved') + ' ' + CHEV;
-    row.after(vrow);
-    if (!open) return;
-    // Each version is an ordinary Assets row, so it sits on the panel's own columns at every width.
-    let after = vrow;
-    const linkLabel = typeof _prodFileLinkLabel === 'function' ? _prodFileLinkLabel : () => 'Open Frame.io';
+    const main = state === 'winner' ? 'C' : 'A';
+    const stateLabel = typeof _prodAssetStateLabel === 'function' ? _prodAssetStateLabel : s2 => s2;
+    const linkLabel = typeof _prodFileLinkLabel === 'function' ? _prodFileLinkLabel : () => 'Open link';
+    let after = row;
+    const made = [];
     for (const l of LETTERS) {
       const linked = !LINKED[state] || LINKED[state].includes(l);
-      const url = 'https://f.io/fixture-version-' + l.toLowerCase();
-      const v = document.createElement('div');
-      v.className = 'prod-asset-row trp-prod-v';
-      v.innerHTML = '<span class="prod-asset-label">Video ' + l + '</span><span class="prod-asset-value">'
-        + (linked ? '<a href="#" onclick="return false"></a>' : '<span>Not provided</span>') + '</span>'
-        + '<span class="trp-lab" data-l="' + L[l] + '">' + L[l] + '</span><span></span>';
-      if (linked) v.querySelector('a').textContent = linkLabel(url);
-      after.after(v);
-      after = v;
+      const v = row.cloneNode(true);
+      v.removeAttribute('data-trp');
+      v.classList.add('trp-prod-v');
+      v.querySelectorAll('[onclick]').forEach(n => n.removeAttribute('onclick'));
+      v.querySelector('.prod-asset-label').textContent = 'Deliverable file · Video ' + l;
+      const val = v.querySelector('.prod-asset-value');
+      val.innerHTML = (linked ? '<a href="#" onclick="return false"></a>' : '<span>Not provided</span>')
+        + ' <span class="trp-lab" data-l="' + L[l] + '">' + L[l] + '</span>'
+        + (l === main ? ' <span class="trp-oncard">on the card</span>' : '');
+      if (linked) val.querySelector('a').textContent = linkLabel('https://f.io/fixture-version-' + l.toLowerCase());
+      const st = v.querySelector('.prod-asset-state');
+      if (st) { const k = linked ? 'available' : 'missing'; st.setAttribute('data-state', k); st.textContent = stateLabel(k); st.removeAttribute('title'); st.removeAttribute('data-prod-tip'); }
+      after.after(v); after = v; made.push(v);
     }
-    // The panel's columns are sized per row by its buttons, so each version row takes the Deliverable file row's
-    // resolved columns: its link starts exactly under that row's link.
-    const cols = getComputedStyle(row).gridTemplateColumns;
-    for (const v of document.querySelectorAll('.trp-prod-v')) v.style.gridTemplateColumns = cols;
+    row.remove();
+    // One set of columns for every version row, so the links, the states and the Edit buttons line up.
+    const cols = getComputedStyle(made[0]).gridTemplateColumns;
+    made.forEach(v => { v.style.gridTemplateColumns = cols; });
   }
   function rgba(c) {
     const m = String(c).match(/rgba?\(([^)]+)\)/); if (m) { const p = m[1].split(/[ ,\/]+/).filter(Boolean).map(Number); return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1]; }
@@ -205,7 +201,7 @@
   const lum = c => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
   function audit() {
     const out = { contrast: [], lefts: [] };
-    for (const el of document.querySelectorAll('.trp-lab, .trp-v .trp-l, .trp-v .trp-paste, .trp-prod-v .prod-asset-label, .trp-prod-v .prod-asset-value, .trp-main .trp-state')) {
+    for (const el of document.querySelectorAll('.trp-lab, .trp-v .trp-l, .trp-v .trp-paste, .trp-prod-v .prod-asset-label, .trp-prod-v .prod-asset-value > span:not(.trp-lab):not(.trp-oncard), .trp-oncard, .trp-main .trp-state')) {
       if (!el.offsetParent) continue;
       const bg = backdrop(el);
       let op = 1; for (let n = el; n; n = n.parentElement) op *= Number(getComputedStyle(n).opacity);
@@ -213,8 +209,8 @@
       const a = lum(fg), b = lum(bg);
       out.contrast.push({ text: el.textContent.trim().slice(0, 24), ratio: Math.round(((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)) * 100) / 100 });
     }
-    const main = document.querySelector('.prod-asset-row[data-prod-asset-slot="deliverable_file"] .prod-asset-value');
-    if (main) out.lefts = [main, ...document.querySelectorAll('.trp-prod-v .prod-asset-value')].map(n => Math.round(n.getBoundingClientRect().left * 10) / 10);
+    out.lefts = [...document.querySelectorAll('.trp-prod-v .prod-asset-value, .trp-prod-v .prod-asset-state, .trp-prod-v .prod-asset-edit')]
+      .reduce((acc, n) => { const k = n.className.split(' ')[0]; (acc[k] = acc[k] || []).push(Math.round(n.getBoundingClientRect().left * 10) / 10); return acc; }, {});
     return out;
   }
   window.svTrialPreview = { card, notes, production, audit };

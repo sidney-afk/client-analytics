@@ -1363,6 +1363,9 @@ import {
         if (capability === 'hiring') return role === 'admin';
         if (capability === 'pto-admin') return role === 'admin';
         if (capability === 'quiz-leads') return role === 'admin';
+        // Leads CRM (docs/features/CRM_LEADS.md). Admin today; a per-person grant for a
+        // non-admin is one line in CRM_LEADS_MEMBER_GRANTS (328) plus its server twin.
+        if (capability === 'leads') return role === 'admin';
         if (capability === 'clients-admin') return role === 'admin';
         if (capability === 'workload-plan-read') return role === 'admin' || role === 'smm' || role === 'creative';
         if (capability === 'workload-plan') return role === 'admin' || role === 'smm';
@@ -1406,6 +1409,7 @@ import {
             ? 'Client credentials need an Admin or SMM account. Sign out first to use another authorized account.'
             : (capability === 'pto-admin'
                 ? 'Time Off approvals and setup need an Admin account. Sign out first to use another authorized account.'
+                : capability === 'leads' ? 'Leads is open to admins. Sign out first to use an admin account.'
                 : 'This action needs an Admin account. Sign out first to use another authorized account.');
         try { showToast(message); } catch (e) {}
         return false;
@@ -1453,6 +1457,8 @@ import {
         });
         // Messages (Notes Step 2): start or stop the inbox counts for this sign-in.
         try { _msgOnIdentity(); } catch (e) {}
+        // Leads (328) re-renders for the new identity (a non-admin sees the gate).
+        try { if (typeof window._crmOnIdentity === 'function') window._crmOnIdentity(); } catch (e) {}
         // Kasper is admin-only; the standalone staff pages re-check their own
         // capability once the sign-in check answers.
         try { if (typeof _kasperApplyAccess === 'function') _kasperApplyAccess(); } catch (e) {}
@@ -1613,6 +1619,8 @@ import {
         try { if (typeof _srpPurgeSensitiveState === 'function') _srpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _tdyPurgeSensitiveState === 'function') _tdyPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _prodSmmPurgeSensitiveState === 'function') _prodSmmPurgeSensitiveState(); } catch (e) {}
+        // Leads (328): cached people, notes and drafts, and any read still in flight.
+        try { if (typeof window._crmPurgeSensitiveState === 'function') window._crmPurgeSensitiveState(); } catch (e) {}
         // Kasper's hiring, client and credential data (040 registry). Before
         // Kasper loads it holds none in memory; its recently-opened clients
         // list can still be saved in this browser, so that is cleared here.

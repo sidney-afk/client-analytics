@@ -2437,6 +2437,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             if(hash==='tiktok-upload'){navTo(hash,false);return;}
             if(hash==='time-off'){navTo('time-off',false);return;}
             if(hash==='messages'){navTo('messages',false);return;}
+            if(hash==='leads'){navTo('leads',false);return;}
             if(hash==='staff-onboarding'||hash==='client-credentials'){navTo(hash,false);return;}
             if(hashRoute==='smm-weekly-report'){navTo('smm-weekly-report',false);return;}
             if(hashRoute==='smm-weekly-reports'){navTo('smm-weekly-reports',false);return;}

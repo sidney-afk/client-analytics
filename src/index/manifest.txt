@@ -69,6 +69,7 @@
 324-client-onboarding-panel.js.part
 326-core-messages-inbox.js.part
 327-core-unread-badges.js.part
+328-crm-leads.js.part
 330-kasper-review-history.js.part
 340-kasper-editors-board.js.part
 345-core-tooltip-date-picker.js.part

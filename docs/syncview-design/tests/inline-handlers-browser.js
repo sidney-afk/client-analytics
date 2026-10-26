@@ -147,6 +147,16 @@ async function check(page, label, failures, totals) {
           await page.waitForTimeout(SETTLE_MS);
           continue;
         }
+        // The Leads item opens the Leads page (route "leads", 328-crm-leads),
+        // the same way: it must land there and the page's own buttons are checked.
+        if (key === 'leads') {
+          const nav = await page.evaluate(() => currentNav);
+          if (nav !== 'leads') { failures.push(`Kasper leads: did not open the Leads page (on ${nav})`); continue; }
+          await check(page, 'staff Leads page', failures, totals);
+          await page.click('#navKasper');
+          await page.waitForTimeout(SETTLE_MS);
+          continue;
+        }
         const now = await page.evaluate(() => _kasperState.tab);
         if (now !== key) { failures.push(`Kasper ${key}: subtab did not mount (on ${now})`); continue; }
         await check(page, `staff Kasper ${key}`, failures, totals);

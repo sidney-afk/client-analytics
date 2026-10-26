@@ -68,7 +68,8 @@ const expectedPrimary = ['review', 'replies', 'filming'];
 const expectedGroups = [
   { label: 'Team', keys: ['editors', 'time-off'] },
   // save-problems joined 2026-09-27 (OPEN_REPAIRS 101 release A), admin only.
-  { label: 'Pipeline & Admin', keys: ['sales-intake', 'hiring-process', 'onboarding', 'quiz-leads', 'client-credentials', 'clients', 'save-problems'] },
+  // leads joined 2026-10-26 (Leads CRM step 1): it opens the /leads page, admin only.
+  { label: 'Pipeline & Admin', keys: ['sales-intake', 'hiring-process', 'onboarding', 'leads', 'quiz-leads', 'client-credentials', 'clients', 'save-problems'] },
   { label: 'Analytics', keys: ['ad-performance'] },
 ];
 
@@ -76,8 +77,8 @@ ok(JSON.stringify(primaryKeys) === JSON.stringify(expectedPrimary),
   'priority row is Review Session, Messages, then Filming Plans (samples are listed inside Review)');
 ok(JSON.stringify(moreGroups) === JSON.stringify(expectedGroups),
   'More keeps the approved Team, Pipeline & Admin, and Analytics groups in order');
-ok(new Set([...primaryKeys, ...moreGroups.flatMap(group => group.keys)]).size === 13,
-  'all thirteen Kasper destinations appear exactly once across priority and More');
+ok(new Set([...primaryKeys, ...moreGroups.flatMap(group => group.keys)]).size === 14,
+  'all fourteen Kasper destinations appear exactly once across priority and More');
 
 const tabs = [
   ['review', 'Review Session', true],
@@ -88,6 +89,7 @@ const tabs = [
   ['sales-intake', 'Sales Intake', false],
   ['hiring-process', 'Hiring Process', false],
   ['onboarding', 'Onboarding', true, true],
+  ['leads', 'Leads', false],
   ['quiz-leads', 'Quiz Leads', false],
   ['client-credentials', 'Client Credentials', false],
   ['clients', 'Clients', false],
@@ -153,7 +155,7 @@ ok(expectedPrimary.every(key => primaryMarkup.includes(`data-kasper-tab="${key}"
   'only priority destinations render in the always-visible row');
 ok(expectedGroups.flatMap(group => group.keys).every(key => overflowMarkup.includes(`data-kasper-tab="${key}"`)),
   'every lower-frequency destination renders inside More');
-ok((defaultNav.match(/data-kasper-tab="/g) || []).length === 13,
+ok((defaultNav.match(/data-kasper-tab="/g) || []).length === 14,
   'the full navigation renders without missing or duplicate destinations');
 ok(/aria-haspopup="menu" aria-expanded="false" aria-controls="kasperMoreMenu"/.test(defaultNav)
   && /id="kasperMoreMenu" role="menu"[^>]+hidden/.test(defaultNav),
@@ -174,17 +176,18 @@ ok(/data-kasper-tab="editors"[^>]+aria-current="page"/.test(editorsHtml),
   'the active item inside More remains marked as the current section');
 
 const deniedHtml = makeRenderer({ tab: 'review' }, {
-  capabilities: { 'pto-admin': false, hiring: false, onboarding: false, credentials: false, 'quiz-leads': false },
+  capabilities: { 'pto-admin': false, hiring: false, onboarding: false, credentials: false, 'quiz-leads': false, leads: false },
 })();
 ok(/data-kasper-tab="time-off"[^>]+data-staff-capability="pto-admin" hidden/.test(deniedHtml)
   && /data-kasper-tab="hiring-process"[^>]+data-staff-capability="hiring" hidden/.test(deniedHtml)
   && /data-kasper-tab="onboarding"[^>]+data-staff-capability="onboarding" hidden/.test(deniedHtml)
   && /data-kasper-tab="client-credentials"[^>]+data-staff-capability="credentials" hidden/.test(deniedHtml)
-  && /data-kasper-tab="quiz-leads"[^>]+data-staff-capability="quiz-leads" hidden/.test(deniedHtml),
+  && /data-kasper-tab="quiz-leads"[^>]+data-staff-capability="quiz-leads" hidden/.test(deniedHtml)
+  && /data-kasper-tab="leads"[^>]+data-staff-capability="leads" hidden/.test(deniedHtml),
   'sensitive More destinations retain their existing capability gates');
 ok(!makeRenderer({ tab: 'review' }, { ptoEnabled: false })().includes('data-kasper-tab="time-off"'),
   'Time Off remains absent while its feature flag is disabled');
-ok((navMarkup(makeRenderer({ tab: 'review' })()).match(/data-kasper-tab="/g) || []).length === 13
+ok((navMarkup(makeRenderer({ tab: 'review' })()).match(/data-kasper-tab="/g) || []).length === 14
   && !makeRenderer({ tab: 'review' })().includes('data-kasper-tab="samples"'),
   'the nav is complete and duplicate-free, with no separate Samples tab');
 ok(/const KASPER_SUBTAB_ALIASES = \{ samples: 'review' \};/.test(source)

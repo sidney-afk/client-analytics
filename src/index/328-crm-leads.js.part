@@ -1,0 +1,1029 @@
+import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
+import { showToast } from './040-shared-briefs.js';
+import {
+  CAL_SUPABASE_URL, _svDateHtml, _svSelectHtml, _svSyncDateControl, _syncviewOfferStaffSignIn, _syncviewStaffCan,
+  _syncviewStaffIdentityForHeaders
+} from './100-onboarding-staff-controls.js';
+import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
+import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+    /* ── Leads (CRM step 1) ─────────────────────────────────────────────────
+       Model and plan: docs/features/CRM_LEADS.md. The page lives at /leads
+       (route "leads", 092 navTo) and is linked from Kasper > More > Pipeline
+       & Admin. Every read and write goes through the crm-leads Edge Function
+       with the staff key; the tables have no browser access at all.
+
+       Tabs: Pipeline (stage columns, drag a card to change its stage), Today
+       (next steps due by owner, calls to mark Showed / No-show, automatic
+       sends due in the next 24 hours), Sequences (each follow-up sequence, its
+       steps, on/off, edit and approve) and Systems (a read-only map of every
+       automation: the sequences plus the n8n list in
+       supabase/functions/_shared/crm-automations.mjs). A person panel shows
+       details, sequences, notes and the timeline. Nothing on this page sends
+       a message; a later n8n sender asks crm-leads `due`.
+
+       Identity: a sign-out or a change of staff member calls
+       _crmPurgeSensitiveState (100 purge) and _crmOnIdentity (100 chrome), so
+       cached people, notes and drafts are dropped, in-flight reads are
+       ignored (generation token) and the page re-renders for the new person.
+
+       A refused write is reported with _writeUiRecordFailure (surface
+       "leads"), and the person sees what happened and what to do. A save
+       that lost a race (409) takes the newer copy and says so; nothing is
+       retried behind the person's back. */
+    const CRM_EF_URL = CAL_SUPABASE_URL + '/functions/v1/crm-leads';
+    const CRM_STAGES = [
+        ['to_contact', 'To contact'], ['contacted', 'Contacted'], ['replied', 'Replied'],
+        ['call1_booked', 'Call 1 booked'], ['no_show', 'No-show'], ['call1_done', 'Call 1 done'],
+        ['call2_done', 'Call 2 done'], ['nurture', 'Nurture'], ['won', 'Won'], ['lost', 'Lost']
+    ];
+    const CRM_LEAD_TYPES = [['dream100', 'Dream 100'], ['ad_lead', 'Ad lead'], ['past_call', 'Past call'], ['email', 'Email list']];
+    const CRM_LOST_REASONS = [['price', 'Price'], ['trust', 'Trust'], ['timing', 'Timing'], ['budget', 'Budget'], ['no_show', 'No-show']];
+    const CRM_TABS = [['pipeline', 'Pipeline'], ['today', 'Today'], ['sequences', 'Sequences'], ['systems', 'Systems']];
+    const CRM_CHANNELS = { sms: 'Text', email: 'Email', 'email+sms': 'Email and text', 'sms+email': 'Text and email', telegram: 'Telegram', meta_event: 'Meta event', none: 'None' };
+    const CRM_AUDIENCES = { all: '', lost_price: 'If lost on price', lost_trust: 'If lost on trust', lost_other: 'Any other reason' };
+    const CRM_HOLD_REASONS = {
+        sequence_off: 'Sequence is off', not_approved: 'Step not approved', paused: 'Paused', quiet_hours: 'Waits for 8am their time',
+        no_phone: 'No phone number', no_email: 'No email', text_too_long: 'Text too long', bad_channel: 'Unknown channel'
+    };
+    /* Per-person grant for a non-admin (docs/features/CRM_LEADS.md): add the
+       member's display name here AND the same { role, actor } pair to
+       LEADS_MEMBER_GRANTS in supabase/functions/_shared/crm-leads-core.mjs.
+       This list only decides whether the link shows; the function decides
+       access. */
+    const CRM_LEADS_MEMBER_GRANTS = [];
+    const _crmState = {
+        tab: 'pipeline', loading: false, loaded: false, error: '', people: [], sources: [], truncated: false,
+        filters: { lead_type: '', niche: '', owner: '', source_id: '', due_this_week: false },
+        openId: '', person: null, events: [], source: null, personLoading: false, personError: '', saving: false,
+        dragId: '', drafts: {}, gen: 0,
+        today: null, todayLoading: false, todayError: '',
+        seqs: null, seqLoading: false, seqError: '', editStep: '', stepDrafts: {}, seqBusy: '',
+        systems: null, sysLoading: false, sysError: '', enrolments: [], marking: ''
+    };
+    let _crmStepLayer = null;
+    let _crmPanelLayer = null;
+
+    function _crmCanUse() {
+        try {
+            if (_syncviewStaffCan('leads')) return true;
+            const id = _syncviewStaffIdentityForHeaders();
+            const name = String(id && id.member && id.member.name || '').trim().toLowerCase();
+            return !!name && CRM_LEADS_MEMBER_GRANTS.some(n => String(n).trim().toLowerCase() === name);
+        } catch (e) { return false; }
+    }
+    function _crmLabel(list, value) { const hit = list.find(x => x[0] === value); return hit ? hit[1] : (value || ''); }
+    function _crmToday() {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function _crmWeek() {
+        const d = new Date(); const day = (d.getDay() + 6) % 7;
+        const mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - day);
+        const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+        const f = x => x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
+        return { from: f(mon), to: f(sun) };
+    }
+    function _crmDue(value) {
+        if (!value) return '';
+        const d = new Date(value + 'T12:00:00');
+        if (isNaN(d.getTime())) return value;
+        const t = _crmToday();
+        if (value === t) return 'Today';
+        return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    }
+    function _crmWhen(iso) {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+    }
+    function _crmOverdue(p) { return !!(p.next_step_due && p.next_step_due < _crmToday() && p.stage !== 'won' && p.stage !== 'lost'); }
+
+    async function _crmCall(action, payload) {
+        const resp = await fetch(CRM_EF_URL, {
+            method: 'POST',
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CRM_EF_URL),
+            body: JSON.stringify(Object.assign({ action }, payload || {}))
+        });
+        const data = await resp.json().catch(() => null);
+        if (!resp.ok || !data || data.ok !== true) {
+            const err = new Error((data && data.error) || ('HTTP ' + resp.status));
+            err.status = resp.status;
+            err.code = (data && data.error) || '';
+            err.current = data && data.current || null;
+            throw err;
+        }
+        return data;
+    }
+    function _crmErrorText(e) {
+        const s = e && e.status;
+        if (s === 401) return 'Sign in again to use Leads.';
+        if (s === 403) return 'Leads is open to admins. Ask an admin for access.';
+        if (s === 404 && e.code === 'not_found') return 'That person is no longer in Leads.';
+        if (s === 404 || s === 0 || !s) return 'Leads could not be reached. Check your connection and try again.';
+        return 'Leads did not answer (' + (e.code || ('HTTP ' + s)) + '). Try again in a minute.';
+    }
+
+    // ── Data ─────────────────────────────────────────────────────────────
+    async function _crmLoad(background) {
+        if (_crmState.loading) return;
+        _crmState.loading = true;
+        const gen = _crmState.gen;
+        if (!background) { _crmState.error = ''; _crmPaintBoard(); }
+        try {
+            const f = _crmState.filters;
+            const filters = {};
+            ['lead_type', 'niche', 'owner', 'source_id'].forEach(k => { if (f[k]) filters[k] = f[k]; });
+            if (f.due_this_week) filters.due_this_week = true;
+            const data = await _crmCall('list', { filters });
+            if (gen !== _crmState.gen) return;   // the staff identity changed while this read was out
+            _crmState.people = Array.isArray(data.people) ? data.people : [];
+            _crmState.sources = Array.isArray(data.sources) ? data.sources : _crmState.sources;
+            _crmState.truncated = !!data.truncated;
+            _crmState.loaded = true;
+            _crmState.error = '';
+        } catch (e) {
+            if (gen === _crmState.gen) _crmState.error = _crmErrorText(e);
+        } finally {
+            _crmState.loading = false;
+            if (gen === _crmState.gen) {
+                _crmPaintBoard();
+                _crmPaintFilters();   // the niche, owner and batch choices come from the list just loaded
+            }
+        }
+    }
+    async function _crmOpenPerson(id) {
+        if (!id) return;
+        _crmState.openId = id;
+        _crmState.person = _crmState.people.find(p => p.id === id) || null;
+        _crmState.events = []; _crmState.source = null; _crmState.personError = ''; _crmState.personLoading = true; _crmState.enrolments = [];
+        _crmPaintPanel();
+        const gen = _crmState.gen;
+        if (!_crmState.seqs) _crmLoadSequences(true);
+        try {
+            const data = await _crmCall('get', { id });
+            if (_crmState.openId !== id || gen !== _crmState.gen) return;
+            _crmState.person = data.person; _crmState.events = data.events || []; _crmState.source = data.source || null;
+            _crmState.enrolments = Array.isArray(data.enrolments) ? data.enrolments : [];
+        } catch (e) {
+            if (_crmState.openId !== id) return;
+            _crmState.personError = _crmErrorText(e);
+        } finally {
+            if (_crmState.openId === id) { _crmState.personLoading = false; _crmPaintPanel(); }
+        }
+    }
+    function _crmMergeCard(person) {
+        const i = _crmState.people.findIndex(p => p.id === person.id);
+        if (i < 0) return;
+        const prev = _crmState.people[i];
+        _crmState.people[i] = Object.assign({}, prev, {
+            stage: person.stage, owner: person.owner || '', next_step: person.next_step || '',
+            next_step_due: person.next_step_due || null, tags: person.tags || prev.tags, state_version: person.state_version
+        });
+    }
+    /* One change. Returns true when it saved. On a lost race (409) the newer
+       copy replaces ours, so the person sees what is really stored. */
+    async function _crmSave(id, patch, note, operation) {
+        const card = _crmState.people.find(p => p.id === id);
+        const current = _crmState.person && _crmState.person.id === id ? _crmState.person : card;
+        if (!current) return false;
+        try {
+            const data = await _crmCall('update', { id, expected_version: current.state_version, patch, note: note || '' });
+            _crmMergeCard(data.person);
+            if (_crmState.person && _crmState.person.id === id) {
+                _crmState.person = data.person;
+                if (!data.unchanged) _crmRefreshTimeline(id);
+            }
+            return true;
+        } catch (e) {
+            _writeUiRecordFailure('leads', operation || 'update', e, { id: String(id) });
+            if (e.status === 409 && e.current) {
+                _crmMergeCard(e.current);
+                if (_crmState.person && _crmState.person.id === id) { _crmState.person = e.current; _crmState.resetFields = true; }
+                showToast('Someone else changed this person first. Their version is showing now; make your change again if it still applies.');
+            } else {
+                showToast('Not saved. ' + _crmErrorText(e));
+            }
+            return false;
+        } finally {
+            _crmPaintBoard();
+            _crmPaintPanel();
+        }
+    }
+
+    // ── Page ─────────────────────────────────────────────────────────────
+    function _crmRenderPage(el) {
+        if (!el) return;
+        _crmInjectStyles();
+        if (!_crmCanUse()) {
+            el.innerHTML = '<div class="crm-page"><div class="crm-gate"><h1>Leads</h1><p>Leads holds contact details, so it is open to admins. Sign in with an admin account to see it.</p><button type="button" class="crm-btn crm-btn-primary" onclick="_crmSignIn()">Sign in</button></div></div>';
+            return;
+        }
+        el.innerHTML = '<div class="crm-page">'
+            + '<header class="crm-head"><div><h1>Leads</h1><p class="crm-sub" id="crmSummary">Everyone we might work with, by where they are in the conversation.</p></div>'
+            + '<button type="button" class="crm-btn" onclick="_crmLoad(false)" id="crmRefresh">Refresh</button></header>'
+            + '<nav class="crm-tabs" role="tablist" aria-label="Leads views">'
+            + CRM_TABS.map(t => '<button type="button" role="tab" class="crm-tab" data-crm-tab="' + t[0] + '" aria-selected="' + (_crmState.tab === t[0]) + '" onclick="_crmSetTab(' + _jsAttrArg(t[0]) + ')">' + _calEsc(t[1]) + '</button>').join('')
+            + '</nav><div id="crmBody"></div></div>'
+            + '<div class="crm-panel-scrim" id="crmScrim" hidden onclick="_crmClosePanel()"></div>'
+            + '<aside class="crm-panel" id="crmPanel" role="dialog" aria-modal="false" aria-labelledby="crmPanelTitle" hidden></aside>';
+        _crmPaintBody();
+        if (!_crmState.loaded) _crmLoad(false); else _crmLoad(true);
+    }
+    function _crmSignIn() { _syncviewOfferStaffSignIn('leads'); }
+    function _crmSetTab(tab) {
+        if (!CRM_TABS.some(t => t[0] === tab)) return;
+        _crmState.tab = tab;
+        document.querySelectorAll('[data-crm-tab]').forEach(b => b.setAttribute('aria-selected', String(b.getAttribute('data-crm-tab') === tab)));
+        _crmPaintBody();
+    }
+    function _crmPaintBody() {
+        const body = document.getElementById('crmBody');
+        if (!body) return;
+        _crmCloseStepEditor(true);
+        if (_crmState.tab === 'today') { body.innerHTML = '<div id="crmToday"></div>'; _crmPaintToday(); _crmLoadToday(!!_crmState.today); return; }
+        if (_crmState.tab === 'sequences') { body.innerHTML = '<div id="crmSeqs"></div>'; _crmPaintSequences(); _crmLoadSequences(!!_crmState.seqs); return; }
+        if (_crmState.tab === 'systems') { body.innerHTML = '<div id="crmSystems"></div>'; _crmPaintSystems(); _crmLoadSystems(); return; }
+        body.innerHTML = '<div class="crm-filters" id="crmFilters"></div><div class="crm-rail" id="crmRail" aria-hidden="true"></div><div id="crmBoard" class="crm-board-wrap"></div>';
+        _crmPaintFilters();
+        _crmPaintBoard();
+    }
+    function _crmDistinct(key) {
+        const set = new Set();
+        _crmState.people.forEach(p => { if (p[key]) set.add(p[key]); });
+        if (_crmState.filters[key]) set.add(_crmState.filters[key]);
+        return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }
+    function _crmPaintFilters() {
+        const el = document.getElementById('crmFilters');
+        if (!el) return;
+        const f = _crmState.filters;
+        const all = (label) => [{ value: '', label }];
+        const type = _svSelectHtml('crmFType', all('All lead types').concat(CRM_LEAD_TYPES.map(t => ({ value: t[0], label: t[1] }))), f.lead_type, 'All lead types');
+        const niche = _svSelectHtml('crmFNiche', all('All niches').concat(_crmDistinct('niche').map(n => ({ value: n, label: n }))), f.niche, 'All niches');
+        const owner = _svSelectHtml('crmFOwner', all('Anyone').concat(_crmDistinct('owner').map(n => ({ value: n, label: n }))), f.owner, 'Anyone');
+        const batch = _svSelectHtml('crmFBatch', all('All batches').concat(_crmState.sources.map(s => ({ value: s.id, label: s.name }))), f.source_id, 'All batches');
+        el.innerHTML = '<div class="crm-filter"><span class="crm-filter-label">Type</span>' + type + '</div>'
+            + '<div class="crm-filter"><span class="crm-filter-label">Niche</span>' + niche + '</div>'
+            + '<div class="crm-filter"><span class="crm-filter-label">Owner</span>' + owner + '</div>'
+            + '<div class="crm-filter"><span class="crm-filter-label">Batch</span>' + batch + '</div>'
+            + '<button type="button" class="crm-chip' + (f.due_this_week ? ' on' : '') + '" aria-pressed="' + (!!f.due_this_week) + '" onclick="_crmToggleDue()">Due this week</button>';
+    }
+    function _crmSetFilter(key, value) {
+        if (!(key in _crmState.filters)) return;
+        _crmState.filters[key] = String(value || '');
+        _crmLoad(false);
+    }
+    function _crmToggleDue() {
+        _crmState.filters.due_this_week = !_crmState.filters.due_this_week;
+        _crmPaintFilters();
+        _crmLoad(false);
+    }
+    function _crmCardHtml(p) {
+        const overdue = _crmOverdue(p);
+        const handle = p.instagram_handle ? '<span class="crm-card-handle">@' + _calEsc(p.instagram_handle) + '</span>' : '';
+        const step = p.next_step || p.next_step_due
+            ? '<div class="crm-card-step' + (overdue ? ' overdue' : '') + '"><span>' + _calEsc(p.next_step || 'Next step') + '</span>' + (p.next_step_due ? '<b>' + (overdue ? 'Overdue · ' : '') + _calEsc(_crmDue(p.next_step_due)) + '</b>' : '') + '</div>'
+            : '<div class="crm-card-step empty"><span>No next step</span></div>';
+        return '<article class="crm-card' + (overdue ? ' is-overdue' : '') + '" draggable="true" tabindex="0" data-crm-card="' + _calEscAttr(p.id) + '" aria-label="' + _calEscAttr((p.display_name || p.instagram_handle || 'Lead') + ', ' + _crmLabel(CRM_STAGES, p.stage)) + '">'
+            + '<div class="crm-card-top"><span class="crm-card-name">' + _calEsc(p.display_name || (p.instagram_handle ? '@' + p.instagram_handle : 'Unnamed')) + '</span>'
+            + '<span class="crm-type crm-type-' + _calEscAttr(p.lead_type) + '">' + _calEsc(_crmLabel(CRM_LEAD_TYPES, p.lead_type)) + '</span></div>'
+            + '<div class="crm-card-meta">' + handle + (p.niche ? '<span>' + _calEsc(p.niche) + '</span>' : '') + '</div>'
+            + step + '</article>';
+    }
+    function _crmPaintBoard() {
+        const board = document.getElementById('crmBoard');
+        const summary = document.getElementById('crmSummary');
+        const refresh = document.getElementById('crmRefresh');
+        if (refresh) refresh.disabled = !!_crmState.loading;
+        if (!board) return;
+        const people = _crmState.people;
+        const overdue = people.filter(_crmOverdue).length;
+        if (summary && _crmState.loaded) {
+            summary.textContent = people.length + (people.length === 1 ? ' person' : ' people') + (overdue ? ', ' + overdue + ' overdue' : '') + (_crmState.truncated ? ' (showing the first ' + people.length + '; narrow the filters)' : '');
+        }
+        if (_crmState.error && !_crmState.loaded) {
+            board.innerHTML = '<div class="crm-empty"><p>' + _calEsc(_crmState.error) + '</p><button type="button" class="crm-btn" onclick="_crmLoad(false)">Try again</button></div>';
+            return;
+        }
+        if (!_crmState.loaded) { board.innerHTML = '<div class="crm-empty" aria-busy="true"><p>Loading leads…</p></div>'; return; }
+        const rail = document.getElementById('crmRail');
+        if (rail) {
+            rail.innerHTML = people.length ? CRM_STAGES.map(s => {
+                const n = people.filter(p => p.stage === s[0]).length;
+                return n ? '<span class="crm-rail-seg crm-stage-' + s[0] + '" style="flex-grow:' + n + '" title="' + _calEscAttr(s[1] + ': ' + n) + '"></span>' : '';
+            }).join('') : '';
+        }
+        const filtered = Object.keys(_crmState.filters).some(k => _crmState.filters[k]);
+        if (!people.length) {
+            board.innerHTML = '<div class="crm-empty"><p>' + (filtered ? 'Nobody matches these filters.' : 'No leads yet. Import a CSV with scripts/crm-import.js to fill the Pipeline.') + '</p></div>';
+            return;
+        }
+        const restore = (() => { const a = document.activeElement; const id = a && a.getAttribute && a.getAttribute('data-crm-card'); return id || ''; })();
+        board.innerHTML = '<div class="crm-board" role="list">' + CRM_STAGES.map(s => {
+            const cards = people.filter(p => p.stage === s[0]);
+            return '<section class="crm-col" role="listitem" data-crm-stage="' + s[0] + '" aria-label="' + _calEscAttr(s[1] + ', ' + cards.length) + '">'
+                + '<header class="crm-col-head"><span class="crm-dot crm-stage-' + s[0] + '" aria-hidden="true"></span><h2>' + _calEsc(s[1]) + '</h2><span class="crm-count">' + cards.length + '</span></header>'
+                + '<div class="crm-col-body">' + (cards.length ? cards.map(_crmCardHtml).join('') : '<div class="crm-col-empty">Drop a card here</div>') + '</div></section>';
+        }).join('') + '</div>';
+        if (_crmState.error) board.insertAdjacentHTML('afterbegin', '<p class="crm-stale" role="status">' + _calEsc(_crmState.error) + ' Showing the last list.</p>');
+        if (restore) { const el = board.querySelector('[data-crm-card="' + CSS.escape(restore) + '"]'); if (el) el.focus({ preventScroll: true }); }
+    }
+
+    // Board events: one set of listeners on the page, delegated.
+    function _crmBoardClick(ev) {
+        const card = ev.target.closest && ev.target.closest('[data-crm-card]');
+        if (card) _crmOpenPerson(card.getAttribute('data-crm-card'));
+    }
+    function _crmBoardKey(ev) {
+        const card = ev.target.closest && ev.target.closest('[data-crm-card]');
+        if (card && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); _crmOpenPerson(card.getAttribute('data-crm-card')); }
+    }
+    function _crmDragStart(ev) {
+        const card = ev.target.closest && ev.target.closest('[data-crm-card]');
+        if (!card) return;
+        _crmState.dragId = card.getAttribute('data-crm-card');
+        card.classList.add('dragging');
+        try { ev.dataTransfer.setData('text/plain', _crmState.dragId); ev.dataTransfer.effectAllowed = 'move'; } catch (e) {}
+    }
+    function _crmDragEnd() {
+        _crmState.dragId = '';
+        document.querySelectorAll('.crm-card.dragging, .crm-col.drop').forEach(n => n.classList.remove('dragging', 'drop'));
+    }
+    function _crmDragOver(ev) {
+        const col = ev.target.closest && ev.target.closest('[data-crm-stage]');
+        if (!col || !_crmState.dragId) return;
+        ev.preventDefault();
+        document.querySelectorAll('.crm-col.drop').forEach(n => { if (n !== col) n.classList.remove('drop'); });
+        col.classList.add('drop');
+    }
+    async function _crmDrop(ev) {
+        const col = ev.target.closest && ev.target.closest('[data-crm-stage]');
+        const id = _crmState.dragId;
+        _crmDragEnd();
+        if (!col || !id) return;
+        ev.preventDefault();
+        const stage = col.getAttribute('data-crm-stage');
+        const card = _crmState.people.find(p => p.id === id);
+        if (!card || card.stage === stage) return;
+        const before = card.stage;
+        card.stage = stage;              // show the move at once
+        _crmPaintBoard();
+        const ok = await _crmSave(id, { stage }, '', 'status');
+        if (!ok) { const c = _crmState.people.find(p => p.id === id); if (c && c.stage === stage && c.state_version === card.state_version) c.stage = before; _crmPaintBoard(); }
+        else if (stage === 'lost') _crmOpenPerson(id);   // ask why it was lost
+    }
+    // The branded selects fire a bubbling change on their hidden input.
+    const CRM_FILTER_INPUTS = { crmFType: 'lead_type', crmFNiche: 'niche', crmFOwner: 'owner', crmFBatch: 'source_id' };
+    function _crmOnChange(ev) {
+        const id = ev.target && ev.target.id;
+        if (CRM_FILTER_INPUTS[id]) _crmSetFilter(CRM_FILTER_INPUTS[id], ev.target.value);
+        else if (id === 'crmPStage') _crmStageChanged(ev.target.value);
+    }
+    function _crmWire(root) {
+        if (!root || root.dataset.crmWired) return;
+        root.dataset.crmWired = '1';
+        root.addEventListener('click', _crmBoardClick);
+        root.addEventListener('keydown', _crmBoardKey);
+        root.addEventListener('dragstart', _crmDragStart);
+        root.addEventListener('dragend', _crmDragEnd);
+        root.addEventListener('dragover', _crmDragOver);
+        root.addEventListener('drop', _crmDrop);
+        root.addEventListener('change', _crmOnChange);
+    }
+
+    // ── Person panel ─────────────────────────────────────────────────────
+    function _crmEventText(e) {
+        const d = e.detail || {};
+        if (e.kind === 'stage_changed') return 'Moved from ' + _crmLabel(CRM_STAGES, d.from) + ' to ' + _crmLabel(CRM_STAGES, d.to);
+        if (e.kind === 'owner_changed') return d.to ? 'Owner set to ' + d.to : 'Owner cleared';
+        if (e.kind === 'next_step_set') return d.next_step || d.due ? 'Next step: ' + (d.next_step || 'no text') + (d.due ? ', due ' + _crmDue(d.due) : '') : 'Next step cleared';
+        if (e.kind === 'lost_reason_set') return d.to ? 'Lost because of ' + _crmLabel(CRM_LOST_REASONS, d.to).toLowerCase() : 'Lost reason cleared';
+        if (e.kind === 'tags_changed') return 'Tags: ' + ((d.to || []).join(', ') || 'none');
+        if (e.kind === 'note') return d.text || '';
+        if (e.kind === 'imported') return 'Imported from a list';
+        if (e.kind === 'created') return 'Added';
+        return e.kind.replace(/_/g, ' ');
+    }
+    function _crmPaintPanel() {
+        const panel = document.getElementById('crmPanel');
+        const scrim = document.getElementById('crmScrim');
+        if (!panel) return;
+        if (!_crmState.openId) { panel.hidden = true; if (scrim) scrim.hidden = true; return; }
+        const p = _crmState.person;
+        const wasOpen = !panel.hidden;
+        const typing = document.activeElement && panel.contains(document.activeElement) && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName) ? document.activeElement.id : '';
+        const keep = {};
+        ['crmPOwner', 'crmPStep', 'crmPNote'].forEach(id => { const n = document.getElementById(id); if (n && wasOpen) keep[id] = n.value; });
+        if (_crmState.resetFields) { delete keep.crmPOwner; delete keep.crmPStep; _crmState.resetFields = false; }
+        panel.hidden = false; if (scrim) scrim.hidden = false;
+        if (!p) {
+            panel.innerHTML = '<div class="crm-panel-head"><h2 id="crmPanelTitle">Lead</h2><button type="button" class="crm-x" onclick="_crmClosePanel()" aria-label="Close">×</button></div><div class="crm-panel-body"><p class="crm-muted">' + _calEsc(_crmState.personError || 'Loading…') + '</p></div>';
+        } else {
+            const contact = [
+                p.email ? '<a href="mailto:' + _calEscAttr(p.email) + '">' + _calEsc(p.email) + '</a>' : '',
+                p.phone ? '<a href="tel:' + _calEscAttr(p.phone) + '">' + _calEsc(p.phone) + '</a>' : '',
+                p.instagram_handle ? '<a href="https://instagram.com/' + encodeURIComponent(p.instagram_handle) + '" target="_blank" rel="noopener noreferrer">@' + _calEsc(p.instagram_handle) + '</a>' : ''
+            ].filter(Boolean).join('');
+            const timeline = _crmState.personLoading && !_crmState.events.length ? '<p class="crm-muted">Loading the timeline…</p>'
+                : (_crmState.events.length ? '<ol class="crm-timeline">' + _crmState.events.map(e => '<li class="crm-ev crm-ev-' + _calEscAttr(e.kind) + '"><span class="crm-ev-text">' + _calEsc(_crmEventText(e)) + '</span><span class="crm-ev-meta">' + _calEsc(_crmWhen(e.occurred_at)) + (e.actor ? ' · ' + _calEsc(e.actor) : '') + '</span></li>').join('') + '</ol>'
+                    : '<p class="crm-muted">' + _calEsc(_crmState.personError || 'Nothing has happened yet.') + '</p>');
+            panel.innerHTML = '<div class="crm-panel-head"><div><h2 id="crmPanelTitle">' + _calEsc(p.display_name || (p.instagram_handle ? '@' + p.instagram_handle : 'Unnamed')) + '</h2>'
+                + '<p class="crm-muted">' + _calEsc(_crmLabel(CRM_LEAD_TYPES, p.lead_type)) + (p.niche ? ', ' + _calEsc(p.niche) : '') + (_crmState.source ? ', from ' + _calEsc(_crmState.source.name) : '') + '</p></div>'
+                + '<button type="button" class="crm-x" onclick="_crmClosePanel()" aria-label="Close">×</button></div>'
+                + '<div class="crm-panel-body">'
+                + (contact ? '<div class="crm-contact">' + contact + '</div>' : '')
+                + ((p.tags || []).length ? '<div class="crm-tags">' + p.tags.map(t => '<span>' + _calEsc(t) + '</span>').join('') + '</div>' : '')
+                + '<form class="crm-form" onsubmit="event.preventDefault();_crmSavePanel()">'
+                + '<label class="crm-field"><span>Stage</span>' + _svSelectHtml('crmPStage', CRM_STAGES.map(s => ({ value: s[0], label: s[1] })), p.stage, 'Stage') + '</label>'
+                + '<label class="crm-field" id="crmLostWrap"' + (p.stage === 'lost' ? '' : ' hidden') + '><span>Why it was lost</span>' + _svSelectHtml('crmPLost', [{ value: '', label: 'Not set' }].concat(CRM_LOST_REASONS.map(r => ({ value: r[0], label: r[1] }))), p.lost_reason || '', 'Not set') + '</label>'
+                + '<label class="crm-field"><span>Owner</span><input id="crmPOwner" class="crm-input" maxlength="80" autocomplete="off" value="' + _calEscAttr(keep.crmPOwner != null ? keep.crmPOwner : (p.owner || '')) + '"></label>'
+                + '<label class="crm-field crm-field-wide"><span>Next step</span><input id="crmPStep" class="crm-input" maxlength="500" autocomplete="off" placeholder="Send the follow-up DM" value="' + _calEscAttr(keep.crmPStep != null ? keep.crmPStep : (p.next_step || '')) + '"></label>'
+                + '<div class="crm-field"><span>Due</span>' + _svDateHtml('crmPDue', p.next_step_due || '', { placeholder: 'No date' }) + '</div>'
+                + '<div class="crm-form-actions"><button type="submit" class="crm-btn crm-btn-primary"' + (_crmState.saving ? ' disabled' : '') + '>' + 'Save changes' + '</button></div>'
+                + '</form>'
+                + '<div class="crm-note"><label for="crmPNote" class="crm-section-title">Add a note</label><textarea id="crmPNote" class="crm-input" rows="3" maxlength="4000" placeholder="What happened, what they said">' + _calEsc(keep.crmPNote != null ? keep.crmPNote : (_crmState.drafts[p.id] || '')) + '</textarea>'
+                + '<button type="button" class="crm-btn" onclick="_crmAddNote()"' + (_crmState.saving ? ' disabled' : '') + '>Add note</button></div>'
+                + _crmPanelSeqHtml()
+                + '<h3 class="crm-section-title">Timeline</h3>' + timeline
+                + '</div>';
+            _svSyncDateControl('crmPDue');
+        }
+        if (!wasOpen) {
+            _crmPanelLayer = svLayerOpen({ key: 'crm-person', region: '#crmPanel', isOpen: () => { const n = document.getElementById('crmPanel'); return !!n && !n.hidden; }, close: () => _crmClosePanel(true) });
+            const first = panel.querySelector('.crm-x'); if (first) first.focus({ preventScroll: true });
+        } else if (typing) { const n = document.getElementById(typing); if (n) n.focus({ preventScroll: true }); }
+    }
+    function _crmStageChanged(value) {
+        const wrap = document.getElementById('crmLostWrap');
+        if (wrap) wrap.hidden = value !== 'lost';
+    }
+    function _crmClosePanel(fromLayer) {
+        // Closing never loses typed text: a started note is kept for that person.
+        const note = document.getElementById('crmPNote');
+        if (note && _crmState.openId) _crmState.drafts[_crmState.openId] = note.value;
+        _crmState.openId = ''; _crmState.person = null; _crmState.events = [];
+        _crmPaintPanel();
+        if (!fromLayer && _crmPanelLayer) svLayerRelease(_crmPanelLayer, { focus: true });
+        _crmPanelLayer = null;
+        return true;
+    }
+    async function _crmSavePanel() {
+        const p = _crmState.person;
+        if (!p || _crmState.saving) return;
+        const val = id => { const n = document.getElementById(id); return n ? n.value : ''; };
+        const patch = { stage: val('crmPStage') || p.stage, owner: val('crmPOwner').trim(), next_step: val('crmPStep').trim(), next_step_due: val('crmPDue') || '' };
+        if (patch.stage === 'lost') patch.lost_reason = val('crmPLost') || '';
+        _crmState.saving = true; _crmPaintPanel();
+        const ok = await _crmSave(p.id, patch, '', 'update');
+        _crmState.saving = false; _crmPaintPanel();
+        if (ok) showToast('Saved');
+    }
+    async function _crmAddNote() {
+        const p = _crmState.person;
+        const n = document.getElementById('crmPNote');
+        const text = n ? n.value.trim() : '';
+        if (!p || !text || _crmState.saving) return;
+        _crmState.saving = true; _crmPaintPanel();
+        try {
+            const data = await _crmCall('note', { id: p.id, note: text });
+            _crmMergeCard(data.person);
+            delete _crmState.drafts[p.id];
+            // The panel may show someone else by now: only touch it if it is still this person.
+            if (_crmState.openId === p.id && _crmState.person && _crmState.person.id === p.id) {
+                _crmState.person = data.person;
+                const box = document.getElementById('crmPNote'); if (box) box.value = '';
+                const d = await _crmCall('get', { id: p.id }).catch(() => null);
+                if (d && _crmState.openId === p.id) { _crmState.events = d.events || []; _crmState.enrolments = d.enrolments || _crmState.enrolments; }
+            }
+            showToast('Note added');
+        } catch (e) {
+            _writeUiRecordFailure('leads', 'comment', e, { id: String(p.id) });
+            if (_crmState.openId !== p.id) _crmState.drafts[p.id] = text;   // kept for when they open this person again
+            showToast('Note not added. ' + _crmErrorText(e) + ' Your text is still in the box.');
+        } finally {
+            _crmState.saving = false; _crmPaintPanel();
+        }
+    }
+
+    // ── Shared helpers for Today, Sequences and Systems ──────────────────
+    function _crmIsAdmin() {
+        try { return document.documentElement.getAttribute('data-staff-role') === 'admin'; } catch (e) { return false; }
+    }
+    function _crmName(p) { return p.display_name || (p.instagram_handle ? '@' + p.instagram_handle : 'Unnamed'); }
+    function _crmTime(iso) {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    }
+    function _crmStepWhen(st) {
+        const day = 'Day ' + st.day_offset;
+        if (st.send_hour != null) return day + ', ' + String(st.send_hour).padStart(2, '0') + ':00 their time';
+        if (st.hour_offset) return day + ', ' + st.hour_offset + 'h after they join';
+        return st.day_offset ? day + ', same time they joined' : 'Right away';
+    }
+    function _crmSeqById(id) { return (_crmState.seqs || []).find(s => s.id === id) || null; }
+    async function _crmRefreshTimeline(id) {
+        const gen = _crmState.gen;
+        try {
+            const d = await _crmCall('get', { id });
+            if (_crmState.openId === id && gen === _crmState.gen) { _crmState.events = d.events || []; _crmState.enrolments = d.enrolments || []; _crmPaintPanel(); }
+        } catch (e) {}
+    }
+    function _crmSection(id, title, sub, inner) {
+        return '<section class="crm-sec" aria-labelledby="' + id + '"><header class="crm-sec-head"><h2 id="' + id + '">' + _calEsc(title) + '</h2>' + (sub ? '<span class="crm-sec-sub">' + _calEsc(sub) + '</span>' : '') + '</header>' + inner + '</section>';
+    }
+    function _crmLoadingOr(el, loading, error, retry) {
+        if (error) { el.innerHTML = '<div class="crm-empty"><p>' + _calEsc(error) + '</p><button type="button" class="crm-btn" onclick="' + retry + '">Try again</button></div>'; return true; }
+        if (loading) { el.innerHTML = '<div class="crm-empty" aria-busy="true"><p>Loading…</p></div>'; return true; }
+        return false;
+    }
+
+    // ── Today ────────────────────────────────────────────────────────────
+    async function _crmLoadToday(background) {
+        if (_crmState.todayLoading) return;
+        _crmState.todayLoading = true;
+        const gen = _crmState.gen;
+        if (!background) { _crmState.todayError = ''; _crmPaintToday(); }
+        try {
+            const d = await _crmCall('today', {});
+            if (gen !== _crmState.gen) return;
+            _crmState.today = { due: d.due_people || [], calls: d.calls_passed || [], sends: d.sends_today || [] };
+            _crmState.todayError = '';
+        } catch (e) {
+            if (gen === _crmState.gen && !_crmState.today) _crmState.todayError = _crmErrorText(e);
+        } finally {
+            _crmState.todayLoading = false;
+            if (gen === _crmState.gen) _crmPaintToday();
+        }
+    }
+    function _crmPaintToday() {
+        const el = document.getElementById('crmToday');
+        if (!el) return;
+        const t = _crmState.today;
+        if (!t && _crmLoadingOr(el, true, _crmState.todayError, '_crmLoadToday(false)')) return;
+        const overdue = t.due.filter(_crmOverdue).length;
+        const strip = '<div class="crm-strip" role="status">'
+            + '<span><b>' + t.calls.length + '</b> ' + (t.calls.length === 1 ? 'call' : 'calls') + ' to mark</span>'
+            + '<span><b>' + t.due.length + '</b> next ' + (t.due.length === 1 ? 'step' : 'steps') + ' due' + (overdue ? ', <em>' + overdue + ' overdue</em>' : '') + '</span>'
+            + '<span><b>' + t.sends.length + '</b> automatic ' + (t.sends.length === 1 ? 'send' : 'sends') + ' in the next 24 hours</span></div>';
+        const calls = t.calls.length ? '<ul class="crm-rows">' + t.calls.map(p => {
+            const busy = _crmState.marking === p.id;
+            return '<li class="crm-row" data-crm-call="' + _calEscAttr(p.id) + '"><button type="button" class="crm-row-main" onclick="_crmOpenPersonById(' + _jsAttrArg(p.id) + ')"><span class="crm-row-name">' + _calEsc(_crmName(p)) + '</span><span class="crm-row-meta">Call 1 was ' + _calEsc(_crmWhen(p.call_at)) + '</span></button>'
+                + '<span class="crm-row-actions"><button type="button" class="crm-btn crm-btn-ok" data-crm-outcome="showed"' + (busy ? ' disabled' : '') + ' onclick="_crmMarkCall(' + _jsAttrArg(p.id) + ',\'showed\')">Showed</button>'
+                + '<button type="button" class="crm-btn crm-btn-err" data-crm-outcome="no_show"' + (busy ? ' disabled' : '') + ' onclick="_crmMarkCall(' + _jsAttrArg(p.id) + ',\'no_show\')">No-show</button></span></li>';
+        }).join('') + '</ul>' : '<p class="crm-none">No calls waiting for an outcome.</p>';
+        const groups = {};
+        t.due.forEach(p => { const k = p.owner || ''; (groups[k] = groups[k] || []).push(p); });
+        const owners = Object.keys(groups).sort((a, b) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)));
+        const due = owners.length ? owners.map(o => '<div class="crm-group"><h3 class="crm-group-head">' + _calEsc(o || 'No owner') + ' <span>' + groups[o].length + '</span></h3><ul class="crm-rows">'
+            + groups[o].map(p => '<li class="crm-row' + (_crmOverdue(p) ? ' is-overdue' : '') + '"><button type="button" class="crm-row-main" onclick="_crmOpenPersonById(' + _jsAttrArg(p.id) + ')"><span class="crm-row-name">' + _calEsc(_crmName(p)) + '</span><span class="crm-row-meta">' + _calEsc(p.next_step || 'Next step') + '</span></button><span class="crm-row-due">' + (_crmOverdue(p) ? 'Overdue, ' : '') + _calEsc(_crmDue(p.next_step_due)) + '</span></li>').join('')
+            + '</ul></div>').join('') : '<p class="crm-none">Nothing due today. Next steps you set on a person show up here on their day.</p>';
+        const sends = t.sends.length ? '<ul class="crm-rows">' + t.sends.map(x => {
+            const tag = x.state === 'send' ? '<span class="crm-badge crm-badge-ok">Ready</span>' : x.state === 'wait' ? '<span class="crm-badge">Scheduled</span>' : '<span class="crm-badge crm-badge-warn">' + _calEsc(CRM_HOLD_REASONS[x.reason] || 'Held') + '</span>';
+            return '<li class="crm-row"><span class="crm-row-time">' + _calEsc(_crmTime(x.due_at)) + '</span><button type="button" class="crm-row-main" onclick="_crmOpenPersonById(' + _jsAttrArg(x.person_id) + ')"><span class="crm-row-name">' + _calEsc(x.display_name || 'Unnamed') + '</span><span class="crm-row-meta">' + _calEsc(x.sequence + ', ' + (CRM_CHANNELS[x.channel] || x.channel)) + '</span></button>' + tag + '</li>';
+        }).join('') + '</ul>' : '<p class="crm-none">No automatic sends due. Sequences send nothing until they are switched on and their steps approved.</p>';
+        el.innerHTML = strip + '<div class="crm-today">'
+            + _crmSection('crmTodayCalls', 'Calls to mark', 'Their call 1 time has passed', calls)
+            + _crmSection('crmTodayDue', 'Next steps due', 'Today and overdue, by owner', due)
+            + _crmSection('crmTodaySends', 'Automatic sends', 'Next 24 hours. Nothing is sent from this page.', sends)
+            + '</div>';
+    }
+    function _crmOpenPersonById(id) { if (id) _crmOpenPerson(String(id)); }
+    async function _crmMarkCall(id, outcome) {
+        const t = _crmState.today;
+        const p = t && t.calls.find(x => x.id === id);
+        if (!p || _crmState.marking) return;
+        _crmState.marking = id; _crmPaintToday();
+        try {
+            const d = await _crmCall('call_outcome', { id, expected_version: p.state_version, outcome });
+            _crmMergeCard(d.person);
+            t.calls = t.calls.filter(x => x.id !== id);
+            showToast(outcome === 'showed' ? 'Marked as showed. Moved to Call 1 done.' : (d.enrolment ? 'Marked as no-show and added to the No-show sequence.' : 'Marked as no-show.'));
+            _crmLoadToday(true);
+        } catch (e) {
+            _writeUiRecordFailure('leads', 'status', e, { id: String(id) });
+            if (e.status === 409 && e.current) { p.state_version = e.current.state_version; showToast('Someone changed this person first. Check them and mark the call again.'); _crmLoadToday(true); }
+            else showToast('Not marked. ' + _crmErrorText(e));
+        } finally {
+            _crmState.marking = ''; _crmPaintToday();
+        }
+    }
+
+    // ── Sequences ────────────────────────────────────────────────────────
+    async function _crmLoadSequences(background) {
+        if (_crmState.seqLoading) return;
+        _crmState.seqLoading = true;
+        const gen = _crmState.gen;
+        if (!background) { _crmState.seqError = ''; _crmPaintSequences(); }
+        try {
+            const d = await _crmCall('sequences', {});
+            if (gen !== _crmState.gen) return;
+            _crmState.seqs = d.sequences || [];
+            _crmState.seqError = '';
+        } catch (e) {
+            if (gen === _crmState.gen && !_crmState.seqs) _crmState.seqError = _crmErrorText(e);
+        } finally {
+            _crmState.seqLoading = false;
+            if (gen === _crmState.gen) { if (!_crmState.editStep) _crmPaintSequences(); _crmPaintPanel(); }
+        }
+    }
+    function _crmStepHtml(st, admin) {
+        const editing = _crmState.editStep === st.id;
+        const approved = st.approval_state === 'approved';
+        const aud = CRM_AUDIENCES[st.audience] || '';
+        const head = '<div class="crm-step-head"><span class="crm-step-when">' + _calEsc(_crmStepWhen(st)) + '</span>'
+            + '<span class="crm-chan crm-chan-' + _calEscAttr(st.channel) + '">' + _calEsc(CRM_CHANNELS[st.channel] || st.channel) + '</span>'
+            + (aud ? '<span class="crm-aud">' + _calEsc(aud) + '</span>' : '')
+            + '<span class="crm-badge ' + (approved ? 'crm-badge-ok' : 'crm-badge-warn') + '">' + (approved ? 'Approved' : 'Draft') + '</span>'
+            + (st.version > 1 ? '<span class="crm-ver">v' + st.version + '</span>' : '') + '</div>';
+        if (editing) {
+            const dr = _crmState.stepDrafts[st.id] || { subject: st.subject || '', template: st.template };
+            return '<li class="crm-step is-editing" data-crm-step="' + _calEscAttr(st.id) + '">' + head
+                + '<div class="crm-step-editor" id="crmStepEditor">'
+                + (st.channel === 'email' ? '<label class="crm-field"><span>Subject</span><input id="crmStepSubject" class="crm-input" maxlength="200" value="' + _calEscAttr(dr.subject) + '"></label>' : '')
+                + '<label class="crm-field"><span>' + (st.channel === 'sms' ? 'Text' : 'Email') + '</span><textarea id="crmStepText" class="crm-input" rows="' + (st.channel === 'sms' ? 4 : 9) + '"' + (st.channel === 'sms' ? ' maxlength="300"' : ' maxlength="4000"') + ' oninput="_crmStepCount()">' + _calEsc(dr.template) + '</textarea></label>'
+                + '<p class="crm-hint"><span id="crmStepCount"></span> Placeholders: {first_name}, {niche}, {rebook_link}, {call2_link}, {case_study_link}, {testimonials_link}, {useful_link}. Saving makes a new draft that needs approving again; texts already sent keep their wording.</p>'
+                + '<div class="crm-step-actions"><button type="button" class="crm-btn" onclick="_crmCloseStepEditor()">Cancel</button><button type="button" class="crm-btn crm-btn-primary" onclick="_crmSaveStep()"' + (_crmState.seqBusy ? ' disabled' : '') + '>Save as draft</button></div>'
+                + '</div></li>';
+        }
+        return '<li class="crm-step" data-crm-step="' + _calEscAttr(st.id) + '">' + head
+            + (st.subject ? '<p class="crm-step-subject">' + _calEsc(st.subject) + '</p>' : '')
+            + '<p class="crm-step-text">' + _calEsc(st.template) + '</p>'
+            + '<div class="crm-step-actions">'
+            + (approved && st.approved_by ? '<span class="crm-muted">Approved by ' + _calEsc(st.approved_by) + '</span>' : '')
+            + '<button type="button" class="crm-btn" onclick="_crmEditStep(' + _jsAttrArg(st.id) + ')">Edit</button>'
+            + (!approved && admin ? '<button type="button" class="crm-btn crm-btn-ok" onclick="_crmApproveStep(' + _jsAttrArg(st.id) + ')"' + (_crmState.seqBusy === st.id ? ' disabled' : '') + '>Approve</button>' : '')
+            + '</div></li>';
+    }
+    function _crmPaintSequences() {
+        const el = document.getElementById('crmSeqs');
+        if (!el) return;
+        if (!_crmState.seqs && _crmLoadingOr(el, true, _crmState.seqError, '_crmLoadSequences(false)')) return;
+        const admin = _crmIsAdmin();
+        if (!_crmState.seqs.length) { el.innerHTML = '<div class="crm-empty"><p>No sequences yet. They are added with the Leads migration.</p></div>'; return; }
+        el.innerHTML = '<p class="crm-intro">Each sequence follows up with people by text and email. A step only goes out once it is approved and its sequence is on; texts only between 8am and 6pm in the person’s time zone. Sending is set up later; nothing is sent from here.</p>'
+            + '<div class="crm-seqs">' + _crmState.seqs.map(s => {
+                const approved = s.steps.filter(st => st.approval_state === 'approved').length;
+                return '<article class="crm-seq' + (s.active ? ' is-on' : '') + '" data-crm-seq="' + _calEscAttr(s.key) + '">'
+                    + '<header class="crm-seq-head"><div class="crm-seq-title"><h2>' + _calEsc(s.name) + '</h2><p>' + _calEsc(s.description || '') + '</p></div>'
+                    + '<button type="button" class="crm-switch" role="switch" aria-checked="' + (!!s.active) + '" aria-label="' + _calEscAttr(s.name + ' on or off') + '" onclick="_crmToggleSequence(' + _jsAttrArg(s.id) + ')"' + (_crmState.seqBusy === s.id ? ' disabled' : '') + '><span class="crm-switch-track" aria-hidden="true"><span class="crm-switch-knob"></span></span><span class="crm-switch-label">' + (s.active ? 'On' : 'Off') + '</span></button></header>'
+                    + '<div class="crm-seq-facts"><span><b>' + s.people_now + '</b> in it now</span><span><b>' + approved + '</b> of ' + s.steps.length + ' steps approved</span></div>'
+                    + '<ol class="crm-steps">' + s.steps.map(st => _crmStepHtml(st, admin)).join('') + '</ol></article>';
+            }).join('') + '</div>';
+        _crmStepCount();
+    }
+    function _crmStepCount() {
+        const box = document.getElementById('crmStepText');
+        const out = document.getElementById('crmStepCount');
+        if (!box || !out) return;
+        const st = (_crmState.seqs || []).flatMap(s => s.steps).find(x => x.id === _crmState.editStep);
+        out.textContent = st && st.channel === 'sms' ? box.value.length + ' of 300 characters.' : '';
+        if (st) _crmState.stepDrafts[st.id] = { template: box.value, subject: (document.getElementById('crmStepSubject') || {}).value || '' };
+    }
+    function _crmEditStep(id) {
+        if (_crmState.editStep && _crmState.editStep !== id) _crmCloseStepEditor(true);
+        _crmState.editStep = id;
+        _crmPaintSequences();
+        const box = document.getElementById('crmStepText');
+        if (box) box.focus({ preventScroll: true });
+        _crmStepLayer = svLayerOpen({ key: 'crm-step-edit', region: '#crmStepEditor', isOpen: () => !!document.getElementById('crmStepEditor'), close: () => _crmCloseStepEditor(true, true) });
+    }
+    /* Closing keeps what was typed (stepDrafts) until it is saved or the
+       person signs out; Cancel throws the draft away. */
+    function _crmCloseStepEditor(keep, fromLayer) {
+        const id = _crmState.editStep;
+        if (!id) return true;
+        if (keep === true) _crmStepCount(); else delete _crmState.stepDrafts[id];
+        _crmState.editStep = '';
+        if (_crmStepLayer && !fromLayer) svLayerRelease(_crmStepLayer, { focus: false });
+        _crmStepLayer = null;
+        _crmPaintSequences();
+        const btn = document.querySelector('[data-crm-step="' + CSS.escape(id) + '"] .crm-step-actions .crm-btn');
+        if (btn && (fromLayer || keep !== true)) btn.focus({ preventScroll: true });
+        return true;
+    }
+    function _crmReplaceStep(step) {
+        (_crmState.seqs || []).forEach(s => {
+            const i = s.steps.findIndex(x => x.step_key === step.step_key && x.sequence_id === step.sequence_id);
+            if (i >= 0 && s.id === step.sequence_id) s.steps[i] = step;
+        });
+    }
+    async function _crmSaveStep() {
+        const id = _crmState.editStep;
+        const st = (_crmState.seqs || []).flatMap(s => s.steps).find(x => x.id === id);
+        if (!st || _crmState.seqBusy) return;
+        _crmStepCount();
+        const dr = _crmState.stepDrafts[id] || {};
+        const fields = { template: String(dr.template || '').trim() };
+        if (st.channel === 'email') fields.subject = String(dr.subject || '').trim();
+        _crmState.seqBusy = id;
+        try {
+            const d = await _crmCall('step_edit', { step_id: id, fields });
+            delete _crmState.stepDrafts[id];
+            _crmReplaceStep(d.step);
+            _crmState.seqBusy = '';
+            _crmCloseStepEditor(false);
+            showToast('Saved as a draft. It needs approving before it can be sent.');
+        } catch (e) {
+            _crmState.seqBusy = '';
+            _writeUiRecordFailure('leads', 'update', e, { id: String(id) });
+            const why = { text_too_long: 'Texts can be 300 characters at most.', unknown_placeholder: 'One of the {placeholders} is not one we know. Check the spelling.', template_required: 'The message is empty.', bad_subject: 'The email needs a subject.' }[e.code];
+            if (e.status === 409 && e.current) { _crmReplaceStep(e.current); showToast('Someone edited this step first. Their version is showing; your text is kept in the box.'); _crmState.editStep = e.current.id; _crmState.stepDrafts[e.current.id] = dr; _crmPaintSequences(); }
+            else showToast('Not saved. ' + (why || _crmErrorText(e)));
+        }
+    }
+    async function _crmApproveStep(id) {
+        if (_crmState.seqBusy) return;
+        _crmState.seqBusy = id; _crmPaintSequences();
+        try {
+            const d = await _crmCall('step_approve', { step_id: id });
+            _crmReplaceStep(d.step);
+            showToast('Approved');
+        } catch (e) {
+            _writeUiRecordFailure('leads', 'status', e, { id: String(id) });
+            showToast(e.status === 403 ? 'Only an admin can approve a step.' : e.status === 409 ? 'This step changed since you opened it. Read the new version first.' : 'Not approved. ' + _crmErrorText(e));
+            if (e.status === 409) _crmLoadSequences(true);
+        } finally {
+            _crmState.seqBusy = ''; _crmPaintSequences();
+        }
+    }
+    async function _crmToggleSequence(id) {
+        const s = _crmSeqById(id);
+        if (!s || _crmState.seqBusy) return;
+        const next = !s.active;
+        _crmState.seqBusy = id; _crmPaintSequences();
+        try {
+            const d = await _crmCall('sequence_toggle', { sequence_id: id, active: next });
+            s.active = !!d.sequence.active;
+            const approved = s.steps.filter(st => st.approval_state === 'approved').length;
+            showToast(s.active ? (approved ? s.name + ' is on. Approved steps can go out once sending is set up.' : s.name + ' is on, but no step is approved yet, so nothing can go out.') : s.name + ' is off. Nothing from it will be sent.');
+        } catch (e) {
+            _writeUiRecordFailure('leads', 'status', e, { id: String(id) });
+            showToast('Not changed. ' + _crmErrorText(e));
+        } finally {
+            _crmState.seqBusy = ''; _crmPaintSequences();
+            const sw = document.querySelector('[data-crm-seq="' + CSS.escape(s.key) + '"] .crm-switch'); if (sw) sw.focus({ preventScroll: true });
+        }
+    }
+
+    // ── Person panel: sequences ──────────────────────────────────────────
+    function _crmNextStepKey(en) {
+        const s = _crmSeqById(en.sequence_id);
+        const p = _crmState.person || {};
+        if (!s) return '';
+        const done = new Set([...(en.sent_step_keys || []), ...(en.skipped_step_keys || [])]);
+        const fits = st => st.audience === 'all' || (st.audience === 'lost_price' && p.lost_reason === 'price') || (st.audience === 'lost_trust' && p.lost_reason === 'trust') || (st.audience === 'lost_other' && p.lost_reason !== 'price' && p.lost_reason !== 'trust');
+        const next = s.steps.filter(st => fits(st) && !done.has(st.step_key)).sort((a, b) => a.position - b.position)[0];
+        return next ? next.step_key : '';
+    }
+    function _crmPanelSeqHtml() {
+        const ens = _crmState.enrolments || [];
+        const active = ens.filter(e => e.status === 'active');
+        const rows = active.map(en => {
+            const s = _crmSeqById(en.sequence_id);
+            const next = _crmNextStepKey(en);
+            return '<li class="crm-enrol"><div><span class="crm-row-name">' + _calEsc(s ? s.name : 'Sequence') + '</span><span class="crm-row-meta">' + (en.paused ? 'Paused' : 'Running') + ', ' + (en.sent_step_keys || []).length + ' sent</span></div>'
+                + '<span class="crm-row-actions">'
+                + '<button type="button" class="crm-btn" onclick="_crmEnrolmentOp(' + _jsAttrArg(en.id) + ',' + _jsAttrArg(en.paused ? 'resume' : 'pause') + ')">' + (en.paused ? 'Resume' : 'Pause') + '</button>'
+                + (next ? '<button type="button" class="crm-btn" onclick="_crmEnrolmentOp(' + _jsAttrArg(en.id) + ',\'skip\',' + _jsAttrArg(next) + ')">Skip next step</button>' : '')
+                + '<button type="button" class="crm-btn crm-btn-err" onclick="_crmEnrolmentOp(' + _jsAttrArg(en.id) + ',\'stop\')">Stop</button></span></li>';
+        }).join('');
+        const inIds = new Set(active.map(e => e.sequence_id));
+        const options = (_crmState.seqs || []).filter(s => !inIds.has(s.id)).map(s => ({ value: s.id, label: s.name }));
+        const add = options.length ? '<div class="crm-enrol-add">' + _svSelectHtml('crmPEnrolSeq', [{ value: '', label: 'Choose a sequence' }].concat(options), '', 'Choose a sequence') + '<button type="button" class="crm-btn" onclick="_crmEnrol()">Add to sequence</button></div>' : '';
+        return '<h3 class="crm-section-title">Sequences</h3>' + (rows ? '<ul class="crm-enrols">' + rows + '</ul>' : '<p class="crm-muted crm-gap">Not in a sequence.</p>') + add;
+    }
+    async function _crmEnrol() {
+        const p = _crmState.person;
+        const n = document.getElementById('crmPEnrolSeq');
+        const seq = n ? n.value : '';
+        if (!p || !seq) { showToast('Choose a sequence first.'); return; }
+        try {
+            await _crmCall('enrol', { person_id: p.id, sequence_id: seq });
+            showToast('Added to ' + ((_crmSeqById(seq) || {}).name || 'the sequence') + '.');
+        } catch (e) {
+            _writeUiRecordFailure('leads', 'update', e, { id: String(p.id) });
+            showToast(e.status === 409 ? 'They are already in that sequence.' : 'Not added. ' + _crmErrorText(e));
+        }
+        _crmRefreshTimeline(p.id);
+    }
+    async function _crmEnrolmentOp(enrolmentId, op, stepKey) {
+        const p = _crmState.person;
+        if (!p) return;
+        try {
+            await _crmCall('enrolment', { enrolment_id: enrolmentId, op, step_key: stepKey || undefined });
+            showToast({ pause: 'Paused', resume: 'Resumed', skip: 'Skipped the next step', stop: 'Stopped' }[op] || 'Done');
+        } catch (e) {
+            _writeUiRecordFailure('leads', 'update', e, { id: String(p.id) });
+            showToast(e.status === 409 ? 'That sequence has already finished or stopped.' : 'Not changed. ' + _crmErrorText(e));
+        }
+        _crmRefreshTimeline(p.id);
+    }
+
+    // ── Systems ──────────────────────────────────────────────────────────
+    async function _crmLoadSystems() {
+        if (_crmState.sysLoading) return;
+        _crmState.sysLoading = true;
+        const gen = _crmState.gen;
+        if (!_crmState.systems) { _crmState.sysError = ''; _crmPaintSystems(); }
+        try {
+            const d = await _crmCall('systems', {});
+            if (gen !== _crmState.gen) return;
+            _crmState.systems = { automations: d.automations || [], sequences: d.sequences || [] };
+            _crmState.sysError = '';
+        } catch (e) {
+            if (gen === _crmState.gen && !_crmState.systems) _crmState.sysError = _crmErrorText(e);
+        } finally {
+            _crmState.sysLoading = false;
+            if (gen === _crmState.gen) _crmPaintSystems();
+        }
+    }
+    function _crmSysTable(rows, caption) {
+        return '<table class="crm-sys"><caption class="crm-sr">' + _calEsc(caption) + '</caption><thead><tr><th scope="col">Automation</th><th scope="col">Trigger</th><th scope="col">Who gets it</th><th scope="col">Channel</th><th scope="col">From</th><th scope="col">Timing</th><th scope="col">In Leads timeline</th></tr></thead><tbody>'
+            + rows.map(r => '<tr data-crm-sys="' + _calEscAttr(r.id) + '"><th scope="row"><span class="crm-sys-name">' + _calEsc(r.name) + '</span>'
+                + (r.owner === 'SyncView sequence' ? '<span class="crm-badge' + (r.active ? ' crm-badge-ok' : '') + '">' + (r.active ? 'On' : 'Off') + '</span><span class="crm-badge' + (r.approved === r.steps ? ' crm-badge-ok' : ' crm-badge-warn') + '">' + r.approved + ' of ' + r.steps + ' approved</span>' : '<span class="crm-badge">n8n</span>') + '</th>'
+                + '<td data-label="Trigger">' + _calEsc(r.trigger) + '</td><td data-label="Who gets it">' + _calEsc(r.audience) + '</td><td data-label="Channel">' + _calEsc(CRM_CHANNELS[r.channel] || r.channel) + '</td>'
+                + '<td data-label="From">' + _calEsc(r.from) + '</td><td data-label="Timing">' + _calEsc(r.timing) + '</td>'
+                + '<td data-label="In Leads timeline">' + (r.logged ? '<span class="crm-badge crm-badge-ok">Logged</span>' : '<span class="crm-badge crm-badge-warn">Not yet</span>') + '</td></tr>').join('')
+            + '</tbody></table>';
+    }
+    function _crmPaintSystems() {
+        const el = document.getElementById('crmSystems');
+        if (!el) return;
+        const s = _crmState.systems;
+        if (!s && _crmLoadingOr(el, true, _crmState.sysError, '_crmLoadSystems()')) return;
+        el.innerHTML = '<p class="crm-intro">Everything that messages a lead, or reacts to one, and where it runs. Read only. The n8n list lives in one file in the repo (crm-automations.mjs); the sequences come from the Sequences tab.</p>'
+            + _crmSection('crmSysSeq', 'Sequences in Leads', 'Follow-ups set up in the Sequences tab', s.sequences.length ? _crmSysTable(s.sequences, 'Sequences in Leads') : '<p class="crm-none">No sequences yet.</p>')
+            + _crmSection('crmSysN8n', 'n8n automations', 'Running today, outside SyncView', _crmSysTable(s.automations, 'n8n automations'));
+    }
+
+    // ── Staff identity changes ───────────────────────────────────────────
+    /* Called by _syncviewStaffPurgeSensitiveState (100) on sign-out or a
+       change of staff member: drop everything this page holds about people,
+       and make every read still in flight land nowhere. */
+    function _crmPurgeSensitiveState() {
+        _crmState.gen++;
+        if (_crmState.openId) { _crmState.openId = ''; _crmState.person = null; _crmPaintPanel(); if (_crmPanelLayer) { try { svLayerRelease(_crmPanelLayer, { focus: false }); } catch (e) {} _crmPanelLayer = null; } }
+        if (_crmStepLayer) { try { svLayerRelease(_crmStepLayer, { focus: false }); } catch (e) {} _crmStepLayer = null; }
+        Object.assign(_crmState, {
+            loading: false, loaded: false, error: '', people: [], sources: [], truncated: false, events: [], source: null,
+            personLoading: false, personError: '', saving: false, dragId: '', drafts: {}, enrolments: [],
+            today: null, todayLoading: false, todayError: '', seqs: null, seqLoading: false, seqError: '', editStep: '', stepDrafts: {}, seqBusy: '',
+            systems: null, sysLoading: false, sysError: '', marking: ''
+        });
+        _crmState.filters = { lead_type: '', niche: '', owner: '', source_id: '', due_this_week: false };
+        const host = document.getElementById('crmPage');
+        if (host) host.innerHTML = '';
+    }
+    /* Called by _syncviewStaffRefreshChrome (100): re-render a mounted page
+       for whoever is signed in now (the gate for a non-admin). */
+    function _crmOnIdentity() {
+        const host = document.getElementById('crmPage');
+        if (!host || !host.isConnected) return;
+        const allowed = _crmCanUse();
+        const showingGate = !!host.querySelector('.crm-gate');
+        if (!allowed && !showingGate) { _crmPurgeSensitiveState(); _crmRenderPage(host); }
+        else if (allowed && (showingGate || !host.firstChild)) _crmRenderPage(host);
+    }
+    window._crmPurgeSensitiveState = _crmPurgeSensitiveState;
+    window._crmOnIdentity = _crmOnIdentity;
+    // Retry buttons name these through _crmLoadingOr's string argument.
+    Object.assign(window, { _crmLoadToday, _crmLoadSequences, _crmLoadSystems });
+
+    function _crmInjectStyles() {
+        if (document.getElementById('crmStyles')) return;
+        const style = document.createElement('style');
+        style.id = 'crmStyles';
+        style.textContent = ''
+            + '.crm-page{max-width:1480px;margin:0 auto;padding:4px 0 40px}'
+            + '.crm-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px}'
+            + '.crm-head h1,.crm-gate h1{margin:0;font-size:1.55rem;font-weight:800;letter-spacing:-0.03em;color:var(--text-primary)}'
+            + '.crm-sub{margin:4px 0 0;color:var(--text-muted);font-size:0.8rem}'
+            + '.crm-gate{max-width:440px;margin:60px auto;text-align:center}.crm-gate p{color:var(--text-secondary);font-size:0.86rem;line-height:1.5}'
+            + '.crm-btn{min-height:36px;border:1px solid var(--border);border-radius:10px;padding:7px 14px;background:var(--white);color:var(--text-secondary);font:inherit;font-size:0.76rem;font-weight:700;cursor:pointer}'
+            + '.crm-btn:hover{border-color:var(--text-muted);color:var(--text-primary)}.crm-btn:disabled{color:var(--disabled-fg);cursor:wait}'
+            + '.crm-btn:focus-visible,.crm-tab:focus-visible,.crm-chip:focus-visible,.crm-card:focus-visible,.crm-x:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}'
+            + '.crm-btn-primary{background:var(--text-primary);color:var(--text-inverse);border-color:var(--text-primary)}.crm-btn-primary:hover{color:var(--text-inverse);opacity:.9}'
+            + '.crm-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:14px;overflow-x:auto}'
+            + '.crm-tab{min-height:40px;border:0;background:transparent;padding:8px 12px;font:inherit;font-size:0.8rem;font-weight:700;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;white-space:nowrap}'
+            + '.crm-tab[aria-selected="true"]{color:var(--text-primary);border-bottom-color:var(--text-primary)}'
+            + '.crm-filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-bottom:12px}'
+            + '.crm-filter{display:flex;flex-direction:column;gap:4px;min-width:150px}.crm-filter-label{font-size:0.66rem;font-weight:700;color:var(--text-muted)}'
+            + '.crm-chip{min-height:36px;border:1px solid var(--border);border-radius:99px;padding:6px 14px;background:var(--white);font:inherit;font-size:0.74rem;font-weight:700;color:var(--text-secondary);cursor:pointer}'
+            + '.crm-chip.on{background:var(--text-primary);color:var(--text-inverse);border-color:var(--text-primary)}'
+            + '.crm-rail{display:flex;gap:2px;height:6px;border-radius:99px;overflow:hidden;margin:4px 0 14px;background:var(--surface-subtle)}.crm-rail-seg{min-width:4px}'
+            + '.crm-board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(232px,1fr);gap:10px;overflow-x:auto;padding-bottom:10px;scroll-snap-type:x proximity}'
+            + '.crm-col{background:var(--surface-subtle);border:1px solid var(--border-light);border-radius:14px;padding:8px;min-height:180px;scroll-snap-align:start;display:flex;flex-direction:column}'
+            + '.crm-col.drop{border-color:var(--text-primary);background:var(--surface-hover)}'
+            + '.crm-col-head{display:flex;align-items:center;gap:7px;padding:4px 4px 8px}.crm-col-head h2{margin:0;font-size:0.76rem;font-weight:800;color:var(--text-primary);flex:1}'
+            + '.crm-count{font-size:0.7rem;font-weight:700;color:var(--text-muted)}'
+            + '.crm-dot{width:8px;height:8px;border-radius:50%}'
+            + '.crm-col-body{display:flex;flex-direction:column;gap:7px;flex:1}.crm-col-empty{font-size:0.7rem;color:var(--text-muted);text-align:center;padding:18px 6px;border:1px dashed var(--border);border-radius:10px}'
+            + '.crm-card{background:var(--white);border:1px solid var(--border);border-radius:11px;padding:10px 11px;cursor:grab;box-shadow:var(--shadow-sm)}'
+            + '.crm-card:hover{border-color:var(--text-muted)}.crm-card.dragging{opacity:.5}'
+            + '.crm-card.is-overdue{border-left:3px solid var(--wl-overdue-accent)}'
+            + '.crm-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}'
+            + '.crm-card-name{font-size:0.82rem;font-weight:800;color:var(--text-primary);line-height:1.3;overflow-wrap:anywhere}'
+            + '.crm-card-meta{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:3px;font-size:0.7rem;color:var(--text-muted)}.crm-card-handle{color:var(--text-secondary);font-weight:600}'
+            + '.crm-card-step{display:flex;justify-content:space-between;gap:8px;margin-top:8px;padding-top:7px;border-top:1px solid var(--border-light);font-size:0.72rem;color:var(--text-secondary)}'
+            + '.crm-card-step b{white-space:nowrap;font-weight:700;color:var(--text-primary)}.crm-card-step.empty{color:var(--text-muted)}'
+            + '.crm-card-step.overdue b{color:var(--dn)}'
+            + '.crm-type{flex-shrink:0;font-size:0.6rem;font-weight:800;border-radius:6px;padding:2px 6px;background:var(--surface-subtle);color:var(--text-secondary)}'
+            + '.crm-type-dream100{background:var(--wl-progress-chip-bg);color:var(--wl-progress-chip-fg)}'
+            + '.crm-type-ad_lead{background:var(--wl-tweaks-chip-bg);color:var(--wl-tweaks-chip-fg)}'
+            + '.crm-type-past_call{background:var(--up-bg);color:var(--up)}'
+            + '.crm-stage-to_contact,.crm-stage-nurture{background:var(--text-muted)}.crm-stage-contacted,.crm-stage-replied{background:var(--wl-progress-accent)}'
+            + '.crm-stage-call1_booked,.crm-stage-call1_done,.crm-stage-call2_done{background:var(--wl-tweaks-accent)}'
+            + '.crm-stage-no_show,.crm-stage-lost{background:var(--dn)}.crm-stage-won{background:var(--up)}'
+            + '.crm-empty{text-align:center;padding:48px 16px;color:var(--text-secondary);font-size:0.86rem}'
+            + '.crm-stale{font-size:0.74rem;color:var(--dn);margin:0 0 8px}'
+            + '.crm-panel-scrim{position:fixed;inset:0;background:var(--overlay);z-index:880}'
+            + '.crm-panel{position:fixed;top:0;right:0;bottom:0;width:min(460px,100vw);background:var(--white);border-left:1px solid var(--border);box-shadow:var(--shadow-lg);z-index:890;display:flex;flex-direction:column}'
+            + '.crm-panel[hidden],.crm-panel-scrim[hidden]{display:none}'
+            + '.crm-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 12px;border-bottom:1px solid var(--border-light)}'
+            + '.crm-panel-head h2{margin:0;font-size:1.1rem;font-weight:800;color:var(--text-primary);overflow-wrap:anywhere}'
+            + '.crm-x{min-width:44px;min-height:44px;border:0;background:transparent;font-size:1.4rem;color:var(--text-muted);cursor:pointer;border-radius:10px}.crm-x:hover{color:var(--text-primary);background:var(--surface-hover)}'
+            + '.crm-panel-body{padding:14px 20px 28px;overflow-y:auto;flex:1}'
+            + '.crm-muted{margin:2px 0 0;color:var(--text-muted);font-size:0.76rem}'
+            + '.crm-contact{display:flex;flex-direction:column;gap:4px;font-size:0.8rem;margin-bottom:10px}.crm-contact a{color:var(--text-primary);text-decoration:none;font-weight:600}.crm-contact a:hover{text-decoration:underline}'
+            + '.crm-tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px}.crm-tags span{font-size:0.66rem;font-weight:700;padding:2px 7px;border-radius:99px;background:var(--surface-subtle);color:var(--text-secondary)}'
+            + '.crm-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:6px 0 16px}'
+            + '.crm-field{display:flex;flex-direction:column;gap:4px;font-size:0.68rem;font-weight:700;color:var(--text-muted);min-width:0}.crm-field-wide{grid-column:1/-1}.crm-field[hidden]{display:none}'
+            + '.crm-input{width:100%;box-sizing:border-box;min-height:38px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--field-bg);color:var(--text-primary);font:inherit;font-size:0.8rem;font-weight:500}'
+            + '.crm-input:focus{outline:none;border-color:var(--field-border-focus);background:var(--field-bg-focus)}'
+            + 'textarea.crm-input{resize:vertical;min-height:72px}'
+            + '.crm-form-actions{grid-column:1/-1;display:flex;justify-content:flex-end}'
+            + '.crm-note{display:flex;flex-direction:column;gap:6px;align-items:flex-end;margin-bottom:18px}.crm-note label{align-self:stretch}'
+            + '.crm-section-title{display:block;margin:0 0 6px;font-size:0.74rem;font-weight:800;color:var(--text-primary)}'
+            + '.crm-timeline{list-style:none;margin:0;padding:0 0 0 14px;border-left:2px solid var(--border-light)}'
+            + '.crm-ev{position:relative;padding:0 0 12px 4px}.crm-ev::before{content:"";position:absolute;left:-20px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--border);}'
+            + '.crm-ev-note::before{background:var(--text-primary)}.crm-ev-stage_changed::before{background:var(--wl-progress-accent)}'
+            + '.crm-ev-text{display:block;font-size:0.8rem;color:var(--text-primary);line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}'
+            + '.crm-ev-meta{display:block;font-size:0.66rem;color:var(--text-muted);margin-top:2px}'
+            + '.crm-btn-ok{background:var(--ok-solid-bg);color:var(--ok-solid-fg);border-color:var(--ok-solid-bg)}.crm-btn-ok:hover{background:var(--ok-solid-bg-hover);color:var(--ok-solid-fg)}'
+            + '.crm-btn-err{background:var(--err-solid-bg);color:var(--err-solid-fg);border-color:var(--err-solid-bg)}.crm-btn-err:hover{color:var(--err-solid-fg);opacity:.9}'
+            + '.crm-btn-ok:disabled,.crm-btn-err:disabled{background:var(--surface-subtle);border-color:var(--border);color:var(--disabled-fg)}'
+            + '.crm-intro{max-width:72ch;margin:0 0 14px;color:var(--text-secondary);font-size:0.8rem;line-height:1.5}'
+            + '.crm-strip{display:flex;flex-wrap:wrap;gap:6px 22px;padding:12px 14px;margin-bottom:14px;border:1px solid var(--border-light);border-radius:12px;background:var(--surface-subtle);font-size:0.78rem;color:var(--text-secondary)}'
+            + '.crm-strip b{font-size:1.05rem;font-weight:800;color:var(--text-primary);margin-right:2px}.crm-strip em{font-style:normal;font-weight:700;color:var(--dn)}'
+            + '.crm-today{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;align-items:start}'
+            + '.crm-sec{border:1px solid var(--border);border-radius:14px;background:var(--white);padding:12px 14px 6px;min-width:0;margin-bottom:14px}'
+            + '.crm-sec-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin-bottom:8px}.crm-sec-head h2{margin:0;font-size:0.9rem;font-weight:800;color:var(--text-primary)}.crm-sec-sub{font-size:0.7rem;color:var(--text-muted)}'
+            + '.crm-none{margin:4px 0 12px;font-size:0.78rem;color:var(--text-muted);line-height:1.5}'
+            + '.crm-rows{list-style:none;margin:0 0 6px;padding:0}'
+            + '.crm-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--border-light)}.crm-row:first-child{border-top:0}'
+            + '.crm-row.is-overdue{box-shadow:inset 3px 0 0 var(--wl-overdue-accent);padding-left:8px}'
+            + '.crm-row-main{flex:1;min-width:0;min-height:44px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:1px;border:0;background:transparent;padding:2px 4px;margin:0;text-align:left;font:inherit;cursor:pointer;border-radius:8px}'
+            + '.crm-row-main:hover{background:var(--surface-hover)}.crm-row-main:focus-visible,.crm-switch:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}'
+            + '.crm-row-name{font-size:0.8rem;font-weight:700;color:var(--text-primary);overflow-wrap:anywhere}.crm-row-meta{font-size:0.7rem;color:var(--text-muted);overflow-wrap:anywhere}'
+            + '.crm-row-due{font-size:0.72rem;font-weight:700;color:var(--text-primary);white-space:nowrap}.crm-row.is-overdue .crm-row-due{color:var(--dn)}'
+            + '.crm-row-time{width:62px;flex-shrink:0;font-size:0.74rem;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums}'
+            + '.crm-row-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}'
+            + '.crm-group{margin-bottom:8px}.crm-group-head{margin:6px 0 2px;font-size:0.72rem;font-weight:800;color:var(--text-secondary)}.crm-group-head span{color:var(--text-muted);font-weight:700;margin-left:4px}'
+            + '.crm-badge{display:inline-flex;align-items:center;flex-shrink:0;font-size:0.62rem;font-weight:800;border-radius:6px;padding:2px 7px;background:var(--surface-subtle);color:var(--text-secondary);white-space:nowrap}'
+            + '.crm-badge-ok{background:var(--up-bg);color:var(--up)}.crm-badge-warn{background:var(--wl-tweaks-chip-bg);color:var(--wl-tweaks-chip-fg)}'
+            + '.crm-seqs{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px;align-items:start}'
+            + '.crm-seq{border:1px solid var(--border);border-radius:14px;background:var(--white);padding:14px 16px 8px;min-width:0}.crm-seq.is-on{border-color:var(--up)}'
+            + '.crm-seq-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.crm-seq-title{min-width:0}.crm-seq-title h2{margin:0;font-size:1rem;font-weight:800;color:var(--text-primary)}.crm-seq-title p{margin:3px 0 0;font-size:0.74rem;color:var(--text-muted);line-height:1.45}'
+            + '.crm-seq-facts{display:flex;flex-wrap:wrap;gap:4px 16px;margin:10px 0 6px;font-size:0.74rem;color:var(--text-secondary)}.crm-seq-facts b{color:var(--text-primary);font-weight:800}'
+            + '.crm-switch{display:inline-flex;align-items:center;gap:8px;min-height:44px;border:0;background:transparent;padding:0 2px;font:inherit;font-size:0.74rem;font-weight:800;color:var(--text-secondary);cursor:pointer;flex-shrink:0}'
+            + '.crm-switch-track{position:relative;width:38px;height:22px;border-radius:99px;background:var(--border);transition:background .15s}.crm-switch-knob{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--white);box-shadow:var(--shadow-sm);transition:transform .15s}'
+            + '.crm-switch[aria-checked="true"] .crm-switch-track{background:var(--up)}.crm-switch[aria-checked="true"] .crm-switch-knob{transform:translateX(16px)}.crm-switch[aria-checked="true"]{color:var(--text-primary)}.crm-switch:disabled{cursor:wait}'
+            + '.crm-steps{list-style:none;margin:0;padding:0}'
+            + '.crm-step{padding:10px 0;border-top:1px solid var(--border-light)}'
+            + '.crm-step-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.crm-step-when{font-size:0.74rem;font-weight:800;color:var(--text-primary);margin-right:auto}'
+            + '.crm-chan{font-size:0.62rem;font-weight:800;border-radius:6px;padding:2px 7px;background:var(--wl-progress-chip-bg);color:var(--wl-progress-chip-fg)}.crm-chan-email{background:var(--surface-subtle);color:var(--text-secondary)}'
+            + '.crm-aud{font-size:0.66rem;font-weight:700;color:var(--text-secondary)}.crm-ver{font-size:0.62rem;font-weight:700;color:var(--text-muted)}'
+            + '.crm-step-subject{margin:7px 0 0;font-size:0.78rem;font-weight:700;color:var(--text-primary)}'
+            + '.crm-step-text{margin:5px 0 0;font-size:0.78rem;line-height:1.5;color:var(--text-secondary);white-space:pre-wrap;overflow-wrap:anywhere;max-width:68ch}'
+            + '.crm-step-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:6px;margin-top:8px}.crm-step-actions .crm-muted{margin-right:auto}'
+            + '.crm-step-editor{display:flex;flex-direction:column;gap:8px;margin-top:8px}.crm-hint{margin:0;font-size:0.68rem;color:var(--text-muted);line-height:1.45}'
+            + '.crm-enrols{list-style:none;margin:0 0 10px;padding:0}.crm-enrol{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px;padding:7px 0;border-top:1px solid var(--border-light)}.crm-enrol>div{display:flex;flex-direction:column;min-width:0}'
+            + '.crm-enrol-add{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:18px}.crm-enrol-add>*:first-child{flex:1;min-width:180px}.crm-gap{margin-bottom:8px}'
+            + '.crm-sys{width:100%;border-collapse:collapse;font-size:0.74rem;margin-bottom:8px}'
+            + '.crm-sys th,.crm-sys td{text-align:left;vertical-align:top;padding:8px 10px 8px 0;border-top:1px solid var(--border-light);color:var(--text-secondary);line-height:1.4}'
+            + '.crm-sys thead th{border-top:0;font-size:0.66rem;font-weight:800;color:var(--text-muted)}.crm-sys tbody th{min-width:170px}'
+            + '.crm-sys-name{display:block;font-weight:800;color:var(--text-primary);margin-bottom:4px}.crm-sys tbody th .crm-badge{margin:0 4px 2px 0}'
+            + '.crm-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}'
+            + '@media (max-width:900px){.crm-sys thead{display:none}.crm-sys,.crm-sys tbody,.crm-sys tr,.crm-sys th,.crm-sys td{display:block;width:100%}.crm-sys tr{border-top:1px solid var(--border);padding:10px 0}.crm-sys th,.crm-sys td{border:0;padding:2px 0}.crm-sys td::before{content:attr(data-label) ": ";font-weight:700;color:var(--text-muted)}}'
+            + '@media (max-width:720px){.crm-seqs,.crm-today{grid-template-columns:minmax(0,1fr)}.crm-row{flex-wrap:wrap}.crm-row-actions{width:100%}.crm-row-actions .crm-btn{flex:1;min-height:44px}}'
+            + '@media (prefers-reduced-motion:reduce){.crm-switch-track,.crm-switch-knob{transition:none}}'
+            + '@media (max-width:720px){.crm-head{align-items:flex-start}.crm-filter{min-width:calc(50% - 5px);flex:1}.crm-board{grid-auto-columns:82vw}.crm-panel{width:100vw;border-left:0}.crm-form{grid-template-columns:1fr}}'
+            + '@media (prefers-reduced-motion:reduce){.crm-board{scroll-behavior:auto}}';
+        document.head.appendChild(style);
+    }
+
+    function _crmMount(el) { _crmRenderPage(el); _crmWire(el); }
+    window._crmMountPage = _crmMount;
+    // A reload on /leads can reach navTo('leads') before this file has run: fill the empty shell now.
+    {
+        const lateShell = document.getElementById('crmPage');
+        if (lateShell && !lateShell.firstChild) _crmMount(lateShell);
+    }
+
+    // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
+    Object.assign(window, {
+        _crmAddNote, _crmApproveStep, _crmClosePanel, _crmCloseStepEditor, _crmEditStep, _crmEnrol,
+        _crmEnrolmentOp, _crmLoad, _crmMarkCall, _crmOpenPersonById, _crmSavePanel, _crmSaveStep, _crmSetTab,
+        _crmSignIn, _crmStepCount, _crmToggleDue, _crmToggleSequence
+    });

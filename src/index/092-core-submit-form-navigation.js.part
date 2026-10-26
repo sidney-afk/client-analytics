@@ -827,6 +827,12 @@ import { svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics } from './188-rev
             content.innerHTML = '<section class="msg-page" id="msgPage" aria-label="Messages"></section>';
             if (typeof window._msgMountPage === 'function') window._msgMountPage(document.getElementById('msgPage'));
             window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'leads') {
+            // Leads CRM (328-crm-leads, docs/features/CRM_LEADS.md): its own page, linked from Kasper > More.
+            pageTop.style.display = 'none';
+            content.innerHTML = '<section class="crm-page-host" id="crmPage" aria-label="Leads"></section>';
+            if (typeof window._crmMountPage === 'function') window._crmMountPage(document.getElementById('crmPage'));
+            window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'today') {
             pageTop.style.display = 'none';
             content.innerHTML = renderTodayView();

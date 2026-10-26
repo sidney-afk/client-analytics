@@ -170,6 +170,7 @@ and SMM weekly reports.
 | `323-kasper-dashboard-tail.js` | `stale` | `CA_READ_URL` POST | read |  | Client profile read. |
 | `324-client-onboarding-panel.js` | `send` | `url` POST | reports | `_cbPost` | Onboarding checklist and HubSpot refresh. A checklist step change is recorded as client_onboarding_set_step; the checklist read and the HubSpot refresh are reads sent as POST and are not recorded. |
 | `326-core-messages-inbox.js` | `_msgCall` | `MSG_URL` POST | background |  | Messages inbox: 'inbox' lists conversations (a read) and 'inbox_mark' stores only this person's read mark, never card data; a failed mark leaves the conversation unread. A reply is saved by _calAppendComment, which reports. |
+| `328-crm-leads.js` | `_crmCall` | `CRM_EF_URL` POST | reports-in-callers | `via _crmSave`, `_crmAddNote`, `_crmMarkCall`, `_crmSaveStep`, `_crmApproveStep`, `_crmToggleSequence`, `_crmEnrol`, `_crmEnrolmentOp` | Leads CRM. list, get, today, sequences and systems are reads; update is recorded as status (drag) or update (panel), note as comment, call_outcome / step_approve / sequence_toggle as status, step_edit / enrol / enrolment as update. |
 <!-- inventory:end -->
 
 ## 5. Proof

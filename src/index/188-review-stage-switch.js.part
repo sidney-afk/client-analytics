@@ -59,6 +59,11 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
                                     only (767 px and narrower), the same design made smoother. Same listing rule (id or
                                     full name of the signed-in staff member). Never the client link. Missing, unreadable
                                     or the wrong shape: every phone page exactly as it was. Desktop never changes.
+         frame_comments_in_notes_staff { "staff": [...] }: the Frame.io comments on a card's video in its Notes even
+                                    without the player, read lazily after Notes opens and kept for five minutes;
+                                    a failed read is one muted line (session Framenotes, 2026-10-26, 187/190). Same
+                                    listing rule (id or full name of the signed-in staff member). Never the client
+                                    link. Missing, unreadable or the wrong shape: Notes exactly as it was.
          review_client_polish       { "clients": [...] } or { "all": true }: the client review page's polish (session Porch,
                                     2026-10-24): Approve morphs into a spinner then a check, a sent change keeps its box
                                     open and empty for the next one, a spinner instead of any "Sending" text, a cross on
@@ -70,10 +75,10 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
                                     { "hidden": true } or any other shape: Analytics is hidden (owner, 2026-10-17
                                     23:20, session Curtain Seven). Read at boot, in the same request as the switches.
        The lists live only in the database, never in this repository. */
-    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'caption_history_staff', 'unread_badges_v2', 'review_client_polish', 'phone_polish_staff', 'thumbnail_title_buttons_staff'];
+    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'caption_history_staff', 'unread_badges_v2', 'review_client_polish', 'phone_polish_staff', 'frame_comments_in_notes_staff', 'thumbnail_title_buttons_staff'];
     const RS_FLAG_TIMEOUT_MS = 4000;
     const RS_FLAG_RETRY_MS = 30000;
-    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), unread: new Set(), phone: new Set(), cpAll: false, cp: new Set(), help: '', analytics: false };
+    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), unread: new Set(), phone: new Set(), fnotes: new Set(), cpAll: false, cp: new Set(), help: '', analytics: false };
     let _rsFlagPromise = null;
     let _rsFlagTriedAt = 0;
     let _rsFlagFailed = false;
@@ -101,6 +106,8 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         const ttb = okObj(tt) && Array.isArray(tt.staff) ? tt.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
         const pp = by.phone_polish_staff;
         const phone = okObj(pp) && Array.isArray(pp.staff) ? pp.staff.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*').map(x => x.trim().toLowerCase()) : [];
+        const fn = by.frame_comments_in_notes_staff;
+        const fnotes = okObj(fn) && Array.isArray(fn.staff) ? fn.staff.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*').map(x => x.trim().toLowerCase()) : [];
         const cpv = by.review_client_polish;
         const cpMembers = okObj(cpv) ? (_calRuntimeFlagRawMembers(cpv) || []) : [];
         const h = by.review_help_video_url;
@@ -117,6 +124,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             fast: new Set(fast),
             unread: new Set(unread),
             phone: new Set(phone),
+            fnotes: new Set(fnotes),
             capHist: new Set(capHist),
             ttb: new Set(ttb),
             cpAll: okObj(cpv) && cpv.all === true,
@@ -138,7 +146,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             if (!Array.isArray(rows)) throw new Error('shape');
             const next = _rsParse(rows);
             // Analytics shown, or hidden where this browser last saw it shown: the open page draws again too.
-            const changed = next.all || next.clients.size || next.staff.size || next.calm.size || next.calmAll || next.layout2.size || next.fast.size || next.capHist.size || next.ttb.size || next.unread.size || next.phone.size || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
+            const changed = next.all || next.clients.size || next.staff.size || next.calm.size || next.calmAll || next.layout2.size || next.fast.size || next.capHist.size || next.ttb.size || next.unread.size || next.phone.size || next.fnotes.size || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
             _rsFlags = next;
             _rsHintSave(next);
             _wlCalmHintSave(next);
@@ -149,7 +157,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             // Something switched on: the open page draws again, now as the new page.
             if (changed) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
         } catch (e) {
-            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), unread: new Set(), phone: new Set(), cpAll: false, cp: new Set(), help: '', analytics: false };
+            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), unread: new Set(), phone: new Set(), fnotes: new Set(), cpAll: false, cp: new Set(), help: '', analytics: false };
             _rsFlagFailed = true;
             _rsAnalyticsSync();
             svPhonePolishSync();
@@ -480,6 +488,14 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         if (!_rsFlags.loaded || _isClientLink || !_rsFlags.unread.size) return false;
         return _rsListed(_rsFlags.unread);
     }
+    /* FRAME COMMENTS IN NOTES (session Framenotes, 2026-10-26, 187/190): on only for the staff members
+       frame_comments_in_notes_staff names, by id or full name. Until the switch has been read, or the server has said
+       who is signed in: no. Never the client link. */
+    function svFrameCommentsInNotesOn() {
+        _rsPrime();
+        if (!_rsFlags.loaded || _isClientLink || !_rsFlags.fnotes || !_rsFlags.fnotes.size) return false;
+        return _rsListed(_rsFlags.fnotes);
+    }
     /* KASPER'S REVIEW SESSION WITH THE CLIENT PAGE'S POLISH (session Porch, round 3, 2026-10-25): Approve shows its
        check at the click, a sent change keeps its box open, "Sent" at once, a spinner only after 1.2 s, replies threaded
        under what they answer. Only where his Review Session is on (review_stage_kasper_staff) and the signed-in staff
@@ -750,4 +766,4 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         }
     });
 export { svUnreadBadgesOn, svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svCaptionHistoryOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLayout2On, svRsKasperBoot, svRsKasperFast, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsKasperPending, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };
-export { svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn };
+export { svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn, svFrameCommentsInNotesOn };

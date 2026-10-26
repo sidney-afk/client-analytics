@@ -1,6 +1,6 @@
 import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { dismissConfirm, showConfirm, showNotify, showToast, svBusyHtml, svBusyOn, svSpinHtml } from './040-shared-briefs.js';
-import { svFrameFeed, svFrameFlagWait, svFrameIoLinkHtml, svFrameStageMount, svFrameWarm, svFrameStageUnmount, svFrameTileAttrs, svFrameTileLabelHtml, svFrameTime } from './187-frame-viewer.js';
+import { svFrameFeed, svFrameNotesFeed, svFrameNotesLink, svFrameNotesUse, svFrameFlagWait, svFrameIoLinkHtml, svFrameStageMount, svFrameWarm, svFrameStageUnmount, svFrameTileAttrs, svFrameTileLabelHtml, svFrameTime } from './187-frame-viewer.js';
 import { _svPhoneNotesPresentation } from './095-shared-client.js';
 import {
   CAL_COMPONENTS, CAL_REVIEW_COMPONENTS, _calClearStaleApprovals, _calComponentsFor, _prodCrosswalkInFlight,
@@ -47,7 +47,7 @@ import { _calCrqBegin, _calCrqDone, _calCrqFailed, _calCrqHeld, _calCrqResend, _
 import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodComments, _prodCommentsEmptyFeedHtml, _prodCommentsFeedHasRows, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-onboarding-staff-controls.js';
-import { svRsCalOn, svRsCalPending, svRsCalSync, svRsClientReviewOn, svUnreadBadgesOn } from './188-review-stage-switch.js';
+import { svFrameCommentsInNotesOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientReviewOn, svUnreadBadgesOn } from './188-review-stage-switch.js';
 import { _calLoaderHtml } from './133-core-loading-skeletons.js';
 import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-badges.js';
     function _calHasMedia(p) {
@@ -2664,6 +2664,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         if (!ovl) return;
         ovl.classList.add('open');
         document.body.classList.add('cal-modal-open');
+        svFrameNotesUse(svFrameCommentsInNotesOn());   // 187 keeps a card's Frame.io comments for 5 minutes (switch on only)
         _calNotesStageSync(post);
         _calCommentsLayerOpen(pid);
         const _calNm = document.getElementById('calCommentsModal');
@@ -2760,6 +2761,14 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
     window.addEventListener('sv-frame-feed', (e) => {
         const pid = _calOpenCommentsPid;
         if (!pid || (e && e.detail && e.detail.pid && e.detail.pid !== pid)) return;
+        // A Frame.io comments read for a link (frame_comments_in_notes_staff): only the open card's own link redraws.
+        if (e && e.detail && e.detail.link && e.detail.link !== svFrameNotesLink(calState.posts.find(p => p.id === pid))) return;
+        _calCaptureModalDrafts();
+        _calRenderCommentsModal({ keepFocus: true });
+    });
+    // The staff switches came in (188): a Notes view already open picks up frame_comments_in_notes_staff.
+    window.addEventListener('sv-review-stage-switch', () => {
+        if (!_calOpenCommentsPid || _isClientLink || !svFrameCommentsInNotesOn()) return;
         _calCaptureModalDrafts();
         _calRenderCommentsModal({ keepFocus: true });
     });
@@ -2876,7 +2885,10 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         });
         // The Frame.io comments on the card's video (staff, with the player open): one conversation with the notes,
         // in time order, each row marked "Frame.io". Read only: they are answered in Frame.io.
-        const fio = svFrameFeed(pid);
+        // Switch frame_comments_in_notes_staff: without the player, the same rows come from 187's kept read.
+        const fioNotesOn = svFrameCommentsInNotesOn();
+        svFrameNotesUse(fioNotesOn);
+        const fio = svFrameFeed(pid) || (fioNotesOn ? svFrameNotesFeed(post) : null);
         if (fio && fio.state === 'ok') fio.comments.forEach(c => {
             const id = 'fio_' + String(c.id).replace(/[^A-Za-z0-9_-]/g, '');
             const root = { id, _fio: true, author: c.author, body: c.text, created_at: c.created_at, done: c.done, time: c.time };
@@ -2893,7 +2905,9 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
 
         const renderFioRow = (c, isReply) => {
             const t = (!isReply && c.time != null && isFinite(c.time)) ? Math.max(0, Number(c.time)) : null;
-            const tc = t == null ? '' : `<button type="button" class="cal-cm-tc" onclick="svFrameSeek(${t})" title="Show this moment in the video">${svFrameTime(t)}</button>`;
+            const tc = t == null ? '' : (fio && fio.seekable === false)
+                ? `<span class="cal-cm-tc is-static" title="The moment in the video">${svFrameTime(t)}</span>`
+                : `<button type="button" class="cal-cm-tc" onclick="svFrameSeek(${t})" title="Show this moment in the video">${svFrameTime(t)}</button>`;
             const doneTag = (!isReply && c.done) ? `<span class="cal-cm-done-tag">Resolved</span>` : '';
             return `<div class="cal-cm-row is-frameio${isReply ? ' is-reply' : ''}" data-cm-row="${c.id}"${t == null ? '' : ` data-fio-t="${t}"`}>
                 <div class="cal-cm-avatar is-frameio">${c.author ? _calEsc(_calAvatarInitial(c.author)) : '?'}</div>
@@ -2987,7 +3001,12 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
                 : `<div class="cal-comments-empty"><div class="cal-comments-empty-title">No notes yet</div>Start the conversation — type below.</div>`);
         // While the Frame.io comments are on their way, rows shaped like the final ones stand in for them; no box.
         let fioTail = '';
-        if (fio && fio.state === 'loading') fioTail = _calFioSkeletonHtml();
+        // Without the player (frame_comments_in_notes_staff) nothing stands in while they load (Notes paints as it
+        // always did), and a failed read is one muted line.
+        const fioQuiet = !!fio && fio.seekable === false;
+        if (fio && fio.state === 'loading' && fioQuiet) fioTail = '';
+        else if (fio && fio.state === 'error' && fioNotesOn) fioTail = '<div class="cal-cm-fio-note is-quiet" role="status">Frame.io comments could not be loaded.</div>';
+        else if (fio && fio.state === 'loading') fioTail = _calFioSkeletonHtml();
         else if (fio && fio.state === 'error') fioTail = '<div class="cal-cm-fio-note">The Frame.io comments could not be loaded. <button type="button" class="cal-cm-fio-retry" onclick="svFrameFeedRetry()">Try again</button></div>';
         else if (fio) {
             if (fio.partial) fioTail += '<div class="cal-cm-fio-note">Some Frame.io comments could not be loaded just now.</div>';
@@ -2995,7 +3014,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
             if (fio.namesPartial) fioTail += '<div class="cal-cm-fio-note">Some Frame.io reply names are not shown.</div>';
         }
         // No notes yet and the Frame.io comments still loading: their stand-in rows say enough, no empty message.
-        if (fio && fio.state === 'loading') emptyMsg = '';
+        if (fio && fio.state === 'loading' && !fioQuiet) emptyMsg = '';
         const threadsHtml = roots.map(renderThread).join('');
         // A reply whose thread is not on screen (resolved, or history hidden)
         // still shows, on its own, so it is never out of sight while waiting.

@@ -454,6 +454,33 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (res.status === 200 && j && j.ok && Array.isArray(j.comments)) return { ok: true, data: j };
         return { ok: false };
     }
+    /* FRAME COMMENTS IN NOTES (switch frame_comments_in_notes_staff, session Framenotes, 2026-10-26). For the staff
+       the switch names, a card's Frame.io comments reach its Notes even when the Notes view has no player (the player
+       switch off for its client, or not read yet), and every read of a link's comments, from a door, the player or
+       Notes, is kept for five minutes, so opening the same card again shows them at once and asks Frame.io nothing.
+       A failed read is kept for a minute only. 190 says whether the switch is on (svFrameNotesUse); off, every read
+       below is exactly the one it always was. Read only, through frameio-view as before: no Frame.io token here. */
+    const FV_NOTES_TTL_MS = 5 * 60 * 1000;
+    const FV_NOTES_FAIL_TTL_MS = 60 * 1000;
+    const FV_NOTES = new Map();   // link -> { at, p (the read's promise), res (its answer, once in) }
+    let _fvNotesOn = false;
+    function svFrameNotesUse(on) { _fvNotesOn = !!on && !_isClientLink; }
+    function _fvNotesFresh(e) { return !!e && Date.now() - e.at < (e.res && !e.res.ok ? FV_NOTES_FAIL_TTL_MS : FV_NOTES_TTL_MS); }
+    // A link's comments: the kept read while the switch is on and it is fresh, else a new one (kept for next time).
+    function _fvCommentsFor(link, fresh) {
+        const hit = FV_NOTES.get(link);
+        if (_fvNotesOn && !fresh && _fvNotesFresh(hit)) return hit.p;
+        const e = { at: Date.now(), p: null, res: null };
+        e.p = _fvFetchComments(link).then((res) => {
+            e.res = res;
+            // A Notes view without the player waiting on this link draws again (190 checks the link is its card's).
+            if (_fvNotesOn) { try { window.dispatchEvent(new CustomEvent('sv-frame-feed', { detail: { link } })); } catch (err) {} }
+            return res;
+        });
+        FV_NOTES.set(link, e);
+        if (FV_NOTES.size > 60) FV_NOTES.delete(FV_NOTES.keys().next().value);
+        return e.p;
+    }
     function _fvDispose(rec) {
         if (rec && rec.warm) { _fvStop(rec.warm); rec.warm = null; }
     }
@@ -492,7 +519,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const cardId = el.getAttribute('data-fv-card') || '';
         const go = () => {
             const rec = _fvGetVideo(link, cardId, false);
-            if (!_isClientLink && !rec.comments) rec.comments = _fvFetchComments(link);
+            if (!_isClientLink && !rec.comments) rec.comments = _fvCommentsFor(link);
             if (!_isClientLink && cardId && typeof window.svCardNotesWarm === 'function') window.svCardNotesWarm(cardId);
         };
         clearTimeout(_fvIntentTimer);
@@ -505,7 +532,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const link = svFrameStageFor(post);
         if (!link) return false;
         const rec = _fvGetVideo(link, post.id, false);
-        if (!rec.comments) rec.comments = _fvFetchComments(link);
+        if (!rec.comments) rec.comments = _fvCommentsFor(link);
         return true;   // a warm-up started (false: the switch does not enable this card's client)
     }
     function svFrameTime(sec) {
@@ -815,7 +842,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         FV_STAGE.rec = rec;
         if (!_isClientLink) {
             // The comments are asked for beside the video (or already were, when the pointer reached the door first).
-            if (!rec.comments || fresh) rec.comments = _fvFetchComments(link);
+            // A fresh address (the old one expired, or Try again) asks for the comments again too, unless they are kept
+            // (frame_comments_in_notes_staff): the comments did not expire with the address.
+            if (!rec.comments || fresh) rec.comments = _fvCommentsFor(link, !!fresh && !_fvNotesOn);
             if (fresh || !FV_STAGE.frio) { FV_STAGE.frio = null; _fvFeedChanged(); }
             rec.comments.then((c) => { if (seq !== FV_STAGE.seq) return; FV_STAGE.frio = c; _fvStageMarkers(); _fvFeedChanged(); });
         }
@@ -913,7 +942,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        open card has no player. The Notes view draws them as rows like its own notes and re-draws on 'sv-frame-feed'. */
     function svFrameFeed(pid) {
         if (_isClientLink || !FV_STAGE.host || FV_STAGE.pid !== pid) return null;
-        const f = FV_STAGE.frio;
+        return _fvFeedOf(FV_STAGE.frio);
+    }
+    function _fvFeedOf(f) {
         if (!f) return { state: 'loading', comments: [] };
         if (!f.ok) return { state: 'error', comments: [] };
         const d = f.data;
@@ -927,11 +958,37 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             partial: !!d.comments_error, truncated: !!d.comments_truncated, namesPartial: !!d.reply_names_partial,
         };
     }
+    /* The same rows for a Notes view WITHOUT the player (switch frame_comments_in_notes_staff, 190 decides). null when
+       the card has no Frame.io link the function understands, or for a client link. Nothing is asked for while Notes
+       draws: the read starts once the dialog has painted (two frames later), and its answer redraws the open card
+       through 'sv-frame-feed'. The rows carry seekable: false, since there is no player to move. */
+    function svFrameNotesLink(post) { return (_isClientLink || !_fvNotesOn || !post) ? '' : _fvLinkOf(post.asset_url); }
+    function svFrameNotesFeed(post) {
+        if (_isClientLink || !_fvNotesOn || !post) return null;
+        const link = _fvLinkOf(post.asset_url);
+        if (!link) return null;
+        const hit = FV_NOTES.get(link);
+        if (!_fvNotesFresh(hit)) {
+            if (!hit || hit.res) {
+                // A placeholder so a redraw before the read starts does not schedule a second one.
+                const wait = { at: Date.now(), p: null, res: null, waiting: true };
+                FV_NOTES.set(link, wait);
+                const go = () => {
+                    if (FV_NOTES.get(link) !== wait) return;
+                    _fvCommentsFor(link, true);
+                };
+                const raf = window.requestAnimationFrame || ((fn) => setTimeout(fn, 16));
+                raf(() => raf(() => setTimeout(go, 0)));
+            }
+            return Object.assign(_fvFeedOf(null), { seekable: false });
+        }
+        return Object.assign(_fvFeedOf(hit.res), { seekable: false });
+    }
     function svFrameFeedRetry() {
         const rec = FV_STAGE.rec;
         if (!FV_STAGE.host || _isClientLink || !rec) return;
         const seq = FV_STAGE.seq;
-        rec.comments = _fvFetchComments(FV_STAGE.link);
+        rec.comments = _fvCommentsFor(FV_STAGE.link, true);
         FV_STAGE.frio = null; _fvFeedChanged();
         rec.comments.then((c) => { if (seq !== FV_STAGE.seq) return; FV_STAGE.frio = c; _fvStageMarkers(); _fvFeedChanged(); });
     }
@@ -945,5 +1002,5 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svFrameThumbOpen, svFrameTileOpen
     });
 export {
-  svFrameFeed, svFrameFlagWait, svFrameIoLinkHtml, svFramePlayIconHtml, svFrameStageMount, svFrameStagePending, svFrameStageUnmount, svFrameSyncPlayIcon, svFrameThumbAttrs, svFrameTileAttrs, svFrameTileLabelHtml, svFrameWarm, svFrameWatchBtnHtml, svFrameTime
+  svFrameFeed, svFrameNotesFeed, svFrameNotesLink, svFrameNotesUse, svFrameFlagWait, svFrameIoLinkHtml, svFramePlayIconHtml, svFrameStageMount, svFrameStagePending, svFrameStageUnmount, svFrameSyncPlayIcon, svFrameThumbAttrs, svFrameTileAttrs, svFrameTileLabelHtml, svFrameWarm, svFrameWatchBtnHtml, svFrameTime
 };

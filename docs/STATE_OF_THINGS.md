@@ -18,6 +18,14 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (2026-10-26): Frame.io comments in Notes without the player (session Framenotes, OPEN_REPAIRS 509, PR open)
+
+- Staff behind the new switch `frame_comments_in_notes_staff` (`{"staff": [...]}`, row NOT created yet) see a card's
+  Frame.io comments in its Notes even without the player, read after Notes paints and kept five minutes; a failed read
+  is one muted line. With the player it was already live since #2120 (Cinema); that path now keeps its read too.
+  Never the client link. Comments on older versions of a Frame.io version stack are still not shown (function change).
+  Test: `node test/frame-comments-in-notes-browser.js`.
+
 ## Latest (SyncView stand-in, 2026-10-26): card saver rolled back; morning robots green again
 
 - **Card saver rolled back (15:33 UTC), waiting for the owner's go to re-widen.** `calendar_card_write_clients` is

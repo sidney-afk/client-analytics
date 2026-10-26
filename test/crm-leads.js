@@ -93,6 +93,9 @@ function ok(cond, msg) { assert.ok(cond, msg); passed++; }
   ok(one.instagram_handle === 'one.example' && one.tags.includes('bench') && one.tags.includes('near-miss') && one.phone === '555 010 0001', 'handle cleaned, bench and near-miss tagged, duplicate row fills the blank phone');
   ok(planImport(c, [], csv, {}).counts.no_lead_type === 4, 'no lead type, no import');
   ok(plan.creates.every((p) => !('stage' in p) && !('owner' in p)), 'import never sets stage or owner');
+  const { parseRestBody } = require('../scripts/crm-import.js');
+  ok(parseRestBody('') === null && parseRestBody('  \n') === null, 'an empty REST body (204, or 201 with return=minimal) is null, not a parse error');
+  ok(Array.isArray(parseRestBody('[{"id":"x"}]')) && parseRestBody('{"a":1}').a === 1, 'a JSON REST body still parses');
   const importSrc = read('scripts/crm-import.js');
   ok(!/console\.log\([^)]*(email|display_name|instagram_handle|phone)\b/.test(importSrc), 'import prints counts, never row values');
   ok(/--apply/.test(importSrc) && /dry run/.test(importSrc), 'import is a dry run unless --apply');
@@ -118,7 +121,8 @@ function ok(cond, msg) { assert.ok(cond, msg); passed++; }
   // ── Edge Function ──
   const ef = read('supabase/functions/crm-leads/index.ts');
   ok(/authorizeStaffKey\(/.test(ef) && /leadsAllowed\(role, actor\)/.test(ef), 'function checks the staff key, then the leads grant');
-  ok(ef.indexOf('leadsAllowed(role, actor)') < ef.indexOf('createClient('), 'access is decided before any database client exists');
+  ok(ef.indexOf('leadsAllowed(role, actor)') < ef.indexOf('createClient(', ef.indexOf('authorizeStaffKey(key')), 'access is decided before any database client exists');
+  ok(ef.indexOf('serverKeyOk(req)') < ef.indexOf('createClient(') && ef.indexOf('createClient(') < ef.indexOf('authorizeStaffKey(key'), 'the server actions decide access before their database client too');
   ok(/auth\.via !== "role"/.test(ef), 'only a role key, never a legacy secret');
   ok(/rpc\("crm_apply_change"/.test(ef) && !/\.from\("crm_people"\)\.update/.test(ef) && !/\.from\("crm_events"\)\.insert/.test(ef), 'every change goes through the one transactional apply');
   ok(/"conflict", current/.test(ef) && /409/.test(ef), 'a lost race answers 409 with the current row');
@@ -132,7 +136,19 @@ function ok(cond, msg) { assert.ok(cond, msg); passed++; }
   ok(!/\/rest\/v1\//.test(frag), 'page never reads the tables directly');
   ok(/svLayerOpen\(\{ key: 'crm-person'/.test(frag), 'person panel joins the layer list');
   ok(/CRM_LEADS_MEMBER_GRANTS = \[\]/.test(frag), 'browser grant list ships empty');
-  ok(["'today'", "'sequences'", "'systems'"].every((k) => frag.includes('[' + k)) && /CRM_COMING/.test(frag), 'Today, Sequences and Systems show a coming-next state');
+  ok(["'today'", "'sequences'", "'systems'"].every((k) => frag.includes('[' + k)) && !/CRM_COMING|crm-soon/.test(frag), 'Today, Sequences and Systems are real tabs now, with no "soon" left');
+  ok(/_crmCall\('today'/.test(frag) && /_crmCall\('sequences'/.test(frag) && /_crmCall\('systems'/.test(frag), 'each tab reads its own action');
+  ok(!/_crmCall\('due'|_crmCall\('log_send'/.test(frag), 'the page never calls the sender-only actions');
+  ok(/svLayerOpen\(\{ key: 'crm-step-edit'/.test(frag), 'the step editor joins the layer list');
+  // identity change (review finding): purge and re-render are wired into 100
+  const staff = read('src/index/100-onboarding-staff-controls.js.part');
+  const purge = staff.slice(staff.indexOf('function _syncviewStaffPurgeSensitiveState'));
+  ok(/window\._crmPurgeSensitiveState\(\)/.test(purge.slice(0, 4000)), 'the staff purge clears Leads');
+  const chrome = staff.slice(staff.indexOf('function _syncviewStaffRefreshChrome'));
+  ok(/window\._crmOnIdentity\(\)/.test(chrome.slice(0, 3000)), 'the staff chrome refresh re-renders Leads');
+  ok(/_crmState\.gen\+\+/.test(frag) && /gen !== _crmState\.gen/.test(frag), 'reads still in flight at an identity change are ignored');
+  ok(/if \(_crmState\.openId === p\.id && _crmState\.person && _crmState\.person\.id === p\.id\)/.test(frag), 'a note answer only touches the panel if it still shows that person');
+  ok(/_crmPaintFilters\(\);\s+\/\/ the niche, owner and batch choices/.test(frag), 'filter choices repaint after the list loads');
   ok(!/\bconfirm\(|\balert\(/.test(frag), 'no native dialogs');
   ok(!/#[0-9a-fA-F]{3,8}\b|rgba?\(/.test(frag.slice(frag.indexOf('_crmInjectStyles'))), 'styles use theme tokens only');
   ok(/'leads': 'leads'/.test(read('src/index/003-sv-route.html.part')), 'clean route /leads');

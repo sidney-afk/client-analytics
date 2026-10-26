@@ -7,8 +7,12 @@
  * with the version it had; a refused save is reported to the write-refusal log
  * and the card goes back; the person panel opens with details and the timeline
  * newest first, closes with Escape and returns focus; a lost race shows the
- * newer copy; Today/Sequences/Systems say what is coming; at 390px the page
- * has no sideways overflow.
+ * newer copy; Today groups due steps by owner, marks a passed call Showed /
+ * No-show (one call_outcome with the version it had) and lists automatic
+ * sends; Sequences shows each sequence with draft/approved steps, edits a
+ * step into a new draft, approves (admin) and switches a sequence on;
+ * Systems lists the sequences and the n8n automations; an identity change
+ * purges the cached people; at 390px the page has no sideways overflow.
  *
  * Run: node docs/syncview-design/tests/crm-leads-browser.js [--shots=<dir>]
  */
@@ -41,6 +45,16 @@ function today(offset) {
   const d = new Date(); d.setDate(d.getDate() + offset);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
+function iso(minutesFromNow) { return new Date(Date.now() + minutesFromNow * 60000).toISOString(); }
+function sequences() {
+  const st = (id, key, pos, ch, day, extra) => Object.assign({ id, sequence_id: 'q1', step_key: key, position: pos, day_offset: day, hour_offset: 0, send_hour: day ? 9 : null, channel: ch, audience: 'all',
+    subject: ch === 'email' ? 'Made-up subject' : null, template: 'Hi {first_name}, made-up text {rebook_link}', version: 1, is_current: true, approval_state: 'draft', approved_by: null }, extra || {});
+  return [
+    { id: 'q1', key: 'no_show', name: 'No-show on call 1', description: 'Made-up description', active: false, people_now: 2,
+      steps: [st('st1', 'ns_a', 1, 'sms', 0), st('st2', 'ns_b', 2, 'email', 2, { approval_state: 'approved', approved_by: 'QA Staff' })] },
+    { id: 'q2', key: 'nurture', name: 'Nurture', description: 'Weekly', active: true, people_now: 0, steps: [] },
+  ];
+}
 function people() {
   const p = (id, name, handle, type, niche, stage, step, due) => ({
     id, display_name: name, instagram_handle: handle, lead_type: type, niche, stage, owner: 'Made Up Owner',
@@ -64,7 +78,7 @@ async function run(browser, origin, viewport) {
   page.setDefaultTimeout(8000);
   const errors = []; page.on('pageerror', e => errors.push(String(e.message || e).slice(0, 200)));
   await seedStaffIdentity(page, STAFF_GATE_MEMBER);
-  const state = { people: people(), updates: [], refuse: '', beacons: 0 };
+  const state = { people: people(), updates: [], refuse: '', beacons: 0, seqs: sequences(), outcomes: [], edits: [], approvals: [], toggles: [], actions: [] };
   await page.route('**/*', async route => {
     const r = route.request(); const u = new URL(r.url());
     if (r.url().startsWith(origin)) return route.continue();
@@ -92,6 +106,40 @@ async function run(browser, origin, viewport) {
         return json({ ok: true, person });
       }
       if (body.action === 'note') return json({ ok: true, person });
+      state.actions.push(body.action);
+      if (body.action === 'today') {
+        return json({ ok: true,
+          due_people: [Object.assign({}, state.people[0], { overdue: true }), Object.assign({}, state.people[1], { owner: 'Second Made Up', next_step_due: today(0) })],
+          calls_passed: state.people.filter(x => x.stage === 'call1_booked').map(x => Object.assign({}, x, { call_at: iso(-90) })),
+          sends_today: [{ enrolment_id: 'e1', person_id: state.people[0].id, display_name: 'Made-up Studio', sequence: 'No-show on call 1', step_key: 'ns_a', channel: 'sms', due_at: iso(30), state: 'hold', reason: 'sequence_off' }] });
+      }
+      if (body.action === 'call_outcome') {
+        state.outcomes.push(body);
+        Object.assign(person, { stage: body.outcome === 'showed' ? 'call1_done' : 'no_show', state_version: person.state_version + 1 });
+        return json({ ok: true, person, enrolment: body.outcome === 'no_show' ? { id: 'e9' } : null });
+      }
+      if (body.action === 'sequences') return json({ ok: true, sequences: state.seqs });
+      if (body.action === 'step_edit') {
+        state.edits.push(body);
+        const s = state.seqs[0]; const i = s.steps.findIndex(x => x.id === body.step_id);
+        const next = Object.assign({}, s.steps[i], body.fields, { id: 'st1v2', version: 2, approval_state: 'draft', approved_by: null });
+        s.steps[i] = next; return json({ ok: true, step: next });
+      }
+      if (body.action === 'step_approve') {
+        state.approvals.push(body);
+        const s = state.seqs[0]; const step = s.steps.find(x => x.id === body.step_id);
+        Object.assign(step, { approval_state: 'approved', approved_by: 'QA Staff' }); return json({ ok: true, step });
+      }
+      if (body.action === 'sequence_toggle') {
+        state.toggles.push(body);
+        const s = state.seqs.find(x => x.id === body.sequence_id); s.active = body.active; return json({ ok: true, sequence: s });
+      }
+      if (body.action === 'systems') {
+        return json({ ok: true,
+          automations: [{ id: 'booking_confirmation', name: 'Booking confirmation', trigger: 'A call is booked', audience: 'The person who booked', channel: 'email+sms', from: 'Made-up sender', timing: 'Right after booking', logged: false, owner: 'n8n' }],
+          sequences: [{ id: 'seq_no_show', name: 'No-show on call 1', trigger: 'Made-up', audience: 'People in this sequence', channel: 'sms+email', from: 'Made-up', timing: 'day 0, day 2', logged: true, owner: 'SyncView sequence', active: false, approved: 1, steps: 2 }] });
+      }
+      if (body.action === 'due' || body.action === 'log_send') return json({ ok: false, error: 'unauthorized' }, 401);
     }
     if (/\/rest\/v1\//.test(p)) return json([]);
     if (/\/functions\/v1\/|\/webhook\//.test(p)) return json({});
@@ -153,15 +201,66 @@ async function run(browser, origin, viewport) {
   await page.click('.crm-x');
   await page.waitForFunction(() => document.getElementById('crmPanel').hidden);
 
-  for (const tab of ['today', 'sequences', 'systems']) {
-    await page.click(`[data-crm-tab="${tab}"]`);
-    expect(await page.locator('.crm-coming h2').count() === 1, label + ': ' + tab + ' says what is coming');
-  }
-  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'leads-coming-' + label + '.png') });
+  // Today.
+  await page.click('[data-crm-tab="today"]');
+  await page.waitForSelector('#crmTodayCalls');
+  const todayText = await page.locator('#crmToday').innerText();
+  expect(/Made Up Owner/.test(todayText) && /Second Made Up/.test(todayText), label + ': Today groups due steps by owner');
+  expect(await page.locator('#crmToday .crm-row.is-overdue').count() >= 1, label + ': an overdue step is marked on Today');
+  expect(/Sequence is off/.test(todayText) && /No-show on call 1/.test(todayText), label + ': upcoming automatic sends show why they are held');
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'leads-today-' + label + '.png'), fullPage: true });
+  const callRow = page.locator('[data-crm-call="00000000-0000-4000-8000-000000000003"]');
+  expect(await callRow.count() === 1, label + ': a call whose slot passed is listed');
+  const box = await callRow.locator('[data-crm-outcome="no_show"]').boundingBox();
+  expect(box && box.height >= 36, label + ': the No-show button is a real touch target');
+  await callRow.locator('[data-crm-outcome="no_show"]').click();
+  await page.waitForFunction(() => !document.querySelector('[data-crm-call="00000000-0000-4000-8000-000000000003"]'));
+  expect(state.outcomes.length === 1 && state.outcomes[0].outcome === 'no_show' && Number.isInteger(state.outcomes[0].expected_version), label + ': No-show sends one call outcome with the version it had');
+  // Put the made-up call back for the other viewport run's state (each run has its own state, so this is just tidy).
+  state.people[2].stage = 'call1_booked';
+
+  // Sequences.
+  await page.click('[data-crm-tab="sequences"]');
+  await page.waitForSelector('[data-crm-seq="no_show"]');
+  const seqText = await page.locator('[data-crm-seq="no_show"]').innerText();
+  expect(/Draft/.test(seqText) && /Approved/.test(seqText) && /2\s+in it now/.test(seqText) && /Text/.test(seqText) && /Email/.test(seqText), label + ': a sequence card shows steps, channels, badges and people in it');
+  expect(await page.locator('[data-crm-seq="no_show"] .crm-switch').getAttribute('aria-checked') === 'false', label + ': a sequence that is off says so');
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'leads-sequences-' + label + '.png'), fullPage: true });
+  await page.locator('[data-crm-step="st1"] button', { hasText: 'Edit' }).click();
+  await page.waitForSelector('#crmStepText');
+  await page.fill('#crmStepText', 'Hi {first_name}, a changed made-up text');
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.getElementById('crmStepText'));
+  await page.locator('[data-crm-step="st1"] button', { hasText: 'Edit' }).click();
+  expect(await page.inputValue('#crmStepText') === 'Hi {first_name}, a changed made-up text', label + ': Escape closes the editor and keeps the typed text');
+  await page.locator('#crmStepEditor button', { hasText: 'Save as draft' }).click();
+  await page.waitForSelector('[data-crm-step="st1v2"]');
+  expect(state.edits.length === 1 && state.edits[0].fields.template === 'Hi {first_name}, a changed made-up text' && !('subject' in state.edits[0].fields), label + ': saving a text step sends its new wording only');
+  expect(/v2/.test(await page.locator('[data-crm-step="st1v2"]').innerText()), label + ': the edited step shows as a new version');
+  await page.locator('[data-crm-step="st1v2"] button', { hasText: 'Approve' }).click();
+  await page.waitForFunction(() => !document.querySelector('[data-crm-step="st1v2"] .crm-btn-ok'));
+  expect(state.approvals.length === 1 && state.approvals[0].step_id === 'st1v2', label + ': Approve approves that step');
+  await page.locator('[data-crm-seq="no_show"] .crm-switch').click();
+  await page.waitForFunction(() => document.querySelector('[data-crm-seq="no_show"] .crm-switch').getAttribute('aria-checked') === 'true');
+  expect(state.toggles.length === 1 && state.toggles[0].active === true, label + ': the switch turns the sequence on');
+
+  // Systems.
+  await page.click('[data-crm-tab="systems"]');
+  await page.waitForSelector('[data-crm-sys="booking_confirmation"]');
+  const sysText = await page.locator('#crmSystems').innerText();
+  expect(/Booking confirmation/.test(sysText) && /Not yet/.test(sysText) && /Logged/.test(sysText) && /1 of 2 approved/.test(sysText), label + ': Systems lists the sequences and the n8n automations with their logging state');
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'leads-systems-' + label + '.png'), fullPage: true });
+  const sysOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(sysOverflow <= 1, label + ': Systems has no sideways page overflow (' + sysOverflow + 'px)');
+  expect(!state.actions.includes('due') && !state.actions.includes('log_send'), label + ': the page never calls the sender-only actions');
+
   await page.click('[data-crm-tab="pipeline"]');
   await page.waitForSelector('.crm-card');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow <= 1, label + ': no sideways page overflow (' + overflow + 'px)');
+  // An identity change drops the cached people and re-renders.
+  const purged = await page.evaluate(() => { window._crmPurgeSensitiveState(); return !document.querySelector('.crm-card') && !document.getElementById('crmPage').firstChild; });
+  expect(purged, label + ': an identity change clears the cached people from the page');
   expect(!errors.length, label + ': no page errors' + (errors.length ? ' (' + errors.join(' | ') + ')' : ''));
   await ctx.close();
 }

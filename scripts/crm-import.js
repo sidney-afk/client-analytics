@@ -107,7 +107,14 @@ async function rest(url, key, method, pathAndQuery, body, prefer) {
     body: body == null ? undefined : JSON.stringify(body),
   });
   if (!res.ok) throw new Error(method + ' ' + pathAndQuery.split('?')[0] + ' HTTP ' + res.status);
-  return res.status === 204 ? null : res.json();
+  return parseRestBody(await res.text());
+}
+
+/** PostgREST answers an empty body for 204 and for `Prefer: return=minimal`
+ *  (an empty 201), so an empty body is null, never a JSON parse error. */
+function parseRestBody(text) {
+  const t = String(text == null ? '' : text).trim();
+  return t ? JSON.parse(t) : null;
 }
 
 async function main() {
@@ -154,5 +161,5 @@ async function main() {
   console.log(JSON.stringify({ written_created: created, written_updated: updated, skipped_changed_meanwhile: conflicts }));
 }
 
-module.exports = { parseCsv, planImport };
+module.exports = { parseCsv, planImport, parseRestBody };
 if (require.main === module) main().catch((e) => { console.error('crm-import: ' + (e && e.message || e)); process.exit(1); });

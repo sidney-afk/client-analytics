@@ -440,9 +440,15 @@
       "status": "reports-in-callers",
       "callers": [
         "_crmSave",
-        "_crmAddNote"
+        "_crmAddNote",
+        "_crmMarkCall",
+        "_crmSaveStep",
+        "_crmApproveStep",
+        "_crmToggleSequence",
+        "_crmEnrol",
+        "_crmEnrolmentOp"
       ],
-      "note": "Leads CRM. list and get are reads; update is recorded as status (drag) or update (panel), note as comment."
+      "note": "Leads CRM. list, get, today, sequences and systems are reads; update is recorded as status (drag) or update (panel), note as comment, call_outcome / step_approve / sequence_toggle as status, step_edit / enrol / enrolment as update."
     },
     "321-kasper-dashboard-replies.js.part|_spLoad|SP_EF_URL|POST": {
       "status": "read",

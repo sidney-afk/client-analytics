@@ -228,7 +228,10 @@ Other:
   is merged and live via #1127/#1131/#1137.
 - `functions/v1/crm-leads` — the Leads CRM page (`/leads`, linked from Kasper > More > Pipeline &
   Admin; `src/index/328-crm-leads.js.part`). POST `{action}`: `list`, `get`, `update` (compare-and-swap on
-  `state_version`, 409 with the current row on a lost race) and `note`. Staff role key required; access
+  `state_version`, 409 with the current row on a lost race), `note`, `today`, `call_outcome`, `sequences`,
+  `step_edit`, `step_approve` (admin), `sequence_toggle`, `enrol`, `enrolment` and `systems`; plus `due` and
+  `log_send`, which take only the server key (`CRM_SENDER_KEY` or the service role) for a future n8n sender.
+  Nothing in it sends a message. Staff role key required; access
   is the `leads` rule in `supabase/functions/_shared/crm-leads-core.mjs` (admin, plus per-person grants,
   none shipped). Every change runs `crm_apply_change`, which writes the person and its `crm_events`
   rows in one transaction. The tables have no browser grants. Added 2026-10-26; held by the merge lane

@@ -40,6 +40,7 @@
     "higgsfield-video-cards.js",
     "higgsfield-shared-tools.js",
     "crm-leads.js",
+    "crm-sequences.js",
     "pipeline-pass.js",
     "pipeline-social.js",
     "pipeline-store.js",

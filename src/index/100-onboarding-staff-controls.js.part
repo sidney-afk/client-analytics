@@ -1457,6 +1457,8 @@ import {
         });
         // Messages (Notes Step 2): start or stop the inbox counts for this sign-in.
         try { _msgOnIdentity(); } catch (e) {}
+        // Leads (328) re-renders for the new identity (a non-admin sees the gate).
+        try { if (typeof window._crmOnIdentity === 'function') window._crmOnIdentity(); } catch (e) {}
         // Kasper is admin-only; the standalone staff pages re-check their own
         // capability once the sign-in check answers.
         try { if (typeof _kasperApplyAccess === 'function') _kasperApplyAccess(); } catch (e) {}
@@ -1617,6 +1619,8 @@ import {
         try { if (typeof _srpPurgeSensitiveState === 'function') _srpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _tdyPurgeSensitiveState === 'function') _tdyPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _prodSmmPurgeSensitiveState === 'function') _prodSmmPurgeSensitiveState(); } catch (e) {}
+        // Leads (328): cached people, notes and drafts, and any read still in flight.
+        try { if (typeof window._crmPurgeSensitiveState === 'function') window._crmPurgeSensitiveState(); } catch (e) {}
         // Kasper's hiring, client and credential data (040 registry). Before
         // Kasper loads it holds none in memory; its recently-opened clients
         // list can still be saved in this browser, so that is cleared here.

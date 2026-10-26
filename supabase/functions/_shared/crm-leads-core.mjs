@@ -51,6 +51,15 @@ export function normalizeHandle(v) {
   return s || null;
 }
 
+function validZone(tz) {
+  if (typeof tz !== 'string' || !tz.trim() || tz.length > 64) return false;
+  try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return true; } catch (e) { return false; }
+}
+function sameInstant(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return Date.parse(String(a)) === Date.parse(String(b));
+}
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function isUuid(v) { return UUID.test(String(v || '')); }
@@ -111,6 +120,17 @@ export function validatePatch(input) {
       if (v === null || v === '') patch.lost_reason = '';
       else if (LOST_REASONS.includes(v)) patch.lost_reason = v;
       else return { ok: false, error: 'bad_lost_reason' };
+    } else if (key === 'call_at') {
+      if (v === null || v === '') patch.call_at = '';
+      else if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v) && !isNaN(Date.parse(v))) patch.call_at = new Date(v).toISOString();
+      else return { ok: false, error: 'bad_call_at' };
+    } else if (key === 'timezone') {
+      if (v === null || v === '') patch.timezone = '';
+      else if (validZone(v)) patch.timezone = v;
+      else return { ok: false, error: 'bad_timezone' };
+    } else if (key === 'opted_out') {
+      if (typeof v !== 'boolean') return { ok: false, error: 'bad_opted_out' };
+      patch.opted_out = v;
     } else if (key === 'tags') {
       if (!Array.isArray(v) || v.length > 30 || v.some((t) => typeof t !== 'string' || !t.trim() || t.length > 40)) return { ok: false, error: 'bad_tags' };
       patch.tags = Array.from(new Set(v.map((t) => t.trim().toLowerCase())));
@@ -152,6 +172,9 @@ export function changeEvents(before, patch, note) {
     const was = Array.isArray(b.tags) ? b.tags : [];
     if (JSON.stringify([...was].sort()) !== JSON.stringify([...p.tags].sort())) out.push({ kind: 'tags_changed', channel: 'system', detail: { from: was, to: p.tags } });
   }
+  if ('call_at' in p && !sameInstant(p.call_at, b.call_at)) out.push({ kind: 'call_at_set', channel: 'call', detail: { from: b.call_at || null, to: p.call_at || null } });
+  if ('timezone' in p && p.timezone !== norm(b.timezone)) out.push({ kind: 'timezone_set', channel: 'system', detail: { from: b.timezone || null, to: p.timezone || null } });
+  if ('opted_out' in p && p.opted_out !== !!b.opted_out_at) out.push({ kind: 'opted_out', channel: 'system', detail: { opted_out: p.opted_out } });
   if (note) out.push({ kind: 'note', channel: null, detail: { text: note } });
   return out;
 }
@@ -165,6 +188,10 @@ export function effectivePatch(before, patch) {
     if (k === 'tags') {
       const was = Array.isArray(b.tags) ? b.tags : [];
       if (JSON.stringify([...was].sort()) !== JSON.stringify([...v].sort())) out.tags = v;
+    } else if (k === 'call_at') {
+      if (!sameInstant(v, b.call_at)) out.call_at = v;
+    } else if (k === 'opted_out') {
+      if (v !== !!b.opted_out_at) out.opted_out = v;
     } else if (v !== norm(b[k])) out[k] = v;
   }
   return out;
@@ -187,6 +214,8 @@ export function cardOf(row, today) {
     overdue: !!(due && today && due < today && row.stage !== 'won' && row.stage !== 'lost'),
     source_id: row.source_id || null,
     tags: Array.isArray(row.tags) ? row.tags : [],
+    call_at: row.call_at || null,
+    opted_out: !!row.opted_out_at,
     state_version: row.state_version,
     updated_at: row.updated_at || null,
   };

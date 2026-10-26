@@ -198,6 +198,32 @@ function clockAt(iso) {
       `every API call carries a ${guard.REQUEST_TIMEOUT_MS / 1000}-second time limit`);
   }
 
+  // TIMER RED (OPEN_REPAIRS 505): a stand-down copy carries the timer run's outcome, and a caller that
+  // asks for it goes red over a red timer run instead of reporting nine green rows over nine red nights.
+  {
+    const s0 = SCENARIOS[1];
+    for (const [timer, expectFailed, label] of [
+      [{ ...s0.current, status: 'completed', conclusion: 'failure' }, true, 'a failed timer run'],
+      [{ ...s0.current, status: 'completed', conclusion: 'timed_out' }, true, 'a timed-out timer run'],
+      [{ ...s0.current, status: 'completed', conclusion: 'success' }, false, 'a green timer run'],
+      [{ ...s0.current, status: 'in_progress', conclusion: null }, false, 'a timer run still in progress'],
+    ]) {
+      const api = fakeApi(s0.copy, [[s0.previous, timer]]);
+      const clock = clockAt('2026-10-12T11:33:05Z');
+      const verdict = await guard.decide({ env: { ...ENV, SCHEDULE_CRON: s0.cron }, fetchImpl: api.fetchImpl, now: clock.now, sleep: clock.sleep });
+      ok(verdict.run === false && guard.timerFailed(verdict) === expectFailed,
+        `${label}: the copy stands down and timer_failed is ${expectFailed}`);
+    }
+    ok(guard.timerFailed({ run: true, timer_conclusion: 'failure' }) === false, 'a copy that runs itself never reports the timer as its failure');
+    const reusable = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'schedule-fallback-guard.yml'), 'utf8');
+    ok(/mirror_timer_failure:[\s\S]*?default: false/.test(reusable)
+      && /if: inputs\.mirror_timer_failure && steps\.guard\.outputs\.run == 'false' && steps\.guard\.outputs\.timer_failed == 'true'/.test(reusable),
+      'the reusable guard fails a stand-down copy only when asked and only over a red timer run');
+    const nightly = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'calendar-e2e-nightly.yml'), 'utf8');
+    ok(/uses: \.\/\.github\/workflows\/schedule-fallback-guard\.yml[\s\S]{0,300}?mirror_timer_failure: true/.test(nightly),
+      'the Calendar nightly asks for it');
+  }
+
   // The guard job's own time limit stays above its worst case: three API calls
   // at their limit, the capped wait, and two minutes for checkout and start.
   {

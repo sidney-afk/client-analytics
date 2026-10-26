@@ -129,6 +129,16 @@ const GUARD_JOB = [
   '      actions: read',
   '      contents: read',
 ].join('\n');
+// The same job, asking the guard to go red over a red timer run (OPEN_REPAIRS 505). Only these two
+// shapes are accepted, so a hand-edited guard job still fails below.
+const GUARD_JOB_MIRROR = GUARD_JOB.replace('    permissions:', [
+  '    # A stand-down copy goes red when the timer\'s run it stood down for was red',
+  '    # (OPEN_REPAIRS 505: nine green schedule rows over nine red nights).',
+  '    with:',
+  '      mirror_timer_failure: true',
+  '    permissions:',
+].join('\n'));
+const guardJobOf = source => (source.includes(`\n${GUARD_JOB_MIRROR}\n`) ? GUARD_JOB_MIRROR : GUARD_JOB);
 const GATE = "!cancelled() && (needs.schedule-guard.result == 'skipped' || (needs.schedule-guard.result == 'success' && needs.schedule-guard.outputs.run == 'true'))";
 
 // 2 and 3. Each dispatch matches its workflow.
@@ -143,7 +153,7 @@ for (const row of rows) {
   }
   // The guard job's own switch is the one schedule-only line that must NOT also
   // run for the timer (a timer run needs no guard); it is checked byte for byte below.
-  const live = source.replace(GUARD_JOB, '').split('\n').filter(line => !/^\s*#/.test(line));
+  const live = source.replace(guardJobOf(source), '').split('\n').filter(line => !/^\s*#/.test(line));
   const scheduleGates = live.filter(line => /github\.event_name == 'schedule'/.test(line));
   const manualGates = live.filter(line => /github\.event_name == 'workflow_dispatch' && inputs\./.test(line));
   const usesSource = row.inputs.source === 'db-timer';
@@ -287,7 +297,7 @@ for (const row of rows) {
   const runName = row.inputs.source === 'db-timer' ? RUN_NAME_SOURCE : RUN_NAME_PLAIN;
   ok(source.split('\n')[1] === runName,
     `${row.workflow} names each run by who started it, so a timer run can be told from a manual one (${runName.slice(10)})`);
-  ok(source.includes(`\n${GUARD_JOB}\n`),
+  ok(source.includes(`\n${guardJobOf(source)}\n`),
     `${row.workflow} runs the shared schedule-fallback guard job, byte for byte`);
   const jobs = jobsOf(source);
   const gated = new Map();

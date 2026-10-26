@@ -127,17 +127,16 @@ td input{width:76px;border:1px solid var(--line);background:var(--soft);border-r
 <body>
 <div class="mock-bar" role="toolbar" aria-label="Mockup views">
   <b>Trial reels</b>
-  <button data-view="card" aria-pressed="true">Card + versions</button>
-  <button data-view="c1440" aria-pressed="false">Client review, 1440</button>
+  <button data-view="c1440" aria-pressed="true">Client review, 1440</button>
   <button data-view="c390" aria-pressed="false">Client review, 390</button>
   <button data-view="kasper" aria-pressed="false">Kasper</button>
-  <button data-view="log" aria-pressed="false">After 24 h: results</button>
+  <button data-view="log" aria-pressed="false">After 24 h: pick the winner</button>
   <button id="theme" aria-pressed="false" title="Light or dark">Dark</button>
   <span class="note">Mockup only. Fictional client and hooks. Every view shares one state: approve in one, see it in the others.</span>
 </div>
 
 <!-- 1. THE CARD -->
-<section class="view on" id="v-card">
+<section class="view" id="v-card" hidden>
   <p class="caption">The staff card, opened. Today's fields stay as they are. The one new line is the <b>Trial reels</b> switch, shown only on the test client while the page switch lists it. With it on, the single video link is replaced by the versions list, which the studio fills. The card's own statuses keep working as today.</p>
   <div class="frame w1440 card-grid">
     <div class="panel" style="padding:20px">
@@ -179,7 +178,7 @@ td input{width:76px;border:1px solid var(--line);background:var(--soft);border-r
 </section>
 
 <!-- 2. CLIENT 1440 -->
-<section class="view" id="v-c1440">
+<section class="view on" id="v-c1440">
   <p class="caption">The client's review link at 1440, in today's layout C. On a trial-reels card the Video step becomes <b>Versions</b>: arrows (or ← →) move between versions, "Version B of 5" with the hook under it. Every version needs the client's answer. Once every version is approved or dropped, the card's video moves to Approved through today's own approve save.</p>
   <div class="frame w1440" data-stage="c1440"></div>
 </section>
@@ -213,13 +212,13 @@ td input{width:76px;border:1px solid var(--line);background:var(--soft);border-r
 
 <!-- 5. LOG -->
 <section class="view" id="v-log">
-  <p class="caption">Part 3. The SMM posts the approved versions as trial reels by hand, then marks them on trial: each gets a 24 h timer, shown on the card. After 24 h the SMM types each version's numbers into the one log (<code>studio_trial_versions</code>, one row per version, shared with the studio). The highest-views version is <b>suggested</b>; the SMM gives the winner badge (to any version), the others become <b>lost</b>, and the card's link becomes the winner's, which posts on the card's calendar date.</p>
+  <p class="caption">After posting. The SMM posts every approved version as a trial reel by hand and marks them on trial: each shows a 24 h timer on the card as a reminder. After 24 h the SMM simply picks the winner; the others become <b>lost</b>, the card's link becomes the winner's, and the winner posts on the card's calendar date. No numbers are typed. The client sees only the winner, once it is picked. The card itself, in today's real design, is in <code>real/card-*.png</code>.</p>
   <div class="frame w1440 panel" style="padding:20px">
     <div class="row" style="justify-content:space-between;margin-bottom:10px">
-      <div><div style="font-weight:800;font-size:18px">Why the first second matters · trial results</div><div class="sub">Posted as trial reels Fri 30 Oct 09:00 · numbers at 24 h</div></div>
-      <div class="row"><button class="btn btn-quiet" id="fillNums">Example numbers</button><button class="btn" id="startTrial">Mark approved as on trial</button></div>
+      <div><div style="font-weight:800;font-size:18px">Why the first second matters · trial reels</div><div class="sub" id="trialSub">Posted as trial reels Fri 30 Oct 09:00</div></div>
+      <button class="btn" id="startTrial">Mark approved as on trial</button>
     </div>
-    <table><thead><tr><th>Version</th><th>Hook</th><th>Label</th><th>Views</th><th>Watch time (s)</th><th>Shares</th><th>Saves</th><th>Follows</th><th></th></tr></thead><tbody id="logRows"></tbody></table>
+    <table><thead><tr><th>Version</th><th>Hook</th><th>Label</th><th></th></tr></thead><tbody id="logRows"></tbody></table>
     <div class="legend"><span class="pill lab-waiting">waiting</span><span class="pill lab-approved">approved</span><span class="pill lab-change">change asked</span><span class="pill lab-dropped">dropped</span><span class="pill lab-trial">on trial</span><span class="pill lab-winner">winner</span><span class="pill lab-lost">lost</span></div>
   </div>
 </section>
@@ -238,7 +237,6 @@ const S = {
     { l:'D', hook:'The rule every viral video follows', st:'waiting' },
     { l:'E', hook:'I tested 100 openings. One won', st:'waiting' },
   ],
-  nums: {},
 };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const pill = st => `<span class="pill lab-${st}">${LABEL[st]}</span>`;
@@ -304,21 +302,26 @@ function stageHTML(kind){
       ${kind==='c1440'?`<div class="panel chat"><header><b>Your team</b><div class="sub">Usually replies within a day</div></header><div class="body"><div class="bubble"><small>Synchro team · Versions</small>Same video, five different opening lines. Approve the ones you are happy to post; we will test them and keep the best.</div></div><div class="compose">Message your team</div></div>`:''}
     </div>`;
 }
-function renderStages(){ document.querySelectorAll('[data-stage]').forEach(el => { el.innerHTML = stageHTML(el.dataset.stage); }); }
+function winnerHTML(kind, w){
+  const i = S.versions.indexOf(w);
+  return `<div class="top"><div class="brand">Fixture Studio</div><span class="sub">Content calendar</span>
+      <div class="seg"><span class="on">Review</span><span>Sheet</span><span>Month</span><span>Week</span></div></div>
+    <h2 class="h-title" style="margin:6px 4px 12px">Why the first second matters</h2>
+    <div class="panel stage" style="max-width:640px;margin:0 auto"><div class="vstage" style="grid-template-columns:minmax(0,250px)">${videoTile(w,i)}</div>
+      <div class="vmeta"><div class="vof">The version we are posting <span class="pill lab-winner">★ winner</span></div><p class="hookline">“${esc(w.hook)}”</p>
+      <p class="sub">Posts on Fri 30 Oct. The client sees only the winner, once it is picked.</p></div></div>`;
+}
+function renderStages(){ const w = S.versions.find(v=>v.st==='winner'); document.querySelectorAll('[data-stage]').forEach(el => { el.innerHTML = w ? winnerHTML(el.dataset.stage, w) : stageHTML(el.dataset.stage); }); }
 
 function renderKasper(){
   document.getElementById('kVersions').innerHTML = S.versions.map((v,i)=>`<div class="kv ${i===S.cur?'cur':''}">
     ${videoTile(v,i,true)}<div class="hk"><b>${v.l}</b> · ${esc(v.hook)}</div>
     <div class="row" style="justify-content:space-between">${v.st==='waiting'?`<button class="btn btn-ok" style="padding:5px 9px;font-size:13px" data-k="approve" data-i="${i}">Approve</button><button class="btn btn-quiet" style="padding:4px 5px" title="Ask for a change" data-k="change" data-i="${i}">↺</button><button class="btn btn-quiet" style="padding:4px 5px" title="Drop" data-k="drop" data-i="${i}">✕</button>`:pill(v.st)}</div></div>`).join('');
 }
-const NUMS = ['views','watch_time_s','shares','saves','follows'];
-function suggested(){ const t = S.versions.filter(v=>v.st==='trial'); if (!t.length || t.some(v=>!(S.nums[v.l]||{}).views)) return null;
-  return t.reduce((a,b)=> (+S.nums[b.l].views > +S.nums[a.l].views ? b : a)).l; }
 function renderLog(){
-  const sug = suggested();
-  document.getElementById('logRows').innerHTML = S.versions.map((v,i)=>{ const n=S.nums[v.l]||{}; const can = ['trial','winner','lost'].includes(v.st);
-    return `<tr><td><b>${v.l}</b></td><td>${esc(v.hook)}</td><td>${pill(v.st)}${sug===v.l?' <span class="pill lab-winner">suggested: most views</span>':''}</td>${NUMS.map(k=>`<td><input inputmode="numeric" aria-label="${k} for version ${v.l}" ${can?'':'disabled'} value="${n[k]??''}" data-n="${v.l}:${k}"></td>`).join('')}
-    <td>${v.st==='trial'?`<button class="btn" data-win="${i}">Give the winner badge</button>`:v.st==='winner'?'<span class="pill lab-winner">★ winner · posts Fri 30 Oct</span>':''}</td></tr>`; }).join('');
+  const sub = document.getElementById('trialSub'); if (sub) sub.textContent = S.trialAt ? 'Posted as trial reels · ' + Math.max(0, 24 - Math.floor((Date.now()-S.trialAt)/3600000)) + ' h left on the timer' : 'Not posted yet';
+  document.getElementById('logRows').innerHTML = S.versions.map((v,i)=>`<tr><td><b>${v.l}</b></td><td>${esc(v.hook)}</td><td>${pill(v.st)}</td>
+    <td>${v.st==='trial'?`<button class="btn" data-win="${i}">★ Make winner</button>`:v.st==='winner'?'<span class="pill lab-winner">★ winner · posts Fri 30 Oct</span>':''}</td></tr>`).join('');
 }
 function render(){ renderCard(); renderStages(); renderKasper(); renderLog(); }
 
@@ -342,12 +345,9 @@ document.addEventListener('click', e => {
   if (a==='finish') return toast(answered()===S.versions.length ? 'All answered. Opening the next post' : 'Still waiting: ' + S.versions.filter(v=>v.st==='waiting').map(v=>v.l).join(', '));
   if (b.dataset.k){ const i=+b.dataset.i; S.cur=i; return setSt(i, {approve:'approved',change:'change',drop:'dropped'}[b.dataset.k], 'Kasper: version '+S.versions[i].l+' '+({approve:'approved',change:'change asked',drop:'dropped'}[b.dataset.k])); }
   if (b.id==='kApproveAll'){ S.versions.forEach(v=>{ if(v.st==='waiting') v.st='approved'; }); render(); return toast('Kasper approved every waiting version'); }
-  if (b.id==='fillNums'){ const ex={A:[4200,61,12,30,4],B:[3100,48,9,21,2],C:[8900,73,40,66,11],D:[2600,40,5,12,1],E:[6100,66,22,41,7]}; S.versions.forEach(v=>{ if(v.st==='trial'&&ex[v.l]) S.nums[v.l]=Object.fromEntries(NUMS.map((k,j)=>[k,ex[v.l][j]])); }); return render(); }
   if (b.id==='startTrial'){ let k=0; S.versions.forEach(v=>{ if(v.st==='approved'){ v.st='trial'; k++; } }); if (k) S.trialAt = Date.now() - 7*3600000; render(); return toast(k? k+' versions on trial' : 'No approved versions yet'); }
   if (b.dataset.win){ const w=+b.dataset.win; S.versions.forEach((v,i)=>{ if(['trial','winner','lost'].includes(v.st)) v.st = i===w?'winner':'lost'; }); render(); return toast('Winner badge: version '+S.versions[w].l); }
 });
-document.addEventListener('input', e => { const k=e.target.dataset.n; if(!k) return; const [l,f]=k.split(':'); (S.nums[l] ||= {})[f]=e.target.value; });
-document.addEventListener('change', e => { if (e.target.dataset.n) renderLog(); });
 document.addEventListener('keydown', e => { if (e.target.closest('input')) return; const on = document.querySelector('.view.on'); if (!on || !on.querySelector('[data-stage]')) return; if (e.key==='ArrowLeft') step(-1); if (e.key==='ArrowRight') step(1); });
 let sx=null; document.addEventListener('pointerdown', e => { if (e.target.closest('[data-swipe]')) sx=e.clientX; });
 document.addEventListener('pointerup', e => { if (sx==null) return; const dx=e.clientX-sx; sx=null; if (Math.abs(dx)>40) step(dx<0?1:-1); });

@@ -10,9 +10,16 @@ calendar card, the versions on the card and its production task, the review, and
 The studio half is PR #2349, **merged to main on 2026-10-26 at 21:10 UTC (7cb60ad) without the changes this plan asks for**: the connector's `studio_action "trial_reels"` (steps `guide`, `log`, `list`, `update`)
 and its table `studio_trial_versions`. Section 3 says how the two fit.
 
-Mockups: [`trial-reels/mockups.html`](trial-reels/mockups.html) (interactive, one shared state across five views).
-Still pictures: `trial-reels/mock-*.png`. Today's page, from the offline browser tests (fictional fixtures):
-`trial-reels/current/*.png`.
+Mockups:
+- **The card, on the real page:** `trial-reels/real/card-{today,review,trial,winner}-{1440,390}.png` (and
+  `-390-versions.png`, scrolled to the versions). Made by `trial-reels/real/make-screenshots.js`: it builds today's
+  page, opens the real Calendar card with the offline harness's fictional card, and loads `real/preview.js`, which adds
+  only the trial-reels switch and the versions list (rows cloned from today's Video link row). `card-today-*` is the
+  same card without it.
+- **Review, Kasper and the winner pick:** [`trial-reels/mockups.html`](trial-reels/mockups.html) (interactive, one shared
+  state) and its pictures `trial-reels/mock-*.png`. The owner approved the client review (1440 and 390) and Kasper's view
+  on 2026-10-26.
+- Today's review pages, from the offline browser tests (fictional fixtures): `trial-reels/current/*.png`.
 
 ---
 
@@ -24,11 +31,17 @@ Still pictures: `trial-reels/mock-*.png`. Today's page, from the offline browser
 - **One card per video, with its normal status.** Each version has its own label: waiting, approved, change asked,
   dropped, on trial, winner, lost. **The card moves to Approved once every version is approved or dropped** (and at
   least one is approved: owner answer, Q4). **A change on one version sends only that one back.**
-- **After posting:** each version is "on trial" with a **24 h timer, shown on the card**; the SMM enters the numbers;
-  the **SMM gives the winner badge, with the highest-views version suggested** (owner answer, Q6); the others become
-  lost. **The winner posts on the card's calendar date and the card turns Posted.**
+- **After posting:** each version is "on trial" with a **24 h timer, shown on the card** as a reminder. **No numbers
+  are typed** (owner, Q7): after the trial **the SMM simply picks the winner** (Q6); the others become lost. **The
+  winner posts on the card's calendar date and the card turns Posted.** The client sees only the winner, once it is
+  picked (Q8).
+- **Only the team can drop a version** (Q2). **A changed version takes the normal route**: the SMM and Kasper again
+  before the client (Q3). **The client link works like today, with no token** (Q5). **The SMM always picks one**, so
+  SyncView has no "no clear winner" (Q10).
+- **Frame.io links are pasted by people** (Q9): the person who uploads each version to Frame.io pastes its link into
+  that version's row on the card, the same way the single Video link is filled today. The studio writes no links.
 - **Production: one task with a list of versions.**
-- **Log in Supabase, one row per version. The SMM posts by hand.**
+- **Log in Supabase, one row per version, with its label. The SMM posts by hand.**
 
 ## 1. What exists today (read from the code)
 
@@ -59,6 +72,7 @@ mean a Section 4 change and a re-pin).
 Already in #2349: `id`, `client`, `batch`, `video`, `letter` (A to G), `hook`, `hook_type`, `other_change`,
 `status`, `posted_at`, `views`, `watch_time_s`, `shares`, `saves`, `follows`, `member`, `created_at`, `updated_at`;
 unique (client, batch, video, letter); row level security on; only `service_role` holds SELECT, INSERT, UPDATE.
+The five number columns stay in the table unused by SyncView (owner, Q7: no numbers are typed).
 
 Columns SyncView needs. #2349 is merged without them, so **SyncView's build PR carries a follow-up migration** that adds them:
 
@@ -66,16 +80,15 @@ Columns SyncView needs. #2349 is merged without them, so **SyncView's build PR c
 |---|---|---|
 | `post_id` | text, null | the calendar card this version belongs to; the studio fills it from `video_cards` at `log` time |
 | `deliverable_id` | uuid, null | the production task, for its list of versions |
-| `frame_url` | text, null | the version's Frame.io link, played on the review stage (#2349's guide step 8 says this is "not wired yet") |
+| `frame_url` | text, null | the version's Frame.io link, **pasted on the card by whoever uploads that version** (Q9), played on the review stage |
 | `smm_ok_at`, `kasper_ok_at`, `client_ok_at` | timestamptz, null | each reviewer's OK on this version |
 | `change_by`, `change_note`, `change_at` | text, text, timestamptz | the last change asked on this version |
 | `revision` | int, default 0 | goes up when the link or hook is replaced; resets the three OKs and the status to `waiting` |
-| `trial_ends_at` | timestamptz, null | `posted_at + 24 h`; drives the timer on the card |
-| `suggested` | boolean, default false | set on the highest-views version once every trial version has numbers |
+| `trial_ends_at` | timestamptz, null | `posted_at + 24 h`; drives the reminder timer on the card |
 
 Plus an index on (client, post_id). The status words stay #2349's exactly: `waiting`, `approved`, `change asked`,
-`dropped`, `on trial`, `winner`, `lost`, and #2349's extra `no clear winner` (SyncView shows it as a plain grey label;
-see Q10).
+`dropped`, `on trial`, `winner`, `lost`. #2349's extra `no clear winner` stays allowed in the table but SyncView never
+sets it and the studio cannot set it on a row linked to a card (owner, Q10: the SMM always picks one).
 
 ### `trial_reel_cards`: the card's switch (new, SyncView only)
 
@@ -104,48 +117,44 @@ still holds.
 
 | | studio (`higgsfield-mcp`, #2349) | SyncView (new `trial-reels` function) |
 |---|---|---|
-| creates version rows | **yes**, `log` (with `post_id`, `deliverable_id`, `frame_url`, after the build PR) | no, only reads them |
-| replaces a link or hook | `log` with `"replace": true` for that letter, after a change is asked (build PR; today refused as duplicate) | no |
-| review answers (`approved`, `change asked`, `dropped`) | **no** once `post_id` is set (clash 1) | **yes** |
-| `on trial`, numbers, `winner` / `lost` | `update` (allowed) | yes, from the card's results view |
+| creates version rows (letter, hook, hook family) | **yes**, `log`, with `post_id` and `deliverable_id` (after the build PR) | no |
+| the Frame.io link of a version | **no** (Q9) | **yes**: pasted on the card by whoever uploads that version |
+| a new hook after a change is asked | `log` with `"replace": true` for that letter (build PR; today refused as duplicate) | no |
+| review answers (`approved`, `change asked`, `dropped`) | **no** once `post_id` is set | **yes** |
+| `on trial`, `winner`, `lost` | `update` still allowed (for studio-only trials and as a fallback) | **yes**, from the card |
 | card status | never | never directly; the page calls today's saves |
 
-**One log, one table.** The 24 h numbers live in `studio_trial_versions` (`views`, `watch_time_s`, `shares`, `saves`,
-`follows`), whichever side the SMM types them in. This replaces the separate results table of this plan's first draft.
+**One log, one table.** `studio_trial_versions` is the one log: one row per version, with its label. SyncView adds no
+second versions table and no results table (the first draft's results table is gone, Q7).
 
 **Clashes, still open on main after #2349 merged** (each is fixed in the build PR, below):
 
-1. **The studio's `update` can set any status**, including `approved`, which would skip the client's OK. Proposal: once
-   a row has a `post_id`, `update` accepts only `on trial`, the numbers, `winner`, `lost` and `no clear winner`; the
-   review labels come only from SyncView. (A change to `trialreels.mjs`.)
-2. **A new cut of one version.** `log` refuses a letter that is already logged. A change asked on version C needs the
-   studio to replace C's link and hook: either `log` with `"replace": true`, or `update` taking `frame_url` and `hook`
-   (bumping `revision` and resetting the OKs). Without it, a change request has no way back in.
+1. **The studio's `update` can set any status**, including `approved`, which would skip the client's OK.
+2. **A new cut of one version.** `log` refuses a letter that is already logged, so a new hook after a change is asked
+   has no way back in.
 3. **Identity.** #2349 keys a version by (client, batch, video, letter); SyncView keys a card by (client, post_id).
-   `post_id` bridges them. A version logged without it is invisible in SyncView (the card shows "versions not linked
-   yet"), so the studio should always send it.
+   `post_id` bridges them. A version logged without it is invisible in SyncView.
 4. **Two writers, one row.** Both functions update with the service role. Each update names only its own columns, and
    SyncView's writes check `updated_at` (stale-save refusal, as the Calendar does), so the last writer cannot silently
    undo the other.
-5. **Status words.** SyncView uses #2349's spelling (`change asked`, with a space), not the underscore form of the
-   first draft.
+5. **Status words.** SyncView uses #2349's spelling (`change asked`, with a space).
 
 ### What the build PR changes in the studio function, and why it is SyncView's PR
 
 Three small changes to `supabase/functions/higgsfield-mcp/trialreels.mjs` (and its row handling in `index.ts`), with
 `test/higgsfield-trial-reels.js` extended for each:
 
-1. **`update` cannot set `approved`, `change asked`, `dropped` or `waiting` once a row has a `post_id`.** It still
-   sets `on trial`, the numbers, `winner`, `lost` and `no clear winner`. Rows with no `post_id` (studio-only trials) keep
-   today's behaviour.
-2. **`log` can replace a letter after a change is asked.** `"replace": true` on a row whose status is `change asked`
-   overwrites `hook`, `hook_type`, `other_change` and `frame_url`, bumps `revision`, clears the three OKs and the change
-   fields, and sets `waiting`. Replace on any other status is refused with a plain reason ("version C is approved;
-   only a version with a change asked can be replaced"), so an approved version cannot be swapped under the client.
-3. **`post_id` (and `deliverable_id`, `frame_url`) are taken at `log` time.** The guide's step 8 changes from "not
-   wired yet" to: run `review_notes` / `video_cards` for the video, copy its card id and task id onto every row, and
-   give each version's Frame.io link. A row logged without `post_id` is accepted (permissive, AGENTS.md) and the answer
-   says it will not show in SyncView until linked.
+1. **`update` cannot set `approved`, `change asked`, `dropped`, `waiting` or `no clear winner` once a row has a
+   `post_id`.** It still sets `on trial`, `winner` and `lost`. Rows with no `post_id` (studio-only trials) keep today's
+   behaviour.
+2. **`log` can replace a letter's hook after a change is asked.** `"replace": true` on a row whose status is
+   `change asked` overwrites `hook`, `hook_type` and `other_change`. Replace on any other status is refused with a plain
+   reason ("version C is approved; only a version with a change asked can be replaced"). The version goes back to
+   `waiting` when the new cut's Frame.io link is pasted on the card (below), not when the hook is logged.
+3. **`post_id` and `deliverable_id` are taken at `log` time.** The guide's step 8 changes from "not wired yet" to: run
+   `review_notes` / `video_cards` for the video and copy its card id and task id onto every row; the Frame.io links are
+   pasted on the card by whoever uploads the versions. A row logged without `post_id` is accepted (permissive,
+   AGENTS.md) and the answer says it will not show in SyncView until linked.
 
 **These belong in SyncView's build PR, not back with the studio lane.** The guard (1) only means something once
 `post_id` exists, and `post_id` only exists once the follow-up migration lands, so the migration, the three function
@@ -162,12 +171,12 @@ Not a Section 4 function, so no fingerprint pin; it deploys through the merge la
 
 | action | who | does |
 |---|---|---|
-| `read` | staff key, or a client review link for its own client | the card's switch, its versions and (staff only) the numbers, for one card or a list of cards |
+| `read` | staff key, or a client review link for its own client | the card's switch and its versions, for one card or a list of cards. Once a winner is picked, a client link gets **only the winner** (Q8) |
 | `switch_set` | staff key | turns the card's switch on or off |
+| `version_link_set` | staff key | pastes a version's Frame.io link (Q9). On a version with a change asked, a new link bumps `revision`, clears the three OKs and the change fields, and sets `waiting`, so it goes the normal route again (Q3) |
 | `version_drop` / `version_restore` | staff key | `dropped`, or back to `waiting` |
-| `answer` | staff key (SMM, Kasper) or the client review link | `approve`, `change` (with a note), `approve_all`; stamps the role's `*_ok_at`; returns `stage_done: true` when every non-dropped version has this role's OK |
+| `answer` | staff key (SMM, Kasper) or the client review link, with no token, as today (Q5) | `approve`, `change` (with a note), `approve_all`; stamps the role's `*_ok_at`; returns `stage_done: true` when every non-dropped version has this role's OK |
 | `trial_start` | staff key | every `approved` version becomes `on trial`, stamps `posted_at` and `trial_ends_at` |
-| `results_put` | staff key | one version's 24 h numbers; marks the highest-views version `suggested` once every trial version has numbers |
 | `winner_set` | staff key (the SMM) | that version `winner`, the other trial versions `lost`; copies the letter onto the switch row |
 
 - **The page switch** `trial_reels_pages` in `syncview_runtime_flags`, `{ "clients": [the test client] }`, read with
@@ -182,7 +191,8 @@ Not a Section 4 function, so no fingerprint pin; it deploys through the merge la
 keeps one ordinary `asset_url` and the task one ordinary `file_url`, so Production, the status bridge, the drift robot
 and the connector's `video_cards` see a normal card. When the SMM gives the winner badge, the page sets the card's
 `asset_url` to the winner's link through **today's staff card save** (an ordinary link edit), so the post that goes out
-on the calendar date, and every reader after it, carries the winner.
+on the calendar date, and every reader after it, carries the winner. Until then `asset_url` holds version A's link, pasted
+the usual way.
 
 ## 5. Status rules and review
 
@@ -197,10 +207,12 @@ a stage is finished, so every existing rule, notification and sync runs unchange
 
 - **Approved** needs no version waiting and at least one approved (owner, Q4). All dropped: the card stays where it is.
 - **A change on one version** sends today's change request on the video part, starting "Version C:". The card goes to
-  Tweaks Needed as today and the editor works as today. Only C goes back to `waiting`; the other versions keep their
-  answers and are not asked again.
-- **Dropped** versions are skipped by every stage and by the "every version" count. Only the team can drop (unless the
-  owner says otherwise, Q2).
+  Tweaks Needed as today and the editor works as today. When the new cut's link is pasted, only C loses its OKs and goes
+  back to `waiting`; it then takes **the normal route, the SMM and Kasper again before the client** (Q3). The card comes
+  back through For SMM Approval and Kasper Approval as today; each stage stops only on the versions that lack that
+  reviewer's OK, and the other versions keep their answers.
+- **Dropped** versions are skipped by every stage and by the "every version" count. **Only the team can drop** (Q2); the
+  client page has no drop button.
 - **The stage (195).** On a card with the switch on, for a client the page switch lists, `_rsCompsOf` replaces the
   `video` part with a `versions` part: today's player (`svFrameStageMount`) for the version on stage, arrows on each
   side (and ← → keys), swipe on a phone, "Version B of 5", the hook under it, a row of letter dots carrying each
@@ -212,11 +224,12 @@ a stage is finished, so every existing rule, notification and sync runs unchange
 **After approval: the trial, the timer and the winner.**
 - The SMM posts every approved version as a trial reel by hand, then presses **"Mark approved as on trial"**: each goes
   `on trial` with `trial_ends_at` 24 h later.
-- **The card shows the timer**: a purple "On trial · 17 h left" chip on the card (staff Calendar tile and opened card),
-  and "Numbers due" once 24 h has passed. The card's status stays Approved, then Scheduled as today.
-- The SMM types the numbers per version. When every trial version has them, the highest-views one is marked
-  **Suggested**. The SMM presses **"Give the winner badge"** on any version (the suggestion is a hint, not a rule): that
-  one is `winner`, the others `lost`, and the card's link becomes the winner's (above).
+- **The card shows the timer as a reminder**: a purple "On trial · 17 h left" chip on the card, and "Pick the winner"
+  once 24 h has passed. The card's status stays Approved, then Scheduled as today.
+- **No numbers are typed** (Q7). After the trial the SMM presses **"★ Make winner"** on one version: that one is
+  `winner`, the others `lost`, and the card's link becomes the winner's (above).
+- **The client sees only the winner, once it is picked** (Q8): the review link shows "The version we are posting" with
+  the winner's video and hook, and none of the other versions.
 - **The winner posts on the card's calendar date and the card turns Posted** through today's Posted path, unchanged.
 - The production task shows one list of versions with their labels (read only) under its ordinary single link.
 
@@ -235,42 +248,41 @@ a stage is finished, so every existing rule, notification and sync runs unchange
    save after it. If the page dies between the two, the versions say "done" and the card does not. Mitigation: `read`
    returns `card_behind: true` and the stage offers the old save again on the next open; a nightly check lists such
    cards.
-2. **The client's link is tokenless for writes today** (owner decision of 2026-07-15 for `calendar-upsert`). The new
-   function must accept client answers the same way or clients' links would fail. Narrowed by the switch (test client
-   only) and by answering only versions of that client's own cards. Q5.
+2. **The client's link stays tokenless** (owner, Q5, as for `calendar-upsert` since 2026-07-15). The new function
+   accepts client answers the same way. Narrowed by the switch (test client only) and by answering only versions of that
+   client's own cards.
 3. **Two writers on one table** (clashes 1 and 4 above). Settled by narrowing the studio's `update` and by stale-save
    checks.
 4. **Notifications.** One change request per changed version could send several review pings. Each sends what one change
    request sends today; "Approve all" sends one approval.
 5. **Seven players on Kasper's page.** Only the version on stage loads its video; the others show posters.
 6. **The winner's link swap** is an ordinary staff link edit, so it is subject to today's link guards (duplicate link,
-   link clobber). It must happen before the calendar date, or the original link posts. The card shows "Give the winner
-   badge" until it does.
+   link clobber). It must happen before the calendar date, or version A's link posts. The card shows "Pick the winner"
+   until it does.
 7. **The trial posting itself** happens on Instagram by hand; SyncView cannot see a version posted that was not
    approved.
 
 ## 8. Out of scope
 
-- Posting to Instagram (the SMM posts by hand), and reading the numbers from Instagram (typed by the SMM).
+- Posting to Instagram (the SMM posts by hand), and any trial numbers (none are typed or read, Q7).
+- Any studio write of Frame.io links (people paste them, Q9).
 - Making the versions and the hooks (the studio, #2349 and the pipelines plan).
 - Thumbnails or captions per version (one of each per card).
 - Samples, YouTube titles, and every client other than the test client.
 - Any change to `calendar-upsert`, `calendar-card-write`, the Section 4 three, or any n8n workflow.
 
-## 9. Questions only the owner can answer
+## 9. Owner answers (2026-10-26)
 
-Answered by the owner (2026-10-26): Q1 ("Decisions after v2", folded in above), Q4 (Approved when no version is waiting
-and at least one is approved), Q6 (the SMM gives the winner badge; the highest-views version is suggested).
+- Q1: "Decisions after v2", folded in above.
+- Q2: only the team can drop a version.
+- Q3: a changed version takes the normal route (the SMM and Kasper again before the client).
+- Q4: Approved when no version is waiting and at least one is approved.
+- Q5: no token; the client link works like today.
+- Q6 and Q7: no numbers typed; after the trial the SMM simply picks the winner. The results table and the "most views
+  suggested" idea are gone; the 24 h timer chip stays as a reminder.
+- Q8: the client sees only the winner, once it is picked.
+- Q9: whoever uploads each version to Frame.io pastes its link into that version's row on the card; no studio write of
+  links.
+- Q10: the SMM always picks one; no "no clear winner" on the SyncView side.
 
-Still open:
-
-2. Can the client drop a version, or only the team?
-3. Does a changed version need the SMM and Kasper again before the client, or go straight back to the client?
-5. Should the client's answers on this new page need the review link's token, or stay tokenless like today's link?
-7. Which 24 h numbers should the SMM type? (#2349 has views, watch time, shares, saves, follows; the mockup uses those.)
-8. Should the client see the 24 h results and which version won?
-9. Should the studio also put version A's link on the card, or does the editor keep doing that by hand?
-
-New, from reading #2349 (for the supervisor to route):
-
-10. #2349 has an eighth status, "no clear winner". Keep it (the card keeps its original link and posts as made)?
+**Next:** the owner looks at the real-card pictures (`trial-reels/real/`). No building until he has.

@@ -469,7 +469,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     // A link's comments: the kept read while the switch is on and it is fresh, else a new one (kept for next time).
     function _fvCommentsFor(link, fresh) {
         const hit = FV_NOTES.get(link);
-        if (_fvNotesOn && !fresh && _fvNotesFresh(hit)) return hit.p;
+        // A Notes placeholder whose read has not started yet (p null) is never handed out: a new read takes its place.
+        if (_fvNotesOn && !fresh && _fvNotesFresh(hit) && hit.p) return hit.p;
         const e = { at: Date.now(), p: null, res: null };
         e.p = _fvFetchComments(link).then((res) => {
             e.res = res;

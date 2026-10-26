@@ -34440,3 +34440,27 @@ Staff side only, behind the runtime switch `unread_badges_v2`. The owner's round
 - **Same hiding elsewhere.** Since 2026-10-12, timer runs were red under green stand-down schedule rows on 8 lanes besides the Calendar nightly (505): dawn-check 8 red, assurance-ledger-freshness 14, card-calendar-status-drift 70, production-polish-gate 5, samples-e2e-nightly 8, sheets-mirror-daily 9, track-b-backup 3, thumbnail-revision-scan 2. `mirror_timer_failure: true` is now set on all eight. Not set (no red timer run in the window): alert-digest, clients-roster-sync, n8n-execution-quota-watchdog, native-intake-completion, native-intake-completion-monitor, native-notification-monitor, native-notification-sender, rename-propagation-drain. The red runs on those eight lanes other than dawn-check are not diagnosed here.
 - **Proof.** `qa/dawn/dawn-check.js` run twice locally against the live backend on the test client, page built from this branch: client approve, client request changes, Workload (2.0 and 2.2 s), Analytics (2.2 and 1.8 s, hidden route asserted) all ✅, seeds archived 3/3, rename restored. `test/dawn-report-allowlist.js` covers the new report line and step word; `test/github-dispatch-timer.js` passes with the eight guard jobs.
 - **Way back:** revert the pull request.
+
+## 507. [2026-10-26 UTC, BUILT, NOT MERGED] Seven lanes with hidden red timer runs: two real problems already fixed, a backup job about to hit its time limit, a Sheet mirror one test client behind (session Underneath)
+
+Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; those runs were red under green stand-down schedule rows until `mirror_timer_failure` (#2339, #2340).
+
+- **track-b-backup (a).**
+  - *The gap:* no backup from 10 Oct 12:45 to 12 Oct 15:34 UTC (about 51 h; seven timer runs failed at the privilege preflight). #2036 added `pto_member_events` with no backup grant. Fixed by #2046 (entry 409).
+  - *New, fixed here:* the freshness step downloads every same-corpus snapshot (about 156 MB each; the folder is never pruned). It grew from 5.6 min (13 Oct) to 18.9 min (26 Oct); the job takes 21 of its 25 min, and was already cancelled once (24 Oct, after a verified upload). At this rate every run would be cancelled from about 29 Oct.
+  - *The fix:* `selectLatestAuthenticatedFromDrive` skips, without downloading, a candidate whose filename second plus 999 ms is not later than the newest authenticated snapshot. Such a file can never win, because validity requires the filename to equal the authenticated `generated_at`. The newest candidate is still judged in full. New output field: `older_candidates_not_downloaded`. Four new checks in `test/track-b-backup.js` fail on the old code.
+- **card-calendar-status-drift (a).** All 70 reds, 13 Oct 17:27 to 17 Oct 14:27, were real drift on four cards, one at a time.
+  - Three cards: a second status pick lost in the save wait (424, #2114).
+  - One card: a client's Request changes that reached the card and not the work item for about 20 h (429, #2140).
+  - An admin moved the stuck work items by hand on 16 and 17 Oct. Green on all 215 runs since. No data changed by this session.
+- **sheets-mirror-daily (a), minor.** The Sheet mirror of Clients Info and Social Media Managers is behind by one second *test* client. It was seeded straight into the database on 21 Oct 18:43 by a supervisor session, so `roster-write`'s Sheet copy never ran. 15 to 18 Oct was an earlier mismatch, corrected by hand. Nothing reads those tabs (the page reads the database; n8n uses `roster-read`). **Owner or Lighthouse step:** put the test client's two rows on the Sheet through `roster-write`, or archive the seed. The lane stays red until then; the parity check is right.
+- **samples-e2e-nightly (b) and (c).**
+  - 21 Oct: the Ubuntu 26.04 runner image (#2277).
+  - 22 Oct: `truth-sync` (#2292, #2308).
+  - 23 and 25 Oct: the unit lane hit the 300 s cap set on 29 Jun (1a110244) with nothing failing. Now 600 s; it took 265 to 300 s.
+  - 17 Oct: one realtime probe, one night only.
+  - 18 to 23 Oct: every client action read `disabled`. The client driver also said that when the card was not drawn, so the logs cannot tell which. It now reports `no-panel`. Green 24 to 26 Oct with no change found that explains the recovery.
+- **production-polish-gate (b) and (c).** Racy suites (fixed by #2094, 16 Oct) and the Ubuntu 26.04 image (#2277). Green since 22 Oct.
+- **assurance-ledger-freshness (b), a stale record.** Ten ledger rows claimed FRESH or NEAR past their dates. They are now restated to EXPIRED with the day count (State column stamped 2026-10-26); nothing was re-proven.
+- **thumbnail-revision-scan (c).** Four single 5xx answers from the function host (504, 520, 503, 503); the next 10-minute run was green each time.
+- **Way back:** revert the pull request.

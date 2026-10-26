@@ -32,6 +32,7 @@
     .trp-main .cal-link-pill-open{min-width:0}
     .trp-main .cal-link-label{display:flex;align-items:center;gap:7px;min-width:0;white-space:nowrap;overflow:hidden}
     .trp-main .trp-state-btn{flex:none;align-self:center;min-height:0!important;height:18px;display:inline-flex;align-items:center;padding:0 8px;border-radius:999px;border:1px solid currentColor;line-height:1;cursor:pointer;overflow:visible}
+    .trp-main .trp-state-btn svg{width:11px;height:11px;margin-right:4px}
     .trp-state-btn:hover{background:color-mix(in srgb,currentColor 12%,transparent)}
     .trp-state{font-size:10.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis}
     .trp-chev{flex:none;align-self:center;display:grid;place-items:center;width:16px;height:14px;margin-right:2px;border-radius:5px;color:inherit;cursor:pointer;opacity:.8}
@@ -45,7 +46,14 @@
     .trp-v .trp-go svg{width:11px;height:11px}
     .trp-v .trp-paste{font-weight:500;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .trp-v.trp-dropped .trp-l{text-decoration:line-through}
-    .trp-v .trp-pick{flex:none;border:0;background:none;color:inherit;font:inherit;font-size:10.5px;font-weight:700;opacity:.85;cursor:pointer;padding:0}
+    .trp-v .trp-pick{flex:none;display:grid;place-items:center;width:20px;height:20px;margin-left:-2px;border:0;border-radius:5px;background:none;color:inherit;cursor:pointer;padding:0;opacity:.8}
+    .trp-v .trp-pick:hover{opacity:1;background:color-mix(in srgb,currentColor 12%,transparent)}
+    .trp-v .trp-pick svg{width:13px;height:13px}
+    @media (max-width: 599px){ .trp-v .trp-pick{width:32px;height:32px} .trp-v .trp-pick svg{width:16px;height:16px} }
+    .trp-confirm{gap:10px}
+    .trp-confirm .trp-l{flex:1 1 auto}
+    .trp-confirm button{flex:none;border:1px solid currentColor;border-radius:999px;background:none;color:inherit;font:inherit;font-size:11px;font-weight:700;padding:2px 10px;cursor:pointer}
+    .trp-confirm .trp-yes{background:color-mix(in srgb,currentColor 14%,transparent)}
     .trp-lab{margin-left:auto;flex:none;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap}
     .trp-lab{background:var(--cal-status-n-a-bg,#f3f4f6);color:var(--cal-status-n-a-fg,#4b5563)}
     .trp-lab[data-l="approved"]{background:var(--cal-status-approved-bg,#dcfce7);color:var(--cal-status-approved-fg,#166534)}
@@ -64,6 +72,10 @@
     .trp-oncard{font-size:11px;font-weight:600;color:var(--prod-strong,inherit)}
   `;
   const CHEV = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>';
+  // The pick-the-winner icon: a small trophy by default (a checkmark already means "approved" here); 'check' is the
+  // alternative the owner may choose.
+  const TROPHY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 2.5h6v3.5a3 3 0 0 1-6 0z"/><path d="M5 3.5H3a2 2 0 0 0 2 2.5M11 3.5h2a2 2 0 0 1-2 2.5"/><path d="M8 9v2.5M5.5 13.5h5M6.5 11.5h3"/></svg>';
+  const CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></svg>';
   const GO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h4v4"/><path d="M13 3 7 9"/><path d="M12 9.5V13H3V4h3.5"/></svg>';
   function addCss() {
     if (document.getElementById('trpCss')) return;
@@ -81,7 +93,8 @@
     return { main: 'Video C', tiny: '★ winner' };
   }
   // state: 'off' | 'review' | 'trial' | 'due' | 'winner'; open: the versions list is expanded
-  function card(state, open) {
+  // variant: 'check' (the checkmark icon instead of the trophy) or 'confirm' (the phone's one-line confirm on Video C)
+  function card(state, open, variant) {
     addCss();
     document.querySelectorAll('.cal-link-field.cal-link-post').forEach(video => {
       if (video.dataset.trp || !video.offsetParent) return;
@@ -109,7 +122,7 @@
         label.children[1].classList.add('trp-state-btn');
         label.children[1].setAttribute('role', 'button');
         label.children[1].title = 'Open the versions and pick the winner';
-        label.children[1].textContent = '★ Pick winner';
+        label.children[1].innerHTML = TROPHY + '<span>Pick winner</span>';
       }
       const chev = document.createElement('span');
       chev.className = 'trp-chev';
@@ -127,8 +140,12 @@
         v.className = 'trp-v' + (L[l] === 'dropped' ? ' trp-dropped' : '');
         v.innerHTML = (linked ? '<span class="trp-go">' + GO + '</span>' : '') + '<span class="trp-l">Video ' + l + '</span>'
           + (linked ? '' : '<span class="trp-paste">Paste the Frame.io link</span>')
-          + (state === 'due' && L[l] === 'on trial' ? '<button type="button" class="trp-pick">★ Make winner</button>' : '')
-          + '<span class="trp-lab" data-l="' + L[l] + '">' + L[l] + '</span>';
+          + '<span class="trp-lab" data-l="' + L[l] + '">' + L[l] + '</span>'
+          + (state === 'due' && L[l] === 'on trial' ? '<button type="button" class="trp-pick" aria-label="Make this the winner" title="Make this the winner">' + (variant === 'check' ? CHECK : TROPHY) + '</button>' : '');
+        if (variant === 'confirm' && l === 'C') {
+          v.classList.add('trp-confirm');
+          v.innerHTML = '<span class="trp-l">Make Video C the winner?</span><button type="button" class="trp-yes">Yes</button><button type="button" class="trp-no">Cancel</button>';
+        }
         list.appendChild(v);
       }
       video.after(list);

@@ -15,7 +15,7 @@ const OUT = __dirname;
 const PREVIEW = fs.readFileSync(path.join(__dirname, 'preview.js'), 'utf8');
 // The card keeps its normal status in every state; only the versions carry labels.
 const STATUS = { today: 'Client Approval', off: 'Client Approval', review: 'Client Approval', 'review-open': 'Client Approval',
-  trial: 'Approved', due: 'Approved', 'due-open': 'Approved', winner: 'Scheduled', 'winner-open': 'Scheduled' };
+  trial: 'Approved', due: 'Approved', 'due-open': 'Approved', 'due-open-check': 'Approved', 'due-confirm': 'Approved', winner: 'Scheduled', 'winner-open': 'Scheduled' };
 const CORS = { 'access-control-allow-origin': '*' };
 
 (async () => {
@@ -64,6 +64,8 @@ const CORS = { 'access-control-allow-origin': '*' };
       for (const [w, h] of [[1440, 900], [390, 844]]) {
         // ---- the card ----
         for (const state of Object.keys(STATUS)) {
+          if (state === 'due-open-check' && !(w === 1440)) continue;   // one picture of the checkmark choice
+          if (state === 'due-confirm' && w >= 600) continue;             // the confirm is the phone's (no hover)
           for (const k of ['video_status', 'caption_status']) card[k] = STATUS[state];
           card.status = STATUS[state];
           card.asset_url = state.startsWith('winner') ? 'https://f.io/fixture-version-c' : 'https://f.io/fixture-version-a';
@@ -75,15 +77,17 @@ const CORS = { 'access-control-allow-origin': '*' };
           if (w < 600) { await page.getByText(card.name).first().click(); await sleep(1200); }
           if (state !== 'today') {
             await page.addScriptTag({ content: PREVIEW });
-            const [s, open] = [state.replace('-open', ''), state.endsWith('-open')];
-            await page.evaluate(([s2, o]) => svTrialPreview.card(s2, o), [s, open]);
+            const base = state.split('-')[0];
+            const open = /-open|-confirm/.test(state);
+            const variant = state.endsWith('-check') ? 'check' : state.endsWith('-confirm') ? 'confirm' : '';
+            await page.evaluate(([s2, o, v]) => svTrialPreview.card(s2, o, v), [base, open, variant]);
           }
           await page.mouse.move(2, h - 2);
           await sleep(600);
           const ch = await cardHeight(page);
           const key = w + '-' + theme;
           if (state === 'today') heights[key] = ch;
-          else if (!state.endsWith('-open')) {
+          else if (!/-open|-confirm/.test(state)) {
             const same = Math.abs(ch - heights[key]) < 0.5;
             if (!same) mismatches++;
             console.log((same ? '  ok  ' : 'FAIL  ') + 'card height ' + key + ' ' + state + ': ' + ch + ' (today ' + heights[key] + ')');

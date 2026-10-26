@@ -340,12 +340,17 @@ a stage is finished, so every existing rule, notification and sync runs unchange
 - **The card shows the timer as a reminder, inside its Video row**: "On trial · 17 h left", then "Pick the winner"
   once 24 h has passed (no new row, R2). The card's status stays Approved, then Scheduled as today.
 - **Where the winner is picked (owner, 2026-10-26 about 22:40 UTC: findable without opening anything):** once the 24 h
-  are up, the collapsed Video row's state is itself a small **"★ Pick winner"** button. Pressing it opens the versions
-  list with a "★ Make winner" button on each version on trial (`card-due-*` collapsed, `card-due-open-*` opened). It
+  are up, the collapsed Video row's state is itself a small **"Pick winner"** button (with a trophy). Pressing it opens
+  the versions list with a small trophy icon button on each version on trial, the size of the row's other icons, in
+  the row's muted tone, with the tooltip, title and aria-label "Make this the winner" (owner, about 22:50 UTC: an icon,
+  not text). A checkmark was the owner's first idea; it already means "approved" on these surfaces, so the trophy is
+  the default and `card-due-open-check-1440-*` shows the checkmark for comparison. On a phone (no hover) a tap turns the
+  row into a one-line confirm, "Make Video C the winner?" with Yes and Cancel (`card-due-confirm-390-*`). Pictures:
+  `card-due-*` collapsed, `card-due-open-*` opened. It
   sits inside the row, so the card keeps today's height (measured). **Staff only:** the staff card and the phone staff
   card show it, and the SMM and Kasper can press it; the client link never shows it, and `trial-reels` refuses
   `winner_set` from a client link.
-- **No numbers are typed** (Q7). After the trial the SMM presses **"★ Make winner"** on one version: that one is
+- **No numbers are typed** (Q7). After the trial the SMM presses the trophy ("Make this the winner") on one version: that one is
   `winner`, the others `lost`, and the card's link becomes the winner's (above).
 - **The client sees only the winner, once it is picked** (Q8): the review link shows "Video C: the one we are posting"
   with the winner's video, and none of the other versions.

@@ -34503,13 +34503,13 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Guard.** `test/samples-client-link-review-stage-browser.js` (mocked, fictional client): with the switch on for every client, a Samples link keeps `v=sample-reviews`, shows its sample and never draws the Calendar Review page; a bare link still moves to the Calendar. 4 of 7 checks fail on the old code; 7 of 7 pass with the fix. Wired in `calendar-unit-tests.yml` and `test/suite-classification.json`.
 - **Not done here.** No live proof of the fix until it is merged and published; the Tier 0 re-proof (entry 510) re-runs the live Samples approve after that.
 
-## 510. [2026-10-26 UTC, BUILT, NOT MERGED] Tier 0 re-proof on the live site: share link and Calendar half pass; the Samples half fails on a real client path (session Reproof)
+## 510. [2026-10-26 UTC, BUILT, NOT MERGED] Tier 0 re-proof on the live site: all three rows pass after the Samples link fix (session Reproof)
 
 - **What was re-proven.** The three Tier 0 rows of `docs/testing/ASSURANCE_LEDGER.md`, on the live site, on the test client only. Restated EXPIRED in 507; last proven 2026-10-09. The Tier 1 to 3 rows were not re-proven.
 - **Share-link issuance:** pass. A staff sign-in, then More > Share with client: 200 with a token. FRESH.
 - **Client review links, Calendar half:** pass on the new Review page. Approve saved and held, request-changes saved with its text, captions unchanged, 0 page errors.
-- **Client review links, Samples half:** FAIL on the live site. Every client Samples link opens the Calendar Review page (entry 509, fix #2345). With #2345 served from its branch against the live backend: 13 of 13.
-- **Thumbnails:** the Calendar client-link thumbnail drew 1 of 1 on the live site. The Samples one is not reachable live until #2345 is published.
+- **Client review links, Samples half:** first FAIL on the live site. Every client Samples link opened the Calendar Review page (entry 509). After #2345 was merged and published (7ddb600, live 20:24:54 UTC): pass on the live site, 13 of 13 at 20:25 UTC.
+- **Thumbnails:** the Calendar and Samples client-link thumbnails each drew 1 of 1 on the live site after #2345.
 - **Test updates.** `qa/dawn/tier0-live-proof.js` was stale for the Calendar half: it waited for the old card list, and since #2131 every client link opens on the Review page. It now uses `qa/dawn/review-stage-driver.js`, the dawn check's stage driver moved to a shared file (`dawn-check.js` now requires it; no behaviour change there). It also checks that client actions leave the caption text unchanged (#2208), and keeps screenshots under the ignored `qa/dawn/out/`.
-- **Ledger.** Share-link issuance is FRESH. The other two rows say EXPIRED, with the failing Samples half named, until a live run after #2345 passes.
+- **Ledger.** All three Tier 0 rows are FRESH (2026-10-26).
 - **Way back:** revert the pull request.

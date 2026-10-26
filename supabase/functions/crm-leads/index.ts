@@ -242,7 +242,7 @@ async function ingest(db: SupabaseClient, body: Record<string, unknown>) {
       created = true;
     } else {
       // Fill blanks only, and never with a value another person already holds.
-      const fill: Record<string, unknown> = mergeForImport(person, { display_name: v.person.display_name, email: v.person.email, phone: v.person.phone, instagram_handle: v.person.instagram_handle, tags: [] });
+      const fill: Record<string, unknown> = Object.assign({} as Record<string, unknown>, mergeForImport(person, { display_name: v.person.display_name, email: v.person.email, phone: v.person.phone, instagram_handle: v.person.instagram_handle, tags: [] }));
       delete fill.tags;
       if (fill.email && owners.email_norm && owners.email_norm !== person.id) delete fill.email;
       if (fill.phone && owners.phone_norm && owners.phone_norm !== person.id) delete fill.phone;

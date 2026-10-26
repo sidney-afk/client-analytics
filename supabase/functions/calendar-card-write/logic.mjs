@@ -66,6 +66,18 @@ const KASPER_URGENT_COMPONENTS = ["video", "graphic", "caption", "title"];
    Anything else (no row, a malformed value, an unlisted client) is OFF. */
 export const FLAG_KEY = "calendar_card_write_clients";
 
+/* A save that has taken this long inside the function is not written. The page
+   gives up after 20 s (CAL_SAVE_TIMEOUT_MS) and tells the person it was not
+   saved, so a write after that lands behind their back, possibly after a newer
+   save of the same card. On 2026-10-26 one call stalled 130 s on its first
+   database request and then wrote (OPEN_REPAIRS 508). The check runs just
+   before the write, so a refusal guarantees nothing was written. */
+export const WRITE_DEADLINE_MS = 15000;
+
+export function pastWriteDeadline(startedMs, nowMs) {
+  return Number(nowMs) - Number(startedMs) > WRITE_DEADLINE_MS;
+}
+
 export function rosterAllows(value, client) {
   const slug = clean(client).toLowerCase();
   if (!slug || !value || typeof value !== "object" || Array.isArray(value)) return false;

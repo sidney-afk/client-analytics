@@ -58,7 +58,7 @@ function ok(cond, msg) {
   const state = {
     cardFlag: 'absent',      // absent | list | all | empty | malformed | http500
     cardFlagReads: 0,
-    cardAnswer: 'ok',        // ok | not_enabled | switch_unreadable | conflict | error500
+    cardAnswer: 'ok',        // ok | not_enabled | switch_unreadable | conflict | error500 | too_late
     upsert: [],              // calendar-upsert POSTs
     card: [],                // calendar-card-write POSTs
     n8n: [],
@@ -102,6 +102,7 @@ function ok(cond, msg) {
         if (state.cardAnswer === 'switch_unreadable') return json(route, { ok: false, error: 'switch_unreadable' }, 503);
         if (state.cardAnswer === 'conflict') return json(route, { ok: false, conflict: true, error: 'Not saved: someone else updated this card' });
         if (state.cardAnswer === 'error500') return json(route, { ok: false, error: 'calendar update failed' }, 500);
+        if (state.cardAnswer === 'too_late') return json(route, { ok: false, error: 'too_late' }, 503);
         return json(route, { ok: true, post: { id: 'from-card-write' } });
       }
       if (url.pathname === '/rest/v1/clients' && method === 'GET') {
@@ -126,7 +127,7 @@ function ok(cond, msg) {
       try {
         const resp = await _calUpsertFetch(slug, { client: slug, post: { id, name: 'Fixture' } }, source || 'ui');
         return { sent: true, status: resp.status, body: await resp.json() };
-      } catch (e) { return { sent: false, message: String(e && e.message) }; }
+      } catch (e) { return { sent: false, message: String(e && e.message), network: !!(e && e.network === true), name: String(e && e.name) }; }
     }, { slug: SLUG, id, source });
     const step = async (label, work) => {
       const before = { up: state.upsert.length, card: state.card.length, reads: state.cardFlagReads, n8n: state.n8n.length };
@@ -190,7 +191,24 @@ function ok(cond, msg) {
       r = await step(answer, () => save('card-9-' + answer));
       ok(r.result.sent && r.card === 1 && r.up === 0 && r.result.body.ok === false, `the function answers ${answer}: that answer reaches the page, calendar-upsert is not called`);
     }
+
+    // 8b. too_late (OPEN_REPAIRS 508): the function took too long and wrote nothing. The page ends the save the
+    // way its own 20 s timer does (a network failure, the change kept for a retry), with no second writer.
+    state.cardFlag = 'list'; state.cardAnswer = 'too_late'; await forget();
+    r = await step('too_late', () => save('card-11'));
+    ok(!r.result.sent && r.result.network && r.result.name === 'AbortError'
+      && r.result.message === 'The server has not answered. Your change is kept; try again.',
+      'the function answers too_late: the save fails as a network failure with the timeout\'s words');
+    ok(r.card === 1 && r.up === 0, 'too_late: one try on calendar-card-write, calendar-upsert is not called');
     state.cardAnswer = 'ok';
+    r = await step('too_late next', () => save('card-11'));
+    ok(r.result.sent && r.card === 1 && r.up === 0 && r.reads === 0, 'after too_late the switch is kept: the retry goes to calendar-card-write');
+    const retryRecognised = await page.evaluate(() => {
+      const e = new Error('The server has not answered. Your change is kept; try again.');
+      e.name = 'AbortError'; e.network = true;
+      return typeof _writeRefusalIsNetworkFailure === 'function' ? _writeRefusalIsNetworkFailure(e) : 'missing';
+    });
+    ok(retryRecognised === true, 'the save paths read that failure as a network failure (kept for a retry)');
 
     // 9. No signed-in staff identity: calendar-upsert (the function would refuse without a key).
     state.cardFlag = 'list'; await forget();

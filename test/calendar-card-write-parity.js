@@ -216,6 +216,14 @@ const norm = v => String(v == null ? '' : v).trim().toLowerCase();
   ok(/\.from\("syncview_runtime_flags"\)\s*\.select\("value"\)\s*\.eq\("key", FLAG_KEY\)/.test(NEW_HANDLER) && /if \(error\) throw new Refusal\(503, "switch_unreadable"\);/.test(NEW_HANDLER),
     'the function reads its own switch and an unreadable switch refuses');
   ok(NEW.FLAG_KEY === 'calendar_card_write_clients', 'the switch key');
+  // OPEN_REPAIRS 508: a save that took too long inside the function is refused just before the write, under the page's 20 s timer.
+  ok(NEW.WRITE_DEADLINE_MS === 15000 && NEW.WRITE_DEADLINE_MS < 20000, 'the write deadline is 15 s, under the page\'s 20 s timer');
+  ok(!NEW.pastWriteDeadline(1000, 1000) && !NEW.pastWriteDeadline(1000, 16000) && NEW.pastWriteDeadline(1000, 16001) && NEW.pastWriteDeadline(0, 131644),
+    'past the deadline only after more than 15 s (the 2026-10-26 stall, 131644 ms, is refused)');
+  ok(/const existsAlready = !!\(existingRead\.row && existingRead\.row\.id\);\s*(\/\/[^\n]*\n\s*)?if \(pastWriteDeadline\(started, Date\.now\(\)\)\) throw new Refusal\(503, "too_late"\);\s*await writeCalendarRow\(/.test(NEW_HANDLER),
+    'the deadline is checked immediately before the write, after every read, and refuses with 503 too_late');
+  ok(NEW_HANDLER.indexOf('pastWriteDeadline(started') < NEW_HANDLER.indexOf('await writeCalendarRow(') && /const started = Date\.now\(\);\s*if \(req\.method === "OPTIONS"\)/.test(NEW_HANDLER),
+    'the clock starts when the request arrives');
   ok(/const FN = "calendar-card-write";/.test(NEW_HANDLER) && /fn: FN,/.test(NEW_HANDLER), 'its log line names this function, apart from calendar-upsert');
   ok(/supabase\.rpc\("calendar_merge_comments", args\)/.test(NEW_HANDLER) && /\.from\("calendar_post_events"\)\.insert\(events\)/.test(NEW_HANDLER), 'comments merge through the same RPC and the same ledger table');
   ok(!/x-syncview-client-token[^\n]*review_token/.test(NEW_HANDLER) && !/\bservice_role\b/.test(NEW_HANDLER.replace(/SUPABASE_SERVICE_ROLE_KEY/g, '')), 'no client-token shortcut and no other service-role path');

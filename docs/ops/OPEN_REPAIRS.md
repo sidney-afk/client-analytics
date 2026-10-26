@@ -34464,3 +34464,28 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **assurance-ledger-freshness (b), a stale record.** Ten ledger rows claimed FRESH or NEAR past their dates. They are now restated to EXPIRED with the day count (State column stamped 2026-10-26); nothing was re-proven.
 - **thumbnail-revision-scan (c).** Four single 5xx answers from the function host (504, 520, 503, 503); the next 10-minute run was green each time.
 - **Way back:** revert the pull request.
+
+## 508. [2026-10-26 UTC, BUILT, NOT MERGED] A staff status save timed out after 20 s because calendar-card-write stalled 130 s and then wrote anyway; the function now refuses to write after 15 s (session Hang)
+
+- **What the person saw.** 26 Oct 15:25:27 UTC, a staff social media manager (Chrome, Windows) changed a status on a real client's card. The page gave up after 20 s: "The server has not answered. Your change is kept; try again." It was the only staff status `network_failure` in 14 days. The supervisor rolled `calendar_card_write_clients` back from `{"all": true}` to the test client and the owner's two clients at about 15:3x UTC.
+- **Which request hung.** The save request itself: only `_calSaveFetch` throws those words. One calendar-card-write execution:
+  - started at 15:25:04.546 and stamped its `now` (15:25:04.587, which became the card's `updated_at`);
+  - made no database request until 15:27:15.3, its roster switch read;
+  - then read the card, checked twins and PATCHed `calendar_posts` (204) at 15:27:16.05;
+  - logged `outcome ok, ms 131644`. The edge never logged a response for it.
+- **Where the 130 s went.** Everything between `now` and the switch read is synchronous: the staff branch of `authorizeBrowserWrite` does no I/O. The gateway timed that switch read at 319 ms (origin_time). So the stall was on the function-to-gateway hop (platform egress, or a dead pooled connection), not in Postgres and not in the user's network.
+  - The production-comments 502 thought to be in the same minute was at 14:45:23, so it is unrelated.
+  - The other card saves in that minute took 0.9 to 1.3 s.
+- **Is the saver slow?** No. Function `ms` over three days to 26 Oct 16:00: calendar-card-write p50 about 700 ms, p95 1.0 to 1.25 s, 2,666 saves, one over 10 s (this one; otherwise max 8.3 s). calendar-upsert p50 140 to 210 ms (fewer round trips), max 1.0 s.
+- **What the late write did.** It wrote about 2 minutes after the page had told the person it was not saved, and after a newer save of the same card (15:25:25).
+  - The stale-save guard let it through, so no compared field differed. Its visible effect: `updated_at` went backwards by about 20 s.
+  - No status changed on that card that day: no `status_change` rows, status stamps unchanged since 23 Oct. The card is still in its pre-click state. If the person meant to change the status, the change is still on their page for a retry.
+- **The fix (this pull request).**
+  - calendar-card-write refuses with 503 `too_late` when more than 15 s (`WRITE_DEADLINE_MS`, under the page's 20 s `CAL_SAVE_TIMEOUT_MS`) have passed since the request arrived. The check sits immediately before `writeCalendarRow`, after every read, so a refusal guarantees nothing was written.
+  - The page reads `too_late` exactly like its own timeout: a network failure with the same words, the change kept for a retry, the switch kept. It does not go on to calendar-upsert.
+  - A stall during the write itself (the PATCH, or the comment-merge RPC) is not covered; it can still land late.
+- **Same exposure elsewhere.** calendar-upsert also calls the database through supabase-js with no timeout and no deadline, so the same stall there would write late too. Not changed here: calendar-upsert is frozen (`calendar-upsert-live-delta.yml`). Staying on calendar-upsert does not avoid this.
+- **Proof.**
+  - `test/calendar-card-write-parity.js`: the 15 s boundary, and the check placed right before the write. The placement check fails on the old handler.
+  - `test/calendar-card-write-routing-browser.js`: the page ends a `too_late` answer as a kept network failure with no calendar-upsert call, and the retry goes back to calendar-card-write. The first check fails on the old page.
+- **Way back:** revert the pull request; it deploys on merge like any calendar-card-write change.

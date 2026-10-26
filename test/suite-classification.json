@@ -2137,7 +2137,7 @@
       "file": "calendar-card-write-routing-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that a staff Calendar save goes to calendar-card-write only when calendar_card_write_clients lists the client and the tab has a staff identity, stays on calendar-upsert otherwise, and goes on to calendar-upsert when the function refuses before writing.",
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that a staff Calendar save goes to calendar-card-write only when calendar_card_write_clients lists the client and the tab has a staff identity, stays on calendar-upsert otherwise, goes on to calendar-upsert when the function refuses before writing, and ends a too_late answer like its own timeout (a kept network failure, no calendar-upsert call).",
       "reproduce": "node test/calendar-card-write-routing-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },

@@ -47,6 +47,7 @@ import {
   has,
   ledgerSource,
   mintThumbRev,
+  pastWriteDeadline,
   responsePayload,
   rosterAllows,
   scalarPayloadForExisting,
@@ -218,6 +219,8 @@ Deno.serve(async (req: Request) => {
     }
     const post = stripPrivate(guarded) as Row;
     const existsAlready = !!(existingRead.row && existingRead.row.id);
+    // Too slow to still be wanted: the page has given up or is about to. Nothing is written (logic.mjs).
+    if (pastWriteDeadline(started, Date.now())) throw new Refusal(503, "too_late");
     await writeCalendarRow(supabase, client, post, existsAlready);
 
     const shared = {

@@ -3308,10 +3308,28 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
         if (o.from != null) out.from = o.from;
         return out;
     }
+    /* calendar-card-write answers 503 too_late when a save took more than 15 s inside it: it has written
+       nothing, because by then this page has given up or is about to (OPEN_REPAIRS 508). That is the same
+       outcome as the 20 s timer, so it ends the same way: a network failure that keeps the change for a
+       retry. It does not go on to calendar-upsert, which would be a second writer for a save the person may
+       already be retrying. */
+    async function _calCardWriteTooLate(resp) {
+        if (!resp || resp.status !== 503) return false;
+        try {
+            const body = await resp.clone().json();
+            return !!body && body.ok === false && body.error === 'too_late';
+        } catch (e) { return false; }
+    }
     async function _calUpsertFetchGuarded(clientOrSlug, payload, source) {
         await _calAssertSavingOn(clientOrSlug);
         if (await _calCardWriteOn(clientOrSlug)) {
             const resp = await _calUpsertPost(CALENDAR_CARD_WRITE_EF_URL, payload, source);
+            if (await _calCardWriteTooLate(resp)) {
+                const ended = new Error(CAL_SAVE_NO_ANSWER_MESSAGE);
+                ended.name = 'AbortError';
+                ended.network = true;
+                throw ended;
+            }
             if (!(await _calCardWriteRefusedBeforeWriting(resp))) return resp;
             _calCardWriteFlag = { value: null, at: Date.now() };   // the server said off: stop asking it for 30 seconds
         }

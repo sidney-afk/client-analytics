@@ -12,6 +12,7 @@
 
 import { videoCards } from "./videocards.mjs";
 import { toolGet, toolList, toolSave } from "./sharedtools.mjs";
+import { trialReels } from "./trialreels.mjs";
 
 export const STUDIO_ACTIONS = {
   review_notes: {
@@ -44,6 +45,20 @@ export const STUDIO_ACTIONS = {
     does: "Get one shared tool's full text (the latest version). Read only.",
     args: { name: "the tool's name from tool_list (required)" },
     run: (deps, args) => toolGet(deps.tools(), args),
+  },
+  trial_reels: {
+    does: "Trial reels: one finished video becomes versions with different text hooks, all posted as Instagram trial reels. step \"guide\" gives the steps (start there); \"log\" saves the versions, one row each; \"list\" shows them; \"update\" sets a version's status or its 24 hour numbers. Never posts anything.",
+    args: {
+      step: "guide, log, list or update (default guide)",
+      rows: "log: the versions from trial_reels.py rows",
+      client: "list: the client",
+      batch: "list: the batch (optional)",
+      video: "list: the video number (optional)",
+      id: "update: the version's id from list",
+      status: "update: waiting, approved, change asked, dropped, on trial, winner, lost or no clear winner",
+      views: "update: 24 hour numbers, also watch_time_s, shares, saves, follows (optional)",
+    },
+    run: (deps, args) => trialReels(deps.trials(), args),
   },
 };
 

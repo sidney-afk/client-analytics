@@ -34503,6 +34503,16 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Guard.** `test/samples-client-link-review-stage-browser.js` (mocked, fictional client): with the switch on for every client, a Samples link keeps `v=sample-reviews`, shows its sample and never draws the Calendar Review page; a bare link still moves to the Calendar. 4 of 7 checks fail on the old code; 7 of 7 pass with the fix. Wired in `calendar-unit-tests.yml` and `test/suite-classification.json`.
 - **Not done here.** No live proof of the fix until it is merged and published; the Tier 0 re-proof (entry 510) re-runs the live Samples approve after that.
 
+## 510. [2026-10-26 UTC, BUILT, NOT MERGED] Tier 0 re-proof on the live site: all three rows pass after the Samples link fix (session Reproof)
+
+- **What was re-proven.** The three Tier 0 rows of `docs/testing/ASSURANCE_LEDGER.md`, on the live site, on the test client only. Restated EXPIRED in 507; last proven 2026-10-09. The Tier 1 to 3 rows were not re-proven.
+- **Share-link issuance:** pass. A staff sign-in, then More > Share with client: 200 with a token. FRESH.
+- **Client review links, Calendar half:** pass on the new Review page. Approve saved and held, request-changes saved with its text, captions unchanged, 0 page errors.
+- **Client review links, Samples half:** first FAIL on the live site. Every client Samples link opened the Calendar Review page (entry 509). After #2345 was merged and published (7ddb600, live 20:24:54 UTC): pass on the live site, 13 of 13 at 20:25 UTC.
+- **Thumbnails:** the Calendar and Samples client-link thumbnails each drew 1 of 1 on the live site after #2345.
+- **Test updates.** `qa/dawn/tier0-live-proof.js` was stale for the Calendar half: it waited for the old card list, and since #2131 every client link opens on the Review page. It now uses `qa/dawn/review-stage-driver.js`, the dawn check's stage driver moved to a shared file (`dawn-check.js` now requires it; no behaviour change there). It also checks that client actions leave the caption text unchanged (#2208), and keeps screenshots under the ignored `qa/dawn/out/`.
+- **Ledger.** All three Tier 0 rows are FRESH (2026-10-26).
+
 ## 511. [2026-10-26 UTC, BUILT, NOT MERGED] A staff member's own test client now shows for them on Today and in "My clients" (session Owntest)
 
 - **Owner's ask (2026-10-26).** A staff member should see their own test client on Today and in their client lists, beside their real clients.
@@ -34516,3 +34526,18 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Who sees what after the change.** Only the person whose roster row lists a test client sees it, on Today (chips and rows) and in "My clients". Other SMMs, staff with only "also sees" grants, admins not on the roster, editors' own queues, client counts, reports and n8n are unchanged and never see it.
 - **Proof.** `test/smm-client-match.js` (14 new pure checks, one for a roster row naming the test client by display name while Clients Info uses the slug-derived name). `docs/syncview-design/tests/today-own-test-client-browser.js` (offline, in the production-polish fast lane) drives `_tdyLoad` and the Today render for three people; it fails on the old code.
 - **Way back:** revert the pull request.
+
+## 512. [2026-10-26 UTC, BUILT, NOT MERGED] Frame.io comments in a card's Notes without the player, kept for five minutes, behind frame_comments_in_notes_staff (session Framenotes)
+
+- **What the owner asked (2026-10-21, confirmed 2026-10-26).** In the Notes you open on a Calendar card, also show the comments left on that post's video in Frame.io. Staff only, never the client link or the client's review page.
+- **What already existed (checked first).** Session Cinema (#2120, live since 2026-10-16) already draws a card's Frame.io comments as rows in its Notes, marked "Frame.io", in time order with the notes, with clickable video times. But only through the player: the rows came with `svFrameStageMount`, so a Notes view without the player (its client not on `frame_viewer_clients`, or the switch not read yet) had none, and every opening asked Frame.io for the comments again (the page kept the read for 45 s only, and a fresh video address asked for the comments too).
+- **The change (page only, no function change, behind a new staff switch).** `frame_comments_in_notes_staff = {"staff": [ids or full names]}` in `syncview_runtime_flags`, read with the other staff switches (188, the `unread_badges_v2` pattern; the key sits before `thumbnail_title_buttons_staff`, which stays last). For a listed staff member:
+  - a card whose video is a Frame.io link shows its Frame.io comments in Notes even without the player: the same rows, the same "Frame.io" mark, the video time as a label (there is no player to move), read only;
+  - nothing is asked while Notes opens: the comments-only read (`frameio-view`, `part: "comments"`, as before) starts two frames after the dialog painted, with no stand-in rows, and the rows join when it lands;
+  - every comments read of a link (door hover, player, Notes) is kept for five minutes (a failed one for a minute), so a second opening shows them at once and asks Frame.io nothing; with the player, a fresh video address no longer asks for the comments again;
+  - a failed read is one muted line, "Frame.io comments could not be loaded.", with no Try again and no box.
+  - Not listed, the switch row missing or of the wrong shape: Notes is exactly as before. A client link never reads the switch and never asks for comments (unchanged: the function refuses comments to a client token).
+- **No Frame.io token in the browser.** The page still asks `frameio-view` with the staff key, as before.
+- **Proof.** `test/frame-comments-in-notes-browser.js` (mocked, desktop 1440 and phone 390, light and dark; wired into calendar-unit-tests): the rows without the player, no request before paint and no stand-in rows, the five-minute keep, the one-line failure, a Drive link asks nothing, the player keeps its clickable times and asks for the video only on a second opening, and with the switch off nothing changes. 17 of its checks fail on main.
+- **Not done.** The switch row is not created (the owner or Lighthouse creates it). Comments left on earlier versions of a Frame.io version stack are not shown: `frameio-view` reads the stack's newest version only, here and in the player (a function change, if the owner wants it).
+- **Way back:** delete the switch row, or revert the pull request.

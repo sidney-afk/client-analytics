@@ -39,6 +39,7 @@
     "higgsfield-private-ip.js",
     "higgsfield-video-cards.js",
     "higgsfield-shared-tools.js",
+    "higgsfield-trial-reels.js",
     "pipeline-pass.js",
     "pipeline-social.js",
     "pipeline-store.js",
@@ -2107,6 +2108,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium (started without its --hide-scrollbars default); every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards and staff member), no hosted credentials and no live data. Measures the drawn scrollbar of the page, the staff Sheet's card strip, a caption box, a plain scrolling box and the review page's conversation panel in light and dark (6px each, the theme's thumb colour, no standard scrollbar-width in Chromium), and that a hidden scrollbar stays hidden.",
       "reproduce": "node test/scrollbars-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "frame-comments-in-notes-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, the frameio-view answers are fixtures, no hosted credentials and no live data. Checks Frame.io comments in a Calendar card's Notes without the player behind frame_comments_in_notes_staff at desktop and phone size, light and dark: lazy read after paint, five-minute keep, one-line failure, switch off unchanged.",
+      "reproduce": "node test/frame-comments-in-notes-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

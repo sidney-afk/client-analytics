@@ -267,7 +267,7 @@ const parse = (text) => JSON.parse(text.slice(text.indexOf('\n') + 1));
 
   // studio_action: one tool, "review_notes" is its first action and answers what videoCards answers.
   const sa = await import(path.join(dir, 'studioaction.mjs'));
-  assert.deepStrictEqual(sa.ACTION_NAMES, ['review_notes', 'tool_save', 'tool_list', 'tool_get']);
+  assert.deepStrictEqual(sa.ACTION_NAMES, ['review_notes', 'tool_save', 'tool_list', 'tool_get', 'trial_reels']);
   const saDeps = { reviewNotes: () => deps() };
   const direct = await v.videoCards(deps(), { client: 'Test', videos: [7, 8] });
   assert.strictEqual(await sa.studioAction(saDeps, 'review_notes', { client: 'Test', videos: [7, 8] }), direct);
@@ -293,7 +293,7 @@ const parse = (text) => JSON.parse(text.slice(text.indexOf('\n') + 1));
   const index = read('index.ts');
   assert.ok(/name: "studio_action"/.test(index), 'tool listed');
   assert.ok(!/name: "video_cards"/.test(index), 'no separate video_cards tool');
-  assert.ok(/if \(name === "studio_action"\) return await studioAction\(\{ reviewNotes: videoCardDeps, tools: \(\) => sharedToolDeps\(author\) \}, args\.action, args\.args\)/.test(index), 'tool routed');
+  assert.ok(/if \(name === "studio_action"\) return await studioAction\(\{ reviewNotes: videoCardDeps, tools: \(\) => sharedToolDeps\(author\), trials: \(\) => trialDeps\(author\) \}, args\.action, args\.args\)/.test(index), 'tool routed');
   assert.ok(/from "\.\.\/frameio-view\/logic\.mjs"/.test(index), 'reuses the Watch here Frame.io lookup');
   const depsSrc = index.slice(index.indexOf('function videoCardDeps()'), index.indexOf('// One fp_settings value'));
   assert.ok(depsSrc.length > 100);

@@ -3256,7 +3256,19 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
         try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
         return !!slug && members.some(member => _calRuntimeFlagSlug(member) === slug);
     }
-    function _calUpsertPost(url, payload, source) {
+    /* calendar-card-write answers 503 too_late when a save took more than 15 s inside it: it has written
+       nothing, because by then this page has given up or is about to (OPEN_REPAIRS 508). That is the same
+       outcome as the 20 s timer, so it ends the same way: a network failure that keeps the change for a
+       retry. It does not go on to calendar-upsert, which would be a second writer for a save the person may
+       already be retrying. */
+    async function _calCardWriteTooLate(resp) {
+        if (!resp || resp.status !== 503) return false;
+        try {
+            const body = await resp.clone().json();
+            return !!body && body.ok === false && body.error === 'too_late';
+        } catch (e) { return false; }
+    }
+    async function _calUpsertPost(url, payload, source) {
         // Caption history: only calendar-card-write learns how a caption save came about (calendar-upsert never does).
         // Done here, not in _calUpsertFetchGuarded, so the client approve / request-changes path stays byte-identical
         // (test/client-review-requests-unchanged-browser.js).
@@ -3264,11 +3276,18 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
             const origin = _calCapOriginFor(payload && payload.client, payload);
             if (origin) payload = Object.assign({}, payload, { caption_origin: origin });
         }
-        return _calSaveFetch(url, {
+        const resp = await _calSaveFetch(url, {
             method: 'POST',
             headers: _calUpsertHeaders(source, url),
             body: JSON.stringify(payload)
         });
+        if (url === CALENDAR_CARD_WRITE_EF_URL && await _calCardWriteTooLate(resp)) {
+            const ended = new Error(CAL_SAVE_NO_ANSWER_MESSAGE);
+            ended.name = 'AbortError';
+            ended.network = true;
+            throw ended;
+        }
+        return resp;
     }
     /* A refusal that guarantees nothing was written: the function's own switch
        says no, or it could not read it. Only these two go on to calendar-upsert;
@@ -3308,28 +3327,10 @@ import { svRsCalOn, svRsClientPolishOn } from './188-review-stage-switch.js';
         if (o.from != null) out.from = o.from;
         return out;
     }
-    /* calendar-card-write answers 503 too_late when a save took more than 15 s inside it: it has written
-       nothing, because by then this page has given up or is about to (OPEN_REPAIRS 508). That is the same
-       outcome as the 20 s timer, so it ends the same way: a network failure that keeps the change for a
-       retry. It does not go on to calendar-upsert, which would be a second writer for a save the person may
-       already be retrying. */
-    async function _calCardWriteTooLate(resp) {
-        if (!resp || resp.status !== 503) return false;
-        try {
-            const body = await resp.clone().json();
-            return !!body && body.ok === false && body.error === 'too_late';
-        } catch (e) { return false; }
-    }
     async function _calUpsertFetchGuarded(clientOrSlug, payload, source) {
         await _calAssertSavingOn(clientOrSlug);
         if (await _calCardWriteOn(clientOrSlug)) {
             const resp = await _calUpsertPost(CALENDAR_CARD_WRITE_EF_URL, payload, source);
-            if (await _calCardWriteTooLate(resp)) {
-                const ended = new Error(CAL_SAVE_NO_ANSWER_MESSAGE);
-                ended.name = 'AbortError';
-                ended.network = true;
-                throw ended;
-            }
             if (!(await _calCardWriteRefusedBeforeWriting(resp))) return resp;
             _calCardWriteFlag = { value: null, at: Date.now() };   // the server said off: stop asking it for 30 seconds
         }

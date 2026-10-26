@@ -34,24 +34,29 @@ const clientHasAlt = (cli, pid, text) => cli.evaluate(async (a) => {
     S.ok(seen.ok === true, 'client sees the alt caption text (read view)');
     S.ok(seen.plat === 'linkedin', 'client sees the alt caption platform = linkedin (got ' + seen.plat + ')');
 
-    // 2) alt-caption is STRUCTURALLY client read-only regardless of collab: the client never
-    //    gets the add/remove chrome (canEdit=!_isClientLink) and _calAltCapRemove no-ops on a
-    //    client link. (Field-text edits are separately gated by _calClientFieldEditBlocked =
-    //    isClientLink && !collabOn — Sidney is collab ON, so plain field edits are intentionally
-    //    allowed for the collaborating client; that's not the alt-caption structural guard.)
+    // 2) alt-caption is client read-only, Collaborative mode or not. Since #2208 (merged in train #2209,
+    //    owner 2026-10-18) a client's caption, CTA and alt caption are read only on an existing card in
+    //    every mode; only a blank "suggest a post" card the client is writing stays editable. The
+    //    handler gate _calClientFieldEditBlocked(el) therefore blocks this card even with collab ON
+    //    (the test client is collab ON). Before #2208 it was isClientLink && !collabOn, which is what
+    //    this check asserted until 2026-10-26 (red every night from 2026-10-18).
     const cliGuards = await cli.evaluate((pid) => {
       const collabOn = (typeof _calIsCollabOn === 'function') ? !!_calIsCollabOn() : null;
-      const blocked = (typeof _calClientFieldEditBlocked === 'function') ? !!_calClientFieldEditBlocked() : null;
+      const gate = (id) => (typeof _calClientFieldEditBlocked === 'function') ? !!_calClientFieldEditBlocked({ dataset: { pid: id, fld: 'caption_alt' } }) : null;
+      const blocked = gate(pid), blankBlocked = gate('__blank__p52_probe');
       const before = (calState.posts || []).find(x => x.id === pid);
       const altBefore = before ? before.caption_alt : null;
+      const typedHandler = typeof _calOnAltCapInput === 'function';
+      try { _calOnAltCapInput({ dataset: { pid, fld: 'caption_alt' }, value: 'CLIENT EDIT ATTEMPT' }); } catch (e) {}
       try { _calAltCapRemove(null, pid); } catch (e) {}
       const after = (calState.posts || []).find(x => x.id === pid);
       const pend = _calPendingEdits[pid] || null;
-      return { isClientLink: _isClientLink, collabOn, blocked, altBefore, altAfter: after ? after.caption_alt : null, hasPending: !!pend };
+      return { isClientLink: _isClientLink, collabOn, blocked, blankBlocked, typedHandler, altBefore, altAfter: after ? after.caption_alt : null, hasPending: !!pend };
     }, PID);
     S.ok(cliGuards.isClientLink === true, 'client surface is a client link');
-    S.ok(cliGuards.blocked === (cliGuards.isClientLink && !cliGuards.collabOn), '_calClientFieldEditBlocked is collab-aware (collabOn=' + cliGuards.collabOn + ' → blocked=' + cliGuards.blocked + ')');
-    S.ok(cliGuards.altAfter === cliGuards.altBefore && !cliGuards.hasPending, 'client _calAltCapRemove is a NO-OP (alt unchanged, no pending edit queued)');
+    S.ok(cliGuards.blocked === true, 'client text edits on an existing card are blocked in every mode (#2208; collabOn=' + cliGuards.collabOn + ' → blocked=' + cliGuards.blocked + ')');
+    S.ok(cliGuards.blankBlocked === false, 'a blank "suggest a post" card stays editable for the client (blocked=' + cliGuards.blankBlocked + ')');
+    S.ok(cliGuards.typedHandler && cliGuards.altAfter === cliGuards.altBefore && !cliGuards.hasPending, 'client alt-caption typing and _calAltCapRemove are NO-OPs (alt unchanged, no pending edit queued)');
     // DB still has the alt (client couldn't have removed it)
     let r = await Q.rawRow(PID, 'caption_alt'); S.ok(r.caption_alt === ALT, 'alt caption still in DB after client attempt (unchanged)');
 

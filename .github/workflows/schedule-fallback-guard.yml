@@ -17,6 +17,12 @@ name: Schedule fallback guard
 # any other event it still answers 'true' without a checkout.
 on:
   workflow_call:
+    inputs:
+      mirror_timer_failure:
+        description: "Fail a stand-down copy when the timer run it stood down for finished red, so the schedule row is not green over a red night (OPEN_REPAIRS 505)"
+        type: boolean
+        required: false
+        default: false
     outputs:
       run:
         description: "'false' only for a GitHub schedule run whose slot the database timer already started"
@@ -52,3 +58,13 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           SCHEDULE_CRON: ${{ github.event.schedule }}
         run: node scripts/schedule-fallback-guard.js
+      # A run whose jobs were all skipped is a GitHub success. Without this the
+      # Calendar nightly's schedule row stayed green for nine red nights.
+      - name: The timer's run for this slot failed
+        if: inputs.mirror_timer_failure && steps.guard.outputs.run == 'false' && steps.guard.outputs.timer_failed == 'true'
+        env:
+          TIMER_RUN: ${{ steps.guard.outputs.timer_run }}
+          RUN_BASE: ${{ github.server_url }}/${{ github.repository }}/actions/runs
+        run: |
+          echo "::error::This copy did not run (the database timer already did), but the timer's run failed: $RUN_BASE/$TIMER_RUN"
+          exit 1

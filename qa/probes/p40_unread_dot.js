@@ -3,6 +3,10 @@
 //   - SMM INTERNAL note → CLIENT shows NO unread (not visible to client)
 //   - CLIENT note → SMM shows unread
 //   - your OWN note never shows as unread to you
+// The client side runs on the Sheet: the test client's link opens on the Review page, where since
+// #2325 (review_client_polish, test client only) a post on the stage counts as read the moment it
+// is drawn (p75 asserts that rule). Left there, this card showed no dot and checks 1 and 3 were red
+// every night from 2026-10-25.
 const Q = require('./lib.js');
 const TS = Math.floor(Date.now() / 1000);
 const PID = 'p_ud_' + TS;
@@ -28,6 +32,8 @@ const reloadHasUnread = (page) => page.evaluate(async (pid) => {
       thumbnail_url: 'https://via.placeholder.com/320x180.png', asset_url: 'https://example.com/g.mp4', caption_tweaks: '[]' });
     await Q.pollRaw(PID, r => r.id === PID, 'id');
     await Q.clientHasCaption(cli, PID, null);
+    const sheet = await Q.clientOnSheet(cli);
+    S.ok(sheet.view === 'organizer' && !sheet.stageShown, 'client is on the Sheet, off the Review stage (' + JSON.stringify(sheet) + ')');
     await Q.waitForPost(smm, PID);
     // ensure both pages start "seen" for this card so the baseline is no-unread
     await cli.evaluate((pid) => _notesMarkSeen(pid, new Date().toISOString()), PID);

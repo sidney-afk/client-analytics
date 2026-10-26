@@ -1427,7 +1427,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   }
 
   if (name === "client_record") return await clientRecord(recordDeps(), String(args.client || ""));
-  if (name === "studio_action") return await studioAction({ reviewNotes: videoCardDeps, tools: () => sharedToolDeps(author) }, args.action, args.args);
+  if (name === "studio_action") return await studioAction({ reviewNotes: videoCardDeps, tools: () => sharedToolDeps(author), trials: () => trialDeps(author) }, args.action, args.args);
   if (name === "feedback_note") return await feedbackNote(recordDeps(), args, author);
   if (name === "feedback_notes") return await feedbackNotes(recordDeps(), args, { member, teamLink: isTeamLink(member) });
 
@@ -1507,6 +1507,38 @@ function studioStore() {
 
 // The filming pipeline record and notes (fp_files, fp_batch_counter,
 // fp_feedback_notes: service role only). client_record never reads a body.
+// studio_action "trial_reels" (trialreels.mjs): the log, one row per version, in
+// studio_trial_versions (service role only). A missing table answers { missing: true }
+// so the action says the log is not switched on instead of failing.
+function trialDeps(author: string) {
+  const gone = (e: { code?: string; message?: string } | null) => !!e && (e.code === "42P01" || e.code === "PGRST205" || /does not exist|schema cache/i.test(String(e.message)));
+  const fail = (what: string, e: { message?: string } | null) => new Error(`Could not ${what}: ${e?.message || "no answer"}`);
+  return {
+    author,
+    insert: async (rows: JsonMap[]) => {
+      const { error } = await db().from("studio_trial_versions").insert(rows);
+      if (gone(error)) return { missing: true };
+      if (error && (error as { code?: string }).code === "23505") return { duplicate: true };
+      if (error) throw fail("log the trial versions", error);
+      return {};
+    },
+    list: async (q: { client: string; video: string | null }) => {
+      let s = db().from("studio_trial_versions").select("*").ilike("client", q.client);
+      if (q.video) s = s.eq("video", q.video);
+      const { data, error } = await s.order("created_at", { ascending: false }).order("letter").limit(100);
+      if (gone(error)) return { missing: true };
+      if (error) throw fail("read the trial versions", error);
+      return data || [];
+    },
+    update: async (id: string, patch: JsonMap) => {
+      const { data, error } = await db().from("studio_trial_versions").update(patch).eq("id", id).select("*").maybeSingle();
+      if (gone(error)) return { missing: true };
+      if (error) throw fail("update the trial version", error);
+      return data;
+    },
+  };
+}
+
 function sharedToolDeps(author: string) {
   const fail = (what: string, e: { message?: string } | null) => new Error(`Could not ${what}: ${e?.message || "no answer"}`);
   return {

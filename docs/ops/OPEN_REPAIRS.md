@@ -34410,3 +34410,10 @@ Staff side only, behind the runtime switch `unread_badges_v2`. The owner's round
 - **Sheet:** the first post starts at 240 px instead of 272 (an empty 28 px band under the Sheet / Calendar / Review switch and 8 px of the grid / list bar); a "Refreshing" or "Couldn't refresh" notice there keeps its room.
 - **Desktop does not change:** same computed styles with the switch on and off, and pixel-identical desktop screenshots.
 - **Proof:** `docs/syncview-design/tests/phone-polish-browser.js` (now 99 checks at 360/390/430, switch on and off; already in CI's staff phone lane); its round-2 checks fail on main.
+
+## 504. [2026-10-26 UTC, AUDIT, NOT MERGED] "Duplicate" ui rows in calendar_post_events are one row per component, by design (session Ledger)
+
+- **Claim checked:** a save writes two or three identical `source='ui'` rows, grouped by `(post_id, ts, action, role)`. That key leaves out `component`. With every column in the key, since 2026-08-27: **0** identical `status_change`, `comment_add` or `comment_delete` groups, and **4** identical `link_set` pairs (28 Aug to 1 Sep, from two link saves racing on one card; none since).
+- **Shape is intentional:** one save writes one row per part that moved plus one card-level row. The Kasper queue's "waiting since" and "moved without your decision" note, and caption history, read those per-component rows.
+- **Who can be misled:** counts that take every row with `role in ('client','kasper')`. Over 7 days, client `status_change` has 282 rows from 167 saves and Kasper's has 36 from 18, and comments are mixed in. Count `approve_%` and `kasper_approve` instead. No reader in the repo counts this way.
+- **Fix:** none to writers or rows. Change the out-of-repo weekly approval count only. Report: `docs/audits/2026-10-26-ledger-duplicate-rows.md`.

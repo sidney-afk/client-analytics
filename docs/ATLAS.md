@@ -907,6 +907,7 @@ Each linked file contains table-creating DDL, including retained backup and temp
 | <!-- atlas:migration supabase/migrations/20261016230000_filming_pipeline_passes.sql -->[`supabase/migrations/20261016230000_filming_pipeline_passes.sql`](../supabase/migrations/20261016230000_filming_pipeline_passes.sql) | `public.fp_publishers`, `public.fp_settings`, `public.fp_passes`, `public.fp_pass_tabs`, `public.fp_files`, `public.fp_file_history`, `public.fp_batch_counter`, `public.fp_feedback_notes` |
 | <!-- atlas:migration supabase/migrations/20261026120000_crm_leads.sql -->[`supabase/migrations/20261026120000_crm_leads.sql`](../supabase/migrations/20261026120000_crm_leads.sql) | `public.crm_people`, `public.crm_events`, `public.crm_sources`, `public.crm_sequences`, `public.crm_sequence_steps`, `public.crm_enrolments`, `public.crm_apply_change` (not applied) |
 | <!-- atlas:migration supabase/migrations/20261021180000_hf_tools.sql -->[`supabase/migrations/20261021180000_hf_tools.sql`](../supabase/migrations/20261021180000_hf_tools.sql) | `public.hf_tools` |
+| <!-- atlas:migration supabase/migrations/20261026200000_studio_trial_versions.sql -->[`supabase/migrations/20261026200000_studio_trial_versions.sql`](../supabase/migrations/20261026200000_studio_trial_versions.sql) | `public.studio_trial_versions` |
 
 
 ## Verification limits and keeping this map true

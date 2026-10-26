@@ -41,6 +41,7 @@
     "higgsfield-shared-tools.js",
     "crm-leads.js",
     "crm-sequences.js",
+    "higgsfield-trial-reels.js",
     "pipeline-pass.js",
     "pipeline-social.js",
     "pipeline-store.js",
@@ -2112,6 +2113,14 @@
       "ci": "representative"
     },
     {
+      "file": "frame-comments-in-notes-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, the frameio-view answers are fixtures, no hosted credentials and no live data. Checks Frame.io comments in a Calendar card's Notes without the player behind frame_comments_in_notes_staff at desktop and phone size, light and dark: lazy read after paint, five-minute keep, one-line failure, switch off unchanged.",
+      "reproduce": "node test/frame-comments-in-notes-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "frameio-viewer-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -2181,6 +2190,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that Sample Review client approve and request-changes saves always go to the function, with the link token, never to n8n, including a retried save pinned to n8n.",
       "reproduce": "node test/samples-client-approve-function-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "samples-client-link-review-stage-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks that a client Samples link keeps the Samples review with the new review page switched on for every client, and that a bare link still moves to the Content Calendar.",
+      "reproduce": "node test/samples-client-link-review-stage-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     }
   ]

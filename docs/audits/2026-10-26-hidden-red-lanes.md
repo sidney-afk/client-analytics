@@ -20,7 +20,7 @@ Ranked by what matters to the business:
 |---|---|---|---|---|---|---|
 | 1 | track-b-backup | 7 + 1 cancelled | No backup for about 51 h (10 to 12 Oct); and the freshness step is growing toward the job's time limit | (a) | Backup gap 10 to 12 Oct, closed. No data lost. | The growth: fixed in #2342 |
 | 2 | card-calendar-status-drift | 70 | Four cards disagreed with their Production work items, one at a time, 13 to 17 Oct | (a) | Yes: staff and one client's change request, for hours to a day each | Fixed by #2114 and #2140; none since 17 Oct 15:27 |
-| 3 | sheets-mirror-daily | 9 (+1 manual) | The Sheet mirror of Clients Info and Social Media Managers fell behind the database twice | (a), minor | Nobody reads those tabs now | Red until one row is copied (owner or Lighthouse) |
+| 3 | sheets-mirror-daily | 9 (+1 manual) | The Sheet mirror of Clients Info and Social Media Managers fell behind the database twice | (a), minor | Nobody reads those tabs now | Settled 26 Oct: parity skips test clients but the main one (OPEN_REPAIRS 507, owner decision) |
 | 4 | samples-e2e-nightly | 8 | Four causes: a stale client driver, a runner image, a unit lane time cap, one realtime probe | (b) and (c) | No | Green 24 and 26 Oct; cap fixed here |
 | 5 | production-polish-gate | 5 + 1 cancelled | Racy suites, then the runner image | (b) and (c) | No | Fixed by #2094 and #2277; green since 22 Oct |
 | 6 | assurance-ledger-freshness | 14 | Ledger rows claimed FRESH or NEAR past their dates | (b), a stale record | No | Restated here |
@@ -140,6 +140,8 @@ tabs.
 **Smallest fix (data, not done here):** either have the owner or Lighthouse put that test client's
 two rows on the Sheet through `roster-write`'s Sheet copy, or archive the seeded test client if it
 is no longer needed. The parity step is correct and was not changed. Until then the lane stays red.
+
+**Settled (26 Oct, owner decision):** test clients other than the main one never reach the Sheet by design (Create client's test mode drops their copy), so both parity scripts now leave them out. OPEN_REPAIRS 507.
 
 **Lesson:** a database edit that skips `roster-write` does not reach the Sheet.
 

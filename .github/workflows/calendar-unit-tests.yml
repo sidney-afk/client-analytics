@@ -390,6 +390,7 @@ jobs:
         run: |
           node scripts/ci-lanes.js --lanes=3 <<'LANES'
           Watch here viewer (Calendar card, SMM and Kasper review, desktop and phone, no button for clients)|node test/frameio-viewer-browser.js
+          Frame.io comments in a card's Notes without the player, kept five minutes (switch frame_comments_in_notes_staff; mocked)|node test/frame-comments-in-notes-browser.js
           Client review link works on phones (approve + request change)|node docs/syncview-design/tests/client-phone-review-browser.js
           Kasper Clients profile shows onboarding checklist, resources and HubSpot state to admins only|node docs/syncview-design/tests/clients-onboarding-browser.js
           The boot flags read, the review switch read and the roster Sheets read retry once (mocked)|node test/boot-reads-retry-browser.js
@@ -439,6 +440,7 @@ jobs:
           Expanded staff Selection and Samples phone states|node docs/syncview-design/tests/staff-selection-samples-browser.js
           Calendar work item hover card and per-card files menu|node docs/syncview-design/tests/calendar-hover-files-browser.js
           Samples client approve and request-changes always save through the function|node test/samples-client-approve-function-browser.js
+          A client Samples link stays on the Samples review with the new review page on|node test/samples-client-link-review-stage-browser.js
           Top bar keeps flat tabs on a page with no tab of its own (Messages)|node docs/syncview-design/tests/header-nav-no-active-tab-browser.js
           Entry links reach their screens|node docs/syncview-design/tests/entry-links-boot-browser.js
           A reply under an old round-0 comment saves with no round, never a 500 (mocked)|node docs/syncview-design/tests/comment-round-zero-browser.js

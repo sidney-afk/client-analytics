@@ -18,6 +18,15 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (2026-10-26): Leads CRM step 1 built, waiting on its migration (PR open)
+
+- New page `/leads` (Kasper > More > Pipeline & Admin > Leads), admin only: Pipeline by stage with drag to
+  move, and a person panel with next step, notes and timeline. Today, Sequences and Systems say "coming next".
+- Tables in `supabase/migrations/20261026120000_crm_leads.sql`, no browser grants; the `crm-leads` function is
+  held by the merge lane until **Lighthouse applies that migration** (steps in
+  [`docs/features/CRM_LEADS.md`](features/CRM_LEADS.md)). No people are imported yet; `scripts/crm-import.js`
+  is run by a person.
+
 ## Latest (2026-10-26): Frame.io comments in Notes without the player (session Framenotes, OPEN_REPAIRS 512, PR open)
 
 - Staff behind the new switch `frame_comments_in_notes_staff` (`{"staff": [...]}`, row NOT created yet) see a card's

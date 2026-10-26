@@ -7,6 +7,7 @@ import {
 } from './040-shared-briefs.js';
 import { _svCss, _svRgb } from './050-market-briefs.js';
 import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
+import { navTo } from './092-core-submit-form-navigation.js';
 import { WL_CLIENT_CANONICAL, WL_CLIENT_NAMES, wlNormalizeClient } from './070-core-client-names.js';
 import {
   CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _ptoInvalidateOverviewCaches, _svDateHtml, _svSelectHtml, _svSyncDateControl,
@@ -49,7 +50,7 @@ import { svRsKasperFast, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svSt
     const KASPER_PRIMARY_SHORT_LABELS = { review: 'Review', replies: 'Messages', filming: 'Filming' };
     const KASPER_MORE_GROUPS = [
         { label: 'Team', keys: ['editors', 'time-off'] },
-        { label: 'Pipeline & Admin', keys: ['sales-intake', 'hiring-process', 'onboarding', 'quiz-leads', 'client-credentials', 'clients', 'save-problems'] },
+        { label: 'Pipeline & Admin', keys: ['sales-intake', 'hiring-process', 'onboarding', 'leads', 'quiz-leads', 'client-credentials', 'clients', 'save-problems'] },
         { label: 'Analytics', keys: ['ad-performance'] },
     ];
     /* With the new review page on for this person (188, owner feedback 2026-10-17 23:20, session Curtain Seven) his
@@ -155,7 +156,7 @@ import { svRsKasperFast, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svSt
         const tabButtonHtml = (t, inMore) => {
             const capability = t.key === 'client-credentials' ? 'credentials' : (t.key === 'onboarding' ? 'onboarding' : (t.key === 'time-off' ? 'pto-admin' : ''));
             const gatedCapability = t.key === 'hiring-process' ? 'hiring'
-                : (t.key === 'quiz-leads' ? 'quiz-leads' : ((t.key === 'clients' || t.key === 'save-problems') ? 'clients-admin' : capability));
+                : (t.key === 'quiz-leads' || t.key === 'leads' ? t.key : ((t.key === 'clients' || t.key === 'save-problems') ? 'clients-admin' : capability));
             const gated = gatedCapability ? ` data-staff-capability="${gatedCapability}"${_syncviewStaffCan(gatedCapability) ? '' : ' hidden'}` : '';
             const active = _kasperState.tab === t.key;
             const count = t.showCount === false ? '' : `<span class="kasper-tab-count" data-kasper-count="${t.key}"${t.hideZero ? ' data-kasper-hide-zero' : ''}>·</span>`;
@@ -648,6 +649,13 @@ import { svRsKasperFast, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svSt
         if (tab === 'onboarding' && !_syncviewStaffCan('onboarding')) { _syncviewOfferStaffSignIn('onboarding'); return; }
         if (tab === 'hiring-process' && !_syncviewStaffCan('hiring')) { _syncviewOfferStaffSignIn('hiring'); return; }
         if (tab === 'quiz-leads' && !_syncviewStaffCan('quiz-leads')) { _syncviewOfferStaffSignIn('quiz-leads'); return; }
+        // Leads is its own page (/leads), so its More item leaves Kasper instead of rendering a subtab.
+        if (tab === 'leads') {
+            if (!_syncviewStaffCan('leads')) { _syncviewOfferStaffSignIn('leads'); return; }
+            _kasperSetMoreOpen(false, false, false);
+            navTo('leads');
+            return;
+        }
         if (tab === 'clients' && !_syncviewStaffCan('clients-admin')) { _syncviewOfferStaffSignIn('clients-admin'); return; }
         if (tab === 'save-problems' && !_syncviewStaffCan('clients-admin')) { _syncviewOfferStaffSignIn('clients-admin'); return; }
         if (tab === 'time-off') {
@@ -705,6 +713,8 @@ import { svRsKasperFast, svRsKasperHeadSync, svRsKasperLeave, svRsKasperOn, svSt
         if (_kasperState.tab === 'client-credentials') return _ccKasperRender();
         if (_kasperState.tab === 'ad-performance') return _kasperRenderAdPerformance();
         if (_kasperState.tab === 'quiz-leads') return _kasperRenderQuizLeads();
+        // An old #kasper/leads address: Leads is its own page now.
+        if (_kasperState.tab === 'leads') { _kasperState.tab = 'review'; navTo('leads'); return; }
         if (_kasperState.tab === 'clients') return _caRender();
         if (_kasperState.tab === 'save-problems') return _spRender();
     }

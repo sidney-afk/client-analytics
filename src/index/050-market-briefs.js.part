@@ -1281,7 +1281,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                     }
                 }
                 else if(hash==='sample-reviews'||hash.startsWith('sample-reviews/')){navTo('sample-reviews',false);return;}
-                else if(['linear','workload','calendar','samples','filming-plans','tiktok-upload','time-off','staff-onboarding','client-credentials','messages'].includes(hash)
+                else if(['linear','workload','calendar','samples','filming-plans','tiktok-upload','time-off','staff-onboarding','client-credentials','messages','leads'].includes(hash)
                         ||hashRoute==='smm-weekly-report'||hashRoute==='smm-weekly-reports'){
                     navTo(hashRoute||hash,false);return;
                 }

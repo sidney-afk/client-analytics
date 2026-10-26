@@ -233,7 +233,10 @@ function withErr(summary, errNote) { return errNote ? ((summary ? summary + ' ·
 
 // ---------------------------------------------------------------- lane runners
 function laneUnit() {
-  const r = runNode(path.join(TEST, 'run-all.js'), { cwd: ROOT, attempts: 1, timeout: 300000 });
+  // 300 s was set with this runner (2026-06-29). The suite has grown since (133 files added in
+  // October alone) and took 265 to 300 s on the Samples nightly from 2026-10-12 to 2026-10-26,
+  // so it timed out on 23 and 25 Oct with nothing failing (OPEN_REPAIRS 507). 600 s still stops a hang.
+  const r = runNode(path.join(TEST, 'run-all.js'), { cwd: ROOT, attempts: 1, timeout: 600000 });
   const m = r.out.match(/All (\d+) unit suites passed/);
   return { ok: r.ok, summary: r.ok ? `all ${m ? m[1] : '?'} unit suites passed` : withErr('unit suites FAILED', r.errNote), ms: r.ms, tail: r.ok ? '' : tail(r.out) };
 }

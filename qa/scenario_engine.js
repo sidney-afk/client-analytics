@@ -586,6 +586,7 @@ async function clientThreadText(page, name, comp) {
   }, [name, comp]);
 }
 async function clientAct(page, name, comp, kind, text) {
+  let last = 'disabled';
   const sel = kind === 'request' ? '.cal-review-tweak-btn' : (kind === 'comment' ? '.cal-review-comment-btn' : '.cal-review-approve-btn');
   // The client tab can be stale after another actor changed status in a different
   // tab; force a fresh load and retry so the card is reviewable before we act.
@@ -600,8 +601,10 @@ async function clientAct(page, name, comp, kind, text) {
     }
     const res = await page.evaluate((args) => { const [n, comp, sel] = args; const card = [...document.querySelectorAll('.cal-review-card')].find(x => (x.querySelector('.kcard-title') || {}).textContent === n); const p = card && card.querySelector(`.cal-review-panel[data-comp="${comp}"]`); const b = p && p.querySelector(sel); if (!b) return 'no-panel'; if (b.disabled) return 'disabled'; b.click(); return 'ok'; }, [name, comp, sel]);
     if (res === 'ok') return 'ok';
+    last = res;
   }
-  return 'disabled';
+  // Say what was found: 'no-panel' (the card or its part is not drawn) is not a disabled button.
+  return last;
 }
 
 // ---------- THE GENERIC STATE-vs-DB DIVERGENCE GATE ----------

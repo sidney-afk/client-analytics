@@ -18,6 +18,24 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (2026-10-26): the seven lanes that were red under green schedule rows (session Underneath, OPEN_REPAIRS 507, PR open)
+
+Report: [`docs/audits/2026-10-26-hidden-red-lanes.md`](audits/2026-10-26-hidden-red-lanes.md).
+
+- **Backups are being taken.** There was a real 51-hour gap from 10 to 12 Oct (fixed by #2046,
+  entry 409).
+- **The backup job was about to hit its 25-minute limit.** Its freshness step downloads every
+  snapshot in the folder and grew from 5.6 to 18.9 min in two weeks. Fixed in #2342: older
+  snapshots that cannot win are no longer downloaded.
+- **Card vs work item drift (70 reds) was real.** Four cards drifted from 13 to 17 Oct, including
+  one client's change request missing from Production for about 20 h. Both causes were already
+  fixed (#2114, #2140), and it has been green since 17 Oct 15:27.
+- **The Sheet mirror is one test client behind.** It was seeded straight into the database on
+  21 Oct, and nothing reads those tabs. Owner or Lighthouse: copy its two rows through
+  `roster-write`, or archive the seed. Until then the lane stays red.
+- **The rest were check, runner and host problems.** The Samples nightly unit cap is now 600 s;
+  the ledger rows are restated; thumbnail scan 5xx blips recovered on the next run.
+
 ## Latest (SyncView stand-in, 2026-10-25 evening): phone polish rounds 1 and 2 live for the owner
 
 - **Phone polish round 1 (#2332, session Grip, 19:46 UTC):** the same phone design, made smoother (the owner turned

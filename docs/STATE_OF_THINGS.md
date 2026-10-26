@@ -25,7 +25,7 @@ Report: [`docs/audits/2026-10-26-hidden-red-lanes.md`](audits/2026-10-26-hidden-
 - **Backups are being taken.** There was a real 51-hour gap from 10 to 12 Oct (fixed by #2046,
   entry 409).
 - **The backup job was about to hit its 25-minute limit.** Its freshness step downloads every
-  snapshot in the folder and grew from 5.6 to 18.9 min in two weeks. Fixed in this PR: older
+  snapshot in the folder and grew from 5.6 to 18.9 min in two weeks. Fixed in #2342: older
   snapshots that cannot win are no longer downloaded.
 - **Card vs work item drift (70 reds) was real.** Four cards drifted from 13 to 17 Oct, including
   one client's change request missing from Production for about 20 h. Both causes were already

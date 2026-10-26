@@ -34447,7 +34447,7 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 - **track-b-backup (a).**
   - *The gap:* no backup from 10 Oct 12:45 to 12 Oct 15:34 UTC (about 51 h; seven timer runs failed at the privilege preflight). #2036 added `pto_member_events` with no backup grant. Fixed by #2046 (entry 409).
-  - *New, fixed here:* the freshness step downloads every same-corpus snapshot (about 156 MB each; the folder is never pruned). It grew from 5.6 min (13 Oct) to 18.9 min (26 Oct); the job takes 21 of its 25 min, and was already cancelled once (24 Oct, after a verified upload). At this rate every run would be cancelled from about 29 Oct.
+  - *New, fixed in #2342 (split out to merge first):* the freshness step downloads every same-corpus snapshot (about 156 MB each; the folder is never pruned). It grew from 5.6 min (13 Oct) to 18.9 min (26 Oct); the job takes 21 of its 25 min, and was already cancelled once (24 Oct, after a verified upload). At this rate every run would be cancelled from about 29 Oct.
   - *The fix:* `selectLatestAuthenticatedFromDrive` skips, without downloading, a candidate whose filename second plus 999 ms is not later than the newest authenticated snapshot. Such a file can never win, because validity requires the filename to equal the authenticated `generated_at`. The newest candidate is still judged in full. New output field: `older_candidates_not_downloaded`. Four new checks in `test/track-b-backup.js` fail on the old code.
 - **card-calendar-status-drift (a).** All 70 reds, 13 Oct 17:27 to 17 Oct 14:27, were real drift on four cards, one at a time.
   - Three cards: a second status pick lost in the save wait (424, #2114).

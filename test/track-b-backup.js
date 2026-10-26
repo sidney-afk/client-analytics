@@ -41,7 +41,6 @@ const {
   selectAuthenticatedCandidates,
   selectLatestAuthenticatedFromDrive,
   snapshotName,
-  snapshotNameMs,
   strictConnectionInfo,
   verifyReadOnlyPrivilegeOutput,
   verifySnapshotFile,
@@ -365,43 +364,6 @@ try {
       && Buffer.isBuffer(retained.latest.bytes) && retained.latest.bytes.equals(validPackageBytes)
       && retained.newestCandidateValid === true,
       'download-latest retention keeps exactly the winning package bytes and a valid newest candidate passes');
-    /* 2026-10-26 (OPEN_REPAIRS 507): the folder is never pruned and the
-     * freshness step downloaded every same-corpus snapshot, so it grew by
-     * about a minute a day until the job ran past its 25-minute limit. Once
-     * the newest candidate authenticates, an older-named file cannot win and
-     * is not downloaded; a later-named file listed after it still is. */
-    const skipOrder = [];
-    const skipDownload = async (_token, fileId) => { skipOrder.push(fileId); return driveBytes[fileId]; };
-    const skipping = await selectLatestAuthenticatedFromDrive('token', [
-      { id: 'inc-newer-valid', name: driveName },
-      { id: 'inc-older-valid', name: olderDriveName },
-      { id: 'inc-newest-corrupt', name: olderDriveName },
-    ], { hmacInput: HMAC_KEY, nowMs: currentMs, download: skipDownload });
-    ok(skipOrder.join(',') === 'inc-newer-valid'
-      && skipping.latest && skipping.latest.file.id === 'inc-newer-valid'
-      && skipping.skippedOlderCount === 2 && skipping.validCount === 1 && skipping.invalidCount === 0
-      && skipping.newestCandidateValid === true,
-      'once the newest snapshot authenticates, older-named snapshots are skipped without a download');
-    const outOfOrder = [];
-    const listedLate = await selectLatestAuthenticatedFromDrive('token', [
-      { id: 'inc-older-valid', name: olderDriveName },
-      { id: 'inc-newest-corrupt', name: olderDriveName },
-      { id: 'inc-newer-valid', name: driveName },
-    ], { hmacInput: HMAC_KEY, nowMs: currentMs, download: async (_token, fileId) => { outOfOrder.push(fileId); return driveBytes[fileId]; } });
-    ok(outOfOrder.join(',') === 'inc-older-valid,inc-newest-corrupt,inc-newer-valid'
-      && listedLate.latest && listedLate.latest.file.id === 'inc-newer-valid'
-      && listedLate.skippedOlderCount === 0 && listedLate.invalidCount === 1,
-      'a file named in the winner\'s own second, and a later-named one listed after it, are still downloaded; the later one wins');
-    const corruptFirst = await selectLatestAuthenticatedFromDrive('token', [
-      { id: 'inc-newest-corrupt', name: driveName },
-      { id: 'inc-newer-valid', name: driveName },
-    ], { hmacInput: HMAC_KEY, nowMs: currentMs, download });
-    ok(corruptFirst.newestCandidateValid === false && corruptFirst.latest && corruptFirst.latest.file.id === 'inc-newer-valid',
-      'a bad newest file still fails the newest-candidate check with the skip in place');
-    ok(snapshotNameMs(driveName) === Date.parse(manifest.generated_at.replace(/\.\d{3}Z$/, '.000Z'))
-      && Number.isNaN(snapshotNameMs('syncview-track-b-20261332T000000Z.snapshot'))
-      && Number.isNaN(snapshotNameMs('not-a-snapshot')),
-      'snapshotNameMs reads the filename second and refuses a malformed or impossible name');
     const empty = await selectLatestAuthenticatedFromDrive('token', [], { hmacInput: HMAC_KEY, nowMs: currentMs, download });
     ok(!empty.latest && empty.newestCandidateValid === true && empty.validCount === 0 && empty.invalidCount === 0,
       'an empty Drive folder yields no latest candidate without failing the newest-candidate check');

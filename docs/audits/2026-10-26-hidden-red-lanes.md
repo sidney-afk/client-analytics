@@ -18,7 +18,7 @@ Ranked by what matters to the business:
 
 | # | Lane | Reds | Cause | Class | Anyone affected | Now |
 |---|---|---|---|---|---|---|
-| 1 | track-b-backup | 7 + 1 cancelled | No backup for about 51 h (10 to 12 Oct); and the freshness step is growing toward the job's time limit | (a) | Backup gap 10 to 12 Oct, closed. No data lost. | Fixed here (the growth) |
+| 1 | track-b-backup | 7 + 1 cancelled | No backup for about 51 h (10 to 12 Oct); and the freshness step is growing toward the job's time limit | (a) | Backup gap 10 to 12 Oct, closed. No data lost. | The growth: fixed in #2342 |
 | 2 | card-calendar-status-drift | 70 | Four cards disagreed with their Production work items, one at a time, 13 to 17 Oct | (a) | Yes: staff and one client's change request, for hours to a day each | Fixed by #2114 and #2140; none since 17 Oct 15:27 |
 | 3 | sheets-mirror-daily | 9 (+1 manual) | The Sheet mirror of Clients Info and Social Media Managers fell behind the database twice | (a), minor | Nobody reads those tabs now | Red until one row is copied (owner or Lighthouse) |
 | 4 | samples-e2e-nightly | 8 | Four causes: a stale client driver, a runner image, a unit lane time cap, one realtime probe | (b) and (c) | No | Green 24 and 26 Oct; cap fixed here |
@@ -49,7 +49,7 @@ snapshot was taken. On 12 Oct the freshness step reported `stale, age=35.6h, thr
 true) and passed freshness. It was then cancelled at the job's 25-minute limit, because the
 snapshot step took 12.8 minutes that time.
 
-**The growing step (a), fixed in this PR.** The "Check seven-hour Drive freshness" step downloads
+**The growing step (a), fixed in #2342 (split out to merge first).** The "Check seven-hour Drive freshness" step downloads
 and authenticates every snapshot of the current corpus in the Drive folder, about 156 MB each. The
 folder is never pruned, and since `history-v13` began on 12 Oct each day adds about four snapshots.
 Measured on every timer run:
@@ -211,13 +211,15 @@ pass. Class (c), the function host. Recovered. Nobody affected.
 
 ## What this PR changes
 
+The backup fix is #2342, split out at the supervisor's request.
+
+
 | File | Change |
 |---|---|
-| `scripts/track-b-backup.js`, `test/track-b-backup.js` | Freshness and download-latest skip snapshots that cannot win |
 | `docs/testing/ASSURANCE_LEDGER.md` | Ten State cells restated, column stamp 2026-10-26 |
 | `qa/master.js` | Unit lane cap 300 s to 600 s |
 | `qa/scenario_engine.js` | The client driver reports `no-panel` when the card is not drawn |
 | This report, OPEN_REPAIRS 507, STATE_OF_THINGS | |
 
-No data changed. No check was skipped, disabled or loosened. Every assertion is kept; the two
-time limits only stop hangs.
+No data changed. No check was skipped, disabled or loosened. Every assertion is kept; the raised
+unit-lane time limit still stops a hang.

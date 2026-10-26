@@ -82,10 +82,10 @@ const parity = require('../scripts/sheets-mirror-parity.js');
   const { spawnSync } = require('child_process');
   const fs = require('fs'), os = require('os');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'parity-'));
-  const run = (sheetRow, dbOverride) => {
+  const run = (sheetRow, dbOverride, extraProfiles = [], clients = []) => {
     const sheetCsv = rn.CLIENT_HEADERS.join(',') + '\n' + rn.CLIENT_HEADERS.map(h => '"' + String(sheetRow[h]).replace(/"/g, '""') + '"').join(',');
     const file = path.join(dir, 'scenario.json'), jsonOut = path.join(dir, 'report.json');
-    fs.writeFileSync(file, JSON.stringify({ sheets: { 'Clients Info': sheetCsv }, tables: { client_profiles: [{ ...dbRow, ...dbOverride }] } }));
+    fs.writeFileSync(file, JSON.stringify({ sheets: { 'Clients Info': sheetCsv }, tables: { client_profiles: [{ ...dbRow, ...dbOverride }, ...extraProfiles], clients } }));
     const r = spawnSync(process.execPath, ['-r', path.join(__dirname, 'helpers', 'parity-fetch-mock.js'), path.join(__dirname, '..', 'scripts', 'sheets-mirror-parity.js'), '--strict', '--json=' + jsonOut],
       { env: { ...process.env, PARITY_MOCK: file, SUPABASE_URL: 'https://example.invalid', SUPABASE_SERVICE_ROLE_KEY: 'synthetic' }, encoding: 'utf8' });
     return { status: r.status, out: r.stdout + r.stderr + (fs.existsSync(jsonOut) ? fs.readFileSync(jsonOut, 'utf8') : '') };
@@ -100,6 +100,26 @@ const parity = require('../scripts/sheets-mirror-parity.js');
   for (const r of [landed, sheetDiffers, dbDiffers]) {
     ok(!r.out.includes(secret) && !/probe\s*client/i.test(r.out) && !r.out.includes('probeclient') && !r.out.includes('C123') && !r.out.includes('Line one'), 'script output carries no value, name or slug');
   }
+
+  // ---- Test clients (2026-10-26, OPEN_REPAIRS 507) ----
+  // Create client's test mode drops a test client's Sheet copy on purpose, so a second test client
+  // is in the database and never on the Sheet. It is not compared; the main test client still is,
+  // and so is any real client.
+  const keptSlug = parity.KEPT_TEST_CLIENT;
+  ok([...parity.skippedTestSlugs([{ slug: 'probetest', kind: 'test' }, { slug: keptSlug, kind: 'test' }, { slug: 'probeclient', kind: 'client' }])].join() === 'probetest',
+    'only test clients other than the main test client are skipped');
+  const testProfile = { ...dbRow, slug: 'probetest', display_name: 'Probe Test' };
+  const testClients = [{ slug: 'probetest', kind: 'test' }, { slug: keptSlug, kind: 'test' }];
+  const skipped = run(sheetObj, {}, [testProfile], testClients);
+  ok(skipped.status === 0 && /PARITY: clean/.test(skipped.out) && /1 test client\(s\) not compared/.test(skipped.out), 'script: a second test client missing from the Sheet is not a difference');
+  const noSkip = run(sheetObj, {}, [testProfile], []);
+  ok(noSkip.status === 1 && /missing_in_sheet/.test(noSkip.out), 'script: without the test-client read the same row is still reported (the skip is what clears it)');
+  const keptMissing = run(sheetObj, {}, [{ ...dbRow, slug: keptSlug, display_name: 'Kept Test' }], testClients);
+  ok(keptMissing.status === 1 && /PARITY: 1 difference/.test(keptMissing.out), 'script: the main test client missing from the Sheet is still reported');
+  const realMissing = run(sheetObj, {}, [{ ...dbRow, slug: 'probereal', display_name: 'Probe Real' }], testClients);
+  ok(realMissing.status === 1 && /PARITY: 1 difference/.test(realMissing.out), 'script: a real client missing from the Sheet is still reported');
+  for (const r of [skipped, keptMissing, realMissing]) ok(!/probe\s*(test|real)/i.test(r.out), 'script output carries no test or real client name or slug');
+
   fs.rmSync(dir, { recursive: true, force: true });
 
   console.log(`sheets-mirror-profile-parity: ${n} checks passed`);

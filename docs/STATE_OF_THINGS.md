@@ -18,7 +18,7 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
-## Latest (2026-10-26): Frame.io comments in Notes without the player (session Framenotes, OPEN_REPAIRS 509, PR open)
+## Latest (2026-10-26): Frame.io comments in Notes without the player (session Framenotes, OPEN_REPAIRS 512, PR open)
 
 - Staff behind the new switch `frame_comments_in_notes_staff` (`{"staff": [...]}`, row NOT created yet) see a card's
   Frame.io comments in its Notes even without the player, read after Notes paints and kept five minutes; a failed read

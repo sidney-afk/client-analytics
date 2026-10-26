@@ -748,9 +748,11 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             }
         }
         // A switched-on client link that opened on Analytics: that route is gone, the Content Calendar takes its place.
+        // Never a Samples link: it also has no Calendar and no tab picked, and was moved to the Calendar too, so no
+        // client could reach the samples from 18 Oct (session Reproof, 2026-10-26).
         if (_isClientLink && !document.getElementById('calView')) {
             const cap = _syncviewClientEntryCapability;
-            if (cap && cap.verified && cap.client && (clientViewTab[cap.client] || 'analytics') === 'analytics' && svRsClientNoAnalytics(cap.client)) render(cap.client, true);
+            if (cap && cap.verified && cap.client && cap.view !== 'sample-reviews' && cap.view !== 'samples' && (clientViewTab[cap.client] || 'analytics') === 'analytics' && svRsClientNoAnalytics(cap.client)) render(cap.client, true);
         }
         if (document.getElementById('calView') && calState && calState.client) _calRenderBody({ preserveScroll: true });
         if (document.getElementById('kasperContent')) svRsKasperHeadSync();

@@ -172,6 +172,15 @@ are **per function**, so two PRs re-pinning different functions do not conflict.
   and sequence UPDATE; a first repair named only `anon` on the sequences and
   left `authenticated` holding USAGE, SELECT and UPDATE. Name all four, or
   measure the ones you left out.
+- **A direct call to `client_profile_admin_edit`, `client_profile_service_write` or
+  `smm_assign_client` queues the Sheet copy but never sends it.** Only a request
+  through `roster-write`, `client-profile-write` or `client-onboarding` sends the
+  queue (nothing does it on a timer), so a backfill by RPC leaves the Clients Info
+  and Social Media Managers tabs behind until the next such request. On 26 Oct
+  that was 30 Slack-person edits waiting since 23 Oct (OPEN_REPAIRS 507). Go
+  through roster-write, or call its `copy_to_sheet` afterwards. Test clients
+  never reach the Sheet by design, and both parity checks skip them except the
+  main test client.
 - **A byte-order mark in an Edge Function source deploys fine and then fails
   the attestation.** Those three invisible leading bytes are stripped by the
   deploy tooling on upload, while the fingerprint hashes the committed bytes,

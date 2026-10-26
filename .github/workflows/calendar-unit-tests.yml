@@ -439,6 +439,7 @@ jobs:
           Expanded staff Selection and Samples phone states|node docs/syncview-design/tests/staff-selection-samples-browser.js
           Calendar work item hover card and per-card files menu|node docs/syncview-design/tests/calendar-hover-files-browser.js
           Samples client approve and request-changes always save through the function|node test/samples-client-approve-function-browser.js
+          A client Samples link stays on the Samples review with the new review page on|node test/samples-client-link-review-stage-browser.js
           Top bar keeps flat tabs on a page with no tab of its own (Messages)|node docs/syncview-design/tests/header-nav-no-active-tab-browser.js
           Entry links reach their screens|node docs/syncview-design/tests/entry-links-boot-browser.js
           A reply under an old round-0 comment saves with no round, never a 500 (mocked)|node docs/syncview-design/tests/comment-round-zero-browser.js

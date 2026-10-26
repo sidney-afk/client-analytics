@@ -155,10 +155,28 @@ Deno.serve(async (req: Request) => {
   try {
     if (!ACTIONS.includes(action)) throw new Refusal(400, "unknown_action");
     if (!client) throw new Refusal(400, "invalid_client");
-    if (!postId) throw new Refusal(400, "post_id_required");
+    if (!postId && action !== "list") throw new Refusal(400, "post_id_required");
     principal = await principalFor(supabase, req, client, action);
     if (principal.kind === "client" && !CLIENT_ACTIONS.includes(action)) throw new Refusal(403, "staff_only");
     await assertSwitchOn(supabase, client);
+
+    // Every card of this client whose switch is on, in one answer (the Calendar draws them all at once).
+    if (action === "list") {
+      const { data: rows, error } = await supabase.from("trial_reel_cards").select("*").eq("client", client).eq("enabled", true);
+      if (error) throw new Refusal(503, "switch_row_unreadable");
+      const cards: JsonMap = {};
+      for (const sw of (rows || []) as JsonMap[]) {
+        const id = clean(sw.post_id, 120);
+        const card = await readCard(supabase, client, id).catch(() => null);
+        if (!card) continue;
+        const versions = await readVersions(supabase, client, id);
+        const link = await mainLink(supabase, card);
+        cards[id] = { enabled: true, winner_letter: sw.winner_letter || null,
+          ...readShape(versions, { client: principal.kind === "client", mainLink: link, cardStatus: card.video_status }) };
+      }
+      outcome = "ok";
+      return json({ ok: true, cards });
+    }
 
     const card = await readCard(supabase, client, postId);
     const sw = await readSwitch(supabase, client, postId);

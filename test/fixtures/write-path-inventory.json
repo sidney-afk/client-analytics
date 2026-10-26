@@ -522,6 +522,20 @@
         "_notifyClientCall"
       ],
       "note": "The Notify client button: status, send and preview calls to client-review-alert (staff only). Recorded as client_alert."
+    },
+    "189-trial-reels-card.js.part|_trlCall|TRIAL_REELS_EF_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_trlCall"
+      ],
+      "note": "Trial reels (trial-reels function): the switch, a version link, a drop, the trial, the winner and its Undo. A refused write is recorded as trial_reels_<action>; list and read are reads."
+    },
+    "189-trial-reels-card.js.part|_trlSetCardLink|TRL_PROD_WRITE_URL|POST": {
+      "status": "reports",
+      "within": [
+        "_trlSetCardLink"
+      ],
+      "note": "Trial reels: the card's one link through today's Production attach (production-write attachment, unchanged). Recorded as trial_reels_card_link."
     }
   }
 }

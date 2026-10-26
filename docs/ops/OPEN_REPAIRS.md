@@ -34538,3 +34538,13 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Held on merge** until the migration is applied (its first line says how to tell). Nothing shows on any page until build PR 2.
 
 **Way back:** revert the PR. If the migration was applied: `drop table public.trial_reel_cards;` and drop the added columns (listed in the file's rollback note).
+
+## 515. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels, build PR 2 of 5: the staff card (session Trials)
+
+- **What:** trial reels on the staff Calendar card, per the approved plan (#2352) and the owner's notes of 2026-10-26 (a subtle switch in the Video row, collapsed by default, "Video A" with no hook text, a muted trophy with a tooltip once the 24 h are up, the winner at once with today's Undo toast and no confirm, no visual noise). New fragment `src/index/189-trial-reels-card.js.part`, hooked into today's `_calLinkFieldHtml`; `trial_reels_pages` read with the review-stage switches (188); a `list` action in the trial-reels function so one read loads every trial card of a client.
+- **Card height:** unchanged while the versions are collapsed, in every state (measured by `test/trial-reels-card-browser.js`, desktop and 390).
+- **The card's one link** (Video A, then the winner) is written only through today's paths: Production's attach (production-write `attachment`, unchanged) when the card has a video sub-issue, otherwise today's card link save; the function refuses the version's copy until the card carries it.
+- **Switch off** (any client but the test client): no trial control anywhere, the card exactly as before.
+- **Proven:** `node test/trial-reels-card-browser.js` (46 checks), the Deno function test (28), the logic test (60), prod-write-gateway-browser, prod-boot-budget, staff-calendar-expanded-browser (9618 checks), calendar-card-write-routing-browser, review-stage-browser, frame-comments-in-notes-browser, check-modules, check-lazy-safety and the unit suite (the 9 failures are the base's own).
+
+**Way back:** revert the PR; with the switch row absent nothing shows anyway.

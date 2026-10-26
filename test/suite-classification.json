@@ -2146,6 +2146,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-reels-card-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks trial reels on the staff card behind trial_reels_pages: off for an unlisted client, a faint switch in the Video row, the collapsed row and its versions at today's card height, pasting a link, dropping a version, the muted trophy after 24 h, the winner through today's attach with today's Undo toast, and Undo, at desktop and 390 pixel width.",
+      "reproduce": "node test/trial-reels-card-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "calendar-card-write-routing-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

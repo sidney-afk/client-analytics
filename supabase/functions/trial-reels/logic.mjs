@@ -17,9 +17,9 @@ export const STATUS = Object.freeze({
 });
 export const STAGES = ["smm", "kasper", "client"];
 export const TRIAL_MS = 24 * 60 * 60 * 1000;
-export const ACTIONS = ["read", "switch_set", "version_link_set", "version_drop", "version_restore", "answer", "trial_start", "winner_set", "winner_undo"];
+export const ACTIONS = ["list", "read", "switch_set", "version_link_set", "version_drop", "version_restore", "answer", "trial_start", "winner_set", "winner_undo"];
 // What a client review link may do. Everything else needs a staff key.
-export const CLIENT_ACTIONS = ["read", "answer"];
+export const CLIENT_ACTIONS = ["list", "read", "answer"];
 
 export const clean = (v, max = 200) => String(v == null ? "" : v).trim().slice(0, max);
 

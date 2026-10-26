@@ -478,6 +478,7 @@ jobs:
           Phone picture grid reaches the Review bar (no empty band, last row not cut off)|node docs/syncview-design/tests/phone-collection-bottom-gap-browser.js
           Calendar card writes route to calendar-card-write only for clients on its switch (calendar-upsert otherwise)|node test/calendar-card-write-routing-browser.js
           Client credentials dialog shows and edits only its own client|node test/credentials-modal-client-switch-browser.js
+          Trial reels on the staff card behind its switch: today's height, versions, trophy, winner through today's attach, Undo|node test/trial-reels-card-browser.js
           LANES
 
 

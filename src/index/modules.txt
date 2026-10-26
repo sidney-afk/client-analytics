@@ -67,4 +67,5 @@
 186-archived-restore.js.part
 187-frame-viewer.js.part
 188-review-stage-switch.js.part
+189-trial-reels-card.js.part
 195-review-stage.js.part

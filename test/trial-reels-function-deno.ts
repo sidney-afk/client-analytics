@@ -94,6 +94,8 @@ const off = await step({ action: "read" });
 ok(off.status === 409 && off.body.error === "trial_reels_off", "a card whose switch is off answers trial_reels_off");
 const on = await step({ action: "switch_set", enabled: true });
 ok(on.body.ok === true && tables.trial_reel_cards.length === 1, "switch_set turns the card's switch on");
+const listed = await step({ action: "list", post_id: "" });
+ok(listed.body.ok === true && Object.keys(listed.body.cards as Row).join() === "p1" && ((listed.body.cards as Row).p1 as Row).main_letter === "A", "list: every card of the client whose switch is on, in one answer");
 const readStaff = await step({ action: "read" });
 ok(readStaff.body.ok === true && (readStaff.body.versions as Row[]).length === 5 && readStaff.body.main_letter === "A", "staff read: five versions, Video A on the card");
 {

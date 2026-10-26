@@ -1,0 +1,341 @@
+import { showNotify, showToast } from './040-shared-briefs.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
+import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
+import { _calPendingEdits, calClientSlug, calState } from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { _calLinkFieldHtml } from './160-calendar-organize-ui.js';
+import { _calFlushCardSave } from './170-calendar-links-status.js';
+import { svTrialReelsOn } from './188-review-stage-switch.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
+    /* TRIAL REELS ON THE STAFF CARD (session Trials, 2026-10-27; docs/features/TRIAL_REELS_PLAN.md, approved as #2352).
+
+       One video, several versions (Video A to G) that differ in the text hook, each posted as an Instagram trial reel,
+       the winner kept after 24 h. Behind trial_reels_pages (188), staff Calendar only here; a client link never draws
+       any of this. Everything lives inside today's Video row, so a collapsed card is exactly today's height:
+         - off: today's row plus a faint switch before the pencil;
+         - on: "Video · 5" with a tiny state ("2/4 approved", "On trial · 17 h left", a muted trophy once the 24 h are
+           up, or just "Video C" once a winner is picked), the switch, and a small arrow that opens the versions under it;
+         - opened: "Video A"… each with its link, an edit pencil, a drop control, a label only where it says something
+           the row does not (owner: no visual noise), and, once the 24 h are up, a trophy ("Make this the winner").
+       The winner is made at once and today's toast offers Undo, as Kasper's approve does; there is no confirm.
+
+       Writes: the versions and the switch go to the trial-reels function. The card's one link (the version on the
+       card: Video A, then the winner) is written only through today's paths: Production's attach (production-write
+       "attachment") when the card has a video sub-issue, otherwise today's card link save. The function refuses the
+       version's copy until the card carries the link, so the card, Production and the log never disagree. */
+    const TRIAL_REELS_EF_URL = CAL_SUPABASE_URL + '/functions/v1/trial-reels';
+    const TRL_PROD_WRITE_URL = CAL_SUPABASE_URL + '/functions/v1/production-write';
+    const TRL_LIST_TTL_MS = 30000;
+    const TRL_TROPHY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 2.5h6v3.5a3 3 0 0 1-6 0z"/><path d="M5 3.5H3a2 2 0 0 0 2 2.5M11 3.5h2a2 2 0 0 1-2 2.5"/><path d="M8 9v2.5M5.5 13.5h5M6.5 11.5h3"/></svg>';
+    const TRL_CHEV = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>';
+    const TRL_GO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h4v4"/><path d="M13 3 7 9"/><path d="M12 9.5V13H3V4h3.5"/></svg>';
+    const TRL_PENCIL = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>';
+    const TRL_DROP = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>';
+    const TRL_BACK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6H11a2.5 2.5 0 0 1 0 5H8"/><path d="M7 4 5 6l2 2"/></svg>';
+    // What the function's refusals mean, in a sentence a person can act on.
+    const TRL_ERRORS = {
+        attach_first: 'The card still carries another link for this version. Save the card\'s Video link first, then try again.',
+        not_enabled: 'Trial reels are not switched on for this client.',
+        trial_reels_off: 'Turn Trial reels on for this card first.',
+        main_version: 'The version on the card cannot be dropped.',
+        version_on_trial: 'This version is out on trial, so it cannot change now.',
+        link_not_https: 'Paste a full https:// Frame.io link.',
+        nothing_approved: 'No version is approved yet.',
+        conflict: 'Someone changed this version a moment ago. It has been reloaded; try again.',
+        write_failed: 'The video sub-issue could not be read or saved, so nothing changed. Try again in a moment.',
+    };
+
+    const _trlCards = {};        // client slug -> { at, cards: { pid: shape }, promise }
+    const _trlOpen = new Set();  // pids whose versions list is open
+    const _trlEditing = {};      // pid -> letter being edited
+    const _trlBusy = new Set();  // pid|action in flight
+
+    function _trlSlug(client) {
+        try { return calClientSlug(String(client || '')); } catch (e) { return ''; }
+    }
+    function _trlStaffOn(post) {
+        return !_isClientLink && !!post && !!post.id && svTrialReelsOn(post.client || calState.client);
+    }
+    async function _trlCall(body) {
+        const resp = await fetch(TRIAL_REELS_EF_URL, {
+            method: 'POST', cache: 'no-store',
+            headers: _syncviewEfHeaders({ apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Accept: 'application/json' }, TRIAL_REELS_EF_URL),
+            body: JSON.stringify(body),
+        });
+        let json = {};
+        try { json = await resp.json(); } catch (e) { json = {}; }
+        if (!resp.ok || !json || json.ok !== true) {
+            const err = new Error(String((json && json.error) || ('http_' + resp.status)));
+            err.code = String((json && json.error) || 'request_failed');
+            // Every refused trial-reels write lands in the write-refusal log, like the Calendar's saves (a read does not).
+            if (body.action !== 'list' && body.action !== 'read') _writeUiRecordFailure('calendar', 'trial_reels_' + body.action, err, { http_status: resp.status });
+            throw err;
+        }
+        return json;
+    }
+    function _trlSay(e, what) {
+        const code = String((e && e.code) || (e && e.message) || 'request_failed');
+        showNotify(what + ' did not save', TRL_ERRORS[code] || ('The server answered "' + code + '". Nothing was changed.'));
+    }
+    /* Every trial card of a client, in one read, kept 30 s. The card draws as today until it arrives. */
+    function _trlLoad(slug, force) {
+        const e = _trlCards[slug] || (_trlCards[slug] = { at: 0, cards: {}, promise: null });
+        if (e.promise || (!force && Date.now() - e.at < TRL_LIST_TTL_MS)) return e.promise || Promise.resolve(e);
+        e.promise = _trlCall({ action: 'list', client: slug, post_id: '' })
+            .then(json => { e.cards = (json && json.cards) || {}; e.at = Date.now(); return e; })
+            .catch(() => { e.at = Date.now(); return e; })
+            .finally(() => { e.promise = null; _trlRepaintAll(slug); });
+        return e.promise;
+    }
+    function _trlShape(post) {
+        const slug = _trlSlug(post.client || calState.client);
+        const e = _trlCards[slug];
+        if (!e || !e.at) { if (slug) _trlLoad(slug); return null; }
+        if (Date.now() - e.at > TRL_LIST_TTL_MS) _trlLoad(slug);
+        return e.cards[post.id] || null;
+    }
+    function _trlRepaintField(pid) {
+        const post = (calState.posts || []).find(p => p.id === pid);
+        const field = document.querySelector('.cal-link-field[data-pid-wrap="' + pid + '"][data-fld-wrap="asset_url"]');
+        if (!post || !field || field.classList.contains('editing')) return;
+        const list = field.nextElementSibling;
+        if (list && list.classList.contains('trl-list')) list.remove();
+        const input = field.querySelector('.cal-link-input');
+        field.outerHTML = _calLinkFieldHtml(pid, 'asset_url', post.asset_url, input ? input.placeholder : 'Video URL (Frame.io / Drive)', false, false, post);
+    }
+    function _trlRepaintAll(slug) {
+        (calState.posts || []).forEach(p => { if (_trlSlug(p.client || calState.client) === slug) _trlRepaintField(p.id); });
+    }
+
+    // ---- what the row says -------------------------------------------------------------------------------------
+    const TRL_LIVE = v => v.status !== 'dropped';
+    function _trlTrialUp(shape) {
+        return !!shape.trial_ends_at && Date.parse(shape.trial_ends_at) <= Date.now()
+            && shape.versions.some(v => v.status === 'on trial');
+    }
+    function _trlTiny(shape) {
+        const vs = shape.versions || [];
+        if (vs.some(v => v.status === 'winner')) return { text: '' };
+        if (vs.some(v => v.status === 'on trial')) {
+            if (_trlTrialUp(shape)) return { trophy: true };
+            const ms = Math.max(0, Date.parse(shape.trial_ends_at || '') - Date.now());
+            return { text: 'On trial · ' + Math.max(1, Math.ceil(ms / 3600000)) + ' h left' };
+        }
+        const live = vs.filter(TRL_LIVE);
+        if (!live.length) return { text: '' };
+        return { text: live.filter(v => v.status === 'approved').length + '/' + live.length + ' approved' };
+    }
+    /* No visual noise: a label shows only where it says something the row does not. One every live version shares is
+       dropped (the collapsed row already says it), "lost" once there is a winner; "dropped", "winner" and "change
+       asked" always stay. */
+    function _trlLabelShown(vs, v) {
+        if (v.status === 'dropped' || v.status === 'winner' || v.status === 'change asked') return true;
+        if (v.status === 'lost') return false;
+        return new Set(vs.filter(TRL_LIVE).map(x => x.status)).size > 1;
+    }
+
+    /* The switch alone, for a card whose switch is off (today's row plus this, faint until hover). '' when the page
+       switch does not list the client, on a client link, or before the switch read is in. */
+    function svTrialSwitchHtml(pid, post) {
+        if (!_trlStaffOn(post)) return '';
+        const shape = _trlShape(post);
+        if (shape && shape.enabled) return '';
+        const p = _calEscAttr(pid);
+        return '<button type="button" class="trl-sw-slot" role="switch" aria-checked="false" title="Trial reels: off. Turn on to post this video as several versions"'
+            + ' aria-label="Trial reels" onclick="svTrialToggle(\'' + p + '\',true)"><i class="trl-sw"></i></button>';
+    }
+    /* The whole Video row for a card whose switch is on; null otherwise (the caller draws today's row). */
+    function svTrialVideoRowHtml(pid, v, post, parts) {
+        if (!_trlStaffOn(post)) return null;
+        const shape = _trlShape(post);
+        if (!shape || !shape.enabled) return null;
+        const vs = shape.versions || [];
+        const winner = vs.find(x => x.status === 'winner');
+        const open = _trlOpen.has(pid);
+        const tiny = _trlTiny(shape);
+        const main = winner ? 'Video ' + winner.letter : 'Video · ' + vs.length;
+        const p = _calEscAttr(pid);
+        // The row's parts are sibling buttons, styled as one row: the link (opens the video on the card), the state's
+        // trophy once the 24 h are up, a quiet filler, the switch, the arrow and today's pencil.
+        const row = '<div class="cal-link-field has-link cal-link-post trl-main' + (open ? ' trl-open' : '') + '" data-pid-wrap="' + p + '" data-fld-wrap="asset_url">'
+            + '<button type="button" class="cal-link-pill-open" onclick="_calOpenLink(\'' + p + '\',\'asset_url\')" title="Open the video">' + parts.extIco
+            + '<span class="cal-link-label"><span class="trl-main-label">' + _calEsc(main) + '</span>'
+            + (tiny.text ? '<span class="trl-state">' + _calEsc(tiny.text) + '</span>' : '') + '</span></button>'
+            + (tiny.trophy ? '<button type="button" class="trl-state-ico" aria-label="Trial over: pick the winner" title="Trial over: pick the winner" onclick="svTrialOpen(\'' + p + '\',true)">' + TRL_TROPHY + '</button>' : '')
+            + '<span class="trl-fill" aria-hidden="true"></span>'
+            + '<button type="button" class="trl-sw-slot on" role="switch" aria-checked="true" aria-label="Trial reels" title="Trial reels: on" onclick="svTrialToggle(\'' + p + '\',false)"><i class="trl-sw"></i></button>'
+            + '<button type="button" class="trl-chev" aria-expanded="' + open + '" aria-label="' + (open ? 'Hide the versions' : 'Show the versions') + '" title="' + (open ? 'Hide the versions' : 'Show the versions') + '" onclick="svTrialOpen(\'' + p + '\')">' + TRL_CHEV + '</button>'
+            + '<button type="button" class="cal-link-edit" tabindex="-1" onclick="_calEditLink(\'' + p + '\',\'asset_url\')" title="Edit the link on the card">' + parts.pencil + '</button>'
+            + parts.input + '</div>';
+        return open ? row + _trlListHtml(pid, shape) : row;
+    }
+    function _trlListHtml(pid, shape) {
+        const vs = shape.versions || [];
+        const p = _calEscAttr(pid);
+        const up = _trlTrialUp(shape);
+        const rows = vs.map(v => {
+            const l = _calEscAttr(v.letter);
+            if (_trlEditing[pid] === v.letter) {
+                return '<div class="trl-v trl-editing"><span class="trl-l">Video ' + _calEsc(v.letter) + '</span>'
+                    + '<input class="trl-link-input" type="url" placeholder="Paste the Frame.io link" value="' + _calEscAttr(v.frame_url || '') + '" data-pid="' + p + '" data-letter="' + l + '"'
+                    + ' onkeydown="svTrialLinkKey(event,this)" onblur="svTrialLinkSave(this)" aria-label="Frame.io link for Video ' + l + '"></div>';
+            }
+            const link = v.frame_url ? '<a class="trl-go" href="' + _calEscAttr(v.frame_url) + '" target="_blank" rel="noopener noreferrer" title="Open Video ' + l + '">' + TRL_GO + '</a>' : '';
+            const name = v.frame_url ? '<span class="trl-l">Video ' + _calEsc(v.letter) + '</span>'
+                : '<span class="trl-l">Video ' + _calEsc(v.letter) + '</span><button type="button" class="trl-paste" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">Paste the Frame.io link</button>';
+            const label = _trlLabelShown(vs, v) ? '<span class="trl-lab" data-l="' + _calEscAttr(v.status) + '">' + _calEsc(v.status) + '</span>' : '<span class="trl-lab-gap"></span>';
+            const decided = ['on trial', 'winner', 'lost'].includes(v.status);
+            const tools = '<span class="trl-tools">'
+                + (v.frame_url ? '<button type="button" class="trl-ico" title="Change the link" aria-label="Change the link of Video ' + l + '" onclick="svTrialEdit(\'' + p + '\',\'' + l + '\')">' + TRL_PENCIL + '</button>' : '')
+                + (!decided && !v.on_card ? (v.status === 'dropped'
+                    ? '<button type="button" class="trl-ico" title="Bring back" aria-label="Bring back Video ' + l + '" onclick="svTrialDrop(\'' + p + '\',\'' + l + '\',true)">' + TRL_BACK + '</button>'
+                    : '<button type="button" class="trl-ico" title="Drop this version" aria-label="Drop Video ' + l + '" onclick="svTrialDrop(\'' + p + '\',\'' + l + '\',false)">' + TRL_DROP + '</button>') : '')
+                + '</span>';
+            const pick = up && v.status === 'on trial'
+                ? '<button type="button" class="trl-pick" title="Make this the winner" aria-label="Make this the winner" onclick="svTrialPick(\'' + p + '\',\'' + l + '\')">' + TRL_TROPHY + '</button>' : '';
+            return '<div class="trl-v' + (v.status === 'dropped' ? ' trl-dropped' : '') + '">' + link + name + tools + label + pick + '</div>';
+        }).join('');
+        // After the client's OK on every version, the SMM posts them as trial reels by hand and starts the 24 h here.
+        const start = shape.card_approvable && !vs.some(v => ['on trial', 'winner', 'lost'].includes(v.status))
+            ? '<button type="button" class="trl-start" onclick="svTrialStart(\'' + p + '\')">Posted as trial reels? Start the 24 h</button>' : '';
+        return '<div class="trl-list">' + rows + start + '</div>';
+    }
+
+    // ---- actions -----------------------------------------------------------------------------------------------
+    function _trlPost(pid) { return (calState.posts || []).find(p => p.id === pid) || null; }
+    async function _trlRun(pid, key, body, what) {
+        const post = _trlPost(pid);
+        if (!post || _trlBusy.has(pid + '|' + key)) return null;
+        const slug = _trlSlug(post.client || calState.client);
+        _trlBusy.add(pid + '|' + key);
+        try {
+            const json = await _trlCall(Object.assign({ client: slug, post_id: pid }, body));
+            const e = _trlCards[slug] || (_trlCards[slug] = { at: Date.now(), cards: {}, promise: null });
+            if (json.versions) e.cards[pid] = Object.assign({}, e.cards[pid] || {}, { enabled: true, winner_letter: json.winner_letter || null }, json);
+            return json;
+        } catch (e) {
+            if (e && e.code === 'conflict') _trlLoad(slug, true);
+            _trlSay(e, what);
+            return null;
+        } finally {
+            _trlBusy.delete(pid + '|' + key);
+            _trlRepaintField(pid);
+        }
+    }
+    async function svTrialToggle(pid, on) {
+        const post = _trlPost(pid);
+        if (!post) return;
+        const slug = _trlSlug(post.client || calState.client);
+        const json = await _trlRun(pid, 'switch', { action: 'switch_set', enabled: !!on }, 'Trial reels');
+        if (!json) return;
+        const e = _trlCards[slug];
+        if (!on) { if (e) delete e.cards[pid]; _trlOpen.delete(pid); _trlRepaintField(pid); return; }
+        await _trlLoad(slug, true);
+    }
+    function svTrialOpen(pid, force) {
+        if (force || !_trlOpen.has(pid)) _trlOpen.add(pid); else _trlOpen.delete(pid);
+        _trlRepaintField(pid);
+    }
+    function svTrialEdit(pid, letter) {
+        _trlEditing[pid] = letter;
+        _trlRepaintField(pid);
+        const input = document.querySelector('.trl-link-input[data-pid="' + pid + '"]');
+        if (input) { input.focus(); input.select(); }
+    }
+    function svTrialLinkKey(ev, input) {
+        if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+        if (ev.key === 'Escape') { ev.preventDefault(); input.dataset.cancel = '1'; input.blur(); }
+    }
+    /* The card's one link, through today's paths only. With a video sub-issue: Production's attach (it writes file_url
+       and the database projects it onto the card's asset_url). Without one: today's card link save. */
+    async function _trlSetCardLink(post, link) {
+        const deliverableId = String(post.video_deliverable_id || '').trim();
+        if (!deliverableId) {
+            if (!_calPendingEdits[post.id]) _calPendingEdits[post.id] = {};
+            _calPendingEdits[post.id].asset_url = link;
+            post.asset_url = link;
+            await _calFlushCardSave(post.id);
+            return true;
+        }
+        const read = await fetch(CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select=id,client_slug,updated_at&id=eq.' + encodeURIComponent(deliverableId), {
+            cache: 'no-store', headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' },
+        });
+        const rows = read.ok ? await read.json().catch(() => []) : [];
+        const row = Array.isArray(rows) ? rows[0] : null;
+        if (!row || !row.updated_at) {
+            const err = Object.assign(new Error('The video sub-issue could not be read'), { code: 'write_failed' });
+            _writeUiRecordFailure('calendar', 'trial_reels_card_link', err, { http_status: read.status });
+            throw err;
+        }
+        let requestId = '';
+        try { requestId = 'trial:attachment:' + crypto.randomUUID(); } catch (e) { requestId = 'trial:attachment:' + Date.now().toString(36) + Math.random().toString(36).slice(2); }
+        const resp = await fetch(TRL_PROD_WRITE_URL, {
+            method: 'POST', cache: 'no-store',
+            headers: _syncviewEfHeaders({ apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json', 'Content-Type': 'application/json' }, TRL_PROD_WRITE_URL),
+            body: JSON.stringify({ operation: 'attachment', surface: 'production', entity: 'deliverable', id: deliverableId,
+                client_slug: row.client_slug, request_id: requestId, source_edited_at: new Date().toISOString(),
+                file_url: link, expected_updated_at: row.updated_at }),
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json || json.ok !== true || json.native_committed !== true) {
+            const code = String((json && json.error && (json.error.code || json.error)) || ('http_' + resp.status));
+            const err = Object.assign(new Error(code), { code });
+            _writeUiRecordFailure('calendar', 'trial_reels_card_link', err, { http_status: resp.status });
+            throw err;
+        }
+        post.asset_url = link;
+        return true;
+    }
+    async function svTrialLinkSave(input) {
+        const pid = input.dataset.pid, letter = input.dataset.letter;
+        const cancel = input.dataset.cancel === '1';
+        delete _trlEditing[pid];
+        const post = _trlPost(pid);
+        const shape = post && _trlShape(post);
+        const v = shape && (shape.versions || []).find(x => x.letter === letter);
+        const link = String(input.value || '').trim();
+        if (cancel || !post || !v || link === String(v.frame_url || '')) { _trlRepaintField(pid); return; }
+        if (v.on_card) {
+            // The version on the card: today's path first, then the copy (the function checks they agree).
+            try { await _trlSetCardLink(post, link); }
+            catch (e) { _trlSay(e, 'Video ' + letter + "'s link"); _trlRepaintField(pid); return; }
+        }
+        await _trlRun(pid, 'link', { action: 'version_link_set', letter, link }, 'Video ' + letter + "'s link");
+    }
+    async function svTrialDrop(pid, letter, restore) {
+        await _trlRun(pid, 'drop', { action: restore ? 'version_restore' : 'version_drop', letter }, 'Video ' + letter);
+    }
+    async function svTrialStart(pid) {
+        await _trlRun(pid, 'start', { action: 'trial_start' }, 'The trial');
+    }
+    /* The winner, at once; today's toast offers Undo (no confirm, owner 2026-10-26). */
+    async function svTrialPick(pid, letter) {
+        const post = _trlPost(pid);
+        const shape = post && _trlShape(post);
+        const v = shape && (shape.versions || []).find(x => x.letter === letter);
+        if (!v || !v.frame_url) { showNotify('Video ' + letter + ' has no link', 'Paste its Frame.io link first.'); return; }
+        const before = post.asset_url;
+        try { await _trlSetCardLink(post, v.frame_url); }
+        catch (e) { _trlSay(e, 'The winner'); return; }
+        const json = await _trlRun(pid, 'pick', { action: 'winner_set', letter }, 'The winner');
+        if (!json) return;
+        showToast('Video ' + letter + ' is the winner', { actionLabel: 'Undo', onAction: () => _trlUndoPick(pid, before) });
+    }
+    async function _trlUndoPick(pid, before) {
+        const post = _trlPost(pid);
+        const shape = post && _trlShape(post);
+        const a = shape && (shape.versions || []).find(x => x.letter === 'A');
+        const link = (a && a.frame_url) || before;
+        if (!post || !link) return;
+        try { await _trlSetCardLink(post, link); }
+        catch (e) { _trlSay(e, 'Undo'); return; }
+        const json = await _trlRun(pid, 'undo', { action: 'winner_undo' }, 'Undo');
+        if (json) showToast('Back on trial');
+    }
+
+    // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
+    Object.assign(window, {
+        svTrialDrop, svTrialEdit, svTrialLinkKey, svTrialLinkSave, svTrialOpen, svTrialPick, svTrialStart,
+        svTrialToggle
+    });
+export { svTrialSwitchHtml, svTrialVideoRowHtml };

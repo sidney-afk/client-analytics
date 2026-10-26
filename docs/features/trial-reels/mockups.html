@@ -147,6 +147,7 @@ td input{width:76px;border:1px solid var(--line);background:var(--soft);border-r
       </div>
       <div class="row" style="margin-bottom:18px">
         <span class="status-chip" id="card-vstatus">Video: Client Approval</span>
+        <span class="pill lab-trial" id="card-timer" hidden></span>
         <span class="status-chip">Thumbnail: N/A</span>
         <span class="status-chip">Caption: Client Approval</span>
       </div>
@@ -168,11 +169,11 @@ td input{width:76px;border:1px solid var(--line);background:var(--soft);border-r
       <div class="field"><h4>Caption</h4><div>Most people decide in the first second. Here is how to earn the second one.</div></div>
     </div>
     <div class="panel" style="padding:20px">
-      <h4 style="margin:0 0 10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)">Production sub-issue</h4>
+      <h4 style="margin:0 0 10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)">Production task</h4>
       <div style="font-weight:700;margin-bottom:4px">Why the first second matters · Video</div>
       <div class="sub" style="margin-bottom:14px">Status follows the card, as today</div>
       <div class="vlist" id="subVersions"></div>
-      <p class="sub" style="margin:12px 0 0">The sub-issue shows the same versions (read only). The editor's link field keeps version A, so the Production page and its robots see one ordinary link.</p>
+      <p class="sub" style="margin:12px 0 0">The sub-issue shows the same versions (read only). The task keeps one ordinary link (version A, then the winner's), so the Production page and its robots see a normal task.</p>
     </div>
   </div>
 </section>
@@ -212,13 +213,13 @@ td input{width:76px;border:1px solid var(--line);background:var(--soft);border-r
 
 <!-- 5. LOG -->
 <section class="view" id="v-log">
-  <p class="caption">Part 3. After the versions go out as trial reels, the SMM types each version's 24 h numbers. One row per version in the new log table. "Keep this one" marks the winner; the others become <b>lost</b>. The card stays Approved; only the version labels change.</p>
+  <p class="caption">Part 3. The SMM posts the approved versions as trial reels by hand, then marks them on trial: each gets a 24 h timer, shown on the card. After 24 h the SMM types each version's numbers into the one log (<code>studio_trial_versions</code>, one row per version, shared with the studio). The highest-views version is <b>suggested</b>; the SMM gives the winner badge (to any version), the others become <b>lost</b>, and the card's link becomes the winner's, which posts on the card's calendar date.</p>
   <div class="frame w1440 panel" style="padding:20px">
     <div class="row" style="justify-content:space-between;margin-bottom:10px">
       <div><div style="font-weight:800;font-size:18px">Why the first second matters · trial results</div><div class="sub">Posted as trial reels Fri 30 Oct 09:00 · numbers at 24 h</div></div>
-      <button class="btn" id="startTrial">Mark all approved as on trial</button>
+      <div class="row"><button class="btn btn-quiet" id="fillNums">Example numbers</button><button class="btn" id="startTrial">Mark approved as on trial</button></div>
     </div>
-    <table><thead><tr><th>Version</th><th>Hook</th><th>Label</th><th>Views</th><th>Reach</th><th>Likes</th><th>Shares</th><th>Saves</th><th>Avg watch (s)</th><th></th></tr></thead><tbody id="logRows"></tbody></table>
+    <table><thead><tr><th>Version</th><th>Hook</th><th>Label</th><th>Views</th><th>Watch time (s)</th><th>Shares</th><th>Saves</th><th>Follows</th><th></th></tr></thead><tbody id="logRows"></tbody></table>
     <div class="legend"><span class="pill lab-waiting">waiting</span><span class="pill lab-approved">approved</span><span class="pill lab-change">change asked</span><span class="pill lab-dropped">dropped</span><span class="pill lab-trial">on trial</span><span class="pill lab-winner">winner</span><span class="pill lab-lost">lost</span></div>
   </div>
 </section>
@@ -261,6 +262,9 @@ function renderCard(){
      <div class="row">${pill(v.st)}${v.st==='dropped'?`<button class="btn btn-quiet" data-undrop="${i}">Bring back</button>`:(v.st==='waiting'||v.st==='change'?`<button class="btn btn-quiet" data-drop="${i}" title="Drop this version">Drop</button>`:'')}</div></div>`).join('');
   document.getElementById('cardVersions').innerHTML = rows;
   document.getElementById('subVersions').innerHTML = S.versions.map(v=>`<div class="vrow" style="grid-template-columns:28px minmax(0,1fr) auto;padding:8px 10px"><div class="letter" style="width:28px;height:28px">${v.l}</div><div class="hook" style="font-size:13px">${esc(v.hook)}</div>${pill(v.st)}</div>`).join('');
+  const tm = document.getElementById('card-timer'), win = S.versions.find(v=>v.st==='winner');
+  tm.hidden = !(S.trialAt || win); tm.className = 'pill ' + (win ? 'lab-winner' : 'lab-trial');
+  tm.textContent = win ? '★ Winner: version ' + win.l + ' · its link is now the card\'s · posts Fri 30 Oct' : S.trialAt ? 'On trial · ' + Math.max(0, 24 - Math.floor((Date.now()-S.trialAt)/3600000)) + ' h left' : '';
   document.getElementById('card-vstatus').textContent = 'Video: ' + (allDone() ? 'Approved' : S.versions.some(v=>v.st==='change') ? 'Tweaks Needed' : 'Client Approval');
 }
 
@@ -307,10 +311,14 @@ function renderKasper(){
     ${videoTile(v,i,true)}<div class="hk"><b>${v.l}</b> · ${esc(v.hook)}</div>
     <div class="row" style="justify-content:space-between">${v.st==='waiting'?`<button class="btn btn-ok" style="padding:5px 9px;font-size:13px" data-k="approve" data-i="${i}">Approve</button><button class="btn btn-quiet" style="padding:4px 5px" title="Ask for a change" data-k="change" data-i="${i}">↺</button><button class="btn btn-quiet" style="padding:4px 5px" title="Drop" data-k="drop" data-i="${i}">✕</button>`:pill(v.st)}</div></div>`).join('');
 }
+const NUMS = ['views','watch_time_s','shares','saves','follows'];
+function suggested(){ const t = S.versions.filter(v=>v.st==='trial'); if (!t.length || t.some(v=>!(S.nums[v.l]||{}).views)) return null;
+  return t.reduce((a,b)=> (+S.nums[b.l].views > +S.nums[a.l].views ? b : a)).l; }
 function renderLog(){
+  const sug = suggested();
   document.getElementById('logRows').innerHTML = S.versions.map((v,i)=>{ const n=S.nums[v.l]||{}; const can = ['trial','winner','lost'].includes(v.st);
-    return `<tr><td><b>${v.l}</b></td><td>${esc(v.hook)}</td><td>${pill(v.st)}</td>${['views','reach','likes','shares','saves','watch'].map(k=>`<td><input inputmode="numeric" aria-label="${k} for version ${v.l}" ${can?'':'disabled'} value="${n[k]??''}" data-n="${v.l}:${k}"></td>`).join('')}
-    <td>${v.st==='trial'?`<button class="btn" data-win="${i}">Keep this one</button>`:''}</td></tr>`; }).join('');
+    return `<tr><td><b>${v.l}</b></td><td>${esc(v.hook)}</td><td>${pill(v.st)}${sug===v.l?' <span class="pill lab-winner">suggested: most views</span>':''}</td>${NUMS.map(k=>`<td><input inputmode="numeric" aria-label="${k} for version ${v.l}" ${can?'':'disabled'} value="${n[k]??''}" data-n="${v.l}:${k}"></td>`).join('')}
+    <td>${v.st==='trial'?`<button class="btn" data-win="${i}">Give the winner badge</button>`:v.st==='winner'?'<span class="pill lab-winner">★ winner · posts Fri 30 Oct</span>':''}</td></tr>`; }).join('');
 }
 function render(){ renderCard(); renderStages(); renderKasper(); renderLog(); }
 
@@ -334,10 +342,12 @@ document.addEventListener('click', e => {
   if (a==='finish') return toast(answered()===S.versions.length ? 'All answered. Opening the next post' : 'Still waiting: ' + S.versions.filter(v=>v.st==='waiting').map(v=>v.l).join(', '));
   if (b.dataset.k){ const i=+b.dataset.i; S.cur=i; return setSt(i, {approve:'approved',change:'change',drop:'dropped'}[b.dataset.k], 'Kasper: version '+S.versions[i].l+' '+({approve:'approved',change:'change asked',drop:'dropped'}[b.dataset.k])); }
   if (b.id==='kApproveAll'){ S.versions.forEach(v=>{ if(v.st==='waiting') v.st='approved'; }); render(); return toast('Kasper approved every waiting version'); }
-  if (b.id==='startTrial'){ let k=0; S.versions.forEach(v=>{ if(v.st==='approved'){ v.st='trial'; k++; } }); render(); return toast(k? k+' versions on trial' : 'No approved versions yet'); }
-  if (b.dataset.win){ const w=+b.dataset.win; S.versions.forEach((v,i)=>{ if(['trial','winner','lost'].includes(v.st)) v.st = i===w?'winner':'lost'; }); render(); return toast('Version '+S.versions[w].l+' kept'); }
+  if (b.id==='fillNums'){ const ex={A:[4200,61,12,30,4],B:[3100,48,9,21,2],C:[8900,73,40,66,11],D:[2600,40,5,12,1],E:[6100,66,22,41,7]}; S.versions.forEach(v=>{ if(v.st==='trial'&&ex[v.l]) S.nums[v.l]=Object.fromEntries(NUMS.map((k,j)=>[k,ex[v.l][j]])); }); return render(); }
+  if (b.id==='startTrial'){ let k=0; S.versions.forEach(v=>{ if(v.st==='approved'){ v.st='trial'; k++; } }); if (k) S.trialAt = Date.now() - 7*3600000; render(); return toast(k? k+' versions on trial' : 'No approved versions yet'); }
+  if (b.dataset.win){ const w=+b.dataset.win; S.versions.forEach((v,i)=>{ if(['trial','winner','lost'].includes(v.st)) v.st = i===w?'winner':'lost'; }); render(); return toast('Winner badge: version '+S.versions[w].l); }
 });
 document.addEventListener('input', e => { const k=e.target.dataset.n; if(!k) return; const [l,f]=k.split(':'); (S.nums[l] ||= {})[f]=e.target.value; });
+document.addEventListener('change', e => { if (e.target.dataset.n) renderLog(); });
 document.addEventListener('keydown', e => { if (e.target.closest('input')) return; const on = document.querySelector('.view.on'); if (!on || !on.querySelector('[data-stage]')) return; if (e.key==='ArrowLeft') step(-1); if (e.key==='ArrowRight') step(1); });
 let sx=null; document.addEventListener('pointerdown', e => { if (e.target.closest('[data-swipe]')) sx=e.clientX; });
 document.addEventListener('pointerup', e => { if (sx==null) return; const dx=e.clientX-sx; sx=null; if (Math.abs(dx)>40) step(dx<0?1:-1); });

@@ -23,6 +23,9 @@
 // Server key only (the future n8n sender; never the browser):
 //   due { dry_run?, limit? }                     -> { send[], held[], stopped[], completed[] }
 //   log_send { enrolment_id, step_id, result: sent|failed|skipped, provider_id?, error? }
+//   ingest  { event, person, source?, occurred_at?, call_at?, channel?, actor?, detail?, idempotency_key }
+//           -> { person_id, created, duplicate?, stage, stopped_enrolments }
+//           (n8n logs a form, booking, send or reply; docs/features/CRM_LEADS.md "Ingest")
 // Nothing here sends a message. Every change writes crm_events in the same
 // transaction (crm_apply_change, crm_enrol, crm_enrolment_apply).
 //
@@ -35,8 +38,8 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { authorizeStaffKey, matchingRoleForKey, staffAuthFailureStatus, timingSafeEqual } from "../_shared/staff-role-auth.ts";
 import {
-  cardOf, changeEvents, effectivePatch, isUuid, leadsAllowed, LIST_MAX, parseListFilters,
-  validateNote, validatePatch,
+  cardOf, changeEvents, effectivePatch, ingestPlan, isUuid, leadsAllowed, LIST_MAX, mergeForImport,
+  normalizeEmail, normalizeHandle, normalizePhone, parseListFilters, validateIngest, validateNote, validatePatch,
 } from "../_shared/crm-leads-core.mjs";
 import {
   ENROLMENT_ACTIONS, evaluateEnrolment, sendEventKind, validateSendLog, validateStepEdit,
@@ -57,7 +60,7 @@ const STEP_COLUMNS =
 const SEQ_COLUMNS = "id,key,name,description,lead_type,stay_stages,active,toggled_by,updated_at";
 const ENROL_COLUMNS =
   "id,person_id,sequence_id,status,paused,trigger_stage,sent_step_keys,skipped_step_keys,stop_reason,enrolled_by,enrolled_at,updated_at";
-const SERVER_ACTIONS = ["due", "log_send"];
+const SERVER_ACTIONS = ["due", "log_send", "ingest"];
 const STOP_KINDS = ["reply", "booked", "opted_out"];
 
 function json(obj: unknown, status = 200): Response {
@@ -184,6 +187,97 @@ async function logSend(db: SupabaseClient, body: Record<string, unknown>) {
   const row = await enrolmentRpc(db, enrolmentId, patch, "n8n sender", event, false);
   if (!row) return json({ ok: false, error: "enrolment_not_found" }, 404);
   return json({ ok: true, enrolment: row });
+}
+
+/** Finds a person by normalised email, then phone, then handle. */
+async function findPerson(db: SupabaseClient, p: Record<string, any>) {
+  const keys: [string, string | null][] = [
+    ["email_norm", normalizeEmail(p.email)], ["phone_norm", normalizePhone(p.phone)], ["handle_norm", normalizeHandle(p.instagram_handle)],
+  ];
+  const found: Record<string, any> = {};
+  let first: any = null;
+  for (const [col, val] of keys) {
+    if (!val) continue;
+    const row = must(await db.from("crm_people").select(PERSON_COLUMNS).eq(col, val).maybeSingle());
+    found[col] = row ? row.id : null;
+    if (row && !first) first = row;
+  }
+  return { person: first, owners: found };
+}
+
+async function sourceId(db: SupabaseClient, src: { name: string; kind: string } | null): Promise<string | null> {
+  if (!src) return null;
+  const read = async () => must(await db.from("crm_sources").select("id").eq("name", src.name).maybeSingle());
+  const have = await read();
+  if (have) return have.id;
+  const { data, error } = await db.from("crm_sources").insert({ name: src.name, kind: src.kind }).select("id");
+  if (!error && data && data.length) return data[0].id;
+  const again = await read();   // a parallel ingest created it first
+  if (again) return again.id;
+  throw new Error("write_failed");
+}
+
+/** n8n logs one fact about a lead. Deduped on idempotency_key: the key is
+ *  checked after reading the person's state_version, and the event is written
+ *  by crm_apply_change on that version, so a parallel retry loses the
+ *  compare-and-swap, re-reads and finds the key. Never logs contact details. */
+async function ingest(db: SupabaseClient, body: Record<string, unknown>) {
+  const v = validateIngest(body) as any;
+  if (!v.ok) return json({ ok: false, error: v.error }, 400);
+  const srcId = await sourceId(db, v.source);
+  let created = false;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const found = await findPerson(db, v.person);
+    const owners = found.owners;
+    let person = found.person;
+    if (!person) {
+      const row: Record<string, unknown> = {
+        display_name: v.person.display_name, email: v.person.email, phone: v.person.phone,
+        instagram_handle: v.person.instagram_handle, timezone: v.person.timezone, lead_type: "ad_lead",
+        source_id: srcId, tags: v.isTest ? ["test"] : [],
+      };
+      const { data, error } = await db.from("crm_people").insert(row).select(PERSON_COLUMNS);
+      if (error || !data || !data.length) continue;   // lost a race on a unique key: look again
+      person = data[0];
+      created = true;
+    } else {
+      // Fill blanks only, and never with a value another person already holds.
+      const fill: Record<string, unknown> = mergeForImport(person, { display_name: v.person.display_name, email: v.person.email, phone: v.person.phone, instagram_handle: v.person.instagram_handle, tags: [] });
+      delete fill.tags;
+      if (fill.email && owners.email_norm && owners.email_norm !== person.id) delete fill.email;
+      if (fill.phone && owners.phone_norm && owners.phone_norm !== person.id) delete fill.phone;
+      if (fill.instagram_handle && owners.handle_norm && owners.handle_norm !== person.id) delete fill.instagram_handle;
+      if (!person.source_id && srcId) fill.source_id = srcId;
+      if (Object.keys(fill).length) {
+        // Contact fill, compare-and-swap like scripts/crm-import.js; crm_apply_change
+        // does not take contact columns. The ingest row below goes through it.
+        const { data, error } = await db.from("crm_people")
+          .update(Object.assign(fill, { state_version: person.state_version + 1, updated_at: new Date().toISOString() }))
+          .eq("id", person.id).eq("state_version", person.state_version).select(PERSON_COLUMNS);
+        if (error || !data || !data.length) continue;
+        person = data[0];
+      }
+    }
+    const dup = must(await db.from("crm_events").select("id").eq("person_id", person.id).eq("detail->>idempotency_key", v.key).limit(1));
+    if (dup && dup.length) return json({ ok: true, duplicate: true, person_id: person.id, created: false, stage: person.stage, stopped_enrolments: 0 });
+    const plan = ingestPlan(person, v);
+    const events = created && person.state_version === 1
+      ? [{ kind: "created", channel: "system", detail: { via: "ingest", event: v.event, source: v.source ? v.source.name : null } }, ...plan.events]
+      : plan.events;
+    const after = await apply(db, person.id, person.state_version, plan.patch, v.actor, events);
+    if (!after) continue;
+    let stopped = 0;
+    if (plan.stopEnrolments) {
+      const active = must(await db.from("crm_enrolments").select("id").eq("person_id", person.id).eq("status", "active")) || [];
+      for (const en of active as any[]) {
+        const r = await enrolmentRpc(db, en.id, { status: "stopped", stop_reason: "replied" }, "sequence rules", { kind: "enrolment_stopped", channel: "system", detail: { reason: "replied" } }, true);
+        if (r) stopped++;
+      }
+    }
+    console.log(JSON.stringify({ fn: "crm-leads", action: "ingest", event: v.event, created, stage_changed: "stage" in plan.patch, stopped }));
+    return json({ ok: true, person_id: person.id, created, stage: after.stage, stopped_enrolments: stopped, test: v.isTest });
+  }
+  return json({ ok: false, error: "conflict" }, 409);
 }
 
 async function todayView(db: SupabaseClient) {
@@ -350,6 +444,7 @@ Deno.serve(async (req: Request) => {
     if (!serverKeyOk(req)) return json({ ok: false, error: "unauthorized" }, 401);
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     try {
+      if (action === "ingest") return await ingest(db, body);
       return action === "due" ? await due(db, body) : await logSend(db, body);
     } catch (e) {
       return json({ ok: false, error: errCode(e) }, 500);

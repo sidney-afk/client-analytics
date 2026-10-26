@@ -158,5 +158,53 @@ function ok(cond, msg) { assert.ok(cond, msg); passed++; }
   ok(/if \(capability === 'leads'\) return role === 'admin';/.test(read('src/index/100-onboarding-staff-controls.js.part')), 'leads capability is admin');
   const k = read('src/index/321-kasper-dashboard-replies.js.part');
   ok(/tab === 'leads'[\s\S]{0,200}navTo\('leads'\)/.test(k), 'Kasper More item opens the page');
+
+  // ── ingest (n8n, server key) ──
+  {
+    const base = { event: 'booked', idempotency_key: 'k1', call_at: '2026-11-02T15:00:00Z',
+      person: { name: 'Test Lead', email: 'Lead@Example.INVALID', phone: '', instagram: '', timezone: 'America/Chicago' },
+      source: { name: 'example-ad', kind: 'ad' }, actor: 'n8n:Booking Handler',
+      detail: { utm_campaign: 'c1', body: 'Hi there', api_key: 'x', access_token: 'y', nested: { a: 1 } } };
+    const v = c.validateIngest(base);
+    ok(v.ok && v.kind === 'booked' && v.channel === 'call', 'booked maps to the booked kind');
+    ok(v.detail.utm_campaign === 'c1' && !('body' in v.detail) && !('api_key' in v.detail) && !('access_token' in v.detail) && !('nested' in v.detail), 'detail drops bodies, secrets and nesting');
+    ok(!v.isTest, 'a normal lead is not a test');
+    ok(c.validateIngest(Object.assign({}, base, { event: 'nope' })).error === 'bad_event', 'unknown event refused');
+    ok(c.validateIngest(Object.assign({}, base, { idempotency_key: '' })).error === 'bad_idempotency_key', 'key required');
+    ok(c.validateIngest(Object.assign({}, base, { person: { name: 'x' } })).error === 'no_contact', 'a contact is required');
+    ok(c.validateIngest(Object.assign({}, base, { call_at: '' })).error === 'call_at_required', 'booked needs call_at');
+    ok(c.validateIngest(Object.assign({}, base, { event: 'rescheduled', call_at: 'soon' })).error === 'bad_call_at', 'bad call_at refused');
+    ok(c.validateIngest(Object.assign({}, base, { channel: 'fax' })).error === 'bad_channel', 'bad channel refused');
+    ok(c.validateIngest(Object.assign({}, base, { source: { name: 's', kind: 'weird' } })).source.kind === 'other', 'unknown source kind becomes other');
+    ok(c.validateIngest(Object.assign({}, base, { person: { email: 'sidney.laruel+t1@gmail.com' } })).isTest, 'plus-address test email is tagged test');
+    ok(c.validateIngest(Object.assign({}, base, { detail: { utm_source: 'TEST' } })).isTest, 'utm_source test is tagged test');
+    for (const ev of Object.keys(c.INGEST_EVENTS)) ok(['imported', 'booked', 'call', 'message_sent', 'reply'].includes(c.INGEST_EVENTS[ev].kind), ev + ' maps to an allowed kind');
+
+    let plan = c.ingestPlan({ stage: 'contacted', tags: [], call_at: null, timezone: null }, v);
+    ok(plan.patch.stage === 'call1_booked' && plan.patch.call_at === '2026-11-02T15:00:00.000Z' && plan.patch.timezone === 'America/Chicago', 'booked moves forward and sets call_at and timezone');
+    ok(plan.events[0].kind === 'booked' && plan.events[0].detail.idempotency_key === 'k1' && plan.events[0].detail.event === 'booked', 'the ingest row carries the key and event');
+    ok(plan.events.some((e) => e.kind === 'stage_changed') && plan.events.some((e) => e.kind === 'call_at_set'), 'stage and call time changes are on the timeline');
+    plan = c.ingestPlan({ stage: 'call1_done', tags: [] }, v);
+    ok(!('stage' in plan.patch), 'booked never moves a later stage back');
+    plan = c.ingestPlan({ stage: 'no_show', tags: [] }, v);
+    ok(plan.patch.stage === 'call1_booked', 'a no-show who rebooks is booked again');
+    plan = c.ingestPlan({ stage: 'call1_booked', call_at: '2026-11-02T15:00:00.000Z', tags: [] }, Object.assign({}, v, { event: 'cancelled', kind: 'call' }));
+    ok(plan.patch.call_at === '' && !('stage' in plan.patch) && plan.events[0].detail.call_at === '2026-11-02T15:00:00.000Z', 'cancelled clears call_at, keeps stage, records the old slot');
+    plan = c.ingestPlan({ stage: 'call1_booked', call_at: '2026-11-02T15:00:00.000Z', tags: [] }, Object.assign({}, v, { event: 'rescheduled', kind: 'call', callAt: '2026-11-03T15:00:00.000Z' }));
+    ok(plan.patch.call_at === '2026-11-03T15:00:00.000Z' && !('stage' in plan.patch), 'rescheduled moves call_at only');
+    const reply = c.validateIngest(Object.assign({}, base, { event: 'sms_reply', call_at: null }));
+    plan = c.ingestPlan({ stage: 'to_contact', tags: [] }, reply);
+    ok(plan.patch.stage === 'replied' && plan.stopEnrolments && plan.events[0].kind === 'reply', 'sms_reply moves to replied and stops sequences');
+    plan = c.ingestPlan({ stage: 'call2_done', tags: [] }, reply);
+    ok(!('stage' in plan.patch) && plan.stopEnrolments, 'a later-stage reply keeps stage but still stops sequences');
+    const sent = c.validateIngest(Object.assign({}, base, { event: 'email_sent', call_at: null, person: { email: 'sidney.laruel+x@gmail.com' } }));
+    plan = c.ingestPlan({ stage: 'contacted', tags: ['a'] }, sent);
+    ok(plan.events[0].kind === 'message_sent' && plan.events[0].channel === 'email' && plan.patch.tags.join() === 'a,test' && plan.events[0].detail.test === true, 'a send is logged and a test lead tagged test');
+    ok(!plan.stopEnrolments && !('stage' in plan.patch), 'a send changes no stage');
+  }
+  const fnSrc = read('supabase/functions/crm-leads/index.ts');
+  ok(/SERVER_ACTIONS = \["due", "log_send", "ingest"\]/.test(fnSrc), 'ingest takes only the server key');
+  ok(/detail->>idempotency_key/.test(fnSrc), 'ingest dedupes on the idempotency key');
+  ok(!/console\.(log|error|warn)\([^)]*v\.person/.test(fnSrc), 'ingest never logs contact details');
   console.log('crm-leads: ' + passed + ' checks passed');
 })().catch((e) => { console.error('FAIL ' + e.message); process.exit(1); });

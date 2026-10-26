@@ -41,11 +41,11 @@ clicks, `qa/test-client-entry.js` for the client link) instead of new machinery.
 
 | # | flow | pass means |
 |---|---|---|
-| 1 | Client approve | fresh client context lands on the Review tab; the real Approve button saves the caption as `Approved` + approval stamp, and it holds |
-| 2 | Client request changes | real Request-changes button with text; `Tweaks Needed` + the text saved |
+| 1 | Client approve | fresh client context lands on the Review page (since 2026-10-18 the Review stage of #2131 for every client: the post's chip in the strip, then the caption step); the real "Approve the caption" button saves the caption as `Approved` + approval stamp, and it holds. Where `review_stage_client_pages` is off, the old review cards and their buttons |
+| 2 | Client request changes | real "Ask for a change" on the caption, the text typed in the message box and sent; `Tweaks Needed` + the text saved |
 | 3 | Staff card save | caption typed + blurred; DB has it and the card's save mark reaches "Saved" (a "Saved, syncing" step is allowed only if it clears) |
 | 4 | Card rename | card name and its linked sub-issue title both change; then both put back |
-| 5–7 | Workload / SyncLinear / Analytics | first real content within 30 s; 🐢 "slow" if over 1.5× the speed-map cold median; ⚠️ "not measured" if the tab needs a role key the run lacks |
+| 5–7 | Workload / SyncLinear / Analytics | first real content within 30 s; 🐢 "slow" if over 1.5× the speed-map cold median; ⚠️ "not measured" if the tab needs a role key the run lacks. Workload: a work item drawn with its title, on the old calendar or the calm one (#2230, live for all staff since 2026-10-20). Analytics: while `analytics_hidden` hides it for everyone (#2200, #2216), the staff address must land on the Calendar with no Analytics tab (❌ `hidden-route` otherwise), then the real tab is timed with the switch read as shown for that one page |
 | 8 | Templates coverage | read-only: every current client in Clients Info (test and internal accounts left out) has a `templates` row with a thumbnail Canva link; a gap is ⚠️ with counts only, never a failed run. Rows are only made by the first Templates save, and no onboarding step makes one |
 | 9 | Samples agree with their work items | read-only: a sample status change saves the work item first and the sample's own record second, and a page that closes in between leaves the work item ahead (only the same browser finishes it, so the sample never reaches the client). Counts every linked part whose work item maps to a different sample status, changed at or after the sample's own stamp, more than 30 minutes ago; archived samples and work items with no sample equivalent are left out. A stuck sample is ⚠️ with counts only, never a failed run |
 

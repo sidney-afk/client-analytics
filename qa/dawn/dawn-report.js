@@ -29,7 +29,7 @@ const CHECKS = Object.freeze({
   'harness': 'Harness ran to the end',
   'cleanup': 'Everything put back',
 });
-const STEPS = Object.freeze(['sign-in', 'send', 'landing', 'click', 'save', 'hold', 'saved-mark', 'save-error', 'syncing-stuck', 'field', 'card', 'sub-issue', 'target', 'error', 'own-step', 'guard']);
+const STEPS = Object.freeze(['sign-in', 'send', 'landing', 'click', 'save', 'hold', 'saved-mark', 'save-error', 'syncing-stuck', 'field', 'card', 'sub-issue', 'target', 'error', 'own-step', 'guard', 'hidden-route']);
 const TABS = ['workload', 'synclinear', 'analytics'];
 
 const int = (n) => {
@@ -54,6 +54,9 @@ const D = Object.freeze({
   appErrors: (n) => `app errors on this page: ${fmt(n)}`,
   tabOk: (ms, map) => `${fmt(ms)} ms vs ${fmt(map)} ms map`,
   tabSlow: (ms, map) => `slow: ${fmt(ms)} ms vs ${fmt(map)} ms map`,
+  // Analytics while its switch hides it from everyone: the staff address opened the
+  // Calendar as intended, then the real tab was timed with the switch shown for this page only.
+  tabHiddenTimed: (ms, map, slow) => `hidden by its switch, staff land on the Calendar as intended; shown for this check only: ${slow ? 'slow: ' : ''}${fmt(ms)} ms vs ${fmt(map)} ms map`,
   tabNever: (capS, statuses) => `nothing showed within ${fmt(capS)} s` +
     (statuses && statuses.length ? `; failed requests: ${statuses.map(s => Number.isInteger(s) ? `HTTP ${fmt(s)}` : 'network').join(', ')}` : ''),
   samplesNoKey: () => 'not run: the Samples approve needs a staff sign-in (set the SYNCVIEW_ROLE_KEY and SYNCVIEW_ACTOR secrets)',
@@ -85,6 +88,7 @@ const DETAIL = [
   `failed at step: (?:${STEPS.join('|')})`,
   `app errors on this page: ${N}`,
   `(?:slow: )?${N} ms vs ${N} ms map`,
+  `hidden by its switch, staff land on the Calendar as intended; shown for this check only: (?:slow: )?${N} ms vs ${N} ms map`,
   `nothing showed within ${N} s(?:; failed requests: (?:HTTP ${N}|network)(?:, (?:HTTP ${N}|network))*)?`,
   'not run: the Samples approve needs a staff sign-in \\(set the SYNCVIEW_ROLE_KEY and SYNCVIEW_ACTOR secrets\\)',
   'not measured: this tab needs a staff role key and the run has none \\(set the SYNCVIEW_ROLE_KEY secret\\)',

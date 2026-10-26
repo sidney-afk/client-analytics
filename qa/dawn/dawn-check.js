@@ -101,20 +101,70 @@ function seedReviewCard(id, name, captionStatus = 'Client Approval') {
 }
 
 // ---- flows 1 + 2: the client link -----------------------------------------
+// Since 2026-10-18 every client link opens on the new Review page (#2131, the
+// review_stage_client_pages switch at { "all": true }): one post at a time on a
+// stage drawn in its own shadow root, picked from a strip of chips. The old
+// expandable .cal-review-card list is drawn only where that switch is off, so the
+// flows click whichever page the link shows, through its real buttons.
+// Playwright's CSS locators pierce the open shadow root.
+const STAGE = '#svReviewStage';
+async function stageShown(p) {
+  return p.evaluate((sel) => { const h = document.querySelector(sel); return !!(h && !h.hidden && h.shadowRoot && h.shadowRoot.querySelector('.chipp[data-id]')); }, STAGE);
+}
+// The post `id` on the stage (its chip in the strip clicked), with the caption step open.
+async function stagePick(p, id) {
+  const chip = p.locator(`${STAGE} .chipp[data-id="${id}"]`);
+  await chip.waitFor({ timeout: 15000 });
+  if (await chip.getAttribute('aria-current') !== 'true') await chip.click();
+  await p.waitForFunction(([sel, id]) => { const c = document.querySelector(sel).shadowRoot.querySelector(`.chipp[data-id="${id}"]`); return !!c && c.getAttribute('aria-current') === 'true'; }, [STAGE, id], { timeout: 10000 });
+  const step = p.locator(`${STAGE} .stp[data-step="caption"]`);
+  if (await step.count()) await step.first().click();
+  await H.sleep(400);
+}
+// One client action on the stage, through its real buttons: 'approve' clicks
+// "Approve the caption"; 'request' clicks "Ask for a change", types `text` in the
+// message box and sends it. Same answers as H.clientAct: 'ok', 'disabled', 'no-btn'.
+async function stageAct(p, id, kind, text) {
+  await stagePick(p, id);
+  const btn = p.locator(`${STAGE} [data-${kind === 'request' ? 'chg' : 'ok'}="caption"]`);
+  if (!(await btn.count())) return 'no-btn';
+  if (await btn.first().isDisabled()) return 'disabled';
+  await btn.first().click();
+  if (kind !== 'request') return 'ok';
+  const ta = p.locator(`${STAGE} #ta`);
+  await ta.waitFor({ timeout: 5000 });
+  await ta.fill(text);
+  const send = p.locator(`${STAGE} #sendBtn`);
+  for (let i = 0; i < 12 && await send.isDisabled(); i++) await H.sleep(250);
+  if (await send.isDisabled()) return 'disabled';
+  await send.click();
+  return 'ok';
+}
+async function stageRetry(p, id, kind, text) {
+  for (let i = 0; i < 12; i++) { const r = await stageAct(p, id, kind, text); if (r !== 'disabled') return r; await H.sleep(1000); }
+  return 'disabled';
+}
 async function clientFlows(browser, seeds) {
   const A = seeds.approve, R = seeds.request;
   const t0 = Date.now();
   const p = await clientCal(browser);
   await guard(p);
-  const landed = await p.waitForFunction(() => !!document.querySelector('.cal-review-card'), null, { timeout: TAB_CAP }).then(() => Date.now() - t0).catch(() => null);
-  const onReview = await p.evaluate(() => {
-    const active = document.querySelector('.cal-view-btn.active, .cal-tab.active, [aria-selected="true"]');
-    return { cards: document.querySelectorAll('.cal-review-card').length, active: active ? active.textContent.trim().slice(0, 30) : '' };
-  });
+  // Landed = the Review page shows the posts waiting for the client: the stage's
+  // strip of chips, or the old page's review cards.
+  const landed = await p.waitForFunction((sel) => {
+    const h = document.querySelector(sel);
+    return !!(h && !h.hidden && h.shadowRoot && h.shadowRoot.querySelector('.chipp[data-id]')) || !!document.querySelector('.cal-review-card');
+  }, STAGE, { timeout: TAB_CAP }).then(() => Date.now() - t0).catch(() => null);
+  const stage = landed != null && await stageShown(p);
+  const onReview = await p.evaluate(([sel, stage]) => {
+    if (stage) return { cards: document.querySelector(sel).shadowRoot.querySelectorAll('.chipp[data-id]').length };
+    return { cards: document.querySelectorAll('.cal-review-card').length };
+  }, [STAGE, stage]);
+  const act = (S, kind, text) => stage ? stageRetry(p, S.id, kind, text) : H.expandReview(p, S.name).then(() => actRetry(p, S.name, 'caption', kind, text));
   // 1 approve
   try {
-    await H.expandReview(p, A.name);
-    const clicked = await actRetry(p, A.name, 'caption', 'approve');
+    if (landed == null) throw new Error('landing');
+    const clicked = await act(A, 'approve');
     const t1 = Date.now();
     const row = clicked === 'ok' ? await H.pollRow(() => rowCal(A.id, 'caption_status,client_caption_approved_at'), r => r.caption_status === 'Approved' && !!r.client_caption_approved_at, POLL) : null;
     // Read again after a pause: an approval that lands and is then reverted is a failure.
@@ -124,19 +174,19 @@ async function clientFlows(browser, seeds) {
     record('client-approve', { ok, ms: ok ? Date.now() - t1 : null,
       detail: ok ? D.approveOk(landed || 0, onReview.cards) : D.failedAt(landed == null ? 'landing' : clicked !== 'ok' ? 'click' : !row ? 'save' : 'hold'),
       shot: ok ? null : await shot(p, 'client-approve', true) });
-  } catch (e) { record('client-approve', { ok: false, detail: D.failedAt('error'), shot: await shot(p, 'client-approve', true) }); }
+  } catch (e) { record('client-approve', { ok: false, detail: D.failedAt(landed == null ? 'landing' : 'error'), shot: await shot(p, 'client-approve', true) }); }
   // 2 request changes
   try {
     const txt = 'Dawn check: please adjust ' + TS;
-    await H.expandReview(p, R.name);
-    const clicked = await actRetry(p, R.name, 'caption', 'request', txt);
+    if (landed == null) throw new Error('landing');
+    const clicked = await act(R, 'request', txt);
     const t1 = Date.now();
     const row = clicked === 'ok' ? await H.pollRow(() => rowCal(R.id, 'caption_status,caption_tweaks'), r => r.caption_status === 'Tweaks Needed', POLL) : null;
     const ok = clicked === 'ok' && !!row && JSON.stringify(row.caption_tweaks || '').includes(txt);
     record('client-request', { ok, ms: ok ? Date.now() - t1 : null,
       detail: ok ? D.requestOk() : D.failedAt(clicked !== 'ok' ? 'click' : 'save'),
       shot: ok ? null : await shot(p, 'client-request', true) });
-  } catch (e) { record('client-request', { ok: false, detail: D.failedAt('error'), shot: await shot(p, 'client-request', true) }); }
+  } catch (e) { record('client-request', { ok: false, detail: D.failedAt(landed == null ? 'landing' : 'error'), shot: await shot(p, 'client-request', true) }); }
   const errs = appErrs(p);
   if (errs.length) record('client-errors', { ok: false, detail: D.appErrors(errs.length), shot: await shot(p, 'client-errors', true) });
   await p.context().close();
@@ -286,13 +336,39 @@ async function restoreRename(browser, t) {
 // workload-plan (401), so Workload can only be timed when a role key is set.
 const ROLE_KEY = String(process.env.SYNCVIEW_ROLE_KEY || process.env.SYNCVIEW_STAFF_KEY || '').trim();
 const HAS_ROLE_KEY = !!String(process.env.SYNCVIEW_ROLE_KEY || '').trim();
-async function readOnlyPage(browser, route) {
+// Analytics is hidden for everyone unless the analytics_hidden switch reads
+// exactly { "hidden": false } (owner, 2026-10-17, session Curtain Seven: train
+// #2200), and a staff address for it opens the Calendar (#2216). Read the way the
+// page reads it; null when unreadable.
+async function analyticsHiddenLive() {
+  try {
+    const r = await fetch(`${SUPA}/rest/v1/syncview_runtime_flags?select=key,value&key=eq.analytics_hidden`, { headers: { apikey: KEY, authorization: 'Bearer ' + KEY } });
+    if (!r.ok) return null;
+    const row = (await r.json())[0];
+    const v = row ? row.value : null;
+    return !(v && typeof v === 'object' && v.hidden === false);
+  } catch { return null; }
+}
+// opts.showAnalytics: this one page reads analytics_hidden as { "hidden": false },
+// so the real Analytics code is timed against live data while the switch hides it
+// from everyone else. Nothing else in the switch read changes.
+async function readOnlyPage(browser, route, opts = {}) {
   const page = await open(browser, '/qa/dawn/blank.html');
   await page.context().route(u => u.toString().startsWith(SUPA + '/functions/v1/'), (r) => {
     const h = r.request().headers();
     if (h['x-syncview-key'] && h['x-syncview-key'] !== ROLE_KEY) return r.fallback({ headers: Object.assign({}, h, { 'x-syncview-key': ROLE_KEY }) });
     return r.fallback();
   });
+  if (opts.showAnalytics) {
+    await page.context().route(u => u.toString().startsWith(SUPA + '/rest/v1/syncview_runtime_flags?'), async (r) => {
+      if (r.request().method() !== 'GET' || !/analytics_hidden/.test(r.request().url())) return r.fallback();
+      const res = await r.fetch();
+      let rows = [];
+      try { rows = await res.json(); } catch { rows = []; }
+      rows = (Array.isArray(rows) ? rows : []).filter(x => x && x.key !== 'analytics_hidden').concat([{ key: 'analytics_hidden', value: { hidden: false } }]);
+      return r.fulfill({ response: res, json: rows });
+    });
+  }
   await guard(page);
   page._failed = [];
   // Kept as {status, fn}: only the HTTP status (or 'network') reaches the report.
@@ -302,8 +378,8 @@ async function readOnlyPage(browser, route) {
   await page.goto(ORIGIN + route, { waitUntil: 'domcontentloaded', timeout: 45000 });
   return page;
 }
-async function timeTab(browser, key, route, readyFn) {
-  const p = await readOnlyPage(browser, route);
+async function timeTab(browser, key, route, readyFn, opts = {}) {
+  const p = await readOnlyPage(browser, route, opts);
   const ms = await p.waitForFunction(readyFn, null, { timeout: TAB_CAP, polling: 50 }).then(() => Date.now() - p._t0).catch(() => null);
   const b = BASELINE[key];
   // A 401 from a role-gated read with no role key configured is a credential
@@ -315,10 +391,28 @@ async function timeTab(browser, key, route, readyFn) {
   }
   const ok = ms !== null;
   const slow = ok && ms > b.cold * SLOW_FACTOR;
+  const timed = !ok ? null : opts.showAnalytics ? D.tabHiddenTimed(ms, b.cold, slow) : slow ? D.tabSlow(ms, b.cold) : D.tabOk(ms, b.cold);
   record(key, { ok, slow, ms,
-    detail: !ok ? D.tabNever(TAB_CAP / 1000, [...new Set(p._failed.map(f => f.status))].slice(0, 4)) : slow ? D.tabSlow(ms, b.cold) : D.tabOk(ms, b.cold),
+    detail: !ok ? D.tabNever(TAB_CAP / 1000, [...new Set(p._failed.map(f => f.status))].slice(0, 4)) : timed,
     shot: (!ok || slow) ? await shot(p, key) : null });
   await p.context().close();
+}
+
+// While Analytics is hidden, a staff address for it must open the Calendar with no
+// Analytics tab drawn (#2216): the owner's decision, checked before the timing.
+async function analyticsHiddenRoute(browser) {
+  const p = await readOnlyPage(browser, '/index.html#home');
+  const ok = await p.waitForFunction(() => {
+    const cal = document.getElementById('calView');
+    return !!(cal && cal.offsetParent) && !document.documentElement.classList.contains('sv-analytics-on')
+      && (typeof currentNav === 'undefined' || String(currentNav) === 'calendar');
+  }, null, { timeout: TAB_CAP, polling: 100 }).then(() => true).catch(() => false);
+  // The switch read is in by then; it must not bring Analytics back.
+  const held = ok && await H.sleep(3000).then(() => p.evaluate(() => !document.documentElement.classList.contains('sv-analytics-on')));
+  const good = ok && held;
+  if (!good) record('analytics', { ok: false, ms: null, detail: D.failedAt('hidden-route'), shot: await shot(p, 'analytics') });
+  await p.context().close();
+  return good;
 }
 
 // ---- main ------------------------------------------------------------------
@@ -414,10 +508,19 @@ async function samplesOnly() {
     await clientFlows(browser, seeds);
     if (process.env.DAWN_SAMPLES_OWN_STEP === '1') samplesFromOwnStep(); else await clientSamplesFlow(browser);
     calMs = await staffFlows(browser, seeds, renameTarget);
-    await timeTab(browser, 'workload', '/index.html#workload', () => !!document.querySelector('.workload-plan-item-content'));
+    // A work item drawn with its title: .workload-plan-item-content on the old calendar,
+    // .wl-calm-row-title on the calm one, live for every staff member since
+    // 2026-10-20 (#2230, workload_calm_staff { "all": true } by #2262).
+    await timeTab(browser, 'workload', '/index.html#workload', () => [...document.querySelectorAll('.workload-plan-item')]
+      .some(i => /\S/.test((i.querySelector('.workload-plan-item-content, .wl-calm-row-title') || {}).textContent || '')));
     await timeTab(browser, 'synclinear', '/index.html?prod=1', () => !!document.querySelector('#prodRoot .prod-row'));
-    await timeTab(browser, 'analytics', '/index.html#home',
-      () => [...document.querySelectorAll('.cell-inner')].some(c => !c.querySelector('.sv-skeleton') && /\d/.test(c.textContent)));
+    // Unreadable counts as hidden, as it does for the page.
+    const analyticsHidden = (await analyticsHiddenLive()) !== false;
+    if (!analyticsHidden || await analyticsHiddenRoute(browser)) {
+      await timeTab(browser, 'analytics', '/index.html#home',
+        () => [...document.querySelectorAll('.cell-inner')].some(c => !c.querySelector('.sv-skeleton') && /\d/.test(c.textContent)),
+        { showAnalytics: !!analyticsHidden });
+    }
     await templatesCoverage();
     await sampleSync();
   } catch (e) {

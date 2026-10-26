@@ -15,6 +15,11 @@
  * compared as a multiset after the same name normalisation the page uses.
  * Clients Info has its own comparison in sheets-mirror-parity.js.
  *
+ * Test clients (clients.kind 'test') are left out on both sides, except the
+ * main test client, which is on the Sheet and stays compared: Create client's
+ * test mode drops a test client's Sheet copy on purpose, and the owner keeps
+ * the Sheet only as a backup (2026-10-26, OPEN_REPAIRS 507).
+ *
  * Needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (read only). Prints counts
  * and short sha256 references only, never a name, slug or link: the
  * repository and its CI logs are public.
@@ -60,6 +65,19 @@ function databaseAssignments(managers) {
   return out;
 }
 
+// The test clients that are not compared: every clients.kind 'test' row but the main test
+// client, keyed by the same client-name key as the assignments.
+const KEPT_TEST_CLIENT = 'sidneylaruel';
+function skippedTestKeys(clients) {
+  const out = new Set();
+  for (const c of clients || []) {
+    if (!c || c.kind !== 'test' || c.slug === KEPT_TEST_CLIENT) continue;
+    for (const v of [c.display_name, c.slug]) { const k = clientKey(v); if (k) out.add(k); }
+  }
+  return out;
+}
+const withoutClients = (list, skip) => (list || []).filter(k => !skip.has(k.split('\u0001')[0]));
+
 // Multiset difference, reported per client reference.
 function compareAssignments(sheet, db) {
   const count = list => { const m = new Map(); for (const k of list) m.set(k, (m.get(k) || 0) + 1); return m; };
@@ -84,9 +102,14 @@ async function main() {
   const r = await fetch(`${url}/rest/v1/social_media_managers?select=name,active,source_clients,slack_profile_url&active=eq.true`,
     { headers: { apikey: key, authorization: 'Bearer ' + key } });
   if (!r.ok) throw new Error('database read failed: HTTP ' + r.status);
-  const report = compareAssignments(sheetAssignments(m.parseCsv(await csv.text())), databaseAssignments(await r.json()));
+  const t = await fetch(`${url}/rest/v1/clients?select=slug,display_name,kind&kind=eq.test`,
+    { headers: { apikey: key, authorization: 'Bearer ' + key } });
+  if (!t.ok) throw new Error('test clients read failed: HTTP ' + t.status);
+  const skip = skippedTestKeys(await t.json());
+  const report = compareAssignments(withoutClients(sheetAssignments(m.parseCsv(await csv.text())), skip),
+    withoutClients(databaseAssignments(await r.json()), skip));
   console.log(`  managers   ${String(report.sheet_rows).padStart(4)} Sheet rows  ${String(report.db_rows).padStart(4)} database rows  `
-    + `${String(report.clients).padStart(3)} clients  ${report.differences.length} differences`);
+    + `${String(report.clients).padStart(3)} clients  ${report.differences.length} differences  (${skip.size} test-client keys not compared)`);
   for (const d of report.differences.slice(0, 50)) console.log(`    client ${d.client}: Sheet ${d.in_sheet}, database ${d.in_db}`);
   console.log(report.differences.length ? 'PARITY: differences' : 'PARITY: clean');
   if (strict && report.differences.length) process.exitCode = 1;
@@ -95,4 +118,4 @@ async function main() {
 if (require.main === module) {
   main().catch(e => { console.error('parity failed: ' + e.message); process.exitCode = 1; });
 }
-module.exports = { clientKey, sheetAssignments, databaseAssignments, compareAssignments };
+module.exports = { clientKey, sheetAssignments, databaseAssignments, compareAssignments, skippedTestKeys, withoutClients, KEPT_TEST_CLIENT };

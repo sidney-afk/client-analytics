@@ -339,6 +339,12 @@ a stage is finished, so every existing rule, notification and sync runs unchange
   `on trial` with `trial_ends_at` 24 h later.
 - **The card shows the timer as a reminder, inside its Video row**: "On trial · 17 h left", then "Pick the winner"
   once 24 h has passed (no new row, R2). The card's status stays Approved, then Scheduled as today.
+- **Where the winner is picked (owner, 2026-10-26 about 22:40 UTC: findable without opening anything):** once the 24 h
+  are up, the collapsed Video row's state is itself a small **"★ Pick winner"** button. Pressing it opens the versions
+  list with a "★ Make winner" button on each version on trial (`card-due-*` collapsed, `card-due-open-*` opened). It
+  sits inside the row, so the card keeps today's height (measured). **Staff only:** the staff card and the phone staff
+  card show it, and the SMM and Kasper can press it; the client link never shows it, and `trial-reels` refuses
+  `winner_set` from a client link.
 - **No numbers are typed** (Q7). After the trial the SMM presses **"★ Make winner"** on one version: that one is
   `winner`, the others `lost`, and the card's link becomes the winner's (above).
 - **The client sees only the winner, once it is picked** (Q8): the review link shows "Video C: the one we are posting"

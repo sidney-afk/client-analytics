@@ -30,7 +30,9 @@
     .trp-off .trp-sw{opacity:.45}
     .trp-off:hover .trp-sw{opacity:.9}
     .trp-main .cal-link-pill-open{min-width:0}
-    .trp-main .cal-link-label{display:flex;align-items:baseline;gap:7px;min-width:0;white-space:nowrap;overflow:hidden}
+    .trp-main .cal-link-label{display:flex;align-items:center;gap:7px;min-width:0;white-space:nowrap;overflow:hidden}
+    .trp-main .trp-state-btn{flex:none;align-self:center;min-height:0!important;height:18px;display:inline-flex;align-items:center;padding:0 8px;border-radius:999px;border:1px solid currentColor;line-height:1;cursor:pointer;overflow:visible}
+    .trp-state-btn:hover{background:color-mix(in srgb,currentColor 12%,transparent)}
     .trp-state{font-size:10.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis}
     .trp-chev{flex:none;align-self:center;display:grid;place-items:center;width:16px;height:14px;margin-right:2px;border-radius:5px;color:inherit;cursor:pointer;opacity:.8}
     .trp-chev svg{width:10px;height:10px;transition:transform .15s}
@@ -101,6 +103,14 @@
       label.innerHTML = '<span></span><span class="trp-state"></span>';
       label.children[0].textContent = rs.main;
       label.children[1].textContent = rs.tiny;
+      if (state === 'due') {
+        // Once the 24 h are up the state itself is the way in: a small button that opens the list with the
+        // "Make winner" buttons showing (staff only; a client link never has it).
+        label.children[1].classList.add('trp-state-btn');
+        label.children[1].setAttribute('role', 'button');
+        label.children[1].title = 'Open the versions and pick the winner';
+        label.children[1].textContent = '★ Pick winner';
+      }
       const chev = document.createElement('span');
       chev.className = 'trp-chev';
       chev.title = open ? 'Hide the versions' : 'Show the versions';

@@ -2,7 +2,7 @@
 -- ef-auto-deploy-applied-when: select to_regclass('public.studio_trial_versions') is not null
 --
 -- Trial reels log (supabase/functions/higgsfield-mcp, studio_action "trial_reels").
--- One row per version of a video: letter A to G, its hook, hook family, the one
+-- One row per version of a video (video numbers repeat across batches, so batch is part of its identity): letter A to G, its hook, hook family, the one
 -- other change, status, when it went on trial and the 24 hour numbers the SMM
 -- types in. higgsfield-mcp copes without the table: the action answers "not
 -- switched on yet" until this is applied.
@@ -19,6 +19,7 @@ begin;
 create table if not exists public.studio_trial_versions (
   id uuid primary key default gen_random_uuid(),
   client text not null check (length(client) between 1 and 80),
+  batch text not null default '' check (length(batch) <= 80),
   video text not null check (length(video) between 1 and 40),
   letter text not null check (letter ~ '^[A-G]$'),
   hook text check (hook is null or length(hook) between 1 and 300),
@@ -34,10 +35,10 @@ create table if not exists public.studio_trial_versions (
   member text not null check (length(member) between 1 and 80),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (client, video, letter)
+  unique (client, batch, video, letter)
 );
 
-create index if not exists studio_trial_versions_client_idx on public.studio_trial_versions (lower(client), video);
+create index if not exists studio_trial_versions_client_idx on public.studio_trial_versions (lower(client), batch, video);
 
 alter table public.studio_trial_versions enable row level security;
 

@@ -16,7 +16,7 @@ const dir = path.join(__dirname, '..', 'supabase', 'functions', 'higgsfield-mcp'
     author: 'Ana',
     insert: async (rows) => {
       if (missing) return { missing: true };
-      if (rows.some((r) => table.some((t) => t.client === r.client && t.video === r.video && t.letter === r.letter))) return { duplicate: true };
+      if (rows.some((r) => table.some((t) => t.client === r.client && t.batch === r.batch && t.video === r.video && t.letter === r.letter))) return { duplicate: true };
       rows.forEach((r) => table.push({ ...r, id: `00000000-0000-0000-0000-${String(++n).padStart(12, '0')}`, created_at: 'now' }));
       return {};
     },
@@ -30,21 +30,24 @@ const dir = path.join(__dirname, '..', 'supabase', 'functions', 'higgsfield-mcp'
   assert.ok(/SAMPLES FIRST/.test(await run({})), 'guide by default');
 
   const rows = [
-    { client: 'Test Co', video: '1', letter: 'A', hook: null, hook_type: 'original' },
-    { client: 'Test Co', video: '1', letter: 'b', hook: 'A made-up hook', hook_type: 'Situation call-out', other_change: 'music: x.mp3' },
+    { client: 'Test Co', batch: 'B1', video: '1', letter: 'A', hook: null, hook_type: 'original' },
+    { client: 'Test Co', batch: 'B1', video: '1', letter: 'b', hook: 'A made-up hook', hook_type: 'Situation call-out', other_change: 'music: x.mp3' },
   ];
   assert.ok(/not switched on/.test(await run({ step: 'log', rows }, true)), 'copes without the table');
   assert.ok(/^Logged 2 versions/.test(await run({ step: 'log', rows })));
   assert.strictEqual(table[1].letter, 'B');
   assert.strictEqual(table[1].member, 'Ana');
   assert.ok(/already logged/.test(await run({ step: 'log', rows })), 'no double log');
-  assert.ok(/needs its hook/.test(await run({ step: 'log', rows: [{ client: 'Test Co', video: '2', letter: 'C' }] })));
-  assert.ok(/A to G/.test(await run({ step: 'log', rows: [{ client: 'Test Co', video: '2', letter: 'Z', hook: 'x' }] })));
-  assert.ok(/same letter twice/.test(await run({ step: 'log', rows: [{ client: 'T', video: '3', letter: 'A' }, { client: 'T', video: '3', letter: 'A' }] })));
+  assert.ok(/needs its hook/.test(await run({ step: 'log', rows: [{ client: 'Test Co', batch: 'B1', video: '2', letter: 'C' }] })));
+  assert.ok(/A to G/.test(await run({ step: 'log', rows: [{ client: 'Test Co', batch: 'B1', video: '2', letter: 'Z', hook: 'x' }] })));
+  assert.ok(/same letter twice/.test(await run({ step: 'log', rows: [{ client: 'T', batch: 'B1', video: '3', letter: 'A' }, { client: 'T', batch: 'B1', video: '3', letter: 'A' }] })));
+  assert.ok(/needs batch/.test(await run({ step: 'log', rows: [{ client: 'T', video: '3', letter: 'A' }] })));
   assert.strictEqual(table.length, 2, 'refusals write nothing');
+  assert.ok(/^Logged 1 version/.test(await run({ step: 'log', rows: [{ client: 'Test Co', batch: 'B2', video: '1', letter: 'A' }] })), 'same video number in a later batch is a new version');
+  table.pop();
 
   const listed = await run({ step: 'list', client: 'test co' });
-  assert.ok(listed.includes('1B [waiting] "A made-up hook" + music: x.mp3'));
+  assert.ok(listed.includes('B1 1B [waiting] "A made-up hook" + music: x.mp3'));
   const id = table[1].id;
   assert.ok(/on trial/.test(await run({ step: 'update', id, status: 'on trial' })));
   assert.ok(table[1].posted_at, 'posted time set');

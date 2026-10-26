@@ -26,6 +26,8 @@ const text = (v, max) => String(v == null ? "" : v).trim().slice(0, max);
 const int = (v) => (v === "" || v == null ? null : Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.round(Number(v)) : NaN);
 
 export function cleanRow(r, author) {
+  const batch = text(r.batch, 81);
+  if (!batch || batch.length > 80) return { error: "each row needs batch (the batch name or date, as review_notes shows it), since video numbers repeat across batches" };
   const client = text(r.client, 81), video = text(r.video, 41), letter = text(r.letter, 2).toUpperCase();
   if (!client || client.length > 80) return { error: "each row needs client (up to 80 characters)" };
   if (!video || video.length > 40) return { error: "each row needs video (its number)" };
@@ -35,12 +37,12 @@ export function cleanRow(r, author) {
   if (hook && hook.length > 300) return { error: `version ${letter}: hook is over 300 characters` };
   const status = text(r.status || "waiting", 20);
   if (!STATUSES.includes(status)) return { error: `status "${status}" is not one of: ${STATUSES.join(", ")}` };
-  return { row: { client, video, letter, hook, hook_type: text(r.hook_type, 80) || null, other_change: text(r.other_change, 200) || null, status, member: author } };
+  return { row: { client, batch, video, letter, hook, hook_type: text(r.hook_type, 80) || null, other_change: text(r.other_change, 200) || null, status, member: author } };
 }
 
 function show(r) {
   const nums = NUMBERS.filter((k) => r[k] != null).map((k) => `${k.replace("_s", "")} ${r[k]}`).join(", ");
-  return `${r.video}${r.letter} [${r.status}] ${r.hook ? `"${r.hook}"` : "(as made)"}${r.other_change ? ` + ${r.other_change}` : ""}${nums ? ` | ${nums}` : ""} (id ${r.id})`;
+  return `${r.batch ? r.batch + " " : ""}${r.video}${r.letter} [${r.status}] ${r.hook ? `"${r.hook}"` : "(as made)"}${r.other_change ? ` + ${r.other_change}` : ""}${nums ? ` | ${nums}` : ""} (id ${r.id})`;
 }
 
 export async function trialReels(deps, args) {
@@ -55,17 +57,17 @@ export async function trialReels(deps, args) {
       if (c.error) return "Refused, nothing logged: " + c.error + ".";
       clean.push(c.row);
     }
-    const seen = new Set(clean.map((r) => r.client.toLowerCase() + "|" + r.video + "|" + r.letter));
+    const seen = new Set(clean.map((r) => r.client.toLowerCase() + "|" + r.batch + "|" + r.video + "|" + r.letter));
     if (seen.size !== clean.length) return "Refused, nothing logged: the same letter twice for one video.";
     const res = await deps.insert(clean);
     if (res && res.missing) return "The trial reels log is not switched on yet (its table is waiting to be applied). Nothing logged; keep the rows file and log it later.";
-    if (res && res.duplicate) return "Refused, nothing logged: a version with that client, video and letter is already logged. Use step update with its id.";
-    return `Logged ${clean.length} version${clean.length === 1 ? "" : "s"} for ${clean[0].client} video ${clean[0].video}: ${clean.map((r) => r.letter).join(", ")}.`;
+    if (res && res.duplicate) return "Refused, nothing logged: a version with that client, batch, video and letter is already logged. Use step update with its id.";
+    return `Logged ${clean.length} version${clean.length === 1 ? "" : "s"} for ${clean[0].client} ${clean[0].batch} video ${clean[0].video}: ${clean.map((r) => r.letter).join(", ")}.`;
   }
   if (step === "list") {
     const client = text(args.client, 81);
     if (!client) return "Give client.";
-    const res = await deps.list({ client, video: args.video == null ? null : text(args.video, 41) });
+    const res = await deps.list({ client, batch: args.batch == null ? null : text(args.batch, 81), video: args.video == null ? null : text(args.video, 41) });
     if (res && res.missing) return "The trial reels log is not switched on yet.";
     return res.length ? res.map(show).join("\n") : `No trial versions logged for ${client}${args.video ? " video " + args.video : ""}.`;
   }

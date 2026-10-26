@@ -52,6 +52,7 @@ export const STUDIO_ACTIONS = {
       step: "guide, log, list or update (default guide)",
       rows: "log: the versions from trial_reels.py rows",
       client: "list: the client",
+      batch: "list: the batch (optional)",
       video: "list: the video number (optional)",
       id: "update: the version's id from list",
       status: "update: waiting, approved, change asked, dropped, on trial, winner, lost or no clear winner",

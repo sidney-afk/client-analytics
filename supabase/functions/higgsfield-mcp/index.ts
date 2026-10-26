@@ -1522,8 +1522,9 @@ function trialDeps(author: string) {
       if (error) throw fail("log the trial versions", error);
       return {};
     },
-    list: async (q: { client: string; video: string | null }) => {
+    list: async (q: { client: string; batch: string | null; video: string | null }) => {
       let s = db().from("studio_trial_versions").select("*").ilike("client", q.client);
+      if (q.batch) s = s.eq("batch", q.batch);
       if (q.video) s = s.eq("video", q.video);
       const { data, error } = await s.order("created_at", { ascending: false }).order("letter").limit(100);
       if (gone(error)) return { missing: true };

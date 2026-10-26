@@ -10,8 +10,8 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 66 |
-| Main-push plus manual-dispatch paths | 61 |
+| Deployable function slugs | 67 |
+| Main-push plus manual-dispatch paths | 62 |
 | Manual-dispatch-only paths | 3 |
 | No CI deploy path | 4 |
 | Deliberate-manual subset of no-CI paths | 6 |
@@ -42,6 +42,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `client-review-alert` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-single-function](../../.github/workflows/deploy-single-function.yml) | main push (auto, in order)<br>workflow_dispatch only (pinned SHA guard) | `_shared/browser-write-auth-policy.mjs`<br>`_shared/client-review-alert-slack.mjs`<br>`_shared/client-review-alert.mjs`<br>`_shared/client-review-token-policy.mjs`<br>`_shared/staff-role-auth.ts` | - |
 | `client-review-link` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-client-review-link](../../.github/workflows/deploy-client-review-link.yml) | main push (auto, in order)<br>workflow_dispatch | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/client-review-token-policy.mjs`<br>`_shared/staff-role-auth.ts` | - |
 | `client-token-verify` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** Strict client-entry v1 is deliberate-manual: deploy and read back the exact reviewed function source before serving its matching browser caller; no runtime-flag change is part of this release. | - | - |
+| `crm-leads` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml) | main push (auto, in order) | `_shared/crm-automations.mjs`<br>`_shared/crm-leads-core.mjs`<br>`_shared/crm-sequences-core.mjs`<br>`_shared/staff-role-auth.ts` | - |
 | `deliverable-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml) | workflow_dispatch only (pinned SHA guard)<br>dispatched on merge by deploy-on-merge (the lane captures the rollback bundle itself) | `_shared/b4-write.ts` | - |
 | `description-image-upload` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-description-image-upload](../../.github/workflows/deploy-description-image-upload.yml) | main push (auto, in order)<br>workflow_dispatch | `_shared/staff-role-auth.ts` | `description-image-upload/policy.mjs` |
 | `filming-plan-tabs` | [deploy-on-merge](../../.github/workflows/deploy-edge-functions-on-merge.yml)<br>[deploy-single-function](../../.github/workflows/deploy-single-function.yml) | main push (auto, in order)<br>workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `filming-plan-tabs/tabs.mjs` |

@@ -56,6 +56,7 @@
 323-kasper-dashboard-tail.js.part
 326-core-messages-inbox.js.part
 327-core-unread-badges.js.part
+328-crm-leads.js.part
 324-client-onboarding-panel.js.part
 097-today.js.part
 098-smm-clients.js.part

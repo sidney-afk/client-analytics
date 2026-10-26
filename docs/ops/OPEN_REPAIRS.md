@@ -34509,6 +34509,6 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Owner request (2026-10-26).** One video, several text hooks (versions A to G), each posted as an Instagram trial reel, the winner kept after 24 h. SyncView part: a "Trial reels" switch on a calendar card, the versions on the card and its sub-issue, review with arrows and "Version B of 5", and a log table of the 24 h numbers.
 - **Plan:** [`docs/features/TRIAL_REELS_PLAN.md`](../features/TRIAL_REELS_PLAN.md); mockups in `docs/features/trial-reels/`. The per-version rows and the 24 h log are one table, `studio_trial_versions` from #2349 (the studio half), with SyncView's columns added; one small new table for the card's switch (`trial_reel_cards`) and one new Edge Function (`trial-reels`). No change to `calendar-card-write`, the frozen `calendar-upsert`, or the Section 4 three: the card keeps one ordinary link and its status moves only through today's own saves.
 - **Switch:** `trial_reels_pages`, test client only, fail closed, also enforced by the function.
-- **Waiting on:** the owner's answers to the open questions at the end of the plan (Q1, Q4 and Q6 answered on 2026-10-26, and "Decisions after v2" folded in), and the two clashes with #2349 named in the plan.
+- **Waiting on:** the owner's answers to the open questions at the end of the plan (Q1, Q4 and Q6 answered on 2026-10-26, and "Decisions after v2" folded in), and the clashes with #2349 listed in section 3 of the plan.
 
 **Way back:** nothing is built; close the pull request.

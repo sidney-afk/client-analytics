@@ -39,6 +39,7 @@ import {
   linkPatch,
   readShape,
   trialPatches,
+  undoWinnerPatches,
   winnerPatches,
 } from "./logic.mjs";
 
@@ -218,11 +219,15 @@ Deno.serve(async (req: Request) => {
       const r = winnerPatches(versions, letter, link);
       if (r.error) throw new Refusal(r.error === "attach_first" ? 409 : 400, r.error);
       changes = r.patches as Change[];
+    } else if (action === "winner_undo") {
+      const r = undoWinnerPatches(versions, link);
+      if (r.error) throw new Refusal(r.error === "attach_first" ? 409 : 400, r.error);
+      changes = r.patches as Change[];
     }
 
     await applyChanges(supabase, versions, changes, now);
-    if (action === "winner_set") {
-      const { error } = await supabase.from("trial_reel_cards").update({ winner_letter: letter, updated_at: now, updated_by: principal.actor })
+    if (action === "winner_set" || action === "winner_undo") {
+      const { error } = await supabase.from("trial_reel_cards").update({ winner_letter: action === "winner_set" ? letter : null, updated_at: now, updated_by: principal.actor })
         .eq("client", client).eq("post_id", postId);
       if (error) throw new Refusal(500, "write_failed");
     }

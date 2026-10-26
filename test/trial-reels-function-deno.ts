@@ -146,6 +146,13 @@ ok(winEarly.status === 409 && winEarly.body.error === "attach_first", "the winne
 tables.deliverables[0].file_url = "https://f.io/fixture-c2";   // what today's attach does for the winner
 const win = await step({ action: "winner_set", letter: "C" });
 ok(win.body.ok === true && v("C").status === "winner" && ["A", "B", "E"].every((l) => v(l).status === "lost") && tables.trial_reel_cards[0].winner_letter === "C", "Video C wins, the others are lost");
+const undoEarly = await step({ action: "winner_undo" });
+ok(undoEarly.status === 409 && undoEarly.body.error === "attach_first" && v("C").status === "winner", "Undo is refused until the card's link is back on Video A's");
+tables.deliverables[0].file_url = "https://f.io/fixture-a";   // what today's attach does when the page puts A back
+const undo = await step({ action: "winner_undo" });
+ok(undo.body.ok === true && ["A", "B", "C", "E"].every((l) => v(l).status === "on trial") && tables.trial_reel_cards[0].winner_letter === null, "Undo: every version back on trial, no winner");
+tables.deliverables[0].file_url = "https://f.io/fixture-c2";
+await step({ action: "winner_set", letter: "C" });
 const clientAfter = await step({ action: "read" }, "client-none");
 ok((clientAfter.body.versions as Row[]).length === 1 && (clientAfter.body.versions as Row[])[0].letter === "C", "the client link now sees only the winner (owner, Q8)");
 

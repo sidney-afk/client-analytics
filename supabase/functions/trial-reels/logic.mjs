@@ -17,7 +17,7 @@ export const STATUS = Object.freeze({
 });
 export const STAGES = ["smm", "kasper", "client"];
 export const TRIAL_MS = 24 * 60 * 60 * 1000;
-export const ACTIONS = ["read", "switch_set", "version_link_set", "version_drop", "version_restore", "answer", "trial_start", "winner_set"];
+export const ACTIONS = ["read", "switch_set", "version_link_set", "version_drop", "version_restore", "answer", "trial_start", "winner_set", "winner_undo"];
 // What a client review link may do. Everything else needs a staff key.
 export const CLIENT_ACTIONS = ["read", "answer"];
 
@@ -148,6 +148,22 @@ export function winnerPatches(versions, letter, mainLink) {
   return {
     patches: versions.filter((v) => v.status === STATUS.trial).map((v) => ({
       id: v.id, letter: v.letter, from: v.status, patch: { status: v.letter === letter ? STATUS.winner : STATUS.lost },
+    })),
+  };
+}
+
+/**
+ * Undo of the winner pick (the page's Undo toast, as Kasper's approve has): every decided version goes back on trial.
+ * The card's one link must already be back on Video A's (the page puts it back through today's Production attach
+ * first), so the card and this log agree at every step.
+ */
+export function undoWinnerPatches(versions, mainLink) {
+  if (!versions.some((v) => v.status === STATUS.winner)) return { error: "no_winner" };
+  const a = versions.find((v) => v.letter === "A");
+  if (!a || clean(mainLink, 2048) !== clean(a.frame_url, 2048)) return { error: "attach_first" };
+  return {
+    patches: versions.filter((v) => v.status === STATUS.winner || v.status === STATUS.lost).map((v) => ({
+      id: v.id, letter: v.letter, from: v.status, patch: { status: STATUS.trial },
     })),
   };
 }

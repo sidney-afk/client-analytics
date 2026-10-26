@@ -71,6 +71,11 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   ok(r.patches.map(p => p.letter + ':' + p.patch.status).join(' ') === 'A:lost B:lost C:winner', 'the winner, and the others lost');
   ok(L.winnerPatches(trial, 'D', 'https://f.io/fixture-d').error === 'version_not_on_trial', 'only a version on trial can win');
   ok(!JSON.stringify(r).includes('no clear winner'), 'SyncView never writes "no clear winner" (owner, Q10)');
+  const decided = [v('A', { status: 'lost' }), v('B', { status: 'lost' }), v('C', { status: 'winner' }), v('D', { status: 'dropped' })];
+  ok(L.undoWinnerPatches(decided, 'https://f.io/fixture-c').error === 'attach_first', "Undo is refused until the card's link is back on Video A's");
+  r = L.undoWinnerPatches(decided, A_LINK);
+  ok(r.patches.map(p => p.letter + ':' + p.patch.status).join(' ') === 'A:on trial B:on trial C:on trial', 'Undo puts every decided version back on trial (a dropped one stays dropped)');
+  ok(L.undoWinnerPatches(trial, A_LINK).error === 'no_winner', 'Undo with no winner is refused');
 
   // What readers get
   const s1 = L.readShape(mixed, { client: true, mainLink: A_LINK, cardStatus: 'Client Approval' });

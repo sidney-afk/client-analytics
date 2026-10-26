@@ -425,6 +425,7 @@ jobs:
           Typed captions, notes, comments and descriptions survive a closed tab or a failed save (mocked)|node docs/syncview-design/tests/lost-work-drafts-browser.js
           A background Calendar refresh keeps the card in view in place on every view|node docs/syncview-design/tests/calendar-refresh-scroll-browser.js
           Kasper Clients "New client" previews, creates and stays admin-only|node docs/syncview-design/tests/clients-create-browser.js
+          Leads page: pipeline, drag, person panel, refused saves logged (mocked)|node docs/syncview-design/tests/crm-leads-browser.js
           Every pop-up closes the same way, part two (SyncLinear, Kasper, Workload, Analytics)|node docs/syncview-design/tests/popup-behaviour-areas-browser.js
           Split load, opt-out and on-demand areas (browser)|node docs/syncview-design/tests/split-load-browser.js
           Every button's code exists (staff tabs, entry links, client link)|node docs/syncview-design/tests/inline-handlers-browser.js

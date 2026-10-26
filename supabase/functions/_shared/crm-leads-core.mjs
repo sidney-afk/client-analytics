@@ -159,6 +159,7 @@ export function changeEvents(before, patch, note) {
 /** Only the fields that change, so the database writes exactly what moved. */
 export function effectivePatch(before, patch) {
   const b = before || {};
+  /** @type {Record<string, unknown>} */
   const out = {};
   for (const [k, v] of Object.entries(patch || {})) {
     if (k === 'tags') {

@@ -417,7 +417,7 @@ import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
                 + '<label class="crm-field"><span>Owner</span><input id="crmPOwner" class="crm-input" maxlength="80" autocomplete="off" value="' + _calEscAttr(keep.crmPOwner != null ? keep.crmPOwner : (p.owner || '')) + '"></label>'
                 + '<label class="crm-field crm-field-wide"><span>Next step</span><input id="crmPStep" class="crm-input" maxlength="500" autocomplete="off" placeholder="Send the follow-up DM" value="' + _calEscAttr(keep.crmPStep != null ? keep.crmPStep : (p.next_step || '')) + '"></label>'
                 + '<div class="crm-field"><span>Due</span>' + _svDateHtml('crmPDue', p.next_step_due || '', { placeholder: 'No date' }) + '</div>'
-                + '<div class="crm-form-actions"><button type="submit" class="crm-btn crm-btn-primary"' + (_crmState.saving ? ' disabled' : '') + '>' + (_crmState.saving ? 'Saving…' : 'Save changes') + '</button></div>'
+                + '<div class="crm-form-actions"><button type="submit" class="crm-btn crm-btn-primary"' + (_crmState.saving ? ' disabled' : '') + '>' + 'Save changes' + '</button></div>'
                 + '</form>'
                 + '<div class="crm-note"><label for="crmPNote" class="crm-section-title">Add a note</label><textarea id="crmPNote" class="crm-input" rows="3" maxlength="4000" placeholder="What happened, what they said">' + _calEsc(keep.crmPNote != null ? keep.crmPNote : (_crmState.drafts[p.id] || '')) + '</textarea>'
                 + '<button type="button" class="crm-btn" onclick="_crmAddNote()"' + (_crmState.saving ? ' disabled' : '') + '>Add note</button></div>'

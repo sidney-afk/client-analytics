@@ -39,6 +39,7 @@
     "higgsfield-private-ip.js",
     "higgsfield-video-cards.js",
     "higgsfield-shared-tools.js",
+    "crm-leads.js",
     "pipeline-pass.js",
     "pipeline-social.js",
     "pipeline-store.js",

@@ -1363,6 +1363,9 @@ import {
         if (capability === 'hiring') return role === 'admin';
         if (capability === 'pto-admin') return role === 'admin';
         if (capability === 'quiz-leads') return role === 'admin';
+        // Leads CRM (docs/features/CRM_LEADS.md). Admin today; a per-person grant for a
+        // non-admin is one line in CRM_LEADS_MEMBER_GRANTS (328) plus its server twin.
+        if (capability === 'leads') return role === 'admin';
         if (capability === 'clients-admin') return role === 'admin';
         if (capability === 'workload-plan-read') return role === 'admin' || role === 'smm' || role === 'creative';
         if (capability === 'workload-plan') return role === 'admin' || role === 'smm';
@@ -1406,6 +1409,7 @@ import {
             ? 'Client credentials need an Admin or SMM account. Sign out first to use another authorized account.'
             : (capability === 'pto-admin'
                 ? 'Time Off approvals and setup need an Admin account. Sign out first to use another authorized account.'
+                : capability === 'leads' ? 'Leads is open to admins. Sign out first to use an admin account.'
                 : 'This action needs an Admin account. Sign out first to use another authorized account.');
         try { showToast(message); } catch (e) {}
         return false;

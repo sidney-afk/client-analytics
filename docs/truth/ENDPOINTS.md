@@ -226,6 +226,13 @@ Other:
   matching `workload-plan`'s first release); anonymous GET verified returning `401` after each
   deploy. The browser caller (`index.html`) for `rows`/`summary`/`by_ad`/`leads`/`unfinished_leads`
   is merged and live via #1127/#1131/#1137.
+- `functions/v1/crm-leads` — the Leads CRM page (`/leads`, linked from Kasper > More > Pipeline &
+  Admin; `src/index/328-crm-leads.js.part`). POST `{action}`: `list`, `get`, `update` (compare-and-swap on
+  `state_version`, 409 with the current row on a lost race) and `note`. Staff role key required; access
+  is the `leads` rule in `supabase/functions/_shared/crm-leads-core.mjs` (admin, plus per-person grants,
+  none shipped). Every change runs `crm_apply_change`, which writes the person and its `crm_events`
+  rows in one transaction. The tables have no browser grants. Added 2026-10-26; held by the merge lane
+  until `supabase/migrations/20261026120000_crm_leads.sql` is applied. `docs/features/CRM_LEADS.md`.
 - `functions/v1/quiz-leads-list` — admin-only read for the Kasper tab's Quiz Leads panel (More >
   Pipeline & Admin). Reads `quiz_responses` (service role; no anon/authenticated grant) and returns
   every submission from the synchrosocial.com Growth Bottleneck Quiz, newest first. Read-only — it

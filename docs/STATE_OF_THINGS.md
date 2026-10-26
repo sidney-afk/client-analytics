@@ -18,6 +18,15 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (2026-10-26): Leads CRM step 1 built, waiting on its migration (PR open)
+
+- New page `/leads` (Kasper > More > Pipeline & Admin > Leads), admin only: Pipeline by stage with drag to
+  move, and a person panel with next step, notes and timeline. Today, Sequences and Systems say "coming next".
+- Tables in `supabase/migrations/20261026120000_crm_leads.sql`, no browser grants; the `crm-leads` function is
+  held by the merge lane until **Lighthouse applies that migration** (steps in
+  [`docs/features/CRM_LEADS.md`](features/CRM_LEADS.md)). No people are imported yet; `scripts/crm-import.js`
+  is run by a person.
+
 ## Latest (SyncView stand-in, 2026-10-26): card saver rolled back; morning robots green again
 
 - **Card saver rolled back (15:33 UTC), waiting for the owner's go to re-widen.** `calendar_card_write_clients` is

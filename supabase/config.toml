@@ -177,6 +177,12 @@ verify_jwt = false
 [functions.quiz-leads-list]
 verify_jwt = false
 
+# Leads CRM (/leads). Staff role key checked in the function (admin by
+# default, per-person grants in _shared/crm-leads-core.mjs) before any
+# service-role read or write. docs/features/CRM_LEADS.md.
+[functions.crm-leads]
+verify_jwt = false
+
 # Manual-only Slack notification sender. SQL writes durable intents first; this
 # endpoint requires NOTIFY_RUNNER_KEY and has no schedule or browser caller.
 [functions.notify]

@@ -34489,3 +34489,14 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - `test/calendar-card-write-parity.js`: the 15 s boundary, and the check placed right before the write. The placement check fails on the old handler.
   - `test/calendar-card-write-routing-browser.js`: the page ends a `too_late` answer as a kept network failure with no calendar-upsert call, and the retry goes back to calendar-card-write. The first check fails on the old page.
 - **Way back:** revert the pull request; it deploys on merge like any calendar-card-write change.
+
+## 510. [2026-10-26 UTC, BUILT, NOT MERGED] Tier 0 re-proof on the live site: share link and Calendar half pass; the Samples half fails on a real client path (session Reproof)
+
+- **What was re-proven.** The three Tier 0 rows of `docs/testing/ASSURANCE_LEDGER.md`, on the live site, on the test client only. Restated EXPIRED in 507; last proven 2026-10-09. The Tier 1 to 3 rows were not re-proven.
+- **Share-link issuance:** pass. A staff sign-in, then More > Share with client: 200 with a token. FRESH.
+- **Client review links, Calendar half:** pass on the new Review page. Approve saved and held, request-changes saved with its text, captions unchanged, 0 page errors.
+- **Client review links, Samples half:** FAIL on the live site. Every client Samples link opens the Calendar Review page (entry 509, fix #2345). With #2345 served from its branch against the live backend: 13 of 13.
+- **Thumbnails:** the Calendar client-link thumbnail drew 1 of 1 on the live site. The Samples one is not reachable live until #2345 is published.
+- **Test updates.** `qa/dawn/tier0-live-proof.js` was stale for the Calendar half: it waited for the old card list, and since #2131 every client link opens on the Review page. It now uses `qa/dawn/review-stage-driver.js`, the dawn check's stage driver moved to a shared file (`dawn-check.js` now requires it; no behaviour change there). It also checks that client actions leave the caption text unchanged (#2208), and keeps screenshots under the ignored `qa/dawn/out/`.
+- **Ledger.** Share-link issuance is FRESH. The other two rows say EXPIRED, with the failing Samples half named, until a live run after #2345 passes.
+- **Way back:** revert the pull request.

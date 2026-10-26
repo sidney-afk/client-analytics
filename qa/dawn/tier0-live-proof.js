@@ -34,6 +34,7 @@
 'use strict';
 const H = require('../probes/ot4_lib.js');
 const { nativeSampleRoundTrip } = require('./native-sample-roundtrip.js');
+const { STAGE, stageShown, stagePick, stageRetry } = require('./review-stage-driver.js');
 
 const LIVE = (process.env.SYNCVIEW_LIVE_ORIGIN || 'https://syncview.synchrosocial.com').replace(/\/+$/, '');
 const TEST_SLUG = 'sidneylaruel';
@@ -42,7 +43,11 @@ const ROLE_KEY = String(process.env.SYNCVIEW_ROLE_KEY || '').trim();
 const ACTOR = String(process.env.SYNCVIEW_ACTOR || '').trim();
 const TS = Date.now();
 const POLL = 35000;
+const CAPTION = 'Tier 0 live proof caption';
 const THUMB = 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg';
+// Screenshots stay on the machine that ran it (qa/dawn/out is not committed).
+const SHOTS = process.env.TIER0_SHOTS || require('path').join(__dirname, 'out', 'tier0');
+try { require('fs').mkdirSync(SHOTS, { recursive: true }); } catch {}
 
 const results = [];
 function rec(key, ok, detail) { results.push({ key, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${key}  ${detail}`); }
@@ -125,7 +130,28 @@ async function act(page, name, comp, kind, text) {
   return 'disabled';
 }
 
-// T0-2 and T0-3: the issued link in a fresh profile.
+// The seeded post's thumbnail on the new Review page: its chip in the strip and,
+// once picked, the stage's picture. Drawn = the image decoded (width > 0).
+async function stageThumb(page, id) {
+  await stagePick(page, id).catch(() => {});
+  const end = Date.now() + 20000; let t = { card: false };
+  while (Date.now() < end) {
+    t = await page.evaluate(([sel, id, src]) => {
+      const root = (document.querySelector(sel) || {}).shadowRoot;
+      const chip = root && root.querySelector(`.chipp[data-id="${id}"]`);
+      if (!chip) return { card: false };
+      const imgs = [...chip.querySelectorAll('img')].concat([...root.querySelectorAll('#poster, #bigthumbImg')].filter(i => i.getAttribute('src') === src));
+      return { card: true, imgs: imgs.length, drawn: imgs.filter(i => i.complete && i.naturalWidth > 0).length };
+    }, [STAGE, id, THUMB]);
+    if (t.card && t.drawn > 0) return t;
+    await H.sleep(800);
+  }
+  return t;
+}
+
+// T0-2 and T0-3: the issued link in a fresh profile. Since 2026-10-18 every client
+// link opens on the new Review page (review_stage_client_pages at { "all": true });
+// the old expandable card list is used only where that switch is off.
 async function clientCalendar(browser, url, A, R) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const p = await ctx.newPage();
@@ -133,29 +159,40 @@ async function clientCalendar(browser, url, A, R) {
   const errs = errorsOf(p);
   const t0 = Date.now();
   await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-  const landed = await p.waitForFunction((n) => [...document.querySelectorAll('.cal-review-card')].some(c => (c.querySelector('.kcard-title') || {}).textContent === n), A.name, { timeout: 30000 }).then(() => Date.now() - t0).catch(() => null);
-  rec('T0-2 client link loads (Calendar review)', landed != null, landed != null ? `review cards shown after ${landed} ms` : 'the seeded card never showed');
-  const th = landed != null ? await waitThumb(p, A.name) : { card: false };
-  rec('T0-3 client-visible thumbnail (Calendar)', !!(th.card && th.drawn > 0), `images on the card ${th.imgs || 0}, drawn ${th.drawn || 0}`);
+  const landed = await p.waitForFunction(([sel, a]) => {
+    const h = document.querySelector(sel);
+    if (h && !h.hidden && h.shadowRoot && h.shadowRoot.querySelector(`.chipp[data-id="${a.id}"]`)) return true;
+    return [...document.querySelectorAll('.cal-review-card')].some(c => (c.querySelector('.kcard-title') || {}).textContent === a.name);
+  }, [STAGE, A], { timeout: 30000 }).then(() => Date.now() - t0).catch(() => null);
+  const stage = landed != null && await stageShown(p);
+  rec('T0-2 client link loads (Calendar review)', landed != null, landed != null ? `${stage ? 'Review page' : 'review cards'} shown after ${landed} ms` : 'the seeded post never showed');
+  const th = landed == null ? { card: false } : stage ? await stageThumb(p, A.id) : await waitThumb(p, A.name);
+  rec('T0-3 client-visible thumbnail (Calendar)', !!(th.card && th.drawn > 0), `images on the post ${th.imgs || 0}, drawn ${th.drawn || 0}`);
   if (landed != null) {
-    await H.expandReview(p, A.name);
-    const c1 = await act(p, A.name, 'caption', 'approve');
+    if (stage) await p.screenshot({ path: SHOTS + '/t0-calendar-review.png' }).catch(() => {});
+    const doAct = (S, kind, text) => stage ? stageRetry(p, S.id, kind, text) : H.expandReview(p, S.name).then(() => act(p, S.name, 'caption', kind, text));
+    const c1 = await doAct(A, 'approve');
     const r1 = c1 === 'ok' ? await H.pollRow(() => H.rowCal(A.id, 'caption_status'), r => r.caption_status === 'Approved', POLL) : null;
     await H.sleep(4000);
     const h1 = r1 ? H.rowCal(A.id, 'caption_status') : null;
     rec('T0-2 client approve saves (Calendar)', !!(r1 && r1.caption_status === 'Approved' && h1 && h1.caption_status === 'Approved'), `click ${c1}; saved and held=${h1 && h1.caption_status === 'Approved' ? 'yes' : 'no'}`);
     const txt = 'Tier 0 live proof: please adjust ' + TS;
-    await H.expandReview(p, R.name);
-    const c2 = await act(p, R.name, 'caption', 'request', txt);
+    const c2 = await doAct(R, 'request', txt);
     const r2 = c2 === 'ok' ? await H.pollRow(() => H.rowCal(R.id, 'caption_status,caption_tweaks'), r => r.caption_status === 'Tweaks Needed', POLL) : null;
     rec('T0-2 client request changes saves (Calendar)', !!(r2 && JSON.stringify(r2.caption_tweaks || '').includes(txt)), `click ${c2}; status Tweaks Needed with its text=${r2 && JSON.stringify(r2.caption_tweaks || '').includes(txt) ? 'yes' : 'no'}`);
+    if (stage) await p.screenshot({ path: SHOTS + '/t0-calendar-after.png' }).catch(() => {});
+    // Client text is read-only on an existing post (#2208): approve and ask-for-a-change leave the caption as it was.
+    const ca = H.rowCal(A.id, 'caption'), cr = H.rowCal(R.id, 'caption');
+    const same = !!(ca && cr && ca.caption === CAPTION && cr.caption === CAPTION);
+    rec('T0-2 client actions leave the caption text as it was (read-only)', same, `caption unchanged on both posts=${same ? 'yes' : 'no'}`);
   }
   rec('T0-2 client Calendar page has no app errors', errs.length === 0, `page errors ${errs.length}`);
   await ctx.close();
 }
 async function clientSamples(browser, url) {
   const u = new URL(url); u.searchParams.set('sxr', '1'); u.searchParams.set('v', 'sample-reviews');
-  const r = await nativeSampleRoundTrip({ browser, origin: LIVE, openClient: (pg) => pg.goto(u.toString(), { waitUntil: 'domcontentloaded', timeout: 45000 }), roleKey: ROLE_KEY, actor: ACTOR, guard });
+  const r = await nativeSampleRoundTrip({ browser, origin: LIVE, openClient: (pg) => pg.goto(u.toString(), { waitUntil: 'domcontentloaded', timeout: 45000 }), roleKey: ROLE_KEY, actor: ACTOR, guard,
+    shot: (pg, key) => pg.screenshot({ path: SHOTS + '/t0-' + key + '.png' }).then(() => 'local', () => null) });
   if (r.step === 'target') { rec('T0-2 client Samples approve', false, 'not run: the test client has no sample with a real work item'); return; }
   rec('T0-2 client link loads (Samples review)', r.landedMs != null, r.landedMs != null ? `samples shown after ${r.landedMs} ms (${r.cards} on screen)` : `stopped at step ${r.step}`);
   if (r.landedMs != null) rec('T0-3 client-visible thumbnail (Samples)', r.thumb.drawn > 0, `images on the sample ${r.thumb.imgs}, drawn ${r.thumb.drawn}`);
@@ -174,7 +211,7 @@ async function clientSamples(browser, url) {
   const day = new Date(Date.now() + 86400e3).toISOString().slice(0, 10);
   for (const c of [A, R]) {
     H.upCal({ id: c.id, name: c.name, platforms: 'youtube', scheduled_date: day, video_status: 'Approved', graphic_status: 'Approved',
-      caption_status: 'Client Approval', status: 'Client Approval', caption: 'Tier 0 live proof caption', thumbnail_url: THUMB, asset_url: 'https://example.com/t0.mp4' });
+      caption_status: 'Client Approval', status: 'Client Approval', caption: CAPTION, thumbnail_url: THUMB, asset_url: 'https://example.com/t0.mp4' });
   }
   const browser = await H.PW.chromium.launch();
   try {

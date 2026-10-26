@@ -42,7 +42,9 @@ line is older than a week, re-check it before relying on it.
 - **Open for the owner:**
   - re-widen the card saver;
   - the second test client missing from the Sheet (sheets-mirror-daily stays red until it is copied or archived);
-  - re-prove the Tier 0 client surfaces in the assurance ledger;
+  - Tier 0 re-proof (session Reproof, OPEN_REPAIRS 510): share link and the client Calendar pass on the live site.
+    Every client's Samples link opens the Calendar instead (OPEN_REPAIRS 509, fix #2345). Re-run
+    `node qa/dawn/tier0-live-proof.js` once #2345 is live;
   - try phone polish rounds 1 and 2.
 
 ## Latest (2026-10-26): the seven lanes that were red under green schedule rows (session Underneath, OPEN_REPAIRS 507, PR open)

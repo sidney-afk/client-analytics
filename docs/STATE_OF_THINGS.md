@@ -18,6 +18,160 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView stand-in, 2026-10-26): card saver rolled back; morning robots green again
+
+- **Card saver rolled back (15:33 UTC), waiting for the owner's go to re-widen.** `calendar_card_write_clients` is
+  `{"clients": [test client, the owner's two clients]}`; every other client's staff saves go to calendar-upsert.
+  - Trigger: one staff status save on a real card got no answer within the page's 20 s at 15:25:27 (standing rule:
+    any refused staff save rolls back).
+  - Cause (session Hang, OPEN_REPAIRS 508): a one-off 130 s platform stall on the function-to-gateway hop. The gateway
+    timed that request at 319 ms. 1 of 2,666 saves took over 10 s in 3 days. calendar-upsert has the same exposure.
+    The intended change never landed.
+  - #2343 (live 16:09, calendar-card-write v8): refuses with 503 too_late before writing after 15 s, so a stall
+    before the write (like this one) can no longer write after the page said "not saved". A stall during the write
+    itself (the PATCH or the comment-merge call) is still not covered (OPEN_REPAIRS 508).
+- **Hidden red robots.** The schedule-fallback guard's stand-down copies showed green over red timer runs.
+  - #2339 (OPEN_REPAIRS 505): the calendar nightly, 3 stale probes. Green again: 63 of 63.
+  - #2340 (OPEN_REPAIRS 506): the dawn check, 4 stale checks. `mirror_timer_failure` is now on for 8 lanes.
+  - #2341 (OPEN_REPAIRS 507): the seven other lanes, entry below.
+  - No real users were affected by the stale probes.
+- **Backup freshness (#2342):** the freshness step stops downloading snapshots that cannot win. 14 s instead of
+  19 min; the job went from 21 to 2.7 min. It would have passed its 25-minute limit around 29 to 30 Oct.
+- **Ledger counting (#2338, OPEN_REPAIRS 504):** `calendar_post_events` writes a card-level row plus one per component
+  per save, by design. Count approvals by `approve_%` or distinct post_id, never raw rows.
+- **Open for the owner:**
+  - re-widen the card saver;
+  - the second test client missing from the Sheet (sheets-mirror-daily stays red until it is copied or archived);
+  - re-prove the Tier 0 client surfaces in the assurance ledger;
+  - try phone polish rounds 1 and 2.
+
+## Latest (2026-10-26): the seven lanes that were red under green schedule rows (session Underneath, OPEN_REPAIRS 507, PR open)
+
+Report: [`docs/audits/2026-10-26-hidden-red-lanes.md`](audits/2026-10-26-hidden-red-lanes.md).
+
+- **Backups are being taken.** There was a real 51-hour gap from 10 to 12 Oct (fixed by #2046,
+  entry 409).
+- **The backup job was about to hit its 25-minute limit.** Its freshness step downloads every
+  snapshot in the folder and grew from 5.6 to 18.9 min in two weeks. Fixed in #2342: older
+  snapshots that cannot win are no longer downloaded.
+- **Card vs work item drift (70 reds) was real.** Four cards drifted from 13 to 17 Oct, including
+  one client's change request missing from Production for about 20 h. Both causes were already
+  fixed (#2114, #2140), and it has been green since 17 Oct 15:27.
+- **The Sheet mirror is one test client behind.** It was seeded straight into the database on
+  21 Oct, and nothing reads those tabs. Owner or Lighthouse: copy its two rows through
+  `roster-write`, or archive the seed. Until then the lane stays red.
+- **The rest were check, runner and host problems.** The Samples nightly unit cap is now 600 s;
+  the ledger rows are restated; thumbnail scan 5xx blips recovered on the next run.
+
+## Latest (SyncView stand-in, 2026-10-25 evening): phone polish rounds 1 and 2 live for the owner
+
+- **Phone polish round 1 (#2332, session Grip, 19:46 UTC):** the same phone design, made smoother (the owner turned
+  down the redesign mockups the same day and asked for the current design made better). Phone width only. Staff,
+  behind the new switch `phone_polish_staff`, created 19:47 UTC for the owner's two ids (copied from
+  `unread_badges_v2`, read back). Changes:
+  - Notes moved under the statuses on an opened post, and the picture is shorter (180 px).
+  - The note Delete is a quiet bin at the end of the row (still 44 px, still asks first).
+  - The Messages list shows the last message on two lines.
+  - Production rows keep the avatar on the title line.
+
+  Client page, behind `review_client_polish` (test client only):
+  - The video is shorter, so Approve and Ask for a change are on the first screen.
+  - Waiting post names show on two lines.
+  - The caption character count is gone.
+  - The note cross is 44 px.
+
+  Desktop is unchanged (computed styles identical). OPEN_REPAIRS 501. Test
+  `docs/syncview-design/tests/phone-polish-browser.js`, run in CI in staff-phone-rules part 1. Rollback: delete the
+  row or set `{"staff": []}`. Grip continues with round 2.
+- **Phone polish round 2 (#2336, 21:58 UTC, same switch):** the Sheet's first post starts higher (all 9 posts fit at
+  360 px), the empty band under each note's words is gone, and Messages' Close is a 44 px cross so the title shows
+  whole at 360. OPEN_REPAIRS 503. Grip stopped after round 2. Left alone because they would change the design or
+  wording: label wrapping in Messages, the full-width status bars, the two conversation headers, the always-shown
+  "Finish reviewing". Next: the owner tries both rounds, then widen or adjust.
+- **CI browser installs (#2333, #2335, OPEN_REPAIRS 502):** three jobs were cancelled at their timeout on 25 Oct
+  because `playwright install --with-deps` fetched its system libraries from the apt mirror at about 96 kB/s. Every
+  browser workflow now installs through `.github/actions/playwright-browsers`: the same libraries (playwright 1.56.1's
+  own list), offline from a .deb cache keyed on the runner image version, with the browsers from an ms-playwright
+  cache. Only a miss goes to the mirror. Installs went from up to 21 min to 15 to 40 s. The first scheduled runs
+  (nightlies, dawn-check) are the last proof.
+
+## Latest (SyncView stand-in, 2026-10-25 night): three merges
+
+Behind switches that name only the owner's two staff logins, or only the test client, except #2323 (everyone).
+
+- **A fresh tab opens what its address names (everyone, #2323, 01:25 UTC):** a card's "open in SyncLinear" button
+  sometimes showed the Calendar. The runtime-switch read moved any page still reading its starting `'home'` to the
+  Calendar while Analytics is hidden, before the boot router had routed (a slow staff key check lost the race). It now
+  moves only a page that has routed. Any fresh tab was exposed (/workload, /kasper, the bare address). OPEN_REPAIRS 496.
+- **Unread badges round 9 (`unread_badges_v2`, #2324, 01:57 UTC):** no Messages-button hover; the button counts new
+  only; a Notes reply's mark clears when production-write commits (the card copy saves behind it, a failure still
+  says so); a note sent while the notes load is taken and sent when they finish (10 s cap); a card last seen empty
+  opens without the skeleton for 10 minutes. OPEN_REPAIRS 497.
+- **Review round 3 (#2325, 02:29 UTC):** see the heading below. The client "still open" rule (a team message waits
+  until the client answers) is the owner's call: keep it, a client-side "No reply needed", or count questions only.
+- Live check (session Ninecheck): publish green, live bundle carries #2323 and #2324, no 5xx, refusals only from
+  automation, the three new browser suites pass on built main.
+
+## Latest (SyncView stand-in, 2026-10-24 evening): what went live during the day
+
+All of this is behind switches that name only the owner's two staff logins, or only the test client, so nothing changed
+for the team or for real clients unless it says "everyone".
+
+- **Kasper's Messages inbox (everyone, #2311):** it answered 503 on every open since at least 2026-10-21, because one
+  read sent 500 post ids in a single URL. Reads are now split (200 ids / about 6 kB). Live since 12:59 UTC, with no
+  errors since. Confirmed on his own login on 2026-10-25: 14 inbox reads between 14:03 and 14:22 UTC, all allowed and
+  200.
+- **A random red staff-phone check (#2315):** the header Messages count rewrote unchanged values and woke the phone
+  bar's page scan. It now writes only on change.
+- **Unread badges rounds 6-8 (`unread_badges_v2`, owner's two ids; #2312, #2314, #2316, #2319, #2320):**
+  - card badge: something new is the picture with a corner count; read but open is the plain number; the hover is
+    sized to its content;
+  - Notes and Messages: first names, quiet status words, actions as plain words on hover; no "Waiting for your
+    answer", no "Needs you", no "Not done", no Mark unread; no Reply on a change request (owner's call, with 47 earlier
+    team replies under change requests measured);
+  - Messages: day lines, one "New" line, Reddit-like threads, attachments shown, a plain × close;
+  - a spinner instead of "Sending..." / "Saving..." on every staff send or save path (shared `svBusyHtml` /
+    `svBusyText`, ratchet `test/no-sending-words.js`).
+- **Caption history polish (`caption_history_staff`, #2313):** no arrows and no Changes / Clean text toggle, icons on
+  their line, no "Mostly rewritten", a quiet note.
+- **Client review page (`review_client_polish` = the test client only, row written 17:53 UTC; #2317, #2318, #2321):**
+  - Approve shows its check at the click and rolls back on a refusal, with no wait cursor;
+  - a sent change keeps its box open, and queued changes survive a reload;
+  - a spinner instead of "Sending"; a bare × with a confirm to delete;
+  - notes as quiet rows with day lines;
+  - client replies threaded under the team comment they answer (parent_id; no server change).
+  Not yet seen live: a real client's threaded reply on a linked part. Widening the switch is the owner's call; that is
+  also when the switch-off words come out and the ratchet baselines for 185, 190, 195 and 280 go down.
+
+## Latest (SyncView stand-in, 2026-10-24): what went live overnight
+
+Checked against main (5e86358), the deploy lanes and `syncview_runtime_flags` on 2026-10-24 07:40 UTC. Each change had a
+read-only live test session after it went live; all passed. Counts only.
+
+- **Truth docs**: `docs/truth/BRIEFING.md`'s stamp expired at midnight and failed unit (1) on every PR; it was re-read
+  live and re-stamped (#2308). Next expiries: ENDPOINTS and LINEAR on 2026-11-06.
+- **Notify client tags the client** (#2302): 29 of the 33 clients with a private channel have a linked Slack person
+  (18 by email, 11 by channel membership); the owner's own end-to-end test on the test client passed.
+- **Thumbnail title buttons** (#2303): live 02:10, migration applied, `thumbnail_title_buttons_staff` = the owner's two ids.
+- **Messages badge from page load** (#2300): live 03:09 for all staff; `production-comments` serves the inbox list over
+  `GET ?action=inbox`. First signed-in reads 200 at about 05:00.
+- **Caption history** (#2304): live 05:12, migration applied (without its three no-op `drop trigger if exists` lines,
+  which the database tool's approval prompt could not get past), `caption_history_staff` = the owner's two ids; the
+  owner's first redo with a note was recorded correctly.
+- **Create Post "Not assigned"** (#2301): Section 4 release green 04:51 (production-write v129, deliverable-write and
+  batch-write v82); `editor_suggest_last` names the one outsourced editor.
+- **Unread badges round 5** (#2309): live 05:02, `unread_badges_v2` = the owner's two ids, desktop only; Slack photos are
+  fetched only on reads that ask for them.
+
+## Latest (SyncView stand-in, 2026-10-23): what changed since the 2026-10-21 block below
+
+Checked against main and `syncview_runtime_flags` on 2026-10-23 22:35 UTC. Counts only.
+
+- **Card saver** went back to three clients on 2026-10-22 15:41 UTC after three staff saves were refused because the page's "is saving on" check timed out; #2281 (the check waits longer and tries more often) went live at 17:12 and `calendar_card_write_clients` is `{"all": true, ...}` again since 17:26. The 3-hourly watcher has counted 10 clean runs since.
+- **Calm Workload**: a client row's deadline dot is green again when every video has 3+ working days of buffer (#2296, live 2026-10-23 21:31, checked on the live site: 52 desktop rows and 10 phone rows correct, light and dark).
+- **Filming plan helpers**: `pipeline-google` reads company-wide files named in a setting (#2291); `pipeline-social` (ScrapeCreators: TikTok, YouTube, Reddit search, transcripts, account and channel lookups) is live (#2293, #2294, #2295).
+- **Supervisor**: a stand-in session runs the SyncView lane until 2026-10-24 night; dated detail in `synchro-pipelines/supervisor/history/syncview/`.
+
 ## Latest (SyncView project, 2026-10-21): what is live since the 2026-10-17 block below
 
 Checked against main and `syncview_runtime_flags` on 2026-10-21 04:30 UTC. Counts only.
@@ -28,6 +182,63 @@ Checked against main and `syncview_runtime_flags` on 2026-10-21 04:30 UTC. Count
 - **Kasper fast boot** (`kasper_fast_boot`, #2265, #2268, #2269): on for Sidney's two ids only; Kasper is added when Sidney says.
 - **Today** shows captions sent back for tweaks (#2263). **Workload calm view** is on for staff (`workload_calm_staff`).
 - Everything above is live; the supervisor lane is the SyncView project (Lighthouse stopped 2026-10-20 17:50 UTC). Dated detail: `synchro-pipelines/supervisor/history/syncview/`.
+
+## Client review page polish, behind `review_client_polish` (session Porch, 2026-10-24): live since 2026-10-24 (#2317, #2318), switch row on the test client only
+
+On the client review link: Approve morphs into a spinner and then a check, faster from press to check (about 700 ms
+against about 850 ms offline under the same server times); a sent change request keeps its box open and empty for the
+next one; no "Sending..." text, a spinner; a cross on hover to delete one's own note, with "Delete this note?". Switch
+`syncview_runtime_flags.review_client_polish` `{ "clients": [...] }` or `{ "all": true }`, absent = off; meant for the
+test client only until the owner widens it. OPEN_REPAIRS 490; test `node test/review-client-polish-browser.js`.
+A second PR on the same switch shows the client's notes in the staff side's round-6 quiet design (rows, day lines, quiet
+status words, Reply on hover on team comments): OPEN_REPAIRS 491, test `node test/review-client-notes-browser.js`.
+
+## Client review page, round 2 behind `review_client_polish` (session Porch, 2026-10-24): live since 2026-10-24 20:44 UTC (#2321), test client only
+
+The owner's feedback from the test client's link: a client's Reply sits under the team message it answers (no server
+change; production-write already accepts a client's parent); Approve shows its check at the click and rolls back on a
+refusal (press to check 1.8 s to 0.12 s offline with live server times); "Sent" at once; the delete cross is a bare
+cross; a grouped follow-up does not repeat "Change request". OPEN_REPAIRS 495.
+
+## Review round 3 (session Porch, 2026-10-25): live since 2026-10-25 02:29 UTC (#2325)
+
+Kasper's Review Session gets the client page's polish (check at the click with a rollback, the change box stays open
+with "Sent" at once, a spinner only after 1.2 s, threaded replies in the team's own threads) for the staff members on
+`unread_badges_v2` only (gate `svRsKasperPolishOn`, 188). The client review page gets the staff round-8 notes badges
+behind `review_client_polish`, read from this browser's own seen marks. OPEN_REPAIRS 498. Built, not merged
+(OPEN_REPAIRS 500): the owner's rule that a read team comment waits for the client (the plain number) only when it asks
+a question; an informational note never counts.
+
+## "Notify client" tags the client (session Tagline, 2026-10-23): live since 2026-10-23 23:42 UTC (#2302), migration applied
+
+The Slack alert starts with an at-mention of the client's linked Slack person (Kasper > Clients, new field "Slack
+person to tag"), so they get a real notification; with nobody linked it posts untagged, exactly as before. The
+confirm box says who is tagged. Needs `migrations/2026-10-23-client-slack-mention.sql`; the functions cope without
+it (untagged). On 2026-10-23 no client had a linked person. OPEN_REPAIRS 477 has the safe live test (the owner-only
+preview to his own DM, with the test client linked to his own id).
+## Create Post: "Not assigned", and an editor suggested last (session Blank, 2026-10-23): live since 2026-10-24 04:51 UTC (#2301), setting row on
+
+Calendar and Samples Create Post offer "Not assigned" (the post is created with no video editor and shows in Workload's
+Needs assignment); `production-write` accepts `unassigned: true` on video items. The setting row
+`syncview_runtime_flags.editor_suggest_last` `{ "staff": [...] }` puts the named editors last in the picker; no row, no change.
+OPEN_REPAIRS 478; tests `node test/intake-not-assigned.js`, `node test/create-post-picker.js`.
+## Caption history on Calendar cards, behind `caption_history_staff` (session Versions, 2026-10-23): live since 2026-10-24 05:12 UTC (#2304), on for the owner's two staff ids
+
+Owner: after "Regenerate with a note" he could not see how the caption changed. Every real caption change is now kept in the
+append-only `caption_versions` (migration `migrations/2026-10-23-caption-versions.sql`, applied by hand; its trigger never
+blocks a save). A history icon under the regenerate icon opens the approved pop-up (option C): one step per version, the redo
+note, words taken out and added, and "Put this version back" through the normal caption save, with Undo. Switch
+`syncview_runtime_flags.caption_history_staff` `{ "staff": [...] }`, absent = off. Earlier changes since 2026-09-17:
+`scripts/caption-versions-backfill.sql`, by hand. OPEN_REPAIRS 482. Tests: `test/caption-versions-postgres.js`,
+`test/caption-history-logic.js`, `test/caption-history-browser.js`. Not measured on the live site yet.
+## Thumbnail titles from the filming plan, buttons in Production (session Titlecard, 2026-10-23): live since 2026-10-24 02:10 UTC (#2303), on for the owner's two staff ids
+
+"Thumbnail titles" on a post's Sub-issues header and "Write title" beside Edit on a thumbnail sub-issue, behind the
+new switch `thumbnail_title_buttons_staff` (absent = off). The run lives on the server (one per post), picks the plan
+tab by the approved rule, writes only into an empty description or the old robot "Needs info" line, and asks before
+touching anything a person wrote. With it, the background writer stops writing "Needs info" lines, private plans are
+read through the service account, and tokens are recorded per run. Needs `migrations/2026-10-23-thumbnail-title-buttons.sql`
+applied after merge. OPEN_REPAIRS 481; plan and decisions in `docs/syncview-design/mockups/thumbnail-titles/PLAN.md`.
 
 ## Kasper's tab boots fast, behind `kasper_fast_boot` (session Quick, 2026-10-20): merged (#2265), switch on for Sidney's two ids only, Kasper next
 

@@ -8,6 +8,7 @@ import { _calSetFocusRequest, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
 import { _calDeriveThumb, onCalClientChange } from './160-calendar-organize-ui.js';
 import { COMP_LABELS } from './180-calendar-native-post-media.js';
+import { svuActive, svuAfterMsgPaint, svuMsgListHtml, svuPaintCounts, svuPicturesArrived, svuUnreadConversations } from './327-core-unread-badges.js';
 import {
   _CAL_LOCK_ICO, _calCommentRole, _calCommentSendPending, _calCurrentAuthor, _calCurrentAuthorId,
   _calFindCompForCommentId, _calFmtCommentTime, _calMintCommentId, _calNoteAuthorName, _noteOutboxAsComment,
@@ -41,7 +42,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     const _msgState = {
         loading: false, loaded: false, error: '', conversations: [], scope: '',
         openId: '', replyTo: '', draft: '', sending: false, filter: 'new', lastAt: 0,
-        unavailable: false, fromCache: false, readWhenFresh: '', owner: '', epoch: 0,
+        unavailable: false, fromCache: false, readWhenFresh: '', owner: '', epoch: 0, failStatus: 0, pictures: null,
     };
     let _msgTimer = null;
     const _msgFallbackHooks = [];
@@ -187,23 +188,39 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
     /* Start the inbox call when the pointer or finger reaches the Messages
        button (a few hundred ms before the click), so the answer is on its way
-       while the click lands. Never at page load: every page treats a POST it did
-       not ask for as a bug, and the Production tab's read-only gate allows none. */
+       while the click lands. The first read after sign-in is _msgBootLoad's;
+       neither runs on the Production tab, whose read-only gate allows no POST. */
     ['pointerover', 'pointerdown', 'focusin'].forEach(type => document.addEventListener(type, e => {
         const t = e.target && e.target.closest && e.target.closest('#navMessages, [onclick*="_msgOpenPage"]');
         // Not on the Production tab: its read-only gate allows no POST the page was not asked to make.
         if (t && _msgCanUse() && !_msgState.unavailable && currentNav !== 'production') _msgLoad(false);
     }, { capture: true, passive: true }));
 
+    /* The inbox list is a read and goes out as GET ?action=inbox, so a page that counts every POST as a write
+       (the time-off page, the archive, the phone suites, Production's gate) never sees one at load. Marks stay POST.
+       An older production-comments that only takes POST answers 405: then the same read goes once as POST. */
+    const MSG_INBOX_URL = MSG_URL + '?action=inbox';
     async function _msgCall(body) {
-        const response = await fetch(MSG_URL, {
-            method: 'POST', cache: 'no-store',
-            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, MSG_URL),
-            body: JSON.stringify(body)
-        });
+        // The list read, with or without the round-5 badges' pictures ask (327), goes as GET.
+        const isList = body && body.action === 'inbox' && Object.keys(body).every(k => k === 'action' || k === 'pictures');
+        const listUrl = MSG_INBOX_URL + (isList && body.pictures ? '&pictures=1' : '');
+        let response = isList
+            ? await fetch(listUrl, { method: 'GET', cache: 'no-store', headers: _syncviewEfHeaders({}, listUrl) })
+            : null;
+        if (!response || response.status === 405) {
+            response = await fetch(MSG_URL, {
+                method: 'POST', cache: 'no-store',
+                headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, MSG_URL),
+                body: JSON.stringify(body)
+            });
+        }
         let value = null;
         try { value = await response.json(); } catch (e) { value = null; }
-        if (!response.ok || !value || value.ok !== true) throw new Error((value && value.error) || ('HTTP ' + response.status));
+        if (!response.ok || !value || value.ok !== true) {
+            const err = new Error((value && value.error) || ('HTTP ' + response.status));
+            err.status = response.status;
+            throw err;
+        }
         return value;
     }
 
@@ -220,11 +237,14 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const epoch = _msgState.epoch, asker = _msgMyId();
         const stale = () => epoch !== _msgState.epoch || asker !== _msgMyId();
         try {
-            const value = await _msgCall({ action: 'inbox' });
+            // The round-5 badges (327) also ask for people's pictures; every other read is today's.
+            const value = await _msgCall((typeof svuActive === 'function' && svuActive()) ? { action: 'inbox', pictures: 1 } : { action: 'inbox' });
             if (stale()) return;
             _msgState.conversations = Array.isArray(value.conversations) ? value.conversations : [];
             _msgState.scope = String(value.scope || '');
+            if (value.pictures && typeof value.pictures === 'object') { _msgState.pictures = value.pictures; if (typeof svuPicturesArrived === 'function') svuPicturesArrived(value.pictures); }
             _msgState.error = '';
+            _msgState.failStatus = 0;
             _msgState.loaded = true;
             _msgState.fromCache = false;
             _msgState.lastAt = Date.now();
@@ -241,6 +261,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             }
         } catch (e) {
             if (stale()) return;
+            _msgState.failStatus = Number(e && e.status) || 0;
             if (e && e.message === 'invalid_deliverable_id') { _msgState.loading = false; _msgCacheClear(); _msgFallBack(); return; }
             if (_msgState.fromCache) { _msgState.conversations = []; _msgState.loaded = false; _msgState.fromCache = false; _msgCacheClear(); }
             _msgState.error = 'Messages could not load. Try again in a moment.';
@@ -251,18 +272,22 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _msgPaint();
     }
     function _msgUnreadConversations() {
+        if (typeof svuActive === 'function' && svuActive()) return svuUnreadConversations();   // round-5 badges (327, switch unread_badges_v2)
         return _msgState.conversations.filter(c => Number(c.unread) > 0).length;
     }
     function _msgPaintCounts() {
         if (_msgState.unavailable) return;
+        if (_msgCanUse() && typeof svuActive === 'function' && svuActive()) { svuPaintCounts(); return; }
         const n = _msgCanUse() ? _msgUnreadConversations() : 0;
+        // Write only what changed: an unchanged rewrite still wakes every page-wide observer (the phone bar's popup
+        // scan among them), on each inbox refresh (OPEN_REPAIRS 487).
         document.querySelectorAll('[data-kasper-count="replies"]').forEach(el => {
-            el.textContent = String(n);
+            if (el.textContent !== String(n)) el.textContent = String(n);
             el.classList.toggle('is-unread', n > 0);
         });
         document.querySelectorAll('[data-msg-count]').forEach(el => {
-            el.textContent = String(n);
-            el.hidden = n === 0;
+            if (el.textContent !== String(n)) el.textContent = String(n);
+            if (el.hidden !== (n === 0)) el.hidden = n === 0;
         });
     }
     /* Called whenever the staff sign-in changes (100): forget the last
@@ -300,9 +325,39 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const shell = document.getElementById('msgPage');
         if (shell && !shell.querySelector('.msg-page-body')) _msgMountPage(shell);
         else if (shell) { _msgPaint(); _msgLoad(false); }
-        // Nothing is asked of the server from here: the inbox is read only when
-        // the person shows intent (pointer or focus on the Messages button, or
-        // opening Messages), never from a timer on some other page.
+        else _msgBootLoad();
+    }
+    /* The Messages button's badge is live from page load (owner, 2026-10-23: it only appeared after a click).
+       Once a sign-in that may use Messages is known, the inbox is read once, a moment after the page has
+       settled, as a GET (see _msgCall); that first answer starts the live refresh (realtime, other tabs, the
+       safety net). Never on a client link; on the Production tab, the time-off and Submit forms, or in a hidden
+       tab it waits, checking again every few seconds without asking the server anything.
+       A first read that fails (network, 5xx) is tried again a few times with growing waits, so one bad
+       answer does not leave the badge dead until a hover; never after a 401/403 or once Messages is off. */
+    const MSG_BOOT_WAIT_MS = 1500;
+    const MSG_BOOT_RETRY_MS = [3000, 10000, 30000];
+    let _msgBootTimer = null, _msgBootTries = 0, _msgBootFor = '';
+    const _msgBootDone = () => _msgState.loaded && !_msgState.fromCache;
+    // Staff tabs that show the Messages button. Not Production (its read-only gate), not the time-off or Submit
+    // forms, not the intake or onboarding pages: there it waits until the person moves to such a tab.
+    const MSG_BOOT_SKIP_NAVS = new Set(['production', 'time-off', 'linear']);
+    const _msgBootPageOk = () => !MSG_BOOT_SKIP_NAVS.has(currentNav)
+        && !document.body.classList.contains('intake-mode') && !document.body.classList.contains('onboarding-mode');
+    function _msgBootLoad(wait) {
+        if (_msgBootFor !== _msgMyId()) { _msgBootFor = _msgMyId(); _msgBootTries = 0; }
+        if (_msgBootTimer) return;
+        _msgBootTimer = setTimeout(async () => {
+            _msgBootTimer = null;
+            if (!_msgCanUse() || _msgState.unavailable || _isClientLink || _msgBootDone()) return;
+            // Hidden, on Production, or another read already on its way: look again later, asking nothing.
+            if (document.hidden || !_msgBootPageOk() || _msgState.loading) { _msgBootLoad(); return; }
+            const asker = _msgMyId();
+            await _msgLoad(false);
+            if (_msgBootDone() || _msgState.unavailable || asker !== _msgMyId()) return;
+            if (_msgState.failStatus === 401 || _msgState.failStatus === 403) return;
+            if (_msgBootTries >= MSG_BOOT_RETRY_MS.length) return;
+            _msgBootLoad(MSG_BOOT_RETRY_MS[_msgBootTries++]);
+        }, wait || MSG_BOOT_WAIT_MS);
     }
 
     /* ── Drawing ── */
@@ -329,6 +384,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return role === 'client' ? 'Client' : role === 'smm' ? 'SMM' : role === 'kasper' ? 'Reviewer' : '';
     }
     function _msgListHtml() {
+        if (typeof svuActive === 'function' && svuActive()) return svuMsgListHtml();
         const query=_msgIsPhone()?_msgPhone.query.trim().toLowerCase():'';
         const list=_msgState.conversations.filter(c=>(_msgState.filter!=='new'||Number(c.unread)>0||c.post_id===_msgState.openId)&&(!query||[_msgClientName(c),c.title,c.last_body].join(' ').toLowerCase().includes(query)));
         if (!list.length) {
@@ -547,6 +603,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             else bubbles.scrollTop=bubbles.scrollHeight;
         }
         _msgPhone.firstOpen=false;_msgPhoneLayout();
+        if (typeof svuAfterMsgPaint === 'function') svuAfterMsgPaint();
     }
     function _msgRenderInto(root) {
         if (!root) return;
@@ -557,7 +614,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     }
 
     /* ── Actions ── */
-    function _msgSetFilter(f) { _msgState.filter = f === 'all' ? 'all' : 'new'; _msgPaint(); }
+    function _msgSetFilter(f) { _msgState.filter = f === 'all' ? 'all' : (f === 'answer' && typeof svuActive === 'function' && svuActive()) ? 'answer' : 'new'; _msgPaint(); }
     function _msgSetReplyTo(rootId) {
         _msgState.replyTo = String(rootId || '');
         _msgPhoneKeepDraft();
@@ -947,6 +1004,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const lateShell = document.getElementById('msgPage');
         if (lateShell && !lateShell.querySelector('.msg-page-body')) _msgMountPage(lateShell);
     }
+    // The same race for the badge: the sign-in check usually answers before this file has run, so its call to
+    // _msgOnIdentity (100) found no function and the badge waited for a hover or click. Start it now.
+    if (_msgCanUse() && !_msgState.owner) _msgOnIdentity();
     /* The same inbox inside the Kasper tab, under its one header (323, while the new review page is on for this
        person): no page head and no Close button, the tab bar is the way out. A repaint keeps a reply being typed. */
     function _msgMountEmbedded(root) {
@@ -964,4 +1024,4 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         _msgBack, _msgClose, _msgLoad, _msgMarkUnread, _msgOnDraft, _msgOnKey, _msgOpen, _msgOpenCard,
         _msgOpenPage, _msgPhoneMore, _msgPhoneSearch, _msgReply, _msgSetFilter, _msgSetReplyTo
     });
-export { _msgInboxLive, _msgMountEmbedded, _msgOnFallback, _msgOnIdentity, _msgPaintCounts };
+export { _msgBootPageOk, _msgClientName, _msgInboxLive, _msgIsPhone, _msgLoad, _msgMe, _msgMountEmbedded, _msgMyId, _msgOnFallback, _msgOnIdentity, _msgPaint, _msgPaintCounts, _msgState };

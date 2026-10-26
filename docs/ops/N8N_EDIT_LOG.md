@@ -468,3 +468,41 @@ Why: the owner read the preview and said to switch on now (entry above built eve
 - Effect: `educator-strategy-call` bookings now get the educator confirmation, text wording and pre-call emails (`lU5RlPUBsmlMsFSf`). /doctors and /apply bookings carry their own slug and take the unchanged path.
 Tested: not yet end to end; the owner's planned full test booking (book, reschedule, cancel) is the first live run.
 Undo: restore `6cca8532-9840-4f5b-b2d3-7ce4d930935d` on the router and publish.
+
+## 2026-10-22 Recovery reminder text goes even after the booking-link text (owner's go in the thread, Ads lane)
+Why: the launch test of the Doctors who teach page (22 Oct) showed that a lead who submits but does not book got the 3 minute booking-link text and then never the 30 minute reminder text: the instant link stamps `sms_sent_at`, so the sender treated the lead as already texted (execution 676018 stopped at "Send SMS?"). The owner chose to let the reminder text go too, at most two texts per lead.
+- Sales, Booking Recovery Dispatch (`nQ4vnZ8bmG3E3Lor`), Code node "Select Due": before `bbb6da3b-fed5-4231-acca-a163b493acfa`, after `d7af558d-2f77-4722-a230-b08ce29d5cab` (published). A text is still owed when the only text so far is the booking-link text (`sms_sent_at` equals `raw.instant_sent_at` and `raw.instant_sms` is yes). Once the reminder goes, `sms_sent_at` changes and no third text is possible. Quiet hours, opt-out, consent and the booked check are unchanged. Applies to every calendar that uses the instant link (doctors and doctors who teach).
+Tested: saved code read back from n8n and compared (identical apart from a trailing newline); run locally on four sample rows (booking-link text only: email and text; reminder already sent: email only; no text yet: both; no consent: email only). Live on 22 Oct with a test lead on a non-US number: booking-link text at 22:07 UTC, reminder email and reminder text at 22:38 UTC (execution 676125), no third text.
+Undo: restore `bbb6da3b-fed5-4231-acca-a163b493acfa` in n8n's workflow history and publish.
+
+## 2026-10-22 New workflow: a moved iClosed call restarts the pre-call emails (owner's go in the thread, Ads lane)
+Why: the launch test (22 Oct) showed a reschedule in iClosed reached no n8n workflow, so the pre-call emails kept the old call time. iClosed offers a "Call rescheduled" webhook event.
+- New workflow Sales, Call Rescheduled (iClosed) (`lpnLIPUFSo7bURWf`), published version `ac0e6058-272a-4688-a7bc-d3af555e5028`, webhook path `iclosed-call-rescheduled`. For the doctor, educator and consultation calendars: Telegram to Kasper ("Sales call moved"), then restart the calendar's pre-call nurture (`lU5RlPUBsmlMsFSf` for educators, `310kO3OnG1yytE2D` otherwise) with the new time. The old run stops by itself at its next check because a newer start is recorded; email 1 is not repeated (existing 7 day rule). If the new time is today, it only records a newer start so the old run stops. No existing workflow changed. It also stores the payload's top-level key names, to confirm the field names iClosed sends on a reschedule.
+- iClosed: the owner added a webhook for "Call rescheduled" to that address (22 Oct, about 22:15 UTC).
+Tested: dry run with pinned data (execution 676097, educator call moved to a later day: took the educator restart; nothing sent). A live reschedule of a test booking at 22:19 UTC did NOT reach the workflow; being checked with the owner.
+Undo: unpublish or archive `lpnLIPUFSo7bURWf` and remove the iClosed webhook.
+
+### 2026-10-22: Call Rescheduled webhook path fixed, live test passed
+
+- Workflow `lpnLIPUFSo7bURWf`: the webhook path changed from `iclosed-call-rescheduled` to `iclosed-call-reschedule`, to match the address saved in iClosed. Published version `8cced4a3-08ed-48a9-8248-9a324873ad80`.
+- Live test: a test educator call was moved in iClosed at 22:52 UTC. Execution 676137 ran green and restarted the educator nurture (execution 676138). The test call was then cancelled.
+
+### 2026-10-23: Cancel check by email, plain-text recovery emails
+
+Approved by the owner on 23 Oct after an inbox check of the 22 Oct test run.
+
+- Educator and normal pre-call nurture (`lU5RlPUBsmlMsFSf`, `310kO3OnG1yytE2D`): every "Check Cancellation" step now matches by email only, not email plus call time. Any cancellation recorded after the sequence started stops it. Before, a call that was moved and then cancelled at its new time kept getting emails. Published versions `e14ec6a8` and `1a26451c`. The AI nurture is unchanged.
+- Instant booking link (`cM3G9REliKpwicnR`, "Send Instant Email") and recovery dispatch (`nQ4vnZ8bmG3E3Lor`, "Send Recovery Email (Human)"): sent as plain text (the approved wording, no logo or signature table), because the HTML version landed in Gmail's Promotions tab. Published versions `129d49ea` and `b4523217`. The older non-human recovery email is unchanged.
+- Live test: one unbooked educator lead and one educator booking cancelled the same day, on 23 Oct at about 15:35 UTC. The inbox result is added below once the emails have arrived.
+- Result (23 Oct): the cancelled booking's educator nurture (execution 676707) found the cancellation at its first check (16:37 UTC) and stopped with no pre-call email sent. The unbooked lead got the instant link and the 30 minute reminder once each, as plain text, but Gmail still filed both under Promotions. Plain text alone did not move them to Primary.
+
+## 2026-10-25 Weekly backup: no repo zip, database dump first, retries on the Drive uploads (owner's go, SyncView stand-in)
+Why: "SyncView - Weekly Backup" failed on 4 and 25 Oct and crashed on 18 Oct. Google Drive refused the uploads with 403 rateLimitExceeded after the repo zip, which had grown to about 450 MB. Because "Upload Workflows JSON" stops the run on error, the database dump never ran. The last complete dump before this fix was from 18 Oct.
+- SyncView - Weekly Backup (`jlVfbg0Njxf1It7h`): before `81b902da-b8e0-4268-b5b1-57724b4dec60`, after `97a22f94-fb8b-4a0f-a470-8a8be7cf3789` (published, still active).
+  - "Download GitHub Repo Zip" and "Upload Repo Zip" are disabled, not deleted. GitHub already holds the code.
+  - The six database dump nodes ("Dump calendar_posts" to "Upload Supabase JSON") are moved to the top of the canvas, so they run first. Their settings and wiring are unchanged.
+  - Retry On Fail (5 tries, 5000 ms apart) is on for "Upload Supabase JSON", "Upload Workflows JSON" and "Upload Repo Zip".
+  - Schedule, credentials, folder ids, the Main Sheet copy and the error workflow are unchanged.
+Tested: one manual run, execution 678274, 17:09:45 to 17:10:37 UTC, status success. The workflows JSON read-back check passed. The new 2026-10-25 folder in SyncView Backups holds the database dump (49.0 MB), the n8n workflows JSON (5.6 MB, written last) and the Main Sheet copy. A second 2026-10-25 folder from the failed 06:00 run holds only a Main Sheet copy. It was left as is.
+Leftover: the workflow description and the canvas sticky note still mention the repo zip.
+Undo: restore `81b902da-b8e0-4268-b5b1-57724b4dec60` in n8n's workflow history and publish.

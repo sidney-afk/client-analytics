@@ -2,7 +2,7 @@ import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { _msgInboxLive, _msgMountEmbedded, _msgOnFallback } from './326-core-messages-inbox.js';
 import { svRsKasperOn } from './188-review-stage-switch.js';
 import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
-import { showToast, svArea, svAreaApi } from './040-shared-briefs.js';
+import { showToast, svArea, svAreaApi, svBusyHtml } from './040-shared-briefs.js';
 import {
   CAL_SUPABASE_URL, _ptoAdminState, _syncviewStaffCan, _syncviewStaffIdentityForHeaders,
   _syncviewStaffIdentitySignature
@@ -288,7 +288,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
     const CA_WRITE_URL = CAL_SUPABASE_URL + '/functions/v1/client-profile-write';
     // The core details, top of the profile, in three colour-coded cards.
     const CA_GROUPS = [
-        { key: 'team', title: 'Contact and team', tone: 'edit', fields: [['email', 'Email'], ['slack_channel_id', 'Slack channel'], ['creative_channel_id', 'Creative channel']] },
+        { key: 'team', title: 'Contact and team', tone: 'edit', fields: [['email', 'Email'], ['slack_channel_id', 'Slack channel'], ['creative_channel_id', 'Creative channel'], ['slack_mention_user_id', 'Slack person to tag']] },
         { key: 'social', title: 'Social accounts', tone: 'asks', fields: [['instagram_handle', 'Instagram'], ['tiktok_handle', 'TikTok'], ['youtube_channel_id', 'YouTube']] },
         { key: 'publish', title: 'Publishing', tone: 'music', fields: [['postforme_account_id', 'Post for Me'], ['upload_post_profile', 'Upload-Post']] },
     ];
@@ -868,6 +868,12 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
                 _caEditSay(`SyncView cannot edit the Clients Info sheet yet. Share the sheet as <b>Editor</b> with <code class="ca-sa">${_calEsc(st.service_account)}</code>, then save again. Nothing was saved.`, 'error');
                 _caPaint();
             }).catch(() => {});
+        } else if (err === 'bad_value' && json.field === 'slack_mention_user_id') {
+            // "Notify client" at-mentions this person, so only a real Slack member id is kept.
+            ed.conflictFields = ['slack_mention_user_id'];
+            _caEditSay('"Slack person to tag" needs a Slack member ID, which starts with U (for example U0123ABCD). In Slack, open the client\'s profile, click the three dots and choose "Copy member ID". Nothing was saved.', 'error');
+        } else if (err === 'field_not_editable') {
+            _caEditSay('"Slack person to tag" cannot be saved until its database update is applied. Nothing was saved.', 'error');
         } else if (err === 'saved_to_sheet_only') {
             _caEditSay('Saved to the sheet, but SyncView\'s copy did not update. The daily copy will bring it in; open the tab again later.', 'error');
         } else if (resp.status === 401 || resp.status === 403) {
@@ -926,7 +932,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
         const mgrRetry = !_caState.managers && _caState.managersError && !_caState.managersLoading
             ? `<div class="ca-mgr-wrap"><button type="button" class="ca-mgr" id="caMgrBtn" onclick="_caLoadManagers()"><span class="ca-mgr-lbl">Manager not loaded.</span><span class="ca-mgr-cur">Try again</span></button></div>` : '';
         const mgrBtn = mgrRetry || `<div class="ca-mgr-wrap"><button type="button" class="ca-mgr" id="caMgrBtn" aria-haspopup="menu" aria-expanded="${_caState.picker}" onclick="_caMgrToggle()" ${!_caState.managers || !canEdit || ed || _caState.pickerBusy ? 'disabled' : ''}>
-                ${m ? _caAvatar(m.name, 'is-sm') : ''}<span class="ca-mgr-lbl">Managed by</span><span class="ca-mgr-cur">${_caState.pickerBusy ? 'Saving…' : mgrLabel}</span>${_caState.managers && canEdit && !ed ? CA_ICONS.chev : ''}
+                ${m ? _caAvatar(m.name, 'is-sm') : ''}<span class="ca-mgr-lbl">Managed by</span><span class="ca-mgr-cur">${_caState.pickerBusy ? svBusyHtml('Saving…') : mgrLabel}</span>${_caState.managers && canEdit && !ed ? CA_ICONS.chev : ''}
             </button>${_caMgrPickerHtml(r)}</div>`;
         const research = `<details class="ca-fold ca-group" data-ca-fold="research"${ed || _caState.folds.research ? ' open' : ''} ontoggle="_caFold('research', this.open)"><summary><h4>${_calEsc(CA_RESEARCH.title)}</h4><span class="ca-fold-tag">Rarely needed</span></summary><dl>${CA_RESEARCH.fields.map(field).join('')}</dl></details>`;
         const extra = r.extra && typeof r.extra === 'object' ? Object.entries(r.extra).filter(([, v]) => String(v == null ? '' : v).trim()) : [];
@@ -951,7 +957,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
             ${ed ? `<div class="ca-editbar">
                 <span class="ca-editnote">${_caNative() ? 'Saves only if nobody changed this client since you opened it. Every change is kept in the history.' : 'Saves to the Clients Info sheet first, then SyncView.'}</span>
                 <button type="button" class="cc-btn" onclick="_caEditCancel()" ${ed.saving ? 'disabled' : ''}>Cancel</button>
-                <button type="button" class="cc-btn primary ca-save" onclick="_caEditSave()" ${ed.saving ? 'disabled' : ''}>${ed.saving ? 'Saving…' : 'Save changes'}</button>
+                <button type="button" class="cc-btn primary ca-save" onclick="_caEditSave()" ${ed.saving ? 'disabled' : ''}>${ed.saving ? svBusyHtml('Saving…') : 'Save changes'}</button>
             </div>` : ''}
             <footer class="ca-prov">Last saved ${_calEsc(_caWhen(r.updated_at) || 'unknown')} by ${_calEsc(r.updated_by || 'unknown')} · <button type="button" class="ca-link" id="caHistBtn" aria-expanded="${_caState.historyOpen}" onclick="_caToggleHistory()">${_caState.historyOpen ? 'Hide history' : 'See history'}</button>${_caHistoryHtml()}</footer>`;
     }

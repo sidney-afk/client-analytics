@@ -1509,6 +1509,9 @@
         .notify-client-dialog .nc-msg-line { font-size: 0.9rem; font-weight: 800; line-height: 1.35; }
         .notify-client-dialog .nc-msg-link { margin-top: 4px; font-size: 0.86rem; font-weight: 600; color: var(--notify-bg); text-decoration: underline; }
         .notify-client-dialog .nc-note, .notify-client-dialog .nc-last { margin-top: 12px; font-size: 0.78rem; color: var(--text-secondary); line-height: 1.45; }
+        .notify-client-dialog .nc-tag { margin-top: 12px; font-size: 0.8rem; color: var(--text-secondary); line-height: 1.45; }
+        .notify-client-dialog .nc-tag b { color: var(--text-primary); font-weight: 700; }
+        .notify-client-dialog .nc-msg-mention { color: var(--notify-bg); font-weight: 800; }
         .notify-client-dialog .nc-warn, .notify-client-dialog .nc-alert { margin-top: 12px; padding: 9px 12px; border-radius: 8px;
             font-size: 0.78rem; font-weight: 600; line-height: 1.45; }
         .notify-client-dialog .nc-warn { background: var(--warn-solid-bg); color: var(--warn-solid-fg); }
@@ -2617,6 +2620,16 @@
         .sv-note-outbox-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: sv-note-outbox-pulse 1s ease-in-out infinite alternate; }
         @keyframes sv-note-outbox-pulse { from { opacity: 0.3; } to { opacity: 1; } }
         @media (prefers-reduced-motion: reduce) { .sv-note-outbox-dot { animation: none; } }
+        /* The shared "busy" spinner (040 svSpinHtml / svBusyHtml / svBusyText): a small ring in the text colour of what holds it.
+           Round 7 (owner, 2026-10-24): a send never shows the words "Sending…"; this turns in their place. */
+        .sv-spin { display: inline-block; flex: none; width: 14px; height: 14px; box-sizing: border-box; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; opacity: 0.75; vertical-align: -2px; animation: sv-spin-turn var(--sv-spin-dur) linear infinite; }
+        .sv-spin.is-lg { width: 18px; height: 18px; vertical-align: -4px; }
+        /* 040 svBusyHtml: the busy words keep their place, invisible, and the spinner sits centred over them. */
+        .sv-busy { display: inline-grid; place-items: center; vertical-align: bottom; }
+        .sv-busy > * { grid-area: 1 / 1; }
+        .sv-busy-words { visibility: hidden; }
+        @keyframes sv-spin-turn { to { transform: rotate(360deg); } }
+        /* Reduced motion slows it with every other spinner (--sv-spin-dur, 010). */
         .sv-note-outbox button { font: inherit; font-weight: 700; color: inherit; background: none; border: 0; padding: 8px 2px; margin: -8px 0; min-height: 40px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
         .sv-note-outbox button.sv-note-outbox-discard { font-weight: 500; color: var(--text-secondary); }
         .is-outbox-failed.cal-cm-row, .is-outbox-failed.cal-review-comment, .msg-b.is-outbox-failed { box-shadow: inset 2px 0 0 var(--dn); }
@@ -2791,6 +2804,8 @@
         .msg-conv.is-skeleton .msg-thumb { border-radius: 7px; }
         .msg-b-text.msg-skel { border-color: transparent; }
         .msg-nav-btn { position: relative; }
+        /* The count sits on the button's top-right corner, so the icon never moves when it appears (2026-10-23). */
+        .msg-nav-btn > .msg-unread { position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 0.62rem; line-height: 1; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--white); pointer-events: none; }
         .msg-nav-btn[hidden] { display: none; }
         .msg-nav-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
         /* The Messages page uses the whole width under the header. */
@@ -2913,6 +2928,73 @@
             .cal-cap-tools { top: 4px; right: 4px; }
             .cal-cap-wrap:has(.cal-cap-tools) textarea.cal-fld-cap { padding-right: 54px; }
         }
+        /* ── Caption history (session Versions, 2026-10-23; the approved mock-up, option C): the icon sits just below the
+           regenerate icon, and opens this pop-up on the shared caption dialog layer. Few boxes: no lines across the
+           pop-up, no box round the caption; the note keeps squarer corners. ── */
+        .cal-cap-tools { flex-direction: column; gap: 6px; }
+        .caph { display: flex; flex-direction: column; min-height: 0; max-height: 88vh; }
+        .caph-head { display: flex; align-items: center; gap: 14px; padding: 18px 20px 4px; flex-shrink: 0; }
+        .caph-head h3 { margin: 0; font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); }
+        .caph-sp { flex: 1; }
+        .caph-x { display: inline-flex; align-items: center; justify-content: center; }
+        .caph-x svg { width: 12px; height: 12px; }
+        .caph-pill { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 11px 0 9px; border-radius: 99px; background: var(--caph-pill-bg); color: var(--caph-pill-fg); font-size: 0.78rem; font-weight: 700; white-space: nowrap; }
+        .caph-pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--caph-dot); }
+        .caph-body { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 20px 6px; display: flex; flex-direction: column; gap: 12px; }
+        .caph-steps { display: flex; align-items: flex-start; overflow-x: auto; padding: 6px 2px 10px; scrollbar-width: none; flex-shrink: 0; }
+        .caph-steps::-webkit-scrollbar { display: none; }
+        .caph-step { position: relative; flex: 1 1 0; min-width: 118px; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; padding: 0 4px; border: 0; background: none; color: var(--text-primary); cursor: pointer; font: inherit; }
+        .caph-step::before { content: ''; position: absolute; z-index: 0; top: 15px; left: calc(-50% + 16px); right: calc(50% + 16px); height: 2px; background: var(--caph-line); }
+        /* Owner, 2026-10-24: every icon sits on the line. Steps are equal widths (their text wraps inside them) and the
+           line runs from one icon's edge to the next, under the icons, so no icon is crossed or pushed off it. */
+        .caph-step > .caph-sl, .caph-step > .caph-sw { max-width: 100%; overflow-wrap: anywhere; }
+        .caph-step:first-child::before { display: none; }
+        .caph-sd { position: relative; z-index: 1; flex-shrink: 0; width: 32px; height: 32px; border-radius: 99px; display: flex; align-items: center; justify-content: center; background: var(--white); box-shadow: 0 0 0 2px var(--caph-line); color: var(--text-secondary); }
+        .caph-sd svg { width: 14px; height: 14px; }
+        .caph-step:hover .caph-sd { color: var(--text-primary); }
+        .caph-step:focus-visible { outline: none; }
+        .caph-step:focus-visible .caph-sd { box-shadow: 0 0 0 2px var(--focus-ring); }
+        .caph-step[aria-selected="true"] .caph-sd { background: var(--caph-dot); color: var(--caph-dot-fg); box-shadow: 0 0 0 4px var(--caph-dot-ring); }
+        .caph-sl { font-size: 0.74rem; font-weight: 700; line-height: 1.25; }
+        .caph-step[aria-selected="true"] .caph-sl { color: var(--caph-pill-fg); }
+        .caph-sw { font-size: 0.68rem; color: var(--text-secondary); }
+        .caph-now { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--caph-now-fg); background: var(--caph-now-bg); box-shadow: inset 0 0 0 1px var(--caph-now-line); padding: 1px 6px; border-radius: 99px; }
+        .caph-story { display: flex; flex-direction: column; gap: 12px; }
+        .caph-story-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .caph-kind { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 700; color: var(--text-primary); }
+        .caph-kind svg { width: 12px; height: 12px; }
+        .caph-note { padding: 1px 0 1px 10px; border-left: 2px solid var(--caph-note-line); font-size: 0.82rem; line-height: 1.45; color: var(--text-secondary); overflow-wrap: anywhere; }
+        .caph-cap { white-space: pre-wrap; font-size: 1rem; line-height: 1.7; color: var(--text-primary); overflow-wrap: anywhere; }
+        .caph-cap ins { text-decoration: none; background: var(--caph-ins-bg); color: var(--caph-ins-fg); border-radius: 4px; padding: 1px 2px; }
+        .caph-cap del { text-decoration: line-through; text-decoration-thickness: 1.5px; background: var(--caph-del-bg); color: var(--caph-del-fg); border-radius: 4px; padding: 1px 2px; }
+        .caph-rw-l { font-size: 0.68rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); margin-top: 2px; }
+        .caph-rw-old { color: var(--text-secondary); }
+        .caph-stale { font-size: 0.8rem; color: var(--text-primary); padding: 8px 0 0; }
+        .caph-stale button { border: 0; background: none; padding: 0; font: inherit; font-weight: 700; color: var(--text-primary); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+        .caph-wait { padding: 40px 0; text-align: center; font-size: 0.84rem; color: var(--text-secondary); }
+        .caph-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 40px 20px 46px; color: var(--text-secondary); }
+        .caph-empty b { color: var(--text-primary); font-size: 0.95rem; }
+        .caph-empty p { margin: 0; font-size: 0.84rem; }
+        .caph-empty-ic { width: 44px; height: 44px; border-radius: 99px; display: flex; align-items: center; justify-content: center; background: var(--field-bg); }
+        .caph-empty-ic svg { width: 20px; height: 20px; }
+        .caph-foot { display: flex; justify-content: flex-end; padding: 6px 20px 18px; flex-shrink: 0; }
+        .caph-restore { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 15px; border: 0; border-radius: 9px; background: var(--caph-ok-bg); color: var(--caph-ok-fg); box-shadow: inset 0 0 0 1px var(--caph-ok-line); font: inherit; font-size: 0.82rem; font-weight: 800; cursor: pointer; }
+        .caph-restore:hover:not([disabled]) { background: var(--caph-ok-bg-hover); }
+        .caph-restore[disabled] { background: var(--field-bg); color: var(--disabled-fg); box-shadow: none; cursor: default; }
+        .caph-restore svg { width: 14px; height: 14px; }
+        @media (pointer: coarse) {
+            .caph-x { width: 44px; height: 44px; }
+            .caph-restore { height: 44px; }
+        }
+        @media (max-width: 600px) {
+            .caph-step { flex: 0 0 92px; min-width: 92px; padding: 0 2px; }
+            .caph-sl { font-size: 0.7rem; }
+            .caph-body { padding: 8px 14px 6px; }
+            .caph-head { padding: 14px 14px 4px; }
+            .caph-foot { padding: 6px 14px calc(14px + env(safe-area-inset-bottom)); }
+            .caph-restore { flex: 1; justify-content: center; }
+        }
+        html.sv-staff-phone .cal-cap-tools { flex-direction: row; gap: 8px; }
         .cal-redo-current { white-space: pre-wrap; max-height: 28vh; overflow-y: auto; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text-secondary); font-size: 0.84rem; line-height: 1.5; overflow-wrap: anywhere; }
         .cal-redo-note { min-height: 96px; }
         /* Staff phone: the caption's actions (Generate, show more) sit in a row under the box, and a control may not
@@ -8592,7 +8674,8 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
  .workload-view.wl-calm .workload-day-card-chip-meta .wl-plan-origin svg { width: 11px; height: 11px; }
  .workload-view.wl-calm .workload-day-card-chip .workload-drag-handle, .workload-view.wl-calm .wl-calm-row .workload-drag-handle { opacity: 0; transition: opacity 0.1s; }
  .workload-view.wl-calm .workload-day-card-chip:hover .workload-drag-handle, .workload-view.wl-calm .wl-calm-row:hover .workload-drag-handle, .workload-view.wl-calm .workload-drag-handle:focus-visible { opacity: 0.7; }
- .workload-view.wl-calm .wl-deadline-summary.is-green, .workload-view.wl-calm .wl-deadline-summary.is-neutral { --wl-proximity-dot: var(--text-muted); color: var(--text-muted); }
+ /* Only a mixed or no-deadline client row is grey; a row with 3+ working days of buffer keeps its green dot (owner, 2026-10-23). */
+.workload-view.wl-calm .wl-deadline-summary.is-neutral { --wl-proximity-dot: var(--text-muted); color: var(--text-muted); }
  .workload-view.wl-calm .wl-deadline-summary.is-orange .wl-deadline-dot { background: var(--wl-tweaks-accent); }
  /* The open group: the same compact list, no tree lines, no row boxes */
  .workload-view.wl-calm .workload-day-client-group[open] > .workload-day-card-items { padding-left: 12px; gap: 8px; margin: 2px 0 8px; }
@@ -8726,3 +8809,281 @@ html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height
    .workload-popover.wl-calm-pop .wl-calm-date-btn, .workload-popover.wl-calm-pop .wl-calm-auto { min-height: 36px; }
  }
  .workload-view.wl-calm .workload-calendar-heading:has(#wlWeekendNotice[hidden]) { display: none; }
+/* UNREAD BADGES, ROUND 5 (session Beacon, 2026-10-24; docs/audits/2026-10-23-unread-badges.md). Only on a page whose
+   html carries .sv-unread2, which 327 sets for the staff members the runtime switch unread_badges_v2 names, on desktop.
+   People bubbles with a number coloured by kind, and Notes and Messages laid out like Slack. Nobody else sees any of it. */
+html.sv-unread2 {
+  --svu-change: #e8590c;
+  --svu-change-ink: #c2410c;
+  --svu-change-soft: #fff1e6;
+  --svu-comment: #1d6ae5;
+  --svu-comment-ink: #1d4ed8;
+  --svu-comment-soft: #e8f0fe;
+  --svu-staff: #616061;
+  --svu-staff-ink: #3f3f46;
+  --svu-staff-soft: #f0f0f1;
+  --svu-kasper: #6c5ce7;
+  --svu-kasper-ink: #5a4bd1;
+  --svu-kasper-soft: #f0eeff;
+  --svu-on: #fff;
+  --svu-hover: #f8f8f8;
+  --svu-hover-solid: #f8f8f8;
+  --svu-send: #007a5a;
+  --svu-send-on: #fff;
+  --svu-link: #1264a3;
+  --svu-hair: var(--border-light);
+  --svu-shadow: 0 12px 32px rgba(0,0,0,.16);
+  --svu-shadow-sm: 0 2px 8px rgba(0,0,0,.08);
+  --svu-unread-line: #e01e5a;
+  --svu-initial-ink: #fff;
+}
+html.sv-unread2[data-theme="dark"] {
+  --svu-change: #fb923c;
+  --svu-change-ink: #fdba74;
+  --svu-change-soft: rgba(251,146,60,.16);
+  --svu-comment: #60a5fa;
+  --svu-comment-ink: #93c5fd;
+  --svu-comment-soft: rgba(96,165,250,.16);
+  --svu-staff: #a1a1aa;
+  --svu-staff-ink: #d4d4d8;
+  --svu-staff-soft: rgba(212,212,216,.14);
+  --svu-kasper: #a094f8;
+  --svu-kasper-ink: #c3b5ff;
+  --svu-kasper-soft: rgba(160,148,248,.18);
+  --svu-on: #101114;
+  --svu-hover: rgba(255,255,255,.04);
+  --svu-hover-solid: color-mix(in srgb, var(--white), #ffffff 4%);
+  --svu-send: #2bac76;
+  --svu-send-on: #0b1a12;
+  --svu-link: #6fb3f5;
+}
+/* the badge: people bubbles with a coloured number */
+.svu-foot { display: flex; align-items: center; gap: 10px; min-width: 0; cursor: pointer; }   /* round 7: the whole row opens Notes */
+.cal-comments-btn.svu-notes.svu-has-new { color: var(--text-primary); font-weight: 600; }
+.cal-comments-btn.svu-notes.svu-has-new svg { opacity: 1; }
+.svu-strips { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.svu-bub { display: inline-flex; align-items: center; gap: 3px; }
+/* round 8: something new is a small count on the picture's top right corner */
+.svu-bub-new { position: relative; margin-right: 4px; }
+.svu-num.svu-corner { position: absolute; top: -6px; right: -8px; min-width: 15px; height: 15px; padding: 0 4px; font-size: .6rem; box-shadow: 0 0 0 2px var(--white); }
+.svu-bub-av { width: 22px; height: 22px; border-radius: 50%; display: block; box-shadow: 0 0 0 2px var(--white); }
+.svu-num { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; display: inline-flex; align-items: center; justify-content: center; font-size: .68rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--svu-on); }
+.svu-n-change { background: var(--svu-change); } .svu-n-comment { background: var(--svu-comment); } .svu-n-staff { background: var(--svu-staff); } .svu-n-kasper { background: var(--svu-kasper); }
+/* read but still needs you: the coloured number alone, no fill and no ring (round 7, owner: "seen, not answered") */
+.svu-o-open { background: transparent; color: var(--svu-change-ink); min-width: 0; padding: 0 2px; }
+.svu-o-waiting { background: transparent; color: var(--svu-comment-ink); min-width: 0; padding: 0 2px; }
+.svu-bub-more { font-size: .72rem; font-weight: 700; color: var(--text-secondary); }
+/* the hover */
+.svu-pv { position: fixed; z-index: 9999; width: max-content; max-width: min(360px, calc(100vw - 24px)); background: var(--white); color: var(--text-primary); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--svu-shadow); padding: 6px 0; font-size: .8rem; }
+.svu-pv-row { display: grid; grid-template-columns: 24px auto minmax(0, 1fr); column-gap: 8px; align-items: center; padding: 5px 12px; }
+.svu-pv-av { width: 24px; height: 24px; border-radius: 6px; display: block; }
+.svu-pv-ico svg { width: 14px; height: 14px; display: block; }
+.svu-pv-who { font-weight: 700; white-space: nowrap; }
+.svu-pv-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary); }
+.svu-pv-more { padding: 4px 12px 2px 44px; color: var(--text-muted); font-size: .74rem; }
+.svu-k-staff .svu-pv-ico { color: var(--svu-staff-ink); } .svu-k-kasper .svu-pv-ico { color: var(--svu-kasper-ink); }
+.svu-k-comment .svu-pv-ico, .svu-k-waiting .svu-pv-ico { color: var(--svu-comment-ink); }
+/* the Messages button count: a round pill */
+.msg-nav-btn > .msg-unread.svu-count { border-radius: 99px; box-shadow: 0 0 0 2px var(--white); }
+.msg-unread.svu-count-comment { background: var(--svu-comment); color: var(--svu-on); } .msg-unread.svu-count-staff { background: var(--svu-staff); color: var(--svu-on); }
+.msg-unread.svu-count-kasper { background: var(--svu-kasper); color: var(--svu-on); }
+/* buttons and tags */
+.svu-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); border-radius: 6px; padding: 4px 12px; font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; }
+.svu-btn:hover { background: var(--svu-hover); }
+.svu-btn.svu-primary { background: var(--svu-send); color: var(--svu-send-on); border-color: var(--svu-send); }
+.svu-text-btn { border: 0; background: transparent; color: var(--svu-link); font: inherit; font-size: .78rem; font-weight: 600; padding: 4px 6px; cursor: pointer; border-radius: 6px; }
+.svu-text-btn:hover { background: var(--svu-hover); text-decoration: none; }
+.svu-tags { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+/* ---- Notes on a card, Slack-like ---- */
+html.sv-unread2 .cal-cm-thread { border: 0; background: transparent; box-shadow: none; padding: 0; margin: 0; }
+html.sv-unread2 .cal-cm-row { padding: 8px 20px 8px 20px; border-radius: 0; background: transparent; position: relative; column-gap: 10px; }
+html.sv-unread2 .cal-cm-row:hover { background: var(--svu-hover); }
+html.sv-unread2 .cal-cm-row.svu-flash { background: var(--svu-comment-soft); }
+html.sv-unread2 .cal-cm-avatar { width: 36px; height: 36px; border-radius: 8px; overflow: hidden; padding: 0; background: transparent; flex: none; }
+html.sv-unread2 .svu-slack-av { width: 36px; height: 36px; border-radius: 8px; display: block; }
+html.sv-unread2 .cal-cm-row.is-reply { padding-left: 66px; }
+html.sv-unread2 .cal-cm-row.is-reply .cal-cm-avatar, html.sv-unread2 .cal-cm-row.is-reply .cal-cm-avatar .svu-slack-av { width: 24px; height: 24px; border-radius: 6px; }
+html.sv-unread2 .cal-cm-head-line { gap: 8px; align-items: baseline; flex-wrap: wrap; }
+html.sv-unread2 .cal-cm-author { font-weight: 800; font-size: .92rem; }
+html.sv-unread2 .cal-cm-time { color: var(--text-muted); font-weight: 500; font-size: .72rem; }
+html.sv-unread2 .cal-cm-comp-label { color: var(--text-muted); font-weight: 600; font-size: .7rem; letter-spacing: 0; text-transform: none; margin-left: auto; }
+html.sv-unread2 .cal-cm-type-tag { background: var(--svu-change-soft) !important; color: var(--svu-change-ink) !important; border-radius: 99px; padding: 2px 7px !important; font-size: .66rem; }
+html.sv-unread2 .cal-cm-to-tag { background: var(--svu-staff-soft) !important; color: var(--text-secondary) !important; border-radius: 99px; padding: 2px 7px !important; font-size: .66rem; }
+html.sv-unread2 .cal-cm-to-tag.is-client { display: none; }
+html.sv-unread2 .cal-cm-row-body { font-size: .9rem; line-height: 1.46; color: var(--text-primary); }
+html.sv-unread2 .svu-tags { margin: 2px 0 2px; }
+/* Slack's hover toolbar: a small floating box at the top right of the message */
+/* "N replies" under a thread, with who replied */
+html.sv-unread2 .cal-cm-replies { border: 0; margin: 0; padding: 0; }
+html.sv-unread2 .cal-cm-rail { display: block; }   /* round 8: the thin thread line is back, matching Messages (owner: like Reddit) */
+html.sv-unread2 .cal-cm-more-replies { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 6px 66px; padding: 4px 8px 4px 4px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--svu-link); font: inherit; font-size: .78rem; font-weight: 800; cursor: pointer; }
+html.sv-unread2 .cal-cm-more-replies:hover { border-color: var(--border); background: var(--white); }
+html.sv-unread2 .cal-cm-more-replies img { width: 22px; height: 22px; border-radius: 5px; }
+html.sv-unread2 .cal-cm-more-replies .svu-last { color: var(--text-muted); font-weight: 500; }
+/* the message box, like Slack's */
+html.sv-unread2 .cal-cm-composer { border: 1px solid var(--border) !important; border-radius: 10px !important; background: var(--white) !important; box-shadow: none !important; }
+html.sv-unread2 .cal-cm-composer:focus-within { border-color: var(--text-secondary) !important; }
+html.sv-unread2 .cal-cm-composer textarea { border-radius: 10px !important; }
+html.sv-unread2 .cal-cm-send { background: var(--svu-send) !important; color: var(--svu-send-on) !important; border-radius: 6px !important; }
+html.sv-unread2 .cal-cm-send:disabled { background: var(--svu-staff-soft) !important; color: var(--text-muted) !important; }
+html.sv-unread2 .cal-cm-send-more { border-radius: 6px !important; }
+
+/* ---- Messages, Slack-like ---- */
+html.sv-unread2 #msgPage .msg-filters { display: flex; gap: 4px; background: transparent; border: 0; padding: 8px 10px; margin: 0; box-shadow: none; }
+html.sv-unread2 #msgPage .msg-filters button { flex: none; background: transparent !important; border: 0; box-shadow: none !important; padding: 5px 10px; color: var(--text-secondary); font-weight: 700; font-size: .8rem; border-radius: 6px; }
+html.sv-unread2 #msgPage .msg-filters button span { color: var(--text-muted); font-weight: 700; margin-left: 2px; }
+html.sv-unread2 #msgPage .msg-filters button.is-active { background: var(--svu-staff-soft) !important; color: var(--text-primary); }
+html.sv-unread2 #msgPage .svu-conv { display: flex; gap: 10px; align-items: center; padding: 8px 10px; margin: 1px 8px; width: calc(100% - 16px); border: 0; border-radius: 8px; background: transparent; text-align: left; }
+html.sv-unread2 #msgPage .svu-conv:hover { background: var(--svu-hover); }
+html.sv-unread2 #msgPage .svu-conv.is-active { background: var(--svu-comment-soft); }
+html.sv-unread2 .svu-conv-av { width: 36px; height: 36px; border-radius: 8px; flex: none; }
+html.sv-unread2 .svu-conv-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+html.sv-unread2 .svu-conv-top { display: flex; justify-content: space-between; gap: 10px; }
+html.sv-unread2 .svu-conv-title { font-size: .86rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.sv-unread2 .svu-conv.is-unread .svu-conv-title { font-weight: 800; }
+html.sv-unread2 .svu-conv-time { font-size: .7rem; color: var(--text-muted); white-space: nowrap; }
+html.sv-unread2 .svu-conv-client { display: none; }
+html.sv-unread2 .svu-conv-last { font-size: .78rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.sv-unread2 .svu-conv.is-unread .svu-conv-last { color: var(--text-primary); }
+html.sv-unread2 .svu-conv-badge { display: inline-flex; gap: 6px; }
+html.sv-unread2 #msgPage .msg-chat-head { border-bottom: 1px solid var(--svu-hair); }
+html.sv-unread2 #msgPage .msg-bubbles { background: var(--white); padding: 8px 0 16px; gap: 0; }
+html.sv-unread2 #msgPage .msg-day { display: flex; align-items: center; gap: 12px; margin: 14px 0 6px; background: transparent; font-size: .74rem; font-weight: 700; color: var(--text-primary); }
+html.sv-unread2 #msgPage .msg-day::before, html.sv-unread2 #msgPage .msg-day::after { content: ''; flex: 1; border-top: 1px solid var(--svu-hair); }
+html.sv-unread2 #msgPage .msg-b { display: grid; grid-template-columns: 36px 1fr; column-gap: 10px; max-width: none; width: 100%; align-self: stretch; padding: 8px 24px; margin: 0; border-radius: 0; }
+html.sv-unread2 #msgPage .msg-b:hover { background: var(--svu-hover); }
+html.sv-unread2 #msgPage .msg-b > :not(.svu-slack-av) { grid-column: 2; }
+html.sv-unread2 #msgPage .msg-b > .svu-slack-av { grid-column: 1; grid-row: 1 / span 4; width: 36px; height: 36px; border-radius: 8px; }
+html.sv-unread2 #msgPage .msg-b.is-me { align-self: stretch; }
+html.sv-unread2 #msgPage .msg-b.is-reply { padding-left: 70px; grid-template-columns: 24px 1fr; }
+html.sv-unread2 #msgPage .msg-b.is-reply > .svu-slack-av { width: 24px; height: 24px; border-radius: 6px; }
+html.sv-unread2 #msgPage .msg-b-meta { justify-content: flex-start !important; gap: 8px; align-items: baseline; font-size: .72rem; color: var(--text-muted); flex-wrap: wrap; }
+html.sv-unread2 #msgPage .msg-b-meta b { color: var(--text-primary); font-size: .9rem; font-weight: 800; }
+html.sv-unread2 #msgPage .msg-b-meta b + span:not([class]) { display: none; }
+html.sv-unread2 #msgPage .msg-b-meta > * { margin-left: 0 !important; }
+html.sv-unread2 #msgPage .msg-b-text, html.sv-unread2 #msgPage .msg-b.is-me .msg-b-text { background: transparent !important; color: var(--text-primary) !important; padding: 1px 0 0 !important; border: 0 !important; box-shadow: none !important; border-radius: 0 !important; font-size: .9rem; line-height: 1.46; max-width: 72ch; }
+html.sv-unread2 #msgPage .cal-cm-to-tag { background: var(--svu-staff-soft) !important; color: var(--text-secondary) !important; border-radius: 99px; padding: 2px 7px !important; font-size: .66rem; }
+html.sv-unread2 #msgPage .cal-cm-to-tag.is-client, html.sv-unread2 #msgPage .msg-reply-cap .cal-cm-to-tag { display: none; }
+html.sv-unread2 #msgPage .msg-b-reply { display: none; }
+html.sv-unread2 #msgPage .msg-reply { border-top: 0; padding: 0 24px 16px; }
+html.sv-unread2 #msgPage .msg-reply .cal-cm-composer { border: 1px solid var(--border) !important; border-radius: 10px !important; background: var(--white) !important; }
+html.sv-unread2 #msgPage .msg-reply .cal-cm-composer textarea { background: transparent !important; border: 0 !important; }
+html.sv-unread2 #msgPage .msg-reply .cal-cm-send { background: var(--svu-send) !important; color: var(--svu-send-on) !important; border-radius: 6px !important; }
+html.sv-unread2 #msgPage .msg-reply .cal-cm-send:disabled { background: var(--svu-staff-soft) !important; color: var(--text-muted) !important; }
+html.sv-unread2 .svu-initial, .svu-initial { display: inline-flex !important; align-items: center; justify-content: center; color: var(--svu-initial-ink, var(--white)); font-weight: 800; font-size: .62rem; letter-spacing: .01em; overflow: hidden; }
+html.sv-unread2 .cal-cm-avatar .svu-initial, html.sv-unread2 #msgPage .svu-slack-av.svu-initial, html.sv-unread2 .svu-conv-av.svu-initial { font-size: .8rem; }
+html.sv-unread2 .cal-cm-row.is-reply .cal-cm-avatar .svu-initial { font-size: .62rem; }
+/* Round 6 (owner, 2026-10-24): less noise. One set of actions per note, on hover, as plain words (no boxes or fills,
+   not even on hover); "Mark unread" is one quiet word in the Notes head; a lock stands for "Team only"; times are
+   relative; your own messages keep the picture beside the name. */
+html.sv-unread2 .cal-cm-actions { top: auto; bottom: 9px; right: 20px; background: var(--svu-hover-solid); border: 0; box-shadow: none; padding: 0 0 0 12px; gap: 12px; }
+html.sv-unread2 .cal-cm-action, html.sv-unread2 .cal-cm-action:hover, html.sv-unread2 .cal-cm-action.is-danger:hover { background: transparent; border: 0; border-radius: 0; padding: 0; color: var(--text-muted); font-size: .74rem; font-weight: 600; }
+html.sv-unread2 .cal-cm-action:hover, html.sv-unread2 .cal-cm-action:focus-visible { color: var(--text-primary); text-decoration: none; }   /* round 8: colour only, never underlined */
+html.sv-unread2 .cal-cm-action.is-danger:hover { color: var(--svu-change-ink); }
+html.sv-unread2 .cal-cm-action svg { display: none; }
+html.sv-unread2 .svu-head-unread { margin-left: auto; margin-right: 8px; border: 0; background: transparent; padding: 0; font: inherit; font-size: .76rem; font-weight: 600; color: var(--text-muted); cursor: pointer; }
+html.sv-unread2 .svu-head-unread:hover { color: var(--text-primary); text-decoration: none; }
+html.sv-unread2 #msgPage .msg-b, html.sv-unread2 #msgPage .msg-b.is-me { position: relative; align-items: start; justify-items: stretch; }
+html.sv-unread2 #msgPage .msg-b-meta { width: 100%; }
+html.sv-unread2 #msgPage .msg-b-meta > .cal-cm-comp-label { margin-left: auto !important; color: var(--text-muted); font-size: .72rem; font-weight: 500; letter-spacing: 0; text-transform: none; }
+html.sv-unread2 .svu-lock { display: inline-flex; align-items: center; color: var(--text-muted); cursor: help; }
+html.sv-unread2 .svu-lock svg { width: 12px; height: 12px; }
+html.sv-unread2 .svu-kind-change { color: var(--svu-change-ink); font-size: .74rem; font-weight: 600; }
+html.sv-unread2 #msgPage .svu-time { color: var(--text-muted); }
+/* Round 8: Reply / No reply needed at the bottom left, under the words, inside the message's own row: a row with
+   actions always keeps their room at its bottom (so nothing moves on hover), and they sit 8 px above the next row. */
+html.sv-unread2 #msgPage .msg-b:has(> .svu-msg-acts) { padding-bottom: 28px; }
+html.sv-unread2 .svu-msg-acts { position: absolute; z-index: 2; grid-column: 2; bottom: 8px; left: 0; display: flex; gap: 12px; padding: 0 8px 0 0; line-height: 16px; background: var(--svu-hover-solid); opacity: 0; pointer-events: none; }
+html.sv-unread2 #msgPage .msg-b:hover .svu-msg-acts, html.sv-unread2 #msgPage .msg-b:focus-within .svu-msg-acts { opacity: 1; pointer-events: auto; }
+html.sv-unread2 .svu-msg-acts button { border: 0; background: transparent; padding: 0; font: inherit; font-size: .74rem; font-weight: 600; color: var(--text-muted); cursor: pointer; }
+html.sv-unread2 .svu-msg-acts button:hover, html.sv-unread2 .svu-msg-acts button:focus-visible { color: var(--text-primary); text-decoration: none; }
+html.sv-unread2 #msgPage .svu-bub, html.sv-unread2 #msgPage .svu-bub-more { cursor: help; }
+/* Round 6 E (owner's rule swept over Messages and Notes): status words are quiet coloured words, never filled pills;
+   the header's actions are words; an empty thumbnail is not drawn; one red "New" line marks where the unread part
+   starts (as Slack) instead of a tag on each message; the change-request line is one quiet line; a follow-up message
+   by the same person within five minutes drops its repeated picture and name. */
+.svu-tag { font-size: .72rem; font-weight: 600; line-height: 1.2; }
+.svu-t-change, .svu-t-open { color: var(--svu-change-ink); } .svu-t-comment, .svu-t-waiting { color: var(--svu-comment-ink); }
+.svu-t-staff { color: var(--svu-staff-ink); } .svu-t-kasper { color: var(--svu-kasper-ink); }
+.svu-t-me, .svu-t-plain { color: var(--text-muted); }
+html.sv-unread2 .cal-cm-type-tag.is-tweak { background: transparent !important; color: var(--svu-change-ink) !important; padding: 0 !important; text-transform: none; letter-spacing: 0; font-size: .74rem; font-weight: 600; }
+html.sv-unread2 #msgPage .msg-chat-head .msg-thumb.is-empty { display: none; }
+html.sv-unread2 #msgPage .msg-act { border: 0; background: transparent; box-shadow: none; padding: 0 2px; color: var(--text-muted); font-size: .76rem; font-weight: 600; }
+html.sv-unread2 #msgPage .msg-act:hover { background: transparent; color: var(--text-primary); text-decoration: none; }
+html.sv-unread2 #msgPage .msg-chat-actions { gap: 14px; }
+html.sv-unread2 #msgPage .thumb-msg-new { display: flex; align-items: center; gap: 8px; margin: 8px 24px 2px; padding: 0; background: transparent; border: 0; color: var(--svu-unread-line); font-size: .7rem; font-weight: 700; }
+html.sv-unread2 #msgPage .thumb-msg-new::before { content: ''; flex: 1; border-top: 1px solid currentColor; }
+html.sv-unread2 .svu-change-line { display: flex; align-items: center; gap: 8px; margin: 2px 0; padding: 6px 24px; color: var(--text-secondary); font-size: .82rem; }
+html.sv-unread2 .svu-change-line b { color: var(--text-primary); font-weight: 700; }
+html.sv-unread2 .svu-change-line .svu-time { color: var(--text-muted); font-size: .72rem; }
+html.sv-unread2 .svu-change-line .svu-text-btn { margin-left: auto; color: var(--text-muted); font-size: .74rem; padding: 0; }
+html.sv-unread2 .svu-change-line .svu-text-btn:hover { background: transparent; color: var(--text-primary); }
+html.sv-unread2 .svu-line-av { width: 20px; height: 20px; border-radius: 5px; }
+html.sv-unread2 #msgPage .msg-b.svu-cont { padding-top: 0; margin-top: 0; }   /* round 8: never pulled up into the row above (its actions live there) */
+html.sv-unread2 #msgPage .msg-b.svu-cont > .svu-slack-av { display: none; }
+html.sv-unread2 #msgPage .msg-b.svu-cont > .msg-b-meta { display: none; }
+html.sv-unread2 #msgPage .msg-reply { padding-top: 8px; }
+html.sv-unread2 .cal-cm-row .cal-cm-head-line > .cal-cm-comp-label { position: absolute; top: 10px; right: 20px; margin: 0; }
+/* Round 7 (owner, 2026-10-24): the hover toolbar sits at the bottom right of a note or message. When the last line of
+   words runs under it, the note gets the toolbar's height of room at the bottom (327 _svuFitBars), so it never covers
+   a word and adds no space anywhere else. */
+html.sv-unread2 .cal-cm-row.svu-bar-room { padding-bottom: 28px; }
+html.sv-unread2 #msgPage .msg-b.svu-bar-room { padding-bottom: 30px; }
+/* Round 8 (owner, 2026-10-24): threads like Reddit, as in Notes: replies indented under what they answer, on a thin
+   line; at most two levels, then "replying to <first name>". The header: Open card as a word, then a plain × at the far
+   right (the page's own Close steps aside while a conversation is open). */
+html.sv-unread2 #msgPage .svu-replies { position: relative; margin-left: 46px; }
+html.sv-unread2 #msgPage .svu-replies::before { content: ''; position: absolute; left: -4px; top: 0; bottom: 8px; width: 2px; border-radius: 2px; background: var(--border); }
+html.sv-unread2 #msgPage .svu-replies .msg-b { grid-template-columns: 26px 1fr; padding-left: 20px; }
+html.sv-unread2 #msgPage .svu-replies .svu-slack-av { width: 26px; height: 26px; }
+html.sv-unread2 .svu-replying { color: var(--text-muted); font-size: .72rem; }
+html.sv-unread2 .svu-chat-close { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-left: 4px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); cursor: pointer; }
+html.sv-unread2 .svu-chat-close:hover, html.sv-unread2 .svu-chat-close:focus-visible { background: var(--svu-hover); color: var(--text-primary); }
+html.sv-unread2 .svu-chat-close svg { width: 14px; height: 14px; }
+html.sv-unread2 #msgPage.svu-has-chat .msg-page-head .msg-close { visibility: hidden; }
+html.sv-unread2 #msgPage .msg-page-head .msg-close { border: 0; background: transparent; box-shadow: none; font-size: 0; gap: 0; padding: 5px; color: var(--text-muted); }
+html.sv-unread2 #msgPage .msg-page-head .msg-close svg { width: 14px; height: 14px; }
+html.sv-unread2 #msgPage .msg-page-head .msg-close:hover { color: var(--text-primary); background: var(--svu-hover); }
+html.sv-unread2 .sv-note-outbox.is-sending { margin-top: 2px; color: var(--text-muted); }
+html.sv-unread2 #msgPage .msg-b .svu-msg-files { grid-column: 2; margin-top: 2px; }
+
+/* PHONE POLISH FOR STAFF (phone_polish_staff, session Grip, 2026-10-25; docs/syncview-design/phone-audit/). The same
+   phone design, smoother: only for the staff members the switch lists (188 puts html.sv-phone-polish on the page), and
+   only at phone width, so a desktop page never changes. */
+@media (max-width:767px) {
+ /* An opened post: Notes sits right under the statuses (it was the last line, about 1,100 px down), and the picture
+    is a little shorter, so the post's details start higher. */
+ html.sv-phone-polish.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection][data-thumb-mode=detail] .cal-card-body > .cal-card-status-row { order:1; }
+ html.sv-phone-polish.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection][data-thumb-mode=detail] .cal-card-body > .cal-card-foot { order:2; }
+ html.sv-phone-polish.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection][data-thumb-mode=detail] .cal-card-thumb { height:180px; }
+ html.sv-phone-polish.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection][data-thumb-mode=detail] .cal-card-thumb img { max-height:180px!important; }
+ /* Notes: each note's Reply / Mark done / Delete sit in a plain row (no box around them), and Delete is a quiet bin at
+    the row's far end, away from Reply. It still asks before it deletes. */
+ html.sv-phone-polish.sv-staff-phone body #calCommentsOverlay .cal-cm-actions { width:auto;border-color:transparent;background:transparent;box-shadow:none; }
+ html.sv-phone-polish.sv-staff-phone body #calCommentsOverlay .cal-cm-action.is-danger { margin-left:auto;justify-content:center;min-width:44px;color:var(--text-muted); }
+ html.sv-phone-polish.sv-staff-phone body #calCommentsOverlay .cal-cm-action.is-danger > span { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap; }
+ /* Messages: the last message shows on two lines, so a short question reads without opening it. */
+ html.sv-phone-polish.sv-staff-phone #msgPage .msg-conv-last { white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical; }
+ /* Production: the person's picture sits on the title's line, so a row never wraps to a third line on a 360 or 390 px phone. */
+ html.sv-phone-polish.fph-on[data-fph="production"] :is(.prod-row,.prod-subrow) .prod-assign-hot { order:1; }
+ html.sv-phone-polish.fph-on[data-fph="production"] :is(.prod-row,.prod-subrow) .prod-title { flex-basis:calc(100% - 104px); }
+}
+/* Phone polish, round 2 (phone_polish_staff, session Grip, 2026-10-25). */
+@media (max-width:767px) {
+ /* Messages: on a 360 px phone the title ran under the word "Close". Close is a plain 44 px cross (its name is still
+    "Close Messages"), and below 378 px the title is a little smaller, so "Messages" shows whole. */
+ html.sv-phone-polish.sv-staff-phone body .pocket-staff-msg-close { font-size:0;gap:0;width:44px;min-width:44px;padding:0;justify-content:center; }
+ html.sv-phone-polish.sv-staff-phone body .pocket-staff-msg-close::before { content:'\00d7';font-size:26px;line-height:1;font-weight:500; }
+ html.sv-phone-polish.sv-staff-phone body .pocket-staff-bar:has(.pocket-staff-msg-close) .pocket-staff-title { font-size:min(28px, 7.4vw); }
+ /* Notes: a note's actions sit right under its words, with no empty band between (about 17 px less per note). */
+ html.sv-phone-polish.sv-staff-phone body #calCommentsOverlay .cal-cm-row { row-gap:0; }
+ html.sv-phone-polish.sv-staff-phone body #calCommentsOverlay .cal-cm-actions { padding:0;margin-top:0;border-width:0; }
+ /* The Sheet: no empty band under the Sheet / Calendar / Review switch, and a slimmer grid / list bar, so the first
+    post starts higher. */
+ html.sv-phone-polish body:has(#calView[data-pocket-staff-phone]) #calView[data-pocket-staff-phone]:is([data-thumb-mode=grid],[data-thumb-mode=list]) > .cal-toolbar,
+ html.sv-phone-polish body:has(#sxrView[data-pocket-staff-samples]) #sxrView[data-pocket-staff-samples]:is([data-thumb-mode=grid],[data-thumb-mode=list]) > .cal-toolbar { row-gap:0;margin-bottom:4px; }
+ html.sv-phone-polish.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection]:is([data-thumb-mode=grid],[data-thumb-mode=list]) .thumb-collection-bar { padding-block:4px; }
+ /* A "Refreshing" or "Couldn't refresh" notice there still gets its room. */
+ html.sv-phone-polish.sv-staff-phone body :is(#calView,#sxrView)[data-thumb-collection] > .cal-toolbar > .cal-toolbar-right:has(> :is(.cal-refreshing,.cal-stale-notice):not([hidden])) { margin-top:8px; }
+}

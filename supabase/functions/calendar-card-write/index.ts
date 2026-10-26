@@ -15,6 +15,9 @@
 //     refused out loud instead of writing.
 //   * Its log line says fn: calendar-card-write, so the two writers' traffic
 //     can be told apart while both run.
+//   * A save that carries a caption tells the caption history trigger how the
+//     caption changed (typed, redo with its note, restored), as a header on its
+//     own write (captionOriginHeader in logic.mjs).
 //
 // Required env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and the staff role
 // key secrets the shared write auth reads.
@@ -36,12 +39,15 @@ import {
   applyGuards,
   buildEvents,
   buildIncoming,
+  CAPTION_ORIGIN_HEADER,
+  captionOriginHeader,
   clean,
   commentRpcArgs,
   FLAG_KEY,
   has,
   ledgerSource,
   mintThumbRev,
+  pastWriteDeadline,
   responsePayload,
   rosterAllows,
   scalarPayloadForExisting,
@@ -171,10 +177,15 @@ Deno.serve(async (req: Request) => {
   let id = "";
   let outcome = "error";
 
+  // Caption history: how this save changed the caption rides on this function's own writes (logic.mjs).
+  const captionOrigin = captionOriginHeader(body, actor);
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    { auth: { persistSession: false, autoRefreshToken: false } },
+    {
+      auth: { persistSession: false, autoRefreshToken: false },
+      ...(captionOrigin ? { global: { headers: { [CAPTION_ORIGIN_HEADER]: captionOrigin } } } : {}),
+    },
   );
 
   try {
@@ -208,6 +219,8 @@ Deno.serve(async (req: Request) => {
     }
     const post = stripPrivate(guarded) as Row;
     const existsAlready = !!(existingRead.row && existingRead.row.id);
+    // Too slow to still be wanted: the page has given up or is about to. Nothing is written (logic.mjs).
+    if (pastWriteDeadline(started, Date.now())) throw new Refusal(503, "too_late");
     await writeCalendarRow(supabase, client, post, existsAlready);
 
     const shared = {

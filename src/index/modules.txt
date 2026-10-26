@@ -15,6 +15,7 @@
 072-workload-calm.js.part
 210-production-state-writes.js.part
 250-production-controls-data.js.part
+255-production-thumbnail-titles.js.part
 230-production-create-comments.js.part
 080-workload-render.js.part
 090-workload-popovers.js.part
@@ -54,6 +55,7 @@
 322-core-kasper-tab-counts.js.part
 323-kasper-dashboard-tail.js.part
 326-core-messages-inbox.js.part
+327-core-unread-badges.js.part
 324-client-onboarding-panel.js.part
 097-today.js.part
 098-smm-clients.js.part

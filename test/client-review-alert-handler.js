@@ -4,7 +4,9 @@
 // (admin, smm; never a client token), the channel and link are looked up on the server and never taken
 // from the caller, the private channel is the only one ever read, every send is recorded BEFORE Slack is
 // called, the six-hour rule, the bot-not-in-channel error, the owner-only preview going to a DM and never
-// a channel, and that no token is ever returned or stored.
+// a channel, and that no token is ever returned or stored. Also the tag: a linked Slack person is
+// at-mentioned at the very start, an unlinked client gets the old message byte for byte, and a database
+// without the new column still sends.
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
@@ -16,6 +18,7 @@ const REVIEW_TOKEN = 'AbCdEfGhIjKlMnOpQrStUvWxYz012345';
 const PRIVATE = 'C0PRIVATE01';
 const CREATIVE = 'C0CREATIVE1';
 const OWNER_DM = 'U0OWNER0001';
+const CLIENT_PERSON = 'U0CLIENTP01';
 const NOW = Date.parse('2026-10-14T12:00:00Z');
 
 // The message's one section: "*headline*\n<url|Review now>". Returns the unescaped url and the pieces.
@@ -46,7 +49,8 @@ function fakeDb(state) {
         let rows = (state.tables[table] || []).slice();
         for (const [c, v] of q.filters) rows = rows.filter((r) => r[c] === v);
         rows.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-        const res = state.failTable === table ? { data: null, error: { message: 'boom secret detail' } } : { data: q.single ? (rows[0] || null) : rows, error: null };
+        const colMissing = state.failCols && state.failCols.test(q.cols);
+        const res = state.failTable === table || colMissing ? { data: null, error: { message: colMissing ? 'column does not exist' : 'boom secret detail' } } : { data: q.single ? (rows[0] || null) : rows, error: null };
         return Promise.resolve(res).then(resolve, reject);
       },
     };
@@ -56,11 +60,13 @@ function fakeDb(state) {
 }
 
 function fakeSlack(state) {
-  const log = { channel: [], direct: [], info: [] };
+  const log = { channel: [], direct: [], info: [], users: [], members: [] };
   return {
     log,
     async channelInfo(token, id) { log.info.push(id); return state.info || { ok: true, name: 'acme-private', member: true }; },
     async postChannel(token, id, message, msgId) { log.channel.push({ token, id, message, msgId }); return state.channelOut || { kind: 'sent', messageId: '1788800000.123456' }; },
+    async userInfo(token, id) { log.users.push(id); return state.user || { ok: true, name: 'Client Person' }; },
+    async channelHasMember(token, channel, id) { log.members.push([channel, id]); return state.has || { ok: true, member: true }; },
     async postDirect(token, id, message) { log.direct.push({ token, id, message }); return state.directOut || { kind: 'sent', messageId: '1788800000.123456' }; },
   };
 }
@@ -127,7 +133,7 @@ async function call(mod, deps, body, headers = { 'x-syncview-key': 'smm-key', 'x
     ok(s.slack.log.channel.length === 1 && s.slack.log.channel[0].id === PRIVATE, 'the post goes to the roster private channel');
     ok(s.slack.log.channel[0].id !== CREATIVE && s.slack.log.channel[0].id !== 'C0ATTACKER1', 'never the creative channel, never a caller-supplied channel');
     const reads = s.db.calls.selects.filter((c) => c.table === 'client_profiles');
-    ok(reads.length === 1 && !/creative/.test(reads[0].cols) && /slack_channel_id/.test(reads[0].cols), 'the creative channel column is never even selected');
+    ok(reads.length === 2 && reads.every((c) => !/creative/.test(c.cols)) && reads.filter((c) => /slack_channel_id/.test(c.cols)).length === 1 && reads.filter((c) => /slack_mention_user_id/.test(c.cols)).length === 1, 'the creative channel column is never even selected (one read for the channel, one for the person to tag)');
     const m = s.slack.log.channel[0].message;
     const parsed = parseMessage(m);
     const url = new URL(parsed.url);
@@ -231,6 +237,84 @@ async function call(mod, deps, body, headers = { 'x-syncview-key': 'smm-key', 'x
     const d = await call(mod, s.deps, { action: 'audit', detail: true }, { 'x-syncview-key': 'admin-key' });
     ok([...d.json.detail.without_channel].sort().join() === 'c3,c4' && d.json.detail.bot_not_member.join() === 'c2', 'audit: detail names the clients for the admin who asked');
   }
+  {
+    const tables = {
+      clients: [1, 2, 3, 4].map((n) => ({ slug: 'c' + n, active: true, kind: 'client' })).concat([{ slug: 'testc', active: true, kind: 'test' }]),
+      client_profiles: [
+        { slug: 'c1', slack_channel_id: 'C0AAAAAAA1', slack_mention_user_id: 'U0AAAAAAAA1' },
+        { slug: 'c2', slack_channel_id: 'C0AAAAAAA2', slack_mention_user_id: 'not-an-id' },
+        { slug: 'c3', slack_channel_id: 'C0AAAAAAA3', slack_mention_user_id: 'U0AAAAAAAA3', archived_at: '2026-10-01T00:00:00Z' },
+        { slug: 'testc', slack_channel_id: 'C0AAAAAAA9', slack_mention_user_id: 'U0AAAAAAAA9' },
+      ],
+    };
+    const s = setup({ tables });
+    const r = await call(mod, s.deps, { action: 'audit' }, { 'x-syncview-key': 'admin-key' });
+    ok(r.json.mention_available === true && r.json.without_slack_person === 3, 'audit: counts active clients with no linked Slack person (a bad id and an archived profile count as not linked; the test client is not counted)');
+    const d = await call(mod, s.deps, { action: 'audit', detail: true }, { 'x-syncview-key': 'admin-key' });
+    ok([...d.json.detail.without_slack_person].sort().join() === 'c2,c3,c4', 'audit: detail names them for the admin who asked');
+    const pre = await call(mod, setup({ tables, failCols: /slack_mention_user_id/ }).deps, { action: 'audit' }, { 'x-syncview-key': 'admin-key' });
+    ok(pre.json.ok && pre.json.without_slack_person === null && pre.json.mention_available === false && pre.json.without_channel === 2, 'audit before the migration: the count is null (unknown), never 0, and the rest still works');
+  }
+
+  // ── The tag: a linked Slack person is at-mentioned first; no person, no change.
+  const linked = (id, extra = {}) => ({ tables: { client_profiles: [{ slug: 'fixtureclient', slack_channel_id: PRIVATE, creative_channel_id: CREATIVE, archived_at: null, slack_mention_user_id: id, ...extra }] } });
+  {
+    const plain = mod.buildMessage('calendar', 'https://app.example.test/?c=A&t=x');
+    const tagged = mod.buildMessage('calendar', 'https://app.example.test/?c=A&t=x', CLIENT_PERSON);
+    ok(tagged.blocks[0].text.text.startsWith('<@' + CLIENT_PERSON + '> *New content is ready for your review.*\n<'), 'unit: with an id the block starts with the Slack mention, then the bold line');
+    ok(tagged.text.startsWith('<@' + CLIENT_PERSON + '> New content is ready for your review.'), 'unit: the notification text starts with the mention too (that is what the phone shows)');
+    ok(tagged.blocks[0].text.text === '<@' + CLIENT_PERSON + '> ' + plain.blocks[0].text.text && tagged.text === '<@' + CLIENT_PERSON + '> ' + plain.text, 'unit: the rest of the message is exactly the untagged one');
+    ok(JSON.stringify(mod.buildMessage('samples', 'https://a.test/?a=1&b=2', '')) === JSON.stringify(mod.buildMessage('samples', 'https://a.test/?a=1&b=2')), 'unit: no id gives the old message byte for byte');
+    for (const bad of ['C0CHANNEL01', 'u0lowercase', '<!channel>', '<@U0CLIENTP01>', 'U0CL|ENT01', '@here', 'U123', 'U0CLIENTP01 ', ' x']) {
+      const m = mod.buildMessage('calendar', 'https://a.test/', bad);
+      ok(!/<@|<!/.test(JSON.stringify(m)) || (bad.trim() === CLIENT_PERSON), 'unit: "' + bad + '" is not a member id, so no mention markup is written');
+    }
+    ok(mod.mentionIdOf(' U0CLIENTP01 ') === CLIENT_PERSON && mod.mentionIdOf('W0GRIDUSER1') === 'W0GRIDUSER1' && mod.mentionIdOf('<!here>') === '', 'unit: member ids (U or W) are accepted, everything else is dropped');
+    ok(mod.buildMessage('calendar', 'https://a.test/?q=<b>&r=1', CLIENT_PERSON).blocks[0].text.text.endsWith('<https://a.test/?q=&lt;b&gt;&amp;r=1|Review now>'), 'unit: the link is still escaped as before with a tag in front');
+  }
+  {
+    const s = setup(linked(CLIENT_PERSON)); const r = await call(mod, s.deps, SEND);
+    const m = s.slack.log.channel[0].message;
+    ok(r.json.sent && r.json.tagged === true && m.blocks[0].text.text.startsWith('<@' + CLIENT_PERSON + '> *New content') && m.text.startsWith('<@' + CLIENT_PERSON + '> '), 'send: a linked client is tagged at the start of the message');
+    ok(s.slack.log.channel[0].id === PRIVATE, 'send: still the private channel');
+    const stored = JSON.stringify([s.db.calls.inserts, s.db.calls.updates]);
+    ok(!stored.includes(CLIENT_PERSON), 'send: the tagged person is not written to the alert log');
+  }
+  {
+    const s = setup(linked(CLIENT_PERSON)); await call(mod, s.deps, { ...SEND, action: 'preview' }, { 'x-syncview-key': 'admin-key' });
+    const s2 = setup(linked(CLIENT_PERSON)); await call(mod, s2.deps, SEND);
+    ok(s.slack.log.direct[0].id === OWNER_DM && s.slack.log.channel.length === 0 && JSON.stringify(s.slack.log.direct[0].message) === JSON.stringify(s2.slack.log.channel[0].message), 'preview: the tagged message goes, byte for byte, to the owner DM only');
+  }
+  {
+    const s = setup(linked('<!channel>')); const r = await call(mod, s.deps, SEND);
+    ok(r.json.sent && r.json.tagged === false && !/<!|<@/.test(JSON.stringify(s.slack.log.channel[0].message)), 'send: a stored value that is not a member id posts the untagged message, never @channel');
+  }
+  {
+    const s = setup(linked(CLIENT_PERSON, { archived_at: '2026-10-01T00:00:00Z' })); const r = await call(mod, s.deps, { action: 'status', client: 'Fixture Client', surface: 'calendar' });
+    ok(r.json.mention.linked === false && r.json.has_channel === false, 'an archived profile has no channel and no tag');
+  }
+  {
+    const s = setup({ failCols: /slack_mention_user_id/ }); const r = await call(mod, s.deps, SEND);
+    ok(r.status === 200 && r.json.sent && r.json.tagged === false && !/<@/.test(JSON.stringify(s.slack.log.channel[0].message)), 'before the migration (no column): the untagged message still sends');
+    const st = await call(mod, setup({ failCols: /slack_mention_user_id/ }).deps, { action: 'status', client: 'Fixture Client', surface: 'calendar' });
+    ok(st.json.ok && st.json.mention.available === false && st.json.mention.linked === false, 'before the migration: status says tagging is not available yet');
+  }
+  {
+    const s = setup(linked(CLIENT_PERSON)); const r = await call(mod, s.deps, { action: 'status', client: 'Fixture Client', surface: 'calendar' });
+    ok(r.json.mention.available === true && r.json.mention.linked === true && r.json.mention.name === 'Client Person' && r.json.mention.in_channel === true, 'status: who will be tagged, and that they are in the channel');
+    ok(!JSON.stringify(r.json).includes(CLIENT_PERSON), 'status: the member id itself is not returned to the page');
+    ok(s.slack.log.users[0] === CLIENT_PERSON && s.slack.log.members[0][0] === PRIVATE, 'status: the name and membership are read from Slack for the private channel');
+    ok(s.slack.log.channel.length === 0 && s.db.calls.inserts.length === 0, 'status: still posts and records nothing');
+  }
+  {
+    const s = setup({ ...linked(CLIENT_PERSON), slackState: { user: { ok: false, code: 'slack_not_authorised' }, has: { ok: true, member: false } } });
+    const r = await call(mod, s.deps, { action: 'status', client: 'Fixture Client', surface: 'calendar' });
+    ok(r.json.mention.linked === true && r.json.mention.name === null && r.json.mention.in_channel === false, 'status: an unreadable name is null (never blocks); a person outside the channel is reported');
+  }
+  {
+    const s = setup(); const r = await call(mod, s.deps, { action: 'status', client: 'Fixture Client', surface: 'calendar' });
+    ok(r.json.mention.available === true && r.json.mention.linked === false && s.slack.log.users.length === 0, 'status: not linked, and Slack is not asked about anybody');
+  }
 
   // ── The Slack adapter.
   {
@@ -256,6 +340,14 @@ async function call(mod, deps, body, headers = { 'x-syncview-key': 'smm-key', 'x
     ok((await dm('D0DIRECT001')).kind === 'sent', 'adapter: a direct message is sent');
     ok((await dm(PRIVATE)).kind === 'failed', 'adapter: an answer from a channel is refused as a preview');
     const before = calls.length; ok((await dm('D0DIRECT001', PRIVATE)).code === 'preview_target' && calls.length === before, 'adapter: a channel id is never accepted as the preview target, and nothing is sent');
+    const who = await slackMod.makeSlack(fx({ ok: true, user: { name: 'handle', real_name: 'Real Name', profile: { display_name: '', real_name: 'Real Name' } } })).userInfo('t', CLIENT_PERSON);
+    ok(who.ok && who.name === 'Real Name', 'adapter: users.info gives the name to show (display name, else real name)');
+    ok((await slackMod.makeSlack(fx({ ok: false, error: 'missing_scope' })).userInfo('t', CLIENT_PERSON)).code === 'slack_not_authorised', 'adapter: a missing users:read scope reads as not authorised, not a crash');
+    const n = calls.length; ok((await slackMod.makeSlack(fx({ ok: true })).userInfo('t', PRIVATE)).ok === false && calls.length === n, 'adapter: a channel id is never looked up as a person');
+    const mem = (out) => slackMod.makeSlack(fx(out)).channelHasMember('t', PRIVATE, CLIENT_PERSON);
+    ok((await mem({ ok: true, members: ['U0OTHER0001', CLIENT_PERSON] })).member === true, 'adapter: a member is found');
+    ok((await mem({ ok: true, members: ['U0OTHER0001'] })).member === false, 'adapter: a non-member is reported');
+    ok((await mem({ ok: true, members: ['U0OTHER0001'], response_metadata: { next_cursor: 'abc' } })).ok === false, 'adapter: past one page the answer is unknown, never "not a member"');
   }
 
   // ── Browser preflight: the staff identity triple the page attaches is allowed.

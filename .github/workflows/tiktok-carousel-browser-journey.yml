@@ -57,7 +57,13 @@ jobs:
         uses: ./.github/actions/build-index
       - name: Install pinned browser-test dependencies
         run: npm install --no-package-lock
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      # A fresh `--with-deps` install ran past this job's 10-minute limit on 2026-10-23 (runs
+      # 40025111141 and 40033800766, cancelled inside "Install Chromium" before the journey
+      # ran). The shared action installs from caches, never waiting on the apt mirror
+      # (OPEN_REPAIRS 502).
+      - name: Install Chromium and its system libraries
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       - name: Run the TikTok carousel browser journey
         run: node docs/syncview-design/tests/tiktok-carousel-browser-journey.js

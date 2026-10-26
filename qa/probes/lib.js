@@ -149,6 +149,40 @@ async function waitForPost(page, pid, pred) {
   }, { pid, predSrc: pred ? pred.toString() : null });
 }
 
+// The test client's link opens on the Review page (review_stage_client_pages), and since #2325
+// (review_client_polish, test client only) a post whose conversation is on that stage counts as
+// read the moment it is drawn. A probe about the Calendar's Notes dot (the client has NOT looked
+// at the conversation) must therefore put the client on the Sheet first, where Notes only open on
+// a click. Returns the view the page ended on and whether the review stage is still showing.
+async function clientOnSheet(cli) {
+  return cli.evaluate(async () => {
+    if (typeof window.onCalViewChange === 'function' && calState.view !== 'organizer') window.onCalViewChange('organizer');
+    for (let i = 0; i < 20 && calState.view !== 'organizer'; i++) await new Promise(x => setTimeout(x, 150));
+    await new Promise(x => setTimeout(x, 600));
+    const host = document.getElementById('svReviewStage');
+    // On Sheet, Month and Week the client page keeps only the stage's header: #rsApp gets class "bar".
+    const app = host && !host.hidden && host.shadowRoot ? host.shadowRoot.getElementById('rsApp') : null;
+    return { view: calState.view, stageShown: !!(app && !app.classList.contains('bar')) };
+  });
+}
+// The client on the Review page with post `pid` on the stage (its strip chip clicked). Returns
+// { onStage } — false when the post never reached the client's strip.
+async function clientStagePost(cli, pid) {
+  return cli.evaluate(async (pid) => {
+    if (calState.view !== 'review') window.onCalViewChange('review');
+    // The stage draws inside its own shadow root (195-review-stage, _rsMount).
+    const q = (sel) => { const h = document.getElementById('svReviewStage'); return h && !h.hidden && h.shadowRoot ? h.shadowRoot.querySelector(sel) : null; };
+    for (let i = 0; i < 40; i++) {
+      const chip = q('.chipp[data-id="' + pid + '"]');
+      if (chip) { if (chip.getAttribute('aria-current') !== 'true') chip.click(); await new Promise(x => setTimeout(x, 400));
+        const cur = q('.chipp[data-id="' + pid + '"]');
+        if (cur && cur.getAttribute('aria-current') === 'true') return { onStage: true }; }
+      await new Promise(x => setTimeout(x, 300));
+    }
+    return { onStage: false };
+  }, pid);
+}
+
 // tiny assert harness
 function makeOk(label) { const s = { pass: 0, fail: 0, label: label || '' };
   s.ok = (c, m) => { if (c) s.pass++; else s.fail++; console.log((c ? '  ✅ ' : '  ❌ ') + m); return c; };
@@ -204,6 +238,7 @@ async function clientCompActive(cli, pid, comp) {
 
 module.exports = Object.assign({}, G, {
   up, rawRow, pollRaw, capture, smmPage, clientPage, kasperPage, waitForPost, makeOk,
+  clientOnSheet, clientStagePost,
   smmResolveTweak, clientApprove, clientRequest, overallOn, clientCompActive,
   stubRerouteFlagProduction,
   ORIGIN, UPSERT, SUPA, KEY,

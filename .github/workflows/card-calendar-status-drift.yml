@@ -53,6 +53,10 @@ jobs:
     # Only a schedule copy asks; any other run skips this job and needs no runner for it (Throttle, 2026-10-17).
     if: github.event_name == 'schedule'
     uses: ./.github/workflows/schedule-fallback-guard.yml
+    # A stand-down copy goes red when the timer's run it stood down for was red
+    # (OPEN_REPAIRS 505: nine green schedule rows over nine red nights).
+    with:
+      mirror_timer_failure: true
     permissions:
       actions: read
       contents: read

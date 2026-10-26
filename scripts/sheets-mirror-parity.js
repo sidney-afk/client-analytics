@@ -19,7 +19,11 @@
  *   market_research_briefs  client x brief id
  *   client_profiles     client (active copy vs the Clients Info tab; the database side is
  *                       hashed from the row's CURRENT values, not its stored row_hash, which
- *                       native edits leave stale. --db-digests must do the same for this dataset)
+ *                       native edits leave stale. --db-digests must do the same for this dataset).
+ *                       Test clients (clients.kind 'test') are left out on both sides, except the
+ *                       main test client, which stays compared: Create client's test mode drops a
+ *                       test client's Sheet copy on purpose, and the owner keeps the Sheet only as
+ *                       a backup (2026-10-26, OPEN_REPAIRS 507)
  *
  * Prints counts only. A client is shown as a short sha256 reference of its
  * slug, never by name or slug: the repository and its CI logs are public.
@@ -85,6 +89,25 @@ const GROUPING = {
   market_research_briefs: { table: 'analytics_market_research_briefs', day: 'id', order: 'id' },   // no seq column
   client_profiles: { table: 'client_profiles', day: null },
 };
+
+// The test clients Clients Info is not compared on: every clients.kind 'test' slug but the
+// main test client's.
+const KEPT_TEST_CLIENT = 'sidneylaruel';
+function skippedTestSlugs(clients) {
+  return new Set((clients || []).filter(c => c && c.kind === 'test' && c.slug && c.slug !== KEPT_TEST_CLIENT).map(c => c.slug));
+}
+function withoutSlugs(groups, skip) {
+  const out = new Map();
+  for (const [k, g] of groups) if (!skip.has(g.slug)) out.set(k, g);
+  return out;
+}
+async function readSkippedTestSlugs(env = process.env, fetchImpl = fetch) {
+  const url = env.SUPABASE_URL, key = env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+  const r = await fetchImpl(`${url}/rest/v1/clients?select=slug,kind&kind=eq.test`, { headers: { apikey: key, authorization: 'Bearer ' + key } });
+  if (!r.ok) throw new Error('test clients read failed: HTTP ' + r.status);
+  return skippedTestSlugs(await r.json());
+}
 
 /* groups: Map "slug\u0000day" -> { slug, day, hashes: string[] } */
 function addTo(groups, slug, day, hash) {
@@ -229,11 +252,15 @@ async function main() {
 
   const roster = new Set(m.parseCsv(await download('Clients Info')).map(r => m.clientSlug(r.client_name)).filter(Boolean));
   report.active_clients = roster.size;
+  // Without the service key (--db-digests alone) the test clients cannot be read, so none are skipped.
+  const skipTests = (await readSkippedTestSlugs()) || new Set();
+  report.test_clients_not_compared = skipTests.size;
 
   for (const dataset of Object.keys(GROUPING)) {
     const text = await download(m.DATASETS[dataset].sheet);
-    const sheet = await sheetGroups(m, dataset, text, cutoff);
-    const db = digests ? dbGroupsFromDigests(digests, dataset) : await dbGroupsRest(dataset, cutoff);
+    let sheet = await sheetGroups(m, dataset, text, cutoff);
+    let db = digests ? dbGroupsFromDigests(digests, dataset) : await dbGroupsRest(dataset, cutoff);
+    if (dataset === 'client_profiles') { sheet = withoutSlugs(sheet, skipTests); db = withoutSlugs(db, skipTests); }
     const res = compareGroups(sheet, db);
     const byKind = {};
     for (const d of res.differences) byKind[d.kind] = (byKind[d.kind] || 0) + 1;
@@ -250,11 +277,12 @@ async function main() {
     console.log(`${dataset.padEnd(24)} groups ${String(res.groups).padStart(6)}  matched ${String(res.matched).padStart(6)}  differing ${String(res.differences.length).padStart(5)}  ${JSON.stringify(byKind)}`);
   }
   report.total_differences = differences;
+  console.log(`client_profiles: ${skipTests.size} test client(s) not compared`);
   const out = arg('--json');
   if (out) fs.writeFileSync(out, JSON.stringify(report, null, 2));
   console.log(differences ? `PARITY: ${differences} difference(s)` : 'PARITY: clean');
   if (differences && process.argv.includes('--strict')) process.exitCode = 1;
 }
 
-module.exports = { compareGroups, digest, ref, addTo, GROUPING, DATABASE_ONLY_SOURCE, databaseOwnedDatasets, readDatabaseOwned, dbGroupsRest, profileHash, sheetGroups };
+module.exports = { skippedTestSlugs, withoutSlugs, readSkippedTestSlugs, KEPT_TEST_CLIENT, compareGroups, digest, ref, addTo, GROUPING, DATABASE_ONLY_SOURCE, databaseOwnedDatasets, readDatabaseOwned, dbGroupsRest, profileHash, sheetGroups };
 if (require.main === module) main().catch(e => { console.error('parity failed: ' + e.message); process.exit(1); });

@@ -56,6 +56,15 @@
  * that timed out would skip the caller's jobs, which is the one way to fail
  * closed.
  *
+ * TIMER RED (2026-10-26, OPEN_REPAIRS 505). A copy that stands down skips
+ * every job, and GitHub calls a run whose jobs were all skipped a success. So
+ * the Calendar nightly's schedule row was green for nine days while every
+ * timer run it stood down for was red: a green row that had run no probe.
+ * The verdict now carries the timer run's status and conclusion, the guard job
+ * outputs them, and a caller that sets `mirror_timer_failure` has its
+ * stand-down copy fail with a link to the red timer run (timerFailed below).
+ * A timer run still in progress, or green, leaves the copy green as before.
+ *
  * PUBLIC SAFETY. Prints run numbers, times and a reason code only.
  */
 
@@ -180,6 +189,9 @@ function timerCovered({ cron, runs, atMs, branch }) {
     reason: hit ? 'timer_ran' : 'timer_missed',
     slot: new Date(window.slot).toISOString(),
     timer_run: hit ? hit.id : null,
+    // How the timer's run stood when the copy looked (see TIMER RED below).
+    timer_status: hit ? clean(hit.status) : '',
+    timer_conclusion: hit ? clean(hit.conclusion) : '',
   };
 }
 
@@ -258,13 +270,19 @@ async function decide({ env = process.env, fetchImpl = fetch, now = Date.now, sl
   }
 }
 
+/** The timer run this copy stood down for finished red (failure or timed out). */
+function timerFailed(verdict) {
+  return Boolean(verdict) && verdict.run === false && /^(failure|timed_out)$/.test(clean(verdict.timer_conclusion));
+}
+
 async function main(env = process.env) {
   const verdict = await decide({ env });
   const fs = require('node:fs');
   const line = verdict.run
     ? `Schedule fallback guard: this run goes ahead (${verdict.reason}).`
-    : `Schedule fallback guard: the database timer already started this workflow (run ${verdict.timer_run}) for the slot at ${verdict.slot}, so this late GitHub copy stands down.`;
-  try { if (env.GITHUB_OUTPUT) fs.appendFileSync(env.GITHUB_OUTPUT, `run=${verdict.run ? 'true' : 'false'}\n`); } catch (_) { /* the job output then defaults to true */ }
+    : `Schedule fallback guard: the database timer already started this workflow (run ${verdict.timer_run}) for the slot at ${verdict.slot}, so this late GitHub copy stands down. That run was ${verdict.timer_conclusion || verdict.timer_status || 'unknown'} when this copy looked.`;
+  const outputs = `run=${verdict.run ? 'true' : 'false'}\ntimer_run=${verdict.timer_run || ''}\ntimer_failed=${timerFailed(verdict) ? 'true' : 'false'}\n`;
+  try { if (env.GITHUB_OUTPUT) fs.appendFileSync(env.GITHUB_OUTPUT, outputs); } catch (_) { /* the job output then defaults to true */ }
   try { if (env.GITHUB_STEP_SUMMARY) fs.appendFileSync(env.GITHUB_STEP_SUMMARY, `${line}\n`); } catch (_) { /* summary is a courtesy */ }
   if (verdict.reason === 'guard_error') console.log(`::warning::${line}`);
   console.log(JSON.stringify(verdict));
@@ -276,5 +294,5 @@ if (require.main === module) {
 
 module.exports = {
   DUE_GRACE_MINUTES, EARLY_TOLERANCE_MINUTES, REQUEST_TIMEOUT_MS,
-  countsAsTimerRun, coverWindow, cronMatches, decide, isDbTimerRun, latestSlot, parseCron, runTitle, timerCovered, workflowCrons,
+  countsAsTimerRun, coverWindow, cronMatches, decide, isDbTimerRun, latestSlot, parseCron, runTitle, timerCovered, timerFailed, workflowCrons,
 };

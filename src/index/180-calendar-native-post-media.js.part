@@ -1,6 +1,6 @@
 import { svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { _writeUiRecordSaveFailure, _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
-import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
+import { showConfirm, showNotify, showToast, svBusyText } from './040-shared-briefs.js';
 import { wlAddWorkingDays, wlTodayISO } from './068-core-workload-dates.js';
 import {
   CALENDAR_REORDER_EF_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL,
@@ -16,7 +16,7 @@ import {
   _calCaptionPromptsInFlight, _calCaptionPromptsLoaded, _calComponentsFor, _calNormStatus,
   _calAssertSavingOn, _calSetCapJobBatch, _calSetCapJobPollBusy, _calSetCapJobPollTimer,
   _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
-  _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calUpsertFetch, _calUpsertHeaders,
+  _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calUpsertFetch, _calUpsertHeaders, _calCapOriginMark,
   _settingsAssertSavingOn, _settingsWriteHeaders, _syncviewEfHeaders,
   _writeUiNativeId, _writeUiQueueDiagnostic, _writeUiRecordFailure,
   _writeUiRerouteUseGatewayWhenReady, computeOverallStatus
@@ -27,6 +27,7 @@ import {
   calClientSlug, calState
 } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _svDraftNoteHtml } from './131-core-html.js';
+import { svCaptionHistoryOn } from './188-review-stage-switch.js';
 import {
   _calAddDaysISO, _calAddMonthsISO, _calIsoFirstOfMonth, _calIsoMondayOf, _calIsoOf, _calParseIso
 } from './132-calendar-dates-ids.js';
@@ -41,7 +42,7 @@ import {
 } from './160-calendar-organize-ui.js';
 import {
   CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS, CAL_NATIVE_BATCH_FILTER_MIN,
-  CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS, CAL_NATIVE_NAME_MAX, CAL_NATIVE_TITLE_SEPARATOR,
+  CAL_NATIVE_EDITOR_NONE, CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS, CAL_NATIVE_NAME_MAX, CAL_NATIVE_TITLE_SEPARATOR,
   _calAutosizeTextareas, _calCloseNativePost, _calFlushCardSave, _calInsertLocalBlankCard,
   _calNativeBatchCompatible, _calNativeBatchDisplayName, _calNativeBatchLists,
   _calNativeBatchMatches, _calNativeBatchNameFor, _calNativeBatchOptionsHtml,
@@ -198,6 +199,36 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         }
         return rows.map(batch => !batch.linear_parent_ids || !Object.keys(batch.linear_parent_ids).length
             ? { ...batch, _nativeAppendTeams: nativeTeams } : batch);
+    }
+    const CAL_NATIVE_SUGGEST_LAST_TIMEOUT_MS = 2500;
+    /* SUGGESTED LAST (owner 2026-10-23). The setting row
+       syncview_runtime_flags.editor_suggest_last = { "staff": [ids] } names
+       editors who are offered last in Create Post (Calendar and Samples) however
+       few open videos they hold: the team works with them differently, so
+       "freest first" must not put them on top. No row, an unreadable row, or a
+       slow read gives [] and the order is exactly what the gateway ranked. */
+    async function _calNativeEditorSuggestLastIds() {
+        try {
+            const rows = await Promise.race([
+                _prodRestRows('syncview_runtime_flags', 'key,value', 'key=eq.editor_suggest_last', 2, 1),
+                new Promise(resolve => setTimeout(resolve, CAL_NATIVE_SUGGEST_LAST_TIMEOUT_MS, [])),
+            ]);
+            const row = Array.isArray(rows) && rows.length === 1 && rows[0] && rows[0].key === 'editor_suggest_last'
+                ? rows[0] : null;
+            const staff = row && row.value && typeof row.value === 'object' && Array.isArray(row.value.staff)
+                ? row.value.staff : [];
+            return staff.map(id => String(id == null ? '' : id).trim()).filter(Boolean);
+        } catch (error) {
+            return [];
+        }
+    }
+    /* A stable partition: everyone else keeps the gateway's order, and the
+       named editors follow in theirs. */
+    function _calNativeEditorSuggestOrder(editors, lastIds) {
+        const list = Array.isArray(editors) ? editors : [];
+        const last = new Set(Array.isArray(lastIds) ? lastIds : []);
+        if (!last.size) return list.slice();
+        return list.filter(editor => !last.has(editor.id)).concat(list.filter(editor => last.has(editor.id)));
     }
     function _calRenderNativePostChoice() {
         const state = _calNativePostState;
@@ -372,6 +403,10 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                 + (editor.openCount == null ? '' : ' — ' + (editor.openCount === 1 ? '1 open video' : editor.openCount + ' open videos'))
                 + (editor.id === state.videoEditorSuggestedId ? ' (suggested)' : ''),
         }));
+        /* "Not assigned" (owner 2026-10-23): always offered once the list has
+           settled, even when the roster read failed, because choosing nobody
+           needs no roster. Last, so the suggestion stays on top. */
+        if (state.videoEditorStatus === 'ready' || state.videoEditorStatus === 'unavailable') editorItems.push({ value: CAL_NATIVE_EDITOR_NONE, label: 'Not assigned' });
         const editorPickerHtml = (mode === 'video' || mode === 'both') ? `
                 <div class="cal-native-editor-row">
                     <label class="cal-native-editor-label" for="calNativeEditorBtn">Video editor</label>
@@ -517,7 +552,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const slot = document.getElementById('calNativeSavedSlot');
         if (slot) slot.innerHTML = _calNativeSavedBoxHtml();
     }
-    function _calNativeSavedSay(text) { const el = document.getElementById('calNativeSavedStatus'); if (el) el.textContent = text; }
+    function _calNativeSavedSay(text) { svBusyText(document.getElementById('calNativeSavedStatus'), text); }
     async function _calNativeSavedRestore() {
         const state = _calNativePostState;
         const work = _linearSavedWork();
@@ -721,7 +756,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         _calSetNativePostState({
             clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, batchMaxOrdinals: null, mode: 'both', batchChoice: null, batchFilter: '',
             batchName: '', postNames: [],
-            videoEditors: [], videoEditorId: '', videoEditorSuggestedId: '', videoEditorStatus: 'loading',
+            videoEditors: [], videoEditorId: '', videoEditorSuggestedId: '', videoEditorRankedFirstId: '', videoEditorStatus: 'loading',
         });
         _calNativeDraftRestore(_calNativePostState);
         const editorState = _calNativePostState;
@@ -734,13 +769,21 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
            Create stayed enabled, so staff could not make the choice and the
            post silently fell back to server assignment. A stall now resolves
            to the same unranked fallback a failure does. */
+        /* The suggest-last setting is read beside the pool and bounded on its
+           own, so it can reorder the list but never delay or fail it. */
+        const suggestLast = _calNativeEditorSuggestLastIds();
         Promise.race([
             _calNativeVideoEditorPool(),
             new Promise((resolve, reject) => setTimeout(reject, CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS, new Error('editor pool timed out'))),
-        ]).then(editors => {
+        ]).then(async ranked => {
+            const editors = _calNativeEditorSuggestOrder(ranked, await suggestLast);
             if (_calNativePostState !== editorState) return;
             _calNativePostState.videoEditors = editors;
             _calNativePostState.videoEditorStatus = editors.length ? 'ready' : 'unavailable';
+            /* The gateway's own first pick, kept apart from what the dialog
+               suggests: once the setting moves someone down they differ, and
+               the default may only be left unsent when it IS the gateway's. */
+            _calNativePostState.videoEditorRankedFirstId = ranked.length ? ranked[0].id : '';
             _calNativePostState.videoEditorSuggestedId = editors.length ? editors[0].id : '';
             if (!_calNativePostState.videoEditorId) _calNativePostState.videoEditorId = _calNativePostState.videoEditorSuggestedId;
             try { _calRenderNativePostChoice(); } catch (e) {}
@@ -861,11 +904,16 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
          * only payload that needs the new gateway is one that genuinely asks
          * for somebody else.
          */
-        const suggestedEditorId = String(state.videoEditorSuggestedId || '');
+        /* 2026-10-23: "the gateway's own pick" is the first editor it RANKED,
+           not the first the dialog shows. With editor_suggest_last set those
+           differ, and leaving the shown suggestion unsent would hand the post
+           to the very editor the setting moved down. */
+        const rankedFirstEditorId = String(state.videoEditorRankedFirstId || state.videoEditorSuggestedId || '');
         const chosenEditorId = String(state.videoEditorId || '');
+        const videoUnassigned = (mode === 'video' || mode === 'both') && chosenEditorId === CAL_NATIVE_EDITOR_NONE;
         const videoAssigneeId = (mode === 'video' || mode === 'both')
             && chosenEditorId
-            && chosenEditorId !== suggestedEditorId
+            && chosenEditorId !== rankedFirstEditorId
             && (state.videoEditors || []).some(editor => editor.id === chosenEditorId)
             ? chosenEditorId
             : '';
@@ -888,6 +936,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const signature = JSON.stringify({
             surface, choice, mode, post_count: postCount, client_slug: state.clientSlug,
             video_assignee_id: videoAssigneeId,
+            ...(videoUnassigned ? { video_unassigned: true } : {}),
             post_names: postNames, batch_name: choice === 'new' ? batchName : '',
             batch_id: choice === 'latest' ? String(latest.id || '') : '',
             expected_batch_updated_at: choice === 'latest' ? String(latest.updated_at || '') : '',
@@ -900,7 +949,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                 const payload = {
                     operation: 'intake_create', surface, client_slug: state.clientSlug,
                     request_id: requestId, source_edited_at: sourceEditedAt,
-                    items: _linearIntakeItems(mode, videos, requestId, surface, videoAssigneeId)
+                    items: _linearIntakeItems(mode, videos, requestId, surface, videoAssigneeId, videoUnassigned)
                 };
                 if (choice === 'latest') {
                     payload.batch_id = String(latest.id || '');
@@ -981,7 +1030,13 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
                 ? result.items.map(item => String(item && item.title || '')) : [];
             const namesLanded = !askedNames.length || askedNames.every(name =>
                 writtenTitles.some(title => title.endsWith(CAL_NATIVE_TITLE_SEPARATOR + name)));
-            showNotify(surface === 'sxr' ? 'Sample created' : 'Post created', !namesLanded
+            /* "Not assigned", asked of the response like the names: a gateway
+               that predates it ignores the field and assigns the freest. */
+            const nobodyLanded = !videoUnassigned || !(result && Array.isArray(result.items) && result.items
+                .some(item => item && item.team === 'video' && item.assignee_id));
+            showNotify(surface === 'sxr' ? 'Sample created' : 'Post created', !nobodyLanded
+                ? savedWhat + ', but an editor was assigned automatically - this workspace still runs a production-write that predates "Not assigned". Unassign it in Production; tell the owner the gateway needs deploying.'
+                : !namesLanded
                 ? savedWhat + ', but the names were not applied - this workspace still runs a production-write that predates post naming. The posts are saved and numbered correctly; tell the owner the gateway needs deploying.'
                 : result && result.mirror_pending === true
                     ? savedWhat + '; the Linear mirror is still draining.'
@@ -2189,6 +2244,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         }
         svLayerRelease('cal-prompt', { focus: true });
         if (overlay) overlay.classList.remove('open');
+        _calCapHistForget();
     }
     function _calResetCaptionPromptToDefault() {
         const ta = document.getElementById('calPromptTA');
@@ -2213,7 +2269,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const ctaBox = document.getElementById('calCtaTA');
         const ctaLines = ctaBox && ctaBox.getAttribute('data-loaded') === '1' ? _calCtaLines(ctaBox.value) : null;
         btn.disabled = true;
-        btn.textContent = 'Saving…';
+        svBusyText(btn, 'Saving…');
         try {
             // n8n exit, PR 3: the function only, after a fresh, bounded read of
             // settings_ef_clients. An unreadable flag holds the save, an unlisted client
@@ -2351,7 +2407,7 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         const raw = ta.value.trim();
         const promptText = raw === _calThumbTitleDefault.trim() ? '' : raw;
         btn.disabled = true;
-        btn.textContent = 'Saving…';
+        svBusyText(btn, 'Saving…');
         try {
             const url = THUMBNAIL_TITLE_PROMPTS_EF_URL;
             const r = await _writeUiTrackSave('captions', 'thumbnail_title_prompt_save', () => ({ client_slug: calClientSlug(client) }), async () => {
@@ -2495,12 +2551,17 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
     /* A small regenerate icon (circular arrows) in the top right corner of the caption box: it opens the Redo with a
        note pop-up. No panel is ever drawn under the caption. Only the main caption has it (a redo rewrites that one). */
     function _calCapAiToolsHtml(p) {
-        if (!_calCapAiEligible(p) || _calCapJobActive(_calCaptionJobs.get(p.id))) return '';
+        const redo = _calCapAiEligible(p) && !_calCapJobActive(_calCaptionJobs.get(p.id));
+        // The caption history icon sits just below it, once this card's caption has changed (caption_history_staff).
+        const hist = _calCapHistIconOn(p);
+        if (!redo && !hist) return '';
         const ea = _calEscAttr(p.id);
         const label = 'Regenerate with a note';
         return '<span class="cal-cap-tools" data-captools="' + ea + '">' +
-            '<button type="button" class="cal-cap-redo-open" title="' + label + '" aria-label="' + label + '" onclick="event.stopPropagation();_calOpenRedoPopup(\'' + ea + '\')">' +
-            '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.4 8a5.4 5.4 0 1 1-1.7-3.9"/><path d="M13.6 2.2v3.2h-3.2"/></svg></button></span>';
+            (redo ? '<button type="button" class="cal-cap-redo-open" title="' + label + '" aria-label="' + label + '" onclick="event.stopPropagation();_calOpenRedoPopup(\'' + ea + '\')">' +
+            '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.4 8a5.4 5.4 0 1 1-1.7-3.9"/><path d="M13.6 2.2v3.2h-3.2"/></svg></button>' : '') +
+            (hist ? '<button type="button" class="cal-cap-redo-open cal-cap-hist-open" title="Caption history" aria-label="Caption history" onclick="event.stopPropagation();_calOpenCaptionHistory(\'' + ea + '\')">' + CAL_CAPH_ICONS.history + '</button>' : '') +
+            '</span>';
     }
     /* Repaint one card's regenerate button in place. */
     function _calCapAiRefresh(pid) {
@@ -2628,6 +2689,9 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         if (!post) return false;
         const now = _calCapLiveCaptionOf(job.pid);
         if (now === String(job.base || '').trim()) {
+            // The caption history says this version came from a redo, and shows the note.
+            _calCapOriginMark(job.client, job.pid, { kind: 'redo', note: job.note || '', text: job.caption });
+            _calCapHistMarkChanged(job.client, job.pid);
             if (_calCapTypeInto(job.pid, job.caption)) return true;
             post.caption = job.caption;
             post.updated_at = new Date().toISOString();
@@ -2641,6 +2705,276 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
         showToast('You changed the caption while the redo ran, so yours was kept. Press Redo to try again.');
         return false;
     }
+    /* ============================================================
+       CAPTION HISTORY (session Versions, 2026-10-23; design approved by the owner the same day,
+       docs/syncview-design/mockups/caption-history/, option C). Behind caption_history_staff (188).
+
+       Once a card's caption has changed, a small history icon sits just under the regenerate icon. It opens a
+       pop-up on the shared caption dialog layer: a step for every version, oldest on the left and newest on the
+       right; the chosen one shows how it came about (the redo note when there was one) and what it changed, words
+       taken out struck in red and words added in green (a mostly rewritten caption shows Before and After whole).
+       "Put this version back" types that text into the caption box the way a redo does, so the card's normal
+       save, draft and conflict checks run, and that save becomes a version of its own: nothing is overwritten.
+
+       The versions come from caption-generate (GET ?action=caption_history), which reads public.caption_versions
+       (migrations/2026-10-23-caption-versions.sql). Which cards show the icon comes from one small read per batch
+       of cards on screen (?action=caption_history_index). Before the migration is applied both answer
+       available:false and no icon shows. NOTHING HERE WRITES except the restore, through the caption box.
+       ============================================================ */
+    const CAL_CAPH_INDEX_MS = 60000;      // a card asked about is not asked about again for a minute
+    const CAL_CAPH_READ_MS = 8000;
+    const _calCapHistChanged = new Set(); // slug|pid whose caption has changed
+    const _calCapHistAsked = new Map();   // slug|pid -> when the index was last asked
+    let _calCapHistTimer = 0;
+    let _calCapHistAvailable = true;      // false once the server says the table is not there yet
+    let _calCapHist = null;               // the open pop-up's state
+    const CAL_CAPH_ICONS = {
+        history: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.6 8a5.4 5.4 0 1 0 1.6-3.8"/><path d="M2.4 2.4v2.9h2.9"/><path d="M8 5v3.2l2.1 1.3"/></svg>',
+        generated: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v3M8 11v3M2 8h3M11 8h3M4 4l1.8 1.8M10.2 10.2 12 12M12 4l-1.8 1.8M5.8 10.2 4 12"/></svg>',
+        redo: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.4 8a5.4 5.4 0 1 1-1.7-3.9"/><path d="M13.6 2.2v3.2h-3.2"/></svg>',
+        typed: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 2.5l3 3L6 13H3v-3z"/></svg>',
+        client: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="5.5" r="2.6"/><path d="M2.8 14c.6-2.7 2.7-4.2 5.2-4.2s4.6 1.5 5.2 4.2"/></svg>',
+        restore: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5 2.5 7 6 10.5"/><path d="M2.8 7H10a3.5 3.5 0 0 1 0 7H8"/></svg>',
+        x: '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg>'
+    };
+    // How each version came about: the step's short label, the longer one above the caption, and its icon.
+    const CAL_CAPH_KINDS = {
+        generated: ['Generated', 'Generated', 'generated'],
+        redo: ['Redo with note', 'Regenerated with note', 'redo'],
+        typed: ['Edited', 'Edited by hand', 'typed'],
+        client: ['Client edit', 'Client edited on the review link', 'client'],
+        restored: ['Put back', 'Put back from an earlier version', 'restore'],
+        saved: ['Saved', 'Saved', 'typed'],
+        outside: ['Changed', 'Changed outside SyncView', 'typed'],
+        backfill: ['Earlier', 'Earlier version (who and how not recorded)', 'history']
+    };
+    function _calCapHistKey(clientOrSlug, pid) {
+        let slug = '';
+        try { slug = calClientSlug(clientOrSlug || ''); } catch (e) { slug = String(clientOrSlug || ''); }
+        return slug + '|' + String(pid || '');
+    }
+    function _calCapHistMarkChanged(clientOrSlug, pid) {
+        if (!pid) return;
+        _calCapHistChanged.add(_calCapHistKey(clientOrSlug, pid));
+    }
+    // Does this card show the history icon? Asking also queues the card for the next index read.
+    function _calCapHistIconOn(p) {
+        if (_isClientLink || !p || _calIsBlankId(p.id) || !_calCapHistAvailable) return false;
+        if (!svCaptionHistoryOn()) return false;
+        const key = _calCapHistKey(calState.client, p.id);
+        if (!_calCapHistChanged.has(key)) _calCapHistQueue();
+        return _calCapHistChanged.has(key);
+    }
+    function _calCapHistQueue() {
+        if (_calCapHistTimer) return;
+        _calCapHistTimer = setTimeout(() => { _calCapHistTimer = 0; _calCapHistLoadIndex().catch(() => {}); }, 400);
+    }
+    async function _calCapHistLoadIndex() {
+        if (_isClientLink || !svCaptionHistoryOn() || !_calCapHistAvailable) return;
+        const clientName = calState.client;
+        const slug = calClientSlug(clientName || '');
+        if (!slug) return;
+        const now = Date.now();
+        const ids = (calState.posts || []).map(p => p && p.id).filter(id => id && !_calIsBlankId(id) && /^[A-Za-z0-9_.:-]{1,200}$/.test(id))
+            .filter(id => { const k = slug + '|' + id; return !_calCapHistChanged.has(k) && now - (_calCapHistAsked.get(k) || 0) > CAL_CAPH_INDEX_MS; })
+            .slice(0, 200);
+        if (!ids.length) return;
+        ids.forEach(id => _calCapHistAsked.set(slug + '|' + id, now));
+        const url = CAPTION_GENERATE_EF_URL + '?action=caption_history_index&client=' + encodeURIComponent(slug) + '&ids=' + encodeURIComponent(ids.join(','));
+        let j = null;
+        try {
+            const r = await fetch(url, { method: 'GET', cache: 'no-store', headers: _syncviewEfHeaders({ Accept: 'application/json' }, CAPTION_GENERATE_EF_URL), signal: AbortSignal.timeout(CAL_CAPH_READ_MS) });
+            j = await r.json().catch(() => null);
+        } catch (e) { j = null; }
+        if (!j || j.ok !== true) { ids.forEach(id => _calCapHistAsked.delete(slug + '|' + id)); return; }   // a failed read is asked again later
+        if (j.available === false) { _calCapHistAvailable = false; return; }
+        const changed = Array.isArray(j.changed) ? j.changed.map(String) : [];
+        changed.forEach(id => _calCapHistChanged.add(slug + '|' + id));
+        // Only a card still on screen, for the same client, gets its icon now.
+        if (calClientSlug(calState.client || '') !== slug) return;
+        changed.forEach(id => { try { _calCapAiRefresh(id); } catch (e) {} });
+    }
+    // The switch arrived (or changed) after the cards were drawn: ask about the cards on screen.
+    window.addEventListener('sv-review-stage-switch', () => { if (svCaptionHistoryOn()) _calCapHistQueue(); });
+
+    /* Words, for the highlights: a longest-common-subsequence over words (spaces kept with them). A common bit
+       between two changes that is only spaces or one short word joins the change, so a reworded sentence reads as
+       one struck phrase and one new phrase. Captions are a few hundred words, so the table stays small. */
+    function _calCapHistDiff(a, b) {
+        const A = String(a).match(/\s+|[^\s]+/g) || [], B = String(b).match(/\s+|[^\s]+/g) || [];
+        const n = A.length, m = B.length;
+        if (n * m > 4000000) return [{ del: String(a), ins: String(b) }];
+        const L = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+        for (let i = n - 1; i >= 0; i--) for (let k = m - 1; k >= 0; k--) L[i][k] = A[i] === B[k] ? L[i + 1][k + 1] + 1 : Math.max(L[i + 1][k], L[i][k + 1]);
+        const parts = [];
+        const push = (t, x) => { const last = parts[parts.length - 1]; if (last && last.t === t) last.s += x; else parts.push({ t, s: x }); };
+        let i = 0, k = 0;
+        while (i < n && k < m) {
+            if (A[i] === B[k]) { push('same', A[i]); i++; k++; }
+            else if (L[i + 1][k] >= L[i][k + 1]) { push('del', A[i]); i++; }
+            else { push('ins', B[k]); k++; }
+        }
+        while (i < n) push('del', A[i++]);
+        while (k < m) push('ins', B[k++]);
+        const out = [];
+        for (let x = 0; x < parts.length; x++) {
+            const p = parts[x], last = out[out.length - 1];
+            const tiny = p.t === 'same' && /^\s*\S{0,3}\s*$/.test(p.s) && !/\n/.test(p.s);
+            if (p.t === 'same' && !(tiny && last && last.del != null && parts[x + 1] && parts[x + 1].t !== 'same')) { out.push({ same: p.s }); continue; }
+            const r = last && last.del != null ? last : (out.push({ del: '', ins: '' }), out[out.length - 1]);
+            if (p.t === 'same') { r.del += p.s; r.ins += p.s; } else r[p.t] += p.s;
+        }
+        return out;
+    }
+    function _calCapHistWords(s) { return (String(s).match(/\S+/g) || []).length; }
+    // More than about 60% of the words changed: shown whole, Before then After, instead of word by word.
+    function _calCapHistRewritten(a, b, regions) {
+        let ins = 0, del = 0;
+        regions.forEach(r => { if (r.del != null) { ins += _calCapHistWords(r.ins); del += _calCapHistWords(r.del); } });
+        return Math.max(ins, del) / Math.max(_calCapHistWords(a), _calCapHistWords(b), 1) > 0.6;
+    }
+    function _calCapHistMark(tag, s) {
+        const m = String(s).match(/^(\s*)([\s\S]*?)(\s*)$/);
+        return m[2] ? _calEsc(m[1]) + '<' + tag + '>' + _calEsc(m[2]) + '</' + tag + '>' + _calEsc(m[3]) : _calEsc(s);
+    }
+    // A redo with a note is always shown Before and After whole (owner, 2026-10-24); so is any mostly rewritten caption.
+    function _calCapHistDiffHtml(a, b, whole) {
+        const regions = whole ? null : _calCapHistDiff(a, b);
+        if (whole || _calCapHistRewritten(a, b, regions)) {
+            return '<div class="caph-rw-l">Before</div><div class="caph-cap caph-rw-old">' + _calEsc(a) + '</div>' +
+                '<div class="caph-rw-l">After</div><div class="caph-cap">' + _calEsc(b) + '</div>';
+        }
+        return '<div class="caph-cap">' + regions.map(r => r.same != null ? _calEsc(r.same)
+            : _calCapHistMark('del', r.del) + (r.del && r.ins ? ' ' : '') + _calCapHistMark('ins', r.ins)).join('') + '</div>';
+    }
+    function _calCapHistWhen(at) {
+        const d = new Date(at);
+        if (!isFinite(d.getTime())) return '';
+        try { return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
+        catch (e) { return d.toISOString().slice(0, 16).replace('T', ' '); }
+    }
+
+    async function _calOpenCaptionHistory(pid) {
+        const overlay = document.getElementById('calPromptOverlay');
+        const modal = document.getElementById('calPromptModal');
+        const post = (calState.posts || []).find(p => p.id === pid);
+        if (!post || !overlay || !modal || _isClientLink || !svCaptionHistoryOn()) return;
+        const slug = calClientSlug(calState.client || '');
+        _calCapHist = { pid, slug, versions: null, sel: -1, error: '', stale: false, busy: false };
+        _calCapHistRender();
+        overlay.classList.add('open');
+        svLayerOverlay('cal-prompt', '#calPromptOverlay', '#calPromptModal', () => _calCloseCaptionPromptModal());
+        await _calCapHistFetch();
+    }
+    async function _calCapHistFetch() {
+        const st = _calCapHist;
+        if (!st) return;
+        st.error = '';
+        const url = CAPTION_GENERATE_EF_URL + '?action=caption_history&client=' + encodeURIComponent(st.slug) + '&post=' + encodeURIComponent(st.pid);
+        let j = null;
+        try {
+            const r = await fetch(url, { method: 'GET', cache: 'no-store', headers: _syncviewEfHeaders({ Accept: 'application/json' }, CAPTION_GENERATE_EF_URL), signal: AbortSignal.timeout(CAL_CAPH_READ_MS) });
+            j = await r.json().catch(() => null);
+        } catch (e) { j = null; }
+        if (_calCapHist !== st) return;   // closed, or another card's history opened meanwhile
+        if (!j || j.ok !== true) { st.error = 'The history could not be read. Try again in a moment.'; st.versions = st.versions || []; _calCapHistRender(); return; }
+        st.versions = Array.isArray(j.versions) ? j.versions : [];
+        st.sel = st.versions.length - 1;
+        st.stale = false;
+        if (st.versions.length >= 2) _calCapHistMarkChanged(st.slug, st.pid);
+        _calCapHistRender();
+        const on = document.querySelector('#calPromptModal .caph-step[aria-selected="true"]');
+        if (on && on.scrollIntoView) { try { on.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) {} }
+    }
+    function _calCapHistRender() {
+        const st = _calCapHist, modal = document.getElementById('calPromptModal');
+        if (!st || !modal) return;
+        const head = '<div class="caph-head"><span class="caph-pill"><span class="caph-pdot"></span>Caption</span><h3 id="caphTitle">Caption history</h3><span class="caph-sp"></span>' +
+            '<button class="cal-prompt-close caph-x" type="button" onclick="_calCloseCaptionPromptModal()" aria-label="Close">' + CAL_CAPH_ICONS.x + '</button></div>';
+        let body = '', foot = '';
+        const vs = st.versions;
+        if (!vs) body = '<div class="caph-wait" role="status">Loading the history…</div>';
+        else if (st.error && !vs.length) body = '<div class="caph-empty"><b>' + _calEsc(st.error) + '</b><button type="button" class="cal-prompt-btn" onclick="_calCapHistFetch()">Try again</button></div>';
+        else if (vs.length < 2) body = '<div class="caph-empty"><span class="caph-empty-ic">' + CAL_CAPH_ICONS.history + '</span><b>No earlier versions yet</b><p>Every change to this caption is kept here from now on.</p></div>';
+        else {
+            const sel = Math.max(0, Math.min(st.sel, vs.length - 1)), v = vs[sel], prev = vs[sel - 1], last = vs.length - 1;
+            const kind = CAL_CAPH_KINDS[v.kind] || CAL_CAPH_KINDS.saved;
+            const steps = '<div class="caph-steps" role="tablist" aria-label="Versions, oldest first" onkeydown="_calCapHistStepKey(event)">' + vs.map((x, i) => {
+                const k = CAL_CAPH_KINDS[x.kind] || CAL_CAPH_KINDS.saved;
+                const who = x.kind === 'backfill' ? '' : (x.actor || '');
+                return '<button type="button" class="caph-step" role="tab" aria-selected="' + (i === sel) + '" tabindex="' + (i === sel ? '0' : '-1') + '" title="' + _calEscAttr(k[1]) + '" onclick="_calCapHistPick(' + i + ')">' +
+                    '<span class="caph-sd">' + CAL_CAPH_ICONS[k[2]] + '</span><span class="caph-sl">' + _calEsc(k[0]) + '</span>' +
+                    '<span class="caph-sw">' + _calEsc((who ? who + ' · ' : '') + _calCapHistWhen(x.at)) + '</span>' +
+                    (i === last ? '<span class="caph-now">Now</span>' : '') + '</button>';
+            }).join('') + '</div>';
+            // Owner, 2026-10-24 (as little visual noise as possible): no arrows (a step is clicked), no Changes / Clean
+            // text switch, no "Mostly rewritten" label, and the redo note is a quiet line, not a box.
+            const text = prev ? _calCapHistDiffHtml(prev.text, v.text, v.kind === 'redo') : '<div class="caph-cap">' + _calEsc(v.text) + '</div>';
+            body = steps + '<div class="caph-story" role="tabpanel"><div class="caph-story-h"><span class="caph-kind">' + CAL_CAPH_ICONS[kind[2]] + _calEsc(kind[1]) + '</span></div>' +
+                (v.kind === 'redo' && v.note ? '<div class="caph-note">' + _calEsc(v.note) + '</div>' : '') + text +
+                (st.stale ? '<div class="caph-stale" role="alert">The caption changed while this was open, so nothing was put back. <button type="button" onclick="_calCapHistFetch()">Show the latest</button></div>' : '') +
+                (st.error ? '<div class="caph-stale" role="alert">' + _calEsc(st.error) + '</div>' : '') + '</div>';
+            if (sel !== last) foot = '<div class="caph-foot"><button type="button" class="caph-restore"' + (st.busy ? ' disabled' : '') + ' onclick="_calCapHistRestore()">' + CAL_CAPH_ICONS.restore + 'Put this version back</button></div>';
+        }
+        modal.innerHTML = '<div class="caph" role="document" aria-labelledby="caphTitle">' + head + '<div class="caph-body">' + body + '</div>' + foot + '</div>';
+    }
+    function _calCapHistPick(i) {
+        const st = _calCapHist;
+        if (!st || !st.versions || i < 0 || i >= st.versions.length) return;
+        st.sel = i;
+        _calCapHistRender();
+        const on = document.querySelector('#calPromptModal .caph-step[aria-selected="true"]');
+        if (on) { try { on.focus({ preventScroll: true }); on.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {} }
+    }
+    // Left and right move between versions on the step strip; Home and End go to the first and the newest.
+    function _calCapHistStepKey(ev) {
+        const st = _calCapHist;
+        if (!st || !st.versions) return;
+        const map = { ArrowLeft: st.sel - 1, ArrowRight: st.sel + 1, Home: 0, End: st.versions.length - 1 };
+        if (!(ev.key in map)) return;
+        ev.preventDefault();
+        _calCapHistPick(Math.max(0, Math.min(map[ev.key], st.versions.length - 1)));
+    }
+    /* Put the chosen version back: only while the caption box still holds the newest version (another tab, a
+       teammate or the client may have changed it while this was open; then nothing is put back and the pop-up says
+       so). The text goes in through the caption box, like a redo, so it saves the normal way and becomes a new
+       version marked "Put back". Undo, on the toast, puts back the one that was there, the same way. */
+    function _calCapHistRestore() {
+        const st = _calCapHist;
+        if (!st || !st.versions || st.busy) return;
+        const vs = st.versions, v = vs[st.sel], latest = vs[vs.length - 1];
+        if (!v || v === latest) return;
+        const live = _calCapLiveCaptionOf(st.pid);
+        if (live !== String(latest.text || '').trim()) { st.stale = true; _calCapHistRender(); return; }
+        if (!_calCapHistPut(st.slug, st.pid, v.text, v.id)) { st.error = 'This card is not on screen any more, so nothing was put back.'; _calCapHistRender(); return; }
+        const pid = st.pid, slug = st.slug, before = { text: latest.text, id: latest.id };
+        _calCloseCaptionPromptModal(true);
+        showToast('That version is back in the caption', {
+            actionLabel: 'Undo',
+            onAction: () => {
+                if (_calCapLiveCaptionOf(pid) !== String(v.text || '').trim()) { showToast('The caption changed since, so it was left as it is.'); return; }
+                _calCapHistPut(slug, pid, before.text, before.id);
+            }
+        });
+    }
+    function _calCapHistPut(slug, pid, text, fromId) {
+        const post = (calState.posts || []).find(p => p.id === pid);
+        if (!post || calClientSlug(calState.client || '') !== slug) return false;
+        _calCapOriginMark(slug, pid, { kind: 'restored', from: fromId, text: String(text || '') });
+        _calCapHistMarkChanged(slug, pid);
+        if (_calCapTypeInto(pid, String(text || ''))) return true;
+        post.caption = String(text || '');
+        post.updated_at = new Date().toISOString();
+        if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+        _calPendingEdits[pid].caption = post.caption;
+        _calLocalRecentSaves.set(pid, Date.now());
+        _calFlushCardSave(pid);
+        try { _calCacheWrite(slug, calState.posts); } catch (e) {}
+        return true;
+    }
+    // The pop-up closed (X, Escape, a click outside): forget its state so a late answer draws nothing.
+    function _calCapHistForget() { _calCapHist = null; }
+
     /* The client's call-to-action keywords (staff-edited with the caption prompt). A read that fails is just no list. */
     async function _calLoadCtaOptions(clientName) {
         const slug = calClientSlug(clientName || '');
@@ -3601,12 +3935,13 @@ import { _sxrStaffPhoneActive, sxrClientSlug, sxrState } from './270-samples-mod
     // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
     Object.assign(window, {
         _calArchiveSelected, _calBulkGenerateCaptions, _calCancelBulkCaption, _calCancelCaptionJob,
-        _calCaptionGenerateClick, _calCaptionTranscriptInput, _calCardSelectClick,
-        _calCloseCaptionPromptModal, _calOpenCaptionPromptModal, _calOpenRedoPopup,
-        _calOpenThumbTitlePromptModal, _calRedoInput, _calRedoKey, _calResetCaptionPromptToDefault,
-        _calResetThumbTitlePromptToDefault, _calSaveCaptionPrompt, _calSaveThumbTitlePrompt,
-        _calSubmitCaptionTranscript, _calSubmitNativePost, _calSubmitRedo, _calToggleSelectMode,
-        addCalBlankCard, archiveCalPost, calMonthShift, calMonthToday, calWeekShift, calWeekToday
+        _calCapHistFetch, _calCapHistPick, _calCapHistRestore, _calCapHistStepKey, _calCaptionGenerateClick,
+        _calCaptionTranscriptInput, _calCardSelectClick, _calCloseCaptionPromptModal, _calOpenCaptionHistory,
+        _calOpenCaptionPromptModal, _calOpenRedoPopup, _calOpenThumbTitlePromptModal, _calRedoInput,
+        _calRedoKey, _calResetCaptionPromptToDefault, _calResetThumbTitlePromptToDefault,
+        _calSaveCaptionPrompt, _calSaveThumbTitlePrompt, _calSubmitCaptionTranscript, _calSubmitNativePost,
+        _calSubmitRedo, _calToggleSelectMode, addCalBlankCard, archiveCalPost, calMonthShift, calMonthToday,
+        calWeekShift, calWeekToday
     });
 export {
   CAL_BULK_ARCHIVE_CONCURRENCY, CAL_REORDER_GUARD_MS, COMP_LABELS, COMP_PILL_COLORS,

@@ -1,3 +1,5 @@
+import { svBusyHtml } from './040-shared-briefs.js';
+import { _prodTtDescButtonHTML, _prodTtDescSlotHTML } from './255-production-thumbnail-titles.js';
 import { svLayerOpen, svLayerRelease } from './041-core-layers.js';
 import { CAL_SUPABASE_ANON_KEY, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature, _syncviewStaffVerificationEpoch } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
@@ -2526,7 +2528,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
                     + '<div class="prod-description-actions">'
                     + '<button class="prod-description-action' + (source ? ' is-active' : '') + '" type="button" data-prod-description-control="markdown-tab" aria-pressed="' + (source ? 'true' : 'false') + '" onclick="return _prodSetDescriptionMode(' + _jsAttrArg(id) + ',' + _jsAttrArg(source ? 'rich' : 'source') + ')"' + (state.saving ? ' disabled' : '') + '>Markdown</button>'
                     + '<button class="prod-description-action" type="button" data-prod-description-control="cancel" onclick="return _prodCancelDescriptionEdit(' + _jsAttrArg(id) + ')"' + (state.saving ? ' disabled' : '') + '>Cancel</button>'
-                    + '<button class="prod-description-action prod-description-save" type="button" data-prod-description-control="save" onclick="return _prodSaveDescription(event,' + _jsAttrArg(id) + ')"' + (state.saving || count > 100000 || state.uploading > 0 ? ' disabled' : '') + '>' + (state.saving ? 'Saving…' : 'Save') + '</button>'
+                    + '<button class="prod-description-action prod-description-save" type="button" data-prod-description-control="save" onclick="return _prodSaveDescription(event,' + _jsAttrArg(id) + ')"' + (state.saving || count > 100000 || state.uploading > 0 ? ' disabled' : '') + '>' + (state.saving ? svBusyHtml('Saving…') : 'Save') + '</button>'
                     + '</div></div>' + restoredNote + editor + editorState + '</section>';
             }
             /* The read view is click-to-edit where a write is allowed: the
@@ -2559,8 +2561,11 @@ import { _prodRender } from './260-production-refresh-boot.js';
                    Retry buttons in the two error banners are the real escape
                    from a failed read, and that case is load-bearing. */
                 + '<div class="prod-description-actions">'
+                /* "Write title" beside Edit on a thumbnail sub-issue, and under the header what that run is
+                   doing for it (OPEN_REPAIRS 481, behind thumbnail_title_buttons_staff). */
+                + _prodTtDescButtonHTML(issue)
                 + '<button class="prod-description-action" type="button" data-prod-description-control="edit" data-prod-description-edit="1" data-prod-description-ready="' + (state.status === 'ready' && !state.refreshing ? '1' : '0') + '" onclick="return _prodBeginDescriptionEdit(' + _jsAttrArg(id) + ')"' + gateAttrs + '>Edit</button>'
-                + '</div></div>' + body + readState + '</section>';
+                + '</div></div>' + _prodTtDescSlotHTML(issue) + body + readState + '</section>';
         }
         function _prodFileLinkLabel(file) {
             const raw = String(file || '').trim();
@@ -2623,7 +2628,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
                     + (batchWide ? '<div class="prod-assets-scope">Shared by the whole post — the parent issue and every sub-issue show this link.</div>' : '')
                     + '<div class="prod-assets-editor-actions"><button class="prod-assets-action" type="button" onclick="return _prodCancelAssetEdit(' + _jsAttrArg(id) + ')"' + (pending ? ' disabled' : '') + '>Cancel</button><span class="prod-spacer"></span>'
                     + '<button class="prod-assets-action prod-assets-save" type="submit"' + (pending ? ' disabled' : '') + '>'
-                    + (pending ? 'Saving…' : (batchWide ? 'Save for the batch' : 'Save deliverable')) + '</button></div>'
+                    + (pending ? svBusyHtml('Saving…') : (batchWide ? 'Save for the batch' : 'Save deliverable')) + '</button></div>'
                     + (state.writeError ? '<div class="prod-assets-error" role="alert">' + _calEsc(state.writeError) + '</div>' : '') + '</form>';
             };
             const rows = specs.map(spec => {
@@ -2804,3 +2809,4 @@ export {
   _prodFileLinkLabel, _prodInvalidateBatchDescriptionReads, _prodNextBatchDescriptionToken,
   _prodPlacePop, _prodRestoreDescriptionFocus, _prodRestoreFocus
 };
+export { _prodRefreshDescription };

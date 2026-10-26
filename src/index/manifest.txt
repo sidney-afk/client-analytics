@@ -53,6 +53,7 @@
 230-production-create-comments.js.part
 240-production-description.js.part
 250-production-controls-data.js.part
+255-production-thumbnail-titles.js.part
 260-production-refresh-boot.js.part
 270-samples-model.js.part
 280-samples-cards-notes.js.part
@@ -67,6 +68,7 @@
 323-kasper-dashboard-tail.js.part
 324-client-onboarding-panel.js.part
 326-core-messages-inbox.js.part
+327-core-unread-badges.js.part
 330-kasper-review-history.js.part
 340-kasper-editors-board.js.part
 345-core-tooltip-date-picker.js.part

@@ -12,7 +12,9 @@ import {
   type StaffRoleKey,
 } from "../_shared/staff-role-auth.ts";
 import { timingSafeEqual } from "../_shared/staff-role-auth.ts";
+import { chunkIds } from "./chunks.mjs";
 import { readLegacyFeedback } from "./feedback.mjs";
+import { makePictureCache, picturePlan, resolvePictures } from "./pictures.mjs";
 import { buildConversation, clientKey, collectMessages, inboxScope, inboxView, isClosedPost, rosterEntryFor, unreadMark, visibleMessages } from "./inbox.mjs";
 import {
   audienceAllowed,
@@ -47,7 +49,7 @@ const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   // Browsers may reuse a preflight answer for 2 hours (Chrome's cap) instead of re-asking every 5 s.
   "Access-Control-Max-Age": "7200",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-syncview-key, x-syncview-actor, x-syncview-role, x-syncview-client-token",
   "Cache-Control": "no-store",
 };
@@ -276,17 +278,26 @@ function parseCursor(value: unknown): { created_at: string; id: string } | null 
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-  if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
+  // The inbox list is a read, so the page asks for it with GET ?action=inbox (owner, 2026-10-23: the
+  // Messages badge is read at page load, and every page treats a POST it did not ask for as a write).
+  // Nothing else is served over GET: marks and thread reads stay POST.
+  const inboxGet = req.method === "GET" && new URL(req.url).searchParams.get("action") === "inbox";
+  if (req.method !== "POST" && !inboxGet) return json({ ok: false, error: "method_not_allowed" }, 405);
 
   const url = clean(Deno.env.get("SUPABASE_URL"));
   const serviceKey = clean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
   if (!url || !serviceKey) return json({ ok: false, error: "service_unavailable" }, 503);
 
   let body: JsonMap;
-  try {
-    body = await req.json() as JsonMap;
-  } catch (_error) {
-    return json({ ok: false, error: "invalid_json" }, 400);
+  if (inboxGet) {
+    // The round-5 badges ask for people's pictures on the same read (pictures.mjs).
+    body = new URL(req.url).searchParams.get("pictures") === "1" ? { action: "inbox", pictures: 1 } : { action: "inbox" };
+  } else {
+    try {
+      body = await req.json() as JsonMap;
+    } catch (_error) {
+      return json({ ok: false, error: "invalid_json" }, 400);
+    }
   }
 
   const inboxAction = clean(body.action).toLowerCase();
@@ -503,14 +514,9 @@ async function inboxCanonical(supabase: SupabaseClient, posts: JsonMap[]): Promi
   // scoped only to this card's client.
   const postById = new Map(posts.map((p) => [clean(p.id), p]));
   const all = [...owner.keys()];
-  // One request per 200 ids, all sent together: the database work is a few
-  // milliseconds, the time was the requests waiting for each other.
-  const chunks = <T>(list: T[]): T[][] => {
-    const out: T[][] = [];
-    for (let i = 0; i < list.length; i += 200) out.push(list.slice(i, i + 200));
-    return out;
-  };
-  const found = await Promise.all(chunks(all).map((part) => supabase.from("deliverables")
+  // One request per part (at most 200 ids and about 6 kB of URL, chunks.mjs), all sent together: the database work
+  // is a few milliseconds, the time was the requests waiting for each other.
+  const found = await Promise.all(chunkIds(all).map((part) => supabase.from("deliverables")
     .select("id,client_slug,team,card_id")
     .in("id", part)));
   const ids: string[] = [];
@@ -528,8 +534,8 @@ async function inboxCanonical(supabase: SupabaseClient, posts: JsonMap[]): Promi
     }
   }
   const out = new Map<string, JsonMap[]>();
-  const fetched = await Promise.all(chunks(ids).map((part) => supabase.from("production_comments")
-    .select("id,native_comment_id,deliverable_id,team,parent_id,thread_root_id,author_name,author_member_id,role,body,audience,component,is_tweak,source_created_at,created_at,deleted_at")
+  const fetched = await Promise.all(chunkIds(ids).map((part) => supabase.from("production_comments")
+    .select("id,native_comment_id,deliverable_id,team,parent_id,thread_root_id,author_name,author_member_id,role,body,attachments,audience,component,is_tweak,source_created_at,created_at,deleted_at")
     .in("deliverable_id", part)
     .is("deleted_at", null)));
   for (const { data, error } of fetched) {
@@ -601,9 +607,9 @@ async function handleInbox(supabase: SupabaseClient, principal: Principal, body:
   const ids = posts.map((p) => clean(p.id));
   // This reader's own read marks, fetched while the notes are being fetched.
   const readsOf = async (): Promise<Map<string, string> | null> => {
-    const parts: string[][] = [];
-    for (let i = 0; i < ids.length; i += 500) parts.push(ids.slice(i, i + 500));
-    const answers = await Promise.all(parts.map((part) => supabase.from("message_reads")
+    // Split like the other reads (chunks.mjs): 500 ids per part made a URL over the gateway's limit for an admin
+    // with every client in scope, so the read failed and the whole inbox answered 503 (OPEN_REPAIRS 484).
+    const answers = await Promise.all(chunkIds(ids).map((part) => supabase.from("message_reads")
       .select("post_id,last_read_at").eq("reader_id", member.id).in("post_id", part)));
     const marks = new Map<string, string>();
     for (const { data, error } of answers) {
@@ -612,7 +618,9 @@ async function handleInbox(supabase: SupabaseClient, principal: Principal, body:
     }
     return marks;
   };
-  const [canonical, reads] = await Promise.all([inboxCanonical(supabase, posts), readsOf()]);
+  // Pictures only when the page asks (the round-5 badges, switch unread_badges_v2): every other inbox read is unchanged.
+  const wantPictures = body.pictures === true || body.pictures === 1 || body.pictures === "1";
+  const [canonical, reads, pictures] = await Promise.all([inboxCanonical(supabase, posts), readsOf(), wantPictures ? peoplePictures(supabase) : Promise.resolve(null)]);
   if (!reads) return json({ ok: false, error: "inbox_reads_unavailable" }, 503);
   const now = Date.now();
   const conversations = posts
@@ -624,6 +632,25 @@ async function handleInbox(supabase: SupabaseClient, principal: Principal, body:
     })
     .filter(Boolean)
     .sort((a, b) => String((b as JsonMap).last_at).localeCompare(String((a as JsonMap).last_at)));
-  return json({ ok: true, scope: scope === "all" ? "all" : "own", conversations });
+  return json({ ok: true, scope: scope === "all" ? "all" : "own", conversations, ...(pictures ? { pictures } : {}) });
+}
+
+// Slack profile photos for staff and client contacts (pictures.mjs), cached per instance. Any failure: no pictures.
+const pictureCache = makePictureCache();
+async function peoplePictures(supabase: SupabaseClient): Promise<JsonMap | null> {
+  const token = clean(Deno.env.get("SLACK_BOT_TOKEN"));
+  if (!token) return null;
+  try {
+    return await pictureCache.get(async () => {
+      const [staff, contacts] = await Promise.all([
+        supabase.from("team_members").select("id,name,slack_user_id,active"),
+        supabase.from("client_profiles").select("slug,slack_mention_user_id,archived_at"),
+      ]);
+      if (staff.error) throw new Error("pictures_staff_failed");
+      return await resolvePictures(picturePlan(staff.data || [], contacts.error ? [] : (contacts.data || [])), token, fetch);
+    }) as JsonMap | null;
+  } catch (_e) {
+    return null;
+  }
 }
 

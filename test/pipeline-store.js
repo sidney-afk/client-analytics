@@ -517,7 +517,7 @@ const team = { member: OWNER, via: 'team', client_slug: 'clienta', target: 'test
   ok(cb.includes('read("focus")') && cb.includes('read("audience")'), 'client_brain reads focus.md and audience.md');
   ok(/if \(r\.status === 404\) return "";/.test(cb), 'a missing focus.md reads as nothing, not a failure');
   // The reply is built in brainview.mjs (#2135): focus is its own head section, before the brief.
-  ok(/brainView\(\{ name: p\.client_name, brief, focus: focusFacts, facts, topic \}\)/.test(cb), 'focus facts go to brainView on their own');
+  ok(/brainView\(\{ name: p\.client_name, brief, focus: focusFacts, facts, topic, dreams \}\)/.test(cb), 'focus facts go to brainView on their own');
   const bv = await import(path.join(fnDir, 'higgsfield-mcp', 'brainview.mjs'));
   const fFact = { file: 'focus', heading: 'Current focus', id: 'client.example.focus.current', body: 'Current focus: sleep.' };
   const longFacts = Array.from({ length: 80 }, (_, i) => ({ file: 'editing', heading: 'T' + i, id: 'client.example.editing.t' + i, body: 'word '.repeat(300) }));

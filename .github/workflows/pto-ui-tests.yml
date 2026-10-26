@@ -62,8 +62,10 @@ jobs:
           deno-version: 'v2.5.2'
       - name: Install pinned browser-test dependencies
         run: npm install --no-package-lock
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install Chromium and its system libraries
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       - name: Type-check PTO Edge Function
         run: deno check --node-modules-dir=auto supabase/functions/pto/index.ts
       - name: Run synthetic PTO interactions

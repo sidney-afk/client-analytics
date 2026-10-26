@@ -8,7 +8,7 @@ import { _isClientLink, _syncviewClientEntryCapability } from './260-production-
 import { _kasperPaintReview, _kasperState } from './305-core-kasper-shared.js';
 import { svFrameFlagWait } from './187-frame-viewer.js';
 import { navTo } from './092-core-submit-form-navigation.js';
-import { currentNav } from './065-core-nav-intake-state.js';
+import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), behind two switches. Session Marquee, 2026-10-17.
 
        This file is the small, always-loaded half: it reads the switches and answers "show the new page here?".
@@ -42,15 +42,38 @@ import { currentNav } from './065-core-nav-intake-state.js';
                                     no edit (session Calm Six, 2026-10-20). Only the exact boolean true counts. Never the
                                     client link. Missing, unreadable or the wrong shape: the Workload calendar exactly
                                     as it was.
+         unread_badges_v2           { "staff": [...] }: the round-5 unread badges, Notes and Messages (session Beacon,
+                                    2026-10-24, 327). Same listing rule as the switches above (id or full name of the
+                                    signed-in staff member). Never the client link. Missing, unreadable or the wrong
+                                    shape: today's badges, Notes and Messages exactly as they were. It also gives
+                                    Kasper's Review Session the client page's polish (session Porch, round 3), where
+                                    review_stage_kasper_staff is on too.
+         caption_history_staff      { "staff": [...] }: the caption history icon and pop-up on Calendar cards (session
+                                    Versions, 2026-10-23). Same listing rule (id or full name of the signed-in staff
+                                    member). Never the client link. Missing, unreadable or the wrong shape: no icon,
+                                    the caption box exactly as it was.
+         thumbnail_title_buttons_staff { "staff": [...] }: the Production "Thumbnail titles" and "Write title" buttons
+                                    (session Titlecard, 2026-10-23, OPEN_REPAIRS 481). Same listing rule (id or full
+                                    name of the signed-in staff member). Missing, unreadable or the wrong shape: no buttons.
+         phone_polish_staff         { "staff": [...] }: the staff pages' phone polish (session Grip, 2026-10-25): on a phone
+                                    only (767 px and narrower), the same design made smoother. Same listing rule (id or
+                                    full name of the signed-in staff member). Never the client link. Missing, unreadable
+                                    or the wrong shape: every phone page exactly as it was. Desktop never changes.
+         review_client_polish       { "clients": [...] } or { "all": true }: the client review page's polish (session Porch,
+                                    2026-10-24): Approve morphs into a spinner then a check, a sent change keeps its box
+                                    open and empty for the next one, a spinner instead of any "Sending" text, a cross on
+                                    hover to delete one's own note (with a confirm), and the quieter note design of the
+                                    staff side. Same listing rule as review_stage_client_pages, the client link only.
+                                    Missing, unreadable or the wrong shape: the client page exactly as it was.
          analytics_hidden           { "hidden": false } brings Analytics back for everyone (the staff bar's Analytics
                                     tab, the client link's Analytics / Content Calendar toggle). Missing, unreadable,
                                     { "hidden": true } or any other shape: Analytics is hidden (owner, 2026-10-17
                                     23:20, session Curtain Seven). Read at boot, in the same request as the switches.
        The lists live only in the database, never in this repository. */
-    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot'];
+    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'caption_history_staff', 'unread_badges_v2', 'review_client_polish', 'phone_polish_staff', 'thumbnail_title_buttons_staff'];
     const RS_FLAG_TIMEOUT_MS = 4000;
     const RS_FLAG_RETRY_MS = 30000;
-    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), help: '', analytics: false };
+    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), unread: new Set(), phone: new Set(), cpAll: false, cp: new Set(), help: '', analytics: false };
     let _rsFlagPromise = null;
     let _rsFlagTriedAt = 0;
     let _rsFlagFailed = false;
@@ -70,6 +93,16 @@ import { currentNav } from './065-core-nav-intake-state.js';
         const layout2 = okObj(l2) && Array.isArray(l2.staff) ? l2.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
         const fb = by.kasper_fast_boot;
         const fast = okObj(fb) && Array.isArray(fb.staff) ? fb.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
+        const ub = by.unread_badges_v2;
+        const unread = okObj(ub) && Array.isArray(ub.staff) ? ub.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
+        const ch = by.caption_history_staff;
+        const capHist = okObj(ch) && Array.isArray(ch.staff) ? ch.staff.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*').map(x => x.trim().toLowerCase()) : [];
+        const tt = by.thumbnail_title_buttons_staff;
+        const ttb = okObj(tt) && Array.isArray(tt.staff) ? tt.staff.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().toLowerCase()) : [];
+        const pp = by.phone_polish_staff;
+        const phone = okObj(pp) && Array.isArray(pp.staff) ? pp.staff.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*').map(x => x.trim().toLowerCase()) : [];
+        const cpv = by.review_client_polish;
+        const cpMembers = okObj(cpv) ? (_calRuntimeFlagRawMembers(cpv) || []) : [];
         const h = by.review_help_video_url;
         const help = okObj(h) && typeof h.url === 'string' && /^https:\/\//i.test(h.url.trim()) ? h.url.trim() : '';
         const a = by.analytics_hidden;
@@ -82,6 +115,12 @@ import { currentNav } from './065-core-nav-intake-state.js';
             calmAll,
             layout2: new Set(layout2),
             fast: new Set(fast),
+            unread: new Set(unread),
+            phone: new Set(phone),
+            capHist: new Set(capHist),
+            ttb: new Set(ttb),
+            cpAll: okObj(cpv) && cpv.all === true,
+            cp: new Set(cpMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
             help,
             // Only the exact { "hidden": false } shows Analytics.
             analytics: okObj(a) && a.hidden === false,
@@ -99,19 +138,21 @@ import { currentNav } from './065-core-nav-intake-state.js';
             if (!Array.isArray(rows)) throw new Error('shape');
             const next = _rsParse(rows);
             // Analytics shown, or hidden where this browser last saw it shown: the open page draws again too.
-            const changed = next.all || next.clients.size || next.staff.size || next.calm.size || next.calmAll || next.layout2.size || next.fast.size || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
+            const changed = next.all || next.clients.size || next.staff.size || next.calm.size || next.calmAll || next.layout2.size || next.fast.size || next.capHist.size || next.ttb.size || next.unread.size || next.phone.size || next.analytics || svAnalyticsSeenShown() || _wlCalmHintHas();
             _rsFlags = next;
             _rsHintSave(next);
             _wlCalmHintSave(next);
             _rsKasperFastHintSave(next);
             _rsFlagFailed = false;
             _rsAnalyticsSync();
+            svPhonePolishSync();
             // Something switched on: the open page draws again, now as the new page.
             if (changed) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
         } catch (e) {
-            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), help: '', analytics: false };
+            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), unread: new Set(), phone: new Set(), cpAll: false, cp: new Set(), help: '', analytics: false };
             _rsFlagFailed = true;
             _rsAnalyticsSync();
+            svPhonePolishSync();
             _rsFlagPromise = null;
             console.warn('[Review page] switch unreadable; the old page stays', e && e.message);
         } finally {
@@ -214,6 +255,15 @@ import { currentNav } from './065-core-nav-intake-state.js';
        true for every link while Analytics is hidden for everyone. */
     function svRsClientReviewOn(client) {
         return !!_isClientLink && _rsClientOn(client);
+    }
+    /* The client review page's polish (review_client_polish): the client link only, read once with the other switches.
+       Off until that read is in, and off for an unreadable or wrongly shaped answer. */
+    function svRsClientPolishOn(client) {
+        if (!_isClientLink || !_rsFlags.loaded) return false;
+        if (_rsFlags.cpAll) return true;
+        let slug = '';
+        try { slug = calClientSlug(String(client || '')); } catch (e) { slug = ''; }
+        return !!slug && _rsFlags.cp.has(slug);
     }
     function svRsClientNoAnalytics(client) {
         return !!_isClientLink && (svAnalyticsHidden() || _rsClientOn(client));
@@ -360,6 +410,13 @@ import { currentNav } from './065-core-nav-intake-state.js';
         // An unreadable switch is an answer of no for this visit; the hint stays for the next one.
         return !_rsFlagFailed && _rsKasperFastHintHas();
     }
+    // The caption history icon and pop-up on Calendar cards: only for the staff member caption_history_staff names.
+    // Until the switch is read, or when it cannot be read, the answer is no and the caption box is as it was.
+    function svCaptionHistoryOn() {
+        if (_isClientLink) return false;
+        _rsPrime();
+        return _rsFlags.loaded && _rsFlags.capHist.size > 0 && _rsListed(_rsFlags.capHist);
+    }
     // Called once at boot (260), after the server has said who is signed in and the route is read: on Kasper's tab, start the slow parts now (the
     // review page's code and the player's switch) instead of when the first card paints after the list has loaded.
     function svRsKasperBoot(hashRaw, stateNav) {
@@ -393,6 +450,12 @@ import { currentNav } from './065-core-nav-intake-state.js';
     /* THE CALM WORKLOAD CALENDAR (session Calm, 2026-10-18): on only for the staff member workload_calm_staff names, by
        id or full name, exactly as Kasper's switch above. Until the switch has been read, or the server has said who is
        signed in, the answer is no: the old calendar shows and nothing else changes. */
+    // The Production thumbnail title buttons (255): only for the staff members the switch lists.
+    function svThumbTitleButtonsOn() {
+        _rsPrime();
+        if (!_rsFlags.loaded || !_rsFlags.ttb || !_rsFlags.ttb.size || _isClientLink) return false;
+        return _rsListed(_rsFlags.ttb);
+    }
     function _rsListed(set) {
         let who = null;
         try { who = _syncviewStaffIdentityForHeaders(); } catch (e) { who = null; }
@@ -409,6 +472,40 @@ import { currentNav } from './065-core-nav-intake-state.js';
             return !!(who && who.member);
         }
         return _rsListed(set);
+    }
+    /* THE ROUND-5 UNREAD BADGES (session Beacon, 2026-10-24, 327): on only for the staff members unread_badges_v2
+       names, by id or full name. Until the switch has been read, or the server has said who is signed in: no. */
+    function svUnreadBadgesOn() {
+        _rsPrime();
+        if (!_rsFlags.loaded || _isClientLink || !_rsFlags.unread.size) return false;
+        return _rsListed(_rsFlags.unread);
+    }
+    /* KASPER'S REVIEW SESSION WITH THE CLIENT PAGE'S POLISH (session Porch, round 3, 2026-10-25): Approve shows its
+       check at the click, a sent change keeps its box open, "Sent" at once, a spinner only after 1.2 s, replies threaded
+       under what they answer. Only where his Review Session is on (review_stage_kasper_staff) and the signed-in staff
+       member is on unread_badges_v2, so the owner tries it in Kasper's view first. Until both are read: no. */
+    function svRsKasperPolishOn() { return svRsKasperOn() && svUnreadBadgesOn(); }
+    /* THE STAFF PAGES' PHONE POLISH (session Grip, 2026-10-25): on only for the staff members phone_polish_staff names,
+       by id or full name. Until the switch has been read, or the server has said who is signed in: no. It marks the page
+       with html.sv-phone-polish, and every rule it switches on sits inside a max-width: 767px block (020), so a desktop
+       page never changes even for a listed person. */
+    function svPhonePolishOn() {
+        _rsPrime();
+        if (!_rsFlags.loaded || _isClientLink || !_rsFlags.phone.size) return false;
+        return _rsListed(_rsFlags.phone);
+    }
+    // The switch can come back before the server has said who is signed in: ask again each second for up to 30 s.
+    let _ppRetry = 0;
+    function svPhonePolishSync() {
+        let on = false;
+        try { on = svPhonePolishOn(); } catch (e) { on = false; }
+        document.documentElement.classList.toggle('sv-phone-polish', on);
+        let who = null;
+        try { who = _syncviewStaffIdentityForHeaders(); } catch (e) { who = null; }
+        if (!on && _rsFlags.loaded && _rsFlags.phone.size && !_isClientLink && !(who && who.member) && _ppRetry < 30) {
+            _ppRetry++;
+            setTimeout(svPhonePolishSync, 1000);
+        }
     }
     function svWorkloadCalmOn() {
         _rsPrime();
@@ -606,7 +703,15 @@ import { currentNav } from './065-core-nav-intake-state.js';
         const api = svAreaApi('reviewstage');
         if (api) api.kasperHide();
     }
+    /* currentNav starts as 'home' and keeps it until the boot router routes, which waits for the staff key check.
+       So a fresh tab that has not routed yet (SyncLinear opened from a card's button, /workload, the bare address)
+       also reads 'home' while that check is out, and a switch answer arriving first moved it to the Calendar: the
+       boot router then stood down and the tab never opened what its address named (session Linkcheck, 2026-10-25;
+       a cold key check is what makes it intermittent). Before the first route nobody is on Analytics, and the boot
+       router asks svStaffNoAnalytics() itself when it lands there, so only a page that has routed is moved. */
+    function _rsHasRouted() { return _syncviewNavEpoch !== 0; }
     window.addEventListener('sv-review-stage-switch', () => {
+        svPhonePolishSync();
         if (_rsFlags.loaded) _rsAnalyticsRestore();
         // A staff browser that last saw Analytics shown kept it until this read came in; the read says hidden, so the
         // person on Analytics (the overview or a client's page) moves to the Content Calendar, nobody is left there.
@@ -616,7 +721,7 @@ import { currentNav } from './065-core-nav-intake-state.js';
             if (svAnalyticsHidden()) {
                 // Only Analytics itself (the overview, or a client's Analytics tab): a client's Brief or Calendar tab stays.
                 const c = history.state && history.state.client;
-                if (currentNav === 'home' && (!c || (clientViewTab[c] || 'analytics') === 'analytics')) {
+                if (currentNav === 'home' && _rsHasRouted() && (!c || (clientViewTab[c] || 'analytics') === 'analytics')) {
                     // The client the person was on rides along, as the immediate redirects in render() do.
                     if (c) _calSetFocusRequest({ client: c, cardId: null });
                     navTo('calendar', false);
@@ -627,9 +732,11 @@ import { currentNav } from './065-core-nav-intake-state.js';
             }
         }
         // A switched-on client link that opened on Analytics: that route is gone, the Content Calendar takes its place.
+        // Never a Samples link: it also has no Calendar and no tab picked, and was moved to the Calendar too, so no
+        // client could reach the samples from 18 Oct (session Reproof, 2026-10-26).
         if (_isClientLink && !document.getElementById('calView')) {
             const cap = _syncviewClientEntryCapability;
-            if (cap && cap.verified && cap.client && (clientViewTab[cap.client] || 'analytics') === 'analytics' && svRsClientNoAnalytics(cap.client)) render(cap.client, true);
+            if (cap && cap.verified && cap.client && cap.view !== 'sample-reviews' && cap.view !== 'samples' && (clientViewTab[cap.client] || 'analytics') === 'analytics' && svRsClientNoAnalytics(cap.client)) render(cap.client, true);
         }
         if (document.getElementById('calView') && calState && calState.client) _calRenderBody({ preserveScroll: true });
         if (document.getElementById('kasperContent')) svRsKasperHeadSync();
@@ -642,4 +749,5 @@ import { currentNav } from './065-core-nav-intake-state.js';
             _kasperPaintReview();
         }
     });
-export { svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLayout2On, svRsKasperBoot, svRsKasperFast, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsKasperPending, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };
+export { svUnreadBadgesOn, svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svCaptionHistoryOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLayout2On, svRsKasperBoot, svRsKasperFast, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsKasperPending, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };
+export { svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn };

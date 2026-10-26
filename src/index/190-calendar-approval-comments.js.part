@@ -1,5 +1,5 @@
 import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
-import { dismissConfirm, showConfirm, showNotify, showToast } from './040-shared-briefs.js';
+import { dismissConfirm, showConfirm, showNotify, showToast, svBusyHtml, svBusyOn, svSpinHtml } from './040-shared-briefs.js';
 import { svFrameFeed, svFrameFlagWait, svFrameIoLinkHtml, svFrameStageMount, svFrameWarm, svFrameStageUnmount, svFrameTileAttrs, svFrameTileLabelHtml, svFrameTime } from './187-frame-viewer.js';
 import { _svPhoneNotesPresentation } from './095-shared-client.js';
 import {
@@ -44,11 +44,12 @@ import {
   _calShowApprovedAfterTweaks, _notesMarkSeen
 } from './180-calendar-native-post-media.js';
 import { _calCrqBegin, _calCrqDone, _calCrqFailed, _calCrqHeld, _calCrqResend, _calCrqResolve } from './185-client-review-queue.js';
-import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodCardCommentsPending, _prodComments, _prodCommentsSkeletonHtml, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
+import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodComments, _prodCommentsEmptyFeedHtml, _prodCommentsFeedHasRows, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-onboarding-staff-controls.js';
-import { svRsCalOn, svRsCalPending, svRsCalSync, svRsClientReviewOn } from './188-review-stage-switch.js';
+import { svRsCalOn, svRsCalPending, svRsCalSync, svRsClientReviewOn, svUnreadBadgesOn } from './188-review-stage-switch.js';
 import { _calLoaderHtml } from './133-core-loading-skeletons.js';
+import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-badges.js';
     function _calHasMedia(p) {
         return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim());
     }
@@ -397,7 +398,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         // only an approve or a status change takes the panel over.
         const _noteSending = _noteOutboxFor(p.id, e => e.comp === comp && (e.kind === 'review-comment' || e.kind === 'request')).length > 0;
         if (_calStaffPhoneActive() && _calReviewState.saving[p.id + '|' + comp] && !_noteSending) {
-            return `<div class="cal-review-panel" data-comp="${_calEscAttr(comp)}" data-state="pending"><div class="cal-review-panel-title">${_calEsc(COMP_LABELS[comp])}</div><div class="pocket-staff-cal-saving" role="status">Saving…</div></div>`;
+            return `<div class="cal-review-panel" data-comp="${_calEscAttr(comp)}" data-state="pending"><div class="cal-review-panel-title">${_calEsc(COMP_LABELS[comp])}</div><div class="pocket-staff-cal-saving" role="status">${svBusyHtml('Saving…')}</div></div>`;
         }
         const escId = _calEscAttr(p.id);
         const escComp = _calEscAttr(comp);
@@ -980,7 +981,9 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
        Mirrors _calReviewRequestTweak but without the Tweaks-Needed flip / Linear
        push. Client comments are client-visible; SMM comments default to internal
        (team-only) since the panel has no audience toggle. */
-    function _calReviewComment(pid, comp) {
+    // `parentId`: the client review page's Reply (195, polish): the note goes under that thread, on the card and, on a
+    // linked part, through the same gateway comment add (which already carries a parent and checks it server-side).
+    function _calReviewComment(pid, comp, parentId) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const key = pid + '|' + comp;
@@ -991,7 +994,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         // The note goes in the outbox first (its words survive a failed send
         // and a refresh), then in the thread, where it shows as "Sending…".
         const entry = _noteOutboxPut({
-            id: _calMintCommentId(), surface: 'review', kind: 'review-comment', pid, comp, parent_id: null, body,
+            id: _calMintCommentId(), surface: 'review', kind: 'review-comment', pid, comp, parent_id: parentId ? String(parentId) : null, body,
             author: _calCurrentAuthor(), author_member_id: _calCurrentAuthorId() || undefined, role,
             audience: (role === 'client') ? 'client' : 'internal', is_tweak: false,
             created_at: _now, at: Date.now(), state: 'sending'
@@ -1024,7 +1027,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         if (list.some(c => c && c.id === entry.id)) return list;
         list.push({
             id: entry.id,
-            parent_id: null,
+            parent_id: entry.parent_id || null,
             author: entry.author,
             ...(entry.author_member_id ? { author_member_id: entry.author_member_id } : {}),
             role: entry.role,
@@ -2150,6 +2153,8 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
        Retry and Discard. */
     function _noteOutboxStatusHtml(c) {
         if (!c || !c._outbox || c._outbox === 'sent') return '';
+        // Round 7 (switch unread_badges_v2): a spinner, never the word "Sending…" (owner, 2026-10-24).
+        if (c._outbox === 'sending' && svBusyOn()) return `<div class="sv-note-outbox is-sending">${svSpinHtml('Sending')}</div>`;
         if (c._outbox === 'sending') return `<div class="sv-note-outbox is-sending" role="status"><span class="sv-note-outbox-dot" aria-hidden="true"></span>Sending…</div>`;
         if (c._outboxRequest) {
             return `<div class="sv-note-outbox is-failed" role="alert"><span>Not sent yet. It will be sent when the connection is back.</span>
@@ -2178,6 +2183,23 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         const gate = _prodCanonicalCommentGate(post, comp);
         return !!(gate && gate.linked);
     }
+    /* Round 9 (owner, switch unread_badges_v2, staff only): a note sent in the moment the card's notes are still
+       loading (the link check and the thread read that every opening runs) used to be refused with "Notes are still
+       loading". It is now taken: it shows in the thread at once, as every note does, and is sent as soon as the
+       loading ends (at most 10 s; after that the send runs and refuses as before). A read that failed still refuses. */
+    function _calNotesStillLoading(post, gate) {
+        return !_isClientLink && svUnreadBadgesOn() && !!post && _calCommentSendPending(post, gate) && gate.status !== 'error';
+    }
+    async function _calWaitNotesLoaded(pid, entry) {
+        const until = Date.now() + 10000;
+        while (Date.now() < until) {
+            const post = calState.posts.find(p => p.id === pid);
+            if (!post) return;
+            const comp = entry.parent_id ? _calFindCompForCommentId(post, entry.parent_id) : (entry.comp || 'video');
+            if (!_calNotesStillLoading(post, _prodCanonicalCommentGate(post, comp))) return;
+            await new Promise(r => setTimeout(r, 100));
+        }
+    }
     /* Send (or re-send) one waiting note. Never awaited by a click. */
     function _noteOutboxSend(id) {
         const first = _noteOutboxGet(id);
@@ -2199,6 +2221,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
                 if (entry.kind === 'review-comment' && !(await _noteReviewGoesToGateway(pid, entry.comp))) ok = await _calReviewCommentSend(entry);
                 else {
                     if (entry.surface === 'msg' && typeof window._msgBeforeNoteSend === 'function') await window._msgBeforeNoteSend(entry);
+                    await _calWaitNotesLoaded(pid, entry);
                     ok = await _calAppendComment(pid, entry.parent_id || null, entry.body, {
                         id: entry.id, comp: entry.comp || '', audience: entry.audience, isTweak: !!entry.is_tweak, background: true
                     });
@@ -2566,6 +2589,8 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         return `<span class="cal-aat-badge" title="Kasper already approved this. Check the edit was made, then send it to the client."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>`;
     }
     function _calCommentsBtnHtml(post, pid) {
+        // The round-5 badges (327), for the staff members switch unread_badges_v2 names; everyone else: below, unchanged.
+        if (typeof svuActive === 'function' && svuActive()) return svuNotesBtnHtml(post, pid);
         const open = _calOpenCommentCount(post);
         const unread = _calHasUnreadNotes(post);
         const cls  = (open > 0 ? ' has-open' : '') + (unread ? ' has-unread' : '');
@@ -2632,6 +2657,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         _calComposeIsTweak = false;         // default to a plain comment
         _calComposeComp = 'video';          // Part B: picker defaults to Video
         _calShowResolved = false;           // start on the live feed, not history
+        if (typeof svuNotesOpening === 'function') svuNotesOpening(pid);            // 327 keeps what was new, for "Needs you" (switch unread_badges_v2 only)
         _notesMarkSeen(pid);                // opening = caught up; clears the unread dot
         _calNotesWarm(pid, true);           // the read the pointer already started, or a new one
         const ovl = _calEnsureCommentsOverlay();
@@ -2974,7 +3000,8 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         // A reply whose thread is not on screen (resolved, or history hidden)
         // still shows, on its own, so it is never out of sight while waiting.
         const strayReplies = [...outboxReplies.values()].flat().map(c => `<div class="cal-cm-thread">${renderRow(c, true, '')}</div>`).join('');
-        const feedHtml = (roots.length || strayReplies) ? threadsHtml + strayReplies : (_prodCardCommentsPending(post, 'calendar') ? _prodCommentsSkeletonHtml() : emptyMsg);
+        if (roots.length || strayReplies) _prodCommentsFeedHasRows(post);
+        const feedHtml = (roots.length || strayReplies) ? threadsHtml + strayReplies : _prodCommentsEmptyFeedHtml(post, 'calendar', emptyMsg);
 
         // History toggle (top-right): hidden unless there's something resolved.
         const histBtn = resolvedCount
@@ -3145,8 +3172,9 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
            and only sending waits: the send button stays disabled (its tooltip
            says why) and _calAppendComment refuses on the same gate. No line of
            text is added under the box: it came and went and moved the layout
-           (owner, 2026-10-16). */
-        const sendPending = _calCommentSendPending(post, canonicalGate);
+           (owner, 2026-10-16). Round 9 (switch unread_badges_v2, staff): Send no longer waits; the note is taken
+           at once and goes when the notes have loaded (_calNotesStillLoading). */
+        const sendPending = _calCommentSendPending(post, canonicalGate) && !_calNotesStillLoading(post, canonicalGate);
         // Staff starting a new thread: the audience lives INSIDE the box as one
         // icon (lock = team, eye = client) and "Request change" sits behind the
         // small arrow of the Send button, so the default (a comment to Kasper /
@@ -3325,7 +3353,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             ? _calFindCompForCommentId(post, parentId)
             : (_calComponentsFor(post).indexOf(_calComposeComp) >= 0 ? _calComposeComp : 'video');
         const gate = _prodCanonicalCommentGate(post, comp);
-        if ((gate.linked && !gate.ready) || _calCommentSendPending(post, gate)) {
+        if (((gate.linked && !gate.ready) || _calCommentSendPending(post, gate)) && !_calNotesStillLoading(post, gate)) {
             showNotify('Notes are still loading', 'Retry the canonical thread before sending.');
             return;
         }
@@ -3506,7 +3534,13 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
         // can never leak a caption/title note onto the video issue. Create-only
         // (edits/resolves/deletes never sync); audience-independent;
         // _calPostLinearComment no-ops on an unlinked issue (empty url).
-        await _calWatchNoteSave(pid, nativeCommentCommitted);
+        /* Round 9 (switch unread_badges_v2, staff): once the server holds the note (native_committed), the outbox
+           lets go of it; the card's own copy saves behind it (about 0.9 s on calendar-card-write) and still says so
+           if it fails. Before, "sending" stayed up for that save too. */
+        const cardSave = _calWatchNoteSave(pid, nativeCommentCommitted);
+        if (o.background && nativeCommentCommitted && !_isClientLink && svUnreadBadgesOn()) {
+            cardSave.catch(() => {}).then(() => { _calRefreshCommentsBtn(pid); _calUpdateCardStatusDisplay(pid); });
+        } else await cardSave;
         _calRefreshCommentsBtn(pid);
         _calUpdateCardStatusDisplay(pid);
         return true;
@@ -3660,7 +3694,8 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
        button-visibility rules. Deleting a root cascades into its replies
        so the thread doesn't leave orphans. If an SMM delete clears the
        last open thread, the same Client-Approval auto-status applies. */
-    function _calDeleteComment(commentId, postId) {
+    // `confirmed`: the caller already asked (the client review page's own "Delete this note?", 195), so no second dialog.
+    function _calDeleteComment(commentId, postId, confirmed) {
         const pid = postId || _calOpenCommentsPid;
         if (!pid) return;
         const post = calState.posts.find(p => p.id === pid);
@@ -3679,7 +3714,7 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             : isRoot
                 ? "This deletes the message and every reply in this thread. This can't be undone."
                 : "Delete this reply? This can't be undone.";
-        showConfirm('Delete tweak?', msg, async () => {
+        const run = async () => {
             const canonicalGate = _prodCanonicalCommentGate(post, comp);
             if (canonicalGate.linked) {
                 const receipt = await _writeUiCommitCardCommentLifecycle('calendar', post, comp, target, 'delete');
@@ -3716,7 +3751,9 @@ import { _calLoaderHtml } from './133-core-loading-skeletons.js';
             _calCaptureModalDrafts();
             _calRenderCommentsModal();
             if (postId && svRsCalOn()) svRsCalSync();
-        }, 'Delete');
+        };
+        if (confirmed === true) run();
+        else showConfirm('Delete tweak?', msg, run, 'Delete');
     }
 
     /* Resolve-tweaks destination chooser. When the SMM closes the last open

@@ -58,6 +58,14 @@ name: Calendar unit tests
 # gated the same way. Every push to main runs all nine legs (review-gauntlet-three)
 # and the review phones, whatever changed. Whether a red main run should page
 # anyone is an open owner decision. docs/ops/CI_CHECKS.md has the whole audit.
+#
+# Browser installs (2026-10-25, session Apt, OPEN_REPAIRS 502). Every browser job
+# installs through .github/actions/playwright-browsers, never `playwright install
+# --with-deps`: that apt-installed the system libraries from the Ubuntu mirror on
+# every run, and when the mirror served 96 kB/s three jobs hit their timeout
+# before or during the tests. The action installs the same libraries (playwright's
+# own list) from a cache of their .deb files, and the browsers from a cache of
+# ~/.cache/ms-playwright; only a cache miss goes to the mirror.
 on:
   push:
     branches: [main]
@@ -125,9 +133,9 @@ jobs:
       - name: Build index.html and js/ from src/index/ (build output, not committed)
         uses: ./.github/actions/build-index
       - name: Install the pinned browser harness
-        run: |
-          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       - name: Staff phone checks, three side by side (part 1 of 2)
         if: ${{ matrix.part == 1 }}
         env:
@@ -140,6 +148,7 @@ jobs:
           The same native-icon Tabs grid on every staff phone screen|node qa/staff-phone-tabs-grid.js --widths=${{ matrix.width }}
           Phone client selection, status colours and sheet dismissal|node qa/staff-phone-round-two.js --matrix --widths=${{ matrix.width }}
           Thumb phone Messages list, threads, drafts, composer and unread markers|node qa/staff-phone-messages.js --widths=${{ matrix.width }}
+          Phone polish behind its switches (staff and client page), off as before, desktop unchanged|node docs/syncview-design/tests/phone-polish-browser.js --widths=${{ matrix.width }}
           LANES
       - name: Staff phone checks, three side by side (part 2 of 2)
         if: ${{ matrix.part == 2 }}
@@ -371,9 +380,9 @@ jobs:
       - name: Build index.html and js/ from src/index/ (build output, not committed)
         uses: ./.github/actions/build-index
       - name: Install Playwright into a temp prefix (package.json untouched)
-        run: |
-          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       - name: Entry link and client browser checks, three side by side (part 1 of 3)
         if: ${{ matrix.part == 1 }}
         env:
@@ -385,6 +394,7 @@ jobs:
           Kasper Clients profile shows onboarding checklist, resources and HubSpot state to admins only|node docs/syncview-design/tests/clients-onboarding-browser.js
           The boot flags read, the review switch read and the roster Sheets read retry once (mocked)|node test/boot-reads-retry-browser.js
           A note shows the moment it is sent and is never lost (slow server, error then retry, double click, refresh mid-send; desktop and phone) (mocked)|node docs/syncview-design/tests/note-send-outbox-browser.js
+          Notes reopen without a needless skeleton, and a reply sent while loading goes at once (switch unread_badges_v2; mocked)|node docs/syncview-design/tests/notes-quick-open-reply-browser.js
           A Calendar Retry sends the status the person chose (mocked)|node docs/syncview-design/tests/lost-work-retry-intent-browser.js
           Client Calendar Expanded layout, sections and dialogs|node docs/syncview-design/tests/client-calendar-expanded-browser.js
           TikTok queue poll backs off when quiet and resumes on a change|node test/tiktok-poll-backoff-browser.js
@@ -398,6 +408,8 @@ jobs:
           A click on a pop-up's backdrop never falls through to the page underneath|node docs/syncview-design/tests/backdrop-press-fallthrough-browser.js
           Messages chat day dividers follow the reader's day and read as dates|node docs/syncview-design/tests/messages-day-divider-browser.js
           Messages New and All switch, what counts as new, live badge (mocked)|node docs/syncview-design/tests/messages-new-view-browser.js
+          Messages button badge live from page load, icon stays put (mocked)|node docs/syncview-design/tests/messages-badge-boot-browser.js
+          Production thumbnail titles: batch and sub-issue buttons, per-row states, toast, review, retry, undo, a teammate's run (mocked)|node docs/syncview-design/tests/thumbnail-title-buttons-browser.js
           Notes composer (comment / client / request change) and folding threads (mocked)|node docs/syncview-design/tests/notes-composer-threads-browser.js
           Calendar card "No video linked" warning stays clear of the button pile|node docs/syncview-design/tests/calendar-warn-pile-overlap-browser.js
           Templates client page shows the client's social links|node docs/syncview-design/tests/templates-social-links-browser.js
@@ -426,6 +438,7 @@ jobs:
           Expanded staff Selection and Samples phone states|node docs/syncview-design/tests/staff-selection-samples-browser.js
           Calendar work item hover card and per-card files menu|node docs/syncview-design/tests/calendar-hover-files-browser.js
           Samples client approve and request-changes always save through the function|node test/samples-client-approve-function-browser.js
+          A client Samples link stays on the Samples review with the new review page on|node test/samples-client-link-review-stage-browser.js
           Top bar keeps flat tabs on a page with no tab of its own (Messages)|node docs/syncview-design/tests/header-nav-no-active-tab-browser.js
           Entry links reach their screens|node docs/syncview-design/tests/entry-links-boot-browser.js
           A reply under an old round-0 comment saves with no round, never a 500 (mocked)|node docs/syncview-design/tests/comment-round-zero-browser.js
@@ -440,10 +453,12 @@ jobs:
         run: |
           node scripts/ci-lanes.js --lanes=3 <<'LANES'
           Caption helper (call to action, platform, note, title ideas, hashtags, redo; desktop and phone, light and dark)|node test/caption-helper-browser.js
+          Caption history (icon behind its switch, versions, highlights, put back with Undo; desktop and phone, light and dark)|node test/caption-history-browser.js
           Two people on one Calendar card get a notice, not an overwrite (mocked)|node docs/syncview-design/tests/lost-work-conflict-browser.js
           One shared client follows the client tabs; team tabs and client links ignore it|node docs/syncview-design/tests/shared-client-browser.js
           Urgent ping uses the stamp the database holds, and a refused ping can be refreshed|node docs/syncview-design/tests/urgent-ping-fresh-round-browser.js
           Messages inbox (list, read and unread, reply through Notes, posted drops out, phone) (mocked)|node docs/syncview-design/tests/messages-inbox-browser.js
+          Round-5 unread badges only for the staff unread_badges_v2 names: people bubbles, Needs you, To answer (mocked)|node docs/syncview-design/tests/unread-badges-v2-browser.js
           Generate caption off n8n (no n8n fallback, function path, transcript box, desktop and phone)|node test/caption-generate-browser.js
           Kasper Clients tab is admin-only and read-only|node docs/syncview-design/tests/clients-admin-browser.js
           Expanded client Samples and Analytics phone states|node docs/syncview-design/tests/client-links-expanded-browser.js
@@ -497,9 +512,9 @@ jobs:
       - name: Build index.html and js/ from src/index/ (build output, not committed)
         uses: ./.github/actions/build-index
       - name: Install Playwright into a temp prefix (package.json untouched)
-        run: |
-          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       - name: Browser regression guards, three side by side (part 1 of 2)
         if: ${{ matrix.part == 1 }}
         env:
@@ -521,6 +536,10 @@ jobs:
           New review page behind its switches (client link, SMM Review tab, Kasper Review Session; old page when off)|node test/review-stage-browser.js
           Finish reviewing draws the eye once every part is answered (slow breathing ring, still with reduced motion)|node test/review-stage-finish-browser.js
           Client review message box and caption edits (part chips, comment or change request, the caption itself changes, thin scrollbars)|node test/review-stage-client-composer-browser.js
+          Client review page polish behind its switch (Approve spinner then check, no wait cursor, a sent change keeps its box open, no Sending text, delete cross with a confirm, old page when off)|node test/review-client-polish-browser.js
+          Client review notes in the quiet design behind the same switch (rows, first names, day lines, quiet status words, Reply on hover on team comments only, bubbles when off)|node test/review-client-notes-browser.js
+          Client review notes badges behind the same switch (corner count for new, plain number for waiting, never both, read on open, none when off)|node test/review-client-badges-browser.js
+          Kasper review polish for the staff on unread_badges_v2 (check at the click with a rollback, change box stays open, quick note without a spinner, threaded Reply in team threads, old page when off)|node test/review-kasper-polish-browser.js
           Dialogs stay open on a press that starts inside them (OPEN_REPAIRS 215)|node test/dialog-backdrop-press-browser.js
           SyncLinear work item opens its Calendar card in a new tab|node docs/syncview-design/tests/open-in-calendar-browser.js
           Calendar and Samples, an edit stays with its client|node test/calendar-edit-stays-with-its-client-browser.js
@@ -531,6 +550,7 @@ jobs:
           A client's sent caption edit is their answer for the caption step (saves, tells the team, approves once, moves on; refused save stays)|node test/review-stage-caption-send-browser.js
           The manager's Review tab asks once (no second pop-up, open change requests marked done with Undo, Notes panel opens at the newest message)|node test/review-stage-one-question-browser.js
           Today opens new tabs, SyncLinear offers Back to card|node docs/syncview-design/tests/back-to-card-browser.js
+          A new tab opens what its address names however slow the staff check (SyncLinear from a card stays SyncLinear)|node docs/syncview-design/tests/new-tab-slow-staff-check-browser.js
           Kasper hiring renders on open and reload|node test/kasper-hiring-reload-browser.js
           TikTok upload through the functions|node test/tiktok-upload-browser.js
           Instagram and TikTok switch|node test/instagram-platform-switch-browser.js
@@ -573,6 +593,7 @@ jobs:
           Calm Workload for everyone (workload_calm_staff all:true, hint holds the loader, old staff list still works)|node docs/syncview-design/tests/workload-calm-all-browser.js
           Calm Workload, every click (pills, chips, one Open link, close three ways, folds, filters, weeks, dark, phone)|node docs/syncview-design/tests/workload-calm-interactions-browser.js
           Calm Workload, no flashing warning on refresh, plan-origin marks, editor name colour|node docs/syncview-design/tests/workload-calm-five-browser.js
+          Calm Workload, a client row with 3+ days of buffer keeps its green dot (red, orange, mixed grey, dark)|node docs/syncview-design/tests/workload-calm-buffer-dot-browser.js
           Production list scrolls inside its frame|node docs/syncview-design/tests/prod-list-scroll-containment.js
           Instagram cover image|node test/instagram-cover-browser.js
           Calendar and Samples link boxes, Escape and Enter|node test/calendar-link-box-keys-browser.js
@@ -604,9 +625,9 @@ jobs:
           node-version: '22'
       - uses: ./.github/actions/build-index
       - name: Install the pinned Safari and Android engines
-        run: |
-          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps webkit chromium
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: 'webkit chromium'
       - name: Client and staff review on iPhone and Android, both orientations and themes
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -637,9 +658,9 @@ jobs:
           node-version: '22'
       - uses: ./.github/actions/build-index
       - name: Install the three browser engines
-        run: |
-          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium firefox webkit
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: 'chromium firefox webkit'
       - name: Checkpoint ownership survives recovery, another tab, storage failure and reload
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -675,9 +696,9 @@ jobs:
       - name: Build index.html and js/ from src/index/ (build output, not committed)
         uses: ./.github/actions/build-index
       - name: Install Playwright into a temp prefix (package.json untouched)
-        run: |
-          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       - name: Build the split version (runner checkout only)
         if: ${{ matrix.part == 1 }}
         run: node scripts/build-index.js --force-split
@@ -811,9 +832,9 @@ jobs:
           node-version: '22'
       - uses: ./.github/actions/build-index
       - name: Install chromium
-        run: |
-          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       - name: Gauntlet Three on chromium at 1440, three halves side by side
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -853,9 +874,9 @@ jobs:
           node-version: '22'
       - uses: ./.github/actions/build-index
       - name: Install the selected browser
-        run: |
-          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps "${{ matrix.engine }}"
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: '${{ matrix.engine }}'
       - name: Review action and failure matrix
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

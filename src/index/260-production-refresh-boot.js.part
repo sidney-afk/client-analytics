@@ -1,3 +1,4 @@
+import { _prodTtRowChipHTML, _prodTtSubheadHTML } from './255-production-thumbnail-titles.js';
 import {
   ANALYTICS_CACHE_KEY, _analyticsAppliedFp, _analyticsHoldExtras, _analyticsHydrateFromCache,
   _analyticsHydrateFromIdb, _analyticsIdbDelete, _analyticsLiveApplied,
@@ -1542,6 +1543,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
                 + _prodStatusIcon(k.status, k.id)
                 + '<span class="prod-title"' + _prodTitleAttrs(title) + '><b>' + _calEsc(title) + '</b></span>'
                 + '<span class="prod-spacer"></span>'
+                + _prodTtRowChipHTML(k)
                 + _prodProjectChipHTML(k)
                 /* The file pill, next to the project and due-date pills the
                    owner asked it to sit beside. It is absent, never disabled,
@@ -1567,7 +1569,11 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
             // only the content calendar creates. An empty parent with no
             // kids and nothing to offer renders nothing at all.
             if (!kids.length) return '';
-            return '<div class="prod-subsection" data-prod-section="subissues"><div class="prod-subhead"><span class="prod-subhead-title">' + _prodIcon('issues') + ' Sub-issues <span class="prod-group-count">' + kids.length + '</span></span></div>' + kids.map(_prodSubIssueRowHTML).join('') + '</div>';
+            /* The post's "Thumbnail titles" button sits on the right of this header, where it was empty
+               (OPEN_REPAIRS 481, behind thumbnail_title_buttons_staff). */
+            const parent = kids.length ? _prodIssue(kids[0].parent) : null;
+            const ttButton = parent ? _prodTtSubheadHTML(parent, kids) : '';
+            return '<div class="prod-subsection" data-prod-section="subissues"><div class="prod-subhead"><span class="prod-subhead-title">' + _prodIcon('issues') + ' Sub-issues <span class="prod-group-count">' + kids.length + '</span></span>' + ttButton + '</div>' + kids.map(_prodSubIssueRowHTML).join('') + '</div>';
         }
         function _prodProjectIssueRowHTML(d) {
             const assignee = _prodMember(d.assignee);

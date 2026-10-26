@@ -153,9 +153,19 @@ ok(!/cal-native-editor-select/.test(html),
  * intake assignee, so an always-sent choice would fail EVERY video Create Post
  * in that window — for a default that changes nothing.
  */
-const submit = html.slice(html.indexOf('const suggestedEditorId ='), html.indexOf('const dueISO = wlAddWorkingDays'));
-ok(/chosenEditorId !== suggestedEditorId/.test(submit),
-  'the chosen editor is sent ONLY when it differs from the suggestion');
+/* 2026-10-23: the default left unsent is the gateway's OWN first-ranked
+   editor, not the dialog's suggestion -- editor_suggest_last can move the
+   gateway's pick down the list, and then the suggestion must be sent. */
+const submit = html.slice(html.indexOf('const rankedFirstEditorId ='), html.indexOf('const dueISO = wlAddWorkingDays'));
+ok(/chosenEditorId !== rankedFirstEditorId/.test(submit),
+  'the chosen editor is sent ONLY when it differs from the gateway\'s own first pick');
+ok(/const videoUnassigned = \(mode === 'video' \|\| mode === 'both'\) && chosenEditorId === CAL_NATIVE_EDITOR_NONE;/.test(submit),
+  '"Not assigned" is its own choice, on video posts only, never a roster id');
+ok(/\.\.\.\(nobody \? \{ unassigned: true \} : \{\}\)/.test(html),
+  'and it rides the video item as unassigned: true, omitted otherwise');
+ok(/item\.unassigned === true/.test(gateway) && /unassignedByTeam\[team\]\s*\?\s*""/.test(gateway)
+  && /assignee_id: assigneeId \|\| null,/.test(gateway),
+  'the gateway honours it: no editor, written as null, never auto-assigned');
 ok(/\(mode === 'video' \|\| mode === 'both'\)/.test(submit),
   'and never on a Thumbnail-only post, which creates no video work to assign');
 ok(/\.\.\.\(chosenEditor \? \{ assignee_id: chosenEditor \} : \{\}\)/.test(html),

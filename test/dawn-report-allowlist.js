@@ -45,6 +45,8 @@ const everyShape = [
   { key: 'samples-sync', ok: true, warn: true, detail: D.samplesStuck(1, 1, 30) },
   { key: 'samples-sync', ok: true, warn: true, detail: D.samplesStuck(3, 5, 30) },
   { key: 'samples-sync', ok: true, blocked: true, detail: D.samplesUnread() },
+  { key: 'analytics', ok: true, ms: 2693, detail: D.tabHiddenTimed(2693, 5928, false) },
+  { key: 'analytics', ok: true, slow: true, ms: 9900, detail: D.tabHiddenTimed(9900, 5928, true) },
 ];
 for (const s of STEPS) everyShape.push({ key: 'client-approve', ok: false, detail: D.failedAt(s) });
 const mixed = buildReport({ started, results: everyShape, violations: 1, calMs: 2168, baseline: BASELINE });
@@ -98,7 +100,7 @@ for (const line of ['Acme Studio', '- ✅ **Client approves** — Dawn approve 1
 ok(!Object.values(CHECKS).some(t => /[A-Z][a-z]+ [A-Z][a-z]+ [A-Z]/.test(t) && !/^(Client|Staff|Card|Workload|SyncLinear|Analytics|Harness|Everything)/.test(t)), 'check names are fixed product words');
 
 // 3. Templates accept only numbers and known step words.
-assert.throws(() => D.tabOk('Acme', 1)); assert.throws(() => D.failedAt('Acme')); assert.throws(() => D.approveOk(-1, 2)); n += 3;
+assert.throws(() => D.tabOk('Acme', 1)); assert.throws(() => D.tabHiddenTimed('Acme', 1, false)); n++; assert.throws(() => D.failedAt('Acme')); assert.throws(() => D.approveOk(-1, 2)); n += 3;
 assert.throws(() => buildReport({ started, results: [{ key: 'acme', ok: true, detail: D.renameOk() }], baseline: BASELINE })); n++;
 
 // 4. The script never hands the report free text.

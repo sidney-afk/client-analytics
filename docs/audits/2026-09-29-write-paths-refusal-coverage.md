@@ -142,6 +142,7 @@ and SMM weekly reports.
 | `230-production-create-comments.js` | `load` | `PROD_COMMENTS_EF_URL` POST | read |  | Reads comments. |
 | `240-production-description.js` | `_prodDescriptionPostImage` | `PROD_DESCRIPTION_IMAGE_EF_URL` POST | reports-in-callers | `via _prodDescriptionUploadImage` | Description image upload. Recorded as description_image by its caller. |
 | `240-production-description.js` | `_prodEnsureDescription` | `PROD_WRITE_EF_URL` POST | read |  | Reads a description. |
+| `255-production-thumbnail-titles.js` | `_prodTtCall` | `THUMBNAIL_TITLES_EF_URL` POST | reports-in-callers | `via _prodTtStart`, `_prodTtAction` | Production thumbnail title buttons (thumbnail-titles: run, decide, retry, pick_tab, cancel). A refused start is recorded as thumbnail_titles_run, a refused decision or retry as thumbnail_titles_<action>; the status reads that poll a run record nothing. |
 | `260-production-refresh-boot.js` | `_syncviewPreflightClientEntry` | `CLIENT_TOKEN_VERIFY_URL` POST | read |  | Client link check at boot. |
 | `270-samples-model.js` | `_sxrFillComponentSubmit` | `PROD_WRITE_EF_URL` POST | reports | `_sxrFillComponentSubmit` | Samples component fill. Already recorded (component_fill). |
 | `270-samples-model.js` | `_sxrReorderFetch` | `SXR_REORDER_EF_URL` POST | reports | `_sxrReorderFetch` | Samples drag order (sample-review-reorder), behind the saving-on check. Recorded as sample_reorder. |

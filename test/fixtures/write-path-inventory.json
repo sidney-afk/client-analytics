@@ -309,6 +309,14 @@
       "status": "read",
       "note": "Reads a description."
     },
+    "255-production-thumbnail-titles.js.part|_prodTtCall|THUMBNAIL_TITLES_EF_URL|POST": {
+      "status": "reports-in-callers",
+      "callers": [
+        "_prodTtStart",
+        "_prodTtAction"
+      ],
+      "note": "Production thumbnail title buttons (thumbnail-titles: run, decide, retry, pick_tab, cancel). A refused start is recorded as thumbnail_titles_run, a refused decision or retry as thumbnail_titles_<action>; the status reads that poll a run record nothing."
+    },
     "260-production-refresh-boot.js.part|_syncviewPreflightClientEntry|CLIENT_TOKEN_VERIFY_URL|POST": {
       "status": "read",
       "note": "Client link check at boot."

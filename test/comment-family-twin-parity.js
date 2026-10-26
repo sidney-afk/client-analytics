@@ -270,7 +270,8 @@ const EXCLUDED = {
     _calReviewResolveCanonical: 'the canonical half of _calReviewApprove; no Samples twin',
     _calReopenTweaks: 'Undo of the toast after a Review-tab send (OPEN_REPAIRS 447): reopens the requests _calReviewApprove marked done, canonically when linked; the Samples Review tab resolves card JSON only, so _sxrReopenTweaks has no gate to mirror',
     _msgBeforeNoteSend: 'Messages inbox reply (Notes Step 2, sent through the note outbox since 2026-10-15): waits for gate readiness, then the outbox writes through _calAppendComment, the family member that gates; not a separate operation',
-    _calSubmitComposerNow: 'the Notes Send button (note outbox, 2026-10-15): refuses a new note while the thread is still loading, exactly as _calAppendComment does, before the note is queued; the write itself is _calAppendComment',
+    _calSubmitComposerNow: 'the Notes Send button (note outbox, 2026-10-15): refuses a new note while the thread is still loading, exactly as _calAppendComment does, before the note is queued (round 9, switch unread_badges_v2, staff: queues it instead, and the outbox waits for the loading through _calWaitNotesLoaded); the write itself is _calAppendComment',
+    _calWaitNotesLoaded: 'round 9 (switch unread_badges_v2, staff): the note outbox waits here, reading the gate, until the card\'s notes have loaded (at most 10 s) before handing the note to _calAppendComment, the family member that gates; not a separate operation',
     _sxrRenderCommentsModal: 'reads gate readiness only to draw comment actions disabled while the canonical thread loads (the Samples twin of _calRenderCommentsModal, OPEN_REPAIRS 404); not a write operation',
 };
 

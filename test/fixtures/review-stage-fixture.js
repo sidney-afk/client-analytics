@@ -167,8 +167,8 @@ async function open(browser, origin, opt) {
       return json(b.slug === SLUG && b.token === TOKEN ? { ok: true, valid: true, allowed: true, slug: SLUG, display_name: CLIENT, view: b.view, strict: true, active: true, protocol: 'syncview-client-entry-v1' } : { ok: true, valid: false, allowed: false, error: 'invalid_client_link' });
     }
     // The Messages inbox (opt.inbox: a list of fictional conversations); without it the inbox is empty.
-    if (p === '/functions/v1/production-comments' && r.method() === 'POST' && opt.inbox) {
-      let b = {}; try { b = JSON.parse(r.postData() || '{}'); } catch (e) {}
+    if (p === '/functions/v1/production-comments' && (r.method() === 'POST' || r.method() === 'GET') && opt.inbox) {
+      let b = {}; try { b = r.method() === 'GET' ? { action: u.searchParams.get('action') } : JSON.parse(r.postData() || '{}'); } catch (e) {}
       if (b.action === 'inbox') return json({ ok: true, scope: 'all', conversations: opt.inbox });
       return json({ ok: true });
     }
@@ -258,6 +258,13 @@ async function open(browser, origin, opt) {
         client_comment_gateway_enabled: { enabled: true }, prod_authority: { video: 'syncview', graphics: 'syncview' },
         frame_viewer_clients: opt.frame === 'off' ? { clients: [] } : { all: true },
       };
+      // opt.polish: the client review page's polish (review_client_polish) for the fixture client, or a given value.
+      if (opt.polish) values.review_client_polish = opt.polish === true ? { clients: [SLUG] } : opt.polish;
+      // opt.unread: the staff badges (unread_badges_v2) for the signed-in staff member, which also gives Kasper's Review
+      // Session the polish (round 3), or a given value.
+      if (opt.unread) values.unread_badges_v2 = opt.unread === true ? { staff: [STAFF.id] } : opt.unread;
+      // A slow live permission read before each save (state.authorityDelay ms, set at run time).
+      if (state.authorityDelay && keys.includes('prod_authority')) await sleep(state.authorityDelay);
       if (opt.flags === 'on') { values.review_stage_client_pages = { clients: [SLUG] }; if (!opt.noKasperStage) values.review_stage_kasper_staff = { staff: [STAFF.id] }; }
       // opt.layout2: Kasper's second layout (all parts at once, a list on the left) for the signed-in staff member.
       if (opt.layout2) values.review_stage_kasper_layout2 = opt.layout2 === true ? { staff: [STAFF.id] } : opt.layout2;

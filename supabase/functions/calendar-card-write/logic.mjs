@@ -66,6 +66,18 @@ const KASPER_URGENT_COMPONENTS = ["video", "graphic", "caption", "title"];
    Anything else (no row, a malformed value, an unlisted client) is OFF. */
 export const FLAG_KEY = "calendar_card_write_clients";
 
+/* A save that has taken this long inside the function is not written. The page
+   gives up after 20 s (CAL_SAVE_TIMEOUT_MS) and tells the person it was not
+   saved, so a write after that lands behind their back, possibly after a newer
+   save of the same card. On 2026-10-26 one call stalled 130 s on its first
+   database request and then wrote (OPEN_REPAIRS 508). The check runs just
+   before the write, so a refusal guarantees nothing was written. */
+export const WRITE_DEADLINE_MS = 15000;
+
+export function pastWriteDeadline(startedMs, nowMs) {
+  return Number(nowMs) - Number(startedMs) > WRITE_DEADLINE_MS;
+}
+
 export function rosterAllows(value, client) {
   const slug = clean(client).toLowerCase();
   if (!slug || !value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -131,6 +143,34 @@ export function responsePayload(row) {
 
 /* `normalizeClient` is passed in so the handler uses the shared write-auth
    normaliser and Node tests can pass a plain one. */
+/* Caption history (migrations/2026-10-23-caption-versions.sql). How this save changed the caption, handed to the
+   trigger on calendar_posts as the header x-syncview-caption-origin on this function's own write (PostgREST passes
+   it on as request.headers). The page names it in body.caption_origin { kind: "redo", note } or
+   { kind: "restored", from: <version id> }; a save that carries a caption and names nothing is a typed edit.
+   Base64 of JSON, so a note in any language survives an HTTP header. "" when the save carries no caption, so
+   every other save is sent exactly as before. The trigger reads it only when the text really changed. */
+export const CAPTION_ORIGIN_HEADER = "x-syncview-caption-origin";
+const CAPTION_ORIGIN_KINDS = ["typed", "redo", "restored"];
+export function captionOriginHeader(body, actor) {
+  const post = body && body.post && typeof body.post === "object" ? body.post : {};
+  if (!has(post, "caption") && !has(post, "caption_alt")) return "";
+  const o = body.caption_origin && typeof body.caption_origin === "object" && !Array.isArray(body.caption_origin) ? body.caption_origin : {};
+  const kind = CAPTION_ORIGIN_KINDS.includes(o.kind) ? o.kind : "typed";
+  const out = { k: kind };
+  if (kind === "redo") {
+    const note = clean(o.note).slice(0, 500);
+    if (note) out.n = note;
+  }
+  if (kind === "restored" && /^[0-9]{1,18}$/.test(clean(o.from))) out.f = clean(o.from);
+  const a = clean(actor && actor.actor).slice(0, 120), r = clean(actor && actor.role).slice(0, 40);
+  if (a) out.a = a;
+  if (r) out.r = r;
+  const bytes = new TextEncoder().encode(JSON.stringify(out));
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
 export function buildIncoming(body, now, normalizeClient) {
   const client = normalizeClient(body.client);
   if (!client) throw new Error("client required");

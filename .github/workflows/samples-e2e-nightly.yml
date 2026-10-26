@@ -32,6 +32,10 @@ jobs:
     # Only a schedule copy asks; any other run skips this job and needs no runner for it (Throttle, 2026-10-17).
     if: github.event_name == 'schedule'
     uses: ./.github/workflows/schedule-fallback-guard.yml
+    # A stand-down copy goes red when the timer's run it stood down for was red
+    # (OPEN_REPAIRS 505: nine green schedule rows over nine red nights).
+    with:
+      mirror_timer_failure: true
     permissions:
       actions: read
       contents: read
@@ -62,10 +66,12 @@ jobs:
           node-version: '22'
       - name: Build index.html and js/ from src/index/ (build output, not committed)
         uses: ./.github/actions/build-index
-      - name: Install Playwright + Chromium
-        run: |
-          npm install
-          npx playwright install --with-deps chromium
+      - name: Install Playwright
+        run: npm install
+      - name: Install the pinned Chromium and its system libraries
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       - name: Master lanes — unit, parity, realtime, scenarios, tree
         env:
           SXR_COURIER: '0'   # open egress on CI runners — no curl courier needed
@@ -144,9 +150,11 @@ jobs:
           node-version: '22'
       - name: Build index.html and js/ from src/index/ (build output, not committed)
         uses: ./.github/actions/build-index
-      - name: Install Playwright + Chromium
-        run: |
-          npm install
-          npx playwright install --with-deps chromium
+      - name: Install Playwright
+        run: npm install
+      - name: Install the pinned Chromium and its system libraries
+        uses: ./.github/actions/playwright-browsers
+        with:
+          browsers: chromium
       - name: Production preview read-only smoke
         run: node docs/syncview-design/tests/prod-readonly-smoke.js

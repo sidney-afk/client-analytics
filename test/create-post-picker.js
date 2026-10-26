@@ -108,6 +108,13 @@ const PICKER_SOURCES = [
      which looks exactly like a legitimately empty pool. */
   extractConstBlock('const CAL_NATIVE_LIVE_VIDEO_STATUSES =', ';'),
   extractConstBlock('const CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS =', ';'),
+  /* 2026-10-23: "Not assigned" and the editor_suggest_last ordering. The
+     setting reader's own read is stubbed per world as _prodRestRows; absent,
+     its ReferenceError is caught and the order is the gateway's. */
+  extractConstBlock('const CAL_NATIVE_EDITOR_NONE =', ';'),
+  extractConstBlock('const CAL_NATIVE_SUGGEST_LAST_TIMEOUT_MS =', ';'),
+  extract('_calNativeEditorSuggestLastIds'),
+  extract('_calNativeEditorSuggestOrder'),
   /* 2026-08-26: the batch dropdown grew a name filter, shown only once the
      list is long enough to be worth searching. The render reads this
      threshold, so leaving it out throws a ReferenceError before a single
@@ -519,6 +526,74 @@ console.log('6) the post-count read is one bounded projection query that counts 
       ok(/\(suggested\)/.test(modal.innerHTML),
         'and still marks which one is suggested, so the default is never unexplained');
     }
+    ok(/Not assigned/.test(modal.innerHTML),
+      (stall ? 'a failed editor-pool read' : 'a loaded pool') + ' still offers "Not assigned"');
+  }
+
+  // -------------------------------------------------------------------------
+  console.log('7b) editor_suggest_last moves the named editors to the end; "Not assigned" is offered');
+  for (const flag of [null, { staff: ['ed-out'] }, { staff: 'ed-out' }]) {
+    const modal = { innerHTML: '' };
+    const context3 = {
+      console, setTimeout, clearTimeout,
+      _calStaffPhoneActive: () => false,
+      _sxrStaffPhoneActive: () => false,
+      CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS: 25,
+      calState: { client: 'Client A' },
+      calClientSlug: name => String(name || '').trim() ? 'client-a' : '',
+      showNotify: () => {},
+      _syncviewRequireStaffIdentity: async () => ({ role: 'admin' }),
+      _calCloseNativePost: () => {},
+      _calLatestNativeBatches: async () => [batchFixture({ id: 'bat-a' })],
+      _calFetchNativeBatchPostCounts: async () => new Map(),
+      _prodRestRows: async (table, select, params) => {
+        if (table !== 'syncview_runtime_flags' || params !== 'key=eq.editor_suggest_last') throw new Error('unexpected read');
+        return flag ? [{ key: 'editor_suggest_last', value: flag }] : [];
+      },
+      // The gateway ranks the outsourced editor first: he holds no open videos.
+      _calNativeVideoEditorPool: async () => ([
+        { id: 'ed-out', name: 'Outside Editor', openCount: 0 },
+        { id: 'ed-free', name: 'Free Editor', openCount: 1 },
+        { id: 'ed-busy', name: 'Busy Editor', openCount: 9 },
+      ]),
+      document: {
+        createElement: () => ({}),
+        body: { appendChild: () => {}, classList: { add: () => {}, remove: () => {} } },
+        querySelector: selector => selector === '#calNativePostOverlay .cal-import-modal' ? modal : null,
+        getElementById: () => null,
+      },
+    };
+    vm.createContext(context3);
+    vm.runInContext(PICKER_SOURCES + '\n' + extract('_calOpenNativePost'), context3);
+    vm.runInContext('_calNativeDraftRestore = function () {};', context3);
+    await vm.runInContext("_calOpenNativePost('Client A', 'client-a')", context3);
+    for (let i = 0; i < 4; i++) await new Promise(resolve => setTimeout(resolve, 0));
+    const html = modal.innerHTML;
+    const at = name => html.indexOf(name);
+    const state = vm.runInContext('_calNativePostState', context3);
+    const applied = !!(flag && Array.isArray(flag.staff));
+    ok(state.videoEditorRankedFirstId === 'ed-out', 'the gateway\'s own first pick is kept apart from the suggestion');
+    if (applied) {
+      ok(state.videoEditorSuggestedId === 'ed-free' && state.videoEditorId === 'ed-free',
+        'with the setting, the freest OTHER editor is suggested and preselected');
+      ok(at('Free Editor') < at('Busy Editor') && at('Busy Editor') < at('Outside Editor'),
+        'and the named editor is offered last, after busier editors');
+      ok(/Free Editor[^<]*\(suggested\)/.test(html) && !/Outside Editor[^<]*\(suggested\)/.test(html),
+        'the suggestion mark follows the reordered head');
+    } else {
+      ok(state.videoEditorSuggestedId === 'ed-out' && at('Outside Editor') < at('Free Editor'),
+        (flag ? 'a malformed setting' : 'no setting row') + ' changes nothing: the gateway order stands');
+    }
+    ok(at('Not assigned') > at('Busy Editor') && at('Not assigned') > at('Outside Editor'),
+      '"Not assigned" is offered, after every editor');
+  }
+  {
+    const order = vm.runInNewContext(extract('_calNativeEditorSuggestOrder') + '\n_calNativeEditorSuggestOrder', {});
+    const list = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }];
+    ok(order(list, ['b', 'a']).map(e => e.id).join() === 'c,d,a,b', 'several named editors keep their ranked order at the end');
+    ok(order(list, []).map(e => e.id).join() === 'a,b,c,d' && order(list, ['zz']).map(e => e.id).join() === 'a,b,c,d',
+      'an empty or unknown list changes nothing');
+    ok(order(list, ['a', 'b', 'c', 'd']).map(e => e.id).join() === 'a,b,c,d', 'naming everyone changes nothing');
   }
 
   // -------------------------------------------------------------------------

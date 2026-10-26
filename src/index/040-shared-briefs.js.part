@@ -6,6 +6,7 @@ import {
   renderMRTab_overview, renderMRTab_sources, renderViewsChart
 } from './050-market-briefs.js';
 import { currentNav } from './065-core-nav-intake-state.js';
+import { svUnreadBadgesOn } from './188-review-stage-switch.js';
 import { wlCanonicalClient, wlIsAllowedClient, wlMergeClientsFromSheet } from './070-core-client-names.js';
 import { navTo } from './092-core-submit-form-navigation.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svBootFlagRows, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
@@ -372,6 +373,34 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         if (!el) return;
         el.classList.remove('show');
         setTimeout(() => { try { el.remove(); } catch (e) {} }, 220);
+    }
+    /* The shared "busy" spinner (round 7, owner 2026-10-24: never the words "Sending…" or "Saving…" for a send).
+       A small ring in the text colour of whatever holds it; the label is for screen readers only. CSS: .sv-spin in
+       020. The review stage draws in a shadow root and carries its own copy of the rule (195). */
+    function svSpinHtml(label) {
+        return '<span class="sv-spin" role="status" aria-label="' + String(label || 'Sending').replace(/[&<>"']/g, ch => '&#' + ch.charCodeAt(0) + ';') + '"></span>';
+    }
+    /* A send or save in progress, anywhere on the team's side (owner, 2026-10-24: never the words "Sending…" or
+       "Saving…"). For the staff the switch unread_badges_v2 names, the spinner stands in their place; for everyone
+       else, and on any client link, the words as before. Only those words turn into the spinner: any other text
+       passes through unchanged, so a status line that also says "Saved" or an error can go through here. */
+    const SV_BUSY_WORDS = /^(Sending|Saving)\b[^\n]*(?:…|\.\.\.)$/;
+    function svBusyOn() {
+        try { return typeof svUnreadBadgesOn === 'function' && !!svUnreadBadgesOn(); } catch (e) { return false; }
+    }
+    // The words stay in place but invisible (and hidden from screen readers), with the spinner over them: whatever holds
+    // them keeps the size it has today while busy, so nothing beside it moves.
+    function svBusyHtml(words, label) {
+        const text = String(words == null ? '' : words), m = text.match(SV_BUSY_WORDS);
+        const esc = text.replace(/[&<>"']/g, ch => '&#' + ch.charCodeAt(0) + ';');
+        if (m && svBusyOn()) return '<span class="sv-busy"><span class="sv-busy-words" aria-hidden="true">' + esc + '</span>' + svSpinHtml(label || m[1]) + '</span>';
+        return esc;
+    }
+    function svBusyText(el, words, label) {
+        if (!el) return;
+        const text = String(words == null ? '' : words);
+        if (SV_BUSY_WORDS.test(text) && svBusyOn()) el.innerHTML = svBusyHtml(text, label);
+        else el.textContent = text;
     }
     function showToast(msg, opts) {
         opts = opts || {};
@@ -2267,6 +2296,6 @@ export {
   followersMode, followersPlat, formatHookTemplate, getActivePeriod, getMonthRow, getPeriodKey,
   getWeekRow, growthChart, hideToast, isPhrase, latestPerClient, linearClientRows, linearProjects,
   monthPrevPerClient, n, parseCSV, parseViewCount, prevPerClient, renderBriefContent,
-  renderTabSummary, savedHooks, setClientViewTab, showConfirm, showNotify, showToast, sortCol, sortDir, svArea,
+  renderTabSummary, savedHooks, setClientViewTab, showConfirm, showNotify, showToast, sortCol, sortDir, svArea, svBusyHtml, svBusyOn, svBusyText, svSpinHtml,
   svAreaApi, svAreaRegister, svWithArea, topVideos, viewsChart, viewsPlat, weekPrevPerClient
 };

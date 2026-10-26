@@ -33910,6 +33910,600 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 
 On 2026-10-22 at 15:13 UTC a staff save on one real client was refused three times with `authority_unavailable` (reason `calendar_flag_timeout`): the page's own read of the saving switch did not answer within two seconds, three times in a row. No Edge Function errored, every server save in the window was 200, and the change went through on the next try. The card saver watcher rolled the switch back to three clients as its rule says. The check now waits four seconds per read and tries four times (worst case about 18 seconds, inside the 20 second save limit); a held save still stays in the outbox. Browser-only change; the guard tests for Calendar, Samples and caption prompts now expect four reads.
 
+## 476. [2026-10-23 20:27 UTC, BUILT, NOT MERGED] Calm Workload calendar: client-row circles grey where they should be green (session Halo)
+
+- **Owner, 2026-10-23:** "the Workload calendar circles, I don't know why they're grey when they're supposed to be green."
+- **What the circle means.** The dot before each client row on a calendar day card is the deadline-buffer dot (`wlGroupDeadlineHtml`, `069-workload-planning-helpers.js.part`). It reads the work day against the due date for every video in the row: red when the work day is on or after the due date, orange for 1 to 2 working days of buffer, green for 3 or more. A row whose videos disagree, or with a video that has no due date, has no single colour and is grey (calm view only; ledger 449). Status, posting and approval play no part.
+- **Cause.** One calm-only rule from the first calm pass (ledger 449, when green rows went from hidden to a dot) painted the green dot grey: `.wl-calm .wl-deadline-summary.is-green { --wl-proximity-dot: var(--text-muted) }`. On 2026-10-21 (#2275, "a green dot on green buffers") the manager's feedback put green back on the per-video due line (`.wl-deadline-tag.is-green`), but that pass missed the client-row dot. So in the calm view, which every staff member has, a client row with plenty of buffer looked the same as a mixed one. The old view drew it green the whole time. The data, the colour map and the refresh were all fine. The shared calm test board has no row with 3+ days of buffer, so no test saw it.
+- **Measured (read-only SQL, 2026-10-23 20:25 UTC, counts only, hand-pinned work days in the 7 days before to 28 days after today, weekends skipped, holidays not):** 37 client rows on the calendar; 8 of them have every video 3+ working days ahead and drew grey; 10 orange, 15 red, 4 mixed. The 17 green videos by status: Scheduled 4, For Kasper approval 4, Todo 3, For SMM approval 2, Tweak Needed 2, For Client approval 1, Approved 1. Rows placed by the automatic plan are not counted, so the real number of affected rows is at least this.
+- **Fix (CSS only, no switch):** the calm rule now greys only `.wl-deadline-summary.is-neutral` (mixed or no deadline). Green rows draw `--wl-proximity-green` again, in light and dark. Orange keeps its calm tweaks orange and red is unchanged.
+- **Test:** `node docs/syncview-design/tests/workload-calm-buffer-dot-browser.js` (in `calendar-unit-tests.yml`). A fictional board with one green, one orange, one red and one mixed row, checked in the old view, the calm view and calm dark. It fails on main ("saw rgb(180, 180, 174), green is rgb(15, 159, 80)") and passes with the fix. The five existing calm suites still pass.
+- **Not checked live:** this environment cannot reach syncview.synchrosocial.com, so the live page was not opened; the proof is the offline browser run plus the SQL counts.
+
+**Way back:** revert the pull request.
+
+## 477. [2026-10-23 20:32 UTC, PR open, session Tagline] "Notify client" did not tag the client, so nobody got a Slack notification
+
+- **Owner request (2026-10-23).** The "Notify client" message should at-mention the client so they get a real Slack notification. "We probably have to test that."
+- **Measured (live, read-only, counts only, 2026-10-23 20:25 UTC).** No client Slack user id is stored anywhere: `clients` and `client_profiles` hold only channel ids, `client_profiles.extra` holds one unrelated key, and `team_members.slack_user_id` is staff only. 35 active clients, 27 with an email on file, 32 with a private channel. 12 alerts have been sent so far, all untagged.
+- **Choice: a staff-filled field, not an email lookup.** `users.lookupByEmail` was not used: it needs the `users:read.email` scope on the bot (not verifiable from here), it only finds people inside our own workspace (clients in shared Slack Connect channels are usually outside it), the email on file is often not the person's Slack email, and a wrong match would tag a stranger in a client channel. A staff member pastes the client's Slack member id once (Slack: open their profile, three dots, "Copy member ID").
+- **Changed.**
+  - Migration `migrations/2026-10-23-client-slack-mention.sql`: `client_profiles.slack_mention_user_id` (only `U...`/`W...` ids or null, enforced by a check constraint) and `client_profile_admin_edit` redefined with that one field added (the live body was measured identical to the repo copy before it was extended). Function grants restated with all four roles named.
+  - `client-review-alert`: with a linked person the message (notification text and block) starts with `<@id>`; without one it is byte for byte as before. `status` returns who will be tagged (name from Slack `users.info`, and whether they are in the channel from `conversations.members`, both for the box only, never stored; the id is not returned). `audit` adds `without_slack_person` (null, not 0, before the migration). The browser still sends only action, client and surface. The tagged id is not written to the alert log.
+  - Kasper > Clients: new field "Slack person to tag" (pasted `<@U...>`, spaces and lower case are tidied; anything else is refused with a sentence). `analytics-read` and `client-profile-write` read the column only once a probe finds it.
+  - Confirm box: the message preview starts with "@Name" and one line says who is tagged, or that nobody is (no linked person, or tagging not switched on yet), and warns when the person is not in the channel. Sending is never blocked by the tag.
+- **Copes without the migration** (line 1 marker): the functions deploy on merge and keep sending untagged until it is applied. **Applied when** this answers `true, true` (also in the file header): the column exists and `client_profile_admin_edit` names it.
+- **Proven offline.** `test/client-review-alert-handler.js` (130 checks, incl. unit tests of the message with and without a mention, bad ids never becoming markup, and the no-column path), `test/client-profile-edit.js` (50), `test/client-slack-mention-postgres.js` on a disposable PostgreSQL 16 (before/after read-back, constraint, history, Sheet-copy queue, four roles), `docs/syncview-design/tests/notify-client-browser.js` (330, desktop and phone, Calendar and Samples). No Slack message was posted by this session: this environment cannot reach the live site, and no client channel was touched.
+- **Owner steps.** (1) Apply the migration. (2) Live test, safe: in Kasper > Clients set the test client's "Slack person to tag" to your own member id, open Notify client on the test client (the box should say "Tags <you>", then Cancel), and run the existing admin-only `preview` action, which has no button: signed in as admin on the Calendar with the test client open, run `_notifyClientCall({ action: 'preview', client: calState.client, surface: 'calendar' })` in the browser console. The exact message lands in your own DM and the tag pings you. A mention inside your DM cannot notify anyone else, because nobody else is in that conversation. (3) Fill the field for real clients; `audit` counts the ones still missing.
+
+**Way back:** clear the field (alerts go untagged at once), or revert the pull request; the column can stay.
+## 478. [2026-10-23, PR OPEN] Create Post: "Not assigned" in the editor picker, and an outsourced editor always suggested first (session Blank)
+
+Stamped 2026-10-23 20:36 UTC.
+
+- **Owner request (2026-10-23).** (1) Creating a post in the content calendar (and Samples, same dialog) must be able to pick nobody: "Not assigned", and the card is then created with no editor. (2) One outsourced video editor always comes first in the suggested editors because he has no open videos, but the team works with him differently; he must always be suggested last, as a setting, with no name in the repo.
+- **Measured (read-only SQL, 2026-10-23).** That editor's roster row already has `auto_assign_opt_out = true`, so the gateway's automatic pick already skipped him, but the picker's ranking (`intake_editor_options`) does not read that column and showed him first with "(suggested)": the dialog named one person and the server assigned another. Unassigned video rows are already normal downstream (hundreds of open ones), `deliverables.assignee_id` is nullable, and the intake SQL functions and `calendar-card-write` / `calendar-upsert` do not read the assignee.
+- **Changed.** Picker (170, 180): "Not assigned" is always offered once the list settles (even when the editor read failed), after every editor. The setting row `syncview_runtime_flags.editor_suggest_last = {"staff": [ids]}` moves the named editors to the end of the list (stable; no row, a malformed row or a read slower than 2.5 s changes nothing). The dialog leaves the editor unsent only when it is the gateway's OWN first-ranked editor, so with the setting on, the shown suggestion is sent explicitly. Payload (200): "Not assigned" rides the video items as `unassigned: true`, and joins the job signature only when chosen, so saved jobs keep their shape. Gateway (`production-write`, Section 4 fingerprint re-pinned): a video item may say `unassigned: true`; the plan then writes a NULL assignee and never auto-assigns; graphics, a non-true value, or mixing it with a named editor or with "automatic" is refused 400. A retry still adopts its own earlier attempt's assignee. The dialog checks the answer: if an older gateway assigned someone anyway it says so.
+- **Downstream, checked.** Workload puts a no-assignee row with a due date (Create Post sets one) in "Needs assignment"; the Calendar card shows "Unassigned"; Production shows "Unassigned" and can assign. Urgent editor pings on a card with no editor are refused by the gateway (`urgent_context_unavailable`), as they already were for the existing unassigned rows.
+- **Proven (offline; this sandbox cannot reach syncview.synchrosocial.com).** New `test/intake-not-assigned.js` (runs the gateway's real validation and assignment code and the browser item builder, 14 checks); `test/create-post-picker.js` (ordering with and without the setting, malformed setting, "Not assigned" offered in loaded and failed pools); `docs/syncview-design/tests/prod-write-gateway-browser.js` now picks "Not assigned" with real clicks and checks the payload; the editor-picker and intake source pins account for the change exactly. Unit suite: 773 of 773 pass.
+- **Owner step.** Insert the setting row (the id and SQL are in the PR, not here).
+
+**Way back:** delete the `editor_suggest_last` row (ordering only), or revert the pull request.
+## 482. [2026-10-23, PR OPEN, behind `caption_history_staff`] A redo with a note left no trace of how the caption changed (session Versions)
+
+Stamped 2026-10-23 21:46 UTC (`date -u`). Number 476 is claimed by the open #2302; check for a duplicate `## 477.` after merging.
+
+- **Owner report (2026-10-23).** After "Regenerate with a note" there was no way to see how the caption changed, or to go back. Design approved the same day (option C, `docs/syncview-design/mockups/caption-history/`, draft PR #2297).
+- **Measured before the change (read-only, live).** `calendar_post_events` never stores caption text. `card_change_journal` holds the old text of 3,378 caption changes on 621 cards since 2026-09-17, but every row is written by the service role, so it cannot say who or how, and 60% of caption changes are typing saves under 10 seconds apart. `caption_jobs` keeps the redo note only until it is pruned (14 days).
+- **Changed.** `migrations/2026-10-23-caption-versions.sql`: append-only `caption_versions`, written by an AFTER trigger on `calendar_posts` that only acts when the caption text really changed and catches every error of its own (logged as a WARNING), so it can never block a save; revokes name all four roles, service_role gets SELECT only. `calendar-card-write` tells the trigger how the caption changed (typed, redo with its note, restored) in a header on its own write. `caption-generate` gains two staff GET reads (`caption_history`, `caption_history_index`) that group typing bursts into one version. The Calendar card shows a history icon under the regenerate icon once a caption has changed, and the pop-up puts a version back through the normal caption save, with Undo (180, 188, 120). `scripts/caption-versions-backfill.sql` (by hand, re-runnable) adds the journal's earlier changes, marked "who and how not recorded".
+- **Proven offline.** `test/caption-versions-postgres.js` (a save succeeds with the version insert refused, and with the table gone; append-only; all four roles; applied read; backfill twice), `test/caption-history-logic.js`, `test/caption-history-browser.js` (switch off in three shapes and before the migration; desktop and phone, light and dark), plus the caption, card-saver and Calendar card browser suites.
+- **Not proven live.** This session could not reach the live site. That PostgREST hands the card saver's header to the trigger (`request.headers`) is measured only on the test client after the merge: one typed save and one redo on the test client, then `select kind, note from caption_versions order by id desc limit 2`.
+
+**Way back:** delete the `caption_history_staff` row (the icon goes); to stop recording, `drop trigger zz_caption_versions_capture on public.calendar_posts`; or revert the pull request.
+## 479. [2026-10-23 20:45 UTC, BUILT, NOT MERGED] The Messages badge appeared only after a click, and pushed its icon to the left (session Beacon)
+
+Owner report 2026-10-23: the Messages button's unread badge only shows after clicking Messages, and when it shows it moves the speech-bubble icon. (Number 479 because 476 is claimed by #2296 and 477 and 478 may be claimed by the two mockup PRs opened the same hour.)
+
+- **Cause 1.** The inbox was read only when the pointer reached the Messages button or Messages opened ("never at page load", OPEN_REPAIRS 443), and its live refresh starts only after that first read.
+- **Cause 2.** The sign-in check (`100`) calls `_msgOnIdentity()` when it answers, but it usually answers before the Messages script chunk has run; the call threw inside a `try` and nothing started. Measured offline: it never ran on a normal Calendar load.
+- **Cause 3 (the shift).** The count was an inline item beside the icon in a fixed 34 px centred button: the icon moved 9 px left with one digit, 11 px with two.
+- **Fix (no switch).** `_msgBootLoad` reads the inbox once, 1.5 s after a sign-in that may use Messages is known, and the Messages code starts it itself when it loads after the sign-in. Never on the Production tab (its read-only gate), on a client link, or in a hidden tab (it waits and checks again locally). The first answer starts the existing live refresh. The count now sits on the button's top-right corner with a ring in the header colour.
+- **Tests.** New `node docs/syncview-design/tests/messages-badge-boot-browser.js` (fails on main: no inbox call, icon offset -9 and -11 px; passes with the fix), wired into `calendar-unit-tests.yml`. `messages-inbox-browser.js` check O asserted the old "no call at page load" rule; it now asserts the new rule as strictly (exactly one call after load, none added by hover or open). Still passing: messages-inbox, messages-new-view, messages-day-divider, note-send-outbox, prod-write-gateway, prod-boot-budget, prod-readonly-smoke, popup-behaviour.
+- **Review follow-up (2026-10-23 20:58 UTC, Codex P2).** A first automatic read that failed (network, 5xx) was never tried again, so the badge stayed dead until a hover. It now retries up to three times (3 s, 10 s, 30 s), keeping every guard, and never after a 401/403 or once Messages is off. Tests D (503 then ok: badge without a click) and E (403: no retry) in `messages-badge-boot-browser.js`; D fails without the retry.
+- **CI follow-up (2026-10-23 21:40 UTC).** On e8a7d69 the page-load read went red in six suites that count every POST as a write: Time Off (`pto-ui-polish`), the archive restore (Production fast lane), the Instagram cover switch, and the phone Collections and Workload suites. The read was a POST only because `production-comments` took nothing else. Fix: `production-comments` now also serves the inbox LIST over `GET ?action=inbox` (nothing else over GET; marks and thread reads stay POST, CORS allows GET), and the page reads the list with GET. A 405 from the older function (the minutes between the page deploy and the function deploy) sends the same read once as POST. The automatic read also no longer starts on the Time Off or Submit forms or the intake and onboarding pages (Production and client links were already excluded). No guard was loosened: the Messages mocks (`messages-*`, `note-send-outbox`, `qa/staff-phone-messages`, `qa/messages-desktop-parity`, the review-stage fixture) learned the GET form of the same one read (the time-off lifecycle mock is left as it was: the read never starts there, and its screenshot evidence is pinned to every file in that folder), and their route patterns take the `?action=inbox` query. New checks F in `messages-badge-boot-browser.js`: every automatic read is a GET, and nothing starts while on Time Off. `production-comments` is not a Section 4 function and needs no migration; the merge lane deploys it.
+- **Evidence follow-up (2026-10-23 22:55 UTC).** On 460ffdc the time-off evidence gate (`qa/pto-lifecycle/run.js --validate-public-evidence`) said the packet was stale: its fingerprint covers every `qa/pto-lifecycle` file and every built line that mentions the time-off page by name, and this change had edited the lifecycle mock and written that name in three code comments. Both were undone (the comments reworded), so the reviewed packet is current again; no digest was edited and no screenshot replaced. The lifecycle lane, the time-off UI checks and the badge test pass.
+- **CI follow-up 3 (2026-10-24 00:40 UTC).** On 2073a56 two harnesses misread the new inbox list read. `workload-harness-lib.js` counted every production-comments request as a notes read ("read once (saw 3)"); it now answers the GET inbox list as an empty inbox and keeps counting every deliverable's notes read as before. `kasper-admin-expanded-browser.js` stands in for a function without the inbox, but answered the GET with its generic ok, so the page left the legacy replies view; it now answers that GET with 405, as the deployed function does, which also exercises the page's one-time POST fallback. No assertion changed.
+- **Not checked live:** this environment cannot reach syncview.synchrosocial.com.
+
+**Way back:** revert the pull request.
+## 481. [2026-10-23, BUILT, NOT MERGED, NOT DEPLOYED, NOT APPLIED, SWITCH ABSENT] Thumbnail titles from the filming plan: buttons in Production (session Titlecard)
+
+**Why.** The automatic thumbnail-title writer (391, 394) runs once, when a thumbnail is created, and is usually
+too early: in the 7 days to 2026-10-23 it wrote 18 titles and 61 "Needs info" lines (24 plan empty, 20 no tab
+for the month, 17 not matched; counts from `thumbnail_title_queue`). Nothing tried again once the plan was
+written. Owner (2026-10-23): a button on a thumbnail sub-issue, and one on the post for every thumbnail at
+once, with a building state per row and a toast that stays until it is all done. Plan, mock-ups and the seven
+approved decisions: `docs/syncview-design/mockups/thumbnail-titles/PLAN.md`.
+
+**What was built.**
+- **Page** (`src/index/255-production-thumbnail-titles.js.part`, hooks in 240 and 260, styles in 010): "Thumbnail
+  titles" on the right of a post's "Sub-issues N" header, "Write title" beside Edit on a thumbnail sub-issue.
+  Per-row state (Waiting, Writing title…, the title written, Has a description · Review, the skip reason,
+  Failed · Try again), a toast that stays until the run is finished (and until closed when a row needs a person),
+  the review sheet with before and after (Keep mine first; Replace keeps the old text under the title; Add title
+  above mine; Use new for an earlier AI title), Undo, Try again, Use another tab. Admins and SMMs; a designer sees
+  the button greyed with the reason. Behind the new switch `thumbnail_title_buttons_staff` `{"staff": [...]}`
+  (absent = off), read with the other switches in 188.
+- **Server** (`supabase/functions/thumbnail-titles`: `runs.ts`, `manual.mjs`, `plan.ts`, `index.ts`): browser
+  actions `run / status / decide / retry / pick_tab / cancel` with the staff key (admin or SMM). The run works in
+  the background (`EdgeRuntime.waitUntil`), so closing the tab does not stop it; the per-minute timer finishes a
+  run whose worker died. One active run per post (a unique index): a second press, from anyone, follows it. The
+  plan tab: the latest tab dated on or before the day the batch was made (a newer tab is the plan still being
+  written), checked against the batch's video numbers, the one before it if it does not hold them, and the person
+  is asked when two fit or none does. One model call per tab for the whole post. Written at once only into an
+  empty description or the robot's own exact "Needs info" line; everything else waits for a person. Every write
+  is compare-and-set (`thumbnail_title_manual_apply`) and lands in the issue's history under the person who
+  pressed. Real token counts are stored per run.
+- **Follow-ups the owner approved with it:** the background writer no longer writes "Needs info" lines into
+  descriptions (the queue keeps the reason); plans are read with the link reader first, then the Google service
+  account the plan-tab lookup already holds, so a private plan works once shared with that account; the timer's
+  answer counts tokens.
+- **Not touched:** `production-write` (no Section 4 re-pin), the Submit tab's own writer, n8n.
+
+**Measured for cost (read only, counts only, 2026-10-23 21:30 UTC).** All 35 active clients' plans were read
+the way the button reads them: 25 give a usable tab, 8 have no tab with videos yet, 2 have two tabs that fit
+equally (the button asks). The tab the rule picks is 2.5k to 49k characters, median 20k, 90th percentile 44k.
+With a ~2.2k-character prompt that is about 6k input tokens for a median batch and 12k at the 90th percentile.
+At Sonnet 5.5's list price that is **about 2 to 5 cents per batch** (one call per post, whatever its size). Not
+a real call: this sandbox has no AI key; the first real run stores the true numbers in
+`thumbnail_title_runs.input_tokens / output_tokens`.
+
+**Tests.** `test/thumbnail-title-buttons-source.js` (78 checks: the batch rule, matching, what may be written,
+the texts each choice writes, the service-account reader, wiring), `test/thumbnail-title-runs-deno.ts` (25
+checks: a whole post against an in-memory database, a second presser, decisions, an edit made meanwhile, a
+failing provider and Try again, a dead worker, two tabs and a pick; runs in the Edge Function type-ratchet lane),
+After the first review (Codex, 2026-10-23): the database writer also refuses a team Production may not write
+(`prod_authority` not `syncview`, or missing: fail-closed like `authorityFor`), an automatic write is fenced on its
+run still running (a Cancel wins), a run killed on its third try is ended instead of holding its post, and after a
+conflict the choices follow what the description holds now (unit 83 checks, server 31).
+`docs/syncview-design/tests/thumbnail-title-buttons-browser.js` (mocked: switch off draws nothing; a teammate's
+run is followed; a batch with a written, a review and a failed row; the toast stays; review with Escape and
+outside click; Try again; Undo; "Write title" beside Edit). Also passed here: `test/thumbnail-titles-source.js`
+(197, updated for the new reader and the no-"Needs info" rule), `prod-write-gateway-browser.js`,
+`prod-boot-budget.js`, `prod-comments-browser.js`, `prod-feedback-browser.js`, `prod-a11y-focus.js`, the module,
+lazy-loading, dark-contrast and type-ratchet checks.
+
+**Release order.** 1. Merge (the function deploys on merge; the migration is marked
+`functions-cope-without-this`, and until it is applied the buttons answer "not set up on the server yet").
+2. Apply `migrations/2026-10-23-thumbnail-title-buttons.sql`; it is applied when
+`select to_regclass('public.thumbnail_title_runs') is not null` is true. 3. Insert the switch for the owner's two
+staff ids (the INSERT is in the PR, never in this file). 4. One press on the test client's post, after giving it
+a real plan tab. Then add the other admins and SMMs.
+
+Rollback: delete the switch row (buttons gone at once); the migration's rollback block; reverting the PR brings
+back the old function (including its "Needs info" lines).
+
+## 483. [2026-10-24 01:47 UTC, BUILT, NOT MERGED] Round-5 unread badges, behind a switch, for the owner first (session Beacon)
+
+- **Owner, 2026-10-24:** "we're good to at least try it out ... only from my account, no one else", then "put the images right now ... every profile image of everyone, every client".
+- **What is built (desktop only):** the design approved in the round-5 mockups (OPEN_REPAIRS 480, PR #2299), in a new fragment `src/index/327-core-unread-badges.js.part` with its styles in 020 under `html.sv-unread2`:
+  - card Notes button: one round picture per person with a number coloured by kind, filled for new and outlined for still needing you; at most three, then "+N"; an instant hover;
+  - Notes: "Needs you", Slack-like rows, the New / Waiting for your answer / Not done tags, and Reply, No reply needed and Mark done under the note;
+  - Messages: New, To answer and All; rows with the client's picture and the same bubbles; a Slack-like chat; a client's change request shown as one line pointing to the card;
+  - the Messages button: a round count with a hover in words.
+- **Who sees it:** only the staff members the runtime switch `unread_badges_v2` `{ "staff": [...] }` names (188, read with the other page switches; never the client link; phone excluded). With the switch missing, unreadable, the wrong shape, or naming someone else, every page is exactly as before (the browser test checks all four). The row is not in this repository.
+- **Pictures:** the inbox answer of `production-comments` now carries `pictures` (new `pictures.mjs`):
+  - **staff:** each member's Slack profile photo, looked up with Slack `users.info` from `team_members.slack_user_id`;
+  - **clients:** the photo of the client's Slack contact (`client_profiles.slack_mention_user_id`), which `users.info` also answers for people in shared channels.
+  - **Storage and failures:** nothing is stored. The links are cached in the function's memory for 6 hours, and a cold lookup never holds the inbox longer than 1.5 s. Any failure means no pictures and never a failed inbox. Without a picture, the person's initials.
+  - **No new browser read:** signed-in staff get the links with the inbox they already read.
+  - **Opt-in (supervisor review, 2026-10-24):** the function looks pictures up only when the inbox read asks (`pictures: 1`), which only a page the switch is on for does. Every other inbox read, its answer and its timing are unchanged.
+- **Not built yet:** "No reply needed" and the card's "Mark unread" are kept in the browser (localStorage `sv-unread-v2-local`), not on the server. That is build step 2 in the audit, along with the per-kind counts in the inbox answer.
+- **Proof:** `docs/syncview-design/tests/unread-badges-v2-browser.js` (switch off three ways, on, the hover, Needs you, No reply needed, Messages); `test/people-pictures.js` (fictional people, faked Slack). The Messages, Notes outbox, Calendar write gate and calm Workload suites still pass.
+- **Owner action:** none in code. The switch row, naming the owner's two staff ids, turns it on once this merges.
+
+## 484. [2026-10-24 12:37 UTC, BUILT, NOT MERGED] Kasper's Messages inbox never loads: one read's URL was over the gateway limit (session Beacon)
+
+- **Found by the supervisor (2026-10-24):** every inbox read by Kasper's member answered 503. Reads failed twice on 21 Oct at 15:00 and five times at 17:00 (POST), then six times at 11:58 today (GET, the boot read and its retries). Each read passed the audit (`production_comment_read_audit` allow/inbox), so the failure came after it. No Postgres error was logged.
+- **Cause (measured by the supervisor):**
+  - Kasper is an admin with no roster entry, so his scope is every client: 656 open posts, with ids averaging 33 characters and reaching 40.
+  - `handleInbox` read `message_reads` with `.in("post_id", …)` in parts of 500 ids. That is about 17 kB of ids in one URL, over the gateway's ~16 kB limit.
+  - The read failed, `readsOf` returned null, and the inbox answered `503 inbox_reads_unavailable`.
+  - Smaller scopes (Sidney's admin login has a roster entry, and the SMMs') stay under the limit.
+  - This predates #2300.
+- **Fix:**
+  - A new shared helper, `production-comments/chunks.mjs` `chunkIds`, splits every `.in()` id list into parts of at most 200 ids and about 6 kB of encoded URL.
+  - The three id reads use it: `deliverables.id`, `production_comments.deliverable_id` and `message_reads.post_id`. The first two were already at 200.
+  - The client-slug `.in()` only runs for a limited scope.
+  - Nothing else changed.
+- **Proof:** `test/inbox-in-chunks.js`.
+  - With 656 fictional ids of 40 characters, no part's encoded list exceeds 8 kB; the largest part is 5,974 bytes.
+  - The test shows the old 500-id rule breaks that bound, and it fails against the old source.
+  - It also checks that all three id reads go through `chunkIds`.
+- **After merge:** production-comments deploys through the merge lane. Kasper's next inbox read should answer 200; no switch changes.
+
+## 485. [2026-10-24 13:49 UTC, BUILT, NOT MERGED] Round-6 unread badges: less noise after the owner's first live use (session Beacon)
+
+- **Owner, 2026-10-24, after using round 5 live (relayed by the supervisor):** "as little visual noise as possible; show only the information that's needed." Every change is behind the same switch, `unread_badges_v2`. Everyone else keeps today's view.
+- **Card hover:** each row is the picture, the first name and one line of the note. The date, the "Waiting for your answer · Video" label and the "N change requests not done yet" footer are gone. The hover now also lists a change still open, so an outlined bubble is explained. No kind icon was added: the bubble's colour already says the kind.
+- **Notes:**
+  - The "Needs you" box is gone; the tags on each note carry it.
+  - Authors show by first name, with the full name on hover, and times are relative, with the full date on hover.
+  - The always-visible action row under a note is gone. The hover toolbar is the one set of actions: Reply, No reply needed (on a comment waiting for an answer), Mark done and Delete, all as plain words with no boxes or fills, even on hover.
+  - "Mark unread" is one quiet word in the Notes head.
+- **Messages conversation:**
+  - The header is the first name, a lock icon for "Team only" (with its meaning on hover), "Change request" in quiet orange words instead of a capitals pill, and a relative time instead of a full date (the day line above carries the date). The part ("Video") sits quietly at the right, and the role word ("Reviewer") is gone.
+  - Reply, plus No reply needed on a comment waiting for you, shows only on hover, as plain words.
+  - Your own picture now sits beside your name. The app's `align-items: flex-end` for your messages had pushed it to the bottom right inside the new grid.
+- **Messages list:** each badge says in a hover what it counts, for example "Casey: 1 comment waiting for your answer".
+- **Proof:**
+  - `docs/syncview-design/tests/unread-badges-v2-browser.js`, updated to round 6.
+  - Before and after screenshots of the real page, fictional data, light and dark: `docs/syncview-design/proofs/unread-badges-r6/`, made by `shots.js` in that folder.
+
+## 486. [2026-10-24 14:20 UTC, BUILT, NOT MERGED] Round-6 unread badges, part 2: the owner's less-noise rule swept over the whole Messages page and Notes (session Beacon)
+
+- **What prompted it (supervisor's item E):** a full pass over the Messages inbox under the owner's rule (as little visual noise as possible) and the round-5 brief to mimic Slack. Run with the feedback-expansion method: each owner item became a rule, and every rule was swept over the list, filters, header, messages, day lines, change-request line, composer and empty states, in light and dark, with Notes as the sibling surface. Behind `unread_badges_v2`, on top of 485.
+- **Built:**
+  - **Status words:** quiet coloured words instead of filled pills ("Waiting for your answer", "Change request", "Not done", "New"). In Notes, "Waiting for your answer" stands alone, without "New".
+  - **Notes:** "TWEAK #1" reads "Change request" ("Change request 2" for a later round). "Team only" is the same lock as in Messages.
+  - **Conversation header:** no empty grey thumbnail; "Mark unread" and "Open card" are plain words.
+  - **Day lines:** Today, Yesterday, the weekday within a week, then "Wed 14 Oct" (the year only for another year).
+  - **"New":** no tag on each message. The existing "New messages" divider is one thin red "New" line.
+  - **Change requests:** a client's change request is one quiet line: "<first name> asked for a change on the video · 12m ago · Open card". The explanation moved to the hover.
+  - **Grouping:** a follow-up by the same person, in the same thread or both top-level, within five minutes, drops its repeated picture and name. A message waiting for your answer keeps its header.
+  - **Composer:** the reply caption uses the first name.
+- **Hover toolbar never covers the header (supervisor review of #2312):** each note's header line keeps its toolbar's exact width free at the right, so a long header wraps before it and nothing moves on hover. The part label ("Video") sits in that corner when the toolbar is hidden. The browser test hovers every note, the longest header included, and fails if the toolbar's box meets any header item. Without the fix it fails on the long note.
+- **Not built (owner decision list):**
+  - The Notes composer's "About the… / Team only · Video" lines are the shared composer, outside this pass.
+  - The client name on each list row stays, because an admin's list spans many clients.
+- **Proof:**
+  - `unread-badges-v2-browser.js`, new section H (day lines, no per-message New, the quiet change line, header words, empty thumbnail, first-name caption, grouping, the Notes lock and "Change request", "Waiting" alone).
+  - Screenshots `e-*` in `docs/syncview-design/proofs/unread-badges-r6/`.
+
+## 487. [2026-10-24 15:11 UTC, BUILT, NOT MERGED] Random red staff-phone check: the Messages count rewrote itself unchanged (session Beacon)
+
+- **Symptom:** `qa/staff-phone-responsiveness.js` (CI `staff-phone-rules`) failed at random with "Caption tap scanned unrelated popups 1 !== 0" on Calendar at 390 px, light or dark.
+  - Reproduced on main 32a8ab73 in 2 of 8 Calendar results and on #2314 in 4 of 8, with the same message, so it was not that PR's code.
+- **Cause:** the phone bar (099) watches the whole page and answers any change outside the caption with a page-wide popup scan.
+  - A probe that logged every page change during the tap caught the failure on both checkouts. The only changes were the header Messages count (`.msg-unread`): its text and `hidden`, written twice.
+  - 326 `_msgPaintCounts` (and 327 `svuPaintCounts`, desktop only) set the count's text, `hidden` and, in 327, its class on every inbox read and live refresh, even to the same values. When a refresh landed during the tap, the unchanged rewrite woke the scan.
+- **Fix:** both painters write the text, `hidden` and class only when the value changes. Nothing else changed.
+- **Proof:** `test/msg-count-write-on-change.js` runs both painters, taken from the fragments, twice with the same counts and finds zero writes the second time. It checks that a changed count is still written, and it fails on the old code.
+
+## 488. [2026-10-24 13:50 UTC, BUILT, NOT MERGED, behind `caption_history_staff`] Caption history pop-up: less visual noise, and the timeline icons off their line (session Versions, follow-up to 482)
+
+- **Owner feedback after using it live (2026-10-24).** Drop the arrows (a step is clicked instead), drop the Changes / Clean text switch (a redo always shows Before and After), drop the "Mostly rewritten" label, make the purple note box much quieter, and put every timeline icon on its line ("Earlier" sat off it). The rule behind it: as little visual noise as possible.
+- **Cause of the misaligned icons.** The steps took the width of their own text (`flex: 1 0 118px`; 84 px on a phone, where long "who · when" lines made them wider), while each connecting line was drawn as half of its own step's width, so with unequal steps it missed the icon before it; and a later step's line painted over the icon before it.
+- **Changed (180, 020, 010; behind the same switch).** The steps are equal widths with their text wrapping inside, and each line runs from one icon's edge to the next, under the icons. No arrows, no switch, no "Mostly rewritten" label. A redo shows Before and After whole; any other change keeps its words marked. The note is a thin rule on the left with muted text, no fill and no label. The unused note colours were removed.
+- **Proven offline.** `test/caption-history-browser.js` now checks that every icon is centred on the line and every line meets the icons, that the steps are equal, that there are no arrows and no switch, that the note has no fill, a thin rule and no label, and that a redo shows Before and After with no "Mostly rewritten". Those new checks fail on the code before this change. Also passing: `dark-contrast`, `caption-helper-browser`, `popup-behaviour-browser`, `client-review-requests-unchanged-browser`, `check-modules`.
+
+**Way back:** revert the pull request; the switch `caption_history_staff` still hides all of it.
+
+## 489. [2026-10-24 15:51 UTC, BUILT, NOT MERGED] Round-7 unread badges: the owner's seven points, and no "Sending…" on the team's side (session Beacon)
+
+- **Owner, 2026-10-24 (relayed by the supervisor), round 7:** everything behind `unread_badges_v2`, staff side only. The client review page is session Porch's.
+- **Read but still needs you:** on a card, the number alone in its colour, with no ring and no fill.
+- **No "Not done"** on a change request. A change request still listed is not done.
+- **The hover toolbar sits at the bottom right** of a note (Notes) and of a message (Messages), no longer the top right.
+  - 327 `_svuFitBars` measures where each note's last line of words ends.
+  - Only where that line runs under the toolbar does the note get the toolbar's height of room below (`svu-bar-room`). Elsewhere it adds no space.
+  - The part's name stays pinned top right, and the header keeps room only for it.
+- **No Reply on a change request**, nor on a reply under one, in Notes and in Messages. Mark done and Delete stay, and replies already written still show.
+  - Measured on the live table, read-only: 47 replies under change requests, 12 in the last 30 days.
+  - So this drops a path the team uses. **Owner's decision, 2026-10-24 15:36 UTC (relayed by the supervisor): no Reply on change requests**, as built: Mark done and Delete stay, existing replies still show in full, and it stays behind the switch.
+- **No "Sending…" / "Saving…" on the team's send paths:** a shared spinner instead.
+  - 040 `svSpinHtml(label)` / `svSpinButton(btn, on, label)`, the CSS `.sv-spin` in 020, and its copy in the review stage's shadow root (195).
+  - 327 `svuSpinOr(words)` uses the spinner when the switch is on.
+  - Swept: the note outbox line (190 `_noteOutboxStatusHtml`: Notes and Messages, on Calendar and Samples), the urgent ping button (140), the review stage's conversation time for the team and Kasper (195), and Kasper's Approve (330, 290).
+  - The other "Sending…" / "Saving…" words on the site are held by a ratchet in `test/no-sending-words.js`: counts may only go down.
+- **Spacing check of every note and message state, light and dark:** short, long, several lines, attachments, replies, team only, automatic record.
+  - The gaps seen in multi-line notes are the note's own blank lines.
+  - Found and fixed: **Messages never showed a message's attachments**, because the inbox answer did not carry them.
+  - production-comments `inbox.mjs` now carries them (safe http(s) links only, via `policy.mjs safeAttachments`, and only when there are some), and the inbox's canonical read selects them.
+  - 327 shows them under the words, behind the switch.
+- **The whole Notes row on a card opens Notes:** the button, the gap and the bubbles. The bubbles' hover still works.
+- **Proof:**
+  - `docs/syncview-design/tests/unread-badges-v2-browser.js`, new section I. It fails 8 checks on main's code. The "never covers a word" check fails when the room rule is switched off.
+  - `test/no-sending-words.js`: a source scan plus the ratchet.
+  - `test/messages-inbox-scope.js`: attachments in the inbox.
+  - Before and after screenshots, light and dark: `docs/syncview-design/proofs/unread-badges-r7/`, made by `shots.js` in that folder.
+- **After merge:** production-comments deploys through the merge lane, with no migration and no switch change.
+
+## 490. [2026-10-24 17:30 UTC, BUILT, NOT MERGED] Client review page polish behind `review_client_polish`: Approve animation, change box stays open, no "Sending" text, delete cross (session Porch)
+
+- **What prompted it:** the owner's list for the client review link (Calendar review stage, client mode). Everything is behind a new switch so only the test client sees it until he widens it.
+- **Switch:** `syncview_runtime_flags.review_client_polish`, `{ "clients": [...] }` or `{ "all": true }`, read once with the other review switches (188). Client link only. Missing, unreadable or the wrong shape: the client page exactly as before. The live row should name only the test client.
+- **Built (195, plus three small hooks):**
+  - **Approve:** the button morphs into a small round spinner on the press, turns into a check the moment the save lands, and the row then settles as Approved before the stage moves on. No wait or progress cursor anywhere on the page.
+  - **Speed:** the save's live permission read (`prod_authority`) now starts at the press instead of the release, so the click finds it under way. The write path still reads it live for that save; nothing is cached. Measured offline, same simulated server times (permission 150 ms, status write 250 ms, card write 250 ms, a 100 ms press): press to the old "Saved" mark 839 to 857 ms; press to the new check 686 to 710 ms. The two writes stay one after the other, as the write path requires.
+  - **Refusal:** the buttons come back on the same part with one plain line ("Not saved. Something went wrong on our side, so nothing changed. Please try again.") and Try again. The staff-worded "Write not saved (code: ...)" dialog (120) and the queue's "was not saved" dialog (185) no longer open over the review page while the switch is on; the refusal is still recorded in the diagnostics.
+  - **Change requests:** after sending, the box stays open and empty on the same part ("Another change to the video?"), with a spinner while it sends and then "Sent" or "3 changes sent". Changes sent while one is still saving wait their turn; the save path takes one change per part at a time and refused a second one sent too early ("still being confirmed"), so the page waits until the first has landed and left the delivery ledger. A refused change keeps its own words and Try again, and the changes waiting behind it go back into the box. Sending again from the box first retries the refused one. Typing in the box is never redrawn under the hands; the conversation and the box's status still update.
+  - **No "Sending..." text:** the sending note, Finish reviewing's "Saving..." and the caption's "Saving the caption..." are a spinner (one function, `_rsSpinner`, the swap point for the shared spinner session Beacon is building).
+  - **Delete a note:** no "Delete note" text. A small cross at the note's top right on hover, on keyboard focus, or on a long press on touch. It asks "Delete this note?" with Delete and Cancel inside the note, then deletes with no second dialog (`_calDeleteComment` takes a `confirmed` argument).
+- **Not in this PR:** item 5 (the client's notes in the round-6 quiet design: first names, day lines, quiet status words, actions on hover). It follows as a second PR on the same switch.
+- **Proof:** `node test/review-client-polish-browser.js` (new): spinner, check, settled row, timing before and after, no wait cursor and no "Sending"/"Saving" text at any moment, a refusal, three changes in a row (typed key by key across the moment the first lands), a refused change and a dropped connection with no words lost, the stage's own box, the delete cross and its question, and the switch off.
+
+## 491. [2026-10-24 18:30 UTC, BUILT, NOT MERGED] The client's notes in the round-6 quiet design, behind `review_client_polish` (session Porch)
+
+- **What prompted it:** item 5 of the owner's list for the client review link: the client's view of comments and notes follows the staff side's round-6 rules (session Beacon, OPEN_REPAIRS 485 and 486). Same switch as 490, built on it.
+- **Built (195, client page only, switch on):**
+  - **Rows, as in Slack:** a picture, a name, a relative time ("12d ago", the full date in its hover) and the words, left-aligned for everyone, instead of chat bubbles.
+  - **Names:** a client sees the team as the team's name ("Synchro team"), as the client link always has (190 never shows a client staff names); other people by first name, the full name in the hover.
+  - **Day lines** (Today, Yesterday, the weekday within a week, then "Wed 14 Oct") carry the day; no message repeats a date. With the earlier notes opened, the newer ones carry on without a second line for the same day.
+  - **Grouping:** a follow-up by the same person within five minutes, of the same kind, drops the repeated picture and name.
+  - **Status as quiet coloured words, never pills:** "Change request" (orange) and "Done" (green), each with a hover that explains it; a handled change request greys.
+  - **Actions as words on hover** (and on focus or a long press): Reply on a comment from the team. Never on a change request (the client cannot reply to those) or on one's own note, which has the delete cross from 490. Reply turns the box into a comment on that note's part, says "Replying to …" with a cross to undo, and sends a plain comment (the post's status is untouched).
+  - **Not built:** a reply is a new message in the post's one conversation, not a threaded child (no `parent_id`), because the client save path writes top-level notes only and threading would change what staff see. The client page has no unread or "new" marks of its own today, so none were restyled.
+- **Proof:** `node test/review-client-notes-browser.js` (new); `review-client-polish-browser.js` still passes on these rows.
+
+## 492. [2026-10-24 17:30 UTC, BUILT, NOT MERGED] No "Sending…" or "Saving…" on any of the team's screens: the shared spinner instead (session Beacon)
+
+- **Owner, 2026-10-24 (relayed by the supervisor):** yes to the follow-up of OPEN_REPAIRS 489. Sweep every remaining staff send or save state. It reaches the owner first, through the switch `unread_badges_v2`.
+- **One shared rule (040):**
+  - `svBusyHtml(words)` / `svBusyText(el, words)` show the spinner for the staff the switch names, and the words for everyone else and on any client link.
+  - The words stay in place, invisible and hidden from screen readers, with the spinner centred over them (`.sv-busy`). Whatever holds them keeps today's size, so nothing beside it moves.
+  - Only "Sending…" / "Saving…" phrases turn into the spinner; any other text passes through, escaped. So a status line that also says "Saved" or shows an error can run through it.
+  - `svBusyOn()` follows the switch's own list, so the team's phone screens get it too. Round 7's desktop-only gate is replaced.
+  - `svSpinButton` is gone: `svBusyText` covers buttons.
+- **Swept:**
+  - Production: the comment button and status, saving labels, the description, assets.
+  - Notify client: the send button.
+  - Time off: the request.
+  - Templates: the spec save and the brain send.
+  - Filming plans: the status line.
+  - Workload: due-date saving, on the board and in the popover.
+  - The weekly Slack update.
+  - Post: the saved-post status, calls to action, thumbnail prompts.
+  - Submit: the saved-job status.
+  - Hiring: the action status. Sales intake: sending the agreement.
+  - Clients: manager and edit saves.
+  - Onboarding: step buttons.
+  - Calendar and Samples on a phone: a part being saved.
+  - The urgent ping, the note outbox line, Kasper's Approve (290, 330), and the review stage for the team and Kasper (Finish reviewing, a note on its way, the conversation time).
+- **Left on purpose, held by the ratchet in `test/no-sending-words.js`:**
+  - The client review page's words (185, the client panels in 190 and 280, and the stage's client mode in 195). These are session Porch's.
+  - The saving icon's screen-reader label (170), which is never shown.
+  - The review bell's hover text (195).
+  - Every other staff file is at zero.
+- **Proof:**
+  - `test/no-sending-words.js`:
+    - runs `svBusyHtml` / `svBusyText` from their source with the switch stubbed both ways;
+    - checks each swept path;
+    - checks that every status line the ratchet treats as handled renders through the rule;
+    - checks that the busy words are hidden in both style sheets;
+    - lowers the ratchet to the list above.
+  - It fails on main.
+  - Pictures: `docs/syncview-design/proofs/no-sending-words/`, every control in its busy state, switch off (before) and on (after), light and dark. Made by `shots.js` in that folder.
+
+## 494. [2026-10-24 19:13 UTC, BUILT, NOT MERGED] Round-8 unread badges: the owner's eight points from live use (session Beacon)
+
+- **Owner, 2026-10-24, round 8 (relayed by the supervisor).** Staff side only, all behind `unread_badges_v2`.
+- **Card badges (327 `_svuBubblesHtml`):**
+  - Something new is the person's picture with a small count on its top right corner (`.svu-corner`), and nothing else.
+  - Nothing new but still needs you is the plain coloured number beside the picture.
+  - Never both at once: new wins. "+N" is unchanged.
+- **Card hover:** as wide as its lines need, at most 360 px; a longer line ends in "…". It was a fixed 380 px.
+- **No underline** on any Notes or Messages action, even on hover: colour only.
+- **No "Waiting for your answer"** anywhere: Notes, Messages, the bubbles' hover text, the Messages button tip and the empty state. A comment carries no status word; a change request keeps "Change request".
+- **No "Mark unread"** in the Notes head or the Messages header.
+- **Messages:**
+  - Reply and No reply needed sit at the bottom left, under the words, in the space between two messages; they cover nobody's words.
+  - Threads like Reddit (327 `_svuThreadMessages`): a reply sits indented under the message it answers, on a thin thread line. Two levels at most, then "replying to <first name>". Top-level messages keep their order and day lines, and the "New messages" line stays before the first new message.
+  - Notes shows its thread line again, so the two match.
+  - Header: "Open card" as a word, then a plain × at the far right. The page's own Close steps aside while a conversation is open.
+- **Proof:**
+  - `docs/syncview-design/tests/unread-badges-v2-browser.js` has a new section J and round 8's changes to C, D and H. On the code before this change, 15 checks fail.
+  - Before and after screenshots, light and dark, are in `docs/syncview-design/proofs/unread-badges-r8/` (`shots.js` there). The before pictures are from the code on main at the time.
+- **Numbering:** 493 is left for session Porch.
+
+## 495. [2026-10-24 19:40 UTC, BUILT, NOT MERGED] Client review page, round 2 behind `review_client_polish`: threaded replies, Approve at the click, a bare delete cross, no repeated "Change request" (session Porch)
+
+- **Asked by the owner** after using the test client's link (490 and 491 live there).
+- **Threading.** A client's Reply now sits under the team message it answers. The note carries `parent_id` = the thread's first message (the server keeps one level of replies). No server change: the card save keeps whole comment objects, and on a linked video or thumbnail part the review note already goes through the gateway comment add (452), which carries `parent_id`; production-write accepts a client's parent when it is a client-visible comment on the same work item.
+  - **Read-only live check, 2026-10-24.** Since 2026-10-21 every plain client note on a linked part reached `production_comments` (14 of 14). The team messages a client can see on those parts are replies inside the client's own threads, and their card ids are the canonical ids. Not written live: a client reply on a linked part (the only linked card on the test client is the owner's own).
+  - **On screen:** replies are indented under their thread, with a thin line; no day line for a reply. Reply is never offered inside a change request's thread.
+  - Browser only: `_calReviewComment(pid, comp, parentId)` (190) and the review page's send path (195).
+- **Speed.** Measured live, read-only, from the Edge Function logs over 24 hours:
+
+  | Function | Requests | p50 | p90 |
+  |---|---|---|---|
+  | production-write | 1,118 | 1.2 s | 3.3 s |
+  | calendar-upsert | 247 | 334 ms | 427 ms |
+
+  The permission read took 0.2 to 0.5 s from the sandbox. An Approve on a linked part runs the permission read, then the status write, then the card write, one after another; the comment path for a client is one write. With those times in the offline harness (median of 3):
+
+  | Moment | Before | After |
+  |---|---|---|
+  | Approve: press to the check | 1,825 ms | 120 ms, at the click |
+  | Approve: the stage moves on | 2.0 to 2.5 s | 790 ms |
+  | Change request: "Sent" shows | 530 ms | 130 ms |
+  | Comment: on screen | 130 ms | 130 ms (unchanged) |
+  | Comment: spinner | at once | only after 1.2 s |
+
+  - **How:** the result is shown optimistically, with a rollback on refusal: a refused status write puts the buttons back, and a refusal brings the stage back to the refused part with its plain reason and Try again.
+  - **Not changed:** no permission read is cached across saves, the two writes stay in order (the write path requires it), no Section 4 function was touched, and none of these paths showed a refetch after the save.
+- **The delete cross** has no circle, border or shadow: just the cross.
+- **A grouped follow-up** of the same kind no longer repeats "Change request" (the owner's screenshot: "Lets do this", then "Change request / and this").
+- **Proof:** `test/review-client-notes-browser.js` checks:
+  - the reply is saved with the thread's id and shown indented under it, with one day line per day;
+  - the follow-up does not repeat the word;
+  - the cross has no fill, border or shadow.
+
+  `test/review-client-polish-browser.js` checks:
+  - the check shows at the click, before the server answers;
+  - a slow refusal returns the stage to the part;
+  - "Sent" shows at once.
+
+## 496. [2026-10-25 01:30 UTC, BUILT, NOT MERGED] A SyncLinear tab opened from a Calendar card sometimes showed the Calendar (session Linkcheck)
+
+- **Seen:** the owner, about 00:40 UTC on 2026-10-25, on a test-client card: the thumbnail's "open in SyncLinear" button opened a new tab showing the Calendar. Minutes later the same button worked.
+- **Not the link:** the button's address was right every time (`/?prod=1&d=<deliverable>&from=calendar&...#production`). The card's two deliverables had existed since 13:42 UTC the day before, so the id was known when the button was drawn.
+- **Cause:** a race in the new tab's boot.
+  - The boot router waits for the staff key check before it routes. Until then `currentNav` keeps its starting value, `'home'`.
+  - The runtime switch read (`syncview_runtime_flags`) starts earlier. When its answer lands, the `sv-review-stage-switch` handler moves anyone on Analytics to the Calendar while Analytics is hidden. It took the starting `'home'` as "on Analytics" and called `navTo('calendar')`.
+  - That navigation bumped the nav epoch, so the boot router's own `navTo('production')` then stood down.
+  - Only a slow (cold) key check loses the race, which is why it looked random. Any fresh tab was exposed, not just SyncLinear: `/workload`, `/kasper`, and the bare address (which should open Today) too.
+- **Fix:** `src/index/188-review-stage-switch.js.part` moves a page to the Calendar only after something has routed (nav epoch not 0). Before the first route nobody is on Analytics, and the boot router already asks `svStaffNoAnalytics()` when it lands on Home.
+- **Proof:** `docs/syncview-design/tests/new-tab-slow-staff-check-browser.js` holds the key check for 2.5 s while the switch read answers first.
+  - On the old code, both the SyncLinear link and a fresh Workload tab land on `/calendar`.
+  - With the fix, they open SyncLinear and Workload.
+  - The suite is added to the browser regression lane in `calendar-unit-tests.yml`.
+
+## 497. [2026-10-25 01:06 UTC, BUILT, NOT MERGED] Round-9 unread badges: the Messages button, Notes reply speed, Notes without the needless skeleton (session Beacon)
+
+Staff side only, behind the runtime switch `unread_badges_v2`. The owner's round 9:
+
+- **The Messages button.**
+  - Its hover box ("Nothing new / 8 conversations to answer / Change requests are on the cards…") is gone (327 `_svuShowButtonTip` removed).
+  - Its badge counts conversations with something new, and nothing else: with nothing new there is no badge, however many wait for an answer (327 `svuPaintCounts`).
+  - The To answer tab inside the inbox is unchanged.
+- **Notes reply speed.** Measured live, read-only, from the Edge Function and API logs over 24 hours:
+
+  | Step of a staff note on a linked card | p50 | p90 |
+  |---|---|---|
+  | permission read (`prod_authority`) | 65 ms | 229 ms |
+  | `production-write` preflight + write | 0.19 s + 0.93 s | 0.24 s + 2.5 s |
+  | the card's own save (`calendar-card-write`) | 0.86 s | 1.17 s |
+
+  The note was always on screen at once (the note outbox), but its sending mark stayed up for all of these, one after another: about 2.0 s at p50 and 4.1 s at p90. Two things made it feel longer:
+  - **The card save.** The mark waited for the card's own save, which runs after the server already holds the note. It now goes when `production-write` answers `native_committed`; the card save runs behind it and still says so if it fails (190 `_calAppendComment`). After: about 1.2 s at p50 and 3.0 s at p90. In the mocked browser test, with a 0.3 s write and a 2.5 s card save, the mark went after 2,830 ms before and 321 ms after.
+  - **Send held while loading.** In the moment after Notes opens, while the card's link check and thread read run (about 0.2 to 2 s, and on every reopen), Send was held, and a note sent then was refused with "Notes are still loading". It is now taken at once, shown in the thread, and sent when the loading ends (at most 10 s; after that it refuses as before; a failed read still refuses) (190 `_calNotesStillLoading`, `_calWaitNotesLoaded`).
+  - **No redundant refetch.** None of the send paths re-reads the thread after a note (only edit retries do), so none was dropped. The link check and the thread read already run side by side.
+  - **No Section 4 function was touched**, and no permission read is cached.
+- **The Notes skeleton.** A board refresh replaces each card's row, and its read state with it, so almost every reopen started on the skeleton and turned into the same "No notes yet" or "All clear".
+  - A card last seen settled and empty, for the same links and within 10 minutes, now opens on that at once; the background read adds anything new when it arrives (230 `_prodCommentsEmptyFeedHtml`).
+  - The skeleton is left for a card nothing is known about yet. A card with rows never showed it.
+- **Proof:**
+  - `docs/syncview-design/tests/notes-quick-open-reply-browser.js` (new) checks, switch on:
+    - a first opening shows the skeleton, then "No notes yet";
+    - a second opening after a board refresh shows no skeleton frame;
+    - a reply written while loading is taken, shown at once and sent once, as a reply;
+    - its mark goes when the server has it.
+
+    Switch off, it checks that all of this is as before. On the code before this change, four checks fail.
+  - `unread-badges-v2-browser.js` section K: no box on hover; the badge is the new count; no badge with nothing new while a conversation waits; To answer still lists it. All fail on the old code.
+  - `test/notes-loading-skeleton.js` now follows the empty feed through `_prodCommentsEmptyFeedHtml`.
+- **Pictures:** `docs/syncview-design/proofs/unread-badges-r9/`.
+
+## 498. [2026-10-25 01:30 UTC, BUILT, NOT MERGED] Review round 3: Kasper's Review Session gets the client page's polish (staff list), and the client page gets notes badges (session Porch)
+
+- **Asked by the owner** after rounds 1 and 2 on the test client's link (490, 491, 495).
+- **Kasper, behind a staff list.** New gate `svRsKasperPolishOn()` (188): Kasper's Review Session is on and the signed-in staff member is on `unread_badges_v2` (the owner's two ids today), so the owner tries it in Kasper's view first. Nothing changes for anyone else. With it, in his second layout (every part at once, the layout all three Kasper staff use):
+  - Approve shows the check at the click (the part leaves his list at once), then settles as Approved, then Undo once the save lands; a refusal takes the check back and Approve returns with the reason and Try again.
+  - A change request says "Sent" at once and the box stays open on the same part; a second one follows the first (the same queue as the client page). "Approve after tweaks" goes as before. A change still waiting its turn is kept in this browser under his own key (`syncview_rs_chgq_v1:kasper:<staff id>`) and comes back into its post's box, unsent, after a reload (Codex on #2325).
+  - A note's spinner shows only after 1.2 s.
+  - Replies are threaded and indented, as on the client page. Kasper is offered Reply only in the team's own threads (never on a message the client can see, never inside a change request, never on a sample). The reply is a team-only card note with `parent_id` = the thread's first message: `_kasperAddCommentComp(pid, comp, parentId)` (330), browser only, no server change, no Section 4 function touched.
+  - Not covered: his first layout (one part at a time), which nobody on the list uses; there the part still leaves the stepper at the click, as before.
+- **Kasper's live timings** (read-only, Edge Function and API logs of his session on 2026-10-23, 20:00 to 22:00 UTC). One Approve on a linked part: the permission read (about 20 to 40 ms), production-write for the status (preflight about 190 ms, then p50 881 ms, p90 1,031 ms), then the card write (calendar-card-write, p50 604 ms, p90 803 ms over 84 writes). About 2.8 s from click to done. The live logs also show two card writes after some approvals (56 card writes for 36 status writes in that window, all 200); one Approve in the offline harness makes one, so no refetch was dropped.
+- **Kasper, before and after** (offline harness, server times set to those live values):
+
+  | Moment | Before | After |
+  |---|---|---|
+  | Approve: the part answers | "Approved" at 135 ms (his page already set the status in the browser first) | the check at 123 ms, Approved at 784 ms |
+  | Approve: Undo | 2.6 s, when the save lands | unchanged |
+  | Change request: answered | the box closed; "Change asked" at about 4.0 s | "Sent" at 110 ms, box still open |
+  | Note: spinner | at once | only after 1.2 s |
+
+- **Client notes badges, behind `review_client_polish`** (the staff side's round 8). What the client has read is this browser's own mark, `syncview_notes_seen_v1` (a last-seen time per post, the store the client calendar's Notes dot already uses), never the staff's marks; nothing server-side. On each post in the strip, one picture per person from the team: something new since the client last looked is the picture with a small corner count; read but still waiting for the client's answer (a team comment with the last word in its thread, never a change request) is the plain number; never both, and nothing on the post on screen. Opening a post marks it read; its new messages carry a quiet "New" for the rest of the visit.
+- **Proof:** `test/review-kasper-polish-browser.js` (Approve, refusal, two changes in a row, quick note, Reply, list off) and `test/review-client-badges-browser.js` (corner count, plain number, never both, read on open, switch off).
+
+## 499. [2026-10-25 04:40 UTC, BUILT, NOT MERGED] Calendar unit tests red on main: the phone Messages test counted the loading placeholder as the inbox (session Pane)
+
+- **Seen:** Calendar unit tests on the push of main 82f138c2 (#2325), run 40154642506, job `staff-phone-rules (430, 1)`: `node qa/staff-phone-messages.js --widths=430` passed light, then failed dark at line 31, "The inbox opens on New: only the conversations with something new", 12 !== 6. The same tree passed on #2325's PR head and on #2324's runs.
+- **Cause (the test, not the page):** while the inbox answer is on its way, Messages draws its loading placeholder (326 `_msgSkeletonHtml`), which is 12 grey `.msg-conv is-skeleton` rows under an active New pill. The test waited for the first `.msg-conv` and counted at once, so whenever the answer came after the page opened, it counted the 12 placeholder rows. Nobody ever sees All first: before the answer there is only the grey placeholder under New; after it, the six new conversations. Nothing in #2323 to #2325 changed this; they only moved the timing on a loaded runner.
+- **Reproduced:** `--inbox-delay=2000` (new, opt-in, holds each inbox answer back in the harness) fails the old wait with exactly 12 !== 6 at 430.
+- **Fix:** the test now (a) checks what is on screen at the first `.msg-conv`: either the loaded list, or only placeholder rows under New, and (b) counts once `.msg-inbox:not(.is-skeleton) .msg-conv` exists, a real condition, no sleep. `qa/messages-desktop-parity.js` had the same early wait and gets the same condition. No assertion loosened; the page is unchanged.
+- **Proof:** with the fix, `qa/staff-phone-messages.js --widths=430,390` passes three times with no delay and three times with `--inbox-delay=1500`, light and dark.
+
+## 500. [2026-10-25 16:20 UTC, BUILT, NOT MERGED] Client notes badges: a read team comment waits for the client only when it asks something (session Porch)
+
+- **The owner's rule** (2026-10-25, picked from three choices put to him after 498): on the client review page, behind `review_client_polish` (test client only), a read team comment counts as waiting for the client's answer, the plain number, only when it asks something: its words contain a question mark, it is not a change request, and the client has not answered after it in that thread. An informational note ("New cut uploaded") never counts. The "new" corner count is unchanged.
+- **Code:** one helper, `_rsCpAsks(t)` in 195 (a "?" in the message), used by `_rsCpBadge`. Browser only, same switch.
+- **Proof:** `test/review-client-badges-browser.js`: a question counts, a statement does not, a question the client answered does not, and after opening a post with a question and a statement only the question waits.
+
+## 501. [2026-10-25 17:36 UTC, BUILT, NOT MERGED] Phone polish round 1: today's design, smoother on a phone (session Grip)
+
+- **Asked by the owner** after turning down the phone redesign (#2307): "continue in our direction from before, but just better".
+- **Audit** (offline, fictional data, 360/390/430, light and dark; `docs/syncview-design/phone-audit/README.md`), ranked by how often a person hits it. The worst: an opened post's Notes 1,139 px down; the client's Approve below the first screen on the video step (803 to 839 px); a "Delete" as big as Reply on every note; Production rows wrapping to three lines at 360 and 390. Clean: no overflow, no small taps on staff screens, no zooming inputs, the keyboard never covers the box.
+- **Staff, behind the new switch `phone_polish_staff`** = { "staff": [ids] } (188, same listing rule as `unread_badges_v2`; html.sv-phone-polish; every rule inside max-width: 767px): Notes right under the statuses in an opened post (655 px down), the post's picture 180 px instead of 235, Delete as a quiet bin at the far end of each note's actions (44 px, still asks first) with no box around them, two lines of the last message in Messages, the person's picture on the title's line in Production (rows 170 to 120 px).
+- **Client page, behind `review_client_polish`** (phone width only): the video or thumbnail a little shorter so Approve and Ask for a change are both on the first screen, a waiting post's name on two lines, no character count under the caption, the delete cross 44 px.
+- **Desktop does not change:** with the switch on, every element of the desktop Calendar, Notes and Messages has the same computed style as with it off (1,653 elements), and the desktop screenshots are pixel-identical (`docs/syncview-design/phone-audit/shots/desktop-*`).
+- **Proof:** `docs/syncview-design/tests/phone-polish-browser.js` (58 checks, switch on and off; fails on main). To turn on: `phone_polish_staff` = the owner's two staff ids.
+- **Seen, outside this PR:** on a desktop page with `unread_badges_v2` on, the Notes toolbar fit (327 `_svuFitBars`, class `svu-bar-room`) gives a note whose last line ends near the toolbar 20 px of room in some loads and not in others; the phone polish test clears that class on both sides before its desktop comparison.
+
+## 502. [2026-10-25, BUILT, NOT MERGED] Browser jobs cancelled while apt-installing their system libraries from a slow Ubuntu mirror (session Apt)
+
+- **Seen:** on 25 Oct 2026 three Calendar unit tests jobs were cancelled by their job timeout while installing browsers, before or during the tests; every test that did run had passed. `review-stage-phones` on #2329 (install 32 min), `browser-guards (1)` on #2332 (10 min), and `review-gauntlet-three (webkit, 1440)` on main 93b5dc2 (21 min; job 121251196568).
+- **Cause:** not the browser download (seconds). `playwright install --with-deps` apt-installs the system libraries from the Ubuntu mirror on every run, and the main job's log reads "Fetched 117 MB in 20min 13s (96.4 kB/s)". The eight install steps in `calendar-unit-tests.yml` cached nothing; the `ms-playwright` caches in other workflows never covered the apt half.
+- **Fix:** one composite action, `.github/actions/playwright-browsers` (input `browsers`), now used by all eight steps. It reads playwright 1.56.1's own library list for those engines (`install-deps --dry-run`), keeps only the packages the runner image lacks, installs those from a cache of their `.deb` files keyed on the image and exactly that missing set, offline (apt is given no package source, so it cannot reach the mirror and a gap fails instead of fetching), and checks every listed package ended up installed. The browsers come from a cache of `~/.cache/ms-playwright`, then `playwright install` without `--with-deps`. Only a miss (a new image that changes the missing set, or the first run) fetches from the mirror, with retries, and saves what it fetched. A cache that fails to install falls back to the mirror with a warning. Same libraries as before, same runner, playwright still pinned at 1.56.1; no test, timeout or engine changed.
+- **Proof:** see the PR body for per-job install times on its own CI run.
+- **Merged** as #2333 (8f0ebf5). On its CI run every browser job installed its libraries offline from the cache: 15 to 40 s per install step, whatever the mirror does (before: 15 to 50 s on a healthy mirror, up to 32 min on a slow one).
+- **Seen on #2333's first run, not this change's:** `kasper-admin-expanded-browser.js` `review-finish-ready light 430` in `staff-phone-rules (430, 2)` waited 5 s for `.kcard-done-btn` and timed out (1 of 4,686 checks) while three suites ran side by side; the job's install had succeeded, and it passed locally (0 of 4,702) and on the next run. Recorded here once; it gets its own number only if it fails a second time.
+- **Follow-up (same session):** the other eight workflows that still ran `--with-deps` (production-polish-gate, client-entry-visible-boot, tiktok-carousel-browser-journey, pages-site, pto-ui-tests, dawn-check, calendar-e2e-nightly, samples-e2e-nightly) now install through the same action; engines unchanged (chromium), playwright still 1.56.1, and the action now refuses a job whose `node_modules` playwright is a different version. Fonts: dawn-check, the nightlies, pages-site and pto-ui-tests always ran `--with-deps`, so they get the identical 33-package list. production-polish-gate, client-entry-visible-boot and tiktok-carousel installed NO system packages whenever their `ms-playwright` cache hit (the usual case) and the full list on a miss; they now always get the full list, which on today's image adds 7 font packages on their usual path.
+- **Cache key gap closed:** the `.deb` key was ImageOS plus the missing set, so a runner image that updated a library under a cached `.deb` would have sent every run to the mirror (fallback) with the save skipped (key exists) until the missing set changed. The key now ends in `$ImageVersion`; a new image first restores the previous image's files by prefix and tries them offline, keeping them under its own key if they install, and fetches from the mirror only if they do not. The browsers key is unchanged: the browser builds depend on the playwright version, not the image.
+
+## 503. [2026-10-25 20:10 UTC, BUILT, NOT MERGED] Phone polish round 2: the Messages title, Notes' empty bands, the Sheet's first post (session Grip)
+
+- **Behind `phone_polish_staff`** (live for the owner's two staff ids since round 1, 501), phone width only. Audit: `docs/syncview-design/phone-audit/README.md` (round 2).
+- **Messages at 360 px:** the title ran under the word "Close" (129 px needed, 102 left). Close is now a plain 44 px cross (still named "Close Messages", still closes), and below 378 px the title is a little smaller.
+- **Notes:** a 13 px band and a 2 px frame between every note's words and its actions are gone, about 17 px less per note.
+- **Sheet:** the first post starts at 240 px instead of 272 (an empty 28 px band under the Sheet / Calendar / Review switch and 8 px of the grid / list bar); a "Refreshing" or "Couldn't refresh" notice there keeps its room.
+- **Desktop does not change:** same computed styles with the switch on and off, and pixel-identical desktop screenshots.
+- **Proof:** `docs/syncview-design/tests/phone-polish-browser.js` (now 99 checks at 360/390/430, switch on and off; already in CI's staff phone lane); its round-2 checks fail on main.
+
+## 504. [2026-10-26 UTC, AUDIT, NOT MERGED] "Duplicate" ui rows in calendar_post_events are one row per component, by design (session Ledger)
+
+- **Claim checked:** a save writes two or three identical `source='ui'` rows, grouped by `(post_id, ts, action, role)`. That key leaves out `component`. With every column in the key, since 2026-08-27: **0** identical `status_change`, `comment_add` or `comment_delete` groups, and **4** identical `link_set` pairs (28 Aug to 1 Sep, from two link saves racing on one card; none since).
+- **Shape is intentional:** one save writes one row per part that moved plus one card-level row. The Kasper queue's "waiting since" and "moved without your decision" note, and caption history, read those per-component rows.
+- **Who can be misled:** counts that take every row with `role in ('client','kasper')`. Over 7 days, client `status_change` has 282 rows from 167 saves and Kasper's has 36 from 18, and comments are mixed in. Count `approve_%` and `kasper_approve` instead. No reader in the repo counts this way.
+- **Fix:** none to writers or rows. Change the out-of-repo weekly approval count only. Report: `docs/audits/2026-10-26-ledger-duplicate-rows.md`.
+
+## 505. [2026-10-26 UTC, BUILT, NOT MERGED] Calendar E2E nightly red for nine days, under green schedule rows (session Nightly)
+
+- **Symptom.** Every 08:00 UTC timer run (`(db-timer)`) of `calendar-e2e-nightly.yml` failed from 2026-10-18 to 2026-10-26 (today: run 40289274476 on 61cdaf2). 18 to 24 Oct: one probe, p52. From 25 Oct: three, p40, p52 and p75. The same-day `(schedule)` rows were all green.
+- **p52 (probe stale, behaviour changed on purpose).** It asserted `_calClientFieldEditBlocked` = client link AND NOT Collaborative mode. #2208 (merged in train #2209, 2026-10-18 05:36 UTC, owner 2026-10-18) made a client's caption, CTA and alt caption read only on every existing card, Collaborative mode or not; only a blank "suggest a post" card the client is writing stays editable. The probe now asserts that: blocked on the probe card with collab ON, not blocked on a blank card, and a typed alt caption and a remove both leave nothing queued.
+- **p40 and p75 (probe stale, behaviour changed on purpose).** #2325 (Review round 3, 2026-10-25 02:29 UTC, behind `review_client_polish`, test client only) counts a post's notes as read once its conversation is on the client's Review stage. The test client's link opens on Review, and the probe card landed on the stage and every new SMM message was marked seen within about two seconds (stack: `_rsChat` then `_rsCpMarkSeen` then `_notesMarkSeen`). The Calendar Notes dot therefore never lit. Both probes now put the client on the Sheet first (`clientOnSheet` in `qa/probes/lib.js`, asserted) and keep every original check. p75 gains a check of #2325's rule itself: with the card on the stage (`clientStagePost`), a new message is marked seen and shows no dot.
+- **Schedule rows.** The green `(schedule)` rows ran no probe: the schedule-fallback guard found the timer's run and stood down, every job was skipped, and GitHub calls an all-skipped run a success. The heartbeat (`calendar_e2e_nightly`, ok=false) and the Slack page did fire on every red timer run, so the alarm worked; the Actions list did not. The guard now outputs the timer run's outcome. A caller that sets `mirror_timer_failure` (the Calendar nightly does) gets a red stand-down copy, linking the timer run, when that run failed or timed out. A green or still-running timer run leaves the copy green. The alert digest already left covered copies out, so this adds no page.
+- **17 Oct (run 39030882205)** was a different cause, already fixed (entry 431, #2145).
+- **Real users.** None. p52's behaviour is the owner's decision. p40/p75's rule is switched on for the test client only (`review_client_polish` = the test client; read 2026-10-26). `review_stage_client_pages` is on for every client, but without the polish switch the stage does not mark notes read.
+- **Proof.** Run locally against the live backend on the test client, page built from this branch: p40 8/8, p52 11/11, p75 7/7 (before the change, p75 failed locally exactly as the nightly did, and the debug trace above came from that run). `test/schedule-fallback-guard.js` and `test/github-dispatch-timer.js` pass; the new guard checks fail on main.
+- **Way back:** revert the pull request.
+
+## 506. [2026-10-26 UTC, BUILT, NOT MERGED] Dawn check red every weekday since 19 Oct: four stale checks, under green schedule rows (session Dawn)
+
+- **Symptom.** Every 11:30 UTC timer run (`(db-timer)`) of `dawn-check.yml` failed on every weekday from 2026-10-19 to 2026-10-26 (today run 40315516051 on f4e50e7, 4 of 11 checks red). The client checks failed from 19 Oct, Analytics from 19 Oct, Workload from 21 Oct. 16 Oct was red for another reason (one app error on the Samples page). The `(schedule)` rows stayed green because their copy stood down for the timer's run, as in 505.
+- **Client approves, Client requests changes (check stale, behaviour changed on purpose).** Since 2026-10-18 every client link opens on the new Review page (#2131, `review_stage_client_pages` = all): one post on a stage in its own shadow root, picked from a strip of chips. The check still opened the old expandable review cards, which are no longer drawn, so it threw before any click ("failed at step: error"; the screenshot shows the stage with the seed on it). Now it picks the seed's chip, opens the caption step and clicks the real "Approve the caption", or "Ask for a change", types in the message box and sends. Same assertions: caption `Approved` with the approval stamp, held after 4 s; `Tweaks Needed` with the typed text saved. Where the switch is off it still uses the old cards.
+- **Workload opens (check stale).** The calm Workload calendar (#2230, `workload_calm_staff` = all since 2026-10-20 via #2262) draws work items as `.wl-calm-row-title`, not `.workload-plan-item-content`. Workload drew 148 work items in about 1.5 s; the check waited for the old class. Ready now = a `.workload-plan-item` with its title, in either layout.
+- **Analytics first numbers (check stale).** Analytics is hidden for everyone unless `analytics_hidden` reads `{ "hidden": false }` (owner, 2026-10-17, train #2200), and a staff address for it opens the Calendar (#2216). There is no row, so the page opened the Calendar and never drew numbers. The check now asserts the intended routing (Calendar shown, no Analytics tab, still so 3 s after the switch read; else `failed at step: hidden-route`), then times the real Analytics tab against live data with the switch read as shown for that one page. When the switch shows Analytics, it is timed as before.
+- **The 403 and 400 in the report** are the harness's own staff identity, not a user path: `production-comments?action=inbox` answers 403 forbidden for it, and a `team_members` read sends its non-uuid id to a uuid column. They are listed only when a tab fails, and were not the cause.
+- **Real users.** None. Clients approve and ask for changes on the stage (the check now does exactly that, live); staff open Workload in about 2 s; Analytics is hidden by the owner's decision.
+- **Same hiding elsewhere.** Since 2026-10-12, timer runs were red under green stand-down schedule rows on 8 lanes besides the Calendar nightly (505): dawn-check 8 red, assurance-ledger-freshness 14, card-calendar-status-drift 70, production-polish-gate 5, samples-e2e-nightly 8, sheets-mirror-daily 9, track-b-backup 3, thumbnail-revision-scan 2. `mirror_timer_failure: true` is now set on all eight. Not set (no red timer run in the window): alert-digest, clients-roster-sync, n8n-execution-quota-watchdog, native-intake-completion, native-intake-completion-monitor, native-notification-monitor, native-notification-sender, rename-propagation-drain. The red runs on those eight lanes other than dawn-check are not diagnosed here.
+- **Proof.** `qa/dawn/dawn-check.js` run twice locally against the live backend on the test client, page built from this branch: client approve, client request changes, Workload (2.0 and 2.2 s), Analytics (2.2 and 1.8 s, hidden route asserted) all ✅, seeds archived 3/3, rename restored. `test/dawn-report-allowlist.js` covers the new report line and step word; `test/github-dispatch-timer.js` passes with the eight guard jobs.
+- **Way back:** revert the pull request.
+
+## 507. [2026-10-26 UTC, BUILT, NOT MERGED] Seven lanes with hidden red timer runs: two real problems already fixed, a backup job about to hit its time limit, a Sheet mirror one test client behind (session Underneath)
+
+Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; those runs were red under green stand-down schedule rows until `mirror_timer_failure` (#2339, #2340).
+
+- **track-b-backup (a).**
+  - *The gap:* no backup from 10 Oct 12:45 to 12 Oct 15:34 UTC (about 51 h; seven timer runs failed at the privilege preflight). #2036 added `pto_member_events` with no backup grant. Fixed by #2046 (entry 409).
+  - *New, fixed in #2342 (split out to merge first):* the freshness step downloads every same-corpus snapshot (about 156 MB each; the folder is never pruned). It grew from 5.6 min (13 Oct) to 18.9 min (26 Oct); the job takes 21 of its 25 min, and was already cancelled once (24 Oct, after a verified upload). At this rate every run would be cancelled from about 29 Oct.
+  - *The fix:* `selectLatestAuthenticatedFromDrive` skips, without downloading, a candidate whose filename second plus 999 ms is not later than the newest authenticated snapshot. Such a file can never win, because validity requires the filename to equal the authenticated `generated_at`. The newest candidate is still judged in full. New output field: `older_candidates_not_downloaded`. Four new checks in `test/track-b-backup.js` fail on the old code.
+- **card-calendar-status-drift (a).** All 70 reds, 13 Oct 17:27 to 17 Oct 14:27, were real drift on four cards, one at a time.
+  - Three cards: a second status pick lost in the save wait (424, #2114).
+  - One card: a client's Request changes that reached the card and not the work item for about 20 h (429, #2140).
+  - An admin moved the stuck work items by hand on 16 and 17 Oct. Green on all 215 runs since. No data changed by this session.
+- **sheets-mirror-daily (a), minor.** The Sheet mirror of Clients Info and Social Media Managers is behind by one second *test* client. It was seeded straight into the database on 21 Oct 18:43 by a supervisor session, so `roster-write`'s Sheet copy never ran. 15 to 18 Oct was an earlier mismatch, corrected by hand. Nothing reads those tabs (the page reads the database; n8n uses `roster-read`). **Owner or Lighthouse step:** put the test client's two rows on the Sheet through `roster-write`, or archive the seed. The lane stays red until then; the parity check is right.
+- **sheets-mirror-daily, settled (2026-10-26, session Sheetcopy; owner decision: the Sheet is only a backup, test clients need not be on it).**
+  - *Why the row never reached the Sheet:* by design. Create client's test mode (`client_create_native`, `production_native_client_test_provision`) deletes a test client's Sheet-copy rows. So every test client but the main one is absent from the tabs, however it was made.
+  - *The fix:* `scripts/sheets-mirror-parity.js` (Clients Info) and `scripts/roster-managers-parity.js` leave out `clients.kind = 'test'` on both sides, except the main test client, which is on the Sheet and stays compared. Nothing was written to the Sheet or the database; the test client's managers row stays queued (owner: leave it).
+  - *Proof:* live and read-only. The old scripts are red, with 1 Clients Info difference (`missing_in_sheet`) and 1 manager difference. The new ones are clean: client_profiles 36/36 and managers 41/41, with 3 test-client keys not compared. New checks in `test/sheets-mirror-profile-parity.js` (51) and `test/roster-managers-parity.js` (13): a second test client is skipped, while the main test client and any real client missing are still reported.
+  - *Found on the way:* 30 Clients Info rows have been waiting in `roster_sheet_outbox` since 23 Oct 23:38 to 24 Oct 01:14 (attempts 0, none failed; the last copy sent was 18 Oct). They are Slack-person edits made by a direct `client_profile_admin_edit` call, not the page. Nothing sends that queue on a timer, only a request through roster-write, client-profile-write or client-onboarding. They change no cell, because the Sheet does not carry that field. A real reader exists: `clients-roster-sync` (06:41 UTC, apply on) sets `clients.active` from the Clients Info tab, so a real client that never reached the tab would be switched off. CLAUDE.md now says so. A daily flush was not added (owner).
+- **samples-e2e-nightly (b) and (c).**
+  - 21 Oct: the Ubuntu 26.04 runner image (#2277).
+  - 22 Oct: `truth-sync` (#2292, #2308).
+  - 23 and 25 Oct: the unit lane hit the 300 s cap set on 29 Jun (1a110244) with nothing failing. Now 600 s; it took 265 to 300 s.
+  - 17 Oct: one realtime probe, one night only.
+  - 18 to 23 Oct: every client action read `disabled`. The client driver also said that when the card was not drawn, so the logs cannot tell which. It now reports `no-panel`. Green 24 to 26 Oct with no change found that explains the recovery.
+- **production-polish-gate (b) and (c).** Racy suites (fixed by #2094, 16 Oct) and the Ubuntu 26.04 image (#2277). Green since 22 Oct.
+- **assurance-ledger-freshness (b), a stale record.** Ten ledger rows claimed FRESH or NEAR past their dates. They are now restated to EXPIRED with the day count (State column stamped 2026-10-26); nothing was re-proven.
+- **thumbnail-revision-scan (c).** Four single 5xx answers from the function host (504, 520, 503, 503); the next 10-minute run was green each time.
+- **Way back:** revert the pull request.
+
+## 508. [2026-10-26 UTC, BUILT, NOT MERGED] A staff status save timed out after 20 s because calendar-card-write stalled 130 s and then wrote anyway; the function now refuses to write after 15 s (session Hang)
+
+- **What the person saw.** 26 Oct 15:25:27 UTC, a staff social media manager (Chrome, Windows) changed a status on a real client's card. The page gave up after 20 s: "The server has not answered. Your change is kept; try again." It was the only staff status `network_failure` in 14 days. The supervisor rolled `calendar_card_write_clients` back from `{"all": true}` to the test client and the owner's two clients at about 15:3x UTC.
+- **Which request hung.** The save request itself: only `_calSaveFetch` throws those words. One calendar-card-write execution:
+  - started at 15:25:04.546 and stamped its `now` (15:25:04.587, which became the card's `updated_at`);
+  - made no database request until 15:27:15.3, its roster switch read;
+  - then read the card, checked twins and PATCHed `calendar_posts` (204) at 15:27:16.05;
+  - logged `outcome ok, ms 131644`. The edge never logged a response for it.
+- **Where the 130 s went.** Everything between `now` and the switch read is synchronous: the staff branch of `authorizeBrowserWrite` does no I/O. The gateway timed that switch read at 319 ms (origin_time). So the stall was on the function-to-gateway hop (platform egress, or a dead pooled connection), not in Postgres and not in the user's network.
+  - The production-comments 502 thought to be in the same minute was at 14:45:23, so it is unrelated.
+  - The other card saves in that minute took 0.9 to 1.3 s.
+- **Is the saver slow?** No. Function `ms` over three days to 26 Oct 16:00: calendar-card-write p50 about 700 ms, p95 1.0 to 1.25 s, 2,666 saves, one over 10 s (this one; otherwise max 8.3 s). calendar-upsert p50 140 to 210 ms (fewer round trips), max 1.0 s.
+- **What the late write did.** It wrote about 2 minutes after the page had told the person it was not saved, and after a newer save of the same card (15:25:25).
+  - The stale-save guard let it through, so no compared field differed. Its visible effect: `updated_at` went backwards by about 20 s.
+  - No status changed on that card that day: no `status_change` rows, status stamps unchanged since 23 Oct. The card is still in its pre-click state. If the person meant to change the status, the change is still on their page for a retry.
+- **The fix (this pull request).**
+  - calendar-card-write refuses with 503 `too_late` when more than 15 s (`WRITE_DEADLINE_MS`, under the page's 20 s `CAL_SAVE_TIMEOUT_MS`) have passed since the request arrived. The check sits immediately before `writeCalendarRow`, after every read, so a refusal guarantees nothing was written.
+  - The page reads `too_late` exactly like its own timeout: a network failure with the same words, the change kept for a retry, the switch kept. It does not go on to calendar-upsert.
+  - A stall during the write itself (the PATCH, or the comment-merge RPC) is not covered; it can still land late.
+- **Same exposure elsewhere.** calendar-upsert also calls the database through supabase-js with no timeout and no deadline, so the same stall there would write late too. Not changed here: calendar-upsert is frozen (`calendar-upsert-live-delta.yml`). Staying on calendar-upsert does not avoid this.
+- **Proof.**
+  - `test/calendar-card-write-parity.js`: the 15 s boundary, and the check placed right before the write. The placement check fails on the old handler.
+  - `test/calendar-card-write-routing-browser.js`: the page ends a `too_late` answer as a kept network failure with no calendar-upsert call, and the retry goes back to calendar-card-write. The first check fails on the old page.
+- **Way back:** revert the pull request; it deploys on merge like any calendar-card-write change.
+
+## 509. [2026-10-26 UTC, BUILT, NOT MERGED] Every client's Samples link opened the Calendar Review page instead of the samples, from 18 Oct (session Reproof)
+
+- **What a client saw.** A Samples share link (Share with client on the Samples sheet, `v=sample-reviews`) loaded, passed the strict link check for `sample-reviews`, and about a second later the address changed to `v=calendar` and the page showed the Calendar Review page ("Nothing waiting on you" when no post waited). The client header has no Samples tab, so the samples could not be reached at all. 0 page errors. Measured on the live site on the test client by `node qa/dawn/tier0-live-proof.js` (Samples stopped at `landing`) and a read-only diagnostic, 2026-10-26.
+- **Cause.** The `sv-review-stage-switch` handler (`src/index/188-review-stage-switch.js.part`, from #2153 on 17 Oct) moves a client link that "opened on Analytics" to the Content Calendar, judged by "no `#calView` and no tab picked". A Samples link also has neither, so `render()` treated it as Analytics and moved it. `review_stage_client_pages` has been `{"all": true}` since 2026-10-18 18:26 UTC, so every client was exposed from then. This likely explains samples-e2e-nightly's client actions reading `disabled` / no panel on 18 to 23 Oct (entry 507).
+- **Fix.** That move now skips a link whose verified view is `sample-reviews` (or its old name `samples`). Every other link behaves as before; a bare link still moves to the Content Calendar.
+- **Guard.** `test/samples-client-link-review-stage-browser.js` (mocked, fictional client): with the switch on for every client, a Samples link keeps `v=sample-reviews`, shows its sample and never draws the Calendar Review page; a bare link still moves to the Calendar. 4 of 7 checks fail on the old code; 7 of 7 pass with the fix. Wired in `calendar-unit-tests.yml` and `test/suite-classification.json`.
+- **Not done here.** No live proof of the fix until it is merged and published; the Tier 0 re-proof (entry 510) re-runs the live Samples approve after that.
+- **Way back:** revert the pull request.
+
 ## 513. [2026-10-26 UTC, PLAN, NOT BUILT, NOT MERGED] Trial reels: versions A to G on one card, reviewed one by one, with a 24 h results log (session Trials)
 
 - **Owner request (2026-10-26).** One video, several text hooks (versions A to G), each posted as an Instagram trial reel, the winner kept after 24 h. SyncView part: a "Trial reels" switch on a calendar card, the versions on the card and its sub-issue, review with arrows and "Version B of 5", and a log table of the 24 h numbers.

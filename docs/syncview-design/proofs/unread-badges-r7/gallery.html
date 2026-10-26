@@ -1,0 +1,195 @@
+<title>Unread Badges Round 7</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+  /* Layout: one reading column for what is decided and what is left, then the screens in order, light and dark side by side. Rounded corners, hairlines, no cards in cards. Every picture opens full screen. */
+  :root {
+    --bg: #f6f6f3; --panel: #ffffff; --ink: #121211; --muted: #64645f; --line: #e3e3de;
+    --change: #d9480f; --comment: #2563eb; --staff: #52525b; --kasper: #6c5ce7; --ok: #15803d;
+    --display: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f1013; --panel: #17191e; --ink: #f2f4f7; --muted: #aab1bd; --line: #2b2f37;
+    --change: #fb923c; --comment: #60a5fa; --staff: #a1a1aa; --kasper: #a094f8; --ok: #4ade80; color-scheme: dark; } }
+  :root[data-theme="dark"] {
+    --bg: #0f1013; --panel: #17191e; --ink: #f2f4f7; --muted: #aab1bd; --line: #2b2f37;
+    --change: #fb923c; --comment: #60a5fa; --staff: #a1a1aa; --kasper: #a094f8; --ok: #4ade80; color-scheme: dark; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 34px; }
+  h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+  h1 { font-size: 1.85rem; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 1rem; }
+  p { margin: 0; max-width: 70ch; }
+  ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+  .muted { color: var(--muted); }
+  .intro { display: flex; flex-direction: column; gap: 10px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: .86rem; color: var(--muted); }
+  .sw { display: inline-flex; align-items: center; gap: 6px; }
+  .sw i { width: 12px; height: 12px; display: inline-block; }
+  .sw i.o { background: transparent !important; box-shadow: inset 0 0 0 1px var(--muted); }
+  .block { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+  .block .tag { font: 700 .7rem/1 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .rec { font-weight: 600; }
+  .rec b { color: var(--ok); }
+  .screen { display: flex; flex-direction: column; gap: 10px; }
+  .section-title { display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .why { font-size: .9rem; color: var(--muted); }
+  .why b { color: var(--ink); font-weight: 600; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: start; }
+  figure { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  figure img { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); cursor: zoom-in; }
+  figure img:hover { border-color: var(--muted); }
+  .sw i { border-radius: 99px; }
+  .lb { position: fixed; inset: 0; z-index: 50; background: rgba(8,9,11,.92); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; }
+  .lb.open { display: flex; }
+  .lb img { max-width: 100%; max-height: calc(100vh - 90px); object-fit: contain; border-radius: 8px; cursor: zoom-out; }
+  .lb p { color: #e7e9ee; font-size: .9rem; max-width: none; text-align: center; }
+  .lb button { position: absolute; border: 0; background: rgba(255,255,255,.12); color: #fff; width: 44px; height: 44px; border-radius: 99px; font: 600 1.3rem/1 var(--body); cursor: pointer; }
+  .lb button:hover { background: rgba(255,255,255,.22); }
+  .lb .x { top: 16px; right: 16px; } .lb .prev { left: 16px; top: 50%; } .lb .next { right: 16px; top: 50%; }
+  figcaption { font-size: .82rem; color: var(--muted); }
+  @media (max-width: 760px) {
+    .pair { grid-template-columns: 1fr; }
+    .cards { grid-template-columns: 1fr 1fr; }
+    h1 { font-size: 1.5rem; }
+  }
+</style>
+<div class="wrap">
+  <header class="intro">
+    <h1>Unread badges, round 7</h1>
+    <p>Your seven points, built and switched on only for your accounts. Every picture is the real SyncView page, from the code on GitHub, with made-up posts, people and pictures. <b>Click any picture to see it full screen</b> (arrow keys for the next one, Escape to close).</p>
+  </header>
+
+  <section class="block">
+    <span class="tag">What changed</span>
+    <ul>
+      <li><b>Seen but still needs you:</b> on a card, just the coloured number, no circle around it.</li>
+      <li><b>No "Not done"</b> on change requests. If it is listed, it is not done; its colour says what it is.</li>
+      <li><b>Reply, Mark done, No reply needed, Delete</b> now show at the <b>bottom right</b> of a note when you point at it, in Notes and in Messages. They never cover a word: a note whose last line reaches that corner gets one short line of space under it, and the others none.</li>
+      <li><b>No Reply on a change request</b>, in Notes and in Messages. Mark done and Delete stay. Replies already written under a change request still show.</li>
+      <li><b>No more "Sending…" or "Saving…"</b> on the team's side: a small turning circle instead, on a note or message on its way, the urgent ping button, the review page's conversation, and Kasper's Approve button.</li>
+      <li><b>Spacing check:</b> every kind of note looked at, light and dark (short, long, several lines, attachments, replies, team only, automatic record). One real problem found and fixed: <b>Messages never showed a message's attachments</b>; now they show under the words, as in Notes.</li>
+      <li><b>The whole Notes row on a card</b> (the Notes button, the gap and the bubbles) opens Notes now. The hover on the bubbles still works.</li>
+    </ul>
+  </section>
+
+  <section class="block">
+    <span class="tag">Decided, and one choice left</span>
+    <p><b>Reply under a change request: off, as you decided.</b> Your team did use it: 47 replies under change requests, 12 in the last month. Replies already written still show; a new answer is a note of its own.</p>
+    <p><b>The short line of space</b> under a note whose last line runs into the bottom right corner (see the long note in picture 2). It is what keeps the buttons from covering words. The other way is to let the buttons cover the end of that line while you point at it. Recommendation: <b>keep the space</b>.</p>
+  </section>
+  <section class="screen">
+    <div class="section-title"><h2>1. A card's badges</h2><p class="why">The orange 1 is a change request you have seen that is still open: the number alone, no circle.</p></div>
+    <div class="pair">
+      <figure><img src="before-light-card.png" alt="A card, before"><figcaption>Before (live round 6)</figcaption></figure>
+      <figure><img src="after-light-card.png" alt="A card, after"><figcaption>After</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="before-dark-card.png" alt="A card, before, dark"><figcaption>Before, dark</figcaption></figure>
+      <figure><img src="after-dark-card.png" alt="A card, after, dark"><figcaption>After, dark</figcaption></figure>
+    </div>
+  </section>
+  <section class="screen">
+    <div class="section-title"><h2>2. Notes, every kind of note</h2><p class="why">The pointer is on the long note: its buttons sit at the bottom right, under the last line, without covering it. "Not done" is gone.</p></div>
+    <div class="pair">
+      <figure><img src="before-light-notes-audit.png" alt="Notes, every kind of note, before"><figcaption>Before (live round 6)</figcaption></figure>
+      <figure><img src="after-light-notes-audit.png" alt="Notes, every kind of note, after"><figcaption>After</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="before-dark-notes-audit.png" alt="Notes, every kind of note, before, dark"><figcaption>Before, dark</figcaption></figure>
+      <figure><img src="after-dark-notes-audit.png" alt="Notes, every kind of note, after, dark"><figcaption>After, dark</figcaption></figure>
+    </div>
+  </section>
+  <section class="screen">
+    <div class="section-title"><h2>3. Notes, scrolled to the end</h2><p class="why">Attachments, a team-only note, an automatic record.</p></div>
+    <div class="pair">
+      <figure><img src="before-light-notes-audit-end.png" alt="Notes, the end, before"><figcaption>Before (live round 6)</figcaption></figure>
+      <figure><img src="after-light-notes-audit-end.png" alt="Notes, the end, after"><figcaption>After</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="before-dark-notes-audit-end.png" alt="Notes, the end, before, dark"><figcaption>Before, dark</figcaption></figure>
+      <figure><img src="after-dark-notes-audit-end.png" alt="Notes, the end, after, dark"><figcaption>After, dark</figcaption></figure>
+    </div>
+  </section>
+  <section class="screen">
+    <div class="section-title"><h2>4. A change request</h2><p class="why">The pointer is on the change request: Mark done and Delete, no Reply. The reply already written under it still shows.</p></div>
+    <div class="pair">
+      <figure><img src="before-light-notes-change.png" alt="Notes, a change request, before"><figcaption>Before (live round 6)</figcaption></figure>
+      <figure><img src="after-light-notes-change.png" alt="Notes, a change request, after"><figcaption>After</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="before-dark-notes-change.png" alt="Notes, a change request, before, dark"><figcaption>Before, dark</figcaption></figure>
+      <figure><img src="after-dark-notes-change.png" alt="Notes, a change request, after, dark"><figcaption>After, dark</figcaption></figure>
+    </div>
+  </section>
+  <section class="screen">
+    <div class="section-title"><h2>5. A note on its way</h2><p class="why">The turning circle instead of "Sending…".</p></div>
+    <div class="pair">
+      <figure><img src="before-light-notes-sending.png" alt="A note on its way, before"><figcaption>Before (live round 6)</figcaption></figure>
+      <figure><img src="after-light-notes-sending.png" alt="A note on its way, after"><figcaption>After</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="before-dark-notes-sending.png" alt="A note on its way, before, dark"><figcaption>Before, dark</figcaption></figure>
+      <figure><img src="after-dark-notes-sending.png" alt="A note on its way, after, dark"><figcaption>After, dark</figcaption></figure>
+    </div>
+  </section>
+  <section class="screen">
+    <div class="section-title"><h2>6. Messages, every kind of message</h2><p class="why">The pointer is on the long message: Reply and No reply needed at the bottom right.</p></div>
+    <div class="pair">
+      <figure><img src="before-light-chat-audit.png" alt="Messages, every kind of message, before"><figcaption>Before (live round 6)</figcaption></figure>
+      <figure><img src="after-light-chat-audit.png" alt="Messages, every kind of message, after"><figcaption>After</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="before-dark-chat-audit.png" alt="Messages, every kind of message, before, dark"><figcaption>Before, dark</figcaption></figure>
+      <figure><img src="after-dark-chat-audit.png" alt="Messages, every kind of message, after, dark"><figcaption>After, dark</figcaption></figure>
+    </div>
+  </section>
+  <section class="screen">
+    <div class="section-title"><h2>7. Kasper's change request in Messages</h2><p class="why">The pointer is on Kasper's change request: no Reply.</p></div>
+    <div class="pair">
+      <figure><img src="before-light-chat-kasper.png" alt="Messages, Kasper's change request, before"><figcaption>Before (live round 6)</figcaption></figure>
+      <figure><img src="after-light-chat-kasper.png" alt="Messages, Kasper's change request, after"><figcaption>After</figcaption></figure>
+    </div>
+    <div class="pair">
+      <figure><img src="before-dark-chat-kasper.png" alt="Messages, Kasper's change request, before, dark"><figcaption>Before, dark</figcaption></figure>
+      <figure><img src="after-dark-chat-kasper.png" alt="Messages, Kasper's change request, after, dark"><figcaption>After, dark</figcaption></figure>
+    </div>
+  </section>
+</div>
+<div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="Picture, full screen">
+  <button class="x" type="button" aria-label="Close">&times;</button>
+  <button class="prev" type="button" aria-label="Previous picture">&lsaquo;</button>
+  <img alt="">
+  <p></p>
+  <button class="next" type="button" aria-label="Next picture">&rsaquo;</button>
+</div>
+<script>
+  const lb = document.getElementById('lb'), lbImg = lb.querySelector('img'), lbCap = lb.querySelector('p');
+  const all = () => [...document.querySelectorAll('figure img')];
+  let at = -1;
+  function show(i) {
+    const imgs = all(); at = (i + imgs.length) % imgs.length;
+    const img = imgs[at], cap = img.closest('figure').querySelector('figcaption');
+    lbImg.src = img.src; lbImg.alt = img.alt; lbCap.textContent = cap ? cap.textContent : img.alt;
+    lb.classList.add('open');
+  }
+  function close() { lb.classList.remove('open'); at = -1; }
+  document.addEventListener('click', e => {
+    const img = e.target.closest('figure img');
+    if (img) { show(all().indexOf(img)); return; }
+    if (!lb.classList.contains('open')) return;
+    if (e.target.closest('.prev')) show(at - 1);
+    else if (e.target.closest('.next')) show(at + 1);
+    else close();
+  });
+  document.addEventListener('keydown', e => {
+    if (!lb.classList.contains('open')) return;
+    if (e.key === 'Escape') close();
+    else if (e.key === 'ArrowLeft') show(at - 1);
+    else if (e.key === 'ArrowRight') show(at + 1);
+  });
+</script>

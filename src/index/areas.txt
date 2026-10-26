@@ -57,6 +57,7 @@
 230-production-create-comments.js.part     synclinear
 240-production-description.js.part         synclinear
 250-production-controls-data.js.part       synclinear
+255-production-thumbnail-titles.js.part    synclinear
 260-production-refresh-boot.js.part        core
 270-samples-model.js.part                  core!
 280-samples-cards-notes.js.part            core!
@@ -71,6 +72,7 @@
 323-kasper-dashboard-tail.js.part          kasper
 324-client-onboarding-panel.js.part       kasper
 326-core-messages-inbox.js.part            core
+327-core-unread-badges.js.part             core
 330-kasper-review-history.js.part          kasper
 340-kasper-editors-board.js.part           kasper
 345-core-tooltip-date-picker.js.part       core

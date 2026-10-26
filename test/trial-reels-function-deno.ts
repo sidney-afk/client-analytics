@@ -8,6 +8,7 @@ const tables: Record<string, Row[]> = {
   syncview_runtime_flags: [{ key: "trial_reels_pages", value: { clients: ["fixtureclient"] } }],
   calendar_posts: [
     { id: "p1", client: "fixtureclient", video_status: "Client Approval", asset_url: "https://f.io/fixture-a", video_deliverable_id: "11111111-1111-4111-8111-111111111111" },
+    { id: "p2", client: "fixtureclient", video_status: "In Progress", asset_url: "", video_deliverable_id: null },
     { id: "p9", client: "otherclient", video_status: "In Progress", asset_url: "", video_deliverable_id: null },
   ],
   deliverables: [{ id: "11111111-1111-4111-8111-111111111111", file_url: "https://f.io/fixture-a" }],
@@ -23,12 +24,25 @@ const tables: Record<string, Row[]> = {
   clients: [{ slug: "fixtureclient", active: true }],
 };
 
+// ILIKE as Postgres reads it: `%` (PostgREST also takes `*`) is any run, `_` is any one character, `\` escapes.
+function ilike(val: string, pattern: string): boolean {
+  let re = "";
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c === "\\" && i + 1 < pattern.length) re += pattern[++i].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    else if (c === "%" || c === "*") re += ".*";
+    else if (c === "_") re += ".";
+    else re += c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp("^" + re + "$", "is").test(val);
+}
+
 function matches(row: Row, params: URLSearchParams): boolean {
   for (const [k, v] of params) {
     if (["select", "order", "limit", "offset", "on_conflict", "columns"].includes(k)) continue;
     const val = String(row[k] ?? "");
     if (v.startsWith("eq.") && val !== v.slice(3)) return false;
-    if (v.startsWith("ilike.") && val.toLowerCase() !== v.slice(6).toLowerCase()) return false;
+    if (v.startsWith("ilike.") && !ilike(val, v.slice(6))) return false;
   }
   return true;
 }
@@ -157,6 +171,17 @@ tables.deliverables[0].file_url = "https://f.io/fixture-c2";
 await step({ action: "winner_set", letter: "C" });
 const clientAfter = await step({ action: "read" }, "client-none");
 ok((clientAfter.body.versions as Row[]).length === 1 && (clientAfter.body.versions as Row[])[0].letter === "C", "the client link now sees only the winner (owner, Q8)");
+
+// The versions read is exact, case aside: the studio may store the slug in any case, and a longer slug that starts
+// with this one is another client. (ILIKE with the slug's `_` and `%` escaped; the slug normalizer drops both today.)
+tables.studio_trial_versions.push(
+  { ...v("A"), id: "stray", client: "fixtureclientx", post_id: "p2" },
+  { ...v("A"), id: "mine", client: "FIXTURECLIENT", post_id: "p2" },
+);
+await step({ action: "switch_set", enabled: true, post_id: "p2" });
+const exact = await step({ action: "read", post_id: "p2" });
+const exactIds = ((exact.body.versions || []) as Row[]).map((r) => r.id);
+ok(exact.body.ok === true && exactIds.length === 1 && exactIds[0] === "mine", "the versions read matches this client exactly (case aside), never a longer slug");
 
 console.log(`trial-reels-function-deno: ${passed} checks passed` + (failures.length ? `, ${failures.length} FAILED` : ""));
 await db.shutdown();

@@ -92,6 +92,8 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   const rows = L.ledgerRows('fixtureclient', 'p1', [{ id: 'x', letter: 'C', from: 'waiting', patch: { status: 'change asked' } }], { actor: 'staff:smm', role: 'smm' }, NOW, 'change');
   ok(rows[0].action === 'trial_change' && rows[0].component === 'video' && rows[0].payload.label === 'Video C' && !/^approve_/.test(rows[0].action), 'one ledger row per version, never an approve_ action (OPEN_REPAIRS 504 counts those)');
 
+  ok(L.likeExact('fixture_client') === 'fixture\\_client' && L.likeExact('a%b\\c') === 'a\\%b\\\\c' && L.likeExact('plain') === 'plain', 'a client slug is escaped before ILIKE, so `_` and `%` match only themselves');
+
   // The function and the migration, read as source
   const src = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'trial-reels', 'index.ts'), 'utf8');
   const code = src.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');

@@ -36,6 +36,7 @@ import {
   flagAllows,
   LETTERS,
   ledgerRows,
+  likeExact,
   linkPatch,
   readShape,
   trialPatches,
@@ -110,7 +111,7 @@ async function mainLink(supabase: SupabaseClient, card: JsonMap): Promise<string
 }
 
 async function readVersions(supabase: SupabaseClient, client: string, postId: string): Promise<Version[]> {
-  const { data, error } = await supabase.from("studio_trial_versions").select("*").eq("post_id", postId).ilike("client", client);
+  const { data, error } = await supabase.from("studio_trial_versions").select("*").eq("post_id", postId).ilike("client", likeExact(client));
   if (error) throw new Refusal(503, "versions_unreadable");
   return ((data || []) as Version[]).filter((v) => LETTERS.includes(String(v.letter)));
 }

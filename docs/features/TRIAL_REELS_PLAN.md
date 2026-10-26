@@ -70,7 +70,7 @@ says "Video C"); and how the Production/SyncLinear Assets look.
 **Sweep inventory** (surface × what the rules change):
 - **Staff card, Sheet (1440) and the phone card (390):** Video row "Video · 5" + tiny state ("2/4 approved", "On trial ·
   17 h left", "Pick the winner", or "Video C ★ winner"), the switch and a chevron inside the row; open: "Video A…E" rows
-  with link, label, "Paste the Frame.io link" for a version with no link, "★ Make winner" once the 24 h is up.
+  with link, label, "Paste the Frame.io link" for a version with no link, a trophy icon ("Make this the winner") once the 24 h are up.
 - **Month, Week and the phone grid tiles:** unchanged (owner call, decision 3).
 - **Notes view (staff, from the Notes button, the Sheet play icon and the Review tab):** version switch, the version in
   the title ("… · Video C") and in the note topic ("About the… Video C"); a note or change written there is about that

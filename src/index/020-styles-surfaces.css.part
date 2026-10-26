@@ -8254,8 +8254,11 @@ html .fv-player .fv-icon-btn:hover { background: var(--sv-bg-rgba-255-255-255-0_
 html .cal-comments-modal .cal-cm-tc { display: inline-flex; align-items: center; min-width: 0 !important; min-height: 0 !important; margin: 0 7px 0 0; padding: 1px 7px; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--focus-ring) 14%, transparent); color: var(--focus-ring); font-family: inherit; font-size: 0.76rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.4; vertical-align: 1px; cursor: pointer; }
 html .cal-comments-modal .cal-cm-tc:hover { background: color-mix(in srgb, var(--focus-ring) 24%, transparent); }
 .cal-cm-tc:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* Frame comments in Notes without the player (frame_comments_in_notes_staff): the time is a label, not a button. */
+html .cal-comments-modal .cal-cm-tc.is-static, html .cal-comments-modal .cal-cm-tc.is-static:hover { background: color-mix(in srgb, var(--focus-ring) 10%, transparent); cursor: default; }
 .cal-cm-row.is-frameio.is-now { background: color-mix(in srgb, var(--focus-ring) 7%, transparent); }
 .cal-cm-fio-note { padding: 6px 22px; font-size: 0.78rem; color: var(--text-secondary); }
+.cal-cm-fio-note.is-quiet { color: color-mix(in srgb, var(--text-secondary) 80%, transparent); }
 html .cal-comments-modal .cal-cm-fio-retry { min-width: 0 !important; min-height: 0 !important; padding: 0; border: 0; background: none; color: var(--text-primary); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
 .cal-cm-fio-skeleton { padding-top: 6px; }
 

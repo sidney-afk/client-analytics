@@ -18,7 +18,25 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
-## Latest (2026-10-26): Leads CRM step 1 built, waiting on its migration (PR open)
+## Latest (SyncView stand-in, 2026-10-26 evening): card saver back on, Samples links fixed, Frame comments in Notes
+
+- **Card saver re-widened** (owner's go, 19:37 UTC): `calendar_card_write_clients` = `{"all": true, ...}` again. Clean
+  run 1 at 21:31 (228 saves, all 200, no 5xx, no Calendar refusals).
+- **Samples links (#2345, OPEN_REPAIRS 509):** live 20:24. The live Tier 0 re-proof is 13 of 13 (#2348, OPEN_REPAIRS 510).
+  The dawn check had missed it because it serves main from the runner; the repeat guard is
+  `test/samples-client-link-review-stage-browser.js`.
+- **Sheet parity (#2346):** skips test clients other than the main one (owner: the Sheet is a backup only). Green.
+- **Frame.io comments in Notes (#2347, OPEN_REPAIRS 512):** merged, and `frame_comments_in_notes_staff` is created for
+  the owner's two staff ids. Live read-only check: the comments read and the five-minute keep work. The rows themselves
+  have not been seen live yet, because the test client's only Frame video has no comments.
+- **One staff member's client grants:** the owner removed their seven `smm_also_sees` rows (the table is now empty). Their own test client
+  on Today is #2350 (OPEN_REPAIRS 511), still being checked against the database client list.
+- **Leads CRM (#2351):** merged. The `crm-leads` function is held until its migration is applied: the connector stalled,
+  so the owner runs it in the SQL editor. Then the merge lane runs with `migrations_applied=true` for e493b2bf.
+- **Studio trial reels (#2349):** merged by the studio lane. Its `studio_trial_versions` migration is not applied yet.
+  SyncView's plan is #2352 (OPEN_REPAIRS 513, do not merge), in its round 3 of pictures. Nothing is built.
+
+## Latest (2026-10-26): Leads CRM step 1 built, waiting on its migration (#2351 merged; migration not applied yet)
 
 - New page `/leads` (Kasper > More > Pipeline & Admin > Leads), admin only: Pipeline by stage with drag to
   move, and a person panel with next step, notes and timeline. Today, Sequences and Systems say "coming next".
@@ -27,9 +45,9 @@ line is older than a week, re-check it before relying on it.
   [`docs/features/CRM_LEADS.md`](features/CRM_LEADS.md)). No people are imported yet; `scripts/crm-import.js`
   is run by a person.
 
-## Latest (2026-10-26): Frame.io comments in Notes without the player (session Framenotes, OPEN_REPAIRS 512, PR open)
+## Latest (2026-10-26): Frame.io comments in Notes without the player (session Framenotes, OPEN_REPAIRS 512, #2347 merged)
 
-- Staff behind the new switch `frame_comments_in_notes_staff` (`{"staff": [...]}`, row NOT created yet) see a card's
+- Staff behind the new switch `frame_comments_in_notes_staff` (`{"staff": [...]}`, created 2026-10-26 21:35 for the owner's two staff ids) see a card's
   Frame.io comments in its Notes even without the player, read after Notes paints and kept five minutes; a failed read
   is one muted line. With the player it was already live since #2120 (Cinema); that path now keeps its read too.
   Never the client link. Comments on older versions of a Frame.io version stack are still not shown (function change).
@@ -37,7 +55,7 @@ line is older than a week, re-check it before relying on it.
 
 ## Latest (SyncView stand-in, 2026-10-26): card saver rolled back; morning robots green again
 
-- **Card saver rolled back (15:33 UTC), waiting for the owner's go to re-widen.** `calendar_card_write_clients` is
+- **Card saver rolled back (15:33 UTC); re-widened 19:37 UTC on the owner's go (block above).** `calendar_card_write_clients` is
   `{"clients": [test client, the owner's two clients]}`; every other client's staff saves go to calendar-upsert.
   - Trigger: one staff status save on a real card got no answer within the page's 20 s at 15:25:27 (standing rule:
     any refused staff save rolls back).
@@ -57,8 +75,8 @@ line is older than a week, re-check it before relying on it.
 - **Ledger counting (#2338, OPEN_REPAIRS 504):** `calendar_post_events` writes a card-level row plus one per component
   per save, by design. Count approvals by `approve_%` or distinct post_id, never raw rows.
 - **Open for the owner:**
-  - re-widen the card saver;
-  - the second test client missing from the Sheet (sheets-mirror-daily stays red until it is copied or archived);
+  - (done 19:37) re-widen the card saver;
+  - (done, #2346) the second test client missing from the Sheet: parity now skips test clients other than the main one;
   - (done) Tier 0 re-proof (session Reproof, OPEN_REPAIRS 510): all three rows pass on the live site. Every client's
     Samples link had opened the Calendar since 18 Oct (OPEN_REPAIRS 509), fixed by #2345 and live 20:24 UTC;
   - try phone polish rounds 1 and 2.

@@ -7,7 +7,7 @@ The owner approved trial reels on 2026-10-26: one video, versions A to G that di
 posted as an Instagram trial reel, and the winner kept after 24 h. This plan covers the SyncView part: the switch on a
 calendar card, the versions on the card and its production task, the review, and the log.
 
-The studio half is PR #2349: the connector's `studio_action "trial_reels"` (steps `guide`, `log`, `list`, `update`)
+The studio half is PR #2349, **merged to main on 2026-10-26 at 21:10 UTC (7cb60ad) without the changes this plan asks for**: the connector's `studio_action "trial_reels"` (steps `guide`, `log`, `list`, `update`)
 and its table `studio_trial_versions`. Section 3 says how the two fit.
 
 Mockups: [`trial-reels/mockups.html`](trial-reels/mockups.html) (interactive, one shared state across five views).
@@ -60,7 +60,7 @@ Already in #2349: `id`, `client`, `batch`, `video`, `letter` (A to G), `hook`, `
 `status`, `posted_at`, `views`, `watch_time_s`, `shares`, `saves`, `follows`, `member`, `created_at`, `updated_at`;
 unique (client, batch, video, letter); row level security on; only `service_role` holds SELECT, INSERT, UPDATE.
 
-Columns SyncView needs (proposed for #2349's migration while it is unmerged, or a follow-up migration):
+Columns SyncView needs. #2349 is merged without them, so **SyncView's build PR carries a follow-up migration** that adds them:
 
 | column | type | why |
 |---|---|---|
@@ -90,16 +90,22 @@ Same privileges as #2349's table: row level security on, `revoke all ... from pu
 service_role`, then `grant select, insert, update ... to service_role`, with the same read-back assertion. The browser
 key reads neither table; every read goes through an Edge Function. No new public read.
 
-**Migrations.** If #2349 takes the added columns, SyncView adds one migration (the switch table). Otherwise two. Each
-holds its function on merge until Lighthouse applies it, and says how to tell it is applied
-(`to_regclass('public.trial_reel_cards') is not null`, and for the columns a check on `information_schema.columns`).
+**Migrations.** The build PR adds one migration that does both: `alter table public.studio_trial_versions add column
+if not exists ...` for the columns above, and `create table public.trial_reel_cards`. It must run **after**
+#2349's `20261026200000_studio_trial_versions.sql`, which is marked `functions-cope-without-this` and may not be
+applied yet; the new file stops with a plain error if `to_regclass('public.studio_trial_versions')` is null, so
+Lighthouse applies the two in order. It holds `trial-reels` and `higgsfield-mcp` on merge until applied, and says how to
+tell it is applied: `to_regclass('public.trial_reel_cards') is not null` and `post_id` present in
+`information_schema.columns` for `studio_trial_versions`. The added columns are all nullable or defaulted, so rows the
+studio has already logged stay valid, and #2349's grant assertion (service_role holds exactly SELECT, INSERT, UPDATE)
+still holds.
 
 ## 3. How the studio half (#2349) and the SyncView half fit
 
 | | studio (`higgsfield-mcp`, #2349) | SyncView (new `trial-reels` function) |
 |---|---|---|
-| creates version rows | **yes**, `log` (with `post_id`, `deliverable_id`, `frame_url` once added) | no, only reads them |
-| replaces a link or hook | `log` again for that letter (today refused as duplicate; needs a "replace" path, see clash 2) | no |
+| creates version rows | **yes**, `log` (with `post_id`, `deliverable_id`, `frame_url`, after the build PR) | no, only reads them |
+| replaces a link or hook | `log` with `"replace": true` for that letter, after a change is asked (build PR; today refused as duplicate) | no |
 | review answers (`approved`, `change asked`, `dropped`) | **no** once `post_id` is set (clash 1) | **yes** |
 | `on trial`, numbers, `winner` / `lost` | `update` (allowed) | yes, from the card's results view |
 | card status | never | never directly; the page calls today's saves |
@@ -107,11 +113,11 @@ holds its function on merge until Lighthouse applies it, and says how to tell it
 **One log, one table.** The 24 h numbers live in `studio_trial_versions` (`views`, `watch_time_s`, `shares`, `saves`,
 `follows`), whichever side the SMM types them in. This replaces the separate results table of this plan's first draft.
 
-**Clashes to settle before either side merges:**
+**Clashes, still open on main after #2349 merged** (each is fixed in the build PR, below):
 
 1. **The studio's `update` can set any status**, including `approved`, which would skip the client's OK. Proposal: once
    a row has a `post_id`, `update` accepts only `on trial`, the numbers, `winner`, `lost` and `no clear winner`; the
-   review labels come only from SyncView. (A change to `trialreels.mjs` in #2349.)
+   review labels come only from SyncView. (A change to `trialreels.mjs`.)
 2. **A new cut of one version.** `log` refuses a letter that is already logged. A change asked on version C needs the
    studio to replace C's link and hook: either `log` with `"replace": true`, or `update` taking `frame_url` and `hook`
    (bumping `revision` and resetting the OKs). Without it, a change request has no way back in.
@@ -123,6 +129,32 @@ holds its function on merge until Lighthouse applies it, and says how to tell it
    undo the other.
 5. **Status words.** SyncView uses #2349's spelling (`change asked`, with a space), not the underscore form of the
    first draft.
+
+### What the build PR changes in the studio function, and why it is SyncView's PR
+
+Three small changes to `supabase/functions/higgsfield-mcp/trialreels.mjs` (and its row handling in `index.ts`), with
+`test/higgsfield-trial-reels.js` extended for each:
+
+1. **`update` cannot set `approved`, `change asked`, `dropped` or `waiting` once a row has a `post_id`.** It still
+   sets `on trial`, the numbers, `winner`, `lost` and `no clear winner`. Rows with no `post_id` (studio-only trials) keep
+   today's behaviour.
+2. **`log` can replace a letter after a change is asked.** `"replace": true` on a row whose status is `change asked`
+   overwrites `hook`, `hook_type`, `other_change` and `frame_url`, bumps `revision`, clears the three OKs and the change
+   fields, and sets `waiting`. Replace on any other status is refused with a plain reason ("version C is approved;
+   only a version with a change asked can be replaced"), so an approved version cannot be swapped under the client.
+3. **`post_id` (and `deliverable_id`, `frame_url`) are taken at `log` time.** The guide's step 8 changes from "not
+   wired yet" to: run `review_notes` / `video_cards` for the video, copy its card id and task id onto every row, and
+   give each version's Frame.io link. A row logged without `post_id` is accepted (permissive, AGENTS.md) and the answer
+   says it will not show in SyncView until linked.
+
+**These belong in SyncView's build PR, not back with the studio lane.** The guard (1) only means something once
+`post_id` exists, and `post_id` only exists once the follow-up migration lands, so the migration, the three function
+changes and the `trial-reels` reader have to merge together; split across two PRs there would be a window where rows
+are linked to cards and the studio can still approve them. The changes are about forty lines in one file. The studio
+lane should review that PR and not edit `trialreels.mjs` while it is open. The build session follows
+`docs/ops/HIGGSFIELD_CONNECTOR_LESSONS.md` and makes one real cheap call on the live connector after the deploy
+(`studio_action "trial_reels"` step `list` on the test client). `higgsfield-mcp` is not a Section 4 function, so no
+re-pin.
 
 ## 4. Write path: one new Edge Function, `trial-reels`
 

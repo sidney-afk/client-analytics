@@ -106,7 +106,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .kv{border:1px solid var(--line);border-radius:14px;padding:8px;display:flex;flex-direction:column;gap:8px}
 .kv.cur{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
 .kv .video .ov-hook{font-size:13px}
-.kv .hk{font-size:12px;color:var(--ink2);min-height:32px}
+.kv .hk{font-size:12px;color:var(--ink2)}
 .kv .row{flex-wrap:nowrap;gap:2px}
 /* log */
 table{border-collapse:collapse;width:100%} th,td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left;font-size:13px}
@@ -132,54 +132,13 @@ td input{width:76px;border:1px solid var(--line);background:var(--soft);border-r
   <button data-view="kasper" aria-pressed="false">Kasper</button>
   <button data-view="log" aria-pressed="false">After 24 h: pick the winner</button>
   <button id="theme" aria-pressed="false" title="Light or dark">Dark</button>
-  <span class="note">Mockup only. Fictional client and hooks. Every view shares one state: approve in one, see it in the others.</span>
+  <span class="note">Mockup only. Fictional client and videos. Every view shares one state: approve in one, see it in the others.</span>
 </div>
 
-<!-- 1. THE CARD -->
-<section class="view" id="v-card" hidden>
-  <p class="caption">The staff card, opened. Today's fields stay as they are. The one new line is the <b>Trial reels</b> switch, shown only on the test client while the page switch lists it. With it on, the single video link is replaced by the versions list, which the studio fills. The card's own statuses keep working as today.</p>
-  <div class="frame w1440 card-grid">
-    <div class="panel" style="padding:20px">
-      <div class="row" style="justify-content:space-between;margin-bottom:12px">
-        <h2 class="h-title">Why the first second matters</h2>
-        <span class="sub">Fri 30 Oct · Instagram</span>
-      </div>
-      <div class="row" style="margin-bottom:18px">
-        <span class="status-chip" id="card-vstatus">Video: Client Approval</span>
-        <span class="pill lab-trial" id="card-timer" hidden></span>
-        <span class="status-chip">Thumbnail: N/A</span>
-        <span class="status-chip">Caption: Client Approval</span>
-      </div>
-      <div class="field">
-        <h4>Trial reels</h4>
-        <div class="row">
-          <button class="switch" role="switch" aria-checked="true" id="trialSwitch" aria-label="Trial reels"></button>
-          <span id="switchText"><b>On.</b> One video, several hooks. Each version goes out as an Instagram trial reel; the best one after 24 h is kept.</span>
-        </div>
-      </div>
-      <div class="field" id="singleLink" hidden>
-        <h4>Asset URL</h4><a class="link" href="#" onclick="return false">https://f.io/example-only</a>
-      </div>
-      <div class="field" id="versionsField">
-        <h4>Versions <span id="vcount" style="text-transform:none;letter-spacing:0;color:var(--ink2)"></span></h4>
-        <div class="vlist" id="cardVersions"></div>
-        <p class="sub" style="margin:10px 0 0">Filled by the studio. A new version, a new link or a new hook resets that version to <b>waiting</b>. Only the team can drop a version.</p>
-      </div>
-      <div class="field"><h4>Caption</h4><div>Most people decide in the first second. Here is how to earn the second one.</div></div>
-    </div>
-    <div class="panel" style="padding:20px">
-      <h4 style="margin:0 0 10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)">Production task</h4>
-      <div style="font-weight:700;margin-bottom:4px">Why the first second matters · Video</div>
-      <div class="sub" style="margin-bottom:14px">Status follows the card, as today</div>
-      <div class="vlist" id="subVersions"></div>
-      <p class="sub" style="margin:12px 0 0">The sub-issue shows the same versions (read only). The task keeps one ordinary link (version A, then the winner's), so the Production page and its robots see a normal task.</p>
-    </div>
-  </div>
-</section>
 
 <!-- 2. CLIENT 1440 -->
 <section class="view on" id="v-c1440">
-  <p class="caption">The client's review link at 1440, in today's layout C. On a trial-reels card the Video step becomes <b>Versions</b>: arrows (or ← →) move between versions, "Version B of 5" with the hook under it. Every version needs the client's answer. Once every version is approved or dropped, the card's video moves to Approved through today's own approve save.</p>
+  <p class="caption">The client's review link at 1440, in today's layout C. On a trial-reels card the Video step becomes <b>Versions</b>: arrows (or ← →) move between versions, and the line under the video reads "Video B of 5" with a dot per version carrying its answer. No hook text: the hook is in the video itself. Every version needs the client's answer. Once every version is approved or dropped, the card's video moves to Approved through today's own approve save.</p>
   <div class="frame w1440" data-stage="c1440"></div>
 </section>
 
@@ -191,7 +150,7 @@ td input{width:76px;border:1px solid var(--line);background:var(--soft);border-r
 
 <!-- 4. KASPER -->
 <section class="view" id="v-kasper">
-  <p class="caption">Kasper's Review Session, second layout. A trial-reels card shows every version side by side, each with its hook and its own Approve and change arrow, like today's per-part buttons. "Approve all" approves every version still waiting. The SMM's Review tab is the client page with the SMM's buttons, as today.</p>
+  <p class="caption">Kasper's Review Session, second layout. A trial-reels card shows every version side by side, each named "Video A", "Video B"… with its own Approve, change and drop, like today's per-part buttons. "Approve all" approves every version still waiting. The SMM's Review tab is the client page with the SMM's buttons, as today.</p>
   <div class="frame w1440 k-grid">
     <div class="panel k-list" style="padding:12px">
       <div style="padding:6px 6px 10px"><span style="font-size:24px;font-weight:800">3</span> <span class="sub">cards to review</span></div>
@@ -212,13 +171,13 @@ td input{width:76px;border:1px solid var(--line);background:var(--soft);border-r
 
 <!-- 5. LOG -->
 <section class="view" id="v-log">
-  <p class="caption">After posting. The SMM posts every approved version as a trial reel by hand and marks them on trial: each shows a 24 h timer on the card as a reminder. After 24 h the SMM simply picks the winner; the others become <b>lost</b>, the card's link becomes the winner's, and the winner posts on the card's calendar date. No numbers are typed. The client sees only the winner, once it is picked. The card itself, in today's real design, is in <code>real/card-*.png</code>.</p>
+  <p class="caption">After posting. The SMM posts every approved version as a trial reel by hand and marks them on trial: each shows a 24 h timer on the card as a reminder. After 24 h the SMM simply picks the winner; the others become <b>lost</b>, the card's link becomes the winner's, and the winner posts on the card's calendar date. No numbers are typed. The client sees only the winner, once it is picked. The card, the Notes player and the Production sub-issue, on today's real page, are in <code>real/*.png</code>.</p>
   <div class="frame w1440 panel" style="padding:20px">
     <div class="row" style="justify-content:space-between;margin-bottom:10px">
       <div><div style="font-weight:800;font-size:18px">Why the first second matters · trial reels</div><div class="sub" id="trialSub">Posted as trial reels Fri 30 Oct 09:00</div></div>
       <button class="btn" id="startTrial">Mark approved as on trial</button>
     </div>
-    <table><thead><tr><th>Version</th><th>Hook</th><th>Label</th><th></th></tr></thead><tbody id="logRows"></tbody></table>
+    <table><thead><tr><th>Version</th><th>Label</th><th></th></tr></thead><tbody id="logRows"></tbody></table>
     <div class="legend"><span class="pill lab-waiting">waiting</span><span class="pill lab-approved">approved</span><span class="pill lab-change">change asked</span><span class="pill lab-dropped">dropped</span><span class="pill lab-trial">on trial</span><span class="pill lab-winner">winner</span><span class="pill lab-lost">lost</span></div>
   </div>
 </section>
@@ -243,28 +202,13 @@ const pill = st => `<span class="pill lab-${st}">${LABEL[st]}</span>`;
 function toast(t){ const el=document.getElementById('toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('on'),1800); }
 function videoTile(v, i, small){
   return `<div class="video" data-swipe><div class="grad" style="background:linear-gradient(160deg,${GRADS[i%GRADS.length]})"></div>
-    <span class="tag">Version ${v.l}</span>${small?'':'<span class="fio">Open in Frame.io ↗</span>'}
+    <span class="tag">Video ${v.l}</span>${small?'':'<span class="fio">Open in Frame.io ↗</span>'}
     <div class="ov-hook">${esc(v.hook)}</div><div class="ctl"><span class="play">▶</span></div></div>`;
 }
 function live(){ return S.versions.filter(v => v.st !== 'dropped'); }
 function allDone(){ return S.versions.every(v => v.st==='approved' || v.st==='dropped' || v.st==='trial' || v.st==='winner' || v.st==='lost') && S.versions.some(v=>v.st!=='dropped'); }
 function answered(){ return S.versions.filter(v => v.st!=='waiting').length; }
 
-function renderCard(){
-  document.getElementById('trialSwitch').setAttribute('aria-checked', String(S.on));
-  document.getElementById('switchText').innerHTML = S.on ? '<b>On.</b> One video, several hooks. Each version goes out as an Instagram trial reel; the best one after 24 h is kept.' : '<b>Off.</b> An ordinary post with one video.';
-  document.getElementById('versionsField').hidden = !S.on; document.getElementById('singleLink').hidden = S.on;
-  document.getElementById('vcount').textContent = `· ${S.versions.length} (A to ${S.versions[S.versions.length-1].l})`;
-  const rows = S.versions.map((v,i)=>`<div class="vrow"><div class="letter">${v.l}</div><div style="min-width:0"><div class="hook">${esc(v.hook)}</div>
-     <a class="link" href="#" onclick="return false">Frame.io link</a> <span class="who">· added by the studio</span></div>
-     <div class="row">${pill(v.st)}${v.st==='dropped'?`<button class="btn btn-quiet" data-undrop="${i}">Bring back</button>`:(v.st==='waiting'||v.st==='change'?`<button class="btn btn-quiet" data-drop="${i}" title="Drop this version">Drop</button>`:'')}</div></div>`).join('');
-  document.getElementById('cardVersions').innerHTML = rows;
-  document.getElementById('subVersions').innerHTML = S.versions.map(v=>`<div class="vrow" style="grid-template-columns:28px minmax(0,1fr) auto;padding:8px 10px"><div class="letter" style="width:28px;height:28px">${v.l}</div><div class="hook" style="font-size:13px">${esc(v.hook)}</div>${pill(v.st)}</div>`).join('');
-  const tm = document.getElementById('card-timer'), win = S.versions.find(v=>v.st==='winner');
-  tm.hidden = !(S.trialAt || win); tm.className = 'pill ' + (win ? 'lab-winner' : 'lab-trial');
-  tm.textContent = win ? '★ Winner: version ' + win.l + ' · its link is now the card\'s · posts Fri 30 Oct' : S.trialAt ? 'On trial · ' + Math.max(0, 24 - Math.floor((Date.now()-S.trialAt)/3600000)) + ' h left' : '';
-  document.getElementById('card-vstatus').textContent = 'Video: ' + (allDone() ? 'Approved' : S.versions.some(v=>v.st==='change') ? 'Tweaks Needed' : 'Client Approval');
-}
 
 function stageHTML(kind){
   const v = S.versions[S.cur], i = S.cur, n = S.versions.length;
@@ -289,9 +233,8 @@ function stageHTML(kind){
         </div>
         <div class="swipe-hint">Swipe for the next version</div>
         <div class="vmeta">
-          <div class="vof">Version ${v.l} <span class="dim">of ${n}</span> ${v.st!=='waiting'?pill(v.st):''}</div>
-          <div class="dots" role="tablist" aria-label="Versions">${S.versions.map((x,k)=>`<button class="dot ${dotCls(k)}" data-go="${k}" aria-label="Version ${x.l}, ${LABEL[x.st]}" aria-selected="${k===i}">${x.l}</button>`).join('')}</div>
-          <p class="hookline">“${esc(v.hook)}”</p>
+          <div class="vof">Video ${v.l} <span class="dim">of ${n}</span> ${v.st!=='waiting'?pill(v.st):''}</div>
+          <div class="dots" role="tablist" aria-label="Versions">${S.versions.map((x,k)=>`<button class="dot ${dotCls(k)}" data-go="${k}" aria-label="Video ${x.l}, ${LABEL[x.st]}" aria-selected="${k===i}">${x.l}</button>`).join('')}</div>
         </div>
         <div class="actions">${btns}</div>
         <div class="foot">
@@ -308,22 +251,22 @@ function winnerHTML(kind, w){
       <div class="seg"><span class="on">Review</span><span>Sheet</span><span>Month</span><span>Week</span></div></div>
     <h2 class="h-title" style="margin:6px 4px 12px">Why the first second matters</h2>
     <div class="panel stage" style="max-width:640px;margin:0 auto"><div class="vstage" style="grid-template-columns:minmax(0,250px)">${videoTile(w,i)}</div>
-      <div class="vmeta"><div class="vof">The version we are posting <span class="pill lab-winner">★ winner</span></div><p class="hookline">“${esc(w.hook)}”</p>
+      <div class="vmeta"><div class="vof">Video ${w.l}: the one we are posting <span class="pill lab-winner">★ winner</span></div>
       <p class="sub">Posts on Fri 30 Oct. The client sees only the winner, once it is picked.</p></div></div>`;
 }
 function renderStages(){ const w = S.versions.find(v=>v.st==='winner'); document.querySelectorAll('[data-stage]').forEach(el => { el.innerHTML = w ? winnerHTML(el.dataset.stage, w) : stageHTML(el.dataset.stage); }); }
 
 function renderKasper(){
   document.getElementById('kVersions').innerHTML = S.versions.map((v,i)=>`<div class="kv ${i===S.cur?'cur':''}">
-    ${videoTile(v,i,true)}<div class="hk"><b>${v.l}</b> · ${esc(v.hook)}</div>
+    ${videoTile(v,i,true)}<div class="hk"><b>Video ${v.l}</b></div>
     <div class="row" style="justify-content:space-between">${v.st==='waiting'?`<button class="btn btn-ok" style="padding:5px 9px;font-size:13px" data-k="approve" data-i="${i}">Approve</button><button class="btn btn-quiet" style="padding:4px 5px" title="Ask for a change" data-k="change" data-i="${i}">↺</button><button class="btn btn-quiet" style="padding:4px 5px" title="Drop" data-k="drop" data-i="${i}">✕</button>`:pill(v.st)}</div></div>`).join('');
 }
 function renderLog(){
   const sub = document.getElementById('trialSub'); if (sub) sub.textContent = S.trialAt ? 'Posted as trial reels · ' + Math.max(0, 24 - Math.floor((Date.now()-S.trialAt)/3600000)) + ' h left on the timer' : 'Not posted yet';
-  document.getElementById('logRows').innerHTML = S.versions.map((v,i)=>`<tr><td><b>${v.l}</b></td><td>${esc(v.hook)}</td><td>${pill(v.st)}</td>
+  document.getElementById('logRows').innerHTML = S.versions.map((v,i)=>`<tr><td><b>Video ${v.l}</b></td><td>${pill(v.st)}</td>
     <td>${v.st==='trial'?`<button class="btn" data-win="${i}">★ Make winner</button>`:v.st==='winner'?'<span class="pill lab-winner">★ winner · posts Fri 30 Oct</span>':''}</td></tr>`).join('');
 }
-function render(){ renderCard(); renderStages(); renderKasper(); renderLog(); }
+function render(){ renderStages(); renderKasper(); renderLog(); }
 
 function setSt(i, st, msg){ S.versions[i].st = st; render(); if (msg) toast(msg); if (allDone() && st==='approved') toast('Every version answered: the video is Approved'); }
 function step(d){ const n=S.versions.length; S.cur = Math.max(0, Math.min(n-1, S.cur+d)); render(); }
@@ -332,13 +275,12 @@ document.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.view){ document.querySelectorAll('.mock-bar [data-view]').forEach(x=>x.setAttribute('aria-pressed', String(x===b))); document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on', x.id==='v-'+b.dataset.view)); return; }
   if (b.id==='theme'){ const dark = document.documentElement.dataset.theme!=='dark'; document.documentElement.dataset.theme = dark?'dark':'light'; b.textContent = dark?'Light':'Dark'; return; }
-  if (b.id==='trialSwitch'){ S.on=!S.on; render(); return; }
-  if (b.dataset.drop) return setSt(+b.dataset.drop, 'dropped', 'Version dropped');
+    if (b.dataset.drop) return setSt(+b.dataset.drop, 'dropped', 'Version dropped');
   if (b.dataset.undrop) return setSt(+b.dataset.undrop, 'waiting', 'Version back, waiting');
   if (b.dataset.go) { S.cur=+b.dataset.go; return render(); }
   const a = b.dataset.act;
   if (a==='prev') return step(-1); if (a==='next') return step(1);
-  if (a==='approve'){ setSt(S.cur,'approved','Version '+S.versions[S.cur].l+' approved'); const nx=S.versions.findIndex(v=>v.st==='waiting'); if(nx>=0){ setTimeout(()=>{S.cur=nx;render();},500);} return; }
+  if (a==='approve'){ setSt(S.cur,'approved','Video '+S.versions[S.cur].l+' approved'); const nx=S.versions.findIndex(v=>v.st==='waiting'); if(nx>=0){ setTimeout(()=>{S.cur=nx;render();},500);} return; }
   if (a==='change'){ const t = prompt('What should change on version '+S.versions[S.cur].l+'?', 'Make the hook text bigger'); if (t) setSt(S.cur,'change','Change request sent on version '+S.versions[S.cur].l); return; }
   if (a==='undo') return setSt(S.cur,'waiting','A note went to the team');
   if (a==='all'){ S.versions.forEach(v=>{ if(v.st==='waiting') v.st='approved'; }); render(); return toast(allDone()?'Every version answered: the video is Approved':'All waiting versions approved'); }

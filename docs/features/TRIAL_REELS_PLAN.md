@@ -10,15 +10,18 @@ calendar card, the versions on the card and its production task, the review, and
 The studio half is PR #2349, **merged to main on 2026-10-26 at 21:10 UTC (7cb60ad) without the changes this plan asks for**: the connector's `studio_action "trial_reels"` (steps `guide`, `log`, `list`, `update`)
 and its table `studio_trial_versions`. Section 3 says how the two fit.
 
-Mockups:
-- **The card, on the real page:** `trial-reels/real/card-{today,review,trial,winner}-{1440,390}.png` (and
-  `-390-versions.png`, scrolled to the versions). Made by `trial-reels/real/make-screenshots.js`: it builds today's
-  page, opens the real Calendar card with the offline harness's fictional card, and loads `real/preview.js`, which adds
-  only the trial-reels switch and the versions list (rows cloned from today's Video link row). `card-today-*` is the
-  same card without it.
+Mockups (round 2, after the owner looked at the round 1 card on 2026-10-26; see section 0b):
+- **On today's real page**, in `trial-reels/real/`, light and dark, 1440 and 390. Two scripts build today's page, open
+  it with fictional offline data and load `real/preview.js`, which adds only the trial-reels parts:
+  - `make-screenshots.js`: the staff card `card-<state>-<width>-<theme>.png` for the states `today` (no preview),
+    `off`, `review`, `review-open`, `trial`, `due`, `due-open`, `winner`, `winner-open`; and the Production sub-issue
+    `prod-<state>-…png` for `today`, `review`, `review-open`, `winner`, `winner-open`. The script also measures every
+    collapsed card against today's card and fails if one differs (all equal: 770 px at 1440, 1002 px at 390).
+  - `make-notes-screenshots.js`: the Notes view with the real player, `notes-<A|C>-<width>-<theme>.png`. The player
+    and the Frame.io comments are really read from that version's link.
 - **Review, Kasper and the winner pick:** [`trial-reels/mockups.html`](trial-reels/mockups.html) (interactive, one shared
   state) and its pictures `trial-reels/mock-*.png`. The owner approved the client review (1440 and 390) and Kasper's view
-  on 2026-10-26.
+  on 2026-10-26; round 2 only removed the hook text from them.
 - Today's review pages, from the offline browser tests (fictional fixtures): `trial-reels/current/*.png`.
 
 ---
@@ -42,6 +45,70 @@ Mockups:
   that version's row on the card, the same way the single Video link is filled today. The studio writes no links.
 - **Production: one task with a list of versions.**
 - **Log in Supabase, one row per version, with its label. The SMM posts by hand.**
+
+## 0b. Round 2: the owner's look at the card (feedback-expansion, 2026-10-26)
+
+The owner's words (condensed): collapsed by default and expandable; a subtle switch in the empty space of today's Video
+row, before its pencil; no hook text, just "Video A", "Video B", "Video C"; switch versions in the player and Notes when
+there is more than one link; the card keeps its height, so no new rows (no "Winner: version C" row; the Video row just
+says "Video C"); and how the Production/SyncLinear Assets look.
+
+**Rules** (each one sentence, swept across every trial-reels surface):
+
+| # | Rule | Where it applies (sweep) | Outcome |
+|---|---|---|---|
+| R1 | A list of versions is collapsed by default and opens from its own row | staff card 1440 and 390; Production Assets 1440 and 390 | built in the mockups |
+| R2 | A collapsed trial card is exactly today's height: the switch, the count, the timer and the winner live inside today's Video row | card in every state (off, review, on trial, pick the winner, winner), 1440 and 390, light and dark | built; measured by the script (16 of 16 equal) |
+| R3 | A version is named by its letter only ("Video A"), never by its hook text | card, Production, Notes (title, topic switch, version switch), client review ("Video B of 5"), Kasper's tiles, the winner pick | built; client and Kasper are an owner call (decision 1) |
+| R4 | The winner takes the one link slot: the card's Video row reads "Video C" and opens its link, the Production Deliverable file is the winner's link | card, Production, the client page after the pick | built |
+| R5 | With more than one version link, the player has a version switch and the Frame.io comments follow the version on screen | Notes view 1440 (under the player, beside Open in Frame.io) and 390 (a slim bar under the player); the client review already has its letter dots | built; Notes really reloads the version's link |
+| R6 | With the switch off, the card is today's card plus a faint switch in the Video row | card 1440 and 390 | built (`card-off-*`) |
+
+**Sweep inventory** (surface × what the rules change):
+- **Staff card, Sheet (1440) and the phone card (390):** Video row "Video · 5" + tiny state ("2/4 approved", "On trial ·
+  17 h left", "Pick the winner", or "Video C ★ winner"), the switch and a chevron inside the row; open: "Video A…E" rows
+  with link, label, "Paste the Frame.io link" for a version with no link, "★ Make winner" once the 24 h is up.
+- **Month, Week and the phone grid tiles:** unchanged (owner call, decision 3).
+- **Notes view (staff, from the Notes button, the Sheet play icon and the Review tab):** version switch, the version in
+  the title ("… · Video C") and in the note topic ("About the… Video C"); a note or change written there is about that
+  version. Opens on the winner if there is one, else Video A.
+- **Client review (layout C) and the SMM's Review tab:** "Video B of 5" with letter dots, no hook line; after the pick,
+  only the winner ("Video C: the one we are posting").
+- **Kasper, layout 2:** tiles named "Video A…E" with Approve, change and drop; **layout 1:** the client page's arrows.
+  Not collapsed: they are review surfaces where every version must be seen (decision 4).
+- **Production sub-issue Assets (1440 and 390):** the Deliverable file row reads "Video A" (then "Video C") and opens
+  that link; a "Versions" row under it, "5 · 2/4 approved" or "5 · Video C won", opens one ordinary Assets row per
+  version with its link and label, read only. **The Production list rows are unchanged.**
+
+**What the Production page and Section 4 carry today (read from the code):**
+- The sub-issue's Assets panel (`src/index/240-production-description.js.part`, `_prodAssetsPanelHTML`) has four slots:
+  Filming plan, Raw footage, Frame folder (these three live on the batch) and Deliverable file, which is
+  `deliverables.file_url`, read through `production-write` `asset_access_read` and written through its `attachment`
+  operation.
+- `attachment` (RPC `production_artifact_write`, `migrations/2026-09-05-artifact-card-binding-first.sql`) projects a
+  video `file_url` onto `calendar_posts.asset_url` of the card bound by `video_deliverable_id`. The projection is one
+  way: a card link edit does not write `file_url`.
+- The drift robot (`scripts/card-calendar-status-drift-check.js`) compares statuses only; it reads neither link.
+- So **the winner's link is set through `production-write`'s existing `attachment` operation** when the card has a video
+  sub-issue (it writes `file_url` and projects it onto the card, so both show "Video C"), and through today's card link
+  save when it has none. Version A's link goes in the usual way. Calling an existing operation changes nothing in the
+  Section 4 three, and the versions list is read from `trial-reels`, never from a new deliverable field: **no Section 4
+  change and no re-pin.**
+
+**Owner decisions from this round** (each a one-liner, with the default the build will use):
+1. Hook text on the client review and Kasper: default **none**, matching the card ("Video B of 5"). Say if the client
+   should still see the hook under the video.
+2. The faint switch on the Video row: default **always visible on the test client's cards**, faint until hover. The
+   other choice is to show it only after pressing the pencil.
+3. Month, Week and phone grid tiles: default **unchanged** (no versions badge). The other choice is a small "5" on the
+   tile.
+4. Kasper's second layout: default **all versions side by side** (not collapsed), since he must see each one.
+5. A note written in Notes while Video C is on screen: default **about Video C** (it shows "Video C" on the note). The
+   other choice is a note about the video as a whole.
+6. Pasting a version's Frame.io link from the Production Assets too: default **no**, the card is the one place; the
+   Production list is read only.
+7. Clicking the collapsed Video row: default **opens the link of Video A (or the winner)**, as today's row opens its
+   link; the chevron opens the list. The other choice is that the row opens the list.
 
 ## 1. What exists today (read from the code)
 
@@ -185,14 +252,15 @@ Not a Section 4 function, so no fingerprint pin; it deploys through the merge la
   key with "on".
 - Every refused write reports to the write-refusal log (`_writeUiRecordFailure`), like the Calendar.
 - Every write appends to `calendar_post_events` with `component = 'video'` and the letter in `payload`, so the card's
-  history shows "Version C: change asked".
+  history shows "Video C: change asked".
 
 **How it fits `calendar-card-write` and `production-write` without a Section 4 change:** neither is changed. The card
 keeps one ordinary `asset_url` and the task one ordinary `file_url`, so Production, the status bridge, the drift robot
-and the connector's `video_cards` see a normal card. When the SMM gives the winner badge, the page sets the card's
-`asset_url` to the winner's link through **today's staff card save** (an ordinary link edit), so the post that goes out
-on the calendar date, and every reader after it, carries the winner. Until then `asset_url` holds version A's link, pasted
-the usual way.
+and the connector's `video_cards` see a normal card. When the SMM picks the winner, the page sets the winner's link
+through **`production-write`'s existing `attachment` operation** when the card has a video sub-issue (it writes
+`file_url` and projects it onto the card's `asset_url`), or through today's staff card link save when it has none, so
+the post that goes out on the calendar date, the Production Deliverable file and every reader after it carry the
+winner (section 0b). Until then the one link is Video A's, pasted the usual way.
 
 ## 5. Status rules and review
 
@@ -206,7 +274,7 @@ a stage is finished, so every existing rule, notification and sync runs unchange
 | Client (review link) | `client_ok_at`, status `approved` | `_calReviewApprove` on the video part: the card moves to Approved |
 
 - **Approved** needs no version waiting and at least one approved (owner, Q4). All dropped: the card stays where it is.
-- **A change on one version** sends today's change request on the video part, starting "Version C:". The card goes to
+- **A change on one version** sends today's change request on the video part, starting "Video C:". The card goes to
   Tweaks Needed as today and the editor works as today. When the new cut's link is pasted, only C loses its OKs and goes
   back to `waiting`; it then takes **the normal route, the SMM and Kasper again before the client** (Q3). The card comes
   back through For SMM Approval and Kasper Approval as today; each stage stops only on the versions that lack that
@@ -215,23 +283,24 @@ a stage is finished, so every existing rule, notification and sync runs unchange
   client page has no drop button.
 - **The stage (195).** On a card with the switch on, for a client the page switch lists, `_rsCompsOf` replaces the
   `video` part with a `versions` part: today's player (`svFrameStageMount`) for the version on stage, arrows on each
-  side (and ← → keys), swipe on a phone, "Version B of 5", the hook under it, a row of letter dots carrying each
-  version's answer, and "Approve this version", "Ask for a change", "Approve all". Thumbnail and caption steps stay.
+  side (and ← → keys), swipe on a phone, "Video B of 5" with a row of letter dots carrying each version's answer
+  (no hook text, decision 1), and "Approve this version", "Ask for a change", "Approve all". Thumbnail and caption steps stay.
   "Finish reviewing" counts versions.
-- **Kasper's second layout** shows every version side by side (hook, Approve, change, drop on each), with "Approve all"
+- **Kasper's second layout** shows every version side by side ("Video A"…, Approve, change, drop on each), with "Approve all"
   at the top. His first layout gets the same arrows as the client page.
 
 **After approval: the trial, the timer and the winner.**
 - The SMM posts every approved version as a trial reel by hand, then presses **"Mark approved as on trial"**: each goes
   `on trial` with `trial_ends_at` 24 h later.
-- **The card shows the timer as a reminder**: a purple "On trial · 17 h left" chip on the card, and "Pick the winner"
-  once 24 h has passed. The card's status stays Approved, then Scheduled as today.
+- **The card shows the timer as a reminder, inside its Video row**: "On trial · 17 h left", then "Pick the winner"
+  once 24 h has passed (no new row, R2). The card's status stays Approved, then Scheduled as today.
 - **No numbers are typed** (Q7). After the trial the SMM presses **"★ Make winner"** on one version: that one is
   `winner`, the others `lost`, and the card's link becomes the winner's (above).
-- **The client sees only the winner, once it is picked** (Q8): the review link shows "The version we are posting" with
-  the winner's video and hook, and none of the other versions.
+- **The client sees only the winner, once it is picked** (Q8): the review link shows "Video C: the one we are posting"
+  with the winner's video, and none of the other versions.
 - **The winner posts on the card's calendar date and the card turns Posted** through today's Posted path, unchanged.
-- The production task shows one list of versions with their labels (read only) under its ordinary single link.
+- The production task's Assets show the one link (Video A, then the winner) and, collapsed under it, the versions with
+  their labels, read only (section 0b).
 
 ## 6. The switch: the test client only
 
@@ -285,4 +354,4 @@ a stage is finished, so every existing rule, notification and sync runs unchange
   links.
 - Q10: the SMM always picks one; no "no clear winner" on the SyncView side.
 
-**Next:** the owner looks at the real-card pictures (`trial-reels/real/`). No building until he has.
+**Next:** the owner looks at the round 2 pictures (`trial-reels/real/`) and the seven decisions in section 0b. No building until he has.

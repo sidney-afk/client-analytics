@@ -31,9 +31,9 @@
     .trp-off:hover .trp-sw{opacity:.9}
     .trp-main .cal-link-pill-open{min-width:0}
     .trp-main .cal-link-label{display:flex;align-items:center;gap:7px;min-width:0;white-space:nowrap;overflow:hidden}
-    .trp-main .trp-state-btn{flex:none;align-self:center;min-height:0!important;height:18px;display:inline-flex;align-items:center;padding:0 8px;border-radius:999px;border:1px solid currentColor;line-height:1;cursor:pointer;overflow:visible}
-    .trp-main .trp-state-btn svg{width:11px;height:11px;margin-right:4px}
-    .trp-state-btn:hover{background:color-mix(in srgb,currentColor 12%,transparent)}
+    .trp-main .trp-state-ico{flex:none;align-self:center;display:grid;place-items:center;width:18px;height:18px;min-height:0!important;border-radius:5px;cursor:pointer;opacity:.85}
+    .trp-main .trp-state-ico svg{width:13px;height:13px}
+    .trp-main .trp-state-ico:hover{opacity:1;background:color-mix(in srgb,currentColor 12%,transparent)}
     .trp-state{font-size:10.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis}
     .trp-chev{flex:none;align-self:center;display:grid;place-items:center;width:16px;height:14px;margin-right:2px;border-radius:5px;color:inherit;cursor:pointer;opacity:.8}
     .trp-chev svg{width:10px;height:10px;transition:transform .15s}
@@ -50,10 +50,7 @@
     .trp-v .trp-pick:hover{opacity:1;background:color-mix(in srgb,currentColor 12%,transparent)}
     .trp-v .trp-pick svg{width:13px;height:13px}
     @media (max-width: 599px){ .trp-v .trp-pick{width:32px;height:32px} .trp-v .trp-pick svg{width:16px;height:16px} }
-    .trp-confirm{gap:10px}
-    .trp-confirm .trp-l{flex:1 1 auto}
-    .trp-confirm button{flex:none;border:1px solid currentColor;border-radius:999px;background:none;color:inherit;font:inherit;font-size:11px;font-weight:700;padding:2px 10px;cursor:pointer}
-    .trp-confirm .trp-yes{background:color-mix(in srgb,currentColor 14%,transparent)}
+    .trp-lab-gap{margin-left:auto}
     .trp-lab{margin-left:auto;flex:none;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap}
     .trp-lab{background:var(--cal-status-n-a-bg,#f3f4f6);color:var(--cal-status-n-a-fg,#4b5563)}
     .trp-lab[data-l="approved"]{background:var(--cal-status-approved-bg,#dcfce7);color:var(--cal-status-approved-fg,#166534)}
@@ -72,10 +69,8 @@
     .trp-oncard{font-size:11px;font-weight:600;color:var(--prod-strong,inherit)}
   `;
   const CHEV = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>';
-  // The pick-the-winner icon: a small trophy by default (a checkmark already means "approved" here); 'check' is the
-  // alternative the owner may choose.
+  // The pick-the-winner icon: a small trophy (the owner chose it; a checkmark already means "approved" here).
   const TROPHY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 2.5h6v3.5a3 3 0 0 1-6 0z"/><path d="M5 3.5H3a2 2 0 0 0 2 2.5M11 3.5h2a2 2 0 0 1-2 2.5"/><path d="M8 9v2.5M5.5 13.5h5M6.5 11.5h3"/></svg>';
-  const CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></svg>';
   const GO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h4v4"/><path d="M13 3 7 9"/><path d="M12 9.5V13H3V4h3.5"/></svg>';
   function addCss() {
     if (document.getElementById('trpCss')) return;
@@ -89,12 +84,21 @@
       return { main: 'Video · ' + LETTERS.length, tiny: ok + '/' + live + ' approved' };
     }
     if (state === 'trial') return { main: 'Video · ' + LETTERS.length, tiny: 'On trial · 17 h left' };
-    if (state === 'due') return { main: 'Video · ' + LETTERS.length, tiny: 'Pick the winner' };
-    return { main: 'Video C', tiny: '★ winner' };
+    if (state === 'due') return { main: 'Video · ' + LETTERS.length, tiny: '' };
+    return { main: 'Video C', tiny: '' };   // the owner: with a winner, the row just says "Video C"
   }
   // state: 'off' | 'review' | 'trial' | 'due' | 'winner'; open: the versions list is expanded
-  // variant: 'check' (the checkmark icon instead of the trophy) or 'confirm' (the phone's one-line confirm on Video C)
-  function card(state, open, variant) {
+  // A label is shown only where it says something the row does not (owner: no visual noise): one that every live version
+  // shares is dropped (the collapsed row already says it), "lost" is dropped once there is a winner, and "dropped",
+  // "winner" and "change asked" always stay.
+  function labelShown(L, l) {
+    const lab = L[l];
+    if (lab === 'dropped' || lab === 'winner' || lab === 'change asked') return true;
+    if (lab === 'lost') return false;
+    const liveLabels = LETTERS.filter(x => L[x] !== 'dropped').map(x => L[x]);
+    return new Set(liveLabels).size > 1;
+  }
+  function card(state, open) {
     addCss();
     document.querySelectorAll('.cal-link-field.cal-link-post').forEach(video => {
       if (video.dataset.trp || !video.offsetParent) return;
@@ -117,12 +121,14 @@
       label.children[0].textContent = rs.main;
       label.children[1].textContent = rs.tiny;
       if (state === 'due') {
-        // Once the 24 h are up the state itself is the way in: a small button that opens the list with the
-        // "Make winner" buttons showing (staff only; a client link never has it).
-        label.children[1].classList.add('trp-state-btn');
-        label.children[1].setAttribute('role', 'button');
-        label.children[1].title = 'Open the versions and pick the winner';
-        label.children[1].innerHTML = TROPHY + '<span>Pick winner</span>';
+        // Once the 24 h are up the state slot holds only a small muted trophy (owner: no visual noise, the tooltip
+        // explains it). Pressing it opens the list with a trophy on each version. Staff only; a client link never has it.
+        const t = label.children[1];
+        t.className = 'trp-state-ico';
+        t.setAttribute('role', 'button');
+        t.setAttribute('aria-label', 'Trial over: pick the winner');
+        t.title = 'Trial over: pick the winner';
+        t.innerHTML = TROPHY;
       }
       const chev = document.createElement('span');
       chev.className = 'trp-chev';
@@ -140,12 +146,8 @@
         v.className = 'trp-v' + (L[l] === 'dropped' ? ' trp-dropped' : '');
         v.innerHTML = (linked ? '<span class="trp-go">' + GO + '</span>' : '') + '<span class="trp-l">Video ' + l + '</span>'
           + (linked ? '' : '<span class="trp-paste">Paste the Frame.io link</span>')
-          + '<span class="trp-lab" data-l="' + L[l] + '">' + L[l] + '</span>'
-          + (state === 'due' && L[l] === 'on trial' ? '<button type="button" class="trp-pick" aria-label="Make this the winner" title="Make this the winner">' + (variant === 'check' ? CHECK : TROPHY) + '</button>' : '');
-        if (variant === 'confirm' && l === 'C') {
-          v.classList.add('trp-confirm');
-          v.innerHTML = '<span class="trp-l">Make Video C the winner?</span><button type="button" class="trp-yes">Yes</button><button type="button" class="trp-no">Cancel</button>';
-        }
+          + (labelShown(L, l) ? '<span class="trp-lab" data-l="' + L[l] + '">' + L[l] + '</span>' : '<span class="trp-lab-gap"></span>')
+          + (state === 'due' && L[l] === 'on trial' ? '<button type="button" class="trp-pick" aria-label="Make this the winner" title="Make this the winner">' + TROPHY + '</button>' : '');
         list.appendChild(v);
       }
       video.after(list);
@@ -203,8 +205,8 @@
       v.querySelector('.prod-asset-label').textContent = 'Deliverable file · Video ' + l;
       const val = v.querySelector('.prod-asset-value');
       val.innerHTML = (linked ? '<a href="#" onclick="return false"></a>' : '<span>Not provided</span>')
-        + ' <span class="trp-lab" data-l="' + L[l] + '">' + L[l] + '</span>'
-        + (l === main ? ' <span class="trp-oncard">on the card</span>' : '');
+        + (labelShown(L, l) ? ' <span class="trp-lab" data-l="' + L[l] + '">' + L[l] + '</span>' : '')
+        + (l === main && L[l] !== 'winner' ? ' <span class="trp-oncard">on the card</span>' : '');
       if (linked) val.querySelector('a').textContent = linkLabel('https://f.io/fixture-version-' + l.toLowerCase());
       const st = v.querySelector('.prod-asset-state');
       if (st) { const k = linked ? 'available' : 'missing'; st.setAttribute('data-state', k); st.textContent = stateLabel(k); st.removeAttribute('title'); st.removeAttribute('data-prod-tip'); }
@@ -240,5 +242,9 @@
       .reduce((acc, n) => { const k = n.className.split(' ')[0]; (acc[k] = acc[k] || []).push(Math.round(n.getBoundingClientRect().left * 10) / 10); return acc; }, {});
     return out;
   }
-  window.svTrialPreview = { card, notes, production, audit };
+  // The winner pick has no confirm: it happens at once and today's toast offers Undo, as Kasper's approve does.
+  function undoToast(letter) {
+    if (typeof showToast === 'function') showToast('Video ' + letter + ' is the winner', { actionLabel: 'Undo', onAction: () => {} });
+  }
+  window.svTrialPreview = { card, notes, production, audit, undoToast };
 })();

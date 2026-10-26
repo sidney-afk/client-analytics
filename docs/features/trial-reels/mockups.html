@@ -233,7 +233,7 @@ function stageHTML(kind){
         </div>
         <div class="swipe-hint">Swipe for the next version</div>
         <div class="vmeta">
-          <div class="vof">Video ${v.l} <span class="dim">of ${n}</span> ${v.st!=='waiting'?pill(v.st):''}</div>
+          <div class="vof">Video ${v.l} <span class="dim">of ${n}</span></div>
           <div class="dots" role="tablist" aria-label="Versions">${S.versions.map((x,k)=>`<button class="dot ${dotCls(k)}" data-go="${k}" aria-label="Video ${x.l}, ${LABEL[x.st]}" aria-selected="${k===i}">${x.l}</button>`).join('')}</div>
         </div>
         <div class="actions">${btns}</div>

@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trial reels mockups</title>
+<!-- Session Trials, 2026-10-26. A plan mockup, not the app: fictional client, fictional hooks, no live reads or writes.
+     Today's review page (layout C) and Kasper's Review Session, with the trial-reels pieces added. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f4f2; --panel:#fff; --line:#e7e7e3; --soft:#f3f3f1; --ink:#111110; --ink2:#55554f; --ink3:#8b8b84;
+  --accent:#7c3aed; --accent-soft:#f1ebff; --ok:#16a34a; --ok-bg:#dcfce7; --ok-line:#86efac; --ok-fg:#166534;
+  --chg:#ea580c; --chg-bg:#ffedd5; --chg-fg:#9a3412; --trial:#5b21b6; --trial-bg:#ede9fe; --win:#a16207; --win-bg:#fef3c7;
+  --mute-bg:#f3f4f6; --mute-fg:#6b7280; --shadow:0 1px 2px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#111110; --panel:#1a1a19; --line:#2c2c2a; --soft:#232322; --ink:#f4f4f2; --ink2:#c2c2bc; --ink3:#8b8b84;
+  --accent:#a78bfa; --accent-soft:#2a2140; --ok:#4ade80; --ok-bg:#12321f; --ok-line:#1f6b3a; --ok-fg:#86efac;
+  --chg:#fb923c; --chg-bg:#3a2210; --chg-fg:#fdba74; --trial:#c4b5fd; --trial-bg:#2a2140; --win:#fcd34d; --win-bg:#3a2e0b;
+  --mute-bg:#262626; --mute-fg:#a3a3a3;
+}}
+:root[data-theme="dark"]{
+  --bg:#111110; --panel:#1a1a19; --line:#2c2c2a; --soft:#232322; --ink:#f4f4f2; --ink2:#c2c2bc; --ink3:#8b8b84;
+  --accent:#a78bfa; --accent-soft:#2a2140; --ok:#4ade80; --ok-bg:#12321f; --ok-line:#1f6b3a; --ok-fg:#86efac;
+  --chg:#fb923c; --chg-bg:#3a2210; --chg-fg:#fdba74; --trial:#c4b5fd; --trial-bg:#2a2140; --win:#fcd34d; --win-bg:#3a2e0b;
+  --mute-bg:#262626; --mute-fg:#a3a3a3;
+}
+*{box-sizing:border-box} html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px}
+button{font:inherit;color:inherit;cursor:pointer}
+.mock-bar{position:sticky;top:0;z-index:20;display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.mock-bar b{margin-right:8px}
+.mock-bar button{border:1px solid var(--line);background:var(--soft);border-radius:999px;padding:6px 12px;font-weight:600;font-size:13px}
+.mock-bar button[aria-pressed="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.mock-bar .note{margin-left:auto;color:var(--ink3);font-size:12px}
+.view{display:none;padding:24px 16px 48px} .view.on{display:block}
+.frame{margin:0 auto;background:var(--bg)} .w1440{max-width:1440px} .w390{width:390px;max-width:100%;border:1px solid var(--line);border-radius:28px;padding:16px;overflow:hidden}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+.h-title{font-size:22px;font-weight:800;letter-spacing:-.02em;margin:0}
+.sub{color:var(--ink3);font-size:13px}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;white-space:nowrap}
+.lab-waiting{background:var(--mute-bg);color:var(--mute-fg)} .lab-approved{background:var(--ok-bg);color:var(--ok-fg)}
+.lab-change{background:var(--chg-bg);color:var(--chg-fg)} .lab-dropped{background:var(--mute-bg);color:var(--mute-fg);text-decoration:line-through}
+.lab-trial{background:var(--trial-bg);color:var(--trial)} .lab-winner{background:var(--win-bg);color:var(--win)} .lab-lost{background:var(--mute-bg);color:var(--mute-fg)}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:9px 14px;font-weight:600;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{background:var(--soft)}
+.btn-ok{background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok-fg)} .btn-ok:hover{filter:brightness(.97)}
+.btn-quiet{border-color:transparent;background:transparent;color:var(--ink2)}
+.btn:focus-visible,.arrow:focus-visible,.switch:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* the card */
+.card-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px}
+.field{margin:0 0 16px} .field h4{margin:0 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.switch{width:40px;height:24px;border-radius:999px;border:0;background:var(--line);position:relative;padding:0;flex:none}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}
+.switch[aria-checked="true"]{background:var(--accent)} .switch[aria-checked="true"]::after{left:19px}
+.vlist{display:flex;flex-direction:column;gap:8px}
+.vrow{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.letter{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-weight:800;background:var(--accent-soft);color:var(--accent)}
+.vrow .hook{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .vrow .link{font-size:12px;color:var(--accent);text-decoration:none}
+.vrow .who{font-size:11px;color:var(--ink3)}
+.status-chip{background:var(--soft);border-radius:8px;padding:4px 8px;font-size:12px;font-weight:600;color:var(--ink2)}
+/* the stage */
+.top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.brand{font-size:24px;font-weight:800;letter-spacing:-.02em}
+.seg{margin-left:auto;display:flex;background:var(--soft);border-radius:999px;padding:4px}
+.seg span{padding:6px 14px;border-radius:999px;font-weight:600;color:var(--ink2)} .seg span.on{background:var(--panel);color:var(--ink)}
+.stage-wrap{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;align-items:start}
+.stage{padding:16px 16px 14px;position:relative}
+.steps{display:flex;justify-content:center;gap:8px;align-items:center;margin:0 0 12px}
+.step{border:1px solid var(--line);border-radius:999px;padding:5px 12px 5px 6px;display:inline-flex;gap:6px;align-items:center;font-weight:600;color:var(--ink2);background:var(--panel)}
+.step .n{width:20px;height:20px;border-radius:50%;background:var(--soft);display:grid;place-items:center;font-size:11px}
+.step.on{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 1px var(--accent)} .step.on .n{background:var(--accent);color:#fff}
+.vstage{display:grid;grid-template-columns:48px minmax(0,250px) 48px;gap:14px;justify-content:center;align-items:center}
+.arrow{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--panel);display:grid;place-items:center}
+.arrow:disabled{opacity:.35;cursor:default}
+.video{aspect-ratio:9/16;border-radius:14px;position:relative;overflow:hidden;touch-action:pan-y;user-select:none;background:#222}
+.video .grad{position:absolute;inset:0}
+.video .ov-hook{position:absolute;left:12px;right:12px;top:18%;text-align:center;font-weight:800;font-size:20px;line-height:1.2;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.45)}
+.video .tag{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.55);color:#fff;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:600}
+.video .fio{position:absolute;top:10px;right:10px;background:rgba(0,0,0,.55);color:#fff;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:600}
+.video .ctl{position:absolute;left:0;right:0;bottom:0;height:64px;background:linear-gradient(transparent,rgba(0,0,0,.55));display:flex;align-items:center;justify-content:center}
+.video .play{width:44px;height:44px;border-radius:50%;background:#fff;display:grid;place-items:center}
+.vmeta{text-align:center;margin:12px auto 0;max-width:420px}
+.vof{font-weight:700} .vof .dim{color:var(--ink3);font-weight:600}
+.dots{display:flex;gap:6px;justify-content:center;margin:8px 0}
+.dot{width:22px;height:22px;border-radius:50%;border:1px solid var(--line);font-size:10px;font-weight:700;display:grid;place-items:center;color:var(--ink3);background:var(--panel)}
+.dot.cur{border-color:var(--accent);color:var(--accent)} .dot.ok{background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok-fg)}
+.dot.chg{background:var(--chg-bg);border-color:var(--chg);color:var(--chg-fg)} .dot.drop{text-decoration:line-through;opacity:.6}
+.hookline{color:var(--ink2);font-size:15px;line-height:1.4;margin:6px 0 0}
+.actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:14px 0 6px}
+.foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);margin-top:12px;padding-top:12px}
+.chat{min-height:520px;display:flex;flex-direction:column}
+.chat header{padding:14px 16px;border-bottom:1px solid var(--line)} .chat .body{flex:1;padding:16px;display:flex;flex-direction:column;justify-content:flex-end;gap:10px}
+.bubble{background:var(--soft);border-radius:14px;padding:10px 12px;max-width:85%} .bubble small{color:var(--ink3);display:block;margin-bottom:2px}
+.chat .compose{border-top:1px solid var(--line);padding:12px 16px;color:var(--ink3)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:10px 16px;border-radius:12px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;z-index:30}
+.toast.on{opacity:1}
+/* kasper */
+.k-grid{display:grid;grid-template-columns:250px minmax(0,1fr) 340px;gap:16px}
+.k-list .item{display:flex;gap:10px;padding:10px;border-radius:12px;align-items:center} .k-list .item.on{background:var(--accent-soft);border:1px solid var(--accent)}
+.thumb{width:34px;height:60px;border-radius:6px;flex:none}
+.k-versions{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.kv{border:1px solid var(--line);border-radius:14px;padding:8px;display:flex;flex-direction:column;gap:8px}
+.kv.cur{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.kv .video .ov-hook{font-size:13px}
+.kv .hk{font-size:12px;color:var(--ink2);min-height:32px}
+.kv .row{flex-wrap:nowrap;gap:2px}
+/* log */
+table{border-collapse:collapse;width:100%} th,td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left;font-size:13px}
+th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)}
+td input{width:76px;border:1px solid var(--line);background:var(--soft);border-radius:8px;padding:6px 8px;font:inherit;color:inherit}
+.legend{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 0}
+.caption{max-width:1440px;margin:0 auto 14px;color:var(--ink2);font-size:13px}
+@media (max-width: 900px){ .card-grid,.stage-wrap,.k-grid{grid-template-columns:1fr} }
+/* the phone frame */
+.w390 .top{flex-wrap:wrap} .w390 .seg{margin-left:0;width:100%;justify-content:space-between}
+.w390 .vstage{grid-template-columns:minmax(0,1fr)} .w390 .arrow{display:none}
+.w390 .swipe-hint{display:block}
+.w390 .stage>.sub{position:static!important;margin:0 0 8px}
+.swipe-hint{display:none;text-align:center;font-size:12px;color:var(--ink3);margin-top:6px}
+.w390 .actions .btn{flex:1 1 100%;justify-content:center}
+</style>
+</head>
+<body>
+<div class="mock-bar" role="toolbar" aria-label="Mockup views">
+  <b>Trial reels</b>
+  <button data-view="card" aria-pressed="true">Card + versions</button>
+  <button data-view="c1440" aria-pressed="false">Client review, 1440</button>
+  <button data-view="c390" aria-pressed="false">Client review, 390</button>
+  <button data-view="kasper" aria-pressed="false">Kasper</button>
+  <button data-view="log" aria-pressed="false">After 24 h: results</button>
+  <button id="theme" aria-pressed="false" title="Light or dark">Dark</button>
+  <span class="note">Mockup only. Fictional client and hooks. Every view shares one state: approve in one, see it in the others.</span>
+</div>
+
+<!-- 1. THE CARD -->
+<section class="view on" id="v-card">
+  <p class="caption">The staff card, opened. Today's fields stay as they are. The one new line is the <b>Trial reels</b> switch, shown only on the test client while the page switch lists it. With it on, the single video link is replaced by the versions list, which the studio fills. The card's own statuses keep working as today.</p>
+  <div class="frame w1440 card-grid">
+    <div class="panel" style="padding:20px">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <h2 class="h-title">Why the first second matters</h2>
+        <span class="sub">Fri 30 Oct · Instagram</span>
+      </div>
+      <div class="row" style="margin-bottom:18px">
+        <span class="status-chip" id="card-vstatus">Video: Client Approval</span>
+        <span class="status-chip">Thumbnail: N/A</span>
+        <span class="status-chip">Caption: Client Approval</span>
+      </div>
+      <div class="field">
+        <h4>Trial reels</h4>
+        <div class="row">
+          <button class="switch" role="switch" aria-checked="true" id="trialSwitch" aria-label="Trial reels"></button>
+          <span id="switchText"><b>On.</b> One video, several hooks. Each version goes out as an Instagram trial reel; the best one after 24 h is kept.</span>
+        </div>
+      </div>
+      <div class="field" id="singleLink" hidden>
+        <h4>Asset URL</h4><a class="link" href="#" onclick="return false">https://f.io/example-only</a>
+      </div>
+      <div class="field" id="versionsField">
+        <h4>Versions <span id="vcount" style="text-transform:none;letter-spacing:0;color:var(--ink2)"></span></h4>
+        <div class="vlist" id="cardVersions"></div>
+        <p class="sub" style="margin:10px 0 0">Filled by the studio. A new version, a new link or a new hook resets that version to <b>waiting</b>. Only the team can drop a version.</p>
+      </div>
+      <div class="field"><h4>Caption</h4><div>Most people decide in the first second. Here is how to earn the second one.</div></div>
+    </div>
+    <div class="panel" style="padding:20px">
+      <h4 style="margin:0 0 10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)">Production sub-issue</h4>
+      <div style="font-weight:700;margin-bottom:4px">Why the first second matters · Video</div>
+      <div class="sub" style="margin-bottom:14px">Status follows the card, as today</div>
+      <div class="vlist" id="subVersions"></div>
+      <p class="sub" style="margin:12px 0 0">The sub-issue shows the same versions (read only). The editor's link field keeps version A, so the Production page and its robots see one ordinary link.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 2. CLIENT 1440 -->
+<section class="view" id="v-c1440">
+  <p class="caption">The client's review link at 1440, in today's layout C. On a trial-reels card the Video step becomes <b>Versions</b>: arrows (or ← →) move between versions, "Version B of 5" with the hook under it. Every version needs the client's answer. Once every version is approved or dropped, the card's video moves to Approved through today's own approve save.</p>
+  <div class="frame w1440" data-stage="c1440"></div>
+</section>
+
+<!-- 3. CLIENT 390 -->
+<section class="view" id="v-c390">
+  <p class="caption">The same page on a phone (390 px). No arrows: swipe the video left or right. The dots under the video show each version's answer.</p>
+  <div class="frame w390" data-stage="c390"></div>
+</section>
+
+<!-- 4. KASPER -->
+<section class="view" id="v-kasper">
+  <p class="caption">Kasper's Review Session, second layout. A trial-reels card shows every version side by side, each with its hook and its own Approve and change arrow, like today's per-part buttons. "Approve all" approves every version still waiting. The SMM's Review tab is the client page with the SMM's buttons, as today.</p>
+  <div class="frame w1440 k-grid">
+    <div class="panel k-list" style="padding:12px">
+      <div style="padding:6px 6px 10px"><span style="font-size:24px;font-weight:800">3</span> <span class="sub">cards to review</span></div>
+      <div class="item on"><div class="thumb" style="background:linear-gradient(160deg,#7c3aed,#ec4899)"></div><div><div style="font-weight:700;font-size:13px">Why the first second…</div><div class="sub" style="font-size:12px">Fixture Studio · <span class="pill lab-trial" style="padding:1px 7px">5 versions</span></div></div></div>
+      <div class="item"><div class="thumb" style="background:linear-gradient(160deg,#0ea5e9,#22c55e)"></div><div><div style="font-weight:700;font-size:13px;color:var(--ink2)">Three habits for a calm…</div><div class="sub" style="font-size:12px">Fixture Studio</div></div></div>
+      <div class="item"><div class="thumb" style="background:linear-gradient(160deg,#f97316,#eab308)"></div><div><div style="font-weight:700;font-size:13px;color:var(--ink2)">The Friday reset</div><div class="sub" style="font-size:12px">Fixture Studio</div></div></div>
+    </div>
+    <div class="panel" style="padding:16px">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <div><div style="font-weight:800;font-size:18px">Fixture Studio · Why the first second matters</div><div class="sub">Fri 30 Oct · Trial reels · first review</div></div>
+        <div class="row"><button class="btn" id="kApproveAll">✓ Approve all</button><button class="btn btn-quiet">Close card</button></div>
+      </div>
+      <div class="k-versions" id="kVersions"></div>
+    </div>
+    <div class="panel chat"><header><b>The team</b><div class="sub">Fixture Studio's SMM and editors. The client does not see this.</div></header><div class="body"><div class="bubble"><small>Editor · Versions</small>Five hooks on the same cut. C and E are the bold ones.</div></div><div class="compose">Message the team</div></div>
+  </div>
+</section>
+
+<!-- 5. LOG -->
+<section class="view" id="v-log">
+  <p class="caption">Part 3. After the versions go out as trial reels, the SMM types each version's 24 h numbers. One row per version in the new log table. "Keep this one" marks the winner; the others become <b>lost</b>. The card stays Approved; only the version labels change.</p>
+  <div class="frame w1440 panel" style="padding:20px">
+    <div class="row" style="justify-content:space-between;margin-bottom:10px">
+      <div><div style="font-weight:800;font-size:18px">Why the first second matters · trial results</div><div class="sub">Posted as trial reels Fri 30 Oct 09:00 · numbers at 24 h</div></div>
+      <button class="btn" id="startTrial">Mark all approved as on trial</button>
+    </div>
+    <table><thead><tr><th>Version</th><th>Hook</th><th>Label</th><th>Views</th><th>Reach</th><th>Likes</th><th>Shares</th><th>Saves</th><th>Avg watch (s)</th><th></th></tr></thead><tbody id="logRows"></tbody></table>
+    <div class="legend"><span class="pill lab-waiting">waiting</span><span class="pill lab-approved">approved</span><span class="pill lab-change">change asked</span><span class="pill lab-dropped">dropped</span><span class="pill lab-trial">on trial</span><span class="pill lab-winner">winner</span><span class="pill lab-lost">lost</span></div>
+  </div>
+</section>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const LABEL = { waiting:'waiting', approved:'approved', change:'change asked', dropped:'dropped', trial:'on trial', winner:'winner', lost:'lost' };
+const GRADS = ['#7c3aed,#ec4899','#0ea5e9,#6366f1','#f97316,#ef4444','#10b981,#0ea5e9','#eab308,#f97316','#64748b,#0f172a','#db2777,#9333ea'];
+const S = {
+  on: true, cur: 0,
+  versions: [
+    { l:'A', hook:'Nobody tells you this about the first second', st:'waiting' },
+    { l:'B', hook:'You have one second. Here is how to use it', st:'waiting' },
+    { l:'C', hook:'Stop scrolling. Yes, you', st:'waiting' },
+    { l:'D', hook:'The rule every viral video follows', st:'waiting' },
+    { l:'E', hook:'I tested 100 openings. One won', st:'waiting' },
+  ],
+  nums: {},
+};
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pill = st => `<span class="pill lab-${st}">${LABEL[st]}</span>`;
+function toast(t){ const el=document.getElementById('toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('on'),1800); }
+function videoTile(v, i, small){
+  return `<div class="video" data-swipe><div class="grad" style="background:linear-gradient(160deg,${GRADS[i%GRADS.length]})"></div>
+    <span class="tag">Version ${v.l}</span>${small?'':'<span class="fio">Open in Frame.io ↗</span>'}
+    <div class="ov-hook">${esc(v.hook)}</div><div class="ctl"><span class="play">▶</span></div></div>`;
+}
+function live(){ return S.versions.filter(v => v.st !== 'dropped'); }
+function allDone(){ return S.versions.every(v => v.st==='approved' || v.st==='dropped' || v.st==='trial' || v.st==='winner' || v.st==='lost') && S.versions.some(v=>v.st!=='dropped'); }
+function answered(){ return S.versions.filter(v => v.st!=='waiting').length; }
+
+function renderCard(){
+  document.getElementById('trialSwitch').setAttribute('aria-checked', String(S.on));
+  document.getElementById('switchText').innerHTML = S.on ? '<b>On.</b> One video, several hooks. Each version goes out as an Instagram trial reel; the best one after 24 h is kept.' : '<b>Off.</b> An ordinary post with one video.';
+  document.getElementById('versionsField').hidden = !S.on; document.getElementById('singleLink').hidden = S.on;
+  document.getElementById('vcount').textContent = `· ${S.versions.length} (A to ${S.versions[S.versions.length-1].l})`;
+  const rows = S.versions.map((v,i)=>`<div class="vrow"><div class="letter">${v.l}</div><div style="min-width:0"><div class="hook">${esc(v.hook)}</div>
+     <a class="link" href="#" onclick="return false">Frame.io link</a> <span class="who">· added by the studio</span></div>
+     <div class="row">${pill(v.st)}${v.st==='dropped'?`<button class="btn btn-quiet" data-undrop="${i}">Bring back</button>`:(v.st==='waiting'||v.st==='change'?`<button class="btn btn-quiet" data-drop="${i}" title="Drop this version">Drop</button>`:'')}</div></div>`).join('');
+  document.getElementById('cardVersions').innerHTML = rows;
+  document.getElementById('subVersions').innerHTML = S.versions.map(v=>`<div class="vrow" style="grid-template-columns:28px minmax(0,1fr) auto;padding:8px 10px"><div class="letter" style="width:28px;height:28px">${v.l}</div><div class="hook" style="font-size:13px">${esc(v.hook)}</div>${pill(v.st)}</div>`).join('');
+  document.getElementById('card-vstatus').textContent = 'Video: ' + (allDone() ? 'Approved' : S.versions.some(v=>v.st==='change') ? 'Tweaks Needed' : 'Client Approval');
+}
+
+function stageHTML(kind){
+  const v = S.versions[S.cur], i = S.cur, n = S.versions.length;
+  const dotCls = x => (x===i?'cur ':'') + (x===i?'':({approved:'ok',trial:'ok',winner:'ok',change:'chg',dropped:'drop'}[S.versions[x].st]||''));
+  const dropped = v.st==='dropped';
+  const btns = dropped ? `<span class="sub">The team dropped this version. Nothing to answer.</span>` :
+    v.st==='approved' ? `<span class="pill lab-approved" style="padding:8px 14px">✓ You approved version ${v.l}</span><button class="btn btn-quiet" data-act="undo">Change my mind</button>` :
+    v.st==='change' ? `<span class="pill lab-change" style="padding:8px 14px">Change asked on version ${v.l}</span>` :
+    `<button class="btn btn-ok" data-act="approve">✓ Approve this version</button><button class="btn btn-quiet" data-act="change">↺ Ask for a change</button>`;
+  const waiting = S.versions.filter(x=>x.st==='waiting').length;
+  return `<div class="top"><div class="brand">Fixture Studio</div><span class="sub">Content calendar</span>
+      <div class="seg"><span class="on">Review</span><span>Sheet</span><span>Month</span><span>Week</span></div></div>
+    <h2 class="h-title" style="margin:6px 4px 12px">Why the first second matters</h2>
+    <div class="${kind==='c1440'?'stage-wrap':''}">
+      <div class="panel stage">
+        <div class="sub" style="position:absolute;left:18px;top:20px">Fri 30 Oct</div>
+        <div class="steps"><span class="step on"><span class="n">1</span>Versions</span><span style="color:var(--line)">—</span><span class="step"><span class="n">2</span>Caption</span></div>
+        <div class="vstage">
+          <button class="arrow" data-act="prev" aria-label="Previous version" ${i===0?'disabled':''}>‹</button>
+          ${videoTile(v,i)}
+          <button class="arrow" data-act="next" aria-label="Next version" ${i===n-1?'disabled':''}>›</button>
+        </div>
+        <div class="swipe-hint">Swipe for the next version</div>
+        <div class="vmeta">
+          <div class="vof">Version ${v.l} <span class="dim">of ${n}</span> ${v.st!=='waiting'?pill(v.st):''}</div>
+          <div class="dots" role="tablist" aria-label="Versions">${S.versions.map((x,k)=>`<button class="dot ${dotCls(k)}" data-go="${k}" aria-label="Version ${x.l}, ${LABEL[x.st]}" aria-selected="${k===i}">${x.l}</button>`).join('')}</div>
+          <p class="hookline">“${esc(v.hook)}”</p>
+        </div>
+        <div class="actions">${btns}</div>
+        <div class="foot">
+          <button class="btn btn-quiet" data-act="all" ${waiting?'':'disabled'}>✓ Approve all${waiting?` (${waiting} waiting)`:''}</button>
+          <button class="btn" data-act="finish">✓ Finish reviewing <span class="sub">${answered()} of ${n}</span></button>
+        </div>
+      </div>
+      ${kind==='c1440'?`<div class="panel chat"><header><b>Your team</b><div class="sub">Usually replies within a day</div></header><div class="body"><div class="bubble"><small>Synchro team · Versions</small>Same video, five different opening lines. Approve the ones you are happy to post; we will test them and keep the best.</div></div><div class="compose">Message your team</div></div>`:''}
+    </div>`;
+}
+function renderStages(){ document.querySelectorAll('[data-stage]').forEach(el => { el.innerHTML = stageHTML(el.dataset.stage); }); }
+
+function renderKasper(){
+  document.getElementById('kVersions').innerHTML = S.versions.map((v,i)=>`<div class="kv ${i===S.cur?'cur':''}">
+    ${videoTile(v,i,true)}<div class="hk"><b>${v.l}</b> · ${esc(v.hook)}</div>
+    <div class="row" style="justify-content:space-between">${v.st==='waiting'?`<button class="btn btn-ok" style="padding:5px 9px;font-size:13px" data-k="approve" data-i="${i}">Approve</button><button class="btn btn-quiet" style="padding:4px 5px" title="Ask for a change" data-k="change" data-i="${i}">↺</button><button class="btn btn-quiet" style="padding:4px 5px" title="Drop" data-k="drop" data-i="${i}">✕</button>`:pill(v.st)}</div></div>`).join('');
+}
+function renderLog(){
+  document.getElementById('logRows').innerHTML = S.versions.map((v,i)=>{ const n=S.nums[v.l]||{}; const can = ['trial','winner','lost'].includes(v.st);
+    return `<tr><td><b>${v.l}</b></td><td>${esc(v.hook)}</td><td>${pill(v.st)}</td>${['views','reach','likes','shares','saves','watch'].map(k=>`<td><input inputmode="numeric" aria-label="${k} for version ${v.l}" ${can?'':'disabled'} value="${n[k]??''}" data-n="${v.l}:${k}"></td>`).join('')}
+    <td>${v.st==='trial'?`<button class="btn" data-win="${i}">Keep this one</button>`:''}</td></tr>`; }).join('');
+}
+function render(){ renderCard(); renderStages(); renderKasper(); renderLog(); }
+
+function setSt(i, st, msg){ S.versions[i].st = st; render(); if (msg) toast(msg); if (allDone() && st==='approved') toast('Every version answered: the video is Approved'); }
+function step(d){ const n=S.versions.length; S.cur = Math.max(0, Math.min(n-1, S.cur+d)); render(); }
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.view){ document.querySelectorAll('.mock-bar [data-view]').forEach(x=>x.setAttribute('aria-pressed', String(x===b))); document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on', x.id==='v-'+b.dataset.view)); return; }
+  if (b.id==='theme'){ const dark = document.documentElement.dataset.theme!=='dark'; document.documentElement.dataset.theme = dark?'dark':'light'; b.textContent = dark?'Light':'Dark'; return; }
+  if (b.id==='trialSwitch'){ S.on=!S.on; render(); return; }
+  if (b.dataset.drop) return setSt(+b.dataset.drop, 'dropped', 'Version dropped');
+  if (b.dataset.undrop) return setSt(+b.dataset.undrop, 'waiting', 'Version back, waiting');
+  if (b.dataset.go) { S.cur=+b.dataset.go; return render(); }
+  const a = b.dataset.act;
+  if (a==='prev') return step(-1); if (a==='next') return step(1);
+  if (a==='approve'){ setSt(S.cur,'approved','Version '+S.versions[S.cur].l+' approved'); const nx=S.versions.findIndex(v=>v.st==='waiting'); if(nx>=0){ setTimeout(()=>{S.cur=nx;render();},500);} return; }
+  if (a==='change'){ const t = prompt('What should change on version '+S.versions[S.cur].l+'?', 'Make the hook text bigger'); if (t) setSt(S.cur,'change','Change request sent on version '+S.versions[S.cur].l); return; }
+  if (a==='undo') return setSt(S.cur,'waiting','A note went to the team');
+  if (a==='all'){ S.versions.forEach(v=>{ if(v.st==='waiting') v.st='approved'; }); render(); return toast(allDone()?'Every version answered: the video is Approved':'All waiting versions approved'); }
+  if (a==='finish') return toast(answered()===S.versions.length ? 'All answered. Opening the next post' : 'Still waiting: ' + S.versions.filter(v=>v.st==='waiting').map(v=>v.l).join(', '));
+  if (b.dataset.k){ const i=+b.dataset.i; S.cur=i; return setSt(i, {approve:'approved',change:'change',drop:'dropped'}[b.dataset.k], 'Kasper: version '+S.versions[i].l+' '+({approve:'approved',change:'change asked',drop:'dropped'}[b.dataset.k])); }
+  if (b.id==='kApproveAll'){ S.versions.forEach(v=>{ if(v.st==='waiting') v.st='approved'; }); render(); return toast('Kasper approved every waiting version'); }
+  if (b.id==='startTrial'){ let k=0; S.versions.forEach(v=>{ if(v.st==='approved'){ v.st='trial'; k++; } }); render(); return toast(k? k+' versions on trial' : 'No approved versions yet'); }
+  if (b.dataset.win){ const w=+b.dataset.win; S.versions.forEach((v,i)=>{ if(['trial','winner','lost'].includes(v.st)) v.st = i===w?'winner':'lost'; }); render(); return toast('Version '+S.versions[w].l+' kept'); }
+});
+document.addEventListener('input', e => { const k=e.target.dataset.n; if(!k) return; const [l,f]=k.split(':'); (S.nums[l] ||= {})[f]=e.target.value; });
+document.addEventListener('keydown', e => { if (e.target.closest('input')) return; const on = document.querySelector('.view.on'); if (!on || !on.querySelector('[data-stage]')) return; if (e.key==='ArrowLeft') step(-1); if (e.key==='ArrowRight') step(1); });
+let sx=null; document.addEventListener('pointerdown', e => { if (e.target.closest('[data-swipe]')) sx=e.clientX; });
+document.addEventListener('pointerup', e => { if (sx==null) return; const dx=e.clientX-sx; sx=null; if (Math.abs(dx)>40) step(dx<0?1:-1); });
+const hash = location.hash.slice(1); if (hash) { const b=document.querySelector(`[data-view="${hash}"]`); if (b) b.click(); }
+render();
+</script>
+</body>
+</html>

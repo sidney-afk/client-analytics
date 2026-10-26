@@ -33909,3 +33909,12 @@ The test failed at about 06:00 UTC on 2026-10-20 with "populated Today fixture m
 ## 475. [2026-10-22, FIXED in this change] Saving held when the page's "is saving on" check was slow
 
 On 2026-10-22 at 15:13 UTC a staff save on one real client was refused three times with `authority_unavailable` (reason `calendar_flag_timeout`): the page's own read of the saving switch did not answer within two seconds, three times in a row. No Edge Function errored, every server save in the window was 200, and the change went through on the next try. The card saver watcher rolled the switch back to three clients as its rule says. The check now waits four seconds per read and tries four times (worst case about 18 seconds, inside the 20 second save limit); a held save still stays in the outbox. Browser-only change; the guard tests for Calendar, Samples and caption prompts now expect four reads.
+
+## 509. [2026-10-26 UTC, PLAN, NOT BUILT, NOT MERGED] Trial reels: versions A to G on one card, reviewed one by one, with a 24 h results log (session Trials)
+
+- **Owner request (2026-10-26).** One video, several text hooks (versions A to G), each posted as an Instagram trial reel, the winner kept after 24 h. SyncView part: a "Trial reels" switch on a calendar card, the versions on the card and its sub-issue, review with arrows and "Version B of 5", and a log table of the 24 h numbers.
+- **Plan:** [`docs/features/TRIAL_REELS_PLAN.md`](../features/TRIAL_REELS_PLAN.md); mockups in `docs/features/trial-reels/`. Three new tables (`trial_reel_sets`, `trial_reel_versions`, `trial_reel_results`) and one new Edge Function (`trial-reels`). No change to `calendar-card-write`, the frozen `calendar-upsert`, or the Section 4 three: the card keeps one ordinary link and its status moves only through today's own saves.
+- **Switch:** `trial_reels_pages`, test client only, fail closed, also enforced by the function.
+- **Waiting on:** the owner's answers to the nine questions at the end of the plan. The synchro-pipelines plan's "Decisions after v2" could not be read from this session.
+
+**Way back:** nothing is built; close the pull request.

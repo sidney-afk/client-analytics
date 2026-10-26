@@ -100,18 +100,16 @@ import { clientMap } from './040-shared-briefs.js';
     /* The current clients one roster entry owns, as Clients Info names, plus
        any "also sees" client names (rule 6; svAlsoSeesNames). entry may be
        null for a staff member who is not on the roster. ownTest: that
-       entry's own test clients (svOwnTestClients), added after the real
-       ones; matched against the entry's own list only, never against
-       "also sees". */
+       entry's own test clients (svOwnTestClients(entry, ...), which already
+       matched them to the entry by display name or slug), added after the
+       real ones; only with an entry, never through "also sees" alone. */
     function svSmmCurrentClients(entry, current, also, ownTest) {
         const extra = Array.isArray(also) ? also : [];
         if (!entry && !extra.length) return [];
         const cur = current instanceof Map ? current : svCurrentClients();
-        const mine = (entry && Array.isArray(entry.source_clients) ? entry.source_clients : []).map(svClientKey).filter(Boolean);
-        const owned = new Set(mine.concat(extra.map(svClientKey).filter(Boolean)));
+        const owned = new Set((entry && Array.isArray(entry.source_clients) ? entry.source_clients : []).concat(extra).map(svClientKey).filter(Boolean));
         const out = [...cur].filter(([k]) => owned.has(k)).map(([, n]) => n);
-        const ownKeys = new Set(mine);
-        if (ownTest instanceof Map) for (const [k, n] of ownTest) if (ownKeys.has(k) && !cur.has(k)) out.push(n);
+        if (entry && ownTest instanceof Map) for (const [k, n] of ownTest) if (!cur.has(k)) out.push(n);
         return out;
     }
     /* Rule 6: the client names one staff member also sees, from the

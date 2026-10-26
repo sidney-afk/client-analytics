@@ -34494,12 +34494,12 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 - **Owner's ask (2026-10-26).** A staff member should see their own test client on Today and in their client lists, beside their real clients.
 - **Why it was hidden.** Rule 4 in `src/index/098-smm-clients.js.part` dropped every `clients.kind = 'test'` client from the shared current-clients list, so it left Today and the dropdown's "My clients" for everyone.
-- **Rule 1 check (measured 2026-10-26, read-only).** The clients table has 4 test rows, 2 active. The test client `sidneylaruel` IS in the live Clients Info sheet, so it is in `clientMap`; the other active test client is not (the Sheet gap in entry 507), so it still never shows. Rule 1 holds unchanged.
+- **Rule 1 check (measured 2026-10-26, read-only).** The clients table has 4 test rows, 2 active. One active test client (the owner's own) IS in the live Clients Info sheet, so it is in `clientMap`; the other active test client is not (the Sheet gap in entry 507), so it still never shows. Rule 1 holds unchanged.
 - **The change.**
   - `svCurrentClients` still drops test clients, so the shared current list (an admin's "all clients", the unowned list, the provisional recheck) never carries one.
   - New pure `svOwnTestClients(entry, testClients, names)`: the test clients the signed-in person's OWN roster row lists in `source_clients` AND that are in Clients Info.
   - `svSmmCurrentClients` takes them as a 4th argument and adds them only when the person's own roster row lists them; an "also sees" grant (rule 6), by client or by manager, never passes a test client on.
   - Today (`_tdyVisibleClients`, `_tdySmmClients`, the Today scope filter) and the dropdown's "My clients" (`tdyMyClientNames`) use it. The clients-table stand-in before Clients Info loads gets the same answer, and the recheck compares own test clients too.
 - **Who sees what after the change.** Only the person whose roster row lists a test client sees it, on Today (chips and rows) and in "My clients". Other SMMs, staff with only "also sees" grants, admins not on the roster, editors' own queues, client counts, reports and n8n are unchanged and never see it.
-- **Proof.** `test/smm-client-match.js` (13 new pure checks). `docs/syncview-design/tests/today-own-test-client-browser.js` (offline, in the production-polish fast lane) drives `_tdyLoad` and the Today render for three people; it fails on the old code.
+- **Proof.** `test/smm-client-match.js` (14 new pure checks, one for a roster row naming the test client by display name while Clients Info uses the slug-derived name). `docs/syncview-design/tests/today-own-test-client-browser.js` (offline, in the production-polish fast lane) drives `_tdyLoad` and the Today render for three people; it fails on the old code.
 - **Way back:** revert the pull request.

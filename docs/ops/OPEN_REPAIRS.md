@@ -34529,7 +34529,7 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Not done.** The switch row is not created (the owner or Lighthouse creates it). Comments left on earlier versions of a Frame.io version stack are not shown: `frameio-view` reads the stack's newest version only, here and in the player (a function change, if the owner wants it).
 - **Way back:** delete the switch row, or revert the pull request.
 
-## 513. [2026-10-26 UTC, PLAN, NOT BUILT, NOT MERGED] Trial reels: versions A to G on one card, reviewed one by one, with a 24 h results log (session Trials)
+## 513. [2026-10-26 UTC, PLAN, NOT BUILT, NOT MERGED] Trial reels: versions A to G on one card, reviewed one by one, a 24 h trial and the SMM's winner pick (session Trials)
 
 - **Owner request (2026-10-26).** One video, several text hooks (versions A to G), each posted as an Instagram trial reel, the winner kept after 24 h. SyncView part: a "Trial reels" switch on a calendar card, the versions on the card and its sub-issue, review with arrows and "Version B of 5", and a log table of the 24 h numbers.
 - **Plan:** [`docs/features/TRIAL_REELS_PLAN.md`](../features/TRIAL_REELS_PLAN.md); mockups in `docs/features/trial-reels/`. The per-version rows and the 24 h log are one table, `studio_trial_versions` from #2349 (the studio half), with SyncView's columns added; one small new table for the card's switch (`trial_reel_cards`) and one new Edge Function (`trial-reels`). No change to `calendar-card-write`, the frozen `calendar-upsert`, or the Section 4 three: the card keeps one ordinary link and its status moves only through today's own saves.

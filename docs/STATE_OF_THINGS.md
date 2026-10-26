@@ -18,6 +18,32 @@ line is older than a week, re-check it before relying on it.
 
 ---
 
+## Latest (SyncView stand-in, 2026-10-26): card saver rolled back; morning robots green again
+
+- **Card saver rolled back (15:33 UTC), waiting for the owner's go to re-widen.** `calendar_card_write_clients` is
+  `{"clients": [test client, the owner's two clients]}`; every other client's staff saves go to calendar-upsert.
+  - Trigger: one staff status save on a real card got no answer within the page's 20 s at 15:25:27 (standing rule:
+    any refused staff save rolls back).
+  - Cause (session Hang, OPEN_REPAIRS 508): a one-off 130 s platform stall on the function-to-gateway hop. The gateway
+    timed that request at 319 ms. 1 of 2,666 saves took over 10 s in 3 days. calendar-upsert has the same exposure.
+    The intended change never landed.
+  - #2343 (live 16:09, calendar-card-write v8): refuses with 503 too_late before writing after 15 s, so a stalled save
+    can never write after the page said "not saved".
+- **Hidden red robots.** The schedule-fallback guard's stand-down copies showed green over red timer runs.
+  - #2339 (OPEN_REPAIRS 505): the calendar nightly, 3 stale probes. Green again: 63 of 63.
+  - #2340 (OPEN_REPAIRS 506): the dawn check, 4 stale checks. `mirror_timer_failure` is now on for 8 lanes.
+  - #2341 (OPEN_REPAIRS 507): the seven other lanes, entry below.
+  - No real users were affected by the stale probes.
+- **Backup freshness (#2342):** the freshness step stops downloading snapshots that cannot win. 14 s instead of
+  19 min; the job went from 21 to 2.7 min. It would have passed its 25-minute limit around 29 to 30 Oct.
+- **Ledger counting (#2338, OPEN_REPAIRS 504):** `calendar_post_events` writes a card-level row plus one per component
+  per save, by design. Count approvals by `approve_%` or distinct post_id, never raw rows.
+- **Open for the owner:**
+  - re-widen the card saver;
+  - the second test client missing from the Sheet (sheets-mirror-daily stays red until it is copied or archived);
+  - re-prove the Tier 0 client surfaces in the assurance ledger;
+  - try phone polish rounds 1 and 2.
+
 ## Latest (2026-10-26): the seven lanes that were red under green schedule rows (session Underneath, OPEN_REPAIRS 507, PR open)
 
 Report: [`docs/audits/2026-10-26-hidden-red-lanes.md`](audits/2026-10-26-hidden-red-lanes.md).

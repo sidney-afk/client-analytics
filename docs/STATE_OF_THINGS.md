@@ -42,7 +42,8 @@ line is older than a week, re-check it before relying on it.
 - **Open for the owner:**
   - re-widen the card saver;
   - the second test client missing from the Sheet (sheets-mirror-daily stays red until it is copied or archived);
-  - re-prove the Tier 0 client surfaces in the assurance ledger;
+  - (done) Tier 0 re-proof (session Reproof, OPEN_REPAIRS 510): all three rows pass on the live site. Every client's
+    Samples link had opened the Calendar since 18 Oct (OPEN_REPAIRS 509), fixed by #2345 and live 20:24 UTC;
   - try phone polish rounds 1 and 2.
 
 ## Latest (2026-10-26): the seven lanes that were red under green schedule rows (session Underneath, OPEN_REPAIRS 507, PR open)

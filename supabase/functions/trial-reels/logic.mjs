@@ -23,6 +23,9 @@ export const CLIENT_ACTIONS = ["read", "answer"];
 
 export const clean = (v, max = 200) => String(v == null ? "" : v).trim().slice(0, max);
 
+/** An ILIKE pattern that matches exactly this text, case aside: `_` and `%` are wildcards in ILIKE, and slugs carry `_`. */
+export const likeExact = (text) => String(text).replace(/[\\%_]/g, "\\$&");
+
 /** The page switch: {"clients": [...]} or {"all": true}. Anything else, missing or unreadable, is off. */
 export function flagAllows(value, slug) {
   if (!value || typeof value !== "object" || Array.isArray(value) || !slug) return false;

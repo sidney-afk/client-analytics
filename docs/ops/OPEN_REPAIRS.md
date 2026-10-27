@@ -34593,3 +34593,10 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-review-browser.js` (24 checks: client, SMM, Kasper), the existing review-stage suites, client-review-requests-unchanged, prod-write-gateway-browser, check-modules and check-lazy-safety.
 
 **Way back:** revert the PR; with the switch off nothing shows.
+
+## 519. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels, build PR 5 of 5: the version switch in the Notes view (session Trials)
+
+- **What:** with more than one version linked, the Notes view's player plays one version, picked in a small "Video A B C D E" switch under it (beside Open in Frame.io; at 390 a slim bar of its own under the player, because the player's own buttons sit over the video there). The Frame.io comments follow the version on screen. The title reads "Test card · Video C" and the "About the…" switch says "Video C". A note about the video written while C is on screen starts "Video C:" (owner: a note written while C is on screen is about Video C). Staff only, behind `trial_reels_pages`. Once a winner is picked: today's player, no switch. Code in `189` (reusing the card's own read of the versions), hooked into `190` (the Notes stage, its Frame.io comments, the title, the "About the…" switch, the quiet line and the send).
+- **Proven:** `node test/trial-reels-notes-browser.js` (17 checks, desktop and 390), frame-comments-in-notes-browser, frameio-viewer-browser, lost-work-drafts-browser, staff-calendar-expanded-browser, prod-write-gateway-browser, check-modules and check-lazy-safety.
+
+**Way back:** revert the PR; with the switch off nothing shows.

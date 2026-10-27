@@ -2170,6 +2170,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-reels-notes-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks trial reels in the Notes view behind trial_reels_pages: today's view for an unlisted client, a Video A to E switch beside Open in Frame.io (a slim bar under the player at 390 pixels), picking a version plays it with its own Frame.io comments, the title and the About the switch naming it, a video note starting with the version's name, and today's player once a winner is picked.",
+      "reproduce": "node test/trial-reels-notes-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "calendar-card-write-routing-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

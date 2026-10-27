@@ -48,6 +48,7 @@ import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodComme
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _syncviewStaffIdentityForHeaders, _syncviewStaffRoster } from './100-onboarding-staff-controls.js';
 import { svFrameCommentsInNotesOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientReviewOn, svUnreadBadgesOn } from './188-review-stage-switch.js';
+import { svTrialNotesBody, svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml } from './189-trial-reels-card.js';
 import { _calLoaderHtml } from './133-core-loading-skeletons.js';
 import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-badges.js';
     function _calHasMedia(p) {
@@ -1821,7 +1822,9 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         if (ta && !_calReplyTarget && !_calEditTarget) ta.placeholder = _calComposePlaceholder('smm');
     }
     function _calComposeQuietLine() {
-        const comp = COMP_LABELS[_calComposeComp] || 'Video';
+        const open = _calComposeComp === 'video' && calState && Array.isArray(calState.posts) ? calState.posts.find(p => p.id === _calOpenCommentsPid) : null;
+        const letter = open ? svTrialNotesLetter(open) : '';
+        const comp = letter ? 'Video ' + letter : (COMP_LABELS[_calComposeComp] || 'Video');
         return _calComposeAudience === 'client'
             ? 'The client will see this · ' + comp
             : 'Team only · ' + comp;
@@ -2747,9 +2750,19 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         const shell = document.getElementById('calNotesShell');
         const stage = document.getElementById('calNotesStage');
         if (!shell || !stage) return false;
-        const on = !!post && svFrameStageMount(stage, post, _calDeriveThumb(post));
+        // Trial reels (189): the version on screen plays, and its switch sits under the player.
+        const vp = post ? svTrialNotesPost(post) : post;
+        const on = !!post && svFrameStageMount(stage, vp, _calDeriveThumb(post));
         if (!on) { svFrameStageUnmount(); stage.hidden = true; }
         shell.toggleAttribute('data-video', on);
+        shell.querySelectorAll('.trl-notes-sw').forEach(n => (n.parentNode && n.parentNode.classList.contains('trl-notes-bar') ? n.parentNode : n).remove());
+        const sw = on ? svTrialNotesSwitchHtml(post) : '';
+        if (sw) {
+            const foot = stage.querySelector('.fv-stage-foot');
+            // Wide: beside "Open in Frame.io". Phone: the player's own buttons sit over the video, so a slim bar under it.
+            if (foot && !(window.matchMedia && window.matchMedia('(max-width: 767px)').matches)) { foot.classList.add('trl-foot'); foot.insertAdjacentHTML('afterbegin', sw); }
+            else stage.insertAdjacentHTML('afterend', '<div class="trl-notes-bar">' + sw + '</div>');
+        }
         return on;
     }
     function _calNotesPhoneWithVideo() {
@@ -2762,13 +2775,24 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         const pid = _calOpenCommentsPid;
         if (!pid || (e && e.detail && e.detail.pid && e.detail.pid !== pid)) return;
         // A Frame.io comments read for a link (frame_comments_in_notes_staff): only the open card's own link redraws.
-        if (e && e.detail && e.detail.link && e.detail.link !== svFrameNotesLink(calState.posts.find(p => p.id === pid))) return;
+        if (e && e.detail && e.detail.link && e.detail.link !== svFrameNotesLink(svTrialNotesPost(calState.posts.find(p => p.id === pid)))) return;
         _calCaptureModalDrafts();
         _calRenderCommentsModal({ keepFocus: true });
     });
     // The staff switches came in (188): a Notes view already open picks up frame_comments_in_notes_staff.
     window.addEventListener('sv-review-stage-switch', () => {
         if (!_calOpenCommentsPid || _isClientLink || !svFrameCommentsInNotesOn()) return;
+        _calCaptureModalDrafts();
+        _calRenderCommentsModal({ keepFocus: true });
+    });
+    // Trial reels (189): another version picked under the player, or the card's versions read: the player, its Frame.io
+    // comments and the words that name the version follow, keeping whatever is being typed.
+    window.addEventListener('sv-trial-notes', (e) => {
+        const pid = _calOpenCommentsPid;
+        if (!pid || (e && e.detail && e.detail.pid && e.detail.pid !== pid)) return;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        _calNotesStageSync(post);
         _calCaptureModalDrafts();
         _calRenderCommentsModal({ keepFocus: true });
     });
@@ -2888,7 +2912,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         // Switch frame_comments_in_notes_staff: without the player, the same rows come from 187's kept read.
         const fioNotesOn = svFrameCommentsInNotesOn();
         svFrameNotesUse(fioNotesOn);
-        const fio = svFrameFeed(pid) || (fioNotesOn ? svFrameNotesFeed(post) : null);
+        const fio = svFrameFeed(pid) || (fioNotesOn ? svFrameNotesFeed(svTrialNotesPost(post)) : null);
         if (fio && fio.state === 'ok') fio.comments.forEach(c => {
             const id = 'fio_' + String(c.id).replace(/[^A-Za-z0-9_-]/g, '');
             const root = { id, _fio: true, author: c.author, body: c.text, created_at: c.created_at, done: c.done, time: c.time };
@@ -2901,7 +2925,8 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         // live feed unless the user opens history via the top-right icon.
         const resolvedCount = compThreads.filter(e => e.root.done).length;
         const visibleThreads = _calShowResolved ? compThreads : compThreads.filter(e => !e.root.done);
-        const postName = _calEsc(post.name || 'Untitled post');
+        const trialLetter = svTrialNotesLetter(post);
+        const postName = _calEsc(post.name || 'Untitled post') + (trialLetter ? ' · Video ' + _calEsc(trialLetter) : '');
 
         const renderFioRow = (c, isReply) => {
             const t = (!isReply && c.time != null && isFinite(c.time)) ? Math.max(0, Number(c.time)) : null;
@@ -3231,7 +3256,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
             ? `<div class="cal-cm-audience" data-cm-toggle="comp" role="group" aria-label="Which deliverable is this note about">
                 <span class="cal-cm-audience-cap">About the…</span>
                 <div class="cal-cm-aud-seg">${_calComponentsFor(post).map(c =>
-                    `<button type="button" class="cal-cm-aud-btn${_calComposeComp === c ? ' is-active' : ''}" data-comp="${c}" onclick="_calSetComposeComp('${c}')" title="About the ${_calEscAttr(String(COMP_LABELS[c] || c).toLowerCase())}">${_calEsc(COMP_LABELS[c] || c)}</button>`
+                    `<button type="button" class="cal-cm-aud-btn${_calComposeComp === c ? ' is-active' : ''}" data-comp="${c}" onclick="_calSetComposeComp('${c}')" title="About the ${_calEscAttr(String(COMP_LABELS[c] || c).toLowerCase())}">${_calEsc(c === 'video' && svTrialNotesLetter(post) ? 'Video ' + svTrialNotesLetter(post) : (COMP_LABELS[c] || c))}</button>`
                 ).join('')}</div>
             </div>`
             : '';
@@ -3351,7 +3376,7 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         const pid = _calOpenCommentsPid;
         if (!pid) return;
         _calCaptureModalDrafts();
-        const body = (_calEditTarget
+        let body = (_calEditTarget
             ? (_calEditDrafts[_calEditTarget] || '')
             : _calReplyTarget ? (_calReplyDrafts[_calReplyTarget] || '') : (_calRootDraft || '')).trim();
         if (!body) return;
@@ -3371,6 +3396,8 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         const comp = parentId
             ? _calFindCompForCommentId(post, parentId)
             : (_calComponentsFor(post).indexOf(_calComposeComp) >= 0 ? _calComposeComp : 'video');
+        // Trial reels (189): a new note about the video names the version on screen ("Video C: ...").
+        if (!parentId && comp === 'video') body = svTrialNotesBody(post, body);
         const gate = _prodCanonicalCommentGate(post, comp);
         if (((gate.linked && !gate.ready) || _calCommentSendPending(post, gate)) && !_calNotesStillLoading(post, gate)) {
             showNotify('Notes are still loading', 'Retry the canonical thread before sending.');

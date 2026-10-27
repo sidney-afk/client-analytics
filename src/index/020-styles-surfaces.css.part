@@ -1824,6 +1824,12 @@
             background: var(--cal-status-n-a-bg); color: var(--cal-status-n-a-fg); }
         .trl-prod-v .trl-oncard { flex: none; font-size: 11px; font-weight: 600; color: var(--prod-strong); }
         @media (max-width: 600px) { .prod-asset-row.trl-prod-v { grid-template-columns: 1fr 136px auto; } }
+        /* The Notes player (189 and 190): the version switch, beside Open in Frame.io; a slim bar under the player on a phone. */
+        .trl-notes-sw { display: flex; align-items: center; gap: 8px; }
+        .trl-notes-sw .cal-cm-aud-btn { min-width: 28px; }
+        .fv-stage-foot.trl-foot { justify-content: space-between; flex-wrap: wrap; }
+        .trl-notes-bar { display: flex; justify-content: center; padding: 6px 16px 2px; }
+        .trl-notes-bar .cal-cm-aud-btn { min-width: 40px; min-height: 36px; justify-content: center; text-align: center; }
 
         /* Caption */
         .cal-cap-wrap { position: relative; display: flex; flex-direction: column; }

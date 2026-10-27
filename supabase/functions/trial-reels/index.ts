@@ -236,7 +236,7 @@ Deno.serve(async (req: Request) => {
       if (r.patch) changes = [{ id: v.id, letter, from: v.status, patch: r.patch }];
     } else if (action === "version_new_cut") {
       const r = newCutPatch(versions, letter);
-      if (r.error) throw new Refusal(400, r.error);
+      if (r.error || !r.patch) throw new Refusal(400, r.error || "version_not_change_asked");
       const v = versions.find((x) => x.letter === letter)!;
       changes = [{ id: v.id, letter, from: v.status, patch: r.patch }];
     } else if (action === "trial_start") {

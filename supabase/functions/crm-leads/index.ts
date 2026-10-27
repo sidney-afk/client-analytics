@@ -92,14 +92,32 @@ function must<T>(r: { data: T; error: unknown }): T {
   return r.data;
 }
 
-/** The sender's key: the CRM_SENDER_KEY secret, or the service role key. */
-function serverKeyOk(req: Request): boolean {
+/** The sender's key: the CRM_SENDER_KEY secret, or a service-role key. n8n's
+ *  Supabase credential may hold the newer secret key, which never equals the
+ *  legacy SUPABASE_SERVICE_ROLE_KEY, so a non-matching bearer is checked by
+ *  asking the database (b4_service_role_probe, executable by service_role only),
+ *  as _shared/b4-write.ts does. */
+async function serverKeyOk(req: Request): Promise<boolean> {
   const sender = (Deno.env.get("CRM_SENDER_KEY") || "").trim();
   const given = (req.headers.get("x-crm-sender-key") || "").trim();
   if (sender.length >= 24 && given && timingSafeEqual(given, sender)) return true;
   const service = (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "").trim();
   const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
-  return !!service && !!bearer && timingSafeEqual(bearer, service);
+  if (!bearer) return false;
+  if (service && timingSafeEqual(bearer, service)) return true;
+  const url = (Deno.env.get("SUPABASE_URL") || "").trim();
+  if (!url) return false;
+  try {
+    const r = await fetch(`${url}/rest/v1/rpc/b4_service_role_probe`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${bearer}`, apikey: bearer, "content-type": "application/json" },
+      body: "{}",
+    });
+    if (!r.ok) return false;
+    return (await r.json()) === true;
+  } catch (_e) {
+    return false;
+  }
 }
 
 async function enrolmentRpc(db: SupabaseClient, id: string, patch: Record<string, unknown>, actor: string, event: unknown, requireActive: boolean) {
@@ -445,7 +463,7 @@ Deno.serve(async (req: Request) => {
   // The sender's server actions take only the server key; everything else
   // takes only a staff role key with Leads access.
   if (SERVER_ACTIONS.includes(action)) {
-    if (!serverKeyOk(req)) return json({ ok: false, error: "unauthorized" }, 401);
+    if (!(await serverKeyOk(req))) return json({ ok: false, error: "unauthorized" }, 401);
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     try {
       if (action === "ingest") return await ingest(db, body);

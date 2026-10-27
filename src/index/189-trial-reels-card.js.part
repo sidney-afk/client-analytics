@@ -305,7 +305,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     async function _trlFresh(post) {
         const slug = _trlSlug(post.client || calState.client);
         try {
-            const json = await _trlCall({ action: 'read', client: slug, post_id: post.id });
+            const json = await svTrialCall({ action: 'read', client: slug, post_id: post.id });
             const e = _trlCards[slug] || (_trlCards[slug] = { at: Date.now(), cards: {}, promise: null });
             if (json && json.versions) e.cards[post.id] = Object.assign({}, e.cards[post.id] || {}, { enabled: true, winner_letter: json.winner_letter || null }, json);
             return json && json.versions ? json : null;

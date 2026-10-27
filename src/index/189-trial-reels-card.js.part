@@ -154,7 +154,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         return next;
     }
     const _trlFind = (s, letter) => ((s && s.versions) || []).find(x => x.letter === letter) || null;
-    /* What the function would refuse about a link anyway, said before anything moves (no flash of a link that then
+    /* What the function would refuse about a link in any case, said before anything moves (no flash of a link that then
        goes away). The same hosts as logic.mjs cleanLink (LINK_HOSTS). */
     const TRL_LINK_HOSTS = ['frame.io', 'app.frame.io', 'next.frame.io', 'f.io', 'drive.google.com', 'dropbox.com', 'www.dropbox.com'];
     function _trlLinkError(link) {

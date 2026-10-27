@@ -184,7 +184,6 @@
     "calendar-kebab-import-menu.js",
     "calendar-linear-link-move.js",
     "calendar-link-adoption-repaint.js",
-
     "calendar-link-box-keys.js",
     "notes-composer-one-send.js",
     "calendar-native-link-gap-check.js",
@@ -543,7 +542,6 @@
     "prod-batches-keyset-paging.js",
     "prod-boot-payload-diet.js",
     "prod-client-composer-present.js",
-
     "prod-comment-unsent-and-resolved.js",
     "prod-comment-reply-audience.js",
     "prod-comments-read-timeout.js",
@@ -561,7 +559,6 @@
     "prod-description-rich-editor.js",
     "prod-description-scope-gate.js",
     "prod-detail-scroll-key.js",
-
     "prod-due-typed-date.js",
     "prod-focus-survives-render.js",
     "prod-group-select-honest.js",
@@ -572,11 +569,8 @@
     "prod-multiselect-parity.js",
     "prod-not-found-exits-enumerated.js",
     "prod-optimistic-rollback.js",
-
     "prod-picker-pending-write.js",
     "today-clients-assurance.js",
-
-
     "upload-schedule-zone-and-queue-guards.js",
     "prod-parent-rows-not-overdue.js",
     "prod-polish-failure-location.js",
@@ -2163,6 +2157,22 @@
       "ci": "representative"
     },
     {
+      "file": "trial-reels-race-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Two staff pages on one trial card pick a winner at once (Probe, bug 9): a pick after another one stops before it writes, a pick whose read raced the other puts the card back on the winner's own link, and a link someone else attached before the put-back stands.",
+      "reproduce": "node test/trial-reels-race-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-change-naming-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. On the review page, a change asked on one version and sent after a look at another is recorded on the version it was asked on and named for it; Kasper's Approve after tweaks on a trial card records which version the editor fixes.",
+      "reproduce": "node test/trial-reels-change-naming-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "trial-reels-review-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
@@ -2187,27 +2197,11 @@
       "ci": "representative"
     },
     {
-      "file": "trial-reels-race-browser.js",
-      "route": "isolated_browser",
-      "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Two staff pages pick a trial winner at once (session Probe): the second, stale pick is refused and the card's one link must stay the winner's.",
-      "reproduce": "node test/trial-reels-race-browser.js (after repository Playwright/Chromium setup)",
-      "ci": "representative"
-    },
-    {
       "file": "trial-reels-one-live-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. A trial card with one live version (session Probe): the client's approve on the review page must record that version's OK, so the card's versions agree with the card and the trial can start.",
       "reproduce": "node test/trial-reels-one-live-browser.js (after repository Playwright/Chromium setup)",
-      "ci": "representative"
-    },
-    {
-      "file": "trial-reels-change-naming-browser.js",
-      "route": "isolated_browser",
-      "required_for_release": true,
-      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. A change on a trial card is about the version it was asked on (session Probe): the client looking at another version before sending, Kasper pressing another tile before sending, and Kasper's Approve after tweaks recording the version to fix.",
-      "reproduce": "node test/trial-reels-change-naming-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

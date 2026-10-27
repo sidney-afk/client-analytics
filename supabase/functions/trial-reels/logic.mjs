@@ -17,7 +17,7 @@ export const STATUS = Object.freeze({
 });
 export const STAGES = ["smm", "kasper", "client"];
 export const TRIAL_MS = 24 * 60 * 60 * 1000;
-export const ACTIONS = ["list", "read", "switch_set", "version_link_set", "version_drop", "version_restore", "answer", "trial_start", "winner_set", "winner_undo"];
+export const ACTIONS = ["list", "read", "switch_set", "version_link_set", "version_drop", "version_restore", "version_new_cut", "answer", "trial_start", "winner_set", "winner_undo"];
 // What a client review link may do. Everything else needs a staff key.
 export const CLIENT_ACTIONS = ["list", "read", "answer"];
 
@@ -31,7 +31,8 @@ export function staffAllows(role, action) {
   if (action === "list" || action === "read") return true;
   const r = clean(role, 20).toLowerCase();
   if (r === "admin" || r === "smm") return true;
-  return r === "creative" && action === "version_link_set";
+  // An editor pastes a version's link and says its new cut is ready; everything else is the SMM's or an admin's.
+  return r === "creative" && (action === "version_link_set" || action === "version_new_cut");
 }
 
 /** An ILIKE pattern that matches exactly this text, case aside: `_` and `%` are wildcards in ILIKE, and slugs carry `_`. */
@@ -121,10 +122,19 @@ export function probeVerdict({ status, contentType, disposition, sample }) {
 export const live = (v) => v.status !== STATUS.dropped;
 const okField = (stage) => stage + "_ok_at";
 
-/** The version that is the card's one link: the winner once picked, otherwise A. */
-export function mainLetter(versions) {
+/*
+ * The version that is the card's one link: the winner once picked; else the live version whose link the card carries;
+ * else the first live one (Video A while it is not dropped). The team may drop the version on the card (default (c),
+ * 2026-10-27, awaiting the owner): today's attach first puts the next live version's link on the card, so "on the
+ * card" moves to it, and only then is the old one dropped.
+ */
+export function mainLetter(versions, mainLink) {
   const w = versions.find((v) => v.status === STATUS.winner);
-  return w ? w.letter : "A";
+  if (w) return w.letter;
+  const rest = [...versions].sort((a, b) => LETTERS.indexOf(a.letter) - LETTERS.indexOf(b.letter)).filter(live);
+  const link = clean(mainLink, 2048);
+  const carried = link && rest.find((v) => clean(v.frame_url, 2048) === link);
+  return carried ? carried.letter : rest.length ? rest[0].letter : "A";
 }
 
 /** Has every version that is not dropped got this stage's OK? (At least one version must remain.) */
@@ -199,7 +209,7 @@ export function linkPatch(versions, letter, rawLink, mainLink) {
   if (!v) return { error: "version_not_found" };
   const c = cleanLink(rawLink);
   if (c.error) return { error: c.error };
-  if (letter === mainLetter(versions) && c.link !== clean(mainLink, 2048)) return { error: "attach_first" };
+  if (letter === mainLetter(versions, mainLink) && c.link !== clean(mainLink, 2048)) return { error: "attach_first" };
   if (c.link === clean(v.frame_url, 2048)) return { patch: null, letter };
   if ([STATUS.trial, STATUS.winner, STATUS.lost].includes(v.status)) return { error: "version_on_trial" };
   // One link, one version: the same link on two versions would be the same video reviewed twice.
@@ -237,15 +247,29 @@ function linkChange(v, link) {
  */
 export function healMainPatch(versions, mainLink) {
   const link = clean(mainLink, 2048);
-  const letter = mainLetter(versions);
+  const letter = mainLetter(versions, mainLink);
   const v = versions.find((x) => x.letter === letter);
   if (!link || !v || clean(v.frame_url, 2048) === link) return null;
   if (versions.some((x) => x.letter !== letter && clean(x.frame_url, 2048) === link)) return null;
   return { id: v.id, letter, from: v.status, patch: linkChange(v, link) };
 }
 
+/*
+ * "New cut ready" (default (b), 2026-10-27, awaiting the owner): the editor's new cut of a version asked to change sits
+ * at the same link (Frame.io keeps one link across uploads), so pasting can't restart it. This action does what a new
+ * link does: revision up, every OK and the change cleared, status waiting, so the SMM and Kasper review it again
+ * before the client (Q3). Only on a version with a change asked.
+ */
+export function newCutPatch(versions, letter) {
+  const v = versions.find((x) => x.letter === letter);
+  if (!v) return { error: "version_not_found" };
+  if (v.status !== STATUS.change) return { error: "version_not_change_asked" };
+  if (!clean(v.frame_url, 2048)) return { error: "version_has_no_link" };
+  return { patch: { revision: (Number(v.revision) || 0) + 1, status: STATUS.waiting, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, change_by: null, change_note: null, change_at: null } };
+}
+
 /** Only the team drops a version (owner, Q2), and never one that is out on trial or decided. */
-export function dropPatch(versions, letter, restore) {
+export function dropPatch(versions, letter, restore, mainLink) {
   const v = versions.find((x) => x.letter === letter);
   if (!v) return { error: "version_not_found" };
   if ([STATUS.trial, STATUS.winner, STATUS.lost].includes(v.status)) return { error: "version_on_trial" };
@@ -255,7 +279,9 @@ export function dropPatch(versions, letter, restore) {
       ? { patch: { status: STATUS.waiting, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, change_by: null, change_note: null, change_at: null } }
       : { patch: null };
   }
-  if (letter === mainLetter(versions)) return { error: "main_version" };
+  if (!restore && v.status !== STATUS.dropped && !versions.some((x) => x.letter !== letter && live(x))) return { error: "last_live_version" };
+  // The version on the card: today's attach first puts the next live version's link on the card (409, attach_first).
+  if (letter === mainLetter(versions, mainLink)) return { error: "attach_first" };
   return v.status === STATUS.dropped ? { patch: null } : { patch: { status: STATUS.dropped } };
 }
 
@@ -300,7 +326,8 @@ export function winnerPatches(versions, letter, mainLink, opts) {
 export function undoWinnerPatches(versions, mainLink, opts) {
   if (!versions.some((v) => v.status === STATUS.winner)) return { error: "no_winner" };
   if (clean((opts || {}).cardStatus, 40) === "Posted") return { error: "card_posted" };
-  const a = versions.find((v) => v.letter === "A");
+  // Back on trial, the card carries the first live version again (Video A unless it was dropped).
+  const a = [...versions].sort((x, y) => LETTERS.indexOf(x.letter) - LETTERS.indexOf(y.letter)).find(live);
   if (!a || clean(mainLink, 2048) !== clean(a.frame_url, 2048)) return { error: "attach_first" };
   return {
     patches: versions.filter((v) => v.status === STATUS.winner || v.status === STATUS.lost).map((v) => ({
@@ -312,7 +339,7 @@ export function undoWinnerPatches(versions, mainLink, opts) {
 /** What a reader gets back. A client link sees no hook family, no notes from the team, and once a winner is picked only the winner (owner, Q8). */
 export function readShape(versions, { client, mainLink, cardStatus }) {
   const sorted = [...versions].sort((a, b) => LETTERS.indexOf(a.letter) - LETTERS.indexOf(b.letter));
-  const main = mainLetter(sorted);
+  const main = mainLetter(sorted, mainLink);
   const winner = sorted.find((v) => v.status === STATUS.winner);
   const rows = (client ? (winner ? [winner] : sorted.filter((v) => live(v) && v.status !== STATUS.lost)) : sorted).map((v) => {
     const isMain = v.letter === main;
@@ -338,6 +365,9 @@ export function readShape(versions, { client, mainLink, cardStatus }) {
     // The client stage is done but the card has not moved: the page offers today's approve save again.
     out.card_behind = out.card_approvable && !["Approved", "Scheduled", "Posted"].includes(clean(cardStatus, 40));
     out.main_copy_behind = !!(mainRow && clean(mainLink, 2048) && clean(mainRow.frame_url, 2048) !== clean(mainLink, 2048));
+    // The main version's own link as stored (its row above shows the card's link): what a page puts the card back to
+    // when a winner it tried is refused (two staff picking at once, Probe bug 9).
+    out.main_url = (mainRow && clean(mainRow.frame_url, 2048)) || null;
     const ends = sorted.map((v) => v.trial_ends_at).filter(Boolean).sort().pop() || null;
     out.trial_ends_at = ends;
   }

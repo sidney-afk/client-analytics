@@ -1,7 +1,7 @@
 'use strict';
 /*
  * TRIAL REELS: A CHANGE IS ABOUT THE VERSION IT WAS ASKED ON, in a real browser, fully offline. Session Probe,
- * 2026-10-27 (findings 10, 10b and 11 in docs/features/trial-reels/OVERNIGHT_PROBE_2026-10-27.md).
+ * 2026-10-27 (findings 10, 10b and 11 in Probe's report, draft PR 2365); adopted by session Trials with the fixes (build 4).
  *
  * The review page (test/fixtures/review-stage-fixture.js, fictional data) with the trial-reels function answered by its
  * own rules (logic.mjs). What must hold:
@@ -78,7 +78,7 @@ const OK_AT = '2026-10-27T08:00:00.000Z';
     let n0 = t.state.upserts.length, g0 = t.state.gateway.length;
     await inS(t.page, '[data-chg="video"]').click();
     await inS(t.page, '#ta').fill('Fictional note: a shorter first line.');
-    await inS(t.page, '.trv [data-trv-step="1"]').click();   // a look at the next version before sending
+    await inS(t.page, '.trv-side[data-trv-step="1"]').click();   // a look at the next version before sending
     await sleep(600);
     const onScreen = await t.page.evaluate(() => ((document.getElementById('svReviewStage').shadowRoot.querySelector('.trv-n') || {}).textContent || '').trim());
     if (await inS(t.page, '#sendBtn').count()) await inS(t.page, '#sendBtn').click();

@@ -34608,3 +34608,107 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-review-browser.js` (36 checks, now with Kasper's second layout), review-stage-kasper-layout2-browser (188 checks), review-stage-browser, check-modules, no-sending-words and no-hardcoded-colors.
 
 **Way back:** revert the PR; with the switch off nothing shows.
+
+## 522. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: two staff picking a winner at once could leave the card posting another version (Probe bug 9, session Trials)
+
+- **What was wrong:** a second staff page still showed its 30-second list. When the first page picked C, the second page could still press D's trophy. Today's attach put D on the card, the function refused D because C had already won, and the page "put back" the link it had seen before, Video A's. C stayed the winner while the card carried A's link, so A's video would post.
+- **Fix (`189`, build 2):** the pick (and Undo) reads the versions now and stops if a winner is already picked or the version is no longer on trial. If the function still refuses after the attach (a read that raced the other pick), the put-back:
+  - goes to the function's own main version (`main_url`, new in the staff read: the winner's stored link, else Video A's), never to the page's old view;
+  - is a compare-and-swap on the sub-issue: it carries the clock the page's own attach answered, so a link someone else attached since stands (write_conflict).
+- **Proven:** `node test/trial-reels-race-browser.js` (Probe's race test, now three races, 15 checks; races 2 and 3 fail without the fix), the card test (52), the logic test (76) and the Deno function test (34).
+
+**Way back:** revert the commit.
+
+## 523. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: the card's switch knob was dark in dark mode (Probe E8, session Trials)
+
+- **What:** the knob used `--sv-bg-fff`, which turns dark in the dark theme; the approved card pictures show a light knob in both. A new token `--sv-knob` (010, light in both themes) now draws it.
+- **Proven:** `node test/trial-reels-card-browser.js` (54 checks; the new knob check fails without the fix), no-hardcoded-colors.
+
+**Way back:** revert the commit.
+
+## 524. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels in Production: "on the card" clipped under the state pill, and a test mock that never let today's row read (Probe E10, E11, session Trials)
+
+- **E10:** when today's Deliverable file row shows a long value (the "Not readable until asset access is checked." guidance, whenever the asset read fails), the version's labels were pushed under the state pill. The text part now gives way with an ellipsis and the labels stay whole (`020`).
+- **E11:** the Production test answered `asset_access_read` without `id`, `client_slug` and `team`, and 210 drops such an answer, so today's (Video A) row was never read in that test. The mock now names its row, and the test checks today's row reads "Open link … Available".
+- **Proven:** `node test/trial-reels-production-browser.js` (24 checks, light and dark; the clipping check fails without the fix).
+
+**Way back:** revert the commit.
+
+## 525. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels on the review page: a change named for the wrong version, and Approve after tweaks naming none (Probe bug 10, rule-miss 11, session Trials)
+
+- **Bug 10:** a change took the version on screen when it LEFT. A client who asked a change on C, then looked at D before sending (or whose second change waited in the client-polish queue, or in a queue kept over a reload), sent "Video D: …" and marked D. The change box now remembers the version as it opens, the send passes it on, and the client's queue keeps it with each change (also in the copy kept over a reload).
+- **Rule-miss 11:** Kasper's "Approve after tweaks" on a trial card skipped the versions: no version was marked, so nothing said which one the editor fixes. It now goes through the same wrapper as any change: the version is marked "change asked" and today's note starts "Video B: …", then today's Approve after tweaks runs as before. **Owner call:** whether the other versions should get his OK at the same time (not done: he has not looked at them).
+- **Proven:** `node test/trial-reels-change-naming-browser.js` (Probe's test, adopted; 3 of its 4 checks fail without the fix), trial-reels-review-browser (29), review-stage-browser, review-stage-client-composer-browser, review-stage-kasper-layout2-browser (188), review-stage-save-browser, check-modules.
+
+**Way back:** revert the commit.
+
+## 526. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: the review page now follows the approved mock (Probe E1 to E5, E7, session Trials)
+
+- **What changed (194, 195), against mock-c1440 and mock-c390:**
+  - an arrow on each side of the player on desktop; "Video A of 5" and the dots sit under the video (E1);
+  - the dots carry their letter (A B C D E), with the answer as their colour and the one on screen outlined (E2);
+  - on a phone there are no arrows: the video is swiped left or right, "Swipe for the next version" sits under it, and the dots are the mock's small circles inside 44 px tap targets (E3);
+  - "Approve all (4 waiting)" sits at the bottom left, beside Finish reviewing (E4);
+  - Finish reviewing counts versions in place of the video (E5). With a thumbnail and a caption, five versions read "0 of 7". The mock's "of 5" had no thumbnail step and did not count the caption, so this is the plan's rule read literally (owner may say otherwise);
+  - the player's badge names the version ("Video A", E7);
+  - the arrow keys move through the versions first, then on to the next part.
+- **Kept as built (owner taste, for the morning):** the button words (E6), the winner line above the player (E12), and the step still named "Video" (the mock says "Versions").
+- **Proven:** `node test/trial-reels-review-browser.js` (37 checks, now with places, letters, Approve all, the count, the badge, the keys, and a phone with swipe), trial-reels-change-naming-browser, review-stage-browser, review-stage-client-layout-browser, review-stage-kasper-layout2-browser (188), review-stage-finish-browser, check-modules, no-sending-words, no-hardcoded-colors.
+
+**Way back:** revert the commit.
+
+## 527. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels in Notes: a version with a Google Drive or Dropbox link hid the version switch (Codex on PR 2364, session Trials)
+
+- **What was wrong:** the Notes view's version switch sat in the player's own footer. Picking a version whose link is Google Drive or Dropbox (both accepted for versions) left no player, so the switch went too, and nothing could pick another version again, not even after closing and reopening Notes (the pick is kept).
+- **Fix (`190`):** where the card's own video would play, a version that cannot play keeps the switch in the slim bar under the stage, with "Open this version" beside it. `187` exports `svFrameStageFor` for that check.
+- **Proven:** `node test/trial-reels-notes-browser.js` (19 checks; the new Drive check fails without the fix), frame-comments-in-notes-browser, frameio-viewer-browser, and the other trial suites.
+
+**Way back:** revert the commit.
+
+## 528. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels in Kasper's second layout: tiles bound to the wrong card, and the mock's places (Codex on PR 2366, Probe 10b, K2 to K6, session Trials)
+
+- **Codex P1:** the tiles were drawn again only when their markup changed, so two trial cards with the same versions and poster kept the first card's handlers: Approve, Approve all and Drop could act on a card no longer on screen. The redraw now also follows the card on screen.
+- **Probe 10b:** a change opened on tile C and sent after a press on tile E was Video E's. Fixed by build 4's change box, which remembers the version it opened on. Probe's check is adopted in trial-reels-change-naming-browser.
+- **K2:** on a trial card the video part's own Approve and Ask for change gave way to the tiles. Only "Tweaks are on Frame" stays, naming the version on stage.
+- **K3, K6:** the badge and Finish reviewing follow build 4: "Video A", and versions counted.
+- **K4:** "Approve all" is an outlined button at the top right of the tiles, as in the mock.
+- **K5:** the list on the left says "5 versions" under a trial card.
+- **Kept as built (owner taste):** K1, small tiles with the card's poster and one player below, versus the mock's poster-sized tiles (plan risk 5).
+- **Proven:** `node test/trial-reels-review-browser.js` (47 checks; the P1, K2 and K5 checks fail without the fix), trial-reels-change-naming-browser (6), review-stage-kasper-layout2-browser (188), review-stage-browser, check-modules.
+
+**Way back:** revert the commit.
+
+## 529. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: the team may drop the version on the card (default (c), awaiting the owner, session Trials)
+
+- **What:** the version "on the card" was always Video A until a winner, so A could never be dropped. Now:
+  - "on the card" is the winner, else the live version whose link the card carries, else the first live one;
+  - dropping the version on the card is refused with `attach_first` (409) until today's attach has put the next live version's link on the card (the page does that first). After that, the old one drops like any other;
+  - the last live version cannot be dropped (`last_live_version`);
+  - Undo of a winner puts back the first live version, which is Video A unless A was dropped.
+- **Function:** `trial-reels` logic and index (`dropPatch` takes the card's link). No migration, not a Section 4 function.
+- **Proven:** `node test/trial-reels-logic.js` (79 checks), the Deno function test (33).
+
+**Way back:** revert the commit (the old rule: A, or the winner, is always the one on the card and cannot be dropped).
+
+## 530. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels on the card: dropping the version on the card (default (c), card side, session Trials)
+
+- **What:** the version on the card now has a Drop when another live version has a link. Pressing it runs today's attach of that next version's link first (so it becomes the one on the card), then drops the old one. With no other linked version the page says so and drops nothing. A refused pick or Undo now puts the card back on the winner's own link, else the first live version's (Video A unless it was dropped); never a fixed Video A.
+- **Proven:** `node test/trial-reels-card-browser.js` (54 checks, with the drop on the card), trial-reels-race-browser (15).
+
+**Way back:** revert this commit together with 529.
+
+## 531. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: "New cut ready" on a version asked to change (default (b), awaiting the owner, session Trials)
+
+- **Why:** Frame.io keeps one link across new uploads, so an editor's new cut of a version asked to change often arrives at the SAME link, and pasting it again could not restart the version (probe P1). Approve was not overloaded for this.
+- **What:** a new `trial-reels` action, `version_new_cut`, only on a version with a change asked and a link. Like a new link, it puts revision up, clears every OK and the change, and sets `waiting`, so the SMM and Kasper review it again before the client (Q3). An editor's key may use it, like pasting a link; dropping, the trial and the winner stay the SMM's or an admin's. It is recorded in the card's history as `trial_version_new_cut`.
+- **Where (card, build 2):** in the version row's hover tools, beside the pencil. No new control shows until the row is hovered.
+- **Proven:** `node test/trial-reels-logic.js` (82 checks), the Deno function test (35).
+
+**Way back:** revert this commit and the card's.
+
+## 532. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels in Kasper's second layout: the version on the card drops from its tile too (default (c), session Trials)
+
+- **What:** the tile of the version on the card now has Drop whenever another live version has a link. As on the card (530), today's attach first puts that next version's link on the card, then the old one drops. 189 exports `svTrialMoveCard` (today's attach) for the tile.
+- **Proven:** `node test/trial-reels-review-browser.js` (48 checks, with Video A dropped from its tile after Video B is attached), trial-reels-change-naming-browser, review-stage-kasper-layout2-browser (188).
+
+**Way back:** revert this commit with 529 and 530.

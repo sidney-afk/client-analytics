@@ -1,6 +1,6 @@
 import { svLayerOpen, svLayerOverlay, svLayerRelease } from './041-core-layers.js';
 import { dismissConfirm, showConfirm, showNotify, showToast, svBusyHtml, svBusyOn, svSpinHtml } from './040-shared-briefs.js';
-import { svFrameFeed, svFrameNotesFeed, svFrameNotesLink, svFrameNotesUse, svFrameFlagWait, svFrameIoLinkHtml, svFrameStageMount, svFrameWarm, svFrameStageUnmount, svFrameTileAttrs, svFrameTileLabelHtml, svFrameTime } from './187-frame-viewer.js';
+import { svFrameFeed, svFrameNotesFeed, svFrameNotesLink, svFrameNotesUse, svFrameFlagWait, svFrameIoLinkHtml, svFrameStageFor, svFrameStageMount, svFrameWarm, svFrameStageUnmount, svFrameTileAttrs, svFrameTileLabelHtml, svFrameTime } from './187-frame-viewer.js';
 import { _svPhoneNotesPresentation } from './095-shared-client.js';
 import {
   CAL_COMPONENTS, CAL_REVIEW_COMPONENTS, _calClearStaleApprovals, _calComponentsFor, _prodCrosswalkInFlight,
@@ -2756,12 +2756,18 @@ import { svuActive, svuNotesBtnHtml, svuNotesOpening } from './327-core-unread-b
         if (!on) { svFrameStageUnmount(); stage.hidden = true; }
         shell.toggleAttribute('data-video', on);
         shell.querySelectorAll('.trl-notes-sw').forEach(n => (n.parentNode && n.parentNode.classList.contains('trl-notes-bar') ? n.parentNode : n).remove());
-        const sw = on ? svTrialNotesSwitchHtml(post) : '';
+        // A version whose link cannot play here (a Google Drive or Dropbox link) keeps the switch, in the slim bar with
+        // a link to open it, so another version can always be picked again (Codex on PR 2364). Only where the card's
+        // own video would play: without the player switch for this client, Notes is today's.
+        const playable = on || !!(post && svFrameStageFor(post));
+        const sw = playable ? svTrialNotesSwitchHtml(post) : '';
         if (sw) {
-            const foot = stage.querySelector('.fv-stage-foot');
+            const foot = on && stage.querySelector('.fv-stage-foot');
+            const url = !on ? String((vp && vp.asset_url) || '').trim() : '';
+            const away = /^https?:\/\//i.test(url) ? '<a class="trl-notes-open" href="' + _calEscAttr(url) + '" target="_blank" rel="noopener noreferrer">Open this version</a>' : '';
             // Wide: beside "Open in Frame.io". Phone: the player's own buttons sit over the video, so a slim bar under it.
             if (foot && !(window.matchMedia && window.matchMedia('(max-width: 767px)').matches)) { foot.classList.add('trl-foot'); foot.insertAdjacentHTML('afterbegin', sw); }
-            else stage.insertAdjacentHTML('afterend', '<div class="trl-notes-bar">' + sw + '</div>');
+            else stage.insertAdjacentHTML('afterend', '<div class="trl-notes-bar">' + sw + away + '</div>');
         }
         return on;
     }

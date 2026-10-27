@@ -545,6 +545,9 @@ jobs:
           Client review notes in the quiet design behind the same switch (rows, first names, day lines, quiet status words, Reply on hover on team comments only, bubbles when off)|node test/review-client-notes-browser.js
           Client review notes badges behind the same switch (corner count for new, plain number for waiting, never both, read on open, none when off)|node test/review-client-badges-browser.js
           Client link Sheet and Notes get the team's unread badges behind the same switch (one Synchro team picture, corner count for new, plain number for a waiting question, own notes never count, no staff names, no inbox read; today's look when off)|node test/client-unread-badges-browser.js
+          Client link notes are read only once on screen (390 waits for the conversation, 1440 at once), a reply in a done thread never counts as new, and the Review page names only the team|node test/client-notes-fixes-browser.js
+          Staff Notes button never counts a reply inside a done thread (history in Notes)|node test/staff-done-thread-badge-browser.js
+          Staff Notes composer offers the client audience as soon as Caption is picked on a Production-linked card (Video stays team only)|node test/notes-caption-composer-browser.js
           Kasper review polish for the staff on unread_badges_v2 (check at the click with a rollback, change box stays open, quick note without a spinner, threaded Reply in team threads, old page when off)|node test/review-kasper-polish-browser.js
           Dialogs stay open on a press that starts inside them (OPEN_REPAIRS 215)|node test/dialog-backdrop-press-browser.js
           SyncLinear work item opens its Calendar card in a new tab|node docs/syncview-design/tests/open-in-calendar-browser.js

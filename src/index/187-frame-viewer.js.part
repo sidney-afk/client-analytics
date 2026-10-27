@@ -1004,5 +1004,5 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svFrameThumbOpen, svFrameTileOpen
     });
 export {
-  svFrameFeed, svFrameNotesFeed, svFrameNotesLink, svFrameNotesUse, svFrameFlagWait, svFrameIoLinkHtml, svFramePlayIconHtml, svFrameStageMount, svFrameStagePending, svFrameStageUnmount, svFrameSyncPlayIcon, svFrameThumbAttrs, svFrameTileAttrs, svFrameTileLabelHtml, svFrameWarm, svFrameWatchBtnHtml, svFrameTime
+  svFrameFeed, svFrameNotesFeed, svFrameNotesLink, svFrameNotesUse, svFrameFlagWait, svFrameIoLinkHtml, svFramePlayIconHtml, svFrameStageFor, svFrameStageMount, svFrameStagePending, svFrameStageUnmount, svFrameSyncPlayIcon, svFrameThumbAttrs, svFrameTileAttrs, svFrameTileLabelHtml, svFrameWarm, svFrameWatchBtnHtml, svFrameTime
 };

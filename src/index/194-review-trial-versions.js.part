@@ -85,38 +85,87 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
         return m && m.trial && !m.trial.winner ? 'Approve Video ' + _trvCurOf(m, mode).letter : '';
     }
 
-    /* The bar over the player. '' for today's page. */
+    /* The page around the player, as the approved mock (mock-c1440, mock-c390; Probe E1 to E5):
+         - above the player, only once a winner is picked: "Video C: the one we are posting" (Q8);
+         - an arrow on each side of the player (desktop; on a phone the video is swiped left or right instead);
+         - under the player, "Video A of 5" and a row of letter dots carrying this reviewer's answer on each version,
+           with "Swipe for the next version" on a phone;
+         - "Approve all (4 waiting)" at the bottom left, beside Finish reviewing, which counts versions.
+       Each answers '' for today's page. */
     function svTrialReviewBarHtml(m, mode) {
-        if (!m || !m.trial) return '';
-        if (m.trial.winner) return '<div class="trv"><span class="trv-n">Video ' + _calEsc(m.trial.winner.letter) + ': the one we are posting</span></div>';
-        const vs = m.trial.versions, stage = _trvStage(mode), cur = _trvCurOf(m, mode), i = vs.indexOf(cur);
-        const busy = _trvBusy.has(m.id);
-        if (vs.length === 1) return '<div class="trv"><span class="trv-n">Video ' + _calEsc(cur.letter) + '</span>' + (busy ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '') + '</div>';
+        if (!m || !m.trial || !m.trial.winner) return '';
+        return '<div class="trv"><span class="trv-n">Video ' + _calEsc(m.trial.winner.letter) + ': the one we are posting</span></div>';
+    }
+    function svTrialReviewUnderHtml(m, mode) {
+        if (!m || !m.trial || m.trial.winner) return '';
+        const vs = m.trial.versions, stage = _trvStage(mode), cur = _trvCurOf(m, mode);
+        const busy = _trvBusy.has(m.id) ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '';
+        if (vs.length === 1) return '<div class="trv trv-under"><span class="trv-n">Video ' + _calEsc(cur.letter) + '</span>' + busy + '</div>';
         const dots = vs.map(v => {
             const a = _trvAnswer(v, stage);
-            return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
-                + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : ', waiting') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i class="' + (a === 'ok' ? 'ok' : a === 'chg' ? 'chg' : '') + '"></i></button>';
+            return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
+                + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : ', waiting') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i>' + _calEsc(v.letter) + '</i></button>';
         }).join('');
-        const open = vs.filter(v => _trvAnswer(v, stage) === 'wait');
-        const all = open.length > 1 ? '<button type="button" class="trv-all" data-trv-all="1"' + (busy ? ' disabled' : '') + '>Approve all ' + open.length + '</button>' : '';
-        const arrow = (d, on, label, path) => '<button type="button" class="trv-arr" data-trv-step="' + d + '" aria-label="' + label + '"' + (on ? '' : ' disabled') + '><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + path + '"/></svg></button>';
-        return '<div class="trv" role="group" aria-label="Versions of this video">'
-            + arrow(-1, i > 0, 'The version before', 'M10 3 5 8l5 5')
+        return '<div class="trv trv-under" role="group" aria-label="Versions of this video">'
+            + '<span class="trv-swipe" aria-hidden="true">Swipe for the next version</span>'
             + '<span class="trv-n" aria-live="polite">Video ' + _calEsc(cur.letter) + ' <span class="trv-of">of ' + vs.length + '</span></span>'
-            + arrow(1, i < vs.length - 1, 'The next version', 'M6 3l5 5-5 5')
-            + '<span class="trv-dots">' + dots + '</span>' + all
-            + (busy ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '') + '</div>';
+            + '<span class="trv-dots">' + dots + '</span>' + busy + '</div>';
+    }
+    // The two arrows beside the player ('' with one version). They hide on a phone (CSS): there the video is swiped.
+    function svTrialReviewArrowsHtml(m, mode) {
+        if (!m || !m.trial || m.trial.winner || m.trial.versions.length < 2) return '';
+        const vs = m.trial.versions, i = vs.indexOf(_trvCurOf(m, mode));
+        const arrow = (d, on, label, side, path) => '<button type="button" class="trv-arr trv-side ' + side + '" data-trv-step="' + d + '" aria-label="' + label + '"' + (on ? '' : ' disabled') + '><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + path + '"/></svg></button>';
+        return arrow(-1, i > 0, 'The version before', 'prev', 'M10 3 5 8l5 5') + arrow(1, i < vs.length - 1, 'The next version', 'next', 'M6 3l5 5-5 5');
+    }
+    function svTrialReviewAllHtml(m, mode) {
+        if (!m || !m.trial || m.trial.winner) return '';
+        const stage = _trvStage(mode), open = m.trial.versions.filter(v => _trvAnswer(v, stage) === 'wait');
+        if (open.length < 2) return '';
+        return '<button type="button" class="btn-quiet trv-all" data-trv-all="1"' + (_trvBusy.has(m.id) ? ' disabled' : '') + '>'
+            + '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>'
+            + 'Approve all (' + open.length + ' waiting)</button>';
+    }
+    // Finish reviewing counts versions in place of the video (plan section 5): null for today's count.
+    function svTrialReviewCount(m, mode) {
+        if (!m || !m.trial || m.trial.winner || m.trial.versions.length < 2) return null;
+        const stage = _trvStage(mode), vs = m.trial.versions;
+        return { done: vs.filter(v => _trvAnswer(v, stage) !== 'wait').length, total: vs.length };
+    }
+    // One step to the version before (-1) or after (1). False at either end, so the arrow keys can move on to the next part.
+    function svTrialReviewStep(m, mode, d) {
+        if (!m || !m.trial || m.trial.winner) return false;
+        const vs = m.trial.versions, next = vs[vs.indexOf(_trvCurOf(m, mode)) + d];
+        if (!next) return false;
+        _trvCur[m.id] = next.letter; _trvRepaint();
+        return true;
     }
     function svTrialReviewBind(el, m, mode, onAll) {
         if (!el || !m || !m.trial || m.trial.winner) return;
-        const vs = m.trial.versions;
-        const go = letter => { _trvCur[m.id] = letter; _trvRepaint(); };
-        el.querySelectorAll('[data-trv-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.trvGo)));
-        el.querySelectorAll('[data-trv-step]').forEach(b => b.addEventListener('click', () => {
-            const i = vs.indexOf(_trvCurOf(m, mode)) + Number(b.dataset.trvStep);
-            if (vs[i]) go(vs[i].letter);
-        }));
+        el.querySelectorAll('[data-trv-go]').forEach(b => b.addEventListener('click', () => { _trvCur[m.id] = b.dataset.trvGo; _trvRepaint(); }));
+        el.querySelectorAll('[data-trv-step]').forEach(b => b.addEventListener('click', () => svTrialReviewStep(m, mode, Number(b.dataset.trvStep))));
         el.querySelectorAll('[data-trv-all]').forEach(b => b.addEventListener('click', () => onAll()));
+    }
+    /* A phone swipes the video left (the next version) or right (the one before). Bound once on the stage; `model()`
+       is the post on stage now. A swipe that starts on the player's own controls (its scrubber) is the player's. */
+    function svTrialReviewSwipe(el, model, mode) {
+        if (!el || el.__trvSwipe) return;
+        el.__trvSwipe = true;
+        let x0 = 0, y0 = 0, on = false;
+        el.addEventListener('touchstart', e => {
+            const t = e.touches && e.touches[0];
+            on = !!t && e.touches.length === 1 && !(e.target.closest && e.target.closest('.fv-controls, input, button, a'));
+            if (on) { x0 = t.clientX; y0 = t.clientY; }
+        }, { passive: true });
+        el.addEventListener('touchend', e => {
+            if (!on) return;
+            on = false;
+            const t = e.changedTouches && e.changedTouches[0];
+            if (!t) return;
+            const dx = t.clientX - x0, dy = t.clientY - y0;
+            if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+            svTrialReviewStep(model(), mode(), dx < 0 ? 1 : -1);
+        }, { passive: true });
     }
 
     async function _trvAnswerCall(m, mode, body) {
@@ -178,8 +227,16 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
     function _trvFlush(slug) {
         _trvPending().filter(j => j.slug === slug && !j.inFlight).forEach(j => { j.inFlight = true; _trvSendChange(j).finally(() => { j.inFlight = false; }); });
     }
-    function svTrialReviewChangeText(m, mode, text, frameNote) {
-        const letter = _trvCurOf(m, mode).letter;
+    // The version on screen now ('' when the card has no open trial): a change box remembers it when it opens.
+    function svTrialReviewLetter(m, mode) {
+        return m && m.trial && !m.trial.winner ? _trvCurOf(m, mode).letter : '';
+    }
+    /* `asked` is the version the change was asked on (the box remembers it when it opens, and the client's queue keeps
+       it with each change): a change sent after a look at another version is still about the one it was asked on
+       (Probe bugs 10 and 10b). Without it, the version on screen. */
+    function svTrialReviewChangeText(m, mode, text, frameNote, asked) {
+        const had = asked && m.trial.versions.find(v => v.letter === asked);
+        const letter = had ? had.letter : _trvCurOf(m, mode).letter;
         const job = { slug: m.trial.slug, pid: m.id, stage: _trvStage(mode), letter, note: text, at: Date.now() };
         _trvPending().push(job); _trvPendingSave();
         job.inFlight = true;
@@ -210,7 +267,7 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
                 + '<span class="trk-pic">' + poster + '</span><span class="trk-n">Video ' + l + '</span></button><div class="trk-acts">' + acts + '</div></div>';
         }).join('');
         return '<div class="trk" role="group" aria-label="Versions of this video"><div class="trk-h"><span class="trk-t">' + vs.length + ' versions</span>'
-            + (open.length > 1 ? '<button type="button" class="trk-all" data-trk-all="1"' + (busy ? ' disabled' : '') + '>' + TRV_CHECK + 'Approve all ' + open.length + '</button>' : '')
+            + (open.length > 1 ? '<button type="button" class="trk-all" data-trk-all="1" title="Approve the ' + open.length + ' versions still waiting"' + (busy ? ' disabled' : '') + '>' + TRV_CHECK + 'Approve all</button>' : '')
             + (busy ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '') + '</div><div class="trk-g">' + tiles + '</div></div>';
     }
     function svTrialReviewBindTiles(el, m, mode, on) {
@@ -243,9 +300,11 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
 
     const TRV_CSS = `
 .trk{display:flex;flex-direction:column;gap:8px;margin:0 0 10px}
-.trk-h{display:flex;align-items:center;gap:10px}
+.trk-h{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .trk-t{font-size:.78rem;font-weight:700;color:var(--text-secondary)}
-.trk-all{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:8px;background:var(--ok-solid-bg);color:var(--ok-solid-fg);font:inherit;font-size:.78rem;font-weight:700;padding:6px 11px;cursor:pointer}
+.trk-all{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--hair);border-radius:10px;background:var(--deck);color:var(--text-primary);font:inherit;font-size:.8rem;font-weight:600;padding:7px 13px;cursor:pointer}
+.trk-all:hover:not([disabled]){background:var(--fill-hover)}
+.ql-r .trv-vn{color:var(--pd-video);font-weight:600;white-space:nowrap}
 .trk-all svg{width:13px;height:13px}
 .trk-all[disabled]{opacity:.6;cursor:default}
 .trk-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}
@@ -264,24 +323,29 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
 .trk-lab[data-l="approved"]{background:var(--ok-soft-2);color:var(--ok-ink)}
 .trk-lab[data-l="change"]{background:var(--warn-soft);color:var(--warn-ink)}
 .trv{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;min-height:32px;padding:2px 0 6px;font-size:.78rem}
-.trv-n{font-weight:700;color:var(--text-primary);min-width:84px;text-align:center}
-.trv-of{font-weight:600;color:var(--text-secondary)}
-.trv-arr{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:8px;background:var(--fill);color:var(--text-primary);cursor:pointer;padding:0}
+.trv-under{flex-direction:column;gap:6px;padding:10px 0 2px;min-height:0}
+.trv-n{font-weight:700;color:var(--text-primary);text-align:center;font-size:.86rem}
+.trv-of{font-weight:500;color:var(--text-secondary)}
+.trv-dots{display:inline-flex;align-items:center;gap:2px}
+.trv-dot{display:grid;place-items:center;width:26px;height:26px;border:0;background:none;font:inherit;cursor:pointer;padding:0}
+.trv-dot i{display:grid;place-items:center;width:22px;height:22px;box-sizing:border-box;border:1px solid var(--hair);border-radius:50%;color:var(--text-secondary);font-style:normal;font-size:.62rem;font-weight:700}
+.trv-dot.ok i{background:var(--ok-soft-2);border-color:var(--ok-line);color:var(--ok-ink)}
+.trv-dot.chg i{background:var(--chgb);border-color:var(--chgrow-line);color:var(--chg-fg)}
+.trv-dot.on i{border-color:var(--pd-video);color:var(--pd-video);box-shadow:0 0 0 1px var(--pd-video)}
+.trv-swipe{display:none;color:var(--text-secondary);font-size:.72rem}
+.trv-arr{display:grid;place-items:center;width:44px;height:44px;border:1px solid var(--hair);border-radius:50%;background:var(--deck);color:var(--text-primary);cursor:pointer;padding:0}
 .trv-arr:hover:not([disabled]){background:var(--fill-hover)}
 .trv-arr[disabled]{opacity:.35;cursor:default}
 .trv-arr svg{width:14px;height:14px}
-.trv-dots{display:inline-flex;align-items:center;gap:2px}
-.trv-dot{display:grid;place-items:center;width:20px;height:20px;border:0;border-radius:50%;background:none;cursor:pointer;padding:0}
-.trv-dot i{width:8px;height:8px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--tl-dot)}
-.trv-dot i.ok{background:var(--tl-ok);box-shadow:none}
-.trv-dot i.chg{background:var(--tl-chg);box-shadow:none}
-.trv-dot.on{box-shadow:0 0 0 1.5px var(--text-primary)}
-.trv-all{border:0;border-radius:8px;background:var(--fill);color:var(--text-primary);font:inherit;font-weight:600;padding:5px 10px;cursor:pointer}
-.trv-all:hover:not([disabled]){background:var(--fill-hover)}
+.trv-side{position:absolute;top:50%;transform:translateY(-50%);z-index:5}
+.trv-side.prev{right:calc(100% + 14px)}
+.trv-side.next{left:calc(100% + 14px)}
+.trv-all{display:inline-flex;align-items:center;gap:6px}
+.trv-all svg{width:14px;height:14px}
 .trv-busy{color:var(--text-secondary)}
-@media (max-width:600px){.trv-arr,.trv-dot{width:36px;height:36px}}
+.dfin:has(.trv-all){flex:1 1 auto;justify-content:space-between;align-items:center;gap:12px}
+@media (max-width:600px){.trv-side{display:none}.trv-swipe{display:block}.trv-under{padding-top:6px}.dfin:has(.trv-all) .finish{width:auto;flex:1 1 0;white-space:normal;height:auto;min-height:44px;text-align:center}.trv-dots{gap:0}.dfin:has(.trv-all) .trv-all{flex:1 1 0;justify-content:center}}
 `;
 export {
-  TRV_CSS, svTrialReviewBindTiles, svTrialReviewTilesHtml, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewChangeText,
-  svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape
+  TRV_CSS, svTrialReviewAllHtml, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewArrowsHtml, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewBindTiles, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewTilesHtml, svTrialReviewUnderHtml
 };

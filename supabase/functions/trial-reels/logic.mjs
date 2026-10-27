@@ -338,6 +338,9 @@ export function readShape(versions, { client, mainLink, cardStatus }) {
     // The client stage is done but the card has not moved: the page offers today's approve save again.
     out.card_behind = out.card_approvable && !["Approved", "Scheduled", "Posted"].includes(clean(cardStatus, 40));
     out.main_copy_behind = !!(mainRow && clean(mainLink, 2048) && clean(mainRow.frame_url, 2048) !== clean(mainLink, 2048));
+    // The main version's own link as stored (its row above shows the card's link): what a page puts the card back to
+    // when a winner it tried is refused (two staff picking at once, Probe bug 9).
+    out.main_url = (mainRow && clean(mainRow.frame_url, 2048)) || null;
     const ends = sorted.map((v) => v.trial_ends_at).filter(Boolean).sort().pop() || null;
     out.trial_ends_at = ends;
   }

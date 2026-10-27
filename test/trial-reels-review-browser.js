@@ -41,7 +41,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
   async function start(mode, flag, versions, extra) {
     // Kasper and the client answer a version only after the SMM (the server holds the order).
     if (mode !== 'smm') versions.forEach(v => { if (!v.smm_ok_at) v.smm_ok_at = '2026-10-27T08:00:00.000Z'; });
-    const T = { versions, calls: [] };
+    const T = { versions, calls: [], cards: extra && extra.cards };
     const t = await open(browser, origin, Object.assign({ stage: mode, flags: 'on', flagValues: { trial_reels_pages: { clients: flag ? [SLUG] : ['someotherclient'] } } },
       mode !== 'client' ? { staff: STAFF } : {}, extra || {}));
     t.T = T;
@@ -62,7 +62,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       const shape = () => Object.assign({ enabled: true, winner_letter: (T.versions.find(v => v.status === 'winner') || {}).letter || null },
         L.readShape(T.versions, { client, mainLink: T.versions[0].frame_url, cardStatus: 'Client Approval' }));
       const reply = (o, s) => route.fulfill({ status: s || 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(o) });
-      if (b.action === 'list') return reply({ ok: true, cards: { rs1: shape() } });
+      if (b.action === 'list') return reply({ ok: true, cards: Object.fromEntries((T.cards || ['rs1']).map(id => [id, shape()])) });
       if (b.action === 'answer' && b.kind === 'change' && T.failChange > 0) { T.failChange--; return reply({ ok: false, error: 'write_failed' }, 500); }
       if (b.action === 'answer') {
         const res = L.answerPatches(T.versions, { stage: client ? 'client' : b.stage, kind: b.kind, letter: b.letter, note: b.note }, new Date().toISOString());
@@ -102,7 +102,17 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     const open = r.querySelector('#fvHost .fv-open-link');
     return {
       text: b ? b.innerText.replace(/\s+/g, ' ').trim() : '',
-      dots: b ? [...b.querySelectorAll('.trv-dot i')].map(i => i.className || 'wait') : [],
+      dots: b ? [...b.querySelectorAll('.trv-dot')].map(d => d.classList.contains('ok') ? 'ok' : d.classList.contains('chg') ? 'chg' : 'wait') : [],
+      letters: b ? [...b.querySelectorAll('.trv-dot')].map(d => d.textContent.trim()).join('') : '',
+      // The mock's places (Probe E1 to E5, E7): the name and dots under the player, an arrow on each side of it, Approve
+      // all beside Finish reviewing, which counts versions, and the player's badge naming the version.
+      under: !!(b && b.closest('.trv-under-host') && b.closest('.trv-under-host').previousElementSibling === r.getElementById('view')),
+      sides: (() => { const p = r.querySelector('#fvHost:not([hidden]), #novid'); const v = p && p.getBoundingClientRect();
+        const l = r.querySelector('.trv-side.prev'), n = r.querySelector('.trv-side.next'); if (!v || !l || !n || !l.offsetParent) return '';
+        const a = l.getBoundingClientRect(), c = n.getBoundingClientRect(); return a.right <= v.left && c.left >= v.right && Math.abs((a.top + a.bottom) / 2 - (v.top + v.bottom) / 2) < 4 ? 'beside' : 'elsewhere'; })(),
+      all: ((r.querySelector('.dfin [data-trv-all]') || {}).textContent || '').trim(),
+      finish: ((r.querySelector('#finishBtn .fc') || {}).textContent || '').trim(),
+      badge: ((r.querySelector('#fvHost > .mpill') || {}).textContent || '').trim(),
       link: '',
       tab: ((r.querySelector('#novidMsg a') || {}).href) || '',
       player: !!r.querySelector('#fvHost .fv-player') && !r.getElementById('fvHost').hidden,
@@ -123,10 +133,17 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     t = await start('client', true, fresh());
     b = await bar(t);
     b.link = t.T.views[t.T.views.length - 1] || '';
-    ok(/^Video A of 5/.test(b.text) && b.dots.length === 5, 'client: "Video A of 5" over the player, a dot per version (' + b.text + ')');
+    ok(/Video A of 5/.test(b.text) && b.dots.length === 5 && b.letters === 'ABCDE', 'client: "Video A of 5" with a letter dot per version (' + b.text + ')');
+    ok(b.under && b.sides === 'beside', 'client: the name and dots sit under the player and an arrow on each side of it (Probe E1; arrows ' + b.sides + ')');
+    ok(b.all === 'Approve all (5 waiting)' && b.finish === '0 of 7', 'client: "Approve all (5 waiting)" beside Finish reviewing, which counts the versions (Probe E4, E5: ' + b.all + ' | ' + b.finish + ')');
+    ok(b.badge === 'Video A', "client: the player's badge names the version (Probe E7: " + b.badge + ')');
+    await t.page.keyboard.press('ArrowRight'); await sleep(500);
+    const kb = (await bar(t)).text;
+    await t.page.keyboard.press('ArrowLeft'); await sleep(500);
+    ok(/Video B of 5/.test(kb) && /Video A of 5/.test((await bar(t)).text), 'client: the arrow keys move through the versions first (' + kb + ')');
     ok(!b.hook, 'client: no hook text anywhere on the page');
     ok(b.player && b.ok === 'Approve Video A', 'client: the player plays Video A (the card\'s own link), and the button names it (' + b.ok + ')');
-    await inS(t.page, '.trv [data-trv-step="1"]').click();
+    await inS(t.page, '.trv-side[data-trv-step="1"]').click();
     await sleep(900);
     b = await bar(t);
     b.link = t.T.views[t.T.views.length - 1] || '';
@@ -140,11 +157,34 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     ok(t.T.calls.some(c => c.action === 'answer' && c.kind === 'approve' && c.letter === 'B') && t.T.versions[1].status === 'approved', 'client: Approve answers only Video B');
     ok(!t.state.upserts.slice(n0).some(u => u.video_status), 'client: and saves nothing on the card while other versions wait');
     ok(/^Video A of 5/.test(b.text) && b.dots[1] === 'ok', 'client: the page moves to the next version waiting, and B\'s dot is approved (' + b.dots.join(',') + ')');
-    await inS(t.page, '.trv [data-trv-all]').click();
+    await inS(t.page, '[data-trv-all]').click();
     for (let i = 0; i < 80 && !t.state.upserts.slice(n0).some(u => u.video_status === 'Approved'); i++) await sleep(100);
     ok(t.T.calls.some(c => c.kind === 'approve_all') && t.T.versions.every(v => v.status === 'approved'), 'client: Approve all answers the rest');
     ok(t.state.upserts.slice(n0).some(u => u.id === 'rs1' && u.video_status === 'Approved'), 'client: then today\'s approve moves the video to Approved');
     ok(!t.errors.length, 'client: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+
+    // ---------- the client link on a phone: no arrows, swipe the video (Probe E3) ----------
+    t = await start('client', true, fresh(), { width: 390, height: 844, context: { hasTouch: true, isMobile: true } });
+    b = await bar(t);
+    const swipe = dx => t.page.evaluate(dx => {
+      const r = document.getElementById('svReviewStage').shadowRoot, v = r.getElementById('view'), q = v.getBoundingClientRect();
+      const x = q.left + q.width / 2, y = q.top + q.height / 3;
+      const touch = (cx) => new Touch({ identifier: 1, target: v, clientX: cx, clientY: y });
+      v.dispatchEvent(new TouchEvent('touchstart', { touches: [touch(x)], changedTouches: [touch(x)], bubbles: true, composed: true }));
+      v.dispatchEvent(new TouchEvent('touchend', { touches: [], changedTouches: [touch(x + dx)], bubbles: true, composed: true }));
+    }, dx);
+    const phone = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; const s = r.querySelector('.trv-swipe');
+      return { arrows: [...r.querySelectorAll('.trv-side')].some(a => a.offsetParent), hint: !!(s && s.offsetParent) && s.textContent.trim(),
+        wide: document.documentElement.scrollWidth > window.innerWidth + 1 }; });
+    ok(!phone.arrows && phone.hint === 'Swipe for the next version' && /Video A of 5/.test(b.text) && !phone.wide, 'phone: no arrows, "Swipe for the next version" under the player, no sideways scroll');
+    await swipe(-120); await sleep(700);
+    b = await bar(t);
+    ok(/Video B of 5/.test(b.text), 'phone: a swipe to the left shows the next version (' + b.text + ')');
+    await swipe(120); await sleep(700);
+    b = await bar(t);
+    ok(/Video A of 5/.test(b.text), 'phone: a swipe to the right goes back (' + b.text + ')');
+    ok(!t.errors.length, 'phone: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
 
     // ---------- a change on one version ----------
@@ -220,7 +260,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     await waitFor(async () => t.T.calls.some(c => c.action === 'answer'));
     await sleep(900);
     ok(t.T.calls.some(c => c.action === 'answer' && c.stage === 'smm' && c.letter === 'A') && !!t.T.versions[0].smm_ok_at && !t.state.upserts.slice(n0).some(u => u.video_status), 'SMM: Approve stamps the SMM\'s OK on Video A only, the card waits');
-    await inS(t.page, '.trv [data-trv-all]').click();
+    await inS(t.page, '[data-trv-all]').click();
     for (let i = 0; i < 80 && !t.state.upserts.slice(n0).some(u => u.video_status === 'Kasper Approval'); i++) await sleep(100);
     ok(t.T.versions.every(v => v.smm_ok_at) && t.state.upserts.slice(n0).some(u => u.id === 'rs1' && u.video_status === 'Kasper Approval'), 'SMM: Approve all, then today\'s save moves the video to Kasper Approval');
     ok(!t.errors.length, 'SMM: no page errors (' + t.errors.join(' | ') + ')');
@@ -232,12 +272,22 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       return { names: [...r.querySelectorAll('.trk-v .trk-n')].map(n => n.textContent.trim()), bar: !!r.querySelector('.trv'),
         ok: r.querySelectorAll('.trk-v [data-trk-ok]').length, cur: ((r.querySelector('.trk-v.cur .trk-n') || {}).textContent || '').trim(),
         labs: [...r.querySelectorAll('.trk-v')].map(v => ((v.querySelector('.trk-lab') || {}).textContent || '').trim()), hook: /Fictional hook/.test(r.innerHTML),
-        all: ((r.querySelector('[data-trk-all]') || {}).textContent || '').trim() };
+        all: ((r.querySelector('[data-trk-all]') || {}).textContent || '').trim(),
+        // Probe K2, K3, K4, K5: the video part's own Approve and Ask for change give way to the tiles (only Frame
+        // tweaks stays, naming the version on stage); the badge names it; Approve all sits at the top right; the list
+        // says "5 versions" under the card.
+        vidOk: !!r.querySelector('.pn-d[data-pd="video"] [data-ok="video"], .pn-d[data-pd="video"] [data-chg="video"]'),
+        frame: ((r.querySelector('.pn-d[data-pd="video"] [data-frame="video"]') || {}).textContent || '').replace(/\s+/g, ' ').trim(),
+        badge: ((r.querySelector('#fvHost > .mpill') || {}).textContent || '').trim(),
+        allRight: (() => { const a = r.querySelector('[data-trk-all]'), h = r.querySelector('.trk-h'); if (!a || !h) return false; return h.getBoundingClientRect().right - a.getBoundingClientRect().right < 2; })(),
+        list: ((r.querySelector('#qlList .ql-r.cur .trv-vn') || {}).textContent || '').trim() };
     });
     if (process.env.TRIAL_REVIEW_SHOTS) { require('fs').mkdirSync(process.env.TRIAL_REVIEW_SHOTS, { recursive: true }); await t.page.screenshot({ path: path.join(process.env.TRIAL_REVIEW_SHOTS, 'kasper-layout2.png') }); }
     let k = await tiles();
     ok(k.names.join('|') === 'Video A|Video B|Video C|Video D|Video E' && !k.bar && !k.hook, 'Kasper, second layout: every version side by side, named Video A to E, no bar and no hook text');
-    ok(k.ok === 5 && /Approve all 5/.test(k.all) && k.cur === 'Video A', 'each tile has its own Approve, and Approve all sits at the top; Video A is on stage');
+    ok(k.ok === 5 && k.all === 'Approve all' && k.allRight && k.cur === 'Video A', 'each tile has its own Approve, and Approve all sits at the top right (Probe K4); Video A is on stage');
+    ok(!k.vidOk && /Video A/.test(k.frame) && k.badge === 'Video A', "the video part's own Approve and Ask for change give way to the tiles; Frame tweaks and the badge name the version on stage (Probe K2, K3: " + k.frame + ' | ' + k.badge + ')');
+    ok(k.list === '5 versions', 'the list says "5 versions" under the trial card (Probe K5: ' + k.list + ')');
     await inS(t.page, '.trk-v [data-trk-go="C"]').click();
     await sleep(1200);
     k = await tiles();
@@ -260,6 +310,18 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       && (t.state.upserts.slice(n0).some(u => u.video_status === 'Client Approval') || t.state.gateway.slice(gk0).some(x => /client_approval|Client Approval/.test(String(x)))),
       'Approve all answers the rest, then today\'s approve sends the video on to the client');
     ok(!t.errors.length, 'Kasper second layout: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+    // Two trial cards whose tiles look the same (same versions, same poster): the tiles act on the card on screen (Codex
+    // on PR 2366: the drawn tiles kept the first card's handlers).
+    t = await start('kasper', true, fresh(), { layout2: true, cards: ['rs1', 'rs3'] });
+    await inS(t.page, '#qlList [data-id="rs3"]').click();
+    await sleep(1500);
+    if (!(await inS(t.page, '.trk-v [data-trk-ok="B"]').count())) { await t.page.evaluate(() => window.dispatchEvent(new Event('focus'))); await sleep(1500); }
+    const a0 = t.T.calls.length;
+    await inS(t.page, '.trk-v [data-trk-ok="B"]').click();
+    await waitFor(async () => t.T.calls.slice(a0).some(c => c.action === 'answer'));
+    const asked = t.T.calls.slice(a0).find(c => c.action === 'answer') || {};
+    ok(asked.post_id === 'rs3' && asked.letter === 'B', "a second trial card with the same tiles: its tile's Approve answers that card, not the first (" + asked.post_id + ')');
     await t.ctx.close();
 
     // ---------- Kasper's Review Session ----------

@@ -235,6 +235,28 @@ ok(cwRows.length === 1 && cwRows[0].letter === "C" && cardWins.body.main_letter 
 const staffWins = await step({ action: "read" });
 ok(((staffWins.body.versions || []) as Row[]).find((r) => r.letter === "A")?.status === "lost", "staff see Video A as lost, as the card says");
 
+// A card the AI editor has not logged (found live, 2026-10-27): SyncView adds its versions itself.
+tables.calendar_posts.push({ id: "p4", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "https://f.io/p4-main", video_deliverable_id: null });
+tables.calendar_posts.push({ id: "p5", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "", video_deliverable_id: null });
+const p4 = () => tables.studio_trial_versions.filter((r) => r.post_id === "p4");
+await step({ action: "switch_set", enabled: true, post_id: "p4" });
+ok(p4().length === 1 && p4()[0].letter === "A" && p4()[0].frame_url === "https://f.io/p4-main" && p4()[0].batch === "p4" && p4()[0].video === "card",
+  "a card switched on with no version starts with Video A, the link it already carries");
+const addB = await step({ action: "version_add", post_id: "p4", link: "https://f.io/p4-b" }, "creative");
+ok(addB.body.ok === true && p4().some((r) => r.letter === "B" && r.frame_url === "https://f.io/p4-b" && r.status === "waiting")
+  && ((addB.body.versions || []) as Row[]).length === 2, "version_add adds Video B with its link (an editor's key may), and answers the two versions");
+const addDup = await step({ action: "version_add", post_id: "p4", link: "https://f.io/p4-b" });
+ok(addDup.status === 400 && addDup.body.error === "link_used_by_another_version", "a link another version already has is refused");
+const addClient = await step({ action: "version_add", post_id: "p4", link: "https://f.io/p4-c" }, "client-token");
+ok(addClient.status === 403 && p4().length === 2, "a client link cannot add a version");
+await step({ action: "switch_set", enabled: true, post_id: "p5" });
+const addFirst = await step({ action: "version_add", post_id: "p5", link: "https://f.io/p5-a" });
+ok(addFirst.status === 409 && addFirst.body.error === "attach_first" && !tables.studio_trial_versions.some((r) => r.post_id === "p5"),
+  "with no link on the card, the first version waits until the card carries its link (the page saves it first)");
+tables.calendar_posts.find((r) => r.id === "p5")!.asset_url = "https://f.io/p5-a";
+const addFirst2 = await step({ action: "version_add", post_id: "p5", link: "https://f.io/p5-a" });
+ok(addFirst2.body.ok === true && (addFirst2.body.changed as string[])[0] === "A", "then Video A is added");
+
 console.log(`trial-reels-function-deno: ${passed} checks passed` + (failures.length ? `, ${failures.length} FAILED` : ""));
 await db.shutdown();
 if (failures.length) Deno.exit(1);

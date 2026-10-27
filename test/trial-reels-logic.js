@@ -152,6 +152,13 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   ok(L.mainLetter(picked, '') === 'A' && L.undoWinnerPatches(L.settleWinner(studioWin, null), A_LINK, {}).error === 'no_winner', 'the version on the card and Undo follow the card\'s letter only');
   ok(studioWin[1].status === 'winner', 'settleWinner leaves the rows as read (it returns copies)');
 
+  // A version added from SyncView (found live, 2026-10-27: a card the AI editor had not logged had nowhere to paste).
+  ok(L.ACTIONS.includes('version_add') && L.staffAllows('creative', 'version_add') && !L.staffAllows('automation', 'version_add'), 'version_add: admin, SMM and an editor; never the automation key');
+  ok(L.addVersion([], 'https://f.io/x', 'https://f.io/x').letter === 'A' && L.addVersion([], 'https://f.io/x', '').error === 'attach_first', 'the first version is the one on the card, so the card must carry its link first');
+  ok(L.addVersion([v('A'), v('B', { status: 'dropped' })], 'https://f.io/new', A_LINK).letter === 'C', 'the next free letter, dropped ones included');
+  ok(L.addVersion([v('A')], A_LINK, A_LINK).error === 'link_used_by_another_version' && L.addVersion([v('A')], '', A_LINK).error === 'version_has_no_link' && L.addVersion([v('A')], 'http://f.io/x', A_LINK).error === 'link_not_https', 'a link another version has, no link, or not https: refused');
+  ok(L.addVersion(['A', 'B', 'C', 'D', 'E', 'F', 'G'].map(l => v(l, { frame_url: 'https://f.io/' + l })), 'https://f.io/h', A_LINK).error === 'no_letter_left' && L.addVersion([v('A', { status: 'on trial' })], 'https://f.io/n', A_LINK).error === 'version_on_trial', 'seven at most, and none once the trial has started');
+
   // The function and the migration, read as source
   const src = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'trial-reels', 'index.ts'), 'utf8');
   const code = src.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');

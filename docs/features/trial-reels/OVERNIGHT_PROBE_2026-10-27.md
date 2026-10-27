@@ -26,6 +26,11 @@ The two harnesses (lost-work-lib for the staff Calendar and Production; the revi
 the client) serve the same card, p_t1 with sub-issue del_vid_1. The card's status, link and notes are handed over at each
 step, and one in-memory backend follows `index.ts` step by step.
 
+**Full run at 05:45 UTC on build 7 (0760719), every trial reels suite:** race 15/15, one-live 4/4, change-naming 6/6,
+link-guard 4/4, journey 90/90, review 53/53, card 58/58, Production 24/24, Notes 19/19, probe-logic 10/10, logic 95/95,
+probe-deno 7/7, function-deno 43/43. Trials adopted the probe's race, change-naming, link-guard and journey tests into
+its own stack (they run from build 2 and build 4).
+
 ## FOUND
 
 Status at Trials is as of the last retest on build 6.

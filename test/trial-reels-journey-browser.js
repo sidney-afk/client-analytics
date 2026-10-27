@@ -86,6 +86,7 @@ const DID = 'del_vid_1';
     else if (CLIENT_ACTIONS.includes(action)) principal = { kind: 'client', actor: 'client:' + client, role: 'client' };
     else return refuse(401, 'credentials_required');
     if (principal.kind === 'client' && !CLIENT_ACTIONS.includes(action)) return refuse(403, 'staff_only');
+    if (principal.kind === 'staff' && L.staffAllows && !L.staffAllows(principal.role, action)) return refuse(403, 'role_not_allowed');
     // assertSwitchOn
     if (!L.flagAllows({ clients: W.flagClients }, client)) return refuse(403, 'not_enabled');
     if (!TEST_SLUGS.includes(client)) return refuse(404, 'card_not_found');
@@ -149,11 +150,11 @@ const DID = 'del_vid_1';
       if (r.error) return refuse(400, r.error);
       changes = r.patches;
     } else if (action === 'winner_set') {
-      r = L.winnerPatches(W.versions, letter, mainLink());
+      r = L.winnerPatches(W.versions, letter, mainLink(), { nowMs: Date.now(), cardStatus: card.video_status });
       if (r.error) return refuse(r.error === 'attach_first' ? 409 : 400, r.error);
       changes = r.patches;
     } else if (action === 'winner_undo') {
-      r = L.undoWinnerPatches(W.versions, mainLink());
+      r = L.undoWinnerPatches(W.versions, mainLink(), { cardStatus: card.video_status });
       if (r.error) return refuse(r.error === 'attach_first' ? 409 : 400, r.error);
       changes = r.patches;
     }
@@ -590,6 +591,10 @@ const DID = 'del_vid_1';
     await page.close();
     oneLink('9 posted');
     noWritesSince(w9, '9 posting is today\'s path; the trial wrote nothing');
+    // Once posted, the winner stands: neither Undo nor another pick moves the card's link.
+    const late = [trialReels({ action: 'winner_undo', client: RS.SLUG, post_id: PID }, { 'x-syncview-key': 'qa-key' }),
+      trialReels({ action: 'winner_set', client: RS.SLUG, post_id: PID, letter: 'A' }, { 'x-syncview-key': 'qa-key' })];
+    ok(late.every(r => r.status >= 400) && V('E').status === 'winner' && W.writes.length === w9, `9 posted: Undo and another pick are refused (${late.map(r => r.status + ' ' + r.body.error).join(', ')})`);
 
     // ============ 10. switch the card off; a client the page switch does not list ============
     page = await openCal();

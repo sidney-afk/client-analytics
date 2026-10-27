@@ -14,7 +14,7 @@ const tables: Record<string, Row[]> = {
   studio_trial_versions: ["A", "B", "C", "D", "E"].map((l, i) => ({
     id: "v" + l, client: "fixtureclient", batch: "Fixture batch", video: "7", letter: l, hook: "Fictional hook " + l, status: "on trial",
     post_id: "p1", frame_url: LINK(l), revision: 0, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, change_by: null, change_note: null,
-    change_at: null, posted_at: "2026-10-26T09:00:00.000Z", trial_ends_at: "2026-10-27T09:00:00.000Z", updated_at: "2026-10-27T09:00:0" + i + ".000Z",
+    change_at: null, posted_at: new Date(Date.now() - 25 * 3600000).toISOString(), trial_ends_at: new Date(Date.now() - 3600000).toISOString(), updated_at: "2026-10-27T09:00:0" + i + ".000Z",
   })),
   trial_reel_cards: [{ client: "fixtureclient", post_id: "p1", enabled: true, winner_letter: null }],
   calendar_post_events: [],

@@ -110,6 +110,9 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   ok(s2.versions.length === 1 && s2.versions[0].letter === 'C', 'once a winner is picked, a client link sees only the winner (owner, Q8)');
   const s3 = L.readShape([v('A', { frame_url: 'https://f.io/old-a' }), v('B')], { client: false, mainLink: A_LINK, cardStatus: 'Client Approval' });
   ok(s3.versions[0].frame_url === A_LINK && s3.versions[0].on_card && s3.main_copy_behind, "for the version on the card the link shown is the card's own, and a lagging copy is flagged");
+  ok(s3.main_url === 'https://f.io/old-a' && !('main_url' in s1), "staff also learn the main version's own stored link (what a refused pick puts the card back to); a client link does not");
+  const s3w = L.readShape([v('A', { status: 'lost' }), v('C', { status: 'winner', frame_url: 'https://f.io/fixture-c' }), v('D', { status: 'lost', frame_url: 'https://f.io/fixture-d' })], { client: false, mainLink: 'https://f.io/fixture-d', cardStatus: '' });
+  ok(s3w.main_url === 'https://f.io/fixture-c', "a card left on a refused pick's link still names the winner's own link to go back to (Probe bug 9)");
   const s4 = L.readShape([v('A', { status: 'approved' })], { client: false, mainLink: A_LINK, cardStatus: 'Client Approval' });
   ok(s4.card_behind === true, 'every version answered but the card not Approved: card_behind, so the page sends today\'s approve again');
   const rows = L.ledgerRows('fixtureclient', 'p1', [{ id: 'x', letter: 'C', from: 'waiting', patch: { status: 'change asked' } }], { actor: 'staff:smm', role: 'smm' }, NOW, 'change');

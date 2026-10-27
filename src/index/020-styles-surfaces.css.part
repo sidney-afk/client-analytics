@@ -1773,7 +1773,7 @@
         .cal-link-post .trl-sw-slot:hover, .cal-link-post .trl-chev:hover, .cal-link-post .trl-state-ico:hover { background: var(--sv-slot-video-bg-hover); }
         .cal-link-post.trl-main .cal-link-pill-open { flex: 0 1 auto; }
         .cal-link-post .trl-sw { position: relative; display: block; width: 22px; height: 12px; border-radius: 999px; background: color-mix(in srgb, currentColor 22%, transparent); }
-        .cal-link-post .trl-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--sv-bg-fff); box-shadow: 0 0 0 .5px var(--border); transition: left .15s; }
+        .cal-link-post .trl-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--sv-knob); box-shadow: 0 0 0 .5px var(--border); transition: left .15s; }
         .cal-link-post .trl-sw-slot.on .trl-sw { background: color-mix(in srgb, currentColor 40%, transparent); }
         .cal-link-post .trl-sw-slot.on .trl-sw::after { left: 12px; }
         .cal-link-post .trl-sw-slot:not(.on) { opacity: .45; }
@@ -1819,7 +1819,9 @@
         .prod-asset-row.trl-prod-v { grid-template-columns: minmax(125px, .8fr) minmax(150px, 1.4fr) 112px auto; }
         .prod-asset-row.trl-prod-v .prod-asset-state { justify-self: start; }
         .trl-prod-v .prod-asset-value { display: flex; align-items: center; gap: 8px; }
-        .trl-prod-v .prod-asset-value > a { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+        /* The link or text gives way (ellipsis); the version's labels stay whole (Probe E10: a long "Not readable
+           until…" pushed "on the card" under the state pill). */
+        .trl-prod-v .prod-asset-value > a, .trl-prod-v .prod-asset-value > span:not(.trl-lab):not(.trl-oncard):not(.prod-asset-skeleton) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .trl-prod-v .trl-lab { flex: none; border-radius: 999px; padding: 1px 7px; font-size: 10px; font-weight: 700; white-space: nowrap;
             background: var(--cal-status-n-a-bg); color: var(--cal-status-n-a-fg); }
         .trl-prod-v .trl-oncard { flex: none; font-size: 11px; font-weight: 600; color: var(--prod-strong); }

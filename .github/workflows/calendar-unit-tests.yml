@@ -482,6 +482,8 @@ jobs:
           Trial reels in Production's Assets: one Deliverable file row per version, its state and its Edit|node test/trial-reels-production-browser.js
           Trial reels on the review page: Video B of 5, one version at a time, today's saves once a stage is done|node test/trial-reels-review-browser.js
           Trial reels in the Notes view: a version switch under the player, its Frame.io comments, notes that name it|node test/trial-reels-notes-browser.js
+          Trial reels: two staff picking a winner at once never leave the card on another version's link|node test/trial-reels-race-browser.js
+          Trial reels: a change is about the version it was asked on, and Approve after tweaks names it|node test/trial-reels-change-naming-browser.js
           LANES
 
 

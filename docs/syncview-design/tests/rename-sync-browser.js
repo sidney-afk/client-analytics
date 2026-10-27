@@ -96,9 +96,18 @@ function mockBackend(page, state) {
         const input = { dataset: { pid: 'k1', fld: 'name' }, value: 'Client rename' };
         _calOnFieldInput(input);
         _calOnFieldBlur(input);
-        const caption = { dataset: { pid: 'k1', fld: 'caption' }, value: 'Client caption' };
-        _calOnFieldInput(caption);
+        // Owner, 2026-10-27: in Collaborative mode a client may type the caption on an existing card (the call to action
+        // stays read only); with it off the caption is read only too (owner, 2026-10-18).
+        window._calIsCollabOn = () => true;
+        _calOnFieldInput({ dataset: { pid: 'k1', fld: 'caption' }, value: 'Client caption' });
+        _calOnFieldInput({ dataset: { pid: 'k1', fld: 'cta' }, value: 'Client cta' });
+        const collabCaptionQueued = !!(_calPendingEdits.k1 && _calPendingEdits.k1.caption === 'Client caption');
+        const collabCtaQueued = !!(_calPendingEdits.k1 && 'cta' in _calPendingEdits.k1);
+        delete _calPendingEdits.k1;
+        window._calIsCollabOn = () => false;
+        _calOnFieldInput({ dataset: { pid: 'k1', fld: 'caption' }, value: 'Client caption' });
         return {
+          collabCaptionQueued, collabCtaQueued,
           isClient: _isClientLink,
           readonly: /data-fld="name"[^>]*readonly/.test(html),
           blankReadonly: /data-fld="name"[^>]*readonly/.test(blankHtml),
@@ -112,7 +121,9 @@ function mockBackend(page, state) {
       ok(!r.blankReadonly, 'client: a new blank card can still be named');
       ok(!r.marker, 'client: no name-syncing marker');
       ok(!r.nameQueued, 'client: a direct handler call cannot queue a rename');
-      ok(!r.captionQueued, 'client Collab: a caption is read only too (owner, 2026-10-18), so a direct handler call queues nothing');
+      ok(r.collabCaptionQueued, 'client Collab on: a caption typed on an existing card is queued (owner, 2026-10-27)');
+      ok(!r.collabCtaQueued, 'client Collab on: the call to action stays read only, so a direct handler call queues nothing');
+      ok(!r.captionQueued, 'client Collab off: the caption is read only (owner, 2026-10-18), so a direct handler call queues nothing');
       await page.close();
     }
 

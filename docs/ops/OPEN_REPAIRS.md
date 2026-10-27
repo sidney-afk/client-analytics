@@ -34550,6 +34550,37 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **The change (test only).** The fixture and the page now share one clock: `fixtureNow` defaults to noon UTC today, the messages are stamped from it, and the browser's clock is installed at the same moment (`ctx.clock.install`), with the browser zone set to UTC. New section M pins the clock near midnight and checks the day lines: 23:59:59 UTC held still reads Today; 00:00:01 UTC reads Yesterday; 00:22 UTC reads Yesterday, Today; 00:22 local in Los Angeles reads Yesterday, Today; 17:22 local in Los Angeles (UTC already on the next day) reads Today, which would fail if the page grouped by UTC day. Nothing was skipped or weakened; the H check still asks for "Today" only.
 - **Way back:** revert the pull request.
 
+## 514. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels, build PR 1 of 5: the trial-reels function and its migration (session Trials)
+
+- **What:** the SyncView half's backend, per the approved plan (#2352, OPEN_REPAIRS 513). One migration (`supabase/migrations/20261027090000_trial_reels.sql`) adds SyncView's settled columns to the studio's `studio_trial_versions` and creates `trial_reel_cards`; one new Edge Function (`trial-reels`) with the actions read, switch_set, version_link_set, version_drop, version_restore, answer, trial_start, winner_set and winner_undo (for the Undo toast).
+- **What it never does:** write the card's status (the page calls today's saves), write the card's one link (`file_url` / `asset_url` stay today's Production attach; for the version on the card the function only copies a link the card already carries), or touch a Section 4 function, the drift robot or the projection triggers.
+- **Switch:** `trial_reels_pages` (test client only), read by the function on every request; missing or the wrong shape is off.
+- **Proven:** `node test/trial-reels-logic.js` (60 checks) and the real function under Deno against an in-memory database, `test/trial-reels-function-deno.ts` (27 checks, run by the Edge Function type ratchet lane); `deno check` clean; the migration revokes all four roles and reads them back.
+- **Held on merge** until the migration is applied (its first line says how to tell). Nothing shows on any page until build PR 2.
+
+**Way back:** revert the PR. If the migration was applied: `drop table public.trial_reel_cards;` and drop the added columns (listed in the file's rollback note).
+
+## 529. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: the team may drop the version on the card (default (c), awaiting the owner, session Trials)
+
+- **What:** the version "on the card" was always Video A until a winner, so A could never be dropped. Now:
+  - "on the card" is the winner, else the live version whose link the card carries, else the first live one;
+  - dropping the version on the card is refused with `attach_first` (409) until today's attach has put the next live version's link on the card (the page does that first). After that, the old one drops like any other;
+  - the last live version cannot be dropped (`last_live_version`);
+  - Undo of a winner puts back the first live version, which is Video A unless A was dropped.
+- **Function:** `trial-reels` logic and index (`dropPatch` takes the card's link). No migration, not a Section 4 function.
+- **Proven:** `node test/trial-reels-logic.js` (79 checks), the Deno function test (33).
+
+**Way back:** revert the commit (the old rule: A, or the winner, is always the one on the card and cannot be dropped).
+
+## 531. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: "New cut ready" on a version asked to change (default (b), awaiting the owner, session Trials)
+
+- **Why:** Frame.io keeps one link across new uploads, so an editor's new cut of a version asked to change often arrives at the SAME link, and pasting it again could not restart the version (probe P1). Approve was not overloaded for this.
+- **What:** a new `trial-reels` action, `version_new_cut`, only on a version with a change asked and a link. Like a new link, it puts revision up, clears every OK and the change, and sets `waiting`, so the SMM and Kasper review it again before the client (Q3). An editor's key may use it, like pasting a link; dropping, the trial and the winner stay the SMM's or an admin's. It is recorded in the card's history as `trial_version_new_cut`.
+- **Where (card, build 2):** in the version row's hover tools, beside the pencil. No new control shows until the row is hovered.
+- **Proven:** `node test/trial-reels-logic.js` (82 checks), the Deno function test (35).
+
+**Way back:** revert this commit and the card's.
+
 ## 519. [2026-10-27 UTC, BUILT, NOT MERGED] The Frame.io-comments-in-Notes browser test went red on main: it sampled "before paint" from outside the page (session Framenotes)
 
 - **What went red.** On main 577e593, Calendar unit tests > entry-links-boot (1) failed in `test/frame-comments-in-notes-browser.js` (entry 512): `FAIL phone: opening Notes sends no Frame.io request before the dialog has painted (1)`. Everything else passed, including the desktop version of the same check, and it had passed on #2347's own CI.

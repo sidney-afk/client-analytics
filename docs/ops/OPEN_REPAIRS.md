@@ -34580,3 +34580,16 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-logic.js` (82 checks), the Deno function test (35).
 
 **Way back:** revert this commit and the card's.
+
+## 519. [2026-10-27 UTC, BUILT, NOT MERGED] The Frame.io-comments-in-Notes browser test went red on main: it sampled "before paint" from outside the page (session Framenotes)
+
+- **What went red.** On main 577e593, Calendar unit tests > entry-links-boot (1) failed in `test/frame-comments-in-notes-browser.js` (entry 512): `FAIL phone: opening Notes sends no Frame.io request before the dialog has painted (1)`. Everything else passed, including the desktop version of the same check, and it had passed on #2347's own CI.
+- **Cause: the test, not the page.**
+  - The page sends the Frame.io comments read two animation frames after Notes draws, then one task later (`raf(raf(setTimeout))` in 187). It never sends it earlier.
+  - The test opened Notes in one page call, then made a second page call that waited one frame, and only then counted the requests its route stand-in had seen. The time between those two calls belongs to the test process, not the page. On a runner busy with three lanes, that time can exceed two frames, so the read the page sent correctly after its first paint was counted as "before paint".
+  - Reproduced: with a 120 ms pause in the test process between the two calls (`FRAME_NOTES_SAMPLE_LAG=120`), desktop and phone both fail on main. CPU throttling alone (`FRAME_NOTES_CPU_THROTTLE=6` or `12`) does not reproduce it, because it slows the page and its frames equally.
+- **Fix (test only, no page change).** The page now counts its own frames from the moment Notes opens: a frame counter starts in the same task as `openCalComments`. Every `frameio-view` request records the frame it was sent in. The check is that the first request goes out in frame 2 or later. Frame 1's callback runs before the first paint, so frame 2 is after it. Nothing is sampled from the test process any more.
+  - It still catches the fault it is for: with the page changed to send the read at once (a temporary mutant), both checks fail, sent in frame 0.
+  - The real page sends in frame 2, and passes with `FRAME_NOTES_SAMPLE_LAG=120`, and with that plus `FRAME_NOTES_CPU_THROTTLE=6`.
+  - The two proof knobs stay in the test, documented, and are off by default.
+- **Way back:** revert the pull request.

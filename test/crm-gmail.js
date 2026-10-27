@@ -12,6 +12,7 @@ ok(/if \(!\(await serverKeyOk\(req\)\)\) return json\(\{ ok: false, error: "unau
 ok(/const MAILBOX = "kasper@" \+ OWN_DOMAIN;/.test(src) && /token\(creds, mailbox\)/.test(src) && /const mailbox = MAILBOX;/.test(src) && !/body\.mailbox|CRM_GMAIL_MAILBOX|sub: body/.test(src), 'acts only as the one fixed mailbox, never one from a request or secret');
 ok(!/console\.(log|error|warn)\([^)]*(email|recipients|people|\.name)/.test(src), 'never logs an address or name');
 ok(/endsWith\("@" \+ OWN_DOMAIN\)/.test(src), 'skips our own domain');
+ok(/if \(!m\) \{ failed\+\+; continue; \}/.test(src) && /failed, complete: failed === 0/.test(src), 'a failed message read is counted and the result says it is incomplete');
 // parseAddresses, run on its own.
 const fnSrc = src.slice(src.indexOf('export function parseAddresses'), src.indexOf('async function sentRecipients'))
   .replace('export function', 'function').replace(/: \{ email: string; name: string \}\[\]/g, '').replace(/\(header: string\)/, '(header)');

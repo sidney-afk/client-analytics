@@ -123,11 +123,12 @@ async function sentRecipients(tok: string, body: Record<string, unknown>) {
   }
   const people = new Map<string, { email: string; name: string; count: number; first: string; last: string }>();
   const list = ids.slice(0, cap);
+  let failed = 0;
   for (let i = 0; i < list.length; i += 20) {
     const batch = await Promise.all(list.slice(i, i + 20).map((id) =>
       gmail(tok, `/messages/${id}?format=metadata&metadataHeaders=To&metadataHeaders=Cc`).catch(() => null)));
     for (const m of batch) {
-      if (!m) continue;
+      if (!m) { failed++; continue; }
       if (afterMs && (Number(m.internalDate) || 0) < afterMs) continue;
       const when = new Date(Number(m.internalDate) || 0).toISOString();
       const hs: any[] = (m.payload && m.payload.headers) || [];
@@ -144,7 +145,7 @@ async function sentRecipients(tok: string, body: Record<string, unknown>) {
       }
     }
   }
-  return { ok: true, messages: list.length, truncated: ids.length >= cap, recipients: [...people.values()].sort((a, b) => b.last.localeCompare(a.last)) };
+  return { ok: true, messages: list.length, failed, complete: failed === 0 && ids.length < cap, truncated: ids.length >= cap, recipients: [...people.values()].sort((a, b) => b.last.localeCompare(a.last)) };
 }
 
 Deno.serve(async (req) => {

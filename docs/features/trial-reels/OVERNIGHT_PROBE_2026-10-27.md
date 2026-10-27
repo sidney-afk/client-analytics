@@ -5,7 +5,7 @@ and fixes what is found; this session built nothing in the feature. Everything r
 no live writes. The plan is `docs/features/TRIAL_REELS_PLAN.md` (PR #2352). The tests are on branch
 `test/trial-reels-journey`, draft PR **#2365**, stacked on build 6. **Do not merge it; the owner holds every trial reels merge.**
 
-Builds tested: build 5 at `b76a6e31b` (start of the night), build 6 at `1685d4eaa`, builds 2 to 4 one by one as their fixes landed, and build 6 at `797b19b` (04:15 UTC, every fix carried up the stack).
+Builds tested: build 5 at `b76a6e31b` (start of the night), build 6 at `1685d4eaa`, builds 2 to 4 one by one as their fixes landed, build 6 at `797b19b` (04:15 UTC, every fix carried up the stack), and build 7 at `152136d` (the client-link player, 04:25 UTC).
 
 ## DONE (verified, pushed)
 
@@ -17,7 +17,7 @@ Builds tested: build 5 at `b76a6e31b` (start of the night), build 6 at `1685d4ea
 | One live version (bug 6), on the client review page | `test/trial-reels-one-live-browser.js` | 4 / 4 (2 failed on build 5) |
 | Two staff pick a winner at once (bug 9) | `test/trial-reels-race-browser.js` (adopted by Trials, 3 races) | **15 / 15** on 797b19b |
 | A change belongs to the version it was asked on; Kasper's "Approve after tweaks" (bugs 10, 10b, 11) | `test/trial-reels-change-naming-browser.js` (adopted by Trials) | **6 / 6** on 797b19b |
-| A refused link on the version on the card (bug 12, second pass) | `test/trial-reels-link-guard-browser.js` | **1 / 3: open** on 797b19b |
+| A refused link on the version on the card (bug 12, second pass) | `test/trial-reels-link-guard-browser.js` (bug 12 and 12b) | **1 / 4: open** on 152136d |
 | Each stacked branch (builds 1 to 5) builds with `npm run build:index` | — | all clean |
 | Trials' own suites (card, Production, review, Notes, function) on build 5, in dark and light | — | all pass |
 | The eyes pass. Card, Production, the review page (client, SMM, Kasper, winner) and Notes, at 1440 and 390, dark first, compared with `real/` and `mock-*` | screenshots kept outside the repo (fictional data) | divergences below |
@@ -45,7 +45,7 @@ Status at Trials is as of the last retest on build 6.
 | 10 | A change is named for the version on screen **when it is sent**, not the one it was asked on. Any composer, plain client link included: change opened on C, a look at D, then send, marks D and the request reads "Video D: …" (the client-polish queue widens the window) | 195 :3028 wrapper then 194 svTrialReviewChangeText | **fixed on build 4** (4818a37), verified (client scenario passes) |
 | 10b | Build 6: a Kasper tile's "Ask for a change" is named for whichever tile is on stage when it is sent | 194 svTrialReviewBindTiles | **fixed**, verified on 797b19b |
 | 12 | A refused link on the version on the card (another version's link pasted on A; the winner's pencil after the pick) lands on the card through today's attach anyway, and the page says "did not save" | 189 svTrialLinkSave | **half-fixed** on 797b19b: the new rule (on the card = the live version whose link the card carries) keeps the display consistent, but the card still moves (B silently goes on the card) while the page says it did not save; the winner case is unchanged |
-| 12b | Dropping the version on the card (new on 797b19b) attaches the next version first; a refused drop leaves the card moved while the page says "not dropped" | 189 svTrialDrop | **open** (traced) |
+| 12b | Dropping the version on the card (new on 797b19b) attaches the next version first; a refused drop leaves the card moved while the page says "not dropped" | 189 svTrialDrop | **open**, proven in a browser on 152136d (A stays waiting, the card is on B) |
 | E10 | Production: a long value on today's Deliverable file row clips "on the card" under the state pill | 245 / Production asset row CSS | **fixed** (ce0ef56: the text ellipsizes, labels stay whole; Trials' test covers it) |
 | E11 | Test gap: Trials' Production test answers the asset read without `id`, `client_slug` and `team`, so today's row is never read there | test/trial-reels-production-browser.js | **fixed** (ce0ef56), verified: today's row reads "Open link · on the card · Available" |
 
@@ -60,13 +60,13 @@ Status at Trials is as of the last retest on build 6.
 | E2 | The dots carry no letter (plan and mock: letter dots) | **fixed on build 4**, seen |
 | E3 | Phone: arrows instead of swipe (plan §5, mock "No arrows: swipe"); the bar wraps to 104 px; the current dot's 36 px ring is heavy | **fixed on build 4** (swipe bound, "Swipe for the next version", no arrows at 390) |
 | E4 | "Approve all" sits inside the bar; the mock has "Approve all (5 waiting)" in the footer | **fixed on build 4**, seen |
-| E5 / K6 | "Finish reviewing" counts parts, not versions (plan §5) | **E5 fixed on build 4** (versions plus the other parts); K6 (Kasper layout 2) waits for build 6 |
+| E5 / K6 | "Finish reviewing" counts parts, not versions (plan §5) | **E5 fixed on build 4** (versions plus the other parts); K6 fixed on build 6 ("0 of 6": five versions and the caption) |
 | E6 | Button words: plan and mock say "Approve this version"; the SMM and Kasper buttons do not name the version they approve | open |
-| E7 / K3 | The player badge reads "Video", not "Video C" (R3) | **E7 fixed on build 4**, seen; K3 waits for build 6 |
-| E1b | Builds 4 to 6 (still on 797b19b): on the client link, the new side arrows are clipped (`.view.novid{overflow:hidden}`) whenever the version on stage has no player, which is every version but the card's own: invisible and not pressable. Fine on the SMM page | **open**, measured (sent 03:2x) |
+| E7 / K3 | The player badge reads "Video", not "Video C" (R3) | **E7 fixed on build 4**, seen; K3 fixed on build 6, seen |
+| E1b | Builds 4 to 6 (still on 797b19b): on the client link, the new side arrows are clipped (`.view.novid{overflow:hidden}`) whenever the version on stage has no player, which is every version but the card's own: invisible and not pressable. Fine on the SMM page | **fixed by build 7** (152136d: the client link plays every version in place, so the arrows are no longer clipped), measured |
 | E8 | The card switch knob is dark in dark mode (`var(--sv-bg-fff)` flips); the approved pictures show a light knob | **fixed** (126e26f, `--sv-knob`), seen in a dark screenshot |
-| K2 | Kasper layout 2: tile Approves plus the video part's own Approve and Ask for change under the player (two Approves, visual noise) | open |
-| K4, K5 | Kasper layout 2: Approve all's place and style; the "5 versions" line in the left list | open |
+| K2 | Kasper layout 2: tile Approves plus the video part's own Approve and Ask for change under the player (two Approves, visual noise) | **fixed** (d2b0148), seen on 152136d: no second Approve under the player, "Frame tweaks · Video A" names the version |
+| K4, K5 | Kasper layout 2: Approve all's place and style; the "5 versions" line in the left list | **fixed** (d2b0148), seen: outlined "Approve all" top-right, "5 versions" in the list (cut to "5 versi…" beside a long client name at 1440: small, owner taste) |
 
 Held, with no finding: client_ok on a dropped version (refused), the on-card version can't be dropped, the client link
 can't do any staff action, the card switch off refuses every version write, an unlisted client is refused, no hook text

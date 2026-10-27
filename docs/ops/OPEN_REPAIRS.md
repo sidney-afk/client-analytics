@@ -34594,7 +34594,7 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert the PR; with the switch off nothing shows.
 
-## 519. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels, build PR 5 of 5: the version switch in the Notes view (session Trials)
+## 536. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels, build PR 5 of 5: the version switch in the Notes view (session Trials)
 
 - **What:** with more than one version linked, the Notes view's player plays one version, picked in a small "Video A B C D E" switch under it (beside Open in Frame.io; at 390 a slim bar of its own under the player, because the player's own buttons sit over the video there). The Frame.io comments follow the version on screen. The title reads "Test card · Video C" and the "About the…" switch says "Video C". A note about the video written while C is on screen starts "Video C:" (owner: a note written while C is on screen is about Video C). Staff only, behind `trial_reels_pages`. Once a winner is picked: today's player, no switch. Code in `189` (reusing the card's own read of the versions), hooked into `190` (the Notes stage, its Frame.io comments, the title, the "About the…" switch, the quiet line and the send).
 - **Proven:** `node test/trial-reels-notes-browser.js` (17 checks, desktop and 390), frame-comments-in-notes-browser, frameio-viewer-browser, lost-work-drafts-browser, staff-calendar-expanded-browser, prod-write-gateway-browser, check-modules and check-lazy-safety.
@@ -34745,3 +34745,24 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-review-browser.js` (52 checks, with a refused tile drop), and the other trial suites on this build.
 
 **Way back:** revert the merge's tile change in 194 (svTrialReviewDrop).
+
+## 519. [2026-10-27 UTC, BUILT, NOT MERGED] The Frame.io-comments-in-Notes browser test went red on main: it sampled "before paint" from outside the page (session Framenotes)
+
+- **What went red.** On main 577e593, Calendar unit tests > entry-links-boot (1) failed in `test/frame-comments-in-notes-browser.js` (entry 512): `FAIL phone: opening Notes sends no Frame.io request before the dialog has painted (1)`. Everything else passed, including the desktop version of the same check, and it had passed on #2347's own CI.
+- **Cause: the test, not the page.**
+  - The page sends the Frame.io comments read two animation frames after Notes draws, then one task later (`raf(raf(setTimeout))` in 187). It never sends it earlier.
+  - The test opened Notes in one page call, then made a second page call that waited one frame, and only then counted the requests its route stand-in had seen. The time between those two calls belongs to the test process, not the page. On a runner busy with three lanes, that time can exceed two frames, so the read the page sent correctly after its first paint was counted as "before paint".
+  - Reproduced: with a 120 ms pause in the test process between the two calls (`FRAME_NOTES_SAMPLE_LAG=120`), desktop and phone both fail on main. CPU throttling alone (`FRAME_NOTES_CPU_THROTTLE=6` or `12`) does not reproduce it, because it slows the page and its frames equally.
+- **Fix (test only, no page change).** The page now counts its own frames from the moment Notes opens: a frame counter starts in the same task as `openCalComments`. Every `frameio-view` request records the frame it was sent in. The check is that the first request goes out in frame 2 or later. Frame 1's callback runs before the first paint, so frame 2 is after it. Nothing is sampled from the test process any more.
+  - It still catches the fault it is for: with the page changed to send the read at once (a temporary mutant), both checks fail, sent in frame 0.
+  - The real page sends in frame 2, and passes with `FRAME_NOTES_SAMPLE_LAG=120`, and with that plus `FRAME_NOTES_CPU_THROTTLE=6`.
+  - The two proof knobs stay in the test, documented, and are off by default.
+- **Way back:** revert the pull request.
+
+## 537. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels on the review page: a version already approved still offered Approve (Probe rule-miss 14, session Trials)
+
+- **What:** on a version this reviewer had already approved, the button still read "Approve Video A", and pressing it only stamped the OK again. The row now shows the approved state ("Video A approved"), as today's page shows an answered part.
+- **Not built:** a "Change my mind" on an approved version (the function only takes a change on a version still waiting). That is the owner's call.
+- **Proven:** `node test/trial-reels-review-browser.js` (41 checks; the new check fails without the fix), trial-reels-journey-browser (90), trial-reels-change-naming-browser, review-stage-browser.
+
+**Way back:** revert the commit.

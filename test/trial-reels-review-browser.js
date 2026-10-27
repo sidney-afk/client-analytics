@@ -192,6 +192,14 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     ok(!teamRow.ok && /With the team: the SMM looks at Video B first/.test(teamRow.txt), 'client: on Video B no Approve, only "With the team" (' + teamRow.txt.slice(0, 80) + ')');
     await t.ctx.close();
 
+    // ---------- a version this reviewer already approved shows its approved state (Probe rule-miss 14) ----------
+    t = await start('client', true, fresh({ A: { status: 'approved', client_ok_at: '2026-10-27T08:30:00.000Z' } }));
+    await inS(t.page, '.trv [data-trv-go="A"]').click();
+    await sleep(700);
+    const done = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; return { ok: !!r.querySelector('[data-ok="video"]'), txt: ((r.getElementById('drow') || {}).innerText || '').replace(/\s+/g, ' ') }; });
+    ok(!done.ok && /Video A approved/.test(done.txt), 'client: on a version already approved, "Video A approved", not Approve again (' + done.txt.slice(0, 60) + ')');
+    await t.ctx.close();
+
     // ---------- the client link on a phone: no arrows, swipe the video (Probe E3) ----------
     t = await start('client', true, fresh(), { width: 390, height: 844, context: { hasTouch: true, isMobile: true } });
     b = await bar(t);

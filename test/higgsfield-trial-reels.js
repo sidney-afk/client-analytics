@@ -26,6 +26,7 @@ const dir = path.join(__dirname, '..', 'supabase', 'functions', 'higgsfield-mcp'
     list: async (q) => (missing ? { missing: true } : table.filter((r) => r.client.toLowerCase() === q.client.toLowerCase() && (!q.video || r.video === q.video))),
     get: async (id) => (missing ? { missing: true } : table.find((t) => t.id === id) || null),
     find: async (q) => (missing ? { missing: true } : table.find((t) => key(t) === key(q)) || null),
+    findByPost: async (q) => (missing ? { missing: true } : table.find((t) => t.post_id === q.post_id && t.letter === q.letter) || null),
     update: async (id, patch) => { const r = table.find((t) => t.id === id); if (!r) return null; Object.assign(r, patch); return r; },
   });
   const run = (args, missing) => sa.studioAction({ trials: deps(missing) }, 'trial reels', args);
@@ -70,20 +71,40 @@ const dir = path.join(__dirname, '..', 'supabase', 'functions', 'higgsfield-mcp'
   const id = table[1].id;
   assert.ok(/on trial/.test(await run({ step: 'update', id, status: 'on trial' })));
   assert.ok(table[1].posted_at, 'posted time set');
-  assert.ok(/winner/.test(await run({ step: 'update', id, status: 'winner' })));
+  // The winner is picked only on the SyncView card (Sidney, 2026-10-27).
+  for (const s of ['winner', 'lost', 'no clear winner']) {
+    assert.ok(/SyncView card, never by the studio/.test(await run({ step: 'update', id, status: s })), s + ' refused');
+  }
+  assert.strictEqual(table[1].status, 'on trial', 'status unchanged by a refused winner');
+  assert.ok(/cannot be logged/.test(await run({ step: 'log', rows: [{ client: T, batch: 'B9', video: '1', letter: 'A', status: 'winner' }] })));
+  assert.ok(!/"winner" for one/.test(guide), 'guide no longer tells the SMM to pick the winner here');
   assert.ok(/must be one of/.test(await run({ step: 'update', id, status: 'great' })));
   assert.ok(/Give id/.test(await run({ step: 'update', id: 'x', status: 'lost' })));
   assert.ok(/No trial version/.test(await run({ step: 'update', id: '00000000-0000-0000-0000-000000000099', status: 'lost' })));
 
   // On a card, approvals and change requests belong to SyncView.
   const carded = table[2].id;
-  for (const s of ['approved', 'change asked', 'dropped', 'waiting', 'no clear winner']) {
+  for (const s of ['approved', 'change asked', 'dropped', 'waiting']) {
     assert.ok(/on a SyncView card/.test(await run({ step: 'update', id: carded, status: s })), s + ' refused on a card');
   }
   assert.ok(/on trial/.test(await run({ step: 'update', id: carded, status: 'on trial' })));
   table.push({ id: '00000000-0000-0000-0000-000000000077', client: 'Other Co', letter: 'A', status: 'waiting' });
   assert.ok(/test client/.test(await run({ step: 'update', id: '00000000-0000-0000-0000-000000000077', status: 'lost' })), 'update refuses other clients');
   assert.ok(/Unknown step/.test(await run({ step: 'post' })), 'never posts');
+
+  // SyncView seeds Video A on a card (batch = post_id, video "card"): the studio fills it in, never adds a second A.
+  table.push({ id: '00000000-0000-0000-0000-000000000088', client: T, batch: 'P42', video: 'card', letter: 'A', post_id: 'P42', status: 'approved', hook: null });
+  const before = table.length;
+  const seeded = await run({ step: 'log', rows: [
+    { client: T, batch: 'B7', video: '3', letter: 'A', post_id: 'P42', hook_type: 'original' },
+    { client: T, batch: 'B7', video: '3', letter: 'B', post_id: 'P42', hook: 'A third made-up hook', hook_type: 'question' },
+  ] });
+  assert.ok(/filled in A already on the card/.test(seeded), seeded);
+  assert.strictEqual(table.length, before + 1, 'only B is added');
+  const a = table.find((t) => t.id === '00000000-0000-0000-0000-000000000088');
+  assert.strictEqual(a.status, 'approved', 'the card keeps its status');
+  assert.strictEqual(a.hook_type, 'original');
+  assert.ok(/Nothing new to add; filled in A/.test(await run({ step: 'log', rows: [{ client: T, batch: 'B7', video: '3', letter: 'A', post_id: 'P42' }] })));
 
   // index.ts drops post_id and deliverable_id when SyncView's columns are not there yet.
   const index = fs.readFileSync(path.join(dir, 'index.ts'), 'utf8');

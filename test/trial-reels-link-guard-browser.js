@@ -46,7 +46,11 @@ const LINK = l => 'https://f.io/fixture-guard-' + l.toLowerCase();
     let res = null;
     if (b.action === 'list') return reply({ ok: true, cards: { p_t1: shape() } });
     if (b.action === 'read') return reply(Object.assign({ ok: true }, shape()));
-    if (b.action === 'version_link_set') {
+    if (b.action === 'version_drop' && T.refuseDrop) { T.refuseDrop = false; return reply({ ok: false, error: 'conflict' }, 409); }
+    if (b.action === 'version_drop') {
+      res = L.dropPatch(T.versions, b.letter, false, mainLink());
+      if (!res.error && res.patch) Object.assign(T.versions.find(v => v.letter === b.letter), res.patch);
+    } else if (b.action === 'version_link_set') {
       res = L.linkPatch(T.versions, b.letter, b.link, mainLink());
       if (!res.error && res.patch) Object.assign(T.versions.find(v => v.letter === b.letter), res.patch);
     }
@@ -105,6 +109,20 @@ const LINK = l => 'https://f.io/fixture-guard-' + l.toLowerCase();
     const said2 = await notices(page);
     ok(!(/did not save/.test(said2) && vid.file_url === 'https://f.io/fixture-guard-c-recut'),
       'the winner\'s link: the page never says "did not save" about a link the card now carries (card ' + vid.file_url.replace('https://f.io/fixture-guard-', '…') + '; ' + said2.slice(0, 160) + ')');
+    await page.close();
+
+    // 3. Dropping the version on the card (A): the page moves the card to the next version first; the drop is refused.
+    T.versions.forEach(v => { v.status = 'waiting'; v.frame_url = LINK(v.letter); });
+    vid.file_url = LINK('A'); card.asset_url = LINK('A');
+    T.refuseDrop = true;
+    page = await open();
+    if (!(await page.$('.trl-list'))) { await page.click('.cal-link-post .trl-chev'); await sleep(300); }
+    await page.hover('.trl-list .trl-v:nth-child(1)');
+    await page.click('.trl-list .trl-v:nth-child(1) .trl-ico[title="Drop this version"]');
+    await sleep(1800);
+    const said3 = await notices(page);
+    ok(T.versions[0].status === 'dropped' || vid.file_url === LINK('A'),
+      'a refused drop of the version on the card leaves the card on it (A ' + T.versions[0].status + ', card ' + vid.file_url.replace('https://f.io/fixture-guard-', '…') + '; ' + said3.slice(0, 120) + ')');
     await page.close();
   } catch (e) {
     failures.push('threw: ' + (e && e.stack || e));

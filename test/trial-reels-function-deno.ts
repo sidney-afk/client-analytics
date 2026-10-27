@@ -62,6 +62,11 @@ const db = realServe({ port: 0, hostname: "127.0.0.1", onListen() {} }, async (r
   }
   if (req.method === "POST") {
     const body = await req.json();
+    // studio_trial_versions.deliverable_id is a uuid column: Postgres refuses anything else (22P02), as live does.
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (t === "studio_trial_versions" && (Array.isArray(body) ? body : [body]).some((r: Row) => r.deliverable_id != null && !uuid.test(String(r.deliverable_id)))) {
+      return out({ code: "22P02", message: "invalid input syntax for type uuid" }, 400);
+    }
     for (const r of Array.isArray(body) ? body : [body]) rows.push({ ...r });
     return out(Array.isArray(body) ? body : [body], 201);
   }
@@ -310,6 +315,16 @@ tables.studio_trial_versions.push({ ...p4()[0], id: "studio-p4-a", batch: "Fixtu
 const afterStudio = await step({ action: "read", post_id: "p4" });
 const asRows = (afterStudio.body.versions || []) as Row[];
 ok(asRows.filter((r) => r.letter === "A").length === 1 && asRows.find((r) => r.letter === "A")!.id !== "studio-p4-a", "a later studio row for the same letter is not a second Video A");
+
+// A card whose video sub-issue is named as live names it, "del_<uuid>" (found live, 2026-10-27: every add answered
+// write_failed, because studio_trial_versions.deliverable_id is a uuid column).
+tables.calendar_posts.push({ id: "p6", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "https://f.io/p6-main", video_deliverable_id: "del_66666666-6666-4666-8666-666666666666" });
+tables.deliverables.push({ id: "del_66666666-6666-4666-8666-666666666666", file_url: "https://f.io/p6-main" });
+const p6 = () => tables.studio_trial_versions.filter((r) => r.post_id === "p6");
+await step({ action: "switch_set", enabled: true, post_id: "p6" });
+ok(p6().length === 1 && p6()[0].letter === "A" && p6()[0].deliverable_id === "66666666-6666-4666-8666-666666666666", "a card with a del_ sub-issue starts with Video A, its sub-issue stored as the uuid");
+const addP6 = await step({ action: "version_add", post_id: "p6", link: "https://f.io/p6-b" });
+ok(addP6.body.ok === true && p6().length === 2, "and version_add adds Video B there (" + addP6.status + " " + addP6.body.error + ")");
 
 console.log(`trial-reels-function-deno: ${passed} checks passed` + (failures.length ? `, ${failures.length} FAILED` : ""));
 await db.shutdown();

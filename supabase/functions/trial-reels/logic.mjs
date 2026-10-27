@@ -38,6 +38,16 @@ export function staffAllows(role, action) {
 /** An ILIKE pattern that matches exactly this text, case aside: `_` and `%` are wildcards in ILIKE, and slugs carry `_`. */
 export const likeExact = (text) => String(text).replace(/[\\%_]/g, "\\$&");
 
+/*
+ * The card's video sub-issue id as studio_trial_versions.deliverable_id takes it: that column is a uuid, while the
+ * card names its sub-issue "del_<uuid>" (found live, 2026-10-27: version_add answered write_failed on every card with
+ * a sub-issue). The uuid part, as the studio's log stores it, or null when there is none.
+ */
+export function deliverableUuid(id) {
+  const s = clean(id, 80).replace(/^del_/i, "");
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) ? s.toLowerCase() : null;
+}
+
 /** The page switch: {"clients": [...]} or {"all": true}. Anything else, missing or unreadable, is off. */
 export function flagAllows(value, slug) {
   if (!value || typeof value !== "object" || Array.isArray(value) || !slug) return false;

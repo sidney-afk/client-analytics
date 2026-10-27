@@ -259,15 +259,17 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (ev.key === 'Escape') { ev.preventDefault(); input.dataset.cancel = '1'; input.blur(); }
     }
     /* The card's one link, through today's paths only. With a video sub-issue: Production's attach (it writes file_url
-       and the database projects it onto the card's asset_url). Without one: today's card link save. */
-    async function _trlSetCardLink(post, link) {
+       and the database projects it onto the card's asset_url). Without one: today's card link save. Answers the
+       sub-issue's clock after the attach ('' without a sub-issue). `since` (a clock this page's own attach answered)
+       makes it a compare-and-swap: the attach lands only if nobody moved the sub-issue since, else write_conflict. */
+    async function _trlSetCardLink(post, link, since) {
         const deliverableId = String(post.video_deliverable_id || '').trim();
         if (!deliverableId) {
             if (!_calPendingEdits[post.id]) _calPendingEdits[post.id] = {};
             _calPendingEdits[post.id].asset_url = link;
             post.asset_url = link;
             await _calFlushCardSave(post.id);
-            return true;
+            return '';
         }
         const read = await fetch(CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select=id,client_slug,updated_at&id=eq.' + encodeURIComponent(deliverableId), {
             cache: 'no-store', headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' },
@@ -286,17 +288,36 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             headers: _syncviewEfHeaders({ apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json', 'Content-Type': 'application/json' }, TRL_PROD_WRITE_URL),
             body: JSON.stringify({ operation: 'attachment', surface: 'production', entity: 'deliverable', id: deliverableId,
                 client_slug: row.client_slug, request_id: requestId, source_edited_at: new Date().toISOString(),
-                file_url: link, expected_updated_at: row.updated_at }),
+                file_url: link, expected_updated_at: since || row.updated_at }),
         });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || json.ok !== true || json.native_committed !== true) {
             const code = String((json && json.error && (json.error.code || json.error)) || ('http_' + resp.status));
-            const err = Object.assign(new Error(code), { code });
+            const err = Object.assign(new Error(code), { code, row: (json && json.row) || null });
             _writeUiRecordFailure('calendar', 'trial_reels_card_link', err, { http_status: resp.status });
             throw err;
         }
         post.asset_url = link;
-        return true;
+        return String((json.row && json.row.updated_at) || '');
+    }
+    /* One card's versions read now, never the 30-second list (two staff pages can each hold an old one). Kept in the
+       list for the repaint. null when the read fails. */
+    async function _trlFresh(post) {
+        const slug = _trlSlug(post.client || calState.client);
+        try {
+            const json = await svTrialCall({ action: 'read', client: slug, post_id: post.id });
+            const e = _trlCards[slug] || (_trlCards[slug] = { at: Date.now(), cards: {}, promise: null });
+            if (json && json.versions) e.cards[post.id] = Object.assign({}, e.cards[post.id] || {}, { enabled: true, winner_letter: json.winner_letter || null }, json);
+            return json && json.versions ? json : null;
+        } catch (e) { return null; }
+    }
+    // The link the card should carry by the function's own record: the winner's once one is picked, else Video A's.
+    // main_url is that version's own stored link (its row shows the card's link, which may be the refused one).
+    function _trlMainLink(shape) {
+        if (shape && shape.main_url) return String(shape.main_url);
+        const vs = (shape && shape.versions) || [];
+        const v = vs.find(x => x.letter === shape.winner_letter) || vs.find(x => x.status === 'winner') || vs.find(x => x.letter === 'A');
+        return String((v && v.frame_url) || '');
     }
     async function svTrialLinkSave(input) {
         const pid = input.dataset.pid, letter = input.dataset.letter;
@@ -321,38 +342,60 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         await _trlRun(pid, 'start', { action: 'trial_start' }, 'The trial');
     }
     /* The winner, at once; today's toast offers Undo (no confirm, owner 2026-10-26). */
+    /* Two staff can pick at once (Probe, bug 9). The pick reads the versions now and stops if a winner is already
+       picked or this version is no longer on trial; and if the function still refuses the winner after the attach,
+       the put-back is a compare-and-swap on the sub-issue (below), so a stale page never overwrites another pick. */
     async function svTrialPick(pid, letter) {
         const post = _trlPost(pid);
-        const shape = post && _trlShape(post);
-        const v = shape && (shape.versions || []).find(x => x.letter === letter);
-        if (!v || !v.frame_url) { showNotify('Video ' + letter + ' has no link', 'Paste its Frame.io link first.'); return; }
-        const before = post.asset_url;
-        try { await _trlSetCardLink(post, v.frame_url); }
+        if (!post) return;
+        const fresh = await _trlFresh(post);
+        const v = fresh && (fresh.versions || []).find(x => x.letter === letter);
+        if (!fresh) { showNotify('The winner was not picked', 'The versions could not be read. Try again.'); return; }
+        if (fresh.winner_letter || !v || v.status !== 'on trial') { _trlStale(pid); return; }
+        if (!v.frame_url) { showNotify('Video ' + letter + ' has no link', 'Paste its Frame.io link first.'); return; }
+        let mine = '';
+        try { mine = await _trlSetCardLink(post, v.frame_url); }
         catch (e) { _trlSay(e, 'The winner'); return; }
         const json = await _trlRun(pid, 'pick', { action: 'winner_set', letter }, 'The winner');
         // The card already carries the winner's link: when the winner itself is refused, put the card's link back,
         // so the card and the versions never disagree (the refusal is already on screen).
-        if (!json) { await _trlPutBack(post, before, v.frame_url); return; }
-        showToast('Video ' + letter + ' is the winner', { actionLabel: 'Undo', onAction: () => _trlUndoPick(pid, before) });
+        if (!json) { await _trlPutBack(post, mine, v.frame_url); return; }
+        showToast('Video ' + letter + ' is the winner', { actionLabel: 'Undo', onAction: () => _trlUndoPick(pid) });
     }
-    async function _trlPutBack(post, link, now) {
-        if (!link || link === now) return;
-        try { await _trlSetCardLink(post, link); }
-        catch (e) { showNotify("The card's Video link was not put back", 'It now opens another version. Set the Video link by hand, then try again.'); }
+    function _trlStale(pid) {
+        _trlRepaintField(pid);
+        showNotify('Someone else just changed this trial', 'The versions are up to date now. Look again, then try again.');
+    }
+    /* Put the card's link back to what the function says it should carry (the winner's, else Video A's), never to
+       what this page saw before (another staff member may have picked since). `mine` is the clock this page's own
+       attach answered: the put-back lands only if nobody moved the sub-issue since; if someone did, theirs stands. */
+    async function _trlPutBack(post, mine, now) {
+        const fresh = await _trlFresh(post);
+        const link = fresh ? _trlMainLink(fresh) : '';
+        if (link && link !== now) {
+            try { await _trlSetCardLink(post, link, mine); }
+            catch (e) {
+                if (String(e && e.code) === 'write_conflict') showNotify("Someone else just changed the card's Video link", 'Theirs stands. Look again before you change it.');
+                else showNotify("The card's Video link was not put back", 'It now opens another version. Set the Video link by hand, then try again.');
+            }
+        }
         _trlRepaintField(post.id);
     }
-    async function _trlUndoPick(pid, before) {
+    async function _trlUndoPick(pid) {
         const post = _trlPost(pid);
-        const shape = post && _trlShape(post);
-        const a = shape && (shape.versions || []).find(x => x.letter === 'A');
-        const link = (a && a.frame_url) || before;
-        if (!post || !link) return;
-        const winnerLink = post.asset_url;
-        try { await _trlSetCardLink(post, link); }
+        if (!post) return;
+        const fresh = await _trlFresh(post);
+        if (!fresh) { showNotify('Undo did not happen', 'The versions could not be read. Try again.'); return; }
+        if (!fresh.winner_letter) { _trlStale(pid); return; }
+        const a = (fresh.versions || []).find(x => x.letter === 'A');
+        const link = String((a && a.frame_url) || '');
+        if (!link) return;
+        let mine = '';
+        try { mine = await _trlSetCardLink(post, link); }
         catch (e) { _trlSay(e, 'Undo'); return; }
         const json = await _trlRun(pid, 'undo', { action: 'winner_undo' }, 'Undo');
         if (json) showToast('Back on trial');
-        else await _trlPutBack(post, winnerLink, link);   // the winner stands, so its link does too
+        else await _trlPutBack(post, mine, link);   // the winner stands, so its link does too
     }
 // Production's Assets (245) read and write the same versions through the same calls and labels.
 

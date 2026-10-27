@@ -12,6 +12,7 @@
  *   - picking C plays C (the player asks for C's link), its Frame.io comments are C's, and the title and the
  *     "About the…" switch say "Video C";
  *   - a note about the video written while C is on screen starts "Video C:";
+ *   - a version whose link cannot play here (Google Drive) keeps the switch, so another one can be picked again;
  *   - once a winner is picked: today's player, no switch;
  *   - no page errors.
  * TRIAL_NOTES_SHOTS=<dir> also writes screenshots (fictional data only).
@@ -128,6 +129,20 @@ const CLIP = fs.readFileSync(path.join(__dirname, 'fixtures', 'frameio-viewer-cl
       ok(!page.errors.length, `${label}: no page errors (${page.errors.join(' | ')})`);
       await page.close();
     }
+
+    // A version whose link cannot play here (Google Drive): the switch stays, so another version can be picked again.
+    T.versions = fresh({ C: { frame_url: 'https://drive.google.com/file/d/fixture-c/view' } });
+    vid.file_url = LINK('A'); card.asset_url = LINK('A');
+    page = await open(1440, 900);
+    await page.click('#calNotesShell .trl-notes-sw .cal-cm-aud-btn:nth-child(3)');
+    await sleep(1200);
+    const drive = await page.evaluate(() => { const sh = document.getElementById('calNotesShell'); const bar = sh.querySelector('.trl-notes-bar');
+      return { player: sh.hasAttribute('data-video'), sw: !!(bar && bar.querySelector('.trl-notes-sw')), open: ((bar && bar.querySelector('.trl-notes-open')) || {}).href || '' }; });
+    ok(!drive.player && drive.sw && /drive\.google\.com/.test(drive.open), 'a Google Drive version: no player, but the switch stays, with a link to open it (Codex on PR 2364)');
+    await page.click('#calNotesShell .trl-notes-sw .cal-cm-aud-btn:nth-child(1)');
+    await sleep(1800);
+    ok(await page.evaluate(() => document.getElementById('calNotesShell').hasAttribute('data-video')), 'picking Video A again brings its player back');
+    await page.close();
 
     // Once a winner is picked: today's player.
     T.versions = fresh({ C: { status: 'winner' }, A: { status: 'lost' }, B: { status: 'lost' }, D: { status: 'lost' }, E: { status: 'lost' } });

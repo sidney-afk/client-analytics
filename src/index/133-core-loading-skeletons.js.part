@@ -480,6 +480,31 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             </aside>
         </div>`;
     }
+    /* Leads (328), while a view loads. Each variant draws the real view's own
+       shape inside the real classes (crm-sheet, crm-stage, crm-lead, crm-row,
+       crm-step, crm-sys-item), so nothing jumps when the data lands. */
+    function _svLeadsSkeletonHtml(view) {
+        const line = (w, h) => _svSkel('sv-skeleton-line', 'width:' + w + ';' + (h ? 'height:' + h + 'px;' : ''));
+        const wrap = inner => '<div class="crm-skel" role="status" aria-busy="true" aria-label="Loading leads">' + inner + '</div>';
+        if (view === 'today') {
+            return wrap('<div class="crm-sheet">' + line('180px', 12) + [0, 1, 2, 3, 4, 5].map(i => '<div class="crm-row crm-skel-row"><div class="crm-row-main">'
+                + line(i % 2 ? '38%' : '46%', 13) + line(i % 3 ? '58%' : '64%', 10) + '</div>' + line('64px', 12) + '</div>').join('') + '</div>');
+        }
+        if (view === 'sequences') {
+            return wrap('<div class="crm-seqs">' + [0, 1].map(() => '<div class="crm-sheet crm-seq"><div class="crm-seq-head"><div class="crm-seq-title">' + line('44%', 16) + line('70%', 11) + '</div>' + _svSkel('sv-skeleton-pill', 'width:38px;height:22px;') + '</div>'
+                + [0, 1, 2].map(i => '<div class="crm-step">' + line(i ? '34%' : '40%', 12) + line('92%', 11) + line(i % 2 ? '60%' : '74%', 11) + '</div>').join('') + '</div>').join('') + '</div>');
+        }
+        if (view === 'systems') {
+            return wrap('<div class="crm-sheet">' + line('160px', 14) + [0, 1, 2, 3, 4].map(i => '<div class="crm-sys-item">' + line(i % 2 ? '28%' : '34%', 13) + line(i % 2 ? '86%' : '78%', 11) + '</div>').join('') + '</div>');
+        }
+        if (view === 'panel') {
+            return wrap('<div class="crm-skel-panel">' + line('58%', 20) + line('40%', 11) + line('72%', 12) + '<div class="crm-skel-gap"></div>'
+                + [0, 1, 2, 3].map(i => '<div class="crm-ev">' + line(i % 2 ? '64%' : '82%', 12) + line('30%', 10) + '</div>').join('') + '</div>');
+        }
+        const lead = i => '<div class="crm-lead crm-skel-row">' + line(i % 2 ? '62%' : '74%', 13) + line('52%', 11) + line(i % 3 ? '70%' : '84%', 11) + line('48px', 11) + '</div>';
+        return wrap('<div class="crm-sheet">' + [3, 2, 2].map((n, g) => '<div class="crm-stage"><div class="crm-stage-head">' + line(g ? '88px' : '104px', 12) + line('16px', 11) + '</div>'
+            + Array.from({ length: n }, (_, i) => lead(i + g)).join('') + '</div>').join('') + '</div>');
+    }
     function _svLoadingSkeletonHtml(kind, opts) {
         opts = opts || {};
         if (kind === 'client-verify') return _svClientVerifySkeletonHtml();
@@ -496,6 +521,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (kind === 'linear-search') return _svLinearSearchSkeletonHtml();
         if (kind === 'kasper') return _svKasperSkeletonHtml(opts.label);
         if (kind === 'production') return _prodSkeletonHtml();
+        if (kind === 'leads') return _svLeadsSkeletonHtml(opts.view || 'pipeline');
         return _svCalendarSkeletonHtml(opts.label);
     }
     function _calLoaderHtml(label) {

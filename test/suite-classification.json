@@ -2076,6 +2076,14 @@
       "ci": "representative"
     },
     {
+      "file": "client-unread-badges-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (the shared fixture in test/fixtures/review-stage-fixture.js: fictional client, cards, people and conversation), no hosted credentials and no live data. Checks the client link's Sheet and Notes behind review_client_polish: the team's one Synchro team picture with a corner count for new notes and the plain number for a read team question still waiting, the client's own notes and change requests never counting, no staff names, New on open, no No reply needed and no inbox read; today's look with the switch off; the staff Calendar unchanged.",
+      "reproduce": "node test/client-unread-badges-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "review-kasper-polish-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

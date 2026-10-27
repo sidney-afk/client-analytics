@@ -1,6 +1,6 @@
 'use strict';
 /*
- * A COLD LINK TO A BATCH PARENT ASKS FOR NO COMMENT THREAD (OPEN_REPAIRS 541, session Comment403).
+ * A COLD LINK TO A BATCH PARENT ASKS FOR NO COMMENT THREAD (OPEN_REPAIRS 543, session Comment403).
  *
  * A batch parent (`bat_...`, `b1_b_...`, or a two-team `bat_...::uuid`) is never a deliverable, so
  * production-comments always refuses it with 403 `target_forbidden`. The Production comment loader skipped it only

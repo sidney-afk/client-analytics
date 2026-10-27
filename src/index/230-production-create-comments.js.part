@@ -1824,7 +1824,7 @@ import {
                 // is never a deliverable, so it is a batch parent even before
                 // the rows that mint it have loaded. A cold `?d=bat_...` link
                 // asked the reader during boot, got its 403, and kept "not
-                // available to your team" on the post (OPEN_REPAIRS 541).
+                // available to your team" on the post (OPEN_REPAIRS 543).
                 if ((loadIssue && loadIssue.syntheticBatchParent === true) || /^(?:bat|b1_b)_/i.test(id)) {
                     // A batch parent has no comment thread of its own; the
                     // reader would answer with the scope error. Show the calm

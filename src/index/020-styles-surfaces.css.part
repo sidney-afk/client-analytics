@@ -1819,7 +1819,9 @@
         .prod-asset-row.trl-prod-v { grid-template-columns: minmax(125px, .8fr) minmax(150px, 1.4fr) 112px auto; }
         .prod-asset-row.trl-prod-v .prod-asset-state { justify-self: start; }
         .trl-prod-v .prod-asset-value { display: flex; align-items: center; gap: 8px; }
-        .trl-prod-v .prod-asset-value > a { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+        /* The link or text gives way (ellipsis); the version's labels stay whole (Probe E10: a long "Not readable
+           until…" pushed "on the card" under the state pill). */
+        .trl-prod-v .prod-asset-value > a, .trl-prod-v .prod-asset-value > span:not(.trl-lab):not(.trl-oncard):not(.prod-asset-skeleton) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .trl-prod-v .trl-lab { flex: none; border-radius: 999px; padding: 1px 7px; font-size: 10px; font-weight: 700; white-space: nowrap;
             background: var(--cal-status-n-a-bg); color: var(--cal-status-n-a-fg); }
         .trl-prod-v .trl-oncard { flex: none; font-size: 11px; font-weight: 600; color: var(--prod-strong); }

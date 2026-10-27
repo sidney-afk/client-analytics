@@ -34581,6 +34581,7 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-production-browser.js` (19 checks, light and dark), the Deno function test (36), the logic test (71), trial-reels-card-browser (46), prod-write-gateway-browser, lost-work-drafts-browser, prod-boot-budget, write-path-refusal-coverage, check-modules, check-lazy-safety and the unit suite compared with origin/main.
 
 **Way back:** revert the PR; with the switch off nothing shows anyway.
+
 ## 522. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: two staff picking a winner at once could leave the card posting another version (Probe bug 9, session Trials)
 
 - **What was wrong:** a second staff page still showed its 30-second list. When the first page picked C, the second page could still press D's trophy. Today's attach put D on the card, the function refused D because C had already won, and the page "put back" the link it had seen before, Video A's. C stayed the winner while the card carried A's link, so A's video would post.
@@ -34595,5 +34596,13 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 - **What:** the knob used `--sv-bg-fff`, which turns dark in the dark theme; the approved card pictures show a light knob in both. A new token `--sv-knob` (010, light in both themes) now draws it.
 - **Proven:** `node test/trial-reels-card-browser.js` (54 checks; the new knob check fails without the fix), no-hardcoded-colors.
+
+**Way back:** revert the commit.
+
+## 524. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels in Production: "on the card" clipped under the state pill, and a test mock that never let today's row read (Probe E10, E11, session Trials)
+
+- **E10:** when today's Deliverable file row shows a long value (the "Not readable until asset access is checked." guidance, whenever the asset read fails), the version's labels were pushed under the state pill. The text part now gives way with an ellipsis and the labels stay whole (`020`).
+- **E11:** the Production test answered `asset_access_read` without `id`, `client_slug` and `team`, and 210 drops such an answer, so today's (Video A) row was never read in that test. The mock now names its row, and the test checks today's row reads "Open link … Available".
+- **Proven:** `node test/trial-reels-production-browser.js` (24 checks, light and dark; the clipping check fails without the fix).
 
 **Way back:** revert the commit.

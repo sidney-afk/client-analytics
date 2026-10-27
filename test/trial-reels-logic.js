@@ -76,8 +76,26 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   ok(L.linkPatch(five(), 'B', 'https://f.io/fixture-c', A_LINK).error === 'link_used_by_another_version', 'one link, one version');
   ok(L.linkPatch([v('A'), v('B', { status: 'on trial' })], 'B', 'https://f.io/new-b3', A_LINK).error === 'version_on_trial', 'a decided version keeps its link');
 
+  // Default (b): "New cut ready" restarts a version asked to change, at the same link.
+  r = L.newCutPatch([v('C', { status: 'change asked', smm_ok_at: NOW, kasper_ok_at: NOW, change_note: 'shorter', revision: 2 })], 'C');
+  ok(r.patch.status === 'waiting' && r.patch.revision === 3 && r.patch.smm_ok_at === null && r.patch.kasper_ok_at === null && r.patch.change_note === null,
+    'New cut ready: the version goes back to waiting, revision up, every OK and the change cleared (the SMM and Kasper review it again)');
+  ok(L.newCutPatch([v('C', { status: 'approved' })], 'C').error === 'version_not_change_asked' && L.newCutPatch([v('C', { status: 'change asked', frame_url: null })], 'C').error === 'version_has_no_link',
+    'New cut ready only on a version with a change asked and a link');
+  ok(L.staffAllows('creative', 'version_new_cut') && !L.staffAllows('creative', 'version_drop'), 'an editor can say a new cut is ready, not drop');
+
   // Drop, trial, winner
-  ok(L.dropPatch(five(), 'A').error === 'main_version', 'the version on the card cannot be dropped');
+  // Default (c), 2026-10-27: the version on the card can be dropped once today's attach moved the card to the next one.
+  ok(L.dropPatch(five(), 'A', false, A_LINK).error === 'attach_first', 'the version on the card: today\'s attach first puts the next live version on the card');
+  ok(L.mainLetter(five(), 'https://f.io/fixture-b') === 'B' && L.dropPatch(five(), 'A', false, 'https://f.io/fixture-b').patch.status === 'dropped',
+    'once the card carries Video B, B is on the card and A drops like any other version');
+  ok(L.mainLetter([v('A', { status: 'dropped' }), v('B'), v('C')], '') === 'B', 'with A dropped and no link on the card, the first live version is the one on the card');
+  ok(L.dropPatch([v('A'), v('B', { status: 'dropped' })], 'A', false, A_LINK).error === 'last_live_version', 'the last live version cannot be dropped');
+  ok(L.mainLetter([v('A'), v('B')], 'https://f.io/fixture-b') === 'B' && L.readShape([v('A'), v('B')], { client: false, mainLink: 'https://f.io/fixture-b' }).versions[1].on_card,
+    'Video A brought back while the card carries B: B stays on the card');
+  ok(L.undoWinnerPatches([v('A', { status: 'dropped' }), v('B', { status: 'winner' }), v('C', { status: 'lost' })], 'https://f.io/fixture-b').patches.length === 2
+    && L.undoWinnerPatches([v('A', { status: 'dropped' }), v('B', { status: 'winner' }), v('C', { status: 'lost' })], A_LINK).error === 'attach_first',
+    'Undo with Video A dropped puts the first live version (B) back on the card, never A');
   ok(L.dropPatch(five(), 'D').patch.status === 'dropped' && L.dropPatch([v('D', { status: 'dropped' })], 'D', true).patch.status === 'waiting', 'drop and bring back');
   ok(L.dropPatch([v('D', { status: 'dropped', smm_ok_at: NOW, client_ok_at: NOW })], 'D', true).patch.client_ok_at === null, 'a version brought back is reviewed again: no earlier OK stands');
   ok(L.dropPatch([v('C', { status: 'on trial' })], 'C').error === 'version_on_trial', 'a version on trial cannot be dropped');

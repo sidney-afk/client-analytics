@@ -162,6 +162,9 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   const dupA = L.oneRowPerLetter([v('A', { id: 'studio-a', created_at: '2026-10-27T16:00:00Z' }), v('A', { id: 'card-a', created_at: '2026-10-27T15:13:12Z' }), v('B', { created_at: '2026-10-27T16:00:00Z' })]);
   ok(dupA.length === 2 && dupA.find(x => x.letter === 'A').id === 'card-a', 'two rows for one letter (SyncView seeded A, then the studio logged its own A): the earliest is the version, the other is never read (Codex on PR 2373)');
 
+  ok(L.deliverableUuid('del_4676B09E-1111-4111-8111-111111111111') === '4676b09e-1111-4111-8111-111111111111' && L.deliverableUuid('4676b09e-1111-4111-8111-111111111111') === '4676b09e-1111-4111-8111-111111111111'
+    && L.deliverableUuid('del_notauuid') === null && L.deliverableUuid('') === null && L.deliverableUuid(null) === null, "the card's del_<uuid> sub-issue becomes the uuid the studio's column takes; anything else is null");
+
   // The function and the migration, read as source
   const src = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'trial-reels', 'index.ts'), 'utf8');
   const code = src.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');

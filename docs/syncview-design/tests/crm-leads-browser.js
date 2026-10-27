@@ -15,7 +15,8 @@
  * No-show (one call_outcome with the version it had) and lists automatic
  * sends; Sequences shows each sequence with draft/approved steps, edits a
  * step into a new draft, approves (admin) and switches a sequence on;
- * Systems lists the sequences and the n8n automations; an identity change
+ * each n8n automation opens as a read-only sequence with its exact emails
+ * and texts, and the timeline links an automatic send to it; an identity change
  * purges the cached people; at 390px the page has no sideways overflow.
  *
  * Run: node docs/syncview-design/tests/crm-leads-browser.js [--shots=<dir>]
@@ -109,7 +110,7 @@ async function run(browser, origin, viewport) {
   page.setDefaultTimeout(8000);
   const errors = []; page.on('pageerror', e => errors.push(String(e.message || e).slice(0, 200)));
   await seedStaffIdentity(page, STAFF_GATE_MEMBER);
-  const state = { listDelay: SHOTS ? 2500 : 700, people: people(), updates: [], refuse: '', beacons: 0, seqs: sequences(), outcomes: [], edits: [], approvals: [], toggles: [], actions: [] };
+  const state = { todayDelay: SHOTS ? 2500 : 700, listDelay: 0, people: people(), updates: [], refuse: '', beacons: 0, seqs: sequences(), outcomes: [], edits: [], approvals: [], toggles: [], actions: [] };
   await page.route('**/*', async route => {
     const r = route.request(); const u = new URL(r.url());
     if (r.url().startsWith(origin)) return route.continue();
@@ -128,6 +129,7 @@ async function run(browser, origin, viewport) {
       if (body.action === 'get') {
         return json({ ok: true, person: Object.assign({ email: 'made-up@example.invalid', phone: '555 010 0000', lost_reason: null }, person), source: { id: 's1', name: 'Made-up batch' },
           events: [{ id: 2, kind: 'note', actor: 'QA Staff', detail: { text: 'Newest made-up note' }, occurred_at: '2026-10-21T10:00:00Z' },
+                   { id: 3, kind: 'message_sent', channel: 'email', actor: 'n8n:Sales — Booking Recovery Dispatch', detail: { calendar: 'doctor-strategy-call' }, occurred_at: '2026-10-21T09:00:00Z' },
                    { id: 1, kind: 'imported', actor: 'import', detail: {}, occurred_at: '2026-10-20T10:00:00Z' },
                    { id: 0, kind: 'call', actor: 'Kasper', detail: {}, occurred_at: '2026-10-19T15:00:00Z' }] });
       }
@@ -140,6 +142,7 @@ async function run(browser, origin, viewport) {
       }
       if (body.action === 'note') return json({ ok: true, person });
       state.actions.push(body.action);
+      if (body.action === 'today' && state.todayDelay) { const ms = state.todayDelay; state.todayDelay = 0; await new Promise(res => setTimeout(res, ms)); }
       if (body.action === 'today') {
         return json({ ok: true,
           due_people: [Object.assign({}, state.people[0], { overdue: true }), Object.assign({}, state.people[1], { owner: 'Second Made Up', next_step_due: today(0) })],
@@ -151,7 +154,10 @@ async function run(browser, origin, viewport) {
         Object.assign(person, { stage: body.outcome === 'showed' ? 'call1_done' : 'no_show', state_version: person.state_version + 1 });
         return json({ ok: true, person, enrolment: body.outcome === 'no_show' ? { id: 'e9' } : null });
       }
-      if (body.action === 'sequences') return json({ ok: true, sequences: state.seqs });
+      if (body.action === 'sequences') return json({ ok: true, sequences: state.seqs, n8n: [
+        { key: 'didnt_book_doctors', name: 'Didn\u2019t book: made-up', description: 'Made-up people who sent the form but never booked.', stops_when: 'They book or opt out.', workflow_name: 'Sales — Booking Recovery Dispatch', active: true, position: 10,
+          messages: [{ label: 'Email', channel: 'email', when: 'About 20 minutes after they stop', sender: 'Made-up sender', subject: 'made-up subject line', text: 'Hi {first_name}, a made-up email body.', live: true },
+                     { label: 'Text', channel: 'sms', when: 'Same time', sender: 'Made-up number', subject: null, text: 'Hey {first_name}, a made-up text.', live: true }] }] });
       if (body.action === 'step_edit') {
         state.edits.push(body);
         const s = state.seqs[0]; const i = s.steps.findIndex(x => x.id === body.step_id);
@@ -167,11 +173,6 @@ async function run(browser, origin, viewport) {
         state.toggles.push(body);
         const s = state.seqs.find(x => x.id === body.sequence_id); s.active = body.active; return json({ ok: true, sequence: s });
       }
-      if (body.action === 'systems') {
-        return json({ ok: true,
-          automations: [{ id: 'booking_confirmation', name: 'Booking confirmation', trigger: 'A call is booked', audience: 'The person who booked', channel: 'email+sms', from: 'Made-up sender', timing: 'Right after booking', logged: false, owner: 'n8n' }],
-          sequences: [{ id: 'seq_no_show', name: 'No-show on call 1', trigger: 'Made-up', audience: 'People in this sequence', channel: 'sms+email', from: 'Made-up', timing: 'day 0, day 2', logged: true, owner: 'SyncView sequence', active: false, approved: 1, steps: 2 }] });
-      }
       if (body.action === 'due' || body.action === 'log_send') return json({ ok: false, error: 'unauthorized' }, 401);
     }
     if (/\/rest\/v1\//.test(p)) return json([]);
@@ -181,11 +182,14 @@ async function run(browser, origin, viewport) {
   });
 
   await page.goto(origin + '/?sv_path=%2Fleads', { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('#crmBoard .crm-skel, .crm-lead[data-crm-card]', { timeout: 30000 });
-  const skel = await page.evaluate(() => ({ skel: !!document.querySelector('#crmBoard .crm-skel .sv-skeleton'), rows: !!document.querySelector('.crm-lead[data-crm-card]'), text: (document.getElementById('crmPage') || document.body).innerText }));
-  expect(skel.skel && !skel.rows, label + ': a shimmer skeleton shows before the list lands');
+  await page.waitForSelector('#crmToday .crm-skel, #crmToday .crm-group', { timeout: 30000 });
+  const skel = await page.evaluate(() => ({ skel: !!document.querySelector('#crmToday .crm-skel .sv-skeleton'), rows: !!document.querySelector('#crmToday .crm-group'), text: (document.getElementById('crmPage') || document.body).innerText }));
+  expect(skel.skel && !skel.rows, label + ': Leads opens on Today, with a shimmer skeleton before it lands');
   expect(!/Loading/.test(skel.text), label + ': no "Loading" text while it loads');
   if (SHOTS) await shoot(page, 'leads-skeleton-' + label);
+  await page.waitForSelector('#crmToday .crm-group', { timeout: 30000 });
+  expect(await page.locator('[data-crm-nav="n8n:didnt_book_doctors"]').count() === 1 && await page.locator('[data-crm-nav="own:q1"]').count() === 1, label + ': the side menu lists the n8n sequences and ours');
+  await page.click('[data-crm-nav="pipeline"]');
   await page.waitForSelector('.crm-lead[data-crm-card]', { timeout: 30000 });
   expect(new URL(page.url()).pathname === '/leads', label + ': the address is /leads');
   expect(await page.locator('.crm-stage-body').count() === 4 && await page.locator('[data-crm-stage]').count() === 10, label + ': every stage has a section, four of them open with people');
@@ -245,10 +249,11 @@ async function run(browser, origin, viewport) {
   const panel = await page.locator('#crmPanel').innerText();
   expect(/Sample Coach/.test(panel) && /made-up@example\.invalid/.test(panel) && /Made-up batch/.test(panel), label + ': panel shows details and source');
   const evs = await page.locator('.crm-ev-text').allInnerTexts();
-  expect(evs[0] === 'Newest made-up note' && /Imported/.test(evs[1]), label + ': timeline is newest first');
+  expect(evs[0] === 'Newest made-up note' && /Imported/.test(evs[2]), label + ': timeline is newest first');
+  expect(/Email sent by Booking Recovery Dispatch/.test(evs[1]) && await page.locator('#crmPanel .crm-link', { hasText: 'Read the message' }).count() === 1, label + ': an automatic email on the timeline says who sent it and links to its wording');
   expect(/Last touch/.test(panel) && !/No touch yet/.test(panel), label + ': the panel says when we last touched them (a call, message or reply)');
   expect(!(await page.locator('#crmPStep').count()), label + ': the edit fields stay hidden until Edit');
-  expect(await page.evaluate(() => { const t = Array.from(document.querySelectorAll('#crmPanel .crm-section-title')).map(n => n.textContent); return t[0] === 'Timeline' && t[1] === 'Sequences'; }), label + ': the timeline comes first, sequences after');
+  expect(await page.evaluate(() => { const t = Array.from(document.querySelectorAll('#crmPanel .crm-section-title')).map(n => n.textContent); return t[0] === 'What\u2019s happened' && t[1] === 'Sequences'; }), label + ': the timeline comes first, sequences after');
   expect(await boxesInBoxes(page) === '', label + ': the person panel has no box inside a box');
   if (SHOTS) await shoot(page, 'leads-person-' + label);
   await page.click('#crmPanel [data-crm-edit]');
@@ -271,13 +276,13 @@ async function run(browser, origin, viewport) {
   await page.waitForFunction(() => document.getElementById('crmPanel').hidden);
 
   // Today.
-  await page.click('[data-crm-tab="today"]');
+  await page.click('[data-crm-nav="today"]');
   await page.waitForSelector('#crmTodayCalls');
   const todayText = await page.locator('#crmToday').innerText();
   expect(/Made Up Owner/.test(todayText) && /Second Made Up/.test(todayText), label + ': Today groups due steps by owner');
   expect(await page.locator('#crmToday .crm-row.is-overdue').count() >= 1, label + ': an overdue step is marked on Today');
-  expect(await page.evaluate(() => { const ids = Array.from(document.querySelectorAll('#crmToday .crm-list-label')).map(n => n.id); return ids.join() === 'crmTodayCalls,crmTodayDue,crmTodaySends'; }), label + ': Today is one list: calls, then steps due, then automatic sends');
-  expect(await page.locator('#crmToday .crm-sheet').count() === 1, label + ': Today has no section boxes');
+  expect(await page.evaluate(() => { const ids = Array.from(document.querySelectorAll('#crmToday .crm-group-title')).map(n => n.id); return ids.join() === 'crmTodayCalls,crmTodayDue,crmTodaySends'; }), label + ': Today runs calls, then follow-ups, then automatic sends');
+  expect(await page.locator('#crmToday .crm-sheet').count() === 0 && !/\b0 /.test(todayText) && !/Nothing is sent from this page/.test(todayText), label + ': Today has no boxes, no zero counts and no filler line');
   expect(await boxesInBoxes(page) === '', label + ': Today has no box inside a box');
   expect(/Sequence is off/.test(todayText) && /No-show on call 1/.test(todayText), label + ': upcoming automatic sends show why they are held');
   if (SHOTS) await shoot(page, 'leads-today-' + label, true);
@@ -292,11 +297,11 @@ async function run(browser, origin, viewport) {
   state.people[2].stage = 'call1_booked';
 
   // Sequences.
-  await page.click('[data-crm-tab="sequences"]');
+  await page.click('[data-crm-nav="own:q1"]');
   await page.waitForSelector('[data-crm-seq="no_show"]');
   const seqText = await page.locator('[data-crm-seq="no_show"]').innerText();
   expect(/Waiting for approval/.test(seqText) && /Approved/.test(seqText) && /2\s+in it now/.test(seqText) && /Text/.test(seqText) && /Email/.test(seqText), label + ': a sequence shows its steps, channels, states and people in it');
-  expect(/Day 2\s+9am their time\s+Email · Approved/.test(seqText) && /2 messages over 2 days/.test(seqText) && /1 of 2 approved/.test(seqText), label + ': a step reads day, hour, channel and approval in plain words (' + seqText.replace(/\s+/g, ' ').slice(0, 300) + ')');
+  expect(/Day 2\s+9am their time\s+Email · Approved/.test(seqText) && /2\s+messages/.test(seqText) && /2\s+days/.test(seqText) && /1\s+waiting for approval/.test(seqText), label + ': a step reads day, hour, channel and approval in plain words (' + seqText.replace(/\s+/g, ' ').slice(0, 300) + ')');
   expect(!(await page.locator('#crmSeqs .crm-badge, #crmSeqs .crm-chan').count()) && await boxesInBoxes(page) === '', label + ': no step chips and no box inside a box');
   expect(await page.locator('[data-crm-seq="no_show"] .crm-switch').getAttribute('aria-checked') === 'false', label + ': a sequence that is off says so');
   if (SHOTS) await shoot(page, 'leads-sequences-' + label, true);
@@ -318,21 +323,20 @@ async function run(browser, origin, viewport) {
   await page.waitForFunction(() => document.querySelector('[data-crm-seq="no_show"] .crm-switch').getAttribute('aria-checked') === 'true');
   expect(state.toggles.length === 1 && state.toggles[0].active === true, label + ': the switch turns the sequence on');
 
-  // Systems.
-  await page.click('[data-crm-tab="systems"]');
-  await page.waitForSelector('[data-crm-sys="booking_confirmation"]');
-  const sysText = await page.locator('#crmSystems').innerText();
-  expect(/Booking confirmation/.test(sysText) && /Not yet/.test(sysText) && /Logged/.test(sysText) && /1 of 2 steps approved/.test(sysText), label + ': Systems lists the sequences and the n8n automations with their logging state');
-  const sysRow = await page.locator('[data-crm-sys="booking_confirmation"]').innerText();
-  expect(/The person who booked/.test(sysRow) && /An email and a text/.test(sysRow) && /from Made-up sender/.test(sysRow) && /A call is booked|a call is booked/.test(sysRow) && /Running in n8n/.test(sysRow), label + ': each automation is one row: who, what, when, what starts it, status (' + sysRow.replace(/\s+/g, ' ') + ')');
-  if (viewport.width >= 500) expect(/Automation\s+Who gets it\s+What they get\s+When\s+Starts when\s+Status/i.test(await page.locator('#crmSystems thead').first().innerText()), label + ': the automations table has column titles');
-  expect(await boxesInBoxes(page) === '', label + ': Systems has no box inside a box');
-  if (SHOTS) await shoot(page, 'leads-systems-' + label, true);
-  const sysOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(sysOverflow <= 1, label + ': Systems has no sideways page overflow (' + sysOverflow + 'px)');
+  // An n8n automation as a read-only sequence with its exact wording.
+  await page.click('[data-crm-nav="n8n:didnt_book_doctors"]');
+  await page.waitForSelector('[data-crm-seq="didnt_book_doctors"]');
+  const n8nText = await page.locator('[data-crm-seq="didnt_book_doctors"]').innerText();
+  expect(/Runs in n8n/.test(n8nText) && /made-up subject line/.test(n8nText) && /a made-up email body/.test(n8nText) && /a made-up text/.test(n8nText) && /Stops when/.test(n8nText), label + ': an n8n sequence shows its emails and texts word for word');
+  expect(await page.locator('[data-crm-seq="didnt_book_doctors"] .crm-mail').count() === 1 && await page.locator('[data-crm-seq="didnt_book_doctors"] .crm-bubble').count() === 1, label + ': an email reads as an email and a text as a text bubble');
+  expect(!(await page.locator('[data-crm-seq="didnt_book_doctors"] .crm-switch, [data-crm-seq="didnt_book_doctors"] .crm-btn').count()), label + ': an n8n sequence cannot be changed here');
+  expect(await boxesInBoxes(page) === '', label + ': the n8n sequence has no box inside a box');
+  if (SHOTS) await shoot(page, 'leads-n8n-' + label, true);
+  const seqOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(seqOverflow <= 1, label + ': a sequence screen has no sideways page overflow (' + seqOverflow + 'px)');
   expect(!state.actions.includes('due') && !state.actions.includes('log_send'), label + ': the page never calls the sender-only actions');
 
-  await page.click('[data-crm-tab="pipeline"]');
+  await page.click('[data-crm-nav="pipeline"]');
   await page.waitForSelector('.crm-lead[data-crm-card]');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow <= 1, label + ': no sideways page overflow (' + overflow + 'px)');

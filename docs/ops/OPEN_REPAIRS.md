@@ -34694,6 +34694,18 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Caveat for the owner's own test:** `syncview_notes_seen_v1` is one store per browser, so opening a card's Notes as staff marks it read on the test client's link in the same browser too (true before this change).
 - **Proof:** `node test/client-unread-badges-browser.js` (new, offline, in calendar-unit-tests): switch on, the corner count, the plain number, nothing for answered questions or statements or the client's own change request, "Synchro team" only, no staff names, New on open, no "No reply needed", no inbox read, 390 wide; switch off, today's "1 open", dot and Notes; the staff Calendar unchanged. On main's 327, 11 checks fail. Screenshots: `docs/syncview-design/proofs/client-unread-badges/` (1440 and 390, light and dark, on and off).
 
+## 546. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels, found live after #2373: adding a version failed on every card with a video sub-issue (session Trials)
+
+- **What happened:** on the test card, Trialtest pasted the card's own link as Video A. `version_add` answered `500 write_failed` and wrote nothing. The switch-on seed of Video A had failed the same way, silently (it is best effort).
+- **Why:** `insertVersion` wrote the card's `video_deliverable_id`, which the card stores as `del_<uuid>`, into `studio_trial_versions.deliverable_id`, a uuid column. Postgres refused it with 22P02. The test fixtures used bare uuids for the sub-issue and their mock database did not enforce the column type, so the tests passed.
+- **Fix:** the row gets the uuid part of the sub-issue id (`deliverableUuid` in `supabase/functions/trial-reels/logic.mjs`), or null when it has none. The AI editor's log already stores the bare uuid in that column.
+- **Proven:**
+  - The Deno function test's mock now refuses a non-uuid `deliverable_id` as Postgres does. A card named as live (`del_…`) is seeded with Video A and takes Video B. Both checks fail without the fix (47 of 49).
+  - The logic test (98).
+  - The type ratchet adds no errors.
+
+**Way back:** revert the pull request.
+
 ## 539. [2026-10-27 UTC, BUILT, NOT MERGED] Kasper could not press "Tweaks are on Frame" (or send any change) on a sample from his Review Session (session Frametweak)
 
 - **Why:** reported by Kasper through the owner on 2026-10-27. Pressing "Tweaks are on Frame" on a sample did nothing, and no refusal reached the write-refusal log. The cause was not the Review Session polish: the review stage wrote his words into `window._sxrKasperState.drafts`, and the Samples module keeps `_sxrKasperState` as a module constant it never puts on `window`. So every change from the stage on a sample threw a TypeError before any save started: "Tweaks are on Frame", a typed "Ask for a change", "Approve after tweaks" and a team note. The saving flag check read the same missing object, so a sample's busy state never showed either. Calendar posts were never affected. It came in with #2317 (2026-10-24). Reproduced offline with the polish on and off.

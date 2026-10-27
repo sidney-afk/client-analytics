@@ -54,6 +54,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         trial_not_over: 'The 24 h trial is not over yet.',
         card_posted: 'This post is already Posted, so the winner cannot change.',
         role_not_allowed: 'Your key cannot do this. Ask the SMM.',
+        no_letter_left: 'This card already has seven versions, Video A to Video G.',
+        post_id_too_long: 'This card cannot take versions. Tell the SyncView team.',
     };
 
     const _trlCards = {};        // client slug -> { at, cards: { pid: shape }, promise }
@@ -162,7 +164,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!shape || !shape.enabled) return null;
         const vs = shape.versions || [];
         const winner = vs.find(x => x.status === 'winner');
-        const open = _trlOpen.has(pid);
+        // With no version yet, the list stands open: its only row is where the first link is pasted.
+        const open = _trlOpen.has(pid) || !vs.length;
         const tiny = _trlTiny(shape);
         const main = winner ? 'Video ' + winner.letter : 'Video · ' + vs.length;
         const p = _calEscAttr(pid);
@@ -211,7 +214,24 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // After the client's OK on every version, the SMM posts them as trial reels by hand and starts the 24 h here.
         const start = shape.card_approvable && !vs.some(v => ['on trial', 'winner', 'lost'].includes(v.status))
             ? '<button type="button" class="trl-start" onclick="svTrialStart(\'' + p + '\')">Posted as trial reels? Start the 24 h</button>' : '';
-        return '<div class="trl-list">' + rows + start + '</div>';
+        return '<div class="trl-list">' + rows + _trlAddHtml(pid, vs) + start + '</div>';
+    }
+    /* The next free letter (A to G), to add a version by pasting its link. Until 2026-10-27 a card listed only the
+       versions the AI editor had logged, so a card it had not logged had nowhere to paste a link. Gone once the trial
+       starts. */
+    function _trlAddHtml(pid, vs) {
+        if (vs.some(v => ['on trial', 'winner', 'lost'].includes(v.status))) return '';
+        const used = new Set(vs.map(v => v.letter));
+        const next = ['A', 'B', 'C', 'D', 'E', 'F', 'G'].find(l => !used.has(l));
+        if (!next) return '';
+        const p = _calEscAttr(pid);
+        if (_trlEditing[pid] === '+') {
+            return '<div class="trl-v trl-editing trl-add"><span class="trl-l">Video ' + next + '</span>'
+                + '<input class="trl-link-input" type="url" placeholder="Paste the Frame.io link" value="" data-pid="' + p + '" data-letter="+"'
+                + ' onkeydown="svTrialLinkKey(event,this)" onblur="svTrialLinkSave(this)" aria-label="Frame.io link for Video ' + next + '"></div>';
+        }
+        return '<div class="trl-v trl-add"><span class="trl-l">Video ' + next + '</span>'
+            + '<button type="button" class="trl-paste" onclick="svTrialEdit(\'' + p + '\',\'+\')">Paste the Frame.io link</button></div>';
     }
 
     // ---- actions -----------------------------------------------------------------------------------------------
@@ -329,6 +349,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const shape = post && _trlShape(post);
         const v = shape && (shape.versions || []).find(x => x.letter === letter);
         const link = String(input.value || '').trim();
+        if (letter === '+') { if (cancel || !post || !shape || !link) { _trlRepaintField(pid); return; } await _trlAdd(post, shape, link); return; }
         if (cancel || !post || !v || link === String(v.frame_url || '')) { _trlRepaintField(pid); return; }
         if (v.on_card) {
             // The version on the card: today's path first, then the copy (the function checks they agree). What the
@@ -346,6 +367,23 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             return;
         }
         await _trlRun(pid, 'link', { action: 'version_link_set', letter, link }, 'Video ' + letter + "'s link");
+    }
+    /* A new version. The first live one is the version on the card, so the card's link moves to it first through
+       today's path (as for Video A), and goes back if the function then refuses. */
+    async function _trlAdd(post, shape, link) {
+        const pid = post.id, vs = shape.versions || [];
+        const what = 'The new version';
+        _trlOpen.add(pid);   // the list stays open on the next "Add" (with no version it was open only for being empty)
+        if (vs.some(x => String(x.frame_url || '') === link)) { _trlSay({ code: 'link_used_by_another_version' }, what); _trlRepaintField(pid); return; }
+        const first = !vs.some(x => x.status !== 'dropped');
+        const before = String(post.asset_url || '');
+        let mine = '';
+        if (first && link !== before) {
+            try { mine = await _trlSetCardLink(post, link); }
+            catch (e) { _trlSay(e, what); _trlRepaintField(pid); return; }
+        }
+        const json = await _trlRun(pid, 'link', { action: 'version_add', link }, what);
+        if (!json && first && link !== before) await _trlAttachBack(post, before, mine, link);
     }
     /* The card's link moves only once the function says yes (Probe bugs 12 and 12b). After a refusal, the link this page
        attached goes back to what the card carried before, as a compare-and-swap on this page's own attach (a link

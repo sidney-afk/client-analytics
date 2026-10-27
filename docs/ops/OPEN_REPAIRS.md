@@ -34658,6 +34658,42 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert this commit.
 
+## 542. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels, found live: a card the AI editor had not logged showed no versions and nowhere to paste a link (session Trials)
+
+- **What happened:** with builds 1 and 2 merged and `trial_reels_pages` listing the test client, the owner switched trial reels on for a card (`trial_reel_cards` row and `trial_on` event, 15:13 UTC). The row then read "Video · 0", "Show the versions" opened nothing, and there was no way to paste a Frame.io link.
+- **Why:** the card listed only the rows the AI editor's studio log writes to `studio_trial_versions`, and SyncView had no way to add one. The test client had none. The card test started from five logged versions, so it never saw an empty card.
+- **Fix:**
+  - New `trial-reels` action `version_add`, for staff keys (admin, SMM and editor). It adds the next free letter, A to G, with its link. It refuses a link another version has, a missing or non-https link, an eighth version, and any addition once the trial has started.
+  - The first live version is the one on the card, so its link must already be the card's (`attach_first`).
+  - The row's key in the studio's table is batch = the card's id and video = `card`. `post_id` is what every read goes by.
+  - Switching a card on with no version starts it with Video A, the link the card already carries.
+  - On the card, the list ends with "Video X · Paste the Frame.io link" until the trial starts, and stands open while there is no version. The first version goes on the card first through today's path, as Video A does, and goes back if the function then refuses.
+- **Proven:**
+  - `node test/trial-reels-empty-card-browser.js` (30 checks, desktop and 390). It starts as the live card did, with no version rows; on main's code it fails at the first look, with nothing to paste into.
+  - The Deno function test (46, with the seed, the add and its refusals). The logic test (96).
+  - Also passing: trial-reels-card-browser (60), race and link-guard browser tests, the type ratchet, prod-write-gateway-browser, prod-boot-budget, staff-calendar-expanded-browser (9618), write-path-refusal-coverage, check-lazy-safety.
+
+**Way back:** revert the pull request. Rows already added stay as ordinary version rows.
+
+## 541. [2026-10-27 UTC, BUILT, NOT MERGED] The client link's Sheet and Notes get the team's unread badges, behind `review_client_polish` (session Clientbadges)
+
+- **Owner, 2026-10-27:** "Even on my test client, I still see the old badges thing for the notes. The way I experience notes on my account should be the same for the clients, at least on my test client first."
+- **What was missing:** the client review page already had the round-8 badges (498, 500). The client link's Calendar did not: the Sheet's Notes button still showed the old dot and "N open", and Notes the old rows, because 327 ran only for staff on `unread_badges_v2` (`svUnreadBadgesOn()` is false on every client link).
+- **Built (327, browser only, no server change):** 327 now also runs on a client link that `review_client_polish` lists (only the test client today; no new switch, no new row). The Sheet's Notes button gets the team's picture with a corner count for new and the plain number for waiting, the hover lists the lines, and Notes gets the team's rows, "New" tags, quiet "Change request" and no Reply on a change request. Read state is the store the client link already used (`syncview_notes_seen_v1`, this browser, set when Notes opens), so no new browser write privileges.
+- **Differences kept on purpose (client link vs staff), one line each:**
+  - Only the team's notes count: the client's own notes, comments and change requests are the client's, so they are never "new" or "to answer".
+  - "Waiting for your answer" is a read team comment that asks something ("?") and still has the last word in its thread, never a change request: the client review page's rule (500), so the Sheet and the Review page agree.
+  - No count of the client's own change requests not done yet (today's "N open"): they wait on the team, not on the client; Notes still says "Change request" and "Done".
+  - The team is one picture and one name, "Synchro team", with an "S": the client link has never named staff (190 `_calNoteAuthorName`), so no first names, initials or Slack photos.
+  - Kasper's notes count as the team's (no violet "Kasper" bubble), for the same reason; his team-only notes never reach a client link.
+  - The client's own notes read "You", as on the client review page.
+  - No "No reply needed" and no "Mark unread": both are this browser's own lists on the staff side; a client's question waits until they answer.
+  - No Messages button, inbox or inbox read: Messages is the team's.
+  - The phone gets it too (staff phones keep their own phone design; a client's phone shows the same calendar as a wide screen).
+  - Team-only notes and Frame.io staff comments never show or count (unchanged: the client link's Notes never had them).
+- **Caveat for the owner's own test:** `syncview_notes_seen_v1` is one store per browser, so opening a card's Notes as staff marks it read on the test client's link in the same browser too (true before this change).
+- **Proof:** `node test/client-unread-badges-browser.js` (new, offline, in calendar-unit-tests): switch on, the corner count, the plain number, nothing for answered questions or statements or the client's own change request, "Synchro team" only, no staff names, New on open, no "No reply needed", no inbox read, 390 wide; switch off, today's "1 open", dot and Notes; the staff Calendar unchanged. On main's 327, 11 checks fail. Screenshots: `docs/syncview-design/proofs/client-unread-badges/` (1440 and 390, light and dark, on and off).
+
 ## 539. [2026-10-27 UTC, BUILT, NOT MERGED] Kasper could not press "Tweaks are on Frame" (or send any change) on a sample from his Review Session (session Frametweak)
 
 - **Why:** reported by Kasper through the owner on 2026-10-27. Pressing "Tweaks are on Frame" on a sample did nothing, and no refusal reached the write-refusal log. The cause was not the Review Session polish: the review stage wrote his words into `window._sxrKasperState.drafts`, and the Samples module keeps `_sxrKasperState` as a module constant it never puts on `window`. So every change from the stage on a sample threw a TypeError before any save started: "Tweaks are on Frame", a typed "Ask for a change", "Approve after tweaks" and a team note. The saving flag check read the same missing object, so a sample's busy state never showed either. Calendar posts were never affected. It came in with #2317 (2026-10-24). Reproduced offline with the polish on and off.

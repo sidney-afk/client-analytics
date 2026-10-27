@@ -2195,6 +2195,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-reels-one-live-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. A trial card with one live version (session Probe): the client's approve on the review page must record that version's OK, so the card's versions agree with the card and the trial can start.",
+      "reproduce": "node test/trial-reels-one-live-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "calendar-card-write-routing-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

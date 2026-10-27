@@ -14,7 +14,7 @@ with `log_send`.
 
 | Piece | File |
 |---|---|
-| Tables | `supabase/migrations/20261026120000_crm_leads.sql` |
+| Tables | `supabase/migrations/20261026120000_crm_leads.sql`; n8n wording: `supabase/migrations/20261027210000_crm_n8n_sequences.sql` |
 | Edge Function | `supabase/functions/crm-leads/index.ts` |
 | Shared rules (access, normalisers, validation, events, import) | `supabase/functions/_shared/crm-leads-core.mjs` |
 | Sequence rules (timing, quiet hours, stop rules, step edits, send log) | `supabase/functions/_shared/crm-sequences-core.mjs` |
@@ -328,3 +328,34 @@ lane holds `crm-leads` until the tables exist, then deploys it by itself.
 
 Rollback: the drop statements are at the top of the migration file; nothing
 else depends on these tables.
+
+## Gmail: who Kasper has emailed
+
+`crm-gmail` (Edge Function, server key only) reads the sent mail of the one
+sales mailbox (a constant in the function: domain-wide delegation would let the service account act as anyone in the Workspace, so the function only ever acts as that one address), with the `gmail.metadata` scope (headers only: Google refuses message bodies with it).
+It returns To and Cc addresses only, never a subject or body, and skips our
+own domain. It uses the existing Google service account through Workspace
+domain-wide delegation, so nobody signs in: a Workspace admin approves the
+service account's client id once (Admin console, Security, API controls,
+Domain-wide delegation, scope `https://www.googleapis.com/auth/gmail.metadata`).
+Until then `probe` answers `unauthorized_client` with the client id to approve.
+
+- `probe` checks access.
+- `sent_recipients { after?: "YYYY/MM/DD", max_messages? }` lists each address
+  with how many emails, first and last date.
+
+The list is reviewed (clients, staff and vendors left out) before anyone is
+imported with `scripts/crm-import.js --lead-type=email`.
+
+
+## n8n automations as sequences (27 Oct 2026)
+
+Every n8n automation that messages a lead shows in the Leads side menu as its
+own read-only sequence, with each email and text word for word. The wording
+lives in `crm_n8n_sequences` (one row per automation, `messages` as a list of
+label, channel, when, sender, subject, text, live), not in this repo, because
+it names clients and results. It is a snapshot read from n8n: when an n8n
+message changes, refresh its row. `crm-leads` `sequences` returns the rows as
+`n8n`; a missing table gives an empty list. The person timeline links each
+automatic send (`message_sent` from an `n8n:` actor) to the sequence it came
+from, matched by workflow name and calendar.

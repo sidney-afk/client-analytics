@@ -1794,6 +1794,8 @@
         .trl-v .trl-go { flex: none; display: inline-flex; align-items: center; justify-content: center; color: inherit; opacity: .7; }
         .trl-v .trl-go svg { width: 11px; height: 11px; }
         .trl-v .trl-paste { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 0; background: none; padding: 0; font: inherit; font-weight: 500; font-style: italic; color: inherit; cursor: pointer; }
+        .trl-v.trl-add { opacity: .72; }
+        .trl-v.trl-add:hover, .trl-v.trl-add.trl-editing { opacity: 1; }
         .trl-v .trl-lab-gap { margin-left: auto; }
         .trl-v .trl-lab { margin-left: auto; flex: none; border-radius: 999px; padding: 1px 7px; font-size: 10px; font-weight: 700; white-space: nowrap;
             background: var(--cal-status-n-a-bg); color: var(--cal-status-n-a-fg); }

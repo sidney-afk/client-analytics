@@ -62,6 +62,11 @@ const db = realServe({ port: 0, hostname: "127.0.0.1", onListen() {} }, async (r
   }
   if (req.method === "POST") {
     const body = await req.json();
+    // studio_trial_versions.deliverable_id is a uuid column: Postgres refuses anything else (22P02), as live does.
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (t === "studio_trial_versions" && (Array.isArray(body) ? body : [body]).some((r: Row) => r.deliverable_id != null && !uuid.test(String(r.deliverable_id)))) {
+      return out({ code: "22P02", message: "invalid input syntax for type uuid" }, 400);
+    }
     for (const r of Array.isArray(body) ? body : [body]) rows.push({ ...r });
     return out(Array.isArray(body) ? body : [body], 201);
   }
@@ -282,6 +287,44 @@ const cwRows = (cardWins.body.versions || []) as Row[];
 ok(cwRows.length === 1 && cwRows[0].letter === "C" && cardWins.body.main_letter === "C", "the studio writing winner on Video A changes nothing: the card's letter (C) is the winner");
 const staffWins = await step({ action: "read" });
 ok(((staffWins.body.versions || []) as Row[]).find((r) => r.letter === "A")?.status === "lost", "staff see Video A as lost, as the card says");
+
+// A card the AI editor has not logged (found live, 2026-10-27): SyncView adds its versions itself.
+tables.calendar_posts.push({ id: "p4", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "https://f.io/p4-main", video_deliverable_id: null });
+tables.calendar_posts.push({ id: "p5", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "", video_deliverable_id: null });
+const p4 = () => tables.studio_trial_versions.filter((r) => r.post_id === "p4");
+await step({ action: "switch_set", enabled: true, post_id: "p4" });
+ok(p4().length === 1 && p4()[0].letter === "A" && p4()[0].frame_url === "https://f.io/p4-main" && p4()[0].batch === "p4" && p4()[0].video === "card",
+  "a card switched on with no version starts with Video A, the link it already carries");
+const addB = await step({ action: "version_add", post_id: "p4", link: "https://f.io/p4-b" }, "creative");
+ok(addB.body.ok === true && p4().some((r) => r.letter === "B" && r.frame_url === "https://f.io/p4-b" && r.status === "waiting")
+  && ((addB.body.versions || []) as Row[]).length === 2, "version_add adds Video B with its link (an editor's key may), and answers the two versions");
+const addDup = await step({ action: "version_add", post_id: "p4", link: "https://f.io/p4-b" });
+ok(addDup.status === 400 && addDup.body.error === "link_used_by_another_version", "a link another version already has is refused");
+const addClient = await step({ action: "version_add", post_id: "p4", link: "https://f.io/p4-c" }, "client-token");
+ok(addClient.status === 403 && p4().length === 2, "a client link cannot add a version");
+await step({ action: "switch_set", enabled: true, post_id: "p5" });
+const addFirst = await step({ action: "version_add", post_id: "p5", link: "https://f.io/p5-a" });
+ok(addFirst.status === 409 && addFirst.body.error === "attach_first" && !tables.studio_trial_versions.some((r) => r.post_id === "p5"),
+  "with no link on the card, the first version waits until the card carries its link (the page saves it first)");
+tables.calendar_posts.find((r) => r.id === "p5")!.asset_url = "https://f.io/p5-a";
+const addFirst2 = await step({ action: "version_add", post_id: "p5", link: "https://f.io/p5-a" });
+ok(addFirst2.body.ok === true && (addFirst2.body.changed as string[])[0] === "A", "then Video A is added");
+
+// The studio logs this card after SyncView seeded its Video A: still one Video A (Codex on PR 2373).
+tables.studio_trial_versions.push({ ...p4()[0], id: "studio-p4-a", batch: "Fixture batch", video: "9", frame_url: "https://f.io/p4-studio-a", created_at: "2099-01-01T00:00:00.000Z" });
+const afterStudio = await step({ action: "read", post_id: "p4" });
+const asRows = (afterStudio.body.versions || []) as Row[];
+ok(asRows.filter((r) => r.letter === "A").length === 1 && asRows.find((r) => r.letter === "A")!.id !== "studio-p4-a", "a later studio row for the same letter is not a second Video A");
+
+// A card whose video sub-issue is named as live names it, "del_<uuid>" (found live, 2026-10-27: every add answered
+// write_failed, because studio_trial_versions.deliverable_id is a uuid column).
+tables.calendar_posts.push({ id: "p6", client: "fixtureclient", video_status: "For SMM Approval", asset_url: "https://f.io/p6-main", video_deliverable_id: "del_66666666-6666-4666-8666-666666666666" });
+tables.deliverables.push({ id: "del_66666666-6666-4666-8666-666666666666", file_url: "https://f.io/p6-main" });
+const p6 = () => tables.studio_trial_versions.filter((r) => r.post_id === "p6");
+await step({ action: "switch_set", enabled: true, post_id: "p6" });
+ok(p6().length === 1 && p6()[0].letter === "A" && p6()[0].deliverable_id === "66666666-6666-4666-8666-666666666666", "a card with a del_ sub-issue starts with Video A, its sub-issue stored as the uuid");
+const addP6 = await step({ action: "version_add", post_id: "p6", link: "https://f.io/p6-b" });
+ok(addP6.body.ok === true && p6().length === 2, "and version_add adds Video B there (" + addP6.status + " " + addP6.body.error + ")");
 
 console.log(`trial-reels-function-deno: ${passed} checks passed` + (failures.length ? `, ${failures.length} FAILED` : ""));
 await db.shutdown();

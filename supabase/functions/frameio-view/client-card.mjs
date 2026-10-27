@@ -93,8 +93,9 @@ export async function authorizeClientCard({ token, cardId, link }, rest) {
  * screen. A requested link plays only when every one of these holds, all read here:
  *   - the trial_reels_pages switch lists this client (a missing row, a bad shape or a failed read all mean no);
  *   - this card's Trial reels switch is on (trial_reel_cards);
- *   - the link is the frame_url of one of THIS card's versions that is not dropped and not lost, and once a winner
- *     is picked only the winner's (the client sees only the winner, Q8).
+ *   - the link is the frame_url of one of THIS card's versions that is not dropped, and once a winner is picked
+ *     only the winner's (the client sees only the winner, Q8). The winner is the card's own winner_letter, never a
+ *     "winner" or "lost" the studio wrote on a version's row (owner, 2026-10-27; trial-reels settleWinner).
  * Anything else answers exactly like a link that is not this card's.
  */
 const TRIAL_FLAG_KEY = 'trial_reels_pages';
@@ -103,12 +104,14 @@ export async function trialVersionLink({ slug, cardId, link }, rest) {
   try {
     const flags = await rest('syncview_runtime_flags?select=value&key=eq.' + TRIAL_FLAG_KEY + '&limit=1');
     if (!flagAllows(Array.isArray(flags) && flags[0] ? flags[0].value : null, slug)) return '';
-    const sw = await rest('trial_reel_cards?select=enabled&client=eq.' + encodeURIComponent(slug) + '&post_id=eq.' + encodeURIComponent(cardId) + '&limit=1');
+    const sw = await rest('trial_reel_cards?select=enabled,winner_letter&client=eq.' + encodeURIComponent(slug) + '&post_id=eq.' + encodeURIComponent(cardId) + '&limit=1');
     if (!Array.isArray(sw) || !sw[0] || sw[0].enabled !== true) return '';
     const rows = await rest('studio_trial_versions?select=letter,status,frame_url&post_id=eq.' + encodeURIComponent(cardId) + '&client=ilike.' + encodeURIComponent(likeExact(slug)));
     const versions = Array.isArray(rows) ? rows : [];
-    const winner = versions.find((v) => v && v.status === 'winner');
-    const seen = winner ? [winner] : versions.filter((v) => v && v.status !== 'dropped' && v.status !== 'lost');
+    const pick = clean(sw[0].winner_letter).toUpperCase();
+    const winner = pick ? versions.find((v) => v && clean(v.letter).toUpperCase() === pick) : null;
+    // With no winner letter nothing is decided, so a studio-written "lost" still plays (it reads as on trial).
+    const seen = pick ? (winner ? [winner] : []) : versions.filter((v) => v && v.status !== 'dropped');
     // Compared as Frame.io links, not as text: the page asks with the link the player reads (a short link without its
     // trailing slash or query), while the version may have been saved with them (Codex on PR 2367).
     const key = (x) => { const p = parseFrameLink(x); return p ? JSON.stringify(p) : clean(x); };

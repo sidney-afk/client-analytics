@@ -331,8 +331,16 @@ function deps(f, over = {}) {
     eq(await refused({ token: TOK_A, cardId: 'card-1', link: VB }, fakeDb({ trialCards: [{ client: 'clientone', post_id: 'card-1', enabled: false }] })), 'not_found 404', "the card's Trial reels switch off: refused");
     eq(await refused({ token: TOK_A, cardId: 'card-1', link: VB }, fakeDb({ versionsDown: true })), 'not_found 404', 'a failed versions read: refused, not guessed');
     { const versions = [{ client: 'clientone', post_id: 'card-1', letter: 'A', status: 'winner', frame_url: LINK }, { client: 'clientone', post_id: 'card-1', letter: 'B', status: 'pending', frame_url: VB }];
-      eq(await refused({ token: TOK_A, cardId: 'card-1', link: VB }, fakeDb({ versions })), 'not_found 404', 'once a winner is picked only the winner plays');
-      eq((await authorizeClientCard({ token: TOK_A, cardId: 'card-1', link: LINK }, fakeDb({ versions }).rest)).link, LINK, 'the winner (the card link) still plays'); }
+      const picked = [{ client: 'clientone', post_id: 'card-1', enabled: true, winner_letter: 'A' }];
+      eq(await refused({ token: TOK_A, cardId: 'card-1', link: VB }, fakeDb({ versions, trialCards: picked })), 'not_found 404', 'once a winner is picked only the winner plays');
+      eq((await authorizeClientCard({ token: TOK_A, cardId: 'card-1', link: LINK }, fakeDb({ versions, trialCards: picked }).rest)).link, LINK, 'the winner (the card link) still plays'); }
+    // The winner is SyncView's alone (owner, 2026-10-27): the card's winner_letter, never a status the studio wrote.
+    { const VC = 'https://f.io/verc77';
+      const versions = [{ client: 'clientone', post_id: 'card-1', letter: 'A', status: 'on trial', frame_url: LINK }, { client: 'clientone', post_id: 'card-1', letter: 'B', status: 'lost', frame_url: VB }, { client: 'clientone', post_id: 'card-1', letter: 'C', status: 'winner', frame_url: VC }];
+      eq((await authorizeClientCard({ token: TOK_A, cardId: 'card-1', link: VB }, fakeDb({ versions }).rest)).link, VB, 'a studio-written winner with no winner letter on the card cuts nothing: Video B (studio "lost") still plays');
+      const picked = [{ client: 'clientone', post_id: 'card-1', enabled: true, winner_letter: 'B' }];
+      eq((await authorizeClientCard({ token: TOK_A, cardId: 'card-1', link: VB }, fakeDb({ versions, trialCards: picked }).rest)).link, VB, "the card's letter (B) is the winner, whatever its row says");
+      eq(await refused({ token: TOK_A, cardId: 'card-1', link: VC }, fakeDb({ versions, trialCards: picked })), 'not_found 404', 'and the studio-written winner (C) is refused'); }
     { const db = fakeDb(); await authorizeClientCard({ token: TOK_A, cardId: 'card-1', link: VB }, db.rest);
       ok(db.asked.every((a) => /^(client_access|syncview_runtime_flags|clients|calendar_posts|trial_reel_cards|studio_trial_versions)\?/.test(a)), 'a version link reads only the trial reels tables beside the four'); }
     ok(/trialVersionLink/.test(read('supabase/functions/frameio-view/client-card.mjs')) && !/trial/i.test(read('supabase/functions/frameio-view/logic.mjs')), 'the trial check lives in client-card.mjs; logic.mjs (shared with higgsfield-mcp) is untouched');

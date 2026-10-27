@@ -163,11 +163,24 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   const heal2 = L.healMainPatch([v('A', { status: 'change asked', change_by: 'client', revision: 1 }), v('B')], 'https://f.io/fixture-a3');
   ok(heal2.patch.status === 'waiting' && heal2.patch.revision === 2 && heal2.patch.change_by === null, 'a change asked on the main version starts again when its new file lands through Production (Q3)');
 
+  // The winner is SyncView's alone (owner, 2026-10-27): only trial_reel_cards.winner_letter decides it.
+  const studioWin = [v('A', { status: 'on trial' }), v('B', { status: 'winner' }), v('C', { status: 'lost' })];
+  const none = L.settleWinner(studioWin, null);
+  ok(none.every(x => x.status === 'on trial'), 'a "winner" or "lost" the studio wrote, with no winner letter on the card, reads as on trial');
+  ok(!L.readShape(none, { client: true, mainLink: A_LINK, cardStatus: '' }).versions.some(x => x.status === 'winner') && L.readShape(none, { client: true, mainLink: A_LINK, cardStatus: '' }).versions.length === 3,
+    "the client link is not cut down to a studio-written winner");
+  const picked = L.settleWinner(studioWin, 'A');
+  ok(picked.find(x => x.letter === 'A').status === 'winner' && picked.filter(x => x.letter !== 'A').every(x => x.status === 'lost'), "the card's letter makes Video A the winner, whatever the rows say");
+  ok(L.mainLetter(picked, '') === 'A' && L.undoWinnerPatches(L.settleWinner(studioWin, null), A_LINK, {}).error === 'no_winner', 'the version on the card and Undo follow the card\'s letter only');
+  ok(studioWin[1].status === 'winner', 'settleWinner leaves the rows as read (it returns copies)');
+
   // The function and the migration, read as source
   const src = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'trial-reels', 'index.ts'), 'utf8');
   const code = src.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
   ok(!/video_status\s*:/.test(code) && !/\.from\("calendar_posts"\)\s*\.(update|insert|upsert)/.test(code), 'the function never writes the card (no status, no link)');
   ok(!/\.from\("deliverables"\)\s*\.(update|insert|upsert)/.test(code) && !/production-write|production_artifact_write/.test(code), 'the function never writes the sub-issue or calls a Section 4 function');
+  ok((code.match(/await readVersions\(/g) || []).length >= 3 && !/await readVersions\(supabase, client, (postId|id)\)/.test(code) && /return settleWinner\(/.test(code),
+    "every versions read passes the card's winner letter through settleWinner");
   ok(/assertSwitchOn\(supabase, client\)/.test(code) && /CLIENT_ACTIONS\.includes\(action\)/.test(code), 'every request checks the switch; a client link may only read and answer');
   const sql = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '20261027090000_trial_reels.sql'), 'utf8');
   ok(/^-- ef-auto-deploy-applied-when: select to_regclass\('public\.trial_reel_cards'\) is not null/m.test(sql), 'the migration says how to tell it is applied, so the merge lane holds the function until then');

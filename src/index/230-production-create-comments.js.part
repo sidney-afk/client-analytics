@@ -1820,7 +1820,12 @@ import {
                 options = options || {};
                 if (!id) return;
                 const loadIssue = typeof _prodIssue === 'function' ? _prodIssue(id) : null;
-                if (loadIssue && loadIssue.syntheticBatchParent === true) {
+                // A batch id (`bat_`, `b1_b_`, or a two-team `bat_...::uuid`)
+                // is never a deliverable, so it is a batch parent even before
+                // the rows that mint it have loaded. A cold `?d=bat_...` link
+                // asked the reader during boot, got its 403, and kept "not
+                // available to your team" on the post (OPEN_REPAIRS 541).
+                if ((loadIssue && loadIssue.syntheticBatchParent === true) || /^(?:bat|b1_b)_/i.test(id)) {
                     // A batch parent has no comment thread of its own; the
                     // reader would answer with the scope error. Show the calm
                     // empty state instead — the composer already explains that

@@ -1828,6 +1828,14 @@
       "ci": "representative"
     },
     {
+      "file": "prod-batch-parent-comments-cold-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend read answered locally with an empty list and key-verify fulfilled by the staff gate seed, no hosted credentials and no live data. Opens ?prod=1&d= on a bat_, a b1_b_ and a two-team bat_...::uuid id before any batch row exists and checks the Production comment loader sends no production-comments read and never shows the scope refusal.",
+      "reproduce": "node test/prod-batch-parent-comments-cold-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "boot-reads-retry-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

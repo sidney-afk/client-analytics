@@ -34679,3 +34679,11 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-link-guard-browser.js` (Probe's test, adopted; 3 of its 4 checks fail without the fix), trial-reels-card-browser (58), trial-reels-race-browser (15).
 
 **Way back:** revert the commit.
+
+## 534. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels on the review page: Approve on versions the SMM has not looked at, and arrows the client could not see (Probe rule-miss 13, E1b, session Trials)
+
+- **Rule-miss 13:** Kasper and the client answer a version only after the SMM has (the function's stage order). The page still offered Approve on such a version, after a new cut for instance. The press was refused, and Approve all skipped it and landed on it again. Now the version reads "with the team": a muted dashed dot, no Approve (the row says "With the team: the SMM looks at Video B first"), and no place in Approve all. Every read now says `ready` (build 1) as a yes or no, so the client's read carries no team times.
+- **E1b:** on the client link the side arrows sat inside the poster box (`#novid`, used for a version that opens in a new tab or has no link), which clips what overflows it, so they were invisible. They now sit on the media box, placed beside the player by its measured width, and stay bound to the post on screen.
+- **Proven:** `node test/trial-reels-review-browser.js` (40 checks; the new E1b and rule-miss 13 checks fail without the fix), trial-reels-change-naming-browser, review-stage-browser, review-stage-kasper-layout2-browser (188), review-stage-client-layout-browser.
+
+**Way back:** revert the commit.

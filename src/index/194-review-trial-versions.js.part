@@ -55,10 +55,15 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
     }
     const _trvStage = mode => mode === 'client' ? 'client' : mode === 'smm' ? 'smm' : 'kasper';
     /* This reviewer's answer on one version: ok, chg or wait. */
+    /* This reviewer's answer on one version: ok, chg, wait, or team: Kasper and the client answer a version only after
+       the SMM has looked at it (the function's stage order), so until then it is "with the team": no Approve, a muted
+       dot, not counted in Approve all (Probe rule-miss 13). A read without `ready` (older) counts as ready. */
     function _trvAnswer(v, stage) {
         if (v.status === 'change asked') return 'chg';
-        if (stage === 'client') return ['approved', 'on trial', 'winner', 'lost'].includes(v.status) ? 'ok' : 'wait';
-        return v[stage + '_ok_at'] ? 'ok' : 'wait';
+        const ok = stage === 'client' ? ['approved', 'on trial', 'winner', 'lost'].includes(v.status) : !!v[stage + '_ok_at'];
+        if (ok) return 'ok';
+        const ready = stage === 'smm' || (v.ready !== undefined ? v.ready !== false : stage === 'client' || !!v.smm_ok_at);
+        return ready ? 'wait' : 'team';
     }
     function _trvCurOf(m, mode) {
         const vs = m.trial.versions;
@@ -79,6 +84,10 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
         // A version with no link yet shows today's "No video yet", never another version's video.
         if (!v.frame_url) return Object.assign({}, m.post, { asset_url: '', _trvNoPlayer: true });
         return Object.assign({}, m.post, { asset_url: v.frame_url }, mode === 'client' && !v.on_card ? { _trvNoPlayer: true } : {});
+    }
+    // The version on screen is still with the team (the SMM has not looked at it): the page shows that, not Approve.
+    function svTrialReviewWithTeam(m, mode) {
+        return !!(m && m.trial && !m.trial.winner && _trvAnswer(_trvCurOf(m, mode), _trvStage(mode)) === 'team');
     }
     function svTrialReviewApproveWord(m, mode) {
         return m && m.trial && !m.trial.winner ? 'Approve Video ' + _trvCurOf(m, mode).letter : '';
@@ -102,8 +111,8 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
         if (vs.length === 1) return '<div class="trv trv-under"><span class="trv-n">Video ' + _calEsc(cur.letter) + '</span>' + busy + '</div>';
         const dots = vs.map(v => {
             const a = _trvAnswer(v, stage);
-            return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
-                + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : ', waiting') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i>' + _calEsc(v.letter) + '</i></button>';
+            return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + (a === 'ok' ? ' ok' : a === 'chg' ? ' chg' : a === 'team' ? ' team' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
+                + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : a === 'team' ? ', with the team' : ', waiting') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i>' + _calEsc(v.letter) + '</i></button>';
         }).join('');
         return '<div class="trv trv-under" role="group" aria-label="Versions of this video">'
             + '<span class="trv-swipe" aria-hidden="true">Swipe for the next version</span>'
@@ -257,6 +266,7 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
 .trv-dot i{display:grid;place-items:center;width:22px;height:22px;box-sizing:border-box;border:1px solid var(--hair);border-radius:50%;color:var(--text-secondary);font-style:normal;font-size:.62rem;font-weight:700}
 .trv-dot.ok i{background:var(--ok-soft-2);border-color:var(--ok-line);color:var(--ok-ink)}
 .trv-dot.chg i{background:var(--chgb);border-color:var(--chgrow-line);color:var(--chg-fg)}
+.trv-dot.team i{opacity:.45;border-style:dashed}
 .trv-dot.on i{border-color:var(--pd-video);color:var(--pd-video);box-shadow:0 0 0 1px var(--pd-video)}
 .trv-swipe{display:none;color:var(--text-secondary);font-size:.72rem}
 .trv-arr{display:grid;place-items:center;width:44px;height:44px;border:1px solid var(--hair);border-radius:50%;background:var(--deck);color:var(--text-primary);cursor:pointer;padding:0}
@@ -264,8 +274,8 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
 .trv-arr[disabled]{opacity:.35;cursor:default}
 .trv-arr svg{width:14px;height:14px}
 .trv-side{position:absolute;top:50%;transform:translateY(-50%);z-index:5}
-.trv-side.prev{right:calc(100% + 14px)}
-.trv-side.next{left:calc(100% + 14px)}
+.trv-side.prev{left:calc(50% - var(--trv-half,140px) - 58px)}
+.trv-side.next{left:calc(50% + var(--trv-half,140px) + 14px)}
 .trv-all{display:inline-flex;align-items:center;gap:6px}
 .trv-all svg{width:14px;height:14px}
 .trv-busy{color:var(--text-secondary)}
@@ -275,5 +285,5 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
 export {
   TRV_CSS, svTrialReviewAllHtml, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewArrowsHtml, svTrialReviewBarHtml,
   svTrialReviewBind, svTrialReviewChangeText, svTrialReviewCount, svTrialReviewLetter, svTrialReviewOnChange, svTrialReviewPost,
-  svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewUnderHtml
+  svTrialReviewShape, svTrialReviewStep, svTrialReviewSwipe, svTrialReviewUnderHtml, svTrialReviewWithTeam
 };

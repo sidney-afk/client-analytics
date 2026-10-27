@@ -231,8 +231,13 @@ async function readVoice(job: Job): Promise<{ source: string; text: string }> {
     if (!r.ok) { await r.body?.cancel(); return { source: "none", text: "" }; }
     const guide = voiceGuide(parseBrainFacts(await r.text(), "voice"));
     // dreams.md (POLICY/dreamer.md in the brain): its Audience and Voice lines, always labelled as dreamt, not facts.
-    const d = await gh(`contents/clients/${folder}/dreams.md?ref=${ref}`, "application/vnd.github.raw+json");
-    const dreams = d.ok ? dreamsForCaption(await d.text()) : (await d.body?.cancel(), "");
+    let dreams = "";
+    try {
+      const d = await gh(`contents/clients/${folder}/dreams.md?ref=${ref}`, "application/vnd.github.raw+json");
+      dreams = d.ok ? dreamsForCaption(await d.text()) : (await d.body?.cancel(), "");
+    } catch (_e) {
+      console.warn("[caption-generate] brain dreams read failed; writing with the voice guide only");
+    }
     return dreams ? { source: guide.source, text: `${guide.text}${guide.text ? "\n\n" : ""}${dreams}` } : guide;
   } catch (_e) {
     console.warn("[caption-generate] brain voice read failed; writing without it");

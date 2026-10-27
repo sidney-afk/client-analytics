@@ -128,7 +128,8 @@ async function run(browser, origin, viewport) {
       if (body.action === 'get') {
         return json({ ok: true, person: Object.assign({ email: 'made-up@example.invalid', phone: '555 010 0000', lost_reason: null }, person), source: { id: 's1', name: 'Made-up batch' },
           events: [{ id: 2, kind: 'note', actor: 'QA Staff', detail: { text: 'Newest made-up note' }, occurred_at: '2026-10-21T10:00:00Z' },
-                   { id: 1, kind: 'imported', actor: 'import', detail: {}, occurred_at: '2026-10-20T10:00:00Z' }] });
+                   { id: 1, kind: 'imported', actor: 'import', detail: {}, occurred_at: '2026-10-20T10:00:00Z' },
+                   { id: 0, kind: 'call', actor: 'Kasper', detail: {}, occurred_at: '2026-10-19T15:00:00Z' }] });
       }
       if (body.action === 'update') {
         state.updates.push(body);
@@ -237,6 +238,7 @@ async function run(browser, origin, viewport) {
   expect(/Sample Coach/.test(panel) && /made-up@example\.invalid/.test(panel) && /Made-up batch/.test(panel), label + ': panel shows details and source');
   const evs = await page.locator('.crm-ev-text').allInnerTexts();
   expect(evs[0] === 'Newest made-up note' && /Imported/.test(evs[1]), label + ': timeline is newest first');
+  expect(/Last touch/.test(panel) && !/No touch yet/.test(panel), label + ': the panel says when we last touched them (a call, message or reply)');
   expect(!(await page.locator('#crmPStep').count()), label + ': the edit fields stay hidden until Edit');
   expect(await page.evaluate(() => { const t = Array.from(document.querySelectorAll('#crmPanel .crm-section-title')).map(n => n.textContent); return t[0] === 'Timeline' && t[1] === 'Sequences'; }), label + ': the timeline comes first, sequences after');
   expect(await boxesInBoxes(page) === '', label + ': the person panel has no box inside a box');

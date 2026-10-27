@@ -461,7 +461,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         if (e.kind === 'stage_changed') return 'Moved from ' + _crmLabel(CRM_STAGES, d.from) + ' to ' + _crmLabel(CRM_STAGES, d.to);
         if (e.kind === 'owner_changed') return d.to ? 'Owner set to ' + d.to : 'Owner cleared';
         if (e.kind === 'next_step_set') return d.next_step || d.due ? 'Next step: ' + (d.next_step || 'no text') + (d.due ? ', due ' + _crmDue(d.due) : '') : 'Next step cleared';
-        if (e.kind === 'lost_reason_set') return d.to ? 'Lost because of ' + _crmLabel(CRM_LOST_REASONS, d.to).toLowerCase() : 'Lost reason cleared';
+        if (e.kind === 'lost_reason_set') return d.to ? 'Why it didn\'t close: ' + _crmLabel(CRM_LOST_REASONS, d.to).toLowerCase() : 'Why it didn\'t close cleared';
         if (e.kind === 'tags_changed') return 'Tags: ' + ((d.to || []).join(', ') || 'none');
         if (e.kind === 'note') return d.text || '';
         if (e.kind === 'imported') return 'Imported from a list';
@@ -494,13 +494,15 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
                 : (_crmState.events.length ? '<ol class="crm-timeline">' + _crmState.events.map(e => '<li class="crm-ev crm-ev-' + _calEscAttr(e.kind) + '"><span class="crm-ev-text">' + _calEsc(_crmEventText(e)) + '</span><span class="crm-ev-meta">' + _calEsc(_crmWhen(e.occurred_at)) + (e.actor ? ' · ' + _calEsc(e.actor) : '') + '</span></li>').join('') + '</ol>'
                     : '<p class="crm-muted">' + _calEsc(_crmState.personError || 'Nothing has happened yet.') + '</p>');
             // One plain sentence for where they are; the fields only show after Edit.
-            const facts = [_crmLabel(CRM_STAGES, p.stage) + (p.stage === 'lost' && p.lost_reason ? ' (' + _crmLabel(CRM_LOST_REASONS, p.lost_reason).toLowerCase() + ')' : ''),
+            const lastTouch = _crmLastTouch(_crmState.events);
+            const facts = [_crmLabel(CRM_STAGES, p.stage) + (p.stage !== 'won' && p.lost_reason ? ' (' + _crmLabel(CRM_LOST_REASONS, p.lost_reason).toLowerCase() + ')' : ''),
+                lastTouch ? 'Last touch ' + _crmDue(lastTouch.slice(0, 10)) : 'No touch yet',
                 p.next_step || p.next_step_due ? 'Next: ' + (p.next_step || 'next step') + (p.next_step_due ? ', ' + (_crmOverdue(p) ? 'overdue since ' : 'due ') + _crmDue(p.next_step_due) : '') : 'No next step',
                 p.owner ? 'Owner ' + p.owner : 'No owner'];
             const edit = _crmState.editing
                 ? '<form class="crm-form" onsubmit="event.preventDefault();_crmSavePanel()">'
                 + '<label class="crm-field"><span>Stage</span>' + _svSelectHtml('crmPStage', CRM_STAGES.map(s => ({ value: s[0], label: s[1] })), p.stage, 'Stage') + '</label>'
-                + '<label class="crm-field" id="crmLostWrap"' + (p.stage === 'lost' ? '' : ' hidden') + '><span>Why it was lost</span>' + _svSelectHtml('crmPLost', [{ value: '', label: 'Not set' }].concat(CRM_LOST_REASONS.map(r => ({ value: r[0], label: r[1] }))), p.lost_reason || '', 'Not set') + '</label>'
+                + '<label class="crm-field" id="crmLostWrap"' + (CRM_REASON_STAGES.includes(p.stage) ? '' : ' hidden') + '><span>Why it didn\'t close</span>' + _svSelectHtml('crmPLost', [{ value: '', label: 'Not set' }].concat(CRM_LOST_REASONS.map(r => ({ value: r[0], label: r[1] }))), p.lost_reason || '', 'Not set') + '</label>'
                 + '<label class="crm-field"><span>Owner</span><input id="crmPOwner" class="crm-input" maxlength="80" autocomplete="off" value="' + _calEscAttr(keep.crmPOwner != null ? keep.crmPOwner : (p.owner || '')) + '"></label>'
                 + '<label class="crm-field crm-field-wide"><span>Next step</span><input id="crmPStep" class="crm-input" maxlength="500" autocomplete="off" placeholder="Send the follow-up DM" value="' + _calEscAttr(keep.crmPStep != null ? keep.crmPStep : (p.next_step || '')) + '"></label>'
                 + '<div class="crm-field"><span>Due</span>' + _svDateHtml('crmPDue', p.next_step_due || '', { placeholder: 'No date' }) + '</div>'
@@ -534,9 +536,17 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         const target = on ? n : document.querySelector('#crmPanel [data-crm-edit]');
         if (target) target.focus({ preventScroll: true });
     }
+    // Kasper's "Why it didn't close": asked of anyone who had a call or went quiet, not only Lost.
+    const CRM_REASON_STAGES = ['no_show', 'call1_done', 'call2_done', 'nurture', 'lost'];
     function _crmStageChanged(value) {
         const wrap = document.getElementById('crmLostWrap');
-        if (wrap) wrap.hidden = value !== 'lost';
+        if (wrap) wrap.hidden = !CRM_REASON_STAGES.includes(value);
+    }
+    /* Last time we heard from them or reached them: a message, a reply or a call. */
+    function _crmLastTouch(events) {
+        let best = '';
+        for (const e of events || []) if (['message_sent', 'reply', 'call'].includes(e.kind) && e.occurred_at > best) best = e.occurred_at;
+        return best;
     }
     function _crmClosePanel(fromLayer) {
         // Closing never loses typed text: a started note is kept for that person.
@@ -553,7 +563,7 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
         if (!p || _crmState.saving) return;
         const val = id => { const n = document.getElementById(id); return n ? n.value : ''; };
         const patch = { stage: val('crmPStage') || p.stage, owner: val('crmPOwner').trim(), next_step: val('crmPStep').trim(), next_step_due: val('crmPDue') || '' };
-        if (patch.stage === 'lost') patch.lost_reason = val('crmPLost') || '';
+        if (CRM_REASON_STAGES.includes(patch.stage)) patch.lost_reason = val('crmPLost') || '';
         _crmState.saving = true; _crmPaintPanel();
         const ok = await _crmSave(p.id, patch, '', 'update');
         _crmState.saving = false;

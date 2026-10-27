@@ -2203,6 +2203,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-reels-change-naming-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. A change on a trial card is about the version it was asked on (session Probe): the client looking at another version before sending, Kasper pressing another tile before sending, and Kasper's Approve after tweaks recording the version to fix.",
+      "reproduce": "node test/trial-reels-change-naming-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "calendar-card-write-routing-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

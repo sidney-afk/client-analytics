@@ -2154,6 +2154,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-reels-race-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Two staff pages on one trial card pick a winner at once (Probe, bug 9): a pick after another one stops before it writes, a pick whose read raced the other puts the card back on the winner's own link, and a link someone else attached before the put-back stands.",
+      "reproduce": "node test/trial-reels-race-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "calendar-card-write-routing-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

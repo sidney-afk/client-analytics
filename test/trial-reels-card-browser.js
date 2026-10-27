@@ -73,6 +73,7 @@ async function shot(page, name) {
     const apply = changes => { for (const c of changes || []) Object.assign(T.versions.find(v => v.id === c.id), c.patch); };
     let res = null;
     if (b.action === 'list') return reply({ ok: true, cards: T.enabled ? { p_t1: shape() } : {} });
+    if (b.action === 'read') return reply(Object.assign({ ok: true }, shape()));   // the pick's and Undo's fresh read
     if (b.action === 'switch_set') { T.enabled = b.enabled === true; return reply({ ok: true, enabled: T.enabled }); }
     if (b.action === 'version_link_set') {
       res = L.linkPatch(T.versions, b.letter, b.link, mainLink());

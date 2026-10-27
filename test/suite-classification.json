@@ -2157,6 +2157,14 @@
       "ci": "representative"
     },
     {
+      "file": "trial-reels-polish-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (writes held 1.5 s), no hosted credentials and no live data. Checks the trial card's owner polish round: switch on, a new or changed link, the version on the card, drop and bring back each show at once and a refusal puts the row back with a message; the list opens by itself on switch on; dropped is plain text; the version name is a link; the switch and the row buttons are unboxed and undimmed with hover on the icon only and unchanged targets; at 1440 and 390, light and dark.",
+      "reproduce": "node test/trial-reels-polish-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "trial-reels-empty-card-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

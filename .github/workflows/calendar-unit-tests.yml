@@ -483,6 +483,7 @@ jobs:
           Trial reels: two staff picking a winner at once never leave the card on another version's link|node test/trial-reels-race-browser.js
           Trial reels: a refused link or drop on the version on the card puts the card's link back|node test/trial-reels-link-guard-browser.js
           Trial reels on a card the AI editor has not logged: switch on, add Video A and B by pasting their links|node test/trial-reels-empty-card-browser.js
+          Trial reels card polish: every action shows at once and a refusal puts it back; no dropped pill; unboxed switch and row buttons|node test/trial-reels-polish-browser.js
           LANES
 
 

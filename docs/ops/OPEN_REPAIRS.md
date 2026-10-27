@@ -34593,3 +34593,28 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-review-browser.js` (24 checks: client, SMM, Kasper), the existing review-stage suites, client-review-requests-unchanged, prod-write-gateway-browser, check-modules and check-lazy-safety.
 
 **Way back:** revert the PR; with the switch off nothing shows.
+
+## 522. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: two staff picking a winner at once could leave the card posting another version (Probe bug 9, session Trials)
+
+- **What was wrong:** a second staff page still showed its 30-second list. When the first page picked C, the second page could still press D's trophy. Today's attach put D on the card, the function refused D because C had already won, and the page "put back" the link it had seen before, Video A's. C stayed the winner while the card carried A's link, so A's video would post.
+- **Fix (`189`, build 2):** the pick (and Undo) reads the versions now and stops if a winner is already picked or the version is no longer on trial. If the function still refuses after the attach (a read that raced the other pick), the put-back:
+  - goes to the function's own main version (`main_url`, new in the staff read: the winner's stored link, else Video A's), never to the page's old view;
+  - is a compare-and-swap on the sub-issue: it carries the clock the page's own attach answered, so a link someone else attached since stands (write_conflict).
+- **Proven:** `node test/trial-reels-race-browser.js` (Probe's race test, now three races, 15 checks; races 2 and 3 fail without the fix), the card test (52), the logic test (76) and the Deno function test (34).
+
+**Way back:** revert the commit.
+
+## 523. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: the card's switch knob was dark in dark mode (Probe E8, session Trials)
+
+- **What:** the knob used `--sv-bg-fff`, which turns dark in the dark theme; the approved card pictures show a light knob in both. A new token `--sv-knob` (010, light in both themes) now draws it.
+- **Proven:** `node test/trial-reels-card-browser.js` (54 checks; the new knob check fails without the fix), no-hardcoded-colors.
+
+**Way back:** revert the commit.
+
+## 524. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels in Production: "on the card" clipped under the state pill, and a test mock that never let today's row read (Probe E10, E11, session Trials)
+
+- **E10:** when today's Deliverable file row shows a long value (the "Not readable until asset access is checked." guidance, whenever the asset read fails), the version's labels were pushed under the state pill. The text part now gives way with an ellipsis and the labels stay whole (`020`).
+- **E11:** the Production test answered `asset_access_read` without `id`, `client_slug` and `team`, and 210 drops such an answer, so today's (Video A) row was never read in that test. The mock now names its row, and the test checks today's row reads "Open link … Available".
+- **Proven:** `node test/trial-reels-production-browser.js` (24 checks, light and dark; the clipping check fails without the fix).
+
+**Way back:** revert the commit.

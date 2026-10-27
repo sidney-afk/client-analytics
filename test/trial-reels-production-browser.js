@@ -87,8 +87,11 @@ async function shot(page, name) {
     const r = route.request();
     let b = {}; try { b = JSON.parse(r.postData() || '{}'); } catch (e) {}
     if (r.method() !== 'POST' || b.action !== 'asset_access_read') return route.fallback();
+    // A failed asset read (the page then shows today's long "Not readable until…" guidance in the row).
+    if (T.assetDown) return route.fulfill({ status: 503, contentType: 'application/json', headers: CORS, body: JSON.stringify({ ok: false, error: 'asset_access_unavailable' }) });
     const file = b.id === vid.id ? mainLink() : null;
-    return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ ok: true, complete: true, assets: [
+    // The answer names the row it belongs to, as the gateway's does (210 drops an answer that does not, Probe E11).
+    return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ ok: true, complete: true, id: b.id, client_slug: b.client_slug, team: 'video', assets: [
       { slot: 'filming_plan', state: 'missing', url: null }, { slot: 'raw_footage', state: 'missing', url: null }, { slot: 'delivery_folder', state: 'missing', url: null },
       { slot: 'deliverable_file', state: file ? 'available' : 'missing', url: file, http_status: file ? 200 : undefined }] }) });
   });
@@ -141,6 +144,7 @@ async function shot(page, name) {
     ok(vr.map(x => x.label).join('|') === ['A', 'B', 'C', 'D', 'E'].map(l => 'Deliverable file · Video ' + l).join('|'), 'one "Deliverable file · Video X" row per version, A to E in order');
     ok(vr[0].today && vr.filter(x => x.today).length === 1 && /on the card/.test(vr[0].value) && vr.slice(1).every(x => !/on the card/.test(x.value)), "Video A's row is today's row (today's Edit, today's check), marked on the card");
     ok(vr.every(x => x.edit), 'every version row has an Edit');
+    ok(/^Open link\b/.test(vr[0].value) && vr[0].state === 'Available', "today's row (Video A) is read like today: Open link, Available (" + vr[0].value + ' | ' + vr[0].state + ')');
     ok(vr[1].state === 'Permission denied' && vr[2].state === 'Not checked' && vr[3].state === 'Available' && vr[4].state === 'Missing' && /Not provided/.test(vr[4].value),
       "each other version's state in Production's own words: Permission denied, Not checked (the check could not look), Available, Missing");
     ok(/approved/.test(vr[0].value) && /change asked/.test(vr[2].value) && /dropped/.test(vr[3].value) && /waiting/.test(vr[4].value), 'with a mixed review each row says where it stands');
@@ -148,6 +152,21 @@ async function shot(page, name) {
     const lefts = await page.evaluate(() => ['.prod-asset-value', '.prod-asset-state', '.prod-asset-edit'].map(sel => [...document.querySelectorAll('.trl-prod-v ' + sel)].map(n => Math.round(n.getBoundingClientRect().left))));
     ok(lefts.every(col => col.length === 5 && new Set(col).size === 1), 'the links, the states and the Edit buttons line up down the version rows: ' + JSON.stringify(lefts));
     const cr = await contrast(page);
+    // A long value in today's row (the asset read failed): "on the card" stays whole, never under the state pill.
+    T.assetDown = true;
+    await page.close();
+    page = await open(1440, 900);
+    const clip = await page.evaluate(() => {
+      const row = document.querySelector('.prod-asset-row[data-prod-asset-slot="deliverable_file"]');
+      const on = row && row.querySelector('.trl-oncard'), pill = row && row.querySelector('.prod-asset-state'), val = row && row.querySelector('.prod-asset-value');
+      if (!on || !pill || !val) return null;
+      const a = on.getBoundingClientRect(), p = pill.getBoundingClientRect(), v = val.getBoundingClientRect();
+      return { text: val.innerText.replace(/\s+/g, ' ').trim(), whole: a.right <= v.right + 0.5 && a.right <= p.left + 0.5 && a.width > 20 };
+    });
+    ok(clip && /Not readable/.test(clip.text) && clip.whole, 'a long value in today\'s row keeps "on the card" whole, clear of the state pill (Probe E10): ' + JSON.stringify(clip));
+    T.assetDown = false;
+    await page.close();
+    page = await open(1440, 900);
     ok(cr.length >= 9 && cr.every(c => c.ratio >= 4.5), 'every label the trial adds reads at 4.5:1 or more (' + THEME + '): ' + cr.map(c => c.text + ' ' + c.ratio.toFixed(1)).join(', '));
     await shot(page, 'prod-review');
 

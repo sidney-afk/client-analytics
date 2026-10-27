@@ -34705,3 +34705,10 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-logic.js` (82 checks), the Deno function test (35).
 
 **Way back:** revert this commit and the card's.
+
+## 532. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels in Kasper's second layout: the version on the card drops from its tile too (default (c), session Trials)
+
+- **What:** the tile of the version on the card now has Drop whenever another live version has a link. As on the card (530), today's attach first puts that next version's link on the card, then the old one drops. 189 exports `svTrialMoveCard` (today's attach) for the tile.
+- **Proven:** `node test/trial-reels-review-browser.js` (48 checks, with Video A dropped from its tile after Video B is attached), trial-reels-change-naming-browser, review-stage-kasper-layout2-browser (188).
+
+**Way back:** revert this commit with 529 and 530.

@@ -58,7 +58,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       T.calls.push(b);
       const client = mode === 'client';
       const shape = () => Object.assign({ enabled: true, winner_letter: (T.versions.find(v => v.status === 'winner') || {}).letter || null },
-        L.readShape(T.versions, { client, mainLink: T.versions[0].frame_url, cardStatus: 'Client Approval' }));
+        L.readShape(T.versions, { client, mainLink: T.mainLink || T.versions[0].frame_url, cardStatus: 'Client Approval' }));
       const reply = (o, s) => route.fulfill({ status: s || 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(o) });
       if (b.action === 'list') return reply({ ok: true, cards: Object.fromEntries((T.cards || ['rs1']).map(id => [id, shape()])) });
       if (b.action === 'answer' && b.kind === 'change' && T.failChange > 0) { T.failChange--; return reply({ ok: false, error: 'write_failed' }, 500); }
@@ -69,12 +69,22 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
         return reply(Object.assign({ ok: true }, shape()));
       }
       if (b.action === 'version_drop') {
-        const res = L.dropPatch(T.versions, b.letter, false);
-        if (res.error) return reply({ ok: false, error: res.error }, 400);
+        const res = L.dropPatch(T.versions, b.letter, false, T.mainLink || T.versions[0].frame_url);
+        if (res.error) return reply({ ok: false, error: res.error }, res.error === 'attach_first' ? 409 : 400);
         if (res.patch) Object.assign(T.versions.find(v => v.letter === b.letter), res.patch);
         return reply(Object.assign({ ok: true }, shape()));
       }
       return reply({ ok: false, error: 'unknown_action' }, 400);
+    });
+    // Today's attach onto the card (Production's gateway), for the drop of the version on the card (default (c)).
+    T.attaches = [];
+    await t.ctx.route('**/rest/v1/production_deliverables_browser_v1*', route => route.fulfill({ status: 200, headers: CORS, contentType: 'application/json',
+      body: JSON.stringify([{ id: 'del_rs1', client_slug: SLUG, updated_at: '2026-10-27T09:00:00.000Z' }]) }));
+    await t.ctx.route('**/functions/v1/production-write', route => {
+      let b = {}; try { b = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+      if (b.operation !== 'attachment') return route.fallback();
+      T.attaches.push(b.file_url); T.mainLink = b.file_url;
+      return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ ok: true, native_committed: true, row: { id: 'del_rs1', updated_at: new Date().toISOString() } }) });
     });
     if (mode === 'client') {
       await t.page.goto(origin + '/index.html?' + new URLSearchParams({ c: CLIENT, v: 'calendar', t: TOKEN }), { waitUntil: 'domcontentloaded' });
@@ -299,11 +309,18 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     await waitFor(async () => t.T.versions[3].status === 'dropped');
     await sleep(900);
     k = await tiles();
-    ok(t.T.versions[3].status === 'dropped' && k.names.length === 4 && !(await inS(t.page, '.trk-v [data-trk-drop="A"]').count()), 'the team drops Video D from its tile; Video A (on the card) has no drop');
+    ok(t.T.versions[3].status === 'dropped' && k.names.length === 4, 'the team drops Video D from its tile');
+    // Default (c): Video A, on the card, drops too: today's attach first puts the next live version (B) on the card.
+    await inS(t.page, '.trk-v [data-trk-drop="A"]').click();
+    await waitFor(async () => t.T.versions[0].status === 'dropped');
+    await sleep(900);
+    k = await tiles();
+    ok(t.T.attaches.join('|') === LINK('B') && t.T.versions[0].status === 'dropped' && k.names.join('|') === 'Video B|Video C|Video E',
+      "Video A, on the card, drops from its tile after today's attach puts Video B on the card (" + t.T.attaches.join('|') + ')');
     const gk0 = t.state.gateway.length;
     await inS(t.page, '[data-trk-all]').click();
     for (let i = 0; i < 80 && !(t.state.upserts.slice(n0).some(u => u.video_status === 'Client Approval') || t.state.gateway.slice(gk0).some(x => /client_approval|Client Approval/.test(String(x)))); i++) await sleep(100);
-    ok(['A', 'B', 'C', 'E'].every(l => !!t.T.versions.find(v => v.letter === l).kasper_ok_at)
+    ok(['B', 'C', 'E'].every(l => !!t.T.versions.find(v => v.letter === l).kasper_ok_at)
       && (t.state.upserts.slice(n0).some(u => u.video_status === 'Client Approval') || t.state.gateway.slice(gk0).some(x => /client_approval|Client Approval/.test(String(x)))),
       'Approve all answers the rest, then today\'s approve sends the video on to the client');
     ok(!t.errors.length, 'Kasper second layout: no page errors (' + t.errors.join(' | ') + ')');

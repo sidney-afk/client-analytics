@@ -169,6 +169,8 @@ function ok(cond, msg) { assert.ok(cond, msg); passed++; }
     ok(v.ok && v.kind === 'booked' && v.channel === 'call', 'booked maps to the booked kind');
     ok(v.detail.utm_campaign === 'c1' && !('body' in v.detail) && !('api_key' in v.detail) && !('access_token' in v.detail) && !('nested' in v.detail), 'detail drops bodies, secrets and nesting');
     ok(!v.isTest, 'a normal lead is not a test');
+    ok(v.matchOnly === false && c.validateIngest(Object.assign({}, base, { match_only: true })).matchOnly === true, 'match_only is read, and only from true');
+    ok(c.validateIngest(Object.assign({}, base, { match_only: 'yes' })).matchOnly === false, 'match_only needs a real true');
     ok(c.validateIngest(Object.assign({}, base, { event: 'nope' })).error === 'bad_event', 'unknown event refused');
     ok(c.validateIngest(Object.assign({}, base, { idempotency_key: '' })).error === 'bad_idempotency_key', 'key required');
     ok(c.validateIngest(Object.assign({}, base, { person: { name: 'x' } })).error === 'no_contact', 'a contact is required');
@@ -206,5 +208,6 @@ function ok(cond, msg) { assert.ok(cond, msg); passed++; }
   ok(/SERVER_ACTIONS = \["due", "log_send", "ingest"\]/.test(fnSrc), 'ingest takes only the server key');
   ok(/detail->>idempotency_key/.test(fnSrc), 'ingest dedupes on the idempotency key');
   ok(!/console\.(log|error|warn)\([^)]*v\.person/.test(fnSrc), 'ingest never logs contact details');
+  ok(/if \(v\.matchOnly\) \{[\s\S]{0,200}matched: false/.test(fnSrc), 'match_only never creates a person');
   console.log('crm-leads: ' + passed + ' checks passed');
 })().catch((e) => { console.error('FAIL ' + e.message); process.exit(1); });

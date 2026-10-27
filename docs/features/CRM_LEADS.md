@@ -224,6 +224,8 @@ flight (`_crmPurgeSensitiveState`, `_crmOnIdentity`, called from
 
 ## Ingest: n8n logs lead activity
 
+
+`match_only: true` logs the event only when the person is already in the CRM and otherwise returns `{ ok: true, matched: false }` without creating anyone. Use it where a message can come from anyone, such as inbound texts.
 `ingest` is a server-key action (same key rules as `due`) that n8n calls once
 per fact: a form, a booking, a cancel, a send, a reply. No migration was
 needed: each event maps onto a `crm_events` kind the table already allows,

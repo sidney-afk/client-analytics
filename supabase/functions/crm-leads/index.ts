@@ -23,7 +23,7 @@
 // Server key only (the future n8n sender; never the browser):
 //   due { dry_run?, limit? }                     -> { send[], held[], stopped[], completed[] }
 //   log_send { enrolment_id, step_id, result: sent|failed|skipped, provider_id?, error? }
-//   ingest  { event, person, source?, occurred_at?, call_at?, channel?, actor?, detail?, idempotency_key }
+//   ingest  { event, person, match_only?, source?, occurred_at?, call_at?, channel?, actor?, detail?, idempotency_key }
 //           -> { person_id, created, duplicate?, stage, stopped_enrolments }
 //           (n8n logs a form, booking, send or reply; docs/features/CRM_LEADS.md "Ingest")
 // Nothing here sends a message. Every change writes crm_events in the same
@@ -224,6 +224,10 @@ async function sourceId(db: SupabaseClient, src: { name: string; kind: string } 
 async function ingest(db: SupabaseClient, body: Record<string, unknown>) {
   const v = validateIngest(body) as any;
   if (!v.ok) return json({ ok: false, error: v.error }, 400);
+  if (v.matchOnly) {
+    const pre = await findPerson(db, v.person);
+    if (!pre.person) return json({ ok: true, matched: false });
+  }
   const srcId = await sourceId(db, v.source);
   let created = false;
   for (let attempt = 0; attempt < 4; attempt++) {

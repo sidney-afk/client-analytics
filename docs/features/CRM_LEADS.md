@@ -328,3 +328,21 @@ lane holds `crm-leads` until the tables exist, then deploys it by itself.
 
 Rollback: the drop statements are at the top of the migration file; nothing
 else depends on these tables.
+
+## Gmail: who Kasper has emailed
+
+`crm-gmail` (Edge Function, server key only) reads the sent mail of the one
+mailbox in the `CRM_GMAIL_MAILBOX` secret, with the `gmail.readonly` scope.
+It returns To and Cc addresses only, never a subject or body, and skips our
+own domain. It uses the existing Google service account through Workspace
+domain-wide delegation, so nobody signs in: a Workspace admin approves the
+service account's client id once (Admin console, Security, API controls,
+Domain-wide delegation, scope `https://www.googleapis.com/auth/gmail.readonly`).
+Until then `probe` answers `unauthorized_client` with the client id to approve.
+
+- `probe` checks access.
+- `sent_recipients { after?: "YYYY/MM/DD", max_messages? }` lists each address
+  with how many emails, first and last date.
+
+The list is reviewed (clients, staff and vendors left out) before anyone is
+imported with `scripts/crm-import.js --lead-type=email`.

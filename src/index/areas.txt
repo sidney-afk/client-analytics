@@ -51,6 +51,7 @@
 188-review-stage-switch.js.part            core
 189-trial-reels-card.js.part               core
 190-calendar-approval-comments.js.part     core!
+194-review-trial-versions.js.part          reviewstage
 195-review-stage.js.part                   reviewstage
 200-intake-data-startup.js.part            core
 210-production-state-writes.js.part        synclinear

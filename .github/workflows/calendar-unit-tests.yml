@@ -480,6 +480,7 @@ jobs:
           Client credentials dialog shows and edits only its own client|node test/credentials-modal-client-switch-browser.js
           Trial reels on the staff card behind its switch: today's height, versions, trophy, winner through today's attach, Undo|node test/trial-reels-card-browser.js
           Trial reels in Production's Assets: one Deliverable file row per version, its state and its Edit|node test/trial-reels-production-browser.js
+          Trial reels on the review page: Video B of 5, one version at a time, today's saves once a stage is done|node test/trial-reels-review-browser.js
           LANES
 
 

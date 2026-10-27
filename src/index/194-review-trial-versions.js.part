@@ -1,0 +1,176 @@
+import { showNotify } from './040-shared-briefs.js';
+import { calClientSlug } from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { svTrialReelsOn } from './188-review-stage-switch.js';
+import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
+    /* TRIAL REELS ON THE REVIEW PAGE (session Trials, 2026-10-27; docs/features/TRIAL_REELS_PLAN.md section 5, approved
+       as #2352).
+
+       On a card whose Trial reels switch is on (behind trial_reels_pages), the video step of the review page (195:
+       the client link, the SMM's Review tab and Kasper's Review Session) shows one version at a time: a bar over the
+       player reads "Video B of 5" with a dot per version carrying this reviewer's answer and an arrow on each side
+       (no hook text, decision 1), and the player plays that version's link.
+         - Approve answers the version on screen (trial-reels "answer"). Only when every version that is not dropped has
+           this reviewer's OK does the page call today's approve on the video part, so the card moves as it does today
+           (SMM to Kasper or the client, Kasper to the client, the client to Approved).
+         - "Approve all" answers every open version at once, then today's approve.
+         - Ask for a change answers that version (change asked, with the note) and sends today's change request on the
+           video part, starting "Video C:", so the card goes to Tweaks Needed and the editor works as today (Q3).
+         - Once a winner is picked the client sees only it: "Video C: the one we are posting" (Q8).
+       A card with one live version, or any read that fails, is today's page. Read once per client, kept 30 s. */
+    const TRV_TTL_MS = 30000;
+    const _trv = {};          // client slug -> { at, cards, promise }
+    const _trvCur = {};       // post id -> letter on screen
+    const _trvBusy = new Set();
+    let _trvRepaint = () => {};
+
+    function svTrialReviewOnChange(fn) { _trvRepaint = typeof fn === 'function' ? fn : () => {}; }
+    function _trvSlug(client) { try { return calClientSlug(String(client || '')); } catch (e) { return ''; } }
+    function _trvLoad(slug, force) {
+        const e = _trv[slug] || (_trv[slug] = { at: 0, cards: {}, promise: null });
+        if (e.promise || (!force && e.at && Date.now() - e.at < TRV_TTL_MS)) return e.promise || Promise.resolve(e);
+        e.promise = svTrialCall({ action: 'list', client: slug, post_id: '' })
+            .then(json => { e.cards = (json && json.cards) || {}; })
+            .catch(() => { /* keep what was read; a page never hides versions on a read it could not make */ })
+            .finally(() => { e.at = Date.now(); e.promise = null; _trvRepaint(); });
+        return e.promise;
+    }
+    const _trvLive = v => v.status !== 'dropped';
+
+    /* The trial shape of one card for the review page, or null for today's page. Samples have no trial. */
+    function svTrialReviewShape(post, mode, item) {
+        if (!post || !post.id || (item && item._sxr)) return null;
+        const slug = _trvSlug(post.client || (item && item.client) || '');
+        if (!slug || !svTrialReelsOn(slug)) return null;
+        const e = _trv[slug];
+        if (!e || !e.at) { _trvLoad(slug); return null; }
+        if (Date.now() - e.at > TRV_TTL_MS) _trvLoad(slug);
+        const shape = e.cards[post.id];
+        if (!shape || !shape.enabled || !Array.isArray(shape.versions)) return null;
+        const winner = shape.versions.find(v => v.status === 'winner');
+        if (winner) return mode === 'client' ? { slug, winner, versions: [winner], shape } : null;
+        const live = shape.versions.filter(_trvLive);
+        return live.length > 1 ? { slug, versions: live, shape } : null;
+    }
+    const _trvStage = mode => mode === 'client' ? 'client' : mode === 'smm' ? 'smm' : 'kasper';
+    /* This reviewer's answer on one version: ok, chg or wait. */
+    function _trvAnswer(v, stage) {
+        if (v.status === 'change asked') return 'chg';
+        if (stage === 'client') return ['approved', 'on trial', 'winner', 'lost'].includes(v.status) ? 'ok' : 'wait';
+        return v[stage + '_ok_at'] ? 'ok' : 'wait';
+    }
+    function _trvCurOf(m, mode) {
+        const vs = m.trial.versions;
+        const had = vs.find(v => v.letter === _trvCur[m.id]);
+        if (had) return had;
+        const stage = _trvStage(mode);
+        const v = vs.find(x => _trvAnswer(x, stage) === 'wait') || vs[0];
+        _trvCur[m.id] = v.letter;
+        return v;
+    }
+    /* The post the player plays: today's post with the version's link in place of the card's. On a client link the
+       player asks for the card's own video by the card's id (frameio-view), so a version that is not the card's link
+       opens in a new tab there (today's fallback, `noPlayer`); staff pages play every version in place. */
+    function svTrialReviewPost(m, mode) {
+        if (!m || !m.trial) return m && m.post;
+        const v = _trvCurOf(m, mode);
+        if (!v || !v.frame_url) return m.post;
+        return Object.assign({}, m.post, { asset_url: v.frame_url }, mode === 'client' && !v.on_card ? { _trvNoPlayer: true } : {});
+    }
+    function svTrialReviewApproveWord(m, mode) {
+        return m && m.trial && !m.trial.winner ? 'Approve Video ' + _trvCurOf(m, mode).letter : '';
+    }
+
+    /* The bar over the player. '' for today's page. */
+    function svTrialReviewBarHtml(m, mode) {
+        if (!m || !m.trial) return '';
+        if (m.trial.winner) return '<div class="trv"><span class="trv-n">Video ' + _calEsc(m.trial.winner.letter) + ': the one we are posting</span></div>';
+        const vs = m.trial.versions, stage = _trvStage(mode), cur = _trvCurOf(m, mode), i = vs.indexOf(cur);
+        const busy = _trvBusy.has(m.id);
+        const dots = vs.map(v => {
+            const a = _trvAnswer(v, stage);
+            return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)
+                + (a === 'ok' ? ', approved' : a === 'chg' ? ', change asked' : ', waiting') + '"' + (v === cur ? ' aria-current="true"' : '') + '><i class="' + (a === 'ok' ? 'ok' : a === 'chg' ? 'chg' : '') + '"></i></button>';
+        }).join('');
+        const open = vs.filter(v => _trvAnswer(v, stage) === 'wait');
+        const all = open.length > 1 ? '<button type="button" class="trv-all" data-trv-all="1"' + (busy ? ' disabled' : '') + '>Approve all ' + open.length + '</button>' : '';
+        const arrow = (d, on, label, path) => '<button type="button" class="trv-arr" data-trv-step="' + d + '" aria-label="' + label + '"' + (on ? '' : ' disabled') + '><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + path + '"/></svg></button>';
+        return '<div class="trv" role="group" aria-label="Versions of this video">'
+            + arrow(-1, i > 0, 'The version before', 'M10 3 5 8l5 5')
+            + '<span class="trv-n" aria-live="polite">Video ' + _calEsc(cur.letter) + ' <span class="trv-of">of ' + vs.length + '</span></span>'
+            + arrow(1, i < vs.length - 1, 'The next version', 'M6 3l5 5-5 5')
+            + '<span class="trv-dots">' + dots + '</span>' + all
+            + (busy ? '<span class="trv-busy" role="status">Saving…</span>' : '') + '</div>';
+    }
+    function svTrialReviewBind(el, m, mode, onAll) {
+        if (!el || !m || !m.trial || m.trial.winner) return;
+        const vs = m.trial.versions;
+        const go = letter => { _trvCur[m.id] = letter; _trvRepaint(); };
+        el.querySelectorAll('[data-trv-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.trvGo)));
+        el.querySelectorAll('[data-trv-step]').forEach(b => b.addEventListener('click', () => {
+            const i = vs.indexOf(_trvCurOf(m, mode)) + Number(b.dataset.trvStep);
+            if (vs[i]) go(vs[i].letter);
+        }));
+        el.querySelectorAll('[data-trv-all]').forEach(b => b.addEventListener('click', () => onAll()));
+    }
+
+    async function _trvAnswerCall(m, mode, body) {
+        _trvBusy.add(m.id); _trvRepaint();
+        try {
+            const json = await svTrialCall(Object.assign({ action: 'answer', client: m.trial.slug, post_id: m.id, stage: _trvStage(mode) }, body));
+            const e = _trv[m.trial.slug];
+            if (e && json.versions) e.cards[m.id] = Object.assign({}, e.cards[m.id] || {}, json, { enabled: true });
+            return json;
+        } finally {
+            _trvBusy.delete(m.id); _trvRepaint();
+        }
+    }
+    function _trvDone(json, mode) {
+        const stage = _trvStage(mode);
+        return stage === 'client' ? !!json.card_approvable : !!(json.stages_done && json.stages_done[stage]);
+    }
+    /* Approve the version on screen. `proceed` is today's approve on the video part; it runs only once the stage is done. */
+    async function svTrialReviewApprove(m, mode, proceed, all) {
+        if (_trvBusy.has(m.id)) return;
+        const letter = _trvCurOf(m, mode).letter;
+        let json;
+        try { json = await _trvAnswerCall(m, mode, all ? { kind: 'approve_all' } : { kind: 'approve', letter }); }
+        catch (e) { showNotify('Video ' + letter + ' was not approved', svTrialErrorText(e)); return; }
+        if (_trvDone(json, mode)) { proceed(); return; }
+        // On to the next version still waiting for this reviewer.
+        const stage = _trvStage(mode);
+        const next = (json.versions || []).filter(_trvLive).find(v => _trvAnswer(v, stage) === 'wait');
+        if (next) _trvCur[m.id] = next.letter;
+        _trvRepaint();
+    }
+    /* A change on the version on screen: recorded on that version, and today's change request goes at once, naming it. */
+    function svTrialReviewChangeText(m, mode, text, frameNote) {
+        const letter = _trvCurOf(m, mode).letter;
+        _trvAnswerCall(m, mode, { kind: 'change', letter, note: text }).catch(e => showNotify('Video ' + letter + ' was not marked as changed', svTrialErrorText(e)));
+        // Kasper's "Tweaks are on Frame" stays word for word: every page reads that exact note.
+        return frameNote ? text : 'Video ' + letter + ': ' + text;
+    }
+
+    const TRV_CSS = `
+.trv{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;min-height:32px;padding:2px 0 6px;font-size:.78rem}
+.trv-n{font-weight:700;color:var(--text-primary);min-width:84px;text-align:center}
+.trv-of{font-weight:600;color:var(--text-secondary)}
+.trv-arr{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:8px;background:var(--fill);color:var(--text-primary);cursor:pointer;padding:0}
+.trv-arr:hover:not([disabled]){background:var(--fill-hover)}
+.trv-arr[disabled]{opacity:.35;cursor:default}
+.trv-arr svg{width:14px;height:14px}
+.trv-dots{display:inline-flex;align-items:center;gap:2px}
+.trv-dot{display:grid;place-items:center;width:20px;height:20px;border:0;border-radius:50%;background:none;cursor:pointer;padding:0}
+.trv-dot i{width:8px;height:8px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--tl-dot)}
+.trv-dot i.ok{background:var(--tl-ok);box-shadow:none}
+.trv-dot i.chg{background:var(--tl-chg);box-shadow:none}
+.trv-dot.on{box-shadow:0 0 0 1.5px var(--text-primary)}
+.trv-all{border:0;border-radius:8px;background:var(--fill);color:var(--text-primary);font:inherit;font-weight:600;padding:5px 10px;cursor:pointer}
+.trv-all:hover:not([disabled]){background:var(--fill-hover)}
+.trv-busy{color:var(--text-secondary)}
+@media (max-width:600px){.trv-arr,.trv-dot{width:36px;height:36px}}
+`;
+export {
+  TRV_CSS, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewChangeText,
+  svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape
+};

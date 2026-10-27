@@ -9,6 +9,7 @@ import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
+import { TRV_CSS, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewChangeText, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), the on-demand half. Session Marquee, 2026-10-17.
@@ -1169,6 +1170,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         mode: '', key: '', host: null, root: null, ro: null, mo: null,
         S: null, kparts: null, pending: false, l2: false, cp: false, cpNewFrom: null
     };
+    // Trial reels (194): a versions read landing, or an answer saved, redraws the page that is open.
+    svTrialReviewOnChange(() => { if (R.root && R.S && R.host && !R.host.hidden) _rsRender(); });
     // Kasper's second layout needs room for the list, three parts and the conversation (below this: today's page).
     const RS_L2_MIN = 1360;
     /* Unsent change-request words survive a reload (session Rail, 2026-10-18). Client link only. Kept in this browser
@@ -1443,7 +1446,9 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             caption: String(post.caption || ''), ytitle: String(post.name || ''),
             client: item ? (item.client || post.client || '') : (post.client || ''),
             sample: !!(item && item._sxr), sec: item ? item._rsSec : '',
-            flag: '', note: '', thread
+            flag: '', note: '', thread,
+            // Trial reels (194): the versions of the video, one at a time on stage; null on every other card.
+            trial: comps.includes('video') ? svTrialReviewShape(post, mode, item) : null
         };
     }
     function _rsWaiting(m) { return m.parts.filter(x => x.st === 'wait'); }
@@ -1666,7 +1671,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             // The layout switched under an open page (the window crossed the width limit): the player goes with the old shell.
             if (R.shellL2 !== undefined && R.shellL2 !== l2) _rsStageOff();
             R.shellL2 = l2; R.shellCp = R.cp;
-            R.root.innerHTML = '<style>' + RS_CSS + RS_CSS_TOKENS + (l2 ? RS_CSS_L2 : '') + (R.cp ? RS_CSS_CP : '') + '</style><style id="rsFvCss">' + _rsPlayerCss() + '</style>' + _rsShellHtml();
+            R.root.innerHTML = '<style>' + RS_CSS + RS_CSS_TOKENS + (l2 ? RS_CSS_L2 : '') + (R.cp ? RS_CSS_CP : '') + TRV_CSS + '</style><style id="rsFvCss">' + _rsPlayerCss() + '</style>' + _rsShellHtml();
             _rsQ('rsApp').setAttribute('data-mode', mode);
             _rsWire();
         }
@@ -2170,6 +2175,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (k === 'video') {
             _rsMediaVideo(m, v, host);
         } else {
+            _rsTrialBar(null, v);
             if (_rsStageFor) {
                 // leave the player loaded (switching back is instant) but stop the sound
                 try { const vid = host.querySelector('video'); if (vid && !vid.paused) vid.pause(); } catch (e) {}
@@ -2179,9 +2185,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsMediaVideo(m, v, host) {
         v.classList.remove('novid');
+        _rsTrialBar(m, v);
+        // A trial card plays the version on screen (194); every other card its own link.
+        const vp = m.trial ? svTrialReviewPost(m, R.mode) : m.post;
         let on = false;
-        if (!m.sample) {
-            try { on = svFrameStageMount(host, m.post, m.thumb); } catch (e) { on = false; }
+        if (!m.sample && !vp._trvNoPlayer) {
+            try { on = svFrameStageMount(host, vp, m.thumb); } catch (e) { on = false; }
         }
         if (on) {
             _rsStageFor = m.id;
@@ -2195,17 +2204,31 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
             nv.classList.toggle('land', m.land);
             const img = _rsQ('poster');
             if (m.thumb) { if (img.getAttribute('src') !== m.thumb) img.src = m.thumb; img.hidden = false; } else { img.removeAttribute('src'); img.hidden = true; }
-            const url = String(m.post.asset_url || '').trim();
+            const url = String(vp.asset_url || '').trim();
             // Until the player's switch is read (the first second of a first load), the poster alone: the
             // "Watch the video" fallback would show and then give way to the player (owner report 2026-10-18,
             // session Curtain Ten: a huge black play button for the first second).
             let wait = false;
-            try { wait = !m.sample && svFrameStagePending(m.post); } catch (e) { wait = false; }
+            try { wait = !m.sample && svFrameStagePending(vp); } catch (e) { wait = false; }
             nv.classList.toggle('wait', wait);
             _rsQ('novidMsg').innerHTML = wait ? '' : /^https?:\/\//i.test(url)
                 ? '<span>This video opens in a new tab.</span><a href="' + _re(url) + '" target="_blank" rel="noopener noreferrer">' + RI.play + 'Watch the video</a>'
                 : '<span>No video yet.</span>';
         }
+    }
+    /* Trial reels (194): "Video B of 5", the dots and the arrows, just above the player; gone on every other step and card. */
+    function _rsTrialBar(m, v) {
+        const html = m && m.trial && v ? svTrialReviewBarHtml(m, R.mode) : '';
+        let bar = v && v.previousElementSibling && v.previousElementSibling.classList.contains('trv-host') ? v.previousElementSibling : null;
+        if (!html) { if (bar) bar.remove(); return; }
+        if (!bar) { bar = document.createElement('div'); bar.className = 'trv-host'; v.before(bar); }
+        if (bar.__trvHtml === html) return;
+        bar.__trvHtml = html;
+        bar.innerHTML = html;
+        svTrialReviewBind(bar, m, R.mode, () => {
+            const cur = _rsModelById(m.id) || m;
+            svTrialReviewApprove(cur, R.mode, () => _rsApprove(_rsModelById(m.id) || cur, 'video', R.mode === 'smm' ? 'kasper' : '', true), true);
+        });
     }
     function _rsMediaThumb(m) {
         const bt = _rsQ('bigthumb'), img = _rsQ('bigthumbImg'), tf = _rsQ('tframe');
@@ -2371,7 +2394,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         const n = _rsLname(x.key);
         if (R.cp && (busy === 'ok' || busy === 'client')) return _rsCpMorph(x, 0);
         const ok = busy === 'ok' || (R.mode === 'client' && busy === 'client');
-        const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + (ok ? 'Approved' : 'Approve the ' + n) + '</button>' : _rsSplit(x, busy);
+        const trialWord = x.key === 'video' ? svTrialReviewApproveWord(_rsCur(), R.mode) : '';
+        const approve = R.mode === 'client' ? '<button class="b-ok' + (ok ? ' busy' : '') + '" type="button" data-ok="' + x.key + '"' + _rsBusyAttr(busy, ok) + '>' + (ok ? RS_SPIN : RI.check) + (ok ? 'Approved' : trialWord || 'Approve the ' + n) + '</button>' : _rsSplit(x, busy);
         const chg = busy === 'chg', fr = busy === 'frame';
         return approve + '<button class="b-ask' + (chg ? ' busy' : '') + '" type="button"' + (R.l2 ? ' title="Ask for a change"' : '') + ' data-chg="' + x.key + '"' + _rsLblAttr(chg ? 'Change asked' : 'Ask for a change') + _rsBusyAttr(busy, chg) + '>' + (chg ? RS_SPIN : RI.back) + (chg ? _rsLbl('Change asked', 'Asked') : _rsLbl('Ask for a change', 'Ask for change')) + '</button>'
             + (R.mode === 'kasper' && x.key === 'video' ? '<button class="b-frame' + (fr ? ' busy' : '') + '" type="button" data-frame="' + x.key + '"' + _rsBusyAttr(busy, fr) + ' title="Your notes are in Frame.io: sends the change without typing"' + _rsLblAttr('Tweaks are on Frame') + '>' + (fr ? RS_SPIN : RI.frame) + _rsLbl('Tweaks are on Frame', 'Frame tweaks') + '</button>' : '');
@@ -2970,7 +2994,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         };
         setTimeout(tick, 50);
     }
-    function _rsApprove(m, comp, how) {
+    function _rsApprove(m, comp, how, trialDone) {
+        // Trial reels (194): the version on screen is answered first; today's approve runs once the stage is done.
+        if (comp === 'video' && m.trial && !m.trial.winner && !trialDone) {
+            svTrialReviewApprove(m, R.mode, () => { const cur = _rsModelById(m.id) || m; _rsApprove(cur, comp, how, true); });
+            return;
+        }
         // The button was drawn before a refresh said the part is no longer waiting: nothing to save; the stage says so.
         // (Try again after a refused save still goes: the part reads as approved there, with its error.)
         const fresh = _rsModelById(m.id), fx = fresh && fresh.parts.find(p => p.key === comp);
@@ -2995,6 +3024,12 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     function _rsSendChange(m, comp, text, o) {
         const opts = o || {};
+        // Trial reels (194): the change is recorded on the version on screen and today's request names it ("Video C: ...").
+        if (comp === 'video' && m.trial && !m.trial.winner && !opts.aat && !opts.trial) {
+            const named = svTrialReviewChangeText(m, R.mode, text, text === RS_FRAME_NOTE);
+            _rsSendChange(m, comp, named, Object.assign({}, opts, { trial: true }));
+            return;
+        }
         R.S.saved = null;
         delete R.S.editErrors[m.id + '|' + comp];
         R.S.retry[m.id + '|' + comp] = () => { const cur = _rsModelById(m.id); if (cur) _rsSendChange(cur, comp, text, Object.assign({}, opts, { where: '' })); };

@@ -70,3 +70,4 @@
 189-trial-reels-card.js.part
 195-review-stage.js.part
 245-production-trial-versions.js.part
+194-review-trial-versions.js.part

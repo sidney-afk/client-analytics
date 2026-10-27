@@ -35,6 +35,7 @@ import {
   clean,
   CLIENT_ACTIONS,
   dropPatch,
+  newCutPatch,
   FLAG_KEY,
   flagAllows,
   healMainPatch,
@@ -352,10 +353,15 @@ Deno.serve(async (req: Request) => {
       if (r.patch) changes = [{ id: v.id, letter, from: v.status, patch: r.patch }];
       extra = { restarted: !!r.restarted };
     } else if (action === "version_drop" || action === "version_restore") {
-      const r = dropPatch(versions, letter, action === "version_restore");
-      if (r.error) throw new Refusal(400, r.error);
+      const r = dropPatch(versions, letter, action === "version_restore", link);
+      if (r.error) throw new Refusal(r.error === "attach_first" ? 409 : 400, r.error);
       const v = versions.find((x) => x.letter === letter)!;
       if (r.patch) changes = [{ id: v.id, letter, from: v.status, patch: r.patch }];
+    } else if (action === "version_new_cut") {
+      const r = newCutPatch(versions, letter);
+      if (r.error) throw new Refusal(400, r.error);
+      const v = versions.find((x) => x.letter === letter)!;
+      changes = [{ id: v.id, letter, from: v.status, patch: r.patch }];
     } else if (action === "trial_start") {
       const r = trialPatches(versions, Date.now());
       if (r.error) throw new Refusal(400, r.error);

@@ -104,7 +104,8 @@ const dir = path.join(__dirname, '..', 'supabase', 'functions', 'higgsfield-mcp'
   const a = table.find((t) => t.id === '00000000-0000-0000-0000-000000000088');
   assert.strictEqual(a.status, 'approved', 'the card keeps its status');
   assert.strictEqual(a.hook_type, 'original');
-  assert.ok(/Nothing new to add; filled in A/.test(await run({ step: 'log', rows: [{ client: T, batch: 'B7', video: '3', letter: 'A', post_id: 'P42' }] })));
+  assert.ok(/already logged/.test(await run({ step: 'log', rows: [{ client: T, batch: 'B7', video: '3', letter: 'A', post_id: 'P42', hook_type: 'other' }] })), 'a filled row is never overwritten');
+  assert.strictEqual(a.hook_type, 'original');
 
   // index.ts drops post_id and deliverable_id when SyncView's columns are not there yet.
   const index = fs.readFileSync(path.join(dir, 'index.ts'), 'utf8');

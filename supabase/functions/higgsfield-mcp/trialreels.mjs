@@ -95,6 +95,8 @@ export async function trialReels(deps, args) {
       if (have && have.missing) return "The trial reels log is not switched on yet (its table is waiting to be applied). Nothing logged.";
       if (!have) { fresh.push(r); continue; }
       if (!TEST_CLIENT_RE.test(String(have.client))) return "Refused, nothing logged: " + TEST_ONLY.replace("Refused: ", "");
+      // Only a row SyncView seeded and nobody filled in yet; a changed cut goes through replace.
+      if (have.hook || have.hook_type) return `Refused, nothing logged: version ${r.letter} on this card is already logged; a new cut needs "replace": true after a change was asked.`;
       const patch = { hook: r.hook, hook_type: r.hook_type, other_change: r.other_change, updated_at: new Date().toISOString() };
       if (r.deliverable_id) patch.deliverable_id = r.deliverable_id;
       fills.push({ id: have.id, letter: r.letter, patch });

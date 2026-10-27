@@ -34600,3 +34600,11 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-notes-browser.js` (17 checks, desktop and 390), frame-comments-in-notes-browser, frameio-viewer-browser, lost-work-drafts-browser, staff-calendar-expanded-browser, prod-write-gateway-browser, check-modules and check-lazy-safety.
 
 **Way back:** revert the PR; with the switch off nothing shows.
+
+## 520. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: every version side by side in Kasper's second layout (session Trials)
+
+- **What:** in Kasper's second layout (`review_stage_kasper_layout2`), a trial card shows every version side by side above the parts (decision 4). Each tile names its version ("Video A"…), with the card's poster and its own Approve, Ask for a change and Drop (no Drop on the version on the card), or its answer once given. "Approve all" sits at the top. A press on a tile puts that version on the player, so only the version on stage loads its video (plan risk 5). The tiles replace the "Video B of 5" bar in that layout only; every other layout keeps the bar. Code in `194`, hooked into `195`'s second layout.
+- **Rules unchanged:** Approve answers that version (trial-reels `answer`), and today's approve on the video part runs once every live version has his OK. A change on a tile selects it and opens today's change box, which records the change on the version and starts "Video C:". Drop goes through trial-reels `version_drop` (only the team drops, Q2).
+- **Proven:** `node test/trial-reels-review-browser.js` (36 checks, now with Kasper's second layout), review-stage-kasper-layout2-browser (188 checks), review-stage-browser, check-modules, no-sending-words and no-hardcoded-colors.
+
+**Way back:** revert the PR; with the switch off nothing shows.

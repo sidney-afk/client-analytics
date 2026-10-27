@@ -9,7 +9,7 @@ import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
 import { _linearOutboxRead } from './134-calendar-prefs-mount.js';
 import { _calCrqClientWords } from './185-client-review-queue.js';
 import { _calCommentRole, _calCurrentAuthor, _calCurrentAuthorId, _calFmtCommentTime, _calHasMedia, _calMintCommentId, _calNoteAuthorName, _calShowUrgent, _kasperCompReviewable, _kasperPanelComps, _noteOutboxFor, _noteOutboxPut, _noteOutboxSend } from './190-calendar-approval-comments.js';
-import { TRV_CSS, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewChangeText, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape } from './194-review-trial-versions.js';
+import { TRV_CSS, svTrialReviewBindTiles, svTrialReviewTilesHtml, svTrialReviewApprove, svTrialReviewApproveWord, svTrialReviewBarHtml, svTrialReviewBind, svTrialReviewChangeText, svTrialReviewOnChange, svTrialReviewPost, svTrialReviewShape } from './194-review-trial-versions.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _kasperPersistPost, _kasperState } from './305-core-kasper-shared.js';
     /* THE NEW REVIEW PAGE (layout C, "Guided stage"), the on-demand half. Session Marquee, 2026-10-17.
@@ -1597,7 +1597,7 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
                 + '<section class="theatre" id="theatre" aria-label="Review this post"><div class="card">'
                 + '<div class="l2h"><div class="l2t"><aside class="side" id="side" aria-label="This post"></aside><div class="sdate" id="sdate"></div></div><div class="l2a" id="l2a"></div></div>'
                 + '<div class="flash" id="flash" role="status"></div>'
-                + '<div id="l2note"></div><div class="l2g" id="l2g"></div>'
+                + '<div id="l2note"></div><div id="l2trv"></div><div class="l2g" id="l2g"></div>'
                 + '</div></section>'
                 + '<aside class="chat" id="chat" aria-label="Conversation"></aside>'
                 + '<section class="recap" id="recap" hidden></section>'
@@ -2218,7 +2218,8 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
     }
     /* Trial reels (194): "Video B of 5", the dots and the arrows, just above the player; gone on every other step and card. */
     function _rsTrialBar(m, v) {
-        const html = m && m.trial && v ? svTrialReviewBarHtml(m, R.mode) : '';
+        // Kasper's second layout shows every version side by side above the parts instead (_rsL2Trial).
+        const html = m && m.trial && v && !(R.l2 && svTrialReviewTilesHtml(m, R.mode)) ? svTrialReviewBarHtml(m, R.mode) : '';
         let bar = v && v.previousElementSibling && v.previousElementSibling.classList.contains('trv-host') ? v.previousElementSibling : null;
         if (!html) { if (bar) bar.remove(); return; }
         if (!bar) { bar = document.createElement('div'); bar.className = 'trv-host'; v.before(bar); }
@@ -3811,9 +3812,26 @@ button.sk-lab[aria-expanded="true"] .chev{transform:rotate(-90deg)}
         if (active) { if (_rsCalm(act, _rsFinishHtml(m), m)) _rsBindFinish(m, act); }
         else if (_rsCalm(act, '<span class="held">' + RI.clock + _re(m.note) + '</span>' + _rsPingHtml(m), m)) _rsBindPing(m, act);
     }
+    /* Trial reels (194, decision 4): every version side by side over the parts, each with Approve, change and drop. */
+    function _rsL2Trial(m) {
+        const el = _rsQ('l2trv');
+        if (!el) return;
+        const html = svTrialReviewTilesHtml(m, R.mode);
+        if (el.__trvHtml === html) return;
+        el.__trvHtml = html;
+        el.innerHTML = html;
+        if (!html) return;
+        const cur = () => _rsModelById(m.id) || m;
+        svTrialReviewBindTiles(el, m, R.mode, {
+            approve: () => _rsApprove(cur(), 'video', ''),
+            change: () => _rsStartChange('video', 'stage'),
+            all: () => svTrialReviewApprove(cur(), R.mode, () => _rsApprove(cur(), 'video', '', true), true),
+        });
+    }
     function _rsL2Render(m) {
         R.S.hinted = true;
         _rsSide(m);
+        _rsL2Trial(m);
         _rsL2Panes(_rsL2Model(m));
         _rsL2Decide();
         _rsChatCalm(m);

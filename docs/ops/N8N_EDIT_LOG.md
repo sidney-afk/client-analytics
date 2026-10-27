@@ -525,3 +525,7 @@ Undo: restore the "before" version of each workflow in n8n's workflow history an
 Why: the panel's unfinished-lead pull matched only `doctor-strategy-call`, so unfinished leads from the doctors-who-teach page (`educator-strategy-call`) never reached Kasper's panel.
 - Kasper Ad Performance, Daily Pull (`2Ax4c78jgI7roXzv`), Data Table node "Pull Unfinished Leads": before `4202aeaa-e0df-4adc-851f-8c0e02f4a97b`, after `798557fc-22f5-4d44-bc15-3fe59a458f8c` (published). Added a third "any" condition: calendar equals `educator-strategy-call`.
 - Undo: publish the before version. Test-source rows stay filtered out by "Map Unfinished Leads".
+
+## 2026-10-27 Booking Handler: "no confirmation text" version actually published (owner's go in the request, Ads lane)
+Why: the 26 Oct edits removing the booking confirmation text were saved but never published; a launch test booking on 27 Oct (execution 679774) still sent the text.
+- Normal Sales, Booking Handler (`ghpbQQJizAnR6p2b`): active version before `811f4f65-855c-4cad-a39f-0d94baf8669b`, after `0c1354cd-26e4-40a9-b37c-ad279e0dbdb4` (published, "No confirmation text for any booking"). This also brings live the 26 Oct educator-only variant `fa5f420b` it was built on. Undo: publish `811f4f65`.

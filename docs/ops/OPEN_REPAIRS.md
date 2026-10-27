@@ -34582,7 +34582,7 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 
 **Way back:** revert the PR; with the switch off nothing shows anyway.
 
-## 517. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels, build PR 4 of 5: the versions on the review page (session Trials)
+## 518. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels, build PR 4 of 5: the versions on the review page (session Trials)
 
 - **What:** on a card with Trial reels on (behind `trial_reels_pages`), the video step of the review page (the client link, the SMM's Review tab and Kasper's Review Session, both layouts) shows one version at a time. A bar over the player reads "Video B of 5" with a dot per version carrying this reviewer's answer and an arrow on each side; there is no hook text (decision 1). New fragment `src/index/194-review-trial-versions.js.part` (review-stage area), hooked into `195` at the model, the player, the approve and change paths and the button label.
 - **Approve** answers the version on screen (trial-reels `answer`) and saves nothing on the card while other versions wait. Once every live version has this reviewer's OK, the page calls today's approve on the video part: the SMM to Kasper or the client, Kasper to the client, the client to Approved. **Approve all** answers the rest, then today's approve. A page that died between the two saves heals at the next press: the stage reads done, and today's approve goes.

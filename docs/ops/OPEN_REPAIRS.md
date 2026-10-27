@@ -34579,3 +34579,10 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-race-browser.js` (Probe's race test, now three races, 15 checks; races 2 and 3 fail without the fix), the card test (52), the logic test (76) and the Deno function test (34).
 
 **Way back:** revert the commit.
+
+## 523. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: the card's switch knob was dark in dark mode (Probe E8, session Trials)
+
+- **What:** the knob used `--sv-bg-fff`, which turns dark in the dark theme; the approved card pictures show a light knob in both. A new token `--sv-knob` (010, light in both themes) now draws it.
+- **Proven:** `node test/trial-reels-card-browser.js` (54 checks; the new knob check fails without the fix), no-hardcoded-colors.
+
+**Way back:** revert the commit.

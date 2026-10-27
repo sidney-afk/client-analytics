@@ -123,6 +123,14 @@ async function shot(page, name) {
       T.flag = true;
       page = await open(w, h);
       ok(!!(await page.$('.cal-link-post .trl-sw-slot[aria-checked="false"]')), `${label}: switch on, card off: a faint switch inside the Video row`);
+      const knob = await page.evaluate(() => {
+        const el = document.querySelector('.cal-link-post .trl-sw'), root = document.documentElement, was = root.getAttribute('data-theme'), out = {};
+        for (const t of ['light', 'dark']) { root.setAttribute('data-theme', t); out[t] = getComputedStyle(el, '::after').backgroundColor; }
+        if (was) root.setAttribute('data-theme', was); else root.removeAttribute('data-theme');
+        return out;
+      });
+      const light = c => { const m = String(c).match(/\d+(\.\d+)?/g) || []; return m.length >= 3 && m.slice(0, 3).every(n => Number(n) >= 230); };
+      ok(light(knob.light) && light(knob.dark), `${label}: the switch knob is light in both themes, as in the approved pictures (${knob.light} / ${knob.dark})`);
       await shot(page, label + '-off');
       ok(Math.abs((await heightOf(page)) - todayH) < 0.5, `${label}: the card is today's height (${todayH})`);
       // A card with no Video link yet offers the switch too, at the end of today's empty field.

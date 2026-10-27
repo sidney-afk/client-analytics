@@ -195,7 +195,9 @@ async function run(browser, origin, viewport) {
   expect(await page.locator('.crm-stage-body').count() === 4 && await page.locator('[data-crm-stage]').count() === 10, label + ': every stage has a section, four of them open with people');
   expect(await page.locator('.crm-stage.is-empty').count() === 6 && await page.locator('.crm-stage.is-empty .crm-stage-toggle:disabled').count() === 6, label + ': empty stages stay as folded titles');
   expect(await page.locator('[data-crm-stage="to_contact"] .crm-stage-hint').innerText() === 'We have not reached out yet', label + ': each stage says in plain words what it means');
-  if (viewport.width >= 500) expect(/Name\s+Where they came from\s+Niche\s+Next step\s+Owner\s+Due/i.test(await page.locator('.crm-cols').innerText()), label + ': the Pipeline has column titles');
+  if (viewport.width >= 500) expect(/Name\s+Where they came from\s+Niche\s+Next step\s+Due/i.test(await page.locator('.crm-cols').innerText()), label + ': the Pipeline has column titles, with no Owner column');
+  expect(!(await page.locator('.crm-lead-owner').count()) && !/Nobody/.test(await page.locator('.crm-board').innerText()), label + ': no owner on the lines');
+  expect(!!(await page.locator('.crm-cols span', { hasText: 'Next step' }).getAttribute('title')), label + ': the Next step title explains itself on hover');
   await page.click('[data-crm-stage="to_contact"] .crm-stage-toggle');
   await page.waitForFunction(() => !document.querySelector('[data-crm-stage="to_contact"] .crm-stage-body'));
   expect(await page.locator('[data-crm-stage="to_contact"] .crm-stage-toggle').getAttribute('aria-expanded') === 'false', label + ': a stage section folds');
@@ -209,7 +211,7 @@ async function run(browser, origin, viewport) {
   expect(await page.evaluate(() => document.querySelector('.crm-board').scrollWidth <= document.querySelector('.crm-board').clientWidth + 1), label + ': the Pipeline never scrolls sideways');
   expect(await boxesInBoxes(page) === '', label + ': Pipeline has no box inside a box (' + await boxesInBoxes(page) + ')');
   // Filters behind one View button, with a dot while one is on.
-  expect(await page.locator('#crmViewMenu').isHidden() && await page.locator('#crmFilters .sv-select').count() === 4, label + ': the four filters are tucked behind View');
+  expect(await page.locator('#crmViewMenu').isHidden() && await page.locator('#crmFilters .sv-select').count() === 3, label + ': the three filters are tucked behind View');
   await page.click('#crmViewBtn');
   await page.waitForSelector('#crmViewMenu:not([hidden])');
   if (SHOTS) await shoot(page, 'leads-view-menu-' + label);
@@ -224,6 +226,14 @@ async function run(browser, origin, viewport) {
   expect(await first.evaluate(n => n.classList.contains('is-overdue')) && /Overdue/.test(text), label + ': an overdue next step is marked');
   expect(!(await page.locator('[data-crm-card="00000000-0000-4000-8000-000000000002"]').evaluate(n => n.classList.contains('is-overdue'))), label + ': a future step is not overdue');
   if (SHOTS) await shoot(page, 'leads-pipeline-' + label);
+  if (viewport.width >= 500) {
+    await page.evaluate(() => { const b = document.querySelector('.crm-stage-body'); for (let i = 0; i < 60; i++) b.insertAdjacentHTML('beforeend', '<div class="crm-lead crm-pad" style="height:28px"></div>'); });
+    await page.evaluate(() => window.scrollTo(0, 900));
+    await page.waitForTimeout(150);
+    const stuck = await page.evaluate(() => { const s = document.getElementById('crmSide').getBoundingClientRect(); const c = document.querySelector('.crm-cols').getBoundingClientRect(); return { side: s.top, cols: c.top, y: window.scrollY }; });
+    expect(stuck.y > 300 && stuck.side >= 0 && stuck.side < 140 && stuck.cols >= 0 && stuck.cols < 140, label + ': the side menu and the column titles stay in view while the list scrolls (' + JSON.stringify(stuck) + ')');
+    await page.evaluate(() => { document.querySelectorAll('.crm-pad').forEach(n => n.remove()); window.scrollTo(0, 0); });
+  }
 
   if (viewport.width >= 500) {
     // Drag a card to Replied: one update with the version it had.
@@ -265,6 +275,8 @@ async function run(browser, origin, viewport) {
   await page.waitForFunction(() => document.querySelector('#crmPStageLabel') && document.querySelector('#crmPStageLabel').textContent === 'Nurture');
   expect(await page.inputValue('#crmPStep') === 'Call prep', label + ': a lost race shows the stored copy, not the typed one');
   state.refuse = '';
+  expect(!(await page.locator('#crmPNote').count()), label + ': the note box stays closed until Add a note');
+  await page.locator('#crmPanel button', { hasText: 'Add a note' }).click();
   await page.fill('#crmPNote', 'Half-written made-up note');
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.getElementById('crmPanel').hidden);
@@ -279,7 +291,7 @@ async function run(browser, origin, viewport) {
   await page.click('[data-crm-nav="today"]');
   await page.waitForSelector('#crmTodayCalls');
   const todayText = await page.locator('#crmToday').innerText();
-  expect(/Made Up Owner/.test(todayText) && /Second Made Up/.test(todayText), label + ': Today groups due steps by owner');
+  expect(/First DM/.test(todayText) && /Follow up/.test(todayText) && !/Made Up Owner/.test(todayText), label + ': Today lists each next step due, with no owner');
   expect(await page.locator('#crmToday .crm-row.is-overdue').count() >= 1, label + ': an overdue step is marked on Today');
   expect(await page.evaluate(() => { const ids = Array.from(document.querySelectorAll('#crmToday .crm-group-title')).map(n => n.id); return ids.join() === 'crmTodayCalls,crmTodayDue,crmTodaySends'; }), label + ': Today runs calls, then follow-ups, then automatic sends');
   expect(await page.locator('#crmToday .crm-sheet').count() === 0 && !/\b0 /.test(todayText) && !/Nothing is sent from this page/.test(todayText), label + ': Today has no boxes, no zero counts and no filler line');

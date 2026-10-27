@@ -295,6 +295,7 @@
             --sv-bg-ffe4cc: #ffe4cc;
             --sv-bg-ffedd5: #ffedd5;
             --sv-bg-fff: #fff;
+            --sv-knob: #fff;   /* a switch knob: light in both themes (approved trial reels card pictures) */
             --sv-bg-fff5e6: #fff5e6;
             --sv-bg-fff7ea: #fff7ea;
             --sv-bg-fff7ed: #fff7ed;
@@ -878,6 +879,7 @@
             --sv-bg-ffe4cc: #3a2616;
             --sv-bg-ffedd5: #181a1f;
             --sv-bg-fff: #181a1f;
+            --sv-knob: #f4f4f2;
             --sv-bg-fff5e6: #181a1f;
             --sv-bg-fff7ea: #181a1f;
             --sv-bg-fff7ed: #181a1f;

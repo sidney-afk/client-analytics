@@ -183,7 +183,6 @@
     "calendar-kebab-import-menu.js",
     "calendar-linear-link-move.js",
     "calendar-link-adoption-repaint.js",
-
     "calendar-link-box-keys.js",
     "notes-composer-one-send.js",
     "calendar-native-link-gap-check.js",
@@ -542,7 +541,6 @@
     "prod-batches-keyset-paging.js",
     "prod-boot-payload-diet.js",
     "prod-client-composer-present.js",
-
     "prod-comment-unsent-and-resolved.js",
     "prod-comment-reply-audience.js",
     "prod-comments-read-timeout.js",
@@ -560,7 +558,6 @@
     "prod-description-rich-editor.js",
     "prod-description-scope-gate.js",
     "prod-detail-scroll-key.js",
-
     "prod-due-typed-date.js",
     "prod-focus-survives-render.js",
     "prod-group-select-honest.js",
@@ -571,11 +568,8 @@
     "prod-multiselect-parity.js",
     "prod-not-found-exits-enumerated.js",
     "prod-optimistic-rollback.js",
-
     "prod-picker-pending-write.js",
     "today-clients-assurance.js",
-
-
     "upload-schedule-zone-and-queue-guards.js",
     "prod-parent-rows-not-overdue.js",
     "prod-polish-failure-location.js",
@@ -2143,6 +2137,30 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the caption history icon and pop-up behind caption_history_staff (off, someone else, wrong shape, migration not applied), the steps, highlights, note and rewrite view, putting a version back with Undo through the normal save with caption_origin, the stale guard and the empty state, at desktop and 390 pixel width in light and dark.",
       "reproduce": "node test/caption-history-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-card-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks trial reels on the staff card behind trial_reels_pages: off for an unlisted client, a faint switch in the Video row, the collapsed row and its versions at today's card height, pasting a link, dropping a version, the muted trophy after 24 h, the winner through today's attach with today's Undo toast, and Undo, at desktop and 390 pixel width.",
+      "reproduce": "node test/trial-reels-card-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-race-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Two staff pages on one trial card pick a winner at once (Probe, bug 9): a pick after another one stops before it writes, a pick whose read raced the other puts the card back on the winner's own link, and a link someone else attached before the put-back stands.",
+      "reproduce": "node test/trial-reels-race-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-link-guard-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. The version on the card: a link another version has, a decided version's link and a refused drop never leave the card on a link the function refused (Probe bugs 12 and 12b).",
+      "reproduce": "node test/trial-reels-link-guard-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

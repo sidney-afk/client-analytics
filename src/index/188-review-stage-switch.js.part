@@ -70,15 +70,20 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
                                     hover to delete one's own note (with a confirm), and the quieter note design of the
                                     staff side. Same listing rule as review_stage_client_pages, the client link only.
                                     Missing, unreadable or the wrong shape: the client page exactly as it was.
+         trial_reels_pages          { "clients": [...] } or { "all": true }: trial reels (session Trials, 2026-10-27;
+                                    docs/features/TRIAL_REELS_PLAN.md, 189): the card's Trial reels switch and its
+                                    versions, on the staff Calendar and on that client's review link. The trial-reels
+                                    function reads the same row and refuses every other client. Missing, unreadable or
+                                    the wrong shape: every card exactly as it was.
          analytics_hidden           { "hidden": false } brings Analytics back for everyone (the staff bar's Analytics
                                     tab, the client link's Analytics / Content Calendar toggle). Missing, unreadable,
                                     { "hidden": true } or any other shape: Analytics is hidden (owner, 2026-10-17
                                     23:20, session Curtain Seven). Read at boot, in the same request as the switches.
        The lists live only in the database, never in this repository. */
-    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'caption_history_staff', 'unread_badges_v2', 'review_client_polish', 'phone_polish_staff', 'frame_comments_in_notes_staff', 'thumbnail_title_buttons_staff'];
+    const RS_FLAG_KEYS = ['review_stage_client_pages', 'review_stage_kasper_staff', 'review_help_video_url', 'analytics_hidden', 'workload_calm_staff', 'review_stage_kasper_layout2', 'kasper_fast_boot', 'caption_history_staff', 'unread_badges_v2', 'review_client_polish', 'phone_polish_staff', 'frame_comments_in_notes_staff', 'trial_reels_pages', 'thumbnail_title_buttons_staff'];
     const RS_FLAG_TIMEOUT_MS = 4000;
     const RS_FLAG_RETRY_MS = 30000;
-    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), unread: new Set(), phone: new Set(), fnotes: new Set(), cpAll: false, cp: new Set(), help: '', analytics: false };
+    let _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), unread: new Set(), phone: new Set(), fnotes: new Set(), cpAll: false, cp: new Set(), trAll: false, tr: new Set(), help: '', analytics: false };
     let _rsFlagPromise = null;
     let _rsFlagTriedAt = 0;
     let _rsFlagFailed = false;
@@ -110,6 +115,8 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         const fnotes = okObj(fn) && Array.isArray(fn.staff) ? fn.staff.filter(x => typeof x === 'string' && x.trim() && x.trim() !== '*').map(x => x.trim().toLowerCase()) : [];
         const cpv = by.review_client_polish;
         const cpMembers = okObj(cpv) ? (_calRuntimeFlagRawMembers(cpv) || []) : [];
+        const trv = by.trial_reels_pages;
+        const trMembers = okObj(trv) ? (_calRuntimeFlagRawMembers(trv) || []) : [];
         const h = by.review_help_video_url;
         const help = okObj(h) && typeof h.url === 'string' && /^https:\/\//i.test(h.url.trim()) ? h.url.trim() : '';
         const a = by.analytics_hidden;
@@ -129,6 +136,8 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             ttb: new Set(ttb),
             cpAll: okObj(cpv) && cpv.all === true,
             cp: new Set(cpMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
+            trAll: okObj(trv) && trv.all === true,
+            tr: new Set(trMembers.map(m => _calRuntimeFlagSlug(m)).filter(Boolean)),
             help,
             // Only the exact { "hidden": false } shows Analytics.
             analytics: okObj(a) && a.hidden === false,
@@ -157,7 +166,7 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
             // Something switched on: the open page draws again, now as the new page.
             if (changed) { try { window.dispatchEvent(new Event('sv-review-stage-switch')); } catch (e) {} }
         } catch (e) {
-            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), unread: new Set(), phone: new Set(), fnotes: new Set(), cpAll: false, cp: new Set(), help: '', analytics: false };
+            _rsFlags = { loaded: false, all: false, clients: new Set(), staff: new Set(), calm: new Set(), calmAll: false, layout2: new Set(), fast: new Set(), capHist: new Set(), ttb: new Set(), unread: new Set(), phone: new Set(), fnotes: new Set(), cpAll: false, cp: new Set(), trAll: false, tr: new Set(), help: '', analytics: false };
             _rsFlagFailed = true;
             _rsAnalyticsSync();
             svPhonePolishSync();
@@ -272,6 +281,15 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         let slug = '';
         try { slug = calClientSlug(String(client || '')); } catch (e) { slug = ''; }
         return !!slug && _rsFlags.cp.has(slug);
+    }
+    /* Trial reels (trial_reels_pages): the staff Calendar and the client link of a listed client, read once with the
+       other switches. Off until that read is in, and off for an unreadable or wrongly shaped answer. */
+    function svTrialReelsOn(client) {
+        if (!_rsFlags.loaded) return false;
+        if (_rsFlags.trAll) return true;
+        let slug = '';
+        try { slug = calClientSlug(String(client || '')); } catch (e) { slug = ''; }
+        return !!slug && _rsFlags.tr.has(slug);
     }
     function svRsClientNoAnalytics(client) {
         return !!_isClientLink && (svAnalyticsHidden() || _rsClientOn(client));
@@ -766,4 +784,4 @@ import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
         }
     });
 export { svUnreadBadgesOn, svAnalyticsMarkDefaultMove, svAnalyticsSeenShown, svCaptionHistoryOn, svRsCalOn, svRsCalPending, svRsCalSync, svRsClientNoAnalytics, svRsClientReviewOn, svRsFlagsLoaded, svRsFlagsReady, svRsHelpUrl, svRsKasperHeadSync, svRsKasperLayout2On, svRsKasperBoot, svRsKasperFast, svRsKasperLeave, svRsKasperOn, svRsKasperPaint, svRsKasperPending, svRsToolsAdopt, svRsToolsDrop, svRsToolsEl, svStaffClearMove, svStaffMarkMove, svStaffNoAnalytics, svWorkloadCalmOn, svWorkloadCalmPending };
-export { svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn, svFrameCommentsInNotesOn };
+export { svThumbTitleButtonsOn, svRsClientPolishOn, svRsKasperPolishOn, svFrameCommentsInNotesOn, svTrialReelsOn };

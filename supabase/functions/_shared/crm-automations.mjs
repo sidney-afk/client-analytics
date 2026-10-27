@@ -22,8 +22,9 @@
 
 export const N8N_AUTOMATIONS = [
   { id: 'booking_confirmation', name: 'Booking confirmation', trigger: 'A call is booked in iClosed', audience: 'The person who booked', channel: 'email+sms', from: 'hello@ Gmail signed Kasper; toll-free Twilio number', timing: 'Right after booking', logged: false, owner: 'n8n' },
-  { id: 'pre_call_nurture', name: 'Pre-call nurture (6 emails)', trigger: 'A call is booked', audience: 'The person who booked', channel: 'email', from: 'hello@ Gmail signed Kasper', timing: 'Spread between booking and the call', logged: false, owner: 'n8n' },
-  { id: 'recovery', name: 'Recovery (missed booking)', trigger: 'Someone starts booking and does not finish', audience: 'The person who started', channel: 'email+sms', from: 'hello@ Gmail signed Kasper; toll-free Twilio number', timing: 'Shortly after they drop off', logged: false, owner: 'n8n' },
+  // pre_call_nurture: the normal and educator nurtures log nurture_sent; the AI nurture does not yet.
+  { id: 'pre_call_nurture', name: 'Pre-call nurture (6 emails)', trigger: 'A call is booked', audience: 'The person who booked', channel: 'email', from: 'hello@ Gmail signed Kasper', timing: 'Spread between booking and the call', logged: true, owner: 'n8n' },
+  { id: 'recovery', name: 'Recovery (missed booking)', trigger: 'Someone starts booking and does not finish', audience: 'The person who started', channel: 'email+sms', from: 'hello@ Gmail signed Kasper; toll-free Twilio number', timing: 'Shortly after they drop off', logged: true, owner: 'n8n' },
   { id: 'reschedule', name: 'Reschedule notice', trigger: 'A booked call is moved', audience: 'The person who booked', channel: 'email', from: 'hello@ Gmail signed Kasper', timing: 'Right after the move', logged: false, owner: 'n8n' },
   { id: 'cancel', name: 'Cancellation notice', trigger: 'A booked call is cancelled', audience: 'The person who booked', channel: 'email', from: 'hello@ Gmail signed Kasper', timing: 'Right after the cancel', logged: false, owner: 'n8n' },
   { id: 'meta_booked_call', name: 'Meta "booked call" event', trigger: 'A call is booked', audience: 'Meta ads (conversion signal, no message)', channel: 'meta_event', from: 'Server event', timing: 'Right after booking', logged: false, owner: 'n8n' },

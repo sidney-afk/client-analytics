@@ -131,7 +131,7 @@ const DID = 'del_vid_1';
     let changes = [], extra = {}, r;
     if (action === 'answer') {
       const stage = isClient ? 'client' : L.clean(b.stage, 10).toLowerCase();
-      r = L.answerPatches(W.versions, { stage, kind: L.clean(b.kind, 20).toLowerCase(), letter, note: b.note }, now);
+      r = L.answerPatches(W.versions, { stage, kind: L.clean(b.kind, 20).toLowerCase(), letter, note: b.note, cardStatus: card.video_status }, now);
       if (r.error) return refuse(400, r.error);
       changes = r.patches;
     } else if (action === 'version_link_set') {

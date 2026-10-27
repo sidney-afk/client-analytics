@@ -222,16 +222,31 @@ export function cardApprovable(versions) {
  * and the client only after the SMM (the SMM may send a version straight to the client, as "Approve to client" does
  * today, so the client's turn does not wait on Kasper).
  */
-export function stageReady(v, stage) {
-  return stage === "smm" ? true : !!v.smm_ok_at;
+export function stageReady(v, stage, sentWhole) {
+  return stage === "smm" ? true : !!v.smm_ok_at || !!sentWhole;
 }
 
-export function answerPatches(versions, { stage, kind, letter, note }, now) {
+/*
+ * The team sent the card on today's way (today's Approve before the review page asked per version, or the status menu)
+ * while the SMM had looked at no version: every version then counts as through the SMM for the stage the card was sent
+ * to, or the client link would show them all "with the team" and nothing could move (Sidney, 2026-10-27). Once the SMM
+ * has looked at one version, one it has not seen stays with the team (Probe rule-miss 13).
+ */
+const SENT_TO = Object.freeze({
+  kasper: ["Kasper Approval"],
+  client: ["Client Approval", "Approved", "Scheduled", "Posted"],
+});
+export function sentOnWhole(versions, stage, cardStatus) {
+  return (SENT_TO[stage] || []).includes(clean(cardStatus, 40)) && !versions.some((v) => live(v) && v.smm_ok_at);
+}
+
+export function answerPatches(versions, { stage, kind, letter, note, cardStatus }, now) {
   if (!STAGES.includes(stage)) return { error: "stage_invalid" };
+  const whole = sentOnWhole(versions, stage, cardStatus);
   if (!["approve", "change", "approve_all"].includes(kind)) return { error: "kind_invalid" };
   // Open for this reviewer: live, not decided, not waiting on a new cut, with a link to watch, its turn, not yet answered.
   const open = (v) => live(v) && v.status !== STATUS.change && v.status !== STATUS.trial && v.status !== STATUS.winner && v.status !== STATUS.lost
-    && !!clean(v.frame_url, 2048) && stageReady(v, stage)
+    && !!clean(v.frame_url, 2048) && stageReady(v, stage, whole)
     && (stage === "client" ? v.status === STATUS.waiting : !v[okField(stage)]);
   let targets;
   if (kind === "approve_all") targets = versions.filter(open);
@@ -244,7 +259,7 @@ export function answerPatches(versions, { stage, kind, letter, note }, now) {
       // A change asked waits for its new cut (Q3); nothing to watch, nothing to approve; and each stage in its turn.
       if (v.status === STATUS.change) return { error: "change_open" };
       if (!clean(v.frame_url, 2048)) return { error: "version_has_no_link" };
-      if (!stageReady(v, stage)) return { error: "stage_order" };
+      if (!stageReady(v, stage, whole)) return { error: "stage_order" };
     }
     targets = [v];
   }
@@ -406,6 +421,8 @@ export function readShape(versions, { client, mainLink, cardStatus }) {
   const sorted = [...versions].sort((a, b) => LETTERS.indexOf(a.letter) - LETTERS.indexOf(b.letter));
   const main = mainLetter(sorted, mainLink);
   const winner = sorted.find((v) => v.status === STATUS.winner);
+  // A client read answers for the client's turn; a staff read for Kasper's (the SMM's is never held back).
+  const whole = sentOnWhole(sorted, client ? "client" : "kasper", cardStatus);
   const rows = (client ? (winner ? [winner] : sorted.filter((v) => live(v) && v.status !== STATUS.lost)) : sorted).map((v) => {
     const isMain = v.letter === main;
     const base = {
@@ -416,7 +433,7 @@ export function readShape(versions, { client, mainLink, cardStatus }) {
       client_ok_at: v.client_ok_at || null,
       // The SMM has looked at it, so Kasper and the client may answer it (stage order). A yes or no only: a client
       // read carries no team timestamps (Probe rule-miss 13).
-      ready: !!v.smm_ok_at,
+      ready: !!v.smm_ok_at || whole,
     };
     if (client) return base;
     return Object.assign(base, {

@@ -34776,3 +34776,16 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The type ratchet adds no errors.
 
 **Way back:** revert the pull request.
+
+## 548. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: a card sent for approval before any version went through the SMM showed the client nothing to answer (session Trials)
+
+- **What happened:** Sidney sent a trial card for client approval live, before build 4's per-version review page was on main. That send was today's Approve, which records no SMM answer on any version. With build 4, the client link would show every version "with the team" with no Approve, and the server would refuse the client's answers (`stage_order`). The card could not move. A card moved to Client Approval from the status menu hits the same thing.
+- **Fix:** the team sending the card on now counts. When the card is at the stage's own step (Kasper Approval for Kasper; Client Approval or later for the client) and the SMM has looked at no version, every version is ready for that stage. `sentOnWhole` in `supabase/functions/trial-reels/logic.mjs` decides it, and both the answer and the read's `ready` use it. Once the SMM has looked at one version, one it has not seen stays with the team, as before (Probe rule-miss 13).
+- **Proven:**
+  - `test/trial-reels-logic.js` (113).
+  - The Deno function test runs a card sent to Kasper and then to the client (60; 3 fail without the fix).
+  - `test/trial-reels-review-browser.js`: on the client link, such a card shows "Approve Video A" and "Approve all (5 waiting)", and Approve answers (44; fails without the fix).
+  - The other trial browser suites pass.
+  - The type ratchet adds no errors.
+
+**Way back:** revert the pull request.

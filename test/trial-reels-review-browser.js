@@ -62,7 +62,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       if (b.action === 'list') return reply({ ok: true, cards: { rs1: shape() } });
       if (b.action === 'answer' && b.kind === 'change' && T.failChange > 0) { T.failChange--; return reply({ ok: false, error: 'write_failed' }, 500); }
       if (b.action === 'answer') {
-        const res = L.answerPatches(T.versions, { stage: client ? 'client' : b.stage, kind: b.kind, letter: b.letter, note: b.note }, new Date().toISOString());
+        const res = L.answerPatches(T.versions, { stage: client ? 'client' : b.stage, kind: b.kind, letter: b.letter, note: b.note, cardStatus: 'Client Approval' }, new Date().toISOString());
         if (res.error) return reply({ ok: false, error: res.error }, 400);
         for (const p of res.patches) Object.assign(T.versions.find(v => v.id === p.id), p.patch);
         return reply(Object.assign({ ok: true }, shape()));
@@ -168,6 +168,17 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     await sleep(700);
     const teamRow = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; return { ok: !!r.querySelector('[data-ok="video"]'), txt: ((r.getElementById('drow') || {}).innerText || '').replace(/\s+/g, ' ') }; });
     ok(!teamRow.ok && /With the team: the SMM looks at Video B first/.test(teamRow.txt), 'client: on Video B no Approve, only "With the team" (' + teamRow.txt.slice(0, 80) + ')');
+    await t.ctx.close();
+
+    // ---------- sent for approval today's way, no version through the SMM: the client answers them (Sidney, 2026-10-27) ----------
+    t = await start('client', true, fresh(), { noSmm: ['A', 'B', 'C', 'D', 'E'] });
+    b = await bar(t);
+    ok(/^Video A of 5/.test(b.text) && b.ok === 'Approve Video A' && b.all === 'Approve all (5 waiting)' && b.dots.every(d => d === 'wait'),
+      'client: a card sent to the client with no version through the SMM shows every version to answer (' + b.text + ' / ' + b.ok + ' / ' + b.all + ' / ' + b.dots.join(',') + ')');
+    await inS(t.page, '[data-ok="video"]').click();
+    await sleep(900);
+    ok(t.T.versions[0].status === 'approved', 'client: and Approve answers Video A');
+    ok(!t.errors.length, 'client: no page errors (' + t.errors.join(' | ') + ')');
     await t.ctx.close();
 
     // ---------- a version this reviewer already approved shows its approved state (Probe rule-miss 14) ----------

@@ -34605,3 +34605,12 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-card-browser.js` (54 checks, with the drop on the card), trial-reels-race-browser (15).
 
 **Way back:** revert this commit together with 529.
+
+## 531. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: "New cut ready" on a version asked to change (default (b), awaiting the owner, session Trials)
+
+- **Why:** Frame.io keeps one link across new uploads, so an editor's new cut of a version asked to change often arrives at the SAME link, and pasting it again could not restart the version (probe P1). Approve was not overloaded for this.
+- **What:** a new `trial-reels` action, `version_new_cut`, only on a version with a change asked and a link. Like a new link, it puts revision up, clears every OK and the change, and sets `waiting`, so the SMM and Kasper review it again before the client (Q3). An editor's key may use it, like pasting a link; dropping, the trial and the winner stay the SMM's or an admin's. It is recorded in the card's history as `trial_version_new_cut`.
+- **Where (card, build 2):** in the version row's hover tools, beside the pencil. No new control shows until the row is hovered.
+- **Proven:** `node test/trial-reels-logic.js` (82 checks), the Deno function test (35).
+
+**Way back:** revert this commit and the card's.

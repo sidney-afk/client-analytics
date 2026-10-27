@@ -201,6 +201,14 @@ ok(exact.body.ok === true && exactIds.length === 1 && exactIds[0] === "mine", "t
   console.log = q;
   ok(r.status === 400 && ((await r.json()) as Row).error === "invalid body", "a body of null is refused cleanly, not a crash");
 }
+// Default (b): an editor says the new cut of a version asked to change is ready (same Frame.io link).
+const eRev = Number(v("E").revision) || 0;
+Object.assign(v("E"), { status: "change asked", smm_ok_at: "2026-10-27T08:00:00.000Z", kasper_ok_at: "2026-10-27T08:00:00.000Z", change_note: "Fixture note", change_by: "kasper" });
+const newCut = await step({ action: "version_new_cut", letter: "E" }, "creative");
+ok(newCut.body.ok === true && v("E").status === "waiting" && v("E").revision === eRev + 1 && !v("E").smm_ok_at && !v("E").kasper_ok_at && !v("E").change_note,
+  "an editor's New cut ready puts Video E back to waiting, every OK cleared, for the SMM and Kasper again (" + newCut.status + " " + newCut.body.error + ")");
+const newCutAgain = await step({ action: "version_new_cut", letter: "E" }, "creative");
+ok(newCutAgain.status === 400 && newCutAgain.body.error === "version_not_change_asked", "New cut ready only on a version with a change asked");
 const creativeDrop = await step({ action: "version_drop", letter: "B" }, "creative");
 ok(creativeDrop.status === 403 && creativeDrop.body.error === "role_not_allowed", "an editor's key cannot drop a version, pick or start the trial");
 // All or nothing: a row the studio touched mid-write puts back the rows already written.

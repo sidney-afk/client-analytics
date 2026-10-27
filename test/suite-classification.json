@@ -1509,6 +1509,14 @@
       "ci": "representative"
     },
     {
+      "file": "app-update-quiet-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; the page's update check runs on a locally answered host with a fake clock, no hosted credentials and no live data. Checks that a burst of publishes asks a working tab once, a dismiss holds, a draft is never reloaded away, and the wall still arrives.",
+      "reproduce": "node test/app-update-quiet-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
       "file": "tiktok-poll-backoff-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

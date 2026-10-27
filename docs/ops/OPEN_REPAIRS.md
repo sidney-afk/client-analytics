@@ -34725,3 +34725,12 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
   - The type ratchet adds no errors.
 
 **Way back:** revert the pull request.
+
+## 547. [2026-10-27 UTC, BUILT, NOT MERGED] The "new version" bar asked a working tab after every publish, and again after every dismiss (session Freshness)
+
+- **What happened:** the owner, writing comments on 27 Oct: "10 times I got the toast saying I needed to get the latest version." Eight merges republished the site that day (14:42 to 22:09 UTC, gaps of 24 to 138 minutes), each one a new deploy for every open tab.
+- **How it worked (350 footer):** the page sends a HEAD for `/` every 5 minutes and on every window focus. A newer Last-Modified than the loaded document makes the tab stale. A hidden, clean tab reloads itself (at most once per 30 minutes); a visible one got the bar at once. Dismiss was meant to hold until a newer build, but for a document-stale tab the `t === baseline && !stale` return never applies, so the bar came back on the next poll or the next window focus. After 4 stale hours a clean tab gets the wall; the owner's `app_version_floor` flag walls stale tabs at once. The bar's Reload threw away a typed draft without asking (only the wall and the self-reload checked `wouldLoseWork()`). No server write refuses an old page: the floor flag is the only server-side signal.
+- **Fix:** a visible tab is asked only after it has known about a newer version for an hour; later publishes do not restart that clock. It is not asked while it holds unsaved work (a draft, an open card). Dismiss holds for every later publish. The bar's Reload asks before losing a draft. Unchanged: the hidden-tab self-reload, the wall after 4 stale hours (deferred for unsaved work, with the bar kept up), and the floor flag. The staff page and the client link follow the same rules.
+- **Proof:** `node test/app-update-quiet-browser.js` (new, offline, fake clock, in calendar-unit-tests): a burst of publishes shows the bar once, after an hour; a dismiss holds through five more publishes and focuses; the wall still comes at 4 hours; a draft holds the bar and the Reload asks first; a hidden clean tab still reloads itself and a hidden one with a draft does not. On main's 350 its first check fails. `test/app-update-nudge.js`, `app-update-floor.js` and `app-update-self-reload-behavior.js` pass; `prod-write-gateway-browser.js` and `prod-boot-budget.js` pass.
+
+**Way back:** revert the pull request.

@@ -399,6 +399,7 @@ jobs:
           A Calendar Retry sends the status the person chose (mocked)|node docs/syncview-design/tests/lost-work-retry-intent-browser.js
           Client Calendar Expanded layout, sections and dialogs|node docs/syncview-design/tests/client-calendar-expanded-browser.js
           TikTok queue poll backs off when quiet and resumes on a change|node test/tiktok-poll-backoff-browser.js
+          The new-version bar asks a working tab once per burst of publishes and never reloads a draft away (fake clock; mocked)|node test/app-update-quiet-browser.js
           Caption prompts read and save guard (table read, fallback, pause switch)|node test/caption-prompts-guard-browser.js
           Client approve and request-changes requests are unchanged|node test/client-review-requests-unchanged-browser.js
           A client link made with tab=review opens on the Review view (Calendar and Samples)|node docs/syncview-design/tests/client-link-review-tab-browser.js

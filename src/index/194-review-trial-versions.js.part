@@ -49,8 +49,9 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
         if (!shape || !shape.enabled || !Array.isArray(shape.versions)) return null;
         const winner = shape.versions.find(v => v.status === 'winner');
         if (winner) return mode === 'client' ? { slug, winner, versions: [winner], shape } : null;
+        // One live version still goes through its own answer, so the trial can start once it is approved.
         const live = shape.versions.filter(_trvLive);
-        return live.length > 1 ? { slug, versions: live, shape } : null;
+        return live.length ? { slug, versions: live, shape } : null;
     }
     const _trvStage = mode => mode === 'client' ? 'client' : mode === 'smm' ? 'smm' : 'kasper';
     /* This reviewer's answer on one version: ok, chg or wait. */
@@ -89,6 +90,7 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
         if (m.trial.winner) return '<div class="trv"><span class="trv-n">Video ' + _calEsc(m.trial.winner.letter) + ': the one we are posting</span></div>';
         const vs = m.trial.versions, stage = _trvStage(mode), cur = _trvCurOf(m, mode), i = vs.indexOf(cur);
         const busy = _trvBusy.has(m.id);
+        if (vs.length === 1) return '<div class="trv"><span class="trv-n">Video ' + _calEsc(cur.letter) + '</span>' + (busy ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '') + '</div>';
         const dots = vs.map(v => {
             const a = _trvAnswer(v, stage);
             return '<button type="button" class="trv-dot' + (v === cur ? ' on' : '') + '" data-trv-go="' + _calEscAttr(v.letter) + '" aria-label="Video ' + _calEscAttr(v.letter)

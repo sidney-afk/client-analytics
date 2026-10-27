@@ -166,7 +166,9 @@ function ok(cond, msg) { assert.ok(cond, msg); passed++; }
   ok(/SERVER_ACTIONS = \["due", "log_send", "ingest"\]/.test(ef) && ef.indexOf('serverKeyOk(req)') < ef.indexOf('authorizeStaffKey(key'), 'due, log_send and ingest take the server key, checked first');
   ok(/sender\.length >= 24/.test(ef) && /timingSafeEqual\(given, sender\)/.test(ef) && /timingSafeEqual\(bearer, service\)/.test(ef), 'server key compared in constant time, short keys refused');
   ok(/const dryRun = body\.dry_run !== false/.test(ef), 'due is a dry run unless asked otherwise');
-  ok(!/fetch\(/.test(ef) && !/twilio|sendgrid|smtp|gmail\.googleapis/i.test(ef), 'the function never sends anything');
+  // The only fetch allowed is the server-key probe to this project's own database.
+  const fetches = ef.match(/fetch\([^,]*/g) || [];
+  ok(fetches.length === 1 && /\/rest\/v1\/rpc\/b4_service_role_probe/.test(fetches[0]) && !/twilio|sendgrid|smtp|gmail\.googleapis/i.test(ef), 'the function never sends anything (its one fetch is the key probe)');
   ok(/if \(role !== "admin"\) return json\(\{ ok: false, error: "admin_only" \}, 403\)/.test(ef), 'only an admin approves a step');
   ok(/rpc\("crm_step_new_version"/.test(ef) && /rpc\("crm_enrolment_apply"/.test(ef) && /rpc\("crm_enrol"/.test(ef), 'enrolment and step changes go through the transactional functions');
   ok(/key", "no_show"/.test(ef) && /outcome === "showed" \? "call1_done" : "no_show"/.test(ef), 'call outcome moves the stage and enrols a no-show');

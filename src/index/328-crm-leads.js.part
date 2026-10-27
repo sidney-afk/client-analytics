@@ -1210,5 +1210,6 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
     Object.assign(window, {
         _crmAddNote, _crmApproveStep, _crmClosePanel, _crmCloseStepEditor, _crmEditPanel, _crmEditStep,
         _crmEnrol, _crmEnrolmentOp, _crmLoad, _crmMarkCall, _crmOpenPersonById, _crmRefresh, _crmSavePanel,
-        _crmSaveStep, _crmSetTab, _crmSignIn, _crmStepCount, _crmToggleDue, _crmToggleSequence, _crmToggleView
+        _crmSaveStep, _crmSetTab, _crmSignIn, _crmStepCount, _crmToggleDue, _crmToggleSequence,
+        _crmToggleStage, _crmToggleView
     });

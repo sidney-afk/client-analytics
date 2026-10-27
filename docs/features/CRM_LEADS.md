@@ -359,3 +359,21 @@ message changes, refresh its row. `crm-leads` `sequences` returns the rows as
 `n8n`; a missing table gives an empty list. The person timeline links each
 automatic send (`message_sent` from an `n8n:` actor) to the sequence it came
 from, matched by workflow name and calendar.
+
+## Search, Report and merging (27 Oct 2026)
+
+- **Search** sits at the top of the side menu (the site's search pill). Every
+  word has to appear in the name, email, phone, handle, niche or source; typing
+  on another tab opens the Pipeline.
+- **Report** (side menu) is one row per source: people, booked a call, showed
+  up, signed. Booked and showed count anyone whose timeline or current stage
+  ever reached that point (`crm-leads` action `report`).
+- **Merging**: email, phone and handle are unique already, so a duplicate is
+  two people with the same full name (`duplicates`). The Report lists them and
+  the person panel shows "Also in Leads as"; Merge asks once, then
+  `crm_merge_people` moves the other person's timeline, enrolments, contact
+  details and tags onto the kept one and deletes the duplicate, with one
+  `merged` timeline row.
+- **Referral** is a lead type, for clients and past clients who came by word
+  of mouth. `external_ids` keeps the HubSpot contact and deal ids for the later
+  HubSpot takeover; `deal_value` is what the deal is worth.

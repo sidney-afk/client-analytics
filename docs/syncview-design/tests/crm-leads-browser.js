@@ -173,6 +173,9 @@ async function run(browser, origin, viewport) {
         state.toggles.push(body);
         const s = state.seqs.find(x => x.id === body.sequence_id); s.active = body.active; return json({ ok: true, sequence: s });
       }
+      if (body.action === 'report') return json({ ok: true, sources: [{ id: 's1', name: 'Made-up batch', kind: 'csv_import' }], rows: [{ source_id: 's1', people: 4, booked: 2, showed: 1, won: 1, won_value: 0 }] });
+      if (body.action === 'duplicates') return json({ ok: true, groups: state.merged ? [] : [[state.people[0], Object.assign({}, state.people[1], { id: '00000000-0000-4000-8000-000000000009', display_name: state.people[0].display_name })]] });
+      if (body.action === 'merge') { state.merged = body; return json({ ok: true, person: state.people[0] }); }
       if (body.action === 'due' || body.action === 'log_send') return json({ ok: false, error: 'unauthorized' }, 401);
     }
     if (/\/rest\/v1\//.test(p)) return json([]);
@@ -209,6 +212,26 @@ async function run(browser, origin, viewport) {
   expect(/Dream 100/.test(text) && /Made-up batch/.test(text), label + ': a lead line says where they came from (' + text.replace(/\s+/g, ' ') + ')');
   expect(!(await page.locator('.crm-type, .crm-badge, .crm-chip').count()), label + ': no badges or chips on the Pipeline');
   expect(await page.evaluate(() => document.querySelector('.crm-board').scrollWidth <= document.querySelector('.crm-board').clientWidth + 1), label + ': the Pipeline never scrolls sideways');
+  await page.fill('#crmSearch', 'kitchen');
+  expect(await page.locator('[data-crm-card]').count() === 1 && /1 match/.test(await page.locator('#crmSummary').innerText()), label + ': search narrows the Pipeline as you type');
+  await page.fill('#crmSearch', 'nobody-like-this');
+  expect(/Nobody matches/.test(await page.locator('.crm-board-wrap').innerText()), label + ': search with no match says so');
+  await page.fill('#crmSearch', '');
+  expect(await page.locator('[data-crm-card]').count() >= 3, label + ': clearing the search brings everyone back');
+  await page.click('[data-crm-nav="report"]');
+  await page.waitForSelector('.crm-report tbody tr');
+  expect(/Made-up batch\s+4\s+2\s+1\s+1/.test(await page.locator('.crm-report tbody').innerText()), label + ': the Report shows people, booked, showed and signed per source');
+  if (SHOTS) await shoot(page, label + '-report');
+  expect(await page.locator('.crm-report thead th').count() === 5, label + ': the Report has column titles');
+  const mergeBtn = page.locator('#crmReport .crm-btn', { hasText: 'Merge' });
+  expect(await mergeBtn.count() === 1, label + ': the Report lists the same person twice with a Merge button');
+  await mergeBtn.click();
+  expect(await page.locator('#crmReport .crm-btn', { hasText: 'Yes, merge' }).count() === 1, label + ': Merge asks once before it merges');
+  await page.locator('#crmReport .crm-btn', { hasText: 'Yes, merge' }).click();
+  await page.waitForFunction(() => !document.querySelector('#crmReport .crm-btn'));
+  expect(true, label + ': a merge removes the pair from the list');
+  await page.click('[data-crm-nav="pipeline"]');
+  await page.waitForSelector('[data-crm-card]');
   expect(await boxesInBoxes(page) === '', label + ': Pipeline has no box inside a box (' + await boxesInBoxes(page) + ')');
   // Filters behind one View button, with a dot while one is on.
   expect(await page.locator('#crmViewMenu').isHidden() && await page.locator('#crmFilters .sv-select').count() === 3, label + ': the three filters are tucked behind View');

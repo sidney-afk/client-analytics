@@ -468,6 +468,86 @@ async function callOutcome(db: SupabaseClient, id: string, body: Record<string, 
   return json({ ok: true, person: after, enrolment });
 }
 
+/* Report: one row per source with how many people came in, booked a call,
+   showed up and signed. "Booked" and "showed" count anyone whose timeline or
+   current stage ever reached that point, so a later stage still counts. */
+const BOOKED_STAGES = ["call1_booked", "no_show", "call1_done", "call2_done", "won"];
+const SHOWED_STAGES = ["call1_done", "call2_done", "won"];
+async function reportView(db: SupabaseClient) {
+  const people: any[] = [];
+  for (let from = 0; from < 20000; from += 1000) {
+    const page = must(await db.from("crm_people").select("id,source_id,lead_type,stage").order("id").range(from, from + 999)) || [];
+    people.push(...page);
+    if (page.length < 1000) break;
+  }
+  const reached = new Map<string, Set<string>>();
+  for (let from = 0; from < 100000; from += 1000) {
+    const page = must(await db.from("crm_events").select("person_id,kind,detail").in("kind", ["stage_changed", "booked", "call_outcome"])
+      .order("id").range(from, from + 999)) || [];
+    for (const e of page as any[]) {
+      const set = reached.get(e.person_id) || new Set<string>();
+      if (e.kind === "booked") set.add("call1_booked");
+      else if (e.kind === "call_outcome") set.add(e.detail && e.detail.outcome === "showed" ? "call1_done" : "no_show");
+      else if (e.detail && e.detail.to) set.add(String(e.detail.to));
+      reached.set(e.person_id, set);
+    }
+    if (page.length < 1000) break;
+  }
+  let values: Record<string, number> = {};
+  try {
+    const { data, error } = await db.from("crm_people").select("id,deal_value").not("deal_value", "is", null).limit(5000);
+    if (!error) for (const r of (data || []) as any[]) values[r.id] = Number(r.deal_value) || 0;
+  } catch { values = {}; }
+  const sources = must(await db.from("crm_sources").select("id,name,kind").limit(500)) || [];
+  const rows = new Map<string, any>();
+  for (const p of people) {
+    const k = p.source_id || "none";
+    const row = rows.get(k) || { source_id: p.source_id || null, people: 0, booked: 0, showed: 0, won: 0, won_value: 0 };
+    const set = reached.get(p.id) || new Set<string>();
+    set.add(p.stage);
+    row.people++;
+    if (BOOKED_STAGES.some((s) => set.has(s))) row.booked++;
+    if (SHOWED_STAGES.some((s) => set.has(s))) row.showed++;
+    if (p.stage === "won") { row.won++; row.won_value += values[p.id] || 0; }
+    rows.set(k, row);
+  }
+  return json({ ok: true, rows: Array.from(rows.values()).sort((a, b) => b.people - a.people), sources });
+}
+
+/* Possible duplicates: people with the same name once case, accents and
+   punctuation are ignored. Email, phone and handle are already unique. */
+function nameKey(v: unknown) {
+  return String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+async function duplicatesView(db: SupabaseClient) {
+  const people: any[] = [];
+  for (let from = 0; from < 20000; from += 1000) {
+    const page = must(await db.from("crm_people").select(PERSON_COLUMNS).order("created_at").range(from, from + 999)) || [];
+    people.push(...page);
+    if (page.length < 1000) break;
+  }
+  const groups = new Map<string, any[]>();
+  for (const p of people) {
+    const k = nameKey(p.display_name);
+    if (k.length < 4 || !k.includes(" ")) continue;   // a first name alone is not enough to call two people the same
+    const g = groups.get(k) || [];
+    g.push(p);
+    groups.set(k, g);
+  }
+  const t = today();
+  const out = Array.from(groups.values()).filter((g) => g.length > 1).map((g) => g.map((r) => cardOf(r, t)));
+  return json({ ok: true, groups: out });
+}
+
+async function mergePeople(db: SupabaseClient, body: Record<string, unknown>, actor: string) {
+  const keep = String(body.keep || ""), drop = String(body.drop || "");
+  if (!isUuid(keep) || !isUuid(drop) || keep === drop) return json({ ok: false, error: "bad_id" }, 400);
+  const { data, error } = await db.rpc("crm_merge_people", { p_keep: keep, p_drop: drop, p_actor: actor });
+  if (error) return json({ ok: false, error: /not found/i.test(error.message || "") ? "not_found" : "merge_failed" }, error.message && /not found/i.test(error.message) ? 404 : 500);
+  const person = Array.isArray(data) ? data[0] : data;
+  return json({ ok: true, person: person || null });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
@@ -517,6 +597,9 @@ Deno.serve(async (req: Request) => {
     if (action === "today") return await todayView(db);
     if (action === "sequences") return await sequencesView(db);
     if (action === "systems") return await systemsView(db);
+    if (action === "report") return await reportView(db);
+    if (action === "duplicates") return await duplicatesView(db);
+    if (action === "merge") return await mergePeople(db, body, actor);
     if (action === "step_edit") return await stepEdit(db, body, actor);
     if (action === "step_approve") {
       if (role !== "admin") return json({ ok: false, error: "admin_only" }, 403);

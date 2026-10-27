@@ -34598,3 +34598,10 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-logic.js` (79 checks), the Deno function test (33).
 
 **Way back:** revert the commit (the old rule: A, or the winner, is always the one on the card and cannot be dropped).
+
+## 530. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels on the card: dropping the version on the card (default (c), card side, session Trials)
+
+- **What:** the version on the card now has a Drop when another live version has a link. Pressing it runs today's attach of that next version's link first (so it becomes the one on the card), then drops the old one. With no other linked version the page says so and drops nothing. A refused pick or Undo now puts the card back on the winner's own link, else the first live version's (Video A unless it was dropped); never a fixed Video A.
+- **Proven:** `node test/trial-reels-card-browser.js` (54 checks, with the drop on the card), trial-reels-race-browser (15).
+
+**Way back:** revert this commit together with 529.

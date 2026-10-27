@@ -79,7 +79,7 @@ async function shot(page, name) {
       res = L.linkPatch(T.versions, b.letter, b.link, mainLink());
       if (!res.error && res.patch) apply([{ id: 'v' + b.letter, patch: res.patch }]);
     } else if (b.action === 'version_drop' || b.action === 'version_restore') {
-      res = L.dropPatch(T.versions, b.letter, b.action === 'version_restore');
+      res = L.dropPatch(T.versions, b.letter, b.action === 'version_restore', mainLink());
       if (!res.error && res.patch) apply([{ id: 'v' + b.letter, patch: res.patch }]);
     } else if (b.action === 'trial_start') { res = L.trialPatches(T.versions, Date.now()); if (!res.error) apply(res.patches); }
     else if (b.action === 'winner_set') { res = L.winnerPatches(T.versions, b.letter, mainLink()); if (!res.error) apply(res.patches); }
@@ -168,8 +168,19 @@ async function shot(page, name) {
       await page.click('.trl-list .trl-v:nth-child(2) .trl-ico[title="Bring back"]');
       await sleep(800);
       ok(T.versions[1].status === 'waiting', `${label}: and brings it back`);
-      ok(!(await page.$('.trl-list .trl-v:nth-child(1) .trl-ico[title="Drop this version"]')), `${label}: the version on the card (Video A) has no drop control`);
+      // Default (c): the version on the card can be dropped. Today's attach first puts the next live version (B) on the
+      // card, then A drops.
+      const d0 = T.attaches.length;
+      await page.hover('.trl-list .trl-v:nth-child(1)');
+      await page.click('.trl-list .trl-v:nth-child(1) .trl-ico[title="Drop this version"]');
+      await sleep(1200);
+      const moved = T.attaches.slice(d0).map(a => a.file_url);
+      ok(moved.join('|') === LINK('B') && vid.file_url === LINK('B') && T.versions[0].status === 'dropped'
+        && T.calls.filter(c => c.action === 'version_drop').pop().letter === 'A',
+        `${label}: dropping the version on the card: today's attach puts Video B on the card first, then A drops (${moved.length} attach)`);
       await page.close();
+      // Back as it was for the trial below.
+      Object.assign(T.versions[0], { status: 'approved' }); vid.file_url = LINK('A'); card.asset_url = LINK('A');
 
       // 24 h up.
       const past = new Date(Date.now() - 3600000).toISOString();

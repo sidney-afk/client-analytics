@@ -1,10 +1,10 @@
-import { showNotify } from './040-shared-briefs.js';
+import { showNotify, svBusyHtml } from './040-shared-briefs.js';
 import { calClientSlug } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { svTrialReelsOn } from './188-review-stage-switch.js';
 import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
     /* TRIAL REELS ON THE REVIEW PAGE (session Trials, 2026-10-27; docs/features/TRIAL_REELS_PLAN.md section 5, approved
-       as #2352).
+       in PR 2352).
 
        On a card whose Trial reels switch is on (behind trial_reels_pages), the video step of the review page (195:
        the client link, the SMM's Review tab and Kasper's Review Session) shows one version at a time: a bar over the
@@ -30,7 +30,7 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
         const e = _trv[slug] || (_trv[slug] = { at: 0, cards: {}, promise: null });
         if (e.promise || (!force && e.at && Date.now() - e.at < TRV_TTL_MS)) return e.promise || Promise.resolve(e);
         e.promise = svTrialCall({ action: 'list', client: slug, post_id: '' })
-            .then(json => { e.cards = (json && json.cards) || {}; })
+            .then(json => { e.cards = (json && json.cards) || {}; _trvFlush(slug); })
             .catch(() => { /* keep what was read; a page never hides versions on a read it could not make */ })
             .finally(() => { e.at = Date.now(); e.promise = null; _trvRepaint(); });
         return e.promise;
@@ -74,7 +74,9 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
     function svTrialReviewPost(m, mode) {
         if (!m || !m.trial) return m && m.post;
         const v = _trvCurOf(m, mode);
-        if (!v || !v.frame_url) return m.post;
+        if (!v) return m.post;
+        // A version with no link yet shows today's "No video yet", never another version's video.
+        if (!v.frame_url) return Object.assign({}, m.post, { asset_url: '', _trvNoPlayer: true });
         return Object.assign({}, m.post, { asset_url: v.frame_url }, mode === 'client' && !v.on_card ? { _trvNoPlayer: true } : {});
     }
     function svTrialReviewApproveWord(m, mode) {
@@ -100,7 +102,7 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
             + '<span class="trv-n" aria-live="polite">Video ' + _calEsc(cur.letter) + ' <span class="trv-of">of ' + vs.length + '</span></span>'
             + arrow(1, i < vs.length - 1, 'The next version', 'M6 3l5 5-5 5')
             + '<span class="trv-dots">' + dots + '</span>' + all
-            + (busy ? '<span class="trv-busy" role="status">Saving…</span>' : '') + '</div>';
+            + (busy ? '<span class="trv-busy" role="status">' + svBusyHtml('Saving…') + '</span>' : '') + '</div>';
     }
     function svTrialReviewBind(el, m, mode, onAll) {
         if (!el || !m || !m.trial || m.trial.winner) return;
@@ -143,10 +145,45 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
         if (next) _trvCur[m.id] = next.letter;
         _trvRepaint();
     }
-    /* A change on the version on screen: recorded on that version, and today's change request goes at once, naming it. */
+    /* A change on the version on screen: today's change request goes at once, naming it, and the version's own change
+       is written too. That write is kept in this browser until the function takes it, and sent again after every
+       versions read, so a refused or lost one is never dropped (it is what restarts the version when its new cut lands). */
+    const TRV_PENDING_KEY = 'syncview_trv_pending_v1';
+    function _trvPendingRead() { try { const v = JSON.parse(localStorage.getItem(TRV_PENDING_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+    function _trvPendingWrite(list) { try { if (list.length) localStorage.setItem(TRV_PENDING_KEY, JSON.stringify(list.map(j => ({ slug: j.slug, pid: j.pid, stage: j.stage, letter: j.letter, note: j.note, at: j.at })))); else localStorage.removeItem(TRV_PENDING_KEY); } catch (e) {} }
+    let _trvPendingMem = null;   // the same list when storage is blocked
+    const _trvPending = () => _trvPendingMem || (_trvPendingMem = _trvPendingRead());
+    function _trvPendingSave() { _trvPendingWrite(_trvPending()); }
+    async function _trvSendChange(job) {
+        try {
+            const json = await svTrialCall({ action: 'answer', client: job.slug, post_id: job.pid, stage: job.stage, kind: 'change', letter: job.letter, note: job.note });
+            const list = _trvPending(), i = list.indexOf(job);
+            if (i >= 0) { list.splice(i, 1); _trvPendingSave(); }
+            const e = _trv[job.slug];
+            if (e && json.versions) e.cards[job.pid] = Object.assign({}, e.cards[job.pid] || {}, json, { enabled: true });
+            _trvRepaint();
+            return true;
+        } catch (err) {
+            // The version is gone, dropped or already decided: nothing left to record.
+            if (['version_not_found', 'version_dropped', 'version_on_trial', 'trial_reels_off', 'not_enabled'].includes(String(err && err.code || ''))) {
+                const list = _trvPending(), i = list.indexOf(job);
+                if (i >= 0) { list.splice(i, 1); _trvPendingSave(); }
+            }
+            return false;
+        }
+    }
+    function _trvFlush(slug) {
+        _trvPending().filter(j => j.slug === slug && !j.inFlight).forEach(j => { j.inFlight = true; _trvSendChange(j).finally(() => { j.inFlight = false; }); });
+    }
     function svTrialReviewChangeText(m, mode, text, frameNote) {
         const letter = _trvCurOf(m, mode).letter;
-        _trvAnswerCall(m, mode, { kind: 'change', letter, note: text }).catch(e => showNotify('Video ' + letter + ' was not marked as changed', svTrialErrorText(e)));
+        const job = { slug: m.trial.slug, pid: m.id, stage: _trvStage(mode), letter, note: text, at: Date.now() };
+        _trvPending().push(job); _trvPendingSave();
+        job.inFlight = true;
+        _trvSendChange(job).then(ok => {
+            job.inFlight = false;
+            if (!ok && _trvPending().includes(job)) showNotify('Video ' + letter + "'s change is not on the version yet", 'Your change request was sent. Marking Video ' + letter + ' as changed will be tried again in a moment.');
+        });
         // Kasper's "Tweaks are on Frame" stays word for word: every page reads that exact note.
         return frameNote ? text : 'Video ' + letter + ': ' + text;
     }

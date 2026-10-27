@@ -58,6 +58,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
         L.readShape(T.versions, { client, mainLink: T.versions[0].frame_url, cardStatus: 'Client Approval' }));
       const reply = (o, s) => route.fulfill({ status: s || 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(o) });
       if (b.action === 'list') return reply({ ok: true, cards: { rs1: shape() } });
+      if (b.action === 'answer' && b.kind === 'change' && T.failChange > 0) { T.failChange--; return reply({ ok: false, error: 'write_failed' }, 500); }
       if (b.action === 'answer') {
         const res = L.answerPatches(T.versions, { stage: client ? 'client' : b.stage, kind: b.kind, letter: b.letter, note: b.note }, new Date().toISOString());
         if (res.error) return reply({ ok: false, error: res.error }, 400);
@@ -146,6 +147,34 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     ok(t.T.calls.some(c => c.kind === 'change' && c.letter === 'C' && c.note === 'Make the first word bigger.') && t.T.versions[2].status === 'change asked', 'client: Ask for a change records it on Video C');
     ok(!!chg && /Video C: Make the first word bigger\./.test(String(chg.video_tweaks || '')), 'client: and today\'s change request starts "Video C:"');
     ok(!t.errors.length, 'client change: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+
+    // ---------- a version's own change that fails is kept and sent again ----------
+    t = await start('client', true, fresh());
+    t.T.failChange = 1;
+    await inS(t.page, '.trv [data-trv-go="D"]').click();
+    await sleep(600);
+    n0 = t.state.upserts.length;
+    await inS(t.page, '[data-chg="video"]').click();
+    await inS(t.page, '#ta').fill('Shorter end card.');
+    await inS(t.page, '#sendBtn').click();
+    for (let i = 0; i < 80 && !t.state.upserts.slice(n0).some(u => u.video_status === 'Tweaks Needed'); i++) await sleep(100);
+    ok(t.state.upserts.slice(n0).some(u => /Video D: Shorter end card\./.test(String(u.video_tweaks || ''))) && t.T.versions[3].status === 'waiting'
+      && await t.page.evaluate(() => /Video D/.test(localStorage.getItem('syncview_trv_pending_v1') || '') || /"letter":"D"/.test(localStorage.getItem('syncview_trv_pending_v1') || '')),
+      'a refused version write: today\'s change request still goes, and the version\'s change waits in this browser');
+    await t.page.reload({ waitUntil: 'domcontentloaded' });
+    await waitNew(t);
+    for (let i = 0; i < 60 && t.T.versions[3].status !== 'change asked'; i++) await sleep(100);
+    ok(t.T.versions[3].status === 'change asked' && t.T.versions[3].change_note === 'Shorter end card.' && !(await t.page.evaluate(() => localStorage.getItem('syncview_trv_pending_v1'))),
+      'the next versions read sends it again, and Video D is marked as changed');
+    await t.ctx.close();
+
+    // ---------- a version with no link yet ----------
+    t = await start('client', true, fresh({ E: { frame_url: null } }));
+    await inS(t.page, '.trv [data-trv-go="E"]').click();
+    await sleep(900);
+    b = await bar(t);
+    ok(/^Video E of 5/.test(b.text) && !b.player && /No video yet/.test(await inS(t.page, '#novidMsg').innerText()), 'a version with no link shows "No video yet", never another version\'s video');
     await t.ctx.close();
 
     // ---------- once the winner is picked ----------

@@ -5,19 +5,19 @@ and fixes what is found; this session built nothing in the feature. Everything r
 no live writes. The plan is `docs/features/TRIAL_REELS_PLAN.md` (PR #2352). The tests are on branch
 `test/trial-reels-journey`, draft PR **#2365**, stacked on build 6. **Do not merge it; the owner holds every trial reels merge.**
 
-Builds tested: build 5 at `b76a6e31b` (start of the night), then build 6 at `1685d4eaa` with Trials' fixes merged in.
+Builds tested: build 5 at `b76a6e31b` (start of the night), build 6 at `1685d4eaa`, builds 2 to 4 one by one as their fixes landed, and build 6 at `797b19b` (04:15 UTC, every fix carried up the stack).
 
 ## DONE (verified, pushed)
 
 | what | where | result on build 6 |
 |---|---|---|
-| The whole journey of one 5-version card in one run. Links are pasted on the card and in Production. The SMM OKs, then asks a change on C. C's new cut. Kasper's Approve all. The client approves two versions one at a time, then Approve all, and the card goes Approved through today's save. Then the trial, the 24 h timer, the trophy, the winner, Undo, the winner again. The client sees only the winner. Posted (Undo and a new pick are refused). Switch off. At every step it checks the card status, each version's label, that the card has one link (file_url = asset_url = the version on the card), the ledger rows, and that nothing writes when the switch is off or the client isn't listed. | `test/trial-reels-journey-browser.js` | **90 / 90** |
+| (latest, build 6 at 797b19b) The whole journey of one 5-version card in one run. Links are pasted on the card and in Production. The SMM OKs, then asks a change on C. C's new cut. Kasper's Approve all. The client approves two versions one at a time, then Approve all, and the card goes Approved through today's save. Then the trial, the 24 h timer, the trophy, the winner, Undo, the winner again. The client sees only the winner. Posted (Undo and a new pick are refused). Switch off. At every step it checks the card status, each version's label, that the card has one link (file_url = asset_url = the version on the card), the ledger rows, and that nothing writes when the switch is off or the client isn't listed. | `test/trial-reels-journey-browser.js` | **90 / 90** |
 | The rules the plan asks for and logic.mjs lacked (bugs 1 to 4) | `test/trial-reels-probe-logic.js` | 10 / 10 (8 failed on build 5) |
 | Bugs 5 and 7 on the real `index.ts` under Deno | `test/trial-reels-probe-deno.ts` | 7 / 7 (3 failed on build 5) |
 | One live version (bug 6), on the client review page | `test/trial-reels-one-live-browser.js` | 4 / 4 (2 failed on build 5) |
-| Two staff pick a winner at once (bug 9) | `test/trial-reels-race-browser.js` | **2 / 4: still open** |
-| A change belongs to the version it was asked on; Kasper's "Approve after tweaks" (bugs 10, 10b, 11) | `test/trial-reels-change-naming-browser.js` | **1 / 6: open** |
-| A refused link on the version on the card (bug 12, second pass) | `test/trial-reels-link-guard-browser.js` | **0 / 3: open** |
+| Two staff pick a winner at once (bug 9) | `test/trial-reels-race-browser.js` (adopted by Trials, 3 races) | **15 / 15** on 797b19b |
+| A change belongs to the version it was asked on; Kasper's "Approve after tweaks" (bugs 10, 10b, 11) | `test/trial-reels-change-naming-browser.js` (adopted by Trials) | **6 / 6** on 797b19b |
+| A refused link on the version on the card (bug 12, second pass) | `test/trial-reels-link-guard-browser.js` | **1 / 3: open** on 797b19b |
 | Each stacked branch (builds 1 to 5) builds with `npm run build:index` | — | all clean |
 | Trials' own suites (card, Production, review, Notes, function) on build 5, in dark and light | — | all pass |
 | The eyes pass. Card, Production, the review page (client, SMM, Kasper, winner) and Notes, at 1440 and 390, dark first, compared with `real/` and `mock-*` | screenshots kept outside the repo (fictional data) | divergences below |
@@ -41,10 +41,11 @@ Status at Trials is as of the last retest on build 6.
 | 5 | Multi-row writes were not atomic: a studio write mid-winner left A, B, D `lost`, C `winner`, E on trial, no winner letter and no ledger rows | index.ts applyChanges | **fixed** (rows already written are put back on a conflict), verified under Deno |
 | 6 | With one live version the review page skipped the version answer: card Approved, version `waiting`, trial unable to start | 194 svTrialReviewShape | **fixed**, verified in a browser |
 | 7 | A JSON `null` body threw out of the handler (500, no CORS, no log line) | index.ts | **fixed**, verified under Deno |
-| 9 | **Two staff pick a winner: the card posts the wrong video.** The second, stale pick's put-back re-attaches Video A's link while C stays the winner, and healMain never repairs it | 189 svTrialPick / _trlPutBack (and _trlUndoPick) | **fixed on build 2** (6c87b2b; the race test, adopted by Trials with 3 races, passes 15/15 there). **REGRESSION on builds 3 and 4:** the 2 → 3 merge dropped `_trlCall`, so every winner pick and Undo fails with "the versions could not be read" (race 5/15). Sent to Trials. |
+| 9 | **Two staff pick a winner: the card posts the wrong video.** The second, stale pick's put-back re-attaches Video A's link while C stays the winner, and healMain never repairs it | 189 svTrialPick / _trlPutBack (and _trlUndoPick) | **fixed** (6c87b2b), verified on the whole stack at 797b19b (race 15/15). A regression on builds 3 and 4 between 02:45 and 04:00 (the 2 → 3 merge dropped `_trlCall`, so every pick and Undo failed) was found and is gone. |
 | 10 | A change is named for the version on screen **when it is sent**, not the one it was asked on. Any composer, plain client link included: change opened on C, a look at D, then send, marks D and the request reads "Video D: …" (the client-polish queue widens the window) | 195 :3028 wrapper then 194 svTrialReviewChangeText | **fixed on build 4** (4818a37), verified (client scenario passes) |
-| 10b | Build 6: a Kasper tile's "Ask for a change" is named for whichever tile is on stage when it is sent | 194 svTrialReviewBindTiles | **open**, proven in a browser |
-| 12 | A refused link on the version on the card (another version's link pasted on A; the winner's pencil after the pick) lands on the card through today's attach anyway: card and version disagree (the duplicate case for good, since the heal skips it), and the page says "did not save" | 189 svTrialLinkSave | **open**, proven in a browser |
+| 10b | Build 6: a Kasper tile's "Ask for a change" is named for whichever tile is on stage when it is sent | 194 svTrialReviewBindTiles | **fixed**, verified on 797b19b |
+| 12 | A refused link on the version on the card (another version's link pasted on A; the winner's pencil after the pick) lands on the card through today's attach anyway, and the page says "did not save" | 189 svTrialLinkSave | **half-fixed** on 797b19b: the new rule (on the card = the live version whose link the card carries) keeps the display consistent, but the card still moves (B silently goes on the card) while the page says it did not save; the winner case is unchanged |
+| 12b | Dropping the version on the card (new on 797b19b) attaches the next version first; a refused drop leaves the card moved while the page says "not dropped" | 189 svTrialDrop | **open** (traced) |
 | E10 | Production: a long value on today's Deliverable file row clips "on the card" under the state pill | 245 / Production asset row CSS | **fixed** (ce0ef56: the text ellipsizes, labels stay whole; Trials' test covers it) |
 | E11 | Test gap: Trials' Production test answers the asset read without `id`, `client_slug` and `team`, so today's row is never read there | test/trial-reels-production-browser.js | **fixed** (ce0ef56), verified: today's row reads "Open link · on the card · Available" |
 
@@ -62,7 +63,7 @@ Status at Trials is as of the last retest on build 6.
 | E5 / K6 | "Finish reviewing" counts parts, not versions (plan §5) | **E5 fixed on build 4** (versions plus the other parts); K6 (Kasper layout 2) waits for build 6 |
 | E6 | Button words: plan and mock say "Approve this version"; the SMM and Kasper buttons do not name the version they approve | open |
 | E7 / K3 | The player badge reads "Video", not "Video C" (R3) | **E7 fixed on build 4**, seen; K3 waits for build 6 |
-| E1b | Build 4: on the client link, the new side arrows are clipped (`.view.novid{overflow:hidden}`) whenever the version on stage has no player, which is every version but the card's own: invisible and not pressable. Fine on the SMM page | **open**, measured (sent 03:2x) |
+| E1b | Builds 4 to 6 (still on 797b19b): on the client link, the new side arrows are clipped (`.view.novid{overflow:hidden}`) whenever the version on stage has no player, which is every version but the card's own: invisible and not pressable. Fine on the SMM page | **open**, measured (sent 03:2x) |
 | E8 | The card switch knob is dark in dark mode (`var(--sv-bg-fff)` flips); the approved pictures show a light knob | **fixed** (126e26f, `--sv-knob`), seen in a dark screenshot |
 | K2 | Kasper layout 2: tile Approves plus the video part's own Approve and Ask for change under the player (two Approves, visual noise) | open |
 | K4, K5 | Kasper layout 2: Approve all's place and style; the "5 versions" line in the left list | open |

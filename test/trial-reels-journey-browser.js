@@ -344,12 +344,12 @@ const DID = 'del_vid_1';
   }
   async function approveAll(t, settle) {
     const c0 = W.calls.length;
-    await RS.inS(t.page, '.trv [data-trv-all]').click();
+    await RS.inS(t.page, '[data-trv-all]').click();
     await until(() => W.calls.slice(c0).some(c => c.kind === 'approve_all'));
     await until(settle || (() => false), 60);
     await sleep(600);
   }
-  async function go(t, letter) { await RS.inS(t.page, '.trv [data-trv-go="' + letter + '"]').click(); await sleep(600); }
+  async function go(t, letter) { await RS.inS(t.page, '[data-trv-go="' + letter + '"]').click(); await sleep(600); }
 
   try {
     // ============ 1. switch off for this client: today's everywhere, nothing writes ============

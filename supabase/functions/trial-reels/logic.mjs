@@ -17,7 +17,7 @@ export const STATUS = Object.freeze({
 });
 export const STAGES = ["smm", "kasper", "client"];
 export const TRIAL_MS = 24 * 60 * 60 * 1000;
-export const ACTIONS = ["read", "switch_set", "version_link_set", "version_drop", "version_restore", "answer", "trial_start", "winner_set", "winner_undo"];
+export const ACTIONS = ["read", "switch_set", "version_link_set", "version_drop", "version_restore", "version_new_cut", "answer", "trial_start", "winner_set", "winner_undo"];
 // What a client review link may do. Everything else needs a staff key.
 export const CLIENT_ACTIONS = ["read", "answer"];
 
@@ -31,7 +31,8 @@ export function staffAllows(role, action) {
   if (action === "list" || action === "read") return true;
   const r = clean(role, 20).toLowerCase();
   if (r === "admin" || r === "smm") return true;
-  return r === "creative" && action === "version_link_set";
+  // An editor pastes a version's link and says its new cut is ready; everything else is the SMM's or an admin's.
+  return r === "creative" && (action === "version_link_set" || action === "version_new_cut");
 }
 
 /** An ILIKE pattern that matches exactly this text, case aside: `_` and `%` are wildcards in ILIKE, and slugs carry `_`. */
@@ -171,6 +172,20 @@ function linkChange(v, link) {
     });
   }
   return patch;
+}
+
+/*
+ * "New cut ready" (default (b), 2026-10-27, awaiting the owner): the editor's new cut of a version asked to change sits
+ * at the same link (Frame.io keeps one link across uploads), so pasting can't restart it. This action does what a new
+ * link does: revision up, every OK and the change cleared, status waiting, so the SMM and Kasper review it again
+ * before the client (Q3). Only on a version with a change asked.
+ */
+export function newCutPatch(versions, letter) {
+  const v = versions.find((x) => x.letter === letter);
+  if (!v) return { error: "version_not_found" };
+  if (v.status !== STATUS.change) return { error: "version_not_change_asked" };
+  if (!clean(v.frame_url, 2048)) return { error: "version_has_no_link" };
+  return { patch: { revision: (Number(v.revision) || 0) + 1, status: STATUS.waiting, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null, change_by: null, change_note: null, change_at: null } };
 }
 
 /** Only the team drops a version (owner, Q2), and never one that is out on trial or decided. */

@@ -76,6 +76,14 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   ok(L.linkPatch(five(), 'B', 'https://f.io/fixture-c', A_LINK).error === 'link_used_by_another_version', 'one link, one version');
   ok(L.linkPatch([v('A'), v('B', { status: 'on trial' })], 'B', 'https://f.io/new-b3', A_LINK).error === 'version_on_trial', 'a decided version keeps its link');
 
+  // Default (b): "New cut ready" restarts a version asked to change, at the same link.
+  r = L.newCutPatch([v('C', { status: 'change asked', smm_ok_at: NOW, kasper_ok_at: NOW, change_note: 'shorter', revision: 2 })], 'C');
+  ok(r.patch.status === 'waiting' && r.patch.revision === 3 && r.patch.smm_ok_at === null && r.patch.kasper_ok_at === null && r.patch.change_note === null,
+    'New cut ready: the version goes back to waiting, revision up, every OK and the change cleared (the SMM and Kasper review it again)');
+  ok(L.newCutPatch([v('C', { status: 'approved' })], 'C').error === 'version_not_change_asked' && L.newCutPatch([v('C', { status: 'change asked', frame_url: null })], 'C').error === 'version_has_no_link',
+    'New cut ready only on a version with a change asked and a link');
+  ok(L.staffAllows('creative', 'version_new_cut') && !L.staffAllows('creative', 'version_drop'), 'an editor can say a new cut is ready, not drop');
+
   // Drop, trial, winner
   // Default (c), 2026-10-27: the version on the card can be dropped once today's attach moved the card to the next one.
   ok(L.dropPatch(five(), 'A', false, A_LINK).error === 'attach_first', 'the version on the card: today\'s attach first puts the next live version on the card');

@@ -8,7 +8,8 @@
  * trial-reels/logic.mjs) over an in-memory card. Proves, on the client link and on the SMM's Review tab:
  *   - switch off for this client: today's page, no version bar, the function never asked;
  *   - switch on: "Video A of 5" over the player with a dot per version and an arrow on each side, no hook text; the
- *     player plays the version on screen; the arrow moves to "Video B of 5";
+ *     player plays the version on screen; the arrow moves to "Video B of 5", which plays in the page's player on the
+ *     client link too (frameio-view is asked by card id and B's link);
  *   - Approve answers only the version on screen and saves nothing on the card until every version has this
  *     reviewer's OK; "Approve all" answers the rest and then today's approve moves the card (the client: Approved;
  *     the SMM: Kasper Approval);
@@ -45,10 +46,11 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
       mode !== 'client' ? { staff: STAFF } : {}, extra || {}));
     t.T = T;
     T.views = [];
+    T.asks = [];
     // The link the player asks the viewer to play (the fixture answers it as usual).
     await t.ctx.route('**/functions/v1/frameio-view*', route => {
       const r = route.request();
-      try { const u = new URL(r.url()); const b = r.postData() ? JSON.parse(r.postData()) : {}; T.views.push(String(b.link || b.url || u.searchParams.get('link') || u.searchParams.get('url') || '')); } catch (e) {}
+      try { const u = new URL(r.url()); const b = r.postData() ? JSON.parse(r.postData()) : {}; T.views.push(String(b.link || b.url || u.searchParams.get('link') || u.searchParams.get('url') || '')); T.asks.push(b); } catch (e) {}
       return route.fallback();
     });
     await t.ctx.route('**/functions/v1/trial-reels', async route => {
@@ -128,7 +130,8 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     await sleep(900);
     b = await bar(t);
     b.link = t.T.views[t.T.views.length - 1] || '';
-    ok(/^Video B of 5/.test(b.text) && !b.player && b.tab === LINK('B'), 'client: the arrow moves to Video B, which opens in a new tab on a client link (' + b.tab + ')');
+    const ask = t.T.asks[t.T.asks.length - 1] || {};
+    ok(/^Video B of 5/.test(b.text) && b.player && ask.link === LINK('B') && !!ask.card_id && !ask.part, 'client: the arrow moves to Video B, which plays in the page\'s player (the client link asks by card id and names B\'s link: ' + JSON.stringify(ask) + ')');
     let n0 = t.state.upserts.length;
     await inS(t.page, '[data-ok="video"]').click();
     await waitFor(async () => t.T.calls.some(c => c.action === 'answer'));

@@ -70,15 +70,16 @@ import { svTrialCall, svTrialErrorText } from './189-trial-reels-card.js';
         return v;
     }
     /* The post the player plays: today's post with the version's link in place of the card's. On a client link the
-       player asks for the card's own video by the card's id (frameio-view), so a version that is not the card's link
-       opens in a new tab there (today's fallback, `noPlayer`); staff pages play every version in place. */
+       player asks for the card's video by the card's id (frameio-view); a version that is not the card's link also
+       names its link (`_trvAskLink`), and frameio-view plays it only when it is one of this card's versions the client
+       may see (plan section 10 item 1). Staff pages play every version by its link as before. */
     function svTrialReviewPost(m, mode) {
         if (!m || !m.trial) return m && m.post;
         const v = _trvCurOf(m, mode);
         if (!v) return m.post;
         // A version with no link yet shows today's "No video yet", never another version's video.
         if (!v.frame_url) return Object.assign({}, m.post, { asset_url: '', _trvNoPlayer: true });
-        return Object.assign({}, m.post, { asset_url: v.frame_url }, mode === 'client' && !v.on_card ? { _trvNoPlayer: true } : {});
+        return Object.assign({}, m.post, { asset_url: v.frame_url }, mode === 'client' && !v.on_card ? { _trvAskLink: true } : {});
     }
     function svTrialReviewApproveWord(m, mode) {
         return m && m.trial && !m.trial.winner ? 'Approve Video ' + _trvCurOf(m, mode).letter : '';

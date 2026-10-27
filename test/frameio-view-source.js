@@ -268,12 +268,24 @@ function deps(f, over = {}) {
         flag: { all: false, clients: ['clientone', 'clienttwo'] },
         clients: [{ slug: 'clientone' }, { slug: 'clienttwo' }],
         cards: [{ id: 'card-1', client: 'clientone', asset_url: LINK }, { id: 'card-2', client: 'clienttwo', asset_url: 'https://f.io/other99' }, { id: 'card-3', client: 'clientone', asset_url: '' }],
+        trialFlag: { clients: ['clientone'] },
+        trialCards: [{ client: 'clientone', post_id: 'card-1', enabled: true }],
+        versions: [
+          { client: 'clientone', post_id: 'card-1', letter: 'A', status: 'approved', frame_url: LINK },
+          { client: 'clientone', post_id: 'card-1', letter: 'B', status: 'pending', frame_url: 'https://f.io/verb22' },
+          { client: 'clientone', post_id: 'card-1', letter: 'C', status: 'dropped', frame_url: 'https://f.io/verc33' },
+          { client: 'clienttwo', post_id: 'card-2', letter: 'B', status: 'pending', frame_url: 'https://f.io/twob44' },
+        ],
       }, over);
       const rest = async (p) => {
         asked.push(p);
         if (db.down) throw new Error('db down');
         if (p.startsWith('client_access?')) return db.client_access;
+        if (p.startsWith('syncview_runtime_flags?') && /key=eq\.trial_reels_pages/.test(p)) return db.trialFlag === null ? [] : [{ value: db.trialFlag }];
         if (p.startsWith('syncview_runtime_flags?')) { if (db.flagDown) throw new Error('flag read failed'); return db.flag === null ? [] : [{ value: db.flag }]; }
+        if (p.startsWith('trial_reel_cards?')) { const c = /client=eq\.([^&]+)/.exec(p), i = /post_id=eq\.([^&]+)/.exec(p); return db.trialCards.filter((r) => r.client === decodeURIComponent(c[1]) && r.post_id === decodeURIComponent(i[1])); }
+        if (p.startsWith('studio_trial_versions?')) { if (db.versionsDown) throw new Error('versions read failed'); const c = /client=ilike\.([^&]+)/.exec(p), i = /post_id=eq\.([^&]+)/.exec(p);
+          return db.versions.filter((r) => r.client.toLowerCase() === decodeURIComponent(c[1]).toLowerCase() && r.post_id === decodeURIComponent(i[1])); }
         if (p.startsWith('clients?')) { const m = /slug=eq\.([^&]+)/.exec(p); return db.clients.filter((c) => c.slug === decodeURIComponent(m[1])); }
         if (p.startsWith('calendar_posts?')) { const c = /client=eq\.([^&]+)/.exec(p), i = /id=eq\.([^&]+)/.exec(p); return db.cards.filter((r) => r.client === decodeURIComponent(c[1]) && r.id === decodeURIComponent(i[1])); }
         throw new Error('unexpected read ' + p);
@@ -306,6 +318,22 @@ function deps(f, over = {}) {
     eq([flagAllows({ all: false, clients: ['Client One'] }, 'clientone'), flagAllows({ clients: 'clientone' }, 'clientone'), flagAllows(null, 'clientone')], [true, false, false], 'the flag reads display names like the page does');
     eq(normalizeClient('Client One'), 'clientone', 'client names are normalized like the other client functions');
     { const db = fakeDb(); await authorizeClientCard({ token: TOK_A, cardId: 'card-1' }, db.rest); ok(db.asked.every((a) => /^(client_access|syncview_runtime_flags|clients|calendar_posts)\?/.test(a)), 'only the four tables are read'); }
+
+    // Trial reels (plan section 10 item 1): a version of THIS card the client may see plays by its link; nothing else does.
+    const VB = 'https://f.io/verb22';
+    eq(await authorizeClientCard({ token: TOK_A, cardId: 'card-1', link: VB }, fakeDb().rest), { slug: 'clientone', link: VB }, "a trial card's Video B plays on the client link");
+    eq(await refused({ token: TOK_A, cardId: 'card-1', link: 'https://f.io/verc33' }, fakeDb()), 'not_found 404', 'a dropped version is refused');
+    eq(await refused({ token: TOK_A, cardId: 'card-1', link: 'https://f.io/twob44' }, fakeDb()), 'not_found 404', "another card's (another client's) version is refused");
+    eq(await refused({ token: TOK_A, cardId: 'card-1', link: VB }, fakeDb({ trialFlag: { clients: ['clienttwo'] } })), 'not_found 404', 'trial reels off for this client: refused like any other link');
+    eq(await refused({ token: TOK_A, cardId: 'card-1', link: VB }, fakeDb({ trialFlag: null })), 'not_found 404', 'no trial reels switch row: refused');
+    eq(await refused({ token: TOK_A, cardId: 'card-1', link: VB }, fakeDb({ trialCards: [{ client: 'clientone', post_id: 'card-1', enabled: false }] })), 'not_found 404', "the card's Trial reels switch off: refused");
+    eq(await refused({ token: TOK_A, cardId: 'card-1', link: VB }, fakeDb({ versionsDown: true })), 'not_found 404', 'a failed versions read: refused, not guessed');
+    { const versions = [{ client: 'clientone', post_id: 'card-1', letter: 'A', status: 'winner', frame_url: LINK }, { client: 'clientone', post_id: 'card-1', letter: 'B', status: 'pending', frame_url: VB }];
+      eq(await refused({ token: TOK_A, cardId: 'card-1', link: VB }, fakeDb({ versions })), 'not_found 404', 'once a winner is picked only the winner plays');
+      eq((await authorizeClientCard({ token: TOK_A, cardId: 'card-1', link: LINK }, fakeDb({ versions }).rest)).link, LINK, 'the winner (the card link) still plays'); }
+    { const db = fakeDb(); await authorizeClientCard({ token: TOK_A, cardId: 'card-1', link: VB }, db.rest);
+      ok(db.asked.every((a) => /^(client_access|syncview_runtime_flags|clients|calendar_posts|trial_reel_cards|studio_trial_versions)\?/.test(a)), 'a version link reads only the trial reels tables beside the four'); }
+    ok(/trialVersionLink/.test(read('supabase/functions/frameio-view/client-card.mjs')) && !/trial/i.test(read('supabase/functions/frameio-view/logic.mjs')), 'the trial check lives in client-card.mjs; logic.mjs (shared with higgsfield-mcp) is untouched');
 
     { const f = fakeFrameio(); const out = await lookup(LINK, deps(f), { comments: false });
       ok(out.ok && out.video.url === STREAM + '&q=hq' && out.video.renditions.efficient === STREAM, 'a client gets the playable addresses');

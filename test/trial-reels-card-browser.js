@@ -81,6 +81,9 @@ async function shot(page, name) {
     } else if (b.action === 'version_drop' || b.action === 'version_restore') {
       res = L.dropPatch(T.versions, b.letter, b.action === 'version_restore', mainLink());
       if (!res.error && res.patch) apply([{ id: 'v' + b.letter, patch: res.patch }]);
+    } else if (b.action === 'version_new_cut') {
+      res = L.newCutPatch(T.versions, b.letter);
+      if (!res.error && res.patch) apply([{ id: 'v' + b.letter, patch: res.patch }]);
     } else if (b.action === 'trial_start') { res = L.trialPatches(T.versions, Date.now()); if (!res.error) apply(res.patches); }
     else if (b.action === 'winner_set') { res = L.winnerPatches(T.versions, b.letter, mainLink()); if (!res.error) apply(res.patches); }
     else if (b.action === 'winner_undo') { res = L.undoWinnerPatches(T.versions, mainLink()); if (!res.error) apply(res.patches); }
@@ -160,6 +163,13 @@ async function shot(page, name) {
       await page.keyboard.press('Enter');
       await sleep(900);
       ok(T.calls.some(c => c.action === 'version_link_set' && c.letter === 'E' && c.link === LINK('E')) && T.versions[4].frame_url === LINK('E'), `${label}: pasting Video E's link saves it`);
+      // Default (b): "New cut ready" on Video C (a change asked), only in the row's hover tools.
+      ok(!(await page.$('.trl-list .trl-v:nth-child(2) .trl-ico[title="New cut ready"]')), `${label}: no "New cut ready" on a version that is not asked to change`);
+      await page.hover('.trl-list .trl-v:nth-child(3)');
+      await page.click('.trl-list .trl-v:nth-child(3) .trl-ico[title="New cut ready"]');
+      await sleep(900);
+      ok(T.versions[2].status === 'waiting' && T.versions[2].revision === 1 && T.calls.some(c => c.action === 'version_new_cut' && c.letter === 'C'),
+        `${label}: "New cut ready" on Video C puts it back to waiting for the SMM and Kasper`);
       await page.hover('.trl-list .trl-v:nth-child(2)');
       await page.click('.trl-list .trl-v:nth-child(2) .trl-ico[title="Drop this version"]');
       await sleep(800);

@@ -183,7 +183,6 @@
     "calendar-kebab-import-menu.js",
     "calendar-linear-link-move.js",
     "calendar-link-adoption-repaint.js",
-
     "calendar-link-box-keys.js",
     "notes-composer-one-send.js",
     "calendar-native-link-gap-check.js",
@@ -542,7 +541,6 @@
     "prod-batches-keyset-paging.js",
     "prod-boot-payload-diet.js",
     "prod-client-composer-present.js",
-
     "prod-comment-unsent-and-resolved.js",
     "prod-comment-reply-audience.js",
     "prod-comments-read-timeout.js",
@@ -560,7 +558,6 @@
     "prod-description-rich-editor.js",
     "prod-description-scope-gate.js",
     "prod-detail-scroll-key.js",
-
     "prod-due-typed-date.js",
     "prod-focus-survives-render.js",
     "prod-group-select-honest.js",
@@ -571,11 +568,8 @@
     "prod-multiselect-parity.js",
     "prod-not-found-exits-enumerated.js",
     "prod-optimistic-rollback.js",
-
     "prod-picker-pending-write.js",
     "today-clients-assurance.js",
-
-
     "upload-schedule-zone-and-queue-guards.js",
     "prod-parent-rows-not-overdue.js",
     "prod-polish-failure-location.js",
@@ -2167,6 +2161,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Two staff pages on one trial card pick a winner at once (Probe, bug 9): a pick after another one stops before it writes, a pick whose read raced the other puts the card back on the winner's own link, and a link someone else attached before the put-back stands.",
       "reproduce": "node test/trial-reels-race-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "representative"
+    },
+    {
+      "file": "trial-reels-link-guard-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. The version on the card: a link another version has, a decided version's link and a refused drop never leave the card on a link the function refused (Probe bugs 12 and 12b).",
+      "reproduce": "node test/trial-reels-link-guard-browser.js (after repository Playwright/Chromium setup)",
       "ci": "representative"
     },
     {

@@ -34677,3 +34677,31 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-review-browser.js` (47 checks; the P1, K2 and K5 checks fail without the fix), trial-reels-change-naming-browser (6), review-stage-kasper-layout2-browser (188), review-stage-browser, check-modules.
 
 **Way back:** revert the commit.
+
+## 529. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: the team may drop the version on the card (default (c), awaiting the owner, session Trials)
+
+- **What:** the version "on the card" was always Video A until a winner, so A could never be dropped. Now:
+  - "on the card" is the winner, else the live version whose link the card carries, else the first live one;
+  - dropping the version on the card is refused with `attach_first` (409) until today's attach has put the next live version's link on the card (the page does that first). After that, the old one drops like any other;
+  - the last live version cannot be dropped (`last_live_version`);
+  - Undo of a winner puts back the first live version, which is Video A unless A was dropped.
+- **Function:** `trial-reels` logic and index (`dropPatch` takes the card's link). No migration, not a Section 4 function.
+- **Proven:** `node test/trial-reels-logic.js` (79 checks), the Deno function test (33).
+
+**Way back:** revert the commit (the old rule: A, or the winner, is always the one on the card and cannot be dropped).
+
+## 530. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels on the card: dropping the version on the card (default (c), card side, session Trials)
+
+- **What:** the version on the card now has a Drop when another live version has a link. Pressing it runs today's attach of that next version's link first (so it becomes the one on the card), then drops the old one. With no other linked version the page says so and drops nothing. A refused pick or Undo now puts the card back on the winner's own link, else the first live version's (Video A unless it was dropped); never a fixed Video A.
+- **Proven:** `node test/trial-reels-card-browser.js` (54 checks, with the drop on the card), trial-reels-race-browser (15).
+
+**Way back:** revert this commit together with 529.
+
+## 531. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: "New cut ready" on a version asked to change (default (b), awaiting the owner, session Trials)
+
+- **Why:** Frame.io keeps one link across new uploads, so an editor's new cut of a version asked to change often arrives at the SAME link, and pasting it again could not restart the version (probe P1). Approve was not overloaded for this.
+- **What:** a new `trial-reels` action, `version_new_cut`, only on a version with a change asked and a link. Like a new link, it puts revision up, clears every OK and the change, and sets `waiting`, so the SMM and Kasper review it again before the client (Q3). An editor's key may use it, like pasting a link; dropping, the trial and the winner stay the SMM's or an admin's. It is recorded in the card's history as `trial_version_new_cut`.
+- **Where (card, build 2):** in the version row's hover tools, beside the pencil. No new control shows until the row is hovered.
+- **Proven:** `node test/trial-reels-logic.js` (82 checks), the Deno function test (35).
+
+**Way back:** revert this commit and the card's.

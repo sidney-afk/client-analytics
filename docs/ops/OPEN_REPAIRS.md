@@ -34669,3 +34669,13 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-logic.js` (82 checks), the Deno function test (35).
 
 **Way back:** revert this commit and the card's.
+
+## 533. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: a refused link or drop on the version on the card left the card on another link (Probe bugs 12, 12b, session Trials)
+
+- **What was wrong:** for the version on the card, the page does today's attach FIRST, then asks the function. When the function refused (a link another version has, a decided version, or a refused drop of the version on the card), the card kept the new link while the page said "did not save".
+- **Fix (`189`), one rule: the card's link moves only once the function says yes.**
+  - What the function would refuse anyway is said before anything moves: a link another version has, or a decided version's link.
+  - After any other refusal, the page puts the card's link back to what it was before, as a compare-and-swap on its own attach (a link someone else attached since stands), then reads the versions again and shows the function's state.
+- **Proven:** `node test/trial-reels-link-guard-browser.js` (Probe's test, adopted; 3 of its 4 checks fail without the fix), trial-reels-card-browser (58), trial-reels-race-browser (15).
+
+**Way back:** revert the commit.

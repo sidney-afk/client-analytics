@@ -349,6 +349,9 @@ export function readShape(versions, { client, mainLink, cardStatus }) {
       frame_url: isMain && clean(mainLink, 2048) ? clean(mainLink, 2048) : (v.frame_url || null),
       on_card: isMain,
       client_ok_at: v.client_ok_at || null,
+      // The SMM has looked at it, so Kasper and the client may answer it (stage order). A yes or no only: a client
+      // read carries no team timestamps (Probe rule-miss 13).
+      ready: !!v.smm_ok_at,
     };
     if (client) return base;
     return Object.assign(base, {

@@ -37,6 +37,8 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     hook: 'Fictional hook ' + l, smm_ok_at: null, kasper_ok_at: null, client_ok_at: null }, (over || {})[l] || {}));
 
   async function start(mode, flag, versions) {
+    // Kasper and the client answer a version only after the SMM (the server holds the order).
+    if (mode !== 'smm') versions.forEach(v => { if (!v.smm_ok_at) v.smm_ok_at = '2026-10-27T08:00:00.000Z'; });
     const T = { versions, calls: [] };
     const t = await open(browser, origin, Object.assign({ stage: mode, flags: 'on', flagValues: { trial_reels_pages: { clients: flag ? [SLUG] : ['someotherclient'] } } },
       mode !== 'client' ? { staff: STAFF } : {}));
@@ -175,6 +177,16 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     await sleep(900);
     b = await bar(t);
     ok(/^Video E of 5/.test(b.text) && !b.player && /No video yet/.test(await inS(t.page, '#novidMsg').innerText()), 'a version with no link shows "No video yet", never another version\'s video');
+    await t.ctx.close();
+
+    // ---------- one live version still answers on its own ----------
+    t = await start('client', true, fresh({ B: { status: 'dropped' }, C: { status: 'dropped' }, D: { status: 'dropped' }, E: { status: 'dropped' } }));
+    b = await bar(t);
+    n0 = t.state.upserts.length;
+    ok(b.text === 'Video A' && !b.dots.length, 'one live version: the bar just names it (' + b.text + ')');
+    await inS(t.page, '[data-ok="video"]').click();
+    for (let i = 0; i < 80 && !t.state.upserts.slice(n0).some(u => u.video_status === 'Approved'); i++) await sleep(100);
+    ok(t.T.versions[0].status === 'approved' && t.state.upserts.slice(n0).some(u => u.id === 'rs1' && u.video_status === 'Approved'), 'one live version: its own answer first, then today\'s approve, so the trial can start');
     await t.ctx.close();
 
     // ---------- once the winner is picked ----------

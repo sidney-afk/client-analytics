@@ -22,17 +22,29 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   // Answers: SMM, Kasper, client
   let r = L.answerPatches(five(), { stage: 'smm', kind: 'approve', letter: 'B' }, NOW);
   ok(r.patches.length === 1 && r.patches[0].patch.smm_ok_at === NOW && !('status' in r.patches[0].patch), 'the SMM approving B stamps only smm_ok_at; the label stays waiting');
-  r = L.answerPatches(five(), { stage: 'client', kind: 'approve', letter: 'B' }, NOW);
+  const smmDone = () => five().map(x => Object.assign(x, { smm_ok_at: NOW }));
+  r = L.answerPatches(smmDone(), { stage: 'client', kind: 'approve', letter: 'B' }, NOW);
   ok(r.patches[0].patch.status === 'approved' && r.patches[0].patch.client_ok_at === NOW, 'the client approving B makes it approved');
   r = L.answerPatches(five(), { stage: 'client', kind: 'change', letter: 'C' }, NOW);
   ok(r.error === 'note_required', 'a change needs a note');
   r = L.answerPatches(five(), { stage: 'client', kind: 'change', letter: 'C', note: 'Bigger text' }, NOW);
   ok(r.patches[0].patch.status === 'change asked' && r.patches[0].patch.change_by === 'client', 'a change on C: change asked, by the client');
-  const mixed = [v('A', { status: 'approved' }), v('B'), v('C', { status: 'change asked' }), v('D', { status: 'dropped' }), v('E')];
+  const mixed = [v('A', { status: 'approved', smm_ok_at: NOW }), v('B', { smm_ok_at: NOW }), v('C', { status: 'change asked', smm_ok_at: NOW }), v('D', { status: 'dropped' }), v('E', { smm_ok_at: NOW })];
   r = L.answerPatches(mixed, { stage: 'client', kind: 'approve_all' }, NOW);
   ok(r.patches.map(p => p.letter).join('') === 'BE', 'Approve all approves only the versions still waiting (not dropped, not changed, not already approved)');
   ok(L.answerPatches(mixed, { stage: 'client', kind: 'approve', letter: 'D' }).error === 'version_dropped', 'a dropped version cannot be answered');
   ok(L.answerPatches(five(), { stage: 'boss', kind: 'approve', letter: 'A' }).error === 'stage_invalid', 'an unknown stage is refused');
+  // The server holds the rules, not only the page (Probe, batch 1)
+  ok(L.answerPatches(mixed, { stage: 'client', kind: 'approve', letter: 'C' }, NOW).error === 'change_open', 'a version with a change asked cannot be approved: it waits for its new cut (Q3)');
+  ok(L.answerPatches(five(), { stage: 'client', kind: 'approve', letter: 'B' }, NOW).error === 'stage_order' && L.answerPatches(five(), { stage: 'kasper', kind: 'approve', letter: 'B' }, NOW).error === 'stage_order',
+    'Kasper and the client answer a version only after the SMM has');
+  ok(L.answerPatches(five(), { stage: 'client', kind: 'approve_all' }, NOW).patches.length === 0, 'Approve all skips every version not yet through the SMM');
+  const noLink = smmDone(); noLink[1].frame_url = null;
+  ok(L.answerPatches(noLink, { stage: 'client', kind: 'approve', letter: 'B' }, NOW).error === 'version_has_no_link'
+    && L.answerPatches(noLink, { stage: 'client', kind: 'approve_all' }, NOW).patches.every(p => p.letter !== 'B'), 'a version with no link is never approved: nothing to watch');
+  ok(L.staffAllows('admin', 'winner_set') && L.staffAllows('smm', 'version_drop') && L.staffAllows('creative', 'version_link_set')
+    && !L.staffAllows('creative', 'answer') && !L.staffAllows('creative', 'winner_set') && !L.staffAllows('automation', 'version_link_set') && L.staffAllows('automation', 'read'),
+    'staff keys: admin and SMM everything, an editor only pastes a link (Q9), the automation key only reads');
 
   // Stages and the card
   const kasperHalf = five().map((x, i) => i < 4 ? Object.assign(x, { kasper_ok_at: NOW }) : x);
@@ -57,19 +69,30 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   ok(r.restarted && r.patch.status === 'waiting' && r.patch.revision === 3 && r.patch.smm_ok_at === null && r.patch.kasper_ok_at === null && r.patch.change_note === null,
     'a new cut of a changed version starts again: revision + 1, OKs cleared, waiting (the normal route, owner Q3)');
   ok(L.linkPatch(five(), 'B', 'https://f.io/fixture-b', A_LINK).patch === null, 'the same link again changes nothing');
+  r = L.linkPatch([v('A'), v('B', { status: 'approved', smm_ok_at: NOW, kasper_ok_at: NOW, client_ok_at: NOW })], 'B', 'https://f.io/new-b2', A_LINK);
+  ok(r.restarted && r.patch.status === 'waiting' && r.patch.client_ok_at === null, 'a link that replaces an approved version\'s link starts it again: no approval covers an unseen video');
+  r = L.linkPatch([v('A'), v('B', { frame_url: null, smm_ok_at: NOW })], 'B', 'https://f.io/first-b', A_LINK);
+  ok(!r.restarted && r.patch.frame_url === 'https://f.io/first-b', 'a first paste keeps what the version had');
+  ok(L.linkPatch(five(), 'B', 'https://f.io/fixture-c', A_LINK).error === 'link_used_by_another_version', 'one link, one version');
+  ok(L.linkPatch([v('A'), v('B', { status: 'on trial' })], 'B', 'https://f.io/new-b3', A_LINK).error === 'version_on_trial', 'a decided version keeps its link');
 
   // Drop, trial, winner
   ok(L.dropPatch(five(), 'A').error === 'main_version', 'the version on the card cannot be dropped');
   ok(L.dropPatch(five(), 'D').patch.status === 'dropped' && L.dropPatch([v('D', { status: 'dropped' })], 'D', true).patch.status === 'waiting', 'drop and bring back');
+  ok(L.dropPatch([v('D', { status: 'dropped', smm_ok_at: NOW, client_ok_at: NOW })], 'D', true).patch.client_ok_at === null, 'a version brought back is reviewed again: no earlier OK stands');
   ok(L.dropPatch([v('C', { status: 'on trial' })], 'C').error === 'version_on_trial', 'a version on trial cannot be dropped');
   r = L.trialPatches([v('A', { status: 'approved' }), v('B', { status: 'approved' }), v('D', { status: 'dropped' })], Date.parse(NOW));
   ok(r.patches.length === 2 && r.patches[0].patch.trial_ends_at === '2026-10-28T10:00:00.000Z', 'on trial: the approved versions, with a 24 h timer');
   ok(L.trialPatches(five(), Date.parse(NOW)).error === 'nothing_approved', 'nothing approved: no trial');
+  ok(L.trialPatches([v('A', { status: 'approved' }), v('B')], Date.parse(NOW)).error === 'not_all_approved', 'the trial never starts while a version still waits');
   const trial = [v('A', { status: 'on trial' }), v('B', { status: 'on trial' }), v('C', { status: 'on trial' }), v('D', { status: 'dropped' })];
   ok(L.winnerPatches(trial, 'C', A_LINK).error === 'attach_first', "the winner is refused until the card's link is the winner's");
   r = L.winnerPatches(trial, 'C', 'https://f.io/fixture-c');
   ok(r.patches.map(p => p.letter + ':' + p.patch.status).join(' ') === 'A:lost B:lost C:winner', 'the winner, and the others lost');
   ok(L.winnerPatches(trial, 'D', 'https://f.io/fixture-d').error === 'version_not_on_trial', 'only a version on trial can win');
+  const early = trial.map(x => Object.assign({}, x, { trial_ends_at: '2026-10-28T10:00:00.000Z' }));
+  ok(L.winnerPatches(early, 'C', 'https://f.io/fixture-c', { nowMs: Date.parse(NOW) }).error === 'trial_not_over', 'no winner before the 24 h are up');
+  ok(L.winnerPatches(trial, 'C', 'https://f.io/fixture-c', { cardStatus: 'Posted' }).error === 'card_posted', 'no winner once the card is Posted');
   ok(!JSON.stringify(r).includes('no clear winner'), 'SyncView never writes "no clear winner" (owner, Q10)');
   const decided = [v('A', { status: 'lost' }), v('B', { status: 'lost' }), v('C', { status: 'winner' }), v('D', { status: 'dropped' })];
   ok(L.undoWinnerPatches(decided, 'https://f.io/fixture-c').error === 'attach_first', "Undo is refused until the card's link is back on Video A's");

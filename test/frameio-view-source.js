@@ -323,6 +323,8 @@ function deps(f, over = {}) {
     const VB = 'https://f.io/verb22';
     eq(await authorizeClientCard({ token: TOK_A, cardId: 'card-1', link: VB }, fakeDb().rest), { slug: 'clientone', link: VB }, "a trial card's Video B plays on the client link");
     eq(await refused({ token: TOK_A, cardId: 'card-1', link: 'https://f.io/verc33' }, fakeDb()), 'not_found 404', 'a dropped version is refused');
+    { const versions = [{ client: 'clientone', post_id: 'card-1', letter: 'A', status: 'approved', frame_url: LINK }, { client: 'clientone', post_id: 'card-1', letter: 'B', status: 'pending', frame_url: 'https://f.io/verb22/?x=1' }];
+      eq((await authorizeClientCard({ token: TOK_A, cardId: 'card-1', link: VB }, fakeDb({ versions }).rest)).link, 'https://f.io/verb22/?x=1', "a version saved with a trailing slash and query plays when asked by the player's short link (Codex on PR 2367)"); }
     eq(await refused({ token: TOK_A, cardId: 'card-1', link: 'https://f.io/twob44' }, fakeDb()), 'not_found 404', "another card's (another client's) version is refused");
     eq(await refused({ token: TOK_A, cardId: 'card-1', link: VB }, fakeDb({ trialFlag: { clients: ['clienttwo'] } })), 'not_found 404', 'trial reels off for this client: refused like any other link');
     eq(await refused({ token: TOK_A, cardId: 'card-1', link: VB }, fakeDb({ trialFlag: null })), 'not_found 404', 'no trial reels switch row: refused');

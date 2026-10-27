@@ -121,6 +121,9 @@ function ok(c, m) { if (!c) { failures.push(m); console.error('FAIL  ' + m); } e
   // What readers get
   const s1 = L.readShape(mixed, { client: true, mainLink: A_LINK, cardStatus: 'Client Approval' });
   ok(s1.versions.every(x => !('hook' in x) && !('change_note' in x)), 'a client link gets no hook and no team note');
+  ok(L.readShape([v('A', { smm_ok_at: NOW }), v('B')], { client: true, mainLink: A_LINK }).versions.map(x => x.ready).join() === 'true,false'
+    && !('smm_ok_at' in L.readShape([v('A', { smm_ok_at: NOW })], { client: true, mainLink: A_LINK }).versions[0]),
+    "a client read says which versions the SMM has looked at (ready), as a yes or no, never the team's times");
   ok(s1.card_approvable === false && !('card_behind' in s1) && L.readShape([v('A', { status: 'approved' })], { client: true, mainLink: A_LINK }).card_approvable === true, 'a client link learns when the card can move to Approved, and nothing about the team\'s side');
   ok(!s1.versions.some(x => x.letter === 'D'), 'a client link does not see a dropped version');
   const won = [v('A', { status: 'lost' }), v('B', { status: 'lost' }), v('C', { status: 'winner' })];

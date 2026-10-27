@@ -335,14 +335,40 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const link = String(input.value || '').trim();
         if (cancel || !post || !v || link === String(v.frame_url || '')) { _trlRepaintField(pid); return; }
         if (v.on_card) {
-            // The version on the card: today's path first, then the copy (the function checks they agree).
-            try { await _trlSetCardLink(post, link); }
-            catch (e) { _trlSay(e, 'Video ' + letter + "'s link"); _trlRepaintField(pid); return; }
+            // The version on the card: today's path first, then the copy (the function checks they agree). What the
+            // function would refuse anyway is said before anything moves (Probe bug 12): a link another version has,
+            // and a version already decided (on trial, winner, lost).
+            const what = 'Video ' + letter + "'s link";
+            if (link && (shape.versions || []).some(x => x.letter !== letter && String(x.frame_url || '') === link)) { _trlSay({ code: 'link_used_by_another_version' }, what); _trlRepaintField(pid); return; }
+            if (['on trial', 'winner', 'lost'].includes(v.status)) { _trlSay({ code: 'version_on_trial' }, what); _trlRepaintField(pid); return; }
+            const before = String(post.asset_url || '');
+            let mine = '';
+            try { mine = await _trlSetCardLink(post, link); }
+            catch (e) { _trlSay(e, what); _trlRepaintField(pid); return; }
+            const json = await _trlRun(pid, 'link', { action: 'version_link_set', letter, link }, what);
+            if (!json) await _trlAttachBack(post, before, mine, link);
+            return;
         }
         await _trlRun(pid, 'link', { action: 'version_link_set', letter, link }, 'Video ' + letter + "'s link");
     }
     // Today's attach of one link onto a card, for the review page's tiles (194): the version on the card is dropped there too.
     async function svTrialMoveCard(post, link) { return _trlSetCardLink(post, link); }
+    /* The card's link moves only once the function says yes (Probe bugs 12 and 12b). After a refusal, the link this page
+       attached goes back to what the card carried before, as a compare-and-swap on this page's own attach (a link
+       someone else attached since stands), and the versions are read again, so the page shows the function's state. */
+    async function _trlAttachBack(post, before, mine, now) {
+        if (before && before !== now) {
+            try { await _trlSetCardLink(post, before, mine); }
+            catch (e) {
+                if (String(e && e.code) === 'write_conflict') showNotify("Someone else just changed the card's Video link", 'Theirs stands. Look again before you change it.');
+                else showNotify("The card's Video link was not put back", 'It now opens another version. Set the Video link by hand, then try again.');
+            }
+        }
+        await _trlFresh(post);
+        _trlRepaintField(post.id);
+    }
+    // The same put-back for the review page's tiles (194).
+    async function svTrialAttachBack(post, before, mine, now) { return _trlAttachBack(post, before, mine, now); }
     // The live version after this one that has a link: where "on the card" moves when the version on the card is dropped.
     function _trlNextLive(vs, letter) {
         return (vs || []).find(x => x.letter !== letter && x.status !== 'dropped' && x.frame_url) || null;
@@ -356,8 +382,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!restore && v && v.on_card) {
             const next = _trlNextLive(shape.versions, letter);
             if (!next) { showNotify('Video ' + letter + ' was not dropped', 'It is the only version with a link. Paste another version\'s link first.'); return; }
-            try { await _trlSetCardLink(post, next.frame_url); }
+            const before = String(post.asset_url || '');
+            let mine = '';
+            try { mine = await _trlSetCardLink(post, next.frame_url); }
             catch (e) { _trlSay(e, 'Video ' + letter); return; }
+            const json = await _trlRun(pid, 'drop', { action: 'version_drop', letter }, 'Video ' + letter);
+            if (!json) await _trlAttachBack(post, before, mine, next.frame_url);
+            return;
         }
         await _trlRun(pid, 'drop', { action: restore ? 'version_restore' : 'version_drop', letter }, 'Video ' + letter);
     }
@@ -492,6 +523,6 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         svTrialOpen, svTrialPick, svTrialStart, svTrialToggle
     });
 export {
-  svTrialCall, svTrialMoveCard, svTrialLabelShown, svTrialErrorText, svTrialNotesBody, svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml,
+  svTrialAttachBack, svTrialCall, svTrialMoveCard, svTrialLabelShown, svTrialErrorText, svTrialNotesBody, svTrialNotesLetter, svTrialNotesPost, svTrialNotesSwitchHtml,
   svTrialSwitchHtml, svTrialVideoRowHtml
 };

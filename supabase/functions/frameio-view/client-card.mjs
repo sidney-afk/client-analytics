@@ -9,6 +9,10 @@
 //   4. the client must be switched on in the frame_viewer_clients flag (a missing row, a bad shape or a failed
 //      read all mean no).
 // Only reads, and only through the `rest` function the handler passes in.
+// Trial reels: a link in the request plays only when it is one of this card's own versions the client may see
+// (trialVersionLink below); anything else is refused like a link that is not the card's.
+
+import { parseFrameLink } from './logic.mjs';
 
 const clean = (v) => String(v == null ? '' : v).trim();
 const SAFE_CARD_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$/;
@@ -105,7 +109,11 @@ export async function trialVersionLink({ slug, cardId, link }, rest) {
     const versions = Array.isArray(rows) ? rows : [];
     const winner = versions.find((v) => v && v.status === 'winner');
     const seen = winner ? [winner] : versions.filter((v) => v && v.status !== 'dropped' && v.status !== 'lost');
-    const hit = seen.find((v) => clean(v.frame_url) && clean(v.frame_url) === link);
+    // Compared as Frame.io links, not as text: the page asks with the link the player reads (a short link without its
+    // trailing slash or query), while the version may have been saved with them (Codex on PR 2367).
+    const key = (x) => { const p = parseFrameLink(x); return p ? JSON.stringify(p) : clean(x); };
+    const want = key(link);
+    const hit = seen.find((v) => clean(v.frame_url) && key(v.frame_url) === want);
     return hit ? clean(hit.frame_url) : '';
   } catch {
     return '';

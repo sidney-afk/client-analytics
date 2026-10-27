@@ -34720,3 +34720,28 @@ Full report: `docs/audits/2026-10-26-hidden-red-lanes.md`. Follows 505 and 506; 
 - **Proven:** `node test/trial-reels-review-browser.js` (48 checks, with Video A dropped from its tile after Video B is attached), trial-reels-change-naming-browser, review-stage-kasper-layout2-browser (188).
 
 **Way back:** revert this commit with 529 and 530.
+
+## 533. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels: a refused link or drop on the version on the card left the card on another link (Probe bugs 12, 12b, session Trials)
+
+- **What was wrong:** for the version on the card, the page does today's attach FIRST, then asks the function. When the function refused (a link another version has, a decided version, or a refused drop of the version on the card), the card kept the new link while the page said "did not save".
+- **Fix (`189`), one rule: the card's link moves only once the function says yes.**
+  - What the function would refuse anyway is said before anything moves: a link another version has, or a decided version's link.
+  - After any other refusal, the page puts the card's link back to what it was before, as a compare-and-swap on its own attach (a link someone else attached since stands), then reads the versions again and shows the function's state.
+- **Proven:** `node test/trial-reels-link-guard-browser.js` (Probe's test, adopted; 3 of its 4 checks fail without the fix), trial-reels-card-browser (58), trial-reels-race-browser (15).
+
+**Way back:** revert the commit.
+
+## 534. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels on the review page: Approve on versions the SMM has not looked at, and arrows the client could not see (Probe rule-miss 13, E1b, session Trials)
+
+- **Rule-miss 13:** Kasper and the client answer a version only after the SMM has (the function's stage order). The page still offered Approve on such a version, after a new cut for instance. The press was refused, and Approve all skipped it and landed on it again. Now the version reads "with the team": a muted dashed dot, no Approve (the row says "With the team: the SMM looks at Video B first"), and no place in Approve all. Every read now says `ready` (build 1) as a yes or no, so the client's read carries no team times.
+- **E1b:** on the client link the side arrows sat inside the poster box (`#novid`, used for a version that opens in a new tab or has no link), which clips what overflows it, so they were invisible. They now sit on the media box, placed beside the player by its measured width, and stay bound to the post on screen.
+- **Proven:** `node test/trial-reels-review-browser.js` (40 checks; the new E1b and rule-miss 13 checks fail without the fix), trial-reels-change-naming-browser, review-stage-browser, review-stage-kasper-layout2-browser (188), review-stage-client-layout-browser.
+
+**Way back:** revert the commit.
+
+## 535. [2026-10-27 UTC, BUILT, NOT MERGED] Trial reels in Kasper's second layout: a refused drop of the version on the card puts the card's link back (Probe bug 12b on the tiles, session Trials)
+
+- **What:** the tile's drop of the version on the card attaches the next live version's link first. When the function then refused the drop, the card stayed on that next version. Now the put-back is the card's own (533): what the card carried before, compare-and-swap on this page's attach, then a fresh read. 189 exports `svTrialAttachBack` for the tile.
+- **Proven:** `node test/trial-reels-review-browser.js` (52 checks, with a refused tile drop), and the other trial suites on this build.
+
+**Way back:** revert the merge's tile change in 194 (svTrialReviewDrop).

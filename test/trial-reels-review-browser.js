@@ -40,7 +40,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
 
   async function start(mode, flag, versions, extra) {
     // Kasper and the client answer a version only after the SMM (the server holds the order).
-    if (mode !== 'smm') versions.forEach(v => { if (!v.smm_ok_at) v.smm_ok_at = '2026-10-27T08:00:00.000Z'; });
+    if (mode !== 'smm') versions.forEach(v => { if (!v.smm_ok_at && !((extra && extra.noSmm) || []).includes(v.letter)) v.smm_ok_at = '2026-10-27T08:00:00.000Z'; });
     const T = { versions, calls: [], cards: extra && extra.cards };
     const t = await open(browser, origin, Object.assign({ stage: mode, flags: 'on', flagValues: { trial_reels_pages: { clients: flag ? [SLUG] : ['someotherclient'] } } },
       mode !== 'client' ? { staff: STAFF } : {}, extra || {}));
@@ -70,6 +70,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
         for (const p of res.patches) Object.assign(T.versions.find(v => v.id === p.id), p.patch);
         return reply(Object.assign({ ok: true }, shape()));
       }
+      if (b.action === 'version_drop' && T.refuseDrop) { T.refuseDrop = false; return reply({ ok: false, error: 'conflict' }, 409); }
       if (b.action === 'version_drop') {
         const res = L.dropPatch(T.versions, b.letter, false, T.mainLink || T.versions[0].frame_url);
         if (res.error) return reply({ ok: false, error: res.error }, res.error === 'attach_first' ? 409 : 400);
@@ -159,6 +160,12 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     b.link = t.T.views[t.T.views.length - 1] || '';
     const ask = t.T.asks[t.T.asks.length - 1] || {};
     ok(/^Video B of 5/.test(b.text) && b.player && ask.link === LINK('B') && !!ask.card_id && !ask.part, 'client: the arrow moves to Video B, which plays in the page\'s player (the client link asks by card id and names B\'s link: ' + JSON.stringify(ask) + ')');
+    const seen = await t.page.evaluate(() => {
+      const r = document.getElementById('svReviewStage').shadowRoot;
+      return ['.trv-side.prev', '.trv-side.next'].map(sel => { const a = r.querySelector(sel); if (!a) return 'none'; const q = a.getBoundingClientRect();
+        const hit = r.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2); return hit && (hit === a || a.contains(hit)) ? 'seen' : 'hidden'; }).join(',');
+    });
+    ok(seen === 'seen,seen', 'client: on Video B the arrows beside the player can be seen and pressed (Probe E1b: ' + seen + ')');
     let n0 = t.state.upserts.length;
     await inS(t.page, '[data-ok="video"]').click();
     await waitFor(async () => t.T.calls.some(c => c.action === 'answer'));
@@ -172,6 +179,17 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     ok(t.T.calls.some(c => c.kind === 'approve_all') && t.T.versions.every(v => v.status === 'approved'), 'client: Approve all answers the rest');
     ok(t.state.upserts.slice(n0).some(u => u.id === 'rs1' && u.video_status === 'Approved'), 'client: then today\'s approve moves the video to Approved');
     ok(!t.errors.length, 'client: no page errors (' + t.errors.join(' | ') + ')');
+    await t.ctx.close();
+
+    // ---------- a version the SMM has not looked at yet is with the team (Probe rule-miss 13) ----------
+    t = await start('client', true, fresh(), { noSmm: ['B'] });
+    b = await bar(t);
+    const teamDot = await t.page.evaluate(() => { const d = document.getElementById('svReviewStage').shadowRoot.querySelector('.trv-dot[data-trv-go="B"]'); return d ? d.className + '|' + d.getAttribute('aria-label') : ''; });
+    ok(/team/.test(teamDot) && /with the team/.test(teamDot) && b.all === 'Approve all (4 waiting)', 'client: Video B (no SMM OK yet) has a muted dot, "with the team", and is not counted in Approve all (' + teamDot + ' | ' + b.all + ')');
+    await inS(t.page, '.trv [data-trv-go="B"]').click();
+    await sleep(700);
+    const teamRow = await t.page.evaluate(() => { const r = document.getElementById('svReviewStage').shadowRoot; return { ok: !!r.querySelector('[data-ok="video"]'), txt: ((r.getElementById('drow') || {}).innerText || '').replace(/\s+/g, ' ') }; });
+    ok(!teamRow.ok && /With the team: the SMM looks at Video B first/.test(teamRow.txt), 'client: on Video B no Approve, only "With the team" (' + teamRow.txt.slice(0, 80) + ')');
     await t.ctx.close();
 
     // ---------- the client link on a phone: no arrows, swipe the video (Probe E3) ----------
@@ -313,6 +331,17 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     await sleep(900);
     k = await tiles();
     ok(t.T.versions[3].status === 'dropped' && k.names.length === 4, 'the team drops Video D from its tile');
+    // A refused drop of the version on the card puts the card's link back (Probe bug 12b).
+    t.T.refuseDrop = true;
+    await inS(t.page, '.trk-v [data-trk-drop="A"]').click();
+    await waitFor(async () => t.T.attaches.length >= 2);
+    await sleep(900);
+    // (The fixture card carries its own link; the put-back goes to exactly what the card carried before.)
+    ok(t.T.attaches.length === 2 && t.T.attaches[0] === LINK('B') && t.T.attaches[1] !== LINK('B') && t.T.mainLink === t.T.attaches[1] && t.T.versions[0].status !== 'dropped',
+      "a refused drop of Video A from its tile puts the card's link back to what it carried (" + t.T.attaches.join('|') + ')');
+    t.T.mainLink = LINK('A');
+    t.T.attaches = [];
+    await t.page.evaluate(() => { const ov = document.getElementById('confirmOverlay'); if (ov) ov.classList.remove('active'); });
     // Default (c): Video A, on the card, drops too: today's attach first puts the next live version (B) on the card.
     await inS(t.page, '.trk-v [data-trk-drop="A"]').click();
     await waitFor(async () => t.T.versions[0].status === 'dropped');

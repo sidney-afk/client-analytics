@@ -56,6 +56,25 @@ export function cleanLink(raw) {
 }
 
 export const live = (v) => v.status !== STATUS.dropped;
+
+/*
+ * The winner is SyncView's alone (owner, 2026-10-27): trial_reel_cards.winner_letter is the only source of truth, and
+ * a "winner" or "lost" the studio (the AI editor) writes on a version's row means nothing. Every read and rule sees
+ * the versions through this. With a winner letter, that version is the winner and every other one on trial or
+ * decided is lost; with none, nothing is decided, so a stored "winner" or "lost" reads as on trial (where SyncView's
+ * own Undo puts them).
+ */
+export function settleWinner(versions, winnerLetter) {
+  const w = clean(winnerLetter, 1).toUpperCase();
+  const pick = LETTERS.includes(w) ? w : "";
+  return versions.map((v) => {
+    const decided = v.status === STATUS.winner || v.status === STATUS.lost;
+    if (pick && v.letter === pick) return v.status === STATUS.winner ? v : { ...v, status: STATUS.winner };
+    if (pick && (decided || v.status === STATUS.trial)) return v.status === STATUS.lost ? v : { ...v, status: STATUS.lost };
+    if (!pick && decided) return { ...v, status: STATUS.trial };
+    return v;
+  });
+}
 const okField = (stage) => stage + "_ok_at";
 
 /*

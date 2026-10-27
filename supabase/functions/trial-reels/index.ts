@@ -41,6 +41,7 @@ import {
   likeExact,
   linkPatch,
   readShape,
+  settleWinner,
   trialPatches,
   undoWinnerPatches,
   winnerPatches,
@@ -112,10 +113,11 @@ async function mainLink(supabase: SupabaseClient, card: JsonMap): Promise<string
   return clean(card.asset_url, 2048);
 }
 
-async function readVersions(supabase: SupabaseClient, client: string, postId: string): Promise<Version[]> {
+// Seen through the card's own winner letter (settleWinner): a winner the studio writes on a row is never read.
+async function readVersions(supabase: SupabaseClient, client: string, postId: string, winnerLetter: unknown): Promise<Version[]> {
   const { data, error } = await supabase.from("studio_trial_versions").select("*").eq("post_id", postId).ilike("client", likeExact(client));
   if (error) throw new Refusal(503, "versions_unreadable");
-  return ((data || []) as Version[]).filter((v) => LETTERS.includes(String(v.letter)));
+  return settleWinner(((data || []) as Version[]).filter((v) => LETTERS.includes(String(v.letter))), winnerLetter) as Version[];
 }
 
 async function readSwitch(supabase: SupabaseClient, client: string, postId: string): Promise<JsonMap | null> {
@@ -192,7 +194,7 @@ Deno.serve(async (req: Request) => {
         const id = clean(sw.post_id, 120);
         const card = await readCard(supabase, client, id).catch(() => null);
         if (!card) continue;
-        const versions = await readVersions(supabase, client, id);
+        const versions = await readVersions(supabase, client, id, sw.winner_letter);
         const link = await mainLink(supabase, card);
         cards[id] = { enabled: true, winner_letter: sw.winner_letter || null,
           ...readShape(versions, { client: principal.kind === "client", mainLink: link, cardStatus: card.video_status }) };
@@ -222,7 +224,7 @@ Deno.serve(async (req: Request) => {
 
     // Everything else is about the versions of a card whose switch is on.
     if (!sw || sw.enabled !== true) throw new Refusal(409, "trial_reels_off");
-    const versions = await readVersions(supabase, client, postId);
+    const versions = await readVersions(supabase, client, postId, sw.winner_letter);
     const link = await mainLink(supabase, card);
     const shape = () => readShape(versions, { client: principal!.kind === "client", mainLink: link, cardStatus: card.video_status });
 
@@ -283,7 +285,8 @@ Deno.serve(async (req: Request) => {
       if (error) console.warn(JSON.stringify({ fn: FN, ledger: "insert_failed", post_id: postId }));
     }
     // Read back what the page should now show.
-    const after = await readVersions(supabase, client, postId);
+    const after = await readVersions(supabase, client, postId,
+      action === "winner_set" ? letter : action === "winner_undo" ? null : sw.winner_letter);
     const fresh = readShape(after, { client: principal.kind === "client", mainLink: link, cardStatus: card.video_status });
     outcome = "ok";
     return json({ ok: true, changed: changes.map((c) => c.letter), ...extra, ...fresh });

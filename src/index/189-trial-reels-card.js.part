@@ -389,8 +389,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!vs) return '';
         const cur = _trlNotesCurOf(post, vs), p = _calEscAttr(post.id);
         return '<div class="trl-notes-sw" role="group" aria-label="Which version plays"><span class="cal-cm-audience-cap">Video</span><div class="cal-cm-aud-seg">'
-            + vs.map(v => '<button type="button" class="cal-cm-aud-btn' + (v === cur ? ' is-active' : '') + '" aria-pressed="' + (v === cur) + '" aria-label="Video ' + _calEscAttr(v.letter) + '"'
-                + ' onclick="svTrialNotesPick(\'' + p + '\',\'' + _calEscAttr(v.letter) + '\')">' + _calEsc(v.letter) + '</button>').join('')
+            + vs.map(v => {
+                const l = _calEscAttr(v.letter);
+                return '<button type="button" class="cal-cm-aud-btn' + (v === cur ? ' is-active' : '') + '" aria-pressed="' + (v === cur) + '" aria-label="Video ' + l + '"'
+                    + ' onclick="svTrialNotesPick(\'' + p + '\',\'' + l + '\')">' + l + '</button>';
+            }).join('')
             + '</div></div>';
     }
     function svTrialNotesPick(pid, letter) {

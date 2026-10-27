@@ -43,6 +43,14 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         nothing_approved: 'No version is approved yet.',
         conflict: 'Someone changed this version a moment ago. It has been reloaded; try again.',
         write_failed: 'The video sub-issue could not be read or saved, so nothing changed. Try again in a moment.',
+        change_open: 'This version has a change asked. Paste its new cut first, then it can be approved.',
+        stage_order: 'This version still needs the SMM\'s OK first.',
+        version_has_no_link: 'This version has no link yet. Paste its Frame.io link first.',
+        link_used_by_another_version: 'Another version already has this link. Each version needs its own.',
+        not_all_approved: 'Every version must be approved before the trial starts.',
+        trial_not_over: 'The 24 h trial is not over yet.',
+        card_posted: 'This post is already Posted, so the winner cannot change.',
+        role_not_allowed: 'Your key cannot do this. Ask the SMM.',
     };
 
     const _trlCards = {};        // client slug -> { at, cards: { pid: shape }, promise }

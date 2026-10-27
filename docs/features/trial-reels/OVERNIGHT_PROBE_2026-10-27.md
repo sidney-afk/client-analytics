@@ -1,5 +1,11 @@
 # Trial reels: the overnight probe (session Probe, 2026-10-27)
 
+**Final status (07:20 UTC).** Every bug and rule-miss the probe found is fixed by session Trials and verified on the stack
+head, build 7 at `0760719`, where every trial reels suite passed in full at 05:45 UTC. At 07:20 the build 1 to 6 heads
+(rule-miss 14 carried down, merges only) passed the fast checks (probe-logic 10/10, logic 95/95, probe-deno 7/7) and
+build; their browser suites were not rerun in the last ten minutes. What remains is owner taste, listed as one-liners
+below. No usage pause; the final-pass check-in fired 7 minutes late (07:17 for 07:10).
+
 This was an independent test of the trial reels build, done on the owner's go of 01:35 UTC. Session Trials builds the feature
 and fixes what is found; this session built nothing in the feature. Everything ran offline, with fictional data and
 no live writes. The plan is `docs/features/TRIAL_REELS_PLAN.md` (PR #2352). The tests are on branch
